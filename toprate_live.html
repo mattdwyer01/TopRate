@@ -352,7 +352,7 @@ td:nth-child(-n+4){text-align:left;}
 
   <button class="reset-btn" onclick="resetAll()">&#8635; Reset to optimal</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
-  <div class="run-info">Updated 24 Apr 2026 20:50<br>354 races &middot; 92 resulted &middot; 262 pending</div>
+  <div class="run-info">Updated 24 Apr 2026 21:08<br>354 races &middot; 92 resulted &middot; 262 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -382,7 +382,7 @@ td:nth-child(-n+4){text-align:left;}
     <table><thead><tr>
       <th>Date</th><th>Venue</th><th>Horse</th><th>Jockey</th>
       <th>Sigs</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
-      <th>Context</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Cumul</th>
+      <th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Cumul</th>
     </tr></thead><tbody id="tb"></tbody></table>
     <div class="empty" id="empty">No resulted bets match current filters</div>
   </div>
@@ -687,20 +687,32 @@ function update(){
       const fxVal=fx?fx.toFixed(2):'';
       const fxCls='fixed-inp'+(fx?' has-val':'');
       const fxId='fx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
-      return'<tr class="'+(b.won?'wr':b.placed?'pr':'')+(!isBet?' no-bet-row':'')+'"><td class="mn dm">'+b.date+'</td><td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td><td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td><td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td><td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td><td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td><td>'+res+manualTag+'</td><td>'+plH+'</td><td>'+cumH+'</td></tr>';
+      const betId='rbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
+      return'<tr class="'+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'"><td class="mn dm">'+b.date+'</td><td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td><td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td><td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td><td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td><td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td><td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td><td>'+res+manualTag+'</td><td>'+plH+'</td><td>'+cumH+'</td></tr>';
     }).join('');
     // Re-attach listeners after innerHTML rebuild
     sortedResulted.forEach(b=>{
       const fxId='fx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      const betId='rbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const inp=document.getElementById(fxId);
-      if(!inp)return;
-      inp.addEventListener('change',e=>{
-        const v=parseFloat(e.target.value);
-        if(!isNaN(v)&&v>1){setFixed(b,v);inp.classList.add('has-val');}
-        else{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}
-        update();
-      });
-      inp.addEventListener('click',e=>e.stopPropagation());
+      if(inp){
+        inp.addEventListener('change',e=>{
+          const v=parseFloat(e.target.value);
+          if(!isNaN(v)&&v>1){setFixed(b,v);inp.classList.add('has-val');}
+          else{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}
+          update();
+        });
+        inp.addEventListener('click',e=>e.stopPropagation());
+      }
+      const bb=document.getElementById(betId);
+      if(bb){
+        bb.addEventListener('click',e=>{
+          e.stopPropagation();
+          setBet(b,!getBet(b));
+          update();
+        });
+      }
     });
   }
   // ── Mobile resulted cards ──────────────────────────────────────────────────
@@ -720,6 +732,7 @@ function update(){
       const fxVal=fx?fx.toFixed(2):'';
       const fxCls='mob-fixed-inp'+(fx?' has-val':'');
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'">'
         +'<div class="mob-bet-hdr"><div><span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span></div>'
         +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+'</span></div></div>'
@@ -733,22 +746,27 @@ function update(){
         +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
         +'</div>'
         +'<div class="mob-bet-footer">'
+        +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
         +'<span style="font-size:10px;color:#6b7280;">Fixed:</span>'
         +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
-        +'<span class="mob-stake-lbl">'+effStake.toFixed(2)+'u &nbsp; '+plStr+'</span>'
+        +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+' &nbsp; '+plStr+'</span>'
         +'</div>'
         +'</div></div>';
     }).join('');
     sortedResulted.forEach(b=>{
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const inp=document.getElementById(fxId);
-      if(!inp)return;
-      inp.addEventListener('change',e=>{
-        const v=parseFloat(e.target.value);
-        if(!isNaN(v)&&v>1){setFixed(b,v);inp.classList.add('has-val');}
-        else{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}
-        update();
-      });
+      if(inp){
+        inp.addEventListener('change',e=>{
+          const v=parseFloat(e.target.value);
+          if(!isNaN(v)&&v>1){setFixed(b,v);inp.classList.add('has-val');}
+          else{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}
+          update();
+        });
+      }
+      const bb=document.getElementById(betId);
+      if(bb){bb.addEventListener('click',e=>{e.stopPropagation();setBet(b,!getBet(b));update();});}
     });
   }
 
