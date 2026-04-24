@@ -22,15 +22,15 @@ body{background:#f0f2f5;color:#2c3542;font-family:Barlow,sans-serif;font-size:13
   .mob-menu-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;cursor:pointer;padding:6px 10px;border-radius:4px;line-height:1;}
   .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;backdrop-filter:blur(2px);}
   .mob-overlay.open{display:block;}
-  .main{padding:12px 12px 80px;}
-  .main-tabs{margin-bottom:12px;}
+  .main{padding:10px 10px 80px;}
+  .main-tabs{margin-bottom:10px;}
   .main-tab{padding:8px 14px;font-size:9px;}
-  /* KPI strip - 2x3 grid on mobile */
+  /* KPI: 3 cols, 2 rows — no overflow */
   .kpi-strip{grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px;}
-  .kpi{padding:10px 10px;}
-  .kpi .v{font-size:20px;}
-  .kpi .l{font-size:8px;}
-  /* Hide desktop tables on mobile */
+  .kpi{padding:8px 8px;}
+  .kpi .v{font-size:18px;}
+  .kpi .l{font-size:7px;}
+  /* Hide desktop tables */
   .desk-only{display:none !important;}
   /* Mobile bet cards */
   .mob-bet-list{display:flex;flex-direction:column;gap:8px;}
@@ -38,28 +38,31 @@ body{background:#f0f2f5;color:#2c3542;font-family:Barlow,sans-serif;font-size:13
   .mob-bet-card.wr{border-left:4px solid #2e7d32;background:#f1f8f1;}
   .mob-bet-card.pr{border-left:4px solid #1565c0;background:#f0f4ff;}
   .mob-bet-card.no-bet-card{opacity:0.5;}
-  .mob-bet-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5f6f8;border-bottom:1px solid #e2e5ea;}
+  .mob-bet-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f5f6f8;border-bottom:1px solid #e2e5ea;}
   .mob-bet-venue{font-size:12px;font-weight:700;color:#0f1923;}
   .mob-bet-date{font-family:'Space Mono',monospace;font-size:9px;color:#9ca3af;}
   .mob-bet-body{padding:10px 12px;}
-  .mob-bet-horse{font-size:15px;font-weight:700;color:#0f1923;margin-bottom:4px;}
+  .mob-bet-horse{font-size:15px;font-weight:700;color:#0f1923;margin-bottom:2px;}
   .mob-bet-jockey{font-size:11px;color:#6b7280;margin-bottom:8px;}
-  .mob-bet-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center;}
-  .mob-bet-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;font-size:10px;}
+  .mob-bet-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
+  .mob-bet-tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;font-size:10px;white-space:nowrap;}
   .mob-bet-tag.score{background:#fff3e0;color:#e65100;border:1px solid #ffcc80;}
   .mob-bet-tag.sp{background:#e8f0fb;color:#1a3a5c;border:1px solid #93b8e0;}
   .mob-bet-tag.mkt{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;font-weight:700;}
   .mob-bet-tag.wpr{background:#f5f6f8;color:#374151;border:1px solid #d1d5db;}
   .mob-bet-tag.prize{background:#f5f6f8;color:#6b7280;border:1px solid #e2e5ea;}
   .mob-bet-footer{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #f0f2f5;flex-wrap:wrap;}
-  .mob-fixed-inp{width:72px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #f0c040;border-radius:4px;padding:4px 6px;text-align:center;background:#fffde7;color:#92400e;outline:none;}
+  .mob-fixed-inp{width:70px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #f0c040;border-radius:4px;padding:4px 6px;text-align:center;background:#fffde7;color:#92400e;outline:none;}
   .mob-fixed-inp.has-val{background:#fff7ed;border-color:#fb923c;color:#c2410c;font-weight:700;}
   .mob-res-inp{width:44px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;text-align:center;background:#f0fdf4;outline:none;}
-  .mob-stake-lbl{font-family:'Space Mono',monospace;font-size:10px;color:#6b7280;margin-left:auto;}
-  /* Quaddie on mobile - single column */
-  .q-legs{grid-template-columns:1fr 1fr;}
+  .mob-stake-lbl{font-family:'Space Mono',monospace;font-size:11px;color:#6b7280;margin-left:auto;}
+  /* Quaddie: single column, legs stack vertically */
+  .q-legs{grid-template-columns:1fr;}
+  .q-leg{border-right:none !important;border-bottom:1px solid #e2e5ea;}
+  .q-meeting{margin-bottom:16px;}
   .q-meeting-hdr{flex-wrap:wrap;gap:4px;}
   .q-cost-bar{flex-wrap:wrap;gap:8px;}
+  .q-runner-name{font-size:13px;}
 }
 .logo{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;letter-spacing:-1px;color:#fff;margin-bottom:2px;}
 .logo em{color:#f97316;font-style:normal;}
@@ -348,7 +351,7 @@ td:nth-child(-n+4){text-align:left;}
   </div>
 
   <button class="reset-btn" onclick="resetAll()">&#8635; Reset to optimal</button>
-  <div class="run-info">Updated 24 Apr 2026 20:32<br>354 races &middot; 85 resulted &middot; 269 pending</div>
+  <div class="run-info">Updated 24 Apr 2026 20:39<br>354 races &middot; 85 resulted &middot; 269 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1026,9 +1029,11 @@ function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('mob-overlay').classList.remove('open');
 }
-// Close sidebar when a filter changes on mobile
-document.querySelector('.sidebar').addEventListener('change',()=>{
-  if(window.innerWidth<=768)closeSidebar();
+// Close sidebar when any interactive element inside it is tapped on mobile
+document.querySelector('.sidebar').addEventListener('click',e=>{
+  if(window.innerWidth>768)return;
+  if(e.target.type==='range')return;  // sliders need drag — don't close
+  setTimeout(closeSidebar,200);
 });
 </script>
 </body>
