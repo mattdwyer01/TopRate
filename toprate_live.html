@@ -354,7 +354,7 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center;"></div>
-  <div class="run-info">Updated 25 Apr 2026 12:27<br>354 races &middot; 92 resulted &middot; 262 pending</div>
+  <div class="run-info">Updated 25 Apr 2026 12:35<br>354 races &middot; 92 resulted &middot; 262 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -556,8 +556,9 @@ function buildBets(f){
 let _syncData = {};  // in-memory cache
 let _gistId = localStorage.getItem('tr_gist_id') || '';
 let _ghToken = localStorage.getItem('tr_gh_token') || '';
-let _syncPending = false;
 let _syncTimer = null;
+let _pollTimer = null;
+let _lastSyncedAt = 0;  // timestamp of last successful Gist load
 
 async function syncLoad() {
   if(!_gistId||!_ghToken){
@@ -581,6 +582,7 @@ async function syncLoad() {
       const content=g.files&&g.files['toprate_bets.json']&&g.files['toprate_bets.json'].content;
       if(content){
         _syncData=JSON.parse(content);
+        _lastSyncedAt=Date.now();
         console.log('Gist loaded:',Object.keys(_syncData).length,'keys');
       }
     } else {
@@ -588,6 +590,25 @@ async function syncLoad() {
       console.warn('Gist load HTTP '+r.status+':',err.slice(0,200));
     }
   }catch(e){console.warn('Gist load failed:',e.message);}
+}
+
+// Poll every 30s to pick up changes made on other devices
+function startSyncPoll(){
+  if(!_gistId||!_ghToken)return;
+  clearInterval(_pollTimer);
+  _pollTimer=setInterval(async()=>{
+    // Don't poll if we saved recently (avoid reading our own write)
+    if(Date.now()-_lastSyncedAt<5000)return;
+    const prevKeys=JSON.stringify(_syncData);
+    await syncLoad();
+    if(JSON.stringify(_syncData)!==prevKeys){
+      // Data changed on another device — re-render
+      update();
+      const status=document.getElementById('sync-status');
+      const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      if(status)status.textContent='Synced: '+t;
+    }
+  },30000);
 }
 
 function syncSave(){
@@ -607,6 +628,7 @@ function syncSave(){
         body
       });
       if(r.ok){
+        _lastSyncedAt=Date.now();
         console.log('Gist saved:',Object.keys(_syncData).length,'keys');
       } else {
         const err=await r.text();
@@ -655,7 +677,7 @@ function showSyncSetup(){
     if(tok&&tok.trim()){
       localStorage.setItem('tr_gh_token',tok.trim());
       _ghToken=tok.trim();
-      syncLoad().then(()=>{update();alert('Sync connected! Data loaded from Gist.');});
+      syncLoad().then(()=>{update();startSyncPoll();alert('Sync connected! Data loaded from Gist.');});
     }
   }
 }
@@ -964,7 +986,7 @@ document.getElementById('v-votes').textContent='8';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
-syncLoad().then(()=>update());
+syncLoad().then(()=>{update();startSyncPoll();});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){
