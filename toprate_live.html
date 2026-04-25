@@ -354,7 +354,7 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center;"></div>
-  <div class="run-info">Updated 25 Apr 2026 12:18<br>354 races &middot; 92 resulted &middot; 262 pending</div>
+  <div class="run-info">Updated 25 Apr 2026 12:27<br>354 races &middot; 92 resulted &middot; 262 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -941,23 +941,29 @@ function resetAll(){
   document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=true;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
-  document.getElementById('f-sp').value=3;document.getElementById('v-sp').textContent='$3.00';
+  document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
   document.getElementById('f-spmax').value=30;document.getElementById('v-spmax').textContent='Any';
   document.getElementById('f-target').value=4;document.getElementById('v-target').textContent='4.0u';
   document.getElementById('f-pend').checked=true;document.getElementById('f-resonly').checked=false;
   document.querySelectorAll('[data-settle],[data-pace]').forEach(cb=>cb.checked=true);
-  setDow('all');setStake('flat');selectOptimalSigs();setMethod('top3c');
+  setDow('all');setStake('fixed');selectOptimalSigs();setMethod('top3c');
   document.getElementById('f-votes').value=8;document.getElementById('v-votes').textContent='8';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
+  setDateRange('today');
   update();
 }
 selectOptimalSigs();
-setStake('flat');
+setStake('fixed');
 setMethod('top3c');
-document.getElementById('f-sp').value=3;
-document.getElementById('v-sp').textContent='$3.00';
+document.getElementById('f-sp').value=1;
+document.getElementById('v-sp').textContent='$1.00';
+document.getElementById('f-spmax').value=30;
+document.getElementById('v-spmax').textContent='Any';
 document.getElementById('f-votes').value=8;
 document.getElementById('v-votes').textContent='8';
+document.getElementById('f-target').value=4;
+document.getElementById('v-target').textContent='4.0u';
+setDateRange('today');
 syncLoad().then(()=>update());
 
 // ── Tab switching ────────────────────────────────────────────────────────────
