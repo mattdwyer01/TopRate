@@ -353,8 +353,8 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" onclick="resetAll()">&#8635; Reset to optimal</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
-  <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center;"></div>
-  <div class="run-info">Updated 25 Apr 2026 12:35<br>354 races &middot; 92 resulted &middot; 262 pending</div>
+  <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
+  <div class="run-info">Updated 25 Apr 2026 12:42<br>354 races &middot; 92 resulted &middot; 262 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -567,8 +567,10 @@ async function syncLoad() {
       if(k&&(k.startsWith('fx|')||k.startsWith('bet|')||k.startsWith('res|')))
         _syncData[k]=localStorage.getItem(k);
     }
+    _setSyncStatus('No token set','#f97316');
     return;
   }
+  _setSyncStatus('Loading...','#9ca3af');
   try{
     const r=await fetch('https://api.github.com/gists/'+_gistId,{
       headers:{
@@ -583,13 +585,24 @@ async function syncLoad() {
       if(content){
         _syncData=JSON.parse(content);
         _lastSyncedAt=Date.now();
-        console.log('Gist loaded:',Object.keys(_syncData).length,'keys');
+        _setSyncStatus('Loaded '+Object.keys(_syncData).length+' keys '+_timeStr(),'#4ade80');
+      } else {
+        _setSyncStatus('Gist has no toprate_bets.json file','#f97316');
       }
     } else {
-      const err=await r.text();
-      console.warn('Gist load HTTP '+r.status+':',err.slice(0,200));
+      const err=await r.json().catch(()=>({message:r.status}));
+      _setSyncStatus('Load error '+r.status+': '+(err.message||''),'#f87171');
     }
-  }catch(e){console.warn('Gist load failed:',e.message);}
+  }catch(e){
+    _setSyncStatus('Load failed: '+e.message,'#f87171');
+  }
+}
+
+function _timeStr(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+function _setSyncStatus(msg,color){
+  const el=document.getElementById('sync-status');
+  if(el){el.textContent=msg;el.style.color=color||'rgba(255,255,255,.4)';}
+  console.log('[Sync]',msg);
 }
 
 // Poll every 30s to pick up changes made on other devices
@@ -629,10 +642,10 @@ function syncSave(){
       });
       if(r.ok){
         _lastSyncedAt=Date.now();
-        console.log('Gist saved:',Object.keys(_syncData).length,'keys');
+        _setSyncStatus('Saved '+Object.keys(_syncData).length+' keys '+_timeStr(),'#4ade80');
       } else {
-        const err=await r.text();
-        console.warn('Gist save HTTP '+r.status+':',err.slice(0,200));
+        const err=await r.json().catch(()=>({message:r.status}));
+        _setSyncStatus('Save error '+r.status+': '+(err.message||''),'#f87171');
       }
     }catch(e){console.warn('Gist save failed:',e.message);}
   },1500);
@@ -652,14 +665,10 @@ function syncRemove(key){
 
 async function syncNow(){
   const btn=document.getElementById('sync-now-btn');
-  const status=document.getElementById('sync-status');
   if(btn)btn.textContent='Syncing...';
-  if(status)status.textContent='';
   await syncLoad();
   update();
-  const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   if(btn)btn.textContent='↻ Sync now';
-  if(status)status.textContent='Last sync: '+t;
 }
 function showSyncSetup(){
   const cur_id=localStorage.getItem('tr_gist_id')||'';
