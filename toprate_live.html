@@ -354,7 +354,7 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.4);margin-top:4px;text-align:center;"></div>
-  <div class="run-info">Updated 25 Apr 2026 12:10<br>354 races &middot; 92 resulted &middot; 262 pending</div>
+  <div class="run-info">Updated 25 Apr 2026 12:18<br>354 races &middot; 92 resulted &middot; 262 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -639,6 +639,7 @@ async function syncNow(){
   if(btn)btn.textContent='↻ Sync now';
   if(status)status.textContent='Last sync: '+t;
 }
+function showSyncSetup(){
   const cur_id=localStorage.getItem('tr_gist_id')||'';
   const msg='To sync fixed odds and bets across devices:\n\n'+
     '1. Go to gist.github.com\n'+
