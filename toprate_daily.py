@@ -1146,7 +1146,6 @@ td:nth-child(-n+4){{text-align:left;}}
   <button class="reset-btn" onclick="resetAll()">&#8635; Reset to optimal</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
-  <button class="reset-btn" style="color:rgba(255,180,50,.8);border-color:rgba(255,180,50,.3);" onclick="syncTest()">&#10003; Test write</button>
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
@@ -1527,34 +1526,6 @@ function _setRunStatus(msg,color){{
   const el=document.getElementById('run-status');
   if(el){{el.textContent=msg;el.style.color=color||'rgba(255,255,255,.5)';}}
   console.log('[Run]',msg);
-}}
-async function syncTest(){{
-  if(!_gistId||!_ghToken){{_setSyncStatus('No Gist ID or token set','#f87171');return;}}
-  _setSyncStatus('Testing write...','#9ca3af');
-  try{{
-    const testData={{_test:'ok',_t:Date.now()}};
-    const body=JSON.stringify({{files:{{'toprate_bets.json':{{'content':JSON.stringify(testData)}}}}}});
-    const r=await fetch('https://api.github.com/gists/'+_gistId,{{
-      method:'PATCH',
-      headers:{{
-        'Authorization':'Bearer '+_ghToken,
-        'Accept':'application/vnd.github+json',
-        'X-GitHub-Api-Version':'2022-11-28',
-        'Content-Type':'application/json'
-      }},
-      body
-    }});
-    if(r.ok){{
-      _syncData=testData;
-      _setSyncStatus('Write OK! Token works.','#4ade80');
-    }} else {{
-      let msg='';
-      try{{msg=(await r.json()).message||'';}}catch(e){{msg=await r.text().catch(()=>'');}}
-      _setSyncStatus('Write FAILED '+r.status+': '+msg.slice(0,80),'#f87171');
-    }}
-  }}catch(e){{
-    _setSyncStatus('Write error: '+e.message,'#f87171');
-  }}
 }}
 async function syncNow(){{
   const btn=document.getElementById('sync-now-btn');
@@ -2173,6 +2144,9 @@ def publish():
         if check and result.returncode != 0:
             print(f"  git {' '.join(cmd)} failed (exit {result.returncode})")
         return result.returncode == 0
+    # Pull remote changes first to avoid conflicts with GitHub Actions pushes
+    pull = sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
+    sp.run(["git", "reset", "--hard", "origin/main"], cwd=script_dir, capture_output=True, text=True)
     git(["add", "toprate_live.html"])
     status = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
     if status.returncode == 0:
