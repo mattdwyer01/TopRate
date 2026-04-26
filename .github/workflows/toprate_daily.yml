@@ -2,11 +2,8 @@ name: TopRate Daily
 
 on:
   schedule:
-    # Runs at 8:00 PM UTC = 6:00 AM AEST (UTC+10)
-    # Adjust the hour if you want a different time
     - cron: '0 20 * * *'
   workflow_dispatch:
-    # Allows manual trigger from the Run Script button on the page
 
 jobs:
   run:
@@ -29,7 +26,7 @@ jobs:
         with:
           name: runners-db
           path: .
-        continue-on-error: true  # First run won't have one yet — that's fine
+        continue-on-error: true
 
       - name: Run TopRate daily script
         env:
