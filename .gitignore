@@ -1,7 +1,6 @@
-toprate_runners.csv 
-toprate_selections.csv 
-*.py 
-*.xlsx 
-*.csv 
-__pycache__/ 
-.env 
+toprate_runners.csv
+toprate_selections.csv
+*.xlsx
+*.csv
+__pycache__/
+.env
