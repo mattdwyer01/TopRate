@@ -357,7 +357,7 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 26 Apr 2026 11:28<br>348 races &middot; 242 resulted &middot; 106 pending</div>
+  <div class="run-info">Updated 26 Apr 2026 11:41<br>348 races &middot; 242 resulted &middot; 106 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -684,7 +684,31 @@ async function runScript(){
   if(btn){btn.textContent='Running...';btn.disabled=true;}
   _setRunStatus('Triggering script...','#9ca3af');
   try{
-    const r=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows/toprate_daily.yml/dispatches',{
+    // First check what workflows exist
+    const listR=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows',{
+      headers:{
+        'Authorization':'Bearer '+_ghToken,
+        'Accept':'application/vnd.github+json',
+        'X-GitHub-Api-Version':'2022-11-28'
+      }
+    });
+    if(!listR.ok){
+      _setRunStatus('Repo error '+listR.status+' — check token has workflow scope','#f87171');
+      if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
+      return;
+    }
+    const listData=await listR.json();
+    const workflows=listData.workflows||[];
+    if(workflows.length===0){
+      _setRunStatus('No workflows found — push .github/workflows/toprate_daily.yml to GitHub first','#f87171');
+      if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
+      return;
+    }
+    // Use first workflow found, or find by name
+    const wf=workflows.find(w=>w.name==='TopRate Daily'||w.path.includes('toprate_daily'))||workflows[0];
+    console.log('Using workflow:',wf.name,'id:',wf.id,'path:',wf.path);
+    _setRunStatus('Found: '+wf.name+' — dispatching...','#9ca3af');
+    const r=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows/'+wf.id+'/dispatches',{
       method:'POST',
       headers:{
         'Authorization':'Bearer '+_ghToken,
@@ -695,16 +719,16 @@ async function runScript(){
       body:JSON.stringify({ref:'main'})
     });
     if(r.status===204){
-      _setRunStatus('Script triggered! Page will update in ~2 min. Refresh then.','#4ade80');
+      _setRunStatus('✓ Script triggered! Refresh in ~2 min.','#4ade80');
     } else {
       let msg='';
       try{msg=(await r.json()).message||'';}catch(e){}
-      _setRunStatus('Error '+r.status+': '+msg.slice(0,80),'#f87171');
+      _setRunStatus('Dispatch error '+r.status+': '+msg.slice(0,80),'#f87171');
     }
   }catch(e){
     _setRunStatus('Failed: '+e.message,'#f87171');
   }
-  if(btn){btn.textContent='&#9654; Run script';btn.disabled=false;}
+  if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
 }
 function _setRunStatus(msg,color){
   const el=document.getElementById('run-status');
