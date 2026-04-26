@@ -25,7 +25,7 @@ jobs:
         env:
           TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
-        run: python toprate_daily.py --no-excel
+        run: python toprate_daily.py
       - name: Upload runners CSV as artifact
         uses: actions/upload-artifact@v4
         with:
