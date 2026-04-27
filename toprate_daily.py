@@ -1337,10 +1337,10 @@ function buildBets(f){{
       // For pending races, check if user has manually entered a result or toggled bet off
       const _betKey='bet|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
       const _resKey='res|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
-      const _betStored=localStorage.getItem(_betKey);
+      const _betStored=syncGet(_betKey);
       const isBet=_betStored===null?true:_betStored==='1';
-      const _manualRes=localStorage.getItem(_resKey);
-      const manualFinish=_manualRes?parseInt(_manualRes):null;
+      const _manualResStored=syncGet(_resKey);
+      const manualFinish=_manualResStored?parseInt(_manualResStored):null;
       // Use manual finish if available (pending race only), otherwise use API finish
       const effectiveFinish=race.done===0&&manualFinish!==null?manualFinish:runner.f;
       const effectiveDone=race.done===1||(race.done===0&&manualFinish!==null)?1:0;
@@ -2144,9 +2144,11 @@ def publish():
         if check and result.returncode != 0:
             print(f"  git {' '.join(cmd)} failed (exit {result.returncode})")
         return result.returncode == 0
-    # Pull remote changes first to avoid conflicts with GitHub Actions pushes
-    pull = sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
-    sp.run(["git", "reset", "--hard", "origin/main"], cwd=script_dir, capture_output=True, text=True)
+    # Fetch remote and reset only toprate_live.html to avoid conflicts
+    # (don't reset --hard which would overwrite toprate_daily.py)
+    sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
+    sp.run(["git", "checkout", "origin/main", "--", "toprate_live.html"],
+           cwd=script_dir, capture_output=True, text=True)
     git(["add", "toprate_live.html"])
     status = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
     if status.returncode == 0:
