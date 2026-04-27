@@ -884,8 +884,8 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                 trend_v = top_row.get("wpr_trend")
                 prize_v = race_meta["prizeMoney"]
 
-                # Check optimal filter (9+ signals, SP>=2, prize>=25k, trend>0, no_fs)
-                is_opt = (top_votes >= 9 and sp_val and sp_val >= 2.0
+                # Check optimal filter (7+ signals, SP>=2, prize>=25k, trend>0, no_fs)
+                is_opt = (top_votes >= 7 and sp_val and sp_val >= 2.0
                           and prize_v >= 25000
                           and trend_v is not None and not (isinstance(trend_v, float) and math.isnan(trend_v))
                           and trend_v > 0 and not has_fs)
@@ -913,7 +913,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
         total_runners = len(new_rows)
         total_races   = len(set(r["race_id"] for r in new_rows))
         print(f"\nAdded {total_runners} runners from {total_races} races for {today_str}")
-        print(f"  {n_optimal} races meet optimal filter (9+ signals, SP≥$2, prize≥$25k, trend>0)")
+        print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend>0)")
 
     return runners_df
 
@@ -965,6 +965,9 @@ def rebuild_html(runners_df):
             "ps":   str(r.get("pace_scenario","")) if r.get("pace_scenario") else None,
             "rid":  si(r.get("race_id")),
             "tm":   str(r.get("start_time","")) if r.get("start_time") else None,
+            "dist": si(r.get("distance")),
+            "going": str(r.get("going","")) if r.get("going") else None,
+            "fs":   len(u_list),
         })
 
     data_js  = "const RACES = " + json.dumps(races, separators=(",",":")) + ";"
@@ -1131,7 +1134,21 @@ td:nth-child(-n+4){{text-align:left;}}
 .bet-tog{{width:32px;height:22px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;}}
 .bet-y{{background:#16a34a;color:#fff;}}
 .bet-n{{background:#e5e7eb;color:#6b7280;}}
-.no-bet-row td{{opacity:0.45;}}
+.bet-detail{{background:#f8f9fb;border-top:1px solid #e2e5ea;padding:12px 16px;display:none;}}
+.bet-detail.open{{display:block;}}
+.bd-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}}
+.bd-item{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px 10px;}}
+.bd-item .l{{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;}}
+.bd-item .v{{font-size:14px;font-weight:700;color:#0f1923;margin-top:2px;}}
+.bd-sigs{{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}}
+.bd-sig{{background:#fff;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:10px;}}
+.bd-sig .sn{{color:#6b7280;font-size:9px;}}
+.bd-sig .sr{{font-weight:700;color:#0f1923;}}
+.bd-sig.top1{{border-color:#f97316;background:#fff7ed;}}
+.bd-sig.top3{{border-color:#1a3a5c;background:#f0f4f8;}}
+.bd-sig.out{{opacity:0.4;}}
+tr.bet-row{{cursor:pointer;}}
+tr.bet-row:hover td{{background:#f5f7fa;}}
 .date-inp{{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);font-family:'Space Mono',monospace;font-size:10px;padding:5px 7px;border-radius:2px;outline:none;cursor:pointer;}}
 .date-inp:focus{{border-color:#f97316;background:rgba(255,255,255,.12);}}
 .date-inp::-webkit-calendar-picker-indicator{{filter:invert(1);opacity:0.5;cursor:pointer;}}
@@ -1351,7 +1368,7 @@ td:nth-child(-n+4){{text-align:left;}}
     </div>
     <div class="srow">
       <div class="shdr"><span class="slbl" id="thresh-label">Min votes (of 14)</span><span class="sval" id="v-votes">7</span></div>
-      <input type="range" id="f-votes" min="1" max="14" value="9">
+      <input type="range" id="f-votes" min="1" max="14" value="7">
     </div>
   </div>
 
@@ -1587,7 +1604,7 @@ function setMethod(m){{
 function rebuildActiveSigs(){{activeSigs=new Set();document.querySelectorAll('#sig-grid input:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));}}
 function selectAllSigs(){{document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=true);rebuildActiveSigs();update();}}
 function selectNoneSigs(){{document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=false);rebuildActiveSigs();update();}}
-function selectOptimalSigs(){{const exclude=new Set(['sp','fixed_price','price_top']);document.querySelectorAll('#sig-grid input').forEach(cb=>{{cb.checked=!exclude.has(cb.dataset.sig);}});rebuildActiveSigs();update();}}
+function selectOptimalSigs(){{const exclude=new Set(['sp','fixed_price','price_top','wpr_dist','wpr_going']);document.querySelectorAll('#sig-grid input').forEach(cb=>{{cb.checked=!exclude.has(cb.dataset.sig);}});rebuildActiveSigs();update();}}
 (function(){{
   const grid=document.getElementById('sig-grid');
   SIG_NAMES.forEach((sig,i)=>{{
@@ -2023,8 +2040,20 @@ function update(){{
       const betId='rbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
       const timeStrR=fmtTime(b.raceObj.tm);
-      return'<tr class="'+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'"><td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#6b7280;">'+timeStrR+'</td><td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td><td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td><td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td><td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td><td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td><td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td><td>'+res+manualTag+'</td><td>'+plH+'</td><td>'+cumH+'</td></tr>';
+      const did='rd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      b._detailId=did;
+      return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" onclick="toggleBetDetail(\''+did+'\')">'
+        +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#6b7280;">'+timeStrR+'</td>'
+        +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
+        +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
+        +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
+        +'<td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td>'
+        +'<td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td>'
+        +'<td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td>'
+        +'<td>'+res+manualTag+'</td><td>'+plH+'</td><td>'+cumH+'</td></tr>'
+        +'<tr><td colspan="17" style="padding:0;"><div class="bet-detail" id="bd-'+did+'"></div></td></tr>';
     }}).join('');
+    window._lastBets=sortedResulted;
     // Re-attach listeners after innerHTML rebuild
     sortedResulted.forEach(b=>{{
       const fxId='fx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
@@ -2127,8 +2156,21 @@ function update(){{
       const resInp='<input class="res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+resVal+'" style="width:36px;font-size:11px;text-align:center;border:1px solid #d1d5db;border-radius:3px;padding:2px 4px;background:#f0fdf4;">';
       const mktPriceHtml=b.mktPrice?'<span class="mn" style="color:#1a3a5c;font-weight:700;">$'+b.mktPrice.toFixed(2)+'</span>':'<span style="color:#9ca3af">—</span>';
       const timeStr=fmtTime(b.raceObj.tm);
-      return'<tr class="'+(isBet?'':'no-bet-row')+'"><td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#f97316;font-weight:700;">'+timeStr+'</td><td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td><td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td><td class="mn">'+mktPriceHtml+'</td><td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td><td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td><td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td><td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td><td class="mn">'+resInp+'</td></tr>';
+      const pdid='pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      b._detailId=pdid;
+      return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" onclick="toggleBetDetail(\''+pdid+'\')">'
+        +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#f97316;font-weight:700;">'+timeStr+'</td>'
+        +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
+        +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
+        +'<td class="mn">'+mktPriceHtml+'</td>'
+        +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
+        +'<td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td>'
+        +'<td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td>'
+        +'<td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td>'
+        +'<td class="mn">'+resInp+'</td></tr>'
+        +'<tr><td colspan="16" style="padding:0;"><div class="bet-detail" id="bd-'+pdid+'"></div></td></tr>';
     }}).join('');
+    window._lastPend=sortedPending;
     sortedPending.forEach(b=>{{
       const fxId='pfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='pbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
@@ -2241,7 +2283,7 @@ function resetAll(){{
   ['f-early-spd','f-mid-spd','f-late-spd','f-total-spd'].forEach(id=>{{document.getElementById(id).value=-20;}});
   ['f-settled-pos','f-800m-pos'].forEach(id=>{{document.getElementById(id).value=20;}});
   setDow('all');setStake('fixed');selectOptimalSigs();setMethod('top3c');
-  document.getElementById('f-votes').value=9;document.getElementById('v-votes').textContent='9';
+  document.getElementById('f-votes').value=7;document.getElementById('v-votes').textContent='7';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
   setDateRange('today');
   update();
@@ -2253,8 +2295,8 @@ document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
 document.getElementById('v-spmax').textContent='Any';
-document.getElementById('f-votes').value=9;
-document.getElementById('v-votes').textContent='9';
+document.getElementById('f-votes').value=7;
+document.getElementById('v-votes').textContent='7';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
@@ -2781,11 +2823,20 @@ function runBacktest(){{
 
   // Table — show last 200 for performance
   const shown=results.slice(-200).reverse();
-  document.getElementById('bt-tbody').innerHTML=shown.map(r=>{{
+  window._lastBtBets=shown.map(r=>{{
+    // attach raceObj/runnerObj for detail panel
+    const race=RACES.find(rc=>rc.d===r.date&&rc.v===r.venue&&rc.r===r.race);
+    const runner=race?race.u.find(u=>u.h===r.horse):null;
+    r.raceObj=race||{{}};r.runnerObj=runner||{{}};r.scoreDisp=r.scoreDisp||r.score+'/'+r.maxScore;
+    const did='bt-'+r.date+'-'+r.venue+'-'+r.race+'-'+(r.horse||'').replace(/[^a-zA-Z0-9]/g,'_');
+    r._detailId=did;
+    return r;
+  }});
+  document.getElementById('bt-tbody').innerHTML=window._lastBtBets.map(r=>{{
     const plH=r.pl>=0?'<span class="rp">+'+r.pl+'u</span>':'<span class="rn">'+r.pl+'u</span>';
     const cumH=r.cum>=0?'<span class="cp">+'+r.cum+'</span>':'<span class="cn">'+r.cum+'</span>';
     const res=r.won?'<span class="pill pw">WIN</span>':r.placed?'<span class="pill pp">PLACE</span>':'<span class="pill pl">'+r.finish+'th</span>';
-    return'<tr class="'+(r.won?'wr':r.placed?'pr':'')+'">'
+    return'<tr class="bet-row '+(r.won?'wr':r.placed?'pr':'')+'" onclick="toggleBetDetail(\''+r._detailId+'\')">'
       +'<td class="mn dm">'+r.date+'</td>'
       +'<td class="br">'+r.venue+' R'+r.race+'</td>'
       +'<td class="br">'+r.horse+'</td>'
@@ -2794,11 +2845,68 @@ function runBacktest(){{
       +'<td class="mn r">'+r.stake.toFixed(2)+'u</td>'
       +'<td class="mn">'+res+'</td>'
       +'<td class="mn r">'+plH+'</td>'
-      +'<td class="mn r">'+cumH+'</td>'
-      +'</tr>';
+      +'<td class="mn r">'+cumH+'</td></tr>'
+      +'<tr><td colspan="9" style="padding:0;"><div class="bet-detail" id="bd-'+r._detailId+'"></div></td></tr>';
   }}).join('');
 }}
 // ─────────────────────────────────────────────────────────────────────────────
+function buildDetailHtml(b){{
+  const race=b.raceObj;
+  const runner=b.runnerObj;
+  const ri=race.u.findIndex(u=>u.h===runner.h);
+
+  // Race info grid
+  const ps=(race.ps||'—');
+  const going=race.going||'—';
+  const dist=race.dist?race.dist+'m':'—';
+  const fs=race.fs||race.u.length;
+  const st=runner.st||'—';
+
+  const grid='<div class="bd-grid">'
+    +'<div class="bd-item"><div class="l">Field size</div><div class="v">'+fs+' runners</div></div>'
+    +'<div class="bd-item"><div class="l">Distance</div><div class="v">'+dist+'</div></div>'
+    +'<div class="bd-item"><div class="l">Going</div><div class="v">'+going+'</div></div>'
+    +'<div class="bd-item"><div class="l">Pace scenario</div><div class="v">'+ps+'</div></div>'
+    +'<div class="bd-item"><div class="l">Settling (est.)</div><div class="v">'+st+'</div></div>'
+    +'<div class="bd-item"><div class="l">WPR nett</div><div class="v">'+(runner.w!=null?runner.w.toFixed(1):'—')+'</div></div>'
+    +'<div class="bd-item"><div class="l">Barrier</div><div class="v">'+(runner.b||'—')+'</div></div>'
+    +'<div class="bd-item"><div class="l">Score</div><div class="v">'+b.scoreDisp+'</div></div>'
+    +'</div>';
+
+  // Signal rankings
+  const sigHtml=SIG_NAMES.map((name,si)=>{{
+    const ranking=race.s[si]||[];
+    const pos1=ranking[0]===ri;
+    const pos3=ranking.slice(0,3).includes(ri);
+    const rank=ranking.indexOf(ri)+1;
+    const cls=pos1?'top1':pos3?'top3':'out';
+    const rankStr=pos1?'#1 ▲':pos3?'#'+rank:'—';
+    const active=activeSigs.has(name);
+    return'<div class="bd-sig '+cls+(active?'':' out')+'">'
+      +'<div class="sn">'+SIG_LABELS[si].replace(' ↑','').replace(' ↓','')+'</div>'
+      +'<div class="sr">'+rankStr+'</div>'
+      +'</div>';
+  }}).join('');
+
+  return'<div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Race details</div>'
+    +grid
+    +'<div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Signal rankings</div>'
+    +'<div class="bd-sigs">'+sigHtml+'</div>';
+}}
+
+function toggleBetDetail(src){{
+  const id=typeof src==='string'?src:(src&&src.dataset?src.dataset.did:null);
+  if(!id)return;
+  const el=document.getElementById('bd-'+id);
+  if(!el)return;
+  const open=el.classList.toggle('open');
+  if(open&&!el.dataset.built){{
+    const allBets=[...(window._lastBets||[]),...(window._lastPend||[]),...(window._lastBtBets||[])];
+    const b=allBets.find(x=>x._detailId===id);
+    if(b)el.innerHTML=buildDetailHtml(b);
+    el.dataset.built='1';
+  }}
+}}
 function toggleSidebar(){{
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('mob-overlay').classList.toggle('open');
