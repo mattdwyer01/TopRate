@@ -201,7 +201,38 @@ td:nth-child(-n+4){text-align:left;}
 .q-sig-top3{display:flex;gap:3px;}
 .q-sig-horse{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .q-no-meeting{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}
+.bt-wrap{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start;}
+.bt-controls{padding:16px;}
+.bt-ctrl-title{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+.bt-ctrl-row{margin-bottom:12px;}
+.bt-ctrl-row label{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;}
+.bt-ctrl-row input[type=range]{width:100%;margin-top:4px;}
+.bt-val{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}
+.bt-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;}
+.bt-kpi{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}
+.bt-kpi .v{font-size:24px;font-weight:900;color:#0f1923;font-family:'Barlow Condensed',sans-serif;}
+.bt-kpi .v.pos{color:#2e7d32;}.bt-kpi .v.neg{color:#c62828;}
+.bt-kpi .l{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+@media(max-width:768px){
+  .bt-wrap{grid-template-columns:1fr;}
+  .bt-kpi-strip{grid-template-columns:repeat(3,1fr);}
+  .bt-kpi .v{font-size:18px;}
+}
+.sig-table th{background:#f5f6f8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e2e5ea;white-space:nowrap;}
+.sig-table th.r{text-align:right;}
+.sig-table td{padding:8px 12px;border-bottom:1px solid #f0f2f5;vertical-align:middle;}
+.sig-table td.r{text-align:right;font-family:'Space Mono',monospace;font-size:12px;}
+.sig-table tr:hover td{background:#fafbfc;}
+.sig-name{font-weight:600;color:#0f1923;}
+.sig-dir{font-size:9px;color:#9ca3af;margin-left:4px;}
+.sig-bar-wrap{width:80px;background:#f0f2f5;border-radius:3px;height:8px;display:inline-block;vertical-align:middle;}
+.sig-bar{height:8px;border-radius:3px;}
+.sig-bar.pos{background:#2e7d32;}
+.sig-bar.neg{background:#c62828;}
+.sig-bar.neu{background:#1a3a5c;}
+.sig-inactive{opacity:0.35;}
 .q-sig-toggle{padding:6px 12px;font-family:var(--mono,monospace);font-size:9px;color:#9ca3af;cursor:pointer;list-style:none;text-transform:uppercase;letter-spacing:.08em;}
+.q-sig-toggle::-webkit-details-marker{display:none;}
 .q-sig-toggle::-webkit-details-marker{display:none;}
 .q-pend-tag{font-family:'Space Mono',monospace;font-size:8px;padding:1px 5px;border-radius:2px;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;}
 </style>
@@ -357,13 +388,15 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 27 Apr 2026 12:52<br>376 races &middot; 308 resulted &middot; 68 pending</div>
+  <div class="run-info">Updated 27 Apr 2026 12:56<br>376 races &middot; 308 resulted &middot; 68 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
   <div class="main-tabs">
     <button class="main-tab active" id="tab-bets" onclick="switchTab('bets')">Bets</button>
     <button class="main-tab" id="tab-quaddie" onclick="switchTab('quaddie')">Quaddie</button>
+    <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
+    <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
   </div>
   <div class="tab-panel active" id="panel-bets">
   <div class="kpi-strip">
@@ -395,6 +428,85 @@ td:nth-child(-n+4){text-align:left;}
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-quaddie">
     <div id="q-content"><div class="q-no-meeting">Loading quaddie data...</div></div>
+  </div>
+  <div class="tab-panel" id="panel-signals">
+    <div id="sig-content"><div style="padding:40px;text-align:center;color:#9ca3af;">Loading signal analysis...</div></div>
+  </div>
+  <div class="tab-panel" id="panel-backtest">
+    <div class="bt-wrap">
+      <div class="bt-controls card">
+        <div class="bt-ctrl-title">Backtest Filters</div>
+        <div class="bt-ctrl-row">
+          <label>Min score <span id="bt-v-score" class="bt-val">8</span></label>
+          <input type="range" id="bt-score" min="1" max="11" value="8" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Min SP <span id="bt-v-sp" class="bt-val">$1.00</span></label>
+          <input type="range" id="bt-sp" min="100" max="2000" value="100" step="10" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Max SP <span id="bt-v-spmax" class="bt-val">Any</span></label>
+          <input type="range" id="bt-spmax" min="200" max="5000" value="5000" step="50" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Min prize <span id="bt-v-prize" class="bt-val">$0k</span></label>
+          <input type="range" id="bt-prize" min="0" max="200000" value="0" step="5000" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Staking</label>
+          <div style="display:flex;gap:4px;margin-top:4px;">
+            <button class="mb active" id="bt-s-flat" onclick="btSetStake('flat')">Flat 1u</button>
+            <button class="mb" id="bt-s-fixed" onclick="btSetStake('fixed')">Fixed return</button>
+          </div>
+        </div>
+        <div id="bt-target-row" class="bt-ctrl-row" style="display:none;">
+          <label>Target <span id="bt-v-target" class="bt-val">4.0u</span></label>
+          <input type="range" id="bt-target" min="10" max="100" value="40" step="5" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Scoring</label>
+          <div style="display:flex;gap:4px;margin-top:4px;">
+            <button class="mb active" id="bt-m-top3c" onclick="btSetMethod('top3c')">Top 3 count</button>
+            <button class="mb" id="bt-m-top1" onclick="btSetMethod('top1')">Top 1 only</button>
+          </div>
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Trend filter</label>
+          <label class="tog-wrap" style="margin-top:4px;">
+            <input type="checkbox" id="bt-trend" checked onchange="runBacktest()">
+            <div class="tog-track"><div class="tog-thumb"></div></div>
+          </label>
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Excl. first starters</label>
+          <label class="tog-wrap" style="margin-top:4px;">
+            <input type="checkbox" id="bt-nofirst" checked onchange="runBacktest()">
+            <div class="tog-track"><div class="tog-thumb"></div></div>
+          </label>
+        </div>
+        <div class="bt-ctrl-row">
+          <label>Signals</label>
+          <div style="margin-top:6px;">
+            <button class="reset-btn" style="padding:4px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
+            <button class="reset-btn" style="padding:4px 8px;font-size:9px;" onclick="btSelectSigs('optimal')">Optimal</button>
+            <div id="bt-sig-grid" class="sig-grid" style="margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bt-results">
+        <div class="bt-kpi-strip" id="bt-kpis"></div>
+        <div class="card" style="overflow-x:auto;margin-top:16px;">
+          <table class="sig-table" id="bt-table">
+            <thead><tr>
+              <th>Date</th><th>Venue</th><th>Horse</th>
+              <th class="r">Score</th><th class="r">SP</th>
+              <th class="r">Stake</th><th class="r">Result</th><th class="r">P&amp;L</th><th class="r">Cumul</th>
+            </tr></thead>
+            <tbody id="bt-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div><!-- end main -->
 </div><!-- end shell -->
@@ -1083,11 +1195,129 @@ syncLoad().then(()=>{update();startSyncPoll();});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){
-  ['bets','quaddie'].forEach(t=>{
+  ['bets','quaddie','signals','backtest'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('panel-'+t).classList.toggle('active',t===tab);
   });
   if(tab==='quaddie')buildQuaddie();
+  if(tab==='signals')buildSignals();
+  if(tab==='backtest')initBacktest();
+}
+
+function buildSignals(){
+  const f=getF();
+  const {resulted}=buildBets(f);
+  // Only Y bets
+  const bets=resulted.filter(b=>b.isBet!==false);
+  if(!bets.length){
+    document.getElementById('sig-content').innerHTML='<div style="padding:40px;text-align:center;color:#9ca3af;">No resulted bets in current filter range.</div>';
+    return;
+  }
+
+  // For each signal, find how often it had this runner in top 3
+  // race.s[sigIdx] = [rank1_runnerIdx, rank2_runnerIdx, rank3_runnerIdx]
+  // We need to know: for this bet's runner, was it in top 3 for this signal?
+  const stats={};
+  SIG_NAMES.forEach((name,si)=>{
+    stats[name]={name,label:SIG_LABELS[si],dir:SIG_DIR[si],active:activeSigs.has(name),
+      total:0,top3:0,wins:0,places:0,staked:0,profit:0};
+  });
+
+  bets.forEach(b=>{
+    const race=b.raceObj;
+    const runner=b.runnerObj;
+    // Find runner index in race.u
+    const ri=race.u.findIndex(u=>u.h===runner.h);
+    if(ri<0)return;
+    const fx=getFixed(b);
+    const price=fx&&fx>1?fx:b.sp;
+    const effStake=calcStake(b.score,method==='top1'?activeSigs.size:activeSigs.size*3,price);
+
+    SIG_NAMES.forEach((name,si)=>{
+      const s=stats[name];
+      s.total++;
+      const ranking=race.s[si]||[];
+      const inTop3=ranking.slice(0,3).includes(ri);
+      if(inTop3){
+        s.top3++;
+        s.staked+=effStake;
+        if(b.won){s.wins++;s.profit+=effStake*(price-1);}
+        else if(b.placed){s.places++;s.profit-=effStake;}
+        else{s.profit-=effStake;}
+      }
+    });
+  });
+
+  // Sort by win rate among active signals, then inactive
+  const rows=Object.values(stats);
+  const active=rows.filter(r=>r.active).sort((a,b)=>{
+    const awr=a.top3?a.wins/a.top3:0;
+    const bwr=b.top3?b.wins/b.top3:0;
+    return bwr-awr;
+  });
+  const inactive=rows.filter(r=>!r.active).sort((a,b)=>{
+    const awr=a.top3?a.wins/a.top3:0;
+    const bwr=b.top3?b.wins/b.top3:0;
+    return bwr-awr;
+  });
+
+  const maxTop3=Math.max(...rows.map(r=>r.top3),1);
+  const maxProfit=Math.max(...rows.map(r=>Math.abs(r.profit)),1);
+
+  function renderRow(r){
+    const wr=r.top3?((r.wins/r.top3)*100).toFixed(0)+'%':'—';
+    const pr=r.top3?((r.places/r.top3)*100).toFixed(0)+'%':'—';
+    const roi=r.staked?((r.profit/r.staked)*100).toFixed(1)+'%':'—';
+    const plStr=r.profit>=0?'<span class="rp">+'+(r.profit.toFixed(2))+'u</span>':'<span class="rn">'+(r.profit.toFixed(2))+'u</span>';
+    const barW=Math.round((r.top3/maxTop3)*80);
+    const profitBarW=Math.round((Math.abs(r.profit)/maxProfit)*80);
+    const barCls=r.profit>0?'pos':r.profit<0?'neg':'neu';
+    return'<tr class="'+(r.active?'':'sig-inactive')+'">'
+      +'<td><span class="sig-name">'+r.label.replace(' ↑','').replace(' ↓','')+'</span>'
+      +'<span class="sig-dir">'+(r.dir?'↑':'↓')+'</span></td>'
+      +'<td class="r">'+r.top3+'<span style="color:#9ca3af;font-size:10px;">/'+r.total+'</span></td>'
+      +'<td><div class="sig-bar-wrap"><div class="sig-bar neu" style="width:'+barW+'px"></div></div></td>'
+      +'<td class="r">'+r.wins+'</td>'
+      +'<td class="r">'+wr+'</td>'
+      +'<td class="r">'+r.places+'</td>'
+      +'<td class="r">'+pr+'</td>'
+      +'<td class="r">'+plStr+'</td>'
+      +'<td class="r">'+roi+'</td>'
+      +'<td><div class="sig-bar-wrap"><div class="sig-bar '+barCls+'" style="width:'+profitBarW+'px"></div></div></td>'
+      +'</tr>';
+  }
+
+  const hdr='<table class="sig-table"><thead><tr>'
+    +'<th>Signal</th>'
+    +'<th class="r">In top 3</th>'
+    +'<th>Coverage</th>'
+    +'<th class="r">Wins</th>'
+    +'<th class="r">Win %</th>'
+    +'<th class="r">Places</th>'
+    +'<th class="r">Place %</th>'
+    +'<th class="r">P&amp;L</th>'
+    +'<th class="r">ROI</th>'
+    +'<th>P&amp;L bar</th>'
+    +'</tr></thead><tbody>';
+
+  const note='<div style="font-size:11px;color:#9ca3af;padding:12px 0 4px;">'
+    +'Based on '+bets.length+' resulted Y bets in current filter range. '
+    +'"In top 3" = signal ranked this horse in its top 3 for the race. '
+    +'P&amp;L and ROI are for bets where this signal contributed.'
+    +'</div>';
+
+  let html=note+'<div class="card" style="overflow-x:auto;">';
+  html+=hdr;
+  if(active.length){
+    html+='<tr><td colspan="10" style="padding:10px 12px 4px;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Active signals</td></tr>';
+    html+=active.map(renderRow).join('');
+  }
+  if(inactive.length){
+    html+='<tr><td colspan="10" style="padding:10px 12px 4px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;">Inactive signals</td></tr>';
+    html+=inactive.map(renderRow).join('');
+  }
+  html+='</tbody></table></div>';
+  document.getElementById('sig-content').innerHTML=html;
 }
 
 // ── Quaddie ──────────────────────────────────────────────────────────────────
@@ -1285,6 +1515,165 @@ function buildQuaddie(){
   });
 }
 
+// ── Backtest ──────────────────────────────────────────────────────────────────
+let btStake='flat';
+let btMethod='top3c';
+let btSigs=new Set(SIG_NAMES.filter((_,i)=>SIG_DIR[i]===1||['wpr_rank','peak_rank','consistency','tr_price'].includes(SIG_NAMES[i])));
+let btInited=false;
+
+function btSetStake(m){
+  btStake=m;
+  ['flat','fixed'].forEach(s=>document.getElementById('bt-s-'+s).classList.toggle('active',s===m));
+  document.getElementById('bt-target-row').style.display=m==='fixed'?'':'none';
+  runBacktest();
+}
+function btSetMethod(m){
+  btMethod=m;
+  ['top3c','top1'].forEach(s=>document.getElementById('bt-m-'+s).classList.toggle('active',s===m));
+  runBacktest();
+}
+function btSelectSigs(mode){
+  if(mode==='all')btSigs=new Set(SIG_NAMES);
+  else btSigs=new Set(activeSigs); // use current optimal
+  document.querySelectorAll('.bt-sig-cb').forEach(cb=>{
+    cb.checked=btSigs.has(cb.dataset.sig);
+  });
+  runBacktest();
+}
+
+function initBacktest(){
+  if(btInited)return;
+  btInited=true;
+  // Build signal checkboxes
+  const grid=document.getElementById('bt-sig-grid');
+  SIG_NAMES.forEach((name,i)=>{
+    const cb=document.createElement('label');
+    cb.style.cssText='display:flex;align-items:center;gap:4px;font-size:10px;color:#e2e5ea;cursor:pointer;';
+    const inp=document.createElement('input');
+    inp.type='checkbox';inp.dataset.sig=name;inp.className='bt-sig-cb';
+    inp.checked=btSigs.has(name);
+    inp.addEventListener('change',()=>{btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));runBacktest();});
+    cb.appendChild(inp);
+    cb.appendChild(document.createTextNode(SIG_LABELS[i]));
+    grid.appendChild(cb);
+  });
+  runBacktest();
+}
+
+function btCalcScore(race,runnerIdx,sigs,method){
+  let score=0;
+  const maxScore=method==='top1'?sigs.size:sigs.size*3;
+  SIG_NAMES.forEach((name,si)=>{
+    if(!sigs.has(name))return;
+    const ranking=race.s[si]||[];
+    if(method==='top1'){
+      if(ranking[0]===runnerIdx)score+=1;
+    }else{
+      const pos=ranking.slice(0,3).indexOf(runnerIdx);
+      if(pos===-1)return;
+      score+=(3-pos);
+    }
+  });
+  return{score,maxScore};
+}
+
+function btCalcStake(score,maxScore,price,method,target){
+  if(method==='flat')return 1;
+  if(method==='fixed'){
+    const t=target/10;
+    return price>1?+(t/(price-1)).toFixed(2):1;
+  }
+  return 1;
+}
+
+function runBacktest(){
+  const minScore=parseInt(document.getElementById('bt-score').value);
+  document.getElementById('bt-v-score').textContent=minScore+'/'+btSigs.size;
+  const minSP=parseInt(document.getElementById('bt-sp').value)/100;
+  document.getElementById('bt-v-sp').textContent='$'+minSP.toFixed(2);
+  const maxSPraw=parseInt(document.getElementById('bt-spmax').value);
+  const maxSP=maxSPraw>=5000?null:maxSPraw/100;
+  document.getElementById('bt-v-spmax').textContent=maxSP?'$'+maxSP.toFixed(2):'Any';
+  const minPrize=parseInt(document.getElementById('bt-prize').value);
+  document.getElementById('bt-v-prize').textContent='$'+(minPrize/1000).toFixed(0)+'k';
+  const target=parseInt(document.getElementById('bt-target').value);
+  document.getElementById('bt-v-target').textContent=(target/10).toFixed(1)+'u';
+  const trendOnly=document.getElementById('bt-trend').checked;
+  const noFirst=document.getElementById('bt-nofirst').checked;
+
+  // Only resulted races
+  const results=[];
+  RACES.forEach(race=>{
+    if(race.done!==1)return;
+    if(race.p&&race.p<minPrize)return;
+    if(noFirst&&race.n)return;
+    race.u.forEach((runner,ri)=>{
+      if(runner.f===null||runner.f===undefined)return; // no result
+      const sp=runner.sp;
+      if(!sp||sp<minSP)return;
+      if(maxSP&&sp>maxSP)return;
+      if(trendOnly&&(runner.tr===null||runner.tr<=0))return;
+      const {score,maxScore}=btCalcScore(race,ri,btSigs,btMethod);
+      if(score<minScore)return;
+      const scoreDisp=score+'/'+maxScore;
+      const stake=btCalcStake(score,maxScore,sp,btStake,target);
+      const won=runner.f===1;
+      const placed=runner.f<=3;
+      const pl=won?+(stake*(sp-1)).toFixed(2):+(-stake).toFixed(2);
+      results.push({
+        date:race.d,venue:race.v,race:race.r,horse:runner.h,
+        score,maxScore,scoreDisp,sp,stake,finish:runner.f,won,placed,pl,
+        tm:race.tm
+      });
+    });
+  });
+
+  // Sort by date+time
+  results.sort((a,b)=>{
+    if(a.date!==b.date)return a.date>b.date?1:-1;
+    const at=a.tm?new Date(a.tm).getTime():0;
+    const bt2=b.tm?new Date(b.tm).getTime():0;
+    return at-bt2;
+  });
+
+  // Compute cumulative
+  let cum=0,staked=0,wins=0,places=0;
+  results.forEach(r=>{cum+=r.pl;r.cum=+cum.toFixed(2);staked+=r.stake;if(r.won)wins++;if(r.placed)places++;});
+  const n=results.length;
+  const roi=staked?((cum/staked)*100).toFixed(1):'0.0';
+  const wr=n?(wins/n*100).toFixed(1):'0.0';
+  const pr=n?(places/n*100).toFixed(1):'0.0';
+
+  // KPIs
+  const roiCls=parseFloat(roi)>=0?'pos':'neg';
+  const profCls=cum>=0?'pos':'neg';
+  document.getElementById('bt-kpis').innerHTML=
+    '<div class="bt-kpi"><div class="v '+roiCls+'">'+roi+'%</div><div class="l">ROI</div></div>'
+    +'<div class="bt-kpi"><div class="v">'+n+'</div><div class="l">Bets</div></div>'
+    +'<div class="bt-kpi"><div class="v">'+wins+'</div><div class="l">Wins</div></div>'
+    +'<div class="bt-kpi"><div class="v">'+wr+'%</div><div class="l">Win rate</div></div>'
+    +'<div class="bt-kpi"><div class="v '+profCls+'">'+(cum>=0?'+':'')+cum.toFixed(1)+'u</div><div class="l">Profit ('+staked.toFixed(1)+'u staked)</div></div>';
+
+  // Table — show last 200 for performance
+  const shown=results.slice(-200).reverse();
+  document.getElementById('bt-tbody').innerHTML=shown.map(r=>{
+    const plH=r.pl>=0?'<span class="rp">+'+r.pl+'u</span>':'<span class="rn">'+r.pl+'u</span>';
+    const cumH=r.cum>=0?'<span class="cp">+'+r.cum+'</span>':'<span class="cn">'+r.cum+'</span>';
+    const res=r.won?'<span class="pill pw">WIN</span>':r.placed?'<span class="pill pp">PLACE</span>':'<span class="pill pl">'+r.finish+'th</span>';
+    return'<tr class="'+(r.won?'wr':r.placed?'pr':'')+'">'
+      +'<td class="mn dm">'+r.date+'</td>'
+      +'<td class="br">'+r.venue+' R'+r.race+'</td>'
+      +'<td class="br">'+r.horse+'</td>'
+      +'<td class="mn r">'+r.scoreDisp+'</td>'
+      +'<td class="mn r">$'+r.sp.toFixed(2)+'</td>'
+      +'<td class="mn r">'+r.stake.toFixed(2)+'u</td>'
+      +'<td class="mn">'+res+'</td>'
+      +'<td class="mn r">'+plH+'</td>'
+      +'<td class="mn r">'+cumH+'</td>'
+      +'</tr>';
+  }).join('');
+}
+// ─────────────────────────────────────────────────────────────────────────────
 function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('mob-overlay').classList.toggle('open');
