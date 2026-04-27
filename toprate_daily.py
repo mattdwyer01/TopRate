@@ -1279,6 +1279,22 @@ td:nth-child(-n+4){{text-align:left;}}
           </label>
         </div>
         <div class="bt-ctrl-row">
+          <div class="bt-lbl">Max barrier <span id="bt-v-barrier" class="bt-val">Any</span></div>
+          <input type="range" id="bt-barrier" min="1" max="20" value="20" oninput="runBacktest()">
+        </div>
+        <div class="bt-ctrl-row">
+          <div class="bt-lbl">Settling</div>
+          <div id="bt-settle-grid" style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:3px;"></div>
+        </div>
+        <div class="bt-ctrl-row">
+          <div class="bt-lbl">Pace scenario</div>
+          <div id="bt-pace-grid" style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:3px;"></div>
+        </div>
+        <div class="bt-ctrl-row">
+          <div class="bt-lbl">Day of week</div>
+          <div id="bt-dow-grid" style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:3px;"></div>
+        </div>
+        <div class="bt-ctrl-row">
           <div class="bt-lbl">Signals</div>
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
             <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
@@ -2341,15 +2357,33 @@ function btSelectSigs(mode){{
 function initBacktest(){{
   if(btInited)return;
   btInited=true;
-  // Build signal checkboxes using innerHTML to avoid DOM text node issues
+
+  function makeCheckGrid(gridId, items, allChecked){{
+    const grid=document.getElementById(gridId);
+    grid.innerHTML=items.map(v=>
+      '<label style="display:flex;align-items:center;gap:3px;font-size:10px;color:#374151;cursor:pointer;background:#f5f6f8;border:1px solid #e2e5ea;border-radius:3px;padding:2px 5px;">'
+      +'<input type="checkbox" data-group="'+gridId+'" value="'+v+'"'+(allChecked?' checked':'')+'> '+v+'</label>'
+    ).join('');
+    grid.querySelectorAll('input').forEach(cb=>cb.addEventListener('change',runBacktest));
+  }}
+
+  makeCheckGrid('bt-settle-grid',['leader','on-pace','midfield','backmarker','unknown'],true);
+  makeCheckGrid('bt-pace-grid',['slow','neutral','fast','unknown'],true);
+  makeCheckGrid('bt-dow-grid',['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],true);
+
+  // Signal checkboxes — dark text on light background
   const grid=document.getElementById('bt-sig-grid');
   grid.innerHTML=SIG_NAMES.map((name,i)=>
-    '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#374151;cursor:pointer;margin-bottom:2px;">'
+    '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#1a3a5c;cursor:pointer;margin-bottom:3px;font-weight:'+(btSigs.has(name)?'600':'400')+'">'
     +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]+'</label>'
   ).join('');
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
     cb.addEventListener('change',()=>{{
       btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));
+      // Update font weight
+      document.querySelectorAll('.bt-sig-cb').forEach(c=>{{
+        c.parentElement.style.fontWeight=c.checked?'600':'400';
+      }});
       runBacktest();
     }});
   }});
@@ -2396,6 +2430,16 @@ function runBacktest(){{
   document.getElementById('bt-v-target').textContent=(target/10).toFixed(1)+'u';
   const trendOnly=document.getElementById('bt-trend').checked;
   const noFirst=document.getElementById('bt-nofirst').checked;
+  const maxBarrier=parseInt(document.getElementById('bt-barrier').value);
+  document.getElementById('bt-v-barrier').textContent=maxBarrier>=20?'Any':maxBarrier;
+
+  // Settling, pace, dow checked values
+  const settleOk=new Set([...document.querySelectorAll('#bt-settle-grid input:checked')].map(c=>c.value.toLowerCase()));
+  const paceOk=new Set([...document.querySelectorAll('#bt-pace-grid input:checked')].map(c=>c.value.toLowerCase()));
+  const dowMap={{'Mon':1,'Tue':2,'Wed':3,'Thu':4,'Fri':5,'Sat':6,'Sun':0}};
+  const dowOk=new Set([...document.querySelectorAll('#bt-dow-grid input:checked')].map(c=>dowMap[c.value]));
+
+  const DOW_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // Only resulted races
   const results=[];
@@ -2409,6 +2453,16 @@ function runBacktest(){{
       if(!sp||sp<minSP)return;
       if(maxSP&&sp>maxSP)return;
       if(trendOnly&&(runner.tr===null||runner.tr<=0))return;
+      if(maxBarrier<20&&runner.b&&runner.b>maxBarrier)return;
+      const st=(runner.st||'unknown').toLowerCase().replace('-','');
+      if(settleOk.size&&!settleOk.has(st)&&!settleOk.has('unknown')){{
+        if(!settleOk.has(st))return;
+      }}
+      const ps=(race.ps||'unknown').toLowerCase();
+      if(paceOk.size&&!paceOk.has(ps))return;
+      const raceDate=new Date(race.d+'T12:00:00');
+      const dow=raceDate.getDay();
+      if(dowOk.size&&!dowOk.has(dow))return;
       const {{score,maxScore}}=btCalcScore(race,ri,btSigs,btMethod);
       if(score<minScore)return;
       const scoreDisp=score+'/'+maxScore;
