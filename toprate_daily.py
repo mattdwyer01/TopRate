@@ -56,11 +56,8 @@ OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
-                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating",
-                  "early_speed_score","mid_speed_score","late_speed_score","total_speed_score"]
-SIGNALS_LOWER  = ["starting_price_sp","wpr_rank","wpr_peak_rank_1yr","wpr_consistency",
-                  "toprate_price","fixed_win_price","price_top",
-                  "avg_settled_pos","avg_800m_pos"]
+                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating"]
+SIGNALS_LOWER  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency","toprate_price"]
 ALL_SIGNALS    = SIGNALS_HIGHER + SIGNALS_LOWER
 
 # Runner DB columns
@@ -366,6 +363,12 @@ def compute_signal_rankings(rdf):
             "b": safe_int(row.get("barrier")),
             "st": str(row.get("_settling", "")) if row.get("_settling") else None,
             "ps": str(row.get("_pace_scenario", "")) if row.get("_pace_scenario") else None,
+            "es": safe_float(row.get("early_speed_score")),
+            "ms": safe_float(row.get("mid_speed_score")),
+            "ls": safe_float(row.get("late_speed_score")),
+            "ts": safe_float(row.get("total_speed_score")),
+            "ap": safe_float(row.get("avg_settled_pos")),
+            "a8": safe_float(row.get("avg_800m_pos")),
         })
 
     return signal_rankings, u_list
@@ -1267,6 +1270,33 @@ td:nth-child(-n+4){{text-align:left;}}
         <label class="dow-cb"><input type="checkbox" data-pace="unknown" checked><span>Unknown</span></label>
       </div>
     </div>
+    <div style="margin-top:8px">
+      <div class="ftitle" style="margin-bottom:5px">Sectional speed filters <span style="font-size:8px;color:rgba(255,255,255,.3);">avg last 5 runs</span></div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Min early spd</span><span class="sval" id="v-early-spd">Any</span></div>
+        <input type="range" id="f-early-spd" min="-20" max="20" step="0.5" value="-20" oninput="update()">
+      </div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Min mid spd</span><span class="sval" id="v-mid-spd">Any</span></div>
+        <input type="range" id="f-mid-spd" min="-20" max="20" step="0.5" value="-20" oninput="update()">
+      </div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Min late spd</span><span class="sval" id="v-late-spd">Any</span></div>
+        <input type="range" id="f-late-spd" min="-20" max="20" step="0.5" value="-20" oninput="update()">
+      </div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Min total spd</span><span class="sval" id="v-total-spd">Any</span></div>
+        <input type="range" id="f-total-spd" min="-20" max="20" step="0.5" value="-20" oninput="update()">
+      </div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Max settled pos</span><span class="sval" id="v-settled-pos">Any</span></div>
+        <input type="range" id="f-settled-pos" min="1" max="20" step="0.5" value="20" oninput="update()">
+      </div>
+      <div class="srow">
+        <div class="shdr"><span class="slbl">Max 800m pos</span><span class="sval" id="v-800m-pos">Any</span></div>
+        <input type="range" id="f-800m-pos" min="1" max="20" step="0.5" value="20" oninput="update()">
+      </div>
+    </div>
   </div>
 
   <div class="fsec">
@@ -1522,9 +1552,9 @@ td:nth-child(-n+4){{text-align:left;}}
 </div><!-- end shell -->
 <script>
 {data_js}
-const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","early_speed","mid_speed","late_speed","total_speed","sp","wpr_rank","peak_rank","consistency","tr_price","fixed_price","price_top","avg_settled","avg_800m"];
-const SIG_DIR    = [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0];
-const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","early_spd ↑","mid_spd ↑","late_spd ↑","total_spd ↑","sp ↓","wpr_rank ↓","peak_rank ↓","consistency ↓","tr_price ↓","fixed_price ↓","price_top ↓","settled_pos ↓","800m_pos ↓"];
+const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","wpr_rank","peak_rank","consistency","tr_price"];
+const SIG_DIR    = [1,1,1,1,1,1,1,1,0,0,0,0];
+const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","wpr_rank ↓","peak_rank ↓","consistency ↓","tr_price ↓"];
 let activeSigs=new Set(SIG_NAMES);
 let stakeMethod='flat';
 let method='top1';
@@ -1596,8 +1626,24 @@ function getF(){{return{{
   barrier:parseInt(document.getElementById('f-barrier').value),
   dateFrom:document.getElementById('f-date-from').value||'',
   dateTo:document.getElementById('f-date-to').value||'',
+  minEarlySpd:parseFloat(document.getElementById('f-early-spd').value),
+  minMidSpd:parseFloat(document.getElementById('f-mid-spd').value),
+  minLateSpd:parseFloat(document.getElementById('f-late-spd').value),
+  minTotalSpd:parseFloat(document.getElementById('f-total-spd').value),
+  maxSettledPos:parseFloat(document.getElementById('f-settled-pos').value),
+  max800mPos:parseFloat(document.getElementById('f-800m-pos').value),
 }};}}
-function setDateRange(mode){{
+function _getSectionalFilters(){{
+  const el=id=>document.getElementById(id);
+  const fmtSpd=v=>v<=-19.5?'Any':v>=0?'+'+v.toFixed(1):v.toFixed(1);
+  const fmtPos=v=>v>=20?'Any':'≤'+v.toFixed(1);
+  el('v-early-spd').textContent=fmtSpd(parseFloat(el('f-early-spd').value));
+  el('v-mid-spd').textContent=fmtSpd(parseFloat(el('f-mid-spd').value));
+  el('v-late-spd').textContent=fmtSpd(parseFloat(el('f-late-spd').value));
+  el('v-total-spd').textContent=fmtSpd(parseFloat(el('f-total-spd').value));
+  el('v-settled-pos').textContent=fmtPos(parseFloat(el('f-settled-pos').value));
+  el('v-800m-pos').textContent=fmtPos(parseFloat(el('f-800m-pos').value));
+}}function setDateRange(mode){{
   const today=new Date();
   // Use local date (not UTC) — toISOString() can return yesterday in AEST
   const fmt=d=>{{
@@ -1661,6 +1707,13 @@ function buildBets(f){{
       const ps=race.ps||runner.ps||'unknown';
       if(activeSettle.size<5&&!activeSettle.has(st))return;
       if(activePace.size<4&&!activePace.has(ps))return;
+      // Sectional speed filters (null = no data = pass through)
+      if(f.minEarlySpd>-19.5&&runner.es!==null&&runner.es!==undefined&&runner.es<f.minEarlySpd)return;
+      if(f.minMidSpd>-19.5&&runner.ms!==null&&runner.ms!==undefined&&runner.ms<f.minMidSpd)return;
+      if(f.minLateSpd>-19.5&&runner.ls!==null&&runner.ls!==undefined&&runner.ls<f.minLateSpd)return;
+      if(f.minTotalSpd>-19.5&&runner.ts!==null&&runner.ts!==undefined&&runner.ts<f.minTotalSpd)return;
+      if(f.maxSettledPos<20&&runner.ap!==null&&runner.ap!==undefined&&runner.ap>f.maxSettledPos)return;
+      if(f.max800mPos<20&&runner.a8!==null&&runner.a8!==undefined&&runner.a8>f.max800mPos)return;
       const runnerScore=scores[idx];
       const stake=calcStake(runnerScore,maxScore,sp);
       const scoreDisp=method==='top1'?runnerScore+'/'+activeSigs.size:method==='top3c'?runnerScore+'/'+activeSigs.size:runnerScore+'/'+(activeSigs.size*3);
@@ -1909,6 +1962,7 @@ function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}
 function setResult(b,val){{if(val===null||isNaN(val)){{syncRemove(resultKey(b));}}else{{syncSet(resultKey(b),String(val));}}}}
 // ─────────────────────────────────────────────────────────────────────────
 function update(){{
+  _getSectionalFilters();
   const f=getF();
   const {{resulted,pending}}=buildBets(f);
   // Sort: most recent date first, then by start time (if available) else race_id
@@ -2183,6 +2237,9 @@ function resetAll(){{
   document.getElementById('f-target').value=4;document.getElementById('v-target').textContent='4.0u';
   document.getElementById('f-pend').checked=true;document.getElementById('f-resonly').checked=false;
   document.querySelectorAll('[data-settle],[data-pace]').forEach(cb=>cb.checked=true);
+  // Reset sectional filters
+  ['f-early-spd','f-mid-spd','f-late-spd','f-total-spd'].forEach(id=>{{document.getElementById(id).value=-20;}});
+  ['f-settled-pos','f-800m-pos'].forEach(id=>{{document.getElementById(id).value=20;}});
   setDow('all');setStake('fixed');selectOptimalSigs();setMethod('top3c');
   document.getElementById('f-votes').value=8;document.getElementById('v-votes').textContent='8';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
