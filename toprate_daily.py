@@ -55,10 +55,12 @@ SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 
 # 14 signals matching the backtest
-SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","jockey_win_pct_90d",
-                  "trainer_win_pct_365d","toprate_rating","speed_rating"]
+SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
+                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating",
+                  "early_speed_score","mid_speed_score","late_speed_score","total_speed_score"]
 SIGNALS_LOWER  = ["starting_price_sp","wpr_rank","wpr_peak_rank_1yr","wpr_consistency",
-                  "toprate_price","fixed_win_price","price_top"]
+                  "toprate_price","fixed_win_price","price_top",
+                  "avg_settled_pos","avg_800m_pos"]
 ALL_SIGNALS    = SIGNALS_HIGHER + SIGNALS_LOWER
 
 # Runner DB columns
@@ -72,7 +74,10 @@ RUNNER_COLS = [
     "run_id","tab_number","barrier","horse","jockey","trainer","runs_with_wpr",
     # Signal values (raw)
     "wpr_nett","wpr_rank","wpr_last1","wpr_avg_last3","wpr_trend","wpr_consistency",
-    "wpr_peak_rank_1yr","toprate_rating","toprate_price","speed_rating",
+    "wpr_peak_rank_1yr","wpr_dist","wpr_going",
+    "avg_settled_pos","avg_800m_pos","avg_400m_pos","early_speed_score",
+    "mid_speed_score","late_speed_score","total_speed_score",
+    "toprate_rating","toprate_price","speed_rating",
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # Pre-race market (starting_price_sp and price_top filled post-race)
     "starting_price_sp","price_top",
@@ -141,7 +146,7 @@ def build_wpr_lookup(cache):
         lookup[rid]["wpr_rank"] = rank
     return lookup
 
-def build_wpr_history_lookup(wpr_chart, race_date=None):
+def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race_going=None):
     lookup = {}
     for runner in (wpr_chart or []):
         rid      = runner.get("runId")
@@ -161,6 +166,90 @@ def build_wpr_history_lookup(wpr_chart, race_date=None):
                     and d.get("distances") == "all"):
                 peak1_rank = p.get("peak1Rank")
                 break
+
+        # WPR at distance (within ±10% of today's race distance)
+        wpr_dist = None
+        if race_distance:
+            lo, hi = race_distance * 0.9, race_distance * 1.1
+            dist_runs = [f["wpr"] for f in form
+                         if f.get("distance") and lo <= f["distance"] <= hi]
+            wpr_dist = round(mean(dist_runs), 1) if dist_runs else None
+
+        # WPR on going (matching today's going condition)
+        wpr_going = None
+        if race_going:
+            going_runs = [f["wpr"] for f in form
+                          if f.get("going") and f["going"].lower() == race_going.lower()]
+            wpr_going = round(mean(going_runs), 1) if going_runs else None
+
+        # ── Historical settling & early speed from actual race data ──────────
+        # Use last 5 runs with valid position data
+        pos_form  = [f for f in form[:5] if f.get("positionSettled") is not None]
+        p800_form = [f for f in form[:5] if f.get("position800m") is not None]
+        p400_form = [f for f in form[:5] if f.get("position400m") is not None]
+
+        # Average settled position (lower = closer to lead)
+        avg_settled = round(mean([f["positionSettled"] for f in pos_form]), 1) if pos_form else None
+
+        # Average 800m position — position at halfway, genuine settling/pace indicator
+        avg_800m = round(mean([f["position800m"] for f in p800_form]), 1) if p800_form else None
+
+        # Average 400m position — position in the straight, momentum indicator
+        avg_400m = round(mean([f["position400m"] for f in p400_form]), 1) if p400_form else None
+
+        # ── Blended margin + race shape sectional scores ─────────────────────
+        # Margins measure what THIS horse did; raceShape gives tempo context.
+        # All scores: higher = better (more speed/improvement in that phase).
+        #
+        # Normalisation:
+        #   margin_gain  = margin at start of phase - margin at end (positive = gaining)
+        #   shape_bonus  = race shape for that phase (negative shape = fast race,
+        #                  which makes gaining margins harder, so we ADD the negative)
+        #   blended      = margin_gain - shape_score  (subtract shape to reward
+        #                  gains made in fast-tempo sections)
+
+        blend_form = [f for f in form[:5]
+                      if f.get("margin800m") is not None
+                      and f.get("marginFinish") is not None]
+
+        early_scores, mid_scores, late_scores, total_scores = [], [], [], []
+
+        for f in blend_form:
+            m800  = f.get("margin800m",  0)
+            m600  = f.get("margin600m",  0)
+            m400  = f.get("margin400m",  0)
+            m200  = f.get("margin200m",  0)
+            mfin  = f.get("marginFinish", 0)
+            se    = f.get("raceShapeEarly", 0)
+            sm    = f.get("raceShapeMid",   0)
+            sl    = f.get("raceShapeLate",  0)
+
+            # Early: how close to the lead at 800m, adjusted for race tempo
+            # Lower margin800m = closer to lead = better early position
+            # Fast early race (negative se) = harder to be close, so reward it
+            early = round((-m800) - se, 2)           # negate margin so higher=closer
+
+            # Mid: margin gain from 800m to 400m, adjusted for mid tempo
+            # Positive = gaining on leader through middle section
+            mid   = round((m800 - m400) - sm, 2)
+
+            # Late: margin gain from 400m to finish, adjusted for late tempo
+            # Positive = finishing strongly / running on
+            late  = round((m400 - mfin) - sl, 2)
+
+            # Total: overall improvement from 800m to finish vs race tempo
+            total = round((m800 - mfin) - (se + sm + sl), 2)
+
+            early_scores.append(early)
+            mid_scores.append(mid)
+            late_scores.append(late)
+            total_scores.append(total)
+
+        early_speed_score = round(mean(early_scores), 2) if early_scores else None
+        mid_speed_score   = round(mean(mid_scores),   2) if mid_scores   else None
+        late_speed_score  = round(mean(late_scores),  2) if late_scores  else None
+        total_speed_score = round(mean(total_scores), 2) if total_scores else None
+
         lookup[rid] = {
             "wpr_last1":         wprs[0] if wprs else None,
             "wpr_avg_last3":     round(mean(wprs[:3]), 1) if wprs else None,
@@ -168,6 +257,17 @@ def build_wpr_history_lookup(wpr_chart, race_date=None):
             "wpr_consistency":   consistency,
             "wpr_peak_rank_1yr": peak1_rank,
             "runs_with_wpr":     len(wprs),
+            "wpr_dist":          wpr_dist,
+            "wpr_going":         wpr_going,
+            # Settling & position signals
+            "avg_settled_pos":   avg_settled,
+            "avg_800m_pos":      avg_800m,
+            "avg_400m_pos":      avg_400m,
+            # Blended sectional speed signals (margin gain adjusted for race tempo)
+            "early_speed_score": early_speed_score,  # higher = closer to lead early in fast race
+            "mid_speed_score":   mid_speed_score,    # higher = gaining through middle
+            "late_speed_score":  late_speed_score,   # higher = strong late finish
+            "total_speed_score": total_speed_score,  # higher = overall improver (finisher type)
         }
     return lookup
 
@@ -331,17 +431,22 @@ def runners_to_selections(runners_df):
         if contested_pace is None and len(all_speeds) >= 3:
             top3 = sorted(all_speeds, reverse=True)[:3]
             contested_pace = (top3[0] - top3[-1]) < 5
-        # Settling position estimate
+        # Settling position — use actual historical data if available
+        avg_settled_top = safe(r.get("avg_settled_pos"))
         field_size = len(rdf)
-        if speed_rank_in_race is not None and field_size > 1:
+        if avg_settled_top is not None:
+            settling = ("leader"     if avg_settled_top <= 2.5 else
+                        "on-pace"    if avg_settled_top <= 4.5 else
+                        "midfield"   if avg_settled_top <= 8.0 else
+                        "backmarker")
+        elif speed_rank_in_race is not None and field_size > 1:
             settle_pct = (speed_rank_in_race - 1) / (field_size - 1)
             settling = ("leader"     if speed_rank_in_race <= 2 else
                         "on-pace"    if speed_rank_in_race <= 4 else
                         "midfield"   if settle_pct <= 0.6 else
                         "backmarker")
         else:
-            settle_pct = None
-            settling   = "unknown"
+            settling = "unknown"
         # Backmarker flag with pace context (key finding: backmarker+fast = avoid)
         if settling == "backmarker":
             pace_sc = r.get("pace_scenario")
@@ -361,24 +466,51 @@ def runners_to_selections(runners_df):
                        "mid" if barrier and barrier <= 8 else
                        "wide" if barrier else None)
 
-        # Inject per-runner context into rdf so compute_signal_rankings can include b/st/ps in u_list
+        # Inject per-runner context using actual historical settling positions
+        # Fall back to speed rank estimate if no historical data available
+        pace_horses = 0  # count of horses with avg_800m_pos <= 3 (genuine early speed)
         for i in range(field_size):
             row_i = rdf.loc[i]
-            spd_i = safe(row_i.get("speed_rating"))
-            if spd_i is not None and len(all_speeds) > 0:
-                sr_i = int((all_speeds > spd_i).sum()) + 1
-            else:
-                sr_i = safe(row_i.get("speed_rank_in_race"))
-            if sr_i is not None and field_size > 1:
-                pct_i = (sr_i - 1) / (field_size - 1)
-                st_i = ("leader"    if sr_i <= 2 else
-                        "on-pace"   if sr_i <= 4 else
-                        "midfield"  if pct_i <= 0.6 else
+            # Use actual historical avg_settled_pos if available
+            avg_sp = safe(row_i.get("avg_settled_pos"))
+            avg_200 = safe(row_i.get("avg_800m_pos"))
+            if avg_sp is not None:
+                # Use actual settled position history
+                st_i = ("leader"     if avg_sp <= 2.5 else
+                        "on-pace"    if avg_sp <= 4.5 else
+                        "midfield"   if avg_sp <= 8.0 else
                         "backmarker")
             else:
-                st_i = "unknown"
+                # Fall back to speed rank estimate
+                spd_i = safe(row_i.get("speed_rating"))
+                if spd_i is not None and len(all_speeds) > 0:
+                    sr_i = int((all_speeds > spd_i).sum()) + 1
+                else:
+                    sr_i = safe(row_i.get("speed_rank_in_race"))
+                if sr_i is not None and field_size > 1:
+                    pct_i = (sr_i - 1) / (field_size - 1)
+                    st_i = ("leader"    if sr_i <= 2 else
+                            "on-pace"   if sr_i <= 4 else
+                            "midfield"  if pct_i <= 0.6 else
+                            "backmarker")
+                else:
+                    st_i = "unknown"
+            # Count horses with genuine early speed for race pace score
+            if avg_200 is not None and avg_200 <= 3.0:
+                pace_horses += 1
+            elif avg_200 is None and st_i in ("leader", "on-pace"):
+                pace_horses += 1  # fallback estimate
             rdf.loc[i, "_settling"]      = st_i
             rdf.loc[i, "_pace_scenario"] = row_i.get("pace_scenario")
+
+        # Race pace score from actual historical early speed data
+        # More reliable than speed-rating estimate
+        if pace_horses <= 1:
+            race_pace_score = "slow"
+        elif pace_horses <= 3:
+            race_pace_score = "neutral"
+        else:
+            race_pace_score = "fast"
 
         sig_rankings, u_list = compute_signal_rankings(rdf)
 
@@ -585,7 +717,9 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
             stats     = api_race_stats(jwt, rc_id) or []
 
             wpr_lu    = build_wpr_lookup(cache)
-            wpr_hist  = build_wpr_history_lookup(wpr_chart, race_date=today_str)
+            wpr_hist  = build_wpr_history_lookup(wpr_chart, race_date=today_str,
+                                                   race_distance=race_meta.get("distance"),
+                                                   race_going=race_meta.get("going"))
             stats_lu  = build_stats_lookup(stats)
 
             # has_fs: only if explicitly runs_with_wpr == 0
@@ -638,6 +772,15 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "wpr_trend":          h.get("wpr_trend"),
                     "wpr_consistency":    h.get("wpr_consistency"),
                     "wpr_peak_rank_1yr":  h.get("wpr_peak_rank_1yr"),
+                    "wpr_dist":           h.get("wpr_dist"),
+                    "wpr_going":          h.get("wpr_going"),
+                    "avg_settled_pos":    h.get("avg_settled_pos"),
+                    "avg_800m_pos":       h.get("avg_800m_pos"),
+                    "avg_400m_pos":       h.get("avg_400m_pos"),
+                    "early_speed_score":  h.get("early_speed_score"),
+                    "mid_speed_score":    h.get("mid_speed_score"),
+                    "late_speed_score":   h.get("late_speed_score"),
+                    "total_speed_score":  h.get("total_speed_score"),
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
@@ -671,24 +814,60 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                 for i in range(len(race_runners)):
                     race_runners[i].setdefault('speed_rank_in_race', None)
 
-            # Pace scenario: estimate from field speed distribution (pre-race)
-            # Count runners with speed_rating well above field mean = natural pace horses
-            speeds = rdf_ctx['speed_rating'].dropna()
+            # Pace scenario: use actual historical early speed data if available
+            # Count runners whose avg_800m_pos <= 3 (genuine early speed horses)
             pace_scenario = None
             contested_pace = None
-            if len(speeds) >= 4:
+            actual_pace_horses = rdf_ctx['avg_800m_pos'].dropna()
+            speeds = rdf_ctx['speed_rating'].dropna()
+            if len(actual_pace_horses) >= 3:
+                # Use actual historical 200m positions
+                n_pace_horses = int((actual_pace_horses <= 3.0).sum())
+                pace_scenario = ("slow"    if n_pace_horses <= 1 else
+                                 "fast"    if n_pace_horses >= 4 else
+                                 "neutral")
+                # Contested if 3+ horses have avg_800m_pos <= 2.5
+                contested_pace = int((actual_pace_horses <= 2.5).sum()) >= 3
+            elif len(speeds) >= 4:
+                # Fall back to speed rating estimate
                 mean_sp = speeds.mean()
                 n_pace_horses = int((speeds > mean_sp + 5).sum())
-                pace_scenario = ("slow" if n_pace_horses <= 1
-                                 else "fast" if n_pace_horses >= 4
-                                 else "neutral")
-                # Contested if top-3 speeds within 5pts of each other
+                pace_scenario = ("slow"    if n_pace_horses <= 1 else
+                                 "fast"    if n_pace_horses >= 4 else
+                                 "neutral")
                 top3 = sorted(speeds, reverse=True)[:3]
                 contested_pace = (top3[0] - top3[-1]) < 5
 
             for i in range(len(race_runners)):
                 race_runners[i]['pace_scenario']  = pace_scenario
                 race_runners[i]['contested_pace'] = contested_pace
+
+            # Per-runner settling: use actual avg_settled_pos if available
+            field_size_rb = len(race_runners)
+            rdf_ctx2 = pd.DataFrame(race_runners)
+            speed_ranks_rb = (rdf_ctx2['speed_rating'].rank(ascending=False, method='min')
+                              if rdf_ctx2['speed_rating'].notna().any() else None)
+            for i in range(field_size_rb):
+                avg_sp = race_runners[i].get('avg_settled_pos')
+                if avg_sp is not None:
+                    st_i = ("leader"     if avg_sp <= 2.5 else
+                            "on-pace"    if avg_sp <= 4.5 else
+                            "midfield"   if avg_sp <= 8.0 else
+                            "backmarker")
+                elif speed_ranks_rb is not None:
+                    sr = speed_ranks_rb.iloc[i]
+                    sr_i = int(sr) if not math.isnan(sr) else None
+                    if sr_i is not None and field_size_rb > 1:
+                        pct = (sr_i - 1) / (field_size_rb - 1)
+                        st_i = ("leader"    if sr_i <= 2 else
+                                "on-pace"   if sr_i <= 4 else
+                                "midfield"  if pct <= 0.6 else
+                                "backmarker")
+                    else:
+                        st_i = "unknown"
+                else:
+                    st_i = "unknown"
+                race_runners[i]['_settling'] = st_i
 
             # Compute votes for reporting
             rdf = pd.DataFrame(race_runners)
@@ -1343,9 +1522,9 @@ td:nth-child(-n+4){{text-align:left;}}
 </div><!-- end shell -->
 <script>
 {data_js}
-const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","jky_win90","trn_win365","tr_rating","speed","sp","wpr_rank","peak_rank","consistency","tr_price","fixed_price","price_top"];
-const SIG_DIR    = [1,1,1,1,1,1,1,0,0,0,0,0,0,0];
-const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","sp ↓","wpr_rank ↓","peak_rank ↓","consistency ↓","tr_price ↓","fixed_price ↓","price_top ↓"];
+const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","early_speed","mid_speed","late_speed","total_speed","sp","wpr_rank","peak_rank","consistency","tr_price","fixed_price","price_top","avg_settled","avg_800m"];
+const SIG_DIR    = [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0];
+const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","early_spd ↑","mid_spd ↑","late_spd ↑","total_spd ↑","sp ↓","wpr_rank ↓","peak_rank ↓","consistency ↓","tr_price ↓","fixed_price ↓","price_top ↓","settled_pos ↓","800m_pos ↓"];
 let activeSigs=new Set(SIG_NAMES);
 let stakeMethod='flat';
 let method='top1';
@@ -2660,21 +2839,30 @@ def publish():
     if git(["push"], check=False):
         print(f"  Published: {msg}")
     else:
-        # Push rejected — pull remote changes with merge and retry
-        print("  Push rejected — pulling remote changes and retrying...")
-        sp.run(["git", "checkout", "main"], cwd=script_dir, capture_output=True, text=True)
-        sp.run(["git", "pull", "--no-rebase", "origin", "main"],
+        # Push rejected — fetch remote, stage files on top, make new commit
+        print("  Push rejected — fetching remote and retrying...")
+        sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
+        # Check if we're in a merge state and abort if so
+        merge_head = script_dir / ".git" / "MERGE_HEAD"
+        if merge_head.exists():
+            sp.run(["git", "merge", "--abort"], cwd=script_dir, capture_output=True, text=True)
+        # Reset to remote, re-stage our output files on top
+        sp.run(["git", "reset", "--hard", "origin/main"],
                cwd=script_dir, capture_output=True, text=True)
         git(["add", "toprate_live.html"], check=False)
         runners_csv = script_dir / "toprate_runners.csv"
         if runners_csv.exists():
             git(["add", str(runners_csv)], check=False)
-        sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
-        git(["commit", "--amend", "--no-edit"], check=False)
-        if git(["push"], check=False):
-            print(f"  Published: {msg}")
+        # Only commit if there's something staged
+        staged = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
+        if staged.returncode != 0:
+            git(["commit", "-m", msg], check=False)
+            if git(["push"], check=False):
+                print(f"  Published: {msg}")
+            else:
+                print("  Push failed — run: git checkout main && git pull && python toprate_daily.py --publish")
         else:
-            print("  Push failed — run: git checkout main && git pull && python toprate_daily.py --publish")
+            print("  No changes to publish after reset.")
 
 
 def main():
