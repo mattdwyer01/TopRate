@@ -201,20 +201,22 @@ td:nth-child(-n+4){text-align:left;}
 .q-sig-top3{display:flex;gap:3px;}
 .q-sig-horse{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .q-no-meeting{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}
-.bt-wrap{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start;}
-.bt-controls{padding:16px;}
+.bt-wrap{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;position:relative;z-index:1;}
+.bt-controls{padding:16px;position:sticky;top:16px;max-height:calc(100vh - 40px);overflow-y:auto;}
 .bt-ctrl-title{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
 .bt-ctrl-row{margin-bottom:12px;}
-.bt-ctrl-row label{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;}
-.bt-ctrl-row input[type=range]{width:100%;margin-top:4px;}
+.bt-ctrl-row>label:first-child{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;}
+.bt-ctrl-row input[type=range]{width:100%;margin-top:4px;accent-color:#f97316;}
 .bt-val{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}
-.bt-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;}
+.bt-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
 .bt-kpi{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}
 .bt-kpi .v{font-size:24px;font-weight:900;color:#0f1923;font-family:'Barlow Condensed',sans-serif;}
 .bt-kpi .v.pos{color:#2e7d32;}.bt-kpi .v.neg{color:#c62828;}
 .bt-kpi .l{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
-@media(max-width:768px){
+.bt-results{min-width:0;}
+@media(max-width:900px){
   .bt-wrap{grid-template-columns:1fr;}
+  .bt-controls{position:static;max-height:none;}
   .bt-kpi-strip{grid-template-columns:repeat(3,1fr);}
   .bt-kpi .v{font-size:18px;}
 }
@@ -388,7 +390,7 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 27 Apr 2026 12:56<br>376 races &middot; 308 resulted &middot; 68 pending</div>
+  <div class="run-info">Updated 27 Apr 2026 13:45<br>376 races &middot; 308 resulted &middot; 68 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1544,18 +1546,17 @@ function btSelectSigs(mode){
 function initBacktest(){
   if(btInited)return;
   btInited=true;
-  // Build signal checkboxes
+  // Build signal checkboxes using innerHTML to avoid DOM text node issues
   const grid=document.getElementById('bt-sig-grid');
-  SIG_NAMES.forEach((name,i)=>{
-    const cb=document.createElement('label');
-    cb.style.cssText='display:flex;align-items:center;gap:4px;font-size:10px;color:#e2e5ea;cursor:pointer;';
-    const inp=document.createElement('input');
-    inp.type='checkbox';inp.dataset.sig=name;inp.className='bt-sig-cb';
-    inp.checked=btSigs.has(name);
-    inp.addEventListener('change',()=>{btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));runBacktest();});
-    cb.appendChild(inp);
-    cb.appendChild(document.createTextNode(SIG_LABELS[i]));
-    grid.appendChild(cb);
+  grid.innerHTML=SIG_NAMES.map((name,i)=>
+    '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#374151;cursor:pointer;margin-bottom:2px;">'
+    +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]+'</label>'
+  ).join('');
+  document.querySelectorAll('.bt-sig-cb').forEach(cb=>{
+    cb.addEventListener('change',()=>{
+      btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));
+      runBacktest();
+    });
   });
   runBacktest();
 }
