@@ -1147,7 +1147,7 @@ td:nth-child(-n+4){{text-align:left;}}
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
-  <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="refetch-btn" onclick="runScript(true)">&#8635; Re-fetch today</button>
+  <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div class="run-info">Updated {run_date}<br>{n_total} races &middot; {n_res} resulted &middot; {n_pend} pending</div>
@@ -1468,14 +1468,24 @@ function syncRemove(key){{
   syncSave();
 }}
 
-async function runScript(refetch){{
+async function runScriptDate(){{
+  const input=prompt('Enter date to fetch (YYYY-MM-DD):');
+  if(!input||!input.match(/^\\d{{4}}-\\d{{2}}-\\d{{2}}$/)){{
+    if(input!==null)_setRunStatus('Invalid date — use YYYY-MM-DD format','#f87171');
+    return;
+  }}
+  await runScript(false,input);
+}}
+async function runScript(refetch,explicitDate){{
   if(!_ghToken){{
     _setRunStatus('No token — set up sync first','#f87171');
     return;
   }}
-  const btn=document.getElementById(refetch?'refetch-btn':'run-script-btn');
-  if(btn){{btn.textContent=refetch?'Fetching...':'Running...';btn.disabled=true;}}
-  _setRunStatus((refetch?'Re-fetching today':'Triggering script')+'...','#9ca3af');
+  const btnId=explicitDate?'fetchdate-btn':'run-script-btn';
+  const btn=document.getElementById(btnId);
+  const origText=btn?btn.textContent:'';
+  if(btn){{btn.textContent='Running...';btn.disabled=true;}}
+  _setRunStatus((explicitDate?'Fetching '+explicitDate:refetch?'Re-fetching today':'Triggering script')+'...','#9ca3af');
   try{{
     const listR=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows',{{
       headers:{{
@@ -1486,22 +1496,22 @@ async function runScript(refetch){{
     }});
     if(!listR.ok){{
       _setRunStatus('Repo error '+listR.status+' — check token has workflow scope','#f87171');
-      if(btn){{btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}}
+      if(btn){{btn.textContent=origText;btn.disabled=false;}}
       return;
     }}
     const listData=await listR.json();
     const workflows=listData.workflows||[];
     if(workflows.length===0){{
       _setRunStatus('No workflows found — push .github/workflows/toprate_daily.yml first','#f87171');
-      if(btn){{btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}}
+      if(btn){{btn.textContent=origText;btn.disabled=false;}}
       return;
     }}
     const wf=workflows.find(w=>w.name==='TopRate Daily'||w.path.includes('toprate_daily'))||workflows[0];
     _setRunStatus('Found: '+wf.name+' — dispatching...','#9ca3af');
-    // Build inputs — pass date if re-fetching
     const today=new Date();
     const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    const inputs=refetch?{{date:fmt(today)}}:{{}};
+    const dateVal=explicitDate||(refetch?fmt(today):'');
+    const inputs=dateVal?{{date:dateVal}}:{{}};
     const r=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows/'+wf.id+'/dispatches',{{
       method:'POST',
       headers:{{
@@ -1513,7 +1523,8 @@ async function runScript(refetch){{
       body:JSON.stringify({{ref:'main',inputs}})
     }});
     if(r.status===204){{
-      _setRunStatus((refetch?'Re-fetch':'Script')+' triggered! Refresh in ~2 min.','#4ade80');
+      const label=explicitDate?('Fetch '+explicitDate):refetch?'Re-fetch':'Script';
+      _setRunStatus(label+' triggered! Refresh in ~2 min.','#4ade80');
     }} else {{
       let msg='';
       try{{msg=(await r.json()).message||'';}}catch(e){{}}
@@ -1522,7 +1533,7 @@ async function runScript(refetch){{
   }}catch(e){{
     _setRunStatus('Failed: '+e.message,'#f87171');
   }}
-  if(btn){{btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}}
+  if(btn){{btn.textContent=origText;btn.disabled=false;}}
 }}
 function _setRunStatus(msg,color){{
   const el=document.getElementById('run-status');
@@ -2164,14 +2175,21 @@ def publish():
     if git(["push"], check=False):
         print(f"  Published: {msg}")
     else:
-        # If push fails due to remote changes, try pull+push
+        # Push rejected — pull remote changes with merge and retry
         print("  Push rejected — pulling remote changes and retrying...")
-        sp.run(["git", "pull", "--rebase", "origin", "main"],
+        sp.run(["git", "checkout", "main"], cwd=script_dir, capture_output=True, text=True)
+        sp.run(["git", "pull", "--no-rebase", "origin", "main"],
                cwd=script_dir, capture_output=True, text=True)
+        git(["add", "toprate_live.html"], check=False)
+        runners_csv = script_dir / "toprate_runners.csv"
+        if runners_csv.exists():
+            git(["add", str(runners_csv)], check=False)
+        sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
+        git(["commit", "--amend", "--no-edit"], check=False)
         if git(["push"], check=False):
             print(f"  Published: {msg}")
         else:
-            print("  Push failed — check git remote and credentials.")
+            print("  Push failed — run: git checkout main && git pull && python toprate_daily.py --publish")
 
 
 def main():
