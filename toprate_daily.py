@@ -2146,12 +2146,14 @@ def publish():
         if check and result.returncode != 0:
             print(f"  git {' '.join(cmd)} failed (exit {result.returncode})")
         return result.returncode == 0
-    # Fetch remote and reset only toprate_live.html to avoid conflicts
-    # (don't reset --hard which would overwrite toprate_daily.py)
+    # Fetch remote so git knows the latest state, but don't overwrite local files
     sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
-    sp.run(["git", "checkout", "origin/main", "--", "toprate_live.html"],
-           cwd=script_dir, capture_output=True, text=True)
     git(["add", "toprate_live.html"])
+    if OUTPUT_HTML.exists():
+        # Also add runners CSV if it exists
+        runners_csv = script_dir / "toprate_runners.csv"
+        if runners_csv.exists():
+            git(["add", str(runners_csv)], check=False)
     status = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
     if status.returncode == 0:
         print("  No changes to publish — HTML unchanged.")
@@ -2162,7 +2164,14 @@ def publish():
     if git(["push"], check=False):
         print(f"  Published: {msg}")
     else:
-        print("  Push failed — check git remote and credentials.")
+        # If push fails due to remote changes, try pull+push
+        print("  Push rejected — pulling remote changes and retrying...")
+        sp.run(["git", "pull", "--rebase", "origin", "main"],
+               cwd=script_dir, capture_output=True, text=True)
+        if git(["push"], check=False):
+            print(f"  Published: {msg}")
+        else:
+            print("  Push failed — check git remote and credentials.")
 
 
 def main():
