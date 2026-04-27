@@ -2042,7 +2042,7 @@ function update(){{
       const timeStrR=fmtTime(b.raceObj.tm);
       const did='rd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=did;
-      return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" onclick="toggleBetDetail(\''+did+'\')">'
+      return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" data-did="'+did+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#6b7280;">'+timeStrR+'</td>'
         +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
@@ -2158,7 +2158,7 @@ function update(){{
       const timeStr=fmtTime(b.raceObj.tm);
       const pdid='pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=pdid;
-      return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" onclick="toggleBetDetail(\''+pdid+'\')">'
+      return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" data-did="'+pdid+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#f97316;font-weight:700;">'+timeStr+'</td>'
         +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
@@ -2836,7 +2836,7 @@ function runBacktest(){{
     const plH=r.pl>=0?'<span class="rp">+'+r.pl+'u</span>':'<span class="rn">'+r.pl+'u</span>';
     const cumH=r.cum>=0?'<span class="cp">+'+r.cum+'</span>':'<span class="cn">'+r.cum+'</span>';
     const res=r.won?'<span class="pill pw">WIN</span>':r.placed?'<span class="pill pp">PLACE</span>':'<span class="pill pl">'+r.finish+'th</span>';
-    return'<tr class="bet-row '+(r.won?'wr':r.placed?'pr':'')+'" onclick="toggleBetDetail(\''+r._detailId+'\')">'
+    return'<tr class="bet-row '+(r.won?'wr':r.placed?'pr':'')+'" data-did="'+r._detailId+'">'
       +'<td class="mn dm">'+r.date+'</td>'
       +'<td class="br">'+r.venue+' R'+r.race+'</td>'
       +'<td class="br">'+r.horse+'</td>'
@@ -2915,6 +2915,12 @@ function closeSidebar(){{
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('mob-overlay').classList.remove('open');
 }}
+// Bet detail click delegation
+document.addEventListener('click',function(e){{
+  const tr=e.target.closest('tr[data-did]');
+  if(tr)toggleBetDetail(tr.dataset.did);
+}});
+
 // Close sidebar when any interactive element inside it is tapped on mobile
 document.querySelector('.sidebar').addEventListener('click',e=>{{
   if(window.innerWidth>768)return;
