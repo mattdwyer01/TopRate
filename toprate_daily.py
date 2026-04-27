@@ -56,8 +56,8 @@ OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
-                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating"]
-SIGNALS_LOWER  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency","toprate_price"]
+                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating"]
+SIGNALS_LOWER  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency"]
 ALL_SIGNALS    = SIGNALS_HIGHER + SIGNALS_LOWER
 
 # Runner DB columns
@@ -884,8 +884,8 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                 trend_v = top_row.get("wpr_trend")
                 prize_v = race_meta["prizeMoney"]
 
-                # Check optimal filter (7+ signals, SP>=2, prize>=25k, trend>0, no_fs)
-                is_opt = (top_votes >= 7 and sp_val and sp_val >= 2.0
+                # Check optimal filter (9+ signals, SP>=2, prize>=25k, trend>0, no_fs)
+                is_opt = (top_votes >= 9 and sp_val and sp_val >= 2.0
                           and prize_v >= 25000
                           and trend_v is not None and not (isinstance(trend_v, float) and math.isnan(trend_v))
                           and trend_v > 0 and not has_fs)
@@ -913,7 +913,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
         total_runners = len(new_rows)
         total_races   = len(set(r["race_id"] for r in new_rows))
         print(f"\nAdded {total_runners} runners from {total_races} races for {today_str}")
-        print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend>0)")
+        print(f"  {n_optimal} races meet optimal filter (9+ signals, SP≥$2, prize≥$25k, trend>0)")
 
     return runners_df
 
@@ -1351,7 +1351,7 @@ td:nth-child(-n+4){{text-align:left;}}
     </div>
     <div class="srow">
       <div class="shdr"><span class="slbl" id="thresh-label">Min votes (of 14)</span><span class="sval" id="v-votes">7</span></div>
-      <input type="range" id="f-votes" min="1" max="14" value="7">
+      <input type="range" id="f-votes" min="1" max="14" value="9">
     </div>
   </div>
 
@@ -1552,9 +1552,9 @@ td:nth-child(-n+4){{text-align:left;}}
 </div><!-- end shell -->
 <script>
 {data_js}
-const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","wpr_rank","peak_rank","consistency","tr_price"];
-const SIG_DIR    = [1,1,1,1,1,1,1,1,0,0,0,0];
-const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","wpr_rank ↓","peak_rank ↓","consistency ↓","tr_price ↓"];
+const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","wpr_rank","peak_rank","consistency"];
+const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
+const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
 let activeSigs=new Set(SIG_NAMES);
 let stakeMethod='flat';
 let method='top1';
@@ -2241,7 +2241,7 @@ function resetAll(){{
   ['f-early-spd','f-mid-spd','f-late-spd','f-total-spd'].forEach(id=>{{document.getElementById(id).value=-20;}});
   ['f-settled-pos','f-800m-pos'].forEach(id=>{{document.getElementById(id).value=20;}});
   setDow('all');setStake('fixed');selectOptimalSigs();setMethod('top3c');
-  document.getElementById('f-votes').value=8;document.getElementById('v-votes').textContent='8';
+  document.getElementById('f-votes').value=9;document.getElementById('v-votes').textContent='9';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
   setDateRange('today');
   update();
@@ -2253,8 +2253,8 @@ document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
 document.getElementById('v-spmax').textContent='Any';
-document.getElementById('f-votes').value=8;
-document.getElementById('v-votes').textContent='8';
+document.getElementById('f-votes').value=9;
+document.getElementById('v-votes').textContent='9';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
