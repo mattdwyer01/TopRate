@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: '0 20 * * *'
   workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to re-fetch (YYYY-MM-DD). Leave blank for normal run.'
+        required: false
+        default: ''
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -25,7 +30,12 @@ jobs:
         env:
           TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
-        run: python toprate_daily.py
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python toprate_daily.py --date ${{ github.event.inputs.date }}
+          else
+            python toprate_daily.py
+          fi
       - name: Upload runners CSV as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -37,6 +47,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add toprate_live.html
+          git add toprate_live.html toprate_runners.csv
           git diff --staged --quiet || git commit -m "TopRate update $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
