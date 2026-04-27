@@ -335,8 +335,8 @@ def runners_to_selections(runners_df):
         field_size = len(rdf)
         if speed_rank_in_race is not None and field_size > 1:
             settle_pct = (speed_rank_in_race - 1) / (field_size - 1)
-            settling = ("leader"     if speed_rank_in_race == 1 else
-                        "on-pace"    if speed_rank_in_race <= 2 else
+            settling = ("leader"     if speed_rank_in_race <= 2 else
+                        "on-pace"    if speed_rank_in_race <= 4 else
                         "midfield"   if settle_pct <= 0.6 else
                         "backmarker")
         else:
@@ -371,8 +371,8 @@ def runners_to_selections(runners_df):
                 sr_i = safe(row_i.get("speed_rank_in_race"))
             if sr_i is not None and field_size > 1:
                 pct_i = (sr_i - 1) / (field_size - 1)
-                st_i = ("leader"    if sr_i == 1 else
-                        "on-pace"   if sr_i <= 2 else
+                st_i = ("leader"    if sr_i <= 2 else
+                        "on-pace"   if sr_i <= 4 else
                         "midfield"  if pct_i <= 0.6 else
                         "backmarker")
             else:
