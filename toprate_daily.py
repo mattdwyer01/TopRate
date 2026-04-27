@@ -994,12 +994,19 @@ td:nth-child(-n+4){{text-align:left;}}
 .q-sig-top3{{display:flex;gap:3px;}}
 .q-sig-horse{{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
 .q-no-meeting{{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}}
-.bt-wrap{{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;}}
-.bt-controls{{padding:16px;background:#fff;border:1px solid #e2e5ea;border-radius:4px;}}
-.bt-ctrl-title{{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}}
+.bt-wrap{{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;}}
+.bt-controls{{padding:16px;background:#1a3a5c;border-radius:4px;}}
+.bt-ctrl-title{{font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;}}
 .bt-ctrl-row{{margin-bottom:14px;display:block;}}
-.bt-lbl{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
+.bt-lbl{{font-size:11px;color:rgba(255,255,255,.85);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
 .bt-ctrl-row input[type=range]{{display:block;width:100%;accent-color:#f97316;cursor:pointer;}}
+.bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
+.bt-chk-label{{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,.8);cursor:pointer;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:3px;padding:2px 6px;}}
+.bt-chk-label input{{accent-color:#f97316;}}
+.bt-sig-label{{display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;margin-bottom:3px;}}
+.bt-sig-label.active{{color:#fff;font-weight:600;}}
+.bt-sig-label.inactive{{color:rgba(255,255,255,.45);}}
+.bt-sig-label input{{accent-color:#f97316;}}
 .bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
 .bt-kpi-strip{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}}
 .bt-kpi{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}}
@@ -2361,7 +2368,7 @@ function initBacktest(){{
   function makeCheckGrid(gridId, items, allChecked){{
     const grid=document.getElementById(gridId);
     grid.innerHTML=items.map(v=>
-      '<label style="display:flex;align-items:center;gap:3px;font-size:10px;color:#374151;cursor:pointer;background:#f5f6f8;border:1px solid #e2e5ea;border-radius:3px;padding:2px 5px;">'
+      '<label class="bt-chk-label">'
       +'<input type="checkbox" data-group="'+gridId+'" value="'+v+'"'+(allChecked?' checked':'')+'> '+v+'</label>'
     ).join('');
     grid.querySelectorAll('input').forEach(cb=>cb.addEventListener('change',runBacktest));
@@ -2371,18 +2378,16 @@ function initBacktest(){{
   makeCheckGrid('bt-pace-grid',['slow','neutral','fast','unknown'],true);
   makeCheckGrid('bt-dow-grid',['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],true);
 
-  // Signal checkboxes — dark text on light background
   const grid=document.getElementById('bt-sig-grid');
   grid.innerHTML=SIG_NAMES.map((name,i)=>
-    '<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#1a3a5c;cursor:pointer;margin-bottom:3px;font-weight:'+(btSigs.has(name)?'600':'400')+'">'
+    '<label class="bt-sig-label '+(btSigs.has(name)?'active':'inactive')+'">'
     +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]+'</label>'
   ).join('');
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
     cb.addEventListener('change',()=>{{
       btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));
-      // Update font weight
       document.querySelectorAll('.bt-sig-cb').forEach(c=>{{
-        c.parentElement.style.fontWeight=c.checked?'600':'400';
+        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive');
       }});
       runBacktest();
     }});
@@ -2392,16 +2397,15 @@ function initBacktest(){{
 
 function btCalcScore(race,runnerIdx,sigs,method){{
   let score=0;
-  const maxScore=method==='top1'?sigs.size:sigs.size*3;
+  const maxScore=sigs.size;  // top3c = 1pt per signal in top3, max = num signals
   SIG_NAMES.forEach((name,si)=>{{
     if(!sigs.has(name))return;
     const ranking=race.s[si]||[];
     if(method==='top1'){{
       if(ranking[0]===runnerIdx)score+=1;
     }}else{{
-      const pos=ranking.slice(0,3).indexOf(runnerIdx);
-      if(pos===-1)return;
-      score+=(3-pos);
+      // top3c: 1 point if in top 3
+      if(ranking.slice(0,3).includes(runnerIdx))score+=1;
     }}
   }});
   return{{score,maxScore}};
@@ -2418,7 +2422,9 @@ function btCalcStake(score,maxScore,price,method,target){{
 
 function runBacktest(){{
   const minScore=parseInt(document.getElementById('bt-score').value);
-  document.getElementById('bt-v-score').textContent=minScore+'/'+btSigs.size;
+  const btMaxScore=btMethod==='top1'?btSigs.size:btSigs.size; // top3c scores 1pt per signal, max = sigs
+  document.getElementById('bt-v-score').textContent=minScore+'/'+btMaxScore;
+  document.getElementById('bt-score').max=btMaxScore;
   const minSP=parseInt(document.getElementById('bt-sp').value)/100;
   document.getElementById('bt-v-sp').textContent='$'+minSP.toFixed(2);
   const maxSPraw=parseInt(document.getElementById('bt-spmax').value);
