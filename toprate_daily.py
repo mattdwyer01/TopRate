@@ -1266,16 +1266,16 @@ td:nth-child(-n+4){{text-align:left;}}
         </div>
         <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
           <div class="bt-lbl" style="margin:0;">Trend filter</div>
-          <label class="tog-wrap">
+          <label class="tog">
             <input type="checkbox" id="bt-trend" checked onchange="runBacktest()">
-            <div class="tog-track"><div class="tog-thumb"></div></div>
+            <div class="tog-track"></div><div class="tog-thumb"></div>
           </label>
         </div>
         <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
           <div class="bt-lbl" style="margin:0;">Excl. first starters</div>
-          <label class="tog-wrap">
+          <label class="tog">
             <input type="checkbox" id="bt-nofirst" checked onchange="runBacktest()">
-            <div class="tog-track"><div class="tog-thumb"></div></div>
+            <div class="tog-track"></div><div class="tog-thumb"></div>
           </label>
         </div>
         <div class="bt-ctrl-row">
