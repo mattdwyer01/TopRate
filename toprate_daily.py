@@ -994,8 +994,8 @@ td:nth-child(-n+4){{text-align:left;}}
 .q-sig-top3{{display:flex;gap:3px;}}
 .q-sig-horse{{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
 .q-no-meeting{{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}}
-.bt-wrap{{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;position:relative;z-index:1;}}
-.bt-controls{{padding:16px;position:sticky;top:16px;max-height:calc(100vh - 40px);overflow-y:auto;}}
+.bt-wrap{{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;}}
+.bt-controls{{padding:16px;}}
 .bt-ctrl-title{{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}}
 .bt-ctrl-row{{margin-bottom:12px;}}
 .bt-lbl{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;pointer-events:none;}}
@@ -1009,7 +1009,6 @@ td:nth-child(-n+4){{text-align:left;}}
 .bt-results{{min-width:0;}}
 @media(max-width:900px){{
   .bt-wrap{{grid-template-columns:1fr;}}
-  .bt-controls{{position:static;max-height:none;}}
   .bt-kpi-strip{{grid-template-columns:repeat(3,1fr);}}
   .bt-kpi .v{{font-size:18px;}}
 }}
