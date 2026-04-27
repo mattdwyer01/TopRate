@@ -354,9 +354,10 @@ td:nth-child(-n+4){text-align:left;}
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
   <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
+  <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="refetch-btn" onclick="runScript(true)">&#8635; Re-fetch today</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 26 Apr 2026 23:39<br>348 races &middot; 308 resulted &middot; 40 pending</div>
+  <div class="run-info">Updated 27 Apr 2026 11:35<br>348 races &middot; 308 resulted &middot; 40 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -544,10 +545,10 @@ function buildBets(f){
       // For pending races, check if user has manually entered a result or toggled bet off
       const _betKey='bet|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
       const _resKey='res|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
-      const _betStored=localStorage.getItem(_betKey);
+      const _betStored=syncGet(_betKey);
       const isBet=_betStored===null?true:_betStored==='1';
-      const _manualRes=localStorage.getItem(_resKey);
-      const manualFinish=_manualRes?parseInt(_manualRes):null;
+      const _manualResStored=syncGet(_resKey);
+      const manualFinish=_manualResStored?parseInt(_manualResStored):null;
       // Use manual finish if available (pending race only), otherwise use API finish
       const effectiveFinish=race.done===0&&manualFinish!==null?manualFinish:runner.f;
       const effectiveDone=race.done===1||(race.done===0&&manualFinish!==null)?1:0;
@@ -674,16 +675,15 @@ function syncRemove(key){
   syncSave();
 }
 
-async function runScript(){
+async function runScript(refetch){
   if(!_ghToken){
     _setRunStatus('No token — set up sync first','#f87171');
     return;
   }
-  const btn=document.getElementById('run-script-btn');
-  if(btn){btn.textContent='Running...';btn.disabled=true;}
-  _setRunStatus('Triggering script...','#9ca3af');
+  const btn=document.getElementById(refetch?'refetch-btn':'run-script-btn');
+  if(btn){btn.textContent=refetch?'Fetching...':'Running...';btn.disabled=true;}
+  _setRunStatus((refetch?'Re-fetching today':'Triggering script')+'...','#9ca3af');
   try{
-    // First check what workflows exist
     const listR=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows',{
       headers:{
         'Authorization':'Bearer '+_ghToken,
@@ -693,20 +693,22 @@ async function runScript(){
     });
     if(!listR.ok){
       _setRunStatus('Repo error '+listR.status+' — check token has workflow scope','#f87171');
-      if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
+      if(btn){btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}
       return;
     }
     const listData=await listR.json();
     const workflows=listData.workflows||[];
     if(workflows.length===0){
-      _setRunStatus('No workflows found — push .github/workflows/toprate_daily.yml to GitHub first','#f87171');
-      if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
+      _setRunStatus('No workflows found — push .github/workflows/toprate_daily.yml first','#f87171');
+      if(btn){btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}
       return;
     }
-    // Use first workflow found, or find by name
     const wf=workflows.find(w=>w.name==='TopRate Daily'||w.path.includes('toprate_daily'))||workflows[0];
-    console.log('Using workflow:',wf.name,'id:',wf.id,'path:',wf.path);
     _setRunStatus('Found: '+wf.name+' — dispatching...','#9ca3af');
+    // Build inputs — pass date if re-fetching
+    const today=new Date();
+    const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const inputs=refetch?{date:fmt(today)}:{};
     const r=await fetch('https://api.github.com/repos/mattdwyer01/TopRate/actions/workflows/'+wf.id+'/dispatches',{
       method:'POST',
       headers:{
@@ -715,10 +717,10 @@ async function runScript(){
         'X-GitHub-Api-Version':'2022-11-28',
         'Content-Type':'application/json'
       },
-      body:JSON.stringify({ref:'main'})
+      body:JSON.stringify({ref:'main',inputs})
     });
     if(r.status===204){
-      _setRunStatus('✓ Script triggered! Refresh in ~2 min.','#4ade80');
+      _setRunStatus((refetch?'Re-fetch':'Script')+' triggered! Refresh in ~2 min.','#4ade80');
     } else {
       let msg='';
       try{msg=(await r.json()).message||'';}catch(e){}
@@ -727,7 +729,7 @@ async function runScript(){
   }catch(e){
     _setRunStatus('Failed: '+e.message,'#f87171');
   }
-  if(btn){btn.textContent='▶ Run script';btn.disabled=false;}
+  if(btn){btn.textContent=refetch?'↻ Re-fetch today':'▶ Run script';btn.disabled=false;}
 }
 function _setRunStatus(msg,color){
   const el=document.getElementById('run-status');
