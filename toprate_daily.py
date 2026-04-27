@@ -1147,6 +1147,7 @@ td:nth-child(-n+4){{text-align:left;}}
 .bd-sig.out .sr{{color:#9ca3af;}}.bd-sig.out .sn{{color:#9ca3af;}}
 tr.bet-row{{cursor:pointer;}}
 tr.bet-row:hover td{{background:#f5f7fa;}}
+tr.no-bet-row td{{opacity:0.4;}}
 .date-inp{{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);font-family:'Space Mono',monospace;font-size:10px;padding:5px 7px;border-radius:2px;outline:none;cursor:pointer;}}
 .date-inp:focus{{border-color:#f97316;background:rgba(255,255,255,.12);}}
 .date-inp::-webkit-calendar-picker-indicator{{filter:invert(1);opacity:0.5;cursor:pointer;}}
