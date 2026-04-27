@@ -1136,17 +1136,17 @@ td:nth-child(-n+4){{text-align:left;}}
 .bet-n{{background:#e5e7eb;color:#6b7280;}}
 .bet-detail{{background:#f8f9fb;border-top:1px solid #e2e5ea;padding:12px 16px;display:none;}}
 .bet-detail.open{{display:block;}}
-.bd-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;}}
+.bd-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}}
 .bd-item{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px 10px;}}
 .bd-item .l{{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;}}
 .bd-item .v{{font-size:14px;font-weight:700;color:#0f1923;margin-top:2px;}}
-.bd-sigs{{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}}
-.bd-sig{{background:#fff;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:10px;}}
-.bd-sig .sn{{color:#6b7280;font-size:9px;}}
-.bd-sig .sr{{font-weight:700;color:#0f1923;}}
-.bd-sig.top1{{border-color:#f97316;background:#fff7ed;}}
-.bd-sig.top3{{border-color:#1a3a5c;background:#f0f4f8;}}
-.bd-sig.out{{opacity:0.4;}}
+.bd-sigs{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}}
+.bd-sig{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px 10px;display:flex;align-items:center;gap:8px;}}
+.bd-sig .sn{{color:#6b7280;font-size:10px;flex:1;}}
+.bd-sig .sr{{font-weight:900;font-size:16px;font-family:'Barlow Condensed',sans-serif;min-width:28px;text-align:right;}}
+.bd-sig.top1{{border-color:#16a34a;background:#f0fdf4;}}.bd-sig.top1 .sr{{color:#16a34a;}}
+.bd-sig.top3{{border-color:#f97316;background:#fff7ed;}}.bd-sig.top3 .sr{{color:#f97316;}}
+.bd-sig.out{{background:#f9fafb;border-color:#f0f2f5;}}.bd-sig.out .sr{{color:#9ca3af;}}.bd-sig.out .sn{{color:#d1d5db;}}
 tr.bet-row{{cursor:pointer;}}
 tr.bet-row:hover td{{background:#f5f7fa;}}
 .date-inp{{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);font-family:'Space Mono',monospace;font-size:10px;padding:5px 7px;border-radius:2px;outline:none;cursor:pointer;}}
@@ -2873,19 +2873,25 @@ function buildDetailHtml(b){{
     +'<div class="bd-item"><div class="l">Score</div><div class="v">'+b.scoreDisp+'</div></div>'
     +'</div>';
 
-  // Signal rankings
+  // Signal rankings — active signals first, larger rank number, cleaner layout
   const sigHtml=SIG_NAMES.map((name,si)=>{{
     const ranking=race.s[si]||[];
     const pos1=ranking[0]===ri;
     const pos3=ranking.slice(0,3).includes(ri);
-    const rank=ranking.indexOf(ri)+1;
-    const cls=pos1?'top1':pos3?'top3':'out';
-    const rankStr=pos1?'#1 ▲':pos3?'#'+rank:'—';
+    const rank=ranking.slice(0,3).indexOf(ri)+1;
     const active=activeSigs.has(name);
-    return'<div class="bd-sig '+cls+(active?'':' out')+'">'
-      +'<div class="sn">'+SIG_LABELS[si].replace(' ↑','').replace(' ↓','')+'</div>'
+    const cls=pos1?'top1':pos3?'top3':'out';
+    const rankStr=pos1?'#1':pos3?'#'+rank:'—';
+    const label=SIG_LABELS[si].replace(' ↑','').replace(' ↓','');
+    return'<div class="bd-sig '+cls+'">'
+      +'<div class="sn">'+label+'</div>'
       +'<div class="sr">'+rankStr+'</div>'
       +'</div>';
+  }}).sort((a,b)=>{{
+    // Sort: top1 first, top3 next, out last
+    const rankA=a.includes('top1')?0:a.includes('top3')?1:2;
+    const rankB=b.includes('top1')?0:b.includes('top3')?1:2;
+    return rankA-rankB;
   }}).join('');
 
   return'<div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Race details</div>'
