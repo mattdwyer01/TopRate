@@ -2014,13 +2014,12 @@ function buildSignals(){{
   const stats={{}};
   SIG_NAMES.forEach((name,si)=>{{
     stats[name]={{name,label:SIG_LABELS[si],dir:SIG_DIR[si],active:activeSigs.has(name),
-      total:0,top3:0,wins:0,places:0,staked:0,profit:0}};
+      total:0,top1:0,top3:0,wins:0,places:0,staked:0,profit:0}};
   }});
 
   bets.forEach(b=>{{
     const race=b.raceObj;
     const runner=b.runnerObj;
-    // Find runner index in race.u
     const ri=race.u.findIndex(u=>u.h===runner.h);
     if(ri<0)return;
     const fx=getFixed(b);
@@ -2031,7 +2030,9 @@ function buildSignals(){{
       const s=stats[name];
       s.total++;
       const ranking=race.s[si]||[];
+      const isTop1=ranking[0]===ri;
       const inTop3=ranking.slice(0,3).includes(ri);
+      if(isTop1)s.top1++;
       if(inTop3){{
         s.top3++;
         s.staked+=effStake;
@@ -2069,6 +2070,7 @@ function buildSignals(){{
     return'<tr class="'+(r.active?'':'sig-inactive')+'">'
       +'<td><span class="sig-name">'+r.label.replace(' ↑','').replace(' ↓','')+'</span>'
       +'<span class="sig-dir">'+(r.dir?'↑':'↓')+'</span></td>'
+      +'<td class="r">'+r.top1+'<span style="color:#9ca3af;font-size:10px;">/'+r.total+'</span></td>'
       +'<td class="r">'+r.top3+'<span style="color:#9ca3af;font-size:10px;">/'+r.total+'</span></td>'
       +'<td><div class="sig-bar-wrap"><div class="sig-bar neu" style="width:'+barW+'px"></div></div></td>'
       +'<td class="r">'+r.wins+'</td>'
@@ -2083,7 +2085,8 @@ function buildSignals(){{
 
   const hdr='<table class="sig-table"><thead><tr>'
     +'<th>Signal</th>'
-    +'<th class="r">In top 3</th>'
+    +'<th class="r">Top 1</th>'
+    +'<th class="r">Top 3</th>'
     +'<th>Coverage</th>'
     +'<th class="r">Wins</th>'
     +'<th class="r">Win %</th>'
