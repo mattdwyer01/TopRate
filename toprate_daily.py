@@ -995,11 +995,11 @@ td:nth-child(-n+4){{text-align:left;}}
 .q-sig-horse{{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
 .q-no-meeting{{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}}
 .bt-wrap{{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;}}
-.bt-controls{{padding:16px;}}
+.bt-controls{{padding:16px;background:#fff;border:1px solid #e2e5ea;border-radius:4px;}}
 .bt-ctrl-title{{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}}
-.bt-ctrl-row{{margin-bottom:12px;}}
-.bt-lbl{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;pointer-events:none;}}
-.bt-ctrl-row input[type=range]{{width:100%;accent-color:#f97316;cursor:pointer;}}
+.bt-ctrl-row{{margin-bottom:14px;display:block;}}
+.bt-lbl{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
+.bt-ctrl-row input[type=range]{{display:block;width:100%;accent-color:#f97316;cursor:pointer;}}
 .bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
 .bt-kpi-strip{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}}
 .bt-kpi{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}}
@@ -1228,7 +1228,7 @@ td:nth-child(-n+4){{text-align:left;}}
   </div>
   <div class="tab-panel" id="panel-backtest">
     <div class="bt-wrap">
-      <div class="bt-controls card">
+      <div class="bt-controls">
         <div class="bt-ctrl-title">Backtest Filters</div>
         <div class="bt-ctrl-row">
           <div class="bt-lbl">Min score <span id="bt-v-score" class="bt-val">8</span></div>
