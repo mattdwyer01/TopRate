@@ -998,8 +998,8 @@ td:nth-child(-n+4){{text-align:left;}}
 .bt-controls{{padding:16px;position:sticky;top:16px;max-height:calc(100vh - 40px);overflow-y:auto;}}
 .bt-ctrl-title{{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}}
 .bt-ctrl-row{{margin-bottom:12px;}}
-.bt-ctrl-row>label:first-child{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;}}
-.bt-ctrl-row input[type=range]{{width:100%;margin-top:4px;accent-color:#f97316;}}
+.bt-lbl{{font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;pointer-events:none;}}
+.bt-ctrl-row input[type=range]{{width:100%;accent-color:#f97316;cursor:pointer;}}
 .bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
 .bt-kpi-strip{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}}
 .bt-kpi{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}}
@@ -1232,60 +1232,60 @@ td:nth-child(-n+4){{text-align:left;}}
       <div class="bt-controls card">
         <div class="bt-ctrl-title">Backtest Filters</div>
         <div class="bt-ctrl-row">
-          <label>Min score <span id="bt-v-score" class="bt-val">8</span></label>
+          <div class="bt-lbl">Min score <span id="bt-v-score" class="bt-val">8</span></div>
           <input type="range" id="bt-score" min="1" max="11" value="8" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <label>Min SP <span id="bt-v-sp" class="bt-val">$1.00</span></label>
+          <div class="bt-lbl">Min SP <span id="bt-v-sp" class="bt-val">$1.00</span></div>
           <input type="range" id="bt-sp" min="100" max="2000" value="100" step="10" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <label>Max SP <span id="bt-v-spmax" class="bt-val">Any</span></label>
+          <div class="bt-lbl">Max SP <span id="bt-v-spmax" class="bt-val">Any</span></div>
           <input type="range" id="bt-spmax" min="200" max="5000" value="5000" step="50" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <label>Min prize <span id="bt-v-prize" class="bt-val">$0k</span></label>
+          <div class="bt-lbl">Min prize <span id="bt-v-prize" class="bt-val">$0k</span></div>
           <input type="range" id="bt-prize" min="0" max="200000" value="0" step="5000" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <label>Staking</label>
-          <div style="display:flex;gap:4px;margin-top:4px;">
+          <div class="bt-lbl">Staking</div>
+          <div style="display:flex;gap:4px;">
             <button class="mb active" id="bt-s-flat" onclick="btSetStake('flat')">Flat 1u</button>
             <button class="mb" id="bt-s-fixed" onclick="btSetStake('fixed')">Fixed return</button>
           </div>
         </div>
         <div id="bt-target-row" class="bt-ctrl-row" style="display:none;">
-          <label>Target <span id="bt-v-target" class="bt-val">4.0u</span></label>
+          <div class="bt-lbl">Target <span id="bt-v-target" class="bt-val">4.0u</span></div>
           <input type="range" id="bt-target" min="10" max="100" value="40" step="5" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <label>Scoring</label>
-          <div style="display:flex;gap:4px;margin-top:4px;">
+          <div class="bt-lbl">Scoring</div>
+          <div style="display:flex;gap:4px;">
             <button class="mb active" id="bt-m-top3c" onclick="btSetMethod('top3c')">Top 3 count</button>
             <button class="mb" id="bt-m-top1" onclick="btSetMethod('top1')">Top 1 only</button>
           </div>
         </div>
-        <div class="bt-ctrl-row">
-          <label>Trend filter</label>
-          <label class="tog-wrap" style="margin-top:4px;">
+        <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="bt-lbl" style="margin:0;">Trend filter</div>
+          <label class="tog-wrap">
             <input type="checkbox" id="bt-trend" checked onchange="runBacktest()">
             <div class="tog-track"><div class="tog-thumb"></div></div>
           </label>
         </div>
-        <div class="bt-ctrl-row">
-          <label>Excl. first starters</label>
-          <label class="tog-wrap" style="margin-top:4px;">
+        <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="bt-lbl" style="margin:0;">Excl. first starters</div>
+          <label class="tog-wrap">
             <input type="checkbox" id="bt-nofirst" checked onchange="runBacktest()">
             <div class="tog-track"><div class="tog-thumb"></div></div>
           </label>
         </div>
         <div class="bt-ctrl-row">
-          <label>Signals</label>
-          <div style="margin-top:6px;">
-            <button class="reset-btn" style="padding:4px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
-            <button class="reset-btn" style="padding:4px 8px;font-size:9px;" onclick="btSelectSigs('optimal')">Optimal</button>
-            <div id="bt-sig-grid" class="sig-grid" style="margin-top:6px;"></div>
+          <div class="bt-lbl">Signals</div>
+          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
+            <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('optimal')">Optimal</button>
           </div>
+          <div id="bt-sig-grid" style="margin-top:6px;"></div>
         </div>
       </div>
       <div class="bt-results">
