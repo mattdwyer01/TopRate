@@ -1008,7 +1008,7 @@ td:nth-child(-n+4){{text-align:left;}}
 .bt-sig-label.inactive{{color:rgba(255,255,255,.45);}}
 .bt-sig-label input{{accent-color:#f97316;}}
 .bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
-.bt-kpi-strip{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}}
+.bt-kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}}
 .bt-kpi{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}}
 .bt-kpi .v{{font-size:24px;font-weight:900;color:#0f1923;font-family:'Barlow Condensed',sans-serif;}}
 .bt-kpi .v.pos{{color:#2e7d32;}}.bt-kpi .v.neg{{color:#c62828;}}
@@ -1242,8 +1242,8 @@ td:nth-child(-n+4){{text-align:left;}}
           <input type="range" id="bt-score" min="1" max="11" value="8" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
-          <div class="bt-lbl">Min SP <span id="bt-v-sp" class="bt-val">$1.00</span></div>
-          <input type="range" id="bt-sp" min="100" max="2000" value="100" step="10" oninput="runBacktest()">
+          <div class="bt-lbl">Min SP <span id="bt-v-sp" class="bt-val">$3.00</span></div>
+          <input type="range" id="bt-sp" min="100" max="2000" value="300" step="10" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
           <div class="bt-lbl">Max SP <span id="bt-v-spmax" class="bt-val">Any</span></div>
@@ -1282,6 +1282,20 @@ td:nth-child(-n+4){{text-align:left;}}
           <div class="bt-lbl" style="margin:0;">Excl. first starters</div>
           <label class="tog">
             <input type="checkbox" id="bt-nofirst" checked onchange="runBacktest()">
+            <div class="tog-track"></div><div class="tog-thumb"></div>
+          </label>
+        </div>
+        <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="bt-lbl" style="margin:0;font-size:10px;">Skip race if 3+ qualifiers</div>
+          <label class="tog">
+            <input type="checkbox" id="bt-maxqual" checked onchange="runBacktest()">
+            <div class="tog-track"></div><div class="tog-thumb"></div>
+          </label>
+        </div>
+        <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="bt-lbl" style="margin:0;font-size:10px;">Skip race if qualifier under min SP</div>
+          <label class="tog">
+            <input type="checkbox" id="bt-spinval" checked onchange="runBacktest()">
             <div class="tog-track"></div><div class="tog-thumb"></div>
           </label>
         </div>
@@ -2436,51 +2450,71 @@ function runBacktest(){{
   document.getElementById('bt-v-target').textContent=(target/10).toFixed(1)+'u';
   const trendOnly=document.getElementById('bt-trend').checked;
   const noFirst=document.getElementById('bt-nofirst').checked;
+  const maxQualRule=document.getElementById('bt-maxqual').checked;
+  const spInvalRule=document.getElementById('bt-spinval').checked;
   const maxBarrier=parseInt(document.getElementById('bt-barrier').value);
   document.getElementById('bt-v-barrier').textContent=maxBarrier>=20?'Any':maxBarrier;
 
-  // Settling, pace, dow checked values
   const settleOk=new Set([...document.querySelectorAll('#bt-settle-grid input:checked')].map(c=>c.value.toLowerCase()));
   const paceOk=new Set([...document.querySelectorAll('#bt-pace-grid input:checked')].map(c=>c.value.toLowerCase()));
   const dowMap={{'Mon':1,'Tue':2,'Wed':3,'Thu':4,'Fri':5,'Sat':6,'Sun':0}};
   const dowOk=new Set([...document.querySelectorAll('#bt-dow-grid input:checked')].map(c=>dowMap[c.value]));
 
-  const DOW_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Pass 1: find all qualifying candidates per race (before SP invalidation)
+  // Also find races with any horse that passes all filters EXCEPT SP
+  const raceQualifiers={{}};   // raceKey -> array of qualifying runner objects
+  const raceSPFail={{}};       // raceKey -> true if any horse qualifies on everything except SP
 
-  // Only resulted races
-  const results=[];
   RACES.forEach(race=>{{
     if(race.done!==1)return;
     if(race.p&&race.p<minPrize)return;
     if(noFirst&&race.n)return;
+    const raceDate=new Date(race.d+'T12:00:00');
+    const dow=raceDate.getDay();
+    if(dowOk.size&&!dowOk.has(dow))return;
+    const ps=(race.ps||'unknown').toLowerCase();
+    if(paceOk.size&&!paceOk.has(ps))return;
+    const rk=race.d+'|'+race.v+'|'+race.r;
+
     race.u.forEach((runner,ri)=>{{
-      if(runner.f===null||runner.f===undefined)return; // no result
+      if(runner.f===null||runner.f===undefined)return;
       const sp=runner.sp;
-      if(!sp||sp<minSP)return;
-      if(maxSP&&sp>maxSP)return;
+      if(!sp)return;
       if(trendOnly&&(runner.tr===null||runner.tr<=0))return;
       if(maxBarrier<20&&runner.b&&runner.b>maxBarrier)return;
       const st=(runner.st||'unknown').toLowerCase().replace('-','');
-      if(settleOk.size&&!settleOk.has(st)&&!settleOk.has('unknown')){{
-        if(!settleOk.has(st))return;
-      }}
-      const ps=(race.ps||'unknown').toLowerCase();
-      if(paceOk.size&&!paceOk.has(ps))return;
-      const raceDate=new Date(race.d+'T12:00:00');
-      const dow=raceDate.getDay();
-      if(dowOk.size&&!dowOk.has(dow))return;
-      const {{score,maxScore}}=btCalcScore(race,ri,btSigs,btMethod);
+      if(settleOk.size&&!settleOk.has(st)&&!settleOk.has('unknown'))return;
+      const {{score}}=btCalcScore(race,ri,btSigs,btMethod);
       if(score<minScore)return;
+
+      // This horse passes all filters except possibly SP
+      if(sp<minSP){{
+        // Fails SP — mark race as SP-invalid
+        if(spInvalRule)raceSPFail[rk]=true;
+        return;
+      }}
+      if(maxSP&&sp>maxSP)return;
+
+      if(!raceQualifiers[rk])raceQualifiers[rk]=[];
+      raceQualifiers[rk].push({{runner,ri,race,sp,score}});
+    }});
+  }});
+
+  // Pass 2: collect final bets applying race-level rules
+  const results=[];
+  Object.entries(raceQualifiers).forEach(([rk,quals])=>{{
+    if(raceSPFail[rk])return; // race has a sub-SP qualifier — skip whole race
+    if(maxQualRule&&quals.length>=3)return; // 3+ qualifiers — skip whole race
+    quals.forEach(q=>{{
+      const {{runner,ri,race,sp,score}}=q;
+      const maxScore=btSigs.size;
       const scoreDisp=score+'/'+maxScore;
       const stake=btCalcStake(score,maxScore,sp,btStake,target);
       const won=runner.f===1;
       const placed=runner.f<=3;
       const pl=won?+(stake*(sp-1)).toFixed(2):+(-stake).toFixed(2);
-      results.push({{
-        date:race.d,venue:race.v,race:race.r,horse:runner.h,
-        score,maxScore,scoreDisp,sp,stake,finish:runner.f,won,placed,pl,
-        tm:race.tm
-      }});
+      results.push({{date:race.d,venue:race.v,race:race.r,horse:runner.h,
+        score,maxScore,scoreDisp,sp,stake,finish:runner.f,won,placed,pl,tm:race.tm}});
     }});
   }});
 
@@ -2492,7 +2526,6 @@ function runBacktest(){{
     return at-bt2;
   }});
 
-  // Compute cumulative
   let cum=0,staked=0,wins=0,places=0;
   results.forEach(r=>{{cum+=r.pl;r.cum=+cum.toFixed(2);staked+=r.stake;if(r.won)wins++;if(r.placed)places++;}});
   const n=results.length;
@@ -2500,7 +2533,6 @@ function runBacktest(){{
   const wr=n?(wins/n*100).toFixed(1):'0.0';
   const pr=n?(places/n*100).toFixed(1):'0.0';
 
-  // KPIs
   const roiCls=parseFloat(roi)>=0?'pos':'neg';
   const profCls=cum>=0?'pos':'neg';
   document.getElementById('bt-kpis').innerHTML=
@@ -2508,6 +2540,7 @@ function runBacktest(){{
     +'<div class="bt-kpi"><div class="v">'+n+'</div><div class="l">Bets</div></div>'
     +'<div class="bt-kpi"><div class="v">'+wins+'</div><div class="l">Wins</div></div>'
     +'<div class="bt-kpi"><div class="v">'+wr+'%</div><div class="l">Win rate</div></div>'
+    +'<div class="bt-kpi"><div class="v">'+pr+'%</div><div class="l">Place rate</div></div>'
     +'<div class="bt-kpi"><div class="v '+profCls+'">'+(cum>=0?'+':'')+cum.toFixed(1)+'u</div><div class="l">Profit ('+staked.toFixed(1)+'u staked)</div></div>';
 
   // Table — show last 200 for performance
