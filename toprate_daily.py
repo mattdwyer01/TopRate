@@ -1110,9 +1110,9 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .main-tabs{{margin-bottom:10px;display:flex;gap:0;border-bottom:1px solid #e8eaf0;}}
   .main-tab{{padding:8px 10px;font-size:9px;letter-spacing:.06em;flex:1;text-align:center;}}
   .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:10px;}}
-  .kpi{{padding:5px 3px;border-radius:4px;box-shadow:none;}}
-  .kpi .v{{font-size:12px;font-weight:900;line-height:1.1;}}
-  .kpi .l{{font-size:6px;margin-top:1px;letter-spacing:0;}}
+  .kpi{{padding:5px 2px;border-radius:4px;box-shadow:none;min-width:0;overflow:hidden;}}
+  .kpi .v{{font-size:11px;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+  .kpi .l{{font-size:6px;margin-top:1px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
   .kpi-hide-mob{{display:block !important;}}
   .desk-only{{display:none !important;}}
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
