@@ -2576,17 +2576,16 @@ const qBankers={{}};      // key: mk|legN|banker -> runnerIdx
 function qKey(date,venue,legIdx,runIdx){{return date+'|'+venue+'|'+legIdx+'|'+runIdx;}}
 function qMeetingKey(date,venue){{return date+'|'+venue;}}
 
-function qResetLeg(mk,li,topIdx){{
-  // Clear all explicit selections for this leg, revert to default (top runner)
-  Object.keys(qSelections).forEach(k=>{{
-    const parts=k.split('|');
-    if(k.startsWith(mk+'|'+li+'|'))delete qSelections[k];
-  }});
+function qResetLeg(btn){{
+  const mk=btn.dataset.mk, li=parseInt(btn.dataset.li), topIdx=parseInt(btn.dataset.ti);
+  Object.keys(qSelections).forEach(k=>{{if(k.startsWith(mk+'|'+li+'|'))delete qSelections[k];}});
   buildQuaddie();
 }}
 
-function qSelectAll(mk,li,nRunners){{
-  for(let ri=0;ri<nRunners;ri++)qSelections[qKey(mk.split('|')[0],mk.split('|').slice(1).join('|'),li,ri)]=true;
+function qSelectAll(btn){{
+  const mk=btn.dataset.mk, li=parseInt(btn.dataset.li), nRunners=parseInt(btn.dataset.nr);
+  const parts=mk.split('|'); const date=parts[0], venue=parts.slice(1).join('|');
+  for(let ri=0;ri<nRunners;ri++)qSelections[qKey(date,venue,li,ri)]=true;
   buildQuaddie();
 }}
 
@@ -2709,8 +2708,8 @@ function buildQuaddie(){{
 
       // Leg controls: reset + select all
       const legControls='<div class="q-leg-controls">'
-        +'<button onclick="qResetLeg(\''+mk+'\','+li+','+topIdx+')" class="q-ctrl-btn">↺ Reset</button>'
-        +'<button onclick="qSelectAll(\''+mk+'\','+li+','+leg.u.length+')" class="q-ctrl-btn">All</button>'
+        +'<button onclick="qResetLeg(this)" data-mk="'+mk+'" data-li="'+li+'" data-ti="'+topIdx+'" class="q-ctrl-btn">↺ Reset</button>'
+        +'<button onclick="qSelectAll(this)" data-mk="'+mk+'" data-li="'+li+'" data-nr="'+leg.u.length+'" class="q-ctrl-btn">All</button>'
         +'</div>';
 
       // Signal breakdown
