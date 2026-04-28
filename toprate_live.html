@@ -400,7 +400,7 @@ tr.no-bet-row td{opacity:0.4;}
       <button class="mb" id="s-prop" onclick="setStake('prop')">Signal<br>prop</button>
     </div>
     <div id="s-fixed-wrap" style="display:none" class="srow">
-      <div class="shdr"><span class="slbl">Target return</span><span class="sval" id="v-target">4.0u</span></div>
+      <div class="shdr"><span class="slbl">Fixed return target</span><span class="sval" id="v-target">4.0u</span></div>
       <input type="range" id="f-target" min="1" max="10" step="0.5" value="4">
     </div>
   </div>
@@ -461,7 +461,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 09:23<br>406 races &middot; 370 resulted &middot; 36 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 09:35<br>406 races &middot; 370 resulted &middot; 36 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -644,7 +644,7 @@ function fmtTime(tm){
 function getActiveDows(){const s=new Set();document.querySelectorAll('#dow-grid input:checked').forEach(cb=>s.add(parseInt(cb.dataset.dow)));return s;}
 function setDow(mode){document.querySelectorAll('#dow-grid input').forEach(cb=>{const d=parseInt(cb.dataset.dow);cb.checked=mode==='all'?true:mode==='weekend'?(d===0||d===6):(d>=1&&d<=5);});update();}
 function setStake(m){stakeMethod=m;['s-flat','s-fixed','s-prop'].forEach(id=>document.getElementById(id).classList.remove('active'));document.getElementById('s-'+m).classList.add('active');document.getElementById('s-fixed-wrap').style.display=m==='fixed'?'':'none';update();}
-function calcStake(score,maxScore,sp){if(stakeMethod==='flat')return 1;if(stakeMethod==='fixed'){const tg=parseFloat(document.getElementById('f-target').value);return sp&&sp>1?Math.max(tg/(sp-1),0.1):1;}const pct=maxScore>0?score/maxScore:0;return Math.max(0.5,pct*2);}
+function calcStake(score,maxScore,sp){if(stakeMethod==='flat')return 1;if(stakeMethod==='fixed'){const tg=parseFloat(document.getElementById('f-target').value);return sp&&sp>1?Math.max(tg/sp,0.1):1;}const pct=maxScore>0?score/maxScore:0;return Math.max(0.5,pct*2);}
 function setMethod(m){
   method=m;
   ['m-top1','m-top3c','m-top3w'].forEach(id=>document.getElementById(id).classList.remove('active'));
