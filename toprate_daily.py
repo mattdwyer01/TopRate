@@ -1106,13 +1106,13 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .mob-menu-btn{{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;cursor:pointer;padding:6px 10px;border-radius:4px;line-height:1;}}
   .mob-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;backdrop-filter:blur(2px);}}
   .mob-overlay.open{{display:block;}}
-  .main{{padding:10px 10px 80px;}}
-  .main-tabs{{margin-bottom:10px;}}
-  .main-tab{{padding:8px 14px;font-size:9px;}}
-  .kpi-strip{{grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;}}
-  .kpi{{padding:10px 10px;}}
-  .kpi .v{{font-size:20px;}}
-  .kpi .l{{font-size:7px;}}
+  .main{{padding:8px 8px 80px;max-width:100vw;}}
+  .main-tabs{{margin-bottom:10px;display:flex;gap:0;border-bottom:1px solid #e8eaf0;}}
+  .main-tab{{padding:8px 10px;font-size:9px;letter-spacing:.06em;flex:1;text-align:center;}}
+  .kpi-strip{{grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px;}}
+  .kpi{{padding:10px 12px;}}
+  .kpi .v{{font-size:22px;}}
+  .kpi .l{{font-size:8px;}}
   .desk-only{{display:none !important;}}
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
   .mob-bet-card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;}}
@@ -2224,13 +2224,16 @@ function update(){{
       const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const mobTimeR=fmtTime(b.raceObj.tm);
       return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'">'
-        +'<div class="mob-bet-hdr"><div><span class="mob-bet-venue">'+b.venue+' R'+b.race+(mobTimeR?' &nbsp;<span style="color:#6b7280;font-size:10px;">'+mobTimeR+'</span>':'')+'</span></div>'
-        +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+'</span></div></div>'
+        +'<div class="mob-bet-hdr">'
+        +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
+        +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+(mobTimeR?' &nbsp;'+mobTimeR:'')+'</span></div>'
+        +'</div>'
         +'<div class="mob-bet-body">'
-        +'<div class="mob-bet-horse">'+b.horse+'</div>'
-        +'<div class="mob-bet-jockey">'+b.jockey+'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+        +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+'</div></div>'
+        +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
+        +'</div>'
         +'<div class="mob-bet-row">'
-        +'<span class="mob-bet-tag score">'+b.scoreDisp+'</span>'
         +(b.sp?'<span class="mob-bet-tag sp">SP $'+b.sp.toFixed(2)+'</span>':'')
         +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
         +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
@@ -2239,7 +2242,7 @@ function update(){{
         +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
         +'<span style="font-size:10px;color:#6b7280;">Fixed:</span>'
         +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
-        +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+' &nbsp; '+plStr+'</span>'
+        +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'&nbsp;'+plStr+'</span>'
         +'</div>'
         +'</div></div>';
     }}).join('');
@@ -2345,15 +2348,17 @@ function update(){{
         const resId='mpres-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const mobTimeP=fmtTime(b.raceObj.tm);
         return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'">'
-          +'<div class="mob-bet-hdr"><span class="mob-bet-venue">'+b.venue+' R'+b.race+(mobTimeP?' &nbsp;<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'</span>'
-          +'<span class="mob-bet-date">'+b.date+'</span></div>'
+          +'<div class="mob-bet-hdr">'
+          +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
+          +'<div style="display:flex;align-items:center;gap:6px;">'+(mobTimeP?'<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'<span class="mob-bet-date">'+b.date+'</span></div>'
+          +'</div>'
           +'<div class="mob-bet-body">'
-          +'<div class="mob-bet-horse">'+b.horse+'</div>'
-          +'<div class="mob-bet-jockey">'+b.jockey+'</div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+          +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+'</div></div>'
+          +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
+          +'</div>'
           +'<div class="mob-bet-row">'
-          +'<span class="mob-bet-tag score">'+b.scoreDisp+'</span>'
-          +(b.sp?'<span class="mob-bet-tag sp">SP $'+b.sp.toFixed(2)+'</span>':'<span class="mob-bet-tag sp">SP TBD</span>')
-          +(b.mktPrice?'<span class="mob-bet-tag mkt">Mkt $'+b.mktPrice.toFixed(2)+'</span>':'')
+          +(b.mktPrice?'<span class="mob-bet-tag mkt">Mkt $'+b.mktPrice.toFixed(2)+'</span>':'<span class="mob-bet-tag sp">SP TBD</span>')
           +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
           +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
           +'</div>'
