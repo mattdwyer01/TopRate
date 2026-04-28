@@ -1096,7 +1096,8 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
 .mob-bar{{display:none;}}
 @media(max-width:768px){{
-  .shell{{display:block;}}
+  .shell{{display:block;overflow-x:hidden;}}
+  body{{overflow-x:hidden;}}
   .sidebar{{position:fixed;top:0;left:0;width:88vw;max-width:320px;height:100vh;z-index:200;transform:translateX(-105%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 24px rgba(0,0,0,.3);}}
   .sidebar.open{{transform:translateX(0);}}
   .mob-bar{{display:flex;align-items:center;justify-content:space-between;background:#0f172a;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15);}}
@@ -1108,9 +1109,9 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .main{{padding:10px 10px 80px;}}
   .main-tabs{{margin-bottom:10px;}}
   .main-tab{{padding:8px 14px;font-size:9px;}}
-  .kpi-strip{{grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px;}}
-  .kpi{{padding:8px 8px;}}
-  .kpi .v{{font-size:18px;}}
+  .kpi-strip{{grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;}}
+  .kpi{{padding:10px 10px;}}
+  .kpi .v{{font-size:20px;}}
   .kpi .l{{font-size:7px;}}
   .desk-only{{display:none !important;}}
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
@@ -1124,8 +1125,12 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .mob-bet-body{{padding:10px 12px;}}
   .mob-bet-horse{{font-size:15px;font-weight:700;color:#0f1729;margin-bottom:2px;}}
   .mob-bet-jockey{{font-size:11px;color:#6b7280;margin-bottom:8px;}}
-  .mob-bet-row{{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}}
-  .mob-bet-tag{{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;}}
+  .mob-bet-row{{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center;width:100%;}}
+  .mob-bet-tag{{display:inline-flex;align-items:center;padding:2px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;flex-shrink:0;}}
+  .main-tabs{{margin-bottom:12px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;}}
+  .main-tab{{padding:8px 12px;font-size:10px;}}
+  .mob-bet-card{{max-width:100%;box-sizing:border-box;}}
+  .mob-bet-list{{padding-bottom:20px;}}
   .mob-bet-tag.score{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;}}
   .mob-bet-tag.sp{{background:#eff6ff;color:#1e40af;border:1px solid #93c5fd;}}
   .mob-bet-tag.mkt{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;font-weight:700;}}
@@ -3228,11 +3233,8 @@ document.addEventListener('click',function(e){{
 }});
 
 // Close sidebar when any interactive element inside it is tapped on mobile
-document.querySelector('.sidebar').addEventListener('click',e=>{{
-  if(window.innerWidth>768)return;
-  if(e.target.type==='range')return;  // sliders need drag — don't close
-  setTimeout(closeSidebar,200);
-}});
+// Sidebar only closes when overlay (outside area) is tapped — handled by mob-overlay onclick
+// Do NOT close on internal filter interactions
 </script>
 </body>
 </html>"""
