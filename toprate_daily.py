@@ -1109,10 +1109,11 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .main{{padding:8px 8px 80px;max-width:100vw;}}
   .main-tabs{{margin-bottom:10px;display:flex;gap:0;border-bottom:1px solid #e8eaf0;}}
   .main-tab{{padding:8px 10px;font-size:9px;letter-spacing:.06em;flex:1;text-align:center;}}
-  .kpi-strip{{grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px;}}
-  .kpi{{padding:10px 12px;}}
-  .kpi .v{{font-size:22px;}}
-  .kpi .l{{font-size:8px;}}
+  .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:10px;}}
+  .kpi{{padding:6px 4px;border-radius:4px;}}
+  .kpi .v{{font-size:14px;font-weight:900;line-height:1.1;}}
+  .kpi .l{{font-size:7px;margin-top:2px;}}
+  .kpi-hide-mob{{display:block !important;}}
   .desk-only{{display:none !important;}}
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
   .mob-bet-card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;}}
@@ -1141,6 +1142,17 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .mob-fixed-inp.has-val{{background:#f0fdf4;border-color:#10b981;color:#065f46;font-weight:700;}}
   .mob-res-inp{{width:44px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;text-align:center;background:#f0fdf4;outline:none;}}
   .mob-stake-lbl{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b7280;margin-left:auto;}}
+  .bt-kpi-strip{{grid-template-columns:repeat(3,1fr);gap:4px;}}
+  .bt-kpi{{padding:6px 4px;}}
+  .bt-kpi .v{{font-size:14px;}}
+  .bt-kpi .l{{font-size:7px;}}
+  .bt-controls{{border-radius:4px;}}
+  .bt-wrap{{gap:10px;}}
+  #bt-table th:nth-child(1),#bt-table td:nth-child(1){{display:none;}}
+  #bt-table th:nth-child(6),#bt-table td:nth-child(6){{display:none;}}
+  #bt-table th,#bt-table td{{padding:6px 6px;font-size:11px;}}
+  .sig-table th,#bt-sig-content .sig-table td{{padding:5px 6px;font-size:10px;}}
+  .sig-bar-wrap{{width:40px;}}
   .q-legs{{display:grid !important;grid-template-columns:1fr !important;}}
   .q-leg{{border-right:none !important;border-bottom:1px solid #e8eaf0;width:100% !important;}}
   .q-meeting{{margin-bottom:16px;}}
@@ -1547,8 +1559,8 @@ tr.no-bet-row td{{opacity:0.4;}}
     <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets resulted</div></div>
     <div class="kpi"><div class="v" id="k-wins">0</div><div class="l">Wins</div></div>
     <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win rate</div></div>
-    <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place rate</div></div>
-    <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
+    <div class="kpi kpi-hide-mob"><div class="v" id="k-pp">—</div><div class="l">Place rate</div></div>
+    <div class="kpi kpi-hide-mob"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
   </div>
   <div class="st" id="pend-title" style="display:none">Pending <span class="cnt" id="pend-cnt"></span></div>
   <div class="card desk-only" id="pend-card" style="display:none">
