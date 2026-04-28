@@ -53,6 +53,7 @@ PASSWORD  = os.environ.get("TOPRATE_PASSWORD", "P@ssword1996")
 RUNNERS_CSV    = Path(__file__).parent / "toprate_runners.csv"
 SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
+BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
@@ -920,6 +921,96 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
 # -----------------------------------------------------------------------
 # STEP 3: REBUILD HTML
 # -----------------------------------------------------------------------
+def build_bt_races(bt_df):
+    """
+    Build BT_RACES JS array from the backtest runners CSV.
+    Same compact format as RACES but for the full historical dataset.
+    Only includes resulted races.
+    """
+    def sv(v):
+        try:
+            f = float(v)
+            return None if math.isnan(f) else round(f, 3)
+        except: return None
+    def si(v):
+        try:
+            f = float(v)
+            return None if math.isnan(f) else int(f)
+        except: return None
+
+    bt_races = []
+    # Group by race
+    race_cols = ['date','venue','race_id']
+    for (date, venue, race_id), grp in bt_df.groupby(race_cols, sort=False):
+        grp = grp.sort_values('tab_number', na_position='last')
+        # Only include resulted races
+        if not grp['finish_position'].notna().any():
+            continue
+
+        # Compute signal rankings for all 12 signals
+        runner_list = []
+        for _, row in grp.iterrows():
+            runner_list.append({
+                "h":  str(row.get("horse", "")),
+                "j":  str(row.get("jockey", "")),
+                "f":  si(row.get("finish_position")),
+                "sp": sv(row.get("starting_price_sp")),
+                "fx": sv(row.get("fixed_win_price")),
+                "tr": sv(row.get("wpr_trend")),
+                "w":  sv(row.get("wpr_nett")),
+                "b":  si(row.get("barrier")),
+                "st": str(row.get("_settling","")) if row.get("_settling") else None,
+                "ps": str(row.get("pace_scenario","")) if row.get("pace_scenario") else None,
+            })
+
+        # Build signal rankings — same order as SIG_NAMES
+        # wpr_nett, wpr_last1, wpr_avg_last3, wpr_dist, wpr_going,
+        # jky_win90, trn_win365, tr_rating, speed,
+        # wpr_rank(lower), peak_rank(lower), consistency(lower)
+        sig_cols_higher = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
+                           "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating"]
+        sig_cols_lower  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency"]
+
+        sig_rankings = []
+        for sig, asc in [(s, False) for s in sig_cols_higher] + [(s, True) for s in sig_cols_lower]:
+            col = sig
+            if col not in grp.columns:
+                sig_rankings.append([-1,-1,-1])
+                continue
+            vals = grp[col].values
+            valid = [(i, float(v)) for i, v in enumerate(vals) if v is not None and not (isinstance(v, float) and math.isnan(v))]
+            if not valid:
+                sig_rankings.append([-1,-1,-1])
+                continue
+            valid.sort(key=lambda x: x[1], reverse=not asc)
+            top3 = [idx for idx, _ in valid[:3]]
+            while len(top3) < 3:
+                top3.append(-1)
+            sig_rankings.append(top3)
+
+        race_row = grp.iloc[0]
+        bt_races.append({
+            "d":    str(date)[:10],
+            "v":    str(venue),
+            "r":    si(race_row.get("race_number") or race_row.get("race")),
+            "p":    si(race_row.get("prize_money")),
+            "n":    0,
+            "t":    1,
+            "done": 1,
+            "top":  0,
+            "s":    sig_rankings,
+            "u":    runner_list,
+            "ps":   str(race_row.get("pace_scenario","")) if race_row.get("pace_scenario") else None,
+            "rid":  si(race_id),
+            "tm":   None,
+            "dist": si(race_row.get("distance")),
+            "going": str(race_row.get("going","")) if race_row.get("going") and str(race_row.get("going","")) != "nan" else None,
+            "fs":   len(runner_list),
+        })
+
+    return bt_races
+
+
 def rebuild_html(runners_df):
     """
     Build selections summary from runners DB, then render interactive HTML.
@@ -971,6 +1062,20 @@ def rebuild_html(runners_df):
         })
 
     data_js  = "const RACES = " + json.dumps(races, separators=(",",":")) + ";"
+
+    # Build BT_RACES from backtest CSV if it exists, else fall back to RACES
+    if BT_RUNNERS_CSV.exists():
+        try:
+            bt_df = pd.read_csv(BT_RUNNERS_CSV, dtype={"race_id": str, "run_id": str})
+            bt_races = build_bt_races(bt_df)
+            print(f"  BT_RACES: {len(bt_races)} races from {BT_RUNNERS_CSV.name}")
+        except Exception as e:
+            print(f"  Warning: could not load BT_RUNNERS_CSV: {e}")
+            bt_races = races
+    else:
+        bt_races = races  # fall back to same data
+
+    bt_data_js = "const BT_RACES = " + json.dumps(bt_races, separators=(",",":")) + ";"
     run_date = datetime.now().strftime("%d %b %Y %H:%M")
     n_total  = len(races)
     n_res    = sum(1 for r in races if r["done"] == 1)
@@ -983,257 +1088,264 @@ def rebuild_html(runners_df):
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TopRate — Live Tracking</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@400;700;900&family=Barlow:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&family=Syne:wght@400;600;800&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0;}}
-body{{background:#f0f2f5;color:#2c3542;font-family:Barlow,sans-serif;font-size:13px;}}
+body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:13px;}}
 .shell{{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}}
-.sidebar{{background:#1a3a5c;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}}
+.sidebar{{background:#0f172a;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}}
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
 .mob-bar{{display:none;}}
 @media(max-width:768px){{
   .shell{{display:block;}}
   .sidebar{{position:fixed;top:0;left:0;width:88vw;max-width:320px;height:100vh;z-index:200;transform:translateX(-105%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 24px rgba(0,0,0,.3);}}
   .sidebar.open{{transform:translateX(0);}}
-  .mob-bar{{display:flex;align-items:center;justify-content:space-between;background:#1a3a5c;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15);}}
-  .mob-bar-logo{{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#fff;letter-spacing:-1px;}}
-  .mob-bar-logo em{{color:#f97316;font-style:normal;}}
+  .mob-bar{{display:flex;align-items:center;justify-content:space-between;background:#0f172a;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15);}}
+  .mob-bar-logo{{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:-.03em;}}
+  .mob-bar-logo em{{color:#10b981;font-style:normal;}}
   .mob-menu-btn{{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;cursor:pointer;padding:6px 10px;border-radius:4px;line-height:1;}}
   .mob-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;backdrop-filter:blur(2px);}}
   .mob-overlay.open{{display:block;}}
   .main{{padding:10px 10px 80px;}}
   .main-tabs{{margin-bottom:10px;}}
   .main-tab{{padding:8px 14px;font-size:9px;}}
-  /* KPI: 3 cols, 2 rows — no overflow */
   .kpi-strip{{grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px;}}
   .kpi{{padding:8px 8px;}}
   .kpi .v{{font-size:18px;}}
   .kpi .l{{font-size:7px;}}
-  /* Hide desktop tables */
   .desk-only{{display:none !important;}}
-  /* Mobile bet cards */
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
-  .mob-bet-card{{background:#fff;border:1px solid #e2e5ea;border-radius:6px;overflow:hidden;}}
-  .mob-bet-card.wr{{border-left:4px solid #2e7d32;background:#f1f8f1;}}
-  .mob-bet-card.pr{{border-left:4px solid #1565c0;background:#f0f4ff;}}
+  .mob-bet-card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;}}
+  .mob-bet-card.wr{{border-left:4px solid #10b981;background:#f0fdf4;}}
+  .mob-bet-card.pr{{border-left:4px solid #3b82f6;background:#eff6ff;}}
   .mob-bet-card.no-bet-card{{opacity:0.5;}}
-  .mob-bet-hdr{{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f5f6f8;border-bottom:1px solid #e2e5ea;}}
-  .mob-bet-venue{{font-size:12px;font-weight:700;color:#0f1923;}}
-  .mob-bet-date{{font-family:'Space Mono',monospace;font-size:9px;color:#9ca3af;}}
+  .mob-bet-hdr{{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f8fafc;border-bottom:1px solid #e8eaf0;}}
+  .mob-bet-venue{{font-size:12px;font-weight:700;color:#0f1729;}}
+  .mob-bet-date{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9ca3af;}}
   .mob-bet-body{{padding:10px 12px;}}
-  .mob-bet-horse{{font-size:15px;font-weight:700;color:#0f1923;margin-bottom:2px;}}
+  .mob-bet-horse{{font-size:15px;font-weight:700;color:#0f1729;margin-bottom:2px;}}
   .mob-bet-jockey{{font-size:11px;color:#6b7280;margin-bottom:8px;}}
   .mob-bet-row{{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}}
-  .mob-bet-tag{{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;font-size:10px;white-space:nowrap;}}
-  .mob-bet-tag.score{{background:#fff3e0;color:#e65100;border:1px solid #ffcc80;}}
-  .mob-bet-tag.sp{{background:#e8f0fb;color:#1a3a5c;border:1px solid #93b8e0;}}
-  .mob-bet-tag.mkt{{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;font-weight:700;}}
-  .mob-bet-tag.wpr{{background:#f5f6f8;color:#374151;border:1px solid #d1d5db;}}
-  .mob-bet-tag.prize{{background:#f5f6f8;color:#6b7280;border:1px solid #e2e5ea;}}
+  .mob-bet-tag{{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;}}
+  .mob-bet-tag.score{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;}}
+  .mob-bet-tag.sp{{background:#eff6ff;color:#1e40af;border:1px solid #93c5fd;}}
+  .mob-bet-tag.mkt{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;font-weight:700;}}
+  .mob-bet-tag.wpr{{background:#f8fafc;color:#374151;border:1px solid #e8eaf0;}}
+  .mob-bet-tag.prize{{background:#f8fafc;color:#6b7280;border:1px solid #e8eaf0;}}
   .mob-bet-footer{{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #f0f2f5;flex-wrap:wrap;}}
-  .mob-fixed-inp{{width:70px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #f0c040;border-radius:4px;padding:4px 6px;text-align:center;background:#fffde7;color:#92400e;outline:none;}}
-  .mob-fixed-inp.has-val{{background:#fff7ed;border-color:#fb923c;color:#c2410c;font-weight:700;}}
-  .mob-res-inp{{width:44px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;text-align:center;background:#f0fdf4;outline:none;}}
-  .mob-stake-lbl{{font-family:'Space Mono',monospace;font-size:11px;color:#6b7280;margin-left:auto;}}
-  /* Quaddie: single column, legs stack vertically */
+  .mob-fixed-inp{{width:70px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #6ee7b7;border-radius:4px;padding:4px 6px;text-align:center;background:#f0fdf4;color:#065f46;outline:none;}}
+  .mob-fixed-inp.has-val{{background:#f0fdf4;border-color:#10b981;color:#065f46;font-weight:700;}}
+  .mob-res-inp{{width:44px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;text-align:center;background:#f0fdf4;outline:none;}}
+  .mob-stake-lbl{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b7280;margin-left:auto;}}
   .q-legs{{display:grid !important;grid-template-columns:1fr !important;}}
-  .q-leg{{border-right:none !important;border-bottom:1px solid #e2e5ea;width:100% !important;}}
+  .q-leg{{border-right:none !important;border-bottom:1px solid #e8eaf0;width:100% !important;}}
   .q-meeting{{margin-bottom:16px;}}
   .q-meeting-hdr{{flex-wrap:wrap;gap:4px;}}
   .q-cost-bar{{flex-wrap:wrap;gap:8px;}}
   .q-runner-name{{font-size:13px;}}
 }}
-.logo{{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;letter-spacing:-1px;color:#fff;margin-bottom:2px;}}
-.logo em{{color:#f97316;font-style:normal;}}
-.logo-sub{{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em;margin-bottom:20px;}}
+.logo{{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.04em;color:#fff;margin-bottom:2px;}}
+.logo em{{color:#10b981;font-style:normal;}}
+.logo-sub{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em;margin-bottom:20px;}}
 .fsec{{margin-bottom:16px;}}
-.ftitle{{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.1);}}
+.ftitle{{font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,.08);}}
 .trow{{display:flex;align-items:center;justify-content:space-between;padding:5px 0;}}
-.tlbl{{font-size:12px;color:rgba(255,255,255,.85);}}
+.tlbl{{font-size:12px;color:rgba(255,255,255,.8);}}
 .tog{{position:relative;width:34px;height:18px;cursor:pointer;flex-shrink:0;}}
 .tog input{{opacity:0;width:0;height:0;}}
-.tog-track{{position:absolute;inset:0;background:rgba(255,255,255,.2);border-radius:9px;transition:background .2s;}}
-.tog input:checked+.tog-track{{background:#f97316;}}
+.tog-track{{position:absolute;inset:0;background:rgba(255,255,255,.15);border-radius:9px;transition:background .2s;}}
+.tog input:checked+.tog-track{{background:#10b981;}}
 .tog-thumb{{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}}
 .tog input:checked~.tog-thumb{{transform:translateX(16px);}}
 .srow{{margin-bottom:12px;}}
 .shdr{{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;}}
-.slbl{{font-size:12px;color:rgba(255,255,255,.85);}}
-.sval{{font-family:'Space Mono',monospace;font-size:12px;color:#f97316;font-weight:700;}}
-input[type=range]{{width:100%;height:3px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer;}}
-input[type=range]::-webkit-slider-thumb{{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f97316;cursor:pointer;}}
-input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;background:#f97316;border:none;cursor:pointer;}}
+.slbl{{font-size:12px;color:rgba(255,255,255,.8);}}
+.sval{{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#10b981;font-weight:700;}}
+input[type=range]{{width:100%;height:3px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.15);border-radius:2px;outline:none;cursor:pointer;}}
+input[type=range]::-webkit-slider-thumb{{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#10b981;cursor:pointer;}}
+input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;background:#10b981;border:none;cursor:pointer;}}
 .dow-grid{{display:grid;grid-template-columns:1fr 1fr;gap:3px;}}
 .dow-cb{{display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 5px;border-radius:3px;}}
-.dow-cb input{{cursor:pointer;accent-color:#f97316;width:12px;height:12px;}}
-.dow-cb span{{font-size:11px;color:rgba(255,255,255,.75);}}
+.dow-cb input{{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}}
+.dow-cb span{{font-size:11px;color:rgba(255,255,255,.7);}}
 .qbtns{{display:flex;gap:4px;margin-bottom:8px;}}
-.qbtn{{flex:1;padding:4px 0;font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border-radius:2px;}}
-.qbtn:hover{{background:rgba(255,255,255,.14);color:rgba(255,255,255,.9);}}
+.qbtn{{flex:1;padding:4px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border-radius:2px;}}
+.qbtn:hover{{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}}
 .mth-btns{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:10px;}}
-.mb{{padding:6px 4px;font-size:10px;font-family:'Space Mono',monospace;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.55);border-radius:2px;line-height:1.3;}}
-.mb.active{{background:#f97316;border-color:#f97316;color:#fff;font-weight:700;}}
-.mb:hover:not(.active){{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}}
-.reset-btn{{width:100%;padding:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;border-radius:2px;margin-bottom:8px;}}
-.reset-btn:hover{{background:rgba(255,255,255,.16);color:#fff;}}
-.run-info{{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,.3);margin-top:auto;padding-top:12px;line-height:1.6;}}
-.bt-link{{display:block;padding:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.6);font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:8px;}}
-.bt-link:hover{{background:rgba(255,255,255,.15);color:#fff;}}
-.main{{padding:24px 24px 60px;}}
-.kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin-bottom:20px;}}
-.kpi{{background:#fff;border:1px solid #e2e5ea;padding:12px 14px;}}
-.kpi.hl{{background:#e8f0fb;border-color:#93b8e0;}}
-.kpi.neg-kpi{{background:#fff5f5;border-color:#fca5a5;}}
-.kpi .v{{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;line-height:1;color:#0f1923;}}
-.kpi.hl .v{{color:#1a3a5c;}}.kpi.neg-kpi .v{{color:#c62828;}}
-.kpi .l{{font-family:'Space Mono',monospace;font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.08em;margin-top:3px;}}
-.st{{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#9ca3af;margin:16px 0 8px;display:flex;align-items:center;gap:10px;}}
-.st::after{{content:'';flex:1;height:1px;background:#e2e5ea;}}
-.cnt{{color:#1a3a5c;font-weight:700;margin-left:6px;}}
-.card{{background:#fff;border:1px solid #e2e5ea;overflow:hidden;margin-bottom:16px;overflow-x:auto;}}
+.mb{{padding:6px 4px;font-size:10px;font-family:'IBM Plex Mono',monospace;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:rgba(255,255,255,.45);border-radius:2px;line-height:1.3;}}
+.mb.active{{background:#10b981;border-color:#10b981;color:#fff;font-weight:700;}}
+.mb:hover:not(.active){{background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);}}
+.reset-btn{{width:100%;padding:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.45);font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;border-radius:2px;margin-bottom:8px;}}
+.reset-btn:hover{{background:rgba(255,255,255,.12);color:#fff;}}
+.run-info{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,.25);margin-top:auto;padding-top:12px;line-height:1.6;}}
+.bt-link{{display:block;padding:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.5);font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:8px;}}
+.bt-link:hover{{background:rgba(255,255,255,.12);color:#fff;}}
+.main{{padding:24px 24px 60px;background:#f4f6f9;}}
+.kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
+.kpi{{background:#fff;border:1px solid #e8eaf0;padding:14px 16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
+.kpi.hl{{background:#f0fdf4;border-color:#6ee7b7;}}
+.kpi.neg-kpi{{background:#fef2f2;border-color:#fca5a5;}}
+.kpi .v{{font-family:'Outfit',sans-serif;font-size:28px;font-weight:900;line-height:1;color:#0f1729;}}
+.kpi.hl .v{{color:#065f46;}}.kpi.neg-kpi .v{{color:#dc2626;}}
+.kpi .l{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;}}
+.st{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#9ca3af;margin:16px 0 8px;display:flex;align-items:center;gap:10px;}}
+.st::after{{content:'';flex:1;height:1px;background:#e8eaf0;}}
+.cnt{{color:#0f1729;font-weight:700;margin-left:6px;}}
+.card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;margin-bottom:16px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
 table{{width:100%;border-collapse:collapse;font-size:12px;}}
-thead tr{{background:#f5f6f8;position:sticky;top:0;z-index:2;}}
-thead th{{padding:7px 10px;text-align:right;font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;font-weight:400;border-bottom:2px solid #e2e5ea;white-space:nowrap;}}
+thead tr{{background:#f8fafc;position:sticky;top:0;z-index:2;}}
+thead th{{padding:8px 10px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;font-weight:400;border-bottom:1px solid #e8eaf0;white-space:nowrap;}}
 thead th:nth-child(-n+4){{text-align:left;}}
-tbody tr{{border-bottom:1px solid #e2e5ea;transition:background .08s;}}
-tbody tr:hover{{background:#f5f6f8;}}
-tbody tr.wr{{background:#e8f5e9;}}tbody tr.wr:hover{{background:#c8e6c9;}}
-tbody tr.pr{{background:#e3f2fd;}}tbody tr.pr:hover{{background:#bbdefb;}}
+tbody tr{{border-bottom:1px solid #f0f2f5;transition:background .08s;}}
+tbody tr:hover{{background:#f8fafc;}}
+tbody tr.wr{{background:#f0fdf4;}}tbody tr.wr:hover{{background:#dcfce7;}}
+tbody tr.pr{{background:#eff6ff;}}tbody tr.pr:hover{{background:#dbeafe;}}
 td{{padding:7px 10px;text-align:right;vertical-align:middle;}}
 td:nth-child(-n+4){{text-align:left;}}
-.mn{{font-family:'Space Mono',monospace;font-size:11px;}}
+.mn{{font-family:'IBM Plex Mono',monospace;font-size:11px;}}
 .br{{color:#0f1923;font-weight:700;}}.dm{{color:#9ca3af;}}
-.pill{{display:inline-block;padding:1px 7px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;border-radius:2px;}}
-.pw{{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;}}
-.pp{{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;}}
-.pl{{background:#f5f6f8;color:#9ca3af;border:1px solid #e2e5ea;}}
+.pill{{display:inline-block;padding:1px 7px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;border-radius:2px;}}
+.pw{{background:#f0fdf4;color:#065f46;border:1px solid #a5d6a7;}}
+.pp{{background:#e3f2fd;color:#1d4ed8;border:1px solid #90caf9;}}
+.pl{{background:#f5f6f8;color:#9ca3af;border:1px solid #e8eaf0;}}
 .pd{{background:#fff8e1;color:#f57f17;border:1px solid #ffe082;}}
-.tc{{font-family:'Space Mono',monospace;font-size:10px;padding:1px 5px;border-radius:2px;}}
-.tp{{background:#e8f5e9;color:#2e7d32;}}.tn{{background:#ffebee;color:#c62828;}}.tz{{color:#9ca3af;}}
-.rp{{color:#2e7d32;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;}}
-.rn{{color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}}
-.cp{{color:#2e7d32;font-family:'Space Mono',monospace;font-size:11px;}}
-.cn{{color:#c62828;font-family:'Space Mono',monospace;font-size:11px;}}
-.empty{{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:12px;}}
-.ctx{{display:inline-block;padding:1px 6px;font-size:10px;border-radius:2px;margin-right:3px;cursor:default;}}
-.ctx-good{{background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9;}}
-.ctx-warn{{background:#fff3e0;color:#e65100;border:1px solid #ffcc80;}}
-.ctx-neut{{background:#f5f6f8;color:#6b7280;border:1px solid #e2e5ea;}}
+.tc{{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:1px 5px;border-radius:2px;}}
+.tp{{background:#f0fdf4;color:#065f46;}}.tn{{background:#ffebee;color:#c62828;}}.tz{{color:#9ca3af;}}
+.rp{{color:#065f46;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;}}
+.rn{{color:#9ca3af;font-family:'IBM Plex Mono',monospace;font-size:11px;}}
+.cp{{color:#065f46;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;}}
+.cn{{color:#dc2626;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;}}
+.empty{{padding:40px;text-align:center;color:#9ca3af;font-family:'IBM Plex Mono',monospace;font-size:12px;}}
+.ctx{{display:inline-block;padding:1px 6px;font-size:10px;border-radius:3px;margin-right:3px;cursor:default;font-family:'IBM Plex Mono',monospace;}}
+.ctx-good{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;}}
+.ctx-warn{{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}}
+.ctx-neut{{background:#f8fafc;color:#6b7280;border:1px solid #e8eaf0;}}
 .sig-grid{{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:8px;}}
 .sig-cb{{display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 5px;border-radius:3px;transition:background .1s;}}
 .sig-cb:hover{{background:rgba(255,255,255,.08);}}
-.sig-cb input{{cursor:pointer;accent-color:#f97316;width:12px;height:12px;}}
-.sig-cb span{{font-size:10px;color:rgba(255,255,255,.75);font-family:'Space Mono',monospace;}}
-.sig-cb.dir-h span{{color:rgba(180,224,140,.85);}}
-.sig-cb.dir-l span{{color:rgba(140,180,224,.85);}}
+.sig-cb input{{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}}
+.sig-cb span{{font-size:10px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;}}
+.sig-cb.dir-h span{{color:rgba(110,231,183,.85);}}
+.sig-cb.dir-l span{{color:rgba(147,197,253,.85);}}
 .sig-sel-btns{{display:flex;gap:4px;margin-bottom:8px;}}
-.sig-btn{{flex:1;padding:4px 0;font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border-radius:2px;}}
-.sig-btn:hover{{background:rgba(255,255,255,.14);color:rgba(255,255,255,.9);}}
-.fixed-inp{{width:58px;font-family:'Space Mono',monospace;font-size:11px;border:1px solid #d1d5db;border-radius:3px;padding:2px 5px;text-align:center;background:#fffbeb;color:#92400e;outline:none;}}
-.fixed-inp:focus{{border-color:#f97316;background:#fff7ed;}}
-.fixed-inp.has-val{{background:#fff7ed;border-color:#fb923c;color:#c2410c;font-weight:700;}}
-.bet-tog{{width:32px;height:22px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;}}
-.bet-y{{background:#16a34a;color:#fff;}}
-.bet-n{{background:#e5e7eb;color:#6b7280;}}
-.bet-detail{{background:#f8f9fb;border-top:1px solid #e2e5ea;padding:12px 16px;display:none;}}
+.sig-btn{{flex:1;padding:4px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border-radius:2px;}}
+.sig-btn:hover{{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}}
+.fixed-inp{{width:58px;font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid #e8eaf0;border-radius:3px;padding:2px 5px;text-align:center;background:#f8fafc;color:#374151;outline:none;}}
+.fixed-inp:focus{{border-color:#10b981;background:#f0fdf4;}}
+.fixed-inp.has-val{{background:#f0fdf4;border-color:#10b981;color:#065f46;font-weight:700;}}
+.bet-tog{{width:32px;height:22px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;font-family:'Outfit',sans-serif;}}
+.bet-y{{background:#10b981;color:#fff;}}
+.bet-n{{background:#e8eaf0;color:#9ca3af;}}
+.bet-detail{{background:#f8fafc;border-top:1px solid #e8eaf0;padding:14px 18px;display:none;}}
 .bet-detail.open{{display:block;}}
 .bd-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}}
-.bd-item{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px 10px;}}
-.bd-item .l{{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;}}
-.bd-item .v{{font-size:14px;font-weight:700;color:#0f1923;margin-top:2px;}}
+.bd-item{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:10px 12px;}}
+.bd-item .l{{font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;}}
+.bd-item .v{{font-size:14px;font-weight:700;color:#0f1729;margin-top:3px;font-family:'Outfit',sans-serif;}}
 .bd-sigs{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}}
-.bd-sig{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px 10px;display:flex;align-items:center;gap:8px;}}
-.bd-sig .sn{{color:#6b7280;font-size:10px;flex:1;}}
-.bd-sig .sr{{font-weight:900;font-size:16px;font-family:'Barlow Condensed',sans-serif;min-width:32px;text-align:right;color:#0f1923;}}
-.bd-sig.out .sr{{color:#9ca3af;}}.bd-sig.out .sn{{color:#9ca3af;}}
+.bd-sig{{background:#fff;border:1px solid #e8eaf0;border-radius:4px;padding:8px 10px;display:flex;align-items:center;gap:8px;}}
+.bd-sig .sn{{color:#6b7280;font-size:10px;flex:1;font-family:'IBM Plex Mono',monospace;}}
+.bd-sig .sr{{font-weight:900;font-size:16px;font-family:'Outfit',sans-serif;min-width:32px;text-align:right;color:#0f1729;}}
+.bd-sig.out .sr{{color:#d1d5db;}}.bd-sig.out .sn{{color:#d1d5db;}}
 tr.bet-row{{cursor:pointer;}}
-tr.bet-row:hover td{{background:#f5f7fa;}}
+tr.bet-row:hover td{{background:#f8fafc;}}
 tr.no-bet-row td{{opacity:0.4;}}
-.date-inp{{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);font-family:'Space Mono',monospace;font-size:10px;padding:5px 7px;border-radius:2px;outline:none;cursor:pointer;}}
-.date-inp:focus{{border-color:#f97316;background:rgba(255,255,255,.12);}}
+.date-inp{{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 7px;border-radius:2px;outline:none;cursor:pointer;}}
+.date-inp:focus{{border-color:#10b981;background:rgba(255,255,255,.12);}}
 .date-inp::-webkit-calendar-picker-indicator{{filter:invert(1);opacity:0.5;cursor:pointer;}}
-.main-tabs{{display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #e2e5ea;}}
-.main-tab{{padding:10px 20px;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;border:none;background:none;color:#9ca3af;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s;}}
-.main-tab.active{{color:#1a3a5c;border-bottom-color:#f97316;font-weight:700;}}
-.main-tab:hover:not(.active){{color:#1a3a5c;}}
+.main-tabs{{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid #e8eaf0;}}
+.main-tab{{padding:10px 22px;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;border:none;background:none;color:#9ca3af;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;}}
+.main-tab.active{{color:#0f1729;border-bottom-color:#10b981;}}
+.main-tab:hover:not(.active){{color:#374151;}}
 .tab-panel{{display:none;}}.tab-panel.active{{display:block;}}
-.q-meeting{{background:#fff;border:1px solid #e2e5ea;margin-bottom:24px;}}
-.q-meeting-hdr{{background:#1a3a5c;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}}
-.q-meeting-name{{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.5px;}}
-.q-meeting-date{{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,.5);}}
-.q-cost-bar{{background:#f0f2f5;border-bottom:1px solid #e2e5ea;padding:8px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}}
-.q-cost-lbl{{font-family:'Space Mono',monospace;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;}}
-.q-cost-val{{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#1a3a5c;}}
-.q-cost-combos{{font-family:'Space Mono',monospace;font-size:10px;color:#9ca3af;}}
+.q-meeting{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;margin-bottom:24px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
+.q-meeting-hdr{{background:#0f172a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}}
+.q-meeting-name{{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.02em;}}
+.q-meeting-date{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);}}
+.q-cost-bar{{background:#f8fafc;border-bottom:1px solid #e8eaf0;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}}
+.q-cost-lbl{{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.08em;}}
+.q-cost-val{{font-family:'Outfit',sans-serif;font-size:22px;font-weight:900;color:#0f1729;}}
+.q-cost-combos{{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9ca3af;}}
 .q-stake-wrap{{margin-left:auto;display:flex;align-items:center;gap:8px;}}
-.q-stake-inp{{width:64px;font-family:'Space Mono',monospace;font-size:12px;border:1px solid #d1d5db;border-radius:3px;padding:4px 6px;text-align:center;}}
-.q-legs{{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid #e2e5ea;}}
-.q-leg{{border-right:1px solid #e2e5ea;padding:0;}}
+.q-stake-inp{{width:64px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #e8eaf0;border-radius:3px;padding:4px 6px;text-align:center;}}
+.q-legs{{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid #e8eaf0;}}
+.q-leg{{border-right:1px solid #e8eaf0;padding:0;}}
 .q-leg:last-child{{border-right:none;}}
-.q-leg-hdr{{background:#f5f6f8;padding:8px 12px;border-bottom:1px solid #e2e5ea;display:flex;align-items:center;justify-content:space-between;}}
-.q-leg-title{{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;}}
-.q-leg-race{{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;color:#1a3a5c;}}
+.q-leg-hdr{{background:#f8fafc;padding:8px 12px;border-bottom:1px solid #e8eaf0;display:flex;align-items:center;justify-content:space-between;}}
+.q-leg-title{{font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af;}}
+.q-leg-race{{font-family:'Outfit',sans-serif;font-size:16px;font-weight:900;color:#0f1729;}}
 .q-runner{{display:flex;align-items:center;gap:0;padding:7px 10px;border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .08s;}}
-.q-runner:hover{{background:#f5f6f8;}}
-.q-runner.selected{{background:#fff8f0;}}
-.q-runner.banker{{background:#fff3e0;}}
-.q-runner input[type=checkbox]{{margin-right:8px;accent-color:#f97316;width:13px;height:13px;cursor:pointer;flex-shrink:0;}}
+.q-runner:hover{{background:#f8fafc;}}
+.q-runner.selected{{background:#f0fdf4;}}
+.q-runner.banker{{background:#fef3c7;}}
+.q-runner-barrier{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9ca3af;min-width:16px;text-align:center;}}
+.q-banker-btn{{padding:1px 5px;font-size:9px;font-weight:700;border-radius:3px;border:1px solid #e8eaf0;background:#f8fafc;color:#9ca3af;cursor:pointer;margin-left:auto;flex-shrink:0;}}
+.q-banker-btn.active{{background:#fef3c7;border-color:#fcd34d;color:#92400e;}}
+.q-runner.banker{{background:#fef9e7;border-left:3px solid #f59e0b;}}
+.q-leg-controls{{display:flex;gap:4px;padding:5px 10px;background:#f8fafc;border-bottom:1px solid #e8eaf0;}}
+.q-ctrl-btn{{padding:3px 10px;font-size:9px;font-family:'IBM Plex Mono',monospace;border:1px solid #e8eaf0;background:#fff;color:#6b7280;border-radius:3px;cursor:pointer;letter-spacing:.05em;}}
+.q-ctrl-btn:hover{{background:#f0f2f5;color:#374151;}}
+.q-flexi-row{{display:flex;flex-direction:column;align-items:center;gap:1px;}}
+.q-flexi-pct{{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;}}
+.q-flexi-cost{{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#0f1729;}}
 .q-runner-name{{font-size:12px;font-weight:600;color:#0f1923;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
-.q-runner-score{{font-family:'Space Mono',monospace;font-size:10px;color:#f97316;font-weight:700;margin-left:4px;flex-shrink:0;}}
-.q-runner-sp{{font-family:'Space Mono',monospace;font-size:9px;color:#9ca3af;margin-left:4px;flex-shrink:0;}}
+.q-runner-score{{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#10b981;font-weight:700;margin-left:4px;flex-shrink:0;}}
+.q-runner-sp{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9ca3af;margin-left:4px;flex-shrink:0;}}
 .q-runner-top{{margin-left:4px;flex-shrink:0;}}
-.q-pill{{display:inline-block;padding:1px 5px;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;border-radius:2px;}}
+.q-pill{{display:inline-block;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;border-radius:2px;}}
 .q-pill-1{{background:#fff3cd;color:#856404;border:1px solid #ffc107;}}
-.q-pill-2{{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;}}
-.q-pill-3{{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;}}
+.q-pill-2{{background:#f0fdf4;color:#065f46;border:1px solid #a5d6a7;}}
+.q-pill-3{{background:#e3f2fd;color:#1d4ed8;border:1px solid #90caf9;}}
 .q-sigs{{padding:8px 12px;}}
 .q-sig-row{{display:flex;align-items:center;justify-content:space-between;padding:2px 0;border-bottom:1px solid #f8f9fa;}}
 .q-sig-row:last-child{{border-bottom:none;}}
-.q-sig-name{{font-family:'Space Mono',monospace;font-size:9px;color:#6b7280;}}
+.q-sig-name{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6b7280;}}
 .q-sig-top3{{display:flex;gap:3px;}}
-.q-sig-horse{{font-size:10px;color:#1a3a5c;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
-.q-no-meeting{{padding:40px;text-align:center;color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px;}}
+.q-sig-horse{{font-size:10px;color:#0f172a;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
+.q-no-meeting{{padding:40px;text-align:center;color:#9ca3af;font-family:'IBM Plex Mono',monospace;font-size:11px;}}
 .bt-wrap{{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;}}
-.bt-controls{{padding:16px;background:#1a3a5c;border-radius:4px;}}
+.bt-controls{{padding:16px;background:#0f172a;border-radius:4px;}}
 .bt-ctrl-title{{font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;}}
 .bt-ctrl-row{{margin-bottom:14px;display:block;}}
 .bt-lbl{{font-size:11px;color:rgba(255,255,255,.85);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
-.bt-ctrl-row input[type=range]{{display:block;width:100%;accent-color:#f97316;cursor:pointer;}}
-.bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
+.bt-ctrl-row input[type=range]{{display:block;width:100%;accent-color:#10b981;cursor:pointer;}}
+.bt-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#10b981;font-weight:700;}}
 .bt-chk-label{{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,.8);cursor:pointer;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:3px;padding:2px 6px;}}
-.bt-chk-label input{{accent-color:#f97316;}}
+.bt-chk-label input{{accent-color:#10b981;}}
 .bt-sig-label{{display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;margin-bottom:3px;}}
 .bt-sig-label.active{{color:#fff;font-weight:600;}}
 .bt-sig-label.inactive{{color:rgba(255,255,255,.45);}}
-.bt-sig-label input{{accent-color:#f97316;}}
-.bt-val{{font-family:'Space Mono',monospace;font-size:11px;color:#f97316;font-weight:700;}}
+.bt-sig-label input{{accent-color:#10b981;}}
+.bt-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#10b981;font-weight:700;}}
 .bt-kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}}
-.bt-kpi{{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:12px;}}
-.bt-kpi .v{{font-size:24px;font-weight:900;color:#0f1923;font-family:'Barlow Condensed',sans-serif;}}
-.bt-kpi .v.pos{{color:#2e7d32;}}.bt-kpi .v.neg{{color:#c62828;}}
+.bt-kpi{{background:#fff;border:1px solid #e8eaf0;border-radius:4px;padding:12px;}}
+.bt-kpi .v{{font-size:24px;font-weight:900;color:#0f1923;font-family:'Outfit',sans-serif;}}
+.bt-kpi .v.pos{{color:#065f46;}}.bt-kpi .v.neg{{color:#c62828;}}
 .bt-kpi .l{{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}}
-.bt-results{{min-width:0;}}
+.bt-sub-tab{{padding:7px 18px;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;border:none;background:none;color:#9ca3af;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;}}
+.bt-sub-tab.active{{color:#0f1729;border-bottom-color:#10b981;}}
+.bt-sub-tab:hover:not(.active){{color:#374151;}}
 @media(max-width:900px){{
   .bt-wrap{{grid-template-columns:1fr;}}
   .bt-kpi-strip{{grid-template-columns:repeat(3,1fr);}}
   .bt-kpi .v{{font-size:18px;}}
 }}
-.sig-table th{{background:#f5f6f8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e2e5ea;white-space:nowrap;}}
+.sig-table th{{background:#f5f6f8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e8eaf0;white-space:nowrap;}}
 .sig-table th.r{{text-align:right;}}
 .sig-table td{{padding:8px 12px;border-bottom:1px solid #f0f2f5;vertical-align:middle;}}
-.sig-table td.r{{text-align:right;font-family:'Space Mono',monospace;font-size:12px;}}
+.sig-table td.r{{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;}}
 .sig-table tr:hover td{{background:#fafbfc;}}
 .sig-name{{font-weight:600;color:#0f1923;}}
 .sig-dir{{font-size:9px;color:#9ca3af;margin-left:4px;}}
 .sig-bar-wrap{{width:80px;background:#f0f2f5;border-radius:3px;height:8px;display:inline-block;vertical-align:middle;}}
 .sig-bar{{height:8px;border-radius:3px;}}
-.sig-bar.pos{{background:#2e7d32;}}
+.sig-bar.pos{{background:#065f46;}}
 .sig-bar.neg{{background:#c62828;}}
-.sig-bar.neu{{background:#1a3a5c;}}
+.sig-bar.neu{{background:#0f172a;}}
 .sig-inactive{{opacity:0.35;}}
 .q-sig-toggle{{padding:6px 12px;font-family:var(--mono,monospace);font-size:9px;color:#9ca3af;cursor:pointer;list-style:none;text-transform:uppercase;letter-spacing:.08em;}}
 .q-sig-toggle::-webkit-details-marker{{display:none;}}
 .q-sig-toggle::-webkit-details-marker{{display:none;}}
-.q-pend-tag{{font-family:'Space Mono',monospace;font-size:8px;padding:1px 5px;border-radius:2px;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;}}
+.q-pend-tag{{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:1px 5px;border-radius:2px;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;}}
 </style>
 </head>
 <body>
@@ -1410,8 +1522,8 @@ tr.no-bet-row td{{opacity:0.4;}}
   <button class="reset-btn" onclick="resetAll()">&#8635; Reset to optimal</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" onclick="showSyncSetup()">&#8645; Sync setup</button>
   <button class="reset-btn" style="color:rgba(100,200,100,.8);border-color:rgba(100,200,100,.3);" id="sync-now-btn" onclick="syncNow()">&#8635; Sync now</button>
-  <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
-  <button class="reset-btn" style="color:#f97316;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
+  <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);font-weight:700;" id="run-script-btn" onclick="runScript()">&#9654; Run script</button>
+  <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div class="run-info">Updated {run_date}<br>{n_total} races &middot; {n_res} resulted &middot; {n_pend} pending</div>
@@ -1550,16 +1662,25 @@ tr.no-bet-row td{{opacity:0.4;}}
         </div>
       </div>
       <div class="bt-results">
-        <div class="bt-kpi-strip" id="bt-kpis"></div>
-        <div class="card" style="overflow-x:auto;margin-top:16px;">
-          <table class="sig-table" id="bt-table">
-            <thead><tr>
-              <th>Date</th><th>Venue</th><th>Horse</th>
-              <th class="r">Score</th><th class="r">SP</th>
-              <th class="r">Stake</th><th class="r">Result</th><th class="r">P&amp;L</th><th class="r">Cumul</th>
-            </tr></thead>
-            <tbody id="bt-tbody"></tbody>
-          </table>
+        <div style="display:flex;gap:0;border-bottom:1px solid #e8eaf0;margin-bottom:16px;">
+          <button class="bt-sub-tab active" id="bt-sub-bets" onclick="btSwitchSub('bets')">Bets</button>
+          <button class="bt-sub-tab" id="bt-sub-signals" onclick="btSwitchSub('signals')">Signals</button>
+        </div>
+        <div id="bt-sub-panel-bets">
+          <div class="bt-kpi-strip" id="bt-kpis"></div>
+          <div class="card" style="overflow-x:auto;margin-top:16px;">
+            <table class="sig-table" id="bt-table">
+              <thead><tr>
+                <th>Date</th><th>Venue</th><th>Horse</th>
+                <th class="r">Score</th><th class="r">SP</th>
+                <th class="r">Stake</th><th class="r">Result</th><th class="r">P&amp;L</th><th class="r">Cumul</th>
+              </tr></thead>
+              <tbody id="bt-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="bt-sub-panel-signals" style="display:none;">
+          <div id="bt-sig-content"></div>
         </div>
       </div>
     </div>
@@ -1568,6 +1689,7 @@ tr.no-bet-row td{{opacity:0.4;}}
 </div><!-- end shell -->
 <script>
 {data_js}
+{bt_data_js}
 const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","wpr_rank","peak_rank","consistency"];
 const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
 const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
@@ -1767,7 +1889,7 @@ async function syncLoad() {{
       if(k&&(k.startsWith('fx|')||k.startsWith('bet|')||k.startsWith('res|')))
         _syncData[k]=localStorage.getItem(k);
     }}
-    _setSyncStatus('No token set','#f97316');
+    _setSyncStatus('No token set','#10b981');
     return;
   }}
   _setSyncStatus('Loading...','#9ca3af');
@@ -1787,7 +1909,7 @@ async function syncLoad() {{
         _lastSyncedAt=Date.now();
         _setSyncStatus('Loaded '+Object.keys(_syncData).length+' keys '+_timeStr(),'#4ade80');
       }} else {{
-        _setSyncStatus('Gist has no toprate_bets.json file','#f97316');
+        _setSyncStatus('Gist has no toprate_bets.json file','#10b981');
       }}
     }} else {{
       const err=await r.json().catch(()=>({{message:r.status}}));
@@ -1828,7 +1950,7 @@ function syncSave(){{
   clearTimeout(_syncTimer);
   _setSyncStatus('Saving...','#9ca3af');
   _syncTimer=setTimeout(async ()=>{{
-    if(!_gistId||!_ghToken){{_setSyncStatus('No token — save skipped','#f97316');return;}}
+    if(!_gistId||!_ghToken){{_setSyncStatus('No token — save skipped','#10b981');return;}}
     try{{
       const body=JSON.stringify({{files:{{'toprate_bets.json':{{'content':JSON.stringify(_syncData)}}}}}});
       const r=await fetch('https://api.github.com/gists/'+_gistId,{{
@@ -2030,7 +2152,7 @@ function update(){{
       const effStake=isBet?calcStake(b.score,method==='top1'?activeSigs.size:activeSigs.size*3,priceForStake):0;
       const pl=isBet?(b.won?effStake*(priceForStake-1):-effStake):0;cum+=pl;
       const res=b.won?'<span class="pill pw">WIN</span>':b.placed?'<span class="pill pp">PLACE</span>':'<span class="pill pl">'+(b.finish||'?')+'th</span>';
-      const manualTag=b.manualFinish!==null&&b.manualFinish!==undefined?'<span style="font-size:9px;color:#f97316;margin-left:2px" title="Manual result — will update when script runs">✎</span>':'';
+      const manualTag=b.manualFinish!==null&&b.manualFinish!==undefined?'<span style="font-size:9px;color:#10b981;margin-left:2px" title="Manual result — will update when script runs">✎</span>':'';
       const plH=isBet?(pl>=0?'<span class="rp">+'+pl.toFixed(2)+'</span>':'<span class="rn">'+pl.toFixed(2)+'</span>'):'<span style="color:#9ca3af">0u</span>';
       const cumH=cum>=0?'<span class="cp">+'+cum.toFixed(1)+'</span>':'<span class="cn">'+cum.toFixed(1)+'</span>';
       const fxVal=fx?fx.toFixed(2):'';
@@ -2153,12 +2275,12 @@ function update(){{
       const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
       const resVal=manualResult!==null?manualResult:'';
       const resInp='<input class="res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+resVal+'" style="width:36px;font-size:11px;text-align:center;border:1px solid #d1d5db;border-radius:3px;padding:2px 4px;background:#f0fdf4;">';
-      const mktPriceHtml=b.mktPrice?'<span class="mn" style="color:#1a3a5c;font-weight:700;">$'+b.mktPrice.toFixed(2)+'</span>':'<span style="color:#9ca3af">—</span>';
+      const mktPriceHtml=b.mktPrice?'<span class="mn" style="color:#0f172a;font-weight:700;">$'+b.mktPrice.toFixed(2)+'</span>':'<span style="color:#9ca3af">—</span>';
       const timeStr=fmtTime(b.raceObj.tm);
       const pdid='pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=pdid;
       return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" data-did="'+pdid+'">'
-        +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#f97316;font-weight:700;">'+timeStr+'</td>'
+        +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#10b981;font-weight:700;">'+timeStr+'</td>'
         +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
         +'<td class="mn">'+mktPriceHtml+'</td>'
@@ -2218,7 +2340,7 @@ function update(){{
         const resId='mpres-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const mobTimeP=fmtTime(b.raceObj.tm);
         return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'">'
-          +'<div class="mob-bet-hdr"><span class="mob-bet-venue">'+b.venue+' R'+b.race+(mobTimeP?' &nbsp;<span style="color:#f97316;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'</span>'
+          +'<div class="mob-bet-hdr"><span class="mob-bet-venue">'+b.venue+' R'+b.race+(mobTimeP?' &nbsp;<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'</span>'
           +'<span class="mob-bet-date">'+b.date+'</span></div>'
           +'<div class="mob-bet-body">'
           +'<div class="mob-bet-horse">'+b.horse+'</div>'
@@ -2253,6 +2375,10 @@ function update(){{
       }});
     }}
   }}
+  // Rebuild active tab if signals or quaddie
+  const activeTab=document.querySelector('.main-tab.active')?.id?.replace('tab-','');
+  if(activeTab==='signals')buildSignals();
+  if(activeTab==='quaddie')buildQuaddie();
 }}
 // re-render mobile cards on resize
 window.addEventListener('resize',update);
@@ -2307,6 +2433,16 @@ function switchTab(tab){{
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('panel-'+t).classList.toggle('active',t===tab);
   }});
+  // Hide sidebar on backtest, show on all other tabs
+  const sidebar=document.querySelector('.sidebar');
+  const shell=document.querySelector('.shell');
+  if(tab==='backtest'){{
+    sidebar.style.display='none';
+    shell.style.gridTemplateColumns='1fr';
+  }}else{{
+    sidebar.style.display='';
+    shell.style.gridTemplateColumns='260px 1fr';
+  }}
   if(tab==='quaddie')buildQuaddie();
   if(tab==='signals')buildSignals();
   if(tab==='backtest')initBacktest();
@@ -2435,9 +2571,24 @@ function buildSignals(){{
 // Per-meeting state: which runners are selected in each leg
 const qSelections={{}};  // key: date|venue|legIdx|runnerIdx -> bool
 const qStakes={{}};       // key: date|venue -> stake amount
+const qBankers={{}};      // key: mk|legN|banker -> runnerIdx
 
 function qKey(date,venue,legIdx,runIdx){{return date+'|'+venue+'|'+legIdx+'|'+runIdx;}}
 function qMeetingKey(date,venue){{return date+'|'+venue;}}
+
+function qResetLeg(mk,li,topIdx){{
+  // Clear all explicit selections for this leg, revert to default (top runner)
+  Object.keys(qSelections).forEach(k=>{{
+    const parts=k.split('|');
+    if(k.startsWith(mk+'|'+li+'|'))delete qSelections[k];
+  }});
+  buildQuaddie();
+}}
+
+function qSelectAll(mk,li,nRunners){{
+  for(let ri=0;ri<nRunners;ri++)qSelections[qKey(mk.split('|')[0],mk.split('|').slice(1).join('|'),li,ri)]=true;
+  buildQuaddie();
+}}
 
 function buildQuaddie(){{
   const f=getF();
@@ -2447,7 +2598,7 @@ function buildQuaddie(){{
     // Apply date filter same as bets tab
     if(f.dateFrom&&race.d<f.dateFrom)return;
     if(f.dateTo&&race.d>f.dateTo)return;
-    const mk=race.d+'~~~'+race.v;
+    const mk=race.d+'|'+race.v;
     if(!meetings[mk])meetings[mk]={{date:race.d,venue:race.v,races:[]}};
     meetings[mk].races.push(race);
   }});
@@ -2502,10 +2653,10 @@ function buildQuaddie(){{
     const totalCost=(totalCombos*stake).toFixed(2);
 
     const legsHtml=legs.map((leg,li)=>{{
-      // Compute scores for all runners in this leg
       const scores=leg.u.map((_,ri)=>{{
         let sc=0;
         activeSigIdxs.forEach(si=>{{
+          if(!leg.s[si])return;
           const [r1,r2,r3]=leg.s[si];
           if(method==='top1'){{if(r1===ri)sc+=1;}}
           else if(method==='top3c'){{if(r1===ri||r2===ri||r3===ri)sc+=1;}}
@@ -2515,61 +2666,58 @@ function buildQuaddie(){{
       }});
       const maxSc=Math.max(...scores,0);
       const topIdx=scores.indexOf(maxSc);
+      const bankerKey=mk+'|leg'+li+'|banker';
+      const bankerRi=qBankers[bankerKey];
 
-      // Per-signal top3 for this leg — count how many signals each runner appears in top3
       const sigTop3Counts=leg.u.map((_,ri)=>{{
         let cnt=0;
         activeSigIdxs.forEach(si=>{{
+          if(!leg.s[si])return;
           const [r1,r2,r3]=leg.s[si];
           if(r1===ri||r2===ri||r3===ri)cnt++;
         }});
         return cnt;
       }});
 
-      // Sort runners by composite score desc then sigTop3Counts desc
       const order=leg.u.map((_,i)=>i).sort((a,b)=>scores[b]-scores[a]||sigTop3Counts[b]-sigTop3Counts[a]);
-
       const statusTag=leg.done?'<span class="q-done-tag">RES</span>':'<span class="q-pend-tag">PEND</span>';
+      const legMkId=(mk+'_leg'+li).replace(/[^a-z0-9]/gi,'_');
 
       const runnersHtml=order.map(ri=>{{
         const runner=leg.u[ri];
         const sc=scores[ri];
-        const top3cnt=sigTop3Counts[ri];
         const k=qKey(meeting.date,meeting.venue,li,ri);
         const explicit=qSelections[k];
         const isDefault=explicit===undefined&&ri===topIdx;
         const isSelected=explicit===true||isDefault;
-        const isBanker=ri===topIdx&&sc===maxSc;
-
-        // Which signals put this runner in top 3? build pill list
-        const sigPositions=activeSigIdxs.map((si,_)=>{{
-          const [r1,r2,r3]=leg.s[si];
-          if(r1===ri)return 1;
-          if(r2===ri)return 2;
-          if(r3===ri)return 3;
-          return 0;
-        }}).filter(p=>p>0);
-
-        // Finish indicator if resulted
+        const isBanker=bankerRi===ri;
         let finishTag='';
         if(leg.done&&runner.f!==null&&runner.f!==undefined){{
-          finishTag=runner.f===1?'<span class="q-pill q-pill-1">WIN</span>':runner.f<=3?'<span class="q-pill q-pill-2">PLC</span>':'<span style="font-size:9px;color:#9ca3af;margin-left:3px">'+runner.f+'th</span>';
+          finishTag=runner.f===1?'<span class="q-pill q-pill-1">WIN</span>':runner.f<=3?'<span class="q-pill q-pill-2">PLC</span>':'<span style="font-size:9px;color:#9ca3af;margin-left:4px">'+runner.f+'th</span>';
         }}
-
-        return'<div class="q-runner'+(isSelected?' selected':'')+(isBanker&&isSelected?' banker':'')+'" data-mk="'+mk+'" data-li="'+li+'" data-ri="'+ri+'">'
+        const bankerBtn='<button class="q-banker-btn'+(isBanker?' active':'')+'" data-mk="'+mk+'" data-li="'+li+'" data-ri="'+ri+'" title="Set as banker (must-win)">B</button>';
+        return'<div class="q-runner'+(isSelected?' selected':'')+(isBanker?' banker':'')+'" data-mk="'+mk+'" data-li="'+li+'" data-ri="'+ri+'">'
           +'<input type="checkbox" '+(isSelected?'checked':'')+'>'
+          +'<span class="q-runner-barrier">'+(runner.b||'')+'</span>'
           +'<span class="q-runner-name" title="'+runner.h+'">'+runner.h+'</span>'
-          +(sc>0?'<span class="q-runner-score">'+sc+'</span>':'')
-          +'<span class="q-runner-sp">'+(runner.sp?'$'+runner.sp.toFixed(2):'')+'</span>'
-          +(top3cnt>0?'<span class="q-runner-top"><span style="font-size:9px;color:#6b7280;margin-left:2px">top3×'+top3cnt+'</span></span>':'')
+          +(sc>0?'<span class="q-runner-score">'+sc+'</span>':'<span class="q-runner-score" style="opacity:.3">0</span>')
+          +'<span class="q-runner-sp">'+(runner.fx?'$'+runner.fx.toFixed(2):runner.sp?'$'+runner.sp.toFixed(2):'—')+'</span>'
+          +bankerBtn
           +finishTag
           +'</div>';
       }}).join('');
 
-      // Signal breakdown table for this leg
+      // Leg controls: reset + select all
+      const legControls='<div class="q-leg-controls">'
+        +'<button onclick="qResetLeg(\''+mk+'\','+li+','+topIdx+')" class="q-ctrl-btn">↺ Reset</button>'
+        +'<button onclick="qSelectAll(\''+mk+'\','+li+','+leg.u.length+')" class="q-ctrl-btn">All</button>'
+        +'</div>';
+
+      // Signal breakdown
       const sigBreakdownHtml='<div class="q-sigs">'
         +activeSigIdxs.map((si,_)=>{{
-          const lbl=SIG_LABELS[si];
+          if(!leg.s[si])return'';
+          const lbl=SIG_LABELS[si].replace(' ↑','').replace(' ↓','');
           const [r1,r2,r3]=leg.s[si];
           const n1=r1>=0&&leg.u[r1]?leg.u[r1].h:'—';
           const n2=r2>=0&&leg.u[r2]?leg.u[r2].h:'—';
@@ -2577,53 +2725,102 @@ function buildQuaddie(){{
           return'<div class="q-sig-row">'
             +'<span class="q-sig-name">'+lbl+'</span>'
             +'<div class="q-sig-top3">'
-            +'<span class="q-sig-horse" title="'+n1+'"><span class="q-pill q-pill-1">1</span> '+n1+'</span>'
-            +'<span class="q-sig-horse" title="'+n2+'" style="color:#6b7280"> '+n2+'</span>'
-            +'<span class="q-sig-horse" title="'+n3+'" style="color:#9ca3af"> '+n3+'</span>'
+            +'<span class="q-sig-horse"><span class="q-pill q-pill-1">1</span> '+n1+'</span>'
+            +'<span class="q-sig-horse" style="color:#6b7280"> '+n2+'</span>'
+            +'<span class="q-sig-horse" style="color:#9ca3af"> '+n3+'</span>'
             +'</div></div>';
         }}).join('')
         +'</div>';
 
       return'<div class="q-leg">'
-        +'<div class="q-leg-hdr"><div><div class="q-leg-title">Leg '+(li+1)+'</div><div class="q-leg-race">R'+leg.r+'</div></div>'+statusTag+'</div>'
+        +'<div class="q-leg-hdr"><div><div class="q-leg-title">Leg '+(li+1)+'</div><div class="q-leg-race">R'+leg.r+(leg.dist?' &nbsp;·&nbsp; '+leg.dist+'m':'')+(leg.going?' &nbsp;'+leg.going:'')+'</div></div>'+statusTag+'</div>'
+        +legControls
         +runnersHtml
-        +'<details style="border-top:1px solid #e2e5ea;">'
+        +'<details style="border-top:1px solid #e8eaf0;">'
         +'<summary class="q-sig-toggle">Signal breakdown</summary>'
         +sigBreakdownHtml
         +'</details>'
         +'</div>';
     }}).join('');
 
+    // Flexi bet calculator
+    const flexiRows=[100,50,25,10].map(pct=>{{
+      const flexiCost=((pct/100)*totalCombos*stake).toFixed(2);
+      return'<div class="q-flexi-row"><span class="q-flexi-pct">'+pct+'%</span><span class="q-flexi-cost">$'+flexiCost+'</span></div>';
+    }}).join('');
+
     return'<div class="q-meeting">'
       +'<div class="q-meeting-hdr">'
       +'<div class="q-meeting-name">'+meeting.venue+'</div>'
-      +'<div class="q-meeting-date">'+meeting.date+' &nbsp;·&nbsp; Quaddie (last '+legs.length+' races)</div>'
+      +'<div class="q-meeting-date">'+meeting.date+' &nbsp;·&nbsp; Quaddie — last '+legs.length+' races</div>'
       +'</div>'
       +'<div class="q-cost-bar">'
       +'<div><div class="q-cost-lbl">Combinations</div><div class="q-cost-val" id="combos-'+mk.replace(/[^a-z0-9]/gi,'_')+'">'+totalCombos+'</div></div>'
       +'<div><div class="q-cost-lbl">Total cost</div><div class="q-cost-val" id="cost-'+mk.replace(/[^a-z0-9]/gi,'_')+'">$'+totalCost+'</div></div>'
-      +'<div class="q-stake-wrap"><span class="q-cost-lbl">$ / combo</span>'
+      +'<div class="q-stake-wrap"><span class="q-cost-lbl">$ / combo &nbsp;</span>'
       +'<input class="q-stake-inp" type="text" inputmode="decimal" value="'+stake+'" data-mk="'+mk+'" oninput="updateStake(this)">'
+      +'</div>'
+      +'<div style="margin-left:auto">'
+      +'<div class="q-cost-lbl" style="margin-bottom:4px">Flexi</div>'
+      +'<div style="display:flex;gap:12px">'+flexiRows+'</div>'
       +'</div>'
       +'</div>'
       +'<div class="q-legs">'+legsHtml+'</div>'
       +'</div>';
   }}).join('');
 
-  // Attach checkbox listeners
+  // Attach checkbox and banker listeners
   container.querySelectorAll('.q-runner').forEach(el=>{{
     el.addEventListener('click',e=>{{
-      if(e.target.tagName==='INPUT')return;  // handled separately
+      if(e.target.tagName==='INPUT'||e.target.classList.contains('q-banker-btn'))return;
       const cb=el.querySelector('input[type=checkbox]');
       if(cb)cb.click();
     }});
     const cb=el.querySelector('input[type=checkbox]');
     if(cb)cb.addEventListener('change',e=>{{
-      const{{mk,li,ri}}=el.dataset;
-      qSelections[qKey(mk.split('~~~')[0],mk.split('~~~')[1],parseInt(li),parseInt(ri))]=e.target.checked;
+      const mk=el.dataset.mk;
+      const li=parseInt(el.dataset.li);
+      const ri=parseInt(el.dataset.ri);
+      const parts=mk.split('|');
+      const date=parts[0], venue=parts.slice(1).join('|');
+      qSelections[qKey(date,venue,li,ri)]=e.target.checked;
+      buildQuaddie();
+    }});
+    const bb=el.querySelector('.q-banker-btn');
+    if(bb)bb.addEventListener('click',e=>{{
+      e.stopPropagation();
+      const mk=bb.dataset.mk;
+      const li=parseInt(bb.dataset.li);
+      const ri=parseInt(bb.dataset.ri);
+      const bankerKey=mk+'|leg'+li+'|banker';
+      // Toggle banker — if already set to this runner, clear it
+      if(qBankers[bankerKey]===ri)delete qBankers[bankerKey];
+      else{{
+        qBankers[bankerKey]=ri;
+        // Auto-select banker and deselect others
+        const parts=mk.split('|');
+        const date=parts[0], venue=parts.slice(1).join('|');
+        // Clear other selections for this leg
+        Object.keys(qSelections).forEach(k=>{{if(k.startsWith(mk+'|'+li+'|'))delete qSelections[k];}});
+        qSelections[qKey(date,venue,li,ri)]=true;
+      }}
       buildQuaddie();
     }});
   }});
+}}
+
+function updateStake(inp){{
+  const mk=inp.dataset.mk;
+  const v=parseFloat(inp.value);
+  if(!isNaN(v)&&v>0)qStakes[mk]=v;
+  // Update cost display
+  const mkId=mk.replace(/[^a-z0-9]/gi,'_');
+  const combosEl=document.getElementById('combos-'+mkId);
+  const costEl=document.getElementById('cost-'+mkId);
+  if(combosEl&&costEl){{
+    const combos=parseInt(combosEl.textContent)||1;
+    costEl.textContent='$'+(combos*(qStakes[mk]||1)).toFixed(2);
+  }}
 }}
 
 // ── Backtest ──────────────────────────────────────────────────────────────────
@@ -2742,7 +2939,9 @@ function runBacktest(){{
   const raceQualifiers={{}};   // raceKey -> array of qualifying runner objects
   const raceSPFail={{}};       // raceKey -> true if any horse qualifies on everything except SP
 
-  RACES.forEach(race=>{{
+  // Use BT_RACES for larger historical dataset, fall back to RACES if not available
+  const btData=typeof BT_RACES!=='undefined'?BT_RACES:RACES;
+  btData.forEach(race=>{{
     if(race.done!==1)return;
     if(race.p&&race.p<minPrize)return;
     if(noFirst&&race.n)return;
@@ -2824,7 +3023,8 @@ function runBacktest(){{
   const shown=results.slice(-200).reverse();
   window._lastBtBets=shown.map(r=>{{
     // attach raceObj/runnerObj for detail panel
-    const race=RACES.find(rc=>rc.d===r.date&&rc.v===r.venue&&rc.r===r.race);
+    const btSrc=typeof BT_RACES!=='undefined'?BT_RACES:RACES;
+    const race=btSrc.find(rc=>rc.d===r.date&&rc.v===r.venue&&rc.r===r.race);
     const runner=race?race.u.find(u=>u.h===r.horse):null;
     r.raceObj=race||{{}};r.runnerObj=runner||{{}};r.scoreDisp=r.scoreDisp||r.score+'/'+r.maxScore;
     const did='bt-'+r.date+'-'+r.venue+'-'+r.race+'-'+(r.horse||'').replace(/[^a-zA-Z0-9]/g,'_');
@@ -2847,7 +3047,103 @@ function runBacktest(){{
       +'<td class="mn r">'+cumH+'</td></tr>'
       +'<tr><td colspan="9" style="padding:0;"><div class="bet-detail" id="bd-'+r._detailId+'"></div></td></tr>';
   }}).join('');
+  // Refresh signals sub-tab if active
+  const sigSubActive=document.getElementById('bt-sub-signals')?.classList.contains('active');
+  if(sigSubActive)buildBtSignals();
 }}
+
+function btSwitchSub(sub){{
+  ['bets','signals'].forEach(s=>{{
+    document.getElementById('bt-sub-'+s).classList.toggle('active',s===sub);
+    document.getElementById('bt-sub-panel-'+s).style.display=s===sub?'':'none';
+  }});
+  if(sub==='signals')buildBtSignals();
+}}
+
+function buildBtSignals(){{
+  const bets=window._lastBtBets||[];
+  const container=document.getElementById('bt-sig-content');
+  if(!bets.length){{
+    container.innerHTML='<div style="padding:40px;text-align:center;color:#9ca3af;">Run the backtest first to see signal performance.</div>';
+    return;
+  }}
+
+  // Use btSigs (backtest signal set) for stats
+  const sigNames=SIG_NAMES.filter(n=>btSigs.has(n));
+  const sigLabels=sigNames.map(n=>SIG_LABELS[SIG_NAMES.indexOf(n)]);
+
+  const stats={{}};
+  sigNames.forEach((name,i)=>{{
+    stats[name]={{name,label:sigLabels[i],dir:SIG_DIR[SIG_NAMES.indexOf(name)],
+      total:0,top1:0,top3:0,wins:0,places:0,staked:0,profit:0}};
+  }});
+
+  bets.forEach(b=>{{
+    const race=b.raceObj;
+    const runner=b.runnerObj;
+    if(!race||!runner)return;
+    const ri=race.u.findIndex(u=>u.h===runner.h);
+    if(ri<0)return;
+    sigNames.forEach((name,i)=>{{
+      const si=SIG_NAMES.indexOf(name);
+      const s=stats[name];
+      s.total++;
+      const ranking=race.s[si]||[];
+      const isTop1=ranking[0]===ri;
+      const inTop3=ranking.slice(0,3).includes(ri);
+      if(isTop1)s.top1++;
+      if(inTop3){{
+        s.top3++;
+        s.staked+=b.stake;
+        if(b.won){{s.wins++;s.profit+=b.stake*(b.sp-1);}}
+        else{{s.profit-=b.stake;}}
+      }}
+      if(b.placed&&inTop3&&!b.won)s.places++;
+    }});
+  }});
+
+  const rows=Object.values(stats).sort((a,b)=>{{
+    const awr=a.top3?a.wins/a.top3:0;
+    const bwr=b.top3?b.wins/b.top3:0;
+    return bwr-awr;
+  }});
+
+  const maxTop3=Math.max(...rows.map(r=>r.top3),1);
+  const maxProfit=Math.max(...rows.map(r=>Math.abs(r.profit)),1);
+  const n=bets.length;
+
+  const rowsHtml=rows.map(r=>{{
+    const wr=r.top3?((r.wins/r.top3)*100).toFixed(0)+'%':'—';
+    const pr=r.top3?((r.places/r.top3)*100).toFixed(0)+'%':'—';
+    const roi=r.staked?((r.profit/r.staked)*100).toFixed(1)+'%':'—';
+    const plStr=r.profit>=0?'<span class="rp">+'+(r.profit.toFixed(2))+'u</span>':'<span class="rn">'+(r.profit.toFixed(2))+'u</span>';
+    const barW=Math.round((r.top3/maxTop3)*80);
+    const profitBarW=Math.round((Math.abs(r.profit)/maxProfit)*80);
+    const barCls=r.profit>0?'pos':r.profit<0?'neg':'neu';
+    return'<tr>'
+      +'<td><span class="sig-name">'+r.label.replace(' ↑','').replace(' ↓','')+'</span>'
+      +'<span class="sig-dir">'+(r.dir?'↑':'↓')+'</span></td>'
+      +'<td class="r">'+r.top1+'<span style="color:#9ca3af;font-size:10px;">/'+r.total+'</span></td>'
+      +'<td class="r">'+r.top3+'<span style="color:#9ca3af;font-size:10px;">/'+r.total+'</span></td>'
+      +'<td><div class="sig-bar-wrap"><div class="sig-bar neu" style="width:'+barW+'px"></div></div></td>'
+      +'<td class="r">'+r.wins+'</td>'
+      +'<td class="r">'+wr+'</td>'
+      +'<td class="r">'+r.places+'</td>'
+      +'<td class="r">'+pr+'</td>'
+      +'<td class="r">'+plStr+'</td>'
+      +'<td class="r">'+roi+'</td>'
+      +'<td><div class="sig-bar-wrap"><div class="sig-bar '+barCls+'" style="width:'+profitBarW+'px"></div></div></td>'
+      +'</tr>';
+  }}).join('');
+
+  container.innerHTML='<p style="font-size:11px;color:#9ca3af;margin-bottom:12px;">Based on '+n+' backtest bets. "In top 3" = signal ranked this horse in its top 3 for the race. P&L and ROI are for bets where this signal contributed.</p>'
+    +'<div class="card"><table class="sig-table"><thead><tr>'
+    +'<th>Signal</th><th class="r">Top 1</th><th class="r">Top 3</th><th>Coverage</th>'
+    +'<th class="r">Wins</th><th class="r">Win %</th><th class="r">Places</th><th class="r">Place %</th>'
+    +'<th class="r">P&L</th><th class="r">ROI</th><th>P&L bar</th>'
+    +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+}}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function buildDetailHtml(b){{
   const race=b.raceObj;
