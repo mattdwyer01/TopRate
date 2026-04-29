@@ -424,7 +424,7 @@ tr.no-bet-row td{opacity:0.4;}
     </div>
     <div class="srow">
       <div class="shdr"><span class="slbl" id="thresh-label">Min votes (of 14)</span><span class="sval" id="v-votes">7</span></div>
-      <input type="range" id="f-votes" min="1" max="14" value="7">
+      <input type="range" id="f-votes" min="1" max="14" value="3">
     </div>
   </div>
 
@@ -472,7 +472,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 18:44<br>406 races &middot; 399 resulted &middot; 7 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 19:07<br>406 races &middot; 399 resulted &middot; 7 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -678,18 +678,18 @@ function rebuildActiveSigs(){
 }
 function selectAllSigs(){
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=true);
-  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.remove('anchored');});
   rebuildActiveSigs();update();
 }
 function selectNoneSigs(){
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=false);
-  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.remove('anchored');});
   rebuildActiveSigs();update();
 }
 function selectOptimalSigs(){
   const exclude=new Set(['wpr_dist','wpr_going']);
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{cb.checked=!exclude.has(cb.dataset.sig);});
-  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.remove('anchored');});
   rebuildActiveSigs();update();
 }
 function selectAnchorPreset(){
@@ -699,7 +699,7 @@ function selectAnchorPreset(){
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{
     const isAnch=anchors.has(cb.dataset.sig);
     cb.checked=isAnch;
-    cb.closest('.sig-cb').classList.toggle('anchored',isAnch);
+    const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   });
   rebuildActiveSigs();update();
 }
@@ -709,16 +709,21 @@ function selectAnchorPreset(){
     const isH=SIG_DIR[i]===1;
     const row=document.createElement('div');
     row.className='sig-cb '+(isH?'dir-h':'dir-l');
-    row.innerHTML=
-      '<input type="checkbox" class="sig-active" data-sig="'+sig+'" checked>'
-      +'<span class="sig-name">'+SIG_LABELS[i]+'</span>'
-      +'<span class="sig-anchor-lbl">A</span>'
-      +'<input type="checkbox" class="sig-anchor" data-sig="'+sig+'" title="Anchor — must be top 3">';
-    row.querySelector('.sig-active').addEventListener('change',()=>{rebuildActiveSigs();update();});
-    row.querySelector('.sig-anchor').addEventListener('change',(e)=>{
+    row.dataset.sig=sig;
+    const activeInp=document.createElement('input');
+    activeInp.type='checkbox'; activeInp.className='sig-active'; activeInp.dataset.sig=sig; activeInp.checked=true;
+    const nameSpan=document.createElement('span');
+    nameSpan.className='sig-name'; nameSpan.textContent=SIG_LABELS[i];
+    const aLbl=document.createElement('span');
+    aLbl.className='sig-anchor-lbl'; aLbl.textContent='A';
+    const anchorInp=document.createElement('input');
+    anchorInp.type='checkbox'; anchorInp.className='sig-anchor'; anchorInp.dataset.sig=sig; anchorInp.title='Anchor — must be top 3';
+    row.appendChild(activeInp); row.appendChild(nameSpan); row.appendChild(aLbl); row.appendChild(anchorInp);
+    activeInp.addEventListener('change',()=>{rebuildActiveSigs();update();});
+    anchorInp.addEventListener('change',(e)=>{
       if(e.target.checked){
         anchorSigs.add(sig);
-        row.querySelector('.sig-active').checked=true;
+        activeInp.checked=true;
         row.classList.add('anchored');
       }else{
         anchorSigs.delete(sig);
@@ -1133,7 +1138,7 @@ function update(){
   const mob=window.innerWidth<=768;
   const roiStr=roi!==null?(roi>=0?'+':'')+roi.toFixed(1)+'%':'—';
   document.getElementById('k-roi').textContent=roiStr;
-  document.getElementById('k-roi').parentElement.className='kpi'+(roi===null?' hl':roi>=0?' hl':' neg-kpi');
+  const roiEl=document.getElementById('k-roi');if(roiEl&&roiEl.parentElement)roiEl.parentElement.className='kpi'+(roi===null?' hl':roi>=0?' hl':' neg-kpi');
   document.getElementById('k-bets').textContent=n;
   document.getElementById('k-wins').textContent=wins;
   document.getElementById('k-wp').textContent=n?(wins/n*100).toFixed(mob?0:1)+'%':'—';
@@ -1419,9 +1424,11 @@ function resetAll(){
   setDow('all');setStake('fixed');selectAnchorPreset();setMethod('top3c');
   document.getElementById('f-votes').value=3;document.getElementById('v-votes').textContent='3';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
-  setDateRange('today');
+  setDateRange('7');
   update();
 }
+document.getElementById('f-votes').value=3;
+document.getElementById('v-votes').textContent='3';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
@@ -1430,11 +1437,9 @@ document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
 document.getElementById('v-spmax').textContent='Any';
-document.getElementById('f-votes').value=3;
-document.getElementById('v-votes').textContent='3';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
-setDateRange('today');
+setDateRange('7');
 syncLoad().then(()=>{update();startSyncPoll();});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
@@ -1863,7 +1868,7 @@ function btSelectSigs(mode){
   document.querySelectorAll('.bt-anchor-cb').forEach(cb=>{
     const isAnch=btAnchorSigs.has(cb.dataset.sig);
     cb.checked=isAnch;
-    cb.closest('.bt-sig-label').classList.toggle('anchored',isAnch);
+    const _br=cb.closest&&cb.closest('.bt-sig-label');if(_br)_br.classList.toggle('anchored',isAnch);
   });
   runBacktest();
 }
