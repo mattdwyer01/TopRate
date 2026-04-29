@@ -473,7 +473,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 20:10<br>406 races &middot; 406 resulted &middot; 0 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 20:15<br>406 races &middot; 406 resulted &middot; 0 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1136,16 +1136,16 @@ function update(){
     if(b.placed)places++;
   });
   const roi=staked>0?profit/staked*100:null;
-  const mob=window.innerWidth<=768;
-  const roiStr=roi!==null?(roi>=0?'+':'')+roi.toFixed(1)+'%':'—';
+  const mob=window.innerWidth<=900;
+  const roiStr=roi!==null?(mob?Math.round(roi)+'%':(roi>=0?'+':'')+roi.toFixed(1)+'%'):'—';
   document.getElementById('k-roi').textContent=roiStr;
   const roiEl=document.getElementById('k-roi');if(roiEl&&roiEl.parentElement)roiEl.parentElement.className='kpi'+(roi===null?' hl':roi>=0?' hl':' neg-kpi');
   document.getElementById('k-bets').textContent=n;
   document.getElementById('k-wins').textContent=wins;
-  document.getElementById('k-wp').textContent=n?(wins/n*100).toFixed(mob?0:1)+'%':'—';
-  document.getElementById('k-pp').textContent=n?(places/n*100).toFixed(mob?0:1)+'%':'—';
-  document.getElementById('k-profit').textContent=n?(profit>=0?'+':'')+profit.toFixed(1)+'u':'—';
-  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'P&L ('+staked.toFixed(1)+'u)':'Profit';
+  document.getElementById('k-wp').textContent=n?Math.round(wins/n*100)+'%':'—';
+  document.getElementById('k-pp').textContent=n?Math.round(places/n*100)+'%':'—';
+  document.getElementById('k-profit').textContent=n?(mob?Math.round(profit)+'u':(profit>=0?'+':'')+profit.toFixed(1)+'u'):'—';
+  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'P&L ('+Math.round(staked)+'u)':'P&L';
   document.getElementById('res-cnt').textContent=n?'('+n+')':'';
   const lbl=document.getElementById('thresh-label');
   if(method==='top1')lbl.textContent='Min votes (of '+activeSigs.size+')';
