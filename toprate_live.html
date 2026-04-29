@@ -476,7 +476,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 20:54<br>406 races &middot; 406 resulted &middot; 0 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 21:06<br>406 races &middot; 406 resulted &middot; 0 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -734,6 +734,8 @@ function selectAnchorPreset(){
     });
     grid.appendChild(row);
   });
+  // Apply anchor preset now that grid is built
+  selectAnchorPreset();
 })();
 function scoreRace(race){
   const scores=new Array(race.u.length).fill(0);
