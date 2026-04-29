@@ -172,6 +172,7 @@ td:nth-child(-n+4){text-align:left;}
 .bet-n{background:#e8eaf0;color:#9ca3af;}
 .bet-detail{background:#f8fafc;border-top:1px solid #e8eaf0;padding:14px 18px;display:none;}
 .bet-detail.open{display:block;}
+.mob-bet-card .bet-detail{margin:0 -1px;border-radius:0 0 6px 6px;}
 .bd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
 .bd-item{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:10px 12px;}
 .bd-item .l{font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;}
@@ -461,7 +462,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 09:35<br>406 races &middot; 370 resulted &middot; 36 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 10:11<br>406 races &middot; 370 resulted &middot; 36 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1154,7 +1155,7 @@ function update(){
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const mobTimeR=fmtTime(b.raceObj.tm);
-      return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'">'
+      return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'" data-did="'+did+'" style="cursor:pointer;">'
         +'<div class="mob-bet-hdr">'
         +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
         +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+(mobTimeR?' &nbsp;'+mobTimeR:'')+'</span></div>'
@@ -1175,6 +1176,7 @@ function update(){
         +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
         +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'&nbsp;'+plStr+'</span>'
         +'</div>'
+        +'<div class="bet-detail" id="bd-'+did+'"></div>'
         +'</div></div>';
     }).join('');
     sortedResulted.forEach(b=>{
@@ -1278,7 +1280,8 @@ function update(){
         const betId='mpbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const resId='mpres-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const mobTimeP=fmtTime(b.raceObj.tm);
-        return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'">'
+        const mpDid=b._detailId||('pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_'));
+        return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'" data-did="'+mpDid+'" style="cursor:pointer;">'
           +'<div class="mob-bet-hdr">'
           +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
           +'<div style="display:flex;align-items:center;gap:6px;">'+(mobTimeP?'<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'<span class="mob-bet-date">'+b.date+'</span></div>'
@@ -1301,6 +1304,7 @@ function update(){
           +'<input class="mob-res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+(manualResult!==null?manualResult:'')+'">'
           +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'</span>'
           +'</div>'
+          +'<div class="bet-detail" id="bd-'+mpDid+'"></div>'
           +'</div></div>';
       }).join('');
       sortedPending.forEach(b=>{
@@ -2162,10 +2166,15 @@ function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('mob-overlay').classList.remove('open');
 }
-// Bet detail click delegation
+// Bet detail click delegation — desktop table rows
 document.addEventListener('click',function(e){
+  // Desktop: table row
   const tr=e.target.closest('tr[data-did]');
-  if(tr)toggleBetDetail(tr.dataset.did);
+  if(tr){toggleBetDetail(tr.dataset.did);return;}
+  // Mobile: card div — but not when tapping buttons or inputs
+  if(e.target.closest('button,input,label'))return;
+  const card=e.target.closest('.mob-bet-card[data-did]');
+  if(card)toggleBetDetail(card.dataset.did);
 });
 
 // Close sidebar when any interactive element inside it is tapped on mobile
