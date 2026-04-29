@@ -472,7 +472,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 19:56<br>406 races &middot; 406 resulted &middot; 0 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 20:01<br>406 races &middot; 406 resulted &middot; 0 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1426,7 +1426,7 @@ function resetAll(){
   setDow('all');setStake('fixed');selectAnchorPreset();setMethod('top3c');
   document.getElementById('f-votes').value=3;document.getElementById('v-votes').textContent='3';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
-  setDateRange('7');
+  setDateRange('today');
   update();
 }
 document.getElementById('f-votes').value=3;
@@ -1441,7 +1441,7 @@ document.getElementById('f-spmax').value=30;
 document.getElementById('v-spmax').textContent='Any';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
-setDateRange('7');
+setDateRange('today');
 syncLoad().then(()=>{update();startSyncPoll();});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
