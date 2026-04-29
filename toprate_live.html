@@ -156,16 +156,16 @@ td:nth-child(-n+4){text-align:left;}
 .ctx-good{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;}
 .ctx-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}
 .ctx-neut{background:#f8fafc;color:#6b7280;border:1px solid #e8eaf0;}
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:8px;}
-.sig-cb{display:flex;align-items:center;gap:4px;cursor:pointer;padding:3px 5px;border-radius:3px;transition:background .1s;}
+.sig-grid{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
+.sig-cb{display:flex;align-items:center;gap:4px;cursor:pointer;padding:2px 4px;border-radius:3px;transition:background .1s;}
 .sig-cb:hover{background:rgba(255,255,255,.08);}
-.sig-cb .sig-active{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}
-.sig-cb .sig-anchor{cursor:pointer;accent-color:#f59e0b;width:10px;height:10px;flex-shrink:0;}
-.sig-cb span{font-size:10px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;flex:1;}
-.sig-cb.dir-h span{color:rgba(110,231,183,.85);}
-.sig-cb.dir-l span{color:rgba(147,197,253,.85);}
+.sig-cb .sig-active{cursor:pointer;accent-color:#10b981;width:11px;height:11px;flex-shrink:0;}
+.sig-cb .sig-anchor{cursor:pointer;accent-color:#f59e0b;width:11px;height:11px;flex-shrink:0;}
+.sig-cb .sig-name{font-size:9px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sig-cb.dir-h .sig-name{color:rgba(110,231,183,.85);}
+.sig-cb.dir-l .sig-name{color:rgba(147,197,253,.85);}
 .sig-cb.anchored{background:rgba(245,158,11,.12);border-radius:3px;}
-.sig-anchor-lbl{font-size:8px;color:rgba(245,158,11,.6);letter-spacing:.05em;margin-right:1px;}
+.sig-anchor-lbl{font-size:7px;color:rgba(245,158,11,.5);flex-shrink:0;}
 .sig-sel-btns{display:flex;gap:4px;margin-bottom:8px;}
 .sig-btn{flex:1;padding:4px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border-radius:2px;}
 .sig-btn:hover{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}
@@ -470,7 +470,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 13:32<br>406 races &middot; 370 resulted &middot; 36 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 13:38<br>406 races &middot; 370 resulted &middot; 36 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -709,7 +709,7 @@ function selectAnchorPreset(){
     row.className='sig-cb '+(isH?'dir-h':'dir-l');
     row.innerHTML=
       '<input type="checkbox" class="sig-active" data-sig="'+sig+'" checked>'
-      +'<span>'+SIG_LABELS[i]+'</span>'
+      +'<span class="sig-name">'+SIG_LABELS[i]+'</span>'
       +'<span class="sig-anchor-lbl">A</span>'
       +'<input type="checkbox" class="sig-anchor" data-sig="'+sig+'" title="Anchor — must be top 3">';
     row.querySelector('.sig-active').addEventListener('change',()=>{rebuildActiveSigs();update();});
