@@ -157,12 +157,15 @@ td:nth-child(-n+4){text-align:left;}
 .ctx-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}
 .ctx-neut{background:#f8fafc;color:#6b7280;border:1px solid #e8eaf0;}
 .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:8px;}
-.sig-cb{display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 5px;border-radius:3px;transition:background .1s;}
+.sig-cb{display:flex;align-items:center;gap:4px;cursor:pointer;padding:3px 5px;border-radius:3px;transition:background .1s;}
 .sig-cb:hover{background:rgba(255,255,255,.08);}
-.sig-cb input{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}
-.sig-cb span{font-size:10px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;}
+.sig-cb .sig-active{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}
+.sig-cb .sig-anchor{cursor:pointer;accent-color:#f59e0b;width:10px;height:10px;flex-shrink:0;}
+.sig-cb span{font-size:10px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;flex:1;}
 .sig-cb.dir-h span{color:rgba(110,231,183,.85);}
 .sig-cb.dir-l span{color:rgba(147,197,253,.85);}
+.sig-cb.anchored{background:rgba(245,158,11,.12);border-radius:3px;}
+.sig-anchor-lbl{font-size:8px;color:rgba(245,158,11,.6);letter-spacing:.05em;margin-right:1px;}
 .sig-sel-btns{display:flex;gap:4px;margin-bottom:8px;}
 .sig-btn{flex:1;padding:4px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border-radius:2px;}
 .sig-btn:hover{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}
@@ -252,7 +255,9 @@ tr.no-bet-row td{opacity:0.4;}
 .bt-sig-label{display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;margin-bottom:3px;}
 .bt-sig-label.active{color:#fff;font-weight:600;}
 .bt-sig-label.inactive{color:rgba(255,255,255,.45);}
+.bt-sig-label.anchored{background:rgba(245,158,11,.15);border-radius:3px;padding:0 3px;}
 .bt-sig-label input{accent-color:#10b981;}
+.bt-anchor-cb{accent-color:#f59e0b !important;}
 .bt-val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#10b981;font-weight:700;}
 .bt-kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
 .bt-kpi{background:#fff;border:1px solid #e8eaf0;border-radius:4px;padding:12px;}
@@ -427,6 +432,7 @@ tr.no-bet-row td{opacity:0.4;}
       <button class="sig-btn" onclick="selectAllSigs()">All</button>
       <button class="sig-btn" onclick="selectNoneSigs()">None</button>
       <button class="sig-btn" onclick="selectOptimalSigs()">Optimal</button>
+      <button class="sig-btn" onclick="selectAnchorPreset()">Anchor</button>
     </div>
     <div class="sig-grid" id="sig-grid"></div>
   </div>
@@ -464,7 +470,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 12:04<br>406 races &middot; 370 resulted &middot; 36 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 13:32<br>406 races &middot; 370 resulted &middot; 36 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -595,6 +601,7 @@ tr.no-bet-row td{opacity:0.4;}
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
             <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
             <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('optimal')">Optimal</button>
+            <button class="reset-btn" style="padding:3px 8px;font-size:9px;color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="btSelectSigs('anchor')">Anchor</button>
           </div>
           <div id="bt-sig-grid" style="margin-top:6px;"></div>
         </div>
@@ -632,6 +639,7 @@ const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going
 const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
 const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
 let activeSigs=new Set(SIG_NAMES);
+let anchorSigs=new Set(); // signals that MUST be top-3
 let stakeMethod='flat';
 let method='top1';
 
@@ -660,19 +668,63 @@ function setMethod(m){
   document.getElementById('v-votes').textContent=slider.value;
   update();
 }
-function rebuildActiveSigs(){activeSigs=new Set();document.querySelectorAll('#sig-grid input:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));}
-function selectAllSigs(){document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=true);rebuildActiveSigs();update();}
-function selectNoneSigs(){document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=false);rebuildActiveSigs();update();}
-function selectOptimalSigs(){const exclude=new Set(['sp','fixed_price','price_top','wpr_dist','wpr_going']);document.querySelectorAll('#sig-grid input').forEach(cb=>{cb.checked=!exclude.has(cb.dataset.sig);});rebuildActiveSigs();update();}
+function rebuildActiveSigs(){
+  activeSigs=new Set();
+  document.querySelectorAll('#sig-grid .sig-active:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));
+  anchorSigs=new Set();
+  document.querySelectorAll('#sig-grid .sig-anchor:checked').forEach(cb=>anchorSigs.add(cb.dataset.sig));
+}
+function selectAllSigs(){
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=true);
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  rebuildActiveSigs();update();
+}
+function selectNoneSigs(){
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  rebuildActiveSigs();update();
+}
+function selectOptimalSigs(){
+  const exclude=new Set(['wpr_dist','wpr_going']);
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{cb.checked=!exclude.has(cb.dataset.sig);});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{cb.checked=false;cb.closest('.sig-cb').classList.remove('anchored');});
+  rebuildActiveSigs();update();
+}
+function selectAnchorPreset(){
+  // All signals active, but tr_rating + peak_rank + jky_win90 anchored
+  const anchors=new Set(['tr_rating','peak_rank','jky_win90']);
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=true);
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{
+    const isAnch=anchors.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    cb.closest('.sig-cb').classList.toggle('anchored',isAnch);
+  });
+  rebuildActiveSigs();update();
+}
 (function(){
   const grid=document.getElementById('sig-grid');
   SIG_NAMES.forEach((sig,i)=>{
     const isH=SIG_DIR[i]===1;
-    const cb=document.createElement('label');
-    cb.className='sig-cb '+(isH?'dir-h':'dir-l');
-    cb.innerHTML='<input type="checkbox" data-sig="'+sig+'" checked><span>'+SIG_LABELS[i]+'</span>';
-    cb.querySelector('input').addEventListener('change',()=>{rebuildActiveSigs();update();});
-    grid.appendChild(cb);
+    const row=document.createElement('div');
+    row.className='sig-cb '+(isH?'dir-h':'dir-l');
+    row.innerHTML=
+      '<input type="checkbox" class="sig-active" data-sig="'+sig+'" checked>'
+      +'<span>'+SIG_LABELS[i]+'</span>'
+      +'<span class="sig-anchor-lbl">A</span>'
+      +'<input type="checkbox" class="sig-anchor" data-sig="'+sig+'" title="Anchor — must be top 3">';
+    row.querySelector('.sig-active').addEventListener('change',()=>{rebuildActiveSigs();update();});
+    row.querySelector('.sig-anchor').addEventListener('change',(e)=>{
+      if(e.target.checked){
+        anchorSigs.add(sig);
+        row.querySelector('.sig-active').checked=true;
+        row.classList.add('anchored');
+      }else{
+        anchorSigs.delete(sig);
+        row.classList.remove('anchored');
+      }
+      rebuildActiveSigs();update();
+    });
+    grid.appendChild(row);
   });
 })();
 function scoreRace(race){
@@ -684,6 +736,18 @@ function scoreRace(race){
     else if(method==='top3c'){if(r1>=0)scores[r1]+=1;if(r2>=0)scores[r2]+=1;if(r3>=0)scores[r3]+=1;}
     else{if(r1>=0)scores[r1]+=3;if(r2>=0)scores[r2]+=2;if(r3>=0)scores[r3]+=1;}
   });
+  // Apply anchor mask — runners not top-3 in all anchors get score 0
+  if(anchorSigs.size>0){
+    scores.forEach((_,ri)=>{
+      const passesAnchors=Array.from(anchorSigs).every(sig=>{
+        const si=SIG_NAMES.indexOf(sig);
+        if(si<0)return true;
+        const [r1,r2,r3]=race.s[si];
+        return r1===ri||r2===ri||r3===ri;
+      });
+      if(!passesAnchors)scores[ri]=0;
+    });
+  }
   let topIdx=-1,topScore=0;
   scores.forEach((s,i)=>{if(s>topScore){topScore=s;topIdx=i;}});
   return {topIdx,topScore,scores};
@@ -1765,7 +1829,8 @@ function updateStake(inp){
 // ── Backtest ──────────────────────────────────────────────────────────────────
 let btStake='flat';
 let btMethod='top3c';
-let btSigs=new Set(SIG_NAMES.filter((_,i)=>SIG_DIR[i]===1||['wpr_rank','peak_rank','consistency','tr_price'].includes(SIG_NAMES[i])));
+let btSigs=new Set(SIG_NAMES.filter((_,i)=>SIG_DIR[i]===1||['wpr_rank','peak_rank','consistency'].includes(SIG_NAMES[i])));
+let btAnchorSigs=new Set(); // backtest anchor signals - must be top 3
 let btInited=false;
 
 function btSetStake(m){
@@ -1781,9 +1846,18 @@ function btSetMethod(m){
 }
 function btSelectSigs(mode){
   if(mode==='all')btSigs=new Set(SIG_NAMES);
-  else btSigs=new Set(activeSigs); // use current optimal
+  else if(mode==='anchor'){
+    btSigs=new Set(SIG_NAMES);
+    btAnchorSigs=new Set(['tr_rating','peak_rank','jky_win90']);
+  }
+  else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{
     cb.checked=btSigs.has(cb.dataset.sig);
+  });
+  document.querySelectorAll('.bt-anchor-cb').forEach(cb=>{
+    const isAnch=btAnchorSigs.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    cb.closest('.bt-sig-label').classList.toggle('anchored',isAnch);
   });
   runBacktest();
 }
@@ -1807,14 +1881,34 @@ function initBacktest(){
 
   const grid=document.getElementById('bt-sig-grid');
   grid.innerHTML=SIG_NAMES.map((name,i)=>
-    '<label class="bt-sig-label '+(btSigs.has(name)?'active':'inactive')+'">'
-    +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]+'</label>'
+    '<div class="bt-sig-label '+(btSigs.has(name)?'active':'inactive')+'">'
+    +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]
+    +'<span class="sig-anchor-lbl" style="margin-left:4px;">A</span>'
+    +'<input type="checkbox" class="bt-anchor-cb" data-sig="'+name+'" title="Anchor — must be top 3"'+(btAnchorSigs.has(name)?' checked':'')+'>'
+    +'</div>'
   ).join('');
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{
     cb.addEventListener('change',()=>{
       btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));
       document.querySelectorAll('.bt-sig-cb').forEach(c=>{
-        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive');
+        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive')+(btAnchorSigs.has(c.dataset.sig)?' anchored':'');
+      });
+      runBacktest();
+    });
+  });
+  document.querySelectorAll('.bt-anchor-cb').forEach(cb=>{
+    cb.addEventListener('change',(e)=>{
+      if(e.target.checked){
+        btAnchorSigs.add(cb.dataset.sig);
+        // ensure also active
+        const act=cb.parentElement.querySelector('.bt-sig-cb');
+        if(act)act.checked=true;
+        btSigs.add(cb.dataset.sig);
+      }else{
+        btAnchorSigs.delete(cb.dataset.sig);
+      }
+      document.querySelectorAll('.bt-sig-cb').forEach(c=>{
+        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive')+(btAnchorSigs.has(c.dataset.sig)?' anchored':'');
       });
       runBacktest();
     });
@@ -1824,17 +1918,26 @@ function initBacktest(){
 
 function btCalcScore(race,runnerIdx,sigs,method){
   let score=0;
-  const maxScore=sigs.size;  // top3c = 1pt per signal in top3, max = num signals
+  const maxScore=sigs.size;
   SIG_NAMES.forEach((name,si)=>{
     if(!sigs.has(name))return;
     const ranking=race.s[si]||[];
     if(method==='top1'){
       if(ranking[0]===runnerIdx)score+=1;
     }else{
-      // top3c: 1 point if in top 3
       if(ranking.slice(0,3).includes(runnerIdx))score+=1;
     }
   });
+  // Anchor check — if any anchor signal not satisfied, score = 0
+  if(btAnchorSigs.size>0){
+    const passesAnchors=Array.from(btAnchorSigs).every(name=>{
+      const si=SIG_NAMES.indexOf(name);
+      if(si<0)return true;
+      const ranking=race.s[si]||[];
+      return ranking.slice(0,3).includes(runnerIdx);
+    });
+    if(!passesAnchors)score=0;
+  }
   return{score,maxScore};
 }
 
