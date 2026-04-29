@@ -26,10 +26,10 @@ body{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:
   .main{padding:8px 8px 80px;max-width:100vw;}
   .main-tabs{margin-bottom:10px;display:flex;gap:0;border-bottom:1px solid #e8eaf0;}
   .main-tab{padding:8px 10px;font-size:9px;letter-spacing:.06em;flex:1;text-align:center;}
-  .kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;}
-  .kpi{padding:8px 10px;border-radius:4px;min-width:0;}
-  .kpi .v{font-size:18px;font-weight:900;line-height:1.1;}
-  .kpi .l{font-size:7px;margin-top:2px;}
+  .kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:10px;}
+  .kpi{padding:6px 6px;border-radius:4px;min-width:0;}
+  .kpi .v{font-size:15px;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .kpi .l{font-size:6px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .kpi .v{font-size:16px;font-weight:900;line-height:1.1;}
   .kpi .l{font-size:7px;margin-top:2px;letter-spacing:0;}
   .kpi-hide-mob{display:block !important;}
@@ -473,7 +473,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 20:07<br>406 races &middot; 406 resulted &middot; 0 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 20:10<br>406 races &middot; 406 resulted &middot; 0 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -486,11 +486,11 @@ tr.no-bet-row td{opacity:0.4;}
   <div class="tab-panel active" id="panel-bets">
   <div class="kpi-strip">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
-    <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets resulted</div></div>
+    <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
     <div class="kpi"><div class="v" id="k-wins">0</div><div class="l">Wins</div></div>
-    <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win rate</div></div>
-    <div class="kpi kpi-hide-mob"><div class="v" id="k-pp">—</div><div class="l">Place rate</div></div>
-    <div class="kpi kpi-hide-mob"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
+    <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win %</div></div>
+    <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place %</div></div>
+    <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
   </div>
   <div class="st" id="pend-title" style="display:none">Pending <span class="cnt" id="pend-cnt"></span></div>
   <div class="card desk-only" id="pend-card" style="display:none">
@@ -1145,7 +1145,7 @@ function update(){
   document.getElementById('k-wp').textContent=n?(wins/n*100).toFixed(mob?0:1)+'%':'—';
   document.getElementById('k-pp').textContent=n?(places/n*100).toFixed(mob?0:1)+'%':'—';
   document.getElementById('k-profit').textContent=n?(profit>=0?'+':'')+profit.toFixed(1)+'u':'—';
-  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'Profit ('+staked.toFixed(1)+'u staked)':'Profit';
+  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'P&L ('+staked.toFixed(1)+'u)':'Profit';
   document.getElementById('res-cnt').textContent=n?'('+n+')':'';
   const lbl=document.getElementById('thresh-label');
   if(method==='top1')lbl.textContent='Min votes (of '+activeSigs.size+')';
