@@ -472,7 +472,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 19:13<br>406 races &middot; 399 resulted &middot; 7 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 19:18<br>406 races &middot; 399 resulted &middot; 7 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1213,6 +1213,7 @@ function update(){
   {
     let cumMob=0;
     document.getElementById('res-mob').innerHTML=sortedResulted.map(b=>{
+      try{
       const fx=getFixed(b);
       const price=fx&&fx>1?fx:b.sp;
       const isBet=b.isBet!==false;
@@ -1252,6 +1253,7 @@ function update(){
         +'</div>'
         +'<div class="bet-detail" id="bd-'+mobDetailId+'"></div>'
         +'</div></div>';
+      }catch(err){console.error('mob-res card err:',err.message,b&&b.horse);return '';}
     }).join('');
     sortedResulted.forEach(b=>{
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
@@ -1339,6 +1341,7 @@ function update(){
     });
     // ── Mobile pending cards — always build, CSS controls visibility ────────
     document.getElementById('pend-mob').innerHTML=sortedPending.map(b=>{
+        try{
         const fx=getFixed(b);
         const isBet=getBet(b);
         const manualResult=getResult(b);
@@ -1377,6 +1380,7 @@ function update(){
           +'</div>'
           +'<div class="bet-detail" id="bd-'+mpDetailId+'"></div>'
           +'</div></div>';
+        }catch(err){console.error('mob-pend card err:',err.message,b&&b.horse);return '';}
       }).join('');
       sortedPending.forEach(b=>{
         const fxId='mpfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
