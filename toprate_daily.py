@@ -1094,7 +1094,12 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .shell{{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}}
 .sidebar{{background:#0f172a;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}}
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
+.main-content{{min-width:0;overflow-x:auto;}}
 .mob-bar{{display:none;}}
+@media(max-width:1100px) and (min-width:769px){{
+  .shell{{grid-template-columns:180px 1fr;}}
+  .sidebar{{padding:16px 10px;}}
+}}
 @media(max-width:768px){{
   .shell{{display:block;overflow-x:hidden;}}
   body{{overflow-x:hidden;}}
@@ -1109,12 +1114,13 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .main{{padding:8px 8px 80px;max-width:100vw;}}
   .main-tabs{{margin-bottom:10px;display:flex;gap:0;border-bottom:1px solid #e8eaf0;}}
   .main-tab{{padding:8px 10px;font-size:9px;letter-spacing:.06em;flex:1;text-align:center;}}
-  .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:10px;}}
-  .kpi{{padding:5px 2px;border-radius:4px;box-shadow:none;min-width:0;overflow:hidden;}}
-  .kpi .v{{font-size:11px;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
-  .kpi .l{{font-size:6px;margin-top:1px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+  .kpi-strip{{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:8px;margin-bottom:16px;}}
+  .kpi{{padding:14px 12px !important;border-radius:6px !important;box-shadow:0 1px 3px rgba(0,0,0,.04) !important;}}
+  .kpi .v{{font-size:24px !important;font-weight:900;line-height:1.1;}}
+  .kpi .l{{font-size:9px !important;margin-top:4px;letter-spacing:.06em;text-transform:uppercase;}}
   .kpi-hide-mob{{display:block !important;}}
   .desk-only{{display:none !important;}}
+  .mob-only{{display:flex !important;}}
   .mob-bet-list{{display:flex;flex-direction:column;gap:8px;}}
   .mob-bet-card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;}}
   .mob-bet-card.wr{{border-left:4px solid #10b981;background:#f0fdf4;}}
@@ -1153,6 +1159,8 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   #bt-table th,#bt-table td{{padding:6px 6px;font-size:11px;}}
   .sig-table th,#bt-sig-content .sig-table td{{padding:5px 6px;font-size:10px;}}
   .sig-bar-wrap{{width:40px;}}
+  .bet-detail{{padding:10px 12px;}}
+  .bet-detail h3{{font-size:11px;}}
   .q-legs{{display:grid !important;grid-template-columns:1fr !important;}}
   .q-leg{{border-right:none !important;border-bottom:1px solid #e8eaf0;width:100% !important;}}
   .q-meeting{{margin-bottom:16px;}}
@@ -1196,7 +1204,7 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .run-info{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,.25);margin-top:auto;padding-top:12px;line-height:1.6;}}
 .bt-link{{display:block;padding:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.5);font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:8px;}}
 .bt-link:hover{{background:rgba(255,255,255,.12);color:#fff;}}
-.main{{padding:24px 24px 60px;background:#f4f6f9;}}
+.main{{padding:24px 24px 60px;background:#f4f6f9;min-width:0;overflow-x:hidden;}}
 .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
 .kpi{{background:#fff;border:1px solid #e8eaf0;padding:14px 16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
 .kpi.hl{{background:#f0fdf4;border-color:#6ee7b7;}}
@@ -1207,6 +1215,7 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .st{{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#9ca3af;margin:16px 0 8px;display:flex;align-items:center;gap:10px;}}
 .st::after{{content:'';flex:1;height:1px;background:#e8eaf0;}}
 .cnt{{color:#0f1729;font-weight:700;margin-left:6px;}}
+.mob-only{{display:none;}}
 .card{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;margin-bottom:16px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
 table{{width:100%;border-collapse:collapse;font-size:12px;}}
 thead tr{{background:#f8fafc;position:sticky;top:0;z-index:2;}}
@@ -1236,13 +1245,16 @@ td:nth-child(-n+4){{text-align:left;}}
 .ctx-good{{background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;}}
 .ctx-warn{{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}}
 .ctx-neut{{background:#f8fafc;color:#6b7280;border:1px solid #e8eaf0;}}
-.sig-grid{{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:8px;}}
-.sig-cb{{display:flex;align-items:center;gap:5px;cursor:pointer;padding:3px 5px;border-radius:3px;transition:background .1s;}}
+.sig-grid{{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}}
+.sig-cb{{display:flex;align-items:center;gap:4px;cursor:pointer;padding:2px 4px;border-radius:3px;transition:background .1s;}}
 .sig-cb:hover{{background:rgba(255,255,255,.08);}}
-.sig-cb input{{cursor:pointer;accent-color:#10b981;width:12px;height:12px;}}
-.sig-cb span{{font-size:10px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;}}
-.sig-cb.dir-h span{{color:rgba(110,231,183,.85);}}
-.sig-cb.dir-l span{{color:rgba(147,197,253,.85);}}
+.sig-cb .sig-active{{cursor:pointer;accent-color:#10b981;width:11px;height:11px;flex-shrink:0;}}
+.sig-cb .sig-anchor{{cursor:pointer;accent-color:#f59e0b;width:11px;height:11px;flex-shrink:0;}}
+.sig-cb .sig-name{{font-size:9px;color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.sig-cb.dir-h .sig-name{{color:rgba(110,231,183,.85);}}
+.sig-cb.dir-l .sig-name{{color:rgba(147,197,253,.85);}}
+.sig-cb.anchored{{background:rgba(245,158,11,.12);border-radius:3px;}}
+.sig-anchor-lbl{{font-size:7px;color:rgba(245,158,11,.5);flex-shrink:0;}}
 .sig-sel-btns{{display:flex;gap:4px;margin-bottom:8px;}}
 .sig-btn{{flex:1;padding:4px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);border-radius:2px;}}
 .sig-btn:hover{{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);}}
@@ -1254,11 +1266,12 @@ td:nth-child(-n+4){{text-align:left;}}
 .bet-n{{background:#e8eaf0;color:#9ca3af;}}
 .bet-detail{{background:#f8fafc;border-top:1px solid #e8eaf0;padding:14px 18px;display:none;}}
 .bet-detail.open{{display:block;}}
-.bd-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}}
+.mob-bet-card .bet-detail{{margin:0 -1px;border-radius:0 0 6px 6px;}}
+.bd-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}}
 .bd-item{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:10px 12px;}}
 .bd-item .l{{font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;}}
 .bd-item .v{{font-size:14px;font-weight:700;color:#0f1729;margin-top:3px;font-family:'Outfit',sans-serif;}}
-.bd-sigs{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}}
+.bd-sigs{{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}}
 .bd-sig{{background:#fff;border:1px solid #e8eaf0;border-radius:4px;padding:8px 10px;display:flex;align-items:center;gap:8px;}}
 .bd-sig .sn{{color:#6b7280;font-size:10px;flex:1;font-family:'IBM Plex Mono',monospace;}}
 .bd-sig .sr{{font-weight:900;font-size:16px;font-family:'Outfit',sans-serif;min-width:32px;text-align:right;color:#0f1729;}}
@@ -1331,7 +1344,9 @@ tr.no-bet-row td{{opacity:0.4;}}
 .bt-sig-label{{display:flex;align-items:center;gap:4px;font-size:10px;cursor:pointer;margin-bottom:3px;}}
 .bt-sig-label.active{{color:#fff;font-weight:600;}}
 .bt-sig-label.inactive{{color:rgba(255,255,255,.45);}}
+.bt-sig-label.anchored{{background:rgba(245,158,11,.15);border-radius:3px;padding:0 3px;}}
 .bt-sig-label input{{accent-color:#10b981;}}
+.bt-anchor-cb{{accent-color:#f59e0b !important;}}
 .bt-val{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#10b981;font-weight:700;}}
 .bt-kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}}
 .bt-kpi{{background:#fff;border:1px solid #e8eaf0;border-radius:4px;padding:12px;}}
@@ -1482,7 +1497,7 @@ tr.no-bet-row td{{opacity:0.4;}}
       <button class="mb" id="s-prop" onclick="setStake('prop')">Signal<br>prop</button>
     </div>
     <div id="s-fixed-wrap" style="display:none" class="srow">
-      <div class="shdr"><span class="slbl">Target return</span><span class="sval" id="v-target">4.0u</span></div>
+      <div class="shdr"><span class="slbl">Fixed return target</span><span class="sval" id="v-target">4.0u</span></div>
       <input type="range" id="f-target" min="1" max="10" step="0.5" value="4">
     </div>
   </div>
@@ -1496,7 +1511,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     </div>
     <div class="srow">
       <div class="shdr"><span class="slbl" id="thresh-label">Min votes (of 14)</span><span class="sval" id="v-votes">7</span></div>
-      <input type="range" id="f-votes" min="1" max="14" value="7">
+      <input type="range" id="f-votes" min="1" max="14" value="3">
     </div>
   </div>
 
@@ -1506,6 +1521,7 @@ tr.no-bet-row td{{opacity:0.4;}}
       <button class="sig-btn" onclick="selectAllSigs()">All</button>
       <button class="sig-btn" onclick="selectNoneSigs()">None</button>
       <button class="sig-btn" onclick="selectOptimalSigs()">Optimal</button>
+      <button class="sig-btn" onclick="selectAnchorPreset()">Anchor</button>
     </div>
     <div class="sig-grid" id="sig-grid"></div>
   </div>
@@ -1556,11 +1572,11 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="tab-panel active" id="panel-bets">
   <div class="kpi-strip">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
-    <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets resulted</div></div>
+    <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
     <div class="kpi"><div class="v" id="k-wins">0</div><div class="l">Wins</div></div>
-    <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win rate</div></div>
-    <div class="kpi kpi-hide-mob"><div class="v" id="k-pp">—</div><div class="l">Place rate</div></div>
-    <div class="kpi kpi-hide-mob"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
+    <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win %</div></div>
+    <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place %</div></div>
+    <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
   </div>
   <div class="st" id="pend-title" style="display:none">Pending <span class="cnt" id="pend-cnt"></span></div>
   <div class="card desk-only" id="pend-card" style="display:none">
@@ -1569,7 +1585,7 @@ tr.no-bet-row td{{opacity:0.4;}}
       <th>Sigs</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
-  <div class="mob-bet-list" id="pend-mob" style="display:none"></div>
+  <div class="mob-bet-list mob-only" id="pend-mob"></div>
   <div class="st">Resulted bets <span class="cnt" id="res-cnt"></span></div>
   <div class="card desk-only" id="res-card">
     <table><thead><tr>
@@ -1579,7 +1595,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     </tr></thead><tbody id="tb"></tbody></table>
     <div class="empty" id="empty">No resulted bets match current filters</div>
   </div>
-  <div class="mob-bet-list" id="res-mob"></div>
+  <div class="mob-bet-list mob-only" id="res-mob"></div>
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-quaddie">
     <div id="q-content"><div class="q-no-meeting">Loading quaddie data...</div></div>
@@ -1593,7 +1609,7 @@ tr.no-bet-row td{{opacity:0.4;}}
         <div class="bt-ctrl-title">Backtest Filters</div>
         <div class="bt-ctrl-row">
           <div class="bt-lbl">Min score <span id="bt-v-score" class="bt-val">8</span></div>
-          <input type="range" id="bt-score" min="1" max="11" value="8" oninput="runBacktest()">
+          <input type="range" id="bt-score" min="1" max="11" value="3" oninput="runBacktest()">
         </div>
         <div class="bt-ctrl-row">
           <div class="bt-lbl">Min SP <span id="bt-v-sp" class="bt-val">$3.00</span></div>
@@ -1674,6 +1690,7 @@ tr.no-bet-row td{{opacity:0.4;}}
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
             <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('all')">All</button>
             <button class="reset-btn" style="padding:3px 8px;font-size:9px;" onclick="btSelectSigs('optimal')">Optimal</button>
+            <button class="reset-btn" style="padding:3px 8px;font-size:9px;color:#f59e0b;border-color:rgba(245,158,11,.4);" onclick="btSelectSigs('anchor')">Anchor</button>
           </div>
           <div id="bt-sig-grid" style="margin-top:6px;"></div>
         </div>
@@ -1711,6 +1728,7 @@ const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going
 const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
 const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
 let activeSigs=new Set(SIG_NAMES);
+let anchorSigs=new Set(); // signals that MUST be top-3
 let stakeMethod='flat';
 let method='top1';
 
@@ -1726,7 +1744,7 @@ function fmtTime(tm){{
 function getActiveDows(){{const s=new Set();document.querySelectorAll('#dow-grid input:checked').forEach(cb=>s.add(parseInt(cb.dataset.dow)));return s;}}
 function setDow(mode){{document.querySelectorAll('#dow-grid input').forEach(cb=>{{const d=parseInt(cb.dataset.dow);cb.checked=mode==='all'?true:mode==='weekend'?(d===0||d===6):(d>=1&&d<=5);}});update();}}
 function setStake(m){{stakeMethod=m;['s-flat','s-fixed','s-prop'].forEach(id=>document.getElementById(id).classList.remove('active'));document.getElementById('s-'+m).classList.add('active');document.getElementById('s-fixed-wrap').style.display=m==='fixed'?'':'none';update();}}
-function calcStake(score,maxScore,sp){{if(stakeMethod==='flat')return 1;if(stakeMethod==='fixed'){{const tg=parseFloat(document.getElementById('f-target').value);return sp&&sp>1?Math.max(tg/(sp-1),0.1):1;}}const pct=maxScore>0?score/maxScore:0;return Math.max(0.5,pct*2);}}
+function calcStake(score,maxScore,sp){{if(stakeMethod==='flat')return 1;if(stakeMethod==='fixed'){{const tg=parseFloat(document.getElementById('f-target').value);return sp&&sp>1?Math.max(tg/sp,0.1):1;}}const pct=maxScore>0?score/maxScore:0;return Math.max(0.5,pct*2);}}
 function setMethod(m){{
   method=m;
   ['m-top1','m-top3c','m-top3w'].forEach(id=>document.getElementById(id).classList.remove('active'));
@@ -1739,20 +1757,77 @@ function setMethod(m){{
   document.getElementById('v-votes').textContent=slider.value;
   update();
 }}
-function rebuildActiveSigs(){{activeSigs=new Set();document.querySelectorAll('#sig-grid input:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));}}
-function selectAllSigs(){{document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=true);rebuildActiveSigs();update();}}
-function selectNoneSigs(){{document.querySelectorAll('#sig-grid input').forEach(cb=>cb.checked=false);rebuildActiveSigs();update();}}
-function selectOptimalSigs(){{const exclude=new Set(['sp','fixed_price','price_top','wpr_dist','wpr_going']);document.querySelectorAll('#sig-grid input').forEach(cb=>{{cb.checked=!exclude.has(cb.dataset.sig);}});rebuildActiveSigs();update();}}
+function rebuildActiveSigs(){{
+  activeSigs=new Set();
+  document.querySelectorAll('#sig-grid .sig-active:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));
+  anchorSigs=new Set();
+  document.querySelectorAll('#sig-grid .sig-anchor:checked').forEach(cb=>anchorSigs.add(cb.dataset.sig));
+}}
+function selectAllSigs(){{
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=true);
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{cb.checked=false;const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.remove('anchored');}});
+  rebuildActiveSigs();update();
+}}
+function selectNoneSigs(){{
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{cb.checked=false;const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.remove('anchored');}});
+  rebuildActiveSigs();update();
+}}
+function selectOptimalSigs(){{
+  selectAnchorPreset();
+}}
+function selectAnchorPreset(){{
+  const anchors=new Set(['tr_rating','peak_rank','jky_win90']);
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{cb.checked=anchors.has(cb.dataset.sig);}});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
+    const isAnch=anchors.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
+  }});
+  rebuildActiveSigs();update();
+}}
 (function(){{
   const grid=document.getElementById('sig-grid');
   SIG_NAMES.forEach((sig,i)=>{{
     const isH=SIG_DIR[i]===1;
-    const cb=document.createElement('label');
-    cb.className='sig-cb '+(isH?'dir-h':'dir-l');
-    cb.innerHTML='<input type="checkbox" data-sig="'+sig+'" checked><span>'+SIG_LABELS[i]+'</span>';
-    cb.querySelector('input').addEventListener('change',()=>{{rebuildActiveSigs();update();}});
-    grid.appendChild(cb);
+    const row=document.createElement('div');
+    row.className='sig-cb '+(isH?'dir-h':'dir-l');
+    row.dataset.sig=sig;
+    const activeInp=document.createElement('input');
+    activeInp.type='checkbox'; activeInp.className='sig-active'; activeInp.dataset.sig=sig; activeInp.checked=true;
+    const nameSpan=document.createElement('span');
+    nameSpan.className='sig-name'; nameSpan.textContent=SIG_LABELS[i];
+    const aLbl=document.createElement('span');
+    aLbl.className='sig-anchor-lbl'; aLbl.textContent='A';
+    const anchorInp=document.createElement('input');
+    anchorInp.type='checkbox'; anchorInp.className='sig-anchor'; anchorInp.dataset.sig=sig; anchorInp.title='Anchor — must be top 3';
+    row.appendChild(activeInp); row.appendChild(nameSpan); row.appendChild(aLbl); row.appendChild(anchorInp);
+    activeInp.addEventListener('change',()=>{{rebuildActiveSigs();update();}});
+    anchorInp.addEventListener('change',(e)=>{{
+      if(e.target.checked){{
+        anchorSigs.add(sig);
+        activeInp.checked=true;
+        row.classList.add('anchored');
+      }}else{{
+        anchorSigs.delete(sig);
+        row.classList.remove('anchored');
+      }}
+      rebuildActiveSigs();update();
+    }});
+    grid.appendChild(row);
   }});
+  // Default: only jky_win90, tr_rating, peak_rank active and anchored
+  const _anchors=new Set(['tr_rating','peak_rank','jky_win90']);
+  grid.querySelectorAll('.sig-active').forEach(cb=>{{
+    cb.checked=_anchors.has(cb.dataset.sig);
+  }});
+  grid.querySelectorAll('.sig-anchor').forEach(cb=>{{
+    const isAnch=_anchors.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
+  }});
+  activeSigs=new Set(['tr_rating','peak_rank','jky_win90']);
+  anchorSigs=new Set(['tr_rating','peak_rank','jky_win90']);
 }})();
 function scoreRace(race){{
   const scores=new Array(race.u.length).fill(0);
@@ -1763,6 +1838,18 @@ function scoreRace(race){{
     else if(method==='top3c'){{if(r1>=0)scores[r1]+=1;if(r2>=0)scores[r2]+=1;if(r3>=0)scores[r3]+=1;}}
     else{{if(r1>=0)scores[r1]+=3;if(r2>=0)scores[r2]+=2;if(r3>=0)scores[r3]+=1;}}
   }});
+  // Apply anchor mask — runners not top-3 in all anchors get score 0
+  if(anchorSigs.size>0){{
+    scores.forEach((_,ri)=>{{
+      const passesAnchors=Array.from(anchorSigs).every(sig=>{{
+        const si=SIG_NAMES.indexOf(sig);
+        if(si<0)return true;
+        const [r1,r2,r3]=race.s[si];
+        return r1===ri||r2===ri||r3===ri;
+      }});
+      if(!passesAnchors)scores[ri]=0;
+    }});
+  }}
   let topIdx=-1,topScore=0;
   scores.forEach((s,i)=>{{if(s>topScore){{topScore=s;topIdx=i;}}}});
   return {{topIdx,topScore,scores}};
@@ -2124,7 +2211,7 @@ function update(){{
   const sortBets=arr=>arr.slice().sort((a,b)=>{{
     if(b.date!==a.date)return b.date>a.date?1:-1;
     const at=a.raceObj.tm?new Date(a.raceObj.tm).getTime():null;
-    const bt=b.raceObj.tm?new Date(b.raceObj.tm).getTime():null;
+    const bt=b.raceObj&&b.raceObj.tm?new Date(b.raceObj.tm).getTime():null;
     if(at&&bt)return at-bt;
     return(a.raceObj.rid||0)-(b.raceObj.rid||0);
   }});
@@ -2143,15 +2230,17 @@ function update(){{
     if(b.placed)places++;
   }});
   const roi=staked>0?profit/staked*100:null;
+  const mob=window.innerWidth<=900;
   const roiStr=roi!==null?(roi>=0?'+':'')+roi.toFixed(1)+'%':'—';
   document.getElementById('k-roi').textContent=roiStr;
-  document.getElementById('k-roi').parentElement.className='kpi'+(roi===null?' hl':roi>=0?' hl':' neg-kpi');
+  const roiEl=document.getElementById('k-roi');if(roiEl&&roiEl.parentElement)roiEl.parentElement.className='kpi'+(roi===null?' hl':roi>=0?' hl':' neg-kpi');
+  const profitEl=document.getElementById('k-profit');if(profitEl&&profitEl.parentElement)profitEl.parentElement.className='kpi'+(n&&profit>=0?' hl':n?' neg-kpi':'');
   document.getElementById('k-bets').textContent=n;
   document.getElementById('k-wins').textContent=wins;
   document.getElementById('k-wp').textContent=n?(wins/n*100).toFixed(1)+'%':'—';
   document.getElementById('k-pp').textContent=n?(places/n*100).toFixed(1)+'%':'—';
   document.getElementById('k-profit').textContent=n?(profit>=0?'+':'')+profit.toFixed(1)+'u':'—';
-  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'Profit ('+staked.toFixed(1)+'u staked)':'Profit';
+  document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'P&L ('+staked.toFixed(1)+'u)':'P&L';
   document.getElementById('res-cnt').textContent=n?'('+n+')':'';
   const lbl=document.getElementById('thresh-label');
   if(method==='top1')lbl.textContent='Min votes (of '+activeSigs.size+')';
@@ -2177,7 +2266,7 @@ function update(){{
       const fxId='fx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='rbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
-      const timeStrR=fmtTime(b.raceObj.tm);
+      const timeStrR=fmtTime(b.raceObj&&b.raceObj.tm);
       const did='rd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=did;
       return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" data-did="'+did+'">'
@@ -2216,12 +2305,11 @@ function update(){{
       }}
     }});
   }}
-  // ── Mobile resulted cards ──────────────────────────────────────────────────
-  const isMob=window.innerWidth<=768;
-  document.getElementById('res-mob').style.display=isMob&&n?'':'none';
-  if(isMob&&n){{
+  // ── Mobile resulted cards — always build, CSS controls visibility ──────
+  {{
     let cumMob=0;
     document.getElementById('res-mob').innerHTML=sortedResulted.map(b=>{{
+      try{{
       const fx=getFixed(b);
       const price=fx&&fx>1?fx:b.sp;
       const isBet=b.isBet!==false;
@@ -2234,8 +2322,11 @@ function update(){{
       const fxCls='mob-fixed-inp'+(fx?' has-val':'');
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
-      const mobTimeR=fmtTime(b.raceObj.tm);
-      return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'">'
+      const mobDid='rd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
+      b._detailId=b._detailId||mobDid;
+      const mobDetailId='mob-'+mobDid;
+      const mobTimeR=fmtTime(b.raceObj&&b.raceObj.tm);
+      return'<div class="mob-bet-card'+(b.won&&isBet?' wr':b.placed&&isBet?' pr':'')+(!isBet?' no-bet-card':'')+'" data-did="'+mobDetailId+'" data-src="'+mobDid+'" style="cursor:pointer;">'
         +'<div class="mob-bet-hdr">'
         +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
         +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+(mobTimeR?' &nbsp;'+mobTimeR:'')+'</span></div>'
@@ -2256,29 +2347,26 @@ function update(){{
         +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
         +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'&nbsp;'+plStr+'</span>'
         +'</div>'
+        +'<div class="bet-detail" id="bd-'+mobDetailId+'"></div>'
         +'</div></div>';
+      }}catch(err){{console.error('mob-res card err:',err.message,b&&b.horse);return '';}}
     }}).join('');
     sortedResulted.forEach(b=>{{
       const fxId='mfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='mrbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const inp=document.getElementById(fxId);
-      if(inp){{
-        inp.addEventListener('change',e=>{{
-          const v=parseFloat(e.target.value);
-          if(!isNaN(v)&&v>1){{setFixed(b,v);inp.classList.add('has-val');}}
-          else{{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}}
-          update();
-        }});
-      }}
+      if(inp){{inp.addEventListener('change',e=>{{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>1){{setFixed(b,v);inp.classList.add('has-val');}}else{{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}}update();}});}}
       const bb=document.getElementById(betId);
       if(bb){{bb.addEventListener('click',e=>{{e.stopPropagation();setBet(b,!getBet(b));update();}});}}
     }});
   }}
 
   const showPend=f.pend&&!f.resonly;
+  const isMob=window.innerWidth<=900;
   document.getElementById('pend-title').style.display=showPend&&sortedPending.length?'':'none';
   document.getElementById('pend-card').style.display=showPend&&sortedPending.length&&!isMob?'':'none';
-  document.getElementById('pend-mob').style.display=showPend&&sortedPending.length&&isMob?'':'none';
+  document.getElementById('pend-mob').style.display=showPend&&sortedPending.length&&isMob?'flex':'none';
+  document.getElementById('res-mob').style.display=n&&isMob?'flex':'none';
   document.getElementById('pend-cnt').textContent=sortedPending.length?'('+sortedPending.length+')':'';
   if(showPend&&sortedPending.length){{
     document.getElementById('pend-tb').innerHTML=sortedPending.map(b=>{{
@@ -2296,7 +2384,7 @@ function update(){{
       const resVal=manualResult!==null?manualResult:'';
       const resInp='<input class="res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+resVal+'" style="width:36px;font-size:11px;text-align:center;border:1px solid #d1d5db;border-radius:3px;padding:2px 4px;background:#f0fdf4;">';
       const mktPriceHtml=b.mktPrice?'<span class="mn" style="color:#0f172a;font-weight:700;">$'+b.mktPrice.toFixed(2)+'</span>':'<span style="color:#9ca3af">—</span>';
-      const timeStr=fmtTime(b.raceObj.tm);
+      const timeStr=fmtTime(b.raceObj&&b.raceObj.tm);
       const pdid='pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=pdid;
       return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" data-did="'+pdid+'">'
@@ -2345,9 +2433,9 @@ function update(){{
         resInp.addEventListener('click',e=>e.stopPropagation());
       }}
     }});
-    // ── Mobile pending cards ─────────────────────────────────────────────────
-    if(isMob){{
-      document.getElementById('pend-mob').innerHTML=sortedPending.map(b=>{{
+    // ── Mobile pending cards — always build, CSS controls visibility ────────
+    document.getElementById('pend-mob').innerHTML=sortedPending.map(b=>{{
+        try{{
         const fx=getFixed(b);
         const isBet=getBet(b);
         const manualResult=getResult(b);
@@ -2358,8 +2446,10 @@ function update(){{
         const fxId='mpfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const betId='mpbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
         const resId='mpres-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
-        const mobTimeP=fmtTime(b.raceObj.tm);
-        return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'">'
+        const mobTimeP=fmtTime(b.raceObj&&b.raceObj.tm);
+        const mpDid=b._detailId||('pd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_'));
+        const mpDetailId='mob-'+mpDid;
+        return'<div class="mob-bet-card'+(!isBet?' no-bet-card':'')+'" data-did="'+mpDetailId+'" data-src="'+mpDid+'" style="cursor:pointer;">'
           +'<div class="mob-bet-hdr">'
           +'<span class="mob-bet-venue">'+b.venue+' R'+b.race+'</span>'
           +'<div style="display:flex;align-items:center;gap:6px;">'+(mobTimeP?'<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'<span class="mob-bet-date">'+b.date+'</span></div>'
@@ -2382,7 +2472,9 @@ function update(){{
           +'<input class="mob-res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+(manualResult!==null?manualResult:'')+'">'
           +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'</span>'
           +'</div>'
+          +'<div class="bet-detail" id="bd-'+mpDetailId+'"></div>'
           +'</div></div>';
+        }}catch(err){{console.error('mob-pend card err:',err.message,b&&b.horse);return '';}}
       }}).join('');
       sortedPending.forEach(b=>{{
         const fxId='mpfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
@@ -2395,7 +2487,6 @@ function update(){{
         const ri=document.getElementById(resId);
         if(ri){{ri.addEventListener('change',e=>{{const v=parseInt(e.target.value);setResult(b,isNaN(v)||v<1?null:v);update();}});}}
       }});
-    }}
   }}
   // Rebuild active tab if signals or quaddie
   const activeTab=document.querySelector('.main-tab.active')?.id?.replace('tab-','');
@@ -2418,7 +2509,7 @@ document.getElementById('f-date-to').addEventListener('change',update);
 function resetAll(){{
   document.getElementById('f-tab').checked=true;
   document.getElementById('f-prize').value=25000;document.getElementById('v-prize').textContent='$25k';
-  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=true;
+  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=false;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
   document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
@@ -2426,24 +2517,24 @@ function resetAll(){{
   document.getElementById('f-target').value=4;document.getElementById('v-target').textContent='4.0u';
   document.getElementById('f-pend').checked=true;document.getElementById('f-resonly').checked=false;
   document.querySelectorAll('[data-settle],[data-pace]').forEach(cb=>cb.checked=true);
-  // Reset sectional filters
   ['f-early-spd','f-mid-spd','f-late-spd','f-total-spd'].forEach(id=>{{document.getElementById(id).value=-20;}});
   ['f-settled-pos','f-800m-pos'].forEach(id=>{{document.getElementById(id).value=20;}});
-  setDow('all');setStake('fixed');selectOptimalSigs();setMethod('top3c');
-  document.getElementById('f-votes').value=7;document.getElementById('v-votes').textContent='7';
+  setDow('all');setStake('fixed');selectAnchorPreset();setMethod('top3c');
+  document.getElementById('f-votes').value=3;document.getElementById('v-votes').textContent='3';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
   setDateRange('today');
   update();
 }}
-selectOptimalSigs();
+document.getElementById('f-votes').value=3;
+document.getElementById('v-votes').textContent='3';
+selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
+document.getElementById('f-trend').checked=false;
 document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
 document.getElementById('v-spmax').textContent='Any';
-document.getElementById('f-votes').value=7;
-document.getElementById('v-votes').textContent='7';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
@@ -2847,7 +2938,8 @@ function updateStake(inp){{
 // ── Backtest ──────────────────────────────────────────────────────────────────
 let btStake='flat';
 let btMethod='top3c';
-let btSigs=new Set(SIG_NAMES.filter((_,i)=>SIG_DIR[i]===1||['wpr_rank','peak_rank','consistency','tr_price'].includes(SIG_NAMES[i])));
+let btSigs=new Set(SIG_NAMES);
+let btAnchorSigs=new Set(['jky_win90','tr_rating','peak_rank']); // default anchor preset
 let btInited=false;
 
 function btSetStake(m){{
@@ -2862,10 +2954,19 @@ function btSetMethod(m){{
   runBacktest();
 }}
 function btSelectSigs(mode){{
-  if(mode==='all')btSigs=new Set(SIG_NAMES);
-  else btSigs=new Set(activeSigs); // use current optimal
+  if(mode==='all'){{btSigs=new Set(SIG_NAMES);btAnchorSigs=new Set();}}
+  else if(mode==='anchor'||mode==='optimal'){{
+    btSigs=new Set(SIG_NAMES);
+    btAnchorSigs=new Set(['tr_rating','peak_rank','jky_win90']);
+  }}
+  else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
     cb.checked=btSigs.has(cb.dataset.sig);
+  }});
+  document.querySelectorAll('.bt-anchor-cb').forEach(cb=>{{
+    const isAnch=btAnchorSigs.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    const _br=cb.closest&&cb.closest('.bt-sig-label');if(_br)_br.classList.toggle('anchored',isAnch);
   }});
   runBacktest();
 }}
@@ -2889,34 +2990,67 @@ function initBacktest(){{
 
   const grid=document.getElementById('bt-sig-grid');
   grid.innerHTML=SIG_NAMES.map((name,i)=>
-    '<label class="bt-sig-label '+(btSigs.has(name)?'active':'inactive')+'">'
-    +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]+'</label>'
+    '<div class="bt-sig-label '+(btSigs.has(name)?'active':'inactive')+'">'
+    +'<input type="checkbox" class="bt-sig-cb" data-sig="'+name+'"'+(btSigs.has(name)?' checked':'')+'>'+SIG_LABELS[i]
+    +'<span class="sig-anchor-lbl" style="margin-left:4px;">A</span>'
+    +'<input type="checkbox" class="bt-anchor-cb" data-sig="'+name+'" title="Anchor — must be top 3"'+(btAnchorSigs.has(name)?' checked':'')+'>'
+    +'</div>'
   ).join('');
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
     cb.addEventListener('change',()=>{{
       btSigs=new Set([...document.querySelectorAll('.bt-sig-cb:checked')].map(c=>c.dataset.sig));
       document.querySelectorAll('.bt-sig-cb').forEach(c=>{{
-        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive');
+        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive')+(btAnchorSigs.has(c.dataset.sig)?' anchored':'');
       }});
       runBacktest();
     }});
   }});
+  document.querySelectorAll('.bt-anchor-cb').forEach(cb=>{{
+    cb.addEventListener('change',(e)=>{{
+      if(e.target.checked){{
+        btAnchorSigs.add(cb.dataset.sig);
+        // ensure also active
+        const act=cb.parentElement.querySelector('.bt-sig-cb');
+        if(act)act.checked=true;
+        btSigs.add(cb.dataset.sig);
+      }}else{{
+        btAnchorSigs.delete(cb.dataset.sig);
+      }}
+      document.querySelectorAll('.bt-sig-cb').forEach(c=>{{
+        c.parentElement.className='bt-sig-label '+(c.checked?'active':'inactive')+(btAnchorSigs.has(c.dataset.sig)?' anchored':'');
+      }});
+      runBacktest();
+    }});
+  }});
+  // Apply defaults
+  btSetStake('fixed');
+  btSetMethod('top3c');
+  document.getElementById('bt-score').value=3;
   runBacktest();
 }}
 
 function btCalcScore(race,runnerIdx,sigs,method){{
   let score=0;
-  const maxScore=sigs.size;  // top3c = 1pt per signal in top3, max = num signals
+  const maxScore=sigs.size;
   SIG_NAMES.forEach((name,si)=>{{
     if(!sigs.has(name))return;
     const ranking=race.s[si]||[];
     if(method==='top1'){{
       if(ranking[0]===runnerIdx)score+=1;
     }}else{{
-      // top3c: 1 point if in top 3
       if(ranking.slice(0,3).includes(runnerIdx))score+=1;
     }}
   }});
+  // Anchor check — if any anchor signal not satisfied, score = 0
+  if(btAnchorSigs.size>0){{
+    const passesAnchors=Array.from(btAnchorSigs).every(name=>{{
+      const si=SIG_NAMES.indexOf(name);
+      if(si<0)return true;
+      const ranking=race.s[si]||[];
+      return ranking.slice(0,3).includes(runnerIdx);
+    }});
+    if(!passesAnchors)score=0;
+  }}
   return{{score,maxScore}};
 }}
 
@@ -3222,15 +3356,17 @@ function buildDetailHtml(b){{
     +'<div class="bd-sigs">'+sigHtml+'</div>';
 }}
 
-function toggleBetDetail(src){{
+function toggleBetDetail(src,srcId){{
   const id=typeof src==='string'?src:(src&&src.dataset?src.dataset.did:null);
   if(!id)return;
   const el=document.getElementById('bd-'+id);
   if(!el)return;
   const open=el.classList.toggle('open');
   if(open&&!el.dataset.built){{
+    // srcId is the original _detailId for mob- prefixed IDs
+    const lookupId=srcId||id;
     const allBets=[...(window._lastBets||[]),...(window._lastPend||[]),...(window._lastBtBets||[])];
-    const b=allBets.find(x=>x._detailId===id);
+    const b=allBets.find(x=>x._detailId===lookupId);
     if(b)el.innerHTML=buildDetailHtml(b);
     el.dataset.built='1';
   }}
@@ -3243,10 +3379,15 @@ function closeSidebar(){{
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('mob-overlay').classList.remove('open');
 }}
-// Bet detail click delegation
+// Bet detail click delegation — desktop table rows and mobile cards
 document.addEventListener('click',function(e){{
+  // Desktop: table row
   const tr=e.target.closest('tr[data-did]');
-  if(tr)toggleBetDetail(tr.dataset.did);
+  if(tr){{toggleBetDetail(tr.dataset.did,null);return;}}
+  // Mobile: card div — but not when tapping buttons or inputs
+  if(e.target.closest('button,input,label'))return;
+  const card=e.target.closest('.mob-bet-card[data-did]');
+  if(card)toggleBetDetail(card.dataset.did, card.dataset.src);
 }});
 
 // Close sidebar when any interactive element inside it is tapped on mobile
@@ -3317,14 +3458,12 @@ def publish():
         if check and result.returncode != 0:
             print(f"  git {' '.join(cmd)} failed (exit {result.returncode})")
         return result.returncode == 0
-    # Fetch remote so git knows the latest state, but don't overwrite local files
+    # Fetch remote so git knows the latest state
     sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
     git(["add", "toprate_live.html"])
-    if OUTPUT_HTML.exists():
-        # Also add runners CSV if it exists
-        runners_csv = script_dir / "toprate_runners.csv"
-        if runners_csv.exists():
-            git(["add", str(runners_csv)], check=False)
+    runners_csv = script_dir / "toprate_runners.csv"
+    if runners_csv.exists():
+        git(["add", str(runners_csv)], check=False)
     status = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
     if status.returncode == 0:
         print("  No changes to publish — HTML unchanged.")
@@ -3335,30 +3474,21 @@ def publish():
     if git(["push"], check=False):
         print(f"  Published: {msg}")
     else:
-        # Push rejected — fetch remote, stage files on top, make new commit
-        print("  Push rejected — fetching remote and retrying...")
-        sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
-        # Check if we're in a merge state and abort if so
-        merge_head = script_dir / ".git" / "MERGE_HEAD"
-        if merge_head.exists():
-            sp.run(["git", "merge", "--abort"], cwd=script_dir, capture_output=True, text=True)
-        # Reset to remote, re-stage our output files on top
-        sp.run(["git", "reset", "--hard", "origin/main"],
-               cwd=script_dir, capture_output=True, text=True)
-        git(["add", "toprate_live.html"], check=False)
-        runners_csv = script_dir / "toprate_runners.csv"
-        if runners_csv.exists():
-            git(["add", str(runners_csv)], check=False)
-        # Only commit if there's something staged
-        staged = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
-        if staged.returncode != 0:
-            git(["commit", "-m", msg], check=False)
+        # Push rejected — rebase our commit on top of remote (preserves local files)
+        print("  Push rejected — rebasing on remote and retrying...")
+        rebase_ok = git(["rebase", "origin/main"], check=False)
+        if not rebase_ok:
+            # Rebase conflict — abort and force push instead
+            sp.run(["git", "rebase", "--abort"], cwd=script_dir, capture_output=True)
+            if git(["push", "--force-with-lease"], check=False):
+                print(f"  Published (force): {msg}")
+            else:
+                print("  Push failed — run: git pull --rebase && python toprate_daily.py --publish")
+        else:
             if git(["push"], check=False):
                 print(f"  Published: {msg}")
             else:
-                print("  Push failed — run: git checkout main && git pull && python toprate_daily.py --publish")
-        else:
-            print("  No changes to publish after reset.")
+                print("  Push failed — run: git pull --rebase && python toprate_daily.py --publish")
 
 
 def main():
