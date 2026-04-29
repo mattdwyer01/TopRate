@@ -33,6 +33,7 @@ body{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:
   .kpi .l{font-size:7px;margin-top:2px;letter-spacing:0;}
   .kpi-hide-mob{display:block !important;}
   .desk-only{display:none !important;}
+  .mob-only{display:flex !important;}
   .mob-bet-list{display:flex;flex-direction:column;gap:8px;}
   .mob-bet-card{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;}
   .mob-bet-card.wr{border-left:4px solid #10b981;background:#f0fdf4;}
@@ -127,6 +128,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .st{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#9ca3af;margin:16px 0 8px;display:flex;align-items:center;gap:10px;}
 .st::after{content:'';flex:1;height:1px;background:#e8eaf0;}
 .cnt{color:#0f1729;font-weight:700;margin-left:6px;}
+.mob-only{display:none !important;}
 .card{background:#fff;border:1px solid #e8eaf0;border-radius:6px;overflow:hidden;margin-bottom:16px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 table{width:100%;border-collapse:collapse;font-size:12px;}
 thead tr{background:#f8fafc;position:sticky;top:0;z-index:2;}
@@ -470,7 +472,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 29 Apr 2026 13:38<br>406 races &middot; 370 resulted &middot; 36 pending</div>
+  <div class="run-info">Updated 29 Apr 2026 13:50<br>406 races &middot; 370 resulted &middot; 36 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -496,7 +498,7 @@ tr.no-bet-row td{opacity:0.4;}
       <th>Sigs</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
-  <div class="mob-bet-list" id="pend-mob" style="display:none"></div>
+  <div class="mob-bet-list mob-only" id="pend-mob" style="display:none"></div>
   <div class="st">Resulted bets <span class="cnt" id="res-cnt"></span></div>
   <div class="card desk-only" id="res-card">
     <table><thead><tr>
@@ -506,7 +508,7 @@ tr.no-bet-row td{opacity:0.4;}
     </tr></thead><tbody id="tb"></tbody></table>
     <div class="empty" id="empty">No resulted bets match current filters</div>
   </div>
-  <div class="mob-bet-list" id="res-mob"></div>
+  <div class="mob-bet-list mob-only" id="res-mob" style="display:none"></div>
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-quaddie">
     <div id="q-content"><div class="q-no-meeting">Loading quaddie data...</div></div>
@@ -1257,9 +1259,11 @@ function update(){
   }
 
   const showPend=f.pend&&!f.resonly;
+  const isMob=window.innerWidth<=768;
   document.getElementById('pend-title').style.display=showPend&&sortedPending.length?'':'none';
-  document.getElementById('pend-card').style.display=showPend&&sortedPending.length?'':'none';
-  document.getElementById('pend-mob').style.display=showPend&&sortedPending.length?'':'none';
+  document.getElementById('pend-card').style.display=showPend&&sortedPending.length&&!isMob?'':'none';
+  document.getElementById('pend-mob').style.display=showPend&&sortedPending.length&&isMob?'':'none';
+  document.getElementById('res-mob').style.display=n&&isMob?'':'none';
   document.getElementById('pend-cnt').textContent=sortedPending.length?'('+sortedPending.length+')':'';
   if(showPend&&sortedPending.length){
     document.getElementById('pend-tb').innerHTML=sortedPending.map(b=>{
