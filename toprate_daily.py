@@ -1360,8 +1360,11 @@ tr.no-bet-row td{{opacity:0.4;}}
 .sugg-stake{{font-size:11px;color:#6b7280;margin-top:4px;}}
 .exotic-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}}
 .exotic-item{{padding:10px 12px;background:#fafbfc;border:1px solid #e8eaf0;border-radius:8px;}}
+.exotic-item.rec{{border-left:3px solid #10b981;background:#f0fdf4;}}
 .exotic-name{{font-size:10px;font-weight:600;color:#6b7280;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;}}
+.rec-badge{{color:#10b981;font-size:9px;letter-spacing:.05em;}}
 .exotic-horses{{font-size:12px;color:#0f1729;}}
+.exotic-div{{font-size:11px;color:#374151;margin-top:6px;}}
 .exotic-cost{{font-size:10px;color:#6b7280;margin-top:4px;}}
 @media(max-width:768px){{
   .race-header{{padding:14px;}}
@@ -3037,65 +3040,131 @@ function buildRaceSuggestions(rows,race){{
   document.getElementById('race-sugg-content').innerHTML=html;
 }}
 
+function harvilleDividends(s1,s2,s3,s4){{
+  // Harville model — estimates exotic dividends from SP of finishers/selections
+  // Inputs are decimal odds; null/undefined for missing
+  if(!s1||!s2||s1<=1||s2<=1)return null;
+  const p1=1/s1,p2=1/s2;
+  if(1-p1<=0||1-p2<=0)return null;
+  const out={{}};
+  const j2=p1*(p2/(1-p1));
+  if(j2>0)out.exacta=0.80/j2;
+  const denomQ=(p1*p2/(1-p1))+(p1*p2/(1-p2));
+  if(denomQ>0)out.quinella=0.825/denomQ;
+  if(s3&&s3>1){{
+    const p3=1/s3;
+    if(1-p1-p2>0){{
+      const j3=p1*(p2/(1-p1))*(p3/(1-p1-p2));
+      if(j3>0)out.trifecta=0.80/j3;
+      if(s4&&s4>1){{
+        const p4=1/s4;
+        if(1-p1-p2-p3>0){{
+          const j4=p1*(p2/(1-p1))*(p3/(1-p1-p2))*(p4/(1-p1-p2-p3));
+          if(j4>0)out.first4=0.775/j4;
+        }}
+      }}
+    }}
+  }}
+  return out;
+}}
+
 function buildRaceExotics(rows,race){{
-  const sortedByScore=rows.slice().sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));
-  const top4=sortedByScore.slice(0,4).filter(r=>r.score>0);
+  // Sort by score then by SP — use SP for tie-breaking (favourite first when scores tied)
+  const sortedByScore=rows.slice().sort((a,b)=>b.score-a.score||(a.runner.fx||a.runner.sp||999)-(b.runner.fx||b.runner.sp||999));
+  const top4=sortedByScore.slice(0,4);
+  const anchorIdx=Array.from(anchorSigs).map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
   
   if(top4.length<2){{
-    document.getElementById('race-exotics-content').innerHTML='<div class="sugg-item">Insufficient qualified runners for exotic suggestions.</div>';
+    document.getElementById('race-exotics-content').innerHTML='<div class="sugg-item">Insufficient runners for exotic suggestions.</div>';
     return;
   }}
+  
+  // Get prices for top selections (use fixed price if available, else SP)
+  const px=top4.map(r=>r.runner.fx||r.runner.sp);
+  const div=harvilleDividends(px[0],px[1],px[2],px[3]);
+  if(!div){{
+    document.getElementById('race-exotics-content').innerHTML='<div class="sugg-item">Cannot estimate dividends — selection prices unavailable.</div>';
+    return;
+  }}
+  
+  // Determine if quinella/exacta strategy applies (both top-2 horses pass anchor filter)
+  const top2PassAnchors=top4.length>=2&&top4[0].passesAllAnchors&&top4[1].passesAllAnchors&&anchorIdx.length>0;
+  const recommended=top2PassAnchors;
   
   const fs=race.fs;
   const items=[];
   
-  // Quinella (top 2, any order)
   if(top4.length>=2){{
+    // Quinella — recommended if top-2 both pass anchors
     items.push({{
       name:'Quinella',
       horses:top4[0].runner.h+' / '+top4[1].runner.h,
-      cost:'1 unit'
+      cost:1,
+      div:div.quinella,
+      recommended:recommended,
+      note:recommended?'Both top-2 pass anchor filter — recommended':'Estimate only'
     }});
-  }}
-  
-  // Exacta (1st-2nd in order)
-  if(top4.length>=2){{
+    
+    // Exacta straight — directional bet, conservative
     items.push({{
-      name:'Exacta',
+      name:'Exacta (straight)',
       horses:top4[0].runner.h+' → '+top4[1].runner.h,
-      cost:'1 unit (straight)'
+      cost:1,
+      div:div.exacta,
+      recommended:false,
+      note:'Estimate only'
     }});
+    
+    // Exacta box — recommended if top-2 pass anchors
     items.push({{
       name:'Exacta (boxed)',
       horses:top4[0].runner.h+' / '+top4[1].runner.h,
-      cost:'2 units'
+      cost:2,
+      div:div.exacta,
+      recommended:recommended,
+      note:recommended?'Both top-2 pass anchor filter — recommended':'Estimate only'
     }});
   }}
   
-  // Trifecta box (top 3)
+  // Trifecta — never recommended (backtest shows -7% to -40%)
   if(top4.length>=3){{
     items.push({{
       name:'Trifecta Box',
       horses:top4.slice(0,3).map(r=>r.runner.h).join(' / '),
-      cost:'6 units (3-horse box)'
+      cost:6,
+      div:div.trifecta,
+      recommended:false,
+      note:'Backtest unprofitable — display only'
     }});
   }}
   
-  // First Four box (top 4) — only if field big enough
+  // First Four — never recommended (backtest shows -55%)
   if(top4.length>=4&&fs>=8){{
     items.push({{
       name:'First Four Box',
       horses:top4.map(r=>r.runner.h).join(' / '),
-      cost:'24 units (4-horse box)'
+      cost:24,
+      div:div.first4,
+      recommended:false,
+      note:'Backtest unprofitable — display only'
     }});
   }}
   
   let html='<div class="exotic-grid">';
   items.forEach(it=>{{
-    html+='<div class="exotic-item">'
-      +'<div class="exotic-name">'+it.name+'</div>'
+    const divStr=it.div?'$'+it.div.toFixed(2):'—';
+    // Edge calc: expected value if hit-rate at random for box = 1/n!*combos
+    // Simpler: just compare estimated dividend to cost
+    const ev=it.div?(it.div-it.cost):null;
+    const evCls=ev===null?'':ev>0?'rs-value-pos':'rs-value-neg';
+    const evStr=ev===null?'':(ev>0?'+$':'$')+ev.toFixed(2);
+    const recCls=it.recommended?' rec':'';
+    html+='<div class="exotic-item'+recCls+'">'
+      +'<div class="exotic-name">'+it.name+(it.recommended?' <span class="rec-badge">★ REC</span>':'')+'</div>'
       +'<div class="exotic-horses">'+it.horses+'</div>'
-      +'<div class="exotic-cost">'+it.cost+'</div>'
+      +'<div class="exotic-div">Est. dividend: <strong>'+divStr+'</strong> '
+      +(ev!==null?'<span class="'+evCls+'">(EV: '+evStr+')</span>':'')+'</div>'
+      +'<div class="exotic-cost">Cost: '+it.cost+'u — '+it.note+'</div>'
       +'</div>';
   }});
   html+='</div>';
@@ -3103,6 +3172,9 @@ function buildRaceExotics(rows,race){{
 }}
 
 
+
+
+function buildSignals(){{
   const f=getF();
   const {{resulted}}=buildBets(f);
   // Only Y bets
