@@ -356,12 +356,16 @@ def compute_signal_rankings(rdf):
         u_list.append({
             "h": str(row.get("horse", "")),
             "j": str(row.get("jockey", "")),
+            "tn": str(row.get("trainer", "")) if row.get("trainer") else None,
             "f": safe_int(row.get("finish_position")),
             "sp": safe_float(row.get("starting_price_sp")),
             "fx": safe_float(row.get("fixed_win_price")),
+            "trp": safe_float(row.get("toprate_price")),
+            "trr": safe_float(row.get("toprate_rating")),
             "tr": safe_float(row.get("wpr_trend")),
             "w": safe_float(row.get("wpr_nett")),
             "b": safe_int(row.get("barrier")),
+            "tab": safe_int(row.get("tab_number")),
             "st": str(row.get("_settling", "")) if row.get("_settling") else None,
             "ps": str(row.get("_pace_scenario", "")) if row.get("_pace_scenario") else None,
             "es": safe_float(row.get("early_speed_score")),
@@ -1288,6 +1292,85 @@ tr.no-bet-row td{{opacity:0.4;}}
 .main-tab.active{{color:#0f1729;border-bottom-color:#10b981;}}
 .main-tab:hover:not(.active){{color:#374151;}}
 .tab-panel{{display:none;}}.tab-panel.active{{display:block;}}
+/* === RACE PAGE === */
+.race-page{{padding:0;}}
+.race-selector{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:18px 20px;margin-bottom:18px;}}
+.race-sel-row{{display:flex;gap:14px;flex-wrap:wrap;}}
+.race-sel-col{{flex:1;min-width:180px;}}
+.race-sel-lbl{{display:block;font-size:9px;letter-spacing:.1em;color:#9ca3af;font-weight:600;margin-bottom:6px;}}
+.race-sel-input{{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:'Outfit',sans-serif;background:#fff;cursor:pointer;}}
+.race-sel-input:disabled{{background:#f4f6f9;color:#9ca3af;cursor:not-allowed;}}
+.race-sel-hint{{margin-top:10px;font-size:11px;color:#6b7280;}}
+.race-header{{background:linear-gradient(135deg,#0f1729 0%,#1f2a4a 100%);color:#fff;padding:18px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;}}
+.race-title{{font-size:18px;font-weight:700;margin-bottom:4px;}}
+.race-subtitle{{font-size:12px;color:rgba(255,255,255,.7);}}
+.race-header-meta{{display:flex;gap:14px;flex-wrap:wrap;}}
+.race-meta-item{{text-align:right;}}
+.race-meta-v{{font-size:14px;font-weight:600;}}
+.race-meta-l{{font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase;}}
+.race-context-bar{{background:#fff;border-left:1px solid #e8eaf0;border-right:1px solid #e8eaf0;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;}}
+.race-ctx-pill{{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#f4f6f9;font-weight:500;}}
+.race-ctx-pill.fast{{background:#fef2f2;color:#b91c1c;}}
+.race-ctx-pill.slow{{background:#f0f9ff;color:#0369a1;}}
+.race-ctx-pill.contested{{background:#fef3c7;color:#a16207;}}
+.race-ctx-pill.fs{{background:#f3e8ff;color:#7c3aed;}}
+.race-runners-card{{background:#fff;border:1px solid #e8eaf0;border-top:none;border-radius:0;padding:0;}}
+.race-runners-header{{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;flex-wrap:wrap;gap:10px;}}
+.race-runners-title{{font-size:13px;font-weight:600;color:#374151;}}
+.race-runners-sort{{display:flex;gap:4px;flex-wrap:wrap;}}
+.rsort-btn{{padding:5px 10px;font-size:10px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;color:#6b7280;font-weight:500;}}
+.rsort-btn.active{{background:#0f1729;color:#fff;border-color:#0f1729;}}
+.race-runners-tbl{{width:100%;border-collapse:collapse;font-size:11px;}}
+.race-runners-tbl th{{padding:8px 6px;background:#f4f6f9;font-weight:600;color:#6b7280;font-size:9px;letter-spacing:.05em;text-transform:uppercase;text-align:left;border-bottom:1px solid #e8eaf0;white-space:nowrap;}}
+.race-runners-tbl td{{padding:8px 6px;border-bottom:1px solid #f1f3f8;color:#374151;white-space:nowrap;}}
+.race-runners-tbl tr.qual{{background:rgba(16,185,129,.06);}}
+.race-runners-tbl tr.qual td:first-child{{border-left:3px solid #10b981;}}
+.race-runners-tbl tr.winner{{background:rgba(180,224,96,.18);font-weight:600;}}
+.rs-sig-cell{{display:inline-block;width:18px;height:18px;border-radius:3px;background:#f4f6f9;color:#9ca3af;text-align:center;line-height:18px;font-size:9px;font-weight:600;margin-right:1px;}}
+.rs-sig-cell.rk1{{background:#10b981;color:#fff;}}
+.rs-sig-cell.rk2{{background:#86efac;color:#064e3b;}}
+.rs-sig-cell.rk3{{background:#d1fae5;color:#065f46;}}
+.rs-value-pos{{color:#059669;font-weight:600;}}
+.rs-value-neg{{color:#dc2626;font-weight:600;}}
+.rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
+.rs-finish-2{{color:#6b7280;font-weight:600;}}
+.rs-finish-3{{color:#9ca3af;}}
+.race-runners-cards{{padding:8px;}}
+.r-card{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:12px;margin-bottom:8px;}}
+.r-card.qual{{border-left:3px solid #10b981;background:rgba(16,185,129,.04);}}
+.r-card.winner{{border-color:#b4e060;background:rgba(180,224,96,.1);}}
+.r-card-head{{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}}
+.r-card-name{{font-size:13px;font-weight:600;color:#0f1729;}}
+.r-card-tab{{display:inline-block;background:#0f1729;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-right:6px;font-weight:700;}}
+.r-card-jky{{font-size:11px;color:#6b7280;}}
+.r-card-meta{{display:flex;gap:10px;font-size:10px;color:#6b7280;flex-wrap:wrap;margin:6px 0;}}
+.r-card-sigs{{margin:8px 0 4px;}}
+.r-card-bottom{{display:flex;justify-content:space-between;align-items:center;font-size:11px;}}
+.r-card-score{{font-weight:700;color:#0f1729;}}
+.race-suggestions,.race-exotics{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:18px 20px;margin-top:18px;}}
+.race-sugg-title{{font-size:13px;font-weight:600;color:#374151;margin-bottom:12px;}}
+.race-sugg-warn{{color:#92400e;font-size:10px;font-weight:400;}}
+.sugg-item{{padding:10px 12px;border:1px solid #e8eaf0;border-radius:8px;margin-bottom:8px;background:#fafbfc;}}
+.sugg-item.primary{{border-left:3px solid #10b981;}}
+.sugg-item.value{{border-left:3px solid #f59e0b;}}
+.sugg-item.place{{border-left:3px solid #3b82f6;}}
+.sugg-label{{font-size:10px;font-weight:600;color:#6b7280;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;}}
+.sugg-line{{font-size:13px;color:#0f1729;}}
+.sugg-line strong{{font-weight:600;}}
+.sugg-stake{{font-size:11px;color:#6b7280;margin-top:4px;}}
+.exotic-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}}
+.exotic-item{{padding:10px 12px;background:#fafbfc;border:1px solid #e8eaf0;border-radius:8px;}}
+.exotic-name{{font-size:10px;font-weight:600;color:#6b7280;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;}}
+.exotic-horses{{font-size:12px;color:#0f1729;}}
+.exotic-cost{{font-size:10px;color:#6b7280;margin-top:4px;}}
+@media(max-width:768px){{
+  .race-header{{padding:14px;}}
+  .race-title{{font-size:15px;}}
+  .race-context-bar{{padding:10px 14px;gap:8px;}}
+  .race-runners-header{{padding:10px 14px;}}
+  .race-suggestions,.race-exotics{{padding:14px;}}
+  .exotic-grid{{grid-template-columns:1fr;}}
+}}
 .q-meeting{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;margin-bottom:24px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
 .q-meeting-hdr{{background:#0f172a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}}
 .q-meeting-name{{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.02em;}}
@@ -1566,6 +1649,7 @@ tr.no-bet-row td{{opacity:0.4;}}
 <div class="main">
   <div class="main-tabs">
     <button class="main-tab active" id="tab-bets" onclick="switchTab('bets')">Bets</button>
+    <button class="main-tab" id="tab-race" onclick="switchTab('race')">Race</button>
     <button class="main-tab" id="tab-quaddie" onclick="switchTab('quaddie')">Quaddie</button>
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
@@ -1598,6 +1682,64 @@ tr.no-bet-row td{{opacity:0.4;}}
   </div>
   <div class="mob-bet-list mob-only" id="res-mob"></div>
   </div><!-- end panel-bets -->
+  <div class="tab-panel" id="panel-race">
+    <div class="race-page">
+      <div class="race-selector">
+        <div class="race-sel-row">
+          <div class="race-sel-col">
+            <label class="race-sel-lbl">VENUE</label>
+            <select id="race-venue-sel" class="race-sel-input"><option value="">— Select venue —</option></select>
+          </div>
+          <div class="race-sel-col">
+            <label class="race-sel-lbl">RACE</label>
+            <select id="race-race-sel" class="race-sel-input" disabled><option value="">—</option></select>
+          </div>
+        </div>
+        <div class="race-sel-hint" id="race-sel-hint">Select a venue and race to inspect. Only races matching sidebar filters appear.</div>
+      </div>
+      <div id="race-detail" style="display:none;">
+        <div class="race-header">
+          <div class="race-header-main">
+            <div class="race-title" id="race-title">—</div>
+            <div class="race-subtitle" id="race-subtitle">—</div>
+          </div>
+          <div class="race-header-meta" id="race-header-meta"></div>
+        </div>
+        <div class="race-context-bar" id="race-context-bar"></div>
+        <div class="race-runners-card">
+          <div class="race-runners-header">
+            <div class="race-runners-title">Runners</div>
+            <div class="race-runners-sort">
+              <button class="rsort-btn active" data-sort="score">Score</button>
+              <button class="rsort-btn" data-sort="sp">SP</button>
+              <button class="rsort-btn" data-sort="tab">Tab</button>
+              <button class="rsort-btn" data-sort="value">Value</button>
+              <button class="rsort-btn" data-sort="finish">Finish</button>
+            </div>
+          </div>
+          <div class="desk-only">
+            <table class="race-runners-tbl"><thead><tr>
+              <th>Tab</th><th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>
+              <th>Settling</th><th>800m</th>
+              <th class="rs-sigs" id="rs-sig-headers"></th>
+              <th>Score</th><th>Anchors</th>
+              <th>Fixed</th><th>SP</th><th>TR$</th><th>Value</th>
+              <th>Finish</th>
+            </tr></thead><tbody id="race-runners-tb"></tbody></table>
+          </div>
+          <div class="mob-only race-runners-cards" id="race-runners-cards"></div>
+        </div>
+        <div class="race-suggestions">
+          <div class="race-sugg-title">Bet Suggestions</div>
+          <div id="race-sugg-content"></div>
+        </div>
+        <div class="race-exotics">
+          <div class="race-sugg-title">Exotics <span class="race-sugg-warn">— suggestions only, untested edge</span></div>
+          <div id="race-exotics-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="tab-panel" id="panel-quaddie">
     <div id="q-content"><div class="q-no-meeting">Loading quaddie data...</div></div>
   </div>
@@ -2207,6 +2349,9 @@ function setResult(b,val){{if(val===null||isNaN(val)){{syncRemove(resultKey(b));
 function update(){{
   _getSectionalFilters();
   const f=getF();
+  // If race page is active, refresh it on filter change
+  const racePanel=document.getElementById('panel-race');
+  if(racePanel&&racePanel.classList.contains('active'))buildRacePage();
   const {{resulted,pending}}=buildBets(f);
   // Sort: most recent date first, then by start time (if available) else race_id
   const sortBets=arr=>arr.slice().sort((a,b)=>{{
@@ -2543,7 +2688,7 @@ syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){{
-  ['bets','quaddie','signals','backtest'].forEach(t=>{{
+  ['bets','race','quaddie','signals','backtest'].forEach(t=>{{
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('panel-'+t).classList.toggle('active',t===tab);
   }});
@@ -2557,12 +2702,407 @@ function switchTab(tab){{
     sidebar.style.display='';
     shell.style.gridTemplateColumns='260px 1fr';
   }}
+  if(tab==='race')buildRacePage();
   if(tab==='quaddie')buildQuaddie();
   if(tab==='signals')buildSignals();
   if(tab==='backtest')initBacktest();
 }}
 
-function buildSignals(){{
+// === RACE PAGE ===
+let raceSelectedVenue=null;
+let raceSelectedRaceId=null;
+let raceSortMode='score';
+
+function buildRacePage(){{
+  const f=getF();
+  // Find races matching sidebar filters (same logic as buildBets, but at race level)
+  const races=RACES.filter(race=>{{
+    if(f.tab&&race.t!==1)return false;
+    if(race.p<f.prize)return false;
+    if(f.nofs&&race.n===1)return false;
+    return true;
+  }});
+  const sel=document.getElementById('race-venue-sel');
+  const cur=raceSelectedVenue;
+  // Build set of (date, venue) pairs
+  const venuesByDate={{}};
+  races.forEach(r=>{{
+    const k=r.d+'|'+r.v;
+    if(!venuesByDate[k]) venuesByDate[k]={{date:r.d,venue:r.v,races:[]}};
+    venuesByDate[k].races.push(r);
+  }});
+  const sorted=Object.values(venuesByDate).sort((a,b)=>{{
+    if(a.date!==b.date)return b.date.localeCompare(a.date);
+    return a.venue.localeCompare(b.venue);
+  }});
+  let html='<option value="">— Select venue —</option>';
+  let curDate='';
+  sorted.forEach(g=>{{
+    if(g.date!==curDate){{
+      if(curDate)html+='</optgroup>';
+      const dStr=fmtDateLabel(g.date);
+      html+='<optgroup label="'+dStr+'">';
+      curDate=g.date;
+    }}
+    html+='<option value="'+g.date+'|'+g.venue+'">'+g.venue+' ('+g.races.length+')</option>';
+  }});
+  if(curDate)html+='</optgroup>';
+  sel.innerHTML=html;
+  if(cur&&venuesByDate[cur]){{sel.value=cur;}}
+  
+  document.getElementById('race-sel-hint').textContent=
+    races.length===0?'No races match current sidebar filters.':
+    races.length+' races available across '+sorted.length+' meetings.';
+  
+  if(!sel.dataset.bound){{
+    sel.addEventListener('change',e=>{{
+      raceSelectedVenue=e.target.value||null;
+      raceSelectedRaceId=null;
+      buildRacePage();
+    }});
+    sel.dataset.bound='1';
+  }}
+  
+  const raceSel=document.getElementById('race-race-sel');
+  if(raceSelectedVenue&&venuesByDate[raceSelectedVenue]){{
+    const grp=venuesByDate[raceSelectedVenue];
+    const rRaces=grp.races.slice().sort((a,b)=>(a.r||0)-(b.r||0));
+    let rHtml='<option value="">— Select race —</option>';
+    rRaces.forEach(r=>{{
+      const tm=r.tm?fmtTime(r.tm):'';
+      const dist=r.dist?r.dist+'m':'';
+      const lbl='R'+r.r+(tm?' '+tm:'')+(dist?' · '+dist:'');
+      rHtml+='<option value="'+r.rid+'">'+lbl+'</option>';
+    }});
+    raceSel.innerHTML=rHtml;
+    raceSel.disabled=false;
+    if(raceSelectedRaceId)raceSel.value=raceSelectedRaceId;
+  }}else{{
+    raceSel.innerHTML='<option value="">—</option>';
+    raceSel.disabled=true;
+  }}
+  
+  if(!raceSel.dataset.bound){{
+    raceSel.addEventListener('change',e=>{{
+      raceSelectedRaceId=e.target.value||null;
+      renderRaceDetail();
+    }});
+    raceSel.dataset.bound='1';
+  }}
+  
+  // Wire sort buttons once
+  document.querySelectorAll('.rsort-btn').forEach(btn=>{{
+    if(!btn.dataset.bound){{
+      btn.addEventListener('click',()=>{{
+        raceSortMode=btn.dataset.sort;
+        document.querySelectorAll('.rsort-btn').forEach(b=>b.classList.toggle('active',b.dataset.sort===raceSortMode));
+        renderRaceDetail();
+      }});
+      btn.dataset.bound='1';
+    }}
+  }});
+  
+  if(raceSelectedRaceId)renderRaceDetail();
+  else document.getElementById('race-detail').style.display='none';
+}}
+
+function fmtDateLabel(d){{
+  const today=new Date().toISOString().slice(0,10);
+  if(d===today)return 'Today ('+d+')';
+  return d;
+}}
+
+function fmtTime(tm){{
+  if(!tm)return '';
+  // Try parse various ISO formats
+  try{{
+    const dt=new Date(tm);
+    if(isNaN(dt))return tm;
+    return dt.toLocaleTimeString('en-AU',{{hour:'2-digit',minute:'2-digit',hour12:false}});
+  }}catch(e){{return tm;}}
+}}
+
+function renderRaceDetail(){{
+  if(!raceSelectedRaceId){{document.getElementById('race-detail').style.display='none';return;}}
+  const race=RACES.find(r=>String(r.rid)===String(raceSelectedRaceId));
+  if(!race){{document.getElementById('race-detail').style.display='none';return;}}
+  document.getElementById('race-detail').style.display='';
+  
+  // Header
+  document.getElementById('race-title').textContent=race.v+' — Race '+race.r;
+  const tm=race.tm?fmtTime(race.tm):'';
+  document.getElementById('race-subtitle').textContent=race.d+(tm?' · '+tm:'')+(race.going?' · '+race.going:'');
+  
+  // Header meta
+  let metaHtml='';
+  if(race.dist)metaHtml+='<div class="race-meta-item"><div class="race-meta-v">'+race.dist+'m</div><div class="race-meta-l">Distance</div></div>';
+  if(race.p)metaHtml+='<div class="race-meta-item"><div class="race-meta-v">'+fmtPrize(race.p)+'</div><div class="race-meta-l">Prize</div></div>';
+  metaHtml+='<div class="race-meta-item"><div class="race-meta-v">'+race.fs+'</div><div class="race-meta-l">Field</div></div>';
+  document.getElementById('race-header-meta').innerHTML=metaHtml;
+  
+  // Context bar
+  let ctxHtml='';
+  if(race.ps){{
+    const cls=race.ps==='fast'?'fast':race.ps==='slow'?'slow':'';
+    ctxHtml+='<span class="race-ctx-pill '+cls+'">Pace: '+race.ps+'</span>';
+  }}
+  if(race.n===1)ctxHtml+='<span class="race-ctx-pill fs">First-starter present</span>';
+  // Count settling types
+  const stCounts={{leader:0,'on-pace':0,midfield:0,backmarker:0,unknown:0}};
+  race.u.forEach(r=>{{stCounts[r.st||'unknown']=(stCounts[r.st||'unknown']||0)+1;}});
+  ctxHtml+='<span class="race-ctx-pill">Leaders: '+stCounts.leader+' · On-pace: '+stCounts['on-pace']+' · Mid: '+stCounts.midfield+' · Back: '+stCounts.backmarker+'</span>';
+  document.getElementById('race-context-bar').innerHTML=ctxHtml;
+  
+  // Compute scores for each runner, build rows
+  const sigs=Array.from(activeSigs);
+  const anchors=Array.from(anchorSigs);
+  const sigIdx=sigs.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
+  const anchorIdx=anchors.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
+  
+  const rows=race.u.map((runner,ri)=>{{
+    let score=0;
+    const sigStatus={{}}; // signal -> rank position (1/2/3 or null)
+    SIG_NAMES.forEach((sig,si)=>{{
+      const [r1,r2,r3]=race.s[si];
+      let rk=null;
+      if(r1===ri)rk=1;else if(r2===ri)rk=2;else if(r3===ri)rk=3;
+      sigStatus[sig]=rk;
+      if(activeSigs.has(sig)&&rk!==null){{
+        if(method==='top1'&&rk===1)score+=1;
+        else if(method==='top3c'&&rk!==null)score+=1;
+        else if(method==='top3w'){{score+=(rk===1?3:rk===2?2:1);}}
+      }}
+    }});
+    // Anchor pass count
+    let anchorsPassed=0;
+    anchorIdx.forEach(si=>{{
+      const [r1,r2,r3]=race.s[si];
+      if(r1===ri||r2===ri||r3===ri)anchorsPassed++;
+    }});
+    const passesAllAnchors=anchorIdx.length===0||anchorsPassed===anchorIdx.length;
+    if(!passesAllAnchors)score=0;
+    // Value gap: tr_price - fixed (positive = TR rates the horse better than market does)
+    const valueGap=runner.trp&&runner.fx?(runner.fx-runner.trp):null;
+    return {{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}};
+  }});
+  
+  // Sort
+  const sorted=rows.slice();
+  if(raceSortMode==='score'){{sorted.sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));}}
+  else if(raceSortMode==='sp'){{sorted.sort((a,b)=>(a.runner.sp||a.runner.fx||999)-(b.runner.sp||b.runner.fx||999));}}
+  else if(raceSortMode==='tab'){{sorted.sort((a,b)=>(a.runner.tab||a.runner.b||999)-(b.runner.tab||b.runner.b||999));}}
+  else if(raceSortMode==='value'){{sorted.sort((a,b)=>(b.valueGap||-999)-(a.valueGap||-999));}}
+  else if(raceSortMode==='finish'){{sorted.sort((a,b)=>(a.runner.f||999)-(b.runner.f||999));}}
+  
+  // Build sig headers
+  const sigHeaderHtml=SIG_NAMES.map((s,i)=>{{
+    const lbl=SIG_LABELS[i].replace(/ [↑↓]/,'');
+    const isActive=activeSigs.has(s);
+    const isAnchor=anchorSigs.has(s);
+    const cls=isAnchor?'rs-sig-cell rk1':isActive?'rs-sig-cell rk3':'rs-sig-cell';
+    return '<span class="'+cls+'" title="'+lbl+(isAnchor?' (anchor)':isActive?' (active)':' (inactive)')+'">'+lbl.slice(0,3)+'</span>';
+  }}).join('');
+  
+  // Build runner table rows
+  const tb=document.getElementById('race-runners-tb');
+  tb.innerHTML=sorted.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
+    const sigCellsHtml=SIG_NAMES.map(s=>{{
+      const rk=sigStatus[s];
+      const cls=rk?'rs-sig-cell rk'+rk:'rs-sig-cell';
+      return '<span class="'+cls+'" title="'+s+(rk?' #'+rk:'')+'">'+(rk||'')+'</span>';
+    }}).join('');
+    const finishCell=runner.f===1?'<span class="rs-finish-1">1st</span>':
+                     runner.f===2?'<span class="rs-finish-2">2nd</span>':
+                     runner.f===3?'<span class="rs-finish-3">3rd</span>':
+                     runner.f?runner.f+'th':'—';
+    const valCell=valueGap===null?'—':valueGap>0?
+      '<span class="rs-value-pos">+$'+valueGap.toFixed(2)+'</span>':
+      '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
+    const rowCls=(runner.f===1?'winner ':'')+(passesAllAnchors&&score>0&&anchorIdx.length>0?'qual':'');
+    const settling=runner.st||'—';
+    return '<tr class="'+rowCls+'">'
+      +'<td><strong>'+(runner.tab||'?')+'</strong></td>'
+      +'<td><strong>'+runner.h+'</strong></td>'
+      +'<td>'+(runner.j||'—')+'</td>'
+      +'<td>'+(runner.tn||'—')+'</td>'
+      +'<td>'+(runner.b||'—')+'</td>'
+      +'<td>'+settling+'</td>'
+      +'<td>'+(runner.a8!==null&&runner.a8!==undefined?runner.a8.toFixed(1):'—')+'</td>'
+      +'<td>'+sigCellsHtml+'</td>'
+      +'<td><strong>'+score+'</strong></td>'
+      +'<td>'+anchorsPassed+'/'+anchorIdx.length+'</td>'
+      +'<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
+      +'<td>'+(runner.sp?'$'+runner.sp.toFixed(2):'—')+'</td>'
+      +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
+      +'<td>'+valCell+'</td>'
+      +'<td>'+finishCell+'</td>'
+      +'</tr>';
+  }}).join('');
+  document.getElementById('rs-sig-headers').innerHTML=sigHeaderHtml;
+  
+  // Mobile cards
+  const mobCards=document.getElementById('race-runners-cards');
+  mobCards.innerHTML=sorted.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
+    const sigCellsHtml=SIG_NAMES.map(s=>{{
+      const rk=sigStatus[s];
+      const cls=rk?'rs-sig-cell rk'+rk:'rs-sig-cell';
+      return '<span class="'+cls+'" title="'+s+'">'+(rk||'')+'</span>';
+    }}).join('');
+    const finishCell=runner.f?(runner.f===1?'<span class="rs-finish-1">WON</span>':runner.f+'th'):'';
+    const valCell=valueGap===null?'':valueGap>0?
+      '<span class="rs-value-pos">+$'+valueGap.toFixed(2)+'</span>':
+      '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
+    const cardCls=(runner.f===1?'winner ':'')+(passesAllAnchors&&score>0&&anchorIdx.length>0?'qual':'');
+    return '<div class="r-card '+cardCls+'">'
+      +'<div class="r-card-head">'
+        +'<div><span class="r-card-tab">'+(runner.tab||'?')+'</span><span class="r-card-name">'+runner.h+'</span></div>'
+        +'<div>'+finishCell+'</div>'
+      +'</div>'
+      +'<div class="r-card-jky">'+(runner.j||'')+(runner.tn?' · '+runner.tn:'')+'</div>'
+      +'<div class="r-card-meta">'
+        +'<span>Bar '+(runner.b||'?')+'</span>'
+        +'<span>'+(runner.st||'—')+'</span>'
+        +(runner.a8!==null&&runner.a8!==undefined?'<span>800m: '+runner.a8.toFixed(1)+'</span>':'')
+      +'</div>'
+      +'<div class="r-card-sigs">'+sigCellsHtml+'</div>'
+      +'<div class="r-card-bottom">'
+        +'<span class="r-card-score">Score: '+score+' · Anchors: '+anchorsPassed+'/'+anchorIdx.length+'</span>'
+        +'<span>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+(valCell?' '+valCell:'')+'</span>'
+      +'</div>'
+      +'</div>';
+  }}).join('');
+  
+  // Bet suggestions
+  buildRaceSuggestions(rows,race);
+  buildRaceExotics(rows,race);
+}}
+
+function buildRaceSuggestions(rows,race){{
+  const anchors=Array.from(anchorSigs);
+  const anchorIdx=anchors.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
+  const qualified=rows.filter(r=>r.passesAllAnchors&&r.score>0&&anchorIdx.length>0)
+                      .sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));
+  
+  let html='';
+  if(qualified.length===0){{
+    html='<div class="sugg-item">No runners pass the current anchor filter. Loosen filters or pick a different race.</div>';
+    document.getElementById('race-sugg-content').innerHTML=html;
+    return;
+  }}
+  
+  // Primary win bet
+  const top=qualified[0];
+  const fixedTargetEl=document.getElementById('f-target');
+  const fixedTarget=fixedTargetEl?parseFloat(fixedTargetEl.value)||4:4;
+  const stake=stakeMethod==='flat'?1:stakeMethod==='fixed'&&top.runner.fx?(fixedTarget/(top.runner.fx-1)):1;
+  const stakeStr=stake?stake.toFixed(2)+'u':'—';
+  html+='<div class="sugg-item primary">'
+    +'<div class="sugg-label">Win Bet</div>'
+    +'<div class="sugg-line"><strong>'+top.runner.h+'</strong> @ '+(top.runner.fx?'$'+top.runner.fx.toFixed(2):'—')
+    +' (score '+top.score+', '+top.anchorsPassed+'/'+anchorIdx.length+' anchors)</div>'
+    +'<div class="sugg-stake">Suggested stake: '+stakeStr+'</div>'
+    +'</div>';
+  
+  // Value pick (highest positive value gap among qualifiers, OR among all if scoring is tight)
+  const valueCands=rows.filter(r=>r.valueGap!==null&&r.valueGap>0&&r.score>0)
+                       .sort((a,b)=>b.valueGap-a.valueGap);
+  if(valueCands.length>0&&valueCands[0].runner.h!==top.runner.h){{
+    const v=valueCands[0];
+    html+='<div class="sugg-item value">'
+      +'<div class="sugg-label">Value Pick</div>'
+      +'<div class="sugg-line"><strong>'+v.runner.h+'</strong> @ '+(v.runner.fx?'$'+v.runner.fx.toFixed(2):'—')
+      +' — TR rates at $'+v.runner.trp.toFixed(2)+' (gap +$'+v.valueGap.toFixed(2)+')</div>'
+      +'<div class="sugg-stake">Market rates this horse worse than TopRate does. Score: '+v.score+'</div>'
+      +'</div>';
+  }}
+  
+  // Place bet — top scorer if SP > $4 (place premium worth taking)
+  if(top.runner.fx&&top.runner.fx>=4){{
+    html+='<div class="sugg-item place">'
+      +'<div class="sugg-label">Place Coverage</div>'
+      +'<div class="sugg-line">Consider <strong>'+top.runner.h+'</strong> place at $4+ win price — place dividend offers risk-adjusted return</div>'
+      +'</div>';
+  }}
+  
+  // Multi-qualifier note
+  if(qualified.length>1){{
+    const others=qualified.slice(1,4).map(q=>q.runner.h+' ($'+ (q.runner.fx?q.runner.fx.toFixed(2):'?')+')').join(', ');
+    html+='<div class="sugg-item">'
+      +'<div class="sugg-label">Other Qualifiers</div>'
+      +'<div class="sugg-line">'+(qualified.length-1)+' other runner'+(qualified.length>2?'s':'')+' pass anchor filter: '+others+'</div>'
+      +'<div class="sugg-stake">Consider dutching if 2-3 horses qualify with similar scores</div>'
+      +'</div>';
+  }}
+  
+  document.getElementById('race-sugg-content').innerHTML=html;
+}}
+
+function buildRaceExotics(rows,race){{
+  const sortedByScore=rows.slice().sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));
+  const top4=sortedByScore.slice(0,4).filter(r=>r.score>0);
+  
+  if(top4.length<2){{
+    document.getElementById('race-exotics-content').innerHTML='<div class="sugg-item">Insufficient qualified runners for exotic suggestions.</div>';
+    return;
+  }}
+  
+  const fs=race.fs;
+  const items=[];
+  
+  // Quinella (top 2, any order)
+  if(top4.length>=2){{
+    items.push({{
+      name:'Quinella',
+      horses:top4[0].runner.h+' / '+top4[1].runner.h,
+      cost:'1 unit'
+    }});
+  }}
+  
+  // Exacta (1st-2nd in order)
+  if(top4.length>=2){{
+    items.push({{
+      name:'Exacta',
+      horses:top4[0].runner.h+' → '+top4[1].runner.h,
+      cost:'1 unit (straight)'
+    }});
+    items.push({{
+      name:'Exacta (boxed)',
+      horses:top4[0].runner.h+' / '+top4[1].runner.h,
+      cost:'2 units'
+    }});
+  }}
+  
+  // Trifecta box (top 3)
+  if(top4.length>=3){{
+    items.push({{
+      name:'Trifecta Box',
+      horses:top4.slice(0,3).map(r=>r.runner.h).join(' / '),
+      cost:'6 units (3-horse box)'
+    }});
+  }}
+  
+  // First Four box (top 4) — only if field big enough
+  if(top4.length>=4&&fs>=8){{
+    items.push({{
+      name:'First Four Box',
+      horses:top4.map(r=>r.runner.h).join(' / '),
+      cost:'24 units (4-horse box)'
+    }});
+  }}
+  
+  let html='<div class="exotic-grid">';
+  items.forEach(it=>{{
+    html+='<div class="exotic-item">'
+      +'<div class="exotic-name">'+it.name+'</div>'
+      +'<div class="exotic-horses">'+it.horses+'</div>'
+      +'<div class="exotic-cost">'+it.cost+'</div>'
+      +'</div>';
+  }});
+  html+='</div>';
+  document.getElementById('race-exotics-content').innerHTML=html;
+}}
+
+
   const f=getF();
   const {{resulted}}=buildBets(f);
   // Only Y bets
