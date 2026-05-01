@@ -1709,7 +1709,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
   </div>
-  <div class="tab-panel active" id="panel-bets"></div>
+  <div class="tab-panel active" id="panel-bets">
   <div class="kpi-strip">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
     <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
