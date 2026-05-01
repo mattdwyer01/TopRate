@@ -1724,7 +1724,7 @@ tr.no-bet-row td{{opacity:0.4;}}
           <div class="race-runners-header">
             <div class="race-runners-title">Runners</div>
             <div class="race-runners-controls">
-              <label class="r-toggle"><input type="checkbox" id="r-show-all"> Show all runners</label>
+              <label class="r-toggle"><input type="checkbox" id="r-show-all" checked> Show all runners</label>
               <div class="race-runners-sort">
                 <button class="rsort-btn active" data-sort="score">Score</button>
                 <button class="rsort-btn" data-sort="sp">SP</button>
@@ -1741,14 +1741,6 @@ tr.no-bet-row td{{opacity:0.4;}}
             </table>
           </div>
           <div class="mob-only race-runners-cards" id="race-runners-cards"></div>
-        </div>
-        <div class="race-suggestions">
-          <div class="race-sugg-title">Bet Suggestions</div>
-          <div id="race-sugg-content"></div>
-        </div>
-        <div class="race-exotics">
-          <div class="race-sugg-title">Exotics</div>
-          <div id="race-exotics-content"></div>
         </div>
       </div>
     </div>
@@ -2878,11 +2870,10 @@ function renderRaceDetail(){{
       let rk=null;
       if(r1===ri)rk=1;else if(r2===ri)rk=2;else if(r3===ri)rk=3;
       sigStatus[sig]=rk;
-      if(activeSigs.has(sig)&&rk!==null){{
-        if(method==='top1'&&rk===1)score+=1;
-        else if(method==='top3c'&&rk!==null)score+=1;
-        else if(method==='top3w'){{score+=(rk===1?3:rk===2?2:1);}}
-      }}
+      // Always weighted total across ALL signals: 3pts for 1st, 2pts for 2nd, 1pt for 3rd
+      if(rk===1)score+=3;
+      else if(rk===2)score+=2;
+      else if(rk===3)score+=1;
     }});
     let anchorsPassed=0;
     anchorIdx.forEach(si=>{{
@@ -2890,7 +2881,6 @@ function renderRaceDetail(){{
       if(r1===ri||r2===ri||r3===ri)anchorsPassed++;
     }});
     const passesAllAnchors=anchorIdx.length===0||anchorsPassed===anchorIdx.length;
-    if(!passesAllAnchors)score=0;
     // Value gap: fixed - tr_price (positive = market longer than TopRate rates it)
     const valueGap=runner.trp&&runner.fx?(runner.fx-runner.trp):null;
     return {{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}};
@@ -2909,7 +2899,7 @@ function renderRaceDetail(){{
     showAllEl.addEventListener('change',renderRaceDetail);
     showAllEl.dataset.bound='1';
   }}
-  const showAll=showAllEl?showAllEl.checked:false;
+  const showAll=showAllEl?showAllEl.checked:true;
   
   // Build dynamic thead
   const sigHeaderCells=SIG_NAMES.map((s,i)=>{{
@@ -2931,12 +2921,13 @@ function renderRaceDetail(){{
     +(raceResulted?'<th>Finish</th>':'')
     +'</tr>';
   
-  // Build runner table rows
-  const tb=document.getElementById('race-runners-tb');
-  const visibleRows=showAll?sorted:sorted.filter(r=>r.passesAllAnchors&&r.score>0||r.runner.f===1);
-  // If filter leaves no rows, show all anyway with note
-  const renderRows=visibleRows.length>0?visibleRows:sorted;
+  // Build runner table rows — show all by default, or filter to qualifiers if toggle off
+  const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
   
+  // Build runner table rows — show all by default, or filter to qualifiers if toggle off
+  const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
+  
+  const tb=document.getElementById('race-runners-tb');
   tb.innerHTML=renderRows.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
     const sigCellsHtml=SIG_NAMES.map(s=>{{
       const rk=sigStatus[s];
@@ -2955,8 +2946,7 @@ function renderRaceDetail(){{
       '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
     let rowCls='';
     if(runner.f===1)rowCls+='winner ';
-    if(passesAllAnchors&&score>0&&anchorIdx.length>0)rowCls+='qual ';
-    if(showAll&&!(passesAllAnchors&&score>0))rowCls+='dim ';
+    if(passesAllAnchors&&anchorsPassed>0&&anchorIdx.length>0)rowCls+='qual ';
     const settling=runner.st||'—';
     const priceCells=raceResulted
       ? '<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
@@ -2999,8 +2989,7 @@ function renderRaceDetail(){{
       '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
     let cardCls='';
     if(runner.f===1)cardCls+='winner ';
-    if(passesAllAnchors&&score>0&&anchorIdx.length>0)cardCls+='qual ';
-    if(showAll&&!(passesAllAnchors&&score>0))cardCls+='dim ';
+    if(passesAllAnchors&&anchorsPassed>0&&anchorIdx.length>0)cardCls+='qual ';
     return '<div class="r-card '+cardCls+'">'
       +'<div class="r-card-head">'
         +'<div><span class="r-card-tab">'+(runner.tab||'?')+'</span><span class="r-card-name">'+runner.h+'</span></div>'
@@ -3019,9 +3008,6 @@ function renderRaceDetail(){{
       +'</div>'
       +'</div>';
   }}).join('');
-  
-  buildRaceSuggestions(rows,race);
-  buildRaceExotics(rows,race);
 }}
 
 function buildRaceSuggestions(rows,race){{
