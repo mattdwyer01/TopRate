@@ -2,3 +2,22 @@
 __pycache__/
 .env
 toprate_selections.csv
+GitHub token.txt
+api_dump.txt
+*.log
+__pycache__/
+*.pyc
+
+# Local copies / backups
+*- Copy.csv
+*- Copy.py
+copy
+git
+main
+
+# Experimental / one-off scripts
+backfill_signals.py
+debug_api_fields.py
+fix_gitignore.py
+fix_workflow.py
+toprate_interactive.html
