@@ -1778,7 +1778,7 @@ function selectOptimalSigs(){{
   selectAnchorPreset();
 }}
 function selectAnchorPreset(){{
-  const anchors=new Set(['trn_win365','peak_rank','jky_win90']);
+  const anchors=new Set(['peak_rank','jky_win90']);
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{cb.checked=anchors.has(cb.dataset.sig);}});
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
     const isAnch=anchors.has(cb.dataset.sig);
@@ -1817,8 +1817,8 @@ function selectAnchorPreset(){{
     }});
     grid.appendChild(row);
   }});
-  // Default: only jky_win90, trn_win365, peak_rank active and anchored
-  const _anchors=new Set(['trn_win365','peak_rank','jky_win90']);
+  // Default: only jky_win90, peak_rank active and anchored
+  const _anchors=new Set(['peak_rank','jky_win90']);
   grid.querySelectorAll('.sig-active').forEach(cb=>{{
     cb.checked=_anchors.has(cb.dataset.sig);
   }});
@@ -1827,8 +1827,8 @@ function selectAnchorPreset(){{
     cb.checked=isAnch;
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
-  activeSigs=new Set(['trn_win365','peak_rank','jky_win90']);
-  anchorSigs=new Set(['trn_win365','peak_rank','jky_win90']);
+  activeSigs=new Set(['peak_rank','jky_win90']);
+  anchorSigs=new Set(['peak_rank','jky_win90']);
 }})();
 function scoreRace(race){{
   const scores=new Array(race.u.length).fill(0);
@@ -2521,13 +2521,13 @@ function resetAll(){{
   ['f-early-spd','f-mid-spd','f-late-spd','f-total-spd'].forEach(id=>{{document.getElementById(id).value=-20;}});
   ['f-settled-pos','f-800m-pos'].forEach(id=>{{document.getElementById(id).value=20;}});
   setDow('all');setStake('fixed');selectAnchorPreset();setMethod('top3c');
-  document.getElementById('f-votes').value=3;document.getElementById('v-votes').textContent='3';
+  document.getElementById('f-votes').value=2;document.getElementById('v-votes').textContent='2';
   document.getElementById('f-date-from').value='';document.getElementById('f-date-to').value='';
   setDateRange('today');
   update();
 }}
-document.getElementById('f-votes').value=3;
-document.getElementById('v-votes').textContent='3';
+document.getElementById('f-votes').value=2;
+document.getElementById('v-votes').textContent='2';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
@@ -2940,7 +2940,7 @@ function updateStake(inp){{
 let btStake='flat';
 let btMethod='top3c';
 let btSigs=new Set(SIG_NAMES);
-let btAnchorSigs=new Set(['jky_win90','trn_win365','peak_rank']); // default anchor preset
+let btAnchorSigs=new Set(['jky_win90','peak_rank']); // default anchor preset
 let btInited=false;
 
 function btSetStake(m){{
@@ -2958,7 +2958,7 @@ function btSelectSigs(mode){{
   if(mode==='all'){{btSigs=new Set(SIG_NAMES);btAnchorSigs=new Set();}}
   else if(mode==='anchor'||mode==='optimal'){{
     btSigs=new Set(SIG_NAMES);
-    btAnchorSigs=new Set(['trn_win365','peak_rank','jky_win90']);
+    btAnchorSigs=new Set(['peak_rank','jky_win90']);
   }}
   else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
