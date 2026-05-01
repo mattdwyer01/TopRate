@@ -1096,8 +1096,13 @@ def rebuild_html(runners_df):
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&family=Syne:wght@400;600;800&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:13px;}}
-.shell{{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}}
-.sidebar{{background:#0f172a;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}}
+.shell{{display:grid;grid-template-columns:260px 1fr;min-height:100vh;transition:grid-template-columns 0.2s;}}
+.shell.sidebar-collapsed{{grid-template-columns:0 1fr;}}
+.sidebar{{background:#0f172a;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;transition:transform 0.2s, opacity 0.15s;}}
+.shell.sidebar-collapsed .sidebar{{transform:translateX(-260px);opacity:0;pointer-events:none;}}
+.sidebar-toggle{{position:fixed;top:12px;left:12px;z-index:100;background:#0f172a;color:#fff;border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:left 0.2s;}}
+.sidebar-toggle:hover{{background:#1e293b;}}
+.shell:not(.sidebar-collapsed) .sidebar-toggle{{left:228px;}}
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
 .main-content{{min-width:0;overflow-x:auto;}}
 .mob-bar{{display:none;}}
@@ -1524,7 +1529,8 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="mob-bar-logo">Top<em>Rate</em></div>
   <button class="mob-menu-btn" onclick="toggleSidebar()">&#9776;</button>
 </div>
-<div class="shell">
+<div class="shell" id="main-shell">
+<button class="sidebar-toggle desk-only" id="sidebar-toggle" onclick="toggleDesktopSidebar()" title="Toggle sidebar">☰</button>
 <div class="sidebar">
   <div class="logo">Top<em>Rate</em></div>
   <div class="logo-sub">LIVE TRACKING</div>
@@ -2766,6 +2772,11 @@ document.getElementById('v-spmax').textContent='Any';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
+// Initialise sidebar — collapsed by default unless user previously expanded
+const _initShell=document.querySelector('.shell');
+const _userPref=localStorage.getItem('sidebarCollapsed');
+if(_userPref==='false')_initShell.classList.remove('sidebar-collapsed');
+else _initShell.classList.add('sidebar-collapsed');
 syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
@@ -2784,14 +2795,19 @@ function switchTab(tab){{
     if(panel)panel.classList.toggle('active',p===targetPanel);
   }});
   // Sidebar visibility
-  const sidebar=document.querySelector('.sidebar');
   const shell=document.querySelector('.shell');
-  if(tab==='backtest'||tab==='strategy'){{
-    sidebar.style.display='none';
-    shell.style.gridTemplateColumns='1fr';
+  const toggleBtn=document.getElementById('sidebar-toggle');
+  if(tab==='backtest'||tab==='strategy'||tab==='race'){{
+    // Force-hide sidebar on these pages
+    shell.classList.add('sidebar-collapsed','sidebar-forced-hidden');
+    if(toggleBtn)toggleBtn.style.display='none';
   }}else{{
-    sidebar.style.display='';
-    shell.style.gridTemplateColumns='260px 1fr';
+    shell.classList.remove('sidebar-forced-hidden');
+    if(toggleBtn)toggleBtn.style.display='';
+    // Restore user's preferred state from localStorage
+    const userPref=localStorage.getItem('sidebarCollapsed');
+    if(userPref==='false')shell.classList.remove('sidebar-collapsed');
+    else shell.classList.add('sidebar-collapsed');
   }}
   // Date filter behaviour
   if(tab==='today'){{
@@ -4376,6 +4392,13 @@ function toggleBetDetail(src,srcId){{
 function toggleSidebar(){{
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('mob-overlay').classList.toggle('open');
+}}
+function toggleDesktopSidebar(){{
+  const shell=document.querySelector('.shell');
+  // Don't toggle if force-hidden by tab (race/strategy/backtest)
+  if(shell.classList.contains('sidebar-forced-hidden'))return;
+  const isCollapsed=shell.classList.toggle('sidebar-collapsed');
+  localStorage.setItem('sidebarCollapsed',isCollapsed?'true':'false');
 }}
 function closeSidebar(){{
   document.querySelector('.sidebar').classList.remove('open');
