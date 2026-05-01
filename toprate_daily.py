@@ -2924,9 +2924,6 @@ function renderRaceDetail(){{
   // Build runner table rows — show all by default, or filter to qualifiers if toggle off
   const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
   
-  // Build runner table rows — show all by default, or filter to qualifiers if toggle off
-  const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
-  
   const tb=document.getElementById('race-runners-tb');
   tb.innerHTML=renderRows.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
     const sigCellsHtml=SIG_NAMES.map(s=>{{
