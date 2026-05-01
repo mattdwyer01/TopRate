@@ -1181,10 +1181,10 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 /* === SETTINGS LIGHT THEME OVERRIDES === */
 .shell.show-settings .sidebar .logo{{display:none;}}
 .shell.show-settings .sidebar .logo-sub{{display:none;}}
-.shell.show-settings .sidebar .ftitle{{color:#9ca3af;border-bottom:1px solid #e8eaf0;}}
+.shell.show-settings .sidebar .ftitle{{color:#9ca3af;border-bottom:1px solid #e8eaf0;font-weight:600;}}
 .shell.show-settings .sidebar .tlbl{{color:#374151;}}
 .shell.show-settings .sidebar .slbl{{color:#374151;}}
-.shell.show-settings .sidebar .sval{{color:#10b981;}}
+.shell.show-settings .sidebar .sval{{color:#0f1729;font-weight:600;}}
 .shell.show-settings .sidebar .tog-track{{background:#e5e7eb;}}
 .shell.show-settings .sidebar .tog input:checked+.tog-track{{background:#10b981;}}
 .shell.show-settings .sidebar input[type=range]{{background:#e8eaf0;}}
@@ -1192,7 +1192,7 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .shell.show-settings .sidebar .qbtn{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
 .shell.show-settings .sidebar .qbtn:hover{{background:#f4f6f9;color:#0f1729;}}
 .shell.show-settings .sidebar .mb{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
-.shell.show-settings .sidebar .mb.active{{background:#10b981;border-color:#10b981;color:#fff;}}
+.shell.show-settings .sidebar .mb.active{{background:#0f1729;border-color:#0f1729;color:#fff;}}
 .shell.show-settings .sidebar .mb:hover:not(.active){{background:#f4f6f9;color:#0f1729;}}
 .shell.show-settings .sidebar .reset-btn{{background:#fff;border:1px solid #e5e7eb;color:#6b7280;}}
 .shell.show-settings .sidebar .reset-btn:hover{{background:#f4f6f9;color:#0f1729;}}
@@ -1202,9 +1202,10 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .shell.show-settings .sidebar .sig-cb{{border:1px solid transparent;}}
 .shell.show-settings .sidebar .sig-cb:hover{{background:#f4f6f9;}}
 .shell.show-settings .sidebar .sig-cb .sig-name{{color:#374151;}}
-.shell.show-settings .sidebar .sig-cb.dir-h .sig-name{{color:#059669;}}
-.shell.show-settings .sidebar .sig-cb.dir-l .sig-name{{color:#2563eb;}}
+.shell.show-settings .sidebar .sig-cb.dir-h .sig-name{{color:#374151;}}
+.shell.show-settings .sidebar .sig-cb.dir-l .sig-name{{color:#374151;}}
 .shell.show-settings .sidebar .sig-cb.anchored{{background:#fef3c7;border-color:#fcd34d;}}
+.shell.show-settings .sidebar .sig-cb.anchored .sig-name{{color:#92400e;}}
 .shell.show-settings .sidebar input[type=date]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
 .shell.show-settings .sidebar input[type=number]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
 .shell.show-settings .sidebar select{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
