@@ -2510,7 +2510,7 @@ document.getElementById('f-date-to').addEventListener('change',update);
 function resetAll(){{
   document.getElementById('f-tab').checked=true;
   document.getElementById('f-prize').value=25000;document.getElementById('v-prize').textContent='$25k';
-  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=false;
+  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=true;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
   document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
@@ -2531,7 +2531,7 @@ document.getElementById('v-votes').textContent='3';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
-document.getElementById('f-trend').checked=false;
+document.getElementById('f-trend').checked=true;
 document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
