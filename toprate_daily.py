@@ -168,10 +168,12 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
 
         # WPR at distance (within ±10% of today's race distance)
         wpr_dist = None
+        wpr_dist_n = 0
         if race_distance:
             lo, hi = race_distance * 0.9, race_distance * 1.1
             dist_runs = [f["wpr"] for f in form
                          if f.get("distance") and lo <= f["distance"] <= hi]
+            wpr_dist_n = len(dist_runs)
             wpr_dist = round(mean(dist_runs), 1) if dist_runs else None
 
         # WPR on going (matching today's going condition)
@@ -257,6 +259,7 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
             "wpr_peak_rank_1yr": peak1_rank,
             "runs_with_wpr":     len(wprs),
             "wpr_dist":          wpr_dist,
+            "wpr_dist_n":        wpr_dist_n,
             "wpr_going":         wpr_going,
             # Settling & position signals
             "avg_settled_pos":   avg_settled,
@@ -331,15 +334,15 @@ def compute_signal_rankings(rdf):
     for sig in ALL_SIGNALS:
         col = "fixed_win_price" if sig == "starting_price_sp" else sig
         if col == "price_top" or col not in rdf.columns or not rdf[col].notna().any():
-            signal_rankings.append([-1, -1, -1])
+            signal_rankings.append([-1, -1, -1, -1, -1])
             continue
         valid = rdf[rdf[col].notna()]
         ascending = sig not in SIGNALS_HIGHER
         sorted_valid = valid.sort_values(col, ascending=ascending)
-        top3 = sorted_valid.index.tolist()[:3]  # positional indices (0-based after reset)
-        while len(top3) < 3:
-            top3.append(-1)
-        signal_rankings.append(top3[:3])
+        top5 = sorted_valid.index.tolist()[:5]
+        while len(top5) < 5:
+            top5.append(-1)
+        signal_rankings.append(top5[:5])
 
     u_list = []
     for i in range(n):
@@ -376,6 +379,8 @@ def compute_signal_rankings(rdf):
             "ts": safe_float(row.get("total_speed_score")),
             "ap": safe_float(row.get("avg_settled_pos")),
             "a8": safe_float(row.get("avg_800m_pos")),
+            "wd": safe_float(row.get("wpr_dist")),
+            "dn": safe_int(row.get("wpr_dist_n")),
         })
 
     return signal_rankings, u_list
@@ -827,6 +832,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "wpr_consistency":    h.get("wpr_consistency"),
                     "wpr_peak_rank_1yr":  h.get("wpr_peak_rank_1yr"),
                     "wpr_dist":           h.get("wpr_dist"),
+                    "wpr_dist_n":         h.get("wpr_dist_n"),
                     "wpr_going":          h.get("wpr_going"),
                     "avg_settled_pos":    h.get("avg_settled_pos"),
                     "avg_800m_pos":       h.get("avg_800m_pos"),
@@ -1026,18 +1032,18 @@ def build_bt_races(bt_df):
         for sig, asc in [(s, False) for s in sig_cols_higher] + [(s, True) for s in sig_cols_lower]:
             col = sig
             if col not in grp.columns:
-                sig_rankings.append([-1,-1,-1])
+                sig_rankings.append([-1,-1,-1,-1,-1])
                 continue
             vals = grp[col].values
             valid = [(i, float(v)) for i, v in enumerate(vals) if v is not None and not (isinstance(v, float) and math.isnan(v))]
             if not valid:
-                sig_rankings.append([-1,-1,-1])
+                sig_rankings.append([-1,-1,-1,-1,-1])
                 continue
             valid.sort(key=lambda x: x[1], reverse=not asc)
-            top3 = [idx for idx, _ in valid[:3]]
-            while len(top3) < 3:
-                top3.append(-1)
-            sig_rankings.append(top3)
+            top5 = [idx for idx, _ in valid[:5]]
+            while len(top5) < 5:
+                top5.append(-1)
+            sig_rankings.append(top5)
 
         race_row = grp.iloc[0]
         bt_races.append({
@@ -1116,7 +1122,7 @@ def rebuild_html(runners_df):
         done = int(r.get("resulted") or 0)
         sig_rankings = r.get("sig_rankings")
         if not isinstance(sig_rankings, list):
-            sig_rankings = [[-1,-1,-1]] * len(ALL_SIGNALS)
+            sig_rankings = [[-1,-1,-1,-1,-1]] * len(ALL_SIGNALS)
         u_list = r.get("u_list")
         if not isinstance(u_list, list):
             u_list = []
@@ -1477,6 +1483,21 @@ tr.no-bet-row td{{opacity:0.4;}}
 .race-meta-v{{font-size:14px;font-weight:600;}}
 .race-meta-l{{font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase;}}
 .race-context-bar{{background:#fff;border-left:1px solid #e8eaf0;border-right:1px solid #e8eaf0;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;}}
+.race-pace-map{{background:#fff;border-left:1px solid #e8eaf0;border-right:1px solid #e8eaf0;border-bottom:1px solid #e8eaf0;padding:14px 20px;}}
+.pace-map-title{{font-size:9px;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-bottom:10px;}}
+.pace-map-track{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}}
+.pace-lane{{background:#fafbfc;border:1px solid #e8eaf0;border-radius:6px;padding:8px 10px;}}
+.pace-lane.lane-leader{{background:#fef3c7;border-color:#fcd34d;}}
+.pace-lane.lane-on-pace{{background:#ecfdf5;border-color:#86efac;}}
+.pace-lane.lane-midfield{{background:#eff6ff;border-color:#bfdbfe;}}
+.pace-lane.lane-backmarker{{background:#fce7f3;border-color:#f9a8d4;}}
+.pace-lane.empty{{opacity:0.5;}}
+.pace-lane-label{{font-size:9px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px;}}
+.pace-lane-content{{display:flex;flex-wrap:wrap;gap:4px;min-height:20px;}}
+.pace-chip{{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:50%;font-size:10px;font-weight:700;color:#0f1729;}}
+@media(max-width:768px){{
+  .pace-map-track{{grid-template-columns:repeat(2,1fr);}}
+}}
 .race-ctx-pill{{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#f4f6f9;font-weight:500;}}
 .race-ctx-pill.fast{{background:#fef2f2;color:#b91c1c;}}
 .race-ctx-pill.slow{{background:#f0f9ff;color:#0369a1;}}
@@ -1507,6 +1528,8 @@ tr.no-bet-row td{{opacity:0.4;}}
 .rs-sig-cell.rk1{{background:#10b981;color:#fff;}}
 .rs-sig-cell.rk2{{background:#6ee7b7;color:#064e3b;}}
 .rs-sig-cell.rk3{{background:#a7f3d0;color:#065f46;}}
+.rs-sig-cell.rk4{{background:#e5e7eb;color:#6b7280;}}
+.rs-sig-cell.rk5{{background:#f3f4f6;color:#9ca3af;}}
 .rs-sig-cell.anchor.rk1,.rs-sig-cell.anchor.rk2,.rs-sig-cell.anchor.rk3{{box-shadow:0 0 0 2px #f59e0b;}}
 .rs-sig-cell.anchor{{background:#fef3c7;color:#92400e;}}
 .rs-value-pos{{color:#059669;font-weight:600;}}
@@ -1515,6 +1538,10 @@ tr.no-bet-row td{{opacity:0.4;}}
 .drift-firm{{color:#059669;font-weight:600;}}
 .drift-drift{{color:#dc2626;font-weight:600;}}
 .drift-flat{{color:#6b7280;}}
+.dist-good{{color:#10b981;font-weight:700;font-size:14px;}}
+.dist-ok{{color:#6b7280;font-weight:600;font-size:14px;}}
+.dist-poor{{color:#9ca3af;font-size:12px;}}
+.dist-untried{{color:#dc2626;font-weight:700;font-size:14px;}}
 .rs-value-neg{{color:#dc2626;font-weight:600;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
 .rs-finish-2{{color:#6b7280;font-weight:600;}}
@@ -1924,6 +1951,7 @@ tr.no-bet-row td{{opacity:0.4;}}
           <div class="race-header-meta" id="race-header-meta"></div>
         </div>
         <div class="race-context-bar" id="race-context-bar"></div>
+        <div class="race-pace-map" id="race-pace-map"></div>
         <div class="race-runners-card">
           <div class="race-runners-header">
             <div class="race-runners-title">Runners</div>
@@ -3209,6 +3237,34 @@ function renderRaceDetail(){{
   ctxHtml+='<span class="race-ctx-pill">Leaders: '+stCounts.leader+' · On-pace: '+stCounts['on-pace']+' · Mid: '+stCounts.midfield+' · Back: '+stCounts.backmarker+'</span>';
   document.getElementById('race-context-bar').innerHTML=ctxHtml;
   
+  // Build pace map — horses positioned by avg_settled_pos
+  const paceLanes={{leader:[],'on-pace':[],midfield:[],backmarker:[]}};
+  race.u.forEach(r=>{{
+    const lane=r.st||'midfield';
+    if(paceLanes[lane])paceLanes[lane].push(r);
+    else paceLanes.midfield.push(r);
+  }});
+  // Sort each lane by avg_settled_pos
+  Object.keys(paceLanes).forEach(k=>{{
+    paceLanes[k].sort((a,b)=>(a.ap||99)-(b.ap||99));
+  }});
+  let paceMapHtml='<div class="pace-map-title">Settling Map</div><div class="pace-map-track">';
+  ['leader','on-pace','midfield','backmarker'].forEach(lane=>{{
+    const labels={{leader:'Leaders','on-pace':'On-pace',midfield:'Midfield',backmarker:'Back'}};
+    const horses=paceLanes[lane];
+    if(horses.length===0){{
+      paceMapHtml+='<div class="pace-lane empty"><div class="pace-lane-label">'+labels[lane]+'</div><div class="pace-lane-content"></div></div>';
+      return;
+    }}
+    const chips=horses.map(r=>{{
+      const settled=r.ap!==null&&r.ap!==undefined?' (settled '+r.ap.toFixed(1)+')':'';
+      return '<span class="pace-chip" title="'+r.h+settled+'">'+(r.tab||'?')+'</span>';
+    }}).join('');
+    paceMapHtml+='<div class="pace-lane lane-'+lane+'"><div class="pace-lane-label">'+labels[lane]+' ('+horses.length+')</div><div class="pace-lane-content">'+chips+'</div></div>';
+  }});
+  paceMapHtml+='</div>';
+  document.getElementById('race-pace-map').innerHTML=paceMapHtml;
+  
   const anchors=Array.from(anchorSigs);
   const anchorIdx=anchors.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
   
@@ -3216,19 +3272,23 @@ function renderRaceDetail(){{
     let score=0;
     const sigStatus={{}};
     SIG_NAMES.forEach((sig,si)=>{{
-      const [r1,r2,r3]=race.s[si];
+      const ranking=race.s[si]||[];
       let rk=null;
-      if(r1===ri)rk=1;else if(r2===ri)rk=2;else if(r3===ri)rk=3;
+      for(let k=0;k<5;k++){{
+        if(ranking[k]===ri){{rk=k+1;break;}}
+      }}
       sigStatus[sig]=rk;
-      // Always weighted total across ALL signals: 3pts for 1st, 2pts for 2nd, 1pt for 3rd
+      // Scoring still only counts top-3: 3pts for 1st, 2pts for 2nd, 1pt for 3rd
       if(rk===1)score+=3;
       else if(rk===2)score+=2;
       else if(rk===3)score+=1;
+      // ranks 4 and 5 are display-only, no score weight
     }});
     let anchorsPassed=0;
     anchorIdx.forEach(si=>{{
-      const [r1,r2,r3]=race.s[si];
-      if(r1===ri||r2===ri||r3===ri)anchorsPassed++;
+      const ranking=race.s[si]||[];
+      // Anchor still requires top-3
+      if(ranking[0]===ri||ranking[1]===ri||ranking[2]===ri)anchorsPassed++;
     }});
     const passesAllAnchors=anchorIdx.length===0||anchorsPassed===anchorIdx.length;
     // Value gap: fixed - tr_price (positive = market longer than TopRate rates it)
@@ -3260,11 +3320,11 @@ function renderRaceDetail(){{
   }}).join('');
   const priceHeaders=raceResulted
     ? '<th>Fixed</th><th>SP</th><th>TR$</th><th>Value</th>'
-    : '<th>Fixed</th><th>TR$</th><th>Value</th>';
+    : '<th>Fixed</th><th>Drift</th><th>TR$</th><th>Value</th>';
   document.getElementById('race-runners-thead').innerHTML=
     '<tr>'
     +'<th>Tab</th><th class="lt">Horse</th><th class="lt">Jockey</th><th class="lt">Trainer</th><th>Bar</th>'
-    +'<th>Settling</th><th>800m</th>'
+    +'<th>Settling</th><th>800m</th><th title="Distance suitability">Dist</th>'
     +sigHeaderCells
     +'<th>Score</th><th>Anc</th>'
     +priceHeaders
@@ -3301,8 +3361,20 @@ function renderRaceDetail(){{
         +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
         +'<td>'+valCell+'</td>'
       : '<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
+        +'<td>'+(()=>{{const d=getDrift(runner.rid,runner.fx);return d?d.html:'<span style="color:#9ca3af">—</span>';}})()+'</td>'
         +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
         +'<td>'+valCell+'</td>';
+    // Distance suitability badge
+    let distBadge='—';
+    if(runner.dn===0||runner.dn===null||runner.dn===undefined){{
+      distBadge='<span class="dist-untried" title="Never raced at this trip">✗</span>';
+    }}else if(runner.wd!==null&&runner.wd>=70){{
+      distBadge='<span class="dist-good" title="WPR '+runner.wd.toFixed(1)+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">✓</span>';
+    }}else if(runner.wd!==null&&runner.wd>=50){{
+      distBadge='<span class="dist-ok" title="WPR '+runner.wd.toFixed(1)+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">~</span>';
+    }}else if(runner.dn>0){{
+      distBadge='<span class="dist-poor" title="WPR '+(runner.wd!==null?runner.wd.toFixed(1):'?')+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">·</span>';
+    }}
     return '<tr class="'+rowCls+'">'
       +'<td><strong>'+(runner.tab||'?')+'</strong></td>'
       +'<td class="lt"><strong>'+runner.h+'</strong></td>'
@@ -3311,6 +3383,7 @@ function renderRaceDetail(){{
       +'<td>'+(runner.b||'—')+'</td>'
       +'<td>'+settling+'</td>'
       +'<td>'+(runner.a8!==null&&runner.a8!==undefined?runner.a8.toFixed(1):'—')+'</td>'
+      +'<td>'+distBadge+'</td>'
       +sigCellsHtml
       +'<td><strong>'+score+'</strong></td>'
       +'<td>'+anchorsPassed+'/'+anchorIdx.length+'</td>'
