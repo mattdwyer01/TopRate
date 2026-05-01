@@ -569,7 +569,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 01 May 2026 09:04<br>730 races &middot; 490 resulted &middot; 240 pending</div>
+  <div class="run-info">Updated 01 May 2026 09:14<br>730 races &middot; 490 resulted &middot; 240 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1832,9 +1832,6 @@ function renderRaceDetail(){
     +priceHeaders
     +(raceResulted?'<th>Finish</th>':'')
     +'</tr>';
-  
-  // Build runner table rows — show all by default, or filter to qualifiers if toggle off
-  const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
   
   // Build runner table rows — show all by default, or filter to qualifiers if toggle off
   const renderRows=showAll?sorted:sorted.filter(r=>(r.passesAllAnchors&&r.anchorsPassed>0&&anchorIdx.length>0)||r.runner.f===1);
