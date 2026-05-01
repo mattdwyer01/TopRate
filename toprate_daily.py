@@ -1172,15 +1172,44 @@ def rebuild_html(runners_df):
 body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:13px;}}
 .shell{{display:flex;flex-direction:column;min-height:100vh;}}
 .sidebar{{display:none;}}
-.shell.show-settings .sidebar{{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;background:#0f172a;color:#fff;padding:24px;border-radius:12px;margin:0 auto;max-width:1100px;width:100%;align-self:center;}}
+.shell.show-settings .sidebar{{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;background:#fff;color:#374151;padding:24px;border:1px solid #e8eaf0;border-radius:12px;margin:0 auto;max-width:1100px;width:100%;align-self:center;}}
 .shell.show-settings .sidebar .fsec{{break-inside:avoid;}}
 @media(max-width:768px){{
   .shell.show-settings .sidebar{{grid-template-columns:1fr;}}
 }}
-.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
-.shell.show-settings .main{{display:block;}}
+
+/* === SETTINGS LIGHT THEME OVERRIDES === */
 .shell.show-settings .sidebar .logo{{display:none;}}
 .shell.show-settings .sidebar .logo-sub{{display:none;}}
+.shell.show-settings .sidebar .ftitle{{color:#9ca3af;border-bottom:1px solid #e8eaf0;}}
+.shell.show-settings .sidebar .tlbl{{color:#374151;}}
+.shell.show-settings .sidebar .slbl{{color:#374151;}}
+.shell.show-settings .sidebar .sval{{color:#10b981;}}
+.shell.show-settings .sidebar .tog-track{{background:#e5e7eb;}}
+.shell.show-settings .sidebar .tog input:checked+.tog-track{{background:#10b981;}}
+.shell.show-settings .sidebar input[type=range]{{background:#e8eaf0;}}
+.shell.show-settings .sidebar .dow-cb span{{color:#374151;}}
+.shell.show-settings .sidebar .qbtn{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
+.shell.show-settings .sidebar .qbtn:hover{{background:#f4f6f9;color:#0f1729;}}
+.shell.show-settings .sidebar .mb{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
+.shell.show-settings .sidebar .mb.active{{background:#10b981;border-color:#10b981;color:#fff;}}
+.shell.show-settings .sidebar .mb:hover:not(.active){{background:#f4f6f9;color:#0f1729;}}
+.shell.show-settings .sidebar .reset-btn{{background:#fff;border:1px solid #e5e7eb;color:#6b7280;}}
+.shell.show-settings .sidebar .reset-btn:hover{{background:#f4f6f9;color:#0f1729;}}
+.shell.show-settings .sidebar .run-info{{color:#9ca3af;}}
+.shell.show-settings .sidebar .bt-link{{background:#fff;border:1px solid #e5e7eb;color:#6b7280;}}
+.shell.show-settings .sidebar .bt-link:hover{{background:#f4f6f9;color:#0f1729;}}
+.shell.show-settings .sidebar .sig-cb{{border:1px solid transparent;}}
+.shell.show-settings .sidebar .sig-cb:hover{{background:#f4f6f9;}}
+.shell.show-settings .sidebar .sig-cb .sig-name{{color:#374151;}}
+.shell.show-settings .sidebar .sig-cb.dir-h .sig-name{{color:#059669;}}
+.shell.show-settings .sidebar .sig-cb.dir-l .sig-name{{color:#2563eb;}}
+.shell.show-settings .sidebar .sig-cb.anchored{{background:#fef3c7;border-color:#fcd34d;}}
+.shell.show-settings .sidebar input[type=date]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar input[type=number]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar select{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
+.shell.show-settings .main{{display:block;}}
 .shell.show-settings .settings-header{{display:flex !important;}}
 .settings-header{{display:none;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin:0 auto 16px;max-width:900px;width:100%;}}
 .settings-header h2{{font-size:16px;font-weight:700;color:#0f1729;margin:0;}}
