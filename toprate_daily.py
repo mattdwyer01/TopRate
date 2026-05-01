@@ -1224,6 +1224,17 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .bt-link:hover{{background:rgba(255,255,255,.12);color:#fff;}}
 .main{{padding:24px 24px 60px;background:#f4f6f9;min-width:0;overflow-x:hidden;}}
 .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
+.multi-banner{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}}
+.multi-cell{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 16px;}}
+.multi-cell-title{{font-size:9px;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-bottom:6px;}}
+.multi-cell-profit{{font-size:22px;font-weight:700;color:#0f1729;line-height:1.1;margin-bottom:4px;}}
+.multi-cell-profit.pos{{color:#10b981;}}
+.multi-cell-profit.neg{{color:#dc2626;}}
+.multi-cell-meta{{font-size:10px;color:#6b7280;}}
+@media(max-width:768px){{
+  .multi-banner{{grid-template-columns:repeat(2,1fr);}}
+  .multi-cell-profit{{font-size:18px;}}
+}}
 .kpi{{background:#fff;border:1px solid #e8eaf0;padding:14px 16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.04);}}
 .kpi.hl{{background:#f0fdf4;border-color:#6ee7b7;}}
 .kpi.neg-kpi{{background:#fef2f2;border-color:#fca5a5;}}
@@ -1731,13 +1742,35 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab" id="tab-settings" onclick="switchTab('settings')">Settings</button>
   </div>
   <div class="tab-panel active" id="panel-bets">
-  <div class="kpi-strip">
+  <div class="kpi-strip" id="kpi-strip-today">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
     <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
     <div class="kpi"><div class="v" id="k-wins">0</div><div class="l">Wins</div></div>
     <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win %</div></div>
     <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place %</div></div>
     <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
+  </div>
+  <div class="multi-banner" id="multi-banner" style="display:none;">
+    <div class="multi-cell" data-period="today">
+      <div class="multi-cell-title">Today</div>
+      <div class="multi-cell-profit">—</div>
+      <div class="multi-cell-meta">— bets · — wins · — ROI</div>
+    </div>
+    <div class="multi-cell" data-period="week">
+      <div class="multi-cell-title">This Week</div>
+      <div class="multi-cell-profit">—</div>
+      <div class="multi-cell-meta">— bets · — wins · — ROI</div>
+    </div>
+    <div class="multi-cell" data-period="month">
+      <div class="multi-cell-title">This Month</div>
+      <div class="multi-cell-profit">—</div>
+      <div class="multi-cell-meta">— bets · — wins · — ROI</div>
+    </div>
+    <div class="multi-cell" data-period="all">
+      <div class="multi-cell-title">All-time</div>
+      <div class="multi-cell-profit">—</div>
+      <div class="multi-cell-meta">— bets · — wins · — ROI</div>
+    </div>
   </div>
   <div class="st" id="pend-title" style="display:none">Pending <span class="cnt" id="pend-cnt"></span></div>
   <div class="card desk-only" id="pend-card" style="display:none">
@@ -2449,12 +2482,83 @@ function resultKey(b){{return'res|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}}
 function setResult(b,val){{if(val===null||isNaN(val)){{syncRemove(resultKey(b));}}else{{syncSet(resultKey(b),String(val));}}}}
 // ─────────────────────────────────────────────────────────────────────────
+function updateMultiBanner(){{
+  const banner=document.getElementById('multi-banner');
+  if(!banner||banner.style.display==='none')return;
+  
+  // Get bets ignoring sidebar date/DoW filters
+  const f=getF();
+  const bf={{...f,dateFrom:'',dateTo:'',dows:new Set([0,1,2,3,4,5,6])}};
+  const {{resulted}}=buildBets(bf);
+  const bets=resulted.filter(b=>b.isBet!==false&&b.sp);
+  
+  // Determine staking
+  const fixedTargetEl=document.getElementById('f-target');
+  const fixedTarget=fixedTargetEl?parseFloat(fixedTargetEl.value)||4:4;
+  
+  // Compute stats helper
+  const computePeriod=(filterFn)=>{{
+    const sub=bets.filter(filterFn);
+    let totalStake=0,totalProfit=0,wins=0;
+    sub.forEach(b=>{{
+      const px=b.sp;
+      let stake=1,profit=0;
+      if(stakeMethod==='fixed'&&px&&px>1){{
+        stake=fixedTarget/(px-1);
+        profit=b.won?fixedTarget:-stake;
+      }}else{{
+        stake=1;
+        profit=b.won?(px-1):-1;
+      }}
+      totalStake+=stake;
+      totalProfit+=profit;
+      if(b.won)wins++;
+    }});
+    const roi=totalStake>0?(totalProfit/totalStake)*100:0;
+    return {{n:sub.length,wins,profit:totalProfit,roi}};
+  }};
+  
+  // Today
+  const today=new Date();
+  const todayStr=today.toISOString().slice(0,10);
+  // Week (last 7 days including today)
+  const weekStart=new Date(today.getTime()-6*86400000).toISOString().slice(0,10);
+  // Month (last 30 days)
+  const monthStart=new Date(today.getTime()-29*86400000).toISOString().slice(0,10);
+  
+  const stats={{
+    today: computePeriod(b=>b.date===todayStr),
+    week:  computePeriod(b=>b.date>=weekStart),
+    month: computePeriod(b=>b.date>=monthStart),
+    all:   computePeriod(()=>true),
+  }};
+  
+  banner.querySelectorAll('.multi-cell').forEach(cell=>{{
+    const period=cell.dataset.period;
+    const s=stats[period];
+    const profitEl=cell.querySelector('.multi-cell-profit');
+    const metaEl=cell.querySelector('.multi-cell-meta');
+    const profitStr=s.n===0?'—':(s.profit>=0?'+':'')+s.profit.toFixed(1)+'u';
+    profitEl.textContent=profitStr;
+    profitEl.className='multi-cell-profit'+(s.n===0?'':s.profit>=0?' pos':' neg');
+    if(s.n===0){{
+      metaEl.textContent='No bets';
+    }}else{{
+      const roiStr=(s.roi>=0?'+':'')+s.roi.toFixed(0)+'%';
+      metaEl.textContent=s.n+' bet'+(s.n===1?'':'s')+' · '+s.wins+' win'+(s.wins===1?'':'s')+' · '+roiStr+' ROI';
+    }}
+  }});
+}}
+
 function update(){{
   _getSectionalFilters();
   const f=getF();
   // If race page is active, refresh it on filter change
   const racePanel=document.getElementById('panel-race');
   if(racePanel&&racePanel.classList.contains('active'))buildRacePage();
+  // Refresh multi-banner if visible (Bets tab)
+  const mb=document.getElementById('multi-banner');
+  if(mb&&mb.style.display!=='none')updateMultiBanner();
   const {{resulted,pending}}=buildBets(f);
   // Sort: most recent date first, then by start time (if available) else race_id
   const sortBets=arr=>arr.slice().sort((a,b)=>{{
@@ -2810,11 +2914,17 @@ function switchTab(tab){{
     const panel=document.getElementById('panel-'+p);
     if(panel)panel.classList.toggle('active',p===targetPanel);
   }});
-  // Date filter behaviour
+  // Date filter behaviour and banner toggling
+  const todayKpi=document.getElementById('kpi-strip-today');
+  const multiBanner=document.getElementById('multi-banner');
   if(tab==='today'){{
     setDateRange('today');
+    if(todayKpi)todayKpi.style.display='';
+    if(multiBanner)multiBanner.style.display='none';
   }}else if(tab==='bets'){{
     setDateRange('all');
+    if(todayKpi)todayKpi.style.display='none';
+    if(multiBanner){{multiBanner.style.display='';updateMultiBanner();}}
   }}
   // Page initialisers
   if(tab==='race')buildRacePage();
