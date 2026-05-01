@@ -318,11 +318,8 @@ tr.no-bet-row td{opacity:0.4;}
     </div>
     <div class="trow"><span class="tlbl">Exclude first starters</span>
       <label class="tog"><input type="checkbox" id="f-nofs" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
-    <div class="srow">
-      <span class="slbl">Min trend</span>
-      <span class="filter-val" id="v-trend">Any</span>
-    </div>
-    <input type="range" id="f-trend" min="-10" max="10" value="-10" step="1" oninput="document.getElementById('v-trend').textContent=this.value<==-10?'Any':this.value>=0?'+'+this.value:this.value;update();">
+    <div class="trow"><span class="tlbl">Trend &gt; 0 only</span>
+      <label class="tog"><input type="checkbox" id="f-trend" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
   </div>
 
   <div class="fsec">
@@ -479,7 +476,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 01 May 2026 15:51<br>505 races &middot; 445 resulted &middot; 60 pending</div>
+  <div class="run-info">Updated 01 May 2026 15:53<br>505 races &middot; 445 resulted &middot; 60 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -562,8 +559,11 @@ tr.no-bet-row td{opacity:0.4;}
           </div>
         </div>
         <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
-          <div class="bt-lbl" style="margin:0;">Min trend <span id="v-bt-trend" style="color:#10b981;font-weight:700;">Any</span></div>
-          <input type="range" id="bt-trend" min="-10" max="10" value="-10" step="1" style="width:100%;margin-top:4px;" oninput="document.getElementById('v-bt-trend').textContent=this.value<==-10?'Any':this.value>=0?'+'+this.value:this.value;runBacktest();">
+          <div class="bt-lbl" style="margin:0;">Trend filter</div>
+          <label class="tog">
+            <input type="checkbox" id="bt-trend" checked onchange="runBacktest()">
+            <div class="tog-track"></div><div class="tog-thumb"></div>
+          </label>
         </div>
         <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
           <div class="bt-lbl" style="margin:0;">Excl. first starters</div>
@@ -775,7 +775,7 @@ function getF(){return{
   tab:document.getElementById('f-tab').checked,
   prize:parseInt(document.getElementById('f-prize').value),
   nofs:document.getElementById('f-nofs').checked,
-  trend:parseFloat(document.getElementById('f-trend').value),
+  trend:document.getElementById('f-trend').checked,
   sp:parseFloat(document.getElementById('f-sp').value),
   spmax:parseFloat(document.getElementById('f-spmax').value),
   votes:parseFloat(document.getElementById('f-votes').value),
@@ -859,7 +859,7 @@ function buildBets(f){
       const sp=runner.sp;
       if(race.done===0){if(sp!==null&&sp!==undefined&&(sp<f.sp||sp>f.spmax))return;}
       else{if(!sp||sp<f.sp||sp>f.spmax)return;}
-      if(f.trend>-10&&(runner.tr===null||runner.tr===undefined||runner.tr<f.trend))return;
+      if(f.trend&&(runner.tr===null||runner.tr===undefined||runner.tr<=0))return;
       if(f.nowide&&runner.b&&runner.b>8)return;
       if(f.barrier<16&&runner.b&&runner.b>f.barrier)return;
       const st=runner.st||'unknown';
@@ -1418,7 +1418,7 @@ document.getElementById('f-spmax').addEventListener('input',e=>{const v=parseFlo
 document.getElementById('f-prize').addEventListener('input',e=>{const v=parseInt(e.target.value);document.getElementById('v-prize').textContent=v===0?'Any':'$'+(v/1000).toFixed(0)+'k';update();});
 document.getElementById('f-target').addEventListener('input',e=>{document.getElementById('v-target').textContent=parseFloat(e.target.value).toFixed(1)+'u';update();});
 document.getElementById('f-barrier').addEventListener('input',e=>{const v=parseInt(e.target.value);document.getElementById('v-barrier').textContent=v>=16?'Any':'<='+v;update();});
-['f-tab','f-nofs','f-pend','f-resonly','f-nowide'].forEach(id=>document.getElementById(id).addEventListener('change',update));
+['f-tab','f-trend','f-nofs','f-pend','f-resonly','f-nowide'].forEach(id=>document.getElementById(id).addEventListener('change',update));
 document.querySelectorAll('#dow-grid input').forEach(cb=>cb.addEventListener('change',update));
 document.querySelectorAll('[data-settle],[data-pace]').forEach(cb=>cb.addEventListener('change',update));
 document.getElementById('f-date-from').addEventListener('change',update);
@@ -1426,7 +1426,7 @@ document.getElementById('f-date-to').addEventListener('change',update);
 function resetAll(){
   document.getElementById('f-tab').checked=true;
   document.getElementById('f-prize').value=25000;document.getElementById('v-prize').textContent='$25k';
-  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').value=-10;document.getElementById('v-trend').textContent='Any';
+  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=false;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
   document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
@@ -1447,7 +1447,7 @@ document.getElementById('v-votes').textContent='3';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
-document.getElementById('f-trend').value=-10;document.getElementById('v-trend').textContent='Any';
+document.getElementById('f-trend').checked=false;
 document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
@@ -1994,7 +1994,7 @@ function runBacktest(){
   document.getElementById('bt-v-prize').textContent='$'+(minPrize/1000).toFixed(0)+'k';
   const target=parseInt(document.getElementById('bt-target').value);
   document.getElementById('bt-v-target').textContent=(target/10).toFixed(1)+'u';
-  const trendOnly=parseFloat(document.getElementById('bt-trend').value);
+  const trendOnly=document.getElementById('bt-trend').checked;
   const noFirst=document.getElementById('bt-nofirst').checked;
   const maxQualRule=document.getElementById('bt-maxqual').checked;
   const spInvalRule=document.getElementById('bt-spinval').checked;
@@ -2028,7 +2028,7 @@ function runBacktest(){
       if(runner.f===null||runner.f===undefined)return;
       const sp=runner.sp;
       if(!sp)return;
-      if(trendOnly>-10&&(runner.tr===null||runner.tr<trendOnly))return;
+      if(trendOnly&&(runner.tr===null||runner.tr<=0))return;
       if(maxBarrier<20&&runner.b&&runner.b>maxBarrier)return;
       const st=(runner.st||'unknown').toLowerCase().replace('-','');
       if(settleOk.size&&!settleOk.has(st)&&!settleOk.has('unknown'))return;
