@@ -1096,25 +1096,27 @@ def rebuild_html(runners_df):
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&family=Syne:wght@400;600;800&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:13px;}}
-.shell{{display:grid;grid-template-columns:260px 1fr;min-height:100vh;transition:grid-template-columns 0.2s;}}
-.shell.sidebar-collapsed{{grid-template-columns:0 1fr;}}
-.sidebar{{background:#0f172a;padding:20px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;transition:transform 0.2s, opacity 0.15s;}}
-.shell.sidebar-collapsed .sidebar{{transform:translateX(-260px);opacity:0;pointer-events:none;}}
-.sidebar-toggle{{position:fixed;top:12px;left:12px;z-index:100;background:#0f172a;color:#fff;border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:left 0.2s;}}
-.sidebar-toggle:hover{{background:#1e293b;}}
-.shell:not(.sidebar-collapsed) .sidebar-toggle{{left:228px;}}
+.shell{{display:flex;flex-direction:column;min-height:100vh;}}
+.sidebar{{display:none;}}
+.shell.show-settings .sidebar{{display:flex;flex-direction:column;background:#0f172a;color:#fff;padding:20px;border-radius:12px;margin:0 0 20px;max-width:900px;width:100%;align-self:center;}}
+.shell.show-settings .main-tabs,.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
+.shell.show-settings .main{{display:block;padding:20px;}}
+.shell.show-settings .settings-header{{display:flex !important;}}
+.settings-header{{display:none;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin-bottom:16px;max-width:900px;width:100%;align-self:center;}}
+.settings-header h2{{font-size:16px;font-weight:700;color:#0f1729;margin:0;}}
+.settings-actions{{display:flex;gap:10px;}}
+.settings-apply-btn{{background:#10b981;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;}}
+.settings-apply-btn:hover{{background:#059669;}}
+.settings-cancel-btn{{background:#fff;color:#6b7280;border:1px solid #e5e7eb;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;}}
+.settings-cancel-btn:hover{{background:#f4f6f9;}}
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
 .main-content{{min-width:0;overflow-x:auto;}}
 .mob-bar{{display:none;}}
 @media(max-width:1100px) and (min-width:769px){{
-  .shell{{grid-template-columns:180px 1fr;}}
   .sidebar{{padding:16px 10px;}}
 }}
 @media(max-width:768px){{
-  .shell{{display:block;overflow-x:hidden;}}
   body{{overflow-x:hidden;}}
-  .sidebar{{position:fixed;top:0;left:0;width:88vw;max-width:320px;height:100vh;z-index:200;transform:translateX(-105%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 24px rgba(0,0,0,.3);}}
-  .sidebar.open{{transform:translateX(0);}}
   .mob-bar{{display:flex;align-items:center;justify-content:space-between;background:#0f172a;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15);}}
   .mob-bar-logo{{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:-.03em;}}
   .mob-bar-logo em{{color:#10b981;font-style:normal;}}
@@ -1527,10 +1529,16 @@ tr.no-bet-row td{{opacity:0.4;}}
 <div class="mob-overlay" id="mob-overlay" onclick="closeSidebar()"></div>
 <div class="mob-bar">
   <div class="mob-bar-logo">Top<em>Rate</em></div>
-  <button class="mob-menu-btn" onclick="toggleSidebar()">&#9776;</button>
+  <button class="mob-menu-btn" onclick="switchTab('settings')">&#9776;</button>
 </div>
 <div class="shell" id="main-shell">
-<button class="sidebar-toggle desk-only" id="sidebar-toggle" onclick="toggleDesktopSidebar()" title="Toggle sidebar">☰</button>
+<div class="settings-header">
+  <h2>Settings</h2>
+  <div class="settings-actions">
+    <button class="settings-cancel-btn" onclick="cancelSettings()">Cancel</button>
+    <button class="settings-apply-btn" onclick="applySettings()">Apply</button>
+  </div>
+</div>
 <div class="sidebar">
   <div class="logo">Top<em>Rate</em></div>
   <div class="logo-sub">LIVE TRACKING</div>
@@ -1714,6 +1722,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab" id="tab-strategy" onclick="switchTab('strategy')">Strategy</button>
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
+    <button class="main-tab" id="tab-settings" onclick="switchTab('settings')">Settings</button>
   </div>
   <div class="tab-panel active" id="panel-bets">
   <div class="kpi-strip">
@@ -2772,21 +2781,22 @@ document.getElementById('v-spmax').textContent='Any';
 document.getElementById('f-target').value=4;
 document.getElementById('v-target').textContent='4.0u';
 setDateRange('today');
-// Initialise sidebar — collapsed by default unless user previously expanded
-const _initShell=document.querySelector('.shell');
-const _userPref=localStorage.getItem('sidebarCollapsed');
-if(_userPref==='false')_initShell.classList.remove('sidebar-collapsed');
-else _initShell.classList.add('sidebar-collapsed');
 syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){{
   // Today and Bets share panel-bets; just sync tab styles and date filter
-  const allTabs=['today','race','bets','strategy','signals','backtest'];
+  const allTabs=['today','race','bets','strategy','signals','backtest','settings'];
   allTabs.forEach(t=>{{
     const tabBtn=document.getElementById('tab-'+t);
     if(tabBtn)tabBtn.classList.toggle('active',t===tab);
   }});
+  const shell=document.querySelector('.shell');
+  if(tab==='settings'){{
+    shell.classList.add('show-settings');
+    return;
+  }}
+  shell.classList.remove('show-settings');
   // Map Today and Bets both to panel-bets
   const panelMap={{today:'bets',bets:'bets',race:'race',strategy:'strategy',signals:'signals',backtest:'backtest'}};
   const targetPanel=panelMap[tab]||tab;
@@ -2794,21 +2804,6 @@ function switchTab(tab){{
     const panel=document.getElementById('panel-'+p);
     if(panel)panel.classList.toggle('active',p===targetPanel);
   }});
-  // Sidebar visibility
-  const shell=document.querySelector('.shell');
-  const toggleBtn=document.getElementById('sidebar-toggle');
-  if(tab==='backtest'||tab==='strategy'||tab==='race'){{
-    // Force-hide sidebar on these pages
-    shell.classList.add('sidebar-collapsed','sidebar-forced-hidden');
-    if(toggleBtn)toggleBtn.style.display='none';
-  }}else{{
-    shell.classList.remove('sidebar-forced-hidden');
-    if(toggleBtn)toggleBtn.style.display='';
-    // Restore user's preferred state from localStorage
-    const userPref=localStorage.getItem('sidebarCollapsed');
-    if(userPref==='false')shell.classList.remove('sidebar-collapsed');
-    else shell.classList.add('sidebar-collapsed');
-  }}
   // Date filter behaviour
   if(tab==='today'){{
     setDateRange('today');
@@ -2821,6 +2816,8 @@ function switchTab(tab){{
   if(tab==='signals')buildSignals();
   if(tab==='backtest')initBacktest();
 }}
+function applySettings(){{update();switchTab('today');}}
+function cancelSettings(){{switchTab('today');}}
 
 // === RACE PAGE ===
 let raceSelectedVenue=null;
@@ -4392,13 +4389,6 @@ function toggleBetDetail(src,srcId){{
 function toggleSidebar(){{
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('mob-overlay').classList.toggle('open');
-}}
-function toggleDesktopSidebar(){{
-  const shell=document.querySelector('.shell');
-  // Don't toggle if force-hidden by tab (race/strategy/backtest)
-  if(shell.classList.contains('sidebar-forced-hidden'))return;
-  const isCollapsed=shell.classList.toggle('sidebar-collapsed');
-  localStorage.setItem('sidebarCollapsed',isCollapsed?'true':'false');
 }}
 function closeSidebar(){{
   document.querySelector('.sidebar').classList.remove('open');
