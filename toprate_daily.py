@@ -1317,19 +1317,30 @@ tr.no-bet-row td{{opacity:0.4;}}
 .race-runners-card{{background:#fff;border:1px solid #e8eaf0;border-top:none;border-radius:0;padding:0;}}
 .race-runners-header{{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #e8eaf0;flex-wrap:wrap;gap:10px;}}
 .race-runners-title{{font-size:13px;font-weight:600;color:#374151;}}
+.race-runners-controls{{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}}
+.r-toggle{{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280;cursor:pointer;}}
+.r-toggle input{{cursor:pointer;}}
 .race-runners-sort{{display:flex;gap:4px;flex-wrap:wrap;}}
 .rsort-btn{{padding:5px 10px;font-size:10px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;color:#6b7280;font-weight:500;}}
 .rsort-btn.active{{background:#0f1729;color:#fff;border-color:#0f1729;}}
 .race-runners-tbl{{width:100%;border-collapse:collapse;font-size:11px;}}
-.race-runners-tbl th{{padding:8px 6px;background:#f4f6f9;font-weight:600;color:#6b7280;font-size:9px;letter-spacing:.05em;text-transform:uppercase;text-align:left;border-bottom:1px solid #e8eaf0;white-space:nowrap;}}
-.race-runners-tbl td{{padding:8px 6px;border-bottom:1px solid #f1f3f8;color:#374151;white-space:nowrap;}}
-.race-runners-tbl tr.qual{{background:rgba(16,185,129,.06);}}
+.race-runners-tbl th{{padding:8px 4px;background:#f4f6f9;font-weight:600;color:#6b7280;font-size:9px;letter-spacing:.05em;text-transform:uppercase;text-align:center;border-bottom:1px solid #e8eaf0;white-space:nowrap;}}
+.race-runners-tbl th.lt{{text-align:left;}}
+.race-runners-tbl th.sig-h{{padding:4px 1px;font-size:8px;letter-spacing:0;width:22px;}}
+.race-runners-tbl th.sig-h.anchor{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b;}}
+.race-runners-tbl th.sig-h.active{{background:#ecfdf5;color:#047857;}}
+.race-runners-tbl td{{padding:7px 4px;border-bottom:1px solid #f1f3f8;color:#374151;white-space:nowrap;text-align:center;}}
+.race-runners-tbl td.lt{{text-align:left;}}
+.race-runners-tbl tr.qual{{background:rgba(16,185,129,.08);}}
 .race-runners-tbl tr.qual td:first-child{{border-left:3px solid #10b981;}}
 .race-runners-tbl tr.winner{{background:rgba(180,224,96,.18);font-weight:600;}}
-.rs-sig-cell{{display:inline-block;width:18px;height:18px;border-radius:3px;background:#f4f6f9;color:#9ca3af;text-align:center;line-height:18px;font-size:9px;font-weight:600;margin-right:1px;}}
+.race-runners-tbl tr.dim{{opacity:0.5;}}
+.rs-sig-cell{{display:inline-block;width:20px;height:20px;border-radius:3px;background:#f4f6f9;color:#cbd5e1;text-align:center;line-height:20px;font-size:9px;font-weight:600;}}
 .rs-sig-cell.rk1{{background:#10b981;color:#fff;}}
-.rs-sig-cell.rk2{{background:#86efac;color:#064e3b;}}
-.rs-sig-cell.rk3{{background:#d1fae5;color:#065f46;}}
+.rs-sig-cell.rk2{{background:#6ee7b7;color:#064e3b;}}
+.rs-sig-cell.rk3{{background:#a7f3d0;color:#065f46;}}
+.rs-sig-cell.anchor.rk1,.rs-sig-cell.anchor.rk2,.rs-sig-cell.anchor.rk3{{box-shadow:0 0 0 2px #f59e0b;}}
+.rs-sig-cell.anchor{{background:#fef3c7;color:#92400e;}}
 .rs-value-pos{{color:#059669;font-weight:600;}}
 .rs-value-neg{{color:#dc2626;font-weight:600;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
@@ -1712,23 +1723,22 @@ tr.no-bet-row td{{opacity:0.4;}}
         <div class="race-runners-card">
           <div class="race-runners-header">
             <div class="race-runners-title">Runners</div>
-            <div class="race-runners-sort">
-              <button class="rsort-btn active" data-sort="score">Score</button>
-              <button class="rsort-btn" data-sort="sp">SP</button>
-              <button class="rsort-btn" data-sort="tab">Tab</button>
-              <button class="rsort-btn" data-sort="value">Value</button>
-              <button class="rsort-btn" data-sort="finish">Finish</button>
+            <div class="race-runners-controls">
+              <label class="r-toggle"><input type="checkbox" id="r-show-all"> Show all runners</label>
+              <div class="race-runners-sort">
+                <button class="rsort-btn active" data-sort="score">Score</button>
+                <button class="rsort-btn" data-sort="sp">SP</button>
+                <button class="rsort-btn" data-sort="tab">Tab</button>
+                <button class="rsort-btn" data-sort="value">Value</button>
+                <button class="rsort-btn" data-sort="finish">Finish</button>
+              </div>
             </div>
           </div>
-          <div class="desk-only">
-            <table class="race-runners-tbl"><thead><tr>
-              <th>Tab</th><th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>
-              <th>Settling</th><th>800m</th>
-              <th class="rs-sigs" id="rs-sig-headers"></th>
-              <th>Score</th><th>Anchors</th>
-              <th>Fixed</th><th>SP</th><th>TR$</th><th>Value</th>
-              <th>Finish</th>
-            </tr></thead><tbody id="race-runners-tb"></tbody></table>
+          <div class="desk-only" style="overflow-x:auto;">
+            <table class="race-runners-tbl">
+              <thead id="race-runners-thead"></thead>
+              <tbody id="race-runners-tb"></tbody>
+            </table>
           </div>
           <div class="mob-only race-runners-cards" id="race-runners-cards"></div>
         </div>
@@ -1737,7 +1747,7 @@ tr.no-bet-row td{{opacity:0.4;}}
           <div id="race-sugg-content"></div>
         </div>
         <div class="race-exotics">
-          <div class="race-sugg-title">Exotics <span class="race-sugg-warn">— suggestions only, untested edge</span></div>
+          <div class="race-sugg-title">Exotics</div>
           <div id="race-exotics-content"></div>
         </div>
       </div>
@@ -1871,6 +1881,7 @@ tr.no-bet-row td{{opacity:0.4;}}
 {data_js}
 {bt_data_js}
 const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","wpr_rank","peak_rank","consistency"];
+const SIG_SHORT  = ["WPR","L1","A3","DST","GNG","JKY","TRN","TR$","SPD","RNK","PEAK","CON"];
 const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
 const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
 let activeSigs=new Set(SIG_NAMES);
@@ -2830,6 +2841,7 @@ function renderRaceDetail(){{
   const race=RACES.find(r=>String(r.rid)===String(raceSelectedRaceId));
   if(!race){{document.getElementById('race-detail').style.display='none';return;}}
   document.getElementById('race-detail').style.display='';
+  const raceResulted=race.done===1;
   
   // Header
   document.getElementById('race-title').textContent=race.v+' — Race '+race.r;
@@ -2850,21 +2862,17 @@ function renderRaceDetail(){{
     ctxHtml+='<span class="race-ctx-pill '+cls+'">Pace: '+race.ps+'</span>';
   }}
   if(race.n===1)ctxHtml+='<span class="race-ctx-pill fs">First-starter present</span>';
-  // Count settling types
   const stCounts={{leader:0,'on-pace':0,midfield:0,backmarker:0,unknown:0}};
   race.u.forEach(r=>{{stCounts[r.st||'unknown']=(stCounts[r.st||'unknown']||0)+1;}});
   ctxHtml+='<span class="race-ctx-pill">Leaders: '+stCounts.leader+' · On-pace: '+stCounts['on-pace']+' · Mid: '+stCounts.midfield+' · Back: '+stCounts.backmarker+'</span>';
   document.getElementById('race-context-bar').innerHTML=ctxHtml;
   
-  // Compute scores for each runner, build rows
-  const sigs=Array.from(activeSigs);
   const anchors=Array.from(anchorSigs);
-  const sigIdx=sigs.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
   const anchorIdx=anchors.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
   
   const rows=race.u.map((runner,ri)=>{{
     let score=0;
-    const sigStatus={{}}; // signal -> rank position (1/2/3 or null)
+    const sigStatus={{}};
     SIG_NAMES.forEach((sig,si)=>{{
       const [r1,r2,r3]=race.s[si];
       let rk=null;
@@ -2876,7 +2884,6 @@ function renderRaceDetail(){{
         else if(method==='top3w'){{score+=(rk===1?3:rk===2?2:1);}}
       }}
     }});
-    // Anchor pass count
     let anchorsPassed=0;
     anchorIdx.forEach(si=>{{
       const [r1,r2,r3]=race.s[si];
@@ -2884,35 +2891,60 @@ function renderRaceDetail(){{
     }});
     const passesAllAnchors=anchorIdx.length===0||anchorsPassed===anchorIdx.length;
     if(!passesAllAnchors)score=0;
-    // Value gap: tr_price - fixed (positive = TR rates the horse better than market does)
+    // Value gap: fixed - tr_price (positive = market longer than TopRate rates it)
     const valueGap=runner.trp&&runner.fx?(runner.fx-runner.trp):null;
     return {{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}};
   }});
   
-  // Sort
   const sorted=rows.slice();
-  if(raceSortMode==='score'){{sorted.sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));}}
+  if(raceSortMode==='score'){{sorted.sort((a,b)=>b.score-a.score||(a.runner.fx||a.runner.sp||999)-(b.runner.fx||b.runner.sp||999));}}
   else if(raceSortMode==='sp'){{sorted.sort((a,b)=>(a.runner.sp||a.runner.fx||999)-(b.runner.sp||b.runner.fx||999));}}
   else if(raceSortMode==='tab'){{sorted.sort((a,b)=>(a.runner.tab||a.runner.b||999)-(b.runner.tab||b.runner.b||999));}}
   else if(raceSortMode==='value'){{sorted.sort((a,b)=>(b.valueGap||-999)-(a.valueGap||-999));}}
   else if(raceSortMode==='finish'){{sorted.sort((a,b)=>(a.runner.f||999)-(b.runner.f||999));}}
   
-  // Build sig headers
-  const sigHeaderHtml=SIG_NAMES.map((s,i)=>{{
-    const lbl=SIG_LABELS[i].replace(/ [↑↓]/,'');
-    const isActive=activeSigs.has(s);
+  // Show all toggle
+  const showAllEl=document.getElementById('r-show-all');
+  if(showAllEl&&!showAllEl.dataset.bound){{
+    showAllEl.addEventListener('change',renderRaceDetail);
+    showAllEl.dataset.bound='1';
+  }}
+  const showAll=showAllEl?showAllEl.checked:false;
+  
+  // Build dynamic thead
+  const sigHeaderCells=SIG_NAMES.map((s,i)=>{{
     const isAnchor=anchorSigs.has(s);
-    const cls=isAnchor?'rs-sig-cell rk1':isActive?'rs-sig-cell rk3':'rs-sig-cell';
-    return '<span class="'+cls+'" title="'+lbl+(isAnchor?' (anchor)':isActive?' (active)':' (inactive)')+'">'+lbl.slice(0,3)+'</span>';
+    const isActive=activeSigs.has(s);
+    const cls='sig-h'+(isAnchor?' anchor':isActive?' active':'');
+    return '<th class="'+cls+'" title="'+SIG_LABELS[i]+'">'+SIG_SHORT[i]+'</th>';
   }}).join('');
+  const priceHeaders=raceResulted
+    ? '<th>Fixed</th><th>SP</th><th>TR$</th><th>Value</th>'
+    : '<th>Fixed</th><th>TR$</th><th>Value</th>';
+  document.getElementById('race-runners-thead').innerHTML=
+    '<tr>'
+    +'<th>Tab</th><th class="lt">Horse</th><th class="lt">Jockey</th><th class="lt">Trainer</th><th>Bar</th>'
+    +'<th>Settling</th><th>800m</th>'
+    +sigHeaderCells
+    +'<th>Score</th><th>Anc</th>'
+    +priceHeaders
+    +(raceResulted?'<th>Finish</th>':'')
+    +'</tr>';
   
   // Build runner table rows
   const tb=document.getElementById('race-runners-tb');
-  tb.innerHTML=sorted.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
+  const visibleRows=showAll?sorted:sorted.filter(r=>r.passesAllAnchors&&r.score>0||r.runner.f===1);
+  // If filter leaves no rows, show all anyway with note
+  const renderRows=visibleRows.length>0?visibleRows:sorted;
+  
+  tb.innerHTML=renderRows.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
     const sigCellsHtml=SIG_NAMES.map(s=>{{
       const rk=sigStatus[s];
-      const cls=rk?'rs-sig-cell rk'+rk:'rs-sig-cell';
-      return '<span class="'+cls+'" title="'+s+(rk?' #'+rk:'')+'">'+(rk||'')+'</span>';
+      const isAnchor=anchorSigs.has(s);
+      let cls='rs-sig-cell';
+      if(rk)cls+=' rk'+rk;
+      if(isAnchor&&rk)cls+=' anchor';
+      return '<td><span class="'+cls+'" title="'+s+(rk?' #'+rk:'')+'">'+(rk||'')+'</span></td>';
     }}).join('');
     const finishCell=runner.f===1?'<span class="rs-finish-1">1st</span>':
                      runner.f===2?'<span class="rs-finish-2">2nd</span>':
@@ -2921,41 +2953,54 @@ function renderRaceDetail(){{
     const valCell=valueGap===null?'—':valueGap>0?
       '<span class="rs-value-pos">+$'+valueGap.toFixed(2)+'</span>':
       '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
-    const rowCls=(runner.f===1?'winner ':'')+(passesAllAnchors&&score>0&&anchorIdx.length>0?'qual':'');
+    let rowCls='';
+    if(runner.f===1)rowCls+='winner ';
+    if(passesAllAnchors&&score>0&&anchorIdx.length>0)rowCls+='qual ';
+    if(showAll&&!(passesAllAnchors&&score>0))rowCls+='dim ';
     const settling=runner.st||'—';
+    const priceCells=raceResulted
+      ? '<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
+        +'<td>'+(runner.sp?'$'+runner.sp.toFixed(2):'—')+'</td>'
+        +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
+        +'<td>'+valCell+'</td>'
+      : '<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
+        +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
+        +'<td>'+valCell+'</td>';
     return '<tr class="'+rowCls+'">'
       +'<td><strong>'+(runner.tab||'?')+'</strong></td>'
-      +'<td><strong>'+runner.h+'</strong></td>'
-      +'<td>'+(runner.j||'—')+'</td>'
-      +'<td>'+(runner.tn||'—')+'</td>'
+      +'<td class="lt"><strong>'+runner.h+'</strong></td>'
+      +'<td class="lt">'+(runner.j||'—')+'</td>'
+      +'<td class="lt">'+(runner.tn||'—')+'</td>'
       +'<td>'+(runner.b||'—')+'</td>'
       +'<td>'+settling+'</td>'
       +'<td>'+(runner.a8!==null&&runner.a8!==undefined?runner.a8.toFixed(1):'—')+'</td>'
-      +'<td>'+sigCellsHtml+'</td>'
+      +sigCellsHtml
       +'<td><strong>'+score+'</strong></td>'
       +'<td>'+anchorsPassed+'/'+anchorIdx.length+'</td>'
-      +'<td>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+'</td>'
-      +'<td>'+(runner.sp?'$'+runner.sp.toFixed(2):'—')+'</td>'
-      +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
-      +'<td>'+valCell+'</td>'
-      +'<td>'+finishCell+'</td>'
+      +priceCells
+      +(raceResulted?'<td>'+finishCell+'</td>':'')
       +'</tr>';
   }}).join('');
-  document.getElementById('rs-sig-headers').innerHTML=sigHeaderHtml;
   
-  // Mobile cards
+  // Mobile cards (always show only qualifying unless showAll)
   const mobCards=document.getElementById('race-runners-cards');
-  mobCards.innerHTML=sorted.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
-    const sigCellsHtml=SIG_NAMES.map(s=>{{
+  mobCards.innerHTML=renderRows.map(({{ri,runner,score,sigStatus,anchorsPassed,passesAllAnchors,valueGap}})=>{{
+    const sigCellsHtml=SIG_NAMES.map((s,i)=>{{
       const rk=sigStatus[s];
-      const cls=rk?'rs-sig-cell rk'+rk:'rs-sig-cell';
+      const isAnchor=anchorSigs.has(s);
+      let cls='rs-sig-cell';
+      if(rk)cls+=' rk'+rk;
+      if(isAnchor&&rk)cls+=' anchor';
       return '<span class="'+cls+'" title="'+s+'">'+(rk||'')+'</span>';
-    }}).join('');
+    }}).join(' ');
     const finishCell=runner.f?(runner.f===1?'<span class="rs-finish-1">WON</span>':runner.f+'th'):'';
     const valCell=valueGap===null?'':valueGap>0?
       '<span class="rs-value-pos">+$'+valueGap.toFixed(2)+'</span>':
       '<span class="rs-value-neg">$'+valueGap.toFixed(2)+'</span>';
-    const cardCls=(runner.f===1?'winner ':'')+(passesAllAnchors&&score>0&&anchorIdx.length>0?'qual':'');
+    let cardCls='';
+    if(runner.f===1)cardCls+='winner ';
+    if(passesAllAnchors&&score>0&&anchorIdx.length>0)cardCls+='qual ';
+    if(showAll&&!(passesAllAnchors&&score>0))cardCls+='dim ';
     return '<div class="r-card '+cardCls+'">'
       +'<div class="r-card-head">'
         +'<div><span class="r-card-tab">'+(runner.tab||'?')+'</span><span class="r-card-name">'+runner.h+'</span></div>'
@@ -2969,13 +3014,12 @@ function renderRaceDetail(){{
       +'</div>'
       +'<div class="r-card-sigs">'+sigCellsHtml+'</div>'
       +'<div class="r-card-bottom">'
-        +'<span class="r-card-score">Score: '+score+' · Anchors: '+anchorsPassed+'/'+anchorIdx.length+'</span>'
-        +'<span>'+(runner.fx?'$'+runner.fx.toFixed(2):'—')+(valCell?' '+valCell:'')+'</span>'
+        +'<span class="r-card-score">Score: '+score+' · Anc: '+anchorsPassed+'/'+anchorIdx.length+'</span>'
+        +'<span>'+(runner.fx?'$'+runner.fx.toFixed(2):runner.sp?'$'+runner.sp.toFixed(2):'—')+(valCell?' '+valCell:'')+'</span>'
       +'</div>'
       +'</div>';
   }}).join('');
   
-  // Bet suggestions
   buildRaceSuggestions(rows,race);
   buildRaceExotics(rows,race);
 }}
@@ -2984,7 +3028,7 @@ function buildRaceSuggestions(rows,race){{
   const anchors=Array.from(anchorSigs);
   const anchorIdx=anchors.map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
   const qualified=rows.filter(r=>r.passesAllAnchors&&r.score>0&&anchorIdx.length>0)
-                      .sort((a,b)=>b.score-a.score||(a.runner.fx||999)-(b.runner.fx||999));
+                      .sort((a,b)=>b.score-a.score||(a.runner.fx||a.runner.sp||999)-(b.runner.fx||b.runner.sp||999));
   
   let html='';
   if(qualified.length===0){{
@@ -2993,47 +3037,59 @@ function buildRaceSuggestions(rows,race){{
     return;
   }}
   
-  // Primary win bet
   const top=qualified[0];
+  const px=top.runner.fx||top.runner.sp;
   const fixedTargetEl=document.getElementById('f-target');
   const fixedTarget=fixedTargetEl?parseFloat(fixedTargetEl.value)||4:4;
-  const stake=stakeMethod==='flat'?1:stakeMethod==='fixed'&&top.runner.fx?(fixedTarget/(top.runner.fx-1)):1;
+  const stake=stakeMethod==='flat'?1:stakeMethod==='fixed'&&px?(fixedTarget/(px-1)):1;
   const stakeStr=stake?stake.toFixed(2)+'u':'—';
+  
+  // Win bet
   html+='<div class="sugg-item primary">'
     +'<div class="sugg-label">Win Bet</div>'
-    +'<div class="sugg-line"><strong>'+top.runner.h+'</strong> @ '+(top.runner.fx?'$'+top.runner.fx.toFixed(2):'—')
-    +' (score '+top.score+', '+top.anchorsPassed+'/'+anchorIdx.length+' anchors)</div>'
-    +'<div class="sugg-stake">Suggested stake: '+stakeStr+'</div>'
+    +'<div class="sugg-line"><strong>'+top.runner.h+'</strong> @ '+(px?'$'+px.toFixed(2):'—')
+    +' — score '+top.score+', '+top.anchorsPassed+'/'+anchorIdx.length+' anchors</div>'
+    +'<div class="sugg-stake">Suggested stake: '+stakeStr+(stakeMethod==='fixed'?' (target return '+fixedTarget+'u)':'')+'</div>'
     +'</div>';
   
-  // Value pick (highest positive value gap among qualifiers, OR among all if scoring is tight)
-  const valueCands=rows.filter(r=>r.valueGap!==null&&r.valueGap>0&&r.score>0)
+  // Value pick — highest positive value gap among qualifiers, OR among scoring runners if no qualifier value
+  const valueCands=qualified.filter(r=>r.valueGap!==null&&r.valueGap>0)
                        .sort((a,b)=>b.valueGap-a.valueGap);
   if(valueCands.length>0&&valueCands[0].runner.h!==top.runner.h){{
     const v=valueCands[0];
+    const vPx=v.runner.fx||v.runner.sp;
     html+='<div class="sugg-item value">'
       +'<div class="sugg-label">Value Pick</div>'
-      +'<div class="sugg-line"><strong>'+v.runner.h+'</strong> @ '+(v.runner.fx?'$'+v.runner.fx.toFixed(2):'—')
-      +' — TR rates at $'+v.runner.trp.toFixed(2)+' (gap +$'+v.valueGap.toFixed(2)+')</div>'
-      +'<div class="sugg-stake">Market rates this horse worse than TopRate does. Score: '+v.score+'</div>'
+      +'<div class="sugg-line"><strong>'+v.runner.h+'</strong> @ '+(vPx?'$'+vPx.toFixed(2):'—')
+      +' — TopRate rates at $'+v.runner.trp.toFixed(2)+' (gap +$'+v.valueGap.toFixed(2)+')</div>'
+      +'<div class="sugg-stake">Market longer than TopRate rating. Score: '+v.score+'</div>'
+      +'</div>';
+  }}else if(top.valueGap!==null&&top.valueGap>0){{
+    // Top pick is also the value pick
+    html+='<div class="sugg-item value">'
+      +'<div class="sugg-label">Value Note</div>'
+      +'<div class="sugg-line">Win pick <strong>'+top.runner.h+'</strong> is also a value play — TopRate rates at $'+top.runner.trp.toFixed(2)+' (gap +$'+top.valueGap.toFixed(2)+')</div>'
       +'</div>';
   }}
   
-  // Place bet — top scorer if SP > $4 (place premium worth taking)
-  if(top.runner.fx&&top.runner.fx>=4){{
+  // Place bet — only when win price >= $4 AND from a qualifier
+  if(px&&px>=4){{
     html+='<div class="sugg-item place">'
       +'<div class="sugg-label">Place Coverage</div>'
-      +'<div class="sugg-line">Consider <strong>'+top.runner.h+'</strong> place at $4+ win price — place dividend offers risk-adjusted return</div>'
+      +'<div class="sugg-line">Consider <strong>'+top.runner.h+'</strong> place — win price $'+px.toFixed(2)+' implies place dividend offers risk-adjusted return</div>'
       +'</div>';
   }}
   
-  // Multi-qualifier note
+  // Other qualifiers — for dutching / exotic context
   if(qualified.length>1){{
-    const others=qualified.slice(1,4).map(q=>q.runner.h+' ($'+ (q.runner.fx?q.runner.fx.toFixed(2):'?')+')').join(', ');
+    const others=qualified.slice(1,4).map(q=>{{
+      const qpx=q.runner.fx||q.runner.sp;
+      return q.runner.h+(qpx?' ($'+qpx.toFixed(2)+')':'');
+    }}).join(', ');
     html+='<div class="sugg-item">'
-      +'<div class="sugg-label">Other Qualifiers</div>'
-      +'<div class="sugg-line">'+(qualified.length-1)+' other runner'+(qualified.length>2?'s':'')+' pass anchor filter: '+others+'</div>'
-      +'<div class="sugg-stake">Consider dutching if 2-3 horses qualify with similar scores</div>'
+      +'<div class="sugg-label">Other Qualifiers ('+(qualified.length-1)+')</div>'
+      +'<div class="sugg-line">'+others+'</div>'
+      +'<div class="sugg-stake">Use for exotic combinations or dutching when prices are similar</div>'
       +'</div>';
   }}
   
@@ -3041,8 +3097,6 @@ function buildRaceSuggestions(rows,race){{
 }}
 
 function harvilleDividends(s1,s2,s3,s4){{
-  // Harville model — estimates exotic dividends from SP of finishers/selections
-  // Inputs are decimal odds; null/undefined for missing
   if(!s1||!s2||s1<=1||s2<=1)return null;
   const p1=1/s1,p2=1/s2;
   if(1-p1<=0||1-p2<=0)return null;
@@ -3069,7 +3123,7 @@ function harvilleDividends(s1,s2,s3,s4){{
 }}
 
 function buildRaceExotics(rows,race){{
-  // Sort by score then by SP — use SP for tie-breaking (favourite first when scores tied)
+  // Sort by score then by SP — favourite first when scores tied
   const sortedByScore=rows.slice().sort((a,b)=>b.score-a.score||(a.runner.fx||a.runner.sp||999)-(b.runner.fx||b.runner.sp||999));
   const top4=sortedByScore.slice(0,4);
   const anchorIdx=Array.from(anchorSigs).map(s=>SIG_NAMES.indexOf(s)).filter(i=>i>=0);
@@ -3079,7 +3133,6 @@ function buildRaceExotics(rows,race){{
     return;
   }}
   
-  // Get prices for top selections (use fixed price if available, else SP)
   const px=top4.map(r=>r.runner.fx||r.runner.sp);
   const div=harvilleDividends(px[0],px[1],px[2],px[3]);
   if(!div){{
@@ -3087,46 +3140,39 @@ function buildRaceExotics(rows,race){{
     return;
   }}
   
-  // Determine if quinella/exacta strategy applies (both top-2 horses pass anchor filter)
+  // Strategy applies if both top-2 horses pass anchor filter
   const top2PassAnchors=top4.length>=2&&top4[0].passesAllAnchors&&top4[1].passesAllAnchors&&anchorIdx.length>0;
-  const recommended=top2PassAnchors;
   
   const fs=race.fs;
   const items=[];
   
   if(top4.length>=2){{
-    // Quinella — recommended if top-2 both pass anchors
     items.push({{
       name:'Quinella',
       horses:top4[0].runner.h+' / '+top4[1].runner.h,
       cost:1,
       div:div.quinella,
-      recommended:recommended,
-      note:recommended?'Both top-2 pass anchor filter — recommended':'Estimate only'
+      recommended:top2PassAnchors,
+      tag:top2PassAnchors?'Recommended':null
     }});
-    
-    // Exacta straight — directional bet, conservative
     items.push({{
       name:'Exacta (straight)',
       horses:top4[0].runner.h+' → '+top4[1].runner.h,
       cost:1,
       div:div.exacta,
       recommended:false,
-      note:'Estimate only'
+      tag:null
     }});
-    
-    // Exacta box — recommended if top-2 pass anchors
     items.push({{
       name:'Exacta (boxed)',
       horses:top4[0].runner.h+' / '+top4[1].runner.h,
       cost:2,
       div:div.exacta,
-      recommended:recommended,
-      note:recommended?'Both top-2 pass anchor filter — recommended':'Estimate only'
+      recommended:top2PassAnchors,
+      tag:top2PassAnchors?'Recommended':null
     }});
   }}
   
-  // Trifecta — never recommended (backtest shows -7% to -40%)
   if(top4.length>=3){{
     items.push({{
       name:'Trifecta Box',
@@ -3134,11 +3180,10 @@ function buildRaceExotics(rows,race){{
       cost:6,
       div:div.trifecta,
       recommended:false,
-      note:'Backtest unprofitable — display only'
+      tag:null
     }});
   }}
   
-  // First Four — never recommended (backtest shows -55%)
   if(top4.length>=4&&fs>=8){{
     items.push({{
       name:'First Four Box',
@@ -3146,25 +3191,24 @@ function buildRaceExotics(rows,race){{
       cost:24,
       div:div.first4,
       recommended:false,
-      note:'Backtest unprofitable — display only'
+      tag:null
     }});
   }}
   
   let html='<div class="exotic-grid">';
   items.forEach(it=>{{
     const divStr=it.div?'$'+it.div.toFixed(2):'—';
-    // Edge calc: expected value if hit-rate at random for box = 1/n!*combos
-    // Simpler: just compare estimated dividend to cost
     const ev=it.div?(it.div-it.cost):null;
     const evCls=ev===null?'':ev>0?'rs-value-pos':'rs-value-neg';
     const evStr=ev===null?'':(ev>0?'+$':'$')+ev.toFixed(2);
     const recCls=it.recommended?' rec':'';
+    const tag=it.tag?'<span class="rec-badge">★ '+it.tag+'</span>':'';
     html+='<div class="exotic-item'+recCls+'">'
-      +'<div class="exotic-name">'+it.name+(it.recommended?' <span class="rec-badge">★ REC</span>':'')+'</div>'
+      +'<div class="exotic-name">'+it.name+' '+tag+'</div>'
       +'<div class="exotic-horses">'+it.horses+'</div>'
       +'<div class="exotic-div">Est. dividend: <strong>'+divStr+'</strong> '
       +(ev!==null?'<span class="'+evCls+'">(EV: '+evStr+')</span>':'')+'</div>'
-      +'<div class="exotic-cost">Cost: '+it.cost+'u — '+it.note+'</div>'
+      +'<div class="exotic-cost">Cost: '+it.cost+'u</div>'
       +'</div>';
   }});
   html+='</div>';
