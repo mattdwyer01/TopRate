@@ -1098,11 +1098,33 @@ def rebuild_html(runners_df):
 body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size:13px;}}
 .shell{{display:flex;flex-direction:column;min-height:100vh;}}
 .sidebar{{display:none;}}
-.shell.show-settings .sidebar{{display:flex;flex-direction:column;background:#0f172a;color:#fff;padding:20px;border-radius:12px;margin:0 0 20px;max-width:900px;width:100%;align-self:center;}}
-.shell.show-settings .main-tabs,.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
-.shell.show-settings .main{{display:block;padding:20px;}}
+.shell.show-settings .sidebar{{display:flex;flex-direction:column;background:#fff;color:#374151;padding:0;border:none;border-radius:0;margin:0 auto;max-width:900px;width:100%;align-self:center;}}
+.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
+.shell.show-settings .main{{display:block;}}
+.shell.show-settings .sidebar .logo,.shell.show-settings .sidebar .logo-sub{{display:none;}}
+.shell.show-settings .sidebar .fsec{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:18px 20px;margin-bottom:14px;}}
+.shell.show-settings .sidebar .ftitle{{color:#9ca3af;font-size:9px;letter-spacing:.1em;font-weight:600;margin-bottom:14px;border-bottom:1px solid #e8eaf0;padding-bottom:10px;}}
+.shell.show-settings .sidebar .tlbl{{color:#374151;}}
+.shell.show-settings .sidebar .slbl{{color:#374151;}}
+.shell.show-settings .sidebar .sval{{color:#10b981;font-weight:600;}}
+.shell.show-settings .sidebar .srow input[type=range]{{background:#e8eaf0;}}
+.shell.show-settings .sidebar input[type=date]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar select{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar label{{color:#374151;}}
+.shell.show-settings .sidebar .qbtn{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar .qbtn:hover{{background:#f4f6f9;}}
+.shell.show-settings .sidebar .reset-btn{{background:#fff;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar .run-info{{color:#6b7280;}}
+.shell.show-settings .sidebar .bt-link{{color:#0f1729;}}
+.shell.show-settings .sidebar .stake-tabs button{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar .stake-tabs button.active{{background:#0f1729;color:#fff;}}
+.shell.show-settings .sidebar .sig-cb{{background:#fff;color:#374151;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;}}
+.shell.show-settings .sidebar .sig-cb.anchored{{background:#fef3c7;border-color:#f59e0b;}}
+.shell.show-settings .sidebar .sig-cb label{{color:#374151;}}
+.shell.show-settings .sidebar .preset-btns button{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar .preset-btns button:hover{{background:#f4f6f9;}}
 .shell.show-settings .settings-header{{display:flex !important;}}
-.settings-header{{display:none;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin-bottom:16px;max-width:900px;width:100%;align-self:center;}}
+.settings-header{{display:none;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin:0 auto 16px;max-width:900px;width:100%;}}
 .settings-header h2{{font-size:16px;font-weight:700;color:#0f1729;margin:0;}}
 .settings-actions{{display:flex;gap:10px;}}
 .settings-apply-btn{{background:#10b981;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;}}
