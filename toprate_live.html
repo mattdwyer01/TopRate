@@ -476,7 +476,7 @@ tr.no-bet-row td{opacity:0.4;}
   <button class="reset-btn" style="color:#10b981;border-color:rgba(249,115,22,.4);" id="fetchdate-btn" onclick="runScriptDate()">&#128197; Fetch date</button>
   <div id="run-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:2px;text-align:center;word-break:break-all;line-height:1.4;"></div>
   <div id="sync-status" style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px;text-align:center;word-break:break-all;line-height:1.4;"></div>
-  <div class="run-info">Updated 01 May 2026 07:17<br>730 races &middot; 482 resulted &middot; 248 pending</div>
+  <div class="run-info">Updated 01 May 2026 07:21<br>730 races &middot; 482 resulted &middot; 248 pending</div>
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
@@ -1426,7 +1426,7 @@ document.getElementById('f-date-to').addEventListener('change',update);
 function resetAll(){
   document.getElementById('f-tab').checked=true;
   document.getElementById('f-prize').value=25000;document.getElementById('v-prize').textContent='$25k';
-  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=false;
+  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=true;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
   document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
@@ -1447,7 +1447,7 @@ document.getElementById('v-votes').textContent='3';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
-document.getElementById('f-trend').checked=false;
+document.getElementById('f-trend').checked=true;
 document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
