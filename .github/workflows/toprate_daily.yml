@@ -1,52 +1,62 @@
 name: TopRate Daily
+
 on:
-  schedule:
-    - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
-      date:
-        description: 'Date to re-fetch (YYYY-MM-DD). Leave blank for normal run.'
+      target_date:
+        description: 'Target date (YYYY-MM-DD), leave blank for today'
         required: false
         default: ''
+  schedule:
+    # AEST = UTC+10. Times in AEST converted to UTC for cron.
+    # 9:00 AEST  = 23:00 UTC (previous day)
+    - cron: '0 23 * * *'
+    # 12:00 AEST = 02:00 UTC
+    - cron: '0 2 * * *'
+    # Every 30 mins from 12:30 AEST to 21:00 AEST (02:30 UTC to 11:00 UTC)
+    - cron: '30 2-10 * * *'
+    - cron: '0 3-11 * * *'
+
 jobs:
-  run:
+  run-toprate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
-        run: pip install requests pandas openpyxl
-      - name: Download existing runners CSV
-        uses: actions/download-artifact@v4
-        with:
-          name: runners-db
-          path: .
-        continue-on-error: true
-      - name: Run TopRate daily script
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests numpy pytz
+
+      - name: Run TopRate script
         env:
-          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_USERNAME: ${{ secrets.TOPRATE_USERNAME }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
         run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            python toprate_daily.py --date ${{ github.event.inputs.date }}
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            python toprate_daily.py --date "${{ github.event.inputs.target_date }}"
           else
             python toprate_daily.py
           fi
-      - name: Upload runners CSV as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: runners-db
-          path: toprate_runners.csv
-          retention-days: 90
-          overwrite: true
-      - name: Commit and push updated HTML
+
+      - name: Commit and push outputs
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add toprate_live.html toprate_runners.csv
-          git diff --staged --quiet || git commit -m "TopRate update $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git push
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add toprate_runners.csv toprate_selections.csv toprate_price_history.csv toprate_daily.html || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto: update TopRate data $(date -u +'%Y-%m-%dT%H:%MZ')"
+            git push
+          fi
