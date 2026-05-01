@@ -1702,13 +1702,14 @@ tr.no-bet-row td{{opacity:0.4;}}
 </div>
 <div class="main">
   <div class="main-tabs">
-    <button class="main-tab active" id="tab-bets" onclick="switchTab('bets')">Bets</button>
+    <button class="main-tab active" id="tab-today" onclick="switchTab('today')">Today</button>
     <button class="main-tab" id="tab-race" onclick="switchTab('race')">Race</button>
+    <button class="main-tab" id="tab-bets" onclick="switchTab('bets')">Bets</button>
     <button class="main-tab" id="tab-strategy" onclick="switchTab('strategy')">Strategy</button>
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
   </div>
-  <div class="tab-panel active" id="panel-bets">
+  <div class="tab-panel active" id="panel-bets"></div>
   <div class="kpi-strip">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
     <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
@@ -2769,11 +2770,20 @@ syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){{
-  ['bets','race','strategy','signals','backtest'].forEach(t=>{{
-    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
-    document.getElementById('panel-'+t).classList.toggle('active',t===tab);
+  // Today and Bets share panel-bets; just sync tab styles and date filter
+  const allTabs=['today','race','bets','strategy','signals','backtest'];
+  allTabs.forEach(t=>{{
+    const tabBtn=document.getElementById('tab-'+t);
+    if(tabBtn)tabBtn.classList.toggle('active',t===tab);
   }});
-  // Hide sidebar on backtest and strategy, show on all other tabs
+  // Map Today and Bets both to panel-bets
+  const panelMap={{today:'bets',bets:'bets',race:'race',strategy:'strategy',signals:'signals',backtest:'backtest'}};
+  const targetPanel=panelMap[tab]||tab;
+  ['bets','race','strategy','signals','backtest'].forEach(p=>{{
+    const panel=document.getElementById('panel-'+p);
+    if(panel)panel.classList.toggle('active',p===targetPanel);
+  }});
+  // Sidebar visibility
   const sidebar=document.querySelector('.sidebar');
   const shell=document.querySelector('.shell');
   if(tab==='backtest'||tab==='strategy'){{
@@ -2783,6 +2793,13 @@ function switchTab(tab){{
     sidebar.style.display='';
     shell.style.gridTemplateColumns='260px 1fr';
   }}
+  // Date filter behaviour
+  if(tab==='today'){{
+    setDateRange('today');
+  }}else if(tab==='bets'){{
+    setDateRange('all');
+  }}
+  // Page initialisers
   if(tab==='race')buildRacePage();
   if(tab==='strategy')buildStrategy();
   if(tab==='signals')buildSignals();
@@ -3319,7 +3336,11 @@ function buildStrategy(){{
     '<div class="strat-fs-row"><div class="strat-fs-label">Signals:</div><div class="strat-fs-val">'+sigSummary+'</div></div>'
     +'<div class="strat-fs-row"><div class="strat-fs-label">Filters:</div><div class="strat-fs-val">'+filterChips.map(c=>'<span class="strat-fs-chip">'+c+'</span>').join('')+'</div></div>';
   
-  const {{resulted}}=buildBets(f);
+  // Bypass sidebar date filter — Strategy has its own period selector
+  const stratF={{...f,dateFrom:'',dateTo:''}};
+  // Also include all days of week for strategy view
+  stratF.dows=new Set([0,1,2,3,4,5,6]);
+  const {{resulted}}=buildBets(stratF);
   // Filter to actual bets (not skipped)
   let bets=resulted.filter(b=>b.isBet!==false&&b.sp);
   
