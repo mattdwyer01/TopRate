@@ -1292,6 +1292,39 @@ tr.no-bet-row td{{opacity:0.4;}}
 .main-tab.active{{color:#0f1729;border-bottom-color:#10b981;}}
 .main-tab:hover:not(.active){{color:#374151;}}
 .tab-panel{{display:none;}}.tab-panel.active{{display:block;}}
+/* === STRATEGY PAGE === */
+.strat-page{{padding:0;}}
+.strat-header{{margin-bottom:14px;}}
+.strat-title{{font-size:18px;font-weight:700;color:#0f1729;}}
+.strat-subtitle{{font-size:11px;color:#6b7280;margin-top:2px;}}
+.strat-period-tabs{{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}}
+.strat-period-btn{{padding:8px 14px;font-size:11px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;color:#6b7280;font-weight:500;}}
+.strat-period-btn.active{{background:#0f1729;color:#fff;border-color:#0f1729;}}
+.strat-kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}}
+.strat-kpi{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:14px 12px;}}
+.strat-kpi .kv{{font-size:22px;font-weight:700;color:#0f1729;line-height:1.1;}}
+.strat-kpi .kv.pos{{color:#10b981;}}
+.strat-kpi .kv.neg{{color:#dc2626;}}
+.strat-kpi .kl{{font-size:9px;letter-spacing:.05em;color:#6b7280;text-transform:uppercase;font-weight:600;margin-top:4px;}}
+.strat-chart-card{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:16px;margin-bottom:18px;}}
+.strat-card-title{{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px;}}
+.strat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px;}}
+.strat-card{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:16px;}}
+.strat-tbl{{display:flex;flex-direction:column;gap:0;}}
+.strat-tbl-h,.strat-tbl-r{{display:grid;grid-template-columns:2fr 0.7fr 0.8fr 0.8fr 1fr;gap:6px;font-size:11px;padding:8px 0;border-bottom:1px solid #f1f3f8;align-items:center;}}
+.strat-tbl-h{{font-weight:600;color:#9ca3af;font-size:9px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid #e8eaf0;}}
+.strat-tbl-h>span,.strat-tbl-r>span{{text-align:right;}}
+.strat-tbl-h>span:first-child,.strat-tbl-r>span:first-child{{text-align:left;}}
+.strat-tbl-r .pos{{color:#10b981;font-weight:600;}}
+.strat-tbl-r .neg{{color:#dc2626;font-weight:600;}}
+.strat-tbl-k{{font-weight:500;color:#374151;}}
+.strat-empty{{padding:20px;text-align:center;color:#9ca3af;font-size:11px;}}
+@media(max-width:768px){{
+  .strat-kpis{{grid-template-columns:repeat(2,1fr);}}
+  .strat-grid{{grid-template-columns:1fr;}}
+  .strat-kpi .kv{{font-size:18px;}}
+}}
+
 /* === RACE PAGE === */
 .race-page{{padding:0;}}
 .race-selector{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:18px 20px;margin-bottom:18px;}}
@@ -1664,7 +1697,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="main-tabs">
     <button class="main-tab active" id="tab-bets" onclick="switchTab('bets')">Bets</button>
     <button class="main-tab" id="tab-race" onclick="switchTab('race')">Race</button>
-    <button class="main-tab" id="tab-quaddie" onclick="switchTab('quaddie')">Quaddie</button>
+    <button class="main-tab" id="tab-strategy" onclick="switchTab('strategy')">Strategy</button>
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
   </div>
@@ -1745,8 +1778,42 @@ tr.no-bet-row td{{opacity:0.4;}}
       </div>
     </div>
   </div>
-  <div class="tab-panel" id="panel-quaddie">
-    <div id="q-content"><div class="q-no-meeting">Loading quaddie data...</div></div>
+  <div class="tab-panel" id="panel-strategy">
+    <div class="strat-page">
+      <div class="strat-header">
+        <div class="strat-title">Strategy Performance</div>
+        <div class="strat-subtitle">Live tracking of current filter settings against resulted races</div>
+      </div>
+      <div class="strat-period-tabs">
+        <button class="strat-period-btn active" data-period="7">Last 7 days</button>
+        <button class="strat-period-btn" data-period="30">Last 30 days</button>
+        <button class="strat-period-btn" data-period="90">Last 90 days</button>
+        <button class="strat-period-btn" data-period="all">All-time</button>
+      </div>
+      <div class="strat-kpis" id="strat-kpis"></div>
+      <div class="strat-chart-card">
+        <div class="strat-card-title">Cumulative P&L</div>
+        <canvas id="strat-chart" height="180"></canvas>
+      </div>
+      <div class="strat-grid">
+        <div class="strat-card">
+          <div class="strat-card-title">By Venue</div>
+          <div id="strat-venue"></div>
+        </div>
+        <div class="strat-card">
+          <div class="strat-card-title">By State</div>
+          <div id="strat-state"></div>
+        </div>
+        <div class="strat-card">
+          <div class="strat-card-title">By SP Bracket</div>
+          <div id="strat-sp"></div>
+        </div>
+        <div class="strat-card">
+          <div class="strat-card-title">By Day of Week</div>
+          <div id="strat-dow"></div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="tab-panel" id="panel-signals">
     <div id="sig-content"><div style="padding:40px;text-align:center;color:#9ca3af;">Loading signal analysis...</div></div>
@@ -2643,7 +2710,7 @@ function update(){{
   // Rebuild active tab if signals or quaddie
   const activeTab=document.querySelector('.main-tab.active')?.id?.replace('tab-','');
   if(activeTab==='signals')buildSignals();
-  if(activeTab==='quaddie')buildQuaddie();
+  if(activeTab==='strategy')buildStrategy();
 }}
 // re-render mobile cards on resize
 window.addEventListener('resize',update);
@@ -2694,7 +2761,7 @@ syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab){{
-  ['bets','race','quaddie','signals','backtest'].forEach(t=>{{
+  ['bets','race','strategy','signals','backtest'].forEach(t=>{{
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('panel-'+t).classList.toggle('active',t===tab);
   }});
@@ -2709,7 +2776,7 @@ function switchTab(tab){{
     shell.style.gridTemplateColumns='260px 1fr';
   }}
   if(tab==='race')buildRacePage();
-  if(tab==='quaddie')buildQuaddie();
+  if(tab==='strategy')buildStrategy();
   if(tab==='signals')buildSignals();
   if(tab==='backtest')initBacktest();
 }}
@@ -3200,6 +3267,246 @@ function buildRaceExotics(rows,race){{
 
 
 
+
+// === STRATEGY PAGE ===
+let stratPeriod=7;
+
+function buildStrategy(){{
+  // Wire period buttons once
+  document.querySelectorAll('.strat-period-btn').forEach(btn=>{{
+    if(!btn.dataset.bound){{
+      btn.addEventListener('click',()=>{{
+        stratPeriod=btn.dataset.period==='all'?'all':parseInt(btn.dataset.period);
+        document.querySelectorAll('.strat-period-btn').forEach(b=>b.classList.toggle('active',b.dataset.period===btn.dataset.period));
+        buildStrategy();
+      }});
+      btn.dataset.bound='1';
+    }}
+  }});
+  
+  const f=getF();
+  const {{resulted}}=buildBets(f);
+  // Filter to actual bets (not skipped)
+  let bets=resulted.filter(b=>b.isBet!==false&&b.sp);
+  
+  // Apply period filter
+  if(stratPeriod!=='all'){{
+    const today=new Date();
+    const cutoff=new Date(today.getTime()-stratPeriod*86400000);
+    const cutoffStr=cutoff.toISOString().slice(0,10);
+    bets=bets.filter(b=>b.date>=cutoffStr);
+  }}
+  
+  if(!bets.length){{
+    document.getElementById('strat-kpis').innerHTML='<div class="strat-empty">No resulted bets in selected period.</div>';
+    document.getElementById('strat-venue').innerHTML='';
+    document.getElementById('strat-state').innerHTML='';
+    document.getElementById('strat-sp').innerHTML='';
+    document.getElementById('strat-dow').innerHTML='';
+    const ctx=document.getElementById('strat-chart').getContext('2d');
+    ctx.clearRect(0,0,document.getElementById('strat-chart').width,document.getElementById('strat-chart').height);
+    return;
+  }}
+  
+  // Compute P&L per bet using fixed-return staking by default
+  const fixedTargetEl=document.getElementById('f-target');
+  const fixedTarget=fixedTargetEl?parseFloat(fixedTargetEl.value)||4:4;
+  
+  const enriched=bets.map(b=>{{
+    const px=b.sp;
+    let stake=1, profit=0;
+    if(stakeMethod==='fixed'&&px&&px>1){{
+      stake=fixedTarget/(px-1);
+      profit=b.won?fixedTarget:-stake;
+    }}else{{
+      stake=1;
+      profit=b.won?(px-1):-1;
+    }}
+    return {{...b,stake,profit,price:px}};
+  }});
+  
+  // Sort by date for chart
+  enriched.sort((a,b)=>{{
+    if(a.date!==b.date)return a.date.localeCompare(b.date);
+    return (a.raceObj&&a.raceObj.r||0)-(b.raceObj&&b.raceObj.r||0);
+  }});
+  
+  // KPIs
+  const totalBets=enriched.length;
+  const wins=enriched.filter(b=>b.won).length;
+  const totalStake=enriched.reduce((s,b)=>s+b.stake,0);
+  const totalProfit=enriched.reduce((s,b)=>s+b.profit,0);
+  const roi=totalStake?(totalProfit/totalStake)*100:0;
+  const winPct=(wins/totalBets)*100;
+  const avgPx=enriched.reduce((s,b)=>s+(b.price||0),0)/totalBets;
+  const longestWinStreak=(()=>{{let max=0,cur=0;enriched.forEach(b=>{{if(b.won){{cur++;max=Math.max(max,cur);}}else cur=0;}});return max;}})();
+  const longestLossStreak=(()=>{{let max=0,cur=0;enriched.forEach(b=>{{if(!b.won){{cur++;max=Math.max(max,cur);}}else cur=0;}});return max;}})();
+  
+  const kpiCls=v=>v>=0?'pos':'neg';
+  document.getElementById('strat-kpis').innerHTML=
+     '<div class="strat-kpi"><div class="kv '+kpiCls(totalProfit)+'">'+(totalProfit>=0?'+':'')+totalProfit.toFixed(2)+'u</div><div class="kl">Total Profit</div></div>'
+    +'<div class="strat-kpi"><div class="kv '+kpiCls(roi)+'">'+(roi>=0?'+':'')+roi.toFixed(1)+'%</div><div class="kl">ROI</div></div>'
+    +'<div class="strat-kpi"><div class="kv">'+winPct.toFixed(1)+'%</div><div class="kl">Win Rate ('+wins+'/'+totalBets+')</div></div>'
+    +'<div class="strat-kpi"><div class="kv">$'+avgPx.toFixed(2)+'</div><div class="kl">Avg Price</div></div>'
+    +'<div class="strat-kpi"><div class="kv">'+totalBets+'</div><div class="kl">Total Bets</div></div>'
+    +'<div class="strat-kpi"><div class="kv">'+totalStake.toFixed(1)+'u</div><div class="kl">Total Staked</div></div>'
+    +'<div class="strat-kpi"><div class="kv pos">'+longestWinStreak+'</div><div class="kl">Longest Win Streak</div></div>'
+    +'<div class="strat-kpi"><div class="kv neg">'+longestLossStreak+'</div><div class="kl">Longest Loss Streak</div></div>';
+  
+  // Cumulative P&L chart
+  drawStratChart(enriched);
+  
+  // By Venue
+  const byVenue={{}};
+  enriched.forEach(b=>{{
+    const k=b.venue||'?';
+    if(!byVenue[k])byVenue[k]={{n:0,w:0,stake:0,profit:0}};
+    byVenue[k].n++;
+    if(b.won)byVenue[k].w++;
+    byVenue[k].stake+=b.stake;
+    byVenue[k].profit+=b.profit;
+  }});
+  document.getElementById('strat-venue').innerHTML=renderBreakdown(byVenue);
+  
+  // By State (extract from venue suffix if possible — Aussie convention is venue name only, but we can try parse)
+  // For now group by suffix in parens or use full venue name
+  const byState=stateBreakdown(enriched);
+  document.getElementById('strat-state').innerHTML=renderBreakdown(byState);
+  
+  // By SP bracket
+  const bySp={{'$1-$2':{{n:0,w:0,stake:0,profit:0}},'$2-$5':{{n:0,w:0,stake:0,profit:0}},'$5-$10':{{n:0,w:0,stake:0,profit:0}},'$10-$20':{{n:0,w:0,stake:0,profit:0}},'$20+':{{n:0,w:0,stake:0,profit:0}}}};
+  enriched.forEach(b=>{{
+    const p=b.price;
+    let k='$20+';
+    if(p<2)k='$1-$2';else if(p<5)k='$2-$5';else if(p<10)k='$5-$10';else if(p<20)k='$10-$20';
+    bySp[k].n++;if(b.won)bySp[k].w++;bySp[k].stake+=b.stake;bySp[k].profit+=b.profit;
+  }});
+  document.getElementById('strat-sp').innerHTML=renderBreakdown(bySp,false);
+  
+  // By Day of Week
+  const byDow={{'Mon':{{n:0,w:0,stake:0,profit:0}},'Tue':{{n:0,w:0,stake:0,profit:0}},'Wed':{{n:0,w:0,stake:0,profit:0}},'Thu':{{n:0,w:0,stake:0,profit:0}},'Fri':{{n:0,w:0,stake:0,profit:0}},'Sat':{{n:0,w:0,stake:0,profit:0}},'Sun':{{n:0,w:0,stake:0,profit:0}}}};
+  const dowNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  enriched.forEach(b=>{{
+    const d=new Date(b.date);
+    const k=dowNames[d.getDay()];
+    if(byDow[k]){{byDow[k].n++;if(b.won)byDow[k].w++;byDow[k].stake+=b.stake;byDow[k].profit+=b.profit;}}
+  }});
+  document.getElementById('strat-dow').innerHTML=renderBreakdown(byDow,false);
+}}
+
+function renderBreakdown(obj,sortByProfit){{
+  if(sortByProfit===undefined)sortByProfit=true;
+  const entries=Object.entries(obj).filter(([k,v])=>v.n>0);
+  if(sortByProfit)entries.sort((a,b)=>b[1].profit-a[1].profit);
+  if(!entries.length)return '<div class="strat-empty">No data</div>';
+  let html='<div class="strat-tbl">';
+  html+='<div class="strat-tbl-h"><span>Group</span><span>N</span><span>Win%</span><span>ROI</span><span>P/L</span></div>';
+  entries.forEach(([k,v])=>{{
+    const roi=v.stake?(v.profit/v.stake)*100:0;
+    const winPct=v.n?(v.w/v.n)*100:0;
+    const profitCls=v.profit>=0?'pos':'neg';
+    html+='<div class="strat-tbl-r"><span class="strat-tbl-k">'+k+'</span><span>'+v.n+'</span><span>'+winPct.toFixed(0)+'%</span><span class="'+profitCls+'">'+(roi>=0?'+':'')+roi.toFixed(0)+'%</span><span class="'+profitCls+'">'+(v.profit>=0?'+':'')+v.profit.toFixed(1)+'u</span></div>';
+  }});
+  html+='</div>';
+  return html;
+}}
+
+function stateBreakdown(bets){{
+  // Map venues to states based on common Australian race venues
+  const VENUE_STATES={{
+    'Flemington':'VIC','Caulfield':'VIC','Moonee Valley':'VIC','Sandown':'VIC','Sandown Lakeside':'VIC','Sandown Hillside':'VIC',
+    'Cranbourne':'VIC','Geelong':'VIC','Bendigo':'VIC','Ballarat':'VIC','Mornington':'VIC','Pakenham':'VIC','Werribee':'VIC',
+    'Seymour':'VIC','Echuca':'VIC','Yarra Valley':'VIC','Kilmore':'VIC','Wangaratta':'VIC','Warrnambool':'VIC','Hamilton':'VIC',
+    'Randwick':'NSW','Rosehill':'NSW','Warwick Farm':'NSW','Canterbury':'NSW','Kembla Grange':'NSW','Hawkesbury':'NSW',
+    'Newcastle':'NSW','Gosford':'NSW','Wyong':'NSW','Scone':'NSW','Tamworth':'NSW','Wagga':'NSW','Goulburn':'NSW','Queanbeyan':'NSW',
+    'Eagle Farm':'QLD','Doomben':'QLD','Sunshine Coast':'QLD','Gold Coast':'QLD','Toowoomba':'QLD','Ipswich':'QLD','Rockhampton':'QLD',
+    'Morphettville':'SA','Murray Bridge':'SA','Gawler':'SA','Strathalbyn':'SA','Balaklava':'SA','Oakbank':'SA',
+    'Belmont':'WA','Ascot':'WA','Pinjarra':'WA','Bunbury':'WA','Northam':'WA','York':'WA','Geraldton':'WA',
+    'Hobart':'TAS','Launceston':'TAS','Devonport':'TAS','Spreyton':'TAS',
+    'Darwin':'NT','Alice Springs':'NT','Fannie Bay':'NT'
+  }};
+  const out={{}};
+  bets.forEach(b=>{{
+    const state=VENUE_STATES[b.venue]||'Other';
+    if(!out[state])out[state]={{n:0,w:0,stake:0,profit:0}};
+    out[state].n++;
+    if(b.won)out[state].w++;
+    out[state].stake+=b.stake;
+    out[state].profit+=b.profit;
+  }});
+  return out;
+}}
+
+function drawStratChart(bets){{
+  const canvas=document.getElementById('strat-chart');
+  if(!canvas)return;
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.parentElement.clientWidth-32;
+  const h=180;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+  
+  if(!bets.length)return;
+  
+  // Compute cumulative profit
+  let cum=0;
+  const points=bets.map(b=>{{cum+=b.profit;return cum;}});
+  const minY=Math.min(0,...points);
+  const maxY=Math.max(0,...points);
+  const padY=(maxY-minY)*0.1||1;
+  const yMin=minY-padY,yMax=maxY+padY;
+  
+  const padL=40,padR=10,padT=10,padB=24;
+  const plotW=w-padL-padR;
+  const plotH=h-padT-padB;
+  
+  // Y axis grid
+  ctx.strokeStyle='#e8eaf0';ctx.lineWidth=1;
+  ctx.fillStyle='#9ca3af';ctx.font='10px sans-serif';ctx.textAlign='right';
+  for(let i=0;i<=4;i++){{
+    const y=padT+plotH*(i/4);
+    const v=yMax-((yMax-yMin)*(i/4));
+    ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();
+    ctx.fillText(v.toFixed(0)+'u',padL-4,y+3);
+  }}
+  
+  // Zero line
+  if(yMin<0&&yMax>0){{
+    const zy=padT+plotH*((yMax-0)/(yMax-yMin));
+    ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(padL,zy);ctx.lineTo(w-padR,zy);ctx.stroke();
+    ctx.setLineDash([]);
+  }}
+  
+  // X axis dates (first, mid, last)
+  ctx.textAlign='center';
+  ctx.fillText(bets[0].date,padL,h-6);
+  ctx.fillText(bets[Math.floor(bets.length/2)].date,padL+plotW/2,h-6);
+  ctx.fillText(bets[bets.length-1].date,padL+plotW,h-6);
+  
+  // Plot line
+  const totalProfit=points[points.length-1];
+  ctx.strokeStyle=totalProfit>=0?'#10b981':'#dc2626';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  points.forEach((p,i)=>{{
+    const x=padL+(plotW*(i/(points.length-1||1)));
+    const y=padT+plotH*((yMax-p)/(yMax-yMin||1));
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }});
+  ctx.stroke();
+  
+  // Fill under line
+  ctx.fillStyle=totalProfit>=0?'rgba(16,185,129,0.1)':'rgba(220,38,38,0.1)';
+  const zeroY=padT+plotH*((yMax-0)/(yMax-yMin||1));
+  ctx.lineTo(padL+plotW,zeroY);
+  ctx.lineTo(padL,zeroY);
+  ctx.closePath();
+  ctx.fill();
+}}
 
 function buildSignals(){{
   const f=getF();
