@@ -53,7 +53,12 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add toprate_runners.csv toprate_selections.csv toprate_price_history.csv toprate_daily.html || true
+          # Add each file individually so one missing file doesn't fail the rest
+          git add toprate_runners.csv 2>/dev/null || true
+          git add toprate_selections.csv 2>/dev/null || true
+          git add toprate_price_history.csv 2>/dev/null || true
+          git add toprate_live.html 2>/dev/null || true
+          git add toprate_daily.html 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
