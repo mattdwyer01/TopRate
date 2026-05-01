@@ -34,7 +34,7 @@ import math
 import json
 import os
 import urllib3
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 from collections import defaultdict, Counter
 from statistics import mean, stdev
@@ -52,6 +52,7 @@ PASSWORD  = os.environ.get("TOPRATE_PASSWORD", "P@ssword1996")
 
 RUNNERS_CSV    = Path(__file__).parent / "toprate_runners.csv"
 SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
+PRICE_HISTORY_CSV = Path(__file__).parent / "toprate_price_history.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 
@@ -355,6 +356,7 @@ def compute_signal_rankings(rdf):
             except: return None
         u_list.append({
             "h": str(row.get("horse", "")),
+            "rid": str(row.get("run_id", "")),
             "j": str(row.get("jockey", "")),
             "tn": str(row.get("trainer", "")) if row.get("trainer") else None,
             "f": safe_int(row.get("finish_position")),
@@ -401,6 +403,50 @@ def save_runners(df):
     # Always save deduplicated
     df = df.drop_duplicates(subset=["run_id"], keep="last")
     df[cols + extras].to_csv(RUNNERS_CSV, index=False)
+
+def snapshot_prices(runners_df):
+    """
+    Append a price snapshot for all pending (unresulted) runners to PRICE_HISTORY_CSV.
+    Each row: run_id, race_id, snapshot_time (UTC ISO), fixed_win_price.
+    Keeps only last 7 days of history to bound file size.
+    """
+    if runners_df is None or runners_df.empty:
+        return
+    # Only snapshot pending runners with a fixed price
+    pending = runners_df[
+        (runners_df.get("resulted") != 1) &
+        (runners_df.get("fixed_win_price").notna()) &
+        (runners_df.get("fixed_win_price") > 1)
+    ].copy()
+    if pending.empty:
+        print("  No pending runners with fixed prices to snapshot")
+        return
+    
+    snapshot_time = datetime.now(timezone.utc).isoformat()
+    snap = pd.DataFrame({
+        "run_id": pending["run_id"].astype(str),
+        "race_id": pending["race_id"].astype(str),
+        "snapshot_time": snapshot_time,
+        "fixed_win_price": pending["fixed_win_price"].astype(float),
+    })
+    
+    # Append to existing history
+    if PRICE_HISTORY_CSV.exists():
+        try:
+            hist = pd.read_csv(PRICE_HISTORY_CSV, dtype={"run_id": str, "race_id": str})
+            hist = pd.concat([hist, snap], ignore_index=True)
+        except Exception as e:
+            print(f"  Warning: could not load price history ({e}); starting fresh")
+            hist = snap
+    else:
+        hist = snap
+    
+    # Cull older than 7 days
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    hist = hist[hist["snapshot_time"] >= cutoff]
+    
+    hist.to_csv(PRICE_HISTORY_CSV, index=False)
+    print(f"  Snapshot saved: {len(snap)} prices (history now {len(hist)} rows)")
 
 def runners_to_selections(runners_df):
     """
@@ -1027,6 +1073,33 @@ def rebuild_html(runners_df):
         print("No selections to render.")
         return
 
+    # Build price history map: run_id -> {o: open, oat, r: recent, rat}
+    price_hist_map = {}
+    if PRICE_HISTORY_CSV.exists():
+        try:
+            ph = pd.read_csv(PRICE_HISTORY_CSV, dtype={"run_id": str, "race_id": str})
+            ph = ph[ph["fixed_win_price"].notna() & (ph["fixed_win_price"] > 0)].copy()
+            ph["snapshot_time"] = pd.to_datetime(ph["snapshot_time"], errors="coerce", utc=True)
+            ph = ph.dropna(subset=["snapshot_time"])
+            # Convert to local date for "today" comparison
+            ph["local_date"] = ph["snapshot_time"].dt.tz_convert("Australia/Melbourne").dt.strftime("%Y-%m-%d")
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            # Only same-day snapshots are meaningful for open/recent drift
+            today_ph = ph[ph["local_date"] == today_str]
+            for run_id, grp in today_ph.groupby("run_id"):
+                grp = grp.sort_values("snapshot_time")
+                first = grp.iloc[0]
+                last = grp.iloc[-1]
+                price_hist_map[run_id] = {
+                    "o":   float(first["fixed_win_price"]),
+                    "oat": first["snapshot_time"].isoformat(),
+                    "r":   float(last["fixed_win_price"]),
+                    "rat": last["snapshot_time"].isoformat(),
+                    "n":   int(len(grp)),
+                }
+        except Exception as e:
+            print(f"  Warning: could not load price history for HTML ({e})")
+    
     def sv(v):
         try:
             f = float(v)
@@ -1067,6 +1140,7 @@ def rebuild_html(runners_df):
         })
 
     data_js  = "const RACES = " + json.dumps(races, separators=(",",":")) + ";"
+    data_js += "\nconst PRICE_HIST = " + json.dumps(price_hist_map, separators=(",",":")) + ";"
 
     # Build BT_RACES from backtest CSV if it exists, else fall back to RACES
     if BT_RUNNERS_CSV.exists():
@@ -1406,6 +1480,11 @@ tr.no-bet-row td{{opacity:0.4;}}
 .rs-sig-cell.anchor.rk1,.rs-sig-cell.anchor.rk2,.rs-sig-cell.anchor.rk3{{box-shadow:0 0 0 2px #f59e0b;}}
 .rs-sig-cell.anchor{{background:#fef3c7;color:#92400e;}}
 .rs-value-pos{{color:#059669;font-weight:600;}}
+.drift-cell{{display:inline-flex;align-items:center;gap:4px;font-size:10px;white-space:nowrap;}}
+.drift-open{{color:#9ca3af;}}
+.drift-firm{{color:#059669;font-weight:600;}}
+.drift-drift{{color:#dc2626;font-weight:600;}}
+.drift-flat{{color:#6b7280;}}
 .rs-value-neg{{color:#dc2626;font-weight:600;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
 .rs-finish-2{{color:#6b7280;font-weight:600;}}
@@ -1776,7 +1855,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="card desk-only" id="pend-card" style="display:none">
     <table><thead><tr>
       <th>Date</th><th>Time</th><th>Venue</th><th>Horse</th><th>Jockey</th>
-      <th>Sigs</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
+      <th>Sigs</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
   <div class="mob-bet-list mob-only" id="pend-mob"></div>
@@ -2184,6 +2263,24 @@ function _getSectionalFilters(){{
 }}function getActiveSettle(){{const s=new Set();document.querySelectorAll('[data-settle]:checked').forEach(cb=>s.add(cb.dataset.settle));return s;}}
 function getActivePace(){{const s=new Set();document.querySelectorAll('[data-pace]:checked').forEach(cb=>s.add(cb.dataset.pace));return s;}}
 function fmtPrize(p){{return p?'$'+(p/1000).toFixed(0)+'k':'—';}}
+function getDrift(runId,currentFx){{
+  // Returns {{open,recent,openDelta,recentDelta,html}} or null if no history
+  const h=PRICE_HIST&&PRICE_HIST[String(runId)];
+  if(!h)return null;
+  const open=h.o,recent=h.r;
+  const cur=currentFx||recent;
+  const openDelta=cur-open;
+  const recentDelta=cur-recent;
+  // Format: open price + arrow + current
+  const arrow=(d)=>d<0?'↓':d>0?'↑':'→';
+  const cls=(d)=>d<0?'drift-firm':d>0?'drift-drift':'drift-flat';
+  // Compact display: "$4.50 → $3.80" with colour for direction
+  const html='<span class="drift-cell">'
+    +'<span class="drift-open">$'+open.toFixed(2)+'</span>'
+    +'<span class="'+cls(openDelta)+'">'+arrow(openDelta)+'$'+cur.toFixed(2)+'</span>'
+    +'</span>';
+  return {{open,recent,openDelta,recentDelta,html,n:h.n}};
+}}
 function ctxHtml(runner,race){{
   const st=runner.st||'unknown';
   const ps=race.ps||runner.ps||'unknown';
@@ -2248,7 +2345,7 @@ function buildBets(f){{
       // Use manual finish if available (pending race only), otherwise use API finish
       const effectiveFinish=race.done===0&&manualFinish!==null?manualFinish:runner.f;
       const effectiveDone=race.done===1||(race.done===0&&manualFinish!==null)?1:0;
-      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,jockey:runner.j,score:runnerScore,scoreDisp,sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,isBet,manualFinish,raceObj:race,runnerObj:runner}};
+      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,runId:runner.rid,jockey:runner.j,score:runnerScore,scoreDisp,sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,isBet,manualFinish,raceObj:race,runnerObj:runner}};
       if(effectiveDone===1)resulted.push(bet);
       else pending.push(bet);
     }});
@@ -2746,11 +2843,12 @@ function update(){{
         +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
         +'<td class="mn">'+mktPriceHtml+'</td>'
         +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
+        +'<td class="mn">'+(()=>{{const d=getDrift(b.runId,fx);return d?d.html:'<span style="color:#9ca3af">—</span>';}})()+'</td>'
         +'<td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td>'
         +'<td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td>'
         +'<td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td>'
         +'<td class="mn">'+resInp+'</td></tr>'
-        +'<tr><td colspan="16" style="padding:0;"><div class="bet-detail" id="bd-'+pdid+'"></div></td></tr>';
+        +'<tr><td colspan="17" style="padding:0;"><div class="bet-detail" id="bd-'+pdid+'"></div></td></tr>';
     }}).join('');
     window._lastPend=sortedPending;
     sortedPending.forEach(b=>{{
@@ -2816,6 +2914,7 @@ function update(){{
           +(b.mktPrice?'<span class="mob-bet-tag mkt">Mkt $'+b.mktPrice.toFixed(2)+'</span>':'<span class="mob-bet-tag sp">SP TBD</span>')
           +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
           +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
+          +(()=>{{const d=getDrift(b.runId,getFixed(b));return d?'<span class="mob-bet-tag" style="background:#f4f6f9;">'+d.html+'</span>':'';}})()
           +'</div>'
           +'<div class="mob-bet-footer">'
           +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
@@ -4659,6 +4758,10 @@ def main():
 
     save_runners(runners_df)
     print(f"Saved -> {RUNNERS_CSV} ({len(runners_df):,} runners, {runners_df['race_id'].nunique():,} races)")
+    
+    # Snapshot prices for drift tracking
+    print("  Snapshotting prices for drift tracking…")
+    snapshot_prices(runners_df)
     print()
 
     if not args.no_html:
