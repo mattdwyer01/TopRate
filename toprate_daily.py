@@ -1298,6 +1298,13 @@ tr.no-bet-row td{{opacity:0.4;}}
 .strat-title{{font-size:18px;font-weight:700;color:#0f1729;}}
 .strat-subtitle{{font-size:11px;color:#6b7280;margin-top:2px;}}
 .strat-period-tabs{{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}}
+.strat-filter-summary{{background:#f8fafc;border:1px solid #e8eaf0;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:11px;}}
+.strat-fs-row{{display:flex;gap:10px;align-items:flex-start;padding:4px 0;}}
+.strat-fs-row+.strat-fs-row{{border-top:1px solid #e8eaf0;}}
+.strat-fs-label{{font-weight:600;color:#6b7280;letter-spacing:.05em;text-transform:uppercase;font-size:9px;width:60px;flex-shrink:0;padding-top:3px;}}
+.strat-fs-val{{flex:1;color:#374151;line-height:1.6;}}
+.strat-fs-val strong{{color:#0f1729;font-weight:600;}}
+.strat-fs-chip{{display:inline-block;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:2px 10px;margin:0 4px 4px 0;font-size:10px;color:#374151;}}
 .strat-period-btn{{padding:8px 14px;font-size:11px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;color:#6b7280;font-weight:500;}}
 .strat-period-btn.active{{background:#0f1729;color:#fff;border-color:#0f1729;}}
 .strat-kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}}
@@ -1782,8 +1789,9 @@ tr.no-bet-row td{{opacity:0.4;}}
     <div class="strat-page">
       <div class="strat-header">
         <div class="strat-title">Strategy Performance</div>
-        <div class="strat-subtitle">Live tracking of current filter settings against resulted races</div>
+        <div class="strat-subtitle">Live tracking of current filter settings against resulted races. Edit filters on the Bets tab.</div>
       </div>
+      <div class="strat-filter-summary" id="strat-filter-summary"></div>
       <div class="strat-period-tabs">
         <button class="strat-period-btn active" data-period="7">Last 7 days</button>
         <button class="strat-period-btn" data-period="30">Last 30 days</button>
@@ -2765,10 +2773,10 @@ function switchTab(tab){{
     document.getElementById('tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('panel-'+t).classList.toggle('active',t===tab);
   }});
-  // Hide sidebar on backtest, show on all other tabs
+  // Hide sidebar on backtest and strategy, show on all other tabs
   const sidebar=document.querySelector('.sidebar');
   const shell=document.querySelector('.shell');
-  if(tab==='backtest'){{
+  if(tab==='backtest'||tab==='strategy'){{
     sidebar.style.display='none';
     shell.style.gridTemplateColumns='1fr';
   }}else{{
@@ -3285,6 +3293,32 @@ function buildStrategy(){{
   }});
   
   const f=getF();
+  
+  // Build filter summary
+  const activeAnchors=Array.from(anchorSigs);
+  const activeNonAnchors=Array.from(activeSigs).filter(s=>!anchorSigs.has(s));
+  const sigSummary=activeAnchors.length>0
+    ?'<strong>Anchors:</strong> '+activeAnchors.join(', ')+(activeNonAnchors.length>0?' · <strong>Active:</strong> '+activeNonAnchors.join(', '):'')
+    :activeNonAnchors.length>0?'<strong>Active signals:</strong> '+activeNonAnchors.join(', '):'<em>No signals selected</em>';
+  const minScoreEl=document.getElementById('f-votes');
+  const minScore=minScoreEl?minScoreEl.value:'?';
+  const trendOn=document.getElementById('f-trend')?.checked;
+  const tabOnly=document.getElementById('f-tab')?.checked;
+  const noFs=document.getElementById('f-nofs')?.checked;
+  const filterChips=[];
+  filterChips.push('Min score '+minScore);
+  filterChips.push('Min prize $'+(f.prize/1000)+'k');
+  filterChips.push('SP '+(f.sp>1?'$'+f.sp:'any')+'-'+(f.spmax<200?'$'+f.spmax:'any'));
+  filterChips.push('Stake: '+stakeMethod);
+  if(tabOnly)filterChips.push('TAB only');
+  if(noFs)filterChips.push('Excl 1st starters');
+  if(trendOn)filterChips.push('Trend ≥ 0');
+  
+  const fsEl=document.getElementById('strat-filter-summary');
+  if(fsEl)fsEl.innerHTML=
+    '<div class="strat-fs-row"><div class="strat-fs-label">Signals:</div><div class="strat-fs-val">'+sigSummary+'</div></div>'
+    +'<div class="strat-fs-row"><div class="strat-fs-label">Filters:</div><div class="strat-fs-val">'+filterChips.map(c=>'<span class="strat-fs-chip">'+c+'</span>').join('')+'</div></div>';
+  
   const {{resulted}}=buildBets(f);
   // Filter to actual bets (not skipped)
   let bets=resulted.filter(b=>b.isBet!==false&&b.sp);
