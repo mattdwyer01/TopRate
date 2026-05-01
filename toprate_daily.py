@@ -1346,8 +1346,8 @@ tr.no-bet-row td{{opacity:0.4;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
 .rs-finish-2{{color:#6b7280;font-weight:600;}}
 .rs-finish-3{{color:#9ca3af;}}
-.race-runners-cards{{padding:8px;}}
-.r-card{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:12px;margin-bottom:8px;}}
+.race-runners-cards{{padding:8px;display:flex;flex-direction:column;gap:8px;}}
+.r-card{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:12px;width:100%;}}
 .r-card.qual{{border-left:3px solid #10b981;background:rgba(16,185,129,.04);}}
 .r-card.winner{{border-color:#b4e060;background:rgba(180,224,96,.1);}}
 .r-card-head{{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}}
