@@ -885,11 +885,12 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                 trend_v = top_row.get("wpr_trend")
                 prize_v = race_meta["prizeMoney"]
 
-                # Check optimal filter (7+ signals, SP>=2, prize>=25k, trend>0, no_fs)
+                # Check optimal filter (7+ signals, SP>=2, prize>=25k, trend>=0 or missing, no_fs)
+                trend_is_missing = trend_v is None or (isinstance(trend_v, float) and math.isnan(trend_v))
+                trend_ok = trend_is_missing or trend_v >= 0
                 is_opt = (top_votes >= 7 and sp_val and sp_val >= 2.0
                           and prize_v >= 25000
-                          and trend_v is not None and not (isinstance(trend_v, float) and math.isnan(trend_v))
-                          and trend_v > 0 and not has_fs)
+                          and trend_ok and not has_fs)
                 if is_opt:
                     n_optimal += 1
 
@@ -914,7 +915,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
         total_runners = len(new_rows)
         total_races   = len(set(r["race_id"] for r in new_rows))
         print(f"\nAdded {total_runners} runners from {total_races} races for {today_str}")
-        print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend>0)")
+        print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend≥0 or missing)")
 
     return runners_df
 
@@ -1401,7 +1402,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     </div>
     <div class="trow"><span class="tlbl">Exclude first starters</span>
       <label class="tog"><input type="checkbox" id="f-nofs" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
-    <div class="trow"><span class="tlbl">Trend &gt; 0 only</span>
+    <div class="trow"><span class="tlbl">Trend &ge; 0 only</span>
       <label class="tog"><input type="checkbox" id="f-trend" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
   </div>
 
@@ -1777,7 +1778,7 @@ function selectOptimalSigs(){{
   selectAnchorPreset();
 }}
 function selectAnchorPreset(){{
-  const anchors=new Set(['tr_rating','peak_rank','jky_win90']);
+  const anchors=new Set(['trn_win365','peak_rank','jky_win90']);
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{cb.checked=anchors.has(cb.dataset.sig);}});
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
     const isAnch=anchors.has(cb.dataset.sig);
@@ -1816,8 +1817,8 @@ function selectAnchorPreset(){{
     }});
     grid.appendChild(row);
   }});
-  // Default: only jky_win90, tr_rating, peak_rank active and anchored
-  const _anchors=new Set(['tr_rating','peak_rank','jky_win90']);
+  // Default: only jky_win90, trn_win365, peak_rank active and anchored
+  const _anchors=new Set(['trn_win365','peak_rank','jky_win90']);
   grid.querySelectorAll('.sig-active').forEach(cb=>{{
     cb.checked=_anchors.has(cb.dataset.sig);
   }});
@@ -1826,8 +1827,8 @@ function selectAnchorPreset(){{
     cb.checked=isAnch;
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
-  activeSigs=new Set(['tr_rating','peak_rank','jky_win90']);
-  anchorSigs=new Set(['tr_rating','peak_rank','jky_win90']);
+  activeSigs=new Set(['trn_win365','peak_rank','jky_win90']);
+  anchorSigs=new Set(['trn_win365','peak_rank','jky_win90']);
 }})();
 function scoreRace(race){{
   const scores=new Array(race.u.length).fill(0);
@@ -1942,7 +1943,7 @@ function buildBets(f){{
       const sp=runner.sp;
       if(race.done===0){{if(sp!==null&&sp!==undefined&&(sp<f.sp||sp>f.spmax))return;}}
       else{{if(!sp||sp<f.sp||sp>f.spmax)return;}}
-      if(f.trend&&(runner.tr===null||runner.tr===undefined||runner.tr<=0))return;
+      if(f.trend&&runner.tr!==null&&runner.tr!==undefined&&runner.tr<0)return;
       if(f.nowide&&runner.b&&runner.b>8)return;
       if(f.barrier<16&&runner.b&&runner.b>f.barrier)return;
       const st=runner.st||'unknown';
@@ -2939,7 +2940,7 @@ function updateStake(inp){{
 let btStake='flat';
 let btMethod='top3c';
 let btSigs=new Set(SIG_NAMES);
-let btAnchorSigs=new Set(['jky_win90','tr_rating','peak_rank']); // default anchor preset
+let btAnchorSigs=new Set(['jky_win90','trn_win365','peak_rank']); // default anchor preset
 let btInited=false;
 
 function btSetStake(m){{
@@ -2957,7 +2958,7 @@ function btSelectSigs(mode){{
   if(mode==='all'){{btSigs=new Set(SIG_NAMES);btAnchorSigs=new Set();}}
   else if(mode==='anchor'||mode==='optimal'){{
     btSigs=new Set(SIG_NAMES);
-    btAnchorSigs=new Set(['tr_rating','peak_rank','jky_win90']);
+    btAnchorSigs=new Set(['trn_win365','peak_rank','jky_win90']);
   }}
   else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
@@ -3111,7 +3112,7 @@ function runBacktest(){{
       if(runner.f===null||runner.f===undefined)return;
       const sp=runner.sp;
       if(!sp)return;
-      if(trendOnly&&(runner.tr===null||runner.tr<=0))return;
+      if(trendOnly&&runner.tr!==null&&runner.tr!==undefined&&runner.tr<0)return;
       if(maxBarrier<20&&runner.b&&runner.b>maxBarrier)return;
       const st=(runner.st||'unknown').toLowerCase().replace('-','');
       if(settleOk.size&&!settleOk.has(st)&&!settleOk.has('unknown'))return;
