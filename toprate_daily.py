@@ -1428,6 +1428,12 @@ td:nth-child(-n+4){{text-align:left;}}
 .bd-mini .kv{{font-size:13px;font-weight:700;color:#0f1729;line-height:1.2;}}
 .bd-mini .kl{{font-size:8px;letter-spacing:.05em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-top:2px;}}
 .bd-sectional-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}}
+.bd-mini.sec-strong{{background:#ecfdf5;border-color:#a7f3d0;}}
+.bd-mini.sec-strong .kv{{color:#059669;}}
+.bd-mini.sec-pos .kv{{color:#10b981;}}
+.bd-mini.sec-neg .kv{{color:#dc2626;}}
+.bd-mini.sec-weak{{background:#fef2f2;border-color:#fecaca;}}
+.bd-mini.sec-weak .kv{{color:#b91c1c;}}
 
 /* Price drift block */
 .bd-price-block{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:12px 14px;}}
@@ -4789,14 +4795,23 @@ function buildDetailHtml(b){{
     +'</div>';
 
   // === ITEM 5: Runner-specific data block ===
+  const fmtSec=v=>v!==null&&v!==undefined?v.toFixed(1):'—';
+  const secCls=v=>{{
+    if(v===null||v===undefined)return'';
+    if(v>=2)return' sec-strong';
+    if(v>0)return' sec-pos';
+    if(v<=-2)return' sec-weak';
+    if(v<0)return' sec-neg';
+    return'';
+  }};
   const sectionalCells=[
-    {{l:'Early',v:runner.es,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
-    {{l:'Mid',v:runner.ms,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
-    {{l:'Late',v:runner.ls,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
-    {{l:'Total',v:runner.ts,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}}
+    {{l:'Early',v:runner.es}},
+    {{l:'Mid',v:runner.ms}},
+    {{l:'Late',v:runner.ls}},
+    {{l:'Total',v:runner.ts}}
   ];
   const sectionalHtml=sectionalCells.map(c=>
-    '<div class="bd-mini"><div class="kv">'+c.fmt(c.v)+'</div><div class="kl">'+c.l+'</div></div>'
+    '<div class="bd-mini'+secCls(c.v)+'"><div class="kv">'+fmtSec(c.v)+'</div><div class="kl">'+c.l+'</div></div>'
   ).join('');
   
   const distCount=runner.dn?runner.dn+(runner.dn===1?' run':' runs'):'—';
@@ -4824,6 +4839,7 @@ function buildDetailHtml(b){{
     const dirClass=delta<0?'drift-firm':delta>0?'drift-drift':'drift-flat';
     const dirArrow=delta<0?'↓':delta>0?'↑':'→';
     const dirLbl=delta<0?'firmed':delta>0?'drifted':'unchanged';
+    const isFlat=delta===0;
     priceBlock='<div class="bd-section-title">Price movement today</div>'
       +'<div class="bd-price-block">'
         +'<div class="bd-price-summary">'
@@ -4833,7 +4849,7 @@ function buildDetailHtml(b){{
           +'<span class="bd-price-lbl">'+dirLbl+(delta!==0?' '+(delta>0?'+':'')+delta.toFixed(2):'')+'</span>'
           +'<span class="bd-price-snaps">'+(priceHist.n||1)+' snapshot'+((priceHist.n||1)===1?'':'s')+'</span>'
         +'</div>'
-        +'<canvas class="bd-price-chart" id="bd-chart-'+(b._detailId||'').replace(/[^a-zA-Z0-9]/g,'_')+'" height="60"></canvas>'
+        +(isFlat?'':'<canvas class="bd-price-chart" id="bd-chart-'+(b._detailId||'').replace(/[^a-zA-Z0-9]/g,'_')+'" height="60"></canvas>')
       +'</div>';
   }}
 
@@ -4848,17 +4864,27 @@ function buildDetailHtml(b){{
     const isActive=activeSigs.has(name);
     const label=SIG_LABELS[si].replace(' ↑','').replace(' ↓','');
     let pillCls='bd-sig-pill';
-    if(myRank>fieldSize)pillCls+=' rk-out';
-    else if(inTop3)pillCls+=' rk-top3';
-    else if(inTop5)pillCls+=' rk-top5';
-    else pillCls+=' rk-rest';
+    let pillText;
+    if(myRank>fieldSize){{
+      pillCls+=' rk-out';
+      pillText='n/a';
+    }}else if(inTop3){{
+      pillCls+=' rk-top3';
+      pillText='#'+myRank;
+    }}else if(inTop5){{
+      pillCls+=' rk-top5';
+      pillText='#'+myRank;
+    }}else{{
+      pillCls+=' rk-rest';
+      pillText='#'+myRank;
+    }}
     let cellCls='bd-sig-cell';
     if(isAnchor)cellCls+=' is-anchor';
     else if(isActive)cellCls+=' is-active';
     if(myRank>fieldSize)cellCls+=' is-out';
     return'<div class="'+cellCls+'">'
       +'<div class="bd-sig-name">'+label+'</div>'
-      +'<div class="'+pillCls+'">'+(myRank>fieldSize?'—':'#'+myRank)+'</div>'
+      +'<div class="'+pillCls+'">'+pillText+'</div>'
       +'</div>';
   }}).join('');
 
