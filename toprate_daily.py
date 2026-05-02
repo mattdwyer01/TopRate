@@ -1129,6 +1129,7 @@ def rebuild_html(runners_df):
         races.append({
             "d":    str(r.get("date",""))[:10],
             "v":    str(r.get("venue","")),
+            "st":   str(r.get("state","")) if r.get("state") else None,
             "r":    si(r.get("race")),
             "p":    si(r.get("prize_money")),
             "n":    1 if r.get("has_first_starter") else 0,
@@ -1708,6 +1709,57 @@ tr.no-bet-row td{{opacity:0.4;}}
 .race-sel-input{{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:'Outfit',sans-serif;background:#fff;cursor:pointer;}}
 .race-sel-input:disabled{{background:#f4f6f9;color:#9ca3af;cursor:not-allowed;}}
 .race-sel-hint{{margin-top:10px;font-size:11px;color:#6b7280;}}
+
+/* Meeting browser */
+.meeting-date-bar{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}}
+.meeting-date-controls{{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}}
+.meeting-date-quick{{padding:7px 14px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#6b7280;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;letter-spacing:.05em;text-transform:uppercase;transition:all .15s;}}
+.meeting-date-quick.active{{background:#0f1729;border-color:#0f1729;color:#fff;font-weight:600;}}
+.meeting-date-quick:hover:not(.active){{background:#f4f6f9;border-color:#9ca3af;color:#0f1729;}}
+.meeting-date-inp{{padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;}}
+.meeting-date-info{{font-size:11px;color:#9ca3af;}}
+
+.meeting-empty{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:60px 20px;text-align:center;color:#9ca3af;font-size:13px;}}
+
+.meetings-table{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;overflow:hidden;}}
+.mt-row{{display:grid;grid-template-columns:200px repeat(auto-fill,minmax(60px,1fr));border-bottom:1px solid #f1f3f8;align-items:stretch;}}
+.mt-row:last-child{{border-bottom:none;}}
+.mt-row.mt-head{{background:#f8fafc;border-bottom:1px solid #e8eaf0;}}
+.mt-row.mt-head .mt-venue-col,
+.mt-row.mt-head .mt-race-head{{padding:10px 12px;font-size:9px;letter-spacing:.1em;color:#9ca3af;font-weight:600;text-transform:uppercase;}}
+.mt-row.mt-head .mt-race-head{{text-align:center;border-left:1px solid #f1f3f8;}}
+
+.mt-venue-col{{padding:14px 16px;border-right:1px solid #f1f3f8;display:flex;flex-direction:column;justify-content:center;}}
+.mt-venue-name{{font-size:13px;font-weight:600;color:#0f1729;}}
+.mt-venue-state{{font-size:10px;color:#9ca3af;margin-top:2px;text-transform:uppercase;letter-spacing:.05em;}}
+
+.mt-race-cell{{padding:12px 6px;border-left:1px solid #f1f3f8;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#374151;background:#fff;transition:background .12s;position:relative;min-height:48px;}}
+.mt-race-cell:hover{{background:#f4f6f9;color:#0f1729;}}
+.mt-race-cell .mt-time{{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;}}
+.mt-race-cell.mt-empty{{color:#d1d5db;cursor:default;background:#fafbfc;}}
+.mt-race-cell.mt-empty:hover{{background:#fafbfc;color:#d1d5db;}}
+.mt-race-cell.mt-resulted{{color:#9ca3af;background:#fafbfc;}}
+.mt-race-cell.mt-resulted .mt-time{{color:#9ca3af;}}
+.mt-race-cell.mt-imminent{{background:#10b981;color:#fff;font-weight:600;}}
+.mt-race-cell.mt-imminent:hover{{background:#059669;color:#fff;}}
+.mt-race-cell.mt-imminent .mt-time{{color:#fff;}}
+.mt-race-cell.mt-soon{{background:#fef3c7;}}
+.mt-race-cell.mt-soon:hover{{background:#fde68a;}}
+.mt-race-cell.mt-pending-late{{background:#fee2e2;color:#991b1b;}}
+.mt-cd{{display:block;font-size:9px;color:rgba(255,255,255,.85);margin-top:2px;font-weight:500;letter-spacing:.05em;}}
+.mt-cd-soon{{display:block;font-size:9px;color:#92400e;margin-top:2px;font-weight:500;letter-spacing:.05em;}}
+
+.race-back-bar{{margin-bottom:12px;}}
+.race-back-btn{{padding:7px 12px;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;}}
+.race-back-btn:hover{{background:#f4f6f9;color:#0f1729;border-color:#9ca3af;}}
+
+@media(max-width:768px){{
+  .meetings-table{{overflow-x:auto;}}
+  .mt-row{{grid-template-columns:140px repeat(12,minmax(48px,1fr));min-width:600px;}}
+  .mt-venue-name{{font-size:11px;}}
+  .meeting-date-controls{{flex:1;}}
+  .meeting-date-quick{{padding:6px 10px;font-size:10px;flex:1;text-align:center;}}
+}}
 .race-header{{background:linear-gradient(135deg,#0f1729 0%,#1f2a4a 100%);color:#fff;padding:18px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;}}
 .race-title{{font-size:18px;font-weight:700;margin-bottom:4px;}}
 .race-subtitle{{font-size:12px;color:rgba(255,255,255,.7);}}
@@ -2164,20 +2216,25 @@ tr.no-bet-row td{{opacity:0.4;}}
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-race">
     <div class="race-page">
-      <div class="race-selector">
-        <div class="race-sel-row">
-          <div class="race-sel-col">
-            <label class="race-sel-lbl">VENUE</label>
-            <select id="race-venue-sel" class="race-sel-input"><option value="">— Select venue —</option></select>
+      <!-- Meeting browser view (default) -->
+      <div id="race-browser">
+        <div class="meeting-date-bar">
+          <div class="meeting-date-controls">
+            <button class="meeting-date-quick" data-rdate="yesterday">Yesterday</button>
+            <button class="meeting-date-quick active" data-rdate="today">Today</button>
+            <button class="meeting-date-quick" data-rdate="tomorrow">Tomorrow</button>
+            <input type="date" id="race-browse-date" class="meeting-date-inp">
           </div>
-          <div class="race-sel-col">
-            <label class="race-sel-lbl">RACE</label>
-            <select id="race-race-sel" class="race-sel-input" disabled><option value="">—</option></select>
-          </div>
+          <div class="meeting-date-info" id="race-browse-info">—</div>
         </div>
-        <div class="race-sel-hint" id="race-sel-hint">Select a venue and race to inspect. Only races matching sidebar filters appear.</div>
+        <div id="race-meetings-list"></div>
       </div>
+      
+      <!-- Race detail view (shown when a race is selected) -->
       <div id="race-detail" style="display:none;">
+        <div class="race-back-bar">
+          <button class="race-back-btn" onclick="exitRaceDetail()">← Back to meetings</button>
+        </div>
         <div class="race-header">
           <div class="race-header-main">
             <div class="race-title" id="race-title">—</div>
@@ -3373,80 +3430,30 @@ let raceSelectedRaceId=null;
 let raceSortMode='score';
 
 function buildRacePage(){{
-  const f=getF();
-  // Find races matching sidebar filters (same logic as buildBets, but at race level)
-  const races=RACES.filter(race=>{{
-    if(f.tab&&race.t!==1)return false;
-    if(race.p<f.prize)return false;
-    if(f.nofs&&race.n===1)return false;
-    return true;
-  }});
-  const sel=document.getElementById('race-venue-sel');
-  const cur=raceSelectedVenue;
-  // Build set of (date, venue) pairs
-  const venuesByDate={{}};
-  races.forEach(r=>{{
-    const k=r.d+'|'+r.v;
-    if(!venuesByDate[k]) venuesByDate[k]={{date:r.d,venue:r.v,races:[]}};
-    venuesByDate[k].races.push(r);
-  }});
-  const sorted=Object.values(venuesByDate).sort((a,b)=>{{
-    if(a.date!==b.date)return b.date.localeCompare(a.date);
-    return a.venue.localeCompare(b.venue);
-  }});
-  let html='<option value="">— Select venue —</option>';
-  let curDate='';
-  sorted.forEach(g=>{{
-    if(g.date!==curDate){{
-      if(curDate)html+='</optgroup>';
-      const dStr=fmtDateLabel(g.date);
-      html+='<optgroup label="'+dStr+'">';
-      curDate=g.date;
-    }}
-    html+='<option value="'+g.date+'|'+g.venue+'">'+g.venue+' ('+g.races.length+')</option>';
-  }});
-  if(curDate)html+='</optgroup>';
-  sel.innerHTML=html;
-  if(cur&&venuesByDate[cur]){{sel.value=cur;}}
-  
-  document.getElementById('race-sel-hint').textContent=
-    races.length===0?'No races match current sidebar filters.':
-    races.length+' races available across '+sorted.length+' meetings.';
-  
-  if(!sel.dataset.bound){{
-    sel.addEventListener('change',e=>{{
-      raceSelectedVenue=e.target.value||null;
-      raceSelectedRaceId=null;
-      buildRacePage();
+  // Wire date controls once
+  const dateInp=document.getElementById('race-browse-date');
+  const today=new Date().toISOString().slice(0,10);
+  if(!window._raceBrowseDate)window._raceBrowseDate=today;
+  if(!dateInp.dataset.bound){{
+    dateInp.value=window._raceBrowseDate;
+    dateInp.addEventListener('change',e=>{{
+      window._raceBrowseDate=e.target.value;
+      _updateDateQuickButtons();
+      renderMeetings();
     }});
-    sel.dataset.bound='1';
-  }}
-  
-  const raceSel=document.getElementById('race-race-sel');
-  if(raceSelectedVenue&&venuesByDate[raceSelectedVenue]){{
-    const grp=venuesByDate[raceSelectedVenue];
-    const rRaces=grp.races.slice().sort((a,b)=>(a.r||0)-(b.r||0));
-    let rHtml='<option value="">— Select race —</option>';
-    rRaces.forEach(r=>{{
-      const tm=r.tm?fmtTime(r.tm):'';
-      const dist=r.dist?r.dist+'m':'';
-      const lbl='R'+r.r+(tm?' '+tm:'')+(dist?' · '+dist:'');
-      rHtml+='<option value="'+r.rid+'">'+lbl+'</option>';
+    document.querySelectorAll('.meeting-date-quick').forEach(btn=>{{
+      btn.addEventListener('click',()=>{{
+        const today=new Date();
+        let d=new Date(today);
+        if(btn.dataset.rdate==='yesterday')d.setDate(d.getDate()-1);
+        else if(btn.dataset.rdate==='tomorrow')d.setDate(d.getDate()+1);
+        window._raceBrowseDate=d.toISOString().slice(0,10);
+        dateInp.value=window._raceBrowseDate;
+        _updateDateQuickButtons();
+        renderMeetings();
+      }});
     }});
-    raceSel.innerHTML=rHtml;
-    raceSel.disabled=false;
-    if(raceSelectedRaceId)raceSel.value=raceSelectedRaceId;
-  }}else{{
-    raceSel.innerHTML='<option value="">—</option>';
-    raceSel.disabled=true;
-  }}
-  
-  if(!raceSel.dataset.bound){{
-    raceSel.addEventListener('change',e=>{{
-      raceSelectedRaceId=e.target.value||null;
-      renderRaceDetail();
-    }});
-    raceSel.dataset.bound='1';
+    dateInp.dataset.bound='1';
   }}
   
   // Wire sort buttons once
@@ -3461,8 +3468,140 @@ function buildRacePage(){{
     }}
   }});
   
-  if(raceSelectedRaceId)renderRaceDetail();
-  else document.getElementById('race-detail').style.display='none';
+  // If a race is already selected, show detail view
+  if(raceSelectedRaceId){{
+    document.getElementById('race-browser').style.display='none';
+    document.getElementById('race-detail').style.display='block';
+    renderRaceDetail();
+  }}else{{
+    document.getElementById('race-browser').style.display='block';
+    document.getElementById('race-detail').style.display='none';
+    renderMeetings();
+  }}
+  
+  // Auto-refresh countdown timers every 30s while on race tab browser view
+  if(window._raceCountdownInterval)clearInterval(window._raceCountdownInterval);
+  window._raceCountdownInterval=setInterval(()=>{{
+    const racePanel=document.getElementById('panel-race');
+    const browser=document.getElementById('race-browser');
+    if(racePanel&&racePanel.classList.contains('active')&&browser&&browser.style.display!=='none'){{
+      renderMeetings();
+    }}
+  }},30000);
+}}
+
+function _updateDateQuickButtons(){{
+  const today=new Date();
+  const fmt=d=>d.toISOString().slice(0,10);
+  const todayStr=fmt(today);
+  const tom=new Date(today);tom.setDate(tom.getDate()+1);
+  const yes=new Date(today);yes.setDate(yes.getDate()-1);
+  const cur=window._raceBrowseDate;
+  document.querySelectorAll('.meeting-date-quick').forEach(btn=>{{
+    let match=false;
+    if(btn.dataset.rdate==='yesterday')match=cur===fmt(yes);
+    else if(btn.dataset.rdate==='today')match=cur===todayStr;
+    else if(btn.dataset.rdate==='tomorrow')match=cur===fmt(tom);
+    btn.classList.toggle('active',match);
+  }});
+}}
+
+function exitRaceDetail(){{
+  raceSelectedRaceId=null;
+  raceSelectedVenue=null;
+  document.getElementById('race-browser').style.display='block';
+  document.getElementById('race-detail').style.display='none';
+  renderMeetings();
+}}
+
+function renderMeetings(){{
+  const date=window._raceBrowseDate;
+  const dayRaces=RACES.filter(r=>r.d===date);
+  const info=document.getElementById('race-browse-info');
+  
+  // Group by venue
+  const meetingsByVenue={{}};
+  dayRaces.forEach(r=>{{
+    if(!meetingsByVenue[r.v])meetingsByVenue[r.v]={{venue:r.v,state:r.st||'',races:[]}};
+    meetingsByVenue[r.v].races.push(r);
+  }});
+  const meetings=Object.values(meetingsByVenue);
+  meetings.forEach(m=>m.races.sort((a,b)=>(a.r||0)-(b.r||0)));
+  meetings.sort((a,b)=>a.venue.localeCompare(b.venue));
+  
+  // Find max race number for column count
+  let maxR=0;
+  meetings.forEach(m=>m.races.forEach(r=>{{if((r.r||0)>maxR)maxR=r.r;}}));
+  if(maxR===0)maxR=10;
+  
+  info.textContent=dayRaces.length+' races across '+meetings.length+' meeting'+(meetings.length===1?'':'s');
+  
+  if(dayRaces.length===0){{
+    document.getElementById('race-meetings-list').innerHTML=
+      '<div class="meeting-empty">No races on '+date+'.</div>';
+    return;
+  }}
+  
+  // Build meetings table
+  let html='<div class="meetings-table">';
+  // Header row
+  html+='<div class="mt-row mt-head">';
+  html+='<div class="mt-venue-col">Venue</div>';
+  for(let i=1;i<=maxR;i++)html+='<div class="mt-race-head">R'+i+'</div>';
+  html+='</div>';
+  // Meeting rows
+  meetings.forEach(m=>{{
+    html+='<div class="mt-row">';
+    html+='<div class="mt-venue-col"><div class="mt-venue-name">'+m.venue+'</div>'
+       +(m.state?'<div class="mt-venue-state">'+m.state+'</div>':'')+'</div>';
+    for(let i=1;i<=maxR;i++){{
+      const race=m.races.find(r=>r.r===i);
+      if(!race){{
+        html+='<div class="mt-race-cell mt-empty">—</div>';
+        continue;
+      }}
+      const tm=race.tm?fmtTime(race.tm):'';
+      // Status detection
+      const isResulted=race.done===1;
+      let mins=null;
+      if(race.tm){{
+        const now=new Date();
+        const raceTm=new Date(race.tm);
+        mins=Math.round((raceTm-now)/60000);
+      }}
+      const isPast=mins!==null&&mins<-2;
+      const isImminent=mins!==null&&mins>=-2&&mins<=15;
+      const isSoon=mins!==null&&mins>15&&mins<=45;
+      
+      let cellCls='mt-race-cell';
+      let badge='';
+      let lbl=tm||('R'+i);
+      if(isResulted){{cellCls+=' mt-resulted';lbl='Result';}}
+      else if(isImminent){{cellCls+=' mt-imminent';badge='<span class="mt-cd">'+(mins<=0?'NOW':mins+'m')+'</span>';}}
+      else if(isSoon){{cellCls+=' mt-soon';badge='<span class="mt-cd-soon">'+mins+'m</span>';}}
+      else if(isPast&&!isResulted){{cellCls+=' mt-pending-late';}}
+      
+      html+='<div class="'+cellCls+'" data-rid="'+race.rid+'" data-venue="'+race.v+'" data-date="'+race.d+'">'
+         +'<div class="mt-time">'+lbl+'</div>'
+         +badge
+         +'</div>';
+    }}
+    html+='</div>';
+  }});
+  html+='</div>';
+  
+  document.getElementById('race-meetings-list').innerHTML=html;
+  
+  // Wire race cell clicks
+  document.querySelectorAll('.mt-race-cell[data-rid]').forEach(cell=>{{
+    cell.addEventListener('click',()=>{{
+      raceSelectedRaceId=cell.dataset.rid;
+      raceSelectedVenue=cell.dataset.date+'|'+cell.dataset.venue;
+      document.getElementById('race-browser').style.display='none';
+      document.getElementById('race-detail').style.display='block';
+      renderRaceDetail();
+    }});
+  }});
 }}
 
 function fmtDateLabel(d){{
