@@ -1249,9 +1249,8 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .shell.show-settings .sidebar .tog input:checked+.tog-track{{background:#10b981;}}
 .shell.show-settings .sidebar input[type=range]{{background:#e8eaf0;}}
 
-/* Day of week & settling/pace — chip style */
-.shell.show-settings .sidebar .dow-cb,
-.shell.show-settings .sidebar [style*="display:grid"] label{{
+/* Day of week, settling, pace — chip style (all use class dow-cb) */
+.shell.show-settings .sidebar .dow-cb{{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -1265,24 +1264,20 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   margin:2px 4px 2px 0;
   transition:all .15s;
 }}
-.shell.show-settings .sidebar .dow-cb:has(input:checked),
-.shell.show-settings .sidebar [style*="display:grid"] label:has(input:checked){{
+.shell.show-settings .sidebar .dow-cb:has(input:checked){{
   background:#10b981;
   border-color:#10b981;
   color:#fff;
 }}
-.shell.show-settings .sidebar .dow-cb:hover:not(:has(input:checked)),
-.shell.show-settings .sidebar [style*="display:grid"] label:hover:not(:has(input:checked)){{
+.shell.show-settings .sidebar .dow-cb:hover:not(:has(input:checked)){{
   border-color:#9ca3af;
   background:#f9fafb;
 }}
-/* Hide the actual checkbox inside chip toggles */
-.shell.show-settings .sidebar .dow-cb input[type=checkbox],
-.shell.show-settings .sidebar [style*="display:grid"] label input[type=checkbox]{{
-  display:none;
-}}
-/* The settling/pace grid containers */
-.shell.show-settings .sidebar [style*="display:grid"]{{
+/* Hide checkbox inside chip toggles only */
+.shell.show-settings .sidebar .dow-cb input[type=checkbox]{{display:none;}}
+/* Settling/pace/dow grid containers — use flex-wrap chips instead of grid */
+.shell.show-settings .sidebar .dow-grid,
+.shell.show-settings .sidebar #dow-grid{{
   display:flex !important;
   flex-wrap:wrap;
   gap:6px;
@@ -2019,7 +2014,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     <div class="trow"><span class="tlbl">Exclude first starters</span>
       <label class="tog"><input type="checkbox" id="f-nofs" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
     <div class="trow"><span class="tlbl">Trend &ge; 0 only</span>
-      <label class="tog"><input type="checkbox" id="f-trend" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+      <label class="tog"><input type="checkbox" id="f-trend"><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
   </div>
 
   <div class="fsec">
@@ -2381,7 +2376,7 @@ tr.no-bet-row td{{opacity:0.4;}}
         <div class="bt-ctrl-row" style="display:flex;justify-content:space-between;align-items:center;">
           <div class="bt-lbl" style="margin:0;">Trend filter</div>
           <label class="tog">
-            <input type="checkbox" id="bt-trend" checked onchange="runBacktest()">
+            <input type="checkbox" id="bt-trend" onchange="runBacktest()">
             <div class="tog-track"></div><div class="tog-thumb"></div>
           </label>
         </div>
@@ -3381,7 +3376,7 @@ document.getElementById('f-date-to').addEventListener('change',update);
 function resetAll(){{
   document.getElementById('f-tab').checked=true;
   document.getElementById('f-prize').value=25000;document.getElementById('v-prize').textContent='$25k';
-  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=true;
+  document.getElementById('f-nofs').checked=true;document.getElementById('f-trend').checked=false;
   document.getElementById('f-nowide').checked=false;
   document.getElementById('f-barrier').value=16;document.getElementById('v-barrier').textContent='Any';
   document.getElementById('f-sp').value=1;document.getElementById('v-sp').textContent='$1.00';
@@ -3402,7 +3397,7 @@ document.getElementById('v-votes').textContent='2';
 selectAnchorPreset();
 setStake('fixed');
 setMethod('top3c');
-document.getElementById('f-trend').checked=true;
+document.getElementById('f-trend').checked=false;
 document.getElementById('f-sp').value=1;
 document.getElementById('v-sp').textContent='$1.00';
 document.getElementById('f-spmax').value=30;
