@@ -8,14 +8,17 @@ on:
         required: false
         default: ''
   schedule:
-    # AEST = UTC+10. Times in AEST converted to UTC for cron.
-    # 9:00 AEST  = 23:00 UTC (previous day)
+    # All times UTC. AEST = UTC+10.
+    # Single cron expression covering 9 AM, 12 PM, then every 30 min from 12:30 to 9 PM AEST.
+    # In UTC: 23:00 (prev day), 02:00, then 02:30, 03:00, 03:30 ... 11:00
+    # Use a 30-minute interval from 02:30 UTC to 11:00 UTC, plus the 9 AM AEST single fire
     - cron: '0 23 * * *'
-    # 12:00 AEST = 02:00 UTC
-    - cron: '0 2 * * *'
-    # Every 30 mins from 12:30 AEST to 21:00 AEST (02:30 UTC to 11:00 UTC)
-    - cron: '30 2-10 * * *'
-    - cron: '0 3-11 * * *'
+    - cron: '*/30 2-10 * * *'
+    - cron: '0 11 * * *'
+
+concurrency:
+  group: toprate-daily
+  cancel-in-progress: false
 
 jobs:
   run-toprate:
@@ -53,6 +56,8 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          # Pull in case another run pushed during our execution
+          git pull --rebase origin main || true
           # Add each file individually so one missing file doesn't fail the rest
           git add toprate_runners.csv 2>/dev/null || true
           git add toprate_selections.csv 2>/dev/null || true
@@ -65,3 +70,4 @@ jobs:
             git commit -m "Auto: update TopRate data $(date -u +'%Y-%m-%dT%H:%MZ')"
             git push
           fi
+
