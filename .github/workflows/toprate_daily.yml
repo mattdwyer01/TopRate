@@ -3,7 +3,7 @@ name: TopRate Daily
 on:
   workflow_dispatch:
     inputs:
-      target_date:
+      date:
         description: 'Target date (YYYY-MM-DD), leave blank for today'
         required: false
         default: ''
@@ -43,8 +43,8 @@ jobs:
           TOPRATE_USERNAME: ${{ secrets.TOPRATE_USERNAME }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
         run: |
-          if [ -n "${{ github.event.inputs.target_date }}" ]; then
-            python toprate_daily.py --date "${{ github.event.inputs.target_date }}"
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python toprate_daily.py --date "${{ github.event.inputs.date }}"
           else
             python toprate_daily.py
           fi
