@@ -1753,6 +1753,31 @@ tr.no-bet-row td{{opacity:0.4;}}
 .race-back-btn{{padding:7px 12px;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;}}
 .race-back-btn:hover{{background:#f4f6f9;color:#0f1729;border-color:#9ca3af;}}
 
+/* Next-to-jump ticker */
+.ntj-ticker{{background:#0f1729;color:#fff;display:flex;align-items:center;gap:14px;padding:8px 12px;border-radius:8px;margin-bottom:14px;overflow:hidden;}}
+.ntj-ticker.collapsed .ntj-pills{{display:none;}}
+.ntj-ticker.collapsed{{padding:6px 12px;}}
+.ntj-toggle{{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}}
+.ntj-toggle:hover{{background:rgba(255,255,255,.08);color:#fff;}}
+.ntj-label{{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.6);text-transform:uppercase;font-weight:600;flex-shrink:0;white-space:nowrap;}}
+.ntj-pills{{display:flex;gap:8px;overflow-x:auto;flex:1;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}}
+.ntj-pills::-webkit-scrollbar{{height:4px;}}
+.ntj-pills::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.15);border-radius:2px;}}
+.ntj-pill{{display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;cursor:pointer;flex-shrink:0;transition:all .12s;font-size:12px;}}
+.ntj-pill:hover{{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);}}
+.ntj-pill-name{{color:#fff;font-weight:500;white-space:nowrap;}}
+.ntj-pill-cd{{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.02em;white-space:nowrap;}}
+.ntj-pill-cd.cd-live{{background:#fbbf24;color:#0f1729;}}
+.ntj-pill-cd.cd-imminent{{background:#dc2626;color:#fff;}}
+.ntj-pill-cd.cd-soon{{background:#f59e0b;color:#fff;}}
+.ntj-pill-cd.cd-later{{background:rgba(255,255,255,.15);color:rgba(255,255,255,.85);}}
+.ntj-empty{{color:rgba(255,255,255,.4);font-size:11px;font-style:italic;}}
+@media(max-width:768px){{
+  .ntj-ticker{{margin-bottom:10px;padding:6px 10px;gap:10px;}}
+  .ntj-label{{display:none;}}
+  .ntj-pill{{padding:5px 10px;font-size:11px;}}
+}}
+
 @media(max-width:768px){{
   .meetings-table{{overflow-x:auto;}}
   .mt-row{{grid-template-columns:140px repeat(12,minmax(48px,1fr));min-width:600px;}}
@@ -2155,6 +2180,11 @@ tr.no-bet-row td{{opacity:0.4;}}
   <a class="bt-link" href="toprate_interactive.html">&#8592; 42-day backtest</a>
 </div>
 <div class="main">
+  <div class="ntj-ticker" id="ntj-ticker">
+    <button class="ntj-toggle" id="ntj-toggle" onclick="toggleNtj()" aria-label="Toggle next-to-jump"><span id="ntj-toggle-icon">▼</span></button>
+    <div class="ntj-label">Next to Jump</div>
+    <div class="ntj-pills" id="ntj-pills"></div>
+  </div>
   <div class="main-tabs">
     <button class="main-tab active" id="tab-today" onclick="switchTab('today')">Today</button>
     <button class="main-tab" id="tab-race" onclick="switchTab('race')">Race</button>
@@ -3428,6 +3458,85 @@ function cancelSettings(){{switchTab('today');}}
 let raceSelectedVenue=null;
 let raceSelectedRaceId=null;
 let raceSortMode='score';
+
+// === NEXT TO JUMP TICKER ===
+function toggleNtj(){{
+  const t=document.getElementById('ntj-ticker');
+  const icon=document.getElementById('ntj-toggle-icon');
+  const collapsed=t.classList.toggle('collapsed');
+  if(icon)icon.textContent=collapsed?'▶':'▼';
+  try{{localStorage.setItem('ntj-collapsed',collapsed?'1':'0');}}catch(e){{}}
+}}
+function _fmtCountdown(secs){{
+  if(secs<=0)return'LIVE';
+  if(secs<60)return secs+'s';
+  const m=Math.floor(secs/60),s=secs%60;
+  if(m<60)return m+'m '+(s<10?'0':'')+s+'s';
+  const h=Math.floor(m/60),mm=m%60;
+  return h+'h '+(mm<10?'0':'')+mm+'m';
+}}
+function renderNtjTicker(){{
+  const pillsEl=document.getElementById('ntj-pills');
+  if(!pillsEl)return;
+  const now=new Date();
+  // Only TAB races, not yet resulted, with start time, jumping within next 24h
+  // and not too far past (LIVE pills get 3 min grace)
+  const upcoming=RACES.filter(r=>{{
+    if(r.t!==1)return false;        // TAB races only
+    if(r.done===1)return false;     // Skip resulted
+    if(!r.tm)return false;
+    const tm=new Date(r.tm);
+    const diff=(tm-now)/1000;       // seconds until jump (negative = past)
+    return diff>=-180&&diff<=86400; // -3min to +24h
+  }}).map(r=>{{
+    const tm=new Date(r.tm);
+    return {{race:r,secsUntil:Math.round((tm-now)/1000)}};
+  }}).sort((a,b)=>a.secsUntil-b.secsUntil).slice(0,6);
+  
+  if(upcoming.length===0){{
+    pillsEl.innerHTML='<div class="ntj-empty">No TAB races jumping soon.</div>';
+    return;
+  }}
+  pillsEl.innerHTML=upcoming.map(({{race,secsUntil}})=>{{
+    let cdCls='cd-later';
+    if(secsUntil<=0)cdCls='cd-live';
+    else if(secsUntil<=120)cdCls='cd-imminent';
+    else if(secsUntil<=600)cdCls='cd-soon';
+    return'<div class="ntj-pill" data-rid="'+race.rid+'" data-date="'+race.d+'" data-venue="'+race.v+'">'
+      +'<span class="ntj-pill-name">'+race.v+' R'+race.r+'</span>'
+      +'<span class="ntj-pill-cd '+cdCls+'">'+_fmtCountdown(secsUntil)+'</span>'
+      +'</div>';
+  }}).join('');
+  // Wire pill clicks → open race detail
+  pillsEl.querySelectorAll('.ntj-pill').forEach(p=>{{
+    p.addEventListener('click',()=>{{
+      raceSelectedRaceId=p.dataset.rid;
+      raceSelectedVenue=p.dataset.date+'|'+p.dataset.venue;
+      switchTab('race');
+      // After switchTab triggers buildRacePage, the detail will show
+      setTimeout(()=>{{
+        document.getElementById('race-browser').style.display='none';
+        document.getElementById('race-detail').style.display='block';
+        renderRaceDetail();
+      }},10);
+    }});
+  }});
+}}
+// Restore collapsed state from prior session
+(function _ntjInit(){{
+  try{{
+    const collapsed=localStorage.getItem('ntj-collapsed')==='1';
+    if(collapsed){{
+      const t=document.getElementById('ntj-ticker');
+      if(t){{t.classList.add('collapsed');}}
+      const icon=document.getElementById('ntj-toggle-icon');
+      if(icon)icon.textContent='▶';
+    }}
+  }}catch(e){{}}
+}})();
+// Initial render and tick every second
+renderNtjTicker();
+setInterval(renderNtjTicker,1000);
 
 function buildRacePage(){{
   // Wire date controls once
