@@ -1403,9 +1403,72 @@ td:nth-child(-n+4){{text-align:left;}}
 .bet-tog{{width:32px;height:22px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;font-family:'Outfit',sans-serif;}}
 .bet-y{{background:#10b981;color:#fff;}}
 .bet-n{{background:#e8eaf0;color:#9ca3af;}}
-.bet-detail{{background:#f8fafc;border-top:1px solid #e8eaf0;padding:14px 18px;display:none;}}
+.bet-detail{{background:#f8fafc;border-top:1px solid #e8eaf0;padding:18px 20px;display:none;}}
 .bet-detail.open{{display:block;}}
 .mob-bet-card .bet-detail{{margin:0 -1px;border-radius:0 0 6px 6px;}}
+
+/* Summary line */
+.bd-summary{{font-size:12px;color:#374151;margin-bottom:14px;line-height:1.6;}}
+.bd-summary strong{{color:#0f1729;}}
+.bd-summary-pill{{display:inline-block;background:#fff;border:1px solid #e8eaf0;border-radius:12px;padding:1px 8px;font-size:10px;font-weight:600;color:#374151;margin:0 2px;}}
+
+/* Section titles — match Strategy card titles */
+.bd-section-title{{font-size:9px;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin:14px 0 8px;}}
+.bd-section-subtitle{{font-size:9px;letter-spacing:.05em;color:#9ca3af;text-transform:uppercase;font-weight:500;margin:10px 0 6px;}}
+
+/* Top KPI strip — matches Strategy KPIs */
+.bd-kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px;}}
+.bd-kpi{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:10px 12px;}}
+.bd-kpi .kv{{font-size:14px;font-weight:700;color:#0f1729;line-height:1.2;}}
+.bd-kpi .kl{{font-size:9px;letter-spacing:.05em;color:#6b7280;text-transform:uppercase;font-weight:600;margin-top:3px;}}
+
+/* Runner block */
+.bd-runner-grid{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}}
+.bd-mini{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:8px 10px;}}
+.bd-mini .kv{{font-size:13px;font-weight:700;color:#0f1729;line-height:1.2;}}
+.bd-mini .kl{{font-size:8px;letter-spacing:.05em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-top:2px;}}
+.bd-sectional-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}}
+
+/* Price drift block */
+.bd-price-block{{background:#fff;border:1px solid #e8eaf0;border-radius:8px;padding:12px 14px;}}
+.bd-price-summary{{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;}}
+.bd-price-from{{font-weight:600;color:#9ca3af;}}
+.bd-price-to{{font-weight:700;color:#0f1729;font-size:14px;}}
+.bd-price-arrow{{font-weight:700;font-size:14px;}}
+.bd-price-lbl{{color:#374151;font-size:11px;}}
+.bd-price-snaps{{margin-left:auto;color:#9ca3af;font-size:10px;}}
+.bd-price-chart{{display:block;width:100%;}}
+
+/* Signal grid — 4 columns */
+.bd-sig-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}}
+.bd-sig-cell{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px;}}
+.bd-sig-cell.is-anchor{{background:#fef3c7;border-color:#fcd34d;}}
+.bd-sig-cell.is-active{{background:#ecfdf5;border-color:#a7f3d0;}}
+.bd-sig-cell.is-out{{opacity:0.5;}}
+.bd-sig-name{{font-size:10px;color:#374151;font-family:'IBM Plex Mono',monospace;flex:1;overflow:hidden;text-overflow:ellipsis;}}
+.bd-sig-cell.is-anchor .bd-sig-name{{color:#92400e;font-weight:600;}}
+.bd-sig-pill{{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;min-width:32px;text-align:center;}}
+.bd-sig-pill.rk-top3{{background:#10b981;color:#fff;}}
+.bd-sig-pill.rk-top5{{background:#e5e7eb;color:#374151;}}
+.bd-sig-pill.rk-rest{{background:#f4f6f9;color:#9ca3af;}}
+.bd-sig-pill.rk-out{{background:#f4f6f9;color:#d1d5db;}}
+
+/* Other qualifiers */
+.bd-others-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}}
+.bd-other{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:8px;}}
+.bd-other strong{{color:#0f1729;font-weight:600;}}
+.bd-other-px{{color:#10b981;font-weight:600;}}
+.bd-other-jky{{margin-left:auto;color:#9ca3af;font-size:10px;}}
+
+@media(max-width:768px){{
+  .bd-kpi-strip{{grid-template-columns:repeat(3,1fr);}}
+  .bd-runner-grid{{grid-template-columns:repeat(3,1fr);}}
+  .bd-sectional-grid{{grid-template-columns:repeat(4,1fr);}}
+  .bd-sig-grid{{grid-template-columns:repeat(2,1fr);}}
+  .bd-others-grid{{grid-template-columns:1fr;}}
+}}
+
+/* Legacy classes — kept for backwards compat in case anything still uses them */
 .bd-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}}
 .bd-item{{background:#fff;border:1px solid #e8eaf0;border-radius:6px;padding:10px 12px;}}
 .bd-item .l{{font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;}}
@@ -4689,56 +4752,197 @@ function buildDetailHtml(b){{
   const race=b.raceObj;
   const runner=b.runnerObj;
   const ri=race.u.findIndex(u=>u.h===runner.h);
+  const fieldSize=race.u?race.u.length:0;
 
-  // Race info grid
+  // === ITEM 4: Summary line ===
+  const tm=race.tm?fmtTime(race.tm):'';
+  const summaryLine='<div class="bd-summary">'
+    +'<strong>'+runner.h+'</strong>'
+    +' &middot; '+(runner.j||'?')+(runner.tn?' / '+runner.tn:'')
+    +' &middot; <span class="bd-summary-pill">Score '+b.scoreDisp+'</span>'
+    +' <span class="bd-summary-pill">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
+    +' &middot; '+race.v+' R'+race.r+(tm?', '+tm:'')
+    +' &middot; '+fieldSize+' runners'
+    +'</div>';
+
+  // === ITEM 1: KPI strip — race-level context ===
   const ps=(race.ps||'—');
   const going=race.going||'—';
   const dist=race.dist?race.dist+'m':'—';
-  const fs=race.fs||race.u.length;
+  const fs=race.fs||fieldSize;
   const st=runner.st||'—';
-
-  const grid='<div class="bd-grid">'
-    +'<div class="bd-item"><div class="l">Field size</div><div class="v">'+fs+' runners</div></div>'
-    +'<div class="bd-item"><div class="l">Distance</div><div class="v">'+dist+'</div></div>'
-    +'<div class="bd-item"><div class="l">Going</div><div class="v">'+going+'</div></div>'
-    +'<div class="bd-item"><div class="l">Pace scenario</div><div class="v">'+ps+'</div></div>'
-    +'<div class="bd-item"><div class="l">Settling (est.)</div><div class="v">'+st+'</div></div>'
-    +'<div class="bd-item"><div class="l">WPR nett</div><div class="v">'+(runner.w!=null?runner.w.toFixed(1):'—')+'</div></div>'
-    +'<div class="bd-item"><div class="l">Barrier</div><div class="v">'+(runner.b||'—')+'</div></div>'
-    +'<div class="bd-item"><div class="l">Score</div><div class="v">'+b.scoreDisp+'</div></div>'
+  // Distance suitability for KPI
+  let distSuit='—';
+  if(runner.wd!==null&&runner.wd!==undefined){{
+    if(runner.wd>=70)distSuit='✓ Suited';
+    else if(runner.wd>=50)distSuit='~ OK';
+    else distSuit='· Tried';
+  }}else if(runner.dn===0){{distSuit='✗ Untried';}}
+  
+  const kpiStrip='<div class="bd-kpi-strip">'
+    +'<div class="bd-kpi"><div class="kv">'+dist+'</div><div class="kl">Distance</div></div>'
+    +'<div class="bd-kpi"><div class="kv">'+fs+'</div><div class="kl">Field</div></div>'
+    +'<div class="bd-kpi"><div class="kv">'+fmtPrize(race.p||0)+'</div><div class="kl">Prize</div></div>'
+    +'<div class="bd-kpi"><div class="kv">'+ps+'</div><div class="kl">Pace</div></div>'
+    +'<div class="bd-kpi"><div class="kv">'+going+'</div><div class="kl">Going</div></div>'
+    +'<div class="bd-kpi"><div class="kv">'+st+'</div><div class="kl">Settling</div></div>'
     +'</div>';
 
-  // Signal rankings — show actual rank for all signals, sorted by rank
-  const fieldSize=race.u?race.u.length:0;
-  const sigRows=SIG_NAMES.map((name,si)=>{{
+  // === ITEM 5: Runner-specific data block ===
+  const sectionalCells=[
+    {{l:'Early',v:runner.es,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
+    {{l:'Mid',v:runner.ms,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
+    {{l:'Late',v:runner.ls,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}},
+    {{l:'Total',v:runner.ts,fmt:v=>v!==null&&v!==undefined?v.toFixed(1):'—'}}
+  ];
+  const sectionalHtml=sectionalCells.map(c=>
+    '<div class="bd-mini"><div class="kv">'+c.fmt(c.v)+'</div><div class="kl">'+c.l+'</div></div>'
+  ).join('');
+  
+  const distCount=runner.dn?runner.dn+(runner.dn===1?' run':' runs'):'—';
+  const distWpr=runner.wd!==null&&runner.wd!==undefined?runner.wd.toFixed(1):'—';
+  
+  const runnerBlock='<div class="bd-section-title">Runner</div>'
+    +'<div class="bd-runner-grid">'
+      +'<div class="bd-mini"><div class="kv">'+(runner.trr!==null&&runner.trr!==undefined?runner.trr.toFixed(0):'—')+'</div><div class="kl">TR Rating</div></div>'
+      +'<div class="bd-mini"><div class="kv">'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</div><div class="kl">TR Price</div></div>'
+      +'<div class="bd-mini"><div class="kv">'+(runner.b||'—')+'</div><div class="kl">Barrier</div></div>'
+      +'<div class="bd-mini"><div class="kv">'+(runner.ap!==null&&runner.ap!==undefined?runner.ap.toFixed(1):'—')+'</div><div class="kl">Avg Settled</div></div>'
+      +'<div class="bd-mini"><div class="kv">'+(runner.a8!==null&&runner.a8!==undefined?runner.a8.toFixed(1):'—')+'</div><div class="kl">Avg 800m</div></div>'
+      +'<div class="bd-mini"><div class="kv">'+distSuit+'</div><div class="kl">Dist '+distWpr+' / '+distCount+'</div></div>'
+    +'</div>'
+    +'<div class="bd-section-subtitle">Sectional speed</div>'
+    +'<div class="bd-sectional-grid">'+sectionalHtml+'</div>';
+
+  // === ITEM 6: Price drift mini-chart ===
+  const priceHist=PRICE_HIST&&PRICE_HIST[String(runner.rid||'')];
+  let priceBlock='';
+  if(priceHist){{
+    const cur=getFixed(b)||runner.fx||priceHist.r;
+    const open=priceHist.o;
+    const delta=cur-open;
+    const dirClass=delta<0?'drift-firm':delta>0?'drift-drift':'drift-flat';
+    const dirArrow=delta<0?'↓':delta>0?'↑':'→';
+    const dirLbl=delta<0?'firmed':delta>0?'drifted':'unchanged';
+    priceBlock='<div class="bd-section-title">Price movement today</div>'
+      +'<div class="bd-price-block">'
+        +'<div class="bd-price-summary">'
+          +'<span class="bd-price-from">$'+open.toFixed(2)+'</span>'
+          +'<span class="'+dirClass+' bd-price-arrow">'+dirArrow+'</span>'
+          +'<span class="bd-price-to">$'+cur.toFixed(2)+'</span>'
+          +'<span class="bd-price-lbl">'+dirLbl+(delta!==0?' '+(delta>0?'+':'')+delta.toFixed(2):'')+'</span>'
+          +'<span class="bd-price-snaps">'+(priceHist.n||1)+' snapshot'+((priceHist.n||1)===1?'':'s')+'</span>'
+        +'</div>'
+        +'<canvas class="bd-price-chart" id="bd-chart-'+(b._detailId||'').replace(/[^a-zA-Z0-9]/g,'_')+'" height="60"></canvas>'
+      +'</div>';
+  }}
+
+  // === ITEM 2: Signal rankings as 4×3 grid with rank pills ===
+  const sigCells=SIG_NAMES.map((name,si)=>{{
     const ranking=race.s[si]||[];
-    const pos=ranking.indexOf(ri);  // -1 if not ranked
-    const rank=pos>=0?pos+1:null;   // 1-based rank, null if not in ranking at all
-    // Find actual position among all runners for this signal
-    const allRanks=race.u.map((_,i)=>ranking.indexOf(i)).map(p=>p>=0?p+1:fieldSize+1);
-    const myRank=ranking.indexOf(ri)>=0?ranking.indexOf(ri)+1:fieldSize+1;
+    const myPos=ranking.indexOf(ri);
+    const myRank=myPos>=0?myPos+1:fieldSize+1;
     const inTop3=myRank<=3;
-    const active=activeSigs.has(name);
-    const rankStr='#'+myRank;
+    const inTop5=myRank<=5;
+    const isAnchor=anchorSigs.has(name);
+    const isActive=activeSigs.has(name);
     const label=SIG_LABELS[si].replace(' ↑','').replace(' ↓','');
-    return{{name,label,myRank,inTop3,active,rankStr,si}};
-  }});
-
-  // Sort: top3 first (by rank), then rest (by rank)
-  sigRows.sort((a,b)=>a.myRank-b.myRank);
-
-  const sigHtml=sigRows.map(r=>{{
-    const cls=r.myRank>fieldSize?'out':'';
-    return'<div class="bd-sig '+cls+'">'
-      +'<div class="sn">'+r.label+'</div>'
-      +'<div class="sr">'+r.rankStr+'</div>'
+    let pillCls='bd-sig-pill';
+    if(myRank>fieldSize)pillCls+=' rk-out';
+    else if(inTop3)pillCls+=' rk-top3';
+    else if(inTop5)pillCls+=' rk-top5';
+    else pillCls+=' rk-rest';
+    let cellCls='bd-sig-cell';
+    if(isAnchor)cellCls+=' is-anchor';
+    else if(isActive)cellCls+=' is-active';
+    if(myRank>fieldSize)cellCls+=' is-out';
+    return'<div class="'+cellCls+'">'
+      +'<div class="bd-sig-name">'+label+'</div>'
+      +'<div class="'+pillCls+'">'+(myRank>fieldSize?'—':'#'+myRank)+'</div>'
       +'</div>';
   }}).join('');
 
-  return'<div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Race details</div>'
-    +grid
-    +'<div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Signal rankings</div>'
-    +'<div class="bd-sigs">'+sigHtml+'</div>';
+  const sigGrid='<div class="bd-section-title">Signal rankings</div>'
+    +'<div class="bd-sig-grid">'+sigCells+'</div>';
+
+  // === ITEM 8: Other qualifiers in this race ===
+  const otherQuals=[];
+  race.u.forEach((u,uri)=>{{
+    if(uri===ri)return;
+    // Compute simplified qualifier check: passes anchor filter + has score
+    const passesAnchors=Array.from(anchorSigs).every(sig=>{{
+      const si=SIG_NAMES.indexOf(sig);
+      if(si<0)return true;
+      const ranking=race.s[si]||[];
+      return ranking[0]===uri||ranking[1]===uri||ranking[2]===uri;
+    }});
+    if(passesAnchors&&anchorSigs.size>0){{
+      // Also check trend filter
+      const trendOk=u.tr===null||u.tr===undefined||u.tr>=0;
+      if(trendOk){{
+        otherQuals.push(u);
+      }}
+    }}
+  }});
+  let othersBlock='';
+  if(otherQuals.length>0){{
+    const others=otherQuals.slice(0,5).map(u=>{{
+      const px=u.fx||u.sp;
+      return'<div class="bd-other"><strong>'+u.h+'</strong>'
+        +(px?' <span class="bd-other-px">$'+px.toFixed(2)+'</span>':'')
+        +'<span class="bd-other-jky">'+(u.j||'?')+'</span></div>';
+    }}).join('');
+    othersBlock='<div class="bd-section-title">Other qualifiers in this race ('+otherQuals.length+')</div>'
+      +'<div class="bd-others-grid">'+others+'</div>';
+  }}
+
+  return summaryLine+kpiStrip+runnerBlock+priceBlock+sigGrid+othersBlock;
+}}
+
+// === Render mini drift chart for a bet detail ===
+function renderBetDetailChart(b){{
+  if(!b._detailId)return;
+  const id='bd-chart-'+b._detailId.replace(/[^a-zA-Z0-9]/g,'_');
+  const canvas=document.getElementById(id);
+  if(!canvas)return;
+  const priceHist=PRICE_HIST&&PRICE_HIST[String(b.runId||'')];
+  if(!priceHist)return;
+  // Simulate snapshot path: we only have first/last + count, so draw line between them
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.parentElement.clientWidth-20;
+  const h=60;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+  const open=priceHist.o,cur=getFixed(b)||b.runnerObj.fx||priceHist.r;
+  const minP=Math.min(open,cur),maxP=Math.max(open,cur);
+  const padP=(maxP-minP)*0.3||0.5;
+  const yMin=minP-padP,yMax=maxP+padP;
+  const padL=4,padR=4,padT=8,padB=8;
+  const plotW=w-padL-padR,plotH=h-padT-padB;
+  // Zero/baseline line
+  ctx.strokeStyle='#e8eaf0';ctx.lineWidth=1;
+  // Plot the line (open at left, current at right)
+  const dirCol=cur<open?'#10b981':cur>open?'#dc2626':'#9ca3af';
+  ctx.strokeStyle=dirCol;
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  const x1=padL,y1=padT+plotH*((yMax-open)/(yMax-yMin||1));
+  const x2=padL+plotW,y2=padT+plotH*((yMax-cur)/(yMax-yMin||1));
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.stroke();
+  // Endpoint dots
+  ctx.fillStyle='#9ca3af';
+  ctx.beginPath();ctx.arc(x1,y1,3,0,2*Math.PI);ctx.fill();
+  ctx.fillStyle=dirCol;
+  ctx.beginPath();ctx.arc(x2,y2,4,0,2*Math.PI);ctx.fill();
+  // Labels
+  ctx.fillStyle='#9ca3af';ctx.font='9px sans-serif';
+  ctx.textAlign='left';ctx.fillText('$'+open.toFixed(2),x1+6,y1-4);
+  ctx.textAlign='right';ctx.fillText('$'+cur.toFixed(2),x2-6,y2-4);
 }}
 
 function toggleBetDetail(src,srcId){{
@@ -4752,7 +4956,11 @@ function toggleBetDetail(src,srcId){{
     const lookupId=srcId||id;
     const allBets=[...(window._lastBets||[]),...(window._lastPend||[]),...(window._lastBtBets||[])];
     const b=allBets.find(x=>x._detailId===lookupId);
-    if(b)el.innerHTML=buildDetailHtml(b);
+    if(b){{
+      el.innerHTML=buildDetailHtml(b);
+      // Render mini chart if price history exists for this runner
+      setTimeout(()=>renderBetDetailChart(b),0);
+    }}
     el.dataset.built='1';
   }}
 }}
