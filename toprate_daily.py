@@ -1187,34 +1187,198 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 /* === SETTINGS LIGHT THEME OVERRIDES === */
 .shell.show-settings .sidebar .logo{{display:none;}}
 .shell.show-settings .sidebar .logo-sub{{display:none;}}
-.shell.show-settings .sidebar .ftitle{{color:#9ca3af;border-bottom:1px solid #e8eaf0;font-weight:600;}}
-.shell.show-settings .sidebar .tlbl{{color:#374151;}}
-.shell.show-settings .sidebar .slbl{{color:#374151;}}
-.shell.show-settings .sidebar .sval{{color:#0f1729;font-weight:600;}}
+
+/* Settings page header — restyle the existing settings-header for cleaner appearance */
+.shell.show-settings .settings-header{{
+  background:transparent !important;
+  border:none !important;
+  padding:0 0 18px !important;
+  margin:0 auto 8px !important;
+  max-width:1100px !important;
+}}
+.shell.show-settings .settings-header h2{{
+  font-size:18px !important;
+  font-weight:700 !important;
+  color:#0f1729 !important;
+}}
+.shell.show-settings .settings-header h2::after{{
+  content:'Configure filters and signals applied across all tabs.';
+  display:block;
+  font-size:11px;
+  font-weight:400;
+  color:#6b7280;
+  margin-top:2px;
+}}
+
+/* Section cards — like Strategy breakdown cards */
+.shell.show-settings .sidebar .fsec{{
+  break-inside:avoid;
+  background:#fff;
+  border:1px solid #e8eaf0;
+  border-radius:10px;
+  padding:16px 18px;
+  margin-bottom:14px;
+}}
+.shell.show-settings .sidebar .ftitle{{
+  font-size:9px;
+  letter-spacing:.1em;
+  color:#9ca3af;
+  text-transform:uppercase;
+  font-weight:600;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid #f1f3f8;
+}}
+/* Nested ftitle (settling, pace scenario, sectional within context filters) */
+.shell.show-settings .sidebar .fsec .ftitle ~ .ftitle,
+.shell.show-settings .sidebar [style*="margin-top:6px"] .ftitle{{
+  font-size:9px;
+  margin-top:14px;
+  margin-bottom:8px;
+  padding-bottom:0;
+  border-bottom:none;
+  color:#6b7280;
+}}
+
+/* Toggle row labels */
+.shell.show-settings .sidebar .tlbl{{color:#374151;font-size:12px;}}
+.shell.show-settings .sidebar .slbl{{color:#374151;font-size:12px;}}
+.shell.show-settings .sidebar .sval{{color:#0f1729;font-weight:600;font-size:12px;}}
 .shell.show-settings .sidebar .tog-track{{background:#e5e7eb;}}
 .shell.show-settings .sidebar .tog input:checked+.tog-track{{background:#10b981;}}
 .shell.show-settings .sidebar input[type=range]{{background:#e8eaf0;}}
-.shell.show-settings .sidebar .dow-cb span{{color:#374151;}}
-.shell.show-settings .sidebar .qbtn{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
-.shell.show-settings .sidebar .qbtn:hover{{background:#f4f6f9;color:#0f1729;}}
-.shell.show-settings .sidebar .mb{{border:1px solid #e5e7eb;background:#fff;color:#6b7280;}}
+
+/* Day of week & settling/pace — chip style */
+.shell.show-settings .sidebar .dow-cb,
+.shell.show-settings .sidebar [style*="display:grid"] label{{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+  cursor:pointer;
+  font-size:11px;
+  color:#374151;
+  margin:2px 4px 2px 0;
+  transition:all .15s;
+}}
+.shell.show-settings .sidebar .dow-cb:has(input:checked),
+.shell.show-settings .sidebar [style*="display:grid"] label:has(input:checked){{
+  background:#10b981;
+  border-color:#10b981;
+  color:#fff;
+}}
+.shell.show-settings .sidebar .dow-cb:hover:not(:has(input:checked)),
+.shell.show-settings .sidebar [style*="display:grid"] label:hover:not(:has(input:checked)){{
+  border-color:#9ca3af;
+  background:#f9fafb;
+}}
+/* Hide the actual checkbox inside chip toggles */
+.shell.show-settings .sidebar .dow-cb input[type=checkbox],
+.shell.show-settings .sidebar [style*="display:grid"] label input[type=checkbox]{{
+  display:none;
+}}
+/* The settling/pace grid containers */
+.shell.show-settings .sidebar [style*="display:grid"]{{
+  display:flex !important;
+  flex-wrap:wrap;
+  gap:6px;
+  grid-template-columns:none !important;
+}}
+
+/* Quick buttons */
+.shell.show-settings .sidebar .qbtn{{
+  border:1px solid #e5e7eb;
+  background:#fff;
+  color:#6b7280;
+  padding:7px 12px;
+  font-size:11px;
+  border-radius:6px;
+  cursor:pointer;
+  transition:all .15s;
+}}
+.shell.show-settings .sidebar .qbtn:hover{{background:#f4f6f9;color:#0f1729;border-color:#9ca3af;}}
+
+/* Tab-style buttons (staking, scoring) */
+.shell.show-settings .sidebar .mb{{
+  border:1px solid #e5e7eb;
+  background:#fff;
+  color:#6b7280;
+  border-radius:6px;
+  font-weight:600;
+  font-size:11px;
+}}
 .shell.show-settings .sidebar .mb.active{{background:#0f1729;border-color:#0f1729;color:#fff;}}
-.shell.show-settings .sidebar .mb:hover:not(.active){{background:#f4f6f9;color:#0f1729;}}
-.shell.show-settings .sidebar .reset-btn{{background:#fff;border:1px solid #e5e7eb;color:#6b7280;}}
-.shell.show-settings .sidebar .reset-btn:hover{{background:#f4f6f9;color:#0f1729;}}
-.shell.show-settings .sidebar .run-info{{color:#9ca3af;}}
-.shell.show-settings .sidebar .bt-link{{background:#fff;border:1px solid #e5e7eb;color:#6b7280;}}
-.shell.show-settings .sidebar .bt-link:hover{{background:#f4f6f9;color:#0f1729;}}
-.shell.show-settings .sidebar .sig-cb{{border:1px solid transparent;}}
-.shell.show-settings .sidebar .sig-cb:hover{{background:#f4f6f9;}}
-.shell.show-settings .sidebar .sig-cb .sig-name{{color:#374151;}}
-.shell.show-settings .sidebar .sig-cb.dir-h .sig-name{{color:#374151;}}
-.shell.show-settings .sidebar .sig-cb.dir-l .sig-name{{color:#374151;}}
+.shell.show-settings .sidebar .mb:hover:not(.active){{background:#f4f6f9;color:#0f1729;border-color:#9ca3af;}}
+
+/* Reset / Sync / Run / Bt-link buttons */
+.shell.show-settings .sidebar .reset-btn,
+.shell.show-settings .sidebar .bt-link{{
+  background:#fff;
+  border:1px solid #e5e7eb;
+  color:#374151;
+  border-radius:6px;
+  padding:9px 14px;
+  font-size:11px;
+  font-weight:500;
+}}
+.shell.show-settings .sidebar .reset-btn:hover,
+.shell.show-settings .sidebar .bt-link:hover{{
+  background:#f4f6f9;
+  border-color:#9ca3af;
+}}
+.shell.show-settings .sidebar .run-info{{color:#9ca3af;font-size:10px;}}
+
+/* Signal cards — richer style than checkbox row */
+.shell.show-settings .sidebar .sig-cb{{
+  border:1px solid #e8eaf0;
+  background:#fff;
+  border-radius:8px;
+  padding:8px 10px;
+  margin-bottom:5px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  transition:all .15s;
+}}
+.shell.show-settings .sidebar .sig-cb:hover{{background:#f9fafb;border-color:#cbd5e1;}}
+.shell.show-settings .sidebar .sig-cb .sig-name{{
+  color:#374151;
+  font-size:11px;
+  font-family:'IBM Plex Mono',monospace;
+}}
+.shell.show-settings .sidebar .sig-cb.dir-h .sig-name::after{{content:' ↑';color:#10b981;font-family:inherit;}}
+.shell.show-settings .sidebar .sig-cb.dir-l .sig-name::after{{content:' ↓';color:#3b82f6;font-family:inherit;}}
 .shell.show-settings .sidebar .sig-cb.anchored{{background:#fef3c7;border-color:#fcd34d;}}
-.shell.show-settings .sidebar .sig-cb.anchored .sig-name{{color:#92400e;}}
-.shell.show-settings .sidebar input[type=date]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
-.shell.show-settings .sidebar input[type=number]{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
-.shell.show-settings .sidebar select{{background:#fff;color:#374151;border:1px solid #e5e7eb;}}
+.shell.show-settings .sidebar .sig-cb.anchored .sig-name{{color:#92400e;font-weight:600;}}
+
+/* Date inputs */
+.shell.show-settings .sidebar input[type=date]{{
+  background:#fff;color:#374151;border:1px solid #e5e7eb;
+  padding:7px 9px;border-radius:6px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;
+  cursor:pointer;
+}}
+.shell.show-settings .sidebar input[type=date]:focus{{border-color:#10b981;outline:none;}}
+.shell.show-settings .sidebar input[type=number]{{
+  background:#fff;color:#374151;border:1px solid #e5e7eb;
+  padding:7px 9px;border-radius:6px;
+}}
+
+/* Tooltip help icons */
+.help-tip{{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;
+  background:#f4f6f9;color:#9ca3af;
+  font-size:9px;font-weight:600;
+  margin-left:6px;cursor:help;
+  border:1px solid #e5e7eb;
+}}
+.help-tip:hover{{background:#e5e7eb;color:#374151;}}
 .shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
 .shell.show-settings .main{{display:block;}}
 .shell.show-settings .settings-header{{display:flex !important;}}
