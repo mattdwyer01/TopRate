@@ -1387,16 +1387,12 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
 .settings-cancel-btn:hover{{background:#f4f6f9;}}
 .sidebar::-webkit-scrollbar{{width:3px;}}.sidebar::-webkit-scrollbar-thumb{{background:rgba(255,255,255,.2);}}
 .main-content{{min-width:0;overflow-x:auto;}}
-.mob-bar{{display:none;}}
+.mob-bar{{display:none !important;}}
 @media(max-width:1100px) and (min-width:769px){{
   .sidebar{{padding:16px 10px;}}
 }}
 @media(max-width:768px){{
   body{{overflow-x:hidden;}}
-  .mob-bar{{display:flex;align-items:center;justify-content:space-between;background:#0f172a;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15);}}
-  .mob-bar-logo{{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:-.03em;}}
-  .mob-bar-logo em{{color:#10b981;font-style:normal;}}
-  .mob-menu-btn{{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:18px;cursor:pointer;padding:6px 10px;border-radius:4px;line-height:1;}}
   .mob-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;backdrop-filter:blur(2px);}}
   .mob-overlay.open{{display:block;}}
   .main{{padding:8px 8px 80px;max-width:100vw;}}
@@ -5406,7 +5402,24 @@ function closeSidebar(){{
   document.getElementById('mob-overlay').classList.remove('open');
 }}
 // Bet detail click delegation — desktop table rows and mobile cards
+// Track touches to distinguish between taps and scrolls on mobile
+let _touchStartY=null, _touchStartX=null, _touchMoved=false;
+document.addEventListener('touchstart',function(e){{
+  if(e.touches.length!==1){{_touchStartY=null;return;}}
+  _touchStartY=e.touches[0].clientY;
+  _touchStartX=e.touches[0].clientX;
+  _touchMoved=false;
+}},{{passive:true}});
+document.addEventListener('touchmove',function(e){{
+  if(_touchStartY===null||e.touches.length!==1)return;
+  const dy=Math.abs(e.touches[0].clientY-_touchStartY);
+  const dx=Math.abs(e.touches[0].clientX-_touchStartX);
+  if(dy>10||dx>10)_touchMoved=true;
+}},{{passive:true}});
+
 document.addEventListener('click',function(e){{
+  // If user scrolled, don't treat as a tap that toggles
+  if(_touchMoved){{_touchMoved=false;return;}}
   // Desktop: table row
   const tr=e.target.closest('tr[data-did]');
   if(tr){{toggleBetDetail(tr.dataset.did,null);return;}}
