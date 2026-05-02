@@ -1542,6 +1542,8 @@ tr.no-bet-row td{{opacity:0.4;}}
 .dist-ok{{color:#6b7280;font-weight:600;font-size:14px;}}
 .dist-poor{{color:#9ca3af;font-size:12px;}}
 .dist-untried{{color:#dc2626;font-weight:700;font-size:14px;}}
+.cumul-cell{{font-weight:600;color:#0f1729;}}
+.cumul-rank{{font-size:9px;color:#9ca3af;font-weight:500;margin-left:2px;}}
 .rs-value-neg{{color:#dc2626;font-weight:600;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
 .rs-finish-2{{color:#6b7280;font-weight:600;}}
@@ -1912,7 +1914,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="card desk-only" id="pend-card" style="display:none">
     <table><thead><tr>
       <th>Date</th><th>Time</th><th>Venue</th><th>Horse</th><th>Jockey</th>
-      <th>Sigs</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
+      <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
   <div class="mob-bet-list mob-only" id="pend-mob"></div>
@@ -1920,7 +1922,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="card desk-only" id="res-card">
     <table><thead><tr>
       <th>Date</th><th>Time</th><th>Venue</th><th>Horse</th><th>Jockey</th>
-      <th>Sigs</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
+      <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
       <th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Cumul</th>
     </tr></thead><tbody id="tb"></tbody></table>
     <div class="empty" id="empty">No resulted bets match current filters</div>
@@ -2270,6 +2272,27 @@ function scoreRace(race){{
   scores.forEach((s,i)=>{{if(s>topScore){{topScore=s;topIdx=i;}}}});
   return {{topIdx,topScore,scores}};
 }}
+
+function computeCumulScores(race){{
+  // Weighted score across ALL 12 signals (3 pts top, 2 pts 2nd, 1 pt 3rd)
+  // Independent of activeSigs/anchorSigs — purely informational
+  const cumul=new Array(race.u.length).fill(0);
+  SIG_NAMES.forEach((sig,si)=>{{
+    const ranking=race.s[si]||[];
+    if(ranking[0]>=0)cumul[ranking[0]]+=3;
+    if(ranking[1]>=0)cumul[ranking[1]]+=2;
+    if(ranking[2]>=0)cumul[ranking[2]]+=1;
+  }});
+  // Compute rank within race (descending — rank 1 = highest cumul)
+  const sorted=cumul.map((s,i)=>({{i,s}})).sort((a,b)=>b.s-a.s);
+  const ranks=new Array(race.u.length).fill(0);
+  let curRank=0,prevScore=null;
+  sorted.forEach(({{i,s}},idx)=>{{
+    if(s!==prevScore){{curRank=idx+1;prevScore=s;}}
+    ranks[i]=curRank;
+  }});
+  return {{cumul,ranks}};
+}}
 function getF(){{return{{
   tab:document.getElementById('f-tab').checked,
   prize:parseInt(document.getElementById('f-prize').value),
@@ -2364,6 +2387,7 @@ function buildBets(f){{
     if(f.dateTo&&race.d>f.dateTo)return;
     if(activeDows.size<7){{const dow=dateToDow(race.d);if(!activeDows.has(dow))return;}}
     const {{topIdx,topScore,scores}}=scoreRace(race);
+    const {{cumul:cumulArr,ranks:cumulRanks}}=computeCumulScores(race);
     if(topIdx<0||topScore<f.votes)return;
     // In top1 mode: emit only the race leader (original behaviour).
     // In top3c/top3w modes: emit every runner whose individual score meets the threshold.
@@ -2403,7 +2427,7 @@ function buildBets(f){{
       // Use manual finish if available (pending race only), otherwise use API finish
       const effectiveFinish=race.done===0&&manualFinish!==null?manualFinish:runner.f;
       const effectiveDone=race.done===1||(race.done===0&&manualFinish!==null)?1:0;
-      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,runId:runner.rid,jockey:runner.j,score:runnerScore,scoreDisp,sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,isBet,manualFinish,raceObj:race,runnerObj:runner}};
+      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,runId:runner.rid,jockey:runner.j,score:runnerScore,scoreDisp,cumulScore:cumulArr[idx],cumulRank:cumulRanks[idx],sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,isBet,manualFinish,raceObj:race,runnerObj:runner}};
       if(effectiveDone===1)resulted.push(bet);
       else pending.push(bet);
     }});
@@ -2780,13 +2804,15 @@ function update(){{
       return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" data-did="'+did+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#6b7280;">'+timeStrR+'</td>'
         +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
-        +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
+        +'<td class="mn">'+b.scoreDisp+'</td>'
+        +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
+        +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
         +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
         +'<td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td>'
         +'<td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td>'
         +'<td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td>'
         +'<td>'+res+manualTag+'</td><td>'+plH+'</td><td>'+cumH+'</td></tr>'
-        +'<tr><td colspan="17" style="padding:0;"><div class="bet-detail" id="bd-'+did+'"></div></td></tr>';
+        +'<tr><td colspan="18" style="padding:0;"><div class="bet-detail" id="bd-'+did+'"></div></td></tr>';
     }}).join('');
     window._lastBets=sortedResulted;
     // Re-attach listeners after innerHTML rebuild
@@ -2841,13 +2867,20 @@ function update(){{
         +'</div>'
         +'<div class="mob-bet-body">'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-        +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+'</div></div>'
+        +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
         +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
         +'</div>'
         +'<div class="mob-bet-row">'
         +(b.sp?'<span class="mob-bet-tag sp">SP $'+b.sp.toFixed(2)+'</span>':'')
         +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
         +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
+        +'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
+        +'</div>'
+        +'<div class="mob-bet-row">'
+        +(b.trend!==null&&b.trend!==undefined?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Trend '+trendHtml(b.trend)+'</span>':'')
+        +(b.settling?'<span class="mob-bet-tag" style="background:#eff6ff;color:#1e3a8a;">'+b.settling+'</span>':'')
+        +(b.pace&&b.pace!=='unknown'?'<span class="mob-bet-tag" style="background:#fef3c7;color:#92400e;">Pace '+b.pace+'</span>':'')
+        +(b.barrier?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Bar '+b.barrier+'</span>':'')
         +'</div>'
         +'<div class="mob-bet-footer">'
         +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
@@ -2898,7 +2931,9 @@ function update(){{
       return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" data-did="'+pdid+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#10b981;font-weight:700;">'+timeStr+'</td>'
         +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
-        +'<td class="mn">'+b.scoreDisp+'</td><td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
+        +'<td class="mn">'+b.scoreDisp+'</td>'
+        +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
+        +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
         +'<td class="mn">'+mktPriceHtml+'</td>'
         +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
         +'<td class="mn">'+(()=>{{const d=getDrift(b.runId,fx);return d?d.html:'<span style="color:#9ca3af">—</span>';}})()+'</td>'
@@ -2906,7 +2941,7 @@ function update(){{
         +'<td>'+trendHtml(b.trend)+'</td><td>'+ctxHtml(b.runnerObj,b.raceObj)+'</td>'
         +'<td class="mn">'+betBtn+'</td><td class="mn">'+(isBet?effStake.toFixed(2)+'u':'<span style="color:#9ca3af">0u</span>')+'</td>'
         +'<td class="mn">'+resInp+'</td></tr>'
-        +'<tr><td colspan="17" style="padding:0;"><div class="bet-detail" id="bd-'+pdid+'"></div></td></tr>';
+        +'<tr><td colspan="18" style="padding:0;"><div class="bet-detail" id="bd-'+pdid+'"></div></td></tr>';
     }}).join('');
     window._lastPend=sortedPending;
     sortedPending.forEach(b=>{{
@@ -2965,14 +3000,21 @@ function update(){{
           +'</div>'
           +'<div class="mob-bet-body">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-          +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+'</div></div>'
+          +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
           +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
           +'</div>'
           +'<div class="mob-bet-row">'
           +(b.mktPrice?'<span class="mob-bet-tag mkt">Mkt $'+b.mktPrice.toFixed(2)+'</span>':'<span class="mob-bet-tag sp">SP TBD</span>')
           +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
           +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
+          +'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
           +(()=>{{const d=getDrift(b.runId,getFixed(b));return d?'<span class="mob-bet-tag" style="background:#f4f6f9;">'+d.html+'</span>':'';}})()
+          +'</div>'
+          +'<div class="mob-bet-row">'
+          +(b.trend!==null&&b.trend!==undefined?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Trend '+trendHtml(b.trend)+'</span>':'')
+          +(b.settling?'<span class="mob-bet-tag" style="background:#eff6ff;color:#1e3a8a;">'+b.settling+'</span>':'')
+          +(b.pace&&b.pace!=='unknown'?'<span class="mob-bet-tag" style="background:#fef3c7;color:#92400e;">Pace '+b.pace+'</span>':'')
+          +(b.barrier?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Bar '+b.barrier+'</span>':'')
           +'</div>'
           +'<div class="mob-bet-footer">'
           +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
@@ -3365,16 +3407,26 @@ function renderRaceDetail(){{
         +'<td>'+(runner.trp?'$'+runner.trp.toFixed(2):'—')+'</td>'
         +'<td>'+valCell+'</td>';
     // Distance suitability badge
+    // wd = wpr_dist (avg WPR at distance, null if never raced this trip)
+    // dn = wpr_dist_n (count of runs at distance — may be missing in older data)
     let distBadge='—';
-    if(runner.dn===0||runner.dn===null||runner.dn===undefined){{
+    const wd=runner.wd;
+    const dn=runner.dn;
+    if(wd!==null&&wd!==undefined){{
+      // Has WPR data at this distance → has raced here
+      const nText=dn?(dn+' run'+(dn===1?'':'s')+' at trip'):'raced at trip';
+      if(wd>=70){{
+        distBadge='<span class="dist-good" title="WPR '+wd.toFixed(1)+' across '+nText+'">✓</span>';
+      }}else if(wd>=50){{
+        distBadge='<span class="dist-ok" title="WPR '+wd.toFixed(1)+' across '+nText+'">~</span>';
+      }}else{{
+        distBadge='<span class="dist-poor" title="WPR '+wd.toFixed(1)+' across '+nText+'">·</span>';
+      }}
+    }}else if(dn===0){{
+      // Confirmed never raced at this trip
       distBadge='<span class="dist-untried" title="Never raced at this trip">✗</span>';
-    }}else if(runner.wd!==null&&runner.wd>=70){{
-      distBadge='<span class="dist-good" title="WPR '+runner.wd.toFixed(1)+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">✓</span>';
-    }}else if(runner.wd!==null&&runner.wd>=50){{
-      distBadge='<span class="dist-ok" title="WPR '+runner.wd.toFixed(1)+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">~</span>';
-    }}else if(runner.dn>0){{
-      distBadge='<span class="dist-poor" title="WPR '+(runner.wd!==null?runner.wd.toFixed(1):'?')+' across '+runner.dn+' run'+(runner.dn===1?'':'s')+' at trip">·</span>';
     }}
+    // If wd is null AND dn is undefined, we just don't have the data yet — show nothing
     return '<tr class="'+rowCls+'">'
       +'<td><strong>'+(runner.tab||'?')+'</strong></td>'
       +'<td class="lt"><strong>'+runner.h+'</strong></td>'
