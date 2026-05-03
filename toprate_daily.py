@@ -2575,44 +2575,40 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Model A: WIDE — jky3 + peak3 + speed top-60% + trn top-4 (best in backtest, n=313, +149% ROI)
-// Model B: PREMIUM — jky3 + peak3 + speed top-3 + trn top-3 (sharper, n=135, +145% ROI)
-// Model C: COMFORTABLE — 5-anchor jky3+peak3+speed3+trn3+tr3 (high place%, n=89, +77% ROI)
+// Model A: WIDE — jky3 + peak3 + speed top-50% (no trainer anchor)
+// Model B: PREMIUM — jky3 + peak3 + speed top-50% + trn top-4
+// Model C: COMFORTABLE — jky3 + peak3 + speed top-50% + trn top-4 + tr top-4
 //
 // Each model's signalFilters defines per-signal thresholds:
 //   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
-//   {{type:'PCT_FIELD', pct:0.6}} = top X% of field by signal value within race
+//   {{type:'PCT_FIELD', pct:0.5}} = top X% of field by signal value within race
 const MODELS={{
   A:{{name:'Model A',label:'Wide',
       signalFilters:{{
         jky_win90:{{type:'TOP_N',n:3}},
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'PCT_FIELD',pct:0.6}},
-        trn_win365:{{type:'TOP_N',n:4}}
+        speed:{{type:'PCT_FIELD',pct:0.5}}
       }},
-      desc:'jky3 + peak3 + speed 60% + trn top-4'}},
+      desc:'jky3 + peak3 + speed 50%'}},
   B:{{name:'Model B',label:'Premium',
       signalFilters:{{
         jky_win90:{{type:'TOP_N',n:3}},
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'TOP_N',n:3}},
-        trn_win365:{{type:'TOP_N',n:3}}
+        speed:{{type:'PCT_FIELD',pct:0.5}},
+        trn_win365:{{type:'TOP_N',n:4}}
       }},
-      desc:'jky3 + peak3 + speed3 + trn3'}},
+      desc:'jky3 + peak3 + speed 50% + trn top-4'}},
   C:{{name:'Model C',label:'Comfortable',
       signalFilters:{{
         jky_win90:{{type:'TOP_N',n:3}},
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'TOP_N',n:3}},
-        trn_win365:{{type:'TOP_N',n:3}},
-        tr_rating:{{type:'TOP_N',n:3}}
+        speed:{{type:'PCT_FIELD',pct:0.5}},
+        trn_win365:{{type:'TOP_N',n:4}},
+        tr_rating:{{type:'TOP_N',n:4}}
       }},
-      desc:'jky3 + peak3 + speed3 + trn3 + tr3'}}
+      desc:'jky3 + peak3 + speed 50% + trn top-4 + tr top-4'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
-// Migration: if old code stored 'A' or 'B' but the new B is now Premium, that's fine (still A/B).
-// Old code's "Model B" was the 4-anchor with tr_rating — closest match in new world is Model C.
-// We'll let users re-pick via the UI.
 
 function dateToDow(d){{const p=d.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2])).getDay();}}
 function fmtTime(tm){{
