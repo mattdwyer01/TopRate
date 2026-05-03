@@ -2580,8 +2580,8 @@ let method='top1';
 // Model C: COMFORTABLE — 5-anchor jky3+peak3+speed3+trn3+tr3 (high place%, n=89, +77% ROI)
 //
 // Each model's signalFilters defines per-signal thresholds:
-//   {sig:'TOP_N', n:3} = top-N by dash_rank (count filter)
-//   {sig:'PCT_FIELD', pct:0.6} = top X% of field by signal value within race
+//   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
+//   {{type:'PCT_FIELD', pct:0.6}} = top X% of field by signal value within race
 const MODELS={{
   A:{{name:'Model A',label:'Wide',
       signalFilters:{{
