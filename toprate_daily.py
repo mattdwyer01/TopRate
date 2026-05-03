@@ -332,6 +332,18 @@ def compute_signal_rankings(rdf):
     run_id_to_pos = {str(rdf.loc[i, "run_id"]): i for i in range(n)}
 
     signal_rankings = []
+    # Track per-runner ranks for each signal (for custom-threshold model anchors)
+    # Stored as: per_runner_ranks[runner_idx] = {sig_short: rank_within_race or None}
+    SIG_SHORT_KEYS = {  # map ALL_SIGNALS index → short JS key
+        "jockey_win_pct_90d":   "jky",
+        "wpr_peak_rank_1yr":    "peak",
+        "speed_rating":         "speed",
+        "toprate_rating":       "tr",
+        "trainer_win_pct_365d": "trn",
+    }
+    per_runner_ranks = [{} for _ in range(n)]
+    field_size_by_sig = {}
+
     for sig in ALL_SIGNALS:
         col = "fixed_win_price" if sig == "starting_price_sp" else sig
         if col == "price_top" or col not in rdf.columns or not rdf[col].notna().any():
@@ -340,10 +352,17 @@ def compute_signal_rankings(rdf):
         valid = rdf[rdf[col].notna()]
         ascending = sig not in SIGNALS_HIGHER
         sorted_valid = valid.sort_values(col, ascending=ascending)
-        top5 = sorted_valid.index.tolist()[:5]
+        sorted_idx = sorted_valid.index.tolist()
+        top5 = sorted_idx[:5]
         while len(top5) < 5:
             top5.append(-1)
         signal_rankings.append(top5[:5])
+        # If this is one of our anchor candidate signals, record per-runner rank
+        if sig in SIG_SHORT_KEYS:
+            short = SIG_SHORT_KEYS[sig]
+            field_size_by_sig[short] = len(sorted_idx)
+            for rank_pos, runner_idx in enumerate(sorted_idx, start=1):
+                per_runner_ranks[runner_idx][short] = rank_pos
 
     u_list = []
     for i in range(n):
@@ -382,6 +401,22 @@ def compute_signal_rankings(rdf):
             "a8": safe_float(row.get("avg_800m_pos")),
             "wd": safe_float(row.get("wpr_dist")),
             "dn": safe_int(row.get("wpr_dist_n")),
+            # Per-runner ranks for anchor candidate signals (None if signal missing)
+            "rnk": {
+                "jky":   per_runner_ranks[i].get("jky"),
+                "peak":  per_runner_ranks[i].get("peak"),
+                "speed": per_runner_ranks[i].get("speed"),
+                "tr":    per_runner_ranks[i].get("tr"),
+                "trn":   per_runner_ranks[i].get("trn"),
+            },
+            # Field sizes per signal (for percentage thresholds)
+            "fsz": {
+                "jky":   field_size_by_sig.get("jky"),
+                "peak":  field_size_by_sig.get("peak"),
+                "speed": field_size_by_sig.get("speed"),
+                "tr":    field_size_by_sig.get("tr"),
+                "trn":   field_size_by_sig.get("trn"),
+            },
         })
 
     return signal_rankings, u_list
@@ -1495,7 +1530,7 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
 
 /* === Model sub-tabs === */
-.model-tabs{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;background:#f4f6f9;padding:6px;border-radius:10px;}}
+.model-tabs{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;background:#f4f6f9;padding:6px;border-radius:10px;}}
 .model-tab{{background:#fff;border:2px solid transparent;border-radius:8px;padding:10px 14px;cursor:pointer;transition:all .15s;text-align:center;}}
 .model-tab:hover{{background:#fafbfc;}}
 .model-tab.active{{border-color:#10b981;background:#fff;box-shadow:0 1px 3px rgba(16,185,129,.15);}}
@@ -1508,6 +1543,21 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .model-info-banner strong{{color:#059669;}}
 .model-info-note{{display:block;color:#6b7280;font-size:10px;margin-top:3px;}}
 .tab-cell{{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;background:#0f1729;color:#fff;font-weight:700;font-size:11px;border-radius:4px;padding:0 5px;font-family:'IBM Plex Mono',monospace;}}
+
+/* === Meeting navigator on race detail === */
+.meeting-nav{{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f4f6f9;border-radius:8px;padding:8px 10px;margin-bottom:12px;}}
+.meeting-nav-label{{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-right:4px;}}
+.meeting-nav-race{{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;color:#0f1729;cursor:pointer;transition:all .12s;text-decoration:none;}}
+.meeting-nav-race:hover{{background:#f0fdf4;border-color:#10b981;}}
+.meeting-nav-race.current{{background:#10b981;color:#fff;border-color:#10b981;cursor:default;}}
+.meeting-nav-race.done{{opacity:.55;}}
+.meeting-nav-race-time{{font-size:10px;color:#9ca3af;font-weight:500;margin-left:2px;}}
+.meeting-nav-race.current .meeting-nav-race-time{{color:rgba(255,255,255,.7);}}
+@media(max-width:768px){{
+  .meeting-nav{{padding:6px 8px;gap:4px;}}
+  .meeting-nav-race{{padding:4px 8px;font-size:11px;}}
+  .meeting-nav-label{{font-size:10px;}}
+}}
 @media(max-width:768px){{
   .model-tabs{{margin:8px 0 12px;}}
   .model-tab{{padding:8px 10px;}}
@@ -2167,14 +2217,14 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="fsec">
     <div class="ftitle">Signals <span style="font-size:8px;color:rgba(255,255,255,.3);margin-left:4px;">&#8593; higher better &nbsp; &#8595; lower better</span></div>
     <div class="model-info-banner" id="model-info-banner">
-      Active: <strong id="model-info-active">Model A (3-Anchor)</strong>
+      Active: <strong id="model-info-active">Model A</strong>
       <span class="model-info-note">Manually changing anchors below creates a custom configuration that overrides the model selection.</span>
     </div>
     <div class="sig-sel-btns">
-      <button class="sig-btn" onclick="switchModel('A')">Model A (3)</button>
-      <button class="sig-btn" onclick="switchModel('B')">Model B (4)</button>
+      <button class="sig-btn" onclick="switchModel('A')">Model A</button>
+      <button class="sig-btn" onclick="switchModel('B')">Model B</button>
+      <button class="sig-btn" onclick="switchModel('C')">Model C</button>
       <button class="sig-btn" onclick="selectAllSigs()">All</button>
-      <button class="sig-btn" onclick="selectNoneSigs()">None</button>
     </div>
     <div class="sig-grid" id="sig-grid"></div>
   </div>
@@ -2234,13 +2284,18 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="model-tabs" id="model-tabs">
     <div class="model-tab active" data-model="A" onclick="switchModel('A')">
       <div class="model-tab-label">Model A</div>
-      <div class="model-tab-sub">3-Anchor</div>
+      <div class="model-tab-sub">Wide</div>
       <div class="model-tab-stat" id="mt-stat-A">—</div>
     </div>
     <div class="model-tab" data-model="B" onclick="switchModel('B')">
       <div class="model-tab-label">Model B</div>
-      <div class="model-tab-sub">4-Anchor</div>
+      <div class="model-tab-sub">Premium</div>
       <div class="model-tab-stat" id="mt-stat-B">—</div>
+    </div>
+    <div class="model-tab" data-model="C" onclick="switchModel('C')">
+      <div class="model-tab-label">Model C</div>
+      <div class="model-tab-sub">Comfortable</div>
+      <div class="model-tab-stat" id="mt-stat-C">—</div>
     </div>
   </div>
   <div class="kpi-strip" id="kpi-strip-today">
@@ -2294,18 +2349,6 @@ tr.no-bet-row td{{opacity:0.4;}}
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-race">
     <div class="race-page">
-      <div class="model-tabs" id="model-tabs-race">
-        <div class="model-tab active" data-model="A" onclick="switchModel('A')">
-          <div class="model-tab-label">Model A</div>
-          <div class="model-tab-sub">3-Anchor</div>
-          <div class="model-tab-stat" id="mt-stat-race-A">—</div>
-        </div>
-        <div class="model-tab" data-model="B" onclick="switchModel('B')">
-          <div class="model-tab-label">Model B</div>
-          <div class="model-tab-sub">4-Anchor</div>
-          <div class="model-tab-stat" id="mt-stat-race-B">—</div>
-        </div>
-      </div>
       <!-- Meeting browser view (default) -->
       <div id="race-browser">
         <div class="meeting-date-bar">
@@ -2325,6 +2368,7 @@ tr.no-bet-row td{{opacity:0.4;}}
         <div class="race-back-bar">
           <button class="race-back-btn" onclick="exitRaceDetail()">← Back to meetings</button>
         </div>
+        <div class="meeting-nav" id="meeting-nav" style="display:none;"></div>
         <div class="race-header">
           <div class="race-header-main">
             <div class="race-title" id="race-title">—</div>
@@ -2531,13 +2575,44 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Model A: 3-anchor (jky+peak+speed) — current default
-// Model B: 4-anchor (jky+peak+speed+tr_rating) — more conservative
+// Model A: WIDE — jky3 + peak3 + speed top-60% + trn top-4 (best in backtest, n=313, +149% ROI)
+// Model B: PREMIUM — jky3 + peak3 + speed top-3 + trn top-3 (sharper, n=135, +145% ROI)
+// Model C: COMFORTABLE — 5-anchor jky3+peak3+speed3+trn3+tr3 (high place%, n=89, +77% ROI)
+//
+// Each model's signalFilters defines per-signal thresholds:
+//   {sig:'TOP_N', n:3} = top-N by dash_rank (count filter)
+//   {sig:'PCT_FIELD', pct:0.6} = top X% of field by signal value within race
 const MODELS={{
-  A:{{name:'Model A',label:'3-Anchor',anchors:new Set(['jky_win90','peak_rank','speed']),desc:'jky + peak + speed'}},
-  B:{{name:'Model B',label:'4-Anchor',anchors:new Set(['jky_win90','peak_rank','speed','tr_rating']),desc:'jky + peak + speed + tr_rating'}}
+  A:{{name:'Model A',label:'Wide',
+      signalFilters:{{
+        jky_win90:{{type:'TOP_N',n:3}},
+        peak_rank:{{type:'TOP_N',n:3}},
+        speed:{{type:'PCT_FIELD',pct:0.6}},
+        trn_win365:{{type:'TOP_N',n:4}}
+      }},
+      desc:'jky3 + peak3 + speed 60% + trn top-4'}},
+  B:{{name:'Model B',label:'Premium',
+      signalFilters:{{
+        jky_win90:{{type:'TOP_N',n:3}},
+        peak_rank:{{type:'TOP_N',n:3}},
+        speed:{{type:'TOP_N',n:3}},
+        trn_win365:{{type:'TOP_N',n:3}}
+      }},
+      desc:'jky3 + peak3 + speed3 + trn3'}},
+  C:{{name:'Model C',label:'Comfortable',
+      signalFilters:{{
+        jky_win90:{{type:'TOP_N',n:3}},
+        peak_rank:{{type:'TOP_N',n:3}},
+        speed:{{type:'TOP_N',n:3}},
+        trn_win365:{{type:'TOP_N',n:3}},
+        tr_rating:{{type:'TOP_N',n:3}}
+      }},
+      desc:'jky3 + peak3 + speed3 + trn3 + tr3'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
+// Migration: if old code stored 'A' or 'B' but the new B is now Premium, that's fine (still A/B).
+// Old code's "Model B" was the 4-anchor with tr_rating — closest match in new world is Model C.
+// We'll let users re-pick via the UI.
 
 function dateToDow(d){{const p=d.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2])).getDay();}}
 function fmtTime(tm){{
@@ -2635,7 +2710,7 @@ function selectAnchorPreset(){{
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
   // Initialize anchor sigs from active model
-  const _initAnchors=Array.from(MODELS[activeModel].anchors);
+  const _initAnchors=Object.keys(MODELS[activeModel].signalFilters);
   activeSigs=new Set(_initAnchors);
   anchorSigs=new Set(_initAnchors);
   // Sync UI to reflect active model
@@ -2646,6 +2721,40 @@ function selectAnchorPreset(){{
     if(typeof updateModelInfoBanner==='function')updateModelInfoBanner();
   }},0);
 }})();
+// Map JS signal name → short key used in runner.rnk/fsz
+const ANCHOR_SIG_MAP={{
+  jky_win90:'jky', peak_rank:'peak', speed:'speed', tr_rating:'tr', trn_win365:'trn'
+}};
+
+function checkAnchorPass(runner, sigJsName, filterCfg){{
+  // filterCfg: {{type:'TOP_N', n:3}} or {{type:'PCT_FIELD', pct:0.6}}
+  const shortKey=ANCHOR_SIG_MAP[sigJsName];
+  if(!shortKey)return true;  // unknown signal — don't gate
+  if(!runner.rnk||runner.rnk[shortKey]==null)return false;  // no rank data → fail anchor
+  const rank=runner.rnk[shortKey];
+  if(filterCfg.type==='TOP_N'){{
+    return rank<=filterCfg.n;
+  }}else if(filterCfg.type==='PCT_FIELD'){{
+    const fsz=runner.fsz?runner.fsz[shortKey]:null;
+    if(!fsz||fsz<=0)return false;
+    const cutoff=Math.ceil(fsz*filterCfg.pct);
+    return rank<=cutoff;
+  }}
+  return false;
+}}
+
+function checkRunnerPassesModel(runner, modelKey){{
+  // Check if runner passes all anchor filters for the given model
+  const m=MODELS[modelKey];
+  if(!m||!m.signalFilters)return true;
+  for(const sigJsName in m.signalFilters){{
+    if(!checkAnchorPass(runner, sigJsName, m.signalFilters[sigJsName])){{
+      return false;
+    }}
+  }}
+  return true;
+}}
+
 function scoreRace(race){{
   const scores=new Array(race.u.length).fill(0);
   SIG_NAMES.forEach((sig,si)=>{{
@@ -2655,16 +2764,37 @@ function scoreRace(race){{
     else if(method==='top3c'){{if(r1>=0)scores[r1]+=1;if(r2>=0)scores[r2]+=1;if(r3>=0)scores[r3]+=1;}}
     else{{if(r1>=0)scores[r1]+=3;if(r2>=0)scores[r2]+=2;if(r3>=0)scores[r3]+=1;}}
   }});
-  // Apply anchor mask — runners not top-3 in all anchors get score 0
-  if(anchorSigs.size>0){{
+  // Apply MODEL-AWARE anchor mask using per-runner ranks + model's signalFilters
+  // Falls back to legacy anchorSigs (top-3) for runners without rank data
+  const model=MODELS[activeModel];
+  if(model&&model.signalFilters){{
     scores.forEach((_,ri)=>{{
-      const passesAnchors=Array.from(anchorSigs).every(sig=>{{
+      const runner=race.u[ri];
+      if(!runner){{scores[ri]=0;return;}}
+      if(runner.rnk){{
+        // New path: use per-runner ranks
+        if(!checkRunnerPassesModel(runner, activeModel))scores[ri]=0;
+      }}else if(anchorSigs.size>0){{
+        // Legacy fallback: top-3 via race.s
+        const passes=Array.from(anchorSigs).every(sig=>{{
+          const si=SIG_NAMES.indexOf(sig);
+          if(si<0)return true;
+          const [r1,r2,r3]=race.s[si];
+          return r1===ri||r2===ri||r3===ri;
+        }});
+        if(!passes)scores[ri]=0;
+      }}
+    }});
+  }}else if(anchorSigs.size>0){{
+    // No active model — use legacy anchorSigs
+    scores.forEach((_,ri)=>{{
+      const passes=Array.from(anchorSigs).every(sig=>{{
         const si=SIG_NAMES.indexOf(sig);
         if(si<0)return true;
         const [r1,r2,r3]=race.s[si];
         return r1===ri||r2===ri||r3===ri;
       }});
-      if(!passesAnchors)scores[ri]=0;
+      if(!passes)scores[ri]=0;
     }});
   }}
   let topIdx=-1,topScore=0;
@@ -3237,16 +3367,17 @@ function renderVarianceChart(rois, todayRoi){{
 }}
 
 function updateModelTabStats(f){{
-  // Compute summary stats for BOTH models so sub-tab labels show comparative info.
-  // Saves and restores activeModel/anchorSigs/activeSigs so the active state isn't affected.
+  // Compute summary stats for ALL 3 models so sub-tab labels show comparative info.
   const _savedModel=activeModel;
   const _savedAnchors=new Set(anchorSigs);
   const _savedActive=new Set(activeSigs);
   
-  ['A','B'].forEach(m=>{{
+  ['A','B','C'].forEach(m=>{{
+    if(!MODELS[m])return;
     activeModel=m;
-    anchorSigs=new Set(MODELS[m].anchors);
-    activeSigs=new Set(MODELS[m].anchors);
+    const sigs=Object.keys(MODELS[m].signalFilters);
+    anchorSigs=new Set(sigs);
+    activeSigs=new Set(sigs);
     const {{resulted}}=buildBets(f);
     let n=0,staked=0,profit=0,wins=0;
     const maxScore=method==='top1'?activeSigs.size:method==='top3c'?activeSigs.size:activeSigs.size*3;
@@ -3260,10 +3391,8 @@ function updateModelTabStats(f){{
       if(b.won){{profit+=stake*(priceForStake-1);wins++;}}else{{profit-=stake;}}
     }});
     const roi=staked>0?profit/staked*100:null;
-    // Update both bets-page and race-page sub-tab labels
-    ['mt-stat-'+m,'mt-stat-race-'+m].forEach(elId=>{{
-      const el=document.getElementById(elId);
-      if(!el)return;
+    const el=document.getElementById('mt-stat-'+m);
+    if(el){{
       if(n===0){{
         el.textContent='— bets';
         el.style.color='';
@@ -3272,7 +3401,7 @@ function updateModelTabStats(f){{
         el.textContent=n+' bets · '+wins+' wins · '+roiStr;
         el.style.color=roi>=0?'#059669':'#dc2626';
       }}
-    }});
+    }}
   }});
   
   // Restore active state
@@ -3751,23 +3880,23 @@ syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchModel(model){{
-  if(model!=='A'&&model!=='B')return;
+  if(!MODELS[model])return;
   activeModel=model;
   localStorage.setItem('activeModel',model);
-  // Update sub-tab styles across ALL model tab containers (Today/Bets, Race, Backtest)
+  // Update sub-tab styles
   document.querySelectorAll('.model-tab').forEach(t=>{{
     t.classList.toggle('active',t.dataset.model===model);
   }});
-  // Sync anchorSigs AND activeSigs to model's anchors (replace, don't add)
-  const modelAnchors=MODELS[model].anchors;
-  anchorSigs=new Set(modelAnchors);
-  activeSigs=new Set(modelAnchors);
-  // Update Settings UI checkboxes to reflect new state
+  // Build anchorSigs and activeSigs from model's signalFilters
+  const modelSigs=new Set(Object.keys(MODELS[model].signalFilters));
+  anchorSigs=new Set(modelSigs);
+  activeSigs=new Set(modelSigs);
+  // Update Settings UI checkboxes
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{
-    cb.checked=modelAnchors.has(cb.dataset.sig);
+    cb.checked=modelSigs.has(cb.dataset.sig);
   }});
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
-    const isAnch=modelAnchors.has(cb.dataset.sig);
+    const isAnch=modelSigs.has(cb.dataset.sig);
     cb.checked=isAnch;
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
@@ -3778,15 +3907,18 @@ function switchModel(model){{
 function updateModelInfoBanner(){{
   const el=document.getElementById('model-info-active');
   if(!el)return;
-  // Detect: does anchorSigs match Model A or B exactly?
+  // Detect: does anchorSigs match any model exactly?
+  const modelSigs=new Set(Object.keys(MODELS[activeModel].signalFilters));
   const setEq=(a,b)=>a.size===b.size&&Array.from(a).every(x=>b.has(x));
-  if(setEq(anchorSigs,MODELS.A.anchors))el.textContent='Model A — '+MODELS.A.desc;
-  else if(setEq(anchorSigs,MODELS.B.anchors))el.textContent='Model B — '+MODELS.B.desc;
-  else el.textContent='Custom — '+(Array.from(anchorSigs).join(', ')||'no anchors');
+  if(setEq(anchorSigs,modelSigs)){{
+    el.textContent=MODELS[activeModel].name+' — '+MODELS[activeModel].desc;
+  }}else{{
+    el.textContent='Custom — '+(Array.from(anchorSigs).join(', ')||'no anchors');
+  }}
 }}
 
 function getActiveAnchors(){{
-  return MODELS[activeModel].anchors;
+  return new Set(Object.keys(MODELS[activeModel].signalFilters));
 }}
 
 function switchTab(tab){{
@@ -4105,12 +4237,44 @@ function fmtTime(tm){{
   }}catch(e){{return tm;}}
 }}
 
+function navigateToRace(e,rid){{
+  if(e)e.preventDefault();
+  raceSelectedRaceId=rid;
+  const r=RACES.find(rc=>String(rc.rid)===String(rid));
+  if(r)raceSelectedVenue=r.d+'|'+r.v;
+  renderRaceDetail();
+  window.scrollTo({{top:0,behavior:'smooth'}});
+}}
+
 function renderRaceDetail(){{
   if(!raceSelectedRaceId){{document.getElementById('race-detail').style.display='none';return;}}
   const race=RACES.find(r=>String(r.rid)===String(raceSelectedRaceId));
   if(!race){{document.getElementById('race-detail').style.display='none';return;}}
   document.getElementById('race-detail').style.display='';
   const raceResulted=race.done===1;
+  
+  // === Meeting navigator: show all races at this meeting ===
+  const sameMeeting=RACES.filter(r=>r.d===race.d&&r.v===race.v).sort((a,b)=>(a.r||0)-(b.r||0));
+  const navEl=document.getElementById('meeting-nav');
+  if(sameMeeting.length>1){{
+    let navHtml='<span class="meeting-nav-label">'+race.v+' R1-R'+Math.max(...sameMeeting.map(r=>r.r||0))+'</span>';
+    sameMeeting.forEach(mr=>{{
+      const isCurrent=String(mr.rid)===String(raceSelectedRaceId);
+      const isDone=mr.done===1;
+      const cls='meeting-nav-race'+(isCurrent?' current':'')+(isDone?' done':'');
+      const tm=mr.tm?fmtTime(mr.tm):'';
+      const tmHtml=tm?'<span class="meeting-nav-race-time">'+tm+'</span>':'';
+      if(isCurrent){{
+        navHtml+='<span class="'+cls+'">R'+mr.r+tmHtml+'</span>';
+      }}else{{
+        navHtml+='<a class="'+cls+'" href="#" data-rid="'+mr.rid+'" onclick="navigateToRace(event,\\''+mr.rid+'\\')">R'+mr.r+tmHtml+'</a>';
+      }}
+    }});
+    navEl.innerHTML=navHtml;
+    navEl.style.display='';
+  }}else{{
+    navEl.style.display='none';
+  }}
   
   // Header
   document.getElementById('race-title').textContent=race.v+' — Race '+race.r;
