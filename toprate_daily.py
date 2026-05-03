@@ -2703,7 +2703,13 @@ function computeCumulScores(race){{
   }});
   return {{cumul,ranks}};
 }}
-function getF(){{return{{
+function getF(){{
+  // Sync DOM input changes back to _dateFilter (manual user edits override programmatic)
+  const fromEl=document.getElementById('f-date-from');
+  const toEl=document.getElementById('f-date-to');
+  if(fromEl&&fromEl.value&&fromEl.value!==_dateFilter.from)_dateFilter.from=fromEl.value;
+  if(toEl&&toEl.value&&toEl.value!==_dateFilter.to)_dateFilter.to=toEl.value;
+  return{{
   tab:document.getElementById('f-tab').checked,
   prize:parseInt(document.getElementById('f-prize').value),
   nofs:document.getElementById('f-nofs').checked,
@@ -2715,8 +2721,8 @@ function getF(){{return{{
   resonly:document.getElementById('f-resonly').checked,
   nowide:document.getElementById('f-nowide').checked,
   barrier:parseInt(document.getElementById('f-barrier').value),
-  dateFrom:document.getElementById('f-date-from').value||'',
-  dateTo:document.getElementById('f-date-to').value||'',
+  dateFrom:_dateFilter.from||'',
+  dateTo:_dateFilter.to||'',
   minEarlySpd:parseFloat(document.getElementById('f-early-spd').value),
   minMidSpd:parseFloat(document.getElementById('f-mid-spd').value),
   minLateSpd:parseFloat(document.getElementById('f-late-spd').value),
@@ -2734,7 +2740,10 @@ function _getSectionalFilters(){{
   el('v-total-spd').textContent=fmtSpd(parseFloat(el('f-total-spd').value));
   el('v-settled-pos').textContent=fmtPos(parseFloat(el('f-settled-pos').value));
   el('v-800m-pos').textContent=fmtPos(parseFloat(el('f-800m-pos').value));
-}}function setDateRange(mode){{
+}}// In-memory date filter state (more reliable than mobile date inputs)
+let _dateFilter={{from:'',to:''}};
+
+function setDateRange(mode){{
   const today=new Date();
   // Use local date (not UTC) — toISOString() can return yesterday in AEST
   const fmt=d=>{{
@@ -2745,11 +2754,28 @@ function _getSectionalFilters(){{
   }};
   const toEl=document.getElementById('f-date-to');
   const fromEl=document.getElementById('f-date-from');
-  toEl.value=fmt(today);
-  if(mode==='today'){{fromEl.value=fmt(today);}}
-  else if(mode==='7'){{const d=new Date(today);d.setDate(d.getDate()-6);fromEl.value=fmt(d);}}
-  else if(mode==='30'){{const d=new Date(today);d.setDate(d.getDate()-29);fromEl.value=fmt(d);}}
-  else{{fromEl.value='';toEl.value='';}}
+  const todayStr=fmt(today);
+  if(mode==='today'){{
+    _dateFilter.from=todayStr;
+    _dateFilter.to=todayStr;
+  }}
+  else if(mode==='7'){{
+    const d=new Date(today);d.setDate(d.getDate()-6);
+    _dateFilter.from=fmt(d);
+    _dateFilter.to=todayStr;
+  }}
+  else if(mode==='30'){{
+    const d=new Date(today);d.setDate(d.getDate()-29);
+    _dateFilter.from=fmt(d);
+    _dateFilter.to=todayStr;
+  }}
+  else{{
+    _dateFilter.from='';
+    _dateFilter.to='';
+  }}
+  // Also push to DOM inputs (best effort — may not work on all mobile browsers)
+  if(fromEl)fromEl.value=_dateFilter.from;
+  if(toEl)toEl.value=_dateFilter.to;
   update();
 }}function getActiveSettle(){{const s=new Set();document.querySelectorAll('[data-settle]:checked').forEach(cb=>s.add(cb.dataset.settle));return s;}}
 function getActivePace(){{const s=new Set();document.querySelectorAll('[data-pace]:checked').forEach(cb=>s.add(cb.dataset.pace));return s;}}
