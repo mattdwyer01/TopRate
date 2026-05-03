@@ -58,8 +58,9 @@ BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
-                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating"]
-SIGNALS_LOWER  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency"]
+                  "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating",
+                  "wpr_trend"]
+SIGNALS_LOWER  = ["wpr_peak_rank_1yr","wpr_consistency"]
 ALL_SIGNALS    = SIGNALS_HIGHER + SIGNALS_LOWER
 
 # Runner DB columns
@@ -1023,10 +1024,11 @@ def build_bt_races(bt_df):
         # Build signal rankings — same order as SIG_NAMES
         # wpr_nett, wpr_last1, wpr_avg_last3, wpr_dist, wpr_going,
         # jky_win90, trn_win365, tr_rating, speed,
-        # wpr_rank(lower), peak_rank(lower), consistency(lower)
+        # trend(higher), peak_rank(lower), consistency(lower)
         sig_cols_higher = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
-                           "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating"]
-        sig_cols_lower  = ["wpr_rank","wpr_peak_rank_1yr","wpr_consistency"]
+                           "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating",
+                           "wpr_trend"]
+        sig_cols_lower  = ["wpr_peak_rank_1yr","wpr_consistency"]
 
         sig_rankings = []
         for sig, asc in [(s, False) for s in sig_cols_higher] + [(s, True) for s in sig_cols_lower]:
@@ -1491,6 +1493,22 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .bt-link:hover{{background:rgba(255,255,255,.12);color:#fff;}}
 .main{{padding:24px 24px 60px;background:#f4f6f9;min-width:0;overflow-x:hidden;}}
 .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
+
+/* === Model sub-tabs === */
+.model-tabs{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;background:#f4f6f9;padding:6px;border-radius:10px;}}
+.model-tab{{background:#fff;border:2px solid transparent;border-radius:8px;padding:10px 14px;cursor:pointer;transition:all .15s;text-align:center;}}
+.model-tab:hover{{background:#fafbfc;}}
+.model-tab.active{{border-color:#10b981;background:#fff;box-shadow:0 1px 3px rgba(16,185,129,.15);}}
+.model-tab-label{{font-size:13px;font-weight:700;color:#0f1729;}}
+.model-tab.active .model-tab-label{{color:#059669;}}
+.model-tab-sub{{font-size:10px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}}
+.model-tab-stat{{font-size:11px;color:#6b7280;font-weight:600;margin-top:4px;}}
+.model-tab.active .model-tab-stat{{color:#0f1729;}}
+@media(max-width:768px){{
+  .model-tabs{{margin:8px 0 12px;}}
+  .model-tab{{padding:8px 10px;}}
+  .model-tab-label{{font-size:12px;}}
+}}
 
 .variance-card{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin-bottom:18px;}}
 .variance-card-row{{display:flex;align-items:center;gap:18px;}}
@@ -2205,6 +2223,18 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab" id="tab-settings" onclick="switchTab('settings')">Settings</button>
   </div>
   <div class="tab-panel active" id="panel-bets">
+  <div class="model-tabs" id="model-tabs">
+    <div class="model-tab active" data-model="A" onclick="switchModel('A')">
+      <div class="model-tab-label">Model A</div>
+      <div class="model-tab-sub">3-Anchor</div>
+      <div class="model-tab-stat" id="mt-stat-A">—</div>
+    </div>
+    <div class="model-tab" data-model="B" onclick="switchModel('B')">
+      <div class="model-tab-label">Model B</div>
+      <div class="model-tab-sub">4-Anchor</div>
+      <div class="model-tab-stat" id="mt-stat-B">—</div>
+    </div>
+  </div>
   <div class="kpi-strip" id="kpi-strip-today">
     <div class="kpi hl"><div class="v" id="k-roi">—</div><div class="l">ROI</div></div>
     <div class="kpi"><div class="v" id="k-bets">0</div><div class="l">Bets</div></div>
@@ -2482,14 +2512,23 @@ tr.no-bet-row td{{opacity:0.4;}}
 <script>
 {data_js}
 {bt_data_js}
-const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","wpr_rank","peak_rank","consistency"];
-const SIG_SHORT  = ["WPR","L1","A3","DST","GNG","JKY","TRN","TR$","SPD","RNK","PEAK","CON"];
-const SIG_DIR    = [1,1,1,1,1,1,1,1,1,0,0,0];
-const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_rank ↓","peak_rank ↓","consistency ↓"];
+const SIG_NAMES  = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going","jky_win90","trn_win365","tr_rating","speed","trend","peak_rank","consistency"];
+const SIG_SHORT  = ["WPR","L1","A3","DST","GNG","JKY","TRN","TR$","SPD","TRND","PEAK","CON"];
+const SIG_DIR    = [1,1,1,1,1,1,1,1,1,1,0,0];
+const SIG_LABELS = ["wpr_nett ↑","wpr_last1 ↑","wpr_avg3 ↑","wpr_dist ↑","wpr_going ↑","jky_win90 ↑","trn_win365 ↑","tr_rating ↑","speed ↑","wpr_trend ↑","peak_rank ↓","consistency ↓"];
 let activeSigs=new Set(SIG_NAMES);
 let anchorSigs=new Set(); // signals that MUST be top-3
 let stakeMethod='flat';
 let method='top1';
+
+// === MODEL TRACKING ===
+// Model A: 3-anchor (jky+peak+speed) — current default
+// Model B: 4-anchor (jky+peak+speed+tr_rating) — more conservative
+const MODELS={{
+  A:{{name:'Model A',label:'3-Anchor',anchors:new Set(['jky_win90','peak_rank','speed']),desc:'jky + peak + speed'}},
+  B:{{name:'Model B',label:'4-Anchor',anchors:new Set(['jky_win90','peak_rank','speed','tr_rating']),desc:'jky + peak + speed + tr_rating'}}
+}};
+let activeModel=localStorage.getItem('activeModel')||'A';
 
 function dateToDow(d){{const p=d.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2])).getDay();}}
 function fmtTime(tm){{
@@ -2536,7 +2575,7 @@ function selectOptimalSigs(){{
   selectAnchorPreset();
 }}
 function selectAnchorPreset(){{
-  const anchors=new Set(['peak_rank','jky_win90']);
+  const anchors=new Set(['peak_rank','jky_win90','speed']);
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{cb.checked=anchors.has(cb.dataset.sig);}});
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
     const isAnch=anchors.has(cb.dataset.sig);
@@ -2576,7 +2615,7 @@ function selectAnchorPreset(){{
     grid.appendChild(row);
   }});
   // Default: only jky_win90, peak_rank active and anchored
-  const _anchors=new Set(['peak_rank','jky_win90']);
+  const _anchors=new Set(['peak_rank','jky_win90','speed']);
   grid.querySelectorAll('.sig-active').forEach(cb=>{{
     cb.checked=_anchors.has(cb.dataset.sig);
   }});
@@ -2585,8 +2624,16 @@ function selectAnchorPreset(){{
     cb.checked=isAnch;
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
-  activeSigs=new Set(['peak_rank','jky_win90']);
-  anchorSigs=new Set(['peak_rank','jky_win90']);
+  // Initialize anchor sigs from active model
+  const _initAnchors=Array.from(MODELS[activeModel].anchors);
+  activeSigs=new Set(_initAnchors);
+  anchorSigs=new Set(_initAnchors);
+  // Sync UI to reflect active model
+  setTimeout(()=>{{
+    document.querySelectorAll('.model-tab').forEach(t=>{{
+      t.classList.toggle('active',t.dataset.model===activeModel);
+    }});
+  }},0);
 }})();
 function scoreRace(race){{
   const scores=new Array(race.u.length).fill(0);
@@ -2759,8 +2806,16 @@ function buildBets(f){{
       const stake=calcStake(runnerScore,maxScore,sp);
       const scoreDisp=method==='top1'?runnerScore+'/'+activeSigs.size:method==='top3c'?runnerScore+'/'+activeSigs.size:runnerScore+'/'+(activeSigs.size*3);
       // For pending races, check if user has manually entered a result or toggled bet off
-      const _betKey='bet|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
+      const _betKey='bet|'+activeModel+'|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
       const _resKey='res|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
+      // Legacy migration: copy unprefixed bet key to Model A on read
+      const _legacyKey='bet|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
+      const _legacyVal=syncGet(_legacyKey);
+      if(_legacyVal!==null){{
+        const _modelAKey='bet|A|'+race.d+'|'+race.v+'|'+race.r+'|'+runner.h;
+        if(syncGet(_modelAKey)===null)syncSet(_modelAKey,_legacyVal);
+        syncRemove(_legacyKey);
+      }}
       const _betStored=syncGet(_betKey);
       const isBet=_betStored===null?true:_betStored==='1';
       const _manualResStored=syncGet(_resKey);
@@ -2995,8 +3050,20 @@ function showSyncSetup(){{
 function fixedKey(b){{return'fx|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getFixed(b){{const v=syncGet(fixedKey(b));return v?parseFloat(v):null;}}
 function setFixed(b,val){{if(val===null||val===''||isNaN(val)){{syncRemove(fixedKey(b));}}else{{syncSet(fixedKey(b),String(val));}}}}
-function betKey(b){{return'bet|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
-function getBet(b){{const v=syncGet(betKey(b));return v===null?true:v==='1';}}
+function betKey(b){{return'bet|'+activeModel+'|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
+function getBet(b){{
+  // Migration: if a legacy 'bet|date|...' key exists (no model prefix), copy it to Model A
+  const legacyKey='bet|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;
+  const legacyVal=syncGet(legacyKey);
+  if(legacyVal!==null){{
+    // Copy to Model A and remove legacy
+    const modelAKey='bet|A|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;
+    if(syncGet(modelAKey)===null)syncSet(modelAKey,legacyVal);
+    syncRemove(legacyKey);
+  }}
+  const v=syncGet(betKey(b));
+  return v===null?true:v==='1';
+}}
 function setBet(b,val){{syncSet(betKey(b),val?'1':'0');}}
 function resultKey(b){{return'res|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}}
@@ -3134,6 +3201,49 @@ function renderVarianceChart(rois, todayRoi){{
   }}
 }}
 
+function updateModelTabStats(f){{
+  // Compute summary stats for BOTH models so sub-tab labels show comparative info.
+  // Saves and restores activeModel/anchorSigs/activeSigs so the active state isn't affected.
+  const _savedModel=activeModel;
+  const _savedAnchors=new Set(anchorSigs);
+  const _savedActive=new Set(activeSigs);
+  
+  ['A','B'].forEach(m=>{{
+    activeModel=m;
+    anchorSigs=new Set(MODELS[m].anchors);
+    activeSigs=new Set(MODELS[m].anchors);
+    const {{resulted}}=buildBets(f);
+    let n=0,staked=0,profit=0,wins=0;
+    const maxScore=method==='top1'?activeSigs.size:method==='top3c'?activeSigs.size:activeSigs.size*3;
+    resulted.forEach(b=>{{
+      if(b.isBet===false)return;
+      n++;
+      const fx=getFixed(b);
+      const priceForStake=fx&&fx>1?fx:b.sp;
+      const stake=calcStake(b.score,maxScore,priceForStake);
+      staked+=stake;
+      if(b.won){{profit+=stake*(priceForStake-1);wins++;}}else{{profit-=stake;}}
+    }});
+    const roi=staked>0?profit/staked*100:null;
+    const el=document.getElementById('mt-stat-'+m);
+    if(el){{
+      if(n===0){{
+        el.textContent='— bets';
+        el.style.color='';
+      }}else{{
+        const roiStr=roi===null?'—':(roi>=0?'+':'')+roi.toFixed(0)+'%';
+        el.textContent=n+' bets · '+wins+' wins · '+roiStr;
+        el.style.color=roi>=0?'#059669':'#dc2626';
+      }}
+    }}
+  }});
+  
+  // Restore active state
+  activeModel=_savedModel;
+  anchorSigs=_savedAnchors;
+  activeSigs=_savedActive;
+}}
+
 function update(){{
   _getSectionalFilters();
   const f=getF();
@@ -3143,6 +3253,8 @@ function update(){{
   // Refresh multi-banner if visible (Bets tab)
   const mb=document.getElementById('multi-banner');
   if(mb&&mb.style.display!=='none')updateMultiBanner();
+  // Compute stats for BOTH models for sub-tab labels
+  updateModelTabStats(f);
   const {{resulted,pending}}=buildBets(f);
   // Sort: most recent date first, then by start time (if available) else race_id
   const sortBets=arr=>arr.slice().sort((a,b)=>{{
@@ -3597,6 +3709,25 @@ setDateRange('today');
 syncLoad().then(()=>{{update();startSyncPoll();}});
 
 // ── Tab switching ────────────────────────────────────────────────────────────
+function switchModel(model){{
+  if(model!=='A'&&model!=='B')return;
+  activeModel=model;
+  localStorage.setItem('activeModel',model);
+  // Update sub-tab styles
+  document.querySelectorAll('.model-tab').forEach(t=>{{
+    t.classList.toggle('active',t.dataset.model===model);
+  }});
+  // Sync the anchor sigs to active model's anchors
+  anchorSigs=new Set(getActiveAnchors());
+  // Make sure all anchored sigs are also active
+  anchorSigs.forEach(s=>activeSigs.add(s));
+  update();
+}}
+
+function getActiveAnchors(){{
+  return MODELS[activeModel].anchors;
+}}
+
 function switchTab(tab){{
   // Today and Bets share panel-bets; just sync tab styles and date filter
   const allTabs=['today','race','bets','strategy','signals','backtest','settings'];
@@ -4989,7 +5120,7 @@ function updateStake(inp){{
 let btStake='flat';
 let btMethod='top3c';
 let btSigs=new Set(SIG_NAMES);
-let btAnchorSigs=new Set(['jky_win90','peak_rank']); // default anchor preset
+let btAnchorSigs=new Set(['jky_win90','peak_rank','speed']); // default anchor preset
 let btInited=false;
 
 function btSetStake(m){{
@@ -5007,7 +5138,7 @@ function btSelectSigs(mode){{
   if(mode==='all'){{btSigs=new Set(SIG_NAMES);btAnchorSigs=new Set();}}
   else if(mode==='anchor'||mode==='optimal'){{
     btSigs=new Set(SIG_NAMES);
-    btAnchorSigs=new Set(['peak_rank','jky_win90']);
+    btAnchorSigs=new Set(['peak_rank','jky_win90','speed']);
   }}
   else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
