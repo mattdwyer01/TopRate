@@ -1504,6 +1504,9 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .model-tab-sub{{font-size:10px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}}
 .model-tab-stat{{font-size:11px;color:#6b7280;font-weight:600;margin-top:4px;}}
 .model-tab.active .model-tab-stat{{color:#0f1729;}}
+.model-info-banner{{font-size:11px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid #10b981;padding:8px 10px;border-radius:6px;margin-bottom:8px;line-height:1.5;}}
+.model-info-banner strong{{color:#059669;}}
+.model-info-note{{display:block;color:#6b7280;font-size:10px;margin-top:3px;}}
 @media(max-width:768px){{
   .model-tabs{{margin:8px 0 12px;}}
   .model-tab{{padding:8px 10px;}}
@@ -2162,11 +2165,15 @@ tr.no-bet-row td{{opacity:0.4;}}
 
   <div class="fsec">
     <div class="ftitle">Signals <span style="font-size:8px;color:rgba(255,255,255,.3);margin-left:4px;">&#8593; higher better &nbsp; &#8595; lower better</span></div>
+    <div class="model-info-banner" id="model-info-banner">
+      Active: <strong id="model-info-active">Model A (3-Anchor)</strong>
+      <span class="model-info-note">Manually changing anchors below creates a custom configuration that overrides the model selection.</span>
+    </div>
     <div class="sig-sel-btns">
+      <button class="sig-btn" onclick="switchModel('A')">Model A (3)</button>
+      <button class="sig-btn" onclick="switchModel('B')">Model B (4)</button>
       <button class="sig-btn" onclick="selectAllSigs()">All</button>
       <button class="sig-btn" onclick="selectNoneSigs()">None</button>
-      <button class="sig-btn" onclick="selectOptimalSigs()">Optimal</button>
-      <button class="sig-btn" onclick="selectAnchorPreset()">Anchor</button>
     </div>
     <div class="sig-grid" id="sig-grid"></div>
   </div>
@@ -2297,6 +2304,18 @@ tr.no-bet-row td{{opacity:0.4;}}
   </div><!-- end panel-bets -->
   <div class="tab-panel" id="panel-race">
     <div class="race-page">
+      <div class="model-tabs" id="model-tabs-race">
+        <div class="model-tab active" data-model="A" onclick="switchModel('A')">
+          <div class="model-tab-label">Model A</div>
+          <div class="model-tab-sub">3-Anchor</div>
+          <div class="model-tab-stat" id="mt-stat-race-A">—</div>
+        </div>
+        <div class="model-tab" data-model="B" onclick="switchModel('B')">
+          <div class="model-tab-label">Model B</div>
+          <div class="model-tab-sub">4-Anchor</div>
+          <div class="model-tab-stat" id="mt-stat-race-B">—</div>
+        </div>
+      </div>
       <!-- Meeting browser view (default) -->
       <div id="race-browser">
         <div class="meeting-date-bar">
@@ -2560,6 +2579,7 @@ function rebuildActiveSigs(){{
   document.querySelectorAll('#sig-grid .sig-active:checked').forEach(cb=>activeSigs.add(cb.dataset.sig));
   anchorSigs=new Set();
   document.querySelectorAll('#sig-grid .sig-anchor:checked').forEach(cb=>anchorSigs.add(cb.dataset.sig));
+  if(typeof updateModelInfoBanner==='function')updateModelInfoBanner();
 }}
 function selectAllSigs(){{
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>cb.checked=true);
@@ -2633,6 +2653,7 @@ function selectAnchorPreset(){{
     document.querySelectorAll('.model-tab').forEach(t=>{{
       t.classList.toggle('active',t.dataset.model===activeModel);
     }});
+    if(typeof updateModelInfoBanner==='function')updateModelInfoBanner();
   }},0);
 }})();
 function scoreRace(race){{
@@ -3225,8 +3246,10 @@ function updateModelTabStats(f){{
       if(b.won){{profit+=stake*(priceForStake-1);wins++;}}else{{profit-=stake;}}
     }});
     const roi=staked>0?profit/staked*100:null;
-    const el=document.getElementById('mt-stat-'+m);
-    if(el){{
+    // Update both bets-page and race-page sub-tab labels
+    ['mt-stat-'+m,'mt-stat-race-'+m].forEach(elId=>{{
+      const el=document.getElementById(elId);
+      if(!el)return;
       if(n===0){{
         el.textContent='— bets';
         el.style.color='';
@@ -3235,7 +3258,7 @@ function updateModelTabStats(f){{
         el.textContent=n+' bets · '+wins+' wins · '+roiStr;
         el.style.color=roi>=0?'#059669':'#dc2626';
       }}
-    }}
+    }});
   }});
   
   // Restore active state
@@ -3713,7 +3736,7 @@ function switchModel(model){{
   if(model!=='A'&&model!=='B')return;
   activeModel=model;
   localStorage.setItem('activeModel',model);
-  // Update sub-tab styles
+  // Update sub-tab styles across ALL model tab containers (Today/Bets, Race, Backtest)
   document.querySelectorAll('.model-tab').forEach(t=>{{
     t.classList.toggle('active',t.dataset.model===model);
   }});
@@ -3730,7 +3753,18 @@ function switchModel(model){{
     cb.checked=isAnch;
     const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
   }});
+  updateModelInfoBanner();
   update();
+}}
+
+function updateModelInfoBanner(){{
+  const el=document.getElementById('model-info-active');
+  if(!el)return;
+  // Detect: does anchorSigs match Model A or B exactly?
+  const setEq=(a,b)=>a.size===b.size&&Array.from(a).every(x=>b.has(x));
+  if(setEq(anchorSigs,MODELS.A.anchors))el.textContent='Model A — '+MODELS.A.desc;
+  else if(setEq(anchorSigs,MODELS.B.anchors))el.textContent='Model B — '+MODELS.B.desc;
+  else el.textContent='Custom — '+(Array.from(anchorSigs).join(', ')||'no anchors');
 }}
 
 function getActiveAnchors(){{
