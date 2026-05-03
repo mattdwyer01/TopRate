@@ -1415,6 +1415,7 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   .mob-bet-date{{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9ca3af;}}
   .mob-bet-body{{padding:10px 12px;}}
   .mob-bet-horse{{font-size:15px;font-weight:700;color:#0f1729;margin-bottom:2px;}}
+  .mob-bet-tab{{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;background:#0f1729;color:#fff;font-weight:700;font-size:13px;border-radius:6px;flex-shrink:0;padding:0 6px;}}
   .mob-bet-jockey{{font-size:11px;color:#6b7280;margin-bottom:8px;}}
   .mob-bet-row{{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center;width:100%;}}
   .mob-bet-tag{{display:inline-flex;align-items:center;padding:2px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;flex-shrink:0;}}
@@ -1490,6 +1491,21 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .bt-link:hover{{background:rgba(255,255,255,.12);color:#fff;}}
 .main{{padding:24px 24px 60px;background:#f4f6f9;min-width:0;overflow-x:hidden;}}
 .kpi-strip{{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:20px;}}
+
+.variance-card{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin-bottom:18px;}}
+.variance-card-row{{display:flex;align-items:center;gap:18px;}}
+.variance-card-main{{flex:1;min-width:0;}}
+.variance-card-verdict{{font-size:13px;font-weight:600;color:#0f1729;margin-bottom:4px;}}
+.variance-card-verdict.v-good{{color:#059669;}}
+.variance-card-verdict.v-bad{{color:#dc2626;}}
+.variance-card-verdict.v-warn{{color:#92400e;}}
+.variance-card-detail{{font-size:11px;color:#6b7280;line-height:1.5;}}
+.variance-card-spark{{flex-shrink:0;width:200px;height:48px;}}
+.variance-card-spark canvas{{display:block;width:100%;height:100%;}}
+@media(max-width:768px){{
+  .variance-card-row{{flex-direction:column;align-items:stretch;gap:10px;}}
+  .variance-card-spark{{width:100%;}}
+}}
 .multi-banner{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}}
 .multi-cell{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 16px;}}
 .multi-cell-title{{font-size:9px;letter-spacing:.1em;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-bottom:6px;}}
@@ -1858,7 +1874,10 @@ tr.no-bet-row td{{opacity:0.4;}}
 .r-card-tab{{display:inline-block;background:#0f1729;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-right:6px;font-weight:700;}}
 .r-card-jky{{font-size:11px;color:#6b7280;}}
 .r-card-meta{{display:flex;gap:10px;font-size:10px;color:#6b7280;flex-wrap:wrap;margin:6px 0;}}
-.r-card-sigs{{margin:8px 0 4px;}}
+.r-card-sigs{{margin:8px 0 4px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;}}
+.rs-sig-mob{{display:flex;flex-direction:column;align-items:center;gap:2px;}}
+.rs-sig-mob-lbl{{font-size:8px;color:#9ca3af;font-weight:600;letter-spacing:.04em;font-family:'IBM Plex Mono',monospace;}}
+.r-card-sigs .rs-sig-cell{{display:block;width:100%;text-align:center;padding:3px 0;}}
 .r-card-bottom{{display:flex;justify-content:space-between;align-items:center;font-size:11px;}}
 .r-card-score{{font-weight:700;color:#0f1729;}}
 .race-suggestions,.race-exotics{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:18px 20px;margin-top:18px;}}
@@ -2193,6 +2212,17 @@ tr.no-bet-row td{{opacity:0.4;}}
     <div class="kpi"><div class="v" id="k-wp">—</div><div class="l">Win %</div></div>
     <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place %</div></div>
     <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
+  </div>
+  <div class="variance-card" id="variance-card" style="display:none;">
+    <div class="variance-card-row">
+      <div class="variance-card-main">
+        <div class="variance-card-verdict" id="variance-verdict">—</div>
+        <div class="variance-card-detail" id="variance-detail">—</div>
+      </div>
+      <div class="variance-card-spark" id="variance-spark">
+        <canvas id="variance-canvas"></canvas>
+      </div>
+    </div>
   </div>
   <div class="multi-banner" id="multi-banner" style="display:none;">
     <div class="multi-cell" data-period="today">
@@ -3040,6 +3070,70 @@ function updateMultiBanner(){{
   }});
 }}
 
+function renderVarianceChart(rois, todayRoi){{
+  const canvas=document.getElementById('variance-canvas');
+  if(!canvas)return;
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.parentElement.clientWidth;
+  const h=48;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+  if(rois.length<2)return;
+  // Build histogram: 8 buckets across min-max of (rois + todayRoi)
+  const allVals=rois.concat([todayRoi]);
+  const lo=Math.min(...allVals),hi=Math.max(...allVals);
+  const range=hi-lo||1;
+  const padded_lo=lo-range*0.05,padded_hi=hi+range*0.05;
+  const padded_range=padded_hi-padded_lo;
+  const NBUCKETS=10;
+  const buckets=new Array(NBUCKETS).fill(0);
+  rois.forEach(r=>{{
+    const idx=Math.min(NBUCKETS-1,Math.floor((r-padded_lo)/padded_range*NBUCKETS));
+    buckets[idx]++;
+  }});
+  const maxCount=Math.max(...buckets,1);
+  // Draw bars
+  const padX=4,padY=4;
+  const plotW=w-padX*2,plotH=h-padY*2;
+  const barW=plotW/NBUCKETS;
+  ctx.fillStyle='#e8eaf0';
+  buckets.forEach((cnt,i)=>{{
+    const barH=cnt/maxCount*plotH;
+    const x=padX+i*barW;
+    const y=padY+plotH-barH;
+    ctx.fillRect(x+1,y,barW-2,barH);
+  }});
+  // Today marker
+  const todayPos=padX+(todayRoi-padded_lo)/padded_range*plotW;
+  const isPositive=todayRoi>=0;
+  ctx.strokeStyle=isPositive?'#10b981':'#dc2626';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(todayPos,padY-2);
+  ctx.lineTo(todayPos,h-padY+2);
+  ctx.stroke();
+  // Today dot
+  ctx.fillStyle=isPositive?'#10b981':'#dc2626';
+  ctx.beginPath();
+  ctx.arc(todayPos,h-padY,3,0,2*Math.PI);
+  ctx.fill();
+  // Zero line
+  if(padded_lo<0&&padded_hi>0){{
+    const zeroPos=padX+(0-padded_lo)/padded_range*plotW;
+    ctx.strokeStyle='#9ca3af';
+    ctx.lineWidth=1;
+    ctx.setLineDash([2,2]);
+    ctx.beginPath();
+    ctx.moveTo(zeroPos,padY);
+    ctx.lineTo(zeroPos,h-padY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }}
+}}
+
 function update(){{
   _getSectionalFilters();
   const f=getF();
@@ -3085,6 +3179,99 @@ function update(){{
   document.getElementById('k-profit').textContent=n?(profit>=0?'+':'')+profit.toFixed(1)+'u':'—';
   document.getElementById('k-profit-l').textContent=stakeMethod!=='flat'&&n?'P&L ('+staked.toFixed(1)+'u)':'P&L';
   document.getElementById('res-cnt').textContent=n?'('+n+')':'';
+  
+  // === VARIANCE CONTEXT CARD ===
+  // Only show on Today tab (when date filter is set to today only)
+  const varCard=document.getElementById('variance-card');
+  if(varCard){{
+    const todayStr=new Date().toISOString().slice(0,10);
+    // Card shown when: date filter = today AND we have at least 1 today bet
+    const isTodayView=f.dateFrom===todayStr&&f.dateTo===todayStr;
+    if(!isTodayView||n===0){{
+      varCard.style.display='none';
+    }}else{{
+      // Compute today's ROI
+      const todayRoi=staked>0?profit/staked*100:0;
+      // Compute distribution from ALL resulted bets (ignore date filter for distribution)
+      // Use bets from window._allResulted populated by buildBets, or recompute
+      const fAll={{...f,dateFrom:'',dateTo:''}};
+      const allResulted=buildBets(fAll).resulted;
+      // Group by date, compute daily ROI
+      const byDate={{}};
+      allResulted.forEach(b=>{{
+        if(b.isBet===false)return;
+        if(!byDate[b.date])byDate[b.date]={{stake:0,profit:0,n:0}};
+        const fx=getFixed(b);
+        const priceForStake=fx&&fx>1?fx:b.sp;
+        const effStake=calcStake(b.score,method==='top1'?activeSigs.size:activeSigs.size*3,priceForStake);
+        byDate[b.date].stake+=effStake;
+        byDate[b.date].n++;
+        if(b.won)byDate[b.date].profit+=effStake*(priceForStake-1);
+        else byDate[b.date].profit-=effStake;
+      }});
+      // Compute daily ROI for days with >=3 bets, EXCLUDING today
+      const dailyRois=[];
+      Object.keys(byDate).forEach(d=>{{
+        if(d===todayStr)return;
+        const dd=byDate[d];
+        if(dd.n>=3&&dd.stake>0){{dailyRois.push({{d,roi:dd.profit/dd.stake*100,n:dd.n}});}}
+      }});
+      
+      if(dailyRois.length<5){{
+        // Not enough data for distribution
+        const verdictEl=document.getElementById('variance-verdict');
+        const detailEl=document.getElementById('variance-detail');
+        verdictEl.textContent='Day at a glance';
+        verdictEl.className='variance-card-verdict';
+        detailEl.textContent='Not enough historical data yet for variance context. Distribution will appear once you have 5+ days of betting history.';
+        document.getElementById('variance-canvas').style.display='none';
+        varCard.style.display='block';
+      }}else{{
+        // Sort by ROI to compute percentile of today
+        dailyRois.sort((a,b)=>a.roi-b.roi);
+        // Percentile of today = % of historical days with worse ROI
+        const worseDays=dailyRois.filter(d=>d.roi<todayRoi).length;
+        const pct=Math.round(worseDays/dailyRois.length*100);
+        const median=dailyRois[Math.floor(dailyRois.length/2)].roi;
+        const p10=dailyRois[Math.floor(dailyRois.length*0.1)].roi;
+        const p90=dailyRois[Math.floor(dailyRois.length*0.9)].roi;
+        const minRoi=dailyRois[0].roi;
+        const maxRoi=dailyRois[dailyRois.length-1].roi;
+        
+        // Verdict text
+        let verdict='', detail='', vCls='';
+        if(pct>=75){{
+          verdict='Strong day — top '+(100-pct)+'% of all days';
+          vCls='v-good';
+        }}else if(pct>=50){{
+          verdict='Above-average day';
+          vCls='v-good';
+        }}else if(pct>=25){{
+          verdict='Below-average day (within normal variance)';
+          vCls='';
+        }}else if(pct>=10){{
+          verdict='Bad day — but expected variance';
+          vCls='v-warn';
+        }}else{{
+          verdict='Tough day — bottom '+pct+'% of days';
+          vCls='v-bad';
+        }}
+        detail='Today: '+(todayRoi>=0?'+':'')+todayRoi.toFixed(1)+'% ROI on '+n+' bets. '
+              +'Historical: median +'+median.toFixed(0)+'%, range '+minRoi.toFixed(0)+'% to +'+maxRoi.toFixed(0)+'% across '+dailyRois.length+' days. '
+              +'10th-90th percentile: '+p10.toFixed(0)+'% to +'+p90.toFixed(0)+'%.';
+        const verdictEl=document.getElementById('variance-verdict');
+        const detailEl=document.getElementById('variance-detail');
+        verdictEl.textContent=verdict;
+        verdictEl.className='variance-card-verdict '+vCls;
+        detailEl.textContent=detail;
+        document.getElementById('variance-canvas').style.display='';
+        varCard.style.display='block';
+        
+        // Render histogram with today marker
+        renderVarianceChart(dailyRois.map(d=>d.roi),todayRoi);
+      }}
+    }}
+  }}
   const lbl=document.getElementById('thresh-label');
   if(method==='top1')lbl.textContent='Min votes (of '+activeSigs.size+')';
   else if(method==='top3c')lbl.textContent='Min score per horse (1pt/top-3, max '+activeSigs.size+')';
@@ -3177,8 +3364,11 @@ function update(){{
         +'<div style="display:flex;align-items:center;gap:6px;">'+res+'<span class="mob-bet-date">'+b.date+(mobTimeR?' &nbsp;'+mobTimeR:'')+'</span></div>'
         +'</div>'
         +'<div class="mob-bet-body">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-        +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:10px;">'
+        +'<div style="display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;">'
+        +(b.runnerObj&&b.runnerObj.tab?'<span class="mob-bet-tab">'+b.runnerObj.tab+'</span>':'')
+        +'<div style="min-width:0;flex:1;"><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
+        +'</div>'
         +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
         +'</div>'
         +'<div class="mob-bet-row">'
@@ -3310,8 +3500,11 @@ function update(){{
           +'<div style="display:flex;align-items:center;gap:6px;">'+(mobTimeP?'<span style="color:#10b981;font-size:10px;font-weight:700;">'+mobTimeP+'</span>':'')+'<span class="mob-bet-date">'+b.date+'</span></div>'
           +'</div>'
           +'<div class="mob-bet-body">'
-          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-          +'<div><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:10px;">'
+          +'<div style="display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;">'
+          +(b.runnerObj&&b.runnerObj.tab?'<span class="mob-bet-tab">'+b.runnerObj.tab+'</span>':'')
+          +'<div style="min-width:0;flex:1;"><div class="mob-bet-horse">'+b.horse+'</div><div class="mob-bet-jockey">'+b.jockey+(b.runnerObj&&b.runnerObj.tn?' &middot; '+b.runnerObj.tn:'')+'</div></div>'
+          +'</div>'
           +'<span class="mob-bet-tag score" style="flex-shrink:0;margin-top:2px;">'+b.scoreDisp+'</span>'
           +'</div>'
           +'<div class="mob-bet-row">'
@@ -3925,8 +4118,8 @@ function renderRaceDetail(){{
       let cls='rs-sig-cell';
       if(rk)cls+=' rk'+rk;
       if(isAnchor&&rk)cls+=' anchor';
-      return '<span class="'+cls+'" title="'+s+'">'+(rk||'')+'</span>';
-    }}).join(' ');
+      return '<div class="rs-sig-mob"><div class="rs-sig-mob-lbl">'+SIG_SHORT[i]+'</div><span class="'+cls+'" title="'+s+'">'+(rk||'')+'</span></div>';
+    }}).join('');
     const finishCell=runner.f?(runner.f===1?'<span class="rs-finish-1">WON</span>':runner.f+'th'):'';
     const valCell=valueGap===null?'':valueGap>0?
       '<span class="rs-value-pos">+$'+valueGap.toFixed(2)+'</span>':
