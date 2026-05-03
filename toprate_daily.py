@@ -633,6 +633,7 @@ def runners_to_selections(runners_df):
             "barrier":        barrier,
             "barrier_pos":    barrier_pos,
             "distance":       distance,
+            "going":          r.get("going") if r.get("going") and str(r.get("going","")) != "nan" else None,
             "pace_scenario":  r.get("pace_scenario"),
             "contested_pace": bool(contested_pace) if contested_pace is not None else None,
             "settling":       settling,
@@ -2898,6 +2899,26 @@ function ctxHtml(runner,race){{
   return h;
 }}
 function trendHtml(t){{if(t===null||t===undefined)return'<span class="tc tz">—</span>';return t>0?'<span class="tc tp">+'+t.toFixed(1)+'</span>':'<span class="tc tn">'+t.toFixed(1)+'</span>';}}
+function goingBg(g){{
+  if(!g)return'#f4f6f9';
+  const s=String(g);
+  if(s.includes('Good'))return'#dcfce7';
+  if(s.includes('Soft'))return'#fef3c7';
+  if(s.includes('Heavy'))return'#fee2e2';
+  if(s.includes('Synthetic'))return'#e0e7ff';
+  if(s.includes('Firm'))return'#d1fae5';
+  return'#f4f6f9';
+}}
+function goingFg(g){{
+  if(!g)return'#374151';
+  const s=String(g);
+  if(s.includes('Good'))return'#166534';
+  if(s.includes('Soft'))return'#92400e';
+  if(s.includes('Heavy'))return'#991b1b';
+  if(s.includes('Synthetic'))return'#3730a3';
+  if(s.includes('Firm'))return'#065f46';
+  return'#374151';
+}}
 function buildBets(f){{
   const activeDows=getActiveDows();
   const activeSettle=getActiveSettle();
@@ -2960,7 +2981,7 @@ function buildBets(f){{
       // Use manual finish if available (pending race only), otherwise use API finish
       const effectiveFinish=race.done===0&&manualFinish!==null?manualFinish:runner.f;
       const effectiveDone=race.done===1||(race.done===0&&manualFinish!==null)?1:0;
-      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,runId:runner.rid,jockey:runner.j,score:runnerScore,scoreDisp,cumulScore:cumulArr[idx],cumulRank:cumulRanks[idx],sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,isBet,manualFinish,raceObj:race,runnerObj:runner}};
+      const bet={{date:race.d,venue:race.v,race:race.r,horse:runner.h,runId:runner.rid,jockey:runner.j,score:runnerScore,scoreDisp,cumulScore:cumulArr[idx],cumulRank:cumulRanks[idx],sp,mktPrice:runner.fx||null,wpr:runner.w,trend:runner.tr,prize:race.p,finish:effectiveFinish,won:effectiveFinish===1,placed:effectiveFinish!==null&&effectiveFinish<=3,stake,done:effectiveDone,settling:st,pace:ps,barrier:runner.b,going:race.going,isBet,manualFinish,raceObj:race,runnerObj:runner}};
       if(effectiveDone===1)resulted.push(bet);
       else pending.push(bet);
     }});
@@ -3631,6 +3652,7 @@ function update(){{
         +(b.settling?'<span class="mob-bet-tag" style="background:#eff6ff;color:#1e3a8a;">'+b.settling+'</span>':'')
         +(b.pace&&b.pace!=='unknown'?'<span class="mob-bet-tag" style="background:#fef3c7;color:#92400e;">Pace '+b.pace+'</span>':'')
         +(b.barrier?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Bar '+b.barrier+'</span>':'')
+        +(b.going?'<span class="mob-bet-tag" style="background:'+goingBg(b.going)+';color:'+goingFg(b.going)+';">'+b.going+'</span>':'')
         +'</div>'
         +'<div class="mob-bet-footer">'
         +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
@@ -3770,6 +3792,7 @@ function update(){{
           +(b.settling?'<span class="mob-bet-tag" style="background:#eff6ff;color:#1e3a8a;">'+b.settling+'</span>':'')
           +(b.pace&&b.pace!=='unknown'?'<span class="mob-bet-tag" style="background:#fef3c7;color:#92400e;">Pace '+b.pace+'</span>':'')
           +(b.barrier?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Bar '+b.barrier+'</span>':'')
+          +(b.going?'<span class="mob-bet-tag" style="background:'+goingBg(b.going)+';color:'+goingFg(b.going)+';">'+b.going+'</span>':'')
           +'</div>'
           +'<div class="mob-bet-footer">'
           +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
