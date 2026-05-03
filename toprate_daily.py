@@ -3717,10 +3717,19 @@ function switchModel(model){{
   document.querySelectorAll('.model-tab').forEach(t=>{{
     t.classList.toggle('active',t.dataset.model===model);
   }});
-  // Sync the anchor sigs to active model's anchors
-  anchorSigs=new Set(getActiveAnchors());
-  // Make sure all anchored sigs are also active
-  anchorSigs.forEach(s=>activeSigs.add(s));
+  // Sync anchorSigs AND activeSigs to model's anchors (replace, don't add)
+  const modelAnchors=MODELS[model].anchors;
+  anchorSigs=new Set(modelAnchors);
+  activeSigs=new Set(modelAnchors);
+  // Update Settings UI checkboxes to reflect new state
+  document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{
+    cb.checked=modelAnchors.has(cb.dataset.sig);
+  }});
+  document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
+    const isAnch=modelAnchors.has(cb.dataset.sig);
+    cb.checked=isAnch;
+    const _r=cb.closest&&cb.closest('.sig-cb');if(_r)_r.classList.toggle('anchored',isAnch);
+  }});
   update();
 }}
 
