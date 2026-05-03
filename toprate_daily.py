@@ -2251,17 +2251,6 @@ tr.no-bet-row td{{opacity:0.4;}}
     <div class="kpi"><div class="v" id="k-pp">—</div><div class="l">Place %</div></div>
     <div class="kpi"><div class="v" id="k-profit">—</div><div class="l" id="k-profit-l">Profit</div></div>
   </div>
-  <div class="variance-card" id="variance-card" style="display:none;">
-    <div class="variance-card-row">
-      <div class="variance-card-main">
-        <div class="variance-card-verdict" id="variance-verdict">—</div>
-        <div class="variance-card-detail" id="variance-detail">—</div>
-      </div>
-      <div class="variance-card-spark" id="variance-spark">
-        <canvas id="variance-canvas"></canvas>
-      </div>
-    </div>
-  </div>
   <div class="multi-banner" id="multi-banner" style="display:none;">
     <div class="multi-cell" data-period="today">
       <div class="multi-cell-title">Today</div>
@@ -3125,41 +3114,39 @@ function updateMultiBanner(){{
   const f=getF();
   const bf={{...f,dateFrom:'',dateTo:'',dows:new Set([0,1,2,3,4,5,6])}};
   const {{resulted}}=buildBets(bf);
-  const bets=resulted.filter(b=>b.isBet!==false&&b.sp);
+  const bets=resulted.filter(b=>b.isBet!==false);
+  const maxScore=method==='top1'?activeSigs.size:method==='top3c'?activeSigs.size:activeSigs.size*3;
   
-  // Determine staking
-  const fixedTargetEl=document.getElementById('f-target');
-  const fixedTarget=fixedTargetEl?parseFloat(fixedTargetEl.value)||4:4;
-  
-  // Compute stats helper
+  // Compute stats helper — uses same logic as Today tab (fixed price preferred over SP, calcStake)
   const computePeriod=(filterFn)=>{{
     const sub=bets.filter(filterFn);
     let totalStake=0,totalProfit=0,wins=0;
     sub.forEach(b=>{{
-      const px=b.sp;
-      let stake=1,profit=0;
-      if(stakeMethod==='fixed'&&px&&px>1){{
-        stake=fixedTarget/(px-1);
-        profit=b.won?fixedTarget:-stake;
-      }}else{{
-        stake=1;
-        profit=b.won?(px-1):-1;
-      }}
+      const fx=getFixed(b);
+      const priceForStake=fx&&fx>1?fx:b.sp;
+      if(!priceForStake)return;
+      const stake=calcStake(b.score,maxScore,priceForStake);
       totalStake+=stake;
-      totalProfit+=profit;
-      if(b.won)wins++;
+      if(b.won){{totalProfit+=stake*(priceForStake-1);wins++;}}
+      else{{totalProfit-=stake;}}
     }});
     const roi=totalStake>0?(totalProfit/totalStake)*100:0;
     return {{n:sub.length,wins,profit:totalProfit,roi}};
   }};
   
-  // Today
+  // Use LOCAL date (not UTC) — matches setDateRange behaviour
   const today=new Date();
-  const todayStr=today.toISOString().slice(0,10);
-  // Week (last 7 days including today)
-  const weekStart=new Date(today.getTime()-6*86400000).toISOString().slice(0,10);
-  // Month (last 30 days)
-  const monthStart=new Date(today.getTime()-29*86400000).toISOString().slice(0,10);
+  const fmt=d=>{{
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const day=String(d.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+day;
+  }};
+  const todayStr=fmt(today);
+  const weekStartD=new Date(today);weekStartD.setDate(weekStartD.getDate()-6);
+  const weekStart=fmt(weekStartD);
+  const monthStartD=new Date(today);monthStartD.setDate(monthStartD.getDate()-29);
+  const monthStart=fmt(monthStartD);
   
   const stats={{
     today: computePeriod(b=>b.date===todayStr),
