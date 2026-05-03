@@ -2217,13 +2217,11 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="fsec">
     <div class="ftitle">Signals <span style="font-size:8px;color:rgba(255,255,255,.3);margin-left:4px;">&#8593; higher better &nbsp; &#8595; lower better</span></div>
     <div class="model-info-banner" id="model-info-banner">
-      Active: <strong id="model-info-active">Model A</strong>
+      Active: <strong id="model-info-active">Model — peak3 + jky top-4 + speed3</strong>
       <span class="model-info-note">Manually changing anchors below creates a custom configuration that overrides the model selection.</span>
     </div>
     <div class="sig-sel-btns">
-      <button class="sig-btn" onclick="switchModel('A')">Model A</button>
-      <button class="sig-btn" onclick="switchModel('B')">Model B</button>
-      <button class="sig-btn" onclick="switchModel('C')">Model C</button>
+      <button class="sig-btn" onclick="switchModel('A')">Reset to Model</button>
       <button class="sig-btn" onclick="selectAllSigs()">All</button>
     </div>
     <div class="sig-grid" id="sig-grid"></div>
@@ -2281,21 +2279,11 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab" id="tab-settings" onclick="switchTab('settings')">Settings</button>
   </div>
   <div class="tab-panel active" id="panel-bets">
-  <div class="model-tabs" id="model-tabs">
+  <div class="model-tabs" id="model-tabs" style="display:none;">
     <div class="model-tab active" data-model="A" onclick="switchModel('A')">
-      <div class="model-tab-label">Model A</div>
-      <div class="model-tab-sub">Wide</div>
+      <div class="model-tab-label">Model</div>
+      <div class="model-tab-sub">Main</div>
       <div class="model-tab-stat" id="mt-stat-A">—</div>
-    </div>
-    <div class="model-tab" data-model="B" onclick="switchModel('B')">
-      <div class="model-tab-label">Model B</div>
-      <div class="model-tab-sub">Premium</div>
-      <div class="model-tab-stat" id="mt-stat-B">—</div>
-    </div>
-    <div class="model-tab" data-model="C" onclick="switchModel('C')">
-      <div class="model-tab-label">Model C</div>
-      <div class="model-tab-sub">Comfortable</div>
-      <div class="model-tab-stat" id="mt-stat-C">—</div>
     </div>
   </div>
   <div class="kpi-strip" id="kpi-strip-today">
@@ -2575,40 +2563,26 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Model A: WIDE — jky3 + peak3 + speed top-50% (no trainer anchor)
-// Model B: PREMIUM — jky3 + peak3 + speed top-50% + trn top-4
-// Model C: COMFORTABLE — jky3 + peak3 + speed top-50% + trn top-4 + tr top-4
+// Single model: peak3+jky4+speed3 + SP>$3
+// Selected from comprehensive backtest sweep on 18,310 runners across 7 weeks.
+// T1 (Mar 16-Apr 5): +131%, T2 (Apr 5-25): +74%, T3 (Apr 25-May 3): +29%.
+// Most robust across all three time periods. Realistic sustainable target ~15-25% ROI.
 //
 // Each model's signalFilters defines per-signal thresholds:
 //   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
 //   {{type:'PCT_FIELD', pct:0.5}} = top X% of field by signal value within race
 const MODELS={{
-  A:{{name:'Model A',label:'Wide',
+  A:{{name:'Model',label:'Main',
       signalFilters:{{
-        jky_win90:{{type:'TOP_N',n:3}},
+        jky_win90:{{type:'TOP_N',n:4}},
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'PCT_FIELD',pct:0.5}}
+        speed:{{type:'TOP_N',n:3}}
       }},
-      desc:'jky3 + peak3 + speed 50%'}},
-  B:{{name:'Model B',label:'Premium',
-      signalFilters:{{
-        jky_win90:{{type:'TOP_N',n:3}},
-        peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'PCT_FIELD',pct:0.5}},
-        trn_win365:{{type:'TOP_N',n:4}}
-      }},
-      desc:'jky3 + peak3 + speed 50% + trn top-4'}},
-  C:{{name:'Model C',label:'Comfortable',
-      signalFilters:{{
-        jky_win90:{{type:'TOP_N',n:3}},
-        peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'PCT_FIELD',pct:0.5}},
-        trn_win365:{{type:'TOP_N',n:4}},
-        tr_rating:{{type:'TOP_N',n:4}}
-      }},
-      desc:'jky3 + peak3 + speed 50% + trn top-4 + tr top-4'}}
+      desc:'peak3 + jky top-4 + speed3'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
+// If localStorage has stale 'B' or 'C', reset to 'A'
+if(activeModel!=='A')activeModel='A';
 
 function dateToDow(d){{const p=d.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2])).getDay();}}
 function fmtTime(tm){{
@@ -3363,13 +3337,12 @@ function renderVarianceChart(rois, todayRoi){{
 }}
 
 function updateModelTabStats(f){{
-  // Compute summary stats for ALL 3 models so sub-tab labels show comparative info.
+  // Compute summary stats for each defined model.
   const _savedModel=activeModel;
   const _savedAnchors=new Set(anchorSigs);
   const _savedActive=new Set(activeSigs);
   
-  ['A','B','C'].forEach(m=>{{
-    if(!MODELS[m])return;
+  Object.keys(MODELS).forEach(m=>{{
     activeModel=m;
     const sigs=Object.keys(MODELS[m].signalFilters);
     anchorSigs=new Set(sigs);
