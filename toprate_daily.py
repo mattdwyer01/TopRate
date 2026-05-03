@@ -1507,6 +1507,7 @@ input[type=range]::-moz-range-thumb{{width:14px;height:14px;border-radius:50%;ba
 .model-info-banner{{font-size:11px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid #10b981;padding:8px 10px;border-radius:6px;margin-bottom:8px;line-height:1.5;}}
 .model-info-banner strong{{color:#059669;}}
 .model-info-note{{display:block;color:#6b7280;font-size:10px;margin-top:3px;}}
+.tab-cell{{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;background:#0f1729;color:#fff;font-weight:700;font-size:11px;border-radius:4px;padding:0 5px;font-family:'IBM Plex Mono',monospace;}}
 @media(max-width:768px){{
   .model-tabs{{margin:8px 0 12px;}}
   .model-tab{{padding:8px 10px;}}
@@ -2286,7 +2287,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="st" id="pend-title" style="display:none">Pending <span class="cnt" id="pend-cnt"></span></div>
   <div class="card desk-only" id="pend-card" style="display:none">
     <table><thead><tr>
-      <th>Date</th><th>Time</th><th>Venue</th><th>Horse</th><th>Jockey</th>
+      <th>Date</th><th>Time</th><th>Venue</th><th title="Tab number">#</th><th>Horse</th><th>Jockey</th>
       <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
@@ -2294,7 +2295,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="st">Resulted bets <span class="cnt" id="res-cnt"></span></div>
   <div class="card desk-only" id="res-card">
     <table><thead><tr>
-      <th>Date</th><th>Time</th><th>Venue</th><th>Horse</th><th>Jockey</th>
+      <th>Date</th><th>Time</th><th>Venue</th><th title="Tab number">#</th><th>Horse</th><th>Jockey</th>
       <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
       <th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Cumul</th>
     </tr></thead><tbody id="tb"></tbody></table>
@@ -3436,7 +3437,9 @@ function update(){{
       b._detailId=did;
       return'<tr class="bet-row '+(b.won&&isBet?'wr':b.placed&&isBet?'pr':'')+(!isBet?' no-bet-row':'')+'" data-did="'+did+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#6b7280;">'+timeStrR+'</td>'
-        +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
+        +'<td class="br">'+b.venue+' R'+b.race+'</td>'
+        +'<td class="mn"><span class="tab-cell">'+(b.runnerObj&&b.runnerObj.tab?b.runnerObj.tab:'—')+'</span></td>'
+        +'<td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td>'
         +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
         +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
@@ -3566,7 +3569,9 @@ function update(){{
       b._detailId=pdid;
       return'<tr class="bet-row '+(isBet?'':'no-bet-row')+'" data-did="'+pdid+'">'
         +'<td class="mn dm">'+b.date+'</td><td class="mn" style="white-space:nowrap;color:#10b981;font-weight:700;">'+timeStr+'</td>'
-        +'<td class="br">'+b.venue+' R'+b.race+'</td><td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
+        +'<td class="br">'+b.venue+' R'+b.race+'</td>'
+        +'<td class="mn"><span class="tab-cell">'+(b.runnerObj&&b.runnerObj.tab?b.runnerObj.tab:'—')+'</span></td>'
+        +'<td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td>'
         +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
         +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
