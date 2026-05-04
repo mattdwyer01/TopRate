@@ -2464,6 +2464,13 @@ tr.no-bet-row td{{opacity:0.4;}}
         <div class="ins-card-sub">Which signals predict best in different race conditions? Top-1 win rate per signal x context</div>
         <div id="ins-signal-heatmap"></div>
       </div>
+      
+      <!-- 7. Skip audit -->
+      <div class="ins-card">
+        <div class="ins-card-title">Skip Audit</div>
+        <div class="ins-card-sub">Are your manual skips outperforming or hurting? Compares ROI of bets you took vs bets you skipped (with reasons)</div>
+        <div id="ins-skip-audit"></div>
+      </div>
     </div>
   </div>
   <div class="tab-panel" id="panel-strategy">
@@ -3314,6 +3321,86 @@ function getBet(b){{
   return v===null?true:v==='1';
 }}
 function setBet(b,val){{syncSet(betKey(b),val?'1':'0');}}
+function skipReasonKey(b){{return'skipreason|'+activeModel+'|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
+function getSkipReason(b){{return syncGet(skipReasonKey(b));}}
+function setSkipReason(b,reason){{
+  if(reason===null||reason==='')syncRemove(skipReasonKey(b));
+  else syncSet(skipReasonKey(b),reason);
+}}
+const SKIP_REASONS=['Wide barrier in slow race','Heavy/wet track concern','Poor distance form','Pace doesn\\'t suit','Field too small','Field too big','Class concern','Fixed price too low','Other'];
+
+function promptSkipReason(b,onComplete){{
+  // Build a small modal-like prompt
+  const existing=getSkipReason(b);
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.onclick=(e)=>{{if(e.target===overlay){{document.body.removeChild(overlay);}}}};
+  const modal=document.createElement('div');
+  modal.style.cssText='background:#fff;border-radius:10px;padding:20px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+  let html='<div style="font-size:14px;font-weight:700;color:#0f1729;margin-bottom:4px;">Skip this bet?</div>';
+  html+='<div style="font-size:12px;color:#6b7280;margin-bottom:14px;">'+b.horse+' (R'+b.race+' '+b.venue+')</div>';
+  html+='<div style="font-size:11px;color:#6b7280;margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Reason</div>';
+  html+='<div id="skip-reason-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">';
+  SKIP_REASONS.forEach(r=>{{
+    html+='<button class="skip-reason-btn" data-reason="'+r+'" style="text-align:left;padding:9px 12px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:12px;color:#374151;cursor:pointer;font-family:inherit;">'+r+'</button>';
+  }});
+  html+='</div>';
+  html+='<input type="text" id="skip-reason-custom" placeholder="Or type your own..." value="'+(existing&&!SKIP_REASONS.includes(existing)?existing:'')+'" style="width:100%;padding:9px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;">';
+  html+='<div style="display:flex;gap:8px;justify-content:flex-end;">';
+  html+='<button id="skip-cancel-btn" style="padding:9px 14px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:#6b7280;font-family:inherit;">Cancel</button>';
+  html+='<button id="skip-confirm-btn" style="padding:9px 14px;border:none;background:#0f1729;color:#fff;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;font-family:inherit;">Skip with reason</button>';
+  html+='</div>';
+  modal.innerHTML=html;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  
+  let selectedReason=existing||null;
+  const updateBtnStyles=()=>{{
+    modal.querySelectorAll('.skip-reason-btn').forEach(btn=>{{
+      if(btn.dataset.reason===selectedReason){{
+        btn.style.background='#0f1729';btn.style.color='#fff';btn.style.borderColor='#0f1729';
+      }}else{{
+        btn.style.background='#fff';btn.style.color='#374151';btn.style.borderColor='#e5e7eb';
+      }}
+    }});
+  }};
+  updateBtnStyles();
+  
+  modal.querySelectorAll('.skip-reason-btn').forEach(btn=>{{
+    btn.onclick=()=>{{
+      selectedReason=btn.dataset.reason;
+      modal.querySelector('#skip-reason-custom').value='';
+      updateBtnStyles();
+    }};
+  }});
+  modal.querySelector('#skip-reason-custom').oninput=(e)=>{{
+    if(e.target.value){{selectedReason=null;updateBtnStyles();}}
+  }};
+  modal.querySelector('#skip-cancel-btn').onclick=()=>{{document.body.removeChild(overlay);}};
+  modal.querySelector('#skip-confirm-btn').onclick=()=>{{
+    const customVal=modal.querySelector('#skip-reason-custom').value.trim();
+    const reason=customVal||selectedReason;
+    if(!reason){{alert('Pick a reason or type one');return;}}
+    setBet(b,false);
+    setSkipReason(b,reason);
+    document.body.removeChild(overlay);
+    if(onComplete)onComplete();
+  }};
+}}
+
+function handleBetToggle(b){{
+  // Wraps the simple Y/N toggle: if turning OFF, prompt for reason
+  const cur=getBet(b);
+  if(cur){{
+    // Turning OFF (skip) — prompt for reason
+    promptSkipReason(b,()=>update());
+  }}else{{
+    // Turning ON (un-skip) — clear reason
+    setBet(b,true);
+    setSkipReason(b,null);
+    update();
+  }}
+}}
 function resultKey(b){{return'res|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}}
 function setResult(b,val){{if(val===null||isNaN(val)){{syncRemove(resultKey(b));}}else{{syncSet(resultKey(b),String(val));}}}}
@@ -3654,7 +3741,7 @@ function update(){{
       const fxCls='fixed-inp'+(fx?' has-val':'');
       const fxId='fx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='rbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
-      const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
+      const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'"'+(!isBet&&getSkipReason(b)?' title="Skip: '+getSkipReason(b).replace(/"/g,"&quot;")+'"':'')+'>'+(isBet?'Y':'N')+'</button>';
       const timeStrR=fmtTime(b.raceObj&&b.raceObj.tm);
       const did='rd-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       b._detailId=did;
@@ -3692,8 +3779,7 @@ function update(){{
       if(bb){{
         bb.addEventListener('click',e=>{{
           e.stopPropagation();
-          setBet(b,!getBet(b));
-          update();
+          handleBetToggle(b);
         }});
       }}
     }});
@@ -3746,7 +3832,7 @@ function update(){{
         +(b.going?'<span class="mob-bet-tag" style="background:'+goingBg(b.going)+';color:'+goingFg(b.going)+';">'+b.going+'</span>':'')
         +'</div>'
         +'<div class="mob-bet-footer">'
-        +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
+        +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'"'+(!isBet&&getSkipReason(b)?' title="Skip: '+getSkipReason(b).replace(/"/g,"&quot;")+'"':'')+'>'+(isBet?'Y':'N')+'</button>'
         +'<span style="font-size:10px;color:#6b7280;">Fixed:</span>'
         +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
         +'<span class="mob-stake-lbl">'+(isBet?effStake.toFixed(2)+'u':'0u')+'&nbsp;'+plStr+'</span>'
@@ -3761,7 +3847,7 @@ function update(){{
       const inp=document.getElementById(fxId);
       if(inp){{inp.addEventListener('change',e=>{{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>1){{setFixed(b,v);inp.classList.add('has-val');}}else{{setFixed(b,null);inp.value='';inp.classList.remove('has-val');}}update();}});}}
       const bb=document.getElementById(betId);
-      if(bb){{bb.addEventListener('click',e=>{{e.stopPropagation();setBet(b,!getBet(b));update();}});}}
+      if(bb){{bb.addEventListener('click',e=>{{e.stopPropagation();handleBetToggle(b);}});}}
     }});
   }}
 
@@ -3784,7 +3870,7 @@ function update(){{
       const fxId='pfx-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const betId='pbet-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
       const resId='pres-'+b.date+'-'+b.venue+'-'+b.race+'-'+b.horse.replace(/[^a-zA-Z0-9]/g,'_');
-      const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>';
+      const betBtn='<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'"'+(!isBet&&getSkipReason(b)?' title="Skip: '+getSkipReason(b).replace(/"/g,"&quot;")+'"':'')+'>'+(isBet?'Y':'N')+'</button>';
       const resVal=manualResult!==null?manualResult:'';
       const resInp='<input class="res-inp" id="'+resId+'" type="text" inputmode="numeric" placeholder="—" value="'+resVal+'" style="width:36px;font-size:11px;text-align:center;border:1px solid #d1d5db;border-radius:3px;padding:2px 4px;background:#f0fdf4;">';
       const mktPriceHtml=b.mktPrice?'<span class="mn" style="color:#0f172a;font-weight:700;">$'+b.mktPrice.toFixed(2)+'</span>':'<span style="color:#9ca3af">—</span>';
@@ -3827,9 +3913,7 @@ function update(){{
       if(betBtn){{
         betBtn.addEventListener('click',e=>{{
           e.stopPropagation();
-          const cur=getBet(b);
-          setBet(b,!cur);
-          update();
+          handleBetToggle(b);
         }});
       }}
       const resInp=document.getElementById(resId);
@@ -3886,7 +3970,7 @@ function update(){{
           +(b.going?'<span class="mob-bet-tag" style="background:'+goingBg(b.going)+';color:'+goingFg(b.going)+';">'+b.going+'</span>':'')
           +'</div>'
           +'<div class="mob-bet-footer">'
-          +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'">'+(isBet?'Y':'N')+'</button>'
+          +'<button class="bet-tog '+(isBet?'bet-y':'bet-n')+'" id="'+betId+'"'+(!isBet&&getSkipReason(b)?' title="Skip: '+getSkipReason(b).replace(/"/g,"&quot;")+'"':'')+'>'+(isBet?'Y':'N')+'</button>'
           +'<span style="font-size:10px;color:#6b7280;">Fixed:</span>'
           +'<input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'">'
           +'<span style="font-size:10px;color:#6b7280;">Pos:</span>'
@@ -3904,7 +3988,7 @@ function update(){{
         const fxInp=document.getElementById(fxId);
         if(fxInp){{fxInp.addEventListener('change',e=>{{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>1){{setFixed(b,v);fxInp.classList.add('has-val');}}else{{setFixed(b,null);fxInp.value='';fxInp.classList.remove('has-val');}}update();}});}}
         const bb=document.getElementById(betId);
-        if(bb){{bb.addEventListener('click',e=>{{e.stopPropagation();setBet(b,!getBet(b));update();}});}}
+        if(bb){{bb.addEventListener('click',e=>{{e.stopPropagation();handleBetToggle(b);}});}}
         const ri=document.getElementById(resId);
         if(ri){{ri.addEventListener('change',e=>{{const v=parseInt(e.target.value);setResult(b,isNaN(v)||v<1?null:v);update();}});}}
       }});
@@ -4879,6 +4963,7 @@ function buildInsights(){{
   buildInsightsAccuracyTime();
   buildInsightsRaceTypes();
   buildInsightsSignalHeatmap();
+  buildInsightsSkipAudit();
 }}
 
 // 1. LOSS ATTRIBUTION
@@ -5292,6 +5377,161 @@ function buildInsightsSignalHeatmap(){{
   
   html+=renderHeat('By distance band',['Sprint','Mile','Stayer']);
   html+=renderHeat('By track going',['Good','Soft','Heavy']);
+  
+  el.innerHTML=html;
+}}
+
+// 7. SKIP AUDIT
+function buildInsightsSkipAudit(){{
+  const el=document.getElementById('ins-skip-audit');
+  // Get full bet pool (taken AND skipped) — we need both in this view
+  const today=new Date();
+  let from='',to='';
+  if(insRange!=='all'){{
+    const days=parseInt(insRange);
+    const cutoff=new Date(today.getTime()-days*86400000);
+    from=cutoff.toISOString().slice(0,10);
+    to=today.toISOString().slice(0,10);
+  }}
+  
+  // Use buildBets but with override filters and don't filter out skipped
+  const savedF=getF();
+  const f={{...savedF,dateFrom:from,dateTo:to,
+    tab:false,nofs:false,trend:false,pend:false,resonly:true,nowide:false,
+    prize:0,sp:0,spmax:999,votes:0,barrier:24,
+    minEarlySpd:-20,minMidSpd:-20,minLateSpd:-20,minTotalSpd:-20,
+    maxSettledPos:20,max800mPos:20}};
+  const {{resulted}}=buildBets(f);
+  
+  // resulted contains ALL qualifying bets, including those marked isBet=false (skips)
+  const taken=resulted.filter(b=>b.isBet!==false);
+  const skipped=resulted.filter(b=>b.isBet===false);
+  
+  if(taken.length===0&&skipped.length===0){{
+    el.innerHTML='<div class="ins-empty">No resulted bets in this range</div>';
+    return;
+  }}
+  
+  // Compute stats helper
+  const computeStats=(bets)=>{{
+    if(bets.length===0)return null;
+    const wins=bets.filter(b=>b.won).length;
+    const places=bets.filter(b=>b.placed).length;
+    let profit=0;
+    bets.forEach(b=>{{if(b.sp&&b.sp>0)profit+=b.won?(b.sp-1):-1;}});
+    return {{n:bets.length,wins,places,winPct:wins/bets.length*100,
+            placePct:places/bets.length*100,roi:profit/bets.length*100,profit}};
+  }};
+  
+  const takenStats=computeStats(taken);
+  const skippedStats=computeStats(skipped);
+  
+  let html='<div style="font-size:11px;color:#374151;margin-bottom:14px;">'
+    +'<strong>'+(taken.length+skipped.length)+'</strong> qualifying bets resulted: '
+    +'<strong>'+taken.length+'</strong> taken, '
+    +'<strong>'+skipped.length+'</strong> skipped'
+    +'</div>';
+  
+  // Side-by-side comparison
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">';
+  
+  // Took
+  if(takenStats){{
+    const roiCls=takenStats.roi>5?'ins-pos':takenStats.roi<-5?'ins-neg':'ins-zero';
+    html+='<div style="padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">'
+      +'<div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#15803d;font-weight:700;margin-bottom:8px;">Bets you took</div>'
+      +'<div style="font-size:11px;color:#374151;line-height:1.7;">'
+      +'<strong>'+takenStats.n+'</strong> bets · '
+      +'<strong>'+takenStats.winPct.toFixed(0)+'%</strong> win · '
+      +'<strong>'+takenStats.placePct.toFixed(0)+'%</strong> place<br>'
+      +'<span class="'+roiCls+'" style="font-size:18px;font-weight:700;">'+(takenStats.roi>=0?'+':'')+takenStats.roi.toFixed(0)+'%</span>'
+      +'<span style="color:#6b7280;"> ROI</span>'
+      +'</div></div>';
+  }}else{{
+    html+='<div style="padding:14px;background:#f8fafc;border-radius:8px;color:#9ca3af;font-size:11px;">No bets taken</div>';
+  }}
+  
+  // Skipped
+  if(skippedStats){{
+    const roiCls=skippedStats.roi>5?'ins-pos':skippedStats.roi<-5?'ins-neg':'ins-zero';
+    const verdict=takenStats&&skippedStats.roi<takenStats.roi?'Skips helped':skippedStats.roi>takenStats?.roi?'Skips hurt':'Neutral';
+    const verdictColor=verdict==='Skips helped'?'#15803d':verdict==='Skips hurt'?'#dc2626':'#6b7280';
+    html+='<div style="padding:14px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;">'
+      +'<div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#92400e;font-weight:700;margin-bottom:8px;">Bets you skipped</div>'
+      +'<div style="font-size:11px;color:#374151;line-height:1.7;">'
+      +'<strong>'+skippedStats.n+'</strong> bets · '
+      +'<strong>'+skippedStats.winPct.toFixed(0)+'%</strong> win · '
+      +'<strong>'+skippedStats.placePct.toFixed(0)+'%</strong> place<br>'
+      +'<span class="'+roiCls+'" style="font-size:18px;font-weight:700;">'+(skippedStats.roi>=0?'+':'')+skippedStats.roi.toFixed(0)+'%</span>'
+      +'<span style="color:#6b7280;"> ROI if you\\'d taken them</span><br>'
+      +'<span style="color:'+verdictColor+';font-weight:700;font-size:11px;">'+verdict+'</span>'
+      +'</div></div>';
+  }}else{{
+    html+='<div style="padding:14px;background:#f8fafc;border-radius:8px;color:#9ca3af;font-size:11px;">No bets skipped</div>';
+  }}
+  html+='</div>';
+  
+  // Verdict explanation
+  if(takenStats&&skippedStats&&skippedStats.n>=5){{
+    if(skippedStats.roi<takenStats.roi-5){{
+      html+='<div style="padding:10px 12px;background:#f0fdf4;border-left:3px solid #10b981;font-size:11px;color:#374151;margin-bottom:14px;">'
+        +'<strong>Your skips are helping</strong> — the bets you avoided would have lost more than the bets you took. '
+        +'Difference: '+(takenStats.roi-skippedStats.roi).toFixed(0)+' pts ROI advantage.'
+        +'</div>';
+    }}else if(skippedStats.roi>takenStats.roi+5){{
+      html+='<div style="padding:10px 12px;background:#fef2f2;border-left:3px solid #dc2626;font-size:11px;color:#374151;margin-bottom:14px;">'
+        +'<strong>Your skips are hurting</strong> — the bets you avoided would have made more than the bets you took. '
+        +'Difference: '+(skippedStats.roi-takenStats.roi).toFixed(0)+' pts ROI disadvantage. Consider trusting the model more.'
+        +'</div>';
+    }}else{{
+      html+='<div style="padding:10px 12px;background:#f8fafc;border-left:3px solid #9ca3af;font-size:11px;color:#374151;margin-bottom:14px;">'
+        +'<strong>Skips are roughly neutral</strong> — taken vs skipped bets perform similarly.'
+        +'</div>';
+    }}
+  }}else if(skippedStats&&skippedStats.n<5){{
+    html+='<div style="padding:10px 12px;background:#f8fafc;border-left:3px solid #9ca3af;font-size:11px;color:#9ca3af;margin-bottom:14px;">'
+      +'Need at least 5 skipped bets to draw a conclusion. Currently '+skippedStats.n+'.'
+      +'</div>';
+  }}
+  
+  // Breakdown by skip reason
+  if(skipped.length>0){{
+    const byReason={{}};
+    skipped.forEach(b=>{{
+      const reason=getSkipReason(b)||'(no reason)';
+      if(!byReason[reason])byReason[reason]={{n:0,wins:0,places:0,profit:0}};
+      byReason[reason].n++;
+      if(b.won)byReason[reason].wins++;
+      if(b.placed)byReason[reason].places++;
+      if(b.sp&&b.sp>0)byReason[reason].profit+=b.won?(b.sp-1):-1;
+    }});
+    
+    html+='<div class="strat-card-title" style="margin:18px 0 6px;">Breakdown by skip reason</div>';
+    html+='<div style="font-size:10px;color:#9ca3af;margin-bottom:10px;">Negative ROI = skipping was correct. Positive ROI = these were winners you missed.</div>';
+    html+='<div class="ins-tbl">'
+      +'<div class="ins-tbl-h" style="grid-template-columns:2fr 0.6fr 0.7fr 0.7fr 1fr;">'
+      +'<span>Reason</span><span>n</span><span>Win%</span><span>Place%</span><span>ROI if taken</span></div>';
+    
+    Object.entries(byReason).sort((a,b)=>b[1].n-a[1].n).forEach(([reason,s])=>{{
+      const wr=s.wins/s.n*100;
+      const pr=s.places/s.n*100;
+      const roi=s.profit/s.n*100;
+      const roiCls=roi>5?'ins-neg':roi<-5?'ins-pos':'ins-zero';
+      html+='<div class="ins-tbl-r" style="grid-template-columns:2fr 0.6fr 0.7fr 0.7fr 1fr;">'
+        +'<span>'+reason+'</span>'
+        +'<span>'+s.n+'</span>'
+        +'<span>'+wr.toFixed(0)+'%</span>'
+        +'<span>'+pr.toFixed(0)+'%</span>'
+        +'<span class="'+roiCls+'">'+(roi>=0?'+':'')+roi.toFixed(0)+'%</span>'
+        +'</div>';
+    }});
+    html+='</div>';
+    html+='<div style="font-size:10px;color:#9ca3af;margin-top:8px;line-height:1.5;">'
+      +'<strong>Read this table:</strong> Each row shows what would have happened if you\\'d bet horses you skipped for that reason. '
+      +'<span style="color:#10b981;">Green ROI</span> means the skip was correct (those bets would have lost). '
+      +'<span style="color:#dc2626;">Red ROI</span> means you missed winners — that reason may not be a valid skip criterion.'
+      +'</div>';
+  }}
   
   el.innerHTML=html;
 }}
