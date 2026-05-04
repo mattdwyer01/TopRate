@@ -2321,7 +2321,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="card desk-only" id="pend-card" style="display:none">
     <table><thead><tr>
       <th>Date</th><th>Time</th><th>Venue</th><th title="Tab number">#</th><th>Horse</th><th>Jockey</th>
-      <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
+      <th>Sigs</th><th title="Weighted score across 7 most predictive signals: tr_rating x3, peak_rank x3, wpr_avg_last3 x2, wpr_dist/speed/trn/jky x1">Cumul</th><th>SP</th><th>Mkt $</th><th>Fixed $</th><th>Drift</th><th>Prize</th><th>WPR</th><th>Trend</th><th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th>
     </tr></thead><tbody id="pend-tb"></tbody></table>
   </div>
   <div class="mob-bet-list mob-only" id="pend-mob"></div>
@@ -2329,7 +2329,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="card desk-only" id="res-card">
     <table><thead><tr>
       <th>Date</th><th>Time</th><th>Venue</th><th title="Tab number">#</th><th>Horse</th><th>Jockey</th>
-      <th>Sigs</th><th title="Cumulative score across all 12 signals (3pts top / 2pts 2nd / 1pt 3rd)">Cumul</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
+      <th>Sigs</th><th title="Weighted score across 7 most predictive signals: tr_rating x3, peak_rank x3, wpr_avg_last3 x2, wpr_dist/speed/trn/jky x1">Cumul</th><th>SP</th><th>Fixed</th><th>Prize</th><th>WPR</th><th>Trend</th>
       <th>Context</th><th>Bet?</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Cumul</th>
     </tr></thead><tbody id="tb"></tbody></table>
     <div class="empty" id="empty">No resulted bets match current filters</div>
@@ -2773,15 +2773,31 @@ function scoreRace(race){{
   return {{topIdx,topScore,scores}};
 }}
 
+// Cumulative score weighting based on predictive power analysis (signal_review).
+// Tier 1 (weight 3): tr_rating (lift 2.98x), peak_rank (lift 2.40x)
+// Tier 2 (weight 2): wpr_avg_last3 (lift 2.01x)
+// Tier 3 (weight 1): wpr_dist, speed, trn_win365, jky_win90
+// Excluded (noise/duplicate): wpr_nett, wpr_last1 (duplicates of tr_rating)
+//                              wpr_going, wpr_trend, wpr_consistency (lift <1.0x — noise)
+const CUMUL_WEIGHTS={{
+  tr_rating: 3, peak_rank: 3,
+  wpr_avg_last3: 2,
+  wpr_dist: 1, speed: 1, trn_win365: 1, jky_win90: 1
+}};
+
 function computeCumulScores(race){{
-  // Weighted score across ALL 12 signals (3 pts top, 2 pts 2nd, 1 pt 3rd)
+  // Weighted score across the 7 most predictive signals.
+  // Each signal: top-1 = 3*w, top-2 = 2*w, top-3 = 1*w
+  // Max possible score = 3 * sum(weights) = 3 * 12 = 36
   // Independent of activeSigs/anchorSigs — purely informational
   const cumul=new Array(race.u.length).fill(0);
   SIG_NAMES.forEach((sig,si)=>{{
+    const w=CUMUL_WEIGHTS[sig];
+    if(!w)return;  // Skip noise/duplicate signals
     const ranking=race.s[si]||[];
-    if(ranking[0]>=0)cumul[ranking[0]]+=3;
-    if(ranking[1]>=0)cumul[ranking[1]]+=2;
-    if(ranking[2]>=0)cumul[ranking[2]]+=1;
+    if(ranking[0]>=0)cumul[ranking[0]]+=3*w;
+    if(ranking[1]>=0)cumul[ranking[1]]+=2*w;
+    if(ranking[2]>=0)cumul[ranking[2]]+=1*w;
   }});
   // Compute rank within race (descending — rank 1 = highest cumul)
   const sorted=cumul.map((s,i)=>({{i,s}})).sort((a,b)=>b.s-a.s);
