@@ -4792,23 +4792,20 @@ function insSetRange(r){{
 
 function insGetResulted(){{
   // Get all resulted bets across full date range (override main filter)
-  const savedF=getF();
-  const f={{...savedF}};
   const today=new Date();
+  let from='',to='';
   if(insRange!=='all'){{
     const days=parseInt(insRange);
     const cutoff=new Date(today.getTime()-days*86400000);
-    f.from=cutoff.toISOString().slice(0,10);
-    f.to=today.toISOString().slice(0,10);
-  }}else{{
-    f.from='';f.to='';
+    from=cutoff.toISOString().slice(0,10);
+    to=today.toISOString().slice(0,10);
   }}
   // Use full RACES regardless of f.bet/f.review/f.cumul/f.search to get all
   const allResulted=[];
   RACES.forEach(race=>{{
     if(race.done!==1)return;
-    if(f.from&&race.d<f.from)return;
-    if(f.to&&race.d>f.to)return;
+    if(from&&race.d<from)return;
+    if(to&&race.d>to)return;
     // Compute cumul scores
     const {{cumul,ranks}}=computeCumulScores(race);
     race.u.forEach((runner,idx)=>{{
@@ -4836,12 +4833,16 @@ function insGetBetsAndRaces(){{
   if(insRange!=='all'){{
     const days=parseInt(insRange);
     const cutoff=new Date(today.getTime()-days*86400000);
-    f.from=cutoff.toISOString().slice(0,10);
-    f.to=today.toISOString().slice(0,10);
+    f.dateFrom=cutoff.toISOString().slice(0,10);
+    f.dateTo=today.toISOString().slice(0,10);
   }}else{{
-    f.from='';f.to='';
+    f.dateFrom='';f.dateTo='';
   }}
-  f.bet=false;f.review=false;f.cumul='';f.search='';
+  // Override other filters that might restrict the bet pool
+  f.tab=false;f.nofs=false;f.trend=false;f.pend=false;f.resonly=true;f.nowide=false;
+  f.prize=0;f.sp=0;f.spmax=999;f.votes=0;f.barrier=24;
+  f.minEarlySpd=-20;f.minMidSpd=-20;f.minLateSpd=-20;f.minTotalSpd=-20;
+  f.maxSettledPos=20;f.max800mPos=20;
   const {{resulted}}=buildBets(f);
   return resulted.filter(b=>b.isBet!==false);
 }}
