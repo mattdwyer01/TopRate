@@ -1413,7 +1413,7 @@ body{{background:#f4f6f9;color:#374151;font-family:'Outfit',sans-serif;font-size
   border:1px solid #e5e7eb;
 }}
 .help-tip:hover{{background:#e5e7eb;color:#374151;}}
-.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
+.shell.show-settings #panel-bets,.shell.show-settings #panel-race,.shell.show-settings #panel-insights,.shell.show-settings #panel-strategy,.shell.show-settings #panel-signals,.shell.show-settings #panel-backtest{{display:none !important;}}
 .shell.show-settings .main{{display:block;}}
 .shell.show-settings .settings-header{{display:flex !important;}}
 .settings-header{{display:none;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:14px 18px;margin:0 auto 16px;max-width:900px;width:100%;}}
@@ -1742,6 +1742,27 @@ tr.no-bet-row td{{opacity:0.4;}}
 .tab-panel{{display:none;}}.tab-panel.active{{display:block;}}
 /* === STRATEGY PAGE === */
 .strat-page{{padding:0;}}
+.ins-page{{padding:0;}}
+.ins-header{{margin-bottom:14px;}}
+.ins-title{{font-size:18px;font-weight:700;color:#0f1729;}}
+.ins-sub{{font-size:11px;color:#6b7280;margin-top:2px;}}
+.ins-controls{{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}}
+.ins-range-btn{{padding:6px 12px;font-size:11px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;color:#6b7280;font-weight:500;}}
+.ins-range-btn.active{{background:#0f1729;color:#fff;border-color:#0f1729;}}
+.ins-card{{background:#fff;border:1px solid #e8eaf0;border-radius:10px;padding:16px;margin-bottom:14px;}}
+.ins-card-title{{font-size:13px;font-weight:700;color:#0f1729;}}
+.ins-card-sub{{font-size:11px;color:#6b7280;margin:2px 0 12px;}}
+.ins-tbl{{display:flex;flex-direction:column;gap:0;font-size:11px;}}
+.ins-tbl-h,.ins-tbl-r{{display:grid;gap:8px;padding:7px 4px;border-bottom:1px solid #f1f3f8;align-items:center;}}
+.ins-tbl-h{{font-weight:600;color:#9ca3af;font-size:9px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid #e8eaf0;}}
+.ins-tbl-h>span+span,.ins-tbl-r>span+span{{text-align:right;font-family:'IBM Plex Mono',monospace;}}
+.ins-empty{{text-align:center;color:#9ca3af;padding:20px;font-size:11px;}}
+.ins-pos{{color:#10b981;font-weight:600;}}
+.ins-neg{{color:#dc2626;font-weight:600;}}
+.ins-zero{{color:#9ca3af;}}
+.ins-bar{{display:inline-block;height:5px;background:#e5e7eb;border-radius:2px;vertical-align:middle;margin-right:6px;}}
+.ins-bar-fill{{display:inline-block;height:5px;background:#10b981;border-radius:2px;}}
+.ins-heat-cell{{padding:6px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center;border-radius:4px;}}
 .strat-header{{margin-bottom:14px;}}
 .strat-title{{font-size:18px;font-weight:700;color:#0f1729;}}
 .strat-subtitle{{font-size:11px;color:#6b7280;margin-top:2px;}}
@@ -1933,7 +1954,10 @@ tr.no-bet-row td{{opacity:0.4;}}
 .dist-poor{{color:#9ca3af;font-size:12px;}}
 .dist-untried{{color:#dc2626;font-weight:700;font-size:14px;}}
 .cumul-cell{{font-weight:600;color:#0f1729;}}
+.cumul-cell.top1{{color:#059669;font-weight:700;}}
 .cumul-rank{{font-size:9px;color:#9ca3af;font-weight:500;margin-left:2px;}}
+.cumul-rank.top1{{color:#059669;}}
+.cumul-star{{color:#f59e0b;font-size:11px;margin-right:2px;}}
 .rs-value-neg{{color:#dc2626;font-weight:600;}}
 .rs-finish-1{{background:#fef3c7;color:#92400e;font-weight:700;padding:2px 6px;border-radius:4px;}}
 .rs-finish-2{{color:#6b7280;font-weight:600;}}
@@ -2274,6 +2298,7 @@ tr.no-bet-row td{{opacity:0.4;}}
     <button class="main-tab active" id="tab-today" onclick="switchTab('today')">Today</button>
     <button class="main-tab" id="tab-race" onclick="switchTab('race')">Race</button>
     <button class="main-tab" id="tab-bets" onclick="switchTab('bets')">Bets</button>
+    <button class="main-tab" id="tab-insights" onclick="switchTab('insights')">Insights</button>
     <button class="main-tab" id="tab-strategy" onclick="switchTab('strategy')">Strategy</button>
     <button class="main-tab" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="main-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
@@ -2389,6 +2414,55 @@ tr.no-bet-row td{{opacity:0.4;}}
           </div>
           <div class="mob-only race-runners-cards" id="race-runners-cards"></div>
         </div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-panel" id="panel-insights">
+    <div class="ins-page">
+      <div class="ins-header">
+        <div class="ins-title">Insights</div>
+        <div class="ins-sub">Analytical breakdown of model performance, prediction accuracy, and patterns in wins vs losses</div>
+        <div class="ins-controls">
+          <button class="qbtn ins-range-btn active" data-range="all" onclick="insSetRange('all')">All time</button>
+          <button class="qbtn ins-range-btn" data-range="30" onclick="insSetRange('30')">Last 30d</button>
+          <button class="qbtn ins-range-btn" data-range="14" onclick="insSetRange('14')">Last 14d</button>
+          <button class="qbtn ins-range-btn" data-range="7" onclick="insSetRange('7')">Last 7d</button>
+        </div>
+      </div>
+      
+      <!-- 1. Loss Attribution -->
+      <div class="ins-card">
+        <div class="ins-card-title">Loss Attribution</div>
+        <div class="ins-card-sub">Where are losing bets concentrated? Look for patterns by venue, distance, going, etc.</div>
+        <div id="ins-loss-attribution"></div>
+      </div>
+      
+      <!-- 3. Cumul rank performance -->
+      <div class="ins-card">
+        <div class="ins-card-title">Cumul Rank Performance</div>
+        <div class="ins-card-sub">% of races where the cumul-#1 horse won, placed, or finished outside top-3</div>
+        <div id="ins-cumul-rank"></div>
+      </div>
+      
+      <!-- 4. Prediction accuracy over time -->
+      <div class="ins-card">
+        <div class="ins-card-title">Prediction Accuracy Over Time</div>
+        <div class="ins-card-sub">Cumul-#1 win rate week-by-week. Are we still picking winners?</div>
+        <div id="ins-accuracy-time"></div>
+      </div>
+      
+      <!-- 5. Race-level predictive strength -->
+      <div class="ins-card">
+        <div class="ins-card-title">Race-Type Strength</div>
+        <div class="ins-card-sub">Which race types is the model strongest in? Break down by venue, distance band, going, prize tier</div>
+        <div id="ins-race-types"></div>
+      </div>
+      
+      <!-- 6. Signal heat-map by context -->
+      <div class="ins-card">
+        <div class="ins-card-title">Signal Heat-Map by Context</div>
+        <div class="ins-card-sub">Which signals predict best in different race conditions? Top-1 win rate per signal x context</div>
+        <div id="ins-signal-heatmap"></div>
       </div>
     </div>
   </div>
@@ -3590,7 +3664,7 @@ function update(){{
         +'<td class="mn"><span class="tab-cell">'+(b.runnerObj&&b.runnerObj.tab?b.runnerObj.tab:'—')+'</span></td>'
         +'<td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td>'
-        +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
+        +'<td class="mn"><span class="cumul-cell'+(b.cumulRank===1?' top1':'')+'" title="Cumul score (rank in race)">'+(b.cumulRank===1?'<span class=\"cumul-star\">★</span>':'')+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank'+(b.cumulRank===1?' top1':'')+'">#'+b.cumulRank+'</span>':'')+'</span></td>'
         +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'?')+'</td>'
         +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
         +'<td class="mn dm">'+fmtPrize(b.prize)+'</td><td class="mn">'+(b.wpr!=null?b.wpr.toFixed(1):'—')+'</td>'
@@ -3662,7 +3736,7 @@ function update(){{
         +(b.sp?'<span class="mob-bet-tag sp">SP $'+b.sp.toFixed(2)+'</span>':'')
         +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
         +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
-        +'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
+        +'<span class="mob-bet-tag" style="background:'+(b.cumulRank===1?'#d1fae5':'#f4f6f9')+';color:'+(b.cumulRank===1?'#059669':'#374151')+';'+(b.cumulRank===1?'font-weight:700;':'')+'">'+(b.cumulRank===1?'★ ':'')+'Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
         +'</div>'
         +'<div class="mob-bet-row">'
         +(b.trend!==null&&b.trend!==undefined?'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Trend '+trendHtml(b.trend)+'</span>':'')
@@ -3723,7 +3797,7 @@ function update(){{
         +'<td class="mn"><span class="tab-cell">'+(b.runnerObj&&b.runnerObj.tab?b.runnerObj.tab:'—')+'</span></td>'
         +'<td class="br">'+b.horse+'</td><td class="dm">'+b.jockey+'</td>'
         +'<td class="mn">'+b.scoreDisp+'</td>'
-        +'<td class="mn"><span class="cumul-cell" title="Cumul score (rank in race)">'+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank">#'+b.cumulRank+'</span>':'')+'</span></td>'
+        +'<td class="mn"><span class="cumul-cell'+(b.cumulRank===1?' top1':'')+'" title="Cumul score (rank in race)">'+(b.cumulRank===1?'<span class=\"cumul-star\">★</span>':'')+(b.cumulScore||0)+(b.cumulRank?' <span class="cumul-rank'+(b.cumulRank===1?' top1':'')+'">#'+b.cumulRank+'</span>':'')+'</span></td>'
         +'<td class="mn br">'+(b.sp?'$'+b.sp.toFixed(2):'TBD')+'</td>'
         +'<td class="mn">'+mktPriceHtml+'</td>'
         +'<td class="mn"><input class="'+fxCls+'" id="'+fxId+'" type="text" inputmode="decimal" placeholder="$" value="'+fxVal+'"></td>'
@@ -3801,7 +3875,7 @@ function update(){{
           +(b.mktPrice?'<span class="mob-bet-tag mkt">Mkt $'+b.mktPrice.toFixed(2)+'</span>':'<span class="mob-bet-tag sp">SP TBD</span>')
           +(b.wpr!=null?'<span class="mob-bet-tag wpr">WPR '+b.wpr.toFixed(1)+'</span>':'')
           +'<span class="mob-bet-tag prize">'+fmtPrize(b.prize)+'</span>'
-          +'<span class="mob-bet-tag" style="background:#f4f6f9;color:#374151;">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
+          +'<span class="mob-bet-tag" style="background:'+(b.cumulRank===1?'#d1fae5':'#f4f6f9')+';color:'+(b.cumulRank===1?'#059669':'#374151')+';'+(b.cumulRank===1?'font-weight:700;':'')+'">'+(b.cumulRank===1?'★ ':'')+'Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
           +(()=>{{const d=getDrift(b.runId,getFixed(b));return d?'<span class="mob-bet-tag" style="background:#f4f6f9;">'+d.html+'</span>':'';}})()
           +'</div>'
           +'<div class="mob-bet-row">'
@@ -3932,7 +4006,7 @@ function getActiveAnchors(){{
 
 function switchTab(tab){{
   // Today and Bets share panel-bets; just sync tab styles and date filter
-  const allTabs=['today','race','bets','strategy','signals','backtest','settings'];
+  const allTabs=['today','race','bets','insights','strategy','signals','backtest','settings'];
   allTabs.forEach(t=>{{
     const tabBtn=document.getElementById('tab-'+t);
     if(tabBtn)tabBtn.classList.toggle('active',t===tab);
@@ -3944,9 +4018,9 @@ function switchTab(tab){{
   }}
   shell.classList.remove('show-settings');
   // Map Today and Bets both to panel-bets
-  const panelMap={{today:'bets',bets:'bets',race:'race',strategy:'strategy',signals:'signals',backtest:'backtest'}};
+  const panelMap={{today:'bets',bets:'bets',race:'race',insights:'insights',strategy:'strategy',signals:'signals',backtest:'backtest'}};
   const targetPanel=panelMap[tab]||tab;
-  ['bets','race','strategy','signals','backtest'].forEach(p=>{{
+  ['bets','race','insights','strategy','signals','backtest'].forEach(p=>{{
     const panel=document.getElementById('panel-'+p);
     if(panel)panel.classList.toggle('active',p===targetPanel);
   }});
@@ -3964,6 +4038,7 @@ function switchTab(tab){{
   }}
   // Page initialisers
   if(tab==='race')buildRacePage();
+  if(tab==='insights')buildInsights();
   if(tab==='strategy')buildStrategy();
   if(tab==='signals')buildSignals();
   if(tab==='backtest')initBacktest();
@@ -4705,6 +4780,520 @@ function buildRaceExotics(rows,race){{
 
 
 
+
+// === INSIGHTS PAGE ===
+let insRange='all';
+
+function insSetRange(r){{
+  insRange=r;
+  document.querySelectorAll('.ins-range-btn').forEach(b=>b.classList.toggle('active',b.dataset.range===r));
+  buildInsights();
+}}
+
+function insGetResulted(){{
+  // Get all resulted bets across full date range (override main filter)
+  const savedF=getF();
+  const f={{...savedF}};
+  const today=new Date();
+  if(insRange!=='all'){{
+    const days=parseInt(insRange);
+    const cutoff=new Date(today.getTime()-days*86400000);
+    f.from=cutoff.toISOString().slice(0,10);
+    f.to=today.toISOString().slice(0,10);
+  }}else{{
+    f.from='';f.to='';
+  }}
+  // Use full RACES regardless of f.bet/f.review/f.cumul/f.search to get all
+  const allResulted=[];
+  RACES.forEach(race=>{{
+    if(race.done!==1)return;
+    if(f.from&&race.d<f.from)return;
+    if(f.to&&race.d>f.to)return;
+    // Compute cumul scores
+    const {{cumul,ranks}}=computeCumulScores(race);
+    race.u.forEach((runner,idx)=>{{
+      if(runner.f===null||runner.f===undefined)return;
+      allResulted.push({{
+        date:race.d,venue:race.v,race:race.r,horse:runner.h,
+        sp:runner.sp,fixed:runner.fx||null,
+        finish:runner.f,won:runner.f===1,placed:runner.f<=3,
+        cumulScore:cumul[idx],cumulRank:ranks[idx],
+        going:race.going,distance:race.dist,prize:race.p,
+        barrier:runner.b,settling:runner.st,pace:race.ps,
+        fieldSize:race.u.length,
+        raceObj:race,runnerObj:runner,raceIdx:idx
+      }});
+    }});
+  }});
+  return allResulted;
+}}
+
+function insGetBetsAndRaces(){{
+  // Use buildBets to get our actual bet flagging logic but for full range
+  const savedF=getF();
+  const f={{...savedF}};
+  const today=new Date();
+  if(insRange!=='all'){{
+    const days=parseInt(insRange);
+    const cutoff=new Date(today.getTime()-days*86400000);
+    f.from=cutoff.toISOString().slice(0,10);
+    f.to=today.toISOString().slice(0,10);
+  }}else{{
+    f.from='';f.to='';
+  }}
+  f.bet=false;f.review=false;f.cumul='';f.search='';
+  const {{resulted}}=buildBets(f);
+  return resulted.filter(b=>b.isBet!==false);
+}}
+
+function insBucketStats(items, key){{
+  // Group items by key (function or string), return stats per bucket
+  const buckets={{}};
+  items.forEach(it=>{{
+    const k=typeof key==='function'?key(it):it[key];
+    if(k===null||k===undefined||k==='')return;
+    if(!buckets[k])buckets[k]={{n:0,wins:0,places:0,profit:0,fxProfit:0}};
+    buckets[k].n++;
+    if(it.won){{buckets[k].wins++;}}
+    if(it.placed)buckets[k].places++;
+    const sp=it.sp;
+    if(sp&&sp>0){{
+      buckets[k].profit+=it.won?(sp-1):-1;
+    }}
+  }});
+  return Object.entries(buckets).map(([k,v])=>({{
+    key:k,
+    n:v.n,
+    wins:v.wins,
+    winPct:v.n>0?v.wins/v.n*100:0,
+    placePct:v.n>0?v.places/v.n*100:0,
+    roi:v.n>0?v.profit/v.n*100:0,
+    profit:v.profit
+  }}));
+}}
+
+function buildInsights(){{
+  buildInsightsLossAttribution();
+  buildInsightsCumulRank();
+  buildInsightsAccuracyTime();
+  buildInsightsRaceTypes();
+  buildInsightsSignalHeatmap();
+}}
+
+// 1. LOSS ATTRIBUTION
+function buildInsightsLossAttribution(){{
+  const el=document.getElementById('ins-loss-attribution');
+  const bets=insGetBetsAndRaces();
+  if(bets.length===0){{el.innerHTML='<div class="ins-empty">No resulted bets in this range</div>';return;}}
+  
+  const losses=bets.filter(b=>!b.won);
+  const total=bets.length;
+  
+  let html='<div style="font-size:11px;color:#374151;margin-bottom:12px;">'
+    +'<strong>'+total+'</strong> bets, <strong>'+(total-losses.length)+'</strong> wins, <strong>'+losses.length+'</strong> losses ('
+    +(losses.length/total*100).toFixed(0)+'% loss rate)'
+    +'</div>';
+  
+  // Helper: render a breakdown table
+  const renderBreakdown=(title,buckets,minN)=>{{
+    minN=minN||3;
+    buckets=buckets.filter(b=>b.n>=minN);
+    if(buckets.length===0)return'';
+    buckets.sort((a,b)=>b.roi-a.roi);
+    let h='<div style="margin-top:14px;"><div class="strat-card-title" style="margin-bottom:6px;">'+title+'</div>'
+      +'<div class="ins-tbl"><div class="ins-tbl-h" style="grid-template-columns:1.5fr 0.6fr 0.7fr 0.7fr 0.8fr;"><span>'+title.split(' by ')[1]+'</span><span>n</span><span>Win%</span><span>Place%</span><span>ROI</span></div>';
+    buckets.forEach(b=>{{
+      const roiCls=b.roi>5?'ins-pos':b.roi<-5?'ins-neg':'ins-zero';
+      h+='<div class="ins-tbl-r" style="grid-template-columns:1.5fr 0.6fr 0.7fr 0.7fr 0.8fr;">'
+        +'<span>'+b.key+'</span>'
+        +'<span>'+b.n+'</span>'
+        +'<span>'+b.winPct.toFixed(0)+'%</span>'
+        +'<span>'+b.placePct.toFixed(0)+'%</span>'
+        +'<span class="'+roiCls+'">'+(b.roi>=0?'+':'')+b.roi.toFixed(0)+'%</span>'
+        +'</div>';
+    }});
+    h+='</div></div>';
+    return h;
+  }};
+  
+  // Group by various dimensions
+  html+=renderBreakdown('Performance by venue',insBucketStats(bets,'venue'),5);
+  
+  html+=renderBreakdown('Performance by going',insBucketStats(bets,b=>{{
+    if(!b.going)return null;
+    const s=String(b.going);
+    if(s.includes('Good'))return'Good';
+    if(s.includes('Soft'))return'Soft';
+    if(s.includes('Heavy'))return'Heavy';
+    if(s.includes('Synthetic'))return'Synthetic';
+    return s;
+  }}),3);
+  
+  html+=renderBreakdown('Performance by distance band',insBucketStats(bets,b=>{{
+    const d=b.raceObj?b.raceObj.dist:null;
+    if(!d)return null;
+    if(d<1100)return'Sprint <1100m';
+    if(d<1400)return'Sprint 1100-1400m';
+    if(d<1800)return'Mile 1400-1800m';
+    if(d<2200)return'Middle 1800-2200m';
+    return'Stayer 2200m+';
+  }}),3);
+  
+  html+=renderBreakdown('Performance by prize tier',insBucketStats(bets,b=>{{
+    const p=b.prize;
+    if(!p)return null;
+    if(p<25000)return'<$25k';
+    if(p<50000)return'$25k-$50k';
+    if(p<100000)return'$50k-$100k';
+    if(p<200000)return'$100k-$200k';
+    return'$200k+';
+  }}),3);
+  
+  html+=renderBreakdown('Performance by SP band',insBucketStats(bets,b=>{{
+    const sp=b.sp;
+    if(!sp)return null;
+    if(sp<5)return'$3-$5';
+    if(sp<8)return'$5-$8';
+    if(sp<15)return'$8-$15';
+    if(sp<25)return'$15-$25';
+    return'$25+';
+  }}),3);
+  
+  html+=renderBreakdown('Performance by settling pattern',insBucketStats(bets,'settling'),3);
+  html+=renderBreakdown('Performance by pace scenario',insBucketStats(bets,'pace'),3);
+  html+=renderBreakdown('Performance by cumul rank',insBucketStats(bets,b=>{{
+    const r=b.cumulRank;
+    if(!r)return null;
+    return r===1?'#1':r===2?'#2':r===3?'#3':r<=5?'#4-5':'#6+';
+  }}),3);
+  
+  el.innerHTML=html;
+}}
+
+// 3. CUMUL RANK PERFORMANCE
+function buildInsightsCumulRank(){{
+  const el=document.getElementById('ins-cumul-rank');
+  const all=insGetResulted();
+  if(all.length===0){{el.innerHTML='<div class="ins-empty">No resulted races in this range</div>';return;}}
+  
+  // For each race, find the runner at cumul rank N and check if they won
+  const races={{}};
+  all.forEach(r=>{{
+    if(!races[r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r])races[r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r]=[];
+    races[r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r].push(r);
+  }});
+  
+  const stats={{}};  // rank -> {n, wins, places, profit}
+  for(let rk=1;rk<=8;rk++){{stats[rk]={{n:0,wins:0,places:0,profit:0,fxProfit:0,sps:[]}};}}
+  let totalRaces=0;
+  
+  Object.values(races).forEach(runners=>{{
+    if(runners.length<3)return;
+    totalRaces++;
+    for(let rk=1;rk<=8;rk++){{
+      const r=runners.find(x=>x.cumulRank===rk);
+      if(!r)continue;
+      stats[rk].n++;
+      if(r.won)stats[rk].wins++;
+      if(r.placed)stats[rk].places++;
+      if(r.sp){{
+        stats[rk].profit+=r.won?(r.sp-1):-1;
+        stats[rk].sps.push(r.sp);
+      }}
+    }}
+  }});
+  
+  let html='<div style="font-size:11px;color:#6b7280;margin-bottom:10px;">Across <strong>'+totalRaces+'</strong> resulted races</div>'
+    +'<div class="ins-tbl"><div class="ins-tbl-h" style="grid-template-columns:0.5fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr;">'
+    +'<span>Rank</span><span>n</span><span>Win%</span><span>Place%</span><span>Avg SP</span><span>ROI</span></div>';
+  
+  for(let rk=1;rk<=8;rk++){{
+    const s=stats[rk];
+    if(s.n===0)continue;
+    const wr=s.wins/s.n*100;
+    const pr=s.places/s.n*100;
+    const avgSp=s.sps.length>0?(s.sps.reduce((a,b)=>a+b,0)/s.sps.length):0;
+    const roi=s.profit/s.n*100;
+    const roiCls=roi>5?'ins-pos':roi<-5?'ins-neg':'ins-zero';
+    const winCls=rk===1?'ins-pos':'';
+    html+='<div class="ins-tbl-r" style="grid-template-columns:0.5fr 0.6fr 0.7fr 0.7fr 0.8fr 0.8fr;">'
+      +'<span><strong>#'+rk+'</strong></span>'
+      +'<span>'+s.n+'</span>'
+      +'<span class="'+winCls+'">'+wr.toFixed(0)+'%</span>'
+      +'<span>'+pr.toFixed(0)+'%</span>'
+      +'<span>$'+avgSp.toFixed(1)+'</span>'
+      +'<span class="'+roiCls+'">'+(roi>=0?'+':'')+roi.toFixed(0)+'%</span>'
+      +'</div>';
+  }}
+  html+='</div>';
+  
+  // Top-N capture
+  html+='<div style="margin-top:14px;font-size:11px;color:#374151;"><strong>Top-N capture</strong> (% of races where the winner came from cumul top-N):</div>';
+  html+='<div class="ins-tbl"><div class="ins-tbl-h" style="grid-template-columns:1fr 0.7fr;"><span>Top-N</span><span>Capture</span></div>';
+  for(const n of [1,2,3,5]){{
+    let captured=0;
+    Object.values(races).forEach(runners=>{{
+      const winner=runners.find(r=>r.won);
+      if(!winner)return;
+      if(winner.cumulRank<=n)captured++;
+    }});
+    const pct=totalRaces>0?captured/totalRaces*100:0;
+    html+='<div class="ins-tbl-r" style="grid-template-columns:1fr 0.7fr;"><span>Cumul Top-'+n+'</span><span>'+pct.toFixed(0)+'% ('+captured+'/'+totalRaces+')</span></div>';
+  }}
+  html+='</div>';
+  
+  el.innerHTML=html;
+}}
+
+// 4. PREDICTION ACCURACY OVER TIME
+function buildInsightsAccuracyTime(){{
+  const el=document.getElementById('ins-accuracy-time');
+  const all=insGetResulted();
+  if(all.length===0){{el.innerHTML='<div class="ins-empty">No resulted races</div>';return;}}
+  
+  // Group by week, compute cumul-#1 win rate per week
+  const weeks={{}};
+  // Group runners by race first
+  const races={{}};
+  all.forEach(r=>{{
+    const k=r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r;
+    if(!races[k])races[k]=[];
+    races[k].push(r);
+  }});
+  
+  Object.values(races).forEach(runners=>{{
+    if(runners.length<3)return;
+    const cumul1=runners.find(r=>r.cumulRank===1);
+    if(!cumul1)return;
+    const date=new Date(cumul1.date);
+    // Get Monday of the week
+    const day=date.getDay();
+    const monday=new Date(date.getTime()-((day===0?6:day-1)*86400000));
+    const wk=monday.toISOString().slice(0,10);
+    if(!weeks[wk])weeks[wk]={{n:0,wins:0,places:0}};
+    weeks[wk].n++;
+    if(cumul1.won)weeks[wk].wins++;
+    if(cumul1.placed)weeks[wk].places++;
+  }});
+  
+  const sortedWeeks=Object.entries(weeks).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(sortedWeeks.length===0){{el.innerHTML='<div class="ins-empty">Not enough data</div>';return;}}
+  
+  let html='<div class="ins-tbl"><div class="ins-tbl-h" style="grid-template-columns:1fr 0.6fr 0.7fr 0.7fr 1.5fr;">'
+    +'<span>Week of</span><span>Races</span><span>Win%</span><span>Place%</span><span></span></div>';
+  sortedWeeks.forEach(([wk,s])=>{{
+    const wr=s.n>0?s.wins/s.n*100:0;
+    const pr=s.n>0?s.places/s.n*100:0;
+    const barWidth=Math.min(wr*2,100);  // scale: 50% win rate = 100% bar
+    const barCls=wr>=30?'ins-pos':wr>=20?'':'ins-neg';
+    html+='<div class="ins-tbl-r" style="grid-template-columns:1fr 0.6fr 0.7fr 0.7fr 1.5fr;">'
+      +'<span>'+wk+'</span>'
+      +'<span>'+s.n+'</span>'
+      +'<span class="'+barCls+'">'+wr.toFixed(0)+'%</span>'
+      +'<span>'+pr.toFixed(0)+'%</span>'
+      +'<span><span class="ins-bar" style="width:'+barWidth+'%"><span class="ins-bar-fill" style="width:100%;background:'+(wr>=30?'#10b981':wr>=20?'#9ca3af':'#dc2626')+'"></span></span></span>'
+      +'</div>';
+  }});
+  html+='</div>';
+  
+  // Overall summary
+  const totalN=Object.values(weeks).reduce((a,b)=>a+b.n,0);
+  const totalWins=Object.values(weeks).reduce((a,b)=>a+b.wins,0);
+  const totalPlaces=Object.values(weeks).reduce((a,b)=>a+b.places,0);
+  html+='<div style="margin-top:10px;font-size:11px;color:#374151;padding:10px;background:#f8fafc;border-radius:6px;">'
+    +'<strong>Overall:</strong> '+totalN+' cumul-#1 picks, '
+    +totalWins+' won ('+(totalWins/totalN*100).toFixed(0)+'%), '
+    +totalPlaces+' placed ('+(totalPlaces/totalN*100).toFixed(0)+'%)'
+    +'</div>';
+  
+  el.innerHTML=html;
+}}
+
+// 5. RACE-LEVEL PREDICTIVE STRENGTH
+function buildInsightsRaceTypes(){{
+  const el=document.getElementById('ins-race-types');
+  const all=insGetResulted();
+  if(all.length===0){{el.innerHTML='<div class="ins-empty">No resulted races</div>';return;}}
+  
+  // For each context bucket, calculate cumul-#1 win rate
+  const races={{}};
+  all.forEach(r=>{{
+    const k=r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r;
+    if(!races[k])races[k]={{runners:[],meta:{{venue:r.venue,distance:r.raceObj.dist,going:r.going,prize:r.prize,fieldSize:r.fieldSize}}}};
+    races[k].runners.push(r);
+  }});
+  
+  const bucketByContext=(ctxFn)=>{{
+    const buckets={{}};
+    Object.values(races).forEach(({{runners,meta}})=>{{
+      if(runners.length<3)return;
+      const ctx=ctxFn(meta,runners);
+      if(ctx===null||ctx===undefined)return;
+      if(!buckets[ctx])buckets[ctx]={{n:0,wins:0,places:0}};
+      const cumul1=runners.find(r=>r.cumulRank===1);
+      if(!cumul1)return;
+      buckets[ctx].n++;
+      if(cumul1.won)buckets[ctx].wins++;
+      if(cumul1.placed)buckets[ctx].places++;
+    }});
+    return Object.entries(buckets).map(([k,v])=>({{
+      key:k,n:v.n,wins:v.wins,
+      winPct:v.n>0?v.wins/v.n*100:0,
+      placePct:v.n>0?v.places/v.n*100:0
+    }})).filter(b=>b.n>=3).sort((a,b)=>b.winPct-a.winPct);
+  }};
+  
+  const renderTbl=(title,buckets)=>{{
+    if(buckets.length===0)return'';
+    let h='<div style="margin-top:14px;"><div class="strat-card-title" style="margin-bottom:6px;">'+title+'</div>'
+      +'<div class="ins-tbl"><div class="ins-tbl-h" style="grid-template-columns:1.5fr 0.6fr 0.7fr 0.7fr;"><span>Context</span><span>Races</span><span>Win%</span><span>Place%</span></div>';
+    buckets.forEach(b=>{{
+      const winCls=b.winPct>=35?'ins-pos':b.winPct<25?'ins-neg':'';
+      h+='<div class="ins-tbl-r" style="grid-template-columns:1.5fr 0.6fr 0.7fr 0.7fr;">'
+        +'<span>'+b.key+'</span>'
+        +'<span>'+b.n+'</span>'
+        +'<span class="'+winCls+'">'+b.winPct.toFixed(0)+'%</span>'
+        +'<span>'+b.placePct.toFixed(0)+'%</span>'
+        +'</div>';
+    }});
+    h+='</div></div>';
+    return h;
+  }};
+  
+  let html=renderTbl('By venue',bucketByContext((m)=>m.venue));
+  html+=renderTbl('By distance band',bucketByContext((m)=>{{
+    const d=m.distance;
+    if(!d)return null;
+    if(d<1100)return'Sprint <1100m';
+    if(d<1400)return'Sprint 1100-1400m';
+    if(d<1800)return'Mile 1400-1800m';
+    if(d<2200)return'Middle 1800-2200m';
+    return'Stayer 2200m+';
+  }}));
+  html+=renderTbl('By going',bucketByContext((m)=>{{
+    if(!m.going)return null;
+    const s=String(m.going);
+    if(s.includes('Good'))return'Good';
+    if(s.includes('Soft'))return'Soft';
+    if(s.includes('Heavy'))return'Heavy';
+    if(s.includes('Synthetic'))return'Synthetic';
+    return s;
+  }}));
+  html+=renderTbl('By prize tier',bucketByContext((m)=>{{
+    const p=m.prize;if(!p)return null;
+    if(p<25000)return'<$25k';
+    if(p<50000)return'$25k-$50k';
+    if(p<100000)return'$50k-$100k';
+    if(p<200000)return'$100k-$200k';
+    return'$200k+';
+  }}));
+  html+=renderTbl('By field size',bucketByContext((m)=>{{
+    const fs=m.fieldSize;if(!fs)return null;
+    if(fs<=8)return'Small (<=8)';
+    if(fs<=11)return'Medium (9-11)';
+    if(fs<=14)return'Large (12-14)';
+    return'Big (15+)';
+  }}));
+  
+  el.innerHTML=html||'<div class="ins-empty">Not enough data</div>';
+}}
+
+// 6. SIGNAL HEAT-MAP BY CONTEXT
+function buildInsightsSignalHeatmap(){{
+  const el=document.getElementById('ins-signal-heatmap');
+  const all=insGetResulted();
+  if(all.length===0){{el.innerHTML='<div class="ins-empty">No resulted races</div>';return;}}
+  
+  // Group by race
+  const races={{}};
+  all.forEach(r=>{{
+    const k=r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r;
+    if(!races[k])races[k]={{runners:[],raceObj:r.raceObj}};
+    races[k].runners.push(r);
+  }});
+  
+  // For each signal x distance band: top-1 win rate of horses ranked top-1 in that signal
+  const distBand=(d)=>{{
+    if(!d)return null;
+    if(d<1400)return'Sprint';
+    if(d<1800)return'Mile';
+    return'Stayer';
+  }};
+  
+  const goingFamily=(g)=>{{
+    if(!g)return null;
+    const s=String(g);
+    if(s.includes('Good'))return'Good';
+    if(s.includes('Soft'))return'Soft';
+    if(s.includes('Heavy'))return'Heavy';
+    return'Other';
+  }};
+  
+  // Show heatmap: rows = signals, cols = distance bands
+  // Cell = win rate of top-1 in that signal among races in that band
+  
+  // Iterate signals
+  const signalStats={{}};  // signal -> ctx -> stats
+  
+  SIG_NAMES.forEach((sig,si)=>{{
+    signalStats[sig]={{Sprint:{{n:0,wins:0}},Mile:{{n:0,wins:0}},Stayer:{{n:0,wins:0}},
+                      Good:{{n:0,wins:0}},Soft:{{n:0,wins:0}},Heavy:{{n:0,wins:0}}}};
+    Object.values(races).forEach(({{runners,raceObj}})=>{{
+      const ranking=raceObj.s[si]||[];
+      const top1Idx=ranking[0];
+      if(top1Idx===undefined||top1Idx<0)return;
+      const top1Runner=runners.find(r=>r.raceIdx===top1Idx);
+      if(!top1Runner)return;
+      const distB=distBand(raceObj.dist);
+      const goingF=goingFamily(raceObj.going);
+      if(distB&&signalStats[sig][distB]){{
+        signalStats[sig][distB].n++;
+        if(top1Runner.won)signalStats[sig][distB].wins++;
+      }}
+      if(goingF&&signalStats[sig][goingF]){{
+        signalStats[sig][goingF].n++;
+        if(top1Runner.won)signalStats[sig][goingF].wins++;
+      }}
+    }});
+  }});
+  
+  // Render
+  let html='<div style="font-size:11px;color:#374151;margin-bottom:10px;">Top-1 win rate per signal x context. Cells show <strong>win rate</strong> (n=races). Green = strong predictor in that context.</div>';
+  
+  const renderHeat=(title,cols)=>{{
+    let h='<div style="margin-top:14px;"><div class="strat-card-title" style="margin-bottom:6px;">'+title+'</div>';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:10px;">';
+    h+='<tr><th style="text-align:left;padding:6px 4px;color:#9ca3af;font-size:9px;text-transform:uppercase;letter-spacing:.05em;">Signal</th>';
+    cols.forEach(c=>{{h+='<th style="padding:6px 4px;color:#9ca3af;font-size:9px;text-transform:uppercase;letter-spacing:.05em;">'+c+'</th>';}});
+    h+='</tr>';
+    SIG_NAMES.forEach(sig=>{{
+      h+='<tr><td style="padding:4px;color:#374151;font-size:11px;">'+sig+'</td>';
+      cols.forEach(c=>{{
+        const s=signalStats[sig][c];
+        if(!s||s.n<3){{
+          h+='<td><div class="ins-heat-cell" style="background:#f4f6f9;color:#9ca3af;">—</div></td>';
+          return;
+        }}
+        const wr=s.wins/s.n*100;
+        // Color: red < 20%, yellow 20-30%, green > 30%
+        let bg,fg;
+        if(wr>=35){{bg='#d1fae5';fg='#065f46';}}
+        else if(wr>=25){{bg='#fef9c3';fg='#854d0e';}}
+        else if(wr>=15){{bg='#fee2e2';fg='#991b1b';}}
+        else{{bg='#fef2f2';fg='#dc2626';}}
+        h+='<td><div class="ins-heat-cell" style="background:'+bg+';color:'+fg+';" title="'+s.wins+' winners in '+s.n+' races">'+wr.toFixed(0)+'%<br><span style="font-size:8px;opacity:0.7;">n='+s.n+'</span></div></td>';
+      }});
+      h+='</tr>';
+    }});
+    h+='</table></div>';
+    return h;
+  }};
+  
+  html+=renderHeat('By distance band',['Sprint','Mile','Stayer']);
+  html+=renderHeat('By track going',['Good','Soft','Heavy']);
+  
+  el.innerHTML=html;
+}}
 
 // === STRATEGY PAGE ===
 let stratPeriod=7;
@@ -5727,7 +6316,7 @@ function buildDetailHtml(b){{
     +'<strong>'+runner.h+'</strong>'
     +' &middot; '+(runner.j||'?')+(runner.tn?' / '+runner.tn:'')
     +' &middot; <span class="bd-summary-pill">Score '+b.scoreDisp+'</span>'
-    +' <span class="bd-summary-pill">Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
+    +' <span class="bd-summary-pill"'+(b.cumulRank===1?' style="background:#d1fae5;color:#059669;font-weight:700;"':'')+'>'+(b.cumulRank===1?'★ ':'')+'Cumul '+(b.cumulScore||0)+(b.cumulRank?' #'+b.cumulRank:'')+'</span>'
     +' &middot; '+race.v+' R'+race.r+(tm?', '+tm:'')
     +' &middot; '+fieldSize+' runners'
     +'</div>';
