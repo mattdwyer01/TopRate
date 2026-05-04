@@ -4983,7 +4983,7 @@ function buildInsightsCumulRank(){{
     races[r.raceObj.d+'|'+r.raceObj.v+'|'+r.raceObj.r].push(r);
   }});
   
-  const stats={{}};  // rank -> {n, wins, places, profit}
+  const stats={{}};  // rank -> stats per cumul rank
   for(let rk=1;rk<=8;rk++){{stats[rk]={{n:0,wins:0,places:0,profit:0,fxProfit:0,sps:[]}};}}
   let totalRaces=0;
   
