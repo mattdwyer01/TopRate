@@ -285,8 +285,8 @@ def build_stats_lookup(race_stats):
                         and d.get("periodDays") == days and d.get("jumpsOrFlats") == jumps):
                     return s
             return {}
-        j90  = pick(runner.get("jockeyStats",  []), "metro", "all",  90, "flatsOnly")
-        t365 = pick(runner.get("trainerStats", []), "metro", "all", 365, "flatsOnly")
+        j90  = pick(runner.get("jockeyStats",  []), "all", "all",  90, "flatsOnly")
+        t365 = pick(runner.get("trainerStats", []), "all", "all", 365, "flatsOnly")
         lookup[rid] = {
             "jockey_win_pct_90d":   j90.get("winPercent"),
             "trainer_win_pct_365d": t365.get("winPercent"),
