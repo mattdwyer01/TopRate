@@ -3347,7 +3347,7 @@ function setSkipReason(b,reason){{
   if(reason===null||reason==='')syncRemove(skipReasonKey(b));
   else syncSet(skipReasonKey(b),reason);
 }}
-const SKIP_REASONS=['Other qualifier under $3','Wide barrier in slow race','Heavy/wet track concern','Poor distance form','Pace doesn\\'t suit','Field too small','Field too big','Class concern','Fixed price too low','Other'];
+const SKIP_REASONS=['Other qualifier under $3','Wide barrier','Other'];
 
 function promptSkipReason(b,onComplete){{
   // Build a small modal-like prompt
