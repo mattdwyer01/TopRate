@@ -1952,7 +1952,7 @@ tr.no-bet-row td{{opacity:0.4;}}
 .rs-sig-cell.rk3{{background:#a7f3d0;color:#065f46;}}
 .rs-sig-cell.rk4{{background:#e5e7eb;color:#6b7280;}}
 .rs-sig-cell.rk5{{background:#f3f4f6;color:#9ca3af;}}
-.rs-sig-cell.anchor.rk1,.rs-sig-cell.anchor.rk2,.rs-sig-cell.anchor.rk3{{box-shadow:0 0 0 2px #f59e0b;}}
+.rs-sig-cell.anchor-pass{{box-shadow:0 0 0 2px #f59e0b;}}
 .rs-sig-cell.anchor{{background:#fef3c7;color:#92400e;}}
 .rs-value-pos{{color:#059669;font-weight:600;}}
 .drift-cell{{display:inline-flex;align-items:center;gap:4px;font-size:10px;white-space:nowrap;}}
@@ -2439,6 +2439,13 @@ tr.no-bet-row td{{opacity:0.4;}}
           <button class="qbtn ins-range-btn" data-range="14" onclick="insSetRange('14')">Last 14d</button>
           <button class="qbtn ins-range-btn" data-range="7" onclick="insSetRange('7')">Last 7d</button>
         </div>
+        <div class="ins-controls" style="margin-top:6px;">
+          <button class="qbtn ins-scope-btn active" data-scope="bets" onclick="insSetScope('bets')">Qualifying bets</button>
+          <button class="qbtn ins-scope-btn" data-scope="cumul1" onclick="insSetScope('cumul1')">Cumul #1 only</button>
+          <button class="qbtn ins-scope-btn" data-scope="cumul12" onclick="insSetScope('cumul12')">Cumul #1-2</button>
+          <button class="qbtn ins-scope-btn" data-scope="cumul14" onclick="insSetScope('cumul14')">Cumul #1-4</button>
+          <button class="qbtn ins-scope-btn" data-scope="all" onclick="insSetScope('all')">All resulted runners</button>
+        </div>
       </div>
       
       <!-- 1. Loss Attribution -->
@@ -2726,7 +2733,7 @@ function selectOptimalSigs(){{
   selectAnchorPreset();
 }}
 function selectAnchorPreset(){{
-  const anchors=new Set(['peak_rank','jky_win90','speed']);
+  const anchors=new Set(Object.keys(MODELS[activeModel].signalFilters));
   document.querySelectorAll('#sig-grid .sig-active').forEach(cb=>{{cb.checked=anchors.has(cb.dataset.sig);}});
   document.querySelectorAll('#sig-grid .sig-anchor').forEach(cb=>{{
     const isAnch=anchors.has(cb.dataset.sig);
@@ -2765,8 +2772,8 @@ function selectAnchorPreset(){{
     }});
     grid.appendChild(row);
   }});
-  // Default: only jky_win90, peak_rank active and anchored
-  const _anchors=new Set(['peak_rank','jky_win90','speed']);
+  // Default: anchors from active model
+  const _anchors=new Set(Object.keys(MODELS[activeModel].signalFilters));
   grid.querySelectorAll('.sig-active').forEach(cb=>{{
     cb.checked=_anchors.has(cb.dataset.sig);
   }});
@@ -4590,9 +4597,18 @@ function renderRaceDetail(){{
     const sigCellsHtml=SIG_NAMES.map(s=>{{
       const rk=sigStatus[s];
       const isAnchor=anchorSigs.has(s);
+      // Determine if THIS rank passes the anchor threshold for the active model
+      let anchorPasses=false;
+      if(isAnchor&&rk){{
+        const model=MODELS[activeModel];
+        const filterCfg=model&&model.signalFilters&&model.signalFilters[s];
+        if(filterCfg&&filterCfg.type==='TOP_N')anchorPasses=rk<=filterCfg.n;
+        else anchorPasses=rk<=3; // fallback for non-TOP_N or no model
+      }}
       let cls='rs-sig-cell';
       if(rk)cls+=' rk'+rk;
       if(isAnchor&&rk)cls+=' anchor';
+      if(anchorPasses)cls+=' anchor-pass';
       return '<td><span class="'+cls+'" title="'+s+(rk?' #'+rk:'')+'">'+(rk||'')+'</span></td>';
     }}).join('');
     const finishCell=runner.f===1?'<span class="rs-finish-1">1st</span>':
@@ -4659,9 +4675,17 @@ function renderRaceDetail(){{
     const sigCellsHtml=SIG_NAMES.map((s,i)=>{{
       const rk=sigStatus[s];
       const isAnchor=anchorSigs.has(s);
+      let anchorPasses=false;
+      if(isAnchor&&rk){{
+        const model=MODELS[activeModel];
+        const filterCfg=model&&model.signalFilters&&model.signalFilters[s];
+        if(filterCfg&&filterCfg.type==='TOP_N')anchorPasses=rk<=filterCfg.n;
+        else anchorPasses=rk<=3;
+      }}
       let cls='rs-sig-cell';
       if(rk)cls+=' rk'+rk;
       if(isAnchor&&rk)cls+=' anchor';
+      if(anchorPasses)cls+=' anchor-pass';
       return '<div class="rs-sig-mob"><div class="rs-sig-mob-lbl">'+SIG_SHORT[i]+'</div><span class="'+cls+'" title="'+s+'">'+(rk||'')+'</span></div>';
     }}).join('');
     const finishCell=runner.f?(runner.f===1?'<span class="rs-finish-1">WON</span>':runner.f+'th'):'';
@@ -4887,10 +4911,17 @@ function buildRaceExotics(rows,race){{
 
 // === INSIGHTS PAGE ===
 let insRange='all';
+let insScope='bets';
 
 function insSetRange(r){{
   insRange=r;
   document.querySelectorAll('.ins-range-btn').forEach(b=>b.classList.toggle('active',b.dataset.range===r));
+  buildInsights();
+}}
+
+function insSetScope(s){{
+  insScope=s;
+  document.querySelectorAll('.ins-scope-btn').forEach(b=>b.classList.toggle('active',b.dataset.scope===s));
   buildInsights();
 }}
 
@@ -4930,25 +4961,63 @@ function insGetResulted(){{
 }}
 
 function insGetBetsAndRaces(){{
-  // Use buildBets to get our actual bet flagging logic but for full range
-  const savedF=getF();
-  const f={{...savedF}};
+  // Scope filter: 'bets' (qualifying), 'cumul1', 'cumul12', 'cumul14', 'all'
+  // For 'bets': use buildBets with the model's actual logic (anchors + cumulRankMax + prize + SP)
+  // For cumul-based scopes: filter on cumul rank only, ignoring anchor/prize/SP
+  // For 'all': every resulted runner
   const today=new Date();
+  let from='',to='';
   if(insRange!=='all'){{
     const days=parseInt(insRange);
     const cutoff=new Date(today.getTime()-days*86400000);
-    f.dateFrom=cutoff.toISOString().slice(0,10);
-    f.dateTo=today.toISOString().slice(0,10);
-  }}else{{
-    f.dateFrom='';f.dateTo='';
+    from=cutoff.toISOString().slice(0,10);
+    to=today.toISOString().slice(0,10);
   }}
-  // Override other filters that might restrict the bet pool
-  f.tab=false;f.nofs=false;f.trend=false;f.pend=false;f.resonly=true;f.nowide=false;
-  f.prize=0;f.sp=0;f.spmax=999;f.votes=0;f.barrier=24;
-  f.minEarlySpd=-20;f.minMidSpd=-20;f.minLateSpd=-20;f.minTotalSpd=-20;
-  f.maxSettledPos=20;f.max800mPos=20;
-  const {{resulted}}=buildBets(f);
-  return resulted.filter(b=>b.isBet!==false);
+  
+  if(insScope==='bets'){{
+    // Use the actual model's qualifying logic
+    const savedF=getF();
+    const f={{...savedF,dateFrom:from,dateTo:to}};
+    // Override only the user-toggleable filters that aren't strategy-related
+    f.tab=false;f.nofs=false;f.trend=false;f.pend=false;f.resonly=true;f.nowide=false;
+    f.barrier=24;
+    f.minEarlySpd=-20;f.minMidSpd=-20;f.minLateSpd=-20;f.minTotalSpd=-20;
+    f.maxSettledPos=20;f.max800mPos=20;
+    // Keep f.prize, f.sp, f.spmax, f.votes — these are model-related
+    const {{resulted}}=buildBets(f);
+    return resulted.filter(b=>b.isBet!==false);
+  }}
+  
+  // For cumul-based or all-resulted scopes, build manually from RACES
+  let cumulMax=null;
+  if(insScope==='cumul1')cumulMax=1;
+  else if(insScope==='cumul12')cumulMax=2;
+  else if(insScope==='cumul14')cumulMax=4;
+  
+  const items=[];
+  RACES.forEach(race=>{{
+    if(race.done!==1)return;
+    if(from&&race.d<from)return;
+    if(to&&race.d>to)return;
+    const {{cumul,ranks}}=computeCumulScores(race);
+    race.u.forEach((runner,idx)=>{{
+      if(runner.f===null||runner.f===undefined)return;
+      // Apply cumul filter
+      if(cumulMax!==null&&ranks[idx]>cumulMax)return;
+      items.push({{
+        date:race.d,venue:race.v,race:race.r,horse:runner.h,
+        sp:runner.sp,fixed:runner.fx||null,
+        finish:runner.f,won:runner.f===1,placed:runner.f<=3,
+        cumulScore:cumul[idx],cumulRank:ranks[idx],
+        going:race.going,distance:race.dist,prize:race.p,
+        barrier:runner.b,settling:runner.st,pace:race.ps,
+        fieldSize:race.u.length,
+        raceObj:race,runnerObj:runner,raceIdx:idx,
+        isBet:true  // Treated as a "bet" for stats purposes
+      }});
+    }});
+  }});
+  return items;
 }}
 
 function insBucketStats(items, key){{
@@ -6204,7 +6273,7 @@ function updateStake(inp){{
 let btStake='flat';
 let btMethod='top3c';
 let btSigs=new Set(SIG_NAMES);
-let btAnchorSigs=new Set(['jky_win90','peak_rank','speed']); // default anchor preset
+let btAnchorSigs=new Set(Object.keys(MODELS[activeModel].signalFilters)); // default anchor preset = current model
 let btInited=false;
 
 function btSetStake(m){{
@@ -6222,7 +6291,7 @@ function btSelectSigs(mode){{
   if(mode==='all'){{btSigs=new Set(SIG_NAMES);btAnchorSigs=new Set();}}
   else if(mode==='anchor'||mode==='optimal'){{
     btSigs=new Set(SIG_NAMES);
-    btAnchorSigs=new Set(['peak_rank','jky_win90','speed']);
+    btAnchorSigs=new Set(Object.keys(MODELS[activeModel].signalFilters));
   }}
   else btSigs=new Set(activeSigs);
   document.querySelectorAll('.bt-sig-cb').forEach(cb=>{{
