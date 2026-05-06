@@ -3347,7 +3347,7 @@ function setSkipReason(b,reason){{
   if(reason===null||reason==='')syncRemove(skipReasonKey(b));
   else syncSet(skipReasonKey(b),reason);
 }}
-const SKIP_REASONS=['Other qualifier under $3','Wide barrier','Other'];
+const SKIP_REASONS=['Other qualifier under $3','Wide barrier','Fixed price too low','Other'];
 
 function promptSkipReason(b,onComplete){{
   // Build a small modal-like prompt
