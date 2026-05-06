@@ -276,17 +276,28 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
 
 def build_stats_lookup(race_stats):
     lookup = {}
+    _logged_filters = set()  # track unique filter combos seen, for one-time diagnostic
     for runner in (race_stats or []):
         rid = runner.get("runId")
         def pick(lst, region, price, days, jumps):
+            # Case-insensitive match — TopRate sometimes returns "All" vs "all"
             for s in (lst or []):
                 d = s.get("domain", {})
-                if (d.get("region") == region and d.get("startingPrice") == price
-                        and d.get("periodDays") == days and d.get("jumpsOrFlats") == jumps):
+                d_region = (d.get("region") or "").lower()
+                d_price  = (d.get("startingPrice") or "").lower() if isinstance(d.get("startingPrice"), str) else d.get("startingPrice")
+                d_jumps  = (d.get("jumpsOrFlats") or "").lower() if isinstance(d.get("jumpsOrFlats"), str) else d.get("jumpsOrFlats")
+                if (d_region == region.lower() and d_price == price.lower()
+                        and d.get("periodDays") == days and d_jumps == jumps.lower()):
                     return s
             return {}
         j90  = pick(runner.get("jockeyStats",  []), "all", "all",  90, "flatsOnly")
         t365 = pick(runner.get("trainerStats", []), "all", "all", 365, "flatsOnly")
+        # Diagnostic: if no match found, log available domains once for debugging
+        if not j90 and runner.get("jockeyStats") and "jockey_no_match" not in _logged_filters:
+            _logged_filters.add("jockey_no_match")
+            available = [s.get("domain", {}) for s in runner.get("jockeyStats", [])[:3]]
+            print(f"  WARNING: no jockey stat match for filter (region=all, price=all, days=90, jumps=flatsOnly). "
+                  f"First few available domains: {available}")
         lookup[rid] = {
             "jockey_win_pct_90d":   j90.get("winPercent"),
             "trainer_win_pct_365d": t365.get("winPercent"),
@@ -2645,10 +2656,14 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Single model: peak3+jky4+speed3 + SP>$3
-// Selected from comprehensive backtest sweep on 18,310 runners across 7 weeks.
-// T1 (Mar 16-Apr 5): +131%, T2 (Apr 5-25): +74%, T3 (Apr 25-May 3): +29%.
-// Most robust across all three time periods. Realistic sustainable target ~15-25% ROI.
+// Single model: peak3 + speed3 + prize>=$25k + SP>$3
+// Selected after discovering jockey/trainer stats had a metro-only filter bug
+// that made historical jky-anchored backtests unreliable. Re-tested without jky/trn
+// on 18,310 runners across 7 weeks (clean signals only).
+// Backtest: T1 +71%, T2 +42%, T3 +46%. Stable, no negative period.
+// Realistic sustainable target ~+20-40% ROI.
+//
+// Prize >= $25k filter applied via Settings (f.prize=25000) — see filter init below.
 //
 // Each model's signalFilters defines per-signal thresholds:
 //   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
@@ -2656,11 +2671,10 @@ let method='top1';
 const MODELS={{
   A:{{name:'Model',label:'Main',
       signalFilters:{{
-        jky_win90:{{type:'TOP_N',n:4}},
         peak_rank:{{type:'TOP_N',n:3}},
         speed:{{type:'TOP_N',n:3}}
       }},
-      desc:'peak3 + jky top-4 + speed3'}}
+      desc:'peak3 + speed3 + prize≥$25k'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
 // If localStorage has stale 'B' or 'C', reset to 'A'
