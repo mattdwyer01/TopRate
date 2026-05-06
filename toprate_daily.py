@@ -2485,8 +2485,13 @@ tr.no-bet-row td{{opacity:0.4;}}
       
       <!-- 7. Skip audit -->
       <div class="ins-card">
-        <div class="ins-card-title">Skip Audit</div>
-        <div class="ins-card-sub">Are your manual skips outperforming or hurting? Compares ROI of bets you took vs bets you skipped (with reasons)</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+          <div>
+            <div class="ins-card-title" style="margin:0;">Skip Audit</div>
+            <div class="ins-card-sub" style="margin-top:4px;">Are your manual skips outperforming or hurting? Compares ROI of bets you took vs bets you skipped (with reasons)</div>
+          </div>
+          <button onclick="clearSkipData()" style="flex-shrink:0;padding:6px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:6px;font-size:11px;color:#6b7280;cursor:pointer;font-family:inherit;white-space:nowrap;">Clear skip data</button>
+        </div>
         <div id="ins-skip-audit"></div>
       </div>
     </div>
@@ -3427,6 +3432,24 @@ function handleBetToggle(b){{
     setSkipReason(b,null);
     update();
   }}
+}}
+
+function clearSkipData(){{
+  // Clear all bet flags AND skip reasons from local + sync state
+  const confirm1=confirm('Clear ALL skip data?\\n\\nThis removes:\\n- Every Y/N bet flag\\n- Every skip reason\\n\\nUse this when starting a fresh tracking period (e.g. after a strategy change). This cannot be undone.');
+  if(!confirm1)return;
+  const keysToKill=Object.keys(_syncData).filter(k=>k.startsWith('bet|')||k.startsWith('skipreason|'));
+  // Also catch any localStorage-only keys not in _syncData
+  Object.keys(localStorage).forEach(k=>{{
+    if((k.startsWith('bet|')||k.startsWith('skipreason|'))&&!keysToKill.includes(k))keysToKill.push(k);
+  }});
+  keysToKill.forEach(k=>{{
+    delete _syncData[k];
+    localStorage.removeItem(k);
+  }});
+  if(typeof syncSave==='function')syncSave();
+  alert('Cleared '+keysToKill.length+' keys. Refreshing...');
+  setTimeout(()=>location.reload(),300);
 }}
 function resultKey(b){{return'res|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}}
