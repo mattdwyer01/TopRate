@@ -5483,13 +5483,15 @@ function buildInsightsSkipAudit(){{
     to=today.toISOString().slice(0,10);
   }}
   
-  // Use buildBets but with override filters and don't filter out skipped
+  // Use buildBets with the actual model's filters (preserving prize/SP/score)
+  // We just don't filter out the user's manual skips — we want both taken AND skipped bets
   const savedF=getF();
   const f={{...savedF,dateFrom:from,dateTo:to,
     tab:false,nofs:false,trend:false,pend:false,resonly:true,nowide:false,
-    prize:0,sp:0,spmax:999,votes:0,barrier:24,
+    barrier:24,
     minEarlySpd:-20,minMidSpd:-20,minLateSpd:-20,minTotalSpd:-20,
     maxSettledPos:20,max800mPos:20}};
+  // Keep f.prize, f.sp, f.spmax, f.votes — these are the strategy's filters
   const {{resulted}}=buildBets(f);
   
   // resulted contains ALL qualifying bets, including those marked isBet=false (skips)
