@@ -2253,7 +2253,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="fsec">
     <div class="ftitle">Signals <span style="font-size:8px;color:rgba(255,255,255,.3);margin-left:4px;">&#8593; higher better &nbsp; &#8595; lower better</span></div>
     <div class="model-info-banner" id="model-info-banner">
-      Active: <strong id="model-info-active">Model — peak3 + speed4 + cumul #1-2 + prize≥$25k</strong>
+      Active: <strong id="model-info-active">Model — peak3 + speed3 + cumul #1-3 + prize≥$25k</strong>
       <span class="model-info-note">Manually changing anchors below creates a custom configuration that overrides the model selection.</span>
     </div>
     <div class="sig-sel-btns">
@@ -2663,13 +2663,13 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Single model: peak3 + speed4 + prize>=$25k + SP>$3 + cumul rank #1-2
-// Backtested on 18,310 runners across 7 weeks (clean signals only — no jky/trn data dependency).
-// peak3+speed4 alone: T3 = +25% (recent period weak)
-// + cumul rank #1-2 filter: T3 = +34%, all periods positive, win rate 23.6%
+// Single model: peak3 + speed3 + prize>=$25k + SP>$3 + cumul rank #1-3
+// Re-tested on 19,286 runners across 7.5 weeks (combined data through May 7).
+// Backtest: T1 +58%, T2 +41%, T3 +42%. All periods strongly positive.
+// Recent 14 days: +36% over 495 bets. Win rate 21.5%, avg SP $8.50.
 // Realistic sustainable target ~+15-30% ROI.
 //
-// Filters applied via Settings: prize_money >= 25000, cumul_rank <= 2
+// Filters applied via Settings: prize_money >= 25000, cumul_rank <= 3
 //
 // Each model's signalFilters defines per-signal thresholds:
 //   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
@@ -2678,10 +2678,10 @@ const MODELS={{
   A:{{name:'Model',label:'Main',
       signalFilters:{{
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'TOP_N',n:4}}
+        speed:{{type:'TOP_N',n:3}}
       }},
-      cumulRankMax:2,
-      desc:'peak3 + speed4 + cumul #1-2 + prize≥$25k'}}
+      cumulRankMax:3,
+      desc:'peak3 + speed3 + cumul #1-3 + prize≥$25k'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
 // If localStorage has stale 'B' or 'C', reset to 'A'
