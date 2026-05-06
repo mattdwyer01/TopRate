@@ -3434,7 +3434,7 @@ function handleBetToggle(b){{
   }}
 }}
 
-function clearSkipData(){{
+async function clearSkipData(){{
   // Clear all bet flags AND skip reasons from local + sync state
   const confirm1=confirm('Clear ALL skip data?\\n\\nThis removes:\\n- Every Y/N bet flag\\n- Every skip reason\\n\\nUse this when starting a fresh tracking period (e.g. after a strategy change). This cannot be undone.');
   if(!confirm1)return;
@@ -3443,13 +3443,42 @@ function clearSkipData(){{
   Object.keys(localStorage).forEach(k=>{{
     if((k.startsWith('bet|')||k.startsWith('skipreason|'))&&!keysToKill.includes(k))keysToKill.push(k);
   }});
+  if(keysToKill.length===0){{
+    alert('Nothing to clear — no skip data found.');
+    return;
+  }}
   keysToKill.forEach(k=>{{
     delete _syncData[k];
     localStorage.removeItem(k);
   }});
-  if(typeof syncSave==='function')syncSave();
+  // Push to server SYNCHRONOUSLY (don't use the debounced syncSave or page reload races it)
+  if(_gistId&&_ghToken){{
+    try{{
+      _setSyncStatus('Clearing...','#9ca3af');
+      const body=JSON.stringify({{files:{{'toprate_bets.json':{{'content':JSON.stringify(_syncData)}}}}}});
+      const r=await fetch('https://api.github.com/gists/'+_gistId,{{
+        method:'PATCH',
+        headers:{{
+          'Authorization':'Bearer '+_ghToken,
+          'Accept':'application/vnd.github+json',
+          'X-GitHub-Api-Version':'2022-11-28',
+          'Content-Type':'application/json'
+        }},
+        body
+      }});
+      if(!r.ok){{
+        const err=await r.json().catch(()=>({{message:r.status}}));
+        alert('Server clear FAILED: '+r.status+' — '+(err.message||'unknown error')+'\\n\\nLocal data was cleared but server still has the old data. It will sync back on reload. Try again.');
+        return;
+      }}
+      _lastSyncedAt=Date.now();
+    }}catch(e){{
+      alert('Server clear FAILED: '+e.message+'\\n\\nLocal data was cleared but server still has the old data.');
+      return;
+    }}
+  }}
   alert('Cleared '+keysToKill.length+' keys. Refreshing...');
-  setTimeout(()=>location.reload(),300);
+  location.reload();
 }}
 function resultKey(b){{return'res|'+b.date+'|'+b.venue+'|'+b.race+'|'+b.horse;}}
 function getResult(b){{const v=syncGet(resultKey(b));return v?parseInt(v):null;}}
