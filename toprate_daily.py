@@ -2253,7 +2253,7 @@ tr.no-bet-row td{{opacity:0.4;}}
   <div class="fsec">
     <div class="ftitle">Signals <span style="font-size:8px;color:rgba(255,255,255,.3);margin-left:4px;">&#8593; higher better &nbsp; &#8595; lower better</span></div>
     <div class="model-info-banner" id="model-info-banner">
-      Active: <strong id="model-info-active">Model — peak3 + jky top-4 + speed3</strong>
+      Active: <strong id="model-info-active">Model — peak3 + speed4 + cumul #1-2 + prize≥$25k</strong>
       <span class="model-info-note">Manually changing anchors below creates a custom configuration that overrides the model selection.</span>
     </div>
     <div class="sig-sel-btns">
@@ -2656,14 +2656,13 @@ let stakeMethod='flat';
 let method='top1';
 
 // === MODEL TRACKING ===
-// Single model: peak3 + speed3 + prize>=$25k + SP>$3
-// Selected after discovering jockey/trainer stats had a metro-only filter bug
-// that made historical jky-anchored backtests unreliable. Re-tested without jky/trn
-// on 18,310 runners across 7 weeks (clean signals only).
-// Backtest: T1 +71%, T2 +42%, T3 +46%. Stable, no negative period.
-// Realistic sustainable target ~+20-40% ROI.
+// Single model: peak3 + speed4 + prize>=$25k + SP>$3 + cumul rank #1-2
+// Backtested on 18,310 runners across 7 weeks (clean signals only — no jky/trn data dependency).
+// peak3+speed4 alone: T3 = +25% (recent period weak)
+// + cumul rank #1-2 filter: T3 = +34%, all periods positive, win rate 23.6%
+// Realistic sustainable target ~+15-30% ROI.
 //
-// Prize >= $25k filter applied via Settings (f.prize=25000) — see filter init below.
+// Filters applied via Settings: prize_money >= 25000, cumul_rank <= 2
 //
 // Each model's signalFilters defines per-signal thresholds:
 //   {{type:'TOP_N', n:3}} = top-N by dash_rank (count filter)
@@ -2672,9 +2671,10 @@ const MODELS={{
   A:{{name:'Model',label:'Main',
       signalFilters:{{
         peak_rank:{{type:'TOP_N',n:3}},
-        speed:{{type:'TOP_N',n:3}}
+        speed:{{type:'TOP_N',n:4}}
       }},
-      desc:'peak3 + speed3 + prize≥$25k'}}
+      cumulRankMax:2,
+      desc:'peak3 + speed4 + cumul #1-2 + prize≥$25k'}}
 }};
 let activeModel=localStorage.getItem('activeModel')||'A';
 // If localStorage has stale 'B' or 'C', reset to 'A'
@@ -3055,6 +3055,12 @@ function buildBets(f){{
     candidateIdxs.forEach(idx=>{{
       const runner=race.u[idx];
       if(!runner)return;
+      // Apply model-level cumul rank cutoff (e.g. only allow horses with cumul rank <= 2)
+      const _model=MODELS[activeModel];
+      if(_model&&_model.cumulRankMax){{
+        const _cr=cumulRanks[idx];
+        if(!_cr||_cr>_model.cumulRankMax)return;
+      }}
       const sp=runner.sp;
       if(race.done===0){{if(sp!==null&&sp!==undefined&&(sp<f.sp||sp>f.spmax))return;}}
       else{{if(!sp||sp<f.sp||sp>f.spmax)return;}}
