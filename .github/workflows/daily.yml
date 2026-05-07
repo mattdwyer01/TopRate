@@ -1,0 +1,73 @@
+name: TopRate Daily
+
+# Manually trigger from the Actions tab. Optionally schedule a daily run by
+# uncommenting the schedule block below.
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Specific date (YYYY-MM-DD), leave blank for today'
+        required: false
+        default: ''
+      backfill_days:
+        description: 'Backfill results for last N days'
+        required: false
+        default: '0'
+  # schedule:
+  #   - cron: '0 21 * * *'  # 21:00 UTC = 07:00 AEST next day - tweak to your needs
+
+permissions:
+  contents: write   # needed to commit + push the updated HTML and CSVs
+
+jobs:
+  fetch-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so push doesn't reject on a shallow clone
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas openpyxl
+
+      - name: Configure git
+        run: |
+          git config user.name  "TopRate Bot"
+          git config user.email "actions@github.com"
+
+      - name: Run toprate_daily.py
+        env:
+          TOPRATE_EMAIL:    ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
+          fi
+          if [ "${{ github.event.inputs.backfill_days }}" != "0" ]; then
+            ARGS="$ARGS --backfill ${{ github.event.inputs.backfill_days }}"
+          fi
+          python toprate_daily.py --no-html $ARGS
+          # Rebuild HTML separately so any HTML errors don't block data save
+          python -c "import toprate_daily, pandas as pd; df = toprate_daily.load_runners(); rows = [r for r in __import__('csv').DictReader(open('toprate_model_picks.csv'))] if __import__('os').path.exists('toprate_model_picks.csv') else []; toprate_daily.rebuild_html(df, rows)"
+
+      - name: Commit and push
+        run: |
+          git add toprate_live.html toprate_runners.csv toprate_model_picks.csv toprate_price_history.csv 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "TopRate update via Actions $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
