@@ -1708,7 +1708,7 @@ function renderToday() {
         dates.slice(-3).join(', ') + '. Browse via the Race tab to see those days.</div>';
     }
     list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + localToday + '</div>' +
-      '<div class="sub">The model didn\'t find any qualifying runners today, or the data hasn\'t been refreshed yet.</div>' + hint + '</div>';
+      '<div class="sub">The model did not find any qualifying runners today, or the data has not been refreshed yet.</div>' + hint + '</div>';
     return;
   }
 
@@ -2694,7 +2694,7 @@ function updateRelativeTimes() {
   if (host) {
     if (ageHr > 6 && !isNaN(t)) {
       host.innerHTML = '<div class="stale-banner">' +
-        '<div class="msg">⚠ Data is ' + Math.floor(ageHr) + ' hours old. Today\\'s picks may be missing.</div>' +
+        '<div class="msg">⚠ Data is ' + Math.floor(ageHr) + ' hours old. Recent picks may be missing.</div>' +
         '<button class="btn btn-stale" id="stale-refetch-btn">Refetch today →</button>' +
         '</div>';
       const btn = document.getElementById('stale-refetch-btn');
