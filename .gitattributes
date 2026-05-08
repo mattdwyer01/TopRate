@@ -1,0 +1,23 @@
+# Treat all text files as LF in the repo, but allow Windows checkout to use CRLF
+# This stops the "LF will be replaced by CRLF" warnings on every git operation
+* text=auto
+
+# Force specific file types to use LF (no conversion)
+*.py text eol=lf
+*.js text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+
+# Force CRLF on Windows-only files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
