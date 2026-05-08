@@ -727,14 +727,31 @@ def model_picks_summary(rows, today_only=True):
 # data) and switches to the Path A formula automatically. If not, the proxy
 # formula is used. This means the upgrade ships transparently as soon as the
 # API integration starts returning the field.
+# Future upgrade path (Path A): replace this with
+#     score = 1.0 * jt_combo_pct + 1.2 * tr_pct
+# once jockey/trainer combo win % is fetched from the API.
+#
+# DATA INTEGRITY WARNING (2026-05-08):
+# The backtest xlsx export's jt_combo fields appear to contain lookahead leakage.
+# Re-running the threshold P&L analysis showed Path B (no jt_combo) gives -15%
+# ROI flat-betting at SP (realistic - bookmaker over-round) but Path A gives +20%
+# ROI which is implausibly profitable. The 30-point swing comes from jt_combo
+# values that were calculated AFTER the period and applied retroactively.
+#
+# Until we have a confirmed "as at race date" jt_combo source from the live API
+# (see DIAG: logging in build_stats_lookup), JT_COMBO_TRUST is False so all
+# races use Path B regardless of jt_combo presence in the CSV. Once the live
+# API integration is verified clean, flip this flag.
+JT_COMBO_TRUST = False
+
 SCORE_WEIGHTS_PROXY = {
-    # Path B (current): TR-dominant proxy. 33% rk1 WR.
+    # Path B (current default): TR-dominant proxy. 33% rk1 WR, -15% ROI@SP flat.
     "toprate_rating":   2.0,
     "wpr_avg_last3":    0.5,
     "late_speed_score": 0.3,
 }
 SCORE_WEIGHTS_FULL = {
-    # Path A (target): jt_combo + TR. 44% rk1 WR, 80% top-3 coverage.
+    # Path A (disabled until clean data): jt_combo + TR.
     "jt_combo_win_pct": 1.0,
     "toprate_rating":   1.2,
 }
@@ -747,15 +764,10 @@ SCORE_WEIGHTS = SCORE_WEIGHTS_PROXY
 SCORE_DIRECTION = "higher"
 
 
-# Constants for jockey/trainer combo Bayesian shrinkage. Without this, small-sample
-# pairs (e.g. 3 wins from 5 rides = 60%) get treated as equally credible as
-# 200-ride veterans. Shrinkage pulls noisy small-sample win rates toward the
-# population mean, so only pairs with enough rides actually move the needle.
-#
-# Validation (1608 races): naive Path A claims 44% rk-1 WR but that's inflated
-# by small-sample noise. With shrinkage applied (PRIOR_WR=9, PRIOR_STRENGTH=30):
-#   Rk-1 WR: 39.9% (vs 32.6% Path B proxy) - real +7% lift
-#   Top-3 winner coverage: 77.8% (vs 68.7% Path B) - real +9% lift
+# Constants for jockey/trainer combo Bayesian shrinkage. Used IF Path A is ever
+# enabled and we have clean (non-leaky) data. Without shrinkage, small-sample
+# pairs (e.g. 3 wins from 5 rides = 60%) would dominate the score even when
+# their high win rate is just statistical noise.
 JT_COMBO_PRIOR_WR = 9.0       # population avg jockey strike rate
 JT_COMBO_PRIOR_STRENGTH = 30  # equivalent "rides of average evidence" for the prior
 
@@ -785,6 +797,10 @@ def _shrink_jt_combo(rdf):
 
 def _resolve_score_weights(rdf):
     """Decide which formula to use for this race based on jt_combo_win_pct coverage."""
+    # Path A is only used if the global trust flag is on AND coverage is sufficient.
+    # See JT_COMBO_TRUST docstring above for why this defaults to False.
+    if not JT_COMBO_TRUST:
+        return SCORE_WEIGHTS_PROXY, "B"
     if "jt_combo_win_pct" in rdf.columns:
         non_null = pd.to_numeric(rdf["jt_combo_win_pct"], errors="coerce").notna().sum()
         if non_null >= len(rdf) * SCORE_PATH_A_MIN_COVERAGE:
@@ -794,11 +810,25 @@ def _resolve_score_weights(rdf):
 
 def compute_cumulative_score(rdf):
     """
-    For a single race DataFrame, compute a per-runner cumulative score and rank.
-    Returns: dict(run_id -> {score: float in [0,1], rank: int 1..N, path: 'A'|'B'})
-    Auto-selects Path A or Path B formula based on jt_combo_win_pct coverage.
-    The 'path' key tells the caller which formula was used for this race - needed
-    when applying the matching coverage curve in the Quaddie tab.
+    For a single race DataFrame, compute a per-runner cumulative score, rank,
+    and confidence metric.
+
+    Returns: dict(run_id -> {
+        score: float in [0,1] - weighted percentile-rank composite
+        rank: int 1..N - rank within race by score
+        path: 'A'|'B' - which formula was used
+        conf: float in [0,1] - signal agreement (1 = unanimous, 0 = split)
+        sigs: dict(sig_name -> percentile) - per-signal percentile breakdown
+    })
+
+    Confidence is computed as 1 - (sd / max_sd) where sd is the standard
+    deviation of the horse's percentile ranks across signals, and max_sd is
+    the theoretical max (~0.5 for percentiles in [0,1] split bimodally).
+    A horse with all signals percentile-ranked in tight cluster gets high
+    conf. A horse where signals disagree wildly gets low conf.
+
+    The 'sigs' breakdown lets the detail panel show signal-by-signal so the
+    user can see exactly which signals agreed and which disagreed.
     """
     n = len(rdf)
     if n == 0:
@@ -809,11 +839,13 @@ def compute_cumulative_score(rdf):
     if n == 1:
         rid = str(rdf.iloc[0].get("run_id", ""))
         weights, path = _resolve_score_weights(rdf)
-        return {rid: {"score": 1.0, "rank": 1, "path": path}}
+        return {rid: {"score": 1.0, "rank": 1, "path": path, "conf": 1.0, "sigs": {}}}
 
     weights, path = _resolve_score_weights(rdf)
     total_w = sum(weights.values())
     runner_scores = [0.0] * n  # positional
+    # Track per-signal percentile per runner (for confidence calc + detail panel)
+    runner_sigs = [dict() for _ in range(n)]
 
     for sig, w in weights.items():
         if sig not in rdf.columns:
@@ -828,6 +860,7 @@ def compute_cumulative_score(rdf):
             # Convert rank to percentile in [0, 1]: rank 1 -> 1.0, rank N -> 0.0
             pct = (n - r) / (n - 1)
             runner_scores[i] += w * pct
+            runner_sigs[i][sig] = round(pct, 3)
 
     # Normalise to [0, 1]
     runner_scores = [s / total_w for s in runner_scores]
@@ -838,13 +871,31 @@ def compute_cumulative_score(rdf):
     for rank_pos, (idx, _) in enumerate(indexed, start=1):
         ranks[idx] = rank_pos
 
+    # Confidence: low standard deviation across signals = high agreement.
+    # Max possible SD for 2+ values in [0,1] is 0.5 (perfectly bimodal).
+    # We invert so 1 = tight cluster (high confidence), 0 = wide spread.
+    # Horses with only 1 signal populated get conf = None (can't measure agreement).
+    MAX_SD = 0.5
+
     out = {}
     for i in range(n):
         rid = str(rdf.iloc[i].get("run_id", ""))
+        sigs = runner_sigs[i]
+        if len(sigs) < 2:
+            conf = None
+        else:
+            vals = list(sigs.values())
+            mean_v = sum(vals) / len(vals)
+            var = sum((v - mean_v) ** 2 for v in vals) / len(vals)
+            sd = var ** 0.5
+            conf = max(0.0, min(1.0, 1.0 - (sd / MAX_SD)))
+            conf = round(conf, 3)
         out[rid] = {
             "score": round(runner_scores[i], 4),
             "rank":  ranks[i],
             "path":  path,
+            "conf":  conf,
+            "sigs":  sigs,
         }
     return out
 
@@ -1757,6 +1808,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Cumulative score + rank within race (predictive composite for exotics)
                 "cs":   _cs.get("score"),
                 "crk":  _cs.get("rank"),
+                # Confidence: 1 = signals tightly clustered (unanimous), 0 = wide spread (split)
+                # None for races with only 1 signal populated (can't measure agreement)
+                "csc":  _cs.get("conf"),
+                # Per-signal percentile breakdown (for the detail panel) -
+                # dict of signal_name -> percentile in [0,1]
+                "csg":  _cs.get("sigs") or {},
             })
 
         # Get price drift fields (open/current) from price history if available
@@ -1773,6 +1830,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "distance":  int(first.get("distance") or 0),
             "going":     str(first.get("going", "")) if first.get("going") and str(first.get("going")) != "nan" else "",
             "track_grading": str(first.get("track_grading", "")) if first.get("track_grading") else "",
+            "rail":      str(first.get("rail_position", "")) if first.get("rail_position") and str(first.get("rail_position")) != "nan" else "",
             "prize":     int(first.get("prize_money") or 0),
             "start_time": str(first.get("start_time", "")) if first.get("start_time") else "",
             "rse":       sf(first.get("race_shape_early")) if callable(sf) else None,

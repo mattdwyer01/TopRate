@@ -182,6 +182,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 # Surface cumulative score directly on the pick for easy JS access
                 tp['cs']  = runner.get('cs')
                 tp['crk'] = runner.get('crk')
+                # Confidence: signal-agreement metric (1 = unanimous, 0 = split)
+                tp['csc'] = runner.get('csc')
             tp['done'] = race.get('done')
             # Surface first-starter flag at race level so detail panels can warn
             tp['hfs'] = bool(race.get('hfs'))
@@ -247,6 +249,10 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'late_rank': r.get('late_rank'),
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
+            # Score + confidence surfaced for direct access in P&L tab
+            'cs':  runner_full.get('cs')  if runner_full else None,
+            'crk': runner_full.get('crk') if runner_full else None,
+            'csc': runner_full.get('csc') if runner_full else None,
             'runner_full': runner_full,
         })
     settled_history.sort(key=lambda r: (r.get('date') or ''))
@@ -542,6 +548,17 @@ body {
   color: var(--ink-mute); margin-top: 1px;
   letter-spacing: 0.04em;
 }
+/* Clickable venue block - jumps to race detail on click. Subtle hover hint
+   so user knows it's interactive without screaming "I'M A LINK". */
+.pr-venue.clickable {
+  cursor: pointer; padding: 4px 6px; margin: -4px -6px;
+  border-radius: 4px; transition: background 0.12s;
+}
+.pr-venue.clickable:hover {
+  background: var(--emerald-bg);
+}
+.pr-venue.clickable:hover .v-name { color: var(--emerald-deep); }
+.pr-venue.clickable:hover .v-race { color: var(--emerald-deep); opacity: 0.9; }
 
 .pr-runner {
   display: flex; align-items: center; gap: 10px; min-width: 0;
@@ -595,6 +612,18 @@ body {
 .pr-sigs .sig .v {
   font-weight: 700; font-size: 12px;
 }
+/* Confidence dot - shows signal agreement on the Score pill.
+   Filled = high agreement (signals unanimous), hollow = low (signals split). */
+.pr-sigs .sig .conf-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-left: 4px; vertical-align: middle;
+  border: 1px solid currentColor;
+}
+.pr-sigs .sig .conf-dot.high { background: currentColor; }
+.pr-sigs .sig .conf-dot.mid {
+  background: linear-gradient(to right, currentColor 50%, transparent 50%);
+}
+.pr-sigs .sig .conf-dot.low { background: transparent; opacity: 0.5; }
 
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
@@ -876,6 +905,40 @@ body {
 .pd-field .fv {
   font-size: 13px; font-weight: 600; color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+/* Score breakdown - per-signal percentile bars */
+.pd-conf-summary {
+  font-family: var(--font-body); font-size: 12px;
+  color: var(--ink-mute); margin-bottom: 12px;
+  padding: 6px 10px; background: var(--line-soft); border-radius: 4px;
+}
+.pd-conf-summary.pos { background: var(--emerald-bg); color: var(--emerald-deep); }
+.pd-conf-summary.warn { background: #fef3c7; color: #92400e; }
+.pd-conf-summary strong { color: inherit; }
+.pd-sig-bars {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pd-sig-row {
+  display: grid; grid-template-columns: 130px 1fr 36px;
+  gap: 10px; align-items: center;
+  font-family: var(--font-body); font-size: 12px;
+}
+.pd-sig-lbl { color: var(--ink-soft); font-weight: 600; }
+.pd-sig-bar {
+  height: 12px; background: var(--line-soft);
+  border-radius: 3px; overflow: hidden;
+}
+.pd-sig-fill {
+  height: 100%; background: var(--ink-faint); border-radius: 3px;
+  transition: width 0.3s;
+}
+.pd-sig-fill.r1 { background: var(--emerald); }
+.pd-sig-fill.r2 { background: var(--emerald-deep); opacity: 0.65; }
+.pd-sig-fill.r3 { background: var(--emerald-deep); opacity: 0.4; }
+.pd-sig-pct {
+  font-weight: 700; color: var(--ink); text-align: right;
+  font-variant-numeric: tabular-nums; font-size: 12px;
 }
 
 .empty-state {
@@ -1314,6 +1377,129 @@ body {
 .pace-zone.zone-midfield { background: #eff6ff; }
 .pace-zone.zone-back     { background: #fdf2f8; }
 
+/* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
+.race-shape-svg {
+  width: 100%; height: auto; display: block;
+  max-height: 180px;
+}
+.race-shape-unknown {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-faint);
+  font-style: italic; margin-top: 6px; padding-left: 4px;
+}
+
+/* Track conditions card - sits between context bar and race shape on detail page */
+.track-conditions-card {
+  background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 16px 22px;
+}
+.tc-header {
+  display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line-soft);
+}
+.tc-header > div {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tc-header .tc-key {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.tc-header .tc-val {
+  font-family: var(--font-body); font-size: 16px; font-weight: 700;
+  color: var(--ink);
+}
+.tc-header .tc-going.overridden .tc-val { color: #92400e; }
+.tc-header .tc-orig {
+  font-family: var(--font-body); font-size: 10px; color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* Commentary block - shows winning-position bias for this venue/going combo */
+.tc-commentary {
+  font-family: var(--font-body); font-size: 13px; color: var(--ink-soft);
+  line-height: 1.5; margin-bottom: 14px;
+}
+.tc-commentary.tc-insufficient {
+  color: var(--ink-faint); font-style: italic;
+  background: var(--line-soft); padding: 10px 12px;
+  border-radius: 4px;
+}
+.tc-summary {
+  font-size: 13px; color: var(--ink-soft); margin-bottom: 12px;
+}
+.tc-summary strong { color: var(--ink); font-weight: 700; }
+
+/* Per-zone bar chart of observed vs baseline */
+.tc-zones {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;
+}
+.tc-zone-row {
+  display: grid; grid-template-columns: 100px 1fr 40px 50px;
+  gap: 12px; align-items: center;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.tc-zone-lbl {
+  color: var(--ink-soft); font-weight: 600;
+}
+.tc-zone-bar {
+  height: 12px; background: var(--line-soft);
+  border-radius: 3px; overflow: hidden;
+}
+.tc-zone-fill {
+  height: 100%; background: var(--ink-faint);
+  border-radius: 3px;
+}
+.tc-zone-pct {
+  font-weight: 700; color: var(--ink); text-align: right;
+}
+.tc-zone-delta {
+  font-size: 11px; font-weight: 600; color: var(--ink-mute);
+  text-align: right;
+}
+.tc-zone-delta.pos { color: var(--emerald-deep); }
+.tc-zone-delta.neg { color: var(--rose); }
+.tc-sample {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-faint);
+  font-style: italic; margin-top: 8px;
+}
+
+/* Manual override input row */
+.tc-override {
+  background: var(--line-soft); border-radius: 4px;
+  padding: 10px 12px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 10px; align-items: center;
+}
+.tc-override label {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tc-override-lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.tc-override-input {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  padding: 6px 10px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--panel); color: var(--ink);
+  max-width: 180px;
+}
+.tc-override-input:focus {
+  outline: 2px solid var(--emerald); outline-offset: -1px;
+}
+.tc-override-help {
+  grid-column: 1 / -1;
+  font-family: var(--font-body); font-size: 11px;
+  color: var(--ink-mute); margin-top: 4px;
+}
+
+/* Mobile - stack header items */
+@media (max-width: 720px) {
+  .track-conditions-card { padding: 12px 14px; }
+  .tc-header { gap: 14px; }
+  .tc-zone-row { grid-template-columns: 80px 1fr 36px 44px; gap: 8px; font-size: 11px; }
+  .tc-override { grid-template-columns: 1fr; }
+}
+
 /* Race detail */
 .race-detail {
   background: var(--panel); border: 1px solid var(--line);
@@ -1420,6 +1606,22 @@ body {
 .score-cell.r2 .v { color: var(--emerald-deep); }
 .score-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
 .score-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
+/* Confidence dot in race-table score cell - filled = unanimous, hollow = split */
+.score-cell .conf-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  vertical-align: middle; border: 1px solid var(--ink-mute);
+  margin-left: 2px;
+}
+.score-cell .conf-dot.high { background: var(--ink-mute); }
+.score-cell .conf-dot.mid {
+  background: linear-gradient(to right, var(--ink-mute) 50%, transparent 50%);
+}
+.score-cell .conf-dot.low { background: transparent; opacity: 0.6; }
+.score-cell.r1 .conf-dot { border-color: var(--emerald-deep); }
+.score-cell.r1 .conf-dot.high { background: var(--emerald-deep); }
+.score-cell.r1 .conf-dot.mid {
+  background: linear-gradient(to right, var(--emerald-deep) 50%, transparent 50%);
+}
 
 /* Inline score pill used in Today tab pick row signals strip */
 .score-pill {
@@ -2056,6 +2258,32 @@ body {
 }
 
 /* ── Insights tab ──────────────────────────────────────────────────────── */
+.insights-controls {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 12px 18px;
+  margin-bottom: 16px; gap: 16px; flex-wrap: wrap;
+}
+.ic-period-toggle {
+  display: inline-flex; gap: 1px; background: var(--line);
+  border-radius: var(--radius-sm); padding: 1px;
+}
+.ic-period-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 6px 12px; border: none; cursor: pointer;
+  background: var(--panel); color: var(--ink-mute);
+  border-radius: 4px;
+}
+.ic-period-btn.active { background: var(--ink); color: var(--panel); }
+.ic-info {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+.ic-info strong { color: var(--ink); font-weight: 700; }
+
+/* Wide insight cards span the full width vs the 2-column grid below */
+.insight-wide { margin-bottom: 16px; }
+
 .insights-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
   margin-bottom: 18px;
@@ -2078,6 +2306,96 @@ body {
   font-family: var(--font-body); font-size: 12px; color: var(--ink-faint);
   font-style: italic; padding: 12px 0;
 }
+
+/* Threshold P&L table */
+.thresh-table {
+  display: grid; grid-template-columns: auto auto auto auto auto auto;
+  gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  overflow: hidden; margin-top: 14px;
+  font-family: var(--font-body); font-variant-numeric: tabular-nums;
+}
+.thresh-table > div {
+  background: var(--panel); padding: 8px 12px; font-size: 12px;
+}
+.thresh-table .h {
+  font-weight: 600; color: var(--ink-mute); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--line-soft);
+}
+.thresh-table .row-thresh {
+  font-weight: 700; color: var(--ink);
+}
+.thresh-table .row-current {
+  background: var(--emerald-bg);
+}
+.thresh-table .pos { color: var(--emerald-deep); font-weight: 600; }
+.thresh-table .neg { color: var(--rose); font-weight: 600; }
+
+/* Variance stats grid - 4 KPIs in a row */
+.var-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 720px) { .var-stats { grid-template-columns: repeat(2, 1fr); } }
+.var-stat {
+  background: var(--line-soft); border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.var-stat .lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute);
+  margin-bottom: 2px;
+}
+.var-stat .val {
+  font-family: var(--font-body); font-weight: 700; font-size: 18px;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.var-stat .val.pos { color: var(--emerald-deep); }
+.var-stat .val.neg { color: var(--rose); }
+.var-stat .sub {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+/* Inline SVG charts in insight cards */
+.insight-card svg.line-chart {
+  width: 100%; height: 240px; display: block;
+}
+
+/* Edge by price band rows with confidence intervals */
+.edge-band-row {
+  display: grid; grid-template-columns: 110px 1fr 80px 80px;
+  gap: 12px; align-items: center; padding: 6px 0;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.edge-band-row .label { font-weight: 600; color: var(--ink); }
+.edge-band-row .ci-track {
+  position: relative; height: 18px;
+  background: var(--line-soft); border-radius: 3px;
+  overflow: hidden;
+}
+.edge-band-row .ci-zero {
+  position: absolute; top: 0; bottom: 0;
+  width: 1px; background: var(--ink-mute);
+  /* JS sets left% based on ROI range mapping */
+}
+.edge-band-row .ci-bar {
+  position: absolute; top: 4px; height: 10px;
+  /* JS sets left% and width% based on lower/upper CI */
+}
+.edge-band-row .ci-bar.pos { background: var(--emerald); }
+.edge-band-row .ci-bar.neg { background: var(--rose); }
+.edge-band-row .ci-bar.unclear { background: var(--ink-faint); }
+.edge-band-row .ci-mean {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--ink); /* central tendency mark */
+}
+.edge-band-row .roi-val { font-weight: 700; }
+.edge-band-row .roi-val.pos { color: var(--emerald-deep); }
+.edge-band-row .roi-val.neg { color: var(--rose); }
+.edge-band-row .n-val { color: var(--ink-mute); font-size: 11px; text-align: right; }
 
 .dist-bars { display: flex; flex-direction: column; gap: 8px; }
 .dist-bar {
@@ -2496,6 +2814,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-header-stats" id="rd-header-stats"></div>
         </div>
         <div class="race-context-bar" id="rd-context-bar"></div>
+        <div class="track-conditions-card" id="rd-track-conditions"></div>
         <div class="race-pace-map" id="rd-pace-map"></div>
         <div class="race-table-wrap" id="rd-runners-table"></div>
       </div>
@@ -2635,35 +2954,71 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- INSIGHTS -->
   <section class="section" id="sec-insights">
+    <!-- Period selector applies to most cards below -->
+    <div class="insights-controls">
+      <div class="ic-period-toggle">
+        <button class="ic-period-btn" data-iperiod="30">Last 30 days</button>
+        <button class="ic-period-btn active" data-iperiod="all">All time</button>
+      </div>
+      <div class="ic-info" id="insights-summary"></div>
+    </div>
+
+    <!-- 1. The big one: how do different thresholds compare across full history? -->
+    <div class="insight-card insight-wide">
+      <h3>Score threshold backtest</h3>
+      <div class="desc">
+        Cumulative units P&amp;L if you'd flat-bet 1u at fixed-win price on every horse
+        above each threshold across the full backtest. Use this to pick where to set
+        your threshold (Settings tab). Your current threshold is highlighted.
+      </div>
+      <div id="threshold-pnl-chart"></div>
+      <div id="threshold-pnl-table"></div>
+    </div>
+
+    <!-- 2. Variance / streaks - what to expect emotionally -->
+    <div class="insight-card insight-wide">
+      <h3>Variance and streaks</h3>
+      <div class="desc">
+        How rough does the ride get? If the longest historical losing run is 14 bets,
+        don't panic at 8. Drawdown shows the deepest trough relative to a prior peak.
+      </div>
+      <div id="variance-stats"></div>
+      <div id="variance-chart"></div>
+    </div>
+
+    <!-- 3. Actual vs expected - is the model still working? -->
+    <div class="insight-card insight-wide">
+      <h3>Actual vs expected performance</h3>
+      <div class="desc">
+        Your real ROI (using prices you actually took) vs what the model expects at SP.
+        Rolling 30-bet window. If actual sustainably underperforms expected, you're
+        getting beaten by market drift between Fxd display time and bet placement.
+      </div>
+      <div id="aex-stats"></div>
+      <div id="aex-chart"></div>
+    </div>
+
+    <!-- 4. Edge by price band with confidence intervals -->
+    <div class="insight-card insight-wide">
+      <h3>Edge by price band</h3>
+      <div class="desc">
+        ROI by fixed-win price band with 95% confidence intervals. Bands where the CI
+        crosses zero have insufficient evidence to be confident the edge is real.
+      </div>
+      <div id="edge-by-price"></div>
+    </div>
+
+    <!-- 5. Bottom row of small descriptive cards (counts only, not perf) -->
     <div class="insights-grid">
       <div class="insight-card">
-        <h3>Bets by price band</h3>
-        <div class="desc">Distribution of primary model picks by fixed-win price. Higher bands carry more variance but also more upside.</div>
-        <div class="dist-bars" id="dist-price"></div>
-      </div>
-
-      <div class="insight-card">
         <h3>Bets by venue</h3>
-        <div class="desc">Where the model finds qualifying bets most often. Click to drill into venue-specific performance.</div>
+        <div class="desc">Where the model finds qualifying bets most often.</div>
         <div class="dist-bars" id="dist-venue"></div>
       </div>
-
       <div class="insight-card">
-        <h3>Performance by going</h3>
-        <div class="desc">Win rate and ROI by track surface. Helps identify whether the model is biased toward Good vs Heavy tracks.</div>
-        <div class="dist-bars" id="perf-going"></div>
-      </div>
-
-      <div class="insight-card">
-        <h3>Performance by signal strength</h3>
-        <div class="desc">Picks broken down by TR rank. Tighter filters (TR=1) typically have stronger edges than looser ones (TR=2 or 3).</div>
-        <div class="dist-bars" id="perf-signal"></div>
-      </div>
-
-      <div class="insight-card">
-        <h3>Performance by day of week</h3>
-        <div class="desc">Helps spot whether weekends or midweek meetings produce better edges. Saturday metropolitan racing is typically more competitive than midweek country.</div>
-        <div class="dist-bars" id="perf-dow"></div>
+        <h3>Bets by going</h3>
+        <div class="desc">Distribution by track condition.</div>
+        <div class="dist-bars" id="dist-going"></div>
       </div>
     </div>
   </section>
@@ -2714,13 +3069,14 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             Minimum cumulative score for a horse to qualify on the Quaddie tab and
             be highlighted on the Race tab. Higher = stricter, fewer picks.
             <br><br>
-            <strong>Backtest reference</strong> (1,608 races, Bayesian-shrunk):
-            0.85 = ~1.2 picks/race, 35% strike rate among picks, 44% race-coverage.
-            0.80 = ~1.8 picks/race, 32% strike, 57% coverage.
-            0.75 = ~2.3 picks/race, 29% strike, 65% coverage.
-            <strong>0.70 = ~2.7 picks/race, 27% strike, 73% coverage</strong> (recommended).
-            0.65 = ~3.3 picks/race, 24% strike, 79% coverage.
-            0.60 = ~3.9 picks/race, 22% strike, 84% coverage.
+            <strong>Backtest reference</strong> (1,608 races, Path B proxy formula):
+            0.85 = ~1.6 picks/race, 28% strike rate, 47% race-coverage.
+            0.80 = ~2.1 picks/race, 25% strike, 53% coverage.
+            0.75 = ~2.7 picks/race, 23% strike, 60% coverage.
+            <strong>0.70 = ~3.2 picks/race, 21% strike, 65% coverage</strong> (recommended).
+            0.65 = ~3.7 picks/race, 20% strike, 71% coverage.
+            <br><br>
+            See the Insights tab for full P&amp;L curves at each threshold.
           </div>
         </div>
         <input type="number" class="setting-input" id="setting-score-thresh" value="0.70" min="0" max="1" step="0.05">
@@ -3022,6 +3378,34 @@ function saveResults() {
   if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 
+// ── Manual track rating override ────────────────────────────────────────────
+// User can override the going for a meeting (e.g. official says "Good 4" but
+// you've been told it's playing soft). Keyed by venue|date so different days
+// at same venue don't conflict. Syncs via Gist so override appears on mobile.
+const TRACK_RATINGS_KEY = 'tr_track_ratings_v1';
+let trackRatings = {};
+try {
+  const raw = localStorage.getItem(TRACK_RATINGS_KEY);
+  if (raw) trackRatings = JSON.parse(raw);
+} catch(e) { trackRatings = {}; }
+function trackRatingKey(venue, date) {
+  return (venue || '') + '|' + (date || '');
+}
+function getTrackRating(venue, date, fallback) {
+  const k = trackRatingKey(venue, date);
+  return trackRatings[k] || fallback;
+}
+function setTrackRating(venue, date, rating) {
+  const k = trackRatingKey(venue, date);
+  if (rating == null || rating === '') {
+    delete trackRatings[k];
+  } else {
+    trackRatings[k] = rating;
+  }
+  try { localStorage.setItem(TRACK_RATINGS_KEY, JSON.stringify(trackRatings)); } catch(e) {}
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+
 // ── TODAY tab rendering ────────────────────────────────────────────────────
 // State: which date is being browsed in the Today tab. Null until first render,
 // then defaults to local today. Persisted across re-renders within the session.
@@ -3194,8 +3578,25 @@ function renderToday() {
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
+    // The Score pill is special - shows rank + a confidence dot indicating how
+    // tightly the underlying signals agreed. Tight cluster = filled green dot,
+    // wide spread = hollow grey dot. Helps spot "split" picks vs "unanimous".
+    function scoreSigPill(rank, conf) {
+      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+      let confDot = '';
+      if (conf != null) {
+        // 80%+ = filled solid (high agreement), 50-80% = half (mixed), <50% = empty (split)
+        const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
+        const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '% - ' +
+          (conf >= 0.80 ? 'unanimous' : conf >= 0.50 ? 'mixed' : 'split');
+        confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
+      }
+      return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
+        '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+    }
     const sigsTopHtml =
-      sigPill('Score', p.crk) +
+      scoreSigPill(p.crk, p.csc) +
       sigPill('TR', p.tr_rank) +
       sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank) +
@@ -3299,9 +3700,9 @@ function renderToday() {
 
     row.innerHTML =
       '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
-      '<div class="pr-venue">' +
+      '<div class="pr-venue clickable" data-nav-rid="' + (p.race_id || '') + '" title="Open race detail">' +
         '<div class="v-name">' + escapeHtml(p.venue || '') + '</div>' +
-        '<div class="v-race">R' + p.race + '</div>' +
+        '<div class="v-race">R' + p.race + ' ↗</div>' +
       '</div>' +
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
@@ -3327,9 +3728,17 @@ function renderToday() {
     detail.innerHTML = buildDetailHTML(p, r);
     list.appendChild(detail);
 
-    // Click row to expand/collapse (but not when clicking inputs/buttons)
+    // Click row to expand/collapse (but not when clicking inputs/buttons or
+    // the clickable venue block which navigates to race detail)
     row.addEventListener('click', e => {
       if (e.target.closest('.odds-input, .odds-input-wrap, .pr-result button, .res-clear, .bet-btn')) return;
+      // Venue block click - navigate to race detail and stop here, don't expand
+      const navTarget = e.target.closest('.pr-venue.clickable');
+      if (navTarget) {
+        e.stopPropagation();
+        navigateToRace(navTarget.dataset.navRid);
+        return;
+      }
       const isExpanded = row.classList.toggle('expanded');
       detail.classList.toggle('show', isExpanded);
     });
@@ -3635,9 +4044,59 @@ function buildDetailHTML(p, r) {
       '</div>';
   }
 
+  // Score breakdown - shows per-signal percentile so user can see which
+  // signals agreed and which disagreed. Surfaces the math behind the conf dot.
+  let scoreBreakdownHtml = '';
+  if (r && r.cs != null) {
+    const sigs = r.csg || {};
+    const conf = r.csc;
+    const sigNames = Object.keys(sigs);
+    // Map raw signal keys to display labels
+    const sigDisplayMap = {
+      'toprate_rating': 'TopRate rating',
+      'wpr_avg_last3':  'WPR avg last 3',
+      'late_speed_score': 'Late speed',
+      'jt_combo_win_pct': 'Jky/trn combo',
+    };
+    let sigRowsHtml = '';
+    if (sigNames.length > 0) {
+      sigRowsHtml = sigNames.map(sk => {
+        const pct = sigs[sk];
+        const lbl = sigDisplayMap[sk] || sk;
+        const barW = Math.round(pct * 100);
+        // Color bar by tier
+        const barCls = pct >= 0.85 ? 'r1' : (pct >= 0.65 ? 'r2' : (pct >= 0.50 ? 'r3' : ''));
+        return '<div class="pd-sig-row">' +
+          '<span class="pd-sig-lbl">' + lbl + '</span>' +
+          '<div class="pd-sig-bar"><div class="pd-sig-fill ' + barCls + '" style="width:' + barW + '%;"></div></div>' +
+          '<span class="pd-sig-pct">' + Math.round(pct * 100) + '</span>' +
+          '</div>';
+      }).join('');
+    } else {
+      sigRowsHtml = '<div class="empty-text">Signal breakdown unavailable.</div>';
+    }
+    let confSummary = '';
+    if (conf != null) {
+      const confLbl = conf >= 0.80 ? 'unanimous - all signals agree' :
+                     conf >= 0.50 ? 'mixed - signals partially agree' :
+                                    'split - signals disagree';
+      const confCls = conf >= 0.80 ? 'pos' : (conf >= 0.50 ? '' : 'warn');
+      confSummary = '<div class="pd-conf-summary ' + confCls + '">' +
+        'Confidence: <strong>' + Math.round(conf * 100) + '%</strong> · ' + confLbl +
+        '</div>';
+    }
+    scoreBreakdownHtml =
+      '<div class="pd-section">' +
+        '<div class="pd-section-title">Score breakdown · ' + r.cs.toFixed(2) + ' (rank #' + (r.crk || '?') + ')</div>' +
+        confSummary +
+        '<div class="pd-sig-bars">' + sigRowsHtml + '</div>' +
+      '</div>';
+  }
+
   return fsWarningHtml +
          '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
          '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
+         scoreBreakdownHtml +
          adjustmentsHtml;
 }
 
@@ -3778,6 +4237,25 @@ function showRaceDetail(raceId) {
   // Reset sort to TR$ rank ascending whenever a new race is opened
   raceSortState = { col: 'tr', dir: 'asc' };
   renderRaceDetail(raceId);
+}
+
+// Helper: switch to Race tab and open a specific race. Used by the Today/P&L
+// pick rows (clicking horse name jumps to the race detail) and the next-to-jump
+// pills. Also sets the browse date to match the race so meeting strip is correct.
+function navigateToRace(raceId) {
+  if (!raceId) return;
+  const race = RACES.find(r => String(r.race_id) === String(raceId));
+  if (!race) return;
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
+  document.querySelector('.tab[data-tab="race"]').classList.add('active');
+  document.getElementById('sec-race').classList.add('active');
+  // Sync browse date so the meeting strip lines up
+  if (race.date) currentBrowseDate = race.date;
+  currentRaceId = raceId;
+  showRaceDetail(raceId);
+  // Scroll to top of the race detail since we may have scrolled deep into Today list
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function exitRaceDetail() {
@@ -3985,26 +4463,29 @@ function renderRaceDetail(raceId) {
       '<div class="ctx-item">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>'
     ).join('');
 
-  // ── Pace map ──
-  const settled = { leaders: [], onpace: [], midfield: [], back: [] };
+  // ── Pace map / race shape ──
+  // Horizontal lane diagram: Leaders left → Back right. Horses positioned in
+  // their predicted zone based on avg_settled_pos. Tab numbers shown in colored
+  // cells. Unknown asp goes into a "no data" pile at the right.
+  const settled = { leaders: [], onpace: [], midfield: [], back: [], unknown: [] };
   runners.forEach(u => {
     const pos = u.asp;
-    let zone = 'midfield';
-    if (pos == null) zone = 'midfield';
-    else if (pos <= 2) zone = 'leaders';
-    else if (pos <= 4) zone = 'onpace';
-    else if (pos <= 8) zone = 'midfield';
-    else zone = 'back';
-    settled[zone].push(u);
+    if (pos == null) settled.unknown.push(u);
+    else if (pos <= 2) settled.leaders.push(u);
+    else if (pos <= 4) settled.onpace.push(u);
+    else if (pos <= 8) settled.midfield.push(u);
+    else settled.back.push(u);
   });
-  const paceHtml =
-    '<div class="pace-map-grid">' +
-    paceZoneHtml('zone-leaders',  'Leaders',  '(1-2)', settled.leaders) +
-    paceZoneHtml('zone-onpace',   'On-pace',  '(3-4)', settled.onpace) +
-    paceZoneHtml('zone-midfield', 'Midfield', '(5-8)', settled.midfield) +
-    paceZoneHtml('zone-back',     'Back',     '(9+)',  settled.back) +
-    '</div>';
-  document.getElementById('rd-pace-map').innerHTML = paceHtml;
+  // Within each zone, sort by asp ascending so closer-to-front horses go first
+  Object.keys(settled).forEach(k => {
+    if (k === 'unknown') return;
+    settled[k].sort((a, b) => (a.asp || 99) - (b.asp || 99));
+  });
+  document.getElementById('rd-pace-map').innerHTML = renderRaceShapeSVG(settled, runners.length);
+  // Track conditions card - weather/going/rail + how-this-track-plays commentary
+  // computed from historical races at same venue/going/rail
+  document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
+  wireTrackConditionsCard(race);
 
   // ── Compute ranks ──
   function computeRanks(runners, getter) {
@@ -4048,12 +4529,19 @@ function renderRaceDetail(raceId) {
   }
 
   // Cumulative-score cell. score is 0..1, rank is within-race position (1 = best)
-  function scoreCell(score, rank) {
+  function scoreCell(score, rank, conf) {
     if (score == null || rank == null) return '<td class="score-cell">—</td>';
     const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+    let confDot = '';
+    if (conf != null) {
+      const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
+      const confLbl = conf >= 0.80 ? 'unanimous' : conf >= 0.50 ? 'mixed' : 'split';
+      confDot = ' <span class="conf-dot ' + dotCls + '" title="Signal confidence ' +
+        Math.round(conf * 100) + '% - ' + confLbl + '"></span>';
+    }
     return '<td class="score-cell ' + rkCls + '" title="Predictive composite (TR + form + late-speed). Rank ' + rank + ' in field.">' +
       '<span class="v">' + score.toFixed(2) + '</span>' +
-      '<span class="rk">#' + rank + '</span>' +
+      '<span class="rk">#' + rank + '</span>' + confDot +
       '</td>';
   }
 
@@ -4180,7 +4668,7 @@ function renderRaceDetail(raceId) {
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
-      scoreCell(u.cs, u.crk) +
+      scoreCell(u.cs, u.crk, u.csc) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
       sectCell(u.es, earlyRanks[rid]) +
       sectCell(u.ms, midRanks[rid]) +
@@ -4239,6 +4727,294 @@ function renderRaceDetail(raceId) {
       renderRaceDetail(raceId);
     });
   });
+}
+
+// Race shape SVG - horizontal lane diagram showing predicted positions.
+// Width-proportional zones (a race with 6 leaders gets a wider Leaders zone
+// than a race with 1). Tab numbers in colored cells. Picks (model picks) get
+// a brighter outline so you can see which horses you're backing in context.
+function renderRaceShapeSVG(settled, totalRunners) {
+  const zones = [
+    { key: 'leaders',  lbl: 'Leaders',  hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
+    { key: 'onpace',   lbl: 'On-pace',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
+    { key: 'midfield', lbl: 'Midfield', hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
+    { key: 'back',     lbl: 'Back',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
+  ];
+
+  // Compute zone counts and assign min width 1 so empty zones don't disappear
+  const counts = zones.map(z => Math.max(1, settled[z.key].length));
+  const totalUnits = counts.reduce((a, b) => a + b, 0);
+
+  const W = 880;
+  const H = 130;
+  const PAD_X = 8, PAD_Y = 28, BOTTOM_PAD = 12;
+  const plotW = W - PAD_X * 2;
+  const plotH = H - PAD_Y - BOTTOM_PAD;
+
+  // Each zone's pixel width is proportional to its share of runners
+  const zoneWidths = counts.map(c => (c / totalUnits) * plotW);
+  // Cumulative offsets
+  const zoneOffsets = [];
+  let cum = PAD_X;
+  zoneWidths.forEach(w => { zoneOffsets.push(cum); cum += w; });
+
+  let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
+    '" preserveAspectRatio="xMidYMid meet">';
+
+  // Direction arrow at top showing flow of race (left = front)
+  svg += '<text x="' + PAD_X + '" y="14" font-family="Outfit" font-size="10" font-weight="700" ' +
+    'fill="#78716c" letter-spacing="0.06em">FRONT →</text>';
+  svg += '<text x="' + (W - PAD_X) + '" y="14" font-family="Outfit" font-size="10" font-weight="700" ' +
+    'fill="#78716c" letter-spacing="0.06em" text-anchor="end">← BACK</text>';
+
+  // Zone backgrounds + labels + horse cells
+  zones.forEach((z, i) => {
+    const x = zoneOffsets[i];
+    const w = zoneWidths[i];
+    const horses = settled[z.key];
+
+    // Zone background panel
+    svg += '<rect x="' + x + '" y="' + PAD_Y + '" width="' + w + '" height="' + plotH +
+      '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
+      '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
+
+    // Zone label at top
+    svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
+      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
+      'text-anchor="middle" fill="' + z.textColor + '">' +
+      z.lbl.toUpperCase() + ' (' + z.hint + ')</text>';
+
+    // Horse tab cells - lay out in a grid, max 4 per row to keep cells big enough to read
+    const cellSize = 22;
+    const cellGap = 4;
+    const innerPad = 8;
+    const availW = w - innerPad * 2;
+    const cellsPerRow = Math.max(1, Math.floor((availW + cellGap) / (cellSize + cellGap)));
+    horses.forEach((u, hi) => {
+      const row = Math.floor(hi / cellsPerRow);
+      const col = hi % cellsPerRow;
+      const cellX = x + innerPad + col * (cellSize + cellGap);
+      const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
+      // Skip rendering if cell would overflow zone height (very dense zones)
+      if (cellY + cellSize > PAD_Y + plotH - 12) return;
+      svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
+        '" fill="' + z.color + '" rx="3"/>';
+      svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
+        '" font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
+        'fill="#fff">' + (u.tab || '?') + '</text>';
+    });
+
+    // Empty zone hint
+    if (horses.length === 0) {
+      svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y + plotH / 2 + 4) + '" ' +
+        'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
+        '" fill-opacity="0.4" text-anchor="middle">none</text>';
+    }
+
+    // Count at bottom
+    svg += '<text x="' + (x + w / 2) + '" y="' + (H - 2) + '" ' +
+      'font-family="Outfit" font-size="10" font-weight="600" text-anchor="middle" ' +
+      'fill="' + z.textColor + '" fill-opacity="0.7">' + horses.length + '</text>';
+  });
+
+  svg += '</svg>';
+
+  // Add unknown count caption if any
+  let unknownCaption = '';
+  if (settled.unknown && settled.unknown.length > 0) {
+    unknownCaption = '<div class="race-shape-unknown">' +
+      settled.unknown.length + ' runner' + (settled.unknown.length === 1 ? '' : 's') +
+      ' with no settling history (likely first-up or limited data)</div>';
+  }
+
+  return svg + unknownCaption;
+}
+
+
+// Track conditions card - weather/going/rail + commentary on how this track
+// plays at this condition based on historical winners' settled positions.
+// User can override the going via a manual rating that syncs across devices.
+function renderTrackConditions(race) {
+  const venue = race.venue || '';
+  const date = race.date || '';
+  const officialGoing = race.going || '';
+  const overrideRating = trackRatings[trackRatingKey(venue, date)];
+  const effectiveGoing = overrideRating || officialGoing;
+  const rail = race.rail || '';
+
+  // Compute "how this track plays" from historical races at same venue + going category.
+  // We don't filter by rail here because that slices the sample too thin -
+  // typically <10 races in a venue/going/rail combo. Instead we surface rail
+  // as separate context.
+  const goingCat = goingCategoryStr(officialGoing);
+  const histRaces = (RACES || []).filter(r =>
+    r.race_id !== race.race_id &&
+    r.venue === venue &&
+    r.done === 1 &&
+    goingCategoryStr(r.going) === goingCat
+  );
+
+  let commentary;
+  if (histRaces.length < 8) {
+    commentary = '<div class="tc-commentary tc-insufficient">' +
+      'Insufficient sample (' + histRaces.length + ' historical race' +
+      (histRaces.length === 1 ? '' : 's') +
+      ' at ' + escapeHtml(venue) + ' on ' + escapeHtml(goingCat || 'unknown') +
+      ' going) for a confident bias read.' +
+      '</div>';
+  } else {
+    // For each historical race, look at the winner's avg_settled_pos
+    const winnerPositions = { leaders: 0, onpace: 0, midfield: 0, back: 0, unknown: 0 };
+    let totalWinners = 0;
+    histRaces.forEach(r => {
+      const winner = (r.runners || []).find(u => u.f === 1);
+      if (!winner) return;
+      totalWinners += 1;
+      const asp = winner.asp;
+      if (asp == null) winnerPositions.unknown += 1;
+      else if (asp <= 2) winnerPositions.leaders += 1;
+      else if (asp <= 4) winnerPositions.onpace += 1;
+      else if (asp <= 8) winnerPositions.midfield += 1;
+      else winnerPositions.back += 1;
+    });
+    if (totalWinners === 0) {
+      commentary = '<div class="tc-commentary tc-insufficient">No winner data for historical races at this combo.</div>';
+    } else {
+      // Population baseline (across all races, what % of winners come from each zone)
+      // For comparison so we can flag DEVIATION not absolute %.
+      // Calibrated from your 1,521 historical winners with asp populated:
+      //   leaders 9.1% / onpace 27.0% / midfield 53.4% / back 10.6%
+      // Midfield dominates because horses sitting 5-8 lengths back avoid the early
+      // pace duel and have room to make a run. This baseline is what we measure
+      // venue-specific deviations against.
+      const baseline = { leaders: 0.091, onpace: 0.270, midfield: 0.534, back: 0.106 };
+      const observed = {};
+      ['leaders', 'onpace', 'midfield', 'back'].forEach(k => {
+        observed[k] = winnerPositions[k] / totalWinners;
+      });
+      // Identify the most-deviated zone
+      const deviations = Object.keys(observed).map(k => ({
+        zone: k,
+        observed: observed[k],
+        baseline: baseline[k],
+        delta: observed[k] - baseline[k],
+      }));
+      deviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      const topDev = deviations[0];
+      const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
+
+      let summary;
+      if (Math.abs(topDev.delta) < 0.05) {
+        summary = '<strong>No strong bias</strong> - winners distributed roughly as expected.';
+      } else if (topDev.delta > 0) {
+        summary = '<strong>' + zoneLabels[topDev.zone] + ' favoured</strong> - winning ' +
+          (topDev.observed * 100).toFixed(0) + '% of races vs ' +
+          (topDev.baseline * 100).toFixed(0) + '% AU average ' +
+          '(+' + (topDev.delta * 100).toFixed(0) + 'pp).';
+      } else {
+        summary = '<strong>' + zoneLabels[topDev.zone] + ' disadvantaged</strong> - winning only ' +
+          (observed[topDev.zone] * 100).toFixed(0) + '% of races vs ' +
+          (baseline[topDev.zone] * 100).toFixed(0) + '% AU average ' +
+          '(' + (topDev.delta * 100).toFixed(0) + 'pp).';
+      }
+
+      // Bar chart of observed vs baseline
+      const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
+        const o = observed[k];
+        const b = baseline[k];
+        const diff = o - b;
+        const diffCls = Math.abs(diff) < 0.05 ? '' : (diff > 0 ? 'pos' : 'neg');
+        const oWidth = (o * 100).toFixed(0);
+        return '<div class="tc-zone-row">' +
+          '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
+          '<div class="tc-zone-bar"><div class="tc-zone-fill" style="width:' + oWidth + '%;"></div></div>' +
+          '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
+          '<span class="tc-zone-delta ' + diffCls + '">' +
+            (diff >= 0 ? '+' : '') + (diff * 100).toFixed(0) + 'pp' +
+          '</span>' +
+          '</div>';
+      }).join('');
+
+      commentary = '<div class="tc-commentary">' +
+        '<div class="tc-summary">' + summary + '</div>' +
+        '<div class="tc-zones">' + barRows + '</div>' +
+        '<div class="tc-sample">Based on ' + totalWinners + ' winners at ' +
+          escapeHtml(venue) + ' on ' + escapeHtml(goingCat) +
+          '. Compared vs your data baseline (Leaders 9% / On-pace 27% / Mid 53% / Back 11%).' +
+        '</div>' +
+        '</div>';
+    }
+  }
+
+  // Manual rating override input
+  const overrideHtml =
+    '<div class="tc-override">' +
+      '<label>' +
+        '<span class="tc-override-lbl">Track rating override</span>' +
+        '<input type="text" class="tc-override-input" id="tc-override-input" ' +
+          'placeholder="e.g. Soft 6" value="' + escapeHtml(overrideRating || '') + '" ' +
+          'maxlength="20"/>' +
+      '</label>' +
+      (overrideRating ?
+        '<button class="btn-tiny" id="tc-override-clear">Clear</button>' : '') +
+      '<div class="tc-override-help">Override the official going if you have intel that differs (e.g. paddock report says it\'s playing softer). Syncs across devices.</div>' +
+    '</div>';
+
+  // Header showing the conditions
+  const headerHtml =
+    '<div class="tc-header">' +
+      '<div class="tc-going' + (overrideRating ? ' overridden' : '') + '">' +
+        '<span class="tc-key">Going</span>' +
+        '<span class="tc-val">' + escapeHtml(effectiveGoing || 'Unknown') + '</span>' +
+        (overrideRating ? '<span class="tc-orig">official: ' + escapeHtml(officialGoing || '?') + '</span>' : '') +
+      '</div>' +
+      '<div class="tc-rail">' +
+        '<span class="tc-key">Rail</span>' +
+        '<span class="tc-val">' + escapeHtml(rail || 'Unknown') + '</span>' +
+      '</div>' +
+      '<div class="tc-distance">' +
+        '<span class="tc-key">Distance</span>' +
+        '<span class="tc-val">' + race.distance + 'm</span>' +
+      '</div>' +
+    '</div>';
+
+  return headerHtml + commentary + overrideHtml;
+}
+
+// Helper - bucket going string into category for matching
+function goingCategoryStr(g) {
+  if (!g) return '';
+  const gl = g.toLowerCase();
+  if (gl.startsWith('firm')) return 'Firm';
+  if (gl.startsWith('good')) return 'Good';
+  if (gl.startsWith('soft')) return 'Soft';
+  if (gl.startsWith('heavy')) return 'Heavy';
+  if (gl.startsWith('synth')) return 'Synthetic';
+  return g;
+}
+
+function wireTrackConditionsCard(race) {
+  const inp = document.getElementById('tc-override-input');
+  if (inp) {
+    let dt = null;
+    inp.addEventListener('input', e => {
+      clearTimeout(dt);
+      dt = setTimeout(() => {
+        setTrackRating(race.venue, race.date, e.target.value.trim());
+        // Re-render the card to show the override badge
+        document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
+        wireTrackConditionsCard(race);
+      }, 600);
+    });
+  }
+  const clearBtn = document.getElementById('tc-override-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      setTrackRating(race.venue, race.date, null);
+      document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
+      wireTrackConditionsCard(race);
+    });
+  }
 }
 
 function paceZoneHtml(cls, lbl, hint, runners) {
@@ -4339,13 +5115,7 @@ function renderNtjTicker() {
   }).join('');
   pillsEl.querySelectorAll('.ntj-pill').forEach(p => {
     p.addEventListener('click', () => {
-      // Navigate to race tab and open the race
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
-      document.querySelector('.tab[data-tab="race"]').classList.add('active');
-      document.getElementById('sec-race').classList.add('active');
-      currentRaceId = p.dataset.rid;
-      showRaceDetail(currentRaceId);
+      navigateToRace(p.dataset.rid);
     });
   });
 }
@@ -4702,8 +5472,20 @@ function renderPnL() {
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
+    // Score pill on settled rows also gets the confidence dot (same as Today)
+    function scoreSigPill(rank, conf) {
+      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+      let confDot = '';
+      if (conf != null) {
+        const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
+        const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
+        confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
+      }
+      return '<span class="sig ' + cls + '"><span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+    }
     const sigsTopHtml =
-      sigPill('Score', r.crk) +
+      scoreSigPill(r.crk, s.csc) +
       sigPill('TR', s.tr_rank) +
       sigPill('Mid', s.mid_rank) +
       sigPill('Late', s.late_rank) +
@@ -4785,9 +5567,9 @@ function renderPnL() {
       '<div class="pick-row is-settled ' + cardClass + (placed ? ' bet-placed' : '') +
         '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
         dateHtml +
-        '<div class="pr-venue">' +
+        '<div class="pr-venue clickable" data-nav-rid="' + (s.race_id || '') + '" title="Open race detail">' +
           '<div class="v-name">' + escapeHtml(s.venue || '') + '</div>' +
-          '<div class="v-race">R' + s.race + '</div>' +
+          '<div class="v-race">R' + s.race + ' ↗</div>' +
         '</div>' +
         '<div class="pr-runner">' +
           '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
@@ -4814,6 +5596,13 @@ function renderPnL() {
     row.addEventListener('click', (ev) => {
       // Don't expand if clicking interactive elements
       if (ev.target.closest('.bet-btn, .odds-input, .odds-input-wrap, input, textarea, button')) return;
+      // Venue block click - navigate to race detail and stop here, don't expand
+      const navTarget = ev.target.closest('.pr-venue.clickable');
+      if (navTarget) {
+        ev.stopPropagation();
+        navigateToRace(navTarget.dataset.navRid);
+        return;
+      }
       const idx = row.dataset.rowIdx;
       const detail = document.getElementById('bh-detail-' + idx);
       if (!detail) return;
@@ -5141,160 +5930,616 @@ function exportSettledCSV() {
 }
 
 // ── INSIGHTS tab rendering ─────────────────────────────────────────────────
-function renderInsights() {
-  const settled = SETTLED || [];
-  const meta = MODEL_META[PRIMARY_KEY] || {};
+// ── INSIGHTS tab rendering ─────────────────────────────────────────────────
+// State for the period filter (30d / all-time)
+let insightsPeriod = 'all';
 
-  // ── Helper: build a perf-bar row showing wr + roi ──
-  function perfBarRow(label, sub, group, maxBets) {
-    if (!group || group.length === 0) {
-      return '<div class="perf-bar"><div class="label">' + escapeHtml(label) +
-        (sub ? '<span class="sub">' + escapeHtml(sub) + '</span>' : '') +
-        '</div><div class="bar-track"></div><div class="wr">—</div><div class="roi neutral">no data</div></div>';
+function renderInsights() {
+  const allSettled = SETTLED || [];
+  const allRaces = RACES || [];
+
+  // Apply period filter: 30d shows only bets/races from last 30 days
+  let cutoff = null;
+  if (insightsPeriod === '30') {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    cutoff = d.toISOString().slice(0, 10);
+  }
+  const settled = cutoff ? allSettled.filter(s => (s.date || '') >= cutoff) : allSettled;
+  const races = cutoff ? allRaces.filter(r => (r.date || '') >= cutoff) : allRaces;
+
+  // Stash filtered data on the window for sub-renderers to use
+  // (avoids re-passing through every function call)
+  window._insightsFiltered = { settled, races };
+
+  // Update summary line at the top
+  const summaryEl = document.getElementById('insights-summary');
+  if (summaryEl) {
+    const totalSettled = settled.length;
+    const totalResultedRaces = races.filter(r => r.done === 1).length;
+    const periodLbl = insightsPeriod === '30' ? 'last 30 days' : 'all time';
+    summaryEl.innerHTML = '<strong>' + totalSettled + '</strong> settled bets across ' +
+      '<strong>' + totalResultedRaces + '</strong> resulted races · ' + periodLbl;
+  }
+
+  // ── 1. Score threshold backtest ──────────────────────────────────────────
+  renderThresholdPnl();
+
+  // ── 2. Variance and streaks ──────────────────────────────────────────────
+  renderVarianceStats();
+
+  // ── 3. Actual vs expected ────────────────────────────────────────────────
+  renderActualVsExpected();
+
+  // ── 4. Edge by price band ────────────────────────────────────────────────
+  renderEdgeByPrice();
+
+  // ── 5. Distribution cards (counts only) ──────────────────────────────────
+  renderDistribution('dist-venue', settled, s => s.venue || 'Unknown', 10);
+  renderDistribution('dist-going', settled, s => goingCategoryLabel(s.going), 6);
+}
+
+// Helper: bucket by going category
+function goingCategoryLabel(g) {
+  if (!g) return 'Unknown';
+  const gl = g.toLowerCase();
+  if (gl.startsWith('firm')) return 'Firm';
+  if (gl.startsWith('good')) return 'Good';
+  if (gl.startsWith('soft')) return 'Soft';
+  if (gl.startsWith('heavy')) return 'Heavy';
+  if (gl.startsWith('synth')) return 'Synthetic';
+  return g;
+}
+
+// Generic distribution card renderer (count by category, no perf math)
+function renderDistribution(elId, settled, keyFn, topN) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (settled.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets yet.</div>';
+    return;
+  }
+  const counts = {};
+  settled.forEach(s => {
+    const k = keyFn(s);
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, topN);
+  const max = Math.max(1, ...sorted.map(e => e[1]));
+  el.innerHTML = sorted.map(([k, c]) => {
+    const pct = (c / max * 100).toFixed(0);
+    return '<div class="dist-bar"><div class="label">' + escapeHtml(k) +
+      '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
+      '<div class="count">' + c + '</div></div>';
+  }).join('');
+}
+
+// ─── 1. Score threshold backtest ──────────────────────────────────────────
+// Walks every resulted race, computes flat 1u P&L at multiple thresholds,
+// renders cumulative-units chart + summary table.
+function renderThresholdPnl() {
+  const races = (window._insightsFiltered && window._insightsFiltered.races) || RACES || [];
+  const resulted = races.filter(r => r.done === 1)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') ||
+                    (a.start_time || '').localeCompare(b.start_time || ''));
+
+  if (resulted.length < 50) {
+    document.getElementById('threshold-pnl-chart').innerHTML =
+      '<div class="empty-text">Need at least 50 resulted races for meaningful threshold analysis.</div>';
+    document.getElementById('threshold-pnl-table').innerHTML = '';
+    return;
+  }
+
+  const thresholds = [0.65, 0.70, 0.75, 0.80, 0.85];
+  // For each threshold, build cumulative P&L series + stats
+  const series = thresholds.map(t => ({ thresh: t, points: [], cumPnL: 0,
+    bets: 0, wins: 0, stakeTotal: 0, retTotal: 0 }));
+
+  resulted.forEach(race => {
+    (race.runners || []).forEach(u => {
+      if (u.cs == null || u.fx == null || u.fx <= 1) return;
+      const won = u.f === 1;
+      thresholds.forEach((t, i) => {
+        if (u.cs >= t) {
+          // Flat 1u stake
+          series[i].bets += 1;
+          series[i].stakeTotal += 1;
+          if (won) {
+            series[i].wins += 1;
+            // Use SP if available, else fxprice (more conservative simulation)
+            const settlePrice = u.sp || u.fx;
+            series[i].cumPnL += (settlePrice - 1);
+            series[i].retTotal += settlePrice;
+          } else {
+            series[i].cumPnL += -1;
+          }
+          series[i].points.push(series[i].cumPnL);
+        }
+      });
+    });
+  });
+
+  // Render the table summary
+  const currentThresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
+  let tableHtml = '<div class="thresh-table">' +
+    '<div class="h">Threshold</div>' +
+    '<div class="h">Bets</div>' +
+    '<div class="h">Win rate</div>' +
+    '<div class="h">Avg div</div>' +
+    '<div class="h">ROI</div>' +
+    '<div class="h">P&amp;L (units)</div>';
+  series.forEach(s => {
+    const wr = s.bets > 0 ? s.wins / s.bets : 0;
+    const roi = s.stakeTotal > 0 ? (s.retTotal - s.stakeTotal) / s.stakeTotal : 0;
+    const avgDiv = s.wins > 0 ? s.retTotal / s.wins : 0;
+    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
+    const rowCls = isCurrent ? ' row-current' : '';
+    const pnlCls = s.cumPnL > 0 ? 'pos' : (s.cumPnL < 0 ? 'neg' : '');
+    const roiCls = roi > 0 ? 'pos' : (roi < 0 ? 'neg' : '');
+    tableHtml += '<div class="row-thresh' + rowCls + '">' + s.thresh.toFixed(2) +
+      (isCurrent ? ' (current)' : '') + '</div>' +
+      '<div class="' + rowCls + '">' + s.bets + '</div>' +
+      '<div class="' + rowCls + '">' + (wr * 100).toFixed(1) + '%</div>' +
+      '<div class="' + rowCls + '">' + (avgDiv > 0 ? '$' + avgDiv.toFixed(2) : '—') + '</div>' +
+      '<div class="' + rowCls + '"><span class="' + roiCls + '">' +
+        (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%</span></div>' +
+      '<div class="' + rowCls + '"><span class="' + pnlCls + '">' +
+        (s.cumPnL >= 0 ? '+' : '') + s.cumPnL.toFixed(0) + 'u</span></div>';
+  });
+  tableHtml += '</div>';
+  document.getElementById('threshold-pnl-table').innerHTML = tableHtml;
+
+  // Render the cumulative P&L chart as inline SVG.
+  // Each series has different number of bets (higher threshold = fewer bets), so
+  // normalize X to "% through the period" instead of raw bet count. Y = cumulative units.
+  // Highlight the current threshold's series so it stands out.
+  const colors = ['#94a3b8', '#10b981', '#3b82f6', '#f59e0b', '#dc2626'];
+  let yMin = 0, yMax = 0;
+  series.forEach(s => {
+    s.points.forEach(p => { if (p < yMin) yMin = p; if (p > yMax) yMax = p; });
+  });
+  // Pad
+  const yRange = (yMax - yMin) || 1;
+  yMin -= yRange * 0.05; yMax += yRange * 0.05;
+
+  const W = 800, H = 240, PAD_L = 40, PAD_R = 12, PAD_T = 12, PAD_B = 28;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+
+  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
+
+  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
+  // Background grid - horizontal lines at 0 and the y axis bounds
+  const yZero = yScale(0);
+  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
+    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
+
+  // Y axis labels
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + yMax.toFixed(0) + 'u</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">0</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + yMin.toFixed(0) + 'u</text>';
+
+  // Plot each series. Per-series xScale because different thresholds have
+  // different bet counts (higher = fewer bets). Normalizing to "% progress"
+  // makes the curves comparable on shape rather than absolute bet count.
+  // Bold the current threshold so it pops out against the others.
+  series.forEach((s, idx) => {
+    if (s.points.length === 0) return;
+    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
+    const xScale = (i) => PAD_L + (i / Math.max(1, s.points.length - 1)) * plotW;
+    const path = s.points.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
+    const strokeWidth = isCurrent ? 2.5 : 1.3;
+    const opacity = isCurrent ? 1.0 : 0.55;
+    svg += '<path d="' + path + '" stroke="' + colors[idx] + '" stroke-width="' + strokeWidth + '" ' +
+      'fill="none" opacity="' + opacity + '"/>';
+  });
+
+  // Legend
+  let lx = PAD_L + 10;
+  series.forEach((s, idx) => {
+    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
+    const fontWeight = isCurrent ? 700 : 600;
+    svg += '<rect x="' + lx + '" y="' + (PAD_T + 4) + '" width="10" height="3" ' +
+      'fill="' + colors[idx] + '"/>';
+    svg += '<text x="' + (lx + 14) + '" y="' + (PAD_T + 8) + '" ' +
+      'font-family="Outfit" font-size="10" font-weight="' + fontWeight + '" fill="' + colors[idx] + '">' +
+      s.thresh.toFixed(2) + (isCurrent ? '★' : '') + '</text>';
+    lx += 64;
+  });
+
+  // X axis label
+  svg += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">% through betting history</text>';
+
+  svg += '</svg>';
+  document.getElementById('threshold-pnl-chart').innerHTML = svg;
+}
+
+// ─── 2. Variance and streaks ──────────────────────────────────────────────
+// Walks settled bets in chronological order, computes:
+//   - Longest winning and losing streaks
+//   - Max drawdown (deepest trough below prior peak in cumulative units)
+//   - Bets to recover from worst drawdown
+function renderVarianceStats() {
+  const allSettled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
+  const settled = allSettled.slice().sort((a, b) =>
+    (a.date || '').localeCompare(b.date || ''));
+
+  const statsEl = document.getElementById('variance-stats');
+  const chartEl = document.getElementById('variance-chart');
+  if (!statsEl || !chartEl) return;
+
+  if (settled.length < 10) {
+    statsEl.innerHTML = '<div class="empty-text">Need at least 10 settled bets for variance stats.</div>';
+    chartEl.innerHTML = '';
+    return;
+  }
+
+  // Walk settled, compute cumulative P&L (using actual prices the user took
+  // where available, else SP, else fxprice fallback)
+  const log = getBetLog();
+  let cumPnL = 0;
+  const points = [];
+  let curWinStreak = 0, curLossStreak = 0;
+  let maxWinStreak = 0, maxLossStreak = 0;
+  let peak = 0, maxDD = 0, ddStart = -1, ddEnd = -1;
+  let curDDStart = -1;
+
+  settled.forEach((s, i) => {
+    const e = log[String(s.run_id)] || {};
+    const stake = calcStake(s.fxprice);
+    if (!stake) {
+      points.push(cumPnL);
+      return;
     }
-    let wins = 0, stake = 0, ret = 0;
-    group.forEach(s => {
+    const price = e.oddsTaken || s.sp || s.top || s.fxprice;
+    const dhMult = e.deadHeat ? 0.5 : 1;
+    const ret = s.won ? stake * price * dhMult : 0;
+    const pl = ret - stake;
+    cumPnL += pl;
+    points.push(cumPnL);
+
+    if (s.won) {
+      curWinStreak += 1; curLossStreak = 0;
+      if (curWinStreak > maxWinStreak) maxWinStreak = curWinStreak;
+    } else {
+      curLossStreak += 1; curWinStreak = 0;
+      if (curLossStreak > maxLossStreak) maxLossStreak = curLossStreak;
+    }
+
+    // Drawdown tracking
+    if (cumPnL > peak) {
+      peak = cumPnL;
+      curDDStart = -1;  // back at new high, drawdown reset
+    } else {
+      if (curDDStart === -1) curDDStart = i;
+      const dd = peak - cumPnL;
+      if (dd > maxDD) {
+        maxDD = dd;
+        ddStart = curDDStart;
+        ddEnd = i;
+      }
+    }
+  });
+
+  // Final P&L
+  const finalPnL = points[points.length - 1] || 0;
+
+  statsEl.innerHTML = '<div class="var-stats">' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Longest win streak</div>' +
+      '<div class="val pos">' + maxWinStreak + '</div>' +
+      '<div class="sub">consecutive wins</div>' +
+    '</div>' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Longest loss streak</div>' +
+      '<div class="val neg">' + maxLossStreak + '</div>' +
+      '<div class="sub">consecutive losses</div>' +
+    '</div>' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Max drawdown</div>' +
+      '<div class="val neg">' + (-maxDD).toFixed(1) + 'u</div>' +
+      '<div class="sub">' + (ddEnd - ddStart) + ' bets, peak to trough</div>' +
+    '</div>' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Total P&amp;L</div>' +
+      '<div class="val ' + (finalPnL >= 0 ? 'pos' : 'neg') + '">' +
+        (finalPnL >= 0 ? '+' : '') + finalPnL.toFixed(1) + 'u</div>' +
+      '<div class="sub">' + settled.length + ' settled bets</div>' +
+    '</div>' +
+  '</div>';
+
+  // Cumulative P&L chart
+  const W = 800, H = 200, PAD_L = 40, PAD_R = 12, PAD_T = 12, PAD_B = 24;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  let yMin = 0, yMax = 0;
+  points.forEach(p => { if (p < yMin) yMin = p; if (p > yMax) yMax = p; });
+  const yRange = yMax - yMin || 1;
+  yMin -= yRange * 0.05; yMax += yRange * 0.05;
+
+  function xScale(i) { return PAD_L + (i / Math.max(1, points.length - 1)) * plotW; }
+  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
+
+  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
+  const yZero = yScale(0);
+  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
+    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
+
+  // Highlight the max-drawdown region
+  if (ddStart >= 0 && ddEnd > ddStart) {
+    svg += '<rect x="' + xScale(ddStart) + '" y="' + PAD_T + '" ' +
+      'width="' + (xScale(ddEnd) - xScale(ddStart)) + '" height="' + plotH + '" ' +
+      'fill="#fee2e2" opacity="0.4"/>';
+  }
+
+  // P&L line
+  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
+  svg += '<path d="' + path + '" stroke="#0f766e" stroke-width="1.8" fill="none"/>';
+
+  // Y axis labels
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + yMax.toFixed(0) + 'u</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">0</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + yMin.toFixed(0) + 'u</text>';
+
+  svg += '</svg>';
+  chartEl.innerHTML = svg;
+}
+
+// ─── 3. Actual vs expected performance ───────────────────────────────────
+function renderActualVsExpected() {
+  const allSettled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
+  const settled = allSettled.slice().sort((a, b) =>
+    (a.date || '').localeCompare(b.date || ''));
+
+  const statsEl = document.getElementById('aex-stats');
+  const chartEl = document.getElementById('aex-chart');
+  if (!statsEl || !chartEl) return;
+
+  if (settled.length < 10) {
+    statsEl.innerHTML = '<div class="empty-text">Need at least 10 settled bets.</div>';
+    chartEl.innerHTML = '';
+    return;
+  }
+
+  const log = getBetLog();
+  // Compute totals: actual (using oddsTaken if present, else fxprice as fallback)
+  // vs expected (using SP - what the model "expects" to get back)
+  let actStake = 0, actRet = 0, expStake = 0, expRet = 0;
+  const window = 30;
+  const rollingActROI = [], rollingExpROI = [];
+  let winActStake = 0, winActRet = 0, winExpStake = 0, winExpRet = 0;
+  const queue = [];  // sliding window of {actPL, expPL, stake}
+
+  settled.forEach((s, i) => {
+    const e = log[String(s.run_id)] || {};
+    const stake = calcStake(s.fxprice);
+    if (!stake || stake <= 0) {
+      // No valid stake - skip but still output a rolling point
+      rollingActROI.push(rollingActROI[rollingActROI.length - 1] || 0);
+      rollingExpROI.push(rollingExpROI[rollingExpROI.length - 1] || 0);
+      return;
+    }
+    const dhMult = e.deadHeat ? 0.5 : 1;
+    // Actual: price the user actually got (oddsTaken) or SP, with fallback to fxprice
+    const actPrice = e.oddsTaken || s.sp || s.fxprice;
+    const actRetThis = s.won ? stake * actPrice * dhMult : 0;
+    // Expected: SP-based, what the model assumes
+    const expPrice = s.sp || s.fxprice;
+    const expRetThis = s.won ? stake * expPrice * dhMult : 0;
+
+    actStake += stake; actRet += actRetThis;
+    expStake += stake; expRet += expRetThis;
+
+    queue.push({ actPL: actRetThis - stake, expPL: expRetThis - stake, stake: stake });
+    winActStake += stake; winActRet += actRetThis;
+    winExpStake += stake; winExpRet += expRetThis;
+    if (queue.length > window) {
+      const shifted = queue.shift();
+      winActStake -= shifted.stake;
+      winActRet -= (shifted.actPL + shifted.stake);
+      winExpStake -= shifted.stake;
+      winExpRet -= (shifted.expPL + shifted.stake);
+    }
+    rollingActROI.push(winActStake > 0 ? (winActRet - winActStake) / winActStake : 0);
+    rollingExpROI.push(winExpStake > 0 ? (winExpRet - winExpStake) / winExpStake : 0);
+  });
+
+  const actROI = actStake > 0 ? (actRet - actStake) / actStake : 0;
+  const expROI = expStake > 0 ? (expRet - expStake) / expStake : 0;
+  const gap = actROI - expROI;
+
+  statsEl.innerHTML = '<div class="var-stats" style="grid-template-columns: repeat(3, 1fr);">' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Actual ROI</div>' +
+      '<div class="val ' + (actROI >= 0 ? 'pos' : 'neg') + '">' +
+        (actROI >= 0 ? '+' : '') + (actROI * 100).toFixed(1) + '%</div>' +
+      '<div class="sub">at prices you took</div>' +
+    '</div>' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Expected ROI</div>' +
+      '<div class="val ' + (expROI >= 0 ? 'pos' : 'neg') + '">' +
+        (expROI >= 0 ? '+' : '') + (expROI * 100).toFixed(1) + '%</div>' +
+      '<div class="sub">at SP</div>' +
+    '</div>' +
+    '<div class="var-stat">' +
+      '<div class="lbl">Gap (your edge vs SP)</div>' +
+      '<div class="val ' + (gap >= 0 ? 'pos' : 'neg') + '">' +
+        (gap >= 0 ? '+' : '') + (gap * 100).toFixed(1) + 'pp</div>' +
+      '<div class="sub">' + (gap >= 0 ? 'you beat SP' : 'lost to drift') + '</div>' +
+    '</div>' +
+  '</div>';
+
+  // Rolling ROI chart - actual (dark) vs expected (light)
+  const W = 800, H = 180, PAD_L = 50, PAD_R = 12, PAD_T = 12, PAD_B = 24;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  let yMin = 0, yMax = 0;
+  rollingActROI.concat(rollingExpROI).forEach(p => {
+    if (p < yMin) yMin = p; if (p > yMax) yMax = p;
+  });
+  const yRange = (yMax - yMin) || 0.2;
+  yMin -= yRange * 0.1; yMax += yRange * 0.1;
+
+  function xScale(i) { return PAD_L + (i / Math.max(1, rollingActROI.length - 1)) * plotW; }
+  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
+
+  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
+  const yZero = yScale(0);
+  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
+    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
+
+  // Expected line (light)
+  const expPath = rollingExpROI.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
+  svg += '<path d="' + expPath + '" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>';
+  // Actual line (dark)
+  const actPath = rollingActROI.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
+  svg += '<path d="' + actPath + '" stroke="#0f766e" stroke-width="1.8" fill="none"/>';
+
+  // Y labels
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + (yMax * 100).toFixed(0) + '%</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">0%</text>';
+  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">' + (yMin * 100).toFixed(0) + '%</text>';
+
+  // Legend
+  svg += '<rect x="' + (PAD_L + 10) + '" y="' + (PAD_T + 4) + '" width="14" height="3" fill="#0f766e"/>';
+  svg += '<text x="' + (PAD_L + 28) + '" y="' + (PAD_T + 8) + '" font-family="Outfit" font-size="10" fill="#0f766e" font-weight="600">Actual</text>';
+  svg += '<rect x="' + (PAD_L + 80) + '" y="' + (PAD_T + 4) + '" width="14" height="3" fill="#94a3b8"/>';
+  svg += '<text x="' + (PAD_L + 98) + '" y="' + (PAD_T + 8) + '" font-family="Outfit" font-size="10" fill="#94a3b8" font-weight="600">Expected (SP)</text>';
+
+  svg += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" ' +
+    'font-family="Outfit" font-size="10" fill="#78716c">rolling ' + window + '-bet ROI</text>';
+
+  svg += '</svg>';
+  chartEl.innerHTML = svg;
+}
+
+// ─── 4. Edge by price band with Wilson confidence intervals ──────────────
+// For each band, compute ROI and a 95% CI using Wilson interval on win rate.
+// Bands where the CI crosses zero are flagged as inconclusive.
+function renderEdgeByPrice() {
+  const settled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
+  const el = document.getElementById('edge-by-price');
+  if (!el) return;
+  if (settled.length < 20) {
+    el.innerHTML = '<div class="empty-text">Need at least 20 settled bets for edge analysis.</div>';
+    return;
+  }
+
+  // Bands sized to match actual primary-model bet distribution (most picks
+  // sit in $3-5 range with shorter tail above). 4 bands instead of 5 because
+  // the $15+ band is empty for typical primary model output.
+  const bands = [
+    { lo: 0, hi: 3, lbl: 'Under $3' },
+    { lo: 3, hi: 5, lbl: '$3 to $5' },
+    { lo: 5, hi: 8, lbl: '$5 to $8' },
+    { lo: 8, hi: 1000, lbl: '$8 plus' },
+  ];
+
+  // Collect bets per band
+  bands.forEach(b => { b.bets = []; });
+  settled.forEach(s => {
+    const p = s.fxprice;
+    if (!p) return;
+    for (const b of bands) {
+      if (p >= b.lo && p < b.hi) { b.bets.push(s); break; }
+    }
+  });
+
+  // Compute ROI + Wilson CI per band
+  // Wilson 95% interval for binomial proportion p with n trials:
+  //   z=1.96. center = (p + z²/2n) / (1 + z²/n)
+  //   width = z*sqrt(p(1-p)/n + z²/(4n²)) / (1 + z²/n)
+  // Translate WR CI to ROI CI via avg_dividend (treat as fixed for the band).
+  const z = 1.96;
+
+  bands.forEach(b => {
+    if (b.bets.length === 0) { b.roi = null; return; }
+    let stake = 0, ret = 0, wins = 0, retSumWins = 0;
+    b.bets.forEach(s => {
       const st = calcStake(s.fxprice);
       if (!st) return;
       stake += st;
       const price = s.sp || s.top || s.fxprice;
-      if (s.won) { wins++; ret += st * price; }
+      if (s.won) { wins += 1; ret += st * price; retSumWins += st * price; }
     });
-    const wr = wins / group.length;
-    const roi = stake > 0 ? (ret - stake) / stake : 0;
-    const pct = (group.length / Math.max(1, maxBets)) * 100;
-    const roiCls = roi > 0.02 ? 'pos' : (roi < -0.02 ? 'neg' : 'neutral');
-    return '<div class="perf-bar">' +
-      '<div class="label">' + escapeHtml(label) +
-        '<span class="sub">' + group.length + ' bets</span>' +
-      '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + pct.toFixed(0) + '%;"></div></div>' +
-      '<div class="wr">' + (wr * 100).toFixed(0) + '%</div>' +
-      '<div class="roi ' + roiCls + '">' + (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%</div>' +
+    if (stake === 0) { b.roi = null; return; }
+    b.n = b.bets.length;
+    b.wins = wins;
+    b.wr = wins / b.n;
+    b.roi = (ret - stake) / stake;
+    b.avgDiv = wins > 0 ? retSumWins / wins / (stake / b.n) : 0;
+    // Wilson CI
+    const p = b.wr, n = b.n;
+    const denom = 1 + z*z/n;
+    const center = (p + z*z/(2*n)) / denom;
+    const halfW = z * Math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / denom;
+    b.wrLo = Math.max(0, center - halfW);
+    b.wrHi = Math.min(1, center + halfW);
+    // Translate WR CI to ROI CI: ROI = WR * avgDiv - 1
+    b.roiLo = b.wrLo * b.avgDiv - 1;
+    b.roiHi = b.wrHi * b.avgDiv - 1;
+  });
+
+  // Build the visualization. ROI scale: use a fixed range of -100% to +100%
+  // so all bands share the same coordinate system.
+  const minROI = -1.0, maxROI = 1.0;
+  function pct(v) { return ((v - minROI) / (maxROI - minROI)) * 100; }
+
+  let html = '';
+  bands.forEach(b => {
+    if (b.roi == null) {
+      html += '<div class="edge-band-row">' +
+        '<div class="label">' + b.lbl + '</div>' +
+        '<div class="ci-track"><div class="ci-zero" style="left:' + pct(0) + '%;"></div></div>' +
+        '<div class="roi-val">—</div>' +
+        '<div class="n-val">0</div>' +
       '</div>';
-  }
-
-  function emptyMsg(text) {
-    return '<div class="empty-text">' + text + '</div>';
-  }
-
-  // ── 1. Distribution by price band ──
-  const dp = document.getElementById('dist-price');
-  if (dp) {
-    const bands = [[0,3],[3,5],[5,8],[8,15],[15,1000]];
-    const labels = ['Under $3','$3 to $5','$5 to $8','$8 to $15','$15 plus'];
-    const counts = bands.map(() => 0);
-    settled.forEach(s => {
-      const p = s.fxprice;
-      if (!p) return;
-      for (let i = 0; i < bands.length; i++) {
-        if (p >= bands[i][0] && p < bands[i][1]) { counts[i]++; break; }
-      }
-    });
-    const max = Math.max(1, ...counts);
-    let html = '';
-    counts.forEach((c, i) => {
-      const pct = (c / max * 100).toFixed(0);
-      html += '<div class="dist-bar"><div class="label">' + labels[i] +
-        '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
-        '<div class="count">' + c + '</div></div>';
-    });
-    dp.innerHTML = settled.length > 0 ? html : emptyMsg('No settled bets yet.');
-  }
-
-  // ── 2. Distribution by venue (top 10) ──
-  const dv = document.getElementById('dist-venue');
-  if (dv) {
-    const counts = {};
-    settled.forEach(s => {
-      const v = s.venue || 'Unknown';
-      counts[v] = (counts[v] || 0) + 1;
-    });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const max = Math.max(1, ...sorted.map(e => e[1]));
-    let html = '';
-    sorted.forEach(([v, c]) => {
-      const pct = (c / max * 100).toFixed(0);
-      html += '<div class="dist-bar"><div class="label">' + escapeHtml(v) +
-        '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
-        '<div class="count">' + c + '</div></div>';
-    });
-    dv.innerHTML = settled.length > 0 ? html : emptyMsg('No settled bets yet.');
-  }
-
-  // ── 3. Performance by going ──
-  const pg = document.getElementById('perf-going');
-  if (pg) {
-    function goingCategory(g) {
-      if (!g) return null;
-      const gl = g.toLowerCase();
-      if (gl.startsWith('firm')) return 'Firm';
-      if (gl.startsWith('good')) return 'Good';
-      if (gl.startsWith('soft')) return 'Soft';
-      if (gl.startsWith('heavy')) return 'Heavy';
-      if (gl.startsWith('synth')) return 'Synth';
-      return null;
+      return;
     }
-    const buckets = { 'Firm': [], 'Good': [], 'Soft': [], 'Heavy': [], 'Synth': [] };
-    settled.forEach(s => {
-      const cat = goingCategory(s.going);
-      if (cat && buckets[cat]) buckets[cat].push(s);
-    });
-    const maxBets = Math.max(1, ...Object.values(buckets).map(b => b.length));
-    let html = '';
-    Object.keys(buckets).forEach(cat => {
-      if (buckets[cat].length > 0) {
-        html += perfBarRow(cat, '', buckets[cat], maxBets);
-      }
-    });
-    pg.innerHTML = settled.length > 0 ? (html || emptyMsg('No going data on settled bets.')) : emptyMsg('No settled bets yet.');
-  }
-
-  // ── 4. Performance by signal strength (TR rank) ──
-  const ps = document.getElementById('perf-signal');
-  if (ps) {
-    const bucketsTR = {
-      'TR rank 1': [],
-      'TR rank 2': [],
-      'TR rank 3': [],
-    };
-    settled.forEach(s => {
-      const tr = s.tr_rank;
-      if (tr === 1) bucketsTR['TR rank 1'].push(s);
-      else if (tr === 2) bucketsTR['TR rank 2'].push(s);
-      else if (tr === 3) bucketsTR['TR rank 3'].push(s);
-    });
-    const maxBets = Math.max(1, ...Object.values(bucketsTR).map(b => b.length));
-    let html = '';
-    Object.keys(bucketsTR).forEach(lbl => {
-      if (bucketsTR[lbl].length > 0) {
-        html += perfBarRow(lbl, '', bucketsTR[lbl], maxBets);
-      }
-    });
-    ps.innerHTML = settled.length > 0 ? (html || emptyMsg('No TR rank data on settled bets.')) : emptyMsg('No settled bets yet.');
-  }
-
-  // ── 5. Performance by day of week ──
-  const pdw = document.getElementById('perf-dow');
-  if (pdw) {
-    const dows = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const buckets = dows.map(() => []);
-    settled.forEach(s => {
-      if (!s.date) return;
-      const d = new Date(s.date);
-      if (isNaN(d.getTime())) return;
-      buckets[d.getDay()].push(s);
-    });
-    const maxBets = Math.max(1, ...buckets.map(b => b.length));
-    let html = '';
-    dows.forEach((lbl, i) => {
-      if (buckets[i].length > 0) {
-        html += perfBarRow(lbl, '', buckets[i], maxBets);
-      }
-    });
-    pdw.innerHTML = settled.length > 0 ? (html || emptyMsg('No date data on settled bets.')) : emptyMsg('No settled bets yet.');
-  }
+    const lower = Math.max(minROI, b.roiLo);
+    const upper = Math.min(maxROI, b.roiHi);
+    const left = pct(lower);
+    const width = pct(upper) - pct(lower);
+    // CI crosses zero -> inconclusive (grey)
+    let barCls;
+    if (b.roiLo > 0) barCls = 'pos';
+    else if (b.roiHi < 0) barCls = 'neg';
+    else barCls = 'unclear';
+    const roiCls = b.roi > 0 ? 'pos' : (b.roi < 0 ? 'neg' : '');
+    html += '<div class="edge-band-row">' +
+      '<div class="label">' + b.lbl + '</div>' +
+      '<div class="ci-track">' +
+        '<div class="ci-bar ' + barCls + '" style="left:' + left + '%; width:' + width + '%;"></div>' +
+        '<div class="ci-mean" style="left:' + pct(b.roi) + '%;"></div>' +
+        '<div class="ci-zero" style="left:' + pct(0) + '%;"></div>' +
+      '</div>' +
+      '<div class="roi-val ' + roiCls + '">' + (b.roi >= 0 ? '+' : '') + (b.roi * 100).toFixed(0) + '%</div>' +
+      '<div class="n-val">' + b.n + '</div>' +
+    '</div>';
+  });
+  el.innerHTML = html;
 }
+
+// Wire the period toggle buttons
+document.querySelectorAll('.ic-period-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    insightsPeriod = btn.dataset.iperiod;
+    document.querySelectorAll('.ic-period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderInsights();
+  });
+});
+
 
 // ── Quaddie tab ─────────────────────────────────────────────────────────────
 // State persisted in localStorage so user doesn't lose their selections on refresh
@@ -5971,6 +7216,9 @@ function buildSyncPayload() {
     // This is the source of truth for bet state - syncing it is what makes
     // bets visible across devices.
     betLog: getBetLog(),
+    // Manual track-rating overrides keyed by venue|date - syncs your "track is
+    // playing softer than official" judgments to mobile
+    trackRatings: trackRatings,
   };
 }
 
@@ -6027,6 +7275,11 @@ async function syncPull() {
       const sst = document.getElementById('setting-score-thresh');
       if (sst) sst.value = settings.scoreThreshold;
       document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
+    }
+    // Track rating overrides - same merge pattern as betLog
+    if (payload.trackRatings && typeof payload.trackRatings === 'object') {
+      trackRatings = Object.assign({}, trackRatings, payload.trackRatings);
+      try { localStorage.setItem(TRACK_RATINGS_KEY, JSON.stringify(trackRatings)); } catch(e) {}
     }
     renderToday(); renderPnL(); renderInsights();
     syncLog('Pulled ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
