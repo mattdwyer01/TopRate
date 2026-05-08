@@ -1866,7 +1866,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="hero">
       <div class="hero-stats">
         <div class="hero-stat">
-          <div class="lbl">Today P&amp;L</div>
+          <div class="lbl">P&amp;L</div>
           <div class="val" id="hs-today-pnl">&mdash;</div>
           <div class="sub" id="hs-today-pnl-units">&mdash;</div>
         </div>
@@ -1888,6 +1888,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
+    <div class="race-date-bar" id="today-date-bar">
+      <div class="race-date-controls">
+        <button class="today-date-quick race-date-quick" data-tdate="yesterday">Yesterday</button>
+        <button class="today-date-quick race-date-quick active" data-tdate="today">Today</button>
+        <button class="today-date-quick race-date-quick" data-tdate="tomorrow">Tomorrow</button>
+        <input type="date" id="today-date-input" class="race-date-input">
+      </div>
+      <div class="race-date-info" id="today-date-info">&mdash;</div>
+    </div>
     <div class="picks-header" id="picks-header">
       <div>Time</div>
       <div>Meeting</div>
@@ -2360,6 +2369,10 @@ function saveResults() {
 }
 
 // ── TODAY tab rendering ────────────────────────────────────────────────────
+// State: which date is being browsed in the Today tab. Null until first render,
+// then defaults to local today. Persisted across re-renders within the session.
+let currentTodayDate = null;
+
 function renderToday() {
   const list = document.getElementById('picks-list');
   list.innerHTML = '';
@@ -2376,19 +2389,37 @@ function renderToday() {
   });
   if (cleanedManual) saveResults();
 
-  // Filter to user's local today
+  // Filter to the date being browsed (defaults to today on first render)
+  if (!currentTodayDate) currentTodayDate = isoDate(0);
+  const browseDate = currentTodayDate;
   const localToday = isoDate(0);
-  const todaysPicks = (PICKS_TODAY || []).filter(p => p.date === localToday);
+  const todaysPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
+
+  // Update date bar UI
+  const tdInput = document.getElementById('today-date-input');
+  if (tdInput && tdInput.value !== browseDate) tdInput.value = browseDate;
+  const _tToday = isoDate(0), _tYest = isoDate(-1), _tTom = isoDate(1);
+  document.querySelectorAll('.today-date-quick').forEach(b => {
+    const k = b.dataset.tdate;
+    let d = _tToday;
+    if (k === 'yesterday') d = _tYest;
+    if (k === 'tomorrow') d = _tTom;
+    b.classList.toggle('active', d === browseDate);
+  });
+  const tdInfo = document.getElementById('today-date-info');
+  if (tdInfo) {
+    tdInfo.textContent = todaysPicks.length + (todaysPicks.length === 1 ? ' pick' : ' picks');
+  }
 
   if (todaysPicks.length === 0) {
     const dates = [...new Set((PICKS_TODAY || []).map(p => p.date).filter(Boolean))];
     let hint = '';
     if (dates.length > 0) {
       hint = '<div class="sub" style="margin-top:12px;">Picks available for: ' +
-        dates.slice(-3).join(', ') + '. Browse via the Race tab to see those days.</div>';
+        dates.slice(-3).join(', ') + '. Pick a different date above or use the Race tab to browse.</div>';
     }
-    list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + localToday + '</div>' +
-      '<div class="sub">The model did not find any qualifying runners today, or the data has not been refreshed yet.</div>' + hint + '</div>';
+    list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + browseDate + '</div>' +
+      '<div class="sub">The model did not find any qualifying runners on this date, or the data has not been refreshed yet.</div>' + hint + '</div>';
     const hdrEmpty = document.getElementById('picks-header');
     if (hdrEmpty) hdrEmpty.style.display = 'none';
     return;
@@ -3455,6 +3486,27 @@ if (rdInp) {
     if (e.target.value) {
       currentBrowseDate = e.target.value;
       renderMeetingsGrid();
+    }
+  });
+}
+
+// Wire Today tab date controls (mirrors the Race tab pattern)
+document.querySelectorAll('.today-date-quick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.tdate;
+    if (k === 'yesterday') currentTodayDate = isoDate(-1);
+    else if (k === 'tomorrow') currentTodayDate = isoDate(1);
+    else currentTodayDate = isoDate(0);
+    renderToday();
+  });
+});
+const tdInpInit = document.getElementById('today-date-input');
+if (tdInpInit) {
+  tdInpInit.value = isoDate(0);
+  tdInpInit.addEventListener('change', e => {
+    if (e.target.value) {
+      currentTodayDate = e.target.value;
+      renderToday();
     }
   });
 }
