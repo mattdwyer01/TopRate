@@ -2551,15 +2551,32 @@ function renderRaceDetail(raceId) {
     return '';
   }
 
+  // For TopRate's own jky/trn ratings: color by rank within the field (top 3 = high, 4-6 = mid)
+  const jryRanks = computeRanks(runners, r => r.jrt);
+  const tryRanks = computeRanks(runners, r => r.trt);
+
+  function ratingClass(rank) {
+    if (rank == null) return '';
+    if (rank <= 3) return 'high';
+    if (rank <= 6) return 'mid';
+    return '';
+  }
+
+  function ratingCell(value, rank) {
+    if (value == null) return '<td class="rate-cell">—</td>';
+    return '<td class="rate-cell ' + ratingClass(rank) + '" title="Rank ' + rank + ' in field">' +
+      value.toFixed(0) + '</td>';
+  }
+
   // ── Sorting ──
   // Each sortable column has a getter; null/undef sorts last
   const sortGetters = {
     tab:   r => r.tab,
     horse: r => (r.h || '').toLowerCase(),
     jky:   r => (r.j || '').toLowerCase(),
-    jkypc: r => r.jw,
+    jkypc: r => r.jrt,
     trn:   r => (r.tn || '').toLowerCase(),
-    trnpc: r => r.tw,
+    trnpc: r => r.trt,
     bar:   r => r.b,
     tr:    r => trRanks[r.rid] || 99,
     early: r => earlyRanks[r.rid] || 99,
@@ -2593,16 +2610,14 @@ function renderRaceDetail(raceId) {
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
     const trp = u.trp;
-    const jkyRate = u.jw;
-    const trnRate = u.tw;
 
     rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
-      '<td class="rate-cell ' + rateClass(jkyRate) + '">' + (jkyRate != null ? jkyRate.toFixed(0) + '%' : '—') + '</td>' +
+      ratingCell(u.jrt, jryRanks[rid]) +
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
-      '<td class="rate-cell ' + rateClass(trnRate) + '">' + (trnRate != null ? trnRate.toFixed(0) + '%' : '—') + '</td>' +
+      ratingCell(u.trt, tryRanks[rid]) +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
       sectCell(u.es, earlyRanks[rid]) +
@@ -2630,8 +2645,8 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         th('tab', 'Tab') + th('horse', 'Horse') +
-        th('jky', 'Jky') + th('jkypc', 'Jky %') +
-        th('trn', 'Trn') + th('trnpc', 'Trn %') +
+        th('jky', 'Jky') + th('jkypc', 'Jky Rt') +
+        th('trn', 'Trn') + th('trnpc', 'Trn Rt') +
         th('bar', 'Bar') +
         th('tr', 'TR$') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +

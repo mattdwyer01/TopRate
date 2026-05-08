@@ -79,6 +79,8 @@ RUNNER_COLS = [
     "mid_speed_score","late_speed_score","total_speed_score",
     "toprate_rating","toprate_price","speed_rating",
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
+    # TopRate's own jockey and trainer rating numbers (separate from win % strike rates)
+    "jockey_rating","trainer_rating",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
     "going_breakdown","form_string",
@@ -1195,6 +1197,8 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
+                    "jockey_rating":      d.get("jockeyRating"),
+                    "trainer_rating":     d.get("trainerRating"),
                     "fixed_win_price":    d.get("fixedWinPrice"),
                     "jockey_win_pct_90d": s.get("jockey_win_pct_90d"),
                     "trainer_win_pct_365d": s.get("trainer_win_pct_365d"),
@@ -1508,6 +1512,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
+                # TopRate's own jockey/trainer ratings (separate from strike rates)
+                "jrt":  sf(row.get("jockey_rating")),
+                "trt":  sf(row.get("trainer_rating")),
                 "fx":   sf(row.get("fixed_win_price")),
                 "sp":   sf(row.get("starting_price_sp")),
                 "top":  sf(row.get("price_top")),
