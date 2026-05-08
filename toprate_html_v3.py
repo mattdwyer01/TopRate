@@ -341,284 +341,293 @@ body {
 .val.pos { color: var(--emerald); }
 .val.neg { color: var(--rose); }
 
-/* Pick cards */
-.picks-list { display: flex; flex-direction: column; gap: 10px; }
-.pick-card {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: var(--radius-md); padding: 14px 16px;
-  box-shadow: var(--shadow-1); position: relative;
-  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+/* ── Today tab: compact pick rows ──────────────────────────────────────── */
+.picks-list {
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
-.pick-card:hover { box-shadow: var(--shadow-2); border-color: #d6d3d1; }
-
-/* Status: below threshold (skip), at threshold (bet), settled win, settled loss */
-.pick-card.below-threshold {
-  border-style: dashed; opacity: 0.7;
-}
-.pick-card.qualifies {
-  border-left: 3px solid var(--emerald);
-}
-.pick-card.settled-win {
-  border-left: 3px solid var(--emerald); background: linear-gradient(to right, rgba(16,185,129,0.025), var(--panel) 50%);
-}
-.pick-card.settled-loss {
-  border-left: 3px solid var(--rose); opacity: 0.85;
-}
-.pick-card.pending {
-  border-left: 3px solid var(--ink-faint);
-}
-
-.pick-row1 {
+.pick-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  gap: 14px; align-items: center; margin-bottom: 12px;
+  grid-template-columns:
+    52px         /* time */
+    1fr          /* venue + horse */
+    140px        /* signals strip */
+    100px        /* odds */
+    100px        /* stake */
+    140px        /* result */
+    24px;        /* expand chevron */
+  gap: 14px;
+  padding: 12px 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
 }
-.pick-time {
-  font-family: var(--font-body); font-weight: 600; font-size: 15px;
-  color: var(--ink); min-width: 50px;
+.pick-row:last-child { border-bottom: none; }
+.pick-row:hover { background: #fafbfc; }
+.pick-row.below-threshold { opacity: 0.55; }
+.pick-row.below-threshold:hover { opacity: 0.85; }
+.pick-row.qualifies { border-left: 3px solid var(--emerald); padding-left: 11px; }
+.pick-row.settled-win {
+  border-left: 3px solid var(--emerald); padding-left: 11px;
+  background: linear-gradient(to right, rgba(16,185,129,0.04), transparent 40%);
 }
-.pick-venue {
-  font-family: var(--font-body); font-weight: 500; font-size: 12px;
-  color: var(--ink-mute); white-space: nowrap;
-  display: inline-block; margin-left: 6px;
+.pick-row.settled-loss {
+  border-left: 3px solid var(--rose); padding-left: 11px;
+  opacity: 0.75;
 }
-.pick-venue .race-num {
-  color: var(--ink-faint); font-weight: 500; margin-left: 4px;
+.pick-row.expanded {
+  background: #fafbfc;
 }
-.pick-horse {
-  display: flex; align-items: center; gap: 10px;
+
+.pr-time {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
+  color: var(--ink); white-space: nowrap;
 }
-.tab-badge {
-  display: inline-block; min-width: 26px; height: 26px; line-height: 26px;
+.pr-time .ttj {
+  display: block; font-size: 9px; font-weight: 500;
+  color: var(--ink-mute); letter-spacing: 0.04em;
+  text-transform: uppercase; margin-top: 1px;
+}
+.pr-time .ttj.imm { color: var(--rose); font-weight: 700; }
+.pr-time .ttj.soon { color: var(--amber); font-weight: 600; }
+
+.pr-runner {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.pr-runner .tab-bdg {
+  display: inline-block; min-width: 24px; height: 24px; line-height: 24px;
   text-align: center; background: var(--ink); color: var(--panel);
   font-family: var(--font-body); font-size: 12px; font-weight: 700;
-  border-radius: 5px; padding: 0 7px;
+  border-radius: 4px; padding: 0 6px; flex-shrink: 0;
 }
-.horse-block {
-  display: inline-flex; flex-direction: column; line-height: 1.2;
+.pr-runner .rdetails {
+  display: flex; flex-direction: column; line-height: 1.25; min-width: 0;
 }
-.horse-name {
-  font-family: var(--font-body); font-weight: 700; font-size: 17px;
-  color: var(--ink); letter-spacing: -0.01em;
+.pr-runner .rhorse {
+  font-family: var(--font-body); font-weight: 600; font-size: 14px;
+  color: var(--ink); letter-spacing: -0.005em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.cmp-rank {
-  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
-  font-weight: 500; letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.horse-ranks {
-  margin-top: 2px;
+.pr-runner .rmeta {
+  font-family: var(--font-body); font-weight: 500; font-size: 11px;
+  color: var(--ink-mute); margin-top: 1px;
 }
 
-/* Pick header right side: odds input and stake stack */
-.pick-odds-block {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+.pr-sigs {
+  display: flex; gap: 4px; align-items: center;
 }
-.pick-stake {
-  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
-  text-align: right; font-weight: 500; line-height: 1.4;
+.pr-sigs .sig {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  font-family: var(--font-body); font-size: 11px;
+  background: var(--line-soft); border-radius: 3px;
+  padding: 3px 7px; font-weight: 600; color: var(--ink-mute);
+  white-space: nowrap;
 }
-.pick-stake .units {
-  color: var(--ink); font-weight: 700; font-size: 13px;
+.pr-sigs .sig.r1 { background: var(--emerald); color: #fff; }
+.pr-sigs .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
+.pr-sigs .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+.pr-sigs .sig .lbl {
+  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+  font-weight: 600; opacity: 0.7;
 }
-.pick-stake .return {
-  color: var(--emerald-deep); font-weight: 600;
-}
-
-/* Speed scores row - prominent row of 4 cells */
-.speed-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin-bottom: 12px;
-  background: #f8fafc; border: 1px solid var(--line-soft);
-  border-radius: 6px; padding: 8px;
-}
-.speed-cell {
-  display: flex; align-items: baseline; gap: 6px;
-  padding: 4px 10px;
-  border-radius: 4px;
-}
-.speed-cell .sp-lbl {
-  font-family: var(--font-body); font-size: 10px;
-  color: var(--ink-mute); text-transform: uppercase;
-  letter-spacing: 0.06em; font-weight: 600;
-  min-width: 38px;
-}
-.speed-cell .sp-v {
-  font-family: var(--font-body); font-weight: 700; font-size: 16px;
-  color: var(--ink); letter-spacing: -0.01em;
-}
-.speed-cell .sp-v.na { color: var(--ink-faint); font-weight: 400; }
-.speed-cell .sp-rank {
-  font-family: var(--font-body); font-size: 11px; font-weight: 600;
-  color: var(--ink-mute); margin-left: auto;
-}
-.speed-cell.r1 { background: var(--emerald-bg); }
-.speed-cell.r1 .sp-v { color: var(--emerald-deep); }
-.speed-cell.r1 .sp-rank { color: var(--emerald-deep); font-weight: 700; }
-.speed-cell.r2 .sp-v { color: var(--emerald-deep); }
-.speed-cell.r2 .sp-rank { color: var(--emerald-deep); }
-
-/* Context grid - clean rows of label/value pairs */
-.pick-row2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px 18px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
-}
-.pick-meta {
-  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
-}
-.pick-meta .lbl {
-  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px;
-  display: block; font-weight: 600; font-size: 10px;
-}
-.pick-meta .v {
-  color: var(--ink); font-size: 13px; font-weight: 600;
-  font-family: var(--font-body);
+.pr-sigs .sig .v {
+  font-weight: 700; font-size: 12px;
 }
 
-/* Fixed odds input */
-.pick-odds-block {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+.pr-odds {
+  display: flex; align-items: center; gap: 4px; justify-content: flex-end;
 }
-.odds-input-wrap {
-  display: flex; align-items: center; gap: 4px;
+.pr-odds-input {
+  display: flex; align-items: baseline; gap: 2px;
   background: var(--line-soft); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 4px 6px 4px 8px;
-  transition: border-color 0.15s, background 0.15s;
+  border-radius: 4px; padding: 4px 8px;
+  transition: all 0.12s;
 }
-.odds-input-wrap:focus-within {
-  border-color: var(--emerald); background: var(--panel);
-  box-shadow: 0 0 0 3px var(--emerald-bg);
+.pr-odds-input:focus-within {
+  background: var(--panel); border-color: var(--emerald);
+  box-shadow: 0 0 0 2px var(--emerald-bg);
 }
-.odds-input-wrap.qualifies {
+.pr-odds-input.qualifies {
   background: var(--emerald-bg); border-color: var(--emerald-line);
 }
-.odds-input-wrap.below {
-  background: var(--rose-bg); border-color: var(--rose-line);
+.pr-odds-input.below {
+  background: #fafafa; border-color: var(--line);
 }
-.odds-input-wrap .currency {
-  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+.pr-odds-input .cur {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
   font-weight: 500;
 }
-.odds-input {
-  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+.pr-odds-input input {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
   font-variant-numeric: tabular-nums;
   background: transparent; border: none; outline: none;
-  width: 60px; text-align: right; color: var(--ink);
-  padding: 0; -moz-appearance: textfield;
+  width: 48px; text-align: right; color: var(--ink); padding: 0;
+  -moz-appearance: textfield;
 }
-.odds-input::-webkit-outer-spin-button,
-.odds-input::-webkit-inner-spin-button {
+.pr-odds-input input::-webkit-outer-spin-button,
+.pr-odds-input input::-webkit-inner-spin-button {
   -webkit-appearance: none; margin: 0;
 }
-.odds-feeder {
-  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
-  white-space: nowrap; font-weight: 500;
-}
-.odds-feeder .reset {
-  cursor: pointer; color: var(--indigo); margin-left: 4px;
-  text-decoration: underline; text-decoration-style: dotted;
-}
-.odds-feeder .reset:hover { color: var(--ink); }
 
-.pick-meta .v.pos { color: var(--emerald-deep); font-weight: 700; }
-.pick-meta .v.neg { color: var(--rose); }
-
-.pick-result {
-  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
-  display: flex; align-items: center; justify-content: space-between;
-  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+.pr-stake {
+  font-family: var(--font-body); text-align: right;
+  font-variant-numeric: tabular-nums;
 }
-.pick-result.win { color: var(--emerald-deep); font-weight: 500; }
-.pick-result.loss { color: var(--rose); }
-.pick-result .marker {
-  display: inline-block; padding: 2px 8px; border-radius: var(--radius-sm);
-  font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
-  margin-right: 8px; font-weight: 600;
+.pr-stake .units {
+  font-weight: 700; font-size: 13px; color: var(--ink);
+  display: block; line-height: 1.2;
 }
-.pick-result.win .marker { background: var(--emerald-bg); color: var(--emerald-deep); }
-.pick-result.loss .marker { background: var(--rose-bg); color: var(--rose); }
-
-.below-threshold-badge {
-  display: inline-block; padding: 2px 8px;
-  background: var(--rose-bg); color: var(--rose);
-  border-radius: var(--radius-sm); font-size: 10px; font-weight: 600;
-  letter-spacing: 0.05em; text-transform: uppercase;
-  margin-left: 8px;
+.pr-stake .ret {
+  font-weight: 500; font-size: 11px; color: var(--emerald-deep);
+  margin-top: 2px;
+}
+.pr-stake .skip {
+  font-size: 11px; color: var(--ink-faint); font-weight: 500;
 }
 
-/* Manual result entry */
-.result-entry {
-  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-body); font-size: 12px;
+.pr-result {
+  display: flex; gap: 4px; justify-content: flex-end; align-items: center;
 }
-.result-entry .result-lbl {
-  color: var(--ink-mute); text-transform: uppercase;
-  letter-spacing: 0.06em; font-size: 10px; font-weight: 600;
-  margin-right: 4px;
+.pr-result button {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: var(--panel); color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 4px 8px; cursor: pointer; transition: all 0.12s;
+  min-width: 28px;
 }
-.result-chip {
-  font-family: var(--font-body); font-size: 11px;
-  background: var(--panel); color: var(--ink-soft);
-  border: 1px solid var(--line); border-radius: 4px;
-  padding: 5px 12px; cursor: pointer; transition: all 0.12s;
-  font-weight: 600;
-}
-.result-chip:hover {
+.pr-result button:hover {
   background: var(--emerald-bg); color: var(--emerald-deep);
   border-color: var(--emerald-line);
 }
-.result-chip.lost:hover {
-  background: var(--rose-bg); color: var(--rose);
-  border-color: var(--rose-line);
+.pr-result button.lost-btn:hover {
+  background: var(--rose-bg); color: var(--rose); border-color: var(--rose-line);
 }
-.result-entry.official, .result-entry.manual {
-  color: var(--ink-soft);
+.pr-result .res-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 4px;
 }
-.result-entry .result-tag {
-  display: inline-block; padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-  text-transform: uppercase;
+.pr-result .res-tag.win { background: var(--emerald-bg); color: var(--emerald-deep); }
+.pr-result .res-tag.loss { background: var(--rose-bg); color: var(--rose); }
+.pr-result .res-tag.manual {
+  border: 1px dashed currentColor;
 }
-.result-entry.official .result-tag {
-  background: var(--emerald-bg); color: var(--emerald-deep);
+.pr-result .res-clear {
+  cursor: pointer; color: var(--ink-faint); font-size: 13px;
+  padding: 0 3px; line-height: 1;
 }
-.result-entry.manual .result-tag {
-  background: #fffbeb; color: #92400e;
+.pr-result .res-clear:hover { color: var(--rose); }
+
+.pr-chev {
+  color: var(--ink-faint); font-size: 12px; transition: transform 0.15s;
+  text-align: center;
 }
-.result-entry .result-pos {
-  font-weight: 600; color: var(--ink);
+.pick-row.expanded .pr-chev { transform: rotate(180deg); color: var(--ink); }
+
+/* ── Expanded detail panel ─────────────────────────────────────────────── */
+.pick-detail {
+  display: none; padding: 14px 18px 18px;
+  background: #f8fafc; border-bottom: 1px solid var(--line-soft);
 }
-.result-entry .result-clear {
-  margin-left: auto; cursor: pointer;
-  color: var(--ink-faint); font-size: 14px; padding: 0 4px;
+.pick-detail.show { display: block; }
+
+.pd-section {
+  margin-bottom: 14px;
 }
-.result-entry .result-clear:hover {
-  color: var(--rose);
+.pd-section:last-child { margin-bottom: 0; }
+.pd-section-title {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ink-mute); margin-bottom: 8px;
 }
 
-.pick-rank-pills {
-  display: inline-flex; gap: 6px; margin-left: 10px;
-  vertical-align: middle;
+/* Speed scores in expanded view - 4 inline cells */
+.pd-speed {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
 }
-.rpill {
-  display: inline-flex; align-items: baseline; gap: 4px;
-  padding: 3px 8px; border-radius: 4px;
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-  background: var(--emerald-bg); color: var(--emerald-deep);
-  font-weight: 600; line-height: 1.2;
+.pd-speed-cell {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: 10px 12px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
 }
-.rpill .rpill-lbl {
-  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
-  font-weight: 500; color: var(--emerald-deep); opacity: 0.7;
+.pd-speed-cell .sp-lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
 }
-.rpill .rpill-v {
-  font-size: 12px; font-weight: 700;
+.pd-speed-cell .sp-val {
+  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  color: var(--ink); letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.pd-speed-cell .sp-rk {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  color: var(--ink-mute);
+}
+.pd-speed-cell.r1 {
+  background: var(--emerald-bg); border-color: var(--emerald-line);
+}
+.pd-speed-cell.r1 .sp-val, .pd-speed-cell.r1 .sp-rk { color: var(--emerald-deep); }
+.pd-speed-cell.r2 .sp-val { color: var(--emerald-deep); }
+
+/* Context grid in expanded view - clean rows of label/value pairs */
+.pd-context {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px 24px;
+}
+.pd-field {
+  font-family: var(--font-body);
+}
+.pd-field .fl {
+  display: block; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute); margin-bottom: 3px;
+}
+.pd-field .fv {
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-state {
+  background: var(--panel); border: 1px dashed var(--line);
+  border-radius: var(--radius-md); padding: 50px 20px;
+  text-align: center;
+}
+.empty-state .head {
+  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  color: var(--ink-soft); margin-bottom: 6px;
+}
+.empty-state .sub {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+}
+
+/* Mobile: pick rows stack into card-like layout */
+@media (max-width: 720px) {
+  .pick-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'time   chev'
+      'runner runner'
+      'sigs   sigs'
+      'odds   stake'
+      'result result';
+    gap: 8px 12px;
+    padding: 12px;
+  }
+  .pr-time { grid-area: time; }
+  .pr-runner { grid-area: runner; }
+  .pr-sigs { grid-area: sigs; }
+  .pr-odds { grid-area: odds; justify-content: flex-start; }
+  .pr-stake { grid-area: stake; }
+  .pr-result { grid-area: result; justify-content: flex-start; flex-wrap: wrap; }
+  .pr-chev { grid-area: chev; }
+  .pd-speed { grid-template-columns: repeat(2, 1fr); }
+  .pd-context { grid-template-columns: 1fr 1fr; }
 }
 
 .empty-state {
@@ -1179,17 +1188,6 @@ body {
   .hero { padding: 14px 16px; }
   .hero-title { font-size: 16px; }
   .hero-stat .val { font-size: 18px; }
-  .pick-card { padding: 12px 14px; }
-  .pick-row1 {
-    grid-template-columns: auto auto 1fr;
-    grid-template-areas: 'time venue venue' 'horse horse horse' 'price price stake';
-    gap: 6px 10px;
-  }
-  .pick-time { grid-area: time; }
-  .pick-venue { grid-area: venue; }
-  .pick-horse { grid-area: horse; }
-  .pick-price { grid-area: price; }
-  .pick-stake { grid-area: stake; }
   .race-table { font-size: 11px; }
   .race-table thead th, .race-table tbody td { padding: 8px 8px; }
 }
@@ -1698,12 +1696,11 @@ function renderToday() {
   });
   if (cleanedManual) saveResults();
 
-  // Filter to user's local today; PICKS_TODAY now contains all picks across all dates
+  // Filter to user's local today
   const localToday = isoDate(0);
   const todaysPicks = (PICKS_TODAY || []).filter(p => p.date === localToday);
 
   if (todaysPicks.length === 0) {
-    // Show what dates ARE available so the user can spot data issues
     const dates = [...new Set((PICKS_TODAY || []).map(p => p.date).filter(Boolean))];
     let hint = '';
     if (dates.length > 0) {
@@ -1711,128 +1708,49 @@ function renderToday() {
         dates.slice(-3).join(', ') + '. Browse via the Race tab to see those days.</div>';
     }
     list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + localToday + '</div>' +
-      '<div class="sub">The model didn\\'t find any qualifying runners today, or the data hasn\\'t been refreshed yet.</div>' + hint + '</div>';
+      '<div class="sub">The model didn\'t find any qualifying runners today, or the data hasn\'t been refreshed yet.</div>' + hint + '</div>';
     return;
   }
 
   const minOdds = (MODEL_META[PRIMARY_KEY] && MODEL_META[PRIMARY_KEY].min_odds) || 3.0;
 
-  let todayWins = 0, todayLosses = 0, todayPnL = 0, todaySettled = 0, todayQualifying = 0;
+  // Sort by start time
+  todaysPicks.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
-  todaysPicks.forEach(p => {
+  let todayWins = 0, todayLosses = 0, todayPnL = 0, todaySettled = 0, todayQualifying = 0;
+  const now = new Date();
+
+  todaysPicks.forEach((p, idx) => {
     const r = p.runner_full || {};
     const csvPrice = p.fxprice;
     const effectivePrice = getEffectiveOdds(p.run_id, csvPrice);
     const isManualOverride = manualOdds[String(p.run_id)] != null;
     const meetsThreshold = effectivePrice != null && effectivePrice >= minOdds;
     const stake = meetsThreshold ? calcStake(effectivePrice) : null;
-
     if (meetsThreshold) todayQualifying++;
 
-    let cardClass = 'pending';
-    let resultBlock = '';
-
-    // Distance/going
-    const distance = p.distance ? p.distance + 'm' : '';
-    const going = p.going || '';
-    const fieldSize = p.field_size || (r.fs || '');
-
-    // Going category for matching today's category
-    function goingCategory(g) {
-      if (!g) return null;
-      const gl = g.toLowerCase();
-      if (gl.startsWith('firm')) return 'firm';
-      if (gl.startsWith('good')) return 'good';
-      if (gl.startsWith('soft')) return 'soft';
-      if (gl.startsWith('heavy')) return 'heavy';
-      if (gl.startsWith('synth')) return 'synth';
-      return null;
-    }
-    const todayGoing = goingCategory(going);
-
-    // Compact rank summary (just visible above horse name as small caps)
-    // Big numbers go in the speed scores row below
-    const compactRanks =
-      '<span class="cmp-rank">TR$' + (p.tr_rank || '?') + '</span> · ' +
-      '<span class="cmp-rank">Mid' + (p.mid_rank || '?') + '</span> · ' +
-      '<span class="cmp-rank">Late' + (p.late_rank || '?') + '</span>';
-
-    // Odds input - show qualifying state
-    const oddsBoxClass = meetsThreshold ? 'qualifies' : 'below';
-    const oddsValue = effectivePrice != null ? effectivePrice.toFixed(2) : '';
-    const csvHint = csvPrice != null ? '$' + csvPrice.toFixed(2) + ' csv' : '';
-    const resetBtn = isManualOverride ? '<span class="reset" data-reset-rid="' + p.run_id + '">reset</span>' : '';
-
-    // Stake display
-    let stakeHtml = '';
-    if (meetsThreshold && stake) {
-      const ret = stake * effectivePrice;
-      stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span> ' + fmtDollar(stake) + '<br><span class="return">→ ' + fmtDollar(ret) + '</span>';
-    } else if (!meetsThreshold) {
-      stakeHtml = '<span style="color:var(--ink-faint);">no bet</span>';
-    } else {
-      stakeHtml = '<span style="color:var(--ink-mute);">enter odds →</span>';
-    }
-
-    // Recent WPR mini-stat
-    const wpr1 = r.wpr1, wpra = r.wpra, wprt = r.wprt;
-    const wprHtml = wpr1 != null ?
-      ('Last ' + wpr1.toFixed(0) + ' · Avg ' + (wpra != null ? wpra.toFixed(0) : '—') +
-        (wprt != null ? ' · Trend ' + (wprt > 0 ? '+' : '') + wprt.toFixed(1) : '')) :
-      '—';
-
-    // Manual result entry / display
+    // Result state
     const manRes = manualResults[String(p.run_id)];
     const officialFinish = r.f;
     const hasOfficial = officialFinish != null;
-    const displayFinish = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
+    const isSettled = hasOfficial || (manRes != null);
     const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
 
-    let resultEntryHtml;
-    if (hasOfficial) {
-      resultEntryHtml =
-        '<div class="result-entry official">' +
-        '<span class="result-tag">' + (displayWon ? 'won' : 'lost') + '</span>' +
-        '<span class="result-pos">' + officialFinish + ord(officialFinish) + '</span>' +
-        '</div>';
-    } else if (manRes) {
-      resultEntryHtml =
-        '<div class="result-entry manual">' +
-        '<span class="result-tag">' + (displayWon ? 'manual W' : 'manual L') + '</span>' +
-        '<span class="result-pos">' + manRes.finish + ord(manRes.finish) + '</span>' +
-        '<span class="result-clear" data-clear-rid="' + p.run_id + '" title="Clear manual result">×</span>' +
-        '</div>';
-    } else {
-      resultEntryHtml =
-        '<div class="result-entry empty">' +
-        '<span class="result-lbl">result</span>' +
-        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="1">1st</button>' +
-        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="2">2nd</button>' +
-        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="3">3rd</button>' +
-        '<button class="result-chip lost" data-set-rid="' + p.run_id + '" data-pos="0">L</button>' +
-        '</div>';
-    }
-
-    // Settled bet status colour
-    if (hasOfficial || manRes) {
+    // Update settled counters
+    let cardClass = 'pending';
+    if (isSettled) {
       todaySettled++;
       if (meetsThreshold && stake) {
         const settlePrice = r.sp || effectivePrice;
         if (displayWon) {
-          const profit = stake * (settlePrice - 1);
-          todayWins++; todayPnL += profit;
+          todayWins++;
+          todayPnL += stake * (settlePrice - 1);
           cardClass = 'settled-win';
-          resultBlock = '<div class="pick-result win"><div><span class="marker">won</span>' +
-            (hasOfficial ? 'finished 1st @$' + settlePrice.toFixed(2) + ' SP' : 'manual entry') +
-            '</div><div>+' + profit.toFixed(2) + 'u (+' + fmtDollar(profit) + ')</div></div>';
         } else {
-          todayLosses++; todayPnL -= stake;
+          todayLosses++;
+          todayPnL -= stake;
           cardClass = 'settled-loss';
-          const finStr = displayFinish > 0 ? displayFinish + ord(displayFinish) : 'unplaced';
-          resultBlock = '<div class="pick-result loss"><div><span class="marker">lost</span>' + finStr +
-            (r.sp ? ' @$' + r.sp.toFixed(2) + ' SP' : '') +
-            '</div><div>-' + stake.toFixed(2) + 'u (-' + fmtDollar(stake) + ')</div></div>';
-      }
+        }
       } else {
         cardClass = 'below-threshold';
       }
@@ -1842,126 +1760,125 @@ function renderToday() {
       cardClass = 'qualifies';
     }
 
-    // ── Speed scores row: Early/Mid/Late/Total with both value AND rank ──
-    function speedCell(label, value, rank) {
-      if (value == null) {
-        return '<div class="speed-cell"><span class="sp-lbl">' + label + '</span>' +
-               '<span class="sp-v na">—</span></div>';
-      }
-      const rankCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : 'rn'));
-      return '<div class="speed-cell ' + rankCls + '">' +
-        '<span class="sp-lbl">' + label + '</span>' +
-        '<span class="sp-v">' + value.toFixed(1) + '</span>' +
-        (rank ? '<span class="sp-rank">#' + rank + '</span>' : '') +
-        '</div>';
+    // Time-to-jump (mins from now)
+    let ttj = null;
+    if (p.start_time) {
+      const mins = Math.round((new Date(p.start_time) - now) / 60000);
+      if (mins >= -2 && mins <= 240) ttj = mins;
+    }
+    let ttjHtml = '';
+    if (ttj !== null) {
+      const ttjCls = ttj <= 5 ? 'imm' : (ttj <= 30 ? 'soon' : '');
+      ttjHtml = '<span class="ttj ' + ttjCls + '">' +
+        (ttj <= 0 ? 'NOW' : (ttj < 60 ? ttj + 'm' : Math.floor(ttj/60) + 'h ' + (ttj%60) + 'm')) +
+        '</span>';
     }
 
-    // We pre-pass through rank in the picks payload for mid/late. Total/early need to be
-    // computed from the race runners (we can derive from runner_full's race-level data).
-    // Use the ranks from the pick payload where available.
-    const speedRow =
-      '<div class="speed-row">' +
-        speedCell('Early', r.es, null) +  // no early_rank in pick payload yet
-        speedCell('Mid',   r.ms, p.mid_rank) +
-        speedCell('Late',  r.ls, p.late_rank) +
-        speedCell('Total', r.ts, null) +
+    // Signal pills - just TR, Mid, Late
+    function sigPill(label, rank) {
+      if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
+      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+      return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
+    }
+    const sigsHtml =
+      sigPill('TR', p.tr_rank) +
+      sigPill('Mid', p.mid_rank) +
+      sigPill('Late', p.late_rank);
+
+    // Odds input
+    const oddsCls = meetsThreshold ? 'qualifies' : 'below';
+    const oddsValue = effectivePrice != null ? effectivePrice.toFixed(2) : '';
+    const oddsHtml =
+      '<div class="pr-odds-input ' + oddsCls + '" onclick="event.stopPropagation();">' +
+        '<span class="cur">$</span>' +
+        '<input type="number" step="0.05" min="1" data-rid="' + p.run_id + '" ' +
+        'value="' + oddsValue + '" placeholder="' + (csvPrice ? csvPrice.toFixed(2) : '?') + '">' +
       '</div>';
 
-    // ── Distance + going performance breakdowns ──
-    function perfStr(starts, wins, places) {
-      if (!starts || starts === 0) return null;
-      const w = wins || 0, p = places || 0;
-      return w + 'W ' + (p > w ? (p - w) : 0) + 'P / ' + starts + ' starts';
+    // Stake display
+    let stakeHtml;
+    if (meetsThreshold && stake) {
+      const ret = stake * effectivePrice;
+      stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
+        '<span class="ret">→ ' + fmtDollar(ret) + '</span>';
+    } else if (!meetsThreshold) {
+      stakeHtml = '<span class="skip">no bet</span>';
+    } else {
+      stakeHtml = '<span class="skip">enter odds</span>';
     }
-    const distPerf = perfStr(r.ds, r.dw, r.dp) || 'no runs';
-    let goingPerf = 'no runs';
-    if (todayGoing && r.gb && r.gb[todayGoing]) {
-      const g = r.gb[todayGoing];
-      goingPerf = perfStr(g.starts, g.wins, g.places) || 'no runs';
+
+    // Result column
+    let resultHtml;
+    if (hasOfficial) {
+      resultHtml = '<span class="res-tag ' + (displayWon ? 'win' : 'loss') + '">' +
+        (displayWon ? 'W' : 'L') + ' · ' + officialFinish + ord(officialFinish) + '</span>';
+    } else if (manRes) {
+      resultHtml = '<span class="res-tag manual ' + (displayWon ? 'win' : 'loss') + '" onclick="event.stopPropagation();">' +
+        (displayWon ? 'W' : 'L') + ' · ' + manRes.finish + ord(manRes.finish) +
+        '<span class="res-clear" data-clear-rid="' + p.run_id + '" title="Clear">×</span>' +
+        '</span>';
+    } else {
+      resultHtml = '<button data-set-rid="' + p.run_id + '" data-pos="1" onclick="event.stopPropagation();">1st</button>' +
+        '<button data-set-rid="' + p.run_id + '" data-pos="2" onclick="event.stopPropagation();">2nd</button>' +
+        '<button data-set-rid="' + p.run_id + '" data-pos="3" onclick="event.stopPropagation();">3rd</button>' +
+        '<button class="lost-btn" data-set-rid="' + p.run_id + '" data-pos="0" onclick="event.stopPropagation();">L</button>';
     }
 
-    // TR rating + price (no edge calc anymore - user asked to drop it)
-    const trr = r.trr;
-    const trp = r.trp;
-
-    // ── Build context fields - only show ones we actually have data for ──
-    const contextFields = [];
-    if (distance) contextFields.push({ lbl: 'Distance', v: distance });
-    if (going) contextFields.push({ lbl: 'Going', v: going });
-    if (fieldSize) contextFields.push({ lbl: 'Field', v: fieldSize });
-    if (trr != null) contextFields.push({ lbl: 'TR rating', v: trr.toFixed(1) });
-    if (trp != null) contextFields.push({ lbl: 'TR price', v: '$' + trp.toFixed(2) });
-    contextFields.push({ lbl: 'Distance perf', v: distPerf });
-    contextFields.push({ lbl: 'Going perf', v: goingPerf });
-    if (r.wt != null) contextFields.push({ lbl: 'Wt today', v: r.wt + 'kg' });
-    if (r.wtr != null) contextFields.push({ lbl: 'Wt trend', v: (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' });
-    if (r.j) contextFields.push({ lbl: 'Jockey', v: r.j });
-    if (r.tn) contextFields.push({ lbl: 'Trainer', v: r.tn });
-    if (r.b != null) contextFields.push({ lbl: 'Barrier', v: r.b });
-    if (wpr1 != null) contextFields.push({ lbl: 'Recent WPR', v: wprHtml, span: 2 });
-
-    const contextHtml = contextFields.map(f =>
-      '<div class="pick-meta"' + (f.span ? ' style="grid-column: span ' + f.span + ';"' : '') + '>' +
-        '<span class="lbl">' + f.lbl + '</span>' +
-        '<span class="v ' + (f.cls || '') + '">' + escapeHtml(String(f.v)) + '</span>' +
-      '</div>'
-    ).join('');
-
-    const card = document.createElement('div');
-    card.className = 'pick-card ' + cardClass;
-    card.innerHTML =
-      '<div class="pick-row1">' +
-        '<div class="pick-time">' + fmtTime(p.start_time) + '</div>' +
-        '<div class="pick-venue">' + escapeHtml(p.venue || '') + '<span class="race-num">R' + p.race + '</span></div>' +
-        '<div class="pick-horse">' +
-          '<span class="tab-badge">' + (p.tab || '?') + '</span>' +
-          '<span class="horse-block">' +
-            '<span class="horse-name">' + escapeHtml(p.horse || '') + '</span>' +
-            '<span class="horse-ranks">' + compactRanks + '</span>' +
-          '</span>' +
-        '</div>' +
-        '<div class="pick-odds-block">' +
-          '<div class="odds-input-wrap ' + oddsBoxClass + '">' +
-            '<span class="currency">$</span>' +
-            '<input type="number" class="odds-input" data-rid="' + p.run_id + '" value="' + oddsValue + '" step="0.05" min="1" placeholder="' + (csvPrice ? csvPrice.toFixed(2) : '?') + '">' +
+    // Build the row
+    const row = document.createElement('div');
+    row.className = 'pick-row ' + cardClass;
+    row.dataset.idx = idx;
+    row.innerHTML =
+      '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
+      '<div class="pr-runner">' +
+        '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
+        '<div class="rdetails">' +
+          '<div class="rhorse">' + escapeHtml(p.horse || '') + '</div>' +
+          '<div class="rmeta">' + escapeHtml(p.venue || '') + ' R' + p.race +
+          (p.distance ? ' · ' + p.distance + 'm' : '') +
+          (p.going ? ' · ' + escapeHtml(p.going) : '') +
           '</div>' +
-          '<div class="odds-feeder">' + (csvHint || '') + ' ' + resetBtn + '</div>' +
         '</div>' +
-        '<div class="pick-stake">' + stakeHtml + '</div>' +
       '</div>' +
+      '<div class="pr-sigs">' + sigsHtml + '</div>' +
+      '<div class="pr-odds">' + oddsHtml + '</div>' +
+      '<div class="pr-stake">' + stakeHtml + '</div>' +
+      '<div class="pr-result">' + resultHtml + '</div>' +
+      '<div class="pr-chev">▾</div>';
 
-      // Speed scores row (Early/Mid/Late/Total with rank)
-      speedRow +
+    list.appendChild(row);
 
-      // Context grid
-      '<div class="pick-row2">' + contextHtml + '</div>' +
+    // Detail panel (initially hidden)
+    const detail = document.createElement('div');
+    detail.className = 'pick-detail';
+    detail.dataset.idx = idx;
+    detail.innerHTML = buildDetailHTML(p, r);
+    list.appendChild(detail);
 
-      // Manual result entry
-      resultEntryHtml +
-
-      resultBlock;
-    list.appendChild(card);
+    // Click row to expand/collapse (but not when clicking inputs/buttons)
+    row.addEventListener('click', e => {
+      if (e.target.closest('.pr-odds-input, .pr-result button, .res-clear')) return;
+      const isExpanded = row.classList.toggle('expanded');
+      detail.classList.toggle('show', isExpanded);
+    });
   });
 
-  // Bind odds input handlers
-  list.querySelectorAll('.odds-input').forEach(el => {
+  // Wire odds input handlers (event delegation)
+  list.querySelectorAll('.pr-odds-input input').forEach(el => {
     el.addEventListener('change', e => {
       const rid = e.target.dataset.rid;
       const v = e.target.value === '' ? null : parseFloat(e.target.value);
       setManualOdds(rid, v);
       renderToday();
     });
+    el.addEventListener('click', e => e.stopPropagation());
   });
-  list.querySelectorAll('[data-reset-rid]').forEach(el => {
-    el.addEventListener('click', e => {
-      resetManualOdds(e.target.dataset.resetRid);
-    });
-  });
-  // Manual result entry chip handlers
+  // Result chip handlers
   list.querySelectorAll('[data-set-rid]').forEach(el => {
     el.addEventListener('click', e => {
-      const rid = e.target.dataset.rid || e.target.dataset.setRid;
-      const pos = parseInt(e.target.dataset.pos);
+      e.stopPropagation();
+      const rid = el.dataset.setRid;
+      const pos = parseInt(el.dataset.pos);
       manualResults[String(rid)] = { finish: pos, ts: new Date().toISOString() };
       saveResults();
       renderToday();
@@ -1969,21 +1886,21 @@ function renderToday() {
   });
   list.querySelectorAll('[data-clear-rid]').forEach(el => {
     el.addEventListener('click', e => {
-      const rid = e.target.dataset.clearRid;
+      e.stopPropagation();
+      const rid = el.dataset.clearRid;
       delete manualResults[String(rid)];
       saveResults();
       renderToday();
     });
   });
 
-  // Update hero strip stats
+  // Update hero strip
   document.getElementById('hs-today-count').textContent = todaysPicks.length;
   const subEl = document.getElementById('hs-today-pending');
   if (todaySettled === 0) {
     subEl.textContent = todayQualifying + ' over $' + minOdds + ' · ' + (todaysPicks.length - todayQualifying) + ' below';
   } else {
-    const pendingCount = todaysPicks.length - todaySettled;
-    subEl.textContent = todaySettled + ' settled · ' + pendingCount + ' pending';
+    subEl.textContent = todaySettled + ' settled · ' + (todaysPicks.length - todaySettled) + ' pending';
   }
 
   const pnlEl = document.getElementById('hs-today-pnl');
@@ -1999,13 +1916,9 @@ function renderToday() {
     document.getElementById('hs-today-pnl-units').textContent = 'no settled bets';
   }
 
-  // 30-day stats from settled history (uses manual odds where set)
-  const now = new Date();
+  // 30d stats
   const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
-  const last30 = (SETTLED || []).filter(s => {
-    if (!s.date) return false;
-    return new Date(s.date) >= cutoff30;
-  });
+  const last30 = (SETTLED || []).filter(s => s.date && new Date(s.date) >= cutoff30);
   if (last30.length > 0) {
     let wins = 0, totalSpStake = 0, spReturn = 0, betsTaken = 0;
     last30.forEach(s => {
@@ -2028,6 +1941,88 @@ function renderToday() {
       roiEl.classList.toggle('neg', roi < 0);
     }
   }
+}
+
+// Build the expanded detail panel for a pick
+function buildDetailHTML(p, r) {
+  // Speed scores - 4 cells
+  function speedCell(label, value, rank) {
+    if (value == null) {
+      return '<div class="pd-speed-cell">' +
+        '<span class="sp-lbl">' + label + '</span>' +
+        '<span class="sp-val" style="color:var(--ink-faint)">—</span>' +
+        '<span class="sp-rk">—</span></div>';
+    }
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : '');
+    return '<div class="pd-speed-cell ' + rkCls + '">' +
+      '<span class="sp-lbl">' + label + '</span>' +
+      '<span class="sp-val">' + value.toFixed(1) + '</span>' +
+      '<span class="sp-rk">' + (rank ? '#' + rank : '') + '</span></div>';
+  }
+  const speedHtml =
+    '<div class="pd-speed">' +
+      speedCell('Early', r.es, null) +
+      speedCell('Mid',   r.ms, p.mid_rank) +
+      speedCell('Late',  r.ls, p.late_rank) +
+      speedCell('Total', r.ts, null) +
+    '</div>';
+
+  // Going category
+  function goingCategory(g) {
+    if (!g) return null;
+    const gl = g.toLowerCase();
+    if (gl.startsWith('firm')) return 'firm';
+    if (gl.startsWith('good')) return 'good';
+    if (gl.startsWith('soft')) return 'soft';
+    if (gl.startsWith('heavy')) return 'heavy';
+    if (gl.startsWith('synth')) return 'synth';
+    return null;
+  }
+  const todayGoing = goingCategory(p.going);
+
+  function perfStr(starts, wins, places) {
+    if (!starts || starts === 0) return null;
+    const w = wins || 0, pl = places || 0;
+    return w + 'W ' + Math.max(0, pl - w) + 'P / ' + starts + ' starts';
+  }
+  const distPerf = perfStr(r.ds, r.dw, r.dp) || 'no runs';
+  let goingPerf = 'no runs';
+  if (todayGoing && r.gb && r.gb[todayGoing]) {
+    const g = r.gb[todayGoing];
+    goingPerf = perfStr(g.starts, g.wins, g.places) || 'no runs';
+  }
+
+  // Recent WPR
+  const wpr1 = r.wpr1, wpra = r.wpra, wprt = r.wprt;
+  const wprStr = wpr1 != null ?
+    (wpr1.toFixed(0) + ' · avg ' + (wpra != null ? wpra.toFixed(0) : '—') +
+      (wprt != null ? ' · ' + (wprt > 0 ? '↑' : '↓') + Math.abs(wprt).toFixed(1) : '')) :
+    '—';
+
+  function field(label, value) {
+    if (value == null || value === '') return '';
+    return '<div class="pd-field"><span class="fl">' + label + '</span>' +
+      '<span class="fv">' + escapeHtml(String(value)) + '</span></div>';
+  }
+
+  const contextHtml = '<div class="pd-context">' +
+    field('TR rating',     r.trr != null ? r.trr.toFixed(1) : null) +
+    field('TR price',      r.trp != null ? '$' + r.trp.toFixed(2) : null) +
+    field('Distance',      p.distance ? p.distance + 'm' : null) +
+    field('Going',         p.going) +
+    field('Field size',    p.field_size || r.fs) +
+    field('Distance perf', distPerf) +
+    field('Going perf',    goingPerf) +
+    field('Wt today',      r.wt != null ? r.wt + 'kg' : null) +
+    field('Wt trend',      r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : null) +
+    field('Jockey',        r.j) +
+    field('Trainer',       r.tn) +
+    field('Barrier',       r.b) +
+    field('Recent WPR',    wprStr) +
+  '</div>';
+
+  return '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
+         '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>';
 }
 
 function ord(n) {
