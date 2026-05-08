@@ -239,6 +239,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'tr_rank': r.get('tr_rank'),
             'mid_rank': r.get('mid_rank'),
             'late_rank': r.get('late_rank'),
+            'early_rank': r.get('early_rank'),
+            'total_rank': r.get('total_rank'),
             'runner_full': runner_full,
         })
     settled_history.sort(key=lambda r: (r.get('date') or ''))
@@ -438,6 +440,10 @@ body {
 .pr-time {
   font-family: var(--font-body); font-weight: 700; font-size: 14px;
   color: var(--ink); white-space: nowrap;
+}
+.pr-time .ds-main {
+  font-weight: 700; font-size: 13px; color: var(--ink);
+  letter-spacing: -0.01em;
 }
 .pr-time .ttj {
   display: block; font-size: 9px; font-weight: 500;
@@ -2019,7 +2025,19 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <button class="bh-export-btn" id="bh-export">Export CSV</button>
         </div>
       </div>
-      <div class="bh-list" id="bh-list">
+      <div class="picks-header" id="bh-picks-header">
+        <div>Date</div>
+        <div>Meeting</div>
+        <div>Runner</div>
+        <div>Signals</div>
+        <div class="th-right">Fxd</div>
+        <div class="th-right">Stake</div>
+        <div class="th-right">Return</div>
+        <div class="th-right">Result</div>
+        <div class="th-right">Odds taken</div>
+        <div></div>
+      </div>
+      <div class="bh-list picks-list" id="bh-list">
         <!-- populated by JS - rich cards like Today tab -->
       </div>
     </div>
@@ -3850,70 +3868,154 @@ function renderPnL() {
   }
 
   displaySettled.forEach((s, idx) => {
-    const stake = calcStake(s.fxprice);
+    const csvPrice = s.fxprice;
     const sp = s.sp;
-    const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '' };
+    const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
     const placed = !!entry.placed;
     const oddsTaken = entry.oddsTaken;
-    const usedPrice = effectivePrice(s, entry);
-    const usedFallback = !oddsTaken;  // true if we fell back to settled price
-    const pl = stake ? (s.won ? stake * (usedPrice - 1) : -stake) : 0;
+    const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
     const r = s.runner_full || {};
 
-    // Build prices block
-    const pricesHtml =
-      '<div class="bh-prices">' +
-      '<div class="pri"><span class="pri-lbl">Fxd</span><span class="pri-v">' + (s.fxprice ? '$' + s.fxprice.toFixed(2) : '—') + '</span></div>' +
-      '<div class="pri"><span class="pri-lbl">SP</span><span class="pri-v">' + (sp ? '$' + sp.toFixed(2) : '—') + '</span></div>' +
-      (s.top ? '<div class="pri"><span class="pri-lbl">Top</span><span class="pri-v top">$' + s.top.toFixed(2) + '</span></div>' : '') +
-      (oddsTaken ? '<div class="pri"><span class="pri-lbl">Taken</span><span class="pri-v" style="color:var(--emerald-deep);font-weight:700;">$' + oddsTaken.toFixed(2) + '</span></div>' : '') +
+    // Stake price source of truth: oddsTaken if entered, else live fxprice (muted).
+    // For settled bets, this matches Today tab logic exactly.
+    const stakePrice = hasOddsTaken ? oddsTaken : csvPrice;
+    const usingFallback = !hasOddsTaken;
+    const stake = (stakePrice != null && stakePrice > 1)
+                    ? calcStake(stakePrice, { capExempt: hasOddsTaken })
+                    : null;
+
+    // Settle price: oddsTaken if recorded, else SP, else fxprice. Same as P&L logic.
+    const settlePrice = hasOddsTaken ? oddsTaken : (sp || csvPrice);
+    const dhMult = entry.deadHeat ? 0.5 : 1;
+    // Actual P&L for this settled bet (negative if lost, positive if won)
+    const pl = stake ? (s.won ? stake * (settlePrice - 1) * dhMult : -stake) : 0;
+
+    // Card class - use Today tab's existing settled-win / settled-loss visuals
+    let cardClass = s.won ? 'settled-win' : 'settled-loss';
+
+    // Date column (replaces time) - "DD MMM" + smaller "weekday"
+    let dateMain = s.date || '';
+    let dateSub = '';
+    if (s.date) {
+      const d = new Date(s.date + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        dateMain = String(d.getDate()) + ' ' + months[d.getMonth()];
+        dateSub = weekdays[d.getDay()];
+      }
+    }
+    const dateHtml = '<div class="pr-time">' +
+      '<div class="ds-main">' + escapeHtml(dateMain) + '</div>' +
+      (dateSub ? '<span class="ttj">' + dateSub + '</span>' : '') +
       '</div>';
 
-    // Result/finish
-    const resultHtml =
-      '<div class="bh-result">' +
-      '<span class="pos">' + (s.finish ? ord(s.finish) + ' / ' + (s.field_size || (r.fs || '?')) : '—') + '</span>' +
-      '<span class="res ' + (s.won ? 'won' : 'lost') + '">' + (s.won ? 'won' : 'lost') + '</span>' +
+    // Signal pills - same structure as Today tab
+    function sigPill(label, rank) {
+      if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
+      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+      return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
+    }
+    const sigsTopHtml =
+      sigPill('TR', s.tr_rank) +
+      sigPill('Mid', s.mid_rank) +
+      sigPill('Late', s.late_rank) +
+      sigPill('Tot', s.total_rank);
+    const formHtml = r.fm ?
+      '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
+    const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
+
+    // Fxd display (read-only, same as Today)
+    const fxdValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
+    const fxdValCls = csvPrice != null ? 'v' : 'v empty';
+    const oddsHtml =
+      '<div class="pr-odds-display" title="Live fixed odds at last refresh">' +
+        (csvPrice != null ? '<span class="cur">$</span>' : '') +
+        '<span class="' + fxdValCls + '">' + fxdValStr + '</span>' +
       '</div>';
 
-    // P&L (with warning indicator if odds-taken missing on a placed bet)
-    const plCls = pl > 0 ? 'pos' : (pl < 0 ? 'neg' : '');
-    const warnHtml = (placed && usedFallback)
-      ? '<span class="odds-warning" title="No odds-taken entered. P&L uses Fxd $' + (s.fxprice ? s.fxprice.toFixed(2) : '?') + ' as fallback.">⚠</span>'
-      : '';
-    const plHtml =
-      '<div>' +
-      '<div class="bh-pl ' + plCls + '">' + (pl >= 0 ? '+' : '') + pl.toFixed(2) + 'u' + warnHtml + '</div>' +
-      '<div class="bh-pl-stake">' + (stake > 0 ? stake.toFixed(2) + 'u staked' : '—') + '</div>' +
-      '</div>';
+    // Stake display (units + dollars)
+    const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
+    const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
+    let stakeHtml, returnHtml;
+    if (stake) {
+      stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
+        '<span class="ret">' + fmtDollar(stake) + '</span>';
+      // Return for settled bets is the ACTUAL return: stake * settlePrice on a win,
+      // 0 on a loss. Dead heat halving applies to the win return.
+      const returnUnits = s.won ? (stake * settlePrice * dhMult) : 0;
+      if (s.won) {
+        returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
+          '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
+      } else {
+        returnHtml = '<span class="units" style="color:var(--ink-faint);">0.00u</span>' +
+          '<span class="ret" style="color:var(--ink-faint);">$0</span>';
+      }
+    } else {
+      stakeHtml = '<span class="skip">—</span>';
+      returnHtml = '<span class="skip">—</span>';
+    }
 
-    // Single bet toggle button
-    const betHtml =
-      '<div class="bh-bet-cell">' +
-      '<button class="bet-btn ' + (placed ? 'placed' : '') +
-        '" data-bh-bet-rid="' + s.run_id + '" title="' +
-        (placed ? 'Mark as not bet' : 'Mark this bet as placed') + '">' +
-        (placed ? '✓' : '+') + '</button>' +
-      '</div>';
+    // Result chip - shows finish position with W/L tag (same as Today's hasOfficial branch)
+    let resultHtml;
+    if (s.finish != null) {
+      resultHtml = '<span class="res-tag ' + (s.won ? 'win' : 'loss') + '">' +
+        (s.won ? 'W' : 'L') + ' · ' + s.finish + ord(s.finish) + '</span>';
+    } else {
+      resultHtml = '<span class="res-tag ' + (s.won ? 'win' : 'loss') + '">' +
+        (s.won ? 'W' : 'L') + '</span>';
+    }
 
-    const placedClass = placed ? 'placed' : '';
+    // Bet toggle + odds-taken input (same shape as Today)
+    let betHtml = '<button class="bet-btn ' + (placed ? 'placed' : '') +
+                  '" data-bh-bet-rid="' + s.run_id + '" title="' +
+                  (placed ? 'Mark as not bet' : 'Mark this bet as placed') +
+                  '" onclick="event.stopPropagation();">' +
+                  (placed ? '✓' : '+') + '</button>';
+    if (placed) {
+      const oddsVal = oddsTaken != null ? oddsTaken.toFixed(2) : '';
+      const showWarning = !hasOddsTaken;
+      betHtml += '<span class="odds-input-wrap" onclick="event.stopPropagation();">' +
+                   '<span class="cur">$</span>' +
+                   '<input type="number" step="0.01" min="1" class="odds-input" ' +
+                   'data-bh-odds-rid="' + s.run_id + '" placeholder="0.00" ' +
+                   'value="' + oddsVal + '" />' +
+                 '</span>';
+      if (showWarning) {
+        betHtml += '<span class="odds-warning" title="No odds-taken entered. P&L uses live fxprice as fallback.">⚠</span>';
+      }
+    }
+
+    // Meta line: distance · going · jky · trn (matches Today tab)
     const metaParts = [];
     if (s.distance) metaParts.push(s.distance + 'm');
-    if (s.going) metaParts.push(s.going);
-    const metaLine = metaParts.join(' · ') || '';
+    if (s.going) metaParts.push(escapeHtml(s.going));
+    if (r.j || s.jockey) metaParts.push(escapeHtml(r.j || s.jockey));
+    if (r.tn || s.trainer) metaParts.push(escapeHtml(r.tn || s.trainer));
+    const metaLine = metaParts.join(' · ');
 
     const rowHtml =
-      '<div class="bh-row ' + (s.won ? 'win' : 'loss') + ' ' + placedClass + '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
-      '<div class="bh-date">' + (s.date || '') + '</div>' +
-      '<div class="bh-runner">' +
-      '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
-      '<div class="rdetails">' +
-      '<div class="rhorse">' + escapeHtml(s.horse || '') + '</div>' +
-      '<div class="rmeta">' + escapeHtml(s.venue || '') + ' R' + s.race + (metaLine ? ' · ' + metaLine : '') + '</div>' +
-      '</div>' +
-      '</div>' +
-      pricesHtml + resultHtml + plHtml + betHtml +
-      '<div class="bh-chev">▾</div>' +
+      '<div class="pick-row ' + cardClass + (placed ? ' bet-placed' : '') +
+        '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
+        dateHtml +
+        '<div class="pr-venue">' +
+          '<div class="v-name">' + escapeHtml(s.venue || '') + '</div>' +
+          '<div class="v-race">R' + s.race + '</div>' +
+        '</div>' +
+        '<div class="pr-runner">' +
+          '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
+          '<div class="rdetails">' +
+            '<div class="rhorse">' + escapeHtml(s.horse || '') + '</div>' +
+            '<div class="rmeta">' + metaLine + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pr-sigs">' + sigsHtml + '</div>' +
+        '<div class="pr-odds">' + oddsHtml + '</div>' +
+        '<div class="' + stakeWrapCls + '">' + stakeHtml + '</div>' +
+        '<div class="' + returnWrapCls + '">' + returnHtml + '</div>' +
+        '<div class="pr-result">' + resultHtml + '</div>' +
+        '<div class="pr-bet">' + betHtml + '</div>' +
+        '<div class="pr-chev">▾</div>' +
       '</div>' +
       '<div class="bh-detail" id="bh-detail-' + idx + '"></div>';
 
@@ -3921,13 +4023,13 @@ function renderPnL() {
   });
 
   // Wire row clicks for expand
-  list.querySelectorAll('.bh-row').forEach(row => {
+  list.querySelectorAll('.pick-row').forEach(row => {
     row.addEventListener('click', (ev) => {
-      // Don't expand if clicking the bet toggle button or interactive elements
-      if (ev.target.closest('.bh-bet-cell')) return;
-      if (ev.target.closest('input,textarea,button')) return;
+      // Don't expand if clicking interactive elements
+      if (ev.target.closest('.bet-btn, .odds-input, .odds-input-wrap, input, textarea, button')) return;
       const idx = row.dataset.rowIdx;
       const detail = document.getElementById('bh-detail-' + idx);
+      if (!detail) return;
       const isOpen = detail.classList.contains('open');
       if (isOpen) {
         detail.classList.remove('open');
@@ -3953,11 +4055,34 @@ function renderPnL() {
             });
             oddsInput.addEventListener('blur', () => renderPnL());
           }
+          // Wire dead heat toggle in expand panel
+          const dhToggle = detail.querySelector('[data-detail-deadheat-rid]');
+          if (dhToggle) {
+            dhToggle.addEventListener('change', (e) => {
+              setBetEntry(s.run_id, { deadHeat: e.target.checked });
+              renderPnL();
+              if (typeof renderToday === 'function') { try { renderToday(); } catch(err) {} }
+            });
+          }
         }
         detail.classList.add('open');
         row.classList.add('expanded');
       }
     });
+  });
+
+  // Wire inline odds-taken input on the row itself
+  list.querySelectorAll('[data-bh-odds-rid]').forEach(el => {
+    el.addEventListener('input', e => {
+      const rid = el.dataset.bhOddsRid;
+      const v = parseFloat(e.target.value);
+      setBetEntry(rid, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
+    });
+    el.addEventListener('blur', () => {
+      renderPnL();
+      if (typeof renderToday === 'function') { try { renderToday(); } catch(err) {} }
+    });
+    el.addEventListener('click', e => e.stopPropagation());
   });
 
   // Wire single bet toggle
@@ -4100,9 +4225,25 @@ function renderBhDetail(s) {
     '</div>' +
     '</div>';
 
+  // Dead heat toggle (only for placed bets, mirrors Today tab pattern)
+  let adjustmentsHtml = '';
+  if (entry.placed) {
+    const dhChecked = entry.deadHeat ? 'checked' : '';
+    adjustmentsHtml =
+      '<div class="pd-section">' +
+        '<div class="pd-section-title">Bet adjustments</div>' +
+        '<label class="pd-toggle" onclick="event.stopPropagation();">' +
+          '<input type="checkbox" data-detail-deadheat-rid="' + s.run_id + '" ' + dhChecked + '>' +
+          '<span class="pd-toggle-lbl">Dead heat</span>' +
+          '<span class="pd-toggle-help">Halves the return on a winning bet (joint winner)</span>' +
+        '</label>' +
+      '</div>';
+  }
+
   return linkHtml +
     '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
     '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
+    adjustmentsHtml +
     recordHtml;
 }
 
