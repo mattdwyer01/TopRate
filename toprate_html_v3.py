@@ -209,12 +209,27 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             continue
         if not r.get('resulted'):
             continue
+        race_id = r.get('race_id')
+        run_id = r.get('run_id')
+        # Find race context and runner full data
+        race = next((rc for rc in races if str(rc.get('race_id')) == str(race_id)), None)
+        runner_full = None
+        if race:
+            runner_full = next((u for u in race.get('runners', []) if str(u.get('rid')) == str(run_id)), None)
         settled_history.append({
             'date': r.get('date'),
             'venue': r.get('venue'),
             'race': r.get('race'),
+            'race_id': race_id,
             'horse': r.get('horse'),
-            'run_id': r.get('run_id'),
+            'tab': r.get('tab_number'),
+            'jockey': r.get('jockey'),
+            'trainer': r.get('trainer'),
+            'run_id': run_id,
+            'start_time': r.get('start_time'),
+            'distance': race.get('distance') if race else None,
+            'going': race.get('going') if race else None,
+            'field_size': race.get('fs') if race else None,
             'fxprice': r.get('fixed_win_price'),
             'sp': r.get('starting_price_sp'),
             'top': r.get('price_top'),
@@ -224,6 +239,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'tr_rank': r.get('tr_rank'),
             'mid_rank': r.get('mid_rank'),
             'late_rank': r.get('late_rank'),
+            'runner_full': runner_full,
         })
     settled_history.sort(key=lambda r: (r.get('date') or ''))
 
@@ -263,6 +279,10 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
 _CSS = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+@keyframes highlight {
+  0%   { background: var(--emerald-bg); }
+  100% { background: transparent; }
+}
 body {
   background: var(--bg);
   color: var(--ink-soft);
@@ -1138,78 +1158,305 @@ body {
 }
 
 /* PNL tab */
-.pnl-grid {
-  display: grid; grid-template-columns: 2fr 1fr; gap: 18px;
+/* ── P&L tab ──────────────────────────────────────────────────────────── */
+.pnl-controls {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 16px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 12px 16px;
+}
+.pnl-period-group, .pnl-view-toggle {
+  display: flex; gap: 4px; align-items: center;
+}
+.pnl-view-label {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--ink-mute); margin-right: 6px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.pnl-period-btn, .pnl-view-btn {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  background: transparent; color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 14px; cursor: pointer; transition: all 0.12s;
+  white-space: nowrap;
+}
+.pnl-period-btn:hover, .pnl-view-btn:hover {
+  background: var(--line-soft); color: var(--ink);
+}
+.pnl-period-btn.active, .pnl-view-btn.active {
+  background: var(--ink); color: var(--panel); border-color: var(--ink);
+}
+.pnl-period-custom {
+  display: flex; gap: 6px; align-items: center;
+}
+.pnl-period-custom input[type="date"] {
+  font-family: var(--font-body); font-size: 12px;
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 5px 10px; color: var(--ink-soft);
+  background: var(--panel);
+}
+
+.pnl-stats-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px; background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg); overflow: hidden;
   margin-bottom: 18px;
 }
-@media (max-width: 900px) { .pnl-grid { grid-template-columns: 1fr; } }
+.pnl-stat {
+  background: var(--panel); padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.pnl-stat .lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.pnl-stat .val {
+  font-family: var(--font-body); font-weight: 800; font-size: 22px;
+  color: var(--ink); letter-spacing: -0.02em; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pnl-stat .val.pos { color: var(--emerald-deep); }
+.pnl-stat .val.neg { color: var(--rose); }
+.pnl-stat .sub {
+  font-family: var(--font-body); font-size: 11px; font-weight: 500;
+  color: var(--ink-mute);
+}
+
+.pnl-charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  margin-bottom: 18px;
+}
+@media (max-width: 900px) { .pnl-charts-grid { grid-template-columns: 1fr; } }
 
 .pnl-chart-card {
   background: var(--panel); border: 1px solid var(--line);
   border-radius: var(--radius-lg); padding: 18px 22px;
 }
-.pnl-chart-card h3, .pnl-health h3 {
-  font-family: var(--font-display); font-weight: 700; font-size: 14px;
+.pnl-chart-card h3 {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
   margin-bottom: 14px; color: var(--ink); letter-spacing: -0.01em;
+}
+.pnl-chart-card h3 .hint {
+  font-weight: 500; color: var(--ink-mute); font-size: 11px;
+  margin-left: 6px;
 }
 .pnl-chart-svg { width: 100%; height: 200px; }
 .pnl-chart-svg .axis { stroke: var(--line); }
 .pnl-chart-svg .grid { stroke: var(--line-soft); stroke-dasharray: 2,3; }
 .pnl-chart-svg .actual { fill: none; stroke: var(--emerald); stroke-width: 2; }
 .pnl-chart-svg .expected { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 4,3; }
+.pnl-chart-svg .wr-line { fill: none; stroke: var(--emerald); stroke-width: 2; }
+.pnl-chart-svg .wr-expected { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 4,3; }
 .pnl-chart-svg .axis-text {
-  fill: var(--ink-mute); font-family: var(--font-mono); font-size: 9px;
+  fill: var(--ink-mute); font-family: var(--font-body); font-size: 10px;
+  font-weight: 500;
 }
 
-.pnl-health {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: 18px 22px;
+.pnl-chart-legend {
+  display: flex; gap: 24px; margin-top: 10px;
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  font-weight: 500;
 }
-.health-row {
-  display: grid; grid-template-columns: auto 1fr auto;
-  gap: 12px; align-items: baseline;
-  padding: 10px 0; border-bottom: 1px solid var(--line-soft);
-  font-family: var(--font-mono); font-size: 12px;
+.pnl-chart-legend .legend-line {
+  display: inline-block; width: 14px; height: 2px;
+  background: var(--emerald); vertical-align: middle; margin-right: 6px;
 }
-.health-row:last-child { border-bottom: none; }
-.health-row .lbl {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-mute);
+.pnl-chart-legend .legend-line.dashed {
+  background: transparent; border-top: 1.5px dashed var(--ink-faint);
+  height: 0;
 }
-.health-row .v { font-weight: 600; color: var(--ink); }
-.health-row .delta { font-size: 10px; color: var(--ink-mute); text-align: right; }
-.health-row .delta.pos { color: var(--emerald-deep); }
-.health-row .delta.neg { color: var(--rose); }
+.pnl-chart-legend .legend-line.mute { border-top-color: var(--ink-faint); }
 
+/* Settled bets list (rich card style like Today tab) */
 .bet-history {
   background: var(--panel); border: 1px solid var(--line);
   border-radius: var(--radius-lg); overflow: hidden;
 }
-.bet-history h3 {
-  font-family: var(--font-display); font-weight: 700; font-size: 14px;
-  padding: 16px 22px; border-bottom: 1px solid var(--line);
+.bh-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px; border-bottom: 1px solid var(--line);
+  flex-wrap: wrap; gap: 12px;
+}
+.bh-header h3 {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
   color: var(--ink); letter-spacing: -0.01em;
 }
-.bet-history-table-wrap { overflow-x: auto; }
-.bet-history table {
-  width: 100%; border-collapse: collapse;
-  font-family: var(--font-mono); font-size: 12px;
-}
-.bet-history thead th {
-  background: var(--line-soft); padding: 10px 14px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  font-weight: 600; color: var(--ink-mute); text-align: left;
-  border-bottom: 1px solid var(--line);
+.bh-controls { display: flex; gap: 14px; align-items: center; }
+.bh-filter-toggle {
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  color: var(--ink-soft); display: flex; align-items: center; gap: 6px;
   cursor: pointer; user-select: none;
 }
-.bet-history thead th:hover { background: #ede9e1; }
-.bet-history tbody td {
-  padding: 9px 14px; border-bottom: 1px solid var(--line-soft);
-  white-space: nowrap;
+.bh-filter-toggle input { cursor: pointer; }
+.bh-export-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: transparent; color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 12px; cursor: pointer; transition: all 0.12s;
 }
-.bet-history tr.win { background: linear-gradient(to right, rgba(16,185,129,0.04), transparent 50%); }
-.bet-history tr.win .pl { color: var(--emerald-deep); font-weight: 600; }
-.bet-history tr.loss .pl { color: var(--rose); }
+.bh-export-btn:hover { background: var(--line-soft); color: var(--ink); }
+
+.bh-list { display: flex; flex-direction: column; }
+.bh-row {
+  display: grid;
+  grid-template-columns:
+    72px       /* date */
+    1fr        /* venue + horse */
+    140px      /* fixed/sp/top prices */
+    100px      /* finish + result */
+    100px      /* P&L */
+    120px      /* placed bet toggle */
+    24px;      /* expand */
+  gap: 14px;
+  padding: 12px 22px; align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer; transition: background 0.12s;
+  min-height: 52px;
+}
+.bh-row:last-child { border-bottom: none; }
+.bh-row:hover { background: #fafbfc; }
+.bh-row.win { background: linear-gradient(to right, rgba(16,185,129,0.05), transparent 60%); }
+.bh-row.win:hover { background: linear-gradient(to right, rgba(16,185,129,0.10), #fafbfc 60%); }
+.bh-row.placed { box-shadow: inset 4px 0 0 var(--emerald); }
+
+.bh-date {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+.bh-runner {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.bh-runner .tab-bdg {
+  display: inline-block; min-width: 24px; height: 24px; line-height: 24px;
+  text-align: center; background: var(--ink); color: var(--panel);
+  font-size: 12px; font-weight: 700; border-radius: 4px; padding: 0 6px;
+  flex-shrink: 0;
+}
+.bh-runner .rdetails {
+  display: flex; flex-direction: column; min-width: 0;
+}
+.bh-runner .rhorse {
+  font-family: var(--font-body); font-weight: 600; font-size: 14px;
+  color: var(--ink); letter-spacing: -0.005em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bh-runner .rmeta {
+  font-family: var(--font-body); font-weight: 500; font-size: 11px;
+  color: var(--ink-mute); margin-top: 1px;
+}
+
+.bh-prices {
+  display: flex; flex-direction: column; gap: 1px;
+  font-family: var(--font-body); font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.bh-prices .pri {
+  display: flex; gap: 6px; align-items: baseline;
+}
+.bh-prices .pri-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-mute); width: 22px;
+}
+.bh-prices .pri-v {
+  color: var(--ink-soft); font-weight: 600;
+}
+.bh-prices .pri-v.top { color: var(--emerald-deep); }
+
+.bh-result {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+}
+.bh-result .pos {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--ink-mute);
+}
+.bh-result .res {
+  font-family: var(--font-body); font-size: 12px; font-weight: 700;
+}
+.bh-result .res.won { color: var(--emerald-deep); }
+.bh-result .res.lost { color: var(--rose); }
+
+.bh-pl {
+  font-family: var(--font-body); font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bh-pl.pos { color: var(--emerald-deep); }
+.bh-pl.neg { color: var(--rose); }
+.bh-pl-stake { font-size: 10px; color: var(--ink-mute); font-weight: 500; }
+
+.bh-bet-toggle {
+  display: flex; gap: 4px;
+}
+.bh-bet-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: transparent; color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 5px;
+  padding: 4px 10px; cursor: pointer; transition: all 0.1s;
+}
+.bh-bet-btn:hover { background: var(--line-soft); color: var(--ink); }
+.bh-bet-btn.active.yes {
+  background: var(--emerald); color: #fff; border-color: var(--emerald);
+}
+.bh-bet-btn.active.no {
+  background: var(--ink-mute); color: #fff; border-color: var(--ink-mute);
+}
+
+.bh-chev {
+  font-size: 12px; color: var(--ink-mute);
+  transition: transform 0.15s; user-select: none;
+}
+.bh-row.expanded .bh-chev { transform: rotate(180deg); }
+
+.bh-detail {
+  background: #fafbfc; padding: 14px 22px;
+  border-bottom: 1px solid var(--line-soft);
+  display: none;
+}
+.bh-detail.open { display: block; }
+.bh-detail-link {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--emerald-deep);
+  text-decoration: none; cursor: pointer;
+  display: inline-block; margin-bottom: 10px;
+}
+.bh-detail-link:hover { text-decoration: underline; }
+.bh-comments {
+  margin-top: 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.bh-comments label {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.bh-comments textarea {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-soft);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; resize: vertical; min-height: 50px;
+  background: var(--panel);
+}
+.bh-empty {
+  padding: 40px 22px; text-align: center;
+  color: var(--ink-mute); font-family: var(--font-body); font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .bh-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'date    chev'
+      'runner  runner'
+      'prices  prices'
+      'result  pl'
+      'bet     bet';
+    gap: 8px 12px; padding: 12px;
+  }
+  .bh-date { grid-area: date; }
+  .bh-runner { grid-area: runner; }
+  .bh-prices { grid-area: prices; flex-direction: row; gap: 12px; }
+  .bh-result { grid-area: result; }
+  .bh-pl { grid-area: pl; text-align: right; }
+  .bh-bet-toggle { grid-area: bet; }
+  .bh-chev { grid-area: chev; }
+}
 
 /* Insights tab */
 .insights-grid {
@@ -1492,48 +1739,63 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- PNL -->
   <section class="section" id="sec-pnl">
-    <div class="pnl-grid">
+    <!-- Top control bar: period selector + view mode toggle -->
+    <div class="pnl-controls">
+      <div class="pnl-period-group" role="group" aria-label="Time period">
+        <button class="pnl-period-btn active" data-period="7d">7d</button>
+        <button class="pnl-period-btn" data-period="30d">30d</button>
+        <button class="pnl-period-btn" data-period="all">All time</button>
+        <button class="pnl-period-btn" data-period="custom">Custom</button>
+      </div>
+      <div class="pnl-period-custom" id="pnl-custom-range" style="display:none;">
+        <input type="date" id="pnl-date-from" />
+        <span style="color:var(--ink-mute);">→</span>
+        <input type="date" id="pnl-date-to" />
+      </div>
+      <div class="pnl-view-toggle" role="group" aria-label="View mode">
+        <span class="pnl-view-label">View:</span>
+        <button class="pnl-view-btn active" data-view="actual">Actual (bets I placed)</button>
+        <button class="pnl-view-btn" data-view="theoretical">Theoretical (all picks)</button>
+      </div>
+    </div>
+
+    <!-- Top stats strip -->
+    <div class="pnl-stats-strip" id="pnl-stats-strip"></div>
+
+    <!-- Two charts side by side -->
+    <div class="pnl-charts-grid">
       <div class="pnl-chart-card">
         <h3>Cumulative units</h3>
-        <svg class="pnl-chart-svg" id="pnl-chart" viewBox="0 0 600 200" preserveAspectRatio="none">
-          <!-- populated by JS -->
-        </svg>
-        <div style="display:flex;gap:24px;margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--ink-mute);">
-          <div><span style="display:inline-block;width:14px;height:2px;background:var(--emerald);vertical-align:middle;margin-right:6px;"></span>Actual</div>
-          <div><span style="display:inline-block;width:14px;height:1.5px;background:var(--ink-faint);vertical-align:middle;margin-right:6px;border-top:1.5px dashed var(--ink-faint);"></span>Expected (model)</div>
+        <svg class="pnl-chart-svg" id="pnl-chart-cum" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <div class="pnl-chart-legend">
+          <div><span class="legend-line solid"></span>Actual</div>
+          <div><span class="legend-line dashed"></span>Expected (model)</div>
         </div>
       </div>
-      <div class="pnl-health">
-        <h3>Model health</h3>
-        <div id="health-rows">
-          <!-- populated by JS -->
-        </div>
-        <div style="margin-top:14px;font-family:var(--font-mono);font-size:10px;color:var(--ink-mute);line-height:1.5;">
-          Realised vs expected over <span id="health-sample">0</span> settled bets. Model expected: WR {primary_wr}%, ROI@SP {primary_roi_sp}%, ROI@Top {primary_roi_top}%.
+      <div class="pnl-chart-card">
+        <h3>Rolling win rate <span class="hint">(last 20 bets)</span></h3>
+        <svg class="pnl-chart-svg" id="pnl-chart-wr" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <div class="pnl-chart-legend">
+          <div><span class="legend-line solid"></span>Rolling WR</div>
+          <div><span class="legend-line dashed mute"></span>Expected WR</div>
         </div>
       </div>
     </div>
 
+    <!-- Settled bets section -->
     <div class="bet-history">
-      <h3>Settled bets &middot; <span id="bh-count">0</span></h3>
-      <div class="bet-history-table-wrap">
-        <table id="bh-table">
-          <thead>
-            <tr>
-              <th data-sort="date">Date</th>
-              <th data-sort="venue">Venue</th>
-              <th data-sort="race">R</th>
-              <th data-sort="horse">Horse</th>
-              <th data-sort="fxprice">Fxd $</th>
-              <th data-sort="sp">SP</th>
-              <th data-sort="top">Top $</th>
-              <th data-sort="finish">Pos</th>
-              <th data-sort="result">Result</th>
-              <th data-sort="pl">P&amp;L (u)</th>
-            </tr>
-          </thead>
-          <tbody id="bh-body"></tbody>
-        </table>
+      <div class="bh-header">
+        <h3>Settled bets &middot; <span id="bh-count">0</span></h3>
+        <div class="bh-controls">
+          <label class="bh-filter-toggle">
+            <input type="checkbox" id="bh-filter-only-bet" />
+            <span>Only bets I placed</span>
+          </label>
+          <button class="bh-export-btn" id="bh-export">Export CSV</button>
+        </div>
+      </div>
+      <div class="bh-list" id="bh-list">
+        <!-- populated by JS - rich cards like Today tab -->
       </div>
     </div>
   </section>
@@ -1712,7 +1974,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
 
 # ── JavaScript app ──────────────────────────────────────────────────────────
-_JS_APP = """
+_JS_APP = r"""
 // ── Settings state ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'toprate_v3_settings';
 const defaultSettings = {
@@ -2906,143 +3168,548 @@ if (ntjToggle) {
   } catch(e) {}
 }
 
+// ── PNL tab state ──────────────────────────────────────────────────────────
+let pnlState = {
+  period: '7d',          // '7d' | '30d' | 'all' | 'custom'
+  customFrom: null,      // ISO date string for custom range
+  customTo: null,
+  view: 'actual',        // 'actual' | 'theoretical'
+  filterOnlyBet: false,  // when true, hides bets marked No
+};
+
+// Bet log persisted in localStorage
+//   Key: tr_betlog_v1
+//   Value: { runId: { placed: 'yes'|'no'|null, comments: string } }
+const BETLOG_KEY = 'tr_betlog_v1';
+function getBetLog() {
+  try { return JSON.parse(localStorage.getItem(BETLOG_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function saveBetLog(log) {
+  try { localStorage.setItem(BETLOG_KEY, JSON.stringify(log)); } catch(e) {}
+}
+function getBetEntry(runId) {
+  const log = getBetLog();
+  return log[String(runId)] || { placed: null, comments: '' };
+}
+function setBetEntry(runId, patch) {
+  const log = getBetLog();
+  const existing = log[String(runId)] || {};
+  log[String(runId)] = Object.assign({}, existing, patch);
+  saveBetLog(log);
+}
+
 // ── PNL tab rendering ──────────────────────────────────────────────────────
 function renderPnL() {
-  const settled = SETTLED || [];
+  // Get settled bets within the chosen time period
+  const allSettled = SETTLED || [];
+  const today = new Date();
+  today.setHours(0,0,0,0);
 
-  // Compute cumulative actual + expected
-  const expectedROI_SP = MODEL_META[PRIMARY_KEY] ? MODEL_META[PRIMARY_KEY].roi_sp : 0;
+  function withinPeriod(dateStr) {
+    if (!dateStr) return false;
+    if (pnlState.period === 'all') return true;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    if (pnlState.period === '7d') {
+      const cutoff = new Date(today.getTime() - 7 * 86400000);
+      return d >= cutoff;
+    }
+    if (pnlState.period === '30d') {
+      const cutoff = new Date(today.getTime() - 30 * 86400000);
+      return d >= cutoff;
+    }
+    if (pnlState.period === 'custom') {
+      if (pnlState.customFrom && d < new Date(pnlState.customFrom)) return false;
+      if (pnlState.customTo) {
+        const toDate = new Date(pnlState.customTo);
+        toDate.setHours(23,59,59,999);
+        if (d > toDate) return false;
+      }
+      return true;
+    }
+    return true;
+  }
+  const settled = allSettled.filter(s => withinPeriod(s.date));
 
-  // Group by date, sum daily P&L
-  const byDate = {};
-  settled.forEach(s => {
+  // Get bet log to determine which bets the user actually placed
+  const log = getBetLog();
+  function isPlaced(s) {
+    const e = log[String(s.run_id)];
+    return e && e.placed === 'yes';
+  }
+
+  // Determine which bets contribute to "actual" view
+  const actualBets = settled.filter(isPlaced);
+  // For "theoretical" view, all settled bets contribute
+  const viewBets = pnlState.view === 'actual' ? actualBets : settled;
+
+  // ── Stats strip ──
+  let totalWins = 0, totalStake = 0, spReturn = 0, totalProfit = 0;
+  let bestWin = 0, worstLoss = 0;
+  viewBets.forEach(s => {
+    const stake = calcStake(s.fxprice);
+    if (!stake) return;
+    totalStake += stake;
+    if (s.won) {
+      totalWins++;
+      const sp = s.sp || s.top || s.fxprice;
+      const profit = stake * (sp - 1);
+      spReturn += stake * sp;
+      totalProfit += profit;
+      if (profit > bestWin) bestWin = profit;
+    } else {
+      totalProfit -= stake;
+      if (-stake < worstLoss) worstLoss = -stake;
+    }
+  });
+  const realWR = viewBets.length > 0 ? totalWins / viewBets.length : null;
+  const realROI = totalStake > 0 ? (spReturn - totalStake) / totalStake : null;
+  const meta = MODEL_META[PRIMARY_KEY] || {};
+
+  function statBlock(lbl, val, sub, cls) {
+    return '<div class="pnl-stat">' +
+      '<div class="lbl">' + lbl + '</div>' +
+      '<div class="val ' + (cls || '') + '">' + val + '</div>' +
+      '<div class="sub">' + sub + '</div>' +
+      '</div>';
+  }
+  const profitCls = totalProfit > 0 ? 'pos' : (totalProfit < 0 ? 'neg' : '');
+  const profitStr = (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2) + 'u';
+  const wrStr = realWR != null ? (realWR * 100).toFixed(1) + '%' : '—';
+  const wrSub = realWR != null && meta.wr
+    ? ((realWR - meta.wr) >= 0 ? '+' : '') + ((realWR - meta.wr) * 100).toFixed(1) + 'pp vs expected'
+    : 'expected ' + ((meta.wr || 0) * 100).toFixed(1) + '%';
+  const roiStr = realROI != null ? ((realROI >= 0 ? '+' : '') + (realROI * 100).toFixed(1) + '%') : '—';
+  const roiSub = realROI != null && meta.roi_sp != null
+    ? ((realROI - meta.roi_sp) >= 0 ? '+' : '') + ((realROI - meta.roi_sp) * 100).toFixed(1) + 'pp vs ' + ((meta.roi_sp || 0) * 100).toFixed(1) + '%'
+    : 'expected ' + ((meta.roi_sp || 0) * 100).toFixed(1) + '%';
+
+  document.getElementById('pnl-stats-strip').innerHTML =
+    statBlock('Bets', viewBets.length,
+      pnlState.view === 'actual' ? 'placed' : 'all model picks') +
+    statBlock('P&amp;L', profitStr, totalStake > 0 ? totalStake.toFixed(1) + 'u staked' : '—', profitCls) +
+    statBlock('Win rate', wrStr, wrSub) +
+    statBlock('ROI@SP', roiStr, roiSub) +
+    statBlock('Best win', bestWin > 0 ? '+' + bestWin.toFixed(2) + 'u' : '—',
+      bestWin > 0 ? '+' + fmtDollar(bestWin) : 'no wins yet') +
+    statBlock('Worst loss', worstLoss < 0 ? worstLoss.toFixed(2) + 'u' : '—',
+      worstLoss < 0 ? fmtDollar(worstLoss) : 'no losses');
+
+  // ── Cumulative units chart ──
+  // Sort by date+time chronologically
+  const sortedView = viewBets.slice().sort((a, b) => {
+    const aKey = (a.date || '') + (a.start_time || '');
+    const bKey = (b.date || '') + (b.start_time || '');
+    return aKey.localeCompare(bKey);
+  });
+  // Aggregate per-bet cumulative
+  const cumPoints = [];
+  let runningP = 0, runningS = 0;
+  sortedView.forEach(s => {
     const stake = calcStake(s.fxprice);
     if (!stake) return;
     const sp = s.sp || s.top || s.fxprice;
     const profit = s.won ? stake * (sp - 1) : -stake;
-    const d = s.date || 'unknown';
-    if (!byDate[d]) byDate[d] = { profit: 0, stake: 0, n: 0, wins: 0 };
-    byDate[d].profit += profit;
-    byDate[d].stake += stake;
-    byDate[d].n += 1;
-    if (s.won) byDate[d].wins += 1;
-  });
-  const dates = Object.keys(byDate).sort();
-  const cum = []; let running = 0; let runningStake = 0;
-  dates.forEach(d => {
-    running += byDate[d].profit;
-    runningStake += byDate[d].stake;
-    cum.push({ date: d, cum: running, expected: runningStake * expectedROI_SP });
+    runningP += profit;
+    runningS += stake;
+    cumPoints.push({
+      date: s.date,
+      cum: runningP,
+      expected: runningS * (meta.roi_sp || 0),
+    });
   });
 
-  // Render chart
-  const svg = document.getElementById('pnl-chart');
-  svg.innerHTML = '';
-  if (cum.length === 0) {
-    svg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">No settled bets yet</text>';
+  const cumSvg = document.getElementById('pnl-chart-cum');
+  cumSvg.innerHTML = '';
+  if (cumPoints.length === 0) {
+    cumSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">' +
+      (pnlState.view === 'actual' ? 'No bets placed yet in this period' : 'No settled picks in this period') + '</text>';
   } else {
     const W = 600, H = 200, pad = 30;
-    const maxV = Math.max(1, ...cum.map(p => Math.max(p.cum, p.expected)));
-    const minV = Math.min(0, ...cum.map(p => Math.min(p.cum, p.expected)));
+    const maxV = Math.max(1, ...cumPoints.map(p => Math.max(p.cum, p.expected)));
+    const minV = Math.min(0, ...cumPoints.map(p => Math.min(p.cum, p.expected)));
     const range = maxV - minV || 1;
-    const xs = cum.map((_, i) => pad + (cum.length === 1 ? (W - 2*pad) / 2 : i * (W - 2*pad) / (cum.length - 1)));
+    const xs = cumPoints.map((_, i) => pad + (cumPoints.length === 1 ? (W - 2*pad) / 2 : i * (W - 2*pad) / (cumPoints.length - 1)));
     const yScale = v => H - pad - ((v - minV) / range) * (H - 2*pad);
-    // Grid + axes
     const zeroY = yScale(0);
-    let svgHtml = `<line class="axis" x1="${pad}" y1="${zeroY}" x2="${W-pad}" y2="${zeroY}" stroke-width="1"/>`;
-    // Actual line
-    const actualPath = cum.map((p, i) => `${i === 0 ? 'M' : 'L'}${xs[i]},${yScale(p.cum)}`).join(' ');
-    svgHtml += `<path class="actual" d="${actualPath}"/>`;
-    // Expected line
-    const expPath = cum.map((p, i) => `${i === 0 ? 'M' : 'L'}${xs[i]},${yScale(p.expected)}`).join(' ');
-    svgHtml += `<path class="expected" d="${expPath}"/>`;
-    // Y labels
-    svgHtml += `<text x="4" y="${yScale(maxV)+4}" class="axis-text">${maxV.toFixed(1)}u</text>`;
-    svgHtml += `<text x="4" y="${zeroY+3}" class="axis-text">0u</text>`;
-    if (minV < 0) svgHtml += `<text x="4" y="${yScale(minV)+4}" class="axis-text">${minV.toFixed(1)}u</text>`;
-    // X labels (first/last)
-    svgHtml += `<text x="${xs[0]}" y="${H-8}" class="axis-text">${cum[0].date}</text>`;
-    if (cum.length > 1) svgHtml += `<text x="${xs[xs.length-1]}" y="${H-8}" class="axis-text" text-anchor="end">${cum[cum.length-1].date}</text>`;
-    svg.innerHTML = svgHtml;
+    let svgHtml = '<line class="axis" x1="' + pad + '" y1="' + zeroY + '" x2="' + (W-pad) + '" y2="' + zeroY + '" stroke-width="1"/>';
+    const actualPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.cum)).join(' ');
+    svgHtml += '<path class="actual" d="' + actualPath + '"/>';
+    const expPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.expected)).join(' ');
+    svgHtml += '<path class="expected" d="' + expPath + '"/>';
+    svgHtml += '<text x="4" y="' + (yScale(maxV)+4) + '" class="axis-text">' + maxV.toFixed(1) + 'u</text>';
+    svgHtml += '<text x="4" y="' + (zeroY+3) + '" class="axis-text">0u</text>';
+    if (minV < 0) svgHtml += '<text x="4" y="' + (yScale(minV)+4) + '" class="axis-text">' + minV.toFixed(1) + 'u</text>';
+    svgHtml += '<text x="' + xs[0] + '" y="' + (H-8) + '" class="axis-text">' + cumPoints[0].date + '</text>';
+    if (cumPoints.length > 1) svgHtml += '<text x="' + xs[xs.length-1] + '" y="' + (H-8) + '" class="axis-text" text-anchor="end">' + cumPoints[cumPoints.length-1].date + '</text>';
+    cumSvg.innerHTML = svgHtml;
   }
 
-  // Health rows
-  const hr = document.getElementById('health-rows');
-  hr.innerHTML = '';
-  let totalWins = 0, totalStake = 0, spReturn = 0, topReturn = 0;
-  let bestWin = 0, worstLoss = 0;
-  let currentStreak = 0, longestWinStreak = 0, longestLossStreak = 0;
-  let lastResult = null;  // 'W' or 'L'
-  // Use chronological order for streak calculation
-  const settledChrono = settled.slice();
-  settledChrono.forEach(s => {
-    const stake = calcStake(s.fxprice);
-    if (!stake) return;
-    if (s.won) {
-      totalWins++;
-      if (s.sp) {
-        const profit = stake * (s.sp - 1);
-        spReturn += stake * s.sp;
-        if (profit > bestWin) bestWin = profit;
-      }
-      if (s.top) topReturn += stake * s.top;
-      if (lastResult === 'W') currentStreak++;
-      else { currentStreak = 1; lastResult = 'W'; }
-      if (currentStreak > longestWinStreak) longestWinStreak = currentStreak;
-    } else {
-      if (-stake < worstLoss) worstLoss = -stake;
-      if (lastResult === 'L') currentStreak++;
-      else { currentStreak = 1; lastResult = 'L'; }
-      if (currentStreak > longestLossStreak) longestLossStreak = currentStreak;
+  // ── Rolling win-rate chart (window=20) ──
+  const wrSvg = document.getElementById('pnl-chart-wr');
+  wrSvg.innerHTML = '';
+  const windowSize = 20;
+  if (sortedView.length < 3) {
+    wrSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">Need at least 3 settled bets for rolling chart</text>';
+  } else {
+    const wrPoints = [];
+    for (let i = 0; i < sortedView.length; i++) {
+      const start = Math.max(0, i - windowSize + 1);
+      const slice = sortedView.slice(start, i + 1);
+      const wins = slice.filter(s => s.won).length;
+      const wr = wins / slice.length;
+      wrPoints.push({ idx: i, wr: wr, n: slice.length });
     }
-    totalStake += stake;
-  });
-  const realWR = settled.length > 0 ? totalWins / settled.length : null;
-  const realROI_SP = totalStake > 0 ? (spReturn - totalStake) / totalStake : null;
-  const realROI_Top = totalStake > 0 ? (topReturn - totalStake) / totalStake : null;
-  const meta = MODEL_META[PRIMARY_KEY] || {};
-
-  function healthRow(lbl, real, expected, type) {
-    if (real == null) return '<div class="health-row"><div class="lbl">' + lbl + '</div><div class="v">— (no data)</div><div class="delta">expected ' + (type === 'pct' ? (expected*100).toFixed(1)+'%' : expected.toFixed(2)) + '</div></div>';
-    const delta = real - expected;
-    const deltaClass = delta > 0 ? 'pos' : (delta < 0 ? 'neg' : '');
-    const realStr = type === 'pct' ? (real*100).toFixed(1)+'%' : real.toFixed(2);
-    const expStr = type === 'pct' ? (expected*100).toFixed(1)+'%' : expected.toFixed(2);
-    const deltaStr = type === 'pct' ? ((delta >= 0 ? '+' : '') + (delta*100).toFixed(1)+'pp') : ((delta >= 0 ? '+' : '') + delta.toFixed(2));
-    return '<div class="health-row"><div class="lbl">' + lbl + '</div><div class="v">' + realStr + '</div><div class="delta ' + deltaClass + '">' + deltaStr + ' vs ' + expStr + '</div></div>';
+    const W = 600, H = 200, pad = 30;
+    const expectedWR = meta.wr || 0.25;
+    const maxWR = Math.max(0.5, expectedWR + 0.1, ...wrPoints.map(p => p.wr));
+    const xs = wrPoints.map((_, i) => pad + (wrPoints.length === 1 ? (W - 2*pad) / 2 : i * (W - 2*pad) / (wrPoints.length - 1)));
+    const yScale = v => H - pad - (v / maxWR) * (H - 2*pad);
+    let svgHtml = '';
+    // Expected WR baseline (dashed)
+    svgHtml += '<line class="wr-expected" x1="' + pad + '" y1="' + yScale(expectedWR) + '" x2="' + (W-pad) + '" y2="' + yScale(expectedWR) + '"/>';
+    // Rolling WR line
+    const wrPath = wrPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.wr)).join(' ');
+    svgHtml += '<path class="wr-line" d="' + wrPath + '"/>';
+    // Y axis labels
+    svgHtml += '<text x="4" y="' + (yScale(maxWR)+4) + '" class="axis-text">' + (maxWR*100).toFixed(0) + '%</text>';
+    svgHtml += '<text x="4" y="' + (yScale(expectedWR)+3) + '" class="axis-text">' + (expectedWR*100).toFixed(0) + '%</text>';
+    svgHtml += '<text x="4" y="' + (yScale(0)+3) + '" class="axis-text">0%</text>';
+    // X axis: bet count
+    svgHtml += '<text x="' + xs[0] + '" y="' + (H-8) + '" class="axis-text">Bet 1</text>';
+    if (wrPoints.length > 1) svgHtml += '<text x="' + xs[xs.length-1] + '" y="' + (H-8) + '" class="axis-text" text-anchor="end">Bet ' + sortedView.length + '</text>';
+    wrSvg.innerHTML = svgHtml;
   }
-  hr.innerHTML = healthRow('Win rate', realWR, meta.wr || 0, 'pct')
-               + healthRow('ROI@SP', realROI_SP, meta.roi_sp || 0, 'pct')
-               + healthRow('ROI@Top', realROI_Top, meta.roi_top || 0, 'pct')
-               + '<div class="health-row"><div class="lbl">Best win</div><div class="v">' + (bestWin > 0 ? '+' + bestWin.toFixed(2) + 'u' : '—') + '</div><div class="delta">' + (bestWin > 0 ? '+' + fmtDollar(bestWin) : '') + '</div></div>'
-               + '<div class="health-row"><div class="lbl">Worst loss</div><div class="v">' + (worstLoss < 0 ? worstLoss.toFixed(2) + 'u' : '—') + '</div><div class="delta">' + (worstLoss < 0 ? fmtDollar(worstLoss) : '') + '</div></div>'
-               + '<div class="health-row"><div class="lbl">Longest W streak</div><div class="v">' + longestWinStreak + '</div><div class="delta">in a row</div></div>'
-               + '<div class="health-row"><div class="lbl">Longest L streak</div><div class="v">' + longestLossStreak + '</div><div class="delta">in a row</div></div>';
 
-  document.getElementById('health-sample').textContent = settled.length;
+  // ── Settled bets list (rich expandable cards) ──
   document.getElementById('bh-count').textContent = settled.length;
+  const list = document.getElementById('bh-list');
+  list.innerHTML = '';
 
-  // Bet history table
-  const tbody = document.getElementById('bh-body');
-  tbody.innerHTML = '';
-  settled.slice().reverse().forEach(s => {
+  // Apply "only bets I placed" filter if active
+  let displaySettled = settled.slice().reverse();  // most recent first
+  if (pnlState.filterOnlyBet) {
+    displaySettled = displaySettled.filter(isPlaced);
+  }
+
+  if (displaySettled.length === 0) {
+    list.innerHTML = '<div class="bh-empty">No settled bets in this view.</div>';
+    return;
+  }
+
+  displaySettled.forEach((s, idx) => {
     const stake = calcStake(s.fxprice);
     const sp = s.sp;
     const settlePrice = sp || s.top || s.fxprice;
     const pl = stake ? (s.won ? stake * (settlePrice - 1) : -stake) : 0;
-    tbody.innerHTML += `<tr class="${s.won ? 'win' : 'loss'}">
-      <td>${s.date || ''}</td>
-      <td>${escapeHtml(s.venue || '')}</td>
-      <td>R${s.race}</td>
-      <td>${escapeHtml(s.horse || '')}</td>
-      <td>$${s.fxprice ? s.fxprice.toFixed(2) : '—'}</td>
-      <td>${sp ? '$' + sp.toFixed(2) : '—'}</td>
-      <td>${s.top ? '$' + s.top.toFixed(2) : '—'}</td>
-      <td>${s.finish || '—'}</td>
-      <td>${s.won ? '<span style="color:var(--emerald-deep);font-weight:600;">won</span>' : 'lost'}</td>
-      <td class="pl">${pl >= 0 ? '+' : ''}${pl.toFixed(2)}u</td>
-    </tr>`;
+    const entry = log[String(s.run_id)] || { placed: null, comments: '' };
+    const placed = entry.placed;
+    const r = s.runner_full || {};
+
+    // Build prices block
+    const pricesHtml =
+      '<div class="bh-prices">' +
+      '<div class="pri"><span class="pri-lbl">Fxd</span><span class="pri-v">' + (s.fxprice ? '$' + s.fxprice.toFixed(2) : '—') + '</span></div>' +
+      '<div class="pri"><span class="pri-lbl">SP</span><span class="pri-v">' + (sp ? '$' + sp.toFixed(2) : '—') + '</span></div>' +
+      (s.top ? '<div class="pri"><span class="pri-lbl">Top</span><span class="pri-v top">$' + s.top.toFixed(2) + '</span></div>' : '') +
+      '</div>';
+
+    // Result/finish
+    const resultHtml =
+      '<div class="bh-result">' +
+      '<span class="pos">' + (s.finish ? ord(s.finish) + ' / ' + (s.field_size || (r.fs || '?')) : '—') + '</span>' +
+      '<span class="res ' + (s.won ? 'won' : 'lost') + '">' + (s.won ? 'won' : 'lost') + '</span>' +
+      '</div>';
+
+    // P&L
+    const plCls = pl > 0 ? 'pos' : (pl < 0 ? 'neg' : '');
+    const plHtml =
+      '<div>' +
+      '<div class="bh-pl ' + plCls + '">' + (pl >= 0 ? '+' : '') + pl.toFixed(2) + 'u</div>' +
+      '<div class="bh-pl-stake">' + (stake > 0 ? stake.toFixed(2) + 'u staked' : '—') + '</div>' +
+      '</div>';
+
+    // Y/N buttons
+    const yesActive = placed === 'yes' ? 'active yes' : '';
+    const noActive = placed === 'no' ? 'active no' : '';
+    const betHtml =
+      '<div class="bh-bet-toggle" data-run-id="' + s.run_id + '">' +
+      '<button class="bh-bet-btn ' + yesActive + '" data-action="yes">Yes</button>' +
+      '<button class="bh-bet-btn ' + noActive + '" data-action="no">No</button>' +
+      '</div>';
+
+    const placedClass = placed === 'yes' ? 'placed' : '';
+    const meta = [];
+    if (s.distance) meta.push(s.distance + 'm');
+    if (s.going) meta.push(s.going);
+    const metaLine = meta.join(' · ') || '';
+
+    const rowHtml =
+      '<div class="bh-row ' + (s.won ? 'win' : 'loss') + ' ' + placedClass + '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
+      '<div class="bh-date">' + (s.date || '') + '</div>' +
+      '<div class="bh-runner">' +
+      '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
+      '<div class="rdetails">' +
+      '<div class="rhorse">' + escapeHtml(s.horse || '') + '</div>' +
+      '<div class="rmeta">' + escapeHtml(s.venue || '') + ' R' + s.race + (metaLine ? ' · ' + metaLine : '') + '</div>' +
+      '</div>' +
+      '</div>' +
+      pricesHtml + resultHtml + plHtml + betHtml +
+      '<div class="bh-chev">▾</div>' +
+      '</div>' +
+      '<div class="bh-detail" id="bh-detail-' + idx + '"></div>';
+
+    list.insertAdjacentHTML('beforeend', rowHtml);
   });
+
+  // Wire row clicks for expand
+  list.querySelectorAll('.bh-row').forEach(row => {
+    row.addEventListener('click', (ev) => {
+      // Don't expand if clicking the bet toggle buttons
+      if (ev.target.closest('.bh-bet-toggle')) return;
+      const idx = row.dataset.rowIdx;
+      const detail = document.getElementById('bh-detail-' + idx);
+      const isOpen = detail.classList.contains('open');
+      if (isOpen) {
+        detail.classList.remove('open');
+        row.classList.remove('expanded');
+      } else {
+        // Lazy-render detail content
+        if (!detail.innerHTML) {
+          const s = displaySettled[Number(idx)];
+          detail.innerHTML = renderBhDetail(s);
+          // Wire comment textarea
+          const ta = detail.querySelector('.bh-comments textarea');
+          if (ta) {
+            ta.addEventListener('input', (e) => {
+              setBetEntry(s.run_id, { comments: e.target.value });
+            });
+          }
+        }
+        detail.classList.add('open');
+        row.classList.add('expanded');
+      }
+    });
+  });
+
+  // Wire Y/N bet buttons
+  list.querySelectorAll('.bh-bet-toggle').forEach(toggle => {
+    toggle.querySelectorAll('.bh-bet-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const runId = toggle.dataset.runId;
+        const action = btn.dataset.action;  // 'yes' or 'no'
+        const cur = (log[String(runId)] || {}).placed;
+        // Toggle: clicking the active state clears it
+        const newPlaced = (cur === action) ? null : action;
+        setBetEntry(runId, { placed: newPlaced });
+        // Re-render to update P&L and styles
+        renderPnL();
+      });
+    });
+  });
+}
+
+// Render the expanded detail panel for a settled bet (using runner_full data)
+function renderBhDetail(s) {
+  const r = s.runner_full || {};
+  const entry = getBetEntry(s.run_id);
+
+  function speedCell(label, value, rank) {
+    if (value == null) return '<div class="pd-speed-cell"><span class="sp-lbl">' + label + '</span><span class="sp-val">—</span></div>';
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : '');
+    return '<div class="pd-speed-cell ' + rkCls + '">' +
+      '<span class="sp-lbl">' + label + '</span>' +
+      '<span class="sp-val">' + value.toFixed(1) + '</span>' +
+      (rank ? '<span class="sp-rk">#' + rank + '</span>' : '') +
+      '</div>';
+  }
+
+  // Find rank within race for speed scores by looking up race
+  const race = (RACES || []).find(rc => String(rc.race_id) === String(s.race_id));
+  const runnersInRace = race ? (race.runners || []) : [];
+  function rankIn(field) {
+    const valid = runnersInRace.filter(u => u[field] != null);
+    valid.sort((a, b) => b[field] - a[field]);
+    const found = valid.findIndex(u => String(u.rid) === String(s.run_id));
+    return found >= 0 ? found + 1 : null;
+  }
+
+  const speedHtml =
+    '<div class="pd-speed">' +
+    speedCell('Early', r.es, rankIn('es')) +
+    speedCell('Mid', r.ms, rankIn('ms')) +
+    speedCell('Late', r.ls, rankIn('ls')) +
+    speedCell('Total', r.ts, rankIn('ts')) +
+    '</div>';
+
+  // Distance perf
+  let distPerf = '—';
+  if (r.ds) {
+    distPerf = (r.dw || 0) + 'W ' + Math.max(0, (r.dp || 0) - (r.dw || 0)) + 'P / ' + r.ds;
+  }
+  // Going perf
+  let goingPerf = '—';
+  if (s.going && r.gb) {
+    const gl = s.going.toLowerCase();
+    let cat = null;
+    if (gl.startsWith('firm')) cat = 'firm';
+    else if (gl.startsWith('good')) cat = 'good';
+    else if (gl.startsWith('soft')) cat = 'soft';
+    else if (gl.startsWith('heavy')) cat = 'heavy';
+    if (cat && r.gb[cat] && r.gb[cat].starts) {
+      const g = r.gb[cat];
+      goingPerf = (g.wins || 0) + 'W ' + Math.max(0, (g.places || 0) - (g.wins || 0)) + 'P / ' + g.starts;
+    }
+  }
+
+  // Drift
+  let driftStr = '—';
+  if (typeof PRICE_HIST !== 'undefined' && PRICE_HIST) {
+    const ph = PRICE_HIST[String(s.run_id)];
+    if (ph && ph.o && ph.r) {
+      const pct = ((ph.r - ph.o) / ph.o) * 100;
+      if (Math.abs(pct) >= 1) {
+        driftStr = '$' + ph.o.toFixed(2) + ' → $' + ph.r.toFixed(2) + ' (' + (pct > 0 ? '+' : '') + pct.toFixed(0) + '%)';
+      } else {
+        driftStr = '$' + ph.o.toFixed(2) + ' (steady)';
+      }
+    }
+  }
+
+  // Settles
+  let settleStr = '—';
+  if (r.asp != null) {
+    if (r.asp <= 2.5) settleStr = 'Lead (' + r.asp.toFixed(1) + ')';
+    else if (r.asp <= 4.5) settleStr = 'On-pace (' + r.asp.toFixed(1) + ')';
+    else if (r.asp <= 8.5) settleStr = 'Mid (' + r.asp.toFixed(1) + ')';
+    else settleStr = 'Back (' + r.asp.toFixed(1) + ')';
+  }
+
+  function field(label, value) {
+    if (value == null || value === '' || value === '—') return '';
+    return '<div class="pd-field"><span class="fl">' + label + '</span>' +
+      '<span class="fv">' + escapeHtml(String(value)) + '</span></div>';
+  }
+
+  const contextHtml = '<div class="pd-context">' +
+    field('Form', r.fm) +
+    field('Drift', driftStr) +
+    field('Settles', settleStr) +
+    field('Distance', s.distance ? s.distance + 'm' : null) +
+    field('Going', s.going) +
+    field('Distance perf', distPerf) +
+    field('Going perf', goingPerf) +
+    field('Jockey', r.j || s.jockey) +
+    field('Trainer', r.tn || s.trainer) +
+    field('Barrier', r.b) +
+    field('Speed rating', r.spd != null ? r.spd.toFixed(0) : null) +
+    field('TR rating', r.trr != null ? r.trr.toFixed(1) : null) +
+    field('Finish', s.finish ? ord(s.finish) + ' of ' + (s.field_size || (r.fs || '?')) : null) +
+    '</div>';
+
+  // "View race in Today tab" link if it's today's date
+  const todayStr = new Date().toISOString().slice(0,10);
+  const linkHtml = (s.date === todayStr)
+    ? '<a class="bh-detail-link" data-action="goto-today" data-run-id="' + s.run_id + '">→ View this pick in Today tab</a>'
+    : '';
+
+  // Comments
+  const commentsHtml =
+    '<div class="bh-comments">' +
+    '<label>Comments</label>' +
+    '<textarea placeholder="Notes about this bet (post-mortem, observations, etc.)">' + escapeHtml(entry.comments || '') + '</textarea>' +
+    '</div>';
+
+  return linkHtml +
+    '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
+    '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
+    commentsHtml;
+}
+
+// Wire P&L tab controls (called once at page load)
+function wirePnLControls() {
+  // Period buttons
+  document.querySelectorAll('.pnl-period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pnlState.period = btn.dataset.period;
+      document.querySelectorAll('.pnl-period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const customRange = document.getElementById('pnl-custom-range');
+      customRange.style.display = (pnlState.period === 'custom') ? 'flex' : 'none';
+      renderPnL();
+    });
+  });
+  // Custom date inputs
+  const fromInput = document.getElementById('pnl-date-from');
+  const toInput = document.getElementById('pnl-date-to');
+  if (fromInput) fromInput.addEventListener('change', e => { pnlState.customFrom = e.target.value; if (pnlState.period === 'custom') renderPnL(); });
+  if (toInput) toInput.addEventListener('change', e => { pnlState.customTo = e.target.value; if (pnlState.period === 'custom') renderPnL(); });
+  // View toggle
+  document.querySelectorAll('.pnl-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pnlState.view = btn.dataset.view;
+      document.querySelectorAll('.pnl-view-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderPnL();
+    });
+  });
+  // Filter checkbox
+  const filterChk = document.getElementById('bh-filter-only-bet');
+  if (filterChk) {
+    filterChk.addEventListener('change', e => {
+      pnlState.filterOnlyBet = e.target.checked;
+      renderPnL();
+    });
+  }
+  // Export CSV
+  const exportBtn = document.getElementById('bh-export');
+  if (exportBtn) exportBtn.addEventListener('click', exportSettledCSV);
+  // Goto today link delegation (handled at body since detail rendered later)
+  document.body.addEventListener('click', (ev) => {
+    if (ev.target.dataset && ev.target.dataset.action === 'goto-today') {
+      ev.preventDefault();
+      // Switch to Today tab
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      const todayTab = document.querySelector('.tab[data-tab="today"]');
+      const todaySec = document.getElementById('sec-today');
+      if (todayTab) todayTab.classList.add('active');
+      if (todaySec) todaySec.classList.add('active');
+      renderTodayList();
+      // Scroll to the runner
+      setTimeout(() => {
+        const rows = document.querySelectorAll('.pick-row');
+        rows.forEach(r => {
+          if (r.dataset.runId === ev.target.dataset.runId) {
+            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            r.style.animation = 'highlight 1.5s';
+          }
+        });
+      }, 100);
+    }
+  });
+}
+
+function exportSettledCSV() {
+  const settled = SETTLED || [];
+  const log = getBetLog();
+  const rows = [['date','venue','race','horse','tab','fxd','sp','top','finish','won','placed','comments']];
+  settled.forEach(s => {
+    const e = log[String(s.run_id)] || {};
+    rows.push([
+      s.date || '', s.venue || '', s.race || '', s.horse || '', s.tab || '',
+      s.fxprice || '', s.sp || '', s.top || '', s.finish || '',
+      s.won ? '1' : '0', e.placed || '', (e.comments || '').replace(/\n/g, ' ').replace(/"/g, '""'),
+    ]);
+  });
+  const csv = rows.map(r => r.map(v => '"' + String(v) + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'toprate_settled_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
 }
 
 // ── INSIGHTS tab rendering ─────────────────────────────────────────────────
@@ -3156,6 +3823,7 @@ function renderInsights() {
 currentBrowseDate = isoDate(0);
 renderToday();
 renderMeetingsGrid();
+wirePnLControls();
 renderPnL();
 renderInsights();
 renderNtjTicker();
