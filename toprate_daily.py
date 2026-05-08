@@ -396,6 +396,10 @@ def build_stats_lookup(race_stats):
         lookup[rid] = {
             "jockey_win_pct_90d":   j90.get("winPercent"),
             "trainer_win_pct_365d": t365.get("winPercent"),
+            # jockeyRating/trainerRating sit at the runner level inside get_race_stats[]
+            # (NOT inside the filtered stats domain entries which only have winPercent etc)
+            "jockey_rating":   runner.get("jockeyRating"),
+            "trainer_rating":  runner.get("trainerRating"),
         }
     return lookup
 
@@ -1197,8 +1201,10 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
-                    "jockey_rating":      d.get("jockeyRating"),
-                    "trainer_rating":     d.get("trainerRating"),
+                    # Pull jockey/trainer ratings from race_stats lookup
+                    # (sit on runner level inside get_race_stats[], NOT on runner detail d)
+                    "jockey_rating":      s.get("jockey_rating"),
+                    "trainer_rating":     s.get("trainer_rating"),
                     "fixed_win_price":    d.get("fixedWinPrice"),
                     "jockey_win_pct_90d": s.get("jockey_win_pct_90d"),
                     "trainer_win_pct_365d": s.get("trainer_win_pct_365d"),
