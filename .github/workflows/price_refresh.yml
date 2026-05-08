@@ -1,0 +1,58 @@
+name: TopRate price refresh
+
+# Runs every 5 minutes during typical AU racing hours (10am - 10pm AEST = 00:00 - 12:00 UTC).
+# Outside this window the workflow doesn't fire, saving ~17,000 free-tier minutes/month.
+# Adjust the cron if you regularly bet outside these hours (e.g. WA evenings or NZ races).
+on:
+  schedule:
+    - cron: '*/5 0-12 * * *'   # every 5 min, hours 0-12 UTC = 10am-10pm AEST
+  workflow_dispatch:           # allow manual trigger from GitHub UI
+
+# Avoid concurrent runs - if a refresh is still going when the next one fires,
+# skip rather than queue. Skipped runs are fine since the next slot is 5 min away.
+concurrency:
+  group: price-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8           # individual runs should take ~30 sec; 8 is a safety cap
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need write access to push CSV+HTML changes back
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests openpyxl
+
+      - name: Refresh prices
+        env:
+          # Same secrets used by the daily fetch workflow
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python toprate_price_refresh.py --lookahead 2.0
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Only commit if something actually changed - silence the noise if not
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add toprate_runners.csv toprate_price_history.csv toprate_live.html
+            git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          else
+            echo "No changes to commit"
+          fi
