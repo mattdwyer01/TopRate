@@ -404,7 +404,7 @@ body {
     52px              /* time */
     110px             /* venue + race # */
     minmax(220px, 1fr)  /* horse + meta */
-    160px             /* signals strip */
+    220px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
     80px              /* odds (Fxd) */
     80px              /* stake */
     80px              /* return */
@@ -551,7 +551,7 @@ body {
 .picks-header {
   display: grid;
   grid-template-columns:
-    52px 110px minmax(220px, 1fr) 160px 80px 80px 80px 110px 120px 24px;
+    52px 110px minmax(220px, 1fr) 220px 80px 80px 80px 110px 120px 24px;
   gap: 10px;
   padding: 8px 14px;
   align-items: center;
@@ -3516,8 +3516,8 @@ function renderRaceDetail(raceId) {
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
-      scoreCell(u.cs, u.crk) +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
+      scoreCell(u.cs, u.crk) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
       sectCell(u.es, earlyRanks[rid]) +
       sectCell(u.ms, midRanks[rid]) +
@@ -3548,8 +3548,8 @@ function renderRaceDetail(raceId) {
         th('bar', 'Bar') +
         th('tr', 'TR$') +
         th('trp', 'TR $') +
-        th('score', 'Score') +
         th('fxd', 'Fxd') +
+        th('score', 'Score') +
         th('settles', 'Settles') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
