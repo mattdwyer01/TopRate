@@ -874,12 +874,27 @@ body {
   background: var(--panel); border-left: 1px solid var(--line);
   border-right: 1px solid var(--line); padding: 12px 20px;
   display: flex; gap: 18px; flex-wrap: wrap;
-  font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
 }
 .race-context-bar .ctx-item { color: var(--ink-mute); }
 .race-context-bar .ctx-item .ctx-v {
-  color: var(--ink); font-weight: 600; margin-left: 4px;
+  color: var(--ink); font-weight: 700; margin-left: 4px;
 }
+
+/* Pace estimate badge inside header */
+.race-pace-est {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 4px;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: rgba(255,255,255,0.1); color: #fafaf9;
+}
+.race-pace-est .lbl {
+  font-size: 9px; opacity: 0.7; text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.race-pace-est.hot { background: rgba(239,68,68,0.2); }
+.race-pace-est.fast { background: rgba(245,158,11,0.2); }
+.race-pace-est.slow { background: rgba(59,130,246,0.2); }
 
 /* Pace map - settling positions */
 .race-pace-map {
@@ -896,8 +911,8 @@ body {
   padding: 10px 12px;
 }
 .pace-zone .zone-lbl {
-  font-family: var(--font-mono); font-size: 9px;
-  text-transform: uppercase; letter-spacing: 0.08em;
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ink-mute); margin-bottom: 6px;
   display: flex; justify-content: space-between;
 }
@@ -907,7 +922,7 @@ body {
 .pace-zone .zone-tab {
   display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
   text-align: center; background: var(--panel); color: var(--ink);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
   border: 1px solid var(--line); border-radius: 4px; padding: 0 6px;
 }
 .pace-zone.zone-leaders  { background: #fef3c7; }
@@ -927,29 +942,30 @@ body {
   flex-wrap: wrap; gap: 16px;
 }
 .race-header h2 {
-  font-family: var(--font-display); font-weight: 700; font-size: 18px;
+  font-family: var(--font-body); font-weight: 700; font-size: 18px;
   letter-spacing: -0.01em;
 }
 .race-header .race-meta-line {
-  font-family: var(--font-mono); font-size: 11px; color: #a8a29e;
-  margin-top: 4px;
+  font-family: var(--font-body); font-size: 12px; color: #a8a29e;
+  margin-top: 4px; font-weight: 500;
 }
 .race-header-stats {
-  display: flex; gap: 24px;
-  font-family: var(--font-mono); font-size: 11px;
+  display: flex; gap: 24px; align-items: center;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
 }
 .race-header-stats .item { color: #a8a29e; }
-.race-header-stats .item .v { color: #fafaf9; font-weight: 600; }
+.race-header-stats .item .v { color: #fafaf9; font-weight: 700; }
 
 .race-table-wrap { overflow-x: auto; }
 .race-table {
   width: 100%; border-collapse: collapse;
-  font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .race-table thead th {
   background: var(--line-soft); border-bottom: 1px solid var(--line);
   text-align: left; padding: 10px 12px;
-  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
   cursor: pointer; user-select: none; white-space: nowrap;
 }
@@ -958,7 +974,7 @@ body {
 .race-table thead th.sort-desc::after { content: ' ↓'; color: var(--emerald); }
 .race-table tbody td {
   padding: 9px 12px; border-bottom: 1px solid var(--line-soft);
-  white-space: nowrap;
+  white-space: nowrap; font-weight: 500;
 }
 .race-table tbody tr:hover { background: var(--line-soft); }
 .race-table tbody tr.is-pick {
@@ -969,16 +985,35 @@ body {
 .tn-cell {
   display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
   text-align: center; background: var(--ink); color: var(--panel);
-  font-weight: 600; border-radius: 4px; padding: 0 6px;
+  font-weight: 700; border-radius: 4px; padding: 0 6px;
   font-size: 11px;
 }
-.horse-cell { font-weight: 600; color: var(--ink); }
+.horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
 
-.rank-cell { font-weight: 600; color: var(--ink-soft); }
+.rank-cell { font-weight: 700; color: var(--ink-soft); }
 .rank-cell.r1 { color: var(--emerald); font-weight: 700; }
 .rank-cell.r2 { color: var(--emerald-deep); font-weight: 600; }
 .rank-cell.r3 { color: var(--ink-soft); }
+
+/* Sectional cells: value with rank superscript-style */
+.sect-cell {
+  white-space: nowrap;
+}
+.sect-cell .v {
+  font-weight: 600; color: var(--ink);
+}
+.sect-cell .rk {
+  font-size: 9px; font-weight: 700; margin-left: 4px;
+  display: inline-block; padding: 1px 5px; border-radius: 8px;
+  background: var(--line-soft); color: var(--ink-mute);
+  vertical-align: middle;
+}
+.sect-cell.r1 .v { color: var(--emerald-deep); font-weight: 700; }
+.sect-cell.r1 .rk { background: var(--emerald); color: #fff; }
+.sect-cell.r2 .v { color: var(--emerald-deep); }
+.sect-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
+.sect-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
 
 .sect-pill {
   display: inline-block; padding: 1px 6px; border-radius: 10px;
@@ -993,11 +1028,31 @@ body {
 
 .dist-cell.has-win { color: var(--emerald-deep); font-weight: 600; }
 
-.drift-cell.firmed { color: var(--emerald-deep); }
+.drift-cell.firmed { color: var(--emerald-deep); font-weight: 600; }
 .drift-cell.drifted { color: var(--rose); }
 
 .edge-cell.value { color: var(--emerald-deep); font-weight: 600; }
 .edge-cell.under { color: var(--rose); }
+
+/* First-starter banner */
+.race-banner {
+  background: #fef3c7; border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  padding: 12px 18px; border-radius: 8px;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--font-body);
+}
+.race-banner .icon {
+  font-size: 18px; flex-shrink: 0;
+}
+.race-banner .text {
+  font-size: 13px; color: #92400e; font-weight: 600;
+}
+.race-banner .sub {
+  font-size: 11px; color: #92400e; font-weight: 500;
+  opacity: 0.85; margin-top: 2px;
+}
 
 .model-badge {
   display: inline-block; padding: 2px 7px;
@@ -1343,6 +1398,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <button class="race-back-btn" id="race-back-btn">← Back to meetings</button>
       </div>
       <div class="race-detail">
+        <div class="race-banner" id="rd-banner" style="display:none;"></div>
         <div class="race-header">
           <div>
             <h2 id="rd-title">—</h2>
@@ -2269,7 +2325,53 @@ function renderRaceDetail(raceId) {
   const pickIds = new Set(picks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
-  // Header
+  // ── First-starter banner ──
+  const banner = document.getElementById('rd-banner');
+  if (race.hfs) {
+    banner.innerHTML =
+      '<span class="icon">⚠</span>' +
+      '<div>' +
+        '<div class="text">First starter in this race</div>' +
+        '<div class="sub">Model signals do not apply to debut runners. Recommend skipping this race.</div>' +
+      '</div>';
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
+  }
+
+  // ── Pre-race pace estimate (settling-position derived) ──
+  // Count typical settling type for runners with avg_settled_pos data
+  let leaders = 0, onpace = 0, midfield = 0, back = 0;
+  runners.forEach(u => {
+    const pos = u.asp;
+    if (pos == null) return;
+    if (pos <= 2) leaders++;
+    else if (pos <= 4) onpace++;
+    else if (pos <= 8) midfield++;
+    else back++;
+  });
+  // Heuristic for pace estimate:
+  //   3+ leaders => HOT (pressure on lead)
+  //   2 leaders + 2+ on-pace => FAST
+  //   1 leader, rest midfield/back => SLOW (lone speed walks in front)
+  //   else => EVEN
+  let paceEst = 'even', paceLabel = 'Even';
+  if (leaders >= 3) { paceEst = 'hot'; paceLabel = 'Hot pace'; }
+  else if (leaders >= 2 && onpace >= 2) { paceEst = 'fast'; paceLabel = 'Fast'; }
+  else if (leaders <= 1 && (midfield + back) >= 4) { paceEst = 'slow'; paceLabel = 'Slow'; }
+
+  // If post-race shape data is available, prefer that
+  let paceFromShape = null;
+  if (race.rse != null) {
+    if (race.rse > 0.15) paceFromShape = 'Fast early';
+    else if (race.rse < -0.15) paceFromShape = 'Slow early';
+    else paceFromShape = 'Even pace';
+  }
+  const paceDisplay = paceFromShape || (paceLabel + ' (est)');
+  const paceClass = paceFromShape ? '' : paceEst;
+
+  // ── Header ──
   document.getElementById('rd-title').textContent = race.venue + ' · R' + race.race;
   document.getElementById('rd-subtitle').textContent = race.race_name || '';
   document.getElementById('rd-header-stats').innerHTML =
@@ -2278,27 +2380,24 @@ function renderRaceDetail(raceId) {
     '<div class="item">' + escapeHtml(race.going || '') + '</div>' +
     '<div class="item">$' + (race.prize/1000).toFixed(0) + 'k</div>' +
     '<div class="item">' + runners.length + ' runners</div>' +
-    '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>';
+    '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>' +
+    '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
-  // Context bar - show track grading, rail, race shape
+  // Context bar - kept simpler now that pace is in header
   const ctx = [];
-  if (race.race_name) ctx.push({ lbl: '', v: race.race_name });
   ctx.push({ lbl: 'Distance', v: race.distance + 'm' });
   ctx.push({ lbl: 'Going', v: race.going || '—' });
   ctx.push({ lbl: 'Prize', v: '$' + (race.prize / 1000).toFixed(0) + 'k' });
   ctx.push({ lbl: 'Field', v: runners.length });
   document.getElementById('rd-context-bar').innerHTML =
-    ctx.filter(c => c.lbl).map(c =>
+    ctx.map(c =>
       '<div class="ctx-item">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>'
     ).join('');
 
-  // Pace map - group runners by avg_settled position
-  // Use avg_settled_pos relative to field size (need to fetch from runner data)
-  // For simplicity, group by quartile of avg_settled if available
-  // Settling categories: leaders (1-2), on-pace (3-4), midfield (5-8), back (9+)
+  // ── Pace map - group runners by avg_settled position ──
   const settled = { leaders: [], onpace: [], midfield: [], back: [] };
   runners.forEach(u => {
-    const pos = u.asp; // avg_settled_pos
+    const pos = u.asp;
     let zone = 'midfield';
     if (pos == null) zone = 'midfield';
     else if (pos <= 2) zone = 'leaders';
@@ -2316,7 +2415,7 @@ function renderRaceDetail(raceId) {
     '</div>';
   document.getElementById('rd-pace-map').innerHTML = paceHtml;
 
-  // Runners table
+  // ── Compute ranks ──
   function computeRanks(runners, getter, ascending) {
     const valid = runners.filter(r => getter(r) != null);
     valid.sort((a, b) => ascending ? getter(a) - getter(b) : getter(b) - getter(a));
@@ -2324,24 +2423,72 @@ function renderRaceDetail(raceId) {
     valid.forEach((r, i) => { ranks[r.rid] = i + 1; });
     return ranks;
   }
-  const trRanks = computeRanks(runners, r => r.trr, false);
-  const midRanks = computeRanks(runners, r => r.ms, false);
-  const lateRanks = computeRanks(runners, r => r.ls, false);
-  const totalRanks = computeRanks(runners, r => r.ts, false);
+  const trRanks    = computeRanks(runners, r => r.trr, false);
+  const earlyRanks = computeRanks(runners, r => r.es,  false);
+  const midRanks   = computeRanks(runners, r => r.ms,  false);
+  const lateRanks  = computeRanks(runners, r => r.ls,  false);
+  const totalRanks = computeRanks(runners, r => r.ts,  false);
 
-  function rankPill(rank) {
-    if (rank == null) return '<span class="sect-pill other">—</span>';
-    if (rank === 1) return '<span class="sect-pill top1">' + rank + '</span>';
-    if (rank === 2) return '<span class="sect-pill top2">' + rank + '</span>';
-    return '<span class="sect-pill other">' + rank + '</span>';
+  // Helpers
+  function sectCell(value, rank) {
+    if (value == null) return '<td class="sect-cell">—</td>';
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+    const rkBadge = rank ? '<span class="rk">#' + rank + '</span>' : '';
+    return '<td class="sect-cell ' + rkCls + '"><span class="v">' + value.toFixed(1) + '</span>' + rkBadge + '</td>';
   }
 
-  // Sort: pick runners first, then by tr_rank
+  function distancePerf(runner) {
+    if (!runner.ds) return '—';
+    const w = runner.dw || 0, p = runner.dp || 0;
+    return w + 'W ' + Math.max(0, p - w) + 'P / ' + runner.ds;
+  }
+
+  // Going category lookup
+  function goingCategory(g) {
+    if (!g) return null;
+    const gl = g.toLowerCase();
+    if (gl.startsWith('firm')) return 'firm';
+    if (gl.startsWith('good')) return 'good';
+    if (gl.startsWith('soft')) return 'soft';
+    if (gl.startsWith('heavy')) return 'heavy';
+    if (gl.startsWith('synth')) return 'synth';
+    return null;
+  }
+  const todayGoing = goingCategory(race.going);
+
+  function goingPerf(runner) {
+    if (!todayGoing || !runner.gb || !runner.gb[todayGoing]) return '—';
+    const g = runner.gb[todayGoing];
+    if (!g.starts) return '—';
+    const w = g.wins || 0, p = g.places || 0;
+    return w + 'W ' + Math.max(0, p - w) + 'P / ' + g.starts;
+  }
+
+  function settlesLabel(asp) {
+    if (asp == null) return '—';
+    if (asp <= 2.5) return 'Lead (' + asp.toFixed(1) + ')';
+    if (asp <= 4.5) return 'On-pace (' + asp.toFixed(1) + ')';
+    if (asp <= 8.5) return 'Mid (' + asp.toFixed(1) + ')';
+    return 'Back (' + asp.toFixed(1) + ')';
+  }
+
+  function driftCell(runner) {
+    if (typeof PRICE_HIST === 'undefined' || !PRICE_HIST) return '—';
+    const ph = PRICE_HIST[String(runner.rid)];
+    if (!ph || !ph.o || !ph.r) return '—';
+    const pct = ((ph.r - ph.o) / ph.o) * 100;
+    if (Math.abs(pct) < 1) return '<span style="color:var(--ink-mute);">steady</span>';
+    const cls = pct < 0 ? 'firmed' : 'drifted';
+    const arrow = pct < 0 ? '↓' : '↑';
+    return '<span class="drift-cell ' + cls + '">' + arrow + ' ' + Math.abs(pct).toFixed(0) + '%</span>';
+  }
+
+  // ── Sort: by TR rating descending (TR$1 first, TR$2, etc.) ──
+  // (User: "order runners by their tr rating $")
   const sortedRunners = runners.slice().sort((a, b) => {
-    const aPick = pickIds.has(String(a.rid)) ? 0 : 1;
-    const bPick = pickIds.has(String(b.rid)) ? 0 : 1;
-    if (aPick !== bPick) return aPick - bPick;
-    return (trRanks[a.rid] || 99) - (trRanks[b.rid] || 99);
+    const aR = trRanks[a.rid] || 99;
+    const bR = trRanks[b.rid] || 99;
+    return aR - bR;
   });
 
   let rowsHtml = '';
@@ -2349,18 +2496,10 @@ function renderRaceDetail(raceId) {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
     const trR = trRanks[rid];
-    const midR = midRanks[rid];
-    const lateR = lateRanks[rid];
-    const totR = totalRanks[rid];
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
-    const wt = u.wtr;
-    const wtClass = wt > 0 ? 'up' : (wt < 0 ? 'down' : '');
-    const wd = u.wad;
-    const wdClass = wd && wd > 0 ? 'has-win' : '';
     const fxp = u.fx;
     const trp = u.trp;
-    const edge = (trp && fxp) ? (fxp / trp).toFixed(2) : null;
-    const edgeClass = edge != null ? (parseFloat(edge) > 1.05 ? 'value' : (parseFloat(edge) < 0.95 ? 'under' : '')) : '';
+
     rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
@@ -2368,16 +2507,18 @@ function renderRaceDetail(raceId) {
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      '<td>' + rankPill(midR) + '</td>' +
-      '<td>' + rankPill(lateR) + '</td>' +
-      '<td>' + rankPill(totR) + '</td>' +
+      sectCell(u.es, earlyRanks[rid]) +
+      sectCell(u.ms, midRanks[rid]) +
+      sectCell(u.ls, lateRanks[rid]) +
+      sectCell(u.ts, totalRanks[rid]) +
       '<td>' + (u.spd != null ? u.spd.toFixed(0) : '—') + '</td>' +
-      '<td class="wt-cell ' + wtClass + '">' + (wt != null ? (wt > 0 ? '+' : '') + wt.toFixed(1) : '—') + '</td>' +
-      '<td class="dist-cell ' + wdClass + '">' + (wd != null ? wd : '—') + '</td>' +
-      '<td>' + (u.dslr != null ? u.dslr + 'd' : '—') + '</td>' +
+      '<td>' + (u.fm ? '<span style="font-weight:600;">' + escapeHtml(u.fm) + '</span>' : '—') + '</td>' +
+      '<td>' + distancePerf(u) + '</td>' +
+      '<td>' + goingPerf(u) + '</td>' +
+      '<td>' + settlesLabel(u.asp) + '</td>' +
+      '<td>' + driftCell(u) + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
-      '<td class="edge-cell ' + edgeClass + '">' + (edge || '—') + '</td>' +
       '<td>' + (isPick ? '<span class="model-badge">MAIN</span>' : '') + '</td>' +
       '</tr>';
   });
@@ -2386,9 +2527,15 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         '<th>Tab</th><th>Horse</th><th>Jky</th><th>Trn</th><th>Bar</th>' +
-        '<th>TR$</th><th>Mid</th><th>Late</th><th>Total</th>' +
-        '<th>Spd</th><th>Wt Tr</th><th>W@D</th><th>DSLR</th>' +
-        '<th>Fxd</th><th>TR $</th><th>Edge</th><th>Model</th>' +
+        '<th>TR$</th>' +
+        '<th>Early</th><th>Mid</th><th>Late</th><th>Total</th>' +
+        '<th>Spd</th>' +
+        '<th>Form</th>' +
+        '<th>Dist Perf</th>' +
+        '<th>Going Perf</th>' +
+        '<th>Settles</th>' +
+        '<th>Drift</th>' +
+        '<th>Fxd</th><th>TR $</th><th>Model</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>';
