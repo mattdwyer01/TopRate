@@ -1585,52 +1585,69 @@ def serve(port=8080):
 
 
 def publish():
-    """Push updated toprate_live.html to GitHub Pages."""
+    """
+    Push updated toprate_live.html and CSVs to GitHub.
+
+    Lets git speak directly to the terminal so credential prompts work
+    (the previous version used capture_output=True which silently swallowed
+    auth prompts and hung forever).
+
+    Auto-resolves CSV conflicts by taking the local version (we just
+    regenerated the data, so ours is canonical).
+    """
     import subprocess as sp
     print("\n── Publishing to GitHub ──")
     script_dir = Path(__file__).parent
-    def git(cmd, check=True):
-        result = sp.run(["git"] + cmd, cwd=script_dir, capture_output=True, text=True)
-        if result.stdout.strip(): print(f"  {result.stdout.strip()}")
-        if result.stderr.strip(): print(f"  {result.stderr.strip()}")
-        if check and result.returncode != 0:
-            print(f"  git {' '.join(cmd)} failed (exit {result.returncode})")
+
+    def git(cmd, check=False):
+        """Run git with output going straight to the terminal."""
+        result = sp.run(["git"] + cmd, cwd=script_dir)
         return result.returncode == 0
-    # Fetch remote so git knows the latest state
-    sp.run(["git", "fetch", "origin"], cwd=script_dir, capture_output=True, text=True)
-    git(["add", "toprate_live.html"])
-    runners_csv = script_dir / "toprate_runners.csv"
-    if runners_csv.exists():
-        git(["add", str(runners_csv)], check=False)
-    # Also publish model picks CSV so historical model performance can be tracked
-    model_picks_csv = script_dir / "toprate_model_picks.csv"
-    if model_picks_csv.exists():
-        git(["add", str(model_picks_csv)], check=False)
+
+    # Files we care about
+    files_to_push = []
+    for f in ["toprate_live.html", "toprate_runners.csv",
+              "toprate_model_picks.csv", "toprate_price_history.csv"]:
+        if (script_dir / f).exists():
+            files_to_push.append(f)
+
+    # Stage changes
+    git(["add"] + files_to_push)
+
+    # Check if anything actually changed
     status = sp.run(["git", "diff", "--staged", "--quiet"], cwd=script_dir)
     if status.returncode == 0:
-        print("  No changes to publish — HTML unchanged.")
+        print("  No changes to publish.")
         return
-    from datetime import datetime as _dt
-    msg = f"TopRate update {_dt.now():%Y-%m-%d %H:%M}"
-    git(["commit", "-m", msg])
-    if git(["push"], check=False):
+
+    # Commit
+    msg = f"TopRate update {datetime.now():%Y-%m-%d %H:%M}"
+    if not git(["commit", "-m", msg]):
+        print("  Commit failed.")
+        return
+
+    # Try push - if rejected, pull --rebase, take ours on conflicts, retry
+    print("  Pushing...")
+    if git(["push"]):
+        print(f"  Published: {msg}")
+        return
+
+    # Push rejected. Pull with rebase, auto-resolve conflicts (prefer ours).
+    print("  Push rejected. Pulling latest and retrying...")
+
+    # -X ours during rebase: when conflicts occur, prefer our version (we just generated)
+    if not git(["pull", "--rebase", "-X", "ours"]):
+        print("  Pull-rebase failed. Manual resolution needed:")
+        print("    git status")
+        print("    git checkout --theirs <conflicted-files>")
+        print("    git add -A && git rebase --continue && git push")
+        return
+
+    if git(["push"]):
         print(f"  Published: {msg}")
     else:
-        # Push rejected — rebase our commit on top of remote (preserves local files)
-        print("  Push rejected — rebasing on remote and retrying...")
-        rebase_ok = git(["rebase", "origin/main"], check=False)
-        if not rebase_ok:
-            # Rebase conflict — abort and force push instead
-            sp.run(["git", "rebase", "--abort"], cwd=script_dir, capture_output=True)
-            if git(["push", "--force-with-lease"], check=False):
-                print(f"  Published (force): {msg}")
-            else:
-                print("  Push failed — run: git pull --rebase && python toprate_daily.py --publish")
-        else:
-            if git(["push"], check=False):
-                print(f"  Published: {msg}")
-            else:
-                print("  Push failed — run: git pull --rebase && python toprate_daily.py --publish")
+        print("  Push still failing. Run manually:")
+        print("    git push")
 
 
 def main():
