@@ -403,6 +403,7 @@ body {
     100px        /* odds */
     100px        /* stake */
     140px        /* result */
+    130px        /* bet toggle + odds-taken */
     24px;        /* expand chevron */
   gap: 14px;
   padding: 10px 14px;
@@ -412,6 +413,9 @@ body {
   transition: background 0.12s;
   position: relative;
   min-height: 48px;
+}
+.pick-row.bet-placed {
+  box-shadow: inset 4px 0 0 var(--emerald);
 }
 .pick-row:last-child { border-bottom: none; }
 .pick-row:hover { background: #fafbfc; }
@@ -592,6 +596,42 @@ body {
 }
 .pr-result .res-clear:hover { color: var(--rose); }
 
+/* ── Bet placed toggle + odds-taken ───────────────────────────────────── */
+.pr-bet {
+  display: flex; gap: 4px; align-items: center; justify-content: flex-end;
+}
+.bet-btn {
+  font-family: var(--font-body); font-size: 13px; font-weight: 700;
+  background: var(--panel); color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 4px;
+  width: 28px; height: 28px; line-height: 1; cursor: pointer;
+  transition: all 0.12s; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bet-btn:hover { background: var(--emerald-bg); color: var(--emerald-deep); border-color: var(--emerald-line); }
+.bet-btn.placed {
+  background: var(--emerald); color: #fff; border-color: var(--emerald);
+}
+.bet-btn.placed:hover { background: var(--emerald-deep); }
+.odds-input {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  width: 64px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 4px;
+  color: var(--ink); background: var(--panel);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.odds-input:focus {
+  outline: none; border-color: var(--emerald); background: #fff;
+}
+.odds-input::placeholder { color: var(--ink-faint); font-weight: 400; }
+.odds-warning {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  color: #f59e0b; font-size: 13px; font-weight: 700; cursor: help;
+  margin-left: 2px;
+}
+
 .pr-chev {
   color: var(--ink-faint); font-size: 12px; transition: transform 0.15s;
   text-align: center;
@@ -685,7 +725,8 @@ body {
       'runner runner'
       'sigs   sigs'
       'odds   stake'
-      'result result';
+      'result result'
+      'bet    bet';
     gap: 8px 12px;
     padding: 12px;
   }
@@ -697,6 +738,7 @@ body {
   .pr-odds { grid-area: odds; justify-content: flex-start; }
   .pr-stake { grid-area: stake; }
   .pr-result { grid-area: result; justify-content: flex-start; flex-wrap: wrap; }
+  .pr-bet { grid-area: bet; justify-content: flex-start; }
   .pr-chev { grid-area: chev; }
   .pd-speed { grid-template-columns: repeat(2, 1fr); }
   .pd-context { grid-template-columns: 1fr 1fr; }
@@ -1384,21 +1426,22 @@ body {
 .bh-pl.neg { color: var(--rose); }
 .bh-pl-stake { font-size: 10px; color: var(--ink-mute); font-weight: 500; }
 
-.bh-bet-toggle {
-  display: flex; gap: 4px;
+.bh-bet-cell {
+  display: flex; align-items: center; gap: 6px; justify-content: flex-end;
 }
-.bh-bet-btn {
+.bh-bet-cell .bet-btn {
+  /* Reuse Today tab .bet-btn styles */
+}
+.bh-odds-display {
   font-family: var(--font-body); font-size: 11px; font-weight: 600;
-  background: transparent; color: var(--ink-mute);
-  border: 1px solid var(--line); border-radius: 5px;
-  padding: 4px 10px; cursor: pointer; transition: all 0.1s;
+  color: var(--ink-soft); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.bh-bet-btn:hover { background: var(--line-soft); color: var(--ink); }
-.bh-bet-btn.active.yes {
-  background: var(--emerald); color: #fff; border-color: var(--emerald);
+.bh-odds-display.fallback {
+  color: var(--ink-mute); font-style: italic;
 }
-.bh-bet-btn.active.no {
-  background: var(--ink-mute); color: #fff; border-color: var(--ink-mute);
+.bh-odds-display .warn-icon {
+  color: #f59e0b; margin-left: 3px;
 }
 
 .bh-chev {
@@ -1433,6 +1476,35 @@ body {
   padding: 8px 10px; resize: vertical; min-height: 50px;
   background: var(--panel);
 }
+
+.bh-record {
+  margin-top: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.bh-record-row {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.bh-record label {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.bh-record-fields {
+  display: flex; gap: 12px; align-items: center;
+}
+.bh-record-status {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--ink-mute);
+}
+.bh-record-status.on { color: var(--emerald-deep); }
+.bh-record-fields input[type="number"] {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  width: 90px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); background: var(--panel);
+  font-variant-numeric: tabular-nums;
+}
+.bh-record-fields input[type="number"]:focus {
+  outline: none; border-color: var(--emerald);
+}
 .bh-empty {
   padding: 40px 22px; text-align: center;
   color: var(--ink-mute); font-family: var(--font-body); font-size: 13px;
@@ -1454,7 +1526,7 @@ body {
   .bh-prices { grid-area: prices; flex-direction: row; gap: 12px; }
   .bh-result { grid-area: result; }
   .bh-pl { grid-area: pl; text-align: right; }
-  .bh-bet-toggle { grid-area: bet; }
+  .bh-bet-cell { grid-area: bet; }
   .bh-chev { grid-area: chev; }
 }
 
@@ -2270,10 +2342,31 @@ function renderToday() {
         '<button class="lost-btn" data-set-rid="' + p.run_id + '" data-pos="0" onclick="event.stopPropagation();">L</button>';
     }
 
+    // Bet toggle and odds-taken
+    const betEntry = getBetEntry(p.run_id);
+    const isBetPlaced = !!betEntry.placed;
+    let betHtml = '<button class="bet-btn ' + (isBetPlaced ? 'placed' : '') +
+                  '" data-bet-rid="' + p.run_id + '" title="' +
+                  (isBetPlaced ? 'Mark as not bet' : 'Mark this bet as placed') +
+                  '" onclick="event.stopPropagation();">' +
+                  (isBetPlaced ? '✓' : '+') + '</button>';
+    if (isBetPlaced) {
+      const oddsVal = betEntry.oddsTaken != null ? betEntry.oddsTaken.toFixed(2) : '';
+      const showWarning = !betEntry.oddsTaken;
+      betHtml += '<input type="number" step="0.01" min="1" class="odds-input" ' +
+                 'data-odds-rid="' + p.run_id + '" placeholder="$Odds" ' +
+                 'value="' + oddsVal + '" ' +
+                 'onclick="event.stopPropagation();" />';
+      if (showWarning) {
+        betHtml += '<span class="odds-warning" title="No odds-taken entered. P&L will use Fxd price as fallback.">⚠</span>';
+      }
+    }
+
     // Build the row
     const row = document.createElement('div');
-    row.className = 'pick-row ' + cardClass;
+    row.className = 'pick-row ' + cardClass + (isBetPlaced ? ' bet-placed' : '');
     row.dataset.idx = idx;
+    row.dataset.runId = p.run_id;
 
     // Meta line shows: distance · going · jky · trn (venue/race # now in its own column)
     const metaParts = [];
@@ -2300,6 +2393,7 @@ function renderToday() {
       '<div class="pr-odds">' + oddsHtml + '</div>' +
       '<div class="pr-stake">' + stakeHtml + '</div>' +
       '<div class="pr-result">' + resultHtml + '</div>' +
+      '<div class="pr-bet">' + betHtml + '</div>' +
       '<div class="pr-chev">▾</div>';
 
     list.appendChild(row);
@@ -2348,6 +2442,35 @@ function renderToday() {
       saveResults();
       renderToday();
     });
+  });
+  // Bet toggle button
+  list.querySelectorAll('[data-bet-rid]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const rid = el.dataset.betRid;
+      const cur = isPlaced(rid);
+      setBetEntry(rid, { placed: !cur });
+      renderToday();
+      if (typeof renderPnL === 'function') renderPnL();
+    });
+  });
+  // Odds input field
+  list.querySelectorAll('[data-odds-rid]').forEach(el => {
+    el.addEventListener('input', e => {
+      const rid = el.dataset.oddsRid;
+      const v = parseFloat(e.target.value);
+      setBetEntry(rid, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
+      // Don't full re-render on every keystroke; just update the warning indicator visibility
+      const row = el.closest('.pick-row');
+      const warn = row ? row.querySelector('.odds-warning') : null;
+      if (v > 0 && warn) warn.style.display = 'none';
+    });
+    el.addEventListener('blur', e => {
+      // Re-render once user finishes editing so PnL updates flow through
+      if (typeof renderPnL === 'function') renderPnL();
+    });
+    // Stop click on input from triggering row expand
+    el.addEventListener('click', e => e.stopPropagation());
   });
 
   // Update hero strip
@@ -3179,7 +3302,12 @@ let pnlState = {
 
 // Bet log persisted in localStorage
 //   Key: tr_betlog_v1
-//   Value: { runId: { placed: 'yes'|'no'|null, comments: string } }
+//   Value: { runId: { placed: true|false, oddsTaken: number|null, comments: string } }
+//
+// placed: true if the user marked "I bet this", false/missing means did not bet
+// oddsTaken: the actual price obtained when betting. If null, P&L falls back to fxprice
+//            (with a small warning indicator on the row)
+// comments: free-text post-mortem notes
 const BETLOG_KEY = 'tr_betlog_v1';
 function getBetLog() {
   try { return JSON.parse(localStorage.getItem(BETLOG_KEY) || '{}'); }
@@ -3190,13 +3318,23 @@ function saveBetLog(log) {
 }
 function getBetEntry(runId) {
   const log = getBetLog();
-  return log[String(runId)] || { placed: null, comments: '' };
+  return log[String(runId)] || { placed: false, oddsTaken: null, comments: '' };
 }
 function setBetEntry(runId, patch) {
   const log = getBetLog();
   const existing = log[String(runId)] || {};
   log[String(runId)] = Object.assign({}, existing, patch);
   saveBetLog(log);
+}
+function isPlaced(runId) {
+  return !!(getBetLog()[String(runId)] || {}).placed;
+}
+// Returns the price to use for P&L calc on a given bet:
+//   - oddsTaken if user entered one
+//   - else fall back to settled SP / Top / fxprice (in that order)
+function effectivePrice(s, betLogEntry) {
+  if (betLogEntry && betLogEntry.oddsTaken) return betLogEntry.oddsTaken;
+  return s.sp || s.top || s.fxprice;
 }
 
 // ── PNL tab rendering ──────────────────────────────────────────────────────
@@ -3234,13 +3372,13 @@ function renderPnL() {
 
   // Get bet log to determine which bets the user actually placed
   const log = getBetLog();
-  function isPlaced(s) {
+  function wasBetPlaced(s) {
     const e = log[String(s.run_id)];
-    return e && e.placed === 'yes';
+    return !!(e && e.placed);
   }
 
   // Determine which bets contribute to "actual" view
-  const actualBets = settled.filter(isPlaced);
+  const actualBets = settled.filter(wasBetPlaced);
   // For "theoretical" view, all settled bets contribute
   const viewBets = pnlState.view === 'actual' ? actualBets : settled;
 
@@ -3250,12 +3388,13 @@ function renderPnL() {
   viewBets.forEach(s => {
     const stake = calcStake(s.fxprice);
     if (!stake) return;
+    const entry = log[String(s.run_id)];
+    const price = effectivePrice(s, entry);
     totalStake += stake;
     if (s.won) {
       totalWins++;
-      const sp = s.sp || s.top || s.fxprice;
-      const profit = stake * (sp - 1);
-      spReturn += stake * sp;
+      const profit = stake * (price - 1);
+      spReturn += stake * price;
       totalProfit += profit;
       if (profit > bestWin) bestWin = profit;
     } else {
@@ -3309,8 +3448,9 @@ function renderPnL() {
   sortedView.forEach(s => {
     const stake = calcStake(s.fxprice);
     if (!stake) return;
-    const sp = s.sp || s.top || s.fxprice;
-    const profit = s.won ? stake * (sp - 1) : -stake;
+    const entry = log[String(s.run_id)];
+    const price = effectivePrice(s, entry);
+    const profit = s.won ? stake * (price - 1) : -stake;
     runningP += profit;
     runningS += stake;
     cumPoints.push({
@@ -3390,7 +3530,7 @@ function renderPnL() {
   // Apply "only bets I placed" filter if active
   let displaySettled = settled.slice().reverse();  // most recent first
   if (pnlState.filterOnlyBet) {
-    displaySettled = displaySettled.filter(isPlaced);
+    displaySettled = displaySettled.filter(wasBetPlaced);
   }
 
   if (displaySettled.length === 0) {
@@ -3401,10 +3541,12 @@ function renderPnL() {
   displaySettled.forEach((s, idx) => {
     const stake = calcStake(s.fxprice);
     const sp = s.sp;
-    const settlePrice = sp || s.top || s.fxprice;
-    const pl = stake ? (s.won ? stake * (settlePrice - 1) : -stake) : 0;
-    const entry = log[String(s.run_id)] || { placed: null, comments: '' };
-    const placed = entry.placed;
+    const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '' };
+    const placed = !!entry.placed;
+    const oddsTaken = entry.oddsTaken;
+    const usedPrice = effectivePrice(s, entry);
+    const usedFallback = !oddsTaken;  // true if we fell back to settled price
+    const pl = stake ? (s.won ? stake * (usedPrice - 1) : -stake) : 0;
     const r = s.runner_full || {};
 
     // Build prices block
@@ -3413,6 +3555,7 @@ function renderPnL() {
       '<div class="pri"><span class="pri-lbl">Fxd</span><span class="pri-v">' + (s.fxprice ? '$' + s.fxprice.toFixed(2) : '—') + '</span></div>' +
       '<div class="pri"><span class="pri-lbl">SP</span><span class="pri-v">' + (sp ? '$' + sp.toFixed(2) : '—') + '</span></div>' +
       (s.top ? '<div class="pri"><span class="pri-lbl">Top</span><span class="pri-v top">$' + s.top.toFixed(2) + '</span></div>' : '') +
+      (oddsTaken ? '<div class="pri"><span class="pri-lbl">Got</span><span class="pri-v" style="color:var(--emerald-deep);font-weight:700;">$' + oddsTaken.toFixed(2) + '</span></div>' : '') +
       '</div>';
 
     // Result/finish
@@ -3422,28 +3565,31 @@ function renderPnL() {
       '<span class="res ' + (s.won ? 'won' : 'lost') + '">' + (s.won ? 'won' : 'lost') + '</span>' +
       '</div>';
 
-    // P&L
+    // P&L (with warning indicator if odds-taken missing on a placed bet)
     const plCls = pl > 0 ? 'pos' : (pl < 0 ? 'neg' : '');
+    const warnHtml = (placed && usedFallback)
+      ? '<span class="odds-warning" title="No odds-taken entered. P&L uses Fxd $' + (s.fxprice ? s.fxprice.toFixed(2) : '?') + ' as fallback.">⚠</span>'
+      : '';
     const plHtml =
       '<div>' +
-      '<div class="bh-pl ' + plCls + '">' + (pl >= 0 ? '+' : '') + pl.toFixed(2) + 'u</div>' +
+      '<div class="bh-pl ' + plCls + '">' + (pl >= 0 ? '+' : '') + pl.toFixed(2) + 'u' + warnHtml + '</div>' +
       '<div class="bh-pl-stake">' + (stake > 0 ? stake.toFixed(2) + 'u staked' : '—') + '</div>' +
       '</div>';
 
-    // Y/N buttons
-    const yesActive = placed === 'yes' ? 'active yes' : '';
-    const noActive = placed === 'no' ? 'active no' : '';
+    // Single bet toggle button
     const betHtml =
-      '<div class="bh-bet-toggle" data-run-id="' + s.run_id + '">' +
-      '<button class="bh-bet-btn ' + yesActive + '" data-action="yes">Yes</button>' +
-      '<button class="bh-bet-btn ' + noActive + '" data-action="no">No</button>' +
+      '<div class="bh-bet-cell">' +
+      '<button class="bet-btn ' + (placed ? 'placed' : '') +
+        '" data-bh-bet-rid="' + s.run_id + '" title="' +
+        (placed ? 'Mark as not bet' : 'Mark this bet as placed') + '">' +
+        (placed ? '✓' : '+') + '</button>' +
       '</div>';
 
-    const placedClass = placed === 'yes' ? 'placed' : '';
-    const meta = [];
-    if (s.distance) meta.push(s.distance + 'm');
-    if (s.going) meta.push(s.going);
-    const metaLine = meta.join(' · ') || '';
+    const placedClass = placed ? 'placed' : '';
+    const metaParts = [];
+    if (s.distance) metaParts.push(s.distance + 'm');
+    if (s.going) metaParts.push(s.going);
+    const metaLine = metaParts.join(' · ') || '';
 
     const rowHtml =
       '<div class="bh-row ' + (s.won ? 'win' : 'loss') + ' ' + placedClass + '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
@@ -3466,8 +3612,9 @@ function renderPnL() {
   // Wire row clicks for expand
   list.querySelectorAll('.bh-row').forEach(row => {
     row.addEventListener('click', (ev) => {
-      // Don't expand if clicking the bet toggle buttons
-      if (ev.target.closest('.bh-bet-toggle')) return;
+      // Don't expand if clicking the bet toggle button or interactive elements
+      if (ev.target.closest('.bh-bet-cell')) return;
+      if (ev.target.closest('input,textarea,button')) return;
       const idx = row.dataset.rowIdx;
       const detail = document.getElementById('bh-detail-' + idx);
       const isOpen = detail.classList.contains('open');
@@ -3486,6 +3633,15 @@ function renderPnL() {
               setBetEntry(s.run_id, { comments: e.target.value });
             });
           }
+          // Wire odds-taken input in expand panel
+          const oddsInput = detail.querySelector('[data-detail-odds-rid]');
+          if (oddsInput) {
+            oddsInput.addEventListener('input', (e) => {
+              const v = parseFloat(e.target.value);
+              setBetEntry(s.run_id, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
+            });
+            oddsInput.addEventListener('blur', () => renderPnL());
+          }
         }
         detail.classList.add('open');
         row.classList.add('expanded');
@@ -3493,20 +3649,18 @@ function renderPnL() {
     });
   });
 
-  // Wire Y/N bet buttons
-  list.querySelectorAll('.bh-bet-toggle').forEach(toggle => {
-    toggle.querySelectorAll('.bh-bet-btn').forEach(btn => {
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const runId = toggle.dataset.runId;
-        const action = btn.dataset.action;  // 'yes' or 'no'
-        const cur = (log[String(runId)] || {}).placed;
-        // Toggle: clicking the active state clears it
-        const newPlaced = (cur === action) ? null : action;
-        setBetEntry(runId, { placed: newPlaced });
-        // Re-render to update P&L and styles
-        renderPnL();
-      });
+  // Wire single bet toggle
+  list.querySelectorAll('[data-bh-bet-rid]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const rid = btn.dataset.bhBetRid;
+      const cur = isPlaced(rid);
+      setBetEntry(rid, { placed: !cur });
+      renderPnL();
+      // Also re-render Today tab in case user marked it from there earlier
+      if (typeof renderToday === 'function') {
+        try { renderToday(); } catch(e) {}
+      }
     });
   });
 }
@@ -3615,17 +3769,30 @@ function renderBhDetail(s) {
     ? '<a class="bh-detail-link" data-action="goto-today" data-run-id="' + s.run_id + '">→ View this pick in Today tab</a>'
     : '';
 
-  // Comments
-  const commentsHtml =
+  // Bet recording: odds-taken + comments
+  const oddsValStr = entry.oddsTaken != null ? entry.oddsTaken.toFixed(2) : '';
+  const recordHtml =
+    '<div class="bh-record">' +
+    '<div class="bh-record-row">' +
+      '<label>Bet recording</label>' +
+      '<div class="bh-record-fields">' +
+        '<span class="bh-record-status ' + (entry.placed ? 'on' : '') + '">' +
+          (entry.placed ? '✓ Placed' : 'Not bet') + '</span>' +
+        (entry.placed
+          ? '<input type="number" step="0.01" min="1" data-detail-odds-rid="' + s.run_id + '" placeholder="Odds taken" value="' + oddsValStr + '" />'
+          : '') +
+      '</div>' +
+    '</div>' +
     '<div class="bh-comments">' +
     '<label>Comments</label>' +
     '<textarea placeholder="Notes about this bet (post-mortem, observations, etc.)">' + escapeHtml(entry.comments || '') + '</textarea>' +
+    '</div>' +
     '</div>';
 
   return linkHtml +
     '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
     '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
-    commentsHtml;
+    recordHtml;
 }
 
 // Wire P&L tab controls (called once at page load)
@@ -3695,13 +3862,21 @@ function wirePnLControls() {
 function exportSettledCSV() {
   const settled = SETTLED || [];
   const log = getBetLog();
-  const rows = [['date','venue','race','horse','tab','fxd','sp','top','finish','won','placed','comments']];
+  const rows = [['date','venue','race','horse','tab','fxd','sp','top','odds_taken','finish','won','placed','pl_units','comments']];
   settled.forEach(s => {
     const e = log[String(s.run_id)] || {};
+    const stake = calcStake(s.fxprice);
+    const price = effectivePrice(s, e);
+    const pl = stake ? (s.won ? stake * (price - 1) : -stake) : 0;
     rows.push([
       s.date || '', s.venue || '', s.race || '', s.horse || '', s.tab || '',
-      s.fxprice || '', s.sp || '', s.top || '', s.finish || '',
-      s.won ? '1' : '0', e.placed || '', (e.comments || '').replace(/\n/g, ' ').replace(/"/g, '""'),
+      s.fxprice || '', s.sp || '', s.top || '',
+      e.oddsTaken || '',
+      s.finish || '',
+      s.won ? '1' : '0',
+      e.placed ? '1' : '0',
+      pl.toFixed(2),
+      (e.comments || '').replace(/\n/g, ' ').replace(/"/g, '""'),
     ]);
   });
   const csv = rows.map(r => r.map(v => '"' + String(v) + '"').join(',')).join('\n');
