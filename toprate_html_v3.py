@@ -18,8 +18,8 @@ Tabs:
   INSIGHTS - rolling model performance metrics + reference comparison
   SETTINGS - unit size, display preferences
 
-Stake rule: stake = round(4 / (price - 1), 2), min 0.25u, max 4u, "bet to return 4u"
-Stake price source: fixed_win_price (current bookie price)
+Stake rule: stake = round(4 / price, 2), min 0.25u, max 4u, "bet to return 4u" (gross)
+Stake price source: fixed_win_price (current bookie price), or oddsTaken if entered.
 """
 
 import json
@@ -1896,7 +1896,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="th-right">Fxd</div>
       <div class="th-right">Stake</div>
       <div class="th-right">Result</div>
-      <div class="th-right">Got odds</div>
+      <div class="th-right">Odds taken</div>
       <div></div>
     </div>
     <div class="picks-list" id="picks-list">
@@ -2060,7 +2060,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="setting-row">
         <div>
           <div class="lbl">Bet to return</div>
-          <div class="desc">Target return per bet in units. Stake = target / (price &minus; 1).</div>
+          <div class="desc">Target gross return per bet in units (stake + profit on a winner). Stake = target / price.</div>
         </div>
         <input type="number" class="setting-input" id="setting-target" value="4" min="0.5" step="0.5">
       </div>
@@ -2282,12 +2282,14 @@ document.getElementById('setting-max').value = settings.maxStake;
 document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
 
 // ── Stake calculation ──────────────────────────────────────────────────────
+// "Bet to return Nu" means: stake sized so the gross return (stake * price)
+// equals Nu. Profit on a winner = N - stake.
 // When the user has entered an actual oddsTaken value, they have already bet,
 // so the maxStake safety cap is removed. We still respect minStake.
 function calcStake(price, opts) {
   if (!price || price <= 1) return null;
   const capExempt = opts && opts.capExempt;
-  const raw = settings.targetReturn / (price - 1);
+  const raw = settings.targetReturn / price;
   const upper = capExempt ? Infinity : settings.maxStake;
   const clamped = Math.min(upper, Math.max(settings.minStake, raw));
   return Math.round(clamped * 100) / 100;
@@ -2693,7 +2695,7 @@ function renderToday() {
     if (todayPnL > 0) pnlEl.classList.add('pos');
     else if (todayPnL < 0) pnlEl.classList.add('neg');
     document.getElementById('hs-today-pnl-units').textContent =
-      (todayPnL >= 0 ? '+' : '') + fmtDollar(todayPnL) + ' · ' + todayWins + 'W ' + todayLosses + 'L';
+      (todayPnL >= 0 ? '+' : '') + fmtDollar(todayPnL);
   } else {
     pnlEl.textContent = '—';
     pnlEl.classList.remove('pos', 'neg');
@@ -3792,7 +3794,7 @@ function renderPnL() {
       '<div class="pri"><span class="pri-lbl">Fxd</span><span class="pri-v">' + (s.fxprice ? '$' + s.fxprice.toFixed(2) : '—') + '</span></div>' +
       '<div class="pri"><span class="pri-lbl">SP</span><span class="pri-v">' + (sp ? '$' + sp.toFixed(2) : '—') + '</span></div>' +
       (s.top ? '<div class="pri"><span class="pri-lbl">Top</span><span class="pri-v top">$' + s.top.toFixed(2) + '</span></div>' : '') +
-      (oddsTaken ? '<div class="pri"><span class="pri-lbl">Got</span><span class="pri-v" style="color:var(--emerald-deep);font-weight:700;">$' + oddsTaken.toFixed(2) + '</span></div>' : '') +
+      (oddsTaken ? '<div class="pri"><span class="pri-lbl">Taken</span><span class="pri-v" style="color:var(--emerald-deep);font-weight:700;">$' + oddsTaken.toFixed(2) + '</span></div>' : '') +
       '</div>';
 
     // Result/finish
