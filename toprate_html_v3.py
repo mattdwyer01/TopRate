@@ -360,12 +360,13 @@ body {
     140px        /* result */
     24px;        /* expand chevron */
   gap: 14px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--line-soft);
   cursor: pointer;
   transition: background 0.12s;
   position: relative;
+  min-height: 48px;
 }
 .pick-row:last-child { border-bottom: none; }
 .pick-row:hover { background: #fafbfc; }
@@ -419,7 +420,15 @@ body {
 }
 
 .pr-sigs {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+}
+.pr-sigs-top {
   display: flex; gap: 4px; align-items: center;
+}
+.pr-form {
+  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
+  letter-spacing: 0.05em; font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .pr-sigs .sig {
   display: inline-flex; align-items: baseline; gap: 3px;
@@ -1774,16 +1783,20 @@ function renderToday() {
         '</span>';
     }
 
-    // Signal pills - just TR, Mid, Late
+    // Signal pills - just TR, Mid, Late + form string underneath
     function sigPill(label, rank) {
       if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
-    const sigsHtml =
+    const sigsTopHtml =
       sigPill('TR', p.tr_rank) +
       sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank);
+    // Form string row underneath: "3-1-7-2"
+    const formHtml = r.fm ?
+      '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
+    const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
 
     // Odds input
     const oddsCls = meetsThreshold ? 'qualifies' : 'below';
@@ -1828,16 +1841,24 @@ function renderToday() {
     const row = document.createElement('div');
     row.className = 'pick-row ' + cardClass;
     row.dataset.idx = idx;
+
+    // Meta line shows: venue R# · distance · going · jky · trn
+    // Compact, single line
+    const metaParts = [];
+    metaParts.push(escapeHtml(p.venue || '') + ' R' + p.race);
+    if (p.distance) metaParts.push(p.distance + 'm');
+    if (p.going) metaParts.push(escapeHtml(p.going));
+    if (r.j) metaParts.push(escapeHtml(r.j));
+    if (r.tn) metaParts.push(escapeHtml(r.tn));
+    const metaLine = metaParts.join(' · ');
+
     row.innerHTML =
       '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
         '<div class="rdetails">' +
           '<div class="rhorse">' + escapeHtml(p.horse || '') + '</div>' +
-          '<div class="rmeta">' + escapeHtml(p.venue || '') + ' R' + p.race +
-          (p.distance ? ' · ' + p.distance + 'm' : '') +
-          (p.going ? ' · ' + escapeHtml(p.going) : '') +
-          '</div>' +
+          '<div class="rmeta">' + metaLine + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="pr-sigs">' + sigsHtml + '</div>' +
@@ -1999,13 +2020,42 @@ function buildDetailHTML(p, r) {
       (wprt != null ? ' · ' + (wprt > 0 ? '↑' : '↓') + Math.abs(wprt).toFixed(1) : '')) :
     '—';
 
-  function field(label, value) {
+  // Drift since open: today's price movement
+  let driftStr = null, driftCls = '';
+  const ph = (typeof PRICE_HIST !== 'undefined' && PRICE_HIST) ? PRICE_HIST[String(p.run_id)] : null;
+  if (ph && ph.o && ph.r) {
+    const pct = ((ph.r - ph.o) / ph.o) * 100;
+    if (Math.abs(pct) >= 1) {
+      driftStr = '$' + ph.o.toFixed(2) + ' → $' + ph.r.toFixed(2) +
+                 ' (' + (pct > 0 ? '+' : '') + pct.toFixed(0) + '%)';
+      // Firmed = price went down (steamer, market backed it)
+      // Drifted = price went up (eased, market against it)
+      driftCls = pct < 0 ? 'pos' : 'neg';
+    } else {
+      driftStr = '$' + ph.o.toFixed(2) + ' (steady)';
+    }
+  }
+
+  // Settling type (from avg settled position)
+  let settleStr = null;
+  if (r.asp != null) {
+    if (r.asp <= 2.5) settleStr = 'Leader (' + r.asp.toFixed(1) + ')';
+    else if (r.asp <= 4.5) settleStr = 'On-pace (' + r.asp.toFixed(1) + ')';
+    else if (r.asp <= 8.5) settleStr = 'Midfield (' + r.asp.toFixed(1) + ')';
+    else settleStr = 'Back (' + r.asp.toFixed(1) + ')';
+  }
+
+  function field(label, value, cls) {
     if (value == null || value === '') return '';
     return '<div class="pd-field"><span class="fl">' + label + '</span>' +
-      '<span class="fv">' + escapeHtml(String(value)) + '</span></div>';
+      '<span class="fv ' + (cls || '') + '">' + escapeHtml(String(value)) + '</span></div>';
   }
 
   const contextHtml = '<div class="pd-context">' +
+    field('Form',          r.fm) +
+    field('Drift',         driftStr, driftCls) +
+    field('Settles',       settleStr) +
+    field('Speed rating',  r.spd != null ? r.spd.toFixed(0) : null) +
     field('TR rating',     r.trr != null ? r.trr.toFixed(1) : null) +
     field('TR price',      r.trp != null ? '$' + r.trp.toFixed(2) : null) +
     field('Distance',      p.distance ? p.distance + 'm' : null) +
@@ -2016,7 +2066,9 @@ function buildDetailHTML(p, r) {
     field('Wt today',      r.wt != null ? r.wt + 'kg' : null) +
     field('Wt trend',      r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : null) +
     field('Jockey',        r.j) +
+    field('Jky 90d',       r.jw != null ? r.jw.toFixed(1) + '% wins' : null) +
     field('Trainer',       r.tn) +
+    field('Trn 365d',      r.tw != null ? r.tw.toFixed(1) + '% wins' : null) +
     field('Barrier',       r.b) +
     field('Recent WPR',    wprStr) +
   '</div>';

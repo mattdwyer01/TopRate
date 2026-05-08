@@ -81,7 +81,7 @@ RUNNER_COLS = [
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
-    "going_breakdown",
+    "going_breakdown","form_string",
     # Per-runner weight carried today (was being collected but never saved)
     "weight_carried",
     # Pre-race market (starting_price_sp and price_top filled post-race)
@@ -234,6 +234,19 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
             if pos in (1, 2, 3):
                 going_breakdown[cat]["places"] += 1
 
+        # Form string: last 4 finishing positions, most recent first
+        # Format: "3-1-7-2"  ('x' for unplaced/scratched, '?' for unknown)
+        form_pos = []
+        for f in form[:4]:
+            pos = f.get("positionFinish")
+            if pos is None:
+                form_pos.append("?")
+            elif pos == 0 or pos > 9:
+                form_pos.append("x")
+            else:
+                form_pos.append(str(pos))
+        form_string = "-".join(form_pos) if form_pos else None
+
         # ── Historical settling & early speed from actual race data ──────────
         # Use last 5 runs with valid position data
         pos_form  = [f for f in form[:5] if f.get("positionSettled") is not None]
@@ -349,6 +362,8 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
             "places_at_dist":    dist_places,
             # Going breakdown (full career, by category): {firm: {starts, wins, places}, good: {...}}
             "going_breakdown":   going_breakdown,
+            # Last 4 finishes as string: "3-1-7-2"
+            "form_string":       form_string,
         }
     return lookup
 
@@ -1173,6 +1188,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "places_at_dist":     h.get("places_at_dist"),
                     # Going breakdown serialised as JSON for CSV storage
                     "going_breakdown":    json.dumps(h.get("going_breakdown") or {}),
+                    "form_string":        h.get("form_string"),
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
@@ -1478,12 +1494,17 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wd":   sf(row.get("wpr_dist")),
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
+                # Form string: last 4 finishes (e.g. "3-1-7-2")
+                "fm":   str(row.get("form_string")) if row.get("form_string") and str(row.get("form_string")) != "nan" else None,
                 "asp":  sf(row.get("avg_settled_pos")),
                 "wpr1": sf(row.get("wpr_last1")),
                 "wpra": sf(row.get("wpr_avg_last3")),
                 "wprt": sf(row.get("wpr_trend")),
                 "wprp": sf(row.get("wpr_peak_rank_1yr")),
                 "wt":   sf(row.get("weight_carried")),
+                # Strike rates (already in CSV)
+                "jw":   sf(row.get("jockey_win_pct_90d")),
+                "tw":   sf(row.get("trainer_win_pct_365d")),
                 "fx":   sf(row.get("fixed_win_price")),
                 "sp":   sf(row.get("starting_price_sp")),
                 "top":  sf(row.get("price_top")),
