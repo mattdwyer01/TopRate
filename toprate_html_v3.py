@@ -397,15 +397,16 @@ body {
   display: grid;
   grid-template-columns:
     52px         /* time */
-    140px        /* venue + race # */
+    130px        /* venue + race # */
     1fr          /* horse + meta */
     180px        /* signals strip */
-    100px        /* odds */
-    100px        /* stake */
-    140px        /* result */
+    90px         /* odds (Fxd) */
+    90px         /* stake */
+    90px         /* return */
+    130px        /* result */
     130px        /* bet toggle + odds-taken */
     24px;        /* expand chevron */
-  gap: 14px;
+  gap: 12px;
   padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--line-soft);
@@ -539,8 +540,8 @@ body {
 .picks-header {
   display: grid;
   grid-template-columns:
-    52px 140px 1fr 180px 100px 100px 140px 130px 24px;
-  gap: 14px;
+    52px 130px 1fr 180px 90px 90px 90px 130px 130px 24px;
+  gap: 12px;
   padding: 8px 14px;
   align-items: center;
   background: var(--panel);
@@ -561,21 +562,25 @@ body {
   .picks-list { border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md); }
 }
 
-.pr-stake {
+.pr-stake, .pr-return {
   font-family: var(--font-body); text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.pr-stake .units {
+.pr-stake .units, .pr-return .units {
   font-weight: 700; font-size: 13px; color: var(--ink);
   display: block; line-height: 1.2;
 }
 .pr-stake .ret {
-  font-weight: 500; font-size: 11px; color: var(--emerald-deep);
-  margin-top: 2px;
+  font-weight: 500; font-size: 11px; color: var(--ink-mute);
+  margin-top: 2px; display: block; line-height: 1.2;
 }
-.pr-stake.muted .units { font-weight: 500; color: var(--ink-faint); }
-.pr-stake.muted .ret { color: var(--ink-faint); }
-.pr-stake .skip {
+.pr-return .ret {
+  font-weight: 500; font-size: 11px; color: var(--emerald-deep);
+  margin-top: 2px; display: block; line-height: 1.2;
+}
+.pr-stake.muted .units, .pr-return.muted .units { font-weight: 500; color: var(--ink-faint); }
+.pr-stake.muted .ret, .pr-return.muted .ret { color: var(--ink-faint); }
+.pr-stake .skip, .pr-return .skip {
   font-size: 11px; color: var(--ink-faint); font-weight: 500;
 }
 
@@ -772,15 +777,15 @@ body {
 /* Mobile: pick rows stack into card-like layout */
 @media (max-width: 720px) {
   .pick-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr 1fr;
     grid-template-areas:
-      'time   chev'
-      'venue  venue'
-      'runner runner'
-      'sigs   sigs'
-      'odds   stake'
-      'result result'
-      'bet    bet';
+      'time   time   chev'
+      'venue  venue  venue'
+      'runner runner runner'
+      'sigs   sigs   sigs'
+      'odds   stake  return'
+      'result result result'
+      'bet    bet    bet';
     gap: 8px 12px;
     padding: 12px;
   }
@@ -790,7 +795,8 @@ body {
   .pr-runner { grid-area: runner; }
   .pr-sigs { grid-area: sigs; }
   .pr-odds { grid-area: odds; justify-content: flex-start; }
-  .pr-stake { grid-area: stake; }
+  .pr-stake { grid-area: stake; text-align: center; }
+  .pr-return { grid-area: return; text-align: right; }
   .pr-result { grid-area: result; justify-content: flex-start; flex-wrap: wrap; }
   .pr-bet { grid-area: bet; justify-content: flex-start; }
   .pr-chev { grid-area: chev; }
@@ -1904,6 +1910,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div>Signals</div>
       <div class="th-right">Fxd</div>
       <div class="th-right">Stake</div>
+      <div class="th-right">Return</div>
       <div class="th-right">Result</div>
       <div class="th-right">Odds taken</div>
       <div></div>
@@ -2552,17 +2559,29 @@ function renderToday() {
         '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
       '</div>';
 
-    // Stake display - muted when calculated from fallback (no odds-taken yet)
+    // Stake display - units (large) + dollar value (small) below
+    // Return display - same shape: units returned + dollar return below
+    // Both muted when calculated from fallback fxprice (no odds-taken yet).
     const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
-    let stakeHtml;
+    const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
+    let stakeHtml, returnHtml;
     if (isActiveBet && stake) {
-      const ret = stake * stakePrice;
+      // Stake: how much I'm putting down
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
-        '<span class="ret">→ ' + fmtDollar(ret) + '</span>';
+        '<span class="ret">' + fmtDollar(stake) + '</span>';
+
+      // Return: gross payout if bet wins.
+      // Dead heat halves the return (joint winner).
+      const dhMult = betEntry.deadHeat ? 0.5 : 1;
+      const returnUnits = stake * stakePrice * dhMult;
+      returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
+        '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
     } else if (!isActiveBet) {
       stakeHtml = '<span class="skip">no bet</span>';
+      returnHtml = '<span class="skip">&mdash;</span>';
     } else {
       stakeHtml = '<span class="skip">enter odds</span>';
+      returnHtml = '<span class="skip">&mdash;</span>';
     }
 
     // Result column
@@ -2632,6 +2651,7 @@ function renderToday() {
       '<div class="pr-sigs">' + sigsHtml + '</div>' +
       '<div class="pr-odds">' + oddsHtml + '</div>' +
       '<div class="' + stakeWrapCls + '">' + stakeHtml + '</div>' +
+      '<div class="' + returnWrapCls + '">' + returnHtml + '</div>' +
       '<div class="pr-result">' + resultHtml + '</div>' +
       '<div class="pr-bet">' + betHtml + '</div>' +
       '<div class="pr-chev">▾</div>';
