@@ -1530,7 +1530,7 @@ body {
   .bh-chev { grid-area: chev; }
 }
 
-/* Insights tab */
+/* ── Insights tab ──────────────────────────────────────────────────────── */
 .insights-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
   margin-bottom: 18px;
@@ -1542,110 +1542,142 @@ body {
   border-radius: var(--radius-lg); padding: 18px 22px;
 }
 .insight-card h3 {
-  font-family: var(--font-display); font-weight: 700; font-size: 14px;
-  margin-bottom: 12px; color: var(--ink);
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
+  margin-bottom: 8px; color: var(--ink); letter-spacing: -0.01em;
 }
 .insight-card .desc {
-  font-family: var(--font-mono); font-size: 11px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
   color: var(--ink-mute); margin-bottom: 16px; line-height: 1.5;
 }
-
-.model-compare {
-  display: grid; grid-template-columns: auto 1fr auto auto auto;
-  gap: 8px 14px; align-items: baseline;
-  font-family: var(--font-mono); font-size: 11px;
-  padding: 10px 0; border-bottom: 1px solid var(--line-soft);
-}
-.model-compare:last-child { border-bottom: none; }
-.model-compare .name {
-  font-weight: 600; color: var(--ink); font-size: 12px;
-}
-.model-compare .name.primary {
-  color: var(--emerald-deep);
-}
-.model-compare .name .tag {
-  display: inline-block; padding: 1px 5px; margin-left: 6px;
-  background: var(--emerald-bg); color: var(--emerald-deep);
-  font-size: 9px; border-radius: 3px; letter-spacing: 0.05em;
-  text-transform: uppercase; vertical-align: 1px;
-}
-.model-compare .desc-mini { color: var(--ink-mute); font-size: 10px; }
-.model-compare .stat {
-  text-align: right; color: var(--ink-soft);
-}
-.model-compare .stat .lbl {
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-mute); display: block;
+.insight-card .empty-text {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-faint);
+  font-style: italic; padding: 12px 0;
 }
 
 .dist-bars { display: flex; flex-direction: column; gap: 8px; }
 .dist-bar {
-  display: grid; grid-template-columns: 80px 1fr auto;
+  display: grid; grid-template-columns: 90px 1fr auto;
   gap: 10px; align-items: center;
-  font-family: var(--font-mono); font-size: 11px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
 }
-.dist-bar .label { color: var(--ink-soft); }
+.dist-bar .label {
+  color: var(--ink-soft); font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
 .dist-bar .bar-track {
-  height: 6px; background: var(--line-soft); border-radius: 3px;
-  overflow: hidden;
+  height: 8px; background: var(--line-soft); border-radius: 4px;
+  overflow: hidden; position: relative;
 }
 .dist-bar .bar-fill {
-  height: 100%; background: var(--emerald); border-radius: 3px;
+  height: 100%; background: var(--emerald); border-radius: 4px;
+  transition: width 0.3s ease;
 }
-.dist-bar .count { color: var(--ink-mute); font-size: 10px; min-width: 30px; text-align: right; }
+.dist-bar .bar-fill.amber { background: #f59e0b; }
+.dist-bar .bar-fill.rose  { background: var(--rose); }
+.dist-bar .count {
+  color: var(--ink-mute); font-size: 11px; min-width: 30px;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
 
-/* Settings tab */
+/* Performance bar - shows WR + ROI side by side */
+.perf-bar {
+  display: grid; grid-template-columns: 100px 1fr auto auto;
+  gap: 10px; align-items: center;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  padding: 4px 0;
+}
+.perf-bar .label {
+  color: var(--ink-soft); font-weight: 600;
+}
+.perf-bar .label .sub {
+  color: var(--ink-mute); font-weight: 500; font-size: 10px;
+  margin-left: 4px;
+}
+.perf-bar .bar-track {
+  height: 8px; background: var(--line-soft); border-radius: 4px;
+  overflow: hidden;
+}
+.perf-bar .bar-fill {
+  height: 100%; background: var(--emerald); border-radius: 4px;
+}
+.perf-bar .wr {
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  color: var(--ink); font-size: 12px; min-width: 48px; text-align: right;
+}
+.perf-bar .roi {
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  font-size: 12px; min-width: 56px; text-align: right;
+}
+.perf-bar .roi.pos { color: var(--emerald-deep); }
+.perf-bar .roi.neg { color: var(--rose); }
+.perf-bar .roi.neutral { color: var(--ink-mute); }
+
+/* ── Settings tab ─────────────────────────────────────────────────────── */
 .settings-card {
   background: var(--panel); border: 1px solid var(--line);
   border-radius: var(--radius-lg); padding: 22px 26px;
-  max-width: 560px;
+  max-width: 640px; margin-bottom: 18px;
 }
 .settings-card h3 {
-  font-family: var(--font-display); font-weight: 700; font-size: 16px;
-  margin-bottom: 18px; color: var(--ink);
+  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  margin-bottom: 18px; color: var(--ink); letter-spacing: -0.01em;
 }
 .setting-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 0; border-top: 1px solid var(--line-soft);
+  gap: 14px;
 }
+.setting-row > div:first-child { flex: 1; min-width: 0; }
 .setting-row:first-of-type { border-top: none; }
 .setting-row .lbl {
-  font-family: var(--font-display); font-weight: 600; font-size: 13px;
-  color: var(--ink);
+  font-family: var(--font-body); font-weight: 600; font-size: 13px;
+  color: var(--ink); letter-spacing: -0.005em;
 }
 .setting-row .desc {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
-  margin-top: 2px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  color: var(--ink-mute); margin-top: 3px; line-height: 1.45;
+}
+.setting-row .desc code {
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--line-soft); padding: 1px 5px; border-radius: 3px;
+  color: var(--ink-soft);
 }
 .setting-input {
-  font-family: var(--font-mono); font-size: 13px;
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 6px 10px;
-  width: 100px; text-align: right; color: var(--ink);
+  border-radius: var(--radius-sm); padding: 7px 11px;
+  width: 110px; text-align: right; color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 .setting-input.wide {
-  width: 240px; text-align: left; font-size: 11px;
+  width: 240px; text-align: left;
 }
 .setting-input:focus {
-  outline: none; border-color: var(--emerald); box-shadow: 0 0 0 3px var(--emerald-bg);
+  outline: none; border-color: var(--emerald);
+  box-shadow: 0 0 0 3px var(--emerald-bg);
 }
 
 .btn {
-  font-family: var(--font-body); font-weight: 500; font-size: 12px;
+  font-family: var(--font-body); font-weight: 600; font-size: 12px;
   background: var(--panel); color: var(--ink-soft);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   padding: 7px 14px; cursor: pointer; transition: all 0.15s;
   text-decoration: none; display: inline-block; line-height: 1.2;
+  white-space: nowrap;
 }
 .btn:hover { background: var(--line-soft); color: var(--ink); border-color: #d6d3d1; }
 .btn-primary {
   background: var(--ink); color: var(--panel); border-color: var(--ink);
 }
 .btn-primary:hover { background: var(--ink-soft); color: var(--panel); border-color: var(--ink-soft); }
+.btn-danger {
+  background: var(--panel); color: var(--rose); border-color: var(--rose-line);
+}
+.btn-danger:hover { background: var(--rose-bg); color: var(--rose); border-color: var(--rose); }
 
 .state-pill {
-  display: inline-block; padding: 3px 10px; border-radius: 999px;
-  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  display: inline-block; padding: 4px 11px; border-radius: 999px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
   letter-spacing: 0.05em; text-transform: uppercase;
 }
 .state-pill.state-on  { background: var(--emerald-bg); color: var(--emerald-deep); }
@@ -1653,35 +1685,47 @@ body {
 .state-pill.state-err { background: var(--rose-bg); color: var(--rose); }
 
 .sync-log {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-mute);
   background: var(--line-soft); border-radius: var(--radius-sm);
-  padding: 8px 12px; margin-top: 12px; min-height: 36px;
+  padding: 10px 14px; margin-top: 14px; min-height: 36px;
   white-space: pre-wrap; max-height: 180px; overflow-y: auto;
 }
 .sync-log:empty::before {
-  content: 'sync log appears here'; color: var(--ink-faint);
+  content: 'sync log appears here';
+  color: var(--ink-faint); font-style: italic;
 }
 
 .fetch-status {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  color: var(--ink-mute);
 }
 .fetch-status.ok  { color: var(--emerald-deep); }
 .fetch-status.err { color: var(--rose); }
 
-/* Stale-data banner */
-.stale-banner {
-  background: var(--amber-bg); border: 1px solid var(--amber-line);
-  border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 14px;
-  display: flex; align-items: center; justify-content: space-between;
-  font-family: var(--font-mono); font-size: 11px; color: var(--amber);
+.about-text {
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  color: var(--ink-soft); line-height: 1.6;
 }
-.stale-banner .msg { font-weight: 500; }
-.stale-banner .btn-stale {
-  background: var(--amber); color: var(--panel); border-color: var(--amber);
+.about-text p { margin-bottom: 10px; }
+.about-text p:last-child { margin-bottom: 0; }
+.about-text strong {
+  font-weight: 700; color: var(--ink);
 }
-.stale-banner .btn-stale:hover { background: #b45309; }
 
-/* Mobile adjustments */
+/* Settings mobile - stack inputs below labels for narrow screens */
+@media (max-width: 720px) {
+  .settings-card { padding: 18px 20px; }
+  .setting-row {
+    flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 14px 0;
+  }
+  .setting-row > div:first-child { width: 100%; }
+  .setting-input { width: 100%; box-sizing: border-box; }
+  .setting-input.wide { width: 100%; }
+  .setting-row .btn { align-self: flex-start; }
+}
+
+/* Mobile adjustments - global */
 @media (max-width: 720px) {
   .topbar { padding: 12px 0; margin-bottom: 14px; }
   .brand { font-size: 17px; }
@@ -1690,8 +1734,38 @@ body {
   .hero { padding: 14px 16px; }
   .hero-title { font-size: 16px; }
   .hero-stat .val { font-size: 18px; }
+
+  /* Race tab */
   .race-table { font-size: 11px; }
   .race-table thead th, .race-table tbody td { padding: 8px 8px; }
+  .race-table-wrap { overflow-x: auto; }
+  .meeting-strip { padding: 6px 8px; gap: 4px; }
+  .meeting-tile { width: 86px; padding: 5px 8px; }
+  .mt-race { font-size: 12px; }
+
+  /* P&L tab */
+  .pnl-controls {
+    padding: 10px 12px; gap: 10px;
+  }
+  .pnl-period-btn, .pnl-view-btn {
+    padding: 5px 10px; font-size: 11px;
+  }
+  .pnl-view-toggle { flex-wrap: wrap; }
+  .pnl-stats-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .pnl-stat { padding: 10px 12px; }
+  .pnl-stat .val { font-size: 18px; }
+  .pnl-chart-card { padding: 14px 16px; }
+
+  /* Insights */
+  .insight-card { padding: 14px 16px; }
+  .insight-card h3 { font-size: 13px; }
+  .insight-card .desc { font-size: 11px; }
+  .perf-bar { grid-template-columns: 80px 1fr auto auto; gap: 8px; }
+  .perf-bar .label { font-size: 11px; }
+  .perf-bar .label .sub { display: block; margin-left: 0; }
+  .dist-bar { grid-template-columns: 70px 1fr auto; gap: 8px; }
 }
 """
 
@@ -1718,8 +1792,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
   </header>
-
-  <div id="stale-host"></div>
 
   <div class="ntj-ticker" id="ntj-ticker">
     <button class="ntj-toggle" id="ntj-toggle" aria-label="Toggle next-to-jump"><span id="ntj-toggle-icon">▼</span></button>
@@ -1876,33 +1948,72 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <section class="section" id="sec-insights">
     <div class="insights-grid">
       <div class="insight-card">
-        <h3>Model comparison &middot; primary vs reference</h3>
-        <div class="desc">Realised performance across the three v3 models being tracked. Primary is the only one being bet; references give context for whether the chosen model is performing as expected.</div>
-        <div id="model-compare"></div>
-      </div>
-
-      <div class="insight-card">
         <h3>Bets by price band</h3>
-        <div class="desc">Distribution of primary model picks by fixed-win price. Higher buckets carry more variance but also more upside.</div>
+        <div class="desc">Distribution of primary model picks by fixed-win price. Higher bands carry more variance but also more upside.</div>
         <div class="dist-bars" id="dist-price"></div>
       </div>
 
       <div class="insight-card">
         <h3>Bets by venue</h3>
-        <div class="desc">Where the model finds qualifying bets most often.</div>
+        <div class="desc">Where the model finds qualifying bets most often. Click to drill into venue-specific performance.</div>
         <div class="dist-bars" id="dist-venue"></div>
       </div>
 
       <div class="insight-card">
-        <h3>Rolling 14-day strike rate</h3>
-        <div class="desc">14-day rolling win rate vs expected ({primary_wr}%). Persistent gaps over 50+ bets warrant review.</div>
-        <svg class="pnl-chart-svg" id="rolling-wr" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <h3>Performance by going</h3>
+        <div class="desc">Win rate and ROI by track surface. Helps identify whether the model is biased toward Good vs Heavy tracks.</div>
+        <div class="dist-bars" id="perf-going"></div>
+      </div>
+
+      <div class="insight-card">
+        <h3>Performance by signal strength</h3>
+        <div class="desc">Picks broken down by TR rank. Tighter filters (TR=1) typically have stronger edges than looser ones (TR=2 or 3).</div>
+        <div class="dist-bars" id="perf-signal"></div>
+      </div>
+
+      <div class="insight-card">
+        <h3>Performance by day of week</h3>
+        <div class="desc">Helps spot whether weekends or midweek meetings produce better edges. Saturday metropolitan racing is typically more competitive than midweek country.</div>
+        <div class="dist-bars" id="perf-dow"></div>
       </div>
     </div>
   </section>
 
   <!-- SETTINGS -->
   <section class="section" id="sec-settings">
+
+    <!-- Stake preferences (most-frequently-changed first) -->
+    <div class="settings-card">
+      <h3>Stake preferences</h3>
+      <div class="setting-row" style="border-top:none;">
+        <div>
+          <div class="lbl">Unit size</div>
+          <div class="desc">Dollar value of 1 unit. Used to convert stakes/PnL between units and dollars.</div>
+        </div>
+        <input type="number" class="setting-input" id="setting-unit" value="100" min="1" step="1">
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="lbl">Bet to return</div>
+          <div class="desc">Target return per bet in units. Stake = target / (price &minus; 1).</div>
+        </div>
+        <input type="number" class="setting-input" id="setting-target" value="4" min="0.5" step="0.5">
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="lbl">Min stake</div>
+          <div class="desc">Minimum stake floor in units (caps very long shots).</div>
+        </div>
+        <input type="number" class="setting-input" id="setting-min" value="0.25" min="0" step="0.05">
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="lbl">Max stake</div>
+          <div class="desc">Maximum stake ceiling in units (caps short prices).</div>
+        </div>
+        <input type="number" class="setting-input" id="setting-max" value="4" min="0.5" step="0.5">
+      </div>
+    </div>
 
     <!-- Fetch / data source -->
     <div class="settings-card">
@@ -1943,7 +2054,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="setting-row">
         <div>
           <div class="lbl">GitHub repo</div>
-          <div class="desc">Format: <code>owner/name</code> — case sensitive. Used to dispatch workflows.</div>
+          <div class="desc">Format: <code>owner/name</code> &middot; case sensitive. Used to dispatch workflows.</div>
         </div>
         <input type="text" class="setting-input wide" id="setting-repo" placeholder="owner/name" autocomplete="off">
       </div>
@@ -1980,7 +2091,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <input type="text" class="setting-input wide" id="setting-gist" placeholder="abc123…" autocomplete="off">
       </div>
-      <div class="setting-row" style="display:flex;gap:10px;justify-content:flex-end;border-top:none;">
+      <div class="setting-row" style="display:flex;gap:10px;justify-content:flex-end;border-top:none;flex-wrap:wrap;">
         <button class="btn" id="btn-sync-create">Create new Gist</button>
         <button class="btn" id="btn-sync-test">Test sync</button>
         <button class="btn btn-primary" id="btn-sync-pull">Pull from Gist</button>
@@ -1989,47 +2100,54 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="sync-log" class="sync-log"></div>
     </div>
 
-    <!-- Stake preferences -->
+    <!-- Bet log admin -->
     <div class="settings-card">
-      <h3>Stake preferences</h3>
+      <h3>Bet log management</h3>
       <div class="setting-row" style="border-top:none;">
         <div>
-          <div class="lbl">Unit size</div>
-          <div class="desc">Dollar value of 1 unit. Used to convert stakes/PnL between units and dollars.</div>
+          <div class="lbl">Storage usage</div>
+          <div class="desc" id="storage-usage">Calculating ...</div>
         </div>
-        <input type="number" class="setting-input" id="setting-unit" value="100" min="1" step="1">
+        <span id="storage-pill" class="state-pill state-off">—</span>
       </div>
       <div class="setting-row">
         <div>
-          <div class="lbl">Bet to return</div>
-          <div class="desc">Target return per bet in units. Stake = target / (price &minus; 1).</div>
+          <div class="lbl">Export bet log</div>
+          <div class="desc">Download a JSON backup of all your bet placements, odds taken, and comments. Independent from CSV export.</div>
         </div>
-        <input type="number" class="setting-input" id="setting-target" value="4" min="0.5" step="0.5">
+        <button class="btn" id="btn-export-betlog">Export JSON</button>
       </div>
       <div class="setting-row">
         <div>
-          <div class="lbl">Min stake</div>
-          <div class="desc">Minimum stake floor in units (caps very long shots).</div>
+          <div class="lbl">Import bet log</div>
+          <div class="desc">Restore from a previously exported JSON file. Existing entries with the same run_id will be overwritten.</div>
         </div>
-        <input type="number" class="setting-input" id="setting-min" value="0.25" min="0" step="0.05">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="file" id="import-betlog-input" accept=".json" style="display:none;">
+          <button class="btn" id="btn-import-betlog">Choose file ...</button>
+        </div>
       </div>
       <div class="setting-row">
         <div>
-          <div class="lbl">Max stake</div>
-          <div class="desc">Maximum stake ceiling in units (caps short prices).</div>
+          <div class="lbl">Reset bet log</div>
+          <div class="desc">Clear all recorded bet placements, odds taken, and comments. This cannot be undone (export first to back up).</div>
         </div>
-        <input type="number" class="setting-input" id="setting-max" value="4" min="0.5" step="0.5">
+        <button class="btn btn-danger" id="btn-reset-betlog">Reset bet log</button>
+      </div>
+      <div class="setting-row" style="border-top:none;">
+        <div></div>
+        <span id="betlog-status" class="fetch-status"></span>
       </div>
     </div>
 
     <!-- About -->
     <div class="settings-card">
       <h3>About</h3>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);line-height:1.7;">
-        <p style="margin-bottom:8px;"><strong>Primary model:</strong> {primary_label} &mdash; {primary_desc}</p>
-        <p style="margin-bottom:8px;"><strong>Walk-forward verified:</strong> Train ROI +24%, Test ROI +37% on Apr 9 - May 7 2026 sample.</p>
-        <p style="margin-bottom:8px;"><strong>Expected:</strong> {primary_wr}% strike rate, {primary_roi_sp}% ROI@SP, {primary_roi_top}% ROI@Top.</p>
-        <p style="margin-bottom:8px;"><strong>Pick volume:</strong> ~{primary_per_day}/day average.</p>
+      <div class="about-text">
+        <p><strong>Primary model:</strong> {primary_label} &mdash; {primary_desc}</p>
+        <p><strong>Walk-forward verified:</strong> Train ROI +24%, Test ROI +37% on Apr 9 - May 7 2026 sample.</p>
+        <p><strong>Expected:</strong> {primary_wr}% strike rate, {primary_roi_sp}% ROI@SP, {primary_roi_top}% ROI@Top.</p>
+        <p><strong>Pick volume:</strong> ~{primary_per_day}/day average.</p>
       </div>
     </div>
   </section>
@@ -3889,45 +4007,49 @@ function exportSettledCSV() {
 
 // ── INSIGHTS tab rendering ─────────────────────────────────────────────────
 function renderInsights() {
-  // Model comparison
-  const mc = document.getElementById('model-compare');
-  if (mc) {
-    let html = '';
-    const flat = ALL_PICKS_FLAT || [];
-    Object.keys(MODEL_META).forEach(mk => {
-      const meta = MODEL_META[mk];
-      const picks = flat.filter(p => p.model === mk && p.resulted);
-      let wins = 0, stake = 0, ret = 0;
-      picks.forEach(p => {
-        const s = calcStake(p.fixed_win_price);
-        if (!s) return;
-        stake += s;
-        if (p.won) {
-          ret += s * (p.starting_price_sp || p.price_top || p.fixed_win_price || 0);
-          wins++;
-        }
-      });
-      const wr = picks.length > 0 ? wins / picks.length : null;
-      const roi = stake > 0 ? (ret - stake) / stake : null;
-      const isPrimary = mk === PRIMARY_KEY;
-      html += `<div class="model-compare">
-        <div class="name ${isPrimary ? 'primary' : ''}">${escapeHtml(meta.label || mk)}${isPrimary ? '<span class="tag">primary</span>' : ''}</div>
-        <div class="desc-mini">${escapeHtml(meta.desc || '')}</div>
-        <div class="stat"><span class="lbl">Bets</span>${picks.length}</div>
-        <div class="stat"><span class="lbl">WR</span>${wr != null ? (wr*100).toFixed(1)+'%' : '—'}</div>
-        <div class="stat"><span class="lbl">ROI@SP</span>${roi != null ? (roi >= 0 ? '+' : '') + (roi*100).toFixed(1)+'%' : '—'}</div>
-      </div>`;
+  const settled = SETTLED || [];
+  const meta = MODEL_META[PRIMARY_KEY] || {};
+
+  // ── Helper: build a perf-bar row showing wr + roi ──
+  function perfBarRow(label, sub, group, maxBets) {
+    if (!group || group.length === 0) {
+      return '<div class="perf-bar"><div class="label">' + escapeHtml(label) +
+        (sub ? '<span class="sub">' + escapeHtml(sub) + '</span>' : '') +
+        '</div><div class="bar-track"></div><div class="wr">—</div><div class="roi neutral">no data</div></div>';
+    }
+    let wins = 0, stake = 0, ret = 0;
+    group.forEach(s => {
+      const st = calcStake(s.fxprice);
+      if (!st) return;
+      stake += st;
+      const price = s.sp || s.top || s.fxprice;
+      if (s.won) { wins++; ret += st * price; }
     });
-    mc.innerHTML = html;
+    const wr = wins / group.length;
+    const roi = stake > 0 ? (ret - stake) / stake : 0;
+    const pct = (group.length / Math.max(1, maxBets)) * 100;
+    const roiCls = roi > 0.02 ? 'pos' : (roi < -0.02 ? 'neg' : 'neutral');
+    return '<div class="perf-bar">' +
+      '<div class="label">' + escapeHtml(label) +
+        '<span class="sub">' + group.length + ' bets</span>' +
+      '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct.toFixed(0) + '%;"></div></div>' +
+      '<div class="wr">' + (wr * 100).toFixed(0) + '%</div>' +
+      '<div class="roi ' + roiCls + '">' + (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%</div>' +
+      '</div>';
   }
 
-  // Distribution by price band (settled bets)
+  function emptyMsg(text) {
+    return '<div class="empty-text">' + text + '</div>';
+  }
+
+  // ── 1. Distribution by price band ──
   const dp = document.getElementById('dist-price');
   if (dp) {
     const bands = [[0,3],[3,5],[5,8],[8,15],[15,1000]];
-    const labels = ['<$3','$3-5','$5-8','$8-15','$15+'];
+    const labels = ['Under $3','$3 to $5','$5 to $8','$8 to $15','$15 plus'];
     const counts = bands.map(() => 0);
-    (SETTLED || []).forEach(s => {
+    settled.forEach(s => {
       const p = s.fxprice;
       if (!p) return;
       for (let i = 0; i < bands.length; i++) {
@@ -3938,59 +4060,104 @@ function renderInsights() {
     let html = '';
     counts.forEach((c, i) => {
       const pct = (c / max * 100).toFixed(0);
-      html += `<div class="dist-bar"><div class="label">${labels[i]}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div><div class="count">${c}</div></div>`;
+      html += '<div class="dist-bar"><div class="label">' + labels[i] +
+        '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
+        '<div class="count">' + c + '</div></div>';
     });
-    dp.innerHTML = html || '<div style="color:var(--ink-mute);font-family:var(--font-mono);font-size:11px;">No settled bets yet.</div>';
+    dp.innerHTML = settled.length > 0 ? html : emptyMsg('No settled bets yet.');
   }
 
-  // Distribution by venue
+  // ── 2. Distribution by venue (top 10) ──
   const dv = document.getElementById('dist-venue');
   if (dv) {
     const counts = {};
-    (SETTLED || []).forEach(s => {
+    settled.forEach(s => {
       const v = s.venue || 'Unknown';
       counts[v] = (counts[v] || 0) + 1;
     });
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
     const max = Math.max(1, ...sorted.map(e => e[1]));
     let html = '';
     sorted.forEach(([v, c]) => {
       const pct = (c / max * 100).toFixed(0);
-      html += `<div class="dist-bar"><div class="label">${escapeHtml(v)}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div><div class="count">${c}</div></div>`;
+      html += '<div class="dist-bar"><div class="label">' + escapeHtml(v) +
+        '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
+        '<div class="count">' + c + '</div></div>';
     });
-    dv.innerHTML = html || '<div style="color:var(--ink-mute);font-family:var(--font-mono);font-size:11px;">No settled bets yet.</div>';
+    dv.innerHTML = settled.length > 0 ? html : emptyMsg('No settled bets yet.');
   }
 
-  // Rolling 14-day strike rate
-  const rwr = document.getElementById('rolling-wr');
-  if (rwr) {
-    const settled = (SETTLED || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    if (settled.length === 0) {
-      rwr.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">No settled bets yet</text>';
-    } else {
-      const W = 600, H = 200, pad = 30;
-      // Window of 14 most recent bets, walking through history
-      const points = [];
-      for (let i = 0; i < settled.length; i++) {
-        const start = Math.max(0, i - 13);
-        const window = settled.slice(start, i + 1);
-        const wins = window.filter(s => s.won).length;
-        points.push({ x: i, wr: wins / window.length });
-      }
-      const expectedWR = MODEL_META[PRIMARY_KEY] ? MODEL_META[PRIMARY_KEY].wr : 0.25;
-      const xScale = i => pad + (points.length === 1 ? (W - 2*pad)/2 : i * (W - 2*pad) / (points.length - 1));
-      const yScale = v => H - pad - v * (H - 2*pad);
-      let svgHtml = `<line class="grid" x1="${pad}" y1="${yScale(expectedWR)}" x2="${W-pad}" y2="${yScale(expectedWR)}"/>`;
-      svgHtml += `<text x="${W-pad+4}" y="${yScale(expectedWR)+3}" class="axis-text">expected ${(expectedWR*100).toFixed(0)}%</text>`;
-      const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(i)},${yScale(p.wr)}`).join(' ');
-      svgHtml += `<path class="actual" d="${linePath}"/>`;
-      svgHtml += `<text x="${pad}" y="${H-8}" class="axis-text">bet 1</text>`;
-      svgHtml += `<text x="${W-pad}" y="${H-8}" class="axis-text" text-anchor="end">bet ${points.length}</text>`;
-      svgHtml += `<text x="4" y="${yScale(0)+3}" class="axis-text">0%</text>`;
-      svgHtml += `<text x="4" y="${yScale(0.5)+3}" class="axis-text">50%</text>`;
-      svgHtml += `<text x="4" y="${yScale(1)+8}" class="axis-text">100%</text>`;
-      rwr.innerHTML = svgHtml;
+  // ── 3. Performance by going ──
+  const pg = document.getElementById('perf-going');
+  if (pg) {
+    function goingCategory(g) {
+      if (!g) return null;
+      const gl = g.toLowerCase();
+      if (gl.startsWith('firm')) return 'Firm';
+      if (gl.startsWith('good')) return 'Good';
+      if (gl.startsWith('soft')) return 'Soft';
+      if (gl.startsWith('heavy')) return 'Heavy';
+      if (gl.startsWith('synth')) return 'Synth';
+      return null;
     }
+    const buckets = { 'Firm': [], 'Good': [], 'Soft': [], 'Heavy': [], 'Synth': [] };
+    settled.forEach(s => {
+      const cat = goingCategory(s.going);
+      if (cat && buckets[cat]) buckets[cat].push(s);
+    });
+    const maxBets = Math.max(1, ...Object.values(buckets).map(b => b.length));
+    let html = '';
+    Object.keys(buckets).forEach(cat => {
+      if (buckets[cat].length > 0) {
+        html += perfBarRow(cat, '', buckets[cat], maxBets);
+      }
+    });
+    pg.innerHTML = settled.length > 0 ? (html || emptyMsg('No going data on settled bets.')) : emptyMsg('No settled bets yet.');
+  }
+
+  // ── 4. Performance by signal strength (TR rank) ──
+  const ps = document.getElementById('perf-signal');
+  if (ps) {
+    const bucketsTR = {
+      'TR rank 1': [],
+      'TR rank 2': [],
+      'TR rank 3': [],
+    };
+    settled.forEach(s => {
+      const tr = s.tr_rank;
+      if (tr === 1) bucketsTR['TR rank 1'].push(s);
+      else if (tr === 2) bucketsTR['TR rank 2'].push(s);
+      else if (tr === 3) bucketsTR['TR rank 3'].push(s);
+    });
+    const maxBets = Math.max(1, ...Object.values(bucketsTR).map(b => b.length));
+    let html = '';
+    Object.keys(bucketsTR).forEach(lbl => {
+      if (bucketsTR[lbl].length > 0) {
+        html += perfBarRow(lbl, '', bucketsTR[lbl], maxBets);
+      }
+    });
+    ps.innerHTML = settled.length > 0 ? (html || emptyMsg('No TR rank data on settled bets.')) : emptyMsg('No settled bets yet.');
+  }
+
+  // ── 5. Performance by day of week ──
+  const pdw = document.getElementById('perf-dow');
+  if (pdw) {
+    const dows = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const buckets = dows.map(() => []);
+    settled.forEach(s => {
+      if (!s.date) return;
+      const d = new Date(s.date);
+      if (isNaN(d.getTime())) return;
+      buckets[d.getDay()].push(s);
+    });
+    const maxBets = Math.max(1, ...buckets.map(b => b.length));
+    let html = '';
+    dows.forEach((lbl, i) => {
+      if (buckets[i].length > 0) {
+        html += perfBarRow(lbl, '', buckets[i], maxBets);
+      }
+    });
+    pdw.innerHTML = settled.length > 0 ? (html || emptyMsg('No date data on settled bets.')) : emptyMsg('No settled bets yet.');
   }
 }
 
@@ -4027,29 +4194,6 @@ function updateRelativeTimes() {
   if (headerRel) headerRel.textContent = rel;
   const settingsRel = document.getElementById('last-fetched-rel');
   if (settingsRel) settingsRel.textContent = rel;
-  // Stale banner: show if data > 6 hours old
-  const t = new Date(RUN_ISO).getTime();
-  const ageHr = (Date.now() - t) / (1000 * 60 * 60);
-  const host = document.getElementById('stale-host');
-  if (host) {
-    if (ageHr > 6 && !isNaN(t)) {
-      host.innerHTML = '<div class="stale-banner">' +
-        '<div class="msg">⚠ Data is ' + Math.floor(ageHr) + ' hours old. Recent picks may be missing.</div>' +
-        '<button class="btn btn-stale" id="stale-refetch-btn">Refetch today →</button>' +
-        '</div>';
-      const btn = document.getElementById('stale-refetch-btn');
-      if (btn) btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-        document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
-        document.querySelector('.tab[data-tab="settings"]').classList.add('active');
-        document.getElementById('sec-settings').classList.add('active');
-        // Then dispatch
-        dispatchWorkflow(isoDate(0));
-      });
-    } else {
-      host.innerHTML = '';
-    }
-  }
 }
 updateRelativeTimes();
 setInterval(updateRelativeTimes, 60000);
@@ -4340,4 +4484,116 @@ updateSyncUI();
 if (syncCfg.pat && syncCfg.gistId) {
   syncPull().catch(() => {/* silent on auto-pull */});
 }
+
+// ── Bet log management ────────────────────────────────────────────────────
+function updateStorageUsage() {
+  const usageEl = document.getElementById('storage-usage');
+  const pillEl = document.getElementById('storage-pill');
+  if (!usageEl || !pillEl) return;
+  try {
+    const log = getBetLog();
+    const entries = Object.keys(log).length;
+    const placed = Object.values(log).filter(e => e.placed).length;
+    const withOdds = Object.values(log).filter(e => e.placed && e.oddsTaken).length;
+    const withComments = Object.values(log).filter(e => (e.comments || '').trim().length > 0).length;
+    const bytes = JSON.stringify(log).length;
+    const kb = (bytes / 1024).toFixed(1);
+    usageEl.textContent = entries + ' entries · ' + placed + ' placed · ' +
+      withOdds + ' with odds · ' + withComments + ' with notes · ' + kb + ' KB';
+    pillEl.textContent = kb + ' KB';
+    pillEl.className = 'state-pill state-on';
+  } catch (e) {
+    usageEl.textContent = 'Unable to read bet log.';
+    pillEl.textContent = 'error';
+    pillEl.className = 'state-pill state-err';
+  }
+}
+
+function setBetlogStatus(msg, cls) {
+  const el = document.getElementById('betlog-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'fetch-status ' + (cls || '');
+  if (msg) setTimeout(() => { el.textContent = ''; el.className = 'fetch-status'; }, 4000);
+}
+
+// Export bet log as JSON download
+const btnExportBetlog = document.getElementById('btn-export-betlog');
+if (btnExportBetlog) {
+  btnExportBetlog.addEventListener('click', () => {
+    try {
+      const log = getBetLog();
+      const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'toprate_betlog_' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      setBetlogStatus('Downloaded ' + Object.keys(log).length + ' entries.', 'ok');
+    } catch (e) {
+      setBetlogStatus('Export failed: ' + e.message, 'err');
+    }
+  });
+}
+
+// Import bet log from JSON file
+const btnImportBetlog = document.getElementById('btn-import-betlog');
+const importFileInput = document.getElementById('import-betlog-input');
+if (btnImportBetlog && importFileInput) {
+  btnImportBetlog.addEventListener('click', () => importFileInput.click());
+  importFileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const incoming = JSON.parse(ev.target.result);
+        if (typeof incoming !== 'object' || Array.isArray(incoming)) {
+          throw new Error('Invalid format - expected an object');
+        }
+        const existing = getBetLog();
+        let added = 0, updated = 0;
+        Object.keys(incoming).forEach(rid => {
+          if (existing[rid]) updated++;
+          else added++;
+          existing[rid] = incoming[rid];
+        });
+        saveBetLog(existing);
+        setBetlogStatus(added + ' added, ' + updated + ' updated.', 'ok');
+        updateStorageUsage();
+        if (typeof renderToday === 'function') { try { renderToday(); } catch(e) {} }
+        if (typeof renderPnL === 'function') { try { renderPnL(); } catch(e) {} }
+      } catch (err) {
+        setBetlogStatus('Import failed: ' + err.message, 'err');
+      }
+      importFileInput.value = '';
+    };
+    reader.readAsText(file);
+  });
+}
+
+// Reset bet log with confirmation
+const btnResetBetlog = document.getElementById('btn-reset-betlog');
+if (btnResetBetlog) {
+  btnResetBetlog.addEventListener('click', () => {
+    const log = getBetLog();
+    const count = Object.keys(log).length;
+    if (count === 0) {
+      setBetlogStatus('Bet log is already empty.', 'ok');
+      return;
+    }
+    const ok = confirm('This will permanently delete ' + count + ' bet log entries. Are you sure?');
+    if (!ok) return;
+    try {
+      localStorage.removeItem(BETLOG_KEY);
+      setBetlogStatus('Cleared ' + count + ' entries.', 'ok');
+      updateStorageUsage();
+      if (typeof renderToday === 'function') { try { renderToday(); } catch(e) {} }
+      if (typeof renderPnL === 'function') { try { renderPnL(); } catch(e) {} }
+    } catch (e) {
+      setBetlogStatus('Reset failed: ' + e.message, 'err');
+    }
+  });
+}
+
+updateStorageUsage();
 """
