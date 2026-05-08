@@ -80,7 +80,8 @@ RUNNER_COLS = [
     "toprate_rating","toprate_price","speed_rating",
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
-    "weight_trend","wins_at_dist","starts_at_dist",
+    "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
+    "going_breakdown",
     # Per-runner weight carried today (was being collected but never saved)
     "weight_carried",
     # Pre-race market (starting_price_sp and price_top filled post-race)
@@ -185,12 +186,20 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
         # WPR at distance (within ±10% of today's race distance)
         wpr_dist = None
         wpr_dist_n = 0
+        dist_starts = 0
+        dist_wins = 0
+        dist_places = 0
         if race_distance:
             lo, hi = race_distance * 0.9, race_distance * 1.1
-            dist_runs = [f["wpr"] for f in form
+            dist_form = [f for f in form
                          if f.get("distance") and lo <= f["distance"] <= hi]
+            dist_runs = [f["wpr"] for f in dist_form]
             wpr_dist_n = len(dist_runs)
             wpr_dist = round(mean(dist_runs), 1) if dist_runs else None
+            dist_starts = len(dist_form)
+            dist_wins   = sum(1 for f in dist_form if f.get("positionFinish") == 1)
+            dist_places = sum(1 for f in dist_form
+                              if f.get("positionFinish") in (1, 2, 3))
 
         # WPR on going (matching today's going condition)
         wpr_going = None
@@ -198,6 +207,32 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
             going_runs = [f["wpr"] for f in form
                           if f.get("going") and f["going"].lower() == race_going.lower()]
             wpr_going = round(mean(going_runs), 1) if going_runs else None
+
+        # Going-category breakdown: collapse Firm/Good/Soft/Heavy
+        # Aggregate starts/wins/places per category from full form history.
+        def _going_category(g):
+            if not g:
+                return None
+            g = g.lower()
+            if g.startswith("firm"): return "firm"
+            if g.startswith("good"): return "good"
+            if g.startswith("soft"): return "soft"
+            if g.startswith("heavy"): return "heavy"
+            if g.startswith("synth"): return "synth"
+            return None
+        going_breakdown = {}
+        for f in form:
+            cat = _going_category(f.get("going"))
+            if not cat:
+                continue
+            if cat not in going_breakdown:
+                going_breakdown[cat] = {"starts": 0, "wins": 0, "places": 0}
+            going_breakdown[cat]["starts"] += 1
+            pos = f.get("positionFinish")
+            if pos == 1:
+                going_breakdown[cat]["wins"] += 1
+            if pos in (1, 2, 3):
+                going_breakdown[cat]["places"] += 1
 
         # ── Historical settling & early speed from actual race data ──────────
         # Use last 5 runs with valid position data
@@ -302,14 +337,18 @@ def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race
             "avg_800m_pos":      avg_800m,
             "avg_400m_pos":      avg_400m,
             # Blended sectional speed signals (margin gain adjusted for race tempo)
-            "early_speed_score": early_speed_score,  # higher = closer to lead early in fast race
-            "mid_speed_score":   mid_speed_score,    # higher = gaining through middle
-            "late_speed_score":  late_speed_score,   # higher = strong late finish
-            "total_speed_score": total_speed_score,  # higher = overall improver (finisher type)
-            # New signals supporting the v3 core model filters
-            "weight_trend":      weight_trend,       # >0 = heavier today than recent avg
-            "wins_at_dist":      wins_at_dist,       # count of wins at this distance ±10%
+            "early_speed_score": early_speed_score,
+            "mid_speed_score":   mid_speed_score,
+            "late_speed_score":  late_speed_score,
+            "total_speed_score": total_speed_score,
+            # v3 model signals
+            "weight_trend":      weight_trend,
+            "wins_at_dist":      wins_at_dist,
             "starts_at_dist":    starts_at_dist,
+            # Distance places (in addition to wins/starts already saved above)
+            "places_at_dist":    dist_places,
+            # Going breakdown (full career, by category): {firm: {starts, wins, places}, good: {...}}
+            "going_breakdown":   going_breakdown,
         }
     return lookup
 
@@ -1131,6 +1170,9 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "weight_trend":       h.get("weight_trend"),
                     "wins_at_dist":       h.get("wins_at_dist"),
                     "starts_at_dist":     h.get("starts_at_dist"),
+                    "places_at_dist":     h.get("places_at_dist"),
+                    # Going breakdown serialised as JSON for CSV storage
+                    "going_breakdown":    json.dumps(h.get("going_breakdown") or {}),
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
@@ -1402,6 +1444,16 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     return None if math.isnan(f) else int(f)
                 except: return None
 
+            # Parse going_breakdown JSON if present (stored as string in CSV)
+            gb = row.get("going_breakdown")
+            if isinstance(gb, str) and gb.strip() and gb != "nan":
+                try: gb_parsed = json.loads(gb)
+                except: gb_parsed = {}
+            elif isinstance(gb, dict):
+                gb_parsed = gb
+            else:
+                gb_parsed = {}
+
             runners.append({
                 "rid":  str(row.get("run_id", "")),
                 "h":    str(row.get("horse", "")) if row.get("horse") else "",
@@ -1413,14 +1465,19 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "trr":  sf(row.get("toprate_rating")),
                 "trp":  sf(row.get("toprate_price")),
                 "spd":  sf(row.get("speed_rating")),
+                # All four sectional speed scores (the user wants Mid+Late+Total visible)
+                "es":   sf(row.get("early_speed_score")),
                 "ms":   sf(row.get("mid_speed_score")),
                 "ls":   sf(row.get("late_speed_score")),
                 "ts":   sf(row.get("total_speed_score")),
-                "es":   sf(row.get("early_speed_score")),
                 "wtr":  sf(row.get("weight_trend")),
-                "wad":  si(row.get("wins_at_dist")),
-                "wad_starts": si(row.get("starts_at_dist")),
+                # Distance performance: starts/wins/places at this distance ±10%
+                "ds":   si(row.get("starts_at_dist")),
+                "dw":   si(row.get("wins_at_dist")),
+                "dp":   si(row.get("places_at_dist")),
                 "wd":   sf(row.get("wpr_dist")),
+                # Going performance breakdown - dict by category
+                "gb":   gb_parsed,
                 "asp":  sf(row.get("avg_settled_pos")),
                 "wpr1": sf(row.get("wpr_last1")),
                 "wpra": sf(row.get("wpr_avg_last3")),

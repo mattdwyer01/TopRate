@@ -370,31 +370,114 @@ body {
 
 .pick-row1 {
   display: grid;
-  grid-template-columns: auto auto 1fr auto auto;
-  gap: 14px; align-items: baseline; margin-bottom: 10px;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 14px; align-items: center; margin-bottom: 12px;
 }
 .pick-time {
-  font-family: var(--font-mono); font-weight: 500; font-size: 14px;
+  font-family: var(--font-body); font-weight: 600; font-size: 15px;
   color: var(--ink); min-width: 50px;
 }
 .pick-venue {
-  font-family: var(--font-body); font-weight: 600; font-size: 13px;
-  color: var(--ink-soft); white-space: nowrap;
+  font-family: var(--font-body); font-weight: 500; font-size: 12px;
+  color: var(--ink-mute); white-space: nowrap;
+  display: inline-block; margin-left: 6px;
 }
 .pick-venue .race-num {
-  font-family: var(--font-mono); color: var(--ink-mute); font-weight: 500;
-  margin-left: 6px;
+  color: var(--ink-faint); font-weight: 500; margin-left: 4px;
 }
 .pick-horse {
-  font-family: var(--font-body); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; gap: 10px;
+}
+.tab-badge {
+  display: inline-block; min-width: 26px; height: 26px; line-height: 26px;
+  text-align: center; background: var(--ink); color: var(--panel);
+  font-family: var(--font-body); font-size: 12px; font-weight: 700;
+  border-radius: 5px; padding: 0 7px;
+}
+.horse-block {
+  display: inline-flex; flex-direction: column; line-height: 1.2;
+}
+.horse-name {
+  font-family: var(--font-body); font-weight: 700; font-size: 17px;
   color: var(--ink); letter-spacing: -0.01em;
 }
-.pick-horse .tab-badge {
-  display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
-  text-align: center; background: var(--ink); color: var(--panel);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-  border-radius: var(--radius-sm); padding: 0 6px; margin-right: 8px;
-  vertical-align: 1px;
+.cmp-rank {
+  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
+  font-weight: 500; letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.horse-ranks {
+  margin-top: 2px;
+}
+
+/* Pick header right side: odds input and stake stack */
+.pick-odds-block {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+}
+.pick-stake {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+  text-align: right; font-weight: 500; line-height: 1.4;
+}
+.pick-stake .units {
+  color: var(--ink); font-weight: 700; font-size: 13px;
+}
+.pick-stake .return {
+  color: var(--emerald-deep); font-weight: 600;
+}
+
+/* Speed scores row - prominent row of 4 cells */
+.speed-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+  background: #f8fafc; border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 8px;
+}
+.speed-cell {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+.speed-cell .sp-lbl {
+  font-family: var(--font-body); font-size: 10px;
+  color: var(--ink-mute); text-transform: uppercase;
+  letter-spacing: 0.06em; font-weight: 600;
+  min-width: 38px;
+}
+.speed-cell .sp-v {
+  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  color: var(--ink); letter-spacing: -0.01em;
+}
+.speed-cell .sp-v.na { color: var(--ink-faint); font-weight: 400; }
+.speed-cell .sp-rank {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--ink-mute); margin-left: auto;
+}
+.speed-cell.r1 { background: var(--emerald-bg); }
+.speed-cell.r1 .sp-v { color: var(--emerald-deep); }
+.speed-cell.r1 .sp-rank { color: var(--emerald-deep); font-weight: 700; }
+.speed-cell.r2 .sp-v { color: var(--emerald-deep); }
+.speed-cell.r2 .sp-rank { color: var(--emerald-deep); }
+
+/* Context grid - clean rows of label/value pairs */
+.pick-row2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.pick-meta {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+}
+.pick-meta .lbl {
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px;
+  display: block; font-weight: 600; font-size: 10px;
+}
+.pick-meta .v {
+  color: var(--ink); font-size: 13px; font-weight: 600;
+  font-family: var(--font-body);
 }
 
 /* Fixed odds input */
@@ -418,12 +501,14 @@ body {
   background: var(--rose-bg); border-color: var(--rose-line);
 }
 .odds-input-wrap .currency {
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-mute);
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+  font-weight: 500;
 }
 .odds-input {
-  font-family: var(--font-mono); font-weight: 600; font-size: 14px;
+  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  font-variant-numeric: tabular-nums;
   background: transparent; border: none; outline: none;
-  width: 56px; text-align: right; color: var(--ink);
+  width: 60px; text-align: right; color: var(--ink);
   padding: 0; -moz-appearance: textfield;
 }
 .odds-input::-webkit-outer-spin-button,
@@ -431,8 +516,8 @@ body {
   -webkit-appearance: none; margin: 0;
 }
 .odds-feeder {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
-  white-space: nowrap;
+  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
+  white-space: nowrap; font-weight: 500;
 }
 .odds-feeder .reset {
   cursor: pointer; color: var(--indigo); margin-left: 4px;
@@ -440,34 +525,13 @@ body {
 }
 .odds-feeder .reset:hover { color: var(--ink); }
 
-.pick-stake {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
-  text-align: right;
-}
-.pick-stake .units { color: var(--ink); font-weight: 600; font-size: 12px; }
-.pick-stake .return { color: var(--emerald-deep); }
-
-.pick-row2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px 16px; padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
-}
-.pick-meta {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
-}
-.pick-meta .lbl {
-  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px;
-  display: block;
-}
-.pick-meta .v { color: var(--ink); font-size: 12px; font-weight: 500; }
-.pick-meta .v.pos { color: var(--emerald-deep); font-weight: 600; }
+.pick-meta .v.pos { color: var(--emerald-deep); font-weight: 700; }
 .pick-meta .v.neg { color: var(--rose); }
 
 .pick-result {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
   display: flex; align-items: center; justify-content: space-between;
-  font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
 }
 .pick-result.win { color: var(--emerald-deep); font-weight: 500; }
 .pick-result.loss { color: var(--rose); }
@@ -491,19 +555,19 @@ body {
 .result-entry {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
   display: flex; align-items: center; gap: 8px;
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  font-family: var(--font-body); font-size: 12px;
 }
 .result-entry .result-lbl {
   color: var(--ink-mute); text-transform: uppercase;
-  letter-spacing: 0.06em; font-size: 10px;
+  letter-spacing: 0.06em; font-size: 10px; font-weight: 600;
   margin-right: 4px;
 }
 .result-chip {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  font-family: var(--font-body); font-size: 11px;
   background: var(--panel); color: var(--ink-soft);
   border: 1px solid var(--line); border-radius: 4px;
-  padding: 4px 10px; cursor: pointer; transition: all 0.12s;
-  font-weight: 500;
+  padding: 5px 12px; cursor: pointer; transition: all 0.12s;
+  font-weight: 600;
 }
 .result-chip:hover {
   background: var(--emerald-bg); color: var(--emerald-deep);
@@ -1673,11 +1737,25 @@ function renderToday() {
     const going = p.going || '';
     const fieldSize = p.field_size || (r.fs || '');
 
-    // Signal ranks shown as bigger pills with separated label/value
-    const ranksHtml =
-      '<span class="rpill" title="TopRate price rank in race"><span class="rpill-lbl">TR$</span><span class="rpill-v">' + (p.tr_rank || '?') + '</span></span>' +
-      '<span class="rpill" title="Mid sectional speed rank"><span class="rpill-lbl">Mid</span><span class="rpill-v">' + (p.mid_rank || '?') + '</span></span>' +
-      '<span class="rpill" title="Late sectional speed rank"><span class="rpill-lbl">Late</span><span class="rpill-v">' + (p.late_rank || '?') + '</span></span>';
+    // Going category for matching today's category
+    function goingCategory(g) {
+      if (!g) return null;
+      const gl = g.toLowerCase();
+      if (gl.startsWith('firm')) return 'firm';
+      if (gl.startsWith('good')) return 'good';
+      if (gl.startsWith('soft')) return 'soft';
+      if (gl.startsWith('heavy')) return 'heavy';
+      if (gl.startsWith('synth')) return 'synth';
+      return null;
+    }
+    const todayGoing = goingCategory(going);
+
+    // Compact rank summary (just visible above horse name as small caps)
+    // Big numbers go in the speed scores row below
+    const compactRanks =
+      '<span class="cmp-rank">TR$' + (p.tr_rank || '?') + '</span> · ' +
+      '<span class="cmp-rank">Mid' + (p.mid_rank || '?') + '</span> · ' +
+      '<span class="cmp-rank">Late' + (p.late_rank || '?') + '</span>';
 
     // Odds input - show qualifying state
     const oddsBoxClass = meetsThreshold ? 'qualifies' : 'below';
@@ -1696,18 +1774,6 @@ function renderToday() {
       stakeHtml = '<span style="color:var(--ink-mute);">enter odds →</span>';
     }
 
-    // TopRate rating + price + edge
-    // Edge = fixed_price / TR_price
-    //   > 1.0: market thinks horse longer than TR thinks  → "value" (bet)
-    //   < 1.0: market thinks horse shorter than TR thinks → "under" (skip)
-    const trp = r.trp;
-    const trr = r.trr;
-    const edge = (trp && effectivePrice) ? (effectivePrice / trp) : null;
-    const edgePct = edge != null ? ((edge - 1) * 100).toFixed(0) + '%' : '—';
-    const edgeLabel = edge != null ?
-      (edge > 1.05 ? 'value' : (edge < 0.95 ? 'under' : 'fair')) : '';
-    const edgeClass = edge != null ? (edge > 1.05 ? 'pos' : (edge < 0.95 ? 'neg' : '')) : '';
-
     // Recent WPR mini-stat
     const wpr1 = r.wpr1, wpra = r.wpra, wprt = r.wprt;
     const wprHtml = wpr1 != null ?
@@ -1717,23 +1783,19 @@ function renderToday() {
 
     // Manual result entry / display
     const manRes = manualResults[String(p.run_id)];
-    const officialFinish = r.f;  // null if no official result yet
+    const officialFinish = r.f;
     const hasOfficial = officialFinish != null;
-    // If we have an official result, that takes precedence and clears manual
     const displayFinish = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
     const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
 
-    // Result display on the right of the row
     let resultEntryHtml;
     if (hasOfficial) {
-      // Show official result
       resultEntryHtml =
         '<div class="result-entry official">' +
         '<span class="result-tag">' + (displayWon ? 'won' : 'lost') + '</span>' +
         '<span class="result-pos">' + officialFinish + ord(officialFinish) + '</span>' +
         '</div>';
     } else if (manRes) {
-      // Manual result entered, awaiting official
       resultEntryHtml =
         '<div class="result-entry manual">' +
         '<span class="result-tag">' + (displayWon ? 'manual W' : 'manual L') + '</span>' +
@@ -1741,7 +1803,6 @@ function renderToday() {
         '<span class="result-clear" data-clear-rid="' + p.run_id + '" title="Clear manual result">×</span>' +
         '</div>';
     } else {
-      // No result yet - show entry chips
       resultEntryHtml =
         '<div class="result-entry empty">' +
         '<span class="result-lbl">result</span>' +
@@ -1771,7 +1832,7 @@ function renderToday() {
           resultBlock = '<div class="pick-result loss"><div><span class="marker">lost</span>' + finStr +
             (r.sp ? ' @$' + r.sp.toFixed(2) + ' SP' : '') +
             '</div><div>-' + stake.toFixed(2) + 'u (-' + fmtDollar(stake) + ')</div></div>';
-        }
+      }
       } else {
         cardClass = 'below-threshold';
       }
@@ -1781,20 +1842,62 @@ function renderToday() {
       cardClass = 'qualifies';
     }
 
-    // Build context fields - only show ones we actually have data for
+    // ── Speed scores row: Early/Mid/Late/Total with both value AND rank ──
+    function speedCell(label, value, rank) {
+      if (value == null) {
+        return '<div class="speed-cell"><span class="sp-lbl">' + label + '</span>' +
+               '<span class="sp-v na">—</span></div>';
+      }
+      const rankCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : 'rn'));
+      return '<div class="speed-cell ' + rankCls + '">' +
+        '<span class="sp-lbl">' + label + '</span>' +
+        '<span class="sp-v">' + value.toFixed(1) + '</span>' +
+        (rank ? '<span class="sp-rank">#' + rank + '</span>' : '') +
+        '</div>';
+    }
+
+    // We pre-pass through rank in the picks payload for mid/late. Total/early need to be
+    // computed from the race runners (we can derive from runner_full's race-level data).
+    // Use the ranks from the pick payload where available.
+    const speedRow =
+      '<div class="speed-row">' +
+        speedCell('Early', r.es, null) +  // no early_rank in pick payload yet
+        speedCell('Mid',   r.ms, p.mid_rank) +
+        speedCell('Late',  r.ls, p.late_rank) +
+        speedCell('Total', r.ts, null) +
+      '</div>';
+
+    // ── Distance + going performance breakdowns ──
+    function perfStr(starts, wins, places) {
+      if (!starts || starts === 0) return null;
+      const w = wins || 0, p = places || 0;
+      return w + 'W ' + (p > w ? (p - w) : 0) + 'P / ' + starts + ' starts';
+    }
+    const distPerf = perfStr(r.ds, r.dw, r.dp) || 'no runs';
+    let goingPerf = 'no runs';
+    if (todayGoing && r.gb && r.gb[todayGoing]) {
+      const g = r.gb[todayGoing];
+      goingPerf = perfStr(g.starts, g.wins, g.places) || 'no runs';
+    }
+
+    // TR rating + price (no edge calc anymore - user asked to drop it)
+    const trr = r.trr;
+    const trp = r.trp;
+
+    // ── Build context fields - only show ones we actually have data for ──
     const contextFields = [];
     if (distance) contextFields.push({ lbl: 'Distance', v: distance });
     if (going) contextFields.push({ lbl: 'Going', v: going });
     if (fieldSize) contextFields.push({ lbl: 'Field', v: fieldSize });
     if (trr != null) contextFields.push({ lbl: 'TR rating', v: trr.toFixed(1) });
     if (trp != null) contextFields.push({ lbl: 'TR price', v: '$' + trp.toFixed(2) });
-    if (edge != null) contextFields.push({ lbl: 'Edge vs TR', v: edgePct + ' ' + edgeLabel, cls: edgeClass });
+    contextFields.push({ lbl: 'Distance perf', v: distPerf });
+    contextFields.push({ lbl: 'Going perf', v: goingPerf });
     if (r.wt != null) contextFields.push({ lbl: 'Wt today', v: r.wt + 'kg' });
     if (r.wtr != null) contextFields.push({ lbl: 'Wt trend', v: (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' });
     if (r.j) contextFields.push({ lbl: 'Jockey', v: r.j });
     if (r.tn) contextFields.push({ lbl: 'Trainer', v: r.tn });
     if (r.b != null) contextFields.push({ lbl: 'Barrier', v: r.b });
-    if (r.wad != null) contextFields.push({ lbl: 'Wins @ dist', v: r.wad + (r.wad_starts ? '/' + r.wad_starts + ' starts' : '') });
     if (wpr1 != null) contextFields.push({ lbl: 'Recent WPR', v: wprHtml, span: 2 });
 
     const contextHtml = contextFields.map(f =>
@@ -1810,7 +1913,13 @@ function renderToday() {
       '<div class="pick-row1">' +
         '<div class="pick-time">' + fmtTime(p.start_time) + '</div>' +
         '<div class="pick-venue">' + escapeHtml(p.venue || '') + '<span class="race-num">R' + p.race + '</span></div>' +
-        '<div class="pick-horse"><span class="tab-badge">' + (p.tab || '?') + '</span>' + escapeHtml(p.horse || '') + '<span class="pick-rank-pills">' + ranksHtml + '</span></div>' +
+        '<div class="pick-horse">' +
+          '<span class="tab-badge">' + (p.tab || '?') + '</span>' +
+          '<span class="horse-block">' +
+            '<span class="horse-name">' + escapeHtml(p.horse || '') + '</span>' +
+            '<span class="horse-ranks">' + compactRanks + '</span>' +
+          '</span>' +
+        '</div>' +
         '<div class="pick-odds-block">' +
           '<div class="odds-input-wrap ' + oddsBoxClass + '">' +
             '<span class="currency">$</span>' +
@@ -1821,10 +1930,13 @@ function renderToday() {
         '<div class="pick-stake">' + stakeHtml + '</div>' +
       '</div>' +
 
+      // Speed scores row (Early/Mid/Late/Total with rank)
+      speedRow +
+
       // Context grid
       '<div class="pick-row2">' + contextHtml + '</div>' +
 
-      // Manual result entry / display
+      // Manual result entry
       resultEntryHtml +
 
       resultBlock;
