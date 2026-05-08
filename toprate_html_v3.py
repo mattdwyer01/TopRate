@@ -167,7 +167,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 'mid_rank': pick.get('mid_rank'),
                 'late_rank': pick.get('late_rank'),
             })
-    # Enrich with finish data, full per-runner context, and top-3-by-TR for comparison
+    # Enrich with finish data and full per-runner context from races
     for tp in all_picks_list:
         race = next((r for r in races if str(r.get('race_id')) == str(tp['race_id'])), None)
         if race:
@@ -176,16 +176,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             if runner:
                 tp['runner_full'] = runner
             tp['done'] = race.get('done')
-            # Top 3 runners by TR rating for in-race comparison
-            runners_with_tr = [u for u in race.get('runners', []) if u.get('trr') is not None]
-            runners_with_tr.sort(key=lambda u: -u['trr'])
-            tp['top3_tr'] = [{
-                'tab':  u.get('tab'),
-                'h':    u.get('h'),
-                'trr':  u.get('trr'),
-                'trp':  u.get('trp'),
-                'fx':   u.get('fx'),
-            } for u in runners_with_tr[:3]]
     # Sort chronologically by date+start_time so JS can filter and the order is correct
     all_picks_list.sort(key=lambda t: (t.get('date') or '', t.get('start_time') or '', t.get('race') or 0))
     today_picks = all_picks_list  # keep variable name for JSON injection
@@ -265,25 +255,25 @@ body {
 .shell { max-width: 1440px; margin: 0 auto; padding: 0 20px; }
 @media (max-width: 720px) { .shell { padding: 0 12px; } }
 
-/* Top bar */
+/* Top bar - compact, just a thin status strip */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 0 14px; border-bottom: 1px solid var(--line);
   margin-bottom: 18px;
 }
+.topbar-compact {
+  padding: 10px 0 8px; border-bottom: none; margin-bottom: 8px;
+  justify-content: flex-end;
+}
 .topbar-left { display: flex; align-items: baseline; gap: 14px; }
-.brand {
-  font-family: var(--font-body); font-weight: 700; font-size: 18px;
-  letter-spacing: -0.01em; color: var(--ink);
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.run-stamp {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
 }
 .brand-mark {
   display: inline-block; width: 6px; height: 6px; background: var(--emerald);
   border-radius: 50%; margin-right: 8px; vertical-align: middle;
 }
-.run-stamp {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
-}
-.topbar-right { display: flex; align-items: center; gap: 10px; }
 .unit-control {
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft);
   background: var(--panel); border: 1px solid var(--line); padding: 4px 8px;
@@ -474,53 +464,6 @@ body {
 .pick-meta .v.pos { color: var(--emerald-deep); font-weight: 600; }
 .pick-meta .v.neg { color: var(--rose); }
 
-/* In-race comparison block (top 3 by TR rating) */
-.cmp-block {
-  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
-}
-.cmp-head {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
-  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
-}
-.cmp-headers {
-  display: grid;
-  grid-template-columns: 40px 30px 1fr 60px 70px 70px;
-  gap: 8px; padding: 0 4px;
-  font-family: var(--font-mono); font-size: 9px; color: var(--ink-faint);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  text-align: right;
-}
-.cmp-headers span:nth-child(3) { text-align: left; }
-.cmp-row {
-  display: grid;
-  grid-template-columns: 40px 30px 1fr 60px 70px 70px;
-  gap: 8px; padding: 4px;
-  font-family: var(--font-mono); font-size: 12px;
-  align-items: baseline; text-align: right;
-  border-radius: 3px;
-}
-.cmp-row.me {
-  background: var(--emerald-bg); color: var(--emerald-deep); font-weight: 600;
-}
-.cmp-row .cmp-rank {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
-  text-align: left; font-weight: 600;
-}
-.cmp-row.me .cmp-rank { color: var(--emerald-deep); }
-.cmp-row .cmp-tab {
-  display: inline-block; min-width: 22px; text-align: center;
-  background: var(--ink); color: var(--panel); border-radius: 3px;
-  font-size: 10px; font-weight: 600; padding: 1px 4px;
-}
-.cmp-row.me .cmp-tab {
-  background: var(--emerald); color: #fff;
-}
-.cmp-row .cmp-horse {
-  text-align: left; color: inherit;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-family: var(--font-body); font-size: 12px; font-weight: 500;
-}
-
 .pick-result {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
   display: flex; align-items: center; justify-content: space-between;
@@ -544,14 +487,74 @@ body {
   margin-left: 8px;
 }
 
+/* Manual result entry */
+.result-entry {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.result-entry .result-lbl {
+  color: var(--ink-mute); text-transform: uppercase;
+  letter-spacing: 0.06em; font-size: 10px;
+  margin-right: 4px;
+}
+.result-chip {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  background: var(--panel); color: var(--ink-soft);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 4px 10px; cursor: pointer; transition: all 0.12s;
+  font-weight: 500;
+}
+.result-chip:hover {
+  background: var(--emerald-bg); color: var(--emerald-deep);
+  border-color: var(--emerald-line);
+}
+.result-chip.lost:hover {
+  background: var(--rose-bg); color: var(--rose);
+  border-color: var(--rose-line);
+}
+.result-entry.official, .result-entry.manual {
+  color: var(--ink-soft);
+}
+.result-entry .result-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.result-entry.official .result-tag {
+  background: var(--emerald-bg); color: var(--emerald-deep);
+}
+.result-entry.manual .result-tag {
+  background: #fffbeb; color: #92400e;
+}
+.result-entry .result-pos {
+  font-weight: 600; color: var(--ink);
+}
+.result-entry .result-clear {
+  margin-left: auto; cursor: pointer;
+  color: var(--ink-faint); font-size: 14px; padding: 0 4px;
+}
+.result-entry .result-clear:hover {
+  color: var(--rose);
+}
+
 .pick-rank-pills {
-  display: inline-flex; gap: 4px; margin-left: 4px;
+  display: inline-flex; gap: 6px; margin-left: 10px;
+  vertical-align: middle;
 }
 .rpill {
-  display: inline-block; padding: 1px 5px; border-radius: 3px;
-  font-family: var(--font-mono); font-size: 10px;
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 3px 8px; border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
   background: var(--emerald-bg); color: var(--emerald-deep);
-  font-weight: 600; min-width: 16px; text-align: center;
+  font-weight: 600; line-height: 1.2;
+}
+.rpill .rpill-lbl {
+  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+  font-weight: 500; color: var(--emerald-deep); opacity: 0.7;
+}
+.rpill .rpill-v {
+  font-size: 12px; font-weight: 700;
 }
 
 .empty-state {
@@ -1136,10 +1139,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TopRate — {primary_label}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&display=swap');
 {css_tokens}
 {css}
 </style>
@@ -1147,12 +1148,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="shell">
 
-  <header class="topbar">
-    <div class="topbar-left">
-      <div class="brand"><span class="brand-mark"></span>TopRate</div>
-      <div class="run-stamp" id="header-run-stamp" title="{run_date}"><span id="header-run-rel">just now</span></div>
-    </div>
+  <header class="topbar topbar-compact">
     <div class="topbar-right">
+      <span class="run-stamp" id="header-run-stamp" title="{run_date}"><span id="header-run-rel">just now</span></span>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
   </header>
@@ -1578,9 +1576,22 @@ try {
   if (raw) manualOdds = JSON.parse(raw);
 } catch(e) { manualOdds = {}; }
 
+// Per-pick manual result storage: {run_id: {finish: 1|2|3|0, ts: ISO}}
+// Used when official results aren't yet in the data. Cleared automatically
+// when official results arrive (handled in renderToday by checking r.f).
+const RESULTS_STORAGE_KEY = 'toprate_v3_results';
+let manualResults = {};
+try {
+  const raw = localStorage.getItem(RESULTS_STORAGE_KEY);
+  if (raw) manualResults = JSON.parse(raw);
+} catch(e) { manualResults = {}; }
+
 function saveOdds() {
   try { localStorage.setItem(ODDS_STORAGE_KEY, JSON.stringify(manualOdds)); } catch(e) {}
-  // Hook for sync push (defined below)
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+function saveResults() {
+  try { localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(manualResults)); } catch(e) {}
   if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 
@@ -1610,6 +1621,18 @@ function resetManualOdds(runId) {
 function renderToday() {
   const list = document.getElementById('picks-list');
   list.innerHTML = '';
+
+  // Clean up stale manual results - if any official result has arrived for a
+  // run_id that has a manual entry, drop the manual one.
+  let cleanedManual = false;
+  Object.keys(manualResults).forEach(rid => {
+    const pick = (PICKS_TODAY || []).find(p => String(p.run_id) === rid);
+    if (pick && pick.runner_full && pick.runner_full.f != null) {
+      delete manualResults[rid];
+      cleanedManual = true;
+    }
+  });
+  if (cleanedManual) saveResults();
 
   // Filter to user's local today; PICKS_TODAY now contains all picks across all dates
   const localToday = isoDate(0);
@@ -1642,62 +1665,19 @@ function renderToday() {
 
     if (meetsThreshold) todayQualifying++;
 
-    const isResulted = p.done === 1 || r.f != null;
     let cardClass = 'pending';
     let resultBlock = '';
-
-    if (isResulted) {
-      todaySettled++;
-      const won = (r.f === 1) || (r.won === 1) || (r.won === true);
-      const sp = r.sp;
-      // If price wasn't above threshold, we wouldn't have bet -> no PnL impact
-      if (meetsThreshold) {
-        const settlePrice = sp || effectivePrice;
-        if (won && stake) {
-          const profit = stake * (settlePrice - 1);
-          todayWins++; todayPnL += profit;
-          cardClass = 'settled-win';
-          resultBlock = '<div class="pick-result win"><div><span class="marker">won</span>finished 1st @$' + settlePrice.toFixed(2) + ' SP</div><div>+' + profit.toFixed(2) + 'u (+' + fmtDollar(profit) + ')</div></div>';
-        } else {
-          if (stake) { todayLosses++; todayPnL -= stake; }
-          cardClass = 'settled-loss';
-          const finStr = r.f != null ? r.f + ord(r.f) : 'unplaced';
-          resultBlock = '<div class="pick-result loss"><div><span class="marker">lost</span>' + finStr + (sp ? ' @$' + sp.toFixed(2) + ' SP' : '') + '</div><div>-' + (stake ? stake.toFixed(2) : '—') + 'u' + (stake ? ' (-' + fmtDollar(stake) + ')' : '') + '</div></div>';
-        }
-      } else {
-        // Skipped - below threshold, didn't bet
-        cardClass = 'below-threshold';
-        const won = (r.f === 1) || (r.won === 1) || (r.won === true);
-        const finStr = r.f != null ? r.f + ord(r.f) : 'unplaced';
-        resultBlock = '<div class="pick-result"><div style="color:var(--ink-mute);"><span class="below-threshold-badge">skipped</span>finished ' + finStr + (won ? ' (would have won)' : '') + '</div><div style="color:var(--ink-mute);">no bet — below $' + minOdds + ' threshold</div></div>';
-      }
-    } else if (!meetsThreshold) {
-      cardClass = 'below-threshold';
-    } else {
-      cardClass = 'qualifies';
-    }
 
     // Distance/going
     const distance = p.distance ? p.distance + 'm' : '';
     const going = p.going || '';
     const fieldSize = p.field_size || (r.fs || '');
 
-    // Race shape - characterise pace
-    function paceLabel(rse, rsm, rsl) {
-      if (rse == null) return '—';
-      // Positive = above-avg pace (faster); negative = slower
-      if (rse > 0.15) return 'fast early';
-      if (rse < -0.15) return 'slow early';
-      if (rsm != null && rsm > 0.15) return 'fast mid';
-      if (rsl != null && rsl > 0.15) return 'fast late';
-      return 'even';
-    }
-    const pace = paceLabel(p.rse, p.rsm, p.rsl);
-
-    // Signal ranks (TR/Mid/Late)
-    const ranksHtml = '<span class="rpill" title="TopRate rank">TR$' + (p.tr_rank || '?') + '</span>'
-      + '<span class="rpill" title="Mid speed rank">Mid' + (p.mid_rank || '?') + '</span>'
-      + '<span class="rpill" title="Late speed rank">Late' + (p.late_rank || '?') + '</span>';
+    // Signal ranks shown as bigger pills with separated label/value
+    const ranksHtml =
+      '<span class="rpill" title="TopRate price rank in race"><span class="rpill-lbl">TR$</span><span class="rpill-v">' + (p.tr_rank || '?') + '</span></span>' +
+      '<span class="rpill" title="Mid sectional speed rank"><span class="rpill-lbl">Mid</span><span class="rpill-v">' + (p.mid_rank || '?') + '</span></span>' +
+      '<span class="rpill" title="Late sectional speed rank"><span class="rpill-lbl">Late</span><span class="rpill-v">' + (p.late_rank || '?') + '</span></span>';
 
     // Odds input - show qualifying state
     const oddsBoxClass = meetsThreshold ? 'qualifies' : 'below';
@@ -1716,29 +1696,17 @@ function renderToday() {
       stakeHtml = '<span style="color:var(--ink-mute);">enter odds →</span>';
     }
 
-    // TopRate model price + edge
+    // TopRate rating + price + edge
+    // Edge = fixed_price / TR_price
+    //   > 1.0: market thinks horse longer than TR thinks  → "value" (bet)
+    //   < 1.0: market thinks horse shorter than TR thinks → "under" (skip)
     const trp = r.trp;
+    const trr = r.trr;
     const edge = (trp && effectivePrice) ? (effectivePrice / trp) : null;
-    const edgeStr = edge != null ?
-      ((edge - 1) * 100).toFixed(0) + '%' + (edge > 1.05 ? ' value' : (edge < 0.95 ? ' under' : '')) :
-      '—';
+    const edgePct = edge != null ? ((edge - 1) * 100).toFixed(0) + '%' : '—';
+    const edgeLabel = edge != null ?
+      (edge > 1.05 ? 'value' : (edge < 0.95 ? 'under' : 'fair')) : '';
     const edgeClass = edge != null ? (edge > 1.05 ? 'pos' : (edge < 0.95 ? 'neg' : '')) : '';
-
-    // In-race comparison: top 3 by TR rating
-    let topThreeHtml = '';
-    if (p.top3_tr && p.top3_tr.length) {
-      topThreeHtml = p.top3_tr.map((u, i) => {
-        const isPicked = String(u.tab) === String(p.tab);
-        return '<div class="cmp-row' + (isPicked ? ' me' : '') + '">' +
-          '<span class="cmp-rank">TR' + (i + 1) + '</span>' +
-          '<span class="cmp-tab">' + (u.tab || '?') + '</span>' +
-          '<span class="cmp-horse">' + escapeHtml(u.h || '') + '</span>' +
-          '<span class="cmp-trr">' + (u.trr ? u.trr.toFixed(1) : '—') + '</span>' +
-          '<span class="cmp-trp">$' + (u.trp ? u.trp.toFixed(2) : '—') + '</span>' +
-          '<span class="cmp-fx">' + (u.fx ? '$' + u.fx.toFixed(2) : '—') + '</span>' +
-        '</div>';
-      }).join('');
-    }
 
     // Recent WPR mini-stat
     const wpr1 = r.wpr1, wpra = r.wpra, wprt = r.wprt;
@@ -1746,6 +1714,95 @@ function renderToday() {
       ('Last ' + wpr1.toFixed(0) + ' · Avg ' + (wpra != null ? wpra.toFixed(0) : '—') +
         (wprt != null ? ' · Trend ' + (wprt > 0 ? '+' : '') + wprt.toFixed(1) : '')) :
       '—';
+
+    // Manual result entry / display
+    const manRes = manualResults[String(p.run_id)];
+    const officialFinish = r.f;  // null if no official result yet
+    const hasOfficial = officialFinish != null;
+    // If we have an official result, that takes precedence and clears manual
+    const displayFinish = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
+    const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
+
+    // Result display on the right of the row
+    let resultEntryHtml;
+    if (hasOfficial) {
+      // Show official result
+      resultEntryHtml =
+        '<div class="result-entry official">' +
+        '<span class="result-tag">' + (displayWon ? 'won' : 'lost') + '</span>' +
+        '<span class="result-pos">' + officialFinish + ord(officialFinish) + '</span>' +
+        '</div>';
+    } else if (manRes) {
+      // Manual result entered, awaiting official
+      resultEntryHtml =
+        '<div class="result-entry manual">' +
+        '<span class="result-tag">' + (displayWon ? 'manual W' : 'manual L') + '</span>' +
+        '<span class="result-pos">' + manRes.finish + ord(manRes.finish) + '</span>' +
+        '<span class="result-clear" data-clear-rid="' + p.run_id + '" title="Clear manual result">×</span>' +
+        '</div>';
+    } else {
+      // No result yet - show entry chips
+      resultEntryHtml =
+        '<div class="result-entry empty">' +
+        '<span class="result-lbl">result</span>' +
+        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="1">1st</button>' +
+        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="2">2nd</button>' +
+        '<button class="result-chip" data-set-rid="' + p.run_id + '" data-pos="3">3rd</button>' +
+        '<button class="result-chip lost" data-set-rid="' + p.run_id + '" data-pos="0">L</button>' +
+        '</div>';
+    }
+
+    // Settled bet status colour
+    if (hasOfficial || manRes) {
+      todaySettled++;
+      if (meetsThreshold && stake) {
+        const settlePrice = r.sp || effectivePrice;
+        if (displayWon) {
+          const profit = stake * (settlePrice - 1);
+          todayWins++; todayPnL += profit;
+          cardClass = 'settled-win';
+          resultBlock = '<div class="pick-result win"><div><span class="marker">won</span>' +
+            (hasOfficial ? 'finished 1st @$' + settlePrice.toFixed(2) + ' SP' : 'manual entry') +
+            '</div><div>+' + profit.toFixed(2) + 'u (+' + fmtDollar(profit) + ')</div></div>';
+        } else {
+          todayLosses++; todayPnL -= stake;
+          cardClass = 'settled-loss';
+          const finStr = displayFinish > 0 ? displayFinish + ord(displayFinish) : 'unplaced';
+          resultBlock = '<div class="pick-result loss"><div><span class="marker">lost</span>' + finStr +
+            (r.sp ? ' @$' + r.sp.toFixed(2) + ' SP' : '') +
+            '</div><div>-' + stake.toFixed(2) + 'u (-' + fmtDollar(stake) + ')</div></div>';
+        }
+      } else {
+        cardClass = 'below-threshold';
+      }
+    } else if (!meetsThreshold) {
+      cardClass = 'below-threshold';
+    } else {
+      cardClass = 'qualifies';
+    }
+
+    // Build context fields - only show ones we actually have data for
+    const contextFields = [];
+    if (distance) contextFields.push({ lbl: 'Distance', v: distance });
+    if (going) contextFields.push({ lbl: 'Going', v: going });
+    if (fieldSize) contextFields.push({ lbl: 'Field', v: fieldSize });
+    if (trr != null) contextFields.push({ lbl: 'TR rating', v: trr.toFixed(1) });
+    if (trp != null) contextFields.push({ lbl: 'TR price', v: '$' + trp.toFixed(2) });
+    if (edge != null) contextFields.push({ lbl: 'Edge vs TR', v: edgePct + ' ' + edgeLabel, cls: edgeClass });
+    if (r.wt != null) contextFields.push({ lbl: 'Wt today', v: r.wt + 'kg' });
+    if (r.wtr != null) contextFields.push({ lbl: 'Wt trend', v: (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' });
+    if (r.j) contextFields.push({ lbl: 'Jockey', v: r.j });
+    if (r.tn) contextFields.push({ lbl: 'Trainer', v: r.tn });
+    if (r.b != null) contextFields.push({ lbl: 'Barrier', v: r.b });
+    if (r.wad != null) contextFields.push({ lbl: 'Wins @ dist', v: r.wad + (r.wad_starts ? '/' + r.wad_starts + ' starts' : '') });
+    if (wpr1 != null) contextFields.push({ lbl: 'Recent WPR', v: wprHtml, span: 2 });
+
+    const contextHtml = contextFields.map(f =>
+      '<div class="pick-meta"' + (f.span ? ' style="grid-column: span ' + f.span + ';"' : '') + '>' +
+        '<span class="lbl">' + f.lbl + '</span>' +
+        '<span class="v ' + (f.cls || '') + '">' + escapeHtml(String(f.v)) + '</span>' +
+      '</div>'
+    ).join('');
 
     const card = document.createElement('div');
     card.className = 'pick-card ' + cardClass;
@@ -1764,36 +1821,11 @@ function renderToday() {
         '<div class="pick-stake">' + stakeHtml + '</div>' +
       '</div>' +
 
-      // Row 2: race context
-      '<div class="pick-row2">' +
-        '<div class="pick-meta"><span class="lbl">Distance</span><span class="v">' + (distance || '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Going</span><span class="v">' + (going || '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Field</span><span class="v">' + (fieldSize || '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Pace</span><span class="v">' + pace + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">TR rating</span><span class="v">' + (r.trr != null ? r.trr.toFixed(1) : '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">TR price</span><span class="v">' + (trp ? '$' + trp.toFixed(2) : '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Edge</span><span class="v ' + edgeClass + '">' + edgeStr + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Wt trend</span><span class="v">' + (r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : '—') + '</span></div>' +
-      '</div>' +
+      // Context grid
+      '<div class="pick-row2">' + contextHtml + '</div>' +
 
-      // Row 3: form context
-      '<div class="pick-row2">' +
-        '<div class="pick-meta"><span class="lbl">Jockey</span><span class="v">' + escapeHtml(r.j || '') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Trainer</span><span class="v">' + escapeHtml(r.tn || '') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Barrier</span><span class="v">' + (r.b != null ? r.b : '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">Wt today</span><span class="v">' + (r.wt != null ? r.wt + 'kg' : '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">DSLR</span><span class="v">' + (r.dslr != null ? r.dslr + 'd' : '—') + '</span></div>' +
-        '<div class="pick-meta"><span class="lbl">@ dist</span><span class="v">' + (r.wad != null ? r.wad + (r.wad_starts != null ? '/' + r.wad_starts : '') + ' wins' : '—') + '</span></div>' +
-        '<div class="pick-meta" style="grid-column: span 2;"><span class="lbl">Recent WPR</span><span class="v">' + wprHtml + '</span></div>' +
-      '</div>' +
-
-      // Row 4: in-race comparison (top 3 by TR)
-      (topThreeHtml ?
-        '<div class="cmp-block">' +
-          '<div class="cmp-head">In-race comparison · top 3 by TR rating</div>' +
-          '<div class="cmp-headers"><span></span><span></span><span></span><span>TR rate</span><span>TR $</span><span>Fxd $</span></div>' +
-          topThreeHtml +
-        '</div>' : '') +
+      // Manual result entry / display
+      resultEntryHtml +
 
       resultBlock;
     list.appendChild(card);
@@ -1807,14 +1839,28 @@ function renderToday() {
       setManualOdds(rid, v);
       renderToday();
     });
-    // Live preview as you type (no save until blur/change)
-    el.addEventListener('input', e => {
-      // Could update stake preview live here, but renderToday on change is fine
-    });
   });
   list.querySelectorAll('[data-reset-rid]').forEach(el => {
     el.addEventListener('click', e => {
       resetManualOdds(e.target.dataset.resetRid);
+    });
+  });
+  // Manual result entry chip handlers
+  list.querySelectorAll('[data-set-rid]').forEach(el => {
+    el.addEventListener('click', e => {
+      const rid = e.target.dataset.rid || e.target.dataset.setRid;
+      const pos = parseInt(e.target.dataset.pos);
+      manualResults[String(rid)] = { finish: pos, ts: new Date().toISOString() };
+      saveResults();
+      renderToday();
+    });
+  });
+  list.querySelectorAll('[data-clear-rid]').forEach(el => {
+    el.addEventListener('click', e => {
+      const rid = e.target.dataset.clearRid;
+      delete manualResults[String(rid)];
+      saveResults();
+      renderToday();
     });
   });
 
@@ -2769,6 +2815,7 @@ function buildSyncPayload() {
     version: 1,
     deviceTs: new Date().toISOString(),
     manualOdds: manualOdds,
+    manualResults: manualResults,
     settings: settings,
   };
 }
@@ -2798,6 +2845,10 @@ async function syncPull() {
     if (payload.manualOdds) {
       manualOdds = payload.manualOdds;
       try { localStorage.setItem(ODDS_STORAGE_KEY, JSON.stringify(manualOdds)); } catch(e) {}
+    }
+    if (payload.manualResults) {
+      manualResults = payload.manualResults;
+      try { localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(manualResults)); } catch(e) {}
     }
     if (payload.settings) {
       settings = Object.assign({}, defaultSettings, payload.settings);

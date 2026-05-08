@@ -81,6 +81,8 @@ RUNNER_COLS = [
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist",
+    # Per-runner weight carried today (was being collected but never saved)
+    "weight_carried",
     # Pre-race market (starting_price_sp and price_top filled post-race)
     "starting_price_sp","price_top",
     # Result fields
@@ -1410,23 +1412,21 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "b":    si(row.get("barrier")),
                 "trr":  sf(row.get("toprate_rating")),
                 "trp":  sf(row.get("toprate_price")),
-                "spd":  sf(row.get("speed_rating")),       # speed rating value
+                "spd":  sf(row.get("speed_rating")),
                 "ms":   sf(row.get("mid_speed_score")),
                 "ls":   sf(row.get("late_speed_score")),
                 "ts":   sf(row.get("total_speed_score")),
                 "es":   sf(row.get("early_speed_score")),
                 "wtr":  sf(row.get("weight_trend")),
                 "wad":  si(row.get("wins_at_dist")),
-                "wad_starts": si(row.get("starts_at_dist")),  # context for W@D
+                "wad_starts": si(row.get("starts_at_dist")),
                 "wd":   sf(row.get("wpr_dist")),
                 "asp":  sf(row.get("avg_settled_pos")),
-                "wpr1": sf(row.get("wpr_last1")),          # most recent WPR
-                "wpra": sf(row.get("wpr_avg_last3")),      # avg of last 3
-                "wprt": sf(row.get("wpr_trend")),          # trend slope
-                "wprp": sf(row.get("wpr_peak_rank_1yr")),  # peak rank in last year
-                "dslr": si(row.get("dslr")),               # days since last run
-                "rfs":  si(row.get("runs_from_spell")),    # runs since spell
-                "wt":   sf(row.get("weight_carried")),     # today's weight
+                "wpr1": sf(row.get("wpr_last1")),
+                "wpra": sf(row.get("wpr_avg_last3")),
+                "wprt": sf(row.get("wpr_trend")),
+                "wprp": sf(row.get("wpr_peak_rank_1yr")),
+                "wt":   sf(row.get("weight_carried")),
                 "fx":   sf(row.get("fixed_win_price")),
                 "sp":   sf(row.get("starting_price_sp")),
                 "top":  sf(row.get("price_top")),
