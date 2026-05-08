@@ -647,6 +647,15 @@ body {
   .picks-list { border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md); }
 }
 
+/* Inline cell labels - shown only on mobile so each value is self-explanatory.
+   On desktop they're hidden because the picks-header row has the column titles. */
+.cell-lbl {
+  display: none;
+  font-family: var(--font-body); font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+
 .pr-stake, .pr-return {
   font-family: var(--font-body); text-align: right;
   font-variant-numeric: tabular-nums;
@@ -868,8 +877,9 @@ body {
       'runner runner  runner  runner'
       'sigs   sigs    sigs    sigs'
       'odds   stake   return  return'
-      'result result  bet     bet';
-    gap: 6px 10px;
+      'result result  result  result'
+      'bet    bet     bet     bet';
+    gap: 8px 10px;
     padding: 12px;
     /* Override desktop min-width so the row can use the full mobile viewport */
     min-width: 0;
@@ -877,6 +887,23 @@ body {
   /* Also disable horizontal scroll on the wrapper on mobile - row fits naturally */
   .picks-scroll { overflow-x: hidden; }
   .picks-list { min-width: 0; border-top: 1px solid var(--line); }
+
+  /* Show inline labels on mobile - each value cell gets a small uppercase label
+     above it so e.g. "1.11u $28" shows "STAKE" and "RETURN" headers. */
+  .cell-lbl { display: block; }
+
+  /* Each cell stacks label-on-top, value-below */
+  .pr-odds, .pr-stake, .pr-return, .pr-result, .pr-bet {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  /* Result and bet rows - left-align label and content */
+  .pr-result { align-items: flex-start; }
+  .pr-bet { align-items: flex-start; }
+  /* Stake/return show label aligned with their right-aligned values */
+  .pr-stake .cell-lbl { text-align: center; }
+  .pr-return .cell-lbl { text-align: right; }
+  .pr-odds .cell-lbl { text-align: left; }
+
   .pr-time { grid-area: time; }
   .pr-venue { grid-area: venue; flex-direction: row; gap: 8px; align-items: baseline; }
   .pr-venue .v-race { margin-top: 0; }
@@ -884,11 +911,19 @@ body {
   .pr-sigs { grid-area: sigs; }
   /* Allow pills to wrap inside sigs strip on phones */
   .pr-sigs-top { flex-wrap: wrap; gap: 4px 6px; }
-  .pr-odds { grid-area: odds; justify-content: flex-start; }
-  .pr-stake { grid-area: stake; text-align: center; }
-  .pr-return { grid-area: return; text-align: right; }
-  .pr-result { grid-area: result; justify-content: flex-start; flex-wrap: wrap; }
-  .pr-bet { grid-area: bet; justify-content: flex-end; }
+  .pr-odds { grid-area: odds; }
+  .pr-stake { grid-area: stake; }
+  .pr-return { grid-area: return; }
+  .pr-result { grid-area: result; flex-direction: column; }
+  .pr-result .cell-lbl + * { display: inline-flex; }
+  /* Wrap result buttons/tags after the label */
+  .pr-result > :not(.cell-lbl) {
+    display: inline-flex; flex-wrap: wrap; gap: 4px;
+  }
+  .pr-bet { grid-area: bet; flex-direction: column; }
+  .pr-bet > :not(.cell-lbl) {
+    display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  }
   .pr-chev { grid-area: chev; }
   .pd-speed { grid-template-columns: repeat(2, 1fr); }
   .pd-context {
@@ -2171,8 +2206,37 @@ body {
 
   /* Race tab */
   .race-table { font-size: 11px; }
-  .race-table thead th, .race-table tbody td { padding: 8px 8px; }
+  .race-table thead th, .race-table tbody td { padding: 8px 6px; }
   .race-table-wrap { overflow-x: auto; }
+  /* Hide low-priority columns on mobile so the essential ones (Tab, Horse,
+     Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
+     still available in the detail panel by tapping the horse name on Today
+     tab, or by viewing in landscape mode (table will horizontally scroll). */
+  /* Column index (1-based):
+     1=Tab 2=Horse 3=Jky 4=Trn 5=Bar 6=TR$ 7=TRprice 8=Fxd 9=Score
+     10=Settles 11=Early 12=Mid 13=Late 14=Total 15=Distance 16=Going(?) 17=JkyRt 18=TrnRt */
+  .race-table thead th:nth-child(3),  /* Jky */
+  .race-table thead th:nth-child(4),  /* Trn */
+  .race-table thead th:nth-child(7),  /* TR price */
+  .race-table thead th:nth-child(11), /* Early */
+  .race-table thead th:nth-child(12), /* Mid */
+  .race-table thead th:nth-child(13), /* Late */
+  .race-table thead th:nth-child(15), /* Distance */
+  .race-table thead th:nth-child(16), /* Going (or JkyRt if no going col) */
+  .race-table thead th:nth-child(17), /* JkyRt or TrnRt */
+  .race-table thead th:nth-child(18), /* TrnRt (only if going col present) */
+  .race-table tbody td:nth-child(3),
+  .race-table tbody td:nth-child(4),
+  .race-table tbody td:nth-child(7),
+  .race-table tbody td:nth-child(11),
+  .race-table tbody td:nth-child(12),
+  .race-table tbody td:nth-child(13),
+  .race-table tbody td:nth-child(15),
+  .race-table tbody td:nth-child(16),
+  .race-table tbody td:nth-child(17),
+  .race-table tbody td:nth-child(18) {
+    display: none;
+  }
   .meeting-strip { padding: 6px 8px; gap: 4px; }
   .meeting-tile { width: 86px; padding: 5px 8px; }
   .mt-race { font-size: 12px; }
@@ -2190,6 +2254,11 @@ body {
        acceptable because 2-col gives readable stat values; 3-col makes them
        cramped at <380px viewport widths. */
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* If there are 7 stats (odd), the last one is alone on its row and looks
+     unbalanced with empty space next to it. Span it full-width instead. */
+  .pnl-stats-strip > .pnl-stat:nth-child(7):last-child {
+    grid-column: 1 / -1;
   }
   .pnl-stat { padding: 10px 12px; }
   .pnl-stat .val { font-size: 18px; }
@@ -3176,11 +3245,11 @@ function renderToday() {
         '</div>' +
       '</div>' +
       '<div class="pr-sigs">' + sigsHtml + '</div>' +
-      '<div class="pr-odds">' + oddsHtml + '</div>' +
-      '<div class="' + stakeWrapCls + '">' + stakeHtml + '</div>' +
-      '<div class="' + returnWrapCls + '">' + returnHtml + '</div>' +
-      '<div class="pr-result">' + resultHtml + '</div>' +
-      '<div class="pr-bet">' + betHtml + '</div>' +
+      '<div class="pr-odds"><span class="cell-lbl">Fxd</span>' + oddsHtml + '</div>' +
+      '<div class="' + stakeWrapCls + '"><span class="cell-lbl">Stake</span>' + stakeHtml + '</div>' +
+      '<div class="' + returnWrapCls + '"><span class="cell-lbl">Return</span>' + returnHtml + '</div>' +
+      '<div class="pr-result"><span class="cell-lbl">Result</span>' + resultHtml + '</div>' +
+      '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
       '<div class="pr-chev">▾</div>';
 
     list.appendChild(row);
@@ -4622,11 +4691,11 @@ function renderPnL() {
           '</div>' +
         '</div>' +
         '<div class="pr-sigs">' + sigsHtml + '</div>' +
-        '<div class="pr-odds">' + oddsHtml + '</div>' +
-        '<div class="' + stakeWrapCls + '">' + stakeHtml + '</div>' +
-        '<div class="' + returnWrapCls + '">' + returnHtml + '</div>' +
-        '<div class="pr-result">' + resultHtml + '</div>' +
-        '<div class="pr-bet">' + betHtml + '</div>' +
+        '<div class="pr-odds"><span class="cell-lbl">Fxd</span>' + oddsHtml + '</div>' +
+        '<div class="' + stakeWrapCls + '"><span class="cell-lbl">Stake</span>' + stakeHtml + '</div>' +
+        '<div class="' + returnWrapCls + '"><span class="cell-lbl">Return</span>' + returnHtml + '</div>' +
+        '<div class="pr-result"><span class="cell-lbl">Result</span>' + resultHtml + '</div>' +
+        '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
         '<div class="pr-chev">▾</div>' +
       '</div>' +
       '<div class="bh-detail" id="bh-detail-' + idx + '"></div>';
