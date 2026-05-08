@@ -595,26 +595,26 @@ body {
   color: var(--ink-mute); margin-bottom: 8px;
 }
 
-/* Speed scores in expanded view - 4 inline cells */
+/* Speed scores in expanded view - 4 compact inline cells */
 .pd-speed {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
 }
 .pd-speed-cell {
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: 6px; padding: 10px 12px;
-  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  border-radius: 5px; padding: 5px 9px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
 }
 .pd-speed-cell .sp-lbl {
-  font-family: var(--font-body); font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+  font-family: var(--font-body); font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute);
 }
 .pd-speed-cell .sp-val {
-  font-family: var(--font-body); font-weight: 700; font-size: 16px;
+  font-family: var(--font-body); font-weight: 700; font-size: 13px;
   color: var(--ink); letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 .pd-speed-cell .sp-rk {
-  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  font-family: var(--font-body); font-size: 9px; font-weight: 600;
   color: var(--ink-mute);
 }
 .pd-speed-cell.r1 {
@@ -2238,8 +2238,8 @@ function buildDetailHTML(p, r) {
     field('Recent WPR',    wprStr) +
   '</div>';
 
-  return '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
-         '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>';
+  return '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
+         '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>';
 }
 
 function ord(n) {
