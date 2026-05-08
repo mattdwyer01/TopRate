@@ -1041,42 +1041,6 @@ body {
 .rate-cell.high { color: var(--emerald-deep); }
 .rate-cell.mid { color: #92400e; }
 
-/* Distance/Going perf - stacked bars with ratio text */
-.perf-cell {
-  display: flex; flex-direction: column; gap: 3px;
-  min-width: 110px;
-}
-.perf-bar {
-  display: grid; grid-template-columns: 16px 1fr 38px;
-  align-items: center; gap: 6px;
-  font-size: 10px;
-}
-.perf-bar .lbl {
-  font-family: var(--font-body); font-size: 9px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--ink-mute);
-}
-.perf-bar .track {
-  height: 8px; background: var(--line-soft);
-  border-radius: 4px; overflow: hidden; position: relative;
-}
-.perf-bar .fill {
-  height: 100%; border-radius: 4px;
-  background: var(--emerald);
-  transition: width 0.2s;
-}
-.perf-bar.high .fill { background: var(--emerald); }
-.perf-bar.mid .fill { background: #f59e0b; }
-.perf-bar.low .fill { background: #d1d5db; }
-.perf-bar .ratio {
-  font-family: var(--font-body); font-size: 10px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-soft); text-align: right;
-}
-.perf-bar.high .ratio { color: var(--emerald-deep); font-weight: 700; }
-.perf-bar.empty .track { background: var(--line-soft); }
-.perf-bar.empty .ratio { color: var(--ink-faint); }
-
 /* Sortable column indicators */
 .race-table thead th.sortable { cursor: pointer; }
 .race-table thead th.sortable:hover {
@@ -2502,38 +2466,31 @@ function renderRaceDetail(raceId) {
     return '<td class="sect-cell ' + rkCls + '"><span class="v">' + value.toFixed(1) + '</span>' + rkBadge + '</td>';
   }
 
-  // Hybrid bar + ratio cell for distance/going perf
-  // Fill width = honest win rate (so 50% wins = half bar, not full)
-  function perfBar(label, starts, wins, places) {
+  // Distance perf cell - format: "starts: wins | places"
+  // Color: green if win rate >= 25%, amber if 10-24%, default if <10%, faint if no history
+  function perfCell(starts, wins, places, dnf) {
     if (!starts || starts === 0) {
-      return '<div class="perf-bar empty">' +
-        '<span class="lbl">' + label + '</span>' +
-        '<span class="track"></span>' +
-        '<span class="ratio">—</span>' +
-        '</div>';
+      return '<td style="color:var(--ink-faint);">—</td>';
     }
     const winPct = wins / starts;
-    const cls = winPct >= 0.25 ? 'high' : (winPct >= 0.10 ? 'mid' : 'low');
-    const fillPct = winPct * 100;  // honest fill - 50% wins = 50% bar
+    let color = '';
+    if (winPct >= 0.25) color = 'color:var(--emerald-deep);font-weight:700;';
+    else if (winPct >= 0.10) color = 'color:#92400e;font-weight:600;';
     const tooltip = wins + 'W ' + Math.max(0, places - wins) + 'P from ' + starts + ' starts';
-    return '<div class="perf-bar ' + cls + '" title="' + tooltip + '">' +
-      '<span class="lbl">' + label + '</span>' +
-      '<span class="track"><span class="fill" style="width:' + fillPct.toFixed(0) + '%;"></span></span>' +
-      '<span class="ratio">' + wins + '/' + starts + '</span>' +
-      '</div>';
+    return '<td title="' + tooltip + '" style="' + color + 'font-variant-numeric:tabular-nums;">' +
+      starts + ': ' + wins + ' | ' + places + '</td>';
   }
 
-  function distGoingCell(runner) {
-    const distBar = perfBar('Dst', runner.ds, runner.dw, runner.dp);
-    let goingStarts = 0, goingWins = 0, goingPlaces = 0;
-    if (todayGoing && runner.gb && runner.gb[todayGoing]) {
-      const g = runner.gb[todayGoing];
-      goingStarts = g.starts || 0;
-      goingWins = g.wins || 0;
-      goingPlaces = g.places || 0;
+  function distanceCell(runner) {
+    return perfCell(runner.ds, runner.dw, runner.dp);
+  }
+
+  function goingCell(runner) {
+    if (!todayGoing || !runner.gb || !runner.gb[todayGoing]) {
+      return '<td style="color:var(--ink-faint);">—</td>';
     }
-    const goingBar = perfBar('Gng', goingStarts, goingWins, goingPlaces);
-    return '<td><div class="perf-cell">' + distBar + goingBar + '</div></td>';
+    const g = runner.gb[todayGoing];
+    return perfCell(g.starts, g.wins, g.places);
   }
 
   function settlesLabel(asp) {
@@ -2573,6 +2530,7 @@ function renderRaceDetail(raceId) {
   const sortGetters = {
     tab:   r => r.tab,
     horse: r => (r.h || '').toLowerCase(),
+    form:  r => r.fm || '',
     jky:   r => (r.j || '').toLowerCase(),
     jkypc: r => r.jrt,
     trn:   r => (r.tn || '').toLowerCase(),
@@ -2583,8 +2541,12 @@ function renderRaceDetail(raceId) {
     mid:   r => midRanks[r.rid] || 99,
     late:  r => lateRanks[r.rid] || 99,
     total: r => totalRanks[r.rid] || 99,
-    form:  r => r.fm || '',
-    dist:  r => (r.ds && r.dw) ? (r.dw / r.ds) : -1,
+    dist:  r => (r.ds && r.dw != null) ? (r.dw / r.ds) : -1,
+    going: r => {
+      if (!todayGoing || !r.gb || !r.gb[todayGoing]) return -1;
+      const g = r.gb[todayGoing];
+      return g.starts ? (g.wins / g.starts) : -1;
+    },
     settles: r => r.asp != null ? r.asp : 99,
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
@@ -2614,6 +2576,7 @@ function renderRaceDetail(raceId) {
     rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
+      '<td>' + (u.fm ? '<span style="font-weight:600;">' + escapeHtml(u.fm) + '</span>' : '—') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
       ratingCell(u.jrt, jryRanks[rid]) +
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
@@ -2624,8 +2587,8 @@ function renderRaceDetail(raceId) {
       sectCell(u.ms, midRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
-      '<td>' + (u.fm ? '<span style="font-weight:600;">' + escapeHtml(u.fm) + '</span>' : '—') + '</td>' +
-      distGoingCell(u) +
+      distanceCell(u) +
+      goingCell(u) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
@@ -2645,13 +2608,14 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         th('tab', 'Tab') + th('horse', 'Horse') +
+        th('form', 'Form') +
         th('jky', 'Jky') + th('jkypc', 'Jky Rt') +
         th('trn', 'Trn') + th('trnpc', 'Trn Rt') +
         th('bar', 'Bar') +
         th('tr', 'TR$') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
-        th('form', 'Form') +
-        th('dist', 'Dist / Going') +
+        th('dist', 'Distance') +
+        th('going', 'Going') +
         th('settles', 'Settles') +
         th('fxd', 'Fxd') + th('trp', 'TR $') +
       '</tr></thead>' +
