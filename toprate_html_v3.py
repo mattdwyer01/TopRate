@@ -711,6 +711,29 @@ body {
 }
 .pr-result .res-clear:hover { color: var(--rose); }
 
+/* Compact result dropdown for pending picks - replaces the four 1st/2nd/3rd/L
+   buttons with a single ~80px-wide select. Native styling on most browsers
+   shows a small caret indicator so user knows it's interactive. */
+.res-select {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: var(--panel); color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 3px 4px 3px 8px; cursor: pointer; transition: all 0.12s;
+  /* Keep narrow on desktop - "— set —" placeholder fits in ~78px */
+  max-width: 92px;
+  /* Enough touch target for mobile */
+  min-height: 26px;
+  /* Hide default OS chrome where possible while staying functional */
+  -webkit-appearance: menulist-button; appearance: menulist-button;
+}
+.res-select:hover {
+  background: var(--emerald-bg); color: var(--emerald-deep);
+  border-color: var(--emerald-line);
+}
+.res-select:focus {
+  outline: 2px solid var(--emerald); outline-offset: -1px;
+}
+
 /* ── Bet placed toggle + odds-taken ───────────────────────────────────── */
 .pr-bet {
   display: flex; gap: 4px; align-items: center; justify-content: flex-end;
@@ -3191,10 +3214,16 @@ function renderToday() {
         '<span class="res-clear" data-clear-rid="' + p.run_id + '" title="Clear">×</span>' +
         '</span>';
     } else {
-      resultHtml = '<button data-set-rid="' + p.run_id + '" data-pos="1" onclick="event.stopPropagation();">1st</button>' +
-        '<button data-set-rid="' + p.run_id + '" data-pos="2" onclick="event.stopPropagation();">2nd</button>' +
-        '<button data-set-rid="' + p.run_id + '" data-pos="3" onclick="event.stopPropagation();">3rd</button>' +
-        '<button class="lost-btn" data-set-rid="' + p.run_id + '" data-pos="0" onclick="event.stopPropagation();">L</button>';
+      // Compact dropdown - takes single-control width vs 4 buttons.
+      // The "—" placeholder is the unset state; selecting any option records the result.
+      resultHtml = '<select class="res-select" data-set-rid="' + p.run_id + '" ' +
+        'onclick="event.stopPropagation();" title="Set result">' +
+        '<option value="">— set —</option>' +
+        '<option value="1">1st</option>' +
+        '<option value="2">2nd</option>' +
+        '<option value="3">3rd</option>' +
+        '<option value="0">Lost</option>' +
+        '</select>';
     }
 
     // Bet toggle and odds-taken
@@ -3269,12 +3298,18 @@ function renderToday() {
     });
   });
 
-  // Result chip handlers
+  // Result chip handlers - works for both <button data-pos> (legacy) and
+  // <select> (new compact dropdown). The handler picks the right event type.
   list.querySelectorAll('[data-set-rid]').forEach(el => {
-    el.addEventListener('click', e => {
+    const eventName = el.tagName === 'SELECT' ? 'change' : 'click';
+    el.addEventListener(eventName, e => {
       e.stopPropagation();
       const rid = el.dataset.setRid;
-      const pos = parseInt(el.dataset.pos);
+      // For select: pos comes from el.value. For button: from data-pos.
+      const raw = el.tagName === 'SELECT' ? el.value : el.dataset.pos;
+      if (raw === '' || raw == null) return;  // empty placeholder option
+      const pos = parseInt(raw);
+      if (isNaN(pos)) return;
       manualResults[String(rid)] = { finish: pos, ts: new Date().toISOString() };
       saveResults();
       renderToday();
