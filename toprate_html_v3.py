@@ -2463,9 +2463,13 @@ function renderToday() {
   todaysPicks.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
   let todayWins = 0, todayLosses = 0, todayPnL = 0, todaySettled = 0, todayQualifying = 0;
-  let todayPlaces = 0;        // 1st/2nd/3rd finishes among settled bets
+  let todayPlaces = 0;        // 1st/2nd/3rd finishes among placed bets
   let todayStakeTotal = 0;    // sum of stake (for ROI denominator)
   let todayReturnTotal = 0;   // sum of (stake * settlePrice) on wins, 0 on losses (for ROI numerator)
+  // Separate counter for placed bets that have settled - this is the denominator
+  // for Win Rate and Place Rate KPIs. The user wants those rates to reflect bets
+  // they actually held, not theoretical model performance.
+  let todayPlacedSettled = 0;
   const now = new Date();
 
   todaysPicks.forEach((p, idx) => {
@@ -2505,33 +2509,37 @@ function renderToday() {
     // For settled bets, P&L uses oddsTaken if recorded, else SP, else live fxprice.
     // If deadHeat is flagged on a winning bet, the return is halved (profit and stake
     // are split with the joint-winner per Aus rules).
+    // KPI accumulation rule: only bets the user has marked PLACED contribute to
+    // Win Rate / Place Rate / ROI / P&L. Picks that qualified by threshold but
+    // weren't bet stay in the row count (todaysPicks.length) but don't influence rates.
     let cardClass = 'pending';
     if (isSettled) {
       todaySettled++;
-      // Place rate uses any settled bet that finished 1st/2nd/3rd, regardless of
-      // whether the user marked it as a placed (held) bet. Manual results override
-      // when the official feed lags.
       const finishForPlace = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
       const isPlaceFinish = finishForPlace != null && finishForPlace >= 1 && finishForPlace <= 3;
+      // Visual card class: still based on isActiveBet (so qualifying picks get
+      // settled-win/loss styling even if user didn't tick "placed")
       if (isActiveBet && stake) {
+        if (displayWon) cardClass = 'settled-win';
+        else            cardClass = 'settled-loss';
+      } else {
+        cardClass = 'below-threshold';
+      }
+      // KPI accumulation: only count placed bets
+      if (isBetPlaced && stake) {
+        todayPlacedSettled++;
         if (isPlaceFinish) todayPlaces++;
         const settlePrice = hasOddsTaken ? oddsTaken : (r.sp || csvPrice);
         if (displayWon) {
           todayWins++;
           const dhMult = betEntry.deadHeat ? 0.5 : 1;
           todayPnL += stake * (settlePrice - 1) * dhMult;
-          // For ROI: return = stake + profit (so net = return - stake = profit)
           todayReturnTotal += stake + stake * (settlePrice - 1) * dhMult;
-          cardClass = 'settled-win';
         } else {
           todayLosses++;
           todayPnL -= stake;
-          // No return on a loss
-          cardClass = 'settled-loss';
         }
         todayStakeTotal += stake;
-      } else {
-        cardClass = 'below-threshold';
       }
     } else if (!isActiveBet) {
       cardClass = 'below-threshold';
@@ -2760,7 +2768,7 @@ function renderToday() {
 
   // 1) Today P&L
   const pnlEl = document.getElementById('hs-today-pnl');
-  if (todaySettled > 0 && todayStakeTotal > 0) {
+  if (todayPlacedSettled > 0 && todayStakeTotal > 0) {
     pnlEl.textContent = (todayPnL >= 0 ? '+' : '') + todayPnL.toFixed(2) + 'u';
     pnlEl.classList.remove('pos', 'neg');
     if (todayPnL > 0) pnlEl.classList.add('pos');
@@ -2771,34 +2779,34 @@ function renderToday() {
     pnlEl.textContent = '—';
     pnlEl.classList.remove('pos', 'neg');
     document.getElementById('hs-today-pnl-units').textContent =
-      todaysPicks.length + ' picks · 0 settled';
+      todaysPicks.length + ' picks · 0 placed bets settled';
   }
 
-  // 2) Win Rate (today, settled bets only)
+  // 2) Win Rate (today, placed bets that have settled)
   const wrEl = document.getElementById('hs-today-wr');
   const wrSubEl = document.getElementById('hs-today-wr-sub');
-  if (todaySettled > 0) {
-    const wr = todayWins / todaySettled;
+  if (todayPlacedSettled > 0) {
+    const wr = todayWins / todayPlacedSettled;
     wrEl.textContent = (wr * 100).toFixed(1) + '%';
-    wrSubEl.textContent = todayWins + ' of ' + todaySettled + ' settled';
+    wrSubEl.textContent = todayWins + ' of ' + todayPlacedSettled + ' settled';
   } else {
     wrEl.textContent = '—';
-    wrSubEl.textContent = 'no settled bets';
+    wrSubEl.textContent = 'no placed bets settled';
   }
 
-  // 3) Place Rate (today, settled bets only - 1st/2nd/3rd)
+  // 3) Place Rate (today, placed bets that have settled - 1st/2nd/3rd)
   const prEl = document.getElementById('hs-today-pr');
   const prSubEl = document.getElementById('hs-today-pr-sub');
-  if (todaySettled > 0) {
-    const pr = todayPlaces / todaySettled;
+  if (todayPlacedSettled > 0) {
+    const pr = todayPlaces / todayPlacedSettled;
     prEl.textContent = (pr * 100).toFixed(1) + '%';
-    prSubEl.textContent = todayPlaces + ' of ' + todaySettled + ' settled';
+    prSubEl.textContent = todayPlaces + ' of ' + todayPlacedSettled + ' settled';
   } else {
     prEl.textContent = '—';
-    prSubEl.textContent = 'no settled bets';
+    prSubEl.textContent = 'no placed bets settled';
   }
 
-  // 4) ROI (today, settled bets only)
+  // 4) ROI (today, placed bets only)
   const roiEl = document.getElementById('hs-today-roi');
   const roiSubEl = document.getElementById('hs-today-roi-sub');
   if (todayStakeTotal > 0) {
@@ -2811,7 +2819,7 @@ function renderToday() {
   } else {
     roiEl.textContent = '—';
     roiEl.classList.remove('pos', 'neg');
-    roiSubEl.textContent = 'no settled bets';
+    roiSubEl.textContent = 'no placed bets settled';
   }
 }
 
@@ -3766,6 +3774,10 @@ function renderPnL() {
   const realWR = sortedForStats.length > 0 ? totalWins / sortedForStats.length : null;
   const realPR = sortedForStats.length > 0 ? totalPlaces / sortedForStats.length : null;
   const realROI = totalStake > 0 ? (totalReturn - totalStake) / totalStake : null;
+  // Model metadata for chart baselines (expected ROI / WR lines on the dashed lines).
+  // Reintroduced after stats rewrite removed earlier reference - cum-units chart and
+  // rolling WR chart both still need this.
+  const meta = MODEL_META[PRIMARY_KEY] || {};
 
   function statBlock(lbl, val, sub, cls) {
     return '<div class="pnl-stat">' +
