@@ -2714,13 +2714,13 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             Minimum cumulative score for a horse to qualify on the Quaddie tab and
             be highlighted on the Race tab. Higher = stricter, fewer picks.
             <br><br>
-            <strong>Backtest reference</strong> (1,608 races):
-            0.85 = ~1.6 picks/race, 47% rank-1 win rate.
-            0.80 = ~2.1 picks/race, 53% per-leg winner coverage.
-            0.75 = ~2.7 picks/race, 62% coverage.
-            <strong>0.70 = ~3.2 picks/race, 68% coverage</strong> (recommended default).
-            0.65 = ~3.7 picks/race, 74% coverage.
-            0.60 = ~4.2 picks/race, 78% coverage.
+            <strong>Backtest reference</strong> (1,608 races, Bayesian-shrunk):
+            0.85 = ~1.2 picks/race, 35% strike rate among picks, 44% race-coverage.
+            0.80 = ~1.8 picks/race, 32% strike, 57% coverage.
+            0.75 = ~2.3 picks/race, 29% strike, 65% coverage.
+            <strong>0.70 = ~2.7 picks/race, 27% strike, 73% coverage</strong> (recommended).
+            0.65 = ~3.3 picks/race, 24% strike, 79% coverage.
+            0.60 = ~3.9 picks/race, 22% strike, 84% coverage.
           </div>
         </div>
         <input type="number" class="setting-input" id="setting-score-thresh" value="0.70" min="0" max="1" step="0.05">
@@ -5315,24 +5315,29 @@ function saveQuaddieState() {
 
 // Per-leg winner coverage curves from backtest (1,608 races). Indexed by N picks.
 // E.g. if a leg has 3 qualifying horses, those 3 are by definition the top 3 by score,
-// so coverage = QUADDIE_COVERAGE_CURVE_B[3] = 0.685 (winner appears in our 3 picks 68.5% of races).
+// so coverage = QUADDIE_COVERAGE_CURVE_B[3] = 0.687 (winner appears in our 3 picks 68.7% of races).
 //
 // Two curves because the score formula has two paths:
-//   Path B (current default): TR + wpr3 + late_speed proxy. 33% rk-1 WR.
-//   Path A (when jt_combo_win_pct is in API): jt_combo + tr. 44% rk-1 WR.
+//   Path B (default when jt_combo missing): TR + wpr3 + late_speed proxy. 33% rk-1 WR.
+//   Path A (jt_combo with Bayesian shrinkage): jt_combo_shrunk + tr. 40% rk-1 WR.
 // Each race has a 'cs_path' field telling us which formula was used. We pick
 // the matching curve so the projected hit rates are accurate.
+//
+// IMPORTANT: Path A numbers use Bayesian-shrunk jt_combo_win_pct. The naive
+// version (no shrinkage) shows inflated 44% rk-1 WR but that's largely small-
+// sample noise (5-ride pairs with 60% strike rates). Shrinkage pulls noisy
+// pairs toward the population mean of 9% so only well-sampled pairs influence.
 const QUADDIE_COVERAGE_CURVE_B = {
   // Proxy formula numbers (TR + wpr3 + late)
-  0: 0.0,   1: 0.326, 2: 0.539, 3: 0.685, 4: 0.781,
-  5: 0.860, 6: 0.912, 7: 0.952, 8: 0.973, 9: 0.985,
+  0: 0.0,   1: 0.326, 2: 0.540, 3: 0.687, 4: 0.783,
+  5: 0.860, 6: 0.912, 7: 0.953, 8: 0.973, 9: 0.985,
   10: 0.992, 11: 0.996, 12: 1.0,
 };
 const QUADDIE_COVERAGE_CURVE_A = {
-  // jt_combo + tr formula numbers
-  0: 0.0,   1: 0.442, 2: 0.674, 3: 0.795, 4: 0.881,
-  5: 0.932, 6: 0.963, 7: 0.978, 8: 0.989, 9: 0.993,
-  10: 0.997, 11: 0.997, 12: 0.999,
+  // jt_combo (shrunk) + tr formula numbers - the honest, non-inflated version
+  0: 0.0,   1: 0.399, 2: 0.628, 3: 0.778, 4: 0.866,
+  5: 0.922, 6: 0.947, 7: 0.969, 8: 0.981, 9: 0.990,
+  10: 0.995, 11: 0.997, 12: 0.998,
 };
 function legCoverage(nPicks, path) {
   if (nPicks == null || nPicks <= 0) return 0;
