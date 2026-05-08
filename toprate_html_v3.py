@@ -515,36 +515,29 @@ body {
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
 }
-.pr-odds-input {
-  display: flex; align-items: baseline; gap: 2px;
+/* Live fixed odds display (read-only) */
+.pr-odds-display {
+  display: inline-flex; align-items: baseline; gap: 2px;
   background: var(--line-soft); border: 1px solid var(--line);
-  border-radius: 4px; padding: 4px 8px;
-  transition: all 0.12s;
+  border-radius: 4px; padding: 4px 10px;
+  font-variant-numeric: tabular-nums;
 }
-.pr-odds-input:focus-within {
-  background: var(--panel); border-color: var(--emerald);
-  box-shadow: 0 0 0 2px var(--emerald-bg);
-}
-.pr-odds-input.qualifies {
+.pr-odds-display.qualifies {
   background: var(--emerald-bg); border-color: var(--emerald-line);
 }
-.pr-odds-input.below {
+.pr-odds-display.below {
   background: #fafafa; border-color: var(--line);
 }
-.pr-odds-input .cur {
+.pr-odds-display .cur {
   font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
   font-weight: 500;
 }
-.pr-odds-input input {
+.pr-odds-display .v {
   font-family: var(--font-body); font-weight: 700; font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  background: transparent; border: none; outline: none;
-  width: 48px; text-align: right; color: var(--ink); padding: 0;
-  -moz-appearance: textfield;
+  color: var(--ink);
 }
-.pr-odds-input input::-webkit-outer-spin-button,
-.pr-odds-input input::-webkit-inner-spin-button {
-  -webkit-appearance: none; margin: 0;
+.pr-odds-display .v.empty {
+  color: var(--ink-faint); font-weight: 500;
 }
 
 .pr-stake {
@@ -559,6 +552,8 @@ body {
   font-weight: 500; font-size: 11px; color: var(--emerald-deep);
   margin-top: 2px;
 }
+.pr-stake.muted .units { font-weight: 500; color: var(--ink-faint); }
+.pr-stake.muted .ret { color: var(--ink-faint); }
 .pr-stake .skip {
   font-size: 11px; color: var(--ink-faint); font-weight: 500;
 }
@@ -2073,7 +2068,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="setting-row" style="border-top:none;">
         <div>
           <div class="lbl">Sync status</div>
-          <div class="desc" id="sync-status">Not configured. Add a GitHub token and Gist ID below to sync manual odds and settings between iPhone and computer.</div>
+          <div class="desc" id="sync-status">Not configured. Add a GitHub token and Gist ID below to sync results and settings between iPhone and computer.</div>
         </div>
         <span id="sync-state-pill" class="state-pill state-off">off</span>
       </div>
@@ -2259,9 +2254,13 @@ function escapeHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ── Manual fixed odds entry ────────────────────────────────────────────────
-// Per-pick odds storage: {run_id: {odds: number, ts: ISO timestamp}}
-// Persisted to localStorage and (if sync enabled) to a sync backend.
+// ── Legacy: manualOdds storage ──────────────────────────────────────────────
+// Earlier versions let the user override the live fxprice on each pick row.
+// That's been replaced by the read-only Fxd column + dedicated odds-taken
+// input (which is the source of truth for stake calc, persisted via the bet
+// log entry's oddsTaken field). The manualOdds storage is kept here only so
+// existing Gist sync payloads still load cleanly; it is no longer read or
+// written by the UI.
 const ODDS_STORAGE_KEY = 'toprate_v3_odds';
 let manualOdds = {};
 try {
@@ -2279,35 +2278,9 @@ try {
   if (raw) manualResults = JSON.parse(raw);
 } catch(e) { manualResults = {}; }
 
-function saveOdds() {
-  try { localStorage.setItem(ODDS_STORAGE_KEY, JSON.stringify(manualOdds)); } catch(e) {}
-  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
-}
 function saveResults() {
   try { localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(manualResults)); } catch(e) {}
   if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
-}
-
-function getEffectiveOdds(runId, fallback) {
-  // If user has typed a value, use that. Otherwise use the CSV's fixed_win_price.
-  const m = manualOdds[String(runId)];
-  if (m && m.odds != null) return m.odds;
-  return fallback != null ? fallback : null;
-}
-
-function setManualOdds(runId, value) {
-  if (value == null || isNaN(value) || value <= 1) {
-    delete manualOdds[String(runId)];
-  } else {
-    manualOdds[String(runId)] = { odds: parseFloat(value), ts: new Date().toISOString() };
-  }
-  saveOdds();
-}
-
-function resetManualOdds(runId) {
-  delete manualOdds[String(runId)];
-  saveOdds();
-  renderToday();
 }
 
 // ── TODAY tab rendering ────────────────────────────────────────────────────
@@ -2353,11 +2326,21 @@ function renderToday() {
 
   todaysPicks.forEach((p, idx) => {
     const r = p.runner_full || {};
-    const csvPrice = p.fxprice;
-    const effectivePrice = getEffectiveOdds(p.run_id, csvPrice);
-    const isManualOverride = manualOdds[String(p.run_id)] != null;
-    const meetsThreshold = effectivePrice != null && effectivePrice >= minOdds;
-    const stake = meetsThreshold ? calcStake(effectivePrice) : null;
+    const csvPrice = p.fxprice;  // Live API fixed odds (read-only)
+    const betEntry = getBetEntry(p.run_id);
+    const isBetPlaced = !!betEntry.placed;
+    const oddsTaken = betEntry.oddsTaken;
+
+    // Stake source of truth: oddsTaken if entered, else fall back to live fxprice
+    // (muted styling when falling back so the user sees the calc is provisional).
+    const stakePrice = (oddsTaken != null && oddsTaken > 1) ? oddsTaken : csvPrice;
+    const usingFallback = !(oddsTaken != null && oddsTaken > 1);
+
+    // Threshold check uses the live live fxprice (so the model min-odds rule
+    // is evaluated against the market, not against whatever you eventually got).
+    const meetsThreshold = csvPrice != null && csvPrice >= minOdds;
+    const stake = (meetsThreshold && stakePrice != null && stakePrice > 1)
+                    ? calcStake(stakePrice) : null;
     if (meetsThreshold) todayQualifying++;
 
     // Result state
@@ -2368,11 +2351,14 @@ function renderToday() {
     const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
 
     // Update settled counters
+    // For settled bets, P&L uses oddsTaken if recorded, else SP, else live fxprice.
     let cardClass = 'pending';
     if (isSettled) {
       todaySettled++;
       if (meetsThreshold && stake) {
-        const settlePrice = r.sp || effectivePrice;
+        const settlePrice = (oddsTaken != null && oddsTaken > 1)
+                              ? oddsTaken
+                              : (r.sp || csvPrice);
         if (displayWon) {
           todayWins++;
           todayPnL += stake * (settlePrice - 1);
@@ -2421,20 +2407,21 @@ function renderToday() {
       '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
 
-    // Odds input
+    // Live fixed odds display (read-only)
     const oddsCls = meetsThreshold ? 'qualifies' : 'below';
-    const oddsValue = effectivePrice != null ? effectivePrice.toFixed(2) : '';
+    const oddsValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
+    const oddsValCls = csvPrice != null ? 'v' : 'v empty';
     const oddsHtml =
-      '<div class="pr-odds-input ' + oddsCls + '" onclick="event.stopPropagation();">' +
-        '<span class="cur">$</span>' +
-        '<input type="number" step="0.05" min="1" data-rid="' + p.run_id + '" ' +
-        'value="' + oddsValue + '" placeholder="' + (csvPrice ? csvPrice.toFixed(2) : '?') + '">' +
+      '<div class="pr-odds-display ' + oddsCls + '" title="Live fixed odds at last refresh">' +
+        (csvPrice != null ? '<span class="cur">$</span>' : '') +
+        '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
       '</div>';
 
-    // Stake display
+    // Stake display - muted when calculated from fallback (no odds-taken yet)
+    const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
     let stakeHtml;
     if (meetsThreshold && stake) {
-      const ret = stake * effectivePrice;
+      const ret = stake * stakePrice;
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
         '<span class="ret">→ ' + fmtDollar(ret) + '</span>';
     } else if (!meetsThreshold) {
@@ -2461,8 +2448,6 @@ function renderToday() {
     }
 
     // Bet toggle and odds-taken
-    const betEntry = getBetEntry(p.run_id);
-    const isBetPlaced = !!betEntry.placed;
     let betHtml = '<button class="bet-btn ' + (isBetPlaced ? 'placed' : '') +
                   '" data-bet-rid="' + p.run_id + '" title="' +
                   (isBetPlaced ? 'Mark as not bet' : 'Mark this bet as placed') +
@@ -2476,7 +2461,7 @@ function renderToday() {
                  'value="' + oddsVal + '" ' +
                  'onclick="event.stopPropagation();" />';
       if (showWarning) {
-        betHtml += '<span class="odds-warning" title="No odds-taken entered. P&L will use Fxd price as fallback.">⚠</span>';
+        betHtml += '<span class="odds-warning" title="No odds-taken entered. Stake will use live Fxd price as fallback.">⚠</span>';
       }
     }
 
@@ -2509,7 +2494,7 @@ function renderToday() {
       '</div>' +
       '<div class="pr-sigs">' + sigsHtml + '</div>' +
       '<div class="pr-odds">' + oddsHtml + '</div>' +
-      '<div class="pr-stake">' + stakeHtml + '</div>' +
+      '<div class="' + stakeWrapCls + '">' + stakeHtml + '</div>' +
       '<div class="pr-result">' + resultHtml + '</div>' +
       '<div class="pr-bet">' + betHtml + '</div>' +
       '<div class="pr-chev">▾</div>';
@@ -2525,22 +2510,12 @@ function renderToday() {
 
     // Click row to expand/collapse (but not when clicking inputs/buttons)
     row.addEventListener('click', e => {
-      if (e.target.closest('.pr-odds-input, .pr-result button, .res-clear')) return;
+      if (e.target.closest('.odds-input, .pr-result button, .res-clear, .bet-btn')) return;
       const isExpanded = row.classList.toggle('expanded');
       detail.classList.toggle('show', isExpanded);
     });
   });
 
-  // Wire odds input handlers (event delegation)
-  list.querySelectorAll('.pr-odds-input input').forEach(el => {
-    el.addEventListener('change', e => {
-      const rid = e.target.dataset.rid;
-      const v = e.target.value === '' ? null : parseFloat(e.target.value);
-      setManualOdds(rid, v);
-      renderToday();
-    });
-    el.addEventListener('click', e => e.stopPropagation());
-  });
   // Result chip handlers
   list.querySelectorAll('[data-set-rid]').forEach(el => {
     el.addEventListener('click', e => {
@@ -2584,7 +2559,9 @@ function renderToday() {
       if (v > 0 && warn) warn.style.display = 'none';
     });
     el.addEventListener('blur', e => {
-      // Re-render once user finishes editing so PnL updates flow through
+      // Re-render so the stake column picks up the new oddsTaken (or fallback)
+      // and PnL updates flow through.
+      renderToday();
       if (typeof renderPnL === 'function') renderPnL();
     });
     // Stop click on input from triggering row expand
@@ -2619,12 +2596,14 @@ function renderToday() {
   if (last30.length > 0) {
     let wins = 0, totalSpStake = 0, spReturn = 0, betsTaken = 0;
     last30.forEach(s => {
-      const effective = getEffectiveOdds(s.run_id, s.fxprice);
-      if (effective == null || effective < minOdds) return;
-      const stake = calcStake(effective);
+      // Hero strip 30d stats are theoretical (model performance at fxprice).
+      // Actual P&L lives in the P&L tab and uses oddsTaken via effectivePrice().
+      const fxd = s.fxprice;
+      if (fxd == null || fxd < minOdds) return;
+      const stake = calcStake(fxd);
       if (!stake) return;
       betsTaken++;
-      const sp = s.sp || effective;
+      const sp = s.sp || fxd;
       if (s.won) { wins++; spReturn += stake * sp; }
       totalSpStake += stake;
     });
