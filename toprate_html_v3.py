@@ -885,10 +885,11 @@ body {
 }
 .meeting-tile {
   display: flex; flex-direction: column; align-items: flex-start;
-  padding: 6px 10px; gap: 2px;
+  padding: 6px 10px; gap: 1px;
   background: var(--line-soft); border: 1px solid var(--line);
   border-radius: 6px; cursor: pointer; flex-shrink: 0;
-  transition: all .12s; min-width: 60px;
+  transition: all .12s; width: 100px; box-sizing: border-box;
+  overflow: hidden;
 }
 .meeting-tile:hover { background: #ede9e1; border-color: #d6d3d1; }
 .meeting-tile.active {
@@ -919,6 +920,12 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 500;
   color: var(--ink-mute); font-variant-numeric: tabular-nums;
 }
+.mt-info {
+  font-family: var(--font-body); font-size: 9px; font-weight: 500;
+  color: var(--ink-faint); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; width: 100%;
+}
+.meeting-tile.active .mt-info { color: rgba(255,255,255,.55); }
 
 /* Race context bar (between header and runners) */
 .race-context-bar {
@@ -2421,6 +2428,37 @@ function renderRaceDetail(raceId) {
     if (m < 60) return m + 'm';
     return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
   }
+
+  // Extract a short class label from race name
+  // Examples: "Ladbrokes BM65 Handicap" -> "BM65", "Mdn Plate" -> "Maiden",
+  //           "Group 1 Cox Plate" -> "G1", "Class 1 Hcp" -> "C1"
+  function shortClass(raceName) {
+    if (!raceName) return '';
+    const n = raceName.toUpperCase();
+    // Group races
+    let m = n.match(/GROUP\s*([1-3])\b/);
+    if (m) return 'G' + m[1];
+    // Listed
+    if (/\bLISTED\b/.test(n)) return 'LR';
+    // BMxx benchmark
+    m = n.match(/\bBM\s*(\d{2,3})\b/);
+    if (m) return 'BM' + m[1];
+    // Class x
+    m = n.match(/\bCLASS\s*(\d|[A-Z])\b/);
+    if (m) return 'C' + m[1];
+    // Maiden
+    if (/\bMDN\b|\bMAIDEN\b/.test(n)) return 'Maiden';
+    // Restricted
+    m = n.match(/\bRTG\s*(\d{2,3})/);
+    if (m) return 'RTG' + m[1];
+    // Open / Welter / Hcp / Plate
+    if (/\bOPEN\b/.test(n)) return 'Open';
+    if (/\bWELTER\b/.test(n)) return 'Welter';
+    // Set Weight / WFA
+    if (/\bWFA\b|\bSET\s*WEIGHT/.test(n)) return 'WFA';
+    return '';  // unknown - leave blank
+  }
+
   const nowMs = Date.now();
   const stripHtml =
     '<div class="meeting-strip-label">' + escapeHtml(race.venue) + '</div>' +
@@ -2443,9 +2481,16 @@ function renderRaceDetail(raceId) {
       if (hasPick) cls.push('has-pick'); else cls.push('no-pick');
       if (isDone) cls.push('done');
       const cdHtml = (cdtxt && !isDone) ? '<span class="mt-cd ' + cdcls + '">' + cdtxt + '</span>' : '';
+      // Build info line: "1400m · Maiden" or just "1400m" if class unknown
+      const infoParts = [];
+      if (r.distance) infoParts.push(r.distance + 'm');
+      const cls2 = shortClass(r.race_name);
+      if (cls2) infoParts.push(cls2);
+      const infoLine = infoParts.join(' · ');
       return '<div class="' + cls.join(' ') + '" data-race-id="' + r.race_id + '">' +
         '<span class="mt-race">R' + r.race + cdHtml + '</span>' +
         '<span class="mt-time">' + timeStr + '</span>' +
+        (infoLine ? '<span class="mt-info">' + escapeHtml(infoLine) + '</span>' : '') +
         '</div>';
     }).join('');
   const stripEl = document.getElementById('rd-meeting-strip');
