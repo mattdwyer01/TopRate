@@ -2335,11 +2335,18 @@ function renderToday() {
     // (muted styling when falling back so the user sees the calc is provisional).
     const stakePrice = (oddsTaken != null && oddsTaken > 1) ? oddsTaken : csvPrice;
     const usingFallback = !(oddsTaken != null && oddsTaken > 1);
+    const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
 
-    // Threshold check uses the live live fxprice (so the model min-odds rule
-    // is evaluated against the market, not against whatever you eventually got).
+    // Threshold check uses the live fxprice. This is the model rule and drives
+    // the "qualifies" / "below-threshold" visual state plus the qualifying
+    // counter in the hero strip.
     const meetsThreshold = csvPrice != null && csvPrice >= minOdds;
-    const stake = (meetsThreshold && stakePrice != null && stakePrice > 1)
+    // For stake calc and settled P&L, an explicit oddsTaken entry means the
+    // user has already bet (e.g. dead-heat halving where the live fxprice now
+    // looks under threshold but they actually took a qualifying price).
+    // The threshold is a pre-bet filter; once you have bet, calculate.
+    const isActiveBet = meetsThreshold || hasOddsTaken;
+    const stake = (isActiveBet && stakePrice != null && stakePrice > 1)
                     ? calcStake(stakePrice) : null;
     if (meetsThreshold) todayQualifying++;
 
@@ -2355,10 +2362,8 @@ function renderToday() {
     let cardClass = 'pending';
     if (isSettled) {
       todaySettled++;
-      if (meetsThreshold && stake) {
-        const settlePrice = (oddsTaken != null && oddsTaken > 1)
-                              ? oddsTaken
-                              : (r.sp || csvPrice);
+      if (isActiveBet && stake) {
+        const settlePrice = hasOddsTaken ? oddsTaken : (r.sp || csvPrice);
         if (displayWon) {
           todayWins++;
           todayPnL += stake * (settlePrice - 1);
@@ -2371,7 +2376,7 @@ function renderToday() {
       } else {
         cardClass = 'below-threshold';
       }
-    } else if (!meetsThreshold) {
+    } else if (!isActiveBet) {
       cardClass = 'below-threshold';
     } else {
       cardClass = 'qualifies';
@@ -2420,11 +2425,11 @@ function renderToday() {
     // Stake display - muted when calculated from fallback (no odds-taken yet)
     const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
     let stakeHtml;
-    if (meetsThreshold && stake) {
+    if (isActiveBet && stake) {
       const ret = stake * stakePrice;
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
         '<span class="ret">→ ' + fmtDollar(ret) + '</span>';
-    } else if (!meetsThreshold) {
+    } else if (!isActiveBet) {
       stakeHtml = '<span class="skip">no bet</span>';
     } else {
       stakeHtml = '<span class="skip">enter odds</span>';
