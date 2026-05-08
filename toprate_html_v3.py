@@ -891,63 +891,100 @@ body {
   font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
 }
 
-/* Mobile: pick rows stack into card-like layout */
+/* Mobile: streamlined card layout. Each pick is ~4 visual rows max.
+   Time/venue header, horse, signal pills, then a single bottom strip with
+   Fxd price, result tag, and bet toggle. Stake and Return values move into
+   the expand panel since they're not needed at-a-glance scanning. */
 @media (max-width: 720px) {
   .pick-row {
-    grid-template-columns: 60px 1fr 1fr 24px;
+    grid-template-columns: auto 1fr auto;
     grid-template-areas:
-      'time   venue   venue   chev'
-      'runner runner  runner  runner'
-      'sigs   sigs    sigs    sigs'
-      'odds   stake   return  return'
-      'result result  result  result'
-      'bet    bet     bet     bet';
-    gap: 8px 10px;
-    padding: 12px;
-    /* Override desktop min-width so the row can use the full mobile viewport */
+      'time   venue   chev'
+      'runner runner  runner'
+      'sigs   sigs    sigs'
+      'odds   result  bet';
+    gap: 6px 10px;
+    padding: 10px 12px;
     min-width: 0;
+    align-items: center;
   }
-  /* Also disable horizontal scroll on the wrapper on mobile - row fits naturally */
+  /* Disable horizontal scroll on mobile - row fits naturally */
   .picks-scroll { overflow-x: hidden; }
   .picks-list { min-width: 0; border-top: 1px solid var(--line); }
 
-  /* Show inline labels on mobile - each value cell gets a small uppercase label
-     above it so e.g. "1.11u $28" shows "STAKE" and "RETURN" headers. */
-  .cell-lbl { display: block; }
+  /* Hide stake on mobile - it's in the expand panel for placed bets.
+     Hide cell labels too since the new layout doesn't use them. */
+  .pick-row .pr-stake { display: none; }
+  .cell-lbl { display: none; }
 
-  /* Each cell stacks label-on-top, value-below */
-  .pr-odds, .pr-stake, .pr-return, .pr-result, .pr-bet {
-    display: flex; flex-direction: column; gap: 2px;
+  /* On Today (pending) rows, hide return too - shown in expand panel.
+     On P&L (settled) rows, show return as the most useful at-a-glance number. */
+  .pick-row:not(.is-settled) .pr-return { display: none; }
+  /* Settled rows reposition return into the bottom strip in place of bet column */
+  .pick-row.is-settled {
+    grid-template-areas:
+      'time   venue   chev'
+      'runner runner  runner'
+      'sigs   sigs    sigs'
+      'odds   result  return';
   }
-  /* Result and bet rows - left-align label and content */
-  .pr-result { align-items: flex-start; }
-  .pr-bet { align-items: flex-start; }
-  /* Stake/return show label aligned with their right-aligned values */
-  .pr-stake .cell-lbl { text-align: center; }
-  .pr-return .cell-lbl { text-align: right; }
-  .pr-odds .cell-lbl { text-align: left; }
+  .pick-row.is-settled .pr-return {
+    grid-area: return;
+    text-align: right; justify-content: flex-end;
+    flex-direction: column; gap: 0;
+  }
+  .pick-row.is-settled .pr-return .units {
+    font-size: 13px; font-weight: 700;
+  }
+  .pick-row.is-settled .pr-return .ret {
+    font-size: 10px;
+  }
+  /* Settled row also has a bet toggle (the + or odds input) - drop it
+     into a tucked away spot since the row is already showing the result */
+  .pick-row.is-settled .pr-bet { display: none; }
 
-  .pr-time { grid-area: time; }
-  .pr-venue { grid-area: venue; flex-direction: row; gap: 8px; align-items: baseline; }
-  .pr-venue .v-race { margin-top: 0; }
+  .pr-time {
+    grid-area: time;
+    font-size: 13px; font-weight: 700;
+  }
+  .pr-venue {
+    grid-area: venue;
+    flex-direction: row; gap: 6px; align-items: baseline;
+  }
+  .pr-venue .v-name { font-size: 13px; font-weight: 600; }
+  .pr-venue .v-race { font-size: 11px; color: var(--ink-mute); margin-top: 0; }
   .pr-runner { grid-area: runner; }
+  .pr-runner .rhorse { font-size: 14px; }
+  .pr-runner .rmeta { font-size: 11px; line-height: 1.35; }
   .pr-sigs { grid-area: sigs; }
-  /* Allow pills to wrap inside sigs strip on phones */
-  .pr-sigs-top { flex-wrap: wrap; gap: 4px 6px; }
-  .pr-odds { grid-area: odds; }
-  .pr-stake { grid-area: stake; }
-  .pr-return { grid-area: return; }
-  .pr-result { grid-area: result; flex-direction: column; }
-  .pr-result .cell-lbl + * { display: inline-flex; }
-  /* Wrap result buttons/tags after the label */
-  .pr-result > :not(.cell-lbl) {
-    display: inline-flex; flex-wrap: wrap; gap: 4px;
+  /* Allow pills to wrap if needed but try to keep on one line */
+  .pr-sigs-top { flex-wrap: wrap; gap: 4px 5px; }
+  /* Form string row underneath signals - small, muted */
+  .pr-form { font-size: 11px; }
+
+  /* Bottom strip: Fxd | result | bet (or return for settled), single row */
+  .pr-odds {
+    grid-area: odds; justify-content: flex-start;
   }
-  .pr-bet { grid-area: bet; flex-direction: column; }
-  .pr-bet > :not(.cell-lbl) {
-    display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  .pr-odds-display .v { font-size: 14px; font-weight: 700; }
+  .pr-result {
+    grid-area: result; justify-content: center;
+    flex-wrap: wrap; gap: 4px;
   }
-  .pr-chev { grid-area: chev; }
+  /* The unset state res-select dropdown - keep compact */
+  .pr-result .res-select { font-size: 11px; padding: 3px 4px 3px 6px; }
+  .pr-bet {
+    grid-area: bet; justify-content: flex-end;
+    gap: 4px; flex-wrap: nowrap;
+  }
+  /* Tighten odds-input on mobile since space is at premium */
+  .pr-bet .odds-input-wrap { padding: 2px 6px; }
+  .pr-bet .odds-input { width: 50px; font-size: 12px; }
+  .pr-chev {
+    grid-area: chev;
+    font-size: 14px; color: var(--ink-faint);
+  }
+  /* Detail panel adjustments */
   .pd-speed { grid-template-columns: repeat(2, 1fr); }
   .pd-context {
     grid-template-columns: 1fr 1fr;
@@ -3535,14 +3572,48 @@ function buildDetailHTML(p, r) {
   '</div>';
 
   // Bet adjustments - dead heat toggle (only shown when bet is placed)
+  // Plus stake/return numbers since these are no longer in the row on mobile
   const bEntry = getBetEntry(p.run_id);
   let adjustmentsHtml = '';
   if (bEntry.placed) {
     const dhChecked = bEntry.deadHeat ? 'checked' : '';
+
+    // Compute stake/return for display in the panel (replicates pick row logic)
+    const minOdds = (MODEL_META[PRIMARY_KEY] && MODEL_META[PRIMARY_KEY].min_odds) || 3.0;
+    const livePrice = p.fxprice;
+    const oddsTaken = bEntry.oddsTaken;
+    const stakePrice = oddsTaken || livePrice;
+    const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
+    let stakeUnits = null, returnUnits = null, usedFallback = false;
+    if (stakePrice && stakePrice > 1) {
+      stakeUnits = calcStake(stakePrice, { capExempt: hasOddsTaken });
+      const dhMult = bEntry.deadHeat ? 0.5 : 1;
+      returnUnits = stakeUnits != null ? stakeUnits * stakePrice * dhMult : null;
+      usedFallback = !hasOddsTaken;
+    }
+    let outlayHtml = '';
+    if (stakeUnits != null) {
+      outlayHtml =
+        '<div class="pd-context" style="grid-template-columns: 1fr 1fr; margin-top: 6px;">' +
+          '<div class="pd-field"><span class="fl">Stake</span>' +
+            '<span class="fv">' + stakeUnits.toFixed(2) + 'u' +
+            ' <span style="color:var(--ink-mute);font-weight:500;">' + fmtDollar(stakeUnits) + '</span>' +
+            '</span></div>' +
+          '<div class="pd-field"><span class="fl">Return if wins</span>' +
+            '<span class="fv">' + returnUnits.toFixed(2) + 'u' +
+            ' <span style="color:var(--emerald-deep);font-weight:500;">' + fmtDollar(returnUnits) + '</span>' +
+            '</span></div>' +
+        '</div>' +
+        (usedFallback ? '<div style="font-size:10px;color:var(--ink-mute);margin-top:6px;">' +
+          'Using live Fxd price as fallback - enter odds-taken for accurate stake.' +
+          '</div>' : '');
+    }
+
     adjustmentsHtml =
       '<div class="pd-section">' +
-        '<div class="pd-section-title">Bet adjustments</div>' +
-        '<label class="pd-toggle" onclick="event.stopPropagation();">' +
+        '<div class="pd-section-title">Bet outlay</div>' +
+        outlayHtml +
+        '<label class="pd-toggle" onclick="event.stopPropagation();" style="margin-top: 10px;">' +
           '<input type="checkbox" data-deadheat-rid="' + p.run_id + '" ' + dhChecked + '>' +
           '<span class="pd-toggle-lbl">Dead heat</span>' +
           '<span class="pd-toggle-help">Halves the return on a winning bet (joint winner)</span>' +
@@ -4711,7 +4782,7 @@ function renderPnL() {
     const metaLine = metaParts.join(' · ');
 
     const rowHtml =
-      '<div class="pick-row ' + cardClass + (placed ? ' bet-placed' : '') +
+      '<div class="pick-row is-settled ' + cardClass + (placed ? ' bet-placed' : '') +
         '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
         dateHtml +
         '<div class="pr-venue">' +
