@@ -391,27 +391,36 @@ body {
 .val.neg { color: var(--rose); }
 
 /* ── Today tab: compact pick rows ──────────────────────────────────────── */
+/* Shared horizontal-scroll container so picks-header and picks-list scroll
+   together when the row exceeds viewport width. The inner header + list have
+   matching min-width so they align column-for-column even while scrolled. */
+.picks-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--radius-md);
+}
+
 .picks-list {
   display: flex; flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .pick-row {
   display: grid;
   grid-template-columns:
     52px              /* time */
-    110px             /* venue + race # */
-    minmax(220px, 1fr)  /* horse + meta */
-    220px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
-    80px              /* odds (Fxd) */
-    80px              /* stake */
-    80px              /* return */
-    110px             /* result */
-    120px             /* bet toggle + odds-taken */
+    100px             /* venue + race # */
+    minmax(180px, 1fr)  /* horse + meta */
+    200px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
+    72px              /* odds (Fxd) */
+    72px              /* stake */
+    72px              /* return */
+    96px              /* result */
+    110px             /* bet toggle + odds-taken */
     24px;             /* expand chevron */
-  gap: 10px;
+  gap: 8px;
   padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--line-soft);
@@ -419,6 +428,9 @@ body {
   transition: background 0.12s;
   position: relative;
   min-height: 48px;
+  /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
+     kicks in below this on narrow viewports */
+  min-width: 1058px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -551,14 +563,16 @@ body {
 .picks-header {
   display: grid;
   grid-template-columns:
-    52px 110px minmax(220px, 1fr) 220px 80px 80px 80px 110px 120px 24px;
-  gap: 10px;
+    52px 100px minmax(180px, 1fr) 200px 72px 72px 72px 96px 110px 24px;
+  gap: 8px;
   padding: 8px 14px;
   align-items: center;
   background: var(--panel);
   border: 1px solid var(--line);
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
+  /* Match picks-list min-width so columns align */
+  min-width: 1058px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -1955,6 +1969,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="race-date-info" id="today-date-info">&mdash;</div>
     </div>
+    <div class="picks-scroll" id="picks-scroll">
     <div class="picks-header" id="picks-header">
       <div>Time</div>
       <div>Meeting</div>
@@ -1969,6 +1984,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
     <div class="picks-list" id="picks-list">
       <!-- populated by JS -->
+    </div>
     </div>
   </section>
 
@@ -2071,6 +2087,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <button class="bh-export-btn" id="bh-export">Export CSV</button>
         </div>
       </div>
+      <div class="picks-scroll">
       <div class="picks-header" id="bh-picks-header">
         <div>Date</div>
         <div>Meeting</div>
@@ -2085,6 +2102,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="bh-list picks-list" id="bh-list">
         <!-- populated by JS - rich cards like Today tab -->
+      </div>
       </div>
     </div>
   </section>
