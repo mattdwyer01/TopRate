@@ -979,7 +979,7 @@ body {
   background: var(--emerald-bg);
 }
 .race-table tbody tr.is-pick:hover { background: #d1fae5; }
-.race-table tbody tr.muted { color: var(--ink-faint); }
+.race-table tbody tr.muted { color: var(--ink-mute); }
 .tn-cell {
   display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
   text-align: center; background: var(--ink); color: var(--panel);
@@ -989,8 +989,8 @@ body {
 .horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
 
-.rank-cell { font-weight: 700; color: var(--ink-soft); }
-.rank-cell.r1 { color: var(--emerald); font-weight: 700; }
+.rank-cell { font-weight: 600; color: var(--ink-soft); }
+.rank-cell.r1 { color: var(--emerald-deep); font-weight: 700; }
 .rank-cell.r2 { color: var(--emerald-deep); font-weight: 600; }
 .rank-cell.r3 { color: var(--ink-soft); }
 
@@ -999,7 +999,7 @@ body {
   white-space: nowrap;
 }
 .sect-cell .v {
-  font-weight: 600; color: var(--ink);
+  font-weight: 600; color: var(--ink-soft);
 }
 .sect-cell .rk {
   font-size: 9px; font-weight: 700; margin-left: 4px;
@@ -1036,7 +1036,7 @@ body {
 .rate-cell {
   font-family: var(--font-body); font-weight: 600; font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-mute);
+  color: var(--ink-soft);
 }
 .rate-cell.high { color: var(--emerald-deep); }
 .rate-cell.mid { color: #92400e; }
@@ -2360,6 +2360,8 @@ function renderMeetingsGrid() {
 function showRaceDetail(raceId) {
   document.getElementById('race-browser').style.display = 'none';
   document.getElementById('race-detail').style.display = 'block';
+  // Reset sort to TR$ rank ascending whenever a new race is opened
+  raceSortState = { col: 'tr', dir: 'asc' };
   renderRaceDetail(raceId);
 }
 
@@ -2501,6 +2503,7 @@ function renderRaceDetail(raceId) {
   }
 
   // Hybrid bar + ratio cell for distance/going perf
+  // Fill width = honest win rate (so 50% wins = half bar, not full)
   function perfBar(label, starts, wins, places) {
     if (!starts || starts === 0) {
       return '<div class="perf-bar empty">' +
@@ -2511,7 +2514,7 @@ function renderRaceDetail(raceId) {
     }
     const winPct = wins / starts;
     const cls = winPct >= 0.25 ? 'high' : (winPct >= 0.10 ? 'mid' : 'low');
-    const fillPct = Math.min(100, winPct * 200); // visually amplify so 50% = full bar
+    const fillPct = winPct * 100;  // honest fill - 50% wins = 50% bar
     const tooltip = wins + 'W ' + Math.max(0, places - wins) + 'P from ' + starts + ' starts';
     return '<div class="perf-bar ' + cls + '" title="' + tooltip + '">' +
       '<span class="lbl">' + label + '</span>' +
@@ -2535,10 +2538,10 @@ function renderRaceDetail(raceId) {
 
   function settlesLabel(asp) {
     if (asp == null) return '—';
-    if (asp <= 2.5) return '<span style="color:var(--emerald-deep);font-weight:600;">Lead ' + asp.toFixed(1) + '</span>';
-    if (asp <= 4.5) return 'On-pace ' + asp.toFixed(1);
-    if (asp <= 8.5) return 'Mid ' + asp.toFixed(1);
-    return '<span style="color:var(--ink-faint);">Back ' + asp.toFixed(1) + '</span>';
+    if (asp <= 2.5) return '<span style="color:var(--emerald-deep);font-weight:600;">Lead</span>';
+    if (asp <= 4.5) return 'On-pace';
+    if (asp <= 8.5) return 'Mid';
+    return '<span style="color:var(--ink-faint);">Back</span>';
   }
 
   function rateClass(pct) {
