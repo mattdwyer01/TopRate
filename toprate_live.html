@@ -758,8 +758,6 @@ body {
   cursor: pointer; user-select: none; white-space: nowrap;
 }
 .race-table thead th:hover { background: #ede9e1; }
-.race-table thead th.sort-asc::after { content: ' ↑'; color: var(--emerald); }
-.race-table thead th.sort-desc::after { content: ' ↓'; color: var(--emerald); }
 .race-table tbody td {
   padding: 9px 12px; border-bottom: 1px solid var(--line-soft);
   white-space: nowrap; font-weight: 500;
@@ -821,6 +819,62 @@ body {
 
 .edge-cell.value { color: var(--emerald-deep); font-weight: 600; }
 .edge-cell.under { color: var(--rose); }
+
+/* Strike rate column for jky/trn */
+.rate-cell {
+  font-family: var(--font-body); font-weight: 600; font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mute);
+}
+.rate-cell.high { color: var(--emerald-deep); }
+.rate-cell.mid { color: #92400e; }
+
+/* Distance/Going perf - stacked bars with ratio text */
+.perf-cell {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 110px;
+}
+.perf-bar {
+  display: grid; grid-template-columns: 16px 1fr 38px;
+  align-items: center; gap: 6px;
+  font-size: 10px;
+}
+.perf-bar .lbl {
+  font-family: var(--font-body); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.perf-bar .track {
+  height: 8px; background: var(--line-soft);
+  border-radius: 4px; overflow: hidden; position: relative;
+}
+.perf-bar .fill {
+  height: 100%; border-radius: 4px;
+  background: var(--emerald);
+  transition: width 0.2s;
+}
+.perf-bar.high .fill { background: var(--emerald); }
+.perf-bar.mid .fill { background: #f59e0b; }
+.perf-bar.low .fill { background: #d1d5db; }
+.perf-bar .ratio {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft); text-align: right;
+}
+.perf-bar.high .ratio { color: var(--emerald-deep); font-weight: 700; }
+.perf-bar.empty .track { background: var(--line-soft); }
+.perf-bar.empty .ratio { color: var(--ink-faint); }
+
+/* Sortable column indicators */
+.race-table thead th.sortable { cursor: pointer; }
+.race-table thead th.sortable:hover {
+  background: #ede9e1; color: var(--ink);
+}
+.race-table thead th.sortable::after {
+  content: ' ⇅'; opacity: 0.25; font-size: 9px;
+}
+.race-table thead th.sort-asc::after { content: ' ↑'; color: var(--emerald); opacity: 1; }
+.race-table thead th.sort-desc::after { content: ' ↓'; color: var(--emerald); opacity: 1; }
 
 /* First-starter banner */
 .race-banner {
@@ -2093,6 +2147,9 @@ function exitRaceDetail() {
   currentRaceId = null;
 }
 
+// Race detail sort state - {column: name, dir: 'asc'|'desc'}
+let raceSortState = { col: 'tr', dir: 'asc' };
+
 function renderRaceDetail(raceId) {
   const race = RACES.find(r => String(r.race_id) === String(raceId));
   if (!race) {
@@ -2119,7 +2176,6 @@ function renderRaceDetail(raceId) {
   }
 
   // ── Pre-race pace estimate (settling-position derived) ──
-  // Count typical settling type for runners with avg_settled_pos data
   let leaders = 0, onpace = 0, midfield = 0, back = 0;
   runners.forEach(u => {
     const pos = u.asp;
@@ -2129,17 +2185,11 @@ function renderRaceDetail(raceId) {
     else if (pos <= 8) midfield++;
     else back++;
   });
-  // Heuristic for pace estimate:
-  //   3+ leaders => HOT (pressure on lead)
-  //   2 leaders + 2+ on-pace => FAST
-  //   1 leader, rest midfield/back => SLOW (lone speed walks in front)
-  //   else => EVEN
   let paceEst = 'even', paceLabel = 'Even';
   if (leaders >= 3) { paceEst = 'hot'; paceLabel = 'Hot pace'; }
   else if (leaders >= 2 && onpace >= 2) { paceEst = 'fast'; paceLabel = 'Fast'; }
   else if (leaders <= 1 && (midfield + back) >= 4) { paceEst = 'slow'; paceLabel = 'Slow'; }
 
-  // If post-race shape data is available, prefer that
   let paceFromShape = null;
   if (race.rse != null) {
     if (race.rse > 0.15) paceFromShape = 'Fast early';
@@ -2161,7 +2211,7 @@ function renderRaceDetail(raceId) {
     '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>' +
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
-  // Context bar - kept simpler now that pace is in header
+  // Context bar
   const ctx = [];
   ctx.push({ lbl: 'Distance', v: race.distance + 'm' });
   ctx.push({ lbl: 'Going', v: race.going || '—' });
@@ -2172,7 +2222,7 @@ function renderRaceDetail(raceId) {
       '<div class="ctx-item">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>'
     ).join('');
 
-  // ── Pace map - group runners by avg_settled position ──
+  // ── Pace map ──
   const settled = { leaders: [], onpace: [], midfield: [], back: [] };
   runners.forEach(u => {
     const pos = u.asp;
@@ -2194,34 +2244,20 @@ function renderRaceDetail(raceId) {
   document.getElementById('rd-pace-map').innerHTML = paceHtml;
 
   // ── Compute ranks ──
-  function computeRanks(runners, getter, ascending) {
+  function computeRanks(runners, getter) {
     const valid = runners.filter(r => getter(r) != null);
-    valid.sort((a, b) => ascending ? getter(a) - getter(b) : getter(b) - getter(a));
+    valid.sort((a, b) => getter(b) - getter(a));
     const ranks = {};
     valid.forEach((r, i) => { ranks[r.rid] = i + 1; });
     return ranks;
   }
-  const trRanks    = computeRanks(runners, r => r.trr, false);
-  const earlyRanks = computeRanks(runners, r => r.es,  false);
-  const midRanks   = computeRanks(runners, r => r.ms,  false);
-  const lateRanks  = computeRanks(runners, r => r.ls,  false);
-  const totalRanks = computeRanks(runners, r => r.ts,  false);
+  const trRanks    = computeRanks(runners, r => r.trr);
+  const earlyRanks = computeRanks(runners, r => r.es);
+  const midRanks   = computeRanks(runners, r => r.ms);
+  const lateRanks  = computeRanks(runners, r => r.ls);
+  const totalRanks = computeRanks(runners, r => r.ts);
 
-  // Helpers
-  function sectCell(value, rank) {
-    if (value == null) return '<td class="sect-cell">—</td>';
-    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-    const rkBadge = rank ? '<span class="rk">#' + rank + '</span>' : '';
-    return '<td class="sect-cell ' + rkCls + '"><span class="v">' + value.toFixed(1) + '</span>' + rkBadge + '</td>';
-  }
-
-  function distancePerf(runner) {
-    if (!runner.ds) return '—';
-    const w = runner.dw || 0, p = runner.dp || 0;
-    return w + 'W ' + Math.max(0, p - w) + 'P / ' + runner.ds;
-  }
-
-  // Going category lookup
+  // Going category
   function goingCategory(g) {
     if (!g) return null;
     const gl = g.toLowerCase();
@@ -2234,39 +2270,94 @@ function renderRaceDetail(raceId) {
   }
   const todayGoing = goingCategory(race.going);
 
-  function goingPerf(runner) {
-    if (!todayGoing || !runner.gb || !runner.gb[todayGoing]) return '—';
-    const g = runner.gb[todayGoing];
-    if (!g.starts) return '—';
-    const w = g.wins || 0, p = g.places || 0;
-    return w + 'W ' + Math.max(0, p - w) + 'P / ' + g.starts;
+  // Build cell helpers
+  function sectCell(value, rank) {
+    if (value == null) return '<td class="sect-cell">—</td>';
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+    const rkBadge = rank ? '<span class="rk">#' + rank + '</span>' : '';
+    return '<td class="sect-cell ' + rkCls + '"><span class="v">' + value.toFixed(1) + '</span>' + rkBadge + '</td>';
+  }
+
+  // Hybrid bar + ratio cell for distance/going perf
+  function perfBar(label, starts, wins, places) {
+    if (!starts || starts === 0) {
+      return '<div class="perf-bar empty">' +
+        '<span class="lbl">' + label + '</span>' +
+        '<span class="track"></span>' +
+        '<span class="ratio">—</span>' +
+        '</div>';
+    }
+    const winPct = wins / starts;
+    const cls = winPct >= 0.25 ? 'high' : (winPct >= 0.10 ? 'mid' : 'low');
+    const fillPct = Math.min(100, winPct * 200); // visually amplify so 50% = full bar
+    const tooltip = wins + 'W ' + Math.max(0, places - wins) + 'P from ' + starts + ' starts';
+    return '<div class="perf-bar ' + cls + '" title="' + tooltip + '">' +
+      '<span class="lbl">' + label + '</span>' +
+      '<span class="track"><span class="fill" style="width:' + fillPct.toFixed(0) + '%;"></span></span>' +
+      '<span class="ratio">' + wins + '/' + starts + '</span>' +
+      '</div>';
+  }
+
+  function distGoingCell(runner) {
+    const distBar = perfBar('Dst', runner.ds, runner.dw, runner.dp);
+    let goingStarts = 0, goingWins = 0, goingPlaces = 0;
+    if (todayGoing && runner.gb && runner.gb[todayGoing]) {
+      const g = runner.gb[todayGoing];
+      goingStarts = g.starts || 0;
+      goingWins = g.wins || 0;
+      goingPlaces = g.places || 0;
+    }
+    const goingBar = perfBar('Gng', goingStarts, goingWins, goingPlaces);
+    return '<td><div class="perf-cell">' + distBar + goingBar + '</div></td>';
   }
 
   function settlesLabel(asp) {
     if (asp == null) return '—';
-    if (asp <= 2.5) return 'Lead (' + asp.toFixed(1) + ')';
-    if (asp <= 4.5) return 'On-pace (' + asp.toFixed(1) + ')';
-    if (asp <= 8.5) return 'Mid (' + asp.toFixed(1) + ')';
-    return 'Back (' + asp.toFixed(1) + ')';
+    if (asp <= 2.5) return '<span style="color:var(--emerald-deep);font-weight:600;">Lead ' + asp.toFixed(1) + '</span>';
+    if (asp <= 4.5) return 'On-pace ' + asp.toFixed(1);
+    if (asp <= 8.5) return 'Mid ' + asp.toFixed(1);
+    return '<span style="color:var(--ink-faint);">Back ' + asp.toFixed(1) + '</span>';
   }
 
-  function driftCell(runner) {
-    if (typeof PRICE_HIST === 'undefined' || !PRICE_HIST) return '—';
-    const ph = PRICE_HIST[String(runner.rid)];
-    if (!ph || !ph.o || !ph.r) return '—';
-    const pct = ((ph.r - ph.o) / ph.o) * 100;
-    if (Math.abs(pct) < 1) return '<span style="color:var(--ink-mute);">steady</span>';
-    const cls = pct < 0 ? 'firmed' : 'drifted';
-    const arrow = pct < 0 ? '↓' : '↑';
-    return '<span class="drift-cell ' + cls + '">' + arrow + ' ' + Math.abs(pct).toFixed(0) + '%</span>';
+  function rateClass(pct) {
+    if (pct == null) return '';
+    if (pct >= 18) return 'high';
+    if (pct >= 11) return 'mid';
+    return '';
   }
 
-  // ── Sort: by TR rating descending (TR$1 first, TR$2, etc.) ──
-  // (User: "order runners by their tr rating $")
+  // ── Sorting ──
+  // Each sortable column has a getter; null/undef sorts last
+  const sortGetters = {
+    tab:   r => r.tab,
+    horse: r => (r.h || '').toLowerCase(),
+    jky:   r => (r.j || '').toLowerCase(),
+    jkypc: r => r.jw,
+    trn:   r => (r.tn || '').toLowerCase(),
+    trnpc: r => r.tw,
+    bar:   r => r.b,
+    tr:    r => trRanks[r.rid] || 99,
+    early: r => earlyRanks[r.rid] || 99,
+    mid:   r => midRanks[r.rid] || 99,
+    late:  r => lateRanks[r.rid] || 99,
+    total: r => totalRanks[r.rid] || 99,
+    form:  r => r.fm || '',
+    dist:  r => (r.ds && r.dw) ? (r.dw / r.ds) : -1,
+    settles: r => r.asp != null ? r.asp : 99,
+    fxd:   r => r.fx || 9999,
+    trp:   r => r.trp || 9999,
+  };
+
   const sortedRunners = runners.slice().sort((a, b) => {
-    const aR = trRanks[a.rid] || 99;
-    const bR = trRanks[b.rid] || 99;
-    return aR - bR;
+    const getter = sortGetters[raceSortState.col] || sortGetters.tr;
+    let aVal = getter(a), bVal = getter(b);
+    // Nulls sort last regardless of direction
+    if (aVal == null || aVal === '') return 1;
+    if (bVal == null || bVal === '') return -1;
+    let cmp;
+    if (typeof aVal === 'string') cmp = aVal.localeCompare(bVal);
+    else cmp = aVal - bVal;
+    return raceSortState.dir === 'desc' ? -cmp : cmp;
   });
 
   let rowsHtml = '';
@@ -2277,46 +2368,73 @@ function renderRaceDetail(raceId) {
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
     const trp = u.trp;
+    const jkyRate = u.jw;
+    const trnRate = u.tw;
 
     rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
+      '<td class="rate-cell ' + rateClass(jkyRate) + '">' + (jkyRate != null ? jkyRate.toFixed(0) + '%' : '—') + '</td>' +
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
+      '<td class="rate-cell ' + rateClass(trnRate) + '">' + (trnRate != null ? trnRate.toFixed(0) + '%' : '—') + '</td>' +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
       sectCell(u.es, earlyRanks[rid]) +
       sectCell(u.ms, midRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
-      '<td>' + (u.spd != null ? u.spd.toFixed(0) : '—') + '</td>' +
       '<td>' + (u.fm ? '<span style="font-weight:600;">' + escapeHtml(u.fm) + '</span>' : '—') + '</td>' +
-      '<td>' + distancePerf(u) + '</td>' +
-      '<td>' + goingPerf(u) + '</td>' +
+      distGoingCell(u) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
-      '<td>' + driftCell(u) + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
-      '<td>' + (isPick ? '<span class="model-badge">MAIN</span>' : '') + '</td>' +
       '</tr>';
   });
+
+  // Header with sort indicators
+  function th(col, label) {
+    const cls = ['sortable'];
+    if (raceSortState.col === col) {
+      cls.push('sort-' + raceSortState.dir);
+    }
+    return '<th class="' + cls.join(' ') + '" data-sort-col="' + col + '">' + label + '</th>';
+  }
 
   document.getElementById('rd-runners-table').innerHTML =
     '<table class="race-table">' +
       '<thead><tr>' +
-        '<th>Tab</th><th>Horse</th><th>Jky</th><th>Trn</th><th>Bar</th>' +
-        '<th>TR$</th>' +
-        '<th>Early</th><th>Mid</th><th>Late</th><th>Total</th>' +
-        '<th>Spd</th>' +
-        '<th>Form</th>' +
-        '<th>Dist Perf</th>' +
-        '<th>Going Perf</th>' +
-        '<th>Settles</th>' +
-        '<th>Drift</th>' +
-        '<th>Fxd</th><th>TR $</th><th>Model</th>' +
+        th('tab', 'Tab') + th('horse', 'Horse') +
+        th('jky', 'Jky') + th('jkypc', 'Jky %') +
+        th('trn', 'Trn') + th('trnpc', 'Trn %') +
+        th('bar', 'Bar') +
+        th('tr', 'TR$') +
+        th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
+        th('form', 'Form') +
+        th('dist', 'Dist / Going') +
+        th('settles', 'Settles') +
+        th('fxd', 'Fxd') + th('trp', 'TR $') +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>';
+
+  // Wire sortable headers
+  document.querySelectorAll('#rd-runners-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sortCol;
+      if (raceSortState.col === col) {
+        // Toggle direction
+        raceSortState.dir = raceSortState.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        raceSortState.col = col;
+        // Default to ascending for ranks/text, descending for raw values
+        const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr',
+                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp'];
+        raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
+      }
+      renderRaceDetail(raceId);
+    });
+  });
 }
 
 function paceZoneHtml(cls, lbl, hint, runners) {
