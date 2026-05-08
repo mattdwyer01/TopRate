@@ -869,6 +869,57 @@ body {
 }
 .race-back-btn:hover { background: var(--line-soft); color: var(--ink); }
 
+/* Meeting jump strip - all races at the current venue */
+.meeting-strip {
+  display: flex; gap: 6px; padding: 8px 10px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); margin-bottom: 12px;
+  overflow-x: auto; align-items: center;
+}
+.meeting-strip::-webkit-scrollbar { height: 4px; }
+.meeting-strip::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+.meeting-strip-label {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-mute); padding: 0 8px; flex-shrink: 0; white-space: nowrap;
+}
+.meeting-tile {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 6px 10px; gap: 2px;
+  background: var(--line-soft); border: 1px solid var(--line);
+  border-radius: 6px; cursor: pointer; flex-shrink: 0;
+  transition: all .12s; min-width: 60px;
+}
+.meeting-tile:hover { background: #ede9e1; border-color: #d6d3d1; }
+.meeting-tile.active {
+  background: var(--ink); border-color: var(--ink);
+}
+.meeting-tile.active .mt-race { color: #fff; }
+.meeting-tile.active .mt-time { color: rgba(255,255,255,.7); }
+.meeting-tile.has-pick {
+  border-left: 3px solid var(--emerald);
+  padding-left: 8px;
+}
+.meeting-tile.no-pick { opacity: 0.55; }
+.meeting-tile.done { opacity: 0.4; }
+.mt-race {
+  font-family: var(--font-body); font-size: 13px; font-weight: 700;
+  color: var(--ink); letter-spacing: -0.01em; line-height: 1.1;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.mt-cd {
+  display: inline-block; font-family: var(--font-body); font-size: 9px;
+  font-weight: 700; padding: 1px 5px; border-radius: 3px;
+  background: var(--line); color: var(--ink-mute);
+}
+.mt-cd.cd-live { background: #fbbf24; color: #0f1729; }
+.mt-cd.cd-imminent { background: var(--rose); color: #fff; }
+.mt-cd.cd-soon { background: #f59e0b; color: #fff; }
+.mt-time {
+  font-family: var(--font-body); font-size: 10px; font-weight: 500;
+  color: var(--ink-mute); font-variant-numeric: tabular-nums;
+}
+
 /* Race context bar (between header and runners) */
 .race-context-bar {
   background: var(--panel); border-left: 1px solid var(--line);
@@ -1415,6 +1466,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="race-back-bar">
         <button class="race-back-btn" id="race-back-btn">← Back to meetings</button>
       </div>
+      <div class="meeting-strip" id="rd-meeting-strip"></div>
       <div class="race-detail">
         <div class="race-banner" id="rd-banner" style="display:none;"></div>
         <div class="race-header">
@@ -2348,6 +2400,66 @@ function renderRaceDetail(raceId) {
   const pickIds = new Set(picks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
+  // ── Meeting jump strip - all races at this venue on this date ──
+  // Filter all RACES to same venue+date, sort by race number
+  const meetingRaces = RACES.filter(r =>
+    r.venue === race.venue && r.date === race.date
+  ).sort((a, b) => (a.race || 0) - (b.race || 0));
+
+  function cdClass(secondsToStart) {
+    if (secondsToStart === null || secondsToStart === undefined) return '';
+    if (secondsToStart < 0 && secondsToStart > -180) return 'cd-live';   // running now
+    if (secondsToStart >= 0 && secondsToStart < 180) return 'cd-imminent'; // <3min
+    if (secondsToStart >= 180 && secondsToStart < 900) return 'cd-soon';   // <15min
+    return '';
+  }
+  function fmtCd(secondsToStart) {
+    if (secondsToStart === null || secondsToStart === undefined) return '';
+    if (secondsToStart < 0 && secondsToStart > -300) return 'LIVE';
+    if (secondsToStart < 0) return '';  // already finished
+    const m = Math.floor(secondsToStart / 60);
+    if (m < 60) return m + 'm';
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
+  const nowMs = Date.now();
+  const stripHtml =
+    '<div class="meeting-strip-label">' + escapeHtml(race.venue) + '</div>' +
+    meetingRaces.map(r => {
+      const rPicks = (MODEL_PICKS[r.race_id] || {})[PRIMARY_KEY] || [];
+      const hasPick = rPicks.length > 0;
+      const isActive = String(r.race_id) === String(raceId);
+      const isDone = r.done === 1;
+      const startMs = r.start_time ? new Date(r.start_time).getTime() : null;
+      const secs = startMs ? Math.floor((startMs - nowMs) / 1000) : null;
+      const cdcls = cdClass(secs);
+      const cdtxt = fmtCd(secs);
+      let timeStr = '';
+      if (r.start_time) {
+        const dt = new Date(r.start_time);
+        timeStr = dt.toLocaleTimeString('en-AU', {hour: '2-digit', minute: '2-digit', hour12: false});
+      }
+      const cls = ['meeting-tile'];
+      if (isActive) cls.push('active');
+      if (hasPick) cls.push('has-pick'); else cls.push('no-pick');
+      if (isDone) cls.push('done');
+      const cdHtml = (cdtxt && !isDone) ? '<span class="mt-cd ' + cdcls + '">' + cdtxt + '</span>' : '';
+      return '<div class="' + cls.join(' ') + '" data-race-id="' + r.race_id + '">' +
+        '<span class="mt-race">R' + r.race + cdHtml + '</span>' +
+        '<span class="mt-time">' + timeStr + '</span>' +
+        '</div>';
+    }).join('');
+  const stripEl = document.getElementById('rd-meeting-strip');
+  stripEl.innerHTML = stripHtml;
+  // Wire click handlers
+  stripEl.querySelectorAll('.meeting-tile').forEach(tile => {
+    tile.addEventListener('click', () => {
+      const rid = tile.dataset.raceId;
+      if (rid && rid !== String(raceId)) {
+        showRaceDetail(rid);
+      }
+    });
+  });
+
   // ── First-starter banner ──
   const banner = document.getElementById('rd-banner');
   if (race.hfs) {
@@ -2458,6 +2570,12 @@ function renderRaceDetail(raceId) {
   }
   const todayGoing = goingCategory(race.going);
 
+  // Show going column only if at least one runner has going history for today's surface.
+  // Otherwise the column wastes horizontal space showing all dashes.
+  const showGoing = todayGoing && runners.some(u =>
+    u.gb && u.gb[todayGoing] && u.gb[todayGoing].starts > 0
+  );
+
   // Build cell helpers
   function sectCell(value, rank) {
     if (value == null) return '<td class="sect-cell">—</td>';
@@ -2530,7 +2648,6 @@ function renderRaceDetail(raceId) {
   const sortGetters = {
     tab:   r => r.tab,
     horse: r => (r.h || '').toLowerCase(),
-    form:  r => r.fm || '',
     jky:   r => (r.j || '').toLowerCase(),
     jkypc: r => r.jrt,
     trn:   r => (r.tn || '').toLowerCase(),
@@ -2576,7 +2693,6 @@ function renderRaceDetail(raceId) {
     rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
-      '<td>' + (u.fm ? '<span style="font-weight:600;">' + escapeHtml(u.fm) + '</span>' : '—') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
       ratingCell(u.jrt, jryRanks[rid]) +
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
@@ -2588,7 +2704,7 @@ function renderRaceDetail(raceId) {
       sectCell(u.ls, lateRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
       distanceCell(u) +
-      goingCell(u) +
+      (showGoing ? goingCell(u) : '') +
       '<td>' + settlesLabel(u.asp) + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
@@ -2608,14 +2724,12 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         th('tab', 'Tab') + th('horse', 'Horse') +
-        th('form', 'Form') +
         th('jky', 'Jky') + th('jkypc', 'Jky Rt') +
         th('trn', 'Trn') + th('trnpc', 'Trn Rt') +
         th('bar', 'Bar') +
         th('tr', 'TR$') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
-        th('dist', 'Distance') +
-        th('going', 'Going') +
+        (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
         th('settles', 'Settles') +
         th('fxd', 'Fxd') + th('trp', 'TR $') +
       '</tr></thead>' +
