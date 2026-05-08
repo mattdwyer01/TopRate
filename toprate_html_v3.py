@@ -398,17 +398,17 @@ body {
 .pick-row {
   display: grid;
   grid-template-columns:
-    52px         /* time */
-    130px        /* venue + race # */
-    1fr          /* horse + meta */
-    180px        /* signals strip */
-    90px         /* odds (Fxd) */
-    90px         /* stake */
-    90px         /* return */
-    130px        /* result */
-    130px        /* bet toggle + odds-taken */
-    24px;        /* expand chevron */
-  gap: 12px;
+    52px              /* time */
+    110px             /* venue + race # */
+    minmax(220px, 1fr)  /* horse + meta */
+    160px             /* signals strip */
+    80px              /* odds (Fxd) */
+    80px              /* stake */
+    80px              /* return */
+    110px             /* result */
+    120px             /* bet toggle + odds-taken */
+    24px;             /* expand chevron */
+  gap: 10px;
   padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--line-soft);
@@ -488,6 +488,8 @@ body {
 .pr-runner .rmeta {
   font-family: var(--font-body); font-weight: 500; font-size: 11px;
   color: var(--ink-mute); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .pr-sigs {
@@ -546,8 +548,8 @@ body {
 .picks-header {
   display: grid;
   grid-template-columns:
-    52px 130px 1fr 180px 90px 90px 90px 130px 130px 24px;
-  gap: 12px;
+    52px 110px minmax(220px, 1fr) 160px 80px 80px 80px 110px 120px 24px;
+  gap: 10px;
   padding: 8px 14px;
   align-items: center;
   background: var(--panel);
@@ -1305,14 +1307,14 @@ body {
 }
 
 .pnl-stats-strip {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 1px; background: var(--line);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg); overflow: hidden;
   margin-bottom: 18px;
 }
 .pnl-stat {
-  background: var(--panel); padding: 14px 18px;
+  background: var(--panel); padding: 14px 16px;
   display: flex; flex-direction: column; gap: 4px;
 }
 .pnl-stat .lbl {
@@ -1985,8 +1987,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="pnl-view-toggle" role="group" aria-label="View mode">
         <span class="pnl-view-label">View:</span>
-        <button class="pnl-view-btn active" data-view="actual">Actual (bets I placed)</button>
-        <button class="pnl-view-btn" data-view="theoretical">Theoretical (all picks)</button>
+        <button class="pnl-view-btn active" data-view="actual">Actual</button>
+        <button class="pnl-view-btn" data-view="theoretical">Theoretical</button>
       </div>
     </div>
 
@@ -3712,57 +3714,88 @@ function renderPnL() {
   const viewBets = pnlState.view === 'actual' ? actualBets : settled;
 
   // ── Stats strip ──
-  let totalWins = 0, totalStake = 0, spReturn = 0, totalProfit = 0;
-  let bestWin = 0, worstLoss = 0;
-  viewBets.forEach(s => {
-    const stake = calcStake(s.fxprice);
+  // Sort viewBets chronologically for streak calc (oldest first).
+  const sortedForStats = viewBets.slice().sort((a, b) => {
+    const aKey = (a.date || '') + (a.start_time || '');
+    const bKey = (b.date || '') + (b.start_time || '');
+    return aKey.localeCompare(bKey);
+  });
+
+  let totalWins = 0, totalPlaces = 0, totalStake = 0, totalReturn = 0, totalProfit = 0;
+  let curWinStreak = 0, curLossStreak = 0;
+  let longestWinStreak = 0, longestLossStreak = 0;
+  let runningWS = 0, runningLS = 0;
+
+  sortedForStats.forEach(s => {
+    const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
+    const hasOddsTaken = entry.oddsTaken != null && entry.oddsTaken > 1;
+
+    // Stake source same as Today/settled-row logic
+    const stakePrice = hasOddsTaken ? entry.oddsTaken : s.fxprice;
+    if (!stakePrice || stakePrice <= 1) return;
+    const stake = calcStake(stakePrice, { capExempt: hasOddsTaken });
     if (!stake) return;
-    const entry = log[String(s.run_id)];
-    const price = effectivePrice(s, entry);
+
+    // Settle price: oddsTaken if recorded, else SP, else fxprice
+    const settlePrice = hasOddsTaken ? entry.oddsTaken : (s.sp || s.fxprice);
+    const dhMult = entry.deadHeat ? 0.5 : 1;
+
     totalStake += stake;
+    // Place rate denominator = bets where finish is known
+    const placeFinish = (s.finish != null) && s.finish >= 1 && s.finish <= 3;
+    if (placeFinish) totalPlaces++;
+
     if (s.won) {
       totalWins++;
-      const profit = stake * (price - 1);
-      spReturn += stake * price;
+      const profit = stake * (settlePrice - 1) * dhMult;
+      totalReturn += stake + profit;
       totalProfit += profit;
-      if (profit > bestWin) bestWin = profit;
+      runningWS++; runningLS = 0;
+      if (runningWS > longestWinStreak) longestWinStreak = runningWS;
     } else {
       totalProfit -= stake;
-      if (-stake < worstLoss) worstLoss = -stake;
+      // No return on a loss
+      runningLS++; runningWS = 0;
+      if (runningLS > longestLossStreak) longestLossStreak = runningLS;
     }
   });
-  const realWR = viewBets.length > 0 ? totalWins / viewBets.length : null;
-  const realROI = totalStake > 0 ? (spReturn - totalStake) / totalStake : null;
-  const meta = MODEL_META[PRIMARY_KEY] || {};
+  // Current streaks are the running counters at end of sequence
+  curWinStreak = runningWS;
+  curLossStreak = runningLS;
+
+  const realWR = sortedForStats.length > 0 ? totalWins / sortedForStats.length : null;
+  const realPR = sortedForStats.length > 0 ? totalPlaces / sortedForStats.length : null;
+  const realROI = totalStake > 0 ? (totalReturn - totalStake) / totalStake : null;
 
   function statBlock(lbl, val, sub, cls) {
     return '<div class="pnl-stat">' +
       '<div class="lbl">' + lbl + '</div>' +
       '<div class="val ' + (cls || '') + '">' + val + '</div>' +
-      '<div class="sub">' + sub + '</div>' +
+      '<div class="sub">' + (sub || '') + '</div>' +
       '</div>';
   }
   const profitCls = totalProfit > 0 ? 'pos' : (totalProfit < 0 ? 'neg' : '');
   const profitStr = (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2) + 'u';
+  const profitDollarSub = (totalProfit >= 0 ? '+' : '') + fmtDollar(totalProfit);
   const wrStr = realWR != null ? (realWR * 100).toFixed(1) + '%' : '—';
-  const wrSub = realWR != null && meta.wr
-    ? ((realWR - meta.wr) >= 0 ? '+' : '') + ((realWR - meta.wr) * 100).toFixed(1) + 'pp vs expected'
-    : 'expected ' + ((meta.wr || 0) * 100).toFixed(1) + '%';
+  const prStr = realPR != null ? (realPR * 100).toFixed(1) + '%' : '—';
   const roiStr = realROI != null ? ((realROI >= 0 ? '+' : '') + (realROI * 100).toFixed(1) + '%') : '—';
-  const roiSub = realROI != null && meta.roi_sp != null
-    ? ((realROI - meta.roi_sp) >= 0 ? '+' : '') + ((realROI - meta.roi_sp) * 100).toFixed(1) + 'pp vs ' + ((meta.roi_sp || 0) * 100).toFixed(1) + '%'
-    : 'expected ' + ((meta.roi_sp || 0) * 100).toFixed(1) + '%';
+  const roiCls = realROI != null && realROI > 0 ? 'pos' : (realROI != null && realROI < 0 ? 'neg' : '');
+
+  // Streak displays - main = current, sub = longest in period
+  const winStreakStr = curWinStreak > 0 ? curWinStreak.toString() : '0';
+  const winStreakSub = longestWinStreak > 0 ? 'longest ' + longestWinStreak : '—';
+  const lossStreakStr = curLossStreak > 0 ? curLossStreak.toString() : '0';
+  const lossStreakSub = longestLossStreak > 0 ? 'longest ' + longestLossStreak : '—';
 
   document.getElementById('pnl-stats-strip').innerHTML =
-    statBlock('Bets', viewBets.length,
-      pnlState.view === 'actual' ? 'placed' : 'all model picks') +
-    statBlock('P&amp;L', profitStr, totalStake > 0 ? totalStake.toFixed(1) + 'u staked' : '—', profitCls) +
-    statBlock('Win rate', wrStr, wrSub) +
-    statBlock('ROI@SP', roiStr, roiSub) +
-    statBlock('Best win', bestWin > 0 ? '+' + bestWin.toFixed(2) + 'u' : '—',
-      bestWin > 0 ? '+' + fmtDollar(bestWin) : 'no wins yet') +
-    statBlock('Worst loss', worstLoss < 0 ? worstLoss.toFixed(2) + 'u' : '—',
-      worstLoss < 0 ? fmtDollar(worstLoss) : 'no losses');
+    statBlock('Bets', sortedForStats.length, pnlState.view === 'actual' ? 'placed' : 'all picks') +
+    statBlock('P&amp;L', profitStr, profitDollarSub, profitCls) +
+    statBlock('Win rate', wrStr, '') +
+    statBlock('Place rate', prStr, '') +
+    statBlock('ROI', roiStr, '', roiCls) +
+    statBlock('Win streak', winStreakStr, winStreakSub, curWinStreak > 0 ? 'pos' : '') +
+    statBlock('Loss streak', lossStreakStr, lossStreakSub, curLossStreak > 0 ? 'neg' : '');
 
   // ── Cumulative units chart ──
   // Sort by date+time chronologically
