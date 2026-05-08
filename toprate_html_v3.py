@@ -183,6 +183,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 tp['cs']  = runner.get('cs')
                 tp['crk'] = runner.get('crk')
             tp['done'] = race.get('done')
+            # Surface first-starter flag at race level so detail panels can warn
+            tp['hfs'] = bool(race.get('hfs'))
 
             # Compute ranks if missing from pick payload
             def _rank_in_race(field, my_rid):
@@ -233,6 +235,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'distance': race.get('distance') if race else None,
             'going': race.get('going') if race else None,
             'field_size': race.get('fs') if race else None,
+            'hfs': bool(race.get('hfs')) if race else False,
             'fxprice': r.get('fixed_win_price'),
             'sp': r.get('starting_price_sp'),
             'top': r.get('price_top'),
@@ -1258,6 +1261,20 @@ body {
   background: rgba(255,255,255,0.15); color: #fff; font-weight: 700;
   font-size: 11px;
 }
+.score-top3.no-quals { background: rgba(220,80,80,0.15); }
+.score-top3.no-quals .lbl { color: #fca5a5; opacity: 0.95; }
+
+/* Race table rows that qualify by score threshold get a subtle emerald accent */
+.race-table tbody tr.score-qualify {
+  background: rgba(16,185,129,0.045);
+}
+.race-table tbody tr.score-qualify:hover {
+  background: rgba(16,185,129,0.085);
+}
+.race-table tbody tr.is-pick.score-qualify {
+  /* combine model-pick green with threshold accent */
+  background: rgba(16,185,129,0.12);
+}
 
 .sect-pill {
   display: inline-block; padding: 1px 6px; border-radius: 10px;
@@ -1314,6 +1331,25 @@ body {
   font-size: 13px; color: #92400e; font-weight: 600;
 }
 .race-banner .sub {
+  font-size: 11px; color: #92400e; font-weight: 500;
+  opacity: 0.85; margin-top: 2px;
+}
+
+/* First-starter warning shown inside the pick detail panel - same colour palette
+   as .race-banner but a bit more compact since it lives inside the row detail */
+.pd-fs-warn {
+  background: #fef3c7; border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 14px; border-radius: 6px;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-body);
+}
+.pd-fs-warn .icon { font-size: 16px; flex-shrink: 0; }
+.pd-fs-warn .text {
+  font-size: 12px; color: #92400e; font-weight: 600;
+}
+.pd-fs-warn .sub {
   font-size: 11px; color: #92400e; font-weight: 500;
   opacity: 0.85; margin-top: 2px;
 }
@@ -1656,6 +1692,184 @@ body {
   .bh-chev { grid-area: chev; }
 }
 
+/* ── Quaddie tab ──────────────────────────────────────────────────────────── */
+.quaddie-controls {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.quaddie-control-row {
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end;
+}
+.quaddie-control-group {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.quaddie-lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.quaddie-select {
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink); min-width: 220px; cursor: pointer;
+}
+.quaddie-select:focus { outline: 2px solid var(--emerald); outline-offset: -1px; }
+.quaddie-thresh-input {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink); width: 80px;
+  font-variant-numeric: tabular-nums;
+}
+.btn-tiny {
+  font-family: var(--font-body); font-size: 14px; font-weight: 600;
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink-mute); cursor: pointer;
+}
+.btn-tiny:hover { background: var(--line-soft); color: var(--ink); }
+.quaddie-help {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+  margin-top: 14px; line-height: 1.5;
+}
+
+/* Race chooser grid - shows all races at the meeting; click to add as leg */
+.quaddie-race-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px; margin-bottom: 18px;
+}
+.quaddie-race-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; cursor: pointer;
+  transition: all 0.12s; position: relative;
+}
+.quaddie-race-card:hover {
+  border-color: var(--emerald); background: var(--emerald-bg);
+}
+.quaddie-race-card.selected {
+  border-color: var(--emerald); background: var(--emerald-bg);
+  box-shadow: 0 0 0 1px var(--emerald) inset;
+}
+.quaddie-race-card .qr-num {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
+  color: var(--ink);
+}
+.quaddie-race-card .qr-time {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+  margin-top: 2px;
+}
+.quaddie-race-card .qr-quals {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--emerald-deep); margin-top: 6px;
+}
+.quaddie-race-card .qr-quals.zero { color: #b91c1c; }
+.quaddie-race-card .qr-leg-tag {
+  position: absolute; top: 6px; right: 8px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+  background: var(--emerald); color: #fff; padding: 2px 6px; border-radius: 10px;
+}
+.quaddie-race-card .qr-firststarter {
+  position: absolute; bottom: 6px; right: 8px;
+  font-size: 11px; color: #f59e0b;
+}
+
+/* Summary panel: combos, hit rate, $ at unit */
+.quaddie-summary {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 16px 22px; margin-bottom: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 18px;
+}
+.quaddie-summary .qs-stat {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.quaddie-summary .qs-stat .lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.quaddie-summary .qs-stat .val {
+  font-family: var(--font-body); font-weight: 800; font-size: 20px;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.quaddie-summary .qs-stat .val.pos { color: var(--emerald-deep); }
+.quaddie-summary .qs-stat .val.neg { color: #b91c1c; }
+.quaddie-summary .qs-stat .sub {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+}
+.quaddie-summary .qs-actions {
+  display: flex; gap: 8px; align-items: center; justify-self: end;
+}
+
+/* Leg cards: 4 cards side by side, one per leg */
+.quaddie-legs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.quaddie-leg-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-md); padding: 14px 16px;
+}
+.quaddie-leg-card .ql-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 4px;
+}
+.quaddie-leg-card .ql-title {
+  font-family: var(--font-body); font-weight: 700; font-size: 13px;
+  color: var(--ink);
+}
+.quaddie-leg-card .ql-remove {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--ink-faint); cursor: pointer; padding: 2px 6px;
+  border-radius: 4px; border: none; background: none;
+}
+.quaddie-leg-card .ql-remove:hover { color: #b91c1c; background: #fef2f2; }
+.quaddie-leg-card .ql-meta {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  margin-bottom: 10px;
+}
+.quaddie-leg-card .ql-coverage {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--emerald-deep); margin-bottom: 10px; padding: 4px 8px;
+  background: var(--emerald-bg); border-radius: 4px; display: inline-block;
+}
+.quaddie-leg-card .ql-coverage.warn { color: #92400e; background: #fef3c7; }
+.quaddie-leg-card .ql-runners {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.quaddie-leg-card .ql-runner {
+  display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center;
+  padding: 6px 8px; border-radius: 4px; background: var(--line-soft);
+  font-family: var(--font-body); font-size: 12px;
+}
+.quaddie-leg-card .ql-runner.qualifies {
+  background: var(--emerald-bg);
+}
+.quaddie-leg-card .ql-runner .qr-tab {
+  font-weight: 700; color: var(--ink); text-align: center;
+}
+.quaddie-leg-card .ql-runner .qr-horse {
+  font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.quaddie-leg-card .ql-runner .qr-score {
+  font-weight: 700; color: var(--emerald-deep); font-variant-numeric: tabular-nums;
+}
+.quaddie-leg-card .ql-runner.qualifies .qr-score { color: var(--emerald-deep); }
+.quaddie-leg-card .ql-runner:not(.qualifies) .qr-score { color: var(--ink-faint); }
+.quaddie-leg-card .ql-empty {
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-faint);
+  font-style: italic; padding: 6px 0;
+}
+.quaddie-leg-card .ql-fs-warn {
+  background: #fef3c7; color: #92400e;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 6px 8px; border-radius: 4px; margin-bottom: 10px;
+  display: flex; gap: 6px; align-items: center;
+}
+
+.quaddie-empty {
+  text-align: center; padding: 60px 20px;
+  font-family: var(--font-body); color: var(--ink-mute); font-size: 13px;
+}
+
 /* ── Insights tab ──────────────────────────────────────────────────────── */
 .insights-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
@@ -1928,6 +2142,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <nav class="tabs">
     <div class="tab active" data-tab="today">Today</div>
     <div class="tab" data-tab="race">Race</div>
+    <div class="tab" data-tab="quaddie">Quaddie</div>
     <div class="tab" data-tab="pnl">P&amp;L</div>
     <div class="tab" data-tab="insights">Insights</div>
     <div class="tab" data-tab="settings">Settings</div>
@@ -2027,6 +2242,60 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="race-pace-map" id="rd-pace-map"></div>
         <div class="race-table-wrap" id="rd-runners-table"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- QUADDIE -->
+  <section class="section" id="sec-quaddie">
+    <!-- Top: meeting + date controls -->
+    <div class="quaddie-controls">
+      <div class="quaddie-control-row">
+        <div class="quaddie-control-group">
+          <label class="quaddie-lbl">Date</label>
+          <div class="race-date-controls">
+            <button class="quaddie-date-quick race-date-quick" data-qdate="yesterday">Yesterday</button>
+            <button class="quaddie-date-quick race-date-quick active" data-qdate="today">Today</button>
+            <button class="quaddie-date-quick race-date-quick" data-qdate="tomorrow">Tomorrow</button>
+            <input type="date" id="quaddie-date-input" class="race-date-input">
+          </div>
+        </div>
+        <div class="quaddie-control-group">
+          <label class="quaddie-lbl">Meeting</label>
+          <select id="quaddie-meeting" class="quaddie-select">
+            <option value="">— pick a meeting —</option>
+          </select>
+        </div>
+        <div class="quaddie-control-group">
+          <label class="quaddie-lbl">Threshold</label>
+          <input type="number" id="quaddie-thresh" class="quaddie-thresh-input" min="0" max="1" step="0.05">
+          <button class="btn-tiny" id="quaddie-thresh-reset" title="Reset to your default in Settings">↺</button>
+        </div>
+      </div>
+      <div class="quaddie-help">
+        Pick a meeting and the 4 races for your quaddie. Each leg shows horses meeting the score threshold,
+        the resulting combo count, and the projected per-leg winner coverage based on backtest data.
+        Adjust the threshold to add/remove horses per leg.
+      </div>
+    </div>
+
+    <!-- Race chooser: shows all races at the meeting, click to add to legs -->
+    <div class="quaddie-race-grid" id="quaddie-race-grid">
+      <!-- populated by JS -->
+    </div>
+
+    <!-- Selected legs and combo summary -->
+    <div class="quaddie-legs-wrap" id="quaddie-legs-wrap" style="display:none;">
+      <div class="quaddie-summary" id="quaddie-summary">
+        <!-- populated by JS: combo count, hit rate estimate, $ at unit -->
+      </div>
+      <div class="quaddie-legs" id="quaddie-legs">
+        <!-- populated by JS: 4 leg cards with qualifying horses each -->
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="quaddie-empty" id="quaddie-empty">
+      Pick a meeting above to get started. Then click race cards to add them as legs.
     </div>
   </section>
 
@@ -2175,6 +2444,29 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="desc">Maximum stake ceiling in units (caps short prices).</div>
         </div>
         <input type="number" class="setting-input" id="setting-max" value="4" min="0.5" step="0.5">
+      </div>
+    </div>
+
+    <!-- Score threshold (used by Quaddie tab + race tab highlighting) -->
+    <div class="settings-card">
+      <h3>Cumulative score threshold</h3>
+      <div class="setting-row" style="border-top:none;">
+        <div>
+          <div class="lbl">Threshold</div>
+          <div class="desc">
+            Minimum cumulative score for a horse to qualify on the Quaddie tab and
+            be highlighted on the Race tab. Higher = stricter, fewer picks.
+            <br><br>
+            <strong>Backtest reference</strong> (1,608 races):
+            0.85 = ~1.6 picks/race, 47% rank-1 win rate.
+            0.80 = ~2.1 picks/race, 53% per-leg winner coverage.
+            0.75 = ~2.7 picks/race, 62% coverage.
+            <strong>0.70 = ~3.2 picks/race, 68% coverage</strong> (recommended default).
+            0.65 = ~3.7 picks/race, 74% coverage.
+            0.60 = ~4.2 picks/race, 78% coverage.
+          </div>
+        </div>
+        <input type="number" class="setting-input" id="setting-score-thresh" value="0.70" min="0" max="1" step="0.05">
       </div>
     </div>
 
@@ -2335,6 +2627,11 @@ const defaultSettings = {
   targetReturn: 4,
   minStake: 0.25,
   maxStake: 4,
+  // Score threshold for the cumulative-score-based selection (used by
+  // Quaddie tab and threshold highlighting on Race/Today). 0.70 = ~3 picks/race
+  // average, 95% place coverage. See the cumulative score docstring for
+  // backtest validation across thresholds.
+  scoreThreshold: 0.70,
   // Sync settings (configured per-device)
   syncEnabled: false,
   syncGistId: '',
@@ -2359,7 +2656,7 @@ function saveSettings() {
   renderInsights();
 }
 
-['setting-unit','setting-target','setting-min','setting-max'].forEach(id => {
+['setting-unit','setting-target','setting-min','setting-max','setting-score-thresh'].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener('change', () => {
@@ -2369,6 +2666,12 @@ function saveSettings() {
     if (id === 'setting-target') settings.targetReturn = v;
     if (id === 'setting-min') settings.minStake = v;
     if (id === 'setting-max') settings.maxStake = v;
+    if (id === 'setting-score-thresh') {
+      // Clamp to [0, 1] just in case
+      settings.scoreThreshold = Math.max(0, Math.min(1, v));
+      // Re-render Quaddie tab if open
+      if (typeof renderQuaddie === 'function') renderQuaddie();
+    }
     saveSettings();
   });
 });
@@ -2377,6 +2680,7 @@ document.getElementById('setting-unit').value = settings.unitDollar;
 document.getElementById('setting-target').value = settings.targetReturn;
 document.getElementById('setting-min').value = settings.minStake;
 document.getElementById('setting-max').value = settings.maxStake;
+document.getElementById('setting-score-thresh').value = settings.scoreThreshold;
 document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
 
 // ── Stake calculation ──────────────────────────────────────────────────────
@@ -2407,6 +2711,10 @@ document.querySelectorAll('.tab').forEach(t => {
     document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('sec-' + t.dataset.tab).classList.add('active');
+    // Tab-specific render hooks
+    if (t.dataset.tab === 'quaddie' && typeof renderQuaddie === 'function') {
+      renderQuaddie();
+    }
   });
 });
 
@@ -3010,7 +3318,22 @@ function buildDetailHTML(p, r) {
       '</div>';
   }
 
-  return '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
+  // First-starter warning: matches Race tab banner wording so the user gets
+  // the same heads-up here that they would on the race detail
+  let fsWarningHtml = '';
+  if (p.hfs) {
+    fsWarningHtml =
+      '<div class="pd-fs-warn">' +
+        '<span class="icon">⚠</span>' +
+        '<div>' +
+          '<div class="text">First starter in this race</div>' +
+          '<div class="sub">Model signals do not apply to debut runners. Recommend skipping this race.</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  return fsWarningHtml +
+         '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
          '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
          adjustmentsHtml;
 }
@@ -3314,17 +3637,29 @@ function renderRaceDetail(raceId) {
   document.getElementById('rd-title').textContent = race.venue + ' · R' + race.race;
   document.getElementById('rd-subtitle').textContent = race.race_name || '';
 
-  // Top 3 by cumulative score (predictive composite for exotics)
-  const topByScore = runners.filter(u => u.crk != null)
-    .sort((a, b) => a.crk - b.crk).slice(0, 3);
-  const top3ScoreHtml = topByScore.length === 3
-    ? '<div class="score-top3" title="Top 3 by predictive composite score (TR + form + late-speed)">' +
-        '<span class="lbl">Top 3 by score</span>' +
+  // Adaptive selection: horses meeting the cumulative-score threshold
+  // The threshold setting drives picks per race - more in open races, fewer
+  // in races with a clear favourite.
+  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
+  const qualifiers = runners.filter(u => u.cs != null && u.cs >= thresh)
+    .sort((a, b) => (a.crk || 99) - (b.crk || 99));
+  let scoreThreshHtml = '';
+  if (qualifiers.length > 0) {
+    scoreThreshHtml =
+      '<div class="score-top3" title="Horses with cumulative score >= ' + thresh.toFixed(2) +
+        ' (adjustable in Settings). Used by Quaddie tab.">' +
+        '<span class="lbl">' + qualifiers.length + ' above ' + thresh.toFixed(2) + '</span>' +
         '<span class="tabs">' +
-          topByScore.map(u => '<span class="tab-num">#' + (u.tab || '?') + '</span>').join('') +
+          qualifiers.slice(0, 6).map(u => '<span class="tab-num">#' + (u.tab || '?') + '</span>').join('') +
+          (qualifiers.length > 6 ? '<span class="tab-num">+' + (qualifiers.length - 6) + '</span>' : '') +
         '</span>' +
-      '</div>'
-    : '';
+      '</div>';
+  } else {
+    scoreThreshHtml =
+      '<div class="score-top3 no-quals" title="No horses meet the score threshold of ' + thresh.toFixed(2) + '. Skip this leg or lower the threshold.">' +
+        '<span class="lbl">0 above ' + thresh.toFixed(2) + '</span>' +
+      '</div>';
+  }
 
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
@@ -3333,7 +3668,7 @@ function renderRaceDetail(raceId) {
     '<div class="item">$' + (race.prize/1000).toFixed(0) + 'k</div>' +
     '<div class="item">' + runners.length + ' runners</div>' +
     '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>' +
-    top3ScoreHtml +
+    scoreThreshHtml +
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
   // Context bar
@@ -3525,8 +3860,15 @@ function renderRaceDetail(raceId) {
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
     const trp = u.trp;
+    // Score-threshold flag - adds emerald row tint for adaptive selection
+    const qualifies = u.cs != null && u.cs >= thresh;
 
-    rowsHtml += '<tr class="' + (isPick ? 'is-pick' : (trR > 5 ? 'muted' : '')) + '">' +
+    const rowClasses = [];
+    if (isPick) rowClasses.push('is-pick');
+    else if (trR > 5) rowClasses.push('muted');
+    if (qualifies) rowClasses.push('score-qualify');
+
+    rowsHtml += '<tr class="' + rowClasses.join(' ') + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
@@ -4379,7 +4721,21 @@ function renderBhDetail(s) {
       '</div>';
   }
 
+  // First-starter warning: same wording as Race tab banner
+  let fsWarningHtml = '';
+  if (s.hfs) {
+    fsWarningHtml =
+      '<div class="pd-fs-warn">' +
+        '<span class="icon">⚠</span>' +
+        '<div>' +
+          '<div class="text">First starter in this race</div>' +
+          '<div class="sub">Model signals do not apply to debut runners. Recommend skipping this race.</div>' +
+        '</div>' +
+      '</div>';
+  }
+
   return linkHtml +
+    fsWarningHtml +
     '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
     '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
     adjustmentsHtml +
@@ -4632,6 +4988,419 @@ function renderInsights() {
     });
     pdw.innerHTML = settled.length > 0 ? (html || emptyMsg('No date data on settled bets.')) : emptyMsg('No settled bets yet.');
   }
+}
+
+// ── Quaddie tab ─────────────────────────────────────────────────────────────
+// State persisted in localStorage so user doesn't lose their selections on refresh
+const QUADDIE_STORAGE_KEY = 'tr_quaddie_state_v1';
+let quaddieState = {
+  date: null,            // YYYY-MM-DD currently being browsed
+  meetingKey: null,      // venue|date key
+  legRaceIds: [],        // up to 4 race_ids selected
+  threshOverride: null,  // null = use settings.scoreThreshold
+};
+try {
+  const raw = localStorage.getItem(QUADDIE_STORAGE_KEY);
+  if (raw) quaddieState = Object.assign(quaddieState, JSON.parse(raw));
+} catch(e) {}
+function saveQuaddieState() {
+  try { localStorage.setItem(QUADDIE_STORAGE_KEY, JSON.stringify(quaddieState)); } catch(e) {}
+}
+
+// Per-leg winner coverage curve from backtest (1,608 races). Indexed by N picks.
+// E.g. if a leg has 3 qualifying horses, those 3 are by definition the top 3 by score,
+// so coverage = QUADDIE_COVERAGE_CURVE[3] = 0.685 (winner appears in our 3 picks 68.5% of races).
+const QUADDIE_COVERAGE_CURVE = {
+  0: 0.0,
+  1: 0.326,
+  2: 0.539,
+  3: 0.685,
+  4: 0.781,
+  5: 0.860,
+  6: 0.912,
+  7: 0.952,
+  8: 0.973,
+  9: 0.985,
+  10: 0.992,
+  11: 0.996,
+  12: 1.0,
+};
+function legCoverage(nPicks) {
+  if (nPicks == null || nPicks <= 0) return 0;
+  if (QUADDIE_COVERAGE_CURVE[nPicks] != null) return QUADDIE_COVERAGE_CURVE[nPicks];
+  return 1.0;  // 12+ picks ≈ whole field
+}
+
+function getQuaddieThreshold() {
+  if (quaddieState.threshOverride != null) return quaddieState.threshOverride;
+  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
+}
+
+function quaddieRacesForDate(dateStr) {
+  return RACES.filter(r => r.date === dateStr);
+}
+
+function quaddieMeetingsForDate(dateStr) {
+  // Group races by venue, return [{venue, state, races: [...sorted by start_time]}]
+  const races = quaddieRacesForDate(dateStr);
+  const groups = {};
+  races.forEach(r => {
+    const key = r.venue + '|' + (r.state || '');
+    if (!groups[key]) groups[key] = { venue: r.venue, state: r.state || '', races: [] };
+    groups[key].races.push(r);
+  });
+  Object.values(groups).forEach(g => {
+    g.races.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '') || (a.race - b.race));
+  });
+  return Object.values(groups).sort((a, b) => a.venue.localeCompare(b.venue));
+}
+
+function renderQuaddie() {
+  // Initialise date if missing
+  if (!quaddieState.date) quaddieState.date = isoDate(0);
+  const dateInp = document.getElementById('quaddie-date-input');
+  if (dateInp && !dateInp.value) dateInp.value = quaddieState.date;
+  // Update active state on date quick buttons
+  document.querySelectorAll('.quaddie-date-quick').forEach(btn => btn.classList.remove('active'));
+  const todayIso = isoDate(0), yIso = isoDate(-1), tIso = isoDate(1);
+  if (quaddieState.date === todayIso)      document.querySelector('.quaddie-date-quick[data-qdate="today"]')?.classList.add('active');
+  else if (quaddieState.date === yIso)     document.querySelector('.quaddie-date-quick[data-qdate="yesterday"]')?.classList.add('active');
+  else if (quaddieState.date === tIso)     document.querySelector('.quaddie-date-quick[data-qdate="tomorrow"]')?.classList.add('active');
+
+  // Threshold input
+  const threshInp = document.getElementById('quaddie-thresh');
+  if (threshInp && document.activeElement !== threshInp) {
+    threshInp.value = getQuaddieThreshold().toFixed(2);
+  }
+
+  // Meeting dropdown
+  const meetingSel = document.getElementById('quaddie-meeting');
+  const meetings = quaddieMeetingsForDate(quaddieState.date);
+  const currentMeetingKey = quaddieState.meetingKey;
+  meetingSel.innerHTML = '<option value="">— pick a meeting —</option>' +
+    meetings.map(m => {
+      const key = m.venue + '|' + m.state;
+      const sel = key === currentMeetingKey ? ' selected' : '';
+      return '<option value="' + escapeHtml(key) + '"' + sel + '>' +
+        escapeHtml(m.venue) + (m.state ? ' (' + escapeHtml(m.state) + ')' : '') +
+        ' · ' + m.races.length + ' races' +
+        '</option>';
+    }).join('');
+
+  // Determine what to render based on current meeting
+  const grid = document.getElementById('quaddie-race-grid');
+  const legsWrap = document.getElementById('quaddie-legs-wrap');
+  const empty = document.getElementById('quaddie-empty');
+
+  // Validate meetingKey still exists for this date
+  let activeMeeting = meetings.find(m => (m.venue + '|' + m.state) === currentMeetingKey);
+  if (!activeMeeting) {
+    // Reset
+    quaddieState.meetingKey = null;
+    quaddieState.legRaceIds = [];
+    grid.innerHTML = '';
+    legsWrap.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = meetings.length === 0
+      ? 'No races available for ' + quaddieState.date + '. Pick another date.'
+      : 'Pick a meeting above to get started. Then click race cards to add them as legs.';
+    saveQuaddieState();
+    return;
+  }
+
+  empty.style.display = 'none';
+
+  // Validate legRaceIds belong to current meeting
+  const meetingRaceIds = new Set(activeMeeting.races.map(r => r.race_id));
+  quaddieState.legRaceIds = quaddieState.legRaceIds.filter(rid => meetingRaceIds.has(rid));
+
+  // Render race grid
+  const thresh = getQuaddieThreshold();
+  const legSet = new Set(quaddieState.legRaceIds);
+  grid.innerHTML = activeMeeting.races.map(r => {
+    const quals = r.runners.filter(u => u.cs != null && u.cs >= thresh).length;
+    const isSelected = legSet.has(r.race_id);
+    const legPos = isSelected ? (quaddieState.legRaceIds.indexOf(r.race_id) + 1) : null;
+    const time = fmtTime(r.start_time) || '—';
+    const fsTag = r.hfs ? '<span class="qr-firststarter" title="First starter in this race">⚠</span>' : '';
+    const legTag = legPos ? '<span class="qr-leg-tag">Leg ' + legPos + '</span>' : '';
+    const qualsCls = quals === 0 ? ' zero' : '';
+    return '<div class="quaddie-race-card' + (isSelected ? ' selected' : '') + '" data-rid="' + r.race_id + '">' +
+      legTag +
+      '<div class="qr-num">R' + r.race + '</div>' +
+      '<div class="qr-time">' + time + '</div>' +
+      '<div class="qr-quals' + qualsCls + '">' + quals + ' above ' + thresh.toFixed(2) + '</div>' +
+      fsTag +
+      '</div>';
+  }).join('');
+
+  // Wire race-card click handlers
+  grid.querySelectorAll('.quaddie-race-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const rid = card.dataset.rid;
+      const idx = quaddieState.legRaceIds.indexOf(rid);
+      if (idx >= 0) {
+        // Already selected, remove
+        quaddieState.legRaceIds.splice(idx, 1);
+      } else {
+        if (quaddieState.legRaceIds.length >= 4) {
+          // Replace the oldest pick (first leg) so user can keep adding
+          quaddieState.legRaceIds.shift();
+        }
+        quaddieState.legRaceIds.push(rid);
+      }
+      saveQuaddieState();
+      renderQuaddie();
+    });
+  });
+
+  // Render legs and summary
+  if (quaddieState.legRaceIds.length === 0) {
+    legsWrap.style.display = 'none';
+    return;
+  }
+
+  legsWrap.style.display = 'block';
+  renderQuaddieLegs(activeMeeting, thresh);
+}
+
+function renderQuaddieLegs(meeting, thresh) {
+  // Sort selected legs by start_time so leg 1 is first to jump
+  const legRaces = quaddieState.legRaceIds
+    .map(rid => meeting.races.find(r => r.race_id === rid))
+    .filter(r => r != null);
+  legRaces.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '') || (a.race - b.race));
+
+  // Compute per-leg picks + coverage
+  const perLeg = legRaces.map(r => {
+    const quals = r.runners
+      .filter(u => u.cs != null && u.cs >= thresh)
+      .sort((a, b) => (a.crk || 99) - (b.crk || 99));
+    return {
+      race: r,
+      quals: quals,
+      coverage: legCoverage(quals.length),
+    };
+  });
+
+  // Combos = product of qualifying counts (treat 0 as 1 with a flag, since user
+  // can't bet a leg with no horses; we'll flag it but compute "what if you took rank 1")
+  let combos = 1;
+  let allLegsHaveQuals = true;
+  perLeg.forEach(leg => {
+    const n = leg.quals.length || 1;
+    combos *= n;
+    if (leg.quals.length === 0) allLegsHaveQuals = false;
+  });
+
+  // Hit rate = product of per-leg coverage. If a leg is empty, fall back to top-1 coverage.
+  let hitRate = 1.0;
+  perLeg.forEach(leg => {
+    const n = leg.quals.length || 1;
+    hitRate *= legCoverage(n);
+  });
+  // If only 1-3 legs selected, the hit rate is for that subset
+  const isComplete = perLeg.length === 4;
+
+  // Render summary
+  const unitDollars = settings.unitDollar || 1;
+  const targetReturn = settings.targetReturn || 4;
+  // Cost: assume $1 unit per combo by default (user can scale)
+  const costPerUnit = combos;  // in units
+  const costInDollars = combos * 1;  // $1 per combo as a baseline reference
+  const costInUserUnits = combos;  // user enters their own outlay
+
+  const fsAnyLeg = perLeg.some(l => l.race.hfs);
+
+  document.getElementById('quaddie-summary').innerHTML =
+    '<div class="qs-stat"><span class="lbl">Legs selected</span>' +
+      '<span class="val">' + perLeg.length + ' / 4</span>' +
+      '<span class="sub">' + meeting.venue + '</span>' +
+    '</div>' +
+    '<div class="qs-stat"><span class="lbl">Combos</span>' +
+      '<span class="val">' + combos + '</span>' +
+      '<span class="sub">' + perLeg.map(l => l.quals.length || 0).join(' × ') +
+        (isComplete ? '' : ' (need 4 legs)') + '</span>' +
+    '</div>' +
+    '<div class="qs-stat"><span class="lbl">' + (isComplete ? 'Hit rate' : 'Coverage so far') + '</span>' +
+      '<span class="val ' + (hitRate > 0.15 ? 'pos' : (hitRate < 0.05 ? 'neg' : '')) + '">' +
+        (hitRate * 100).toFixed(1) + '%</span>' +
+      '<span class="sub">' + (isComplete
+        ? 'all 4 winners covered'
+        : 'partial - ' + perLeg.length + ' of 4 legs') + '</span>' +
+    '</div>' +
+    '<div class="qs-stat"><span class="lbl">Cost @ $1 unit</span>' +
+      '<span class="val">$' + combos + '</span>' +
+      '<span class="sub">$' + (combos * unitDollars).toFixed(0) + ' @ ' + unitDollars + 'u/combo</span>' +
+    '</div>' +
+    '<div class="qs-actions">' +
+      '<button class="btn-tiny" id="quaddie-clear">Clear legs</button>' +
+      '<button class="btn-tiny" id="quaddie-export">Copy picks</button>' +
+    '</div>';
+
+  // Render leg cards
+  document.getElementById('quaddie-legs').innerHTML = perLeg.map((leg, idx) => {
+    const r = leg.race;
+    const time = fmtTime(r.start_time) || '—';
+    const cov = leg.coverage;
+    const covCls = cov < 0.5 ? ' warn' : '';
+    const covText = leg.quals.length > 0
+      ? leg.quals.length + ' picks · ' + (cov * 100).toFixed(0) + '% winner cov'
+      : 'No picks at this threshold';
+    const fsHtml = r.hfs
+      ? '<div class="ql-fs-warn"><span>⚠</span><span>First starter in this race - skip recommended</span></div>'
+      : '';
+
+    // Show qualifiers, plus rank 1 and 2 fallback if no qualifiers
+    let runnersHtml;
+    if (leg.quals.length === 0) {
+      // Show top 3 by score so user can lower threshold or accept the empty leg
+      const top3 = r.runners
+        .filter(u => u.cs != null)
+        .sort((a, b) => (a.crk || 99) - (b.crk || 99))
+        .slice(0, 3);
+      runnersHtml = top3.length === 0
+        ? '<div class="ql-empty">No runners with score data.</div>'
+        : '<div class="ql-empty">Top 3 by score (none qualify):</div>' +
+          top3.map(u => '<div class="ql-runner">' +
+            '<span class="qr-tab">' + (u.tab || '?') + '</span>' +
+            '<span class="qr-horse">' + escapeHtml(u.h || '') + '</span>' +
+            '<span class="qr-score">' + (u.cs != null ? u.cs.toFixed(2) : '—') + '</span>' +
+            '</div>').join('');
+    } else {
+      runnersHtml = leg.quals.map(u => '<div class="ql-runner qualifies">' +
+        '<span class="qr-tab">' + (u.tab || '?') + '</span>' +
+        '<span class="qr-horse">' + escapeHtml(u.h || '') + '</span>' +
+        '<span class="qr-score">' + u.cs.toFixed(2) + '</span>' +
+        '</div>').join('');
+    }
+
+    return '<div class="quaddie-leg-card" data-rid="' + r.race_id + '">' +
+      '<div class="ql-head">' +
+        '<div class="ql-title">Leg ' + (idx + 1) + ' · R' + r.race + '</div>' +
+        '<button class="ql-remove" data-leg-rid="' + r.race_id + '">remove</button>' +
+      '</div>' +
+      '<div class="ql-meta">' + time + ' · ' + r.distance + 'm · ' + escapeHtml(r.going || '—') +
+        ' · ' + r.fs + ' runners</div>' +
+      fsHtml +
+      '<div class="ql-coverage' + covCls + '">' + covText + '</div>' +
+      '<div class="ql-runners">' + runnersHtml + '</div>' +
+      '</div>';
+  }).join('');
+
+  // Wire remove buttons
+  document.querySelectorAll('.ql-remove').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const rid = btn.dataset.legRid;
+      quaddieState.legRaceIds = quaddieState.legRaceIds.filter(x => x !== rid);
+      saveQuaddieState();
+      renderQuaddie();
+    });
+  });
+
+  // Wire clear legs
+  const clearBtn = document.getElementById('quaddie-clear');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if (confirm('Clear all selected legs?')) {
+      quaddieState.legRaceIds = [];
+      saveQuaddieState();
+      renderQuaddie();
+    }
+  });
+
+  // Wire copy picks
+  const copyBtn = document.getElementById('quaddie-export');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    const lines = [];
+    lines.push(meeting.venue + ' Quaddie - ' + quaddieState.date);
+    lines.push('Threshold: ' + thresh.toFixed(2) + '  Combos: ' + combos +
+               '  Projected hit: ' + (hitRate * 100).toFixed(1) + '%');
+    lines.push('');
+    perLeg.forEach((leg, idx) => {
+      lines.push('Leg ' + (idx + 1) + ' (R' + leg.race.race + ' ' + fmtTime(leg.race.start_time) + ')');
+      if (leg.quals.length === 0) {
+        lines.push('  (no qualifying picks)');
+      } else {
+        leg.quals.forEach(u => {
+          lines.push('  #' + (u.tab || '?') + ' ' + (u.h || '') + ' (' + u.cs.toFixed(2) + ')');
+        });
+      }
+      lines.push('');
+    });
+    const text = lines.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy picks', 1500);
+      });
+    } else {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => copyBtn.textContent = 'Copy picks', 1500);
+    }
+  });
+}
+
+// Wire Quaddie controls (date buttons, meeting selector, threshold input)
+document.querySelectorAll('.quaddie-date-quick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.qdate;
+    if (k === 'yesterday') quaddieState.date = isoDate(-1);
+    else if (k === 'tomorrow') quaddieState.date = isoDate(1);
+    else quaddieState.date = isoDate(0);
+    quaddieState.meetingKey = null;  // reset on date change
+    quaddieState.legRaceIds = [];
+    const inp = document.getElementById('quaddie-date-input');
+    if (inp) inp.value = quaddieState.date;
+    saveQuaddieState();
+    renderQuaddie();
+  });
+});
+const qDateInp = document.getElementById('quaddie-date-input');
+if (qDateInp) {
+  qDateInp.addEventListener('change', e => {
+    if (e.target.value) {
+      quaddieState.date = e.target.value;
+      quaddieState.meetingKey = null;
+      quaddieState.legRaceIds = [];
+      saveQuaddieState();
+      renderQuaddie();
+    }
+  });
+}
+const qMeetingSel = document.getElementById('quaddie-meeting');
+if (qMeetingSel) {
+  qMeetingSel.addEventListener('change', e => {
+    quaddieState.meetingKey = e.target.value || null;
+    quaddieState.legRaceIds = [];
+    saveQuaddieState();
+    renderQuaddie();
+  });
+}
+const qThreshInp = document.getElementById('quaddie-thresh');
+if (qThreshInp) {
+  qThreshInp.addEventListener('change', e => {
+    const v = parseFloat(e.target.value);
+    if (isNaN(v)) return;
+    quaddieState.threshOverride = Math.max(0, Math.min(1, v));
+    saveQuaddieState();
+    renderQuaddie();
+  });
+}
+const qThreshReset = document.getElementById('quaddie-thresh-reset');
+if (qThreshReset) {
+  qThreshReset.addEventListener('click', () => {
+    quaddieState.threshOverride = null;
+    saveQuaddieState();
+    renderQuaddie();
+  });
 }
 
 // ── Init ────────────────────────────────────────────────────────────────────
@@ -4922,6 +5691,8 @@ async function syncPull() {
       document.getElementById('setting-target').value = settings.targetReturn;
       document.getElementById('setting-min').value = settings.minStake;
       document.getElementById('setting-max').value = settings.maxStake;
+      const sst = document.getElementById('setting-score-thresh');
+      if (sst) sst.value = settings.scoreThreshold;
       document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
     }
     renderToday(); renderPnL(); renderInsights();
