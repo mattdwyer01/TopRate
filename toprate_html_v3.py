@@ -332,6 +332,37 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Sync indicator pill - shows in header so user can see when last pulled.
+   Tap it to force a manual pull. */
+.sync-pill {
+  font-family: var(--font-body); font-size: 11px;
+  padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer;
+  font-weight: 600; letter-spacing: 0.02em; user-select: none;
+  border: 1px solid transparent;
+  transition: background 0.15s;
+}
+.sync-pill.off {
+  color: var(--ink-faint); background: transparent;
+  border-color: var(--line); cursor: default;
+}
+.sync-pill.pending {
+  color: #92400e; background: #fef3c7; border-color: #fde68a;
+}
+.sync-pill.ok {
+  color: var(--emerald-deep); background: var(--emerald-bg);
+  border-color: var(--emerald-bg);
+}
+.sync-pill.ok::before {
+  content: '●'; margin-right: 4px; color: var(--emerald);
+  font-size: 9px; vertical-align: middle;
+}
+.sync-pill.stale {
+  color: #92400e; background: #fef3c7; border-color: #fde68a;
+}
+.sync-pill.ok:hover, .sync-pill.stale:hover, .sync-pill.pending:hover {
+  filter: brightness(0.96);
+}
+
 /* Tabs */
 .tabs {
   display: flex; gap: 2px; margin-bottom: 18px;
@@ -346,6 +377,20 @@ body {
 }
 .tab:hover { color: var(--ink-soft); }
 .tab.active { color: var(--ink); border-bottom-color: var(--emerald); font-weight: 600; }
+@media (max-width: 720px) {
+  /* Allow tabs to scroll horizontally on phones - 6 tabs at 18px padding overflow
+     small viewports */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 12px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    padding: 10px 12px; font-size: 11px; flex-shrink: 0;
+  }
+}
 
 /* Sections */
 .section { display: none; padding-bottom: 60px; }
@@ -375,6 +420,18 @@ body {
 .hero-stats {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 18px;
+}
+@media (max-width: 720px) {
+  .hero { padding: 14px 16px; margin-bottom: 12px; }
+  .hero-stats {
+    /* 2x2 grid for 4 KPIs - far better than full-width stack */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 12px;
+  }
+  .hero-stat { padding: 0; }
+  .hero-stat .val { font-size: 18px; }
+  .hero-stat .lbl { font-size: 9px; }
+  .hero-stat .sub { font-size: 10px; }
 }
 .hero-stat { padding: 4px 0; }
 .hero-stat .lbl {
@@ -805,31 +862,41 @@ body {
 /* Mobile: pick rows stack into card-like layout */
 @media (max-width: 720px) {
   .pick-row {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 60px 1fr 1fr 24px;
     grid-template-areas:
-      'time   time   chev'
-      'venue  venue  venue'
-      'runner runner runner'
-      'sigs   sigs   sigs'
-      'odds   stake  return'
-      'result result result'
-      'bet    bet    bet';
-    gap: 8px 12px;
+      'time   venue   venue   chev'
+      'runner runner  runner  runner'
+      'sigs   sigs    sigs    sigs'
+      'odds   stake   return  return'
+      'result result  bet     bet';
+    gap: 6px 10px;
     padding: 12px;
+    /* Override desktop min-width so the row can use the full mobile viewport */
+    min-width: 0;
   }
+  /* Also disable horizontal scroll on the wrapper on mobile - row fits naturally */
+  .picks-scroll { overflow-x: hidden; }
+  .picks-list { min-width: 0; border-top: 1px solid var(--line); }
   .pr-time { grid-area: time; }
   .pr-venue { grid-area: venue; flex-direction: row; gap: 8px; align-items: baseline; }
   .pr-venue .v-race { margin-top: 0; }
   .pr-runner { grid-area: runner; }
   .pr-sigs { grid-area: sigs; }
+  /* Allow pills to wrap inside sigs strip on phones */
+  .pr-sigs-top { flex-wrap: wrap; gap: 4px 6px; }
   .pr-odds { grid-area: odds; justify-content: flex-start; }
   .pr-stake { grid-area: stake; text-align: center; }
   .pr-return { grid-area: return; text-align: right; }
   .pr-result { grid-area: result; justify-content: flex-start; flex-wrap: wrap; }
-  .pr-bet { grid-area: bet; justify-content: flex-start; }
+  .pr-bet { grid-area: bet; justify-content: flex-end; }
   .pr-chev { grid-area: chev; }
   .pd-speed { grid-template-columns: repeat(2, 1fr); }
-  .pd-context { grid-template-columns: 1fr 1fr; }
+  .pd-context {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+  }
+  .pd-field .fl { font-size: 9px; }
+  .pd-field .fv { font-size: 12px; }
 }
 
 .empty-state {
@@ -930,6 +997,20 @@ body {
 }
 .race-date-info {
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+}
+@media (max-width: 720px) {
+  .race-date-bar {
+    /* Stack vertically: Yesterday/Today/Tomorrow + date input on row 1,
+       picks count on row 2. Avoids the awkward "7 picks" orphan in the layout. */
+    flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px;
+  }
+  .race-date-controls {
+    /* Distribute the 3 quick buttons + date input across the row */
+    flex-wrap: wrap; gap: 6px;
+  }
+  .race-date-quick { padding: 6px 10px; flex: 0 1 auto; }
+  .race-date-input { flex: 1 1 130px; margin-left: 0; }
+  .race-date-info { text-align: right; font-size: 11px; }
 }
 
 /* Race page - meetings grid table */
@@ -1160,9 +1241,18 @@ body {
 .race-header-stats {
   display: flex; gap: 24px; align-items: center;
   font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  flex-wrap: wrap;
 }
 .race-header-stats .item { color: #a8a29e; }
 .race-header-stats .item .v { color: #fafaf9; font-weight: 700; }
+@media (max-width: 720px) {
+  .race-header-stats { gap: 10px 14px; font-size: 11px; }
+  .race-header-stats .item { font-size: 11px; }
+  /* Score-top3 indicator inline alongside other items rather than full row */
+  .score-top3 { padding: 3px 8px; font-size: 11px; }
+  .score-top3 .lbl { font-size: 9px; }
+  .score-top3 .tab-num { padding: 1px 5px; font-size: 10px; }
+}
 
 .race-table-wrap { overflow-x: auto; }
 .race-table {
@@ -2073,7 +2163,11 @@ body {
   .tab { padding: 10px 12px; font-size: 11px; flex-shrink: 0; }
   .hero { padding: 14px 16px; }
   .hero-title { font-size: 16px; }
+  /* Force 2-column hero stats on mobile so the 4 Today KPIs always fit 2x2,
+     not 3+1 on wider phones (Pro Max etc) which leaves an orphan ROI row. */
+  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .hero-stat .val { font-size: 18px; }
+  .hero-stat .lbl { font-size: 9px; }
 
   /* Race tab */
   .race-table { font-size: 11px; }
@@ -2092,10 +2186,15 @@ body {
   }
   .pnl-view-toggle { flex-wrap: wrap; }
   .pnl-stats-strip {
+    /* 2 cols on phones: 7 KPIs become 3 rows of 2 + 1 orphan. The orphan is
+       acceptable because 2-col gives readable stat values; 3-col makes them
+       cramped at <380px viewport widths. */
     grid-template-columns: repeat(2, 1fr);
   }
   .pnl-stat { padding: 10px 12px; }
   .pnl-stat .val { font-size: 18px; }
+  .pnl-stat .lbl { font-size: 9px; }
+  .pnl-stat .sub { font-size: 10px; }
   .pnl-chart-card { padding: 14px 16px; }
 
   /* Insights */
@@ -2106,6 +2205,34 @@ body {
   .perf-bar .label { font-size: 11px; }
   .perf-bar .label .sub { display: block; margin-left: 0; }
   .dist-bar { grid-template-columns: 70px 1fr auto; gap: 8px; }
+
+  /* Quaddie tab mobile */
+  .quaddie-controls { padding: 12px 14px; }
+  .quaddie-control-row { gap: 12px; }
+  .quaddie-select { min-width: 0; width: 100%; }
+  .quaddie-control-group { width: 100%; }
+  .quaddie-help { font-size: 11px; }
+  .quaddie-race-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+  .quaddie-race-card { padding: 10px 12px; }
+  .quaddie-race-card .qr-num { font-size: 13px; }
+  .quaddie-race-card .qr-quals { font-size: 10px; }
+  .quaddie-summary {
+    padding: 12px 14px;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .quaddie-summary .qs-stat .val { font-size: 16px; }
+  .quaddie-summary .qs-actions { grid-column: 1 / -1; justify-self: stretch; }
+  .quaddie-legs { grid-template-columns: 1fr; gap: 10px; }
+  .quaddie-leg-card { padding: 12px 14px; }
+
+  /* First-starter warning sized for mobile */
+  .pd-fs-warn { padding: 8px 10px; }
+  .pd-fs-warn .text { font-size: 11px; }
+  .pd-fs-warn .sub { font-size: 10px; }
 }
 """
 
@@ -2129,6 +2256,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <header class="topbar topbar-compact">
     <div class="topbar-right">
       <span class="run-stamp" id="header-run-stamp" title="{run_date}"><span id="header-run-rel">just now</span></span>
+      <span class="sync-pill" id="sync-pill" title="Tap to pull latest bets/odds from cloud sync">sync off</span>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
   </header>
@@ -4099,6 +4227,9 @@ function setBetEntry(runId, patch) {
   const existing = log[String(runId)] || {};
   log[String(runId)] = Object.assign({}, existing, patch);
   saveBetLog(log);
+  // Auto-push the bet log change to the gist so other devices see it on next pull.
+  // This is debounced so rapid edits coalesce into a single push.
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function isPlaced(runId) {
   return !!(getBetLog()[String(runId)] || {}).placed;
@@ -5007,27 +5138,31 @@ function saveQuaddieState() {
   try { localStorage.setItem(QUADDIE_STORAGE_KEY, JSON.stringify(quaddieState)); } catch(e) {}
 }
 
-// Per-leg winner coverage curve from backtest (1,608 races). Indexed by N picks.
+// Per-leg winner coverage curves from backtest (1,608 races). Indexed by N picks.
 // E.g. if a leg has 3 qualifying horses, those 3 are by definition the top 3 by score,
-// so coverage = QUADDIE_COVERAGE_CURVE[3] = 0.685 (winner appears in our 3 picks 68.5% of races).
-const QUADDIE_COVERAGE_CURVE = {
-  0: 0.0,
-  1: 0.326,
-  2: 0.539,
-  3: 0.685,
-  4: 0.781,
-  5: 0.860,
-  6: 0.912,
-  7: 0.952,
-  8: 0.973,
-  9: 0.985,
-  10: 0.992,
-  11: 0.996,
-  12: 1.0,
+// so coverage = QUADDIE_COVERAGE_CURVE_B[3] = 0.685 (winner appears in our 3 picks 68.5% of races).
+//
+// Two curves because the score formula has two paths:
+//   Path B (current default): TR + wpr3 + late_speed proxy. 33% rk-1 WR.
+//   Path A (when jt_combo_win_pct is in API): jt_combo + tr. 44% rk-1 WR.
+// Each race has a 'cs_path' field telling us which formula was used. We pick
+// the matching curve so the projected hit rates are accurate.
+const QUADDIE_COVERAGE_CURVE_B = {
+  // Proxy formula numbers (TR + wpr3 + late)
+  0: 0.0,   1: 0.326, 2: 0.539, 3: 0.685, 4: 0.781,
+  5: 0.860, 6: 0.912, 7: 0.952, 8: 0.973, 9: 0.985,
+  10: 0.992, 11: 0.996, 12: 1.0,
 };
-function legCoverage(nPicks) {
+const QUADDIE_COVERAGE_CURVE_A = {
+  // jt_combo + tr formula numbers
+  0: 0.0,   1: 0.442, 2: 0.674, 3: 0.795, 4: 0.881,
+  5: 0.932, 6: 0.963, 7: 0.978, 8: 0.989, 9: 0.993,
+  10: 0.997, 11: 0.997, 12: 0.999,
+};
+function legCoverage(nPicks, path) {
   if (nPicks == null || nPicks <= 0) return 0;
-  if (QUADDIE_COVERAGE_CURVE[nPicks] != null) return QUADDIE_COVERAGE_CURVE[nPicks];
+  const curve = (path === 'A') ? QUADDIE_COVERAGE_CURVE_A : QUADDIE_COVERAGE_CURVE_B;
+  if (curve[nPicks] != null) return curve[nPicks];
   return 1.0;  // 12+ picks ≈ whole field
 }
 
@@ -5179,7 +5314,9 @@ function renderQuaddieLegs(meeting, thresh) {
     return {
       race: r,
       quals: quals,
-      coverage: legCoverage(quals.length),
+      // Pick the matching coverage curve - Path A is more accurate when jt_combo
+      // data is in the API response, Path B is the proxy fallback
+      coverage: legCoverage(quals.length, r.cs_path || 'B'),
     };
   });
 
@@ -5197,7 +5334,7 @@ function renderQuaddieLegs(meeting, thresh) {
   let hitRate = 1.0;
   perLeg.forEach(leg => {
     const n = leg.quals.length || 1;
-    hitRate *= legCoverage(n);
+    hitRate *= legCoverage(n, leg.race.cs_path || 'B');
   });
   // If only 1-3 legs selected, the hit rate is for that subset
   const isComplete = perLeg.length === 4;
@@ -5645,11 +5782,15 @@ async function syncTest() {
 
 function buildSyncPayload() {
   return {
-    version: 1,
+    version: 2,
     deviceTs: new Date().toISOString(),
-    manualOdds: manualOdds,
+    manualOdds: manualOdds,         // legacy, kept for old gists
     manualResults: manualResults,
     settings: settings,
+    // Unified bet log: placed flag, odds taken, dead heat, comments per run_id
+    // This is the source of truth for bet state - syncing it is what makes
+    // bets visible across devices.
+    betLog: getBetLog(),
   };
 }
 
@@ -5661,7 +5802,11 @@ async function syncPush() {
     await gistFetch('PATCH', '/gists/' + syncCfg.gistId, {
       files: { 'toprate_sync.json': { content: JSON.stringify(payload, null, 2) } },
     });
-    syncLog('Pushed ' + Object.keys(payload.manualOdds).length + ' odds entries + settings.');
+    syncLog('Pushed ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
+            Object.keys(payload.manualOdds || {}).length + ' odds entries + settings.');
+    // Record the push time so the indicator stays "fresh" after a push too
+    try { localStorage.setItem('tr_sync_last_pull_v1', String(Date.now())); } catch(e) {}
+    if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
   } catch (e) {
     syncLog('Push failed: ' + e.message);
   }
@@ -5683,6 +5828,14 @@ async function syncPull() {
       manualResults = payload.manualResults;
       try { localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(manualResults)); } catch(e) {}
     }
+    // Bet log: merge remote into local, with remote winning on per-run_id conflict.
+    // This is the right policy because the gist holds the most-recently-pushed state
+    // from any device; if the local device had unpushed work it should push first.
+    if (payload.betLog && typeof payload.betLog === 'object') {
+      const localLog = getBetLog();
+      const merged = Object.assign({}, localLog, payload.betLog);
+      saveBetLog(merged);
+    }
     if (payload.settings) {
       settings = Object.assign({}, defaultSettings, payload.settings);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
@@ -5696,8 +5849,12 @@ async function syncPull() {
       document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
     }
     renderToday(); renderPnL(); renderInsights();
-    syncLog('Pulled ' + Object.keys(manualOdds).length + ' odds entries + settings from ' +
+    syncLog('Pulled ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
+            Object.keys(payload.manualOdds || {}).length + ' odds entries + settings from ' +
             (payload.deviceTs ? new Date(payload.deviceTs).toLocaleString() : 'unknown time'));
+    // Track last-pull time for the visible sync indicator
+    try { localStorage.setItem('tr_sync_last_pull_v1', String(Date.now())); } catch(e) {}
+    updateSyncIndicator();
   } catch (e) {
     syncLog('Pull failed: ' + e.message);
   }
@@ -5713,20 +5870,112 @@ if (btnTest) btnTest.addEventListener('click', syncTest);
 if (btnPush) btnPush.addEventListener('click', syncPush);
 if (btnPull) btnPull.addEventListener('click', syncPull);
 
-// Auto-push debounced when manualOdds changes
+// Auto-push debounced when bet log or settings change
 let _syncPushTimer = null;
-function scheduleSyncPush() {
+let _syncPushPending = false;  // true while a debounced push is queued
+function scheduleSyncPush(delayMs) {
   if (!syncCfg.pat || !syncCfg.gistId) return;  // not configured
   clearTimeout(_syncPushTimer);
-  _syncPushTimer = setTimeout(syncPush, 4000);  // wait 4s for typing to settle
+  _syncPushPending = true;
+  if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+  _syncPushTimer = setTimeout(() => {
+    _syncPushPending = false;
+    syncPush().finally(() => {
+      if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+    });
+  }, delayMs != null ? delayMs : 1500);
+}
+
+// Force-push immediately, cancelling any pending debounced push.
+// Used as a safety net before the page goes away (visibilitychange to hidden,
+// pagehide, beforeunload) so we don't lose the user's most recent change.
+function flushSyncPush() {
+  if (!syncCfg.pat || !syncCfg.gistId) return;
+  if (!_syncPushPending) return;  // nothing to flush
+  clearTimeout(_syncPushTimer);
+  _syncPushPending = false;
+  // Fire-and-forget; if it fails the user can re-open and we'll catch up later
+  syncPush().catch(() => {}).finally(() => {
+    if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+  });
+}
+
+// Visible sync indicator: shows in the header strip so user can see when last pulled.
+// Updates the existing top-right pill (between "{relative time}" and "1u = $X").
+function updateSyncIndicator() {
+  const el = document.getElementById('sync-pill');
+  if (!el) return;
+  if (!syncCfg.pat || !syncCfg.gistId) {
+    el.textContent = 'sync off';
+    el.className = 'sync-pill off';
+    return;
+  }
+  if (_syncPushPending) {
+    el.textContent = 'pushing…';
+    el.className = 'sync-pill pending';
+    return;
+  }
+  let lastPull = null;
+  try { lastPull = parseInt(localStorage.getItem('tr_sync_last_pull_v1'), 10); } catch(e) {}
+  if (!lastPull || isNaN(lastPull)) {
+    el.textContent = 'syncing…';
+    el.className = 'sync-pill pending';
+    return;
+  }
+  const ageMs = Date.now() - lastPull;
+  const ageMin = Math.floor(ageMs / 60000);
+  let label;
+  if (ageMs < 30000) label = 'synced';
+  else if (ageMin < 1) label = 'synced';
+  else if (ageMin < 60) label = 'sync ' + ageMin + 'm';
+  else label = 'sync ' + Math.floor(ageMin / 60) + 'h';
+  el.textContent = label;
+  el.className = ageMin > 30 ? 'sync-pill stale' : 'sync-pill ok';
 }
 
 updateSyncUI();
+updateSyncIndicator();
+// Refresh indicator every 30 seconds so the relative-time updates
+setInterval(updateSyncIndicator, 30000);
 
 // Auto-pull on page load if sync is configured
 // (so opening the dashboard on iPhone after entering odds on computer just works)
 if (syncCfg.pat && syncCfg.gistId) {
   syncPull().catch(() => {/* silent on auto-pull */});
+}
+
+// Auto-pull when the tab becomes visible again (mobile users often switch
+// apps between making changes on desktop and viewing on mobile)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && syncCfg.pat && syncCfg.gistId) {
+    // Only re-pull if it's been more than 30 seconds since last pull
+    let lastPull = 0;
+    try { lastPull = parseInt(localStorage.getItem('tr_sync_last_pull_v1'), 10) || 0; } catch(e) {}
+    if (Date.now() - lastPull > 30000) {
+      syncPull().catch(() => {});
+    }
+  } else if (document.visibilityState === 'hidden') {
+    // Page going to background - flush any pending bet-log push so we don't
+    // lose changes when the user closes the browser/switches apps. iOS Safari
+    // is particularly unreliable about firing beforeunload, so visibilitychange
+    // to hidden is our primary safety net here.
+    flushSyncPush();
+  }
+});
+
+// Final-chance push on page unload (desktop primarily; iOS often skips this)
+window.addEventListener('pagehide', flushSyncPush);
+window.addEventListener('beforeunload', flushSyncPush);
+
+// Tap the sync indicator: if there's a pending local change, push it now;
+// otherwise pull the latest from the gist
+const syncPill = document.getElementById('sync-pill');
+if (syncPill) {
+  syncPill.addEventListener('click', () => {
+    if (!syncCfg.pat || !syncCfg.gistId) return;
+    if (_syncPushPending) flushSyncPush();
+    else syncPull().catch(() => {});
+  });
 }
 
 // ── Bet log management ────────────────────────────────────────────────────

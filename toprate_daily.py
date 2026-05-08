@@ -81,6 +81,11 @@ RUNNER_COLS = [
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # TopRate's own jockey and trainer rating numbers (separate from win % strike rates)
     "jockey_rating","trainer_rating",
+    # Jockey/trainer combo - strongest single predictor in backtest. May be None
+    # if live API doesn't expose it; the cumulative score formula falls back when
+    # missing. Once populated, switch SCORE_WEIGHTS to use jt_combo_win_pct for
+    # the Path A upgrade (44% rk-1 WR vs 33% with proxy formula).
+    "jt_combo_win_pct","jt_combo_rides",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
     "going_breakdown","form_string",
@@ -374,6 +379,28 @@ def build_stats_lookup(race_stats):
     _logged_filters = set()  # track unique filter combos seen, for one-time diagnostic
     for runner in (race_stats or []):
         rid = runner.get("runId")
+
+        # ONE-TIME DIAGNOSTIC: log all top-level keys of the runner object so we
+        # can identify where jt_combo_win_pct lives. The backtest has fields like
+        # jt_combo_rides, jt_combo_win_pct, jt_combo_place_pct, jt_combo_pot.
+        # If we find them in the live API response we can wire them up.
+        if "_jt_combo_diag_done" not in _logged_filters:
+            _logged_filters.add("_jt_combo_diag_done")
+            top_keys = sorted(runner.keys())
+            print(f"  DIAG: get_race_stats runner top-level keys: {top_keys}")
+            # If there are any combo/jockey/trainer-related arrays we don't know about, log their domains
+            for k in top_keys:
+                v = runner.get(k)
+                if isinstance(v, list) and v and isinstance(v[0], dict):
+                    sample_keys = sorted(v[0].keys())
+                    print(f"  DIAG: '{k}' is a list of {len(v)} items; first item keys: {sample_keys}")
+                    if "domain" in v[0]:
+                        domains = [item.get("domain") for item in v[:3]]
+                        print(f"  DIAG: '{k}' first 3 domains: {domains}")
+                # Also log scalar fields that might be the combo numbers directly
+                elif isinstance(v, (int, float)) and "combo" in k.lower():
+                    print(f"  DIAG: scalar combo field found: {k} = {v}")
+
         def pick(lst, region, price, days, jumps):
             # Case-insensitive match — TopRate sometimes returns "All" vs "all"
             for s in (lst or []):
@@ -393,6 +420,39 @@ def build_stats_lookup(race_stats):
             available = [s.get("domain", {}) for s in runner.get("jockeyStats", [])[:3]]
             print(f"  WARNING: no jockey stat match for filter (region=all, price=all, days=90, jumps=flatsOnly). "
                   f"First few available domains: {available}")
+
+        # Try to extract jockey/trainer combo win% (the strongest single predictor in
+        # the backtest at 44% rank-1 WR). Try several plausible field locations.
+        # Path A: a dedicated array similar to jockeyStats/trainerStats
+        jt_combo_win_pct = None
+        jt_combo_rides   = None
+        for arr_key in ("jockeyTrainerStats", "jockeyTrainerComboStats",
+                        "comboStats", "jtComboStats", "jtStats"):
+            arr = runner.get(arr_key)
+            if isinstance(arr, list) and arr:
+                # Try matching same domain filter we use for other stats
+                jt_match = pick(arr, "all", "all", 365, "flatsOnly")
+                if not jt_match:
+                    # fallback: just take the first entry
+                    jt_match = arr[0] if isinstance(arr[0], dict) else {}
+                jt_combo_win_pct = jt_match.get("winPercent")
+                jt_combo_rides   = jt_match.get("rides") or jt_match.get("starts")
+                if jt_combo_win_pct is not None and "jt_combo_found" not in _logged_filters:
+                    _logged_filters.add("jt_combo_found")
+                    print(f"  DIAG: found jt_combo data in '{arr_key}'. Sample: {jt_match}")
+                break
+
+        # Path B: scalar fields on the runner object directly
+        if jt_combo_win_pct is None:
+            for k in ("jtComboWinPct", "jt_combo_win_pct", "comboWinPct",
+                      "jockeyTrainerWinPct"):
+                if runner.get(k) is not None:
+                    jt_combo_win_pct = runner.get(k)
+                    if "jt_combo_scalar_found" not in _logged_filters:
+                        _logged_filters.add("jt_combo_scalar_found")
+                        print(f"  DIAG: found jt_combo scalar at '{k}' = {jt_combo_win_pct}")
+                    break
+
         lookup[rid] = {
             "jockey_win_pct_90d":   j90.get("winPercent"),
             "trainer_win_pct_365d": t365.get("winPercent"),
@@ -400,6 +460,10 @@ def build_stats_lookup(race_stats):
             # (NOT inside the filtered stats domain entries which only have winPercent etc)
             "jockey_rating":   runner.get("jockeyRating"),
             "trainer_rating":  runner.get("trainerRating"),
+            # Jockey/trainer combo - new for v3 score upgrade. May be None if API
+            # doesn't expose this; the score formula falls back to other signals.
+            "jt_combo_win_pct": jt_combo_win_pct,
+            "jt_combo_rides":   jt_combo_rides,
         }
     return lookup
 
@@ -657,30 +721,62 @@ def model_picks_summary(rows, today_only=True):
 #     score = 1.0 * jt_combo_pct + 1.2 * tr_pct
 # once jockey/trainer combo win % is fetched from the API. That formula
 # improves rk1 WR to 44%, top-3 winner-coverage to 80%.
-SCORE_WEIGHTS = {
+#
+# This module supports BOTH formulas. compute_cumulative_score auto-detects
+# whether jt_combo_win_pct is populated for the race (>= 50% of runners with
+# data) and switches to the Path A formula automatically. If not, the proxy
+# formula is used. This means the upgrade ships transparently as soon as the
+# API integration starts returning the field.
+SCORE_WEIGHTS_PROXY = {
+    # Path B (current): TR-dominant proxy. 33% rk1 WR.
     "toprate_rating":   2.0,
     "wpr_avg_last3":    0.5,
     "late_speed_score": 0.3,
 }
-SCORE_DIRECTION = "higher"  # all weights are higher-is-better signals
+SCORE_WEIGHTS_FULL = {
+    # Path A (target): jt_combo + TR. 44% rk1 WR, 80% top-3 coverage.
+    "jt_combo_win_pct": 1.0,
+    "toprate_rating":   1.2,
+}
+# Min coverage of jt_combo_win_pct in a race (as a fraction of runners) before
+# the Path A formula is used. Below this we fall back to Path B for that race.
+SCORE_PATH_A_MIN_COVERAGE = 0.5
+
+# Backwards-compat alias (other callers may reference this directly)
+SCORE_WEIGHTS = SCORE_WEIGHTS_PROXY
+SCORE_DIRECTION = "higher"
+
+
+def _resolve_score_weights(rdf):
+    """Decide which formula to use for this race based on jt_combo_win_pct coverage."""
+    if "jt_combo_win_pct" in rdf.columns:
+        non_null = pd.to_numeric(rdf["jt_combo_win_pct"], errors="coerce").notna().sum()
+        if non_null >= len(rdf) * SCORE_PATH_A_MIN_COVERAGE:
+            return SCORE_WEIGHTS_FULL, "A"
+    return SCORE_WEIGHTS_PROXY, "B"
 
 
 def compute_cumulative_score(rdf):
     """
     For a single race DataFrame, compute a per-runner cumulative score and rank.
-    Returns: dict(run_id -> {score: float in [0,1], rank: int 1..N})
+    Returns: dict(run_id -> {score: float in [0,1], rank: int 1..N, path: 'A'|'B'})
+    Auto-selects Path A or Path B formula based on jt_combo_win_pct coverage.
+    The 'path' key tells the caller which formula was used for this race - needed
+    when applying the matching coverage curve in the Quaddie tab.
     """
     n = len(rdf)
     if n == 0:
         return {}
     if n == 1:
         rid = str(rdf.iloc[0].get("run_id", ""))
-        return {rid: {"score": 1.0, "rank": 1}}
+        weights, path = _resolve_score_weights(rdf)
+        return {rid: {"score": 1.0, "rank": 1, "path": path}}
 
-    total_w = sum(SCORE_WEIGHTS.values())
+    weights, path = _resolve_score_weights(rdf)
+    total_w = sum(weights.values())
     runner_scores = [0.0] * n  # positional
 
-    for sig, w in SCORE_WEIGHTS.items():
+    for sig, w in weights.items():
         if sig not in rdf.columns:
             continue
         col = pd.to_numeric(rdf[sig], errors="coerce")
@@ -709,6 +805,7 @@ def compute_cumulative_score(rdf):
         out[rid] = {
             "score": round(runner_scores[i], 4),
             "rank":  ranks[i],
+            "path":  path,
         }
     return out
 
@@ -1287,6 +1384,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                     "fixed_win_price":    d.get("fixedWinPrice"),
                     "jockey_win_pct_90d": s.get("jockey_win_pct_90d"),
                     "trainer_win_pct_365d": s.get("trainer_win_pct_365d"),
+                    # Jockey/trainer combo win % - new for v3 score upgrade.
+                    # May be None if the live API doesn't expose it; the score
+                    # formula falls back to other signals when missing.
+                    "jt_combo_win_pct":   s.get("jt_combo_win_pct"),
+                    "jt_combo_rides":     s.get("jt_combo_rides"),
                     # Contextual fields
                     "sect_early":         d.get("sectEarly"),
                     "weight_carried":     d.get("weightCarried"),
@@ -1640,6 +1742,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
             "fs":        len(rdf),
             "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),
+            # Cumulative score formula path used for this race ('A' or 'B').
+            # 'A' = jt_combo + tr (better, 44% rk-1 WR). 'B' = tr + wpr3 + late (33% rk-1 WR).
+            # JS uses this to pick the right coverage curve in the Quaddie tab.
+            "cs_path":   next(iter(cum_lookup.values()), {}).get("path", "B") if cum_lookup else "B",
             "runners":   runners,
         })
 
