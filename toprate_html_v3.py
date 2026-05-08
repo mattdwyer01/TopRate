@@ -515,18 +515,11 @@ body {
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
 }
-/* Live fixed odds display (read-only) */
+/* Live fixed odds display (read-only) - no border/box, looks like static text */
 .pr-odds-display {
-  display: inline-flex; align-items: baseline; gap: 2px;
-  background: var(--line-soft); border: 1px solid var(--line);
-  border-radius: 4px; padding: 4px 10px;
+  display: inline-flex; align-items: baseline; gap: 1px;
   font-variant-numeric: tabular-nums;
-}
-.pr-odds-display.qualifies {
-  background: var(--emerald-bg); border-color: var(--emerald-line);
-}
-.pr-odds-display.below {
-  background: #fafafa; border-color: var(--line);
+  padding: 0;
 }
 .pr-odds-display .cur {
   font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
@@ -534,10 +527,38 @@ body {
 }
 .pr-odds-display .v {
   font-family: var(--font-body); font-weight: 700; font-size: 14px;
-  color: var(--ink);
+  color: var(--ink-soft);
 }
+.pr-odds-display.qualifies .v { color: var(--emerald-deep); }
+.pr-odds-display.below .v { color: var(--ink-soft); }
 .pr-odds-display .v.empty {
   color: var(--ink-faint); font-weight: 500;
+}
+
+/* Picks list column header */
+.picks-header {
+  display: grid;
+  grid-template-columns:
+    52px 140px 1fr 180px 100px 100px 140px 130px 24px;
+  gap: 14px;
+  padding: 8px 14px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.picks-header > div {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.picks-header .th-right { text-align: right; }
+.picks-list {
+  border-top-left-radius: 0; border-top-right-radius: 0;
+}
+@media (max-width: 720px) {
+  .picks-header { display: none; }
+  .picks-list { border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md); }
 }
 
 .pr-stake {
@@ -608,16 +629,34 @@ body {
   background: var(--emerald); color: #fff; border-color: var(--emerald);
 }
 .bet-btn.placed:hover { background: var(--emerald-deep); }
-.odds-input {
-  font-family: var(--font-body); font-size: 12px; font-weight: 600;
-  width: 64px; padding: 4px 8px;
+/* Odds-taken input - matches Fxd column visual format with $ prefix */
+.odds-input-wrap {
+  display: inline-flex; align-items: baseline; gap: 1px;
   border: 1px solid var(--line); border-radius: 4px;
-  color: var(--ink); background: var(--panel);
+  padding: 3px 8px;
+  background: var(--panel);
+  transition: all 0.12s;
+}
+.odds-input-wrap:focus-within {
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 2px var(--emerald-bg);
+}
+.odds-input-wrap .cur {
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  font-weight: 500;
+}
+.odds-input {
+  font-family: var(--font-body); font-size: 14px; font-weight: 700;
+  width: 44px; padding: 0;
+  border: none; outline: none;
+  color: var(--ink); background: transparent;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  -moz-appearance: textfield;
 }
-.odds-input:focus {
-  outline: none; border-color: var(--emerald); background: #fff;
+.odds-input::-webkit-outer-spin-button,
+.odds-input::-webkit-inner-spin-button {
+  -webkit-appearance: none; margin: 0;
 }
 .odds-input::placeholder { color: var(--ink-faint); font-weight: 400; }
 .odds-warning {
@@ -648,6 +687,26 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--ink-mute); margin-bottom: 8px;
+}
+
+/* Bet adjustments toggle (e.g. dead heat) */
+.pd-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+  padding: 6px 10px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 5px;
+}
+.pd-toggle:hover { border-color: var(--line); background: #fafbfc; }
+.pd-toggle input[type="checkbox"] {
+  margin: 0; cursor: pointer; accent-color: var(--emerald);
+}
+.pd-toggle-lbl {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--ink-soft);
+}
+.pd-toggle-help {
+  font-family: var(--font-body); font-size: 11px; font-weight: 400;
+  color: var(--ink-mute);
 }
 
 /* Speed scores in expanded view - 4 compact inline cells */
@@ -1807,28 +1866,39 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="hero">
       <div class="hero-stats">
         <div class="hero-stat">
-          <div class="lbl">Today's picks</div>
-          <div class="val" id="hs-today-count">{n_today}</div>
-          <div class="sub" id="hs-today-pending">all pending</div>
-        </div>
-        <div class="hero-stat">
           <div class="lbl">Today P&amp;L</div>
           <div class="val" id="hs-today-pnl">&mdash;</div>
           <div class="sub" id="hs-today-pnl-units">&mdash;</div>
         </div>
         <div class="hero-stat">
-          <div class="lbl">30d ROI@SP</div>
-          <div class="val" id="hs-30d-roi-sp">&mdash;</div>
-          <div class="sub">expected {primary_roi_sp}%</div>
+          <div class="lbl">Win rate</div>
+          <div class="val" id="hs-today-wr">&mdash;</div>
+          <div class="sub" id="hs-today-wr-sub">&mdash;</div>
         </div>
         <div class="hero-stat">
-          <div class="lbl">30d Win rate</div>
-          <div class="val" id="hs-30d-wr">&mdash;</div>
-          <div class="sub">expected {primary_wr}%</div>
+          <div class="lbl">Place rate</div>
+          <div class="val" id="hs-today-pr">&mdash;</div>
+          <div class="sub" id="hs-today-pr-sub">&mdash;</div>
+        </div>
+        <div class="hero-stat">
+          <div class="lbl">ROI</div>
+          <div class="val" id="hs-today-roi">&mdash;</div>
+          <div class="sub" id="hs-today-roi-sub">&mdash;</div>
         </div>
       </div>
     </div>
 
+    <div class="picks-header" id="picks-header">
+      <div>Time</div>
+      <div>Meeting</div>
+      <div>Runner</div>
+      <div>Signals</div>
+      <div class="th-right">Fxd</div>
+      <div class="th-right">Stake</div>
+      <div class="th-right">Result</div>
+      <div class="th-right">Got odds</div>
+      <div></div>
+    </div>
     <div class="picks-list" id="picks-list">
       <!-- populated by JS -->
     </div>
@@ -2212,10 +2282,14 @@ document.getElementById('setting-max').value = settings.maxStake;
 document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
 
 // ── Stake calculation ──────────────────────────────────────────────────────
-function calcStake(price) {
+// When the user has entered an actual oddsTaken value, they have already bet,
+// so the maxStake safety cap is removed. We still respect minStake.
+function calcStake(price, opts) {
   if (!price || price <= 1) return null;
+  const capExempt = opts && opts.capExempt;
   const raw = settings.targetReturn / (price - 1);
-  const clamped = Math.min(settings.maxStake, Math.max(settings.minStake, raw));
+  const upper = capExempt ? Infinity : settings.maxStake;
+  const clamped = Math.min(upper, Math.max(settings.minStake, raw));
   return Math.round(clamped * 100) / 100;
 }
 function fmtUnits(u) { return u == null ? '—' : u.toFixed(2) + 'u'; }
@@ -2313,7 +2387,14 @@ function renderToday() {
     }
     list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + localToday + '</div>' +
       '<div class="sub">The model did not find any qualifying runners today, or the data has not been refreshed yet.</div>' + hint + '</div>';
+    const hdrEmpty = document.getElementById('picks-header');
+    if (hdrEmpty) hdrEmpty.style.display = 'none';
     return;
+  }
+  // Show header (in case it was hidden previously)
+  const hdrShow = document.getElementById('picks-header');
+  if (hdrShow && window.matchMedia('(min-width: 721px)').matches) {
+    hdrShow.style.display = 'grid';
   }
 
   const minOdds = (MODEL_META[PRIMARY_KEY] && MODEL_META[PRIMARY_KEY].min_odds) || 3.0;
@@ -2322,6 +2403,9 @@ function renderToday() {
   todaysPicks.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
   let todayWins = 0, todayLosses = 0, todayPnL = 0, todaySettled = 0, todayQualifying = 0;
+  let todayPlaces = 0;        // 1st/2nd/3rd finishes among settled bets
+  let todayStakeTotal = 0;    // sum of stake (for ROI denominator)
+  let todayReturnTotal = 0;   // sum of (stake * settlePrice) on wins, 0 on losses (for ROI numerator)
   const now = new Date();
 
   todaysPicks.forEach((p, idx) => {
@@ -2347,7 +2431,7 @@ function renderToday() {
     // The threshold is a pre-bet filter; once you have bet, calculate.
     const isActiveBet = meetsThreshold || hasOddsTaken;
     const stake = (isActiveBet && stakePrice != null && stakePrice > 1)
-                    ? calcStake(stakePrice) : null;
+                    ? calcStake(stakePrice, { capExempt: hasOddsTaken }) : null;
     if (meetsThreshold) todayQualifying++;
 
     // Result state
@@ -2359,20 +2443,33 @@ function renderToday() {
 
     // Update settled counters
     // For settled bets, P&L uses oddsTaken if recorded, else SP, else live fxprice.
+    // If deadHeat is flagged on a winning bet, the return is halved (profit and stake
+    // are split with the joint-winner per Aus rules).
     let cardClass = 'pending';
     if (isSettled) {
       todaySettled++;
+      // Place rate uses any settled bet that finished 1st/2nd/3rd, regardless of
+      // whether the user marked it as a placed (held) bet. Manual results override
+      // when the official feed lags.
+      const finishForPlace = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
+      const isPlaceFinish = finishForPlace != null && finishForPlace >= 1 && finishForPlace <= 3;
       if (isActiveBet && stake) {
+        if (isPlaceFinish) todayPlaces++;
         const settlePrice = hasOddsTaken ? oddsTaken : (r.sp || csvPrice);
         if (displayWon) {
           todayWins++;
-          todayPnL += stake * (settlePrice - 1);
+          const dhMult = betEntry.deadHeat ? 0.5 : 1;
+          todayPnL += stake * (settlePrice - 1) * dhMult;
+          // For ROI: return = stake + profit (so net = return - stake = profit)
+          todayReturnTotal += stake + stake * (settlePrice - 1) * dhMult;
           cardClass = 'settled-win';
         } else {
           todayLosses++;
           todayPnL -= stake;
+          // No return on a loss
           cardClass = 'settled-loss';
         }
+        todayStakeTotal += stake;
       } else {
         cardClass = 'below-threshold';
       }
@@ -2461,10 +2558,12 @@ function renderToday() {
     if (isBetPlaced) {
       const oddsVal = betEntry.oddsTaken != null ? betEntry.oddsTaken.toFixed(2) : '';
       const showWarning = !betEntry.oddsTaken;
-      betHtml += '<input type="number" step="0.01" min="1" class="odds-input" ' +
-                 'data-odds-rid="' + p.run_id + '" placeholder="$Odds" ' +
-                 'value="' + oddsVal + '" ' +
-                 'onclick="event.stopPropagation();" />';
+      betHtml += '<span class="odds-input-wrap" onclick="event.stopPropagation();">' +
+                   '<span class="cur">$</span>' +
+                   '<input type="number" step="0.01" min="1" class="odds-input" ' +
+                   'data-odds-rid="' + p.run_id + '" placeholder="0.00" ' +
+                   'value="' + oddsVal + '" />' +
+                 '</span>';
       if (showWarning) {
         betHtml += '<span class="odds-warning" title="No odds-taken entered. Stake will use live Fxd price as fallback.">⚠</span>';
       }
@@ -2515,7 +2614,7 @@ function renderToday() {
 
     // Click row to expand/collapse (but not when clicking inputs/buttons)
     row.addEventListener('click', e => {
-      if (e.target.closest('.odds-input, .pr-result button, .res-clear, .bet-btn')) return;
+      if (e.target.closest('.odds-input, .odds-input-wrap, .pr-result button, .res-clear, .bet-btn')) return;
       const isExpanded = row.classList.toggle('expanded');
       detail.classList.toggle('show', isExpanded);
     });
@@ -2572,55 +2671,74 @@ function renderToday() {
     // Stop click on input from triggering row expand
     el.addEventListener('click', e => e.stopPropagation());
   });
+  // Dead heat toggle (in detail panel)
+  list.querySelectorAll('[data-deadheat-rid]').forEach(el => {
+    el.addEventListener('change', e => {
+      e.stopPropagation();
+      const rid = el.dataset.deadheatRid;
+      setBetEntry(rid, { deadHeat: el.checked });
+      renderToday();
+      if (typeof renderPnL === 'function') renderPnL();
+    });
+    el.addEventListener('click', e => e.stopPropagation());
+  });
 
-  // Update hero strip
-  document.getElementById('hs-today-count').textContent = todaysPicks.length;
-  const subEl = document.getElementById('hs-today-pending');
-  if (todaySettled === 0) {
-    subEl.textContent = todayQualifying + ' over $' + minOdds + ' · ' + (todaysPicks.length - todayQualifying) + ' below';
-  } else {
-    subEl.textContent = todaySettled + ' settled · ' + (todaysPicks.length - todaySettled) + ' pending';
-  }
+  // ── Update hero strip (4 KPIs, all today-only) ─────────────────────────
 
+  // 1) Today P&L
   const pnlEl = document.getElementById('hs-today-pnl');
-  if (todaySettled > 0) {
+  if (todaySettled > 0 && todayStakeTotal > 0) {
     pnlEl.textContent = (todayPnL >= 0 ? '+' : '') + todayPnL.toFixed(2) + 'u';
-    pnlEl.classList.toggle('pos', todayPnL > 0);
-    pnlEl.classList.toggle('neg', todayPnL < 0);
+    pnlEl.classList.remove('pos', 'neg');
+    if (todayPnL > 0) pnlEl.classList.add('pos');
+    else if (todayPnL < 0) pnlEl.classList.add('neg');
     document.getElementById('hs-today-pnl-units').textContent =
       (todayPnL >= 0 ? '+' : '') + fmtDollar(todayPnL) + ' · ' + todayWins + 'W ' + todayLosses + 'L';
   } else {
     pnlEl.textContent = '—';
-    pnlEl.className = 'val';
-    document.getElementById('hs-today-pnl-units').textContent = 'no settled bets';
+    pnlEl.classList.remove('pos', 'neg');
+    document.getElementById('hs-today-pnl-units').textContent =
+      todaysPicks.length + ' picks · 0 settled';
   }
 
-  // 30d stats
-  const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
-  const last30 = (SETTLED || []).filter(s => s.date && new Date(s.date) >= cutoff30);
-  if (last30.length > 0) {
-    let wins = 0, totalSpStake = 0, spReturn = 0, betsTaken = 0;
-    last30.forEach(s => {
-      // Hero strip 30d stats are theoretical (model performance at fxprice).
-      // Actual P&L lives in the P&L tab and uses oddsTaken via effectivePrice().
-      const fxd = s.fxprice;
-      if (fxd == null || fxd < minOdds) return;
-      const stake = calcStake(fxd);
-      if (!stake) return;
-      betsTaken++;
-      const sp = s.sp || fxd;
-      if (s.won) { wins++; spReturn += stake * sp; }
-      totalSpStake += stake;
-    });
-    if (betsTaken > 0) {
-      const wr = wins / betsTaken;
-      const roi = totalSpStake > 0 ? (spReturn - totalSpStake) / totalSpStake : 0;
-      document.getElementById('hs-30d-wr').textContent = (wr * 100).toFixed(1) + '%';
-      const roiEl = document.getElementById('hs-30d-roi-sp');
-      roiEl.textContent = (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%';
-      roiEl.classList.toggle('pos', roi > 0);
-      roiEl.classList.toggle('neg', roi < 0);
-    }
+  // 2) Win Rate (today, settled bets only)
+  const wrEl = document.getElementById('hs-today-wr');
+  const wrSubEl = document.getElementById('hs-today-wr-sub');
+  if (todaySettled > 0) {
+    const wr = todayWins / todaySettled;
+    wrEl.textContent = (wr * 100).toFixed(1) + '%';
+    wrSubEl.textContent = todayWins + ' of ' + todaySettled + ' settled';
+  } else {
+    wrEl.textContent = '—';
+    wrSubEl.textContent = 'no settled bets';
+  }
+
+  // 3) Place Rate (today, settled bets only - 1st/2nd/3rd)
+  const prEl = document.getElementById('hs-today-pr');
+  const prSubEl = document.getElementById('hs-today-pr-sub');
+  if (todaySettled > 0) {
+    const pr = todayPlaces / todaySettled;
+    prEl.textContent = (pr * 100).toFixed(1) + '%';
+    prSubEl.textContent = todayPlaces + ' of ' + todaySettled + ' settled';
+  } else {
+    prEl.textContent = '—';
+    prSubEl.textContent = 'no settled bets';
+  }
+
+  // 4) ROI (today, settled bets only)
+  const roiEl = document.getElementById('hs-today-roi');
+  const roiSubEl = document.getElementById('hs-today-roi-sub');
+  if (todayStakeTotal > 0) {
+    const roi = (todayReturnTotal - todayStakeTotal) / todayStakeTotal;
+    roiEl.textContent = (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%';
+    roiEl.classList.remove('pos', 'neg');
+    if (roi > 0) roiEl.classList.add('pos');
+    else if (roi < 0) roiEl.classList.add('neg');
+    roiSubEl.textContent = 'on ' + todayStakeTotal.toFixed(2) + 'u staked';
+  } else {
+    roiEl.textContent = '—';
+    roiEl.classList.remove('pos', 'neg');
+    roiSubEl.textContent = 'no settled bets';
   }
 }
 
@@ -2732,8 +2850,25 @@ function buildDetailHTML(p, r) {
     field('Recent WPR',    wprStr) +
   '</div>';
 
+  // Bet adjustments - dead heat toggle (only shown when bet is placed)
+  const bEntry = getBetEntry(p.run_id);
+  let adjustmentsHtml = '';
+  if (bEntry.placed) {
+    const dhChecked = bEntry.deadHeat ? 'checked' : '';
+    adjustmentsHtml =
+      '<div class="pd-section">' +
+        '<div class="pd-section-title">Bet adjustments</div>' +
+        '<label class="pd-toggle" onclick="event.stopPropagation();">' +
+          '<input type="checkbox" data-deadheat-rid="' + p.run_id + '" ' + dhChecked + '>' +
+          '<span class="pd-toggle-lbl">Dead heat</span>' +
+          '<span class="pd-toggle-help">Halves the return on a winning bet (joint winner)</span>' +
+        '</label>' +
+      '</div>';
+  }
+
   return '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
-         '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>';
+         '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
+         adjustmentsHtml;
 }
 
 function ord(n) {
@@ -3420,7 +3555,7 @@ function saveBetLog(log) {
 }
 function getBetEntry(runId) {
   const log = getBetLog();
-  return log[String(runId)] || { placed: false, oddsTaken: null, comments: '' };
+  return log[String(runId)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
 }
 function setBetEntry(runId, patch) {
   const log = getBetLog();
