@@ -634,6 +634,85 @@ def model_picks_summary(rows, today_only=True):
     return "\n".join(out)
 
 
+# -----------------------------------------------------------------------
+# CUMULATIVE PREDICTIVE SCORE
+# -----------------------------------------------------------------------
+# Designed for use as a tipping aid for quaddies / exotics rather than for
+# straight win-betting (the v3 primary model `main` already handles win
+# betting filtering). Validated against the Apr 9 - May 7 backtest data.
+#
+# Formula (Path B proxy, version 1):
+#     score = 2.0 * tr_pct + 0.5 * wpr_avg_last3_pct + 0.3 * late_speed_pct
+# where each *_pct is the within-race percentile rank (1.0 = best in field,
+# 0.0 = worst). Missing values get 0 (effectively pushed to the bottom).
+#
+# Validation (full 1608-race backtest, 14,924 runners):
+#     rk1 horse: 33.6% WR, 67.4% PR, 76% top-4 rate
+#     rk2 horse: 19.9% WR, 55.2% PR
+#     rk3 horse: 14.6% WR, 47.2% PR
+#     Coverage: top-2 picks contain winner 54%, top-3 contain winner 69%
+#     Place coverage: top-3 picks contain at least 1 of top-3 finishers 95%
+#
+# Future upgrade path (Path A): replace this with
+#     score = 1.0 * jt_combo_pct + 1.2 * tr_pct
+# once jockey/trainer combo win % is fetched from the API. That formula
+# improves rk1 WR to 44%, top-3 winner-coverage to 80%.
+SCORE_WEIGHTS = {
+    "toprate_rating":   2.0,
+    "wpr_avg_last3":    0.5,
+    "late_speed_score": 0.3,
+}
+SCORE_DIRECTION = "higher"  # all weights are higher-is-better signals
+
+
+def compute_cumulative_score(rdf):
+    """
+    For a single race DataFrame, compute a per-runner cumulative score and rank.
+    Returns: dict(run_id -> {score: float in [0,1], rank: int 1..N})
+    """
+    n = len(rdf)
+    if n == 0:
+        return {}
+    if n == 1:
+        rid = str(rdf.iloc[0].get("run_id", ""))
+        return {rid: {"score": 1.0, "rank": 1}}
+
+    total_w = sum(SCORE_WEIGHTS.values())
+    runner_scores = [0.0] * n  # positional
+
+    for sig, w in SCORE_WEIGHTS.items():
+        if sig not in rdf.columns:
+            continue
+        col = pd.to_numeric(rdf[sig], errors="coerce")
+        # Rank descending (higher = rank 1 = best). NaNs to bottom.
+        rk = col.rank(method="min", ascending=False, na_option="bottom")
+        for i in range(n):
+            r = rk.iloc[i]
+            if pd.isna(r):
+                continue
+            # Convert rank to percentile in [0, 1]: rank 1 -> 1.0, rank N -> 0.0
+            pct = (n - r) / (n - 1)
+            runner_scores[i] += w * pct
+
+    # Normalise to [0, 1]
+    runner_scores = [s / total_w for s in runner_scores]
+
+    # Compute ranks (1 = highest score)
+    indexed = sorted(enumerate(runner_scores), key=lambda x: -x[1])
+    ranks = [0] * n
+    for rank_pos, (idx, _) in enumerate(indexed, start=1):
+        ranks[idx] = rank_pos
+
+    out = {}
+    for i in range(n):
+        rid = str(rdf.iloc[i].get("run_id", ""))
+        out[rid] = {
+            "score": round(runner_scores[i], 4),
+            "rank":  ranks[i],
+        }
+    return out
+
+
 def compute_signal_rankings(rdf):
     """
     For a single race DataFrame (already reset_index'd to 0-based),
@@ -1459,6 +1538,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
             continue
         first = rdf.iloc[0]
 
+        # Per-race cumulative score: predictive composite for quaddie/exotic use
+        # Returns dict run_id -> {score: 0..1, rank: 1..N}. See compute_cumulative_score.
+        cum_lookup = compute_cumulative_score(rdf)
+
         # Build runner list with all the fields the template needs
         runners = []
         for _, row in rdf.iterrows():
@@ -1482,6 +1565,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 gb_parsed = gb
             else:
                 gb_parsed = {}
+
+            # Cumulative predictive score + rank within race (for quaddie/exotic aid)
+            _cs = cum_lookup.get(str(row.get("run_id", "")), {})
 
             runners.append({
                 "rid":  str(row.get("run_id", "")),
@@ -1527,6 +1613,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "f":    si(row.get("finish_position")),
                 "won":  si(row.get("won")),
                 "fs":   len(rdf),
+                # Cumulative score + rank within race (predictive composite for exotics)
+                "cs":   _cs.get("score"),
+                "crk":  _cs.get("rank"),
             })
 
         # Get price drift fields (open/current) from price history if available

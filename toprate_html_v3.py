@@ -179,6 +179,9 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                            if str(u.get('rid')) == str(tp['run_id'])), None)
             if runner:
                 tp['runner_full'] = runner
+                # Surface cumulative score directly on the pick for easy JS access
+                tp['cs']  = runner.get('cs')
+                tp['crk'] = runner.get('crk')
             tp['done'] = race.get('done')
 
             # Compute ranks if missing from pick payload
@@ -1200,6 +1203,47 @@ body {
 .sect-cell.r2 .v { color: var(--emerald-deep); }
 .sect-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
 .sect-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
+
+/* Cumulative score cell on race tab - shows numeric score + rank pill */
+.score-cell { white-space: nowrap; font-weight: 600; }
+.score-cell .v { color: var(--ink); }
+.score-cell .rk {
+  display: inline-block; margin-left: 4px;
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+  background: var(--line-soft); color: var(--ink-mute);
+  vertical-align: middle;
+}
+.score-cell.r1 .v { color: var(--emerald-deep); font-weight: 700; }
+.score-cell.r1 .rk { background: var(--emerald); color: #fff; }
+.score-cell.r2 .v { color: var(--emerald-deep); }
+.score-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
+.score-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
+
+/* Inline score pill used in Today tab pick row signals strip */
+.score-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+  background: var(--line-soft); color: var(--ink-soft);
+  white-space: nowrap;
+}
+.score-pill.r1 { background: var(--emerald); color: #fff; }
+.score-pill.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
+.score-pill.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+.score-pill .lbl { font-size: 9px; opacity: 0.85; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Race banner "Top 3 by score" inline indicator */
+.score-top3 {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);
+}
+.score-top3 .lbl { font-size: 10px; opacity: 0.7; letter-spacing: 0.05em; text-transform: uppercase; }
+.score-top3 .tabs { display: inline-flex; gap: 4px; }
+.score-top3 .tab-num {
+  display: inline-block; padding: 1px 7px; border-radius: 4px;
+  background: rgba(255,255,255,0.15); color: #fff; font-weight: 700;
+  font-size: 11px;
+}
 
 .sect-pill {
   display: inline-block; padding: 1px 6px; border-radius: 10px;
@@ -2561,13 +2605,14 @@ function renderToday() {
         '</span>';
     }
 
-    // Signal pills - TR / Mid / Late / Total + form string underneath
+    // Signal pills - Score (cumulative composite) + TR / Mid / Late / Total + form string underneath
     function sigPill(label, rank) {
       if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
     const sigsTopHtml =
+      sigPill('Score', p.crk) +
       sigPill('TR', p.tr_rank) +
       sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank) +
@@ -3250,6 +3295,19 @@ function renderRaceDetail(raceId) {
   // ── Header ──
   document.getElementById('rd-title').textContent = race.venue + ' · R' + race.race;
   document.getElementById('rd-subtitle').textContent = race.race_name || '';
+
+  // Top 3 by cumulative score (predictive composite for exotics)
+  const topByScore = runners.filter(u => u.crk != null)
+    .sort((a, b) => a.crk - b.crk).slice(0, 3);
+  const top3ScoreHtml = topByScore.length === 3
+    ? '<div class="score-top3" title="Top 3 by predictive composite score (TR + form + late-speed)">' +
+        '<span class="lbl">Top 3 by score</span>' +
+        '<span class="tabs">' +
+          topByScore.map(u => '<span class="tab-num">#' + (u.tab || '?') + '</span>').join('') +
+        '</span>' +
+      '</div>'
+    : '';
+
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
     '<div class="item">' + race.distance + 'm</div>' +
@@ -3257,6 +3315,7 @@ function renderRaceDetail(raceId) {
     '<div class="item">$' + (race.prize/1000).toFixed(0) + 'k</div>' +
     '<div class="item">' + runners.length + ' runners</div>' +
     '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>' +
+    top3ScoreHtml +
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
   // Context bar
@@ -3330,6 +3389,16 @@ function renderRaceDetail(raceId) {
     const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
     const rkBadge = rank ? '<span class="rk">#' + rank + '</span>' : '';
     return '<td class="sect-cell ' + rkCls + '"><span class="v">' + value.toFixed(1) + '</span>' + rkBadge + '</td>';
+  }
+
+  // Cumulative-score cell. score is 0..1, rank is within-race position (1 = best)
+  function scoreCell(score, rank) {
+    if (score == null || rank == null) return '<td class="score-cell">—</td>';
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+    return '<td class="score-cell ' + rkCls + '" title="Predictive composite (TR + form + late-speed). Rank ' + rank + ' in field.">' +
+      '<span class="v">' + score.toFixed(2) + '</span>' +
+      '<span class="rk">#' + rank + '</span>' +
+      '</td>';
   }
 
   // Distance perf cell - format: "starts: wins | places"
@@ -3415,6 +3484,7 @@ function renderRaceDetail(raceId) {
     settles: r => r.asp != null ? r.asp : 99,
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
+    score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
   };
 
   const sortedRunners = runners.slice().sort((a, b) => {
@@ -3442,20 +3512,21 @@ function renderRaceDetail(raceId) {
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
       '<td>' + escapeHtml(u.j || '') + '</td>' +
-      ratingCell(u.jrt, jryRanks[rid]) +
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
-      ratingCell(u.trt, tryRanks[rid]) +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
+      '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
+      scoreCell(u.cs, u.crk) +
+      '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
+      '<td>' + settlesLabel(u.asp) + '</td>' +
       sectCell(u.es, earlyRanks[rid]) +
       sectCell(u.ms, midRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
       distanceCell(u) +
       (showGoing ? goingCell(u) : '') +
-      '<td>' + settlesLabel(u.asp) + '</td>' +
-      '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
-      '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
+      ratingCell(u.jrt, jryRanks[rid]) +
+      ratingCell(u.trt, tryRanks[rid]) +
       '</tr>';
   });
 
@@ -3472,14 +3543,18 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         th('tab', 'Tab') + th('horse', 'Horse') +
-        th('jky', 'Jky') + th('jkypc', 'Jky Rt') +
-        th('trn', 'Trn') + th('trnpc', 'Trn Rt') +
+        th('jky', 'Jky') +
+        th('trn', 'Trn') +
         th('bar', 'Bar') +
         th('tr', 'TR$') +
+        th('trp', 'TR $') +
+        th('score', 'Score') +
+        th('fxd', 'Fxd') +
+        th('settles', 'Settles') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
-        th('settles', 'Settles') +
-        th('fxd', 'Fxd') + th('trp', 'TR $') +
+        th('jkypc', 'Jky Rt') +
+        th('trnpc', 'Trn Rt') +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>';
@@ -3495,7 +3570,7 @@ function renderRaceDetail(raceId) {
         raceSortState.col = col;
         // Default to ascending for ranks/text, descending for raw values
         const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr',
-                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp'];
+                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp', 'score'];
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
       renderRaceDetail(raceId);
@@ -3962,6 +4037,7 @@ function renderPnL() {
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
     const sigsTopHtml =
+      sigPill('Score', r.crk) +
       sigPill('TR', s.tr_rank) +
       sigPill('Mid', s.mid_rank) +
       sigPill('Late', s.late_rank) +
