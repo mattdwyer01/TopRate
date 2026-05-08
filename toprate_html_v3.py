@@ -23,7 +23,114 @@ Stake price source: fixed_win_price (current bookie price), or oddsTaken if ente
 """
 
 import json
+import gzip
+from pathlib import Path
 from datetime import datetime
+
+
+# ── Venue bias lookup ──────────────────────────────────────────────────
+# Loaded from /home/claude/toprate_venue_history.json.gz which is populated
+# by backfill_venue_history.py. The file is a list of race-level records
+# each with {venue, date, going, rail, distance, winnerZone, ...}.
+# We turn that into two lookups for the bias commentary:
+#   1. By (venue, going_cat, rail) - the most-specific filter
+#   2. By venue alone - the venue's all-conditions baseline
+# Each lookup gives {leaders, onpace, midfield, back} winner-zone counts
+# plus total race count.
+VENUE_HISTORY_FILE = Path(__file__).parent / "toprate_venue_history.json.gz"
+
+
+def _going_category(going):
+    """Bucket a going string into Firm/Good/Soft/Heavy/Synthetic."""
+    if not going:
+        return ""
+    g = str(going).lower()
+    if g.startswith("firm"):  return "Firm"
+    if g.startswith("good"):  return "Good"
+    if g.startswith("soft"):  return "Soft"
+    if g.startswith("heavy"): return "Heavy"
+    if g.startswith("synth"): return "Synthetic"
+    return going
+
+
+def _normalize_rail(rail):
+    """
+    Normalize rail-position strings so 'Out 8m' and 'Out 8m Entire Circuit'
+    bucket together. We strip 'Entire Circuit' / leading/trailing whitespace.
+    """
+    if not rail:
+        return ""
+    r = str(rail).replace("Entire Circuit", "").strip()
+    return r or "Unknown"
+
+
+def load_venue_bias_lookup():
+    """
+    Load venue history file and compute the two lookups.
+
+    Returns:
+        {
+          'byVenueGoingRail': {
+              'Caulfield|Good|True': {'l':12, 'o':18, 'm':9, 'b':3, 'n':42},
+              ...
+          },
+          'byVenue': {
+              'Caulfield': {'l':45, 'o':102, 'm':87, 'b':22, 'n':256},
+              ...
+          },
+          'totalRaces': 4521
+        }
+
+    Returns empty structure if file doesn't exist (graceful fallback so
+    bias commentary just shows 'insufficient sample' until backfill runs).
+    """
+    if not VENUE_HISTORY_FILE.exists():
+        return {"byVenueGoingRail": {}, "byVenue": {}, "totalRaces": 0}
+
+    try:
+        with gzip.open(VENUE_HISTORY_FILE, "rt", encoding="utf-8") as f:
+            races = json.load(f)
+    except Exception as e:
+        print(f"  ! venue history load failed ({e})")
+        return {"byVenueGoingRail": {}, "byVenue": {}, "totalRaces": 0}
+
+    by_specific = {}
+    by_venue = {}
+
+    for race in races:
+        venue = race.get("venue") or ""
+        going = _going_category(race.get("going") or "")
+        rail = _normalize_rail(race.get("rail") or "")
+        wzone = race.get("winnerZone")
+        if not venue or not wzone:
+            continue
+        zone_letter = {
+            "leaders":  "l",
+            "onpace":   "o",
+            "midfield": "m",
+            "back":     "b",
+        }.get(wzone)
+        if not zone_letter:
+            continue
+
+        # Specific bucket
+        spec_key = f"{venue}|{going}|{rail}"
+        if spec_key not in by_specific:
+            by_specific[spec_key] = {"l": 0, "o": 0, "m": 0, "b": 0, "n": 0}
+        by_specific[spec_key][zone_letter] += 1
+        by_specific[spec_key]["n"] += 1
+
+        # Venue-wide bucket
+        if venue not in by_venue:
+            by_venue[venue] = {"l": 0, "o": 0, "m": 0, "b": 0, "n": 0}
+        by_venue[venue][zone_letter] += 1
+        by_venue[venue]["n"] += 1
+
+    return {
+        "byVenueGoingRail": by_specific,
+        "byVenue":          by_venue,
+        "totalRaces":       len(races),
+    }
 
 
 # ── Aesthetic tokens ────────────────────────────────────────────────────────
@@ -257,6 +364,13 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         })
     settled_history.sort(key=lambda r: (r.get('date') or ''))
 
+    # Load precomputed venue bias lookup. This is built incrementally by
+    # backfill_venue_history.py and read here at HTML build time. If the
+    # file isn't there yet (first time running before backfill), the
+    # lookup is empty and the JS commentary falls back to "insufficient
+    # sample" gracefully.
+    venue_bias = load_venue_bias_lookup()
+
     # JSON payloads injected into the page
     js_data = (
         "const RACES = "        + json.dumps(races,                separators=(',', ':')) + ";\n"
@@ -270,6 +384,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         "const RUN_DATE = "     + json.dumps(run_date)                 + ";\n"
         "const RUN_ISO = "      + json.dumps(run_iso)                  + ";\n"
         "const GITHUB_REPO = "  + json.dumps(github_repo)              + ";\n"
+        "const VENUE_BIAS = "   + json.dumps(venue_bias, separators=(',', ':')) + ";\n"
     )
 
     return _HTML_TEMPLATE.format(
@@ -1463,6 +1578,48 @@ body {
   font-style: italic; margin-top: 8px;
 }
 
+/* Side-by-side panels container */
+.tc-panels {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; margin-bottom: 14px;
+}
+.tc-panel {
+  background: var(--line-soft); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+}
+.tc-panel.tc-thin {
+  background: var(--amber-bg); border-color: var(--amber-line);
+}
+.tc-panel.tc-insufficient-panel {
+  opacity: 0.65; font-style: italic;
+}
+.tc-panel.tc-panel-venue {
+  background: var(--panel);
+}
+.tc-panel-title {
+  font-family: var(--font-body); font-size: 12px; font-weight: 700;
+  color: var(--ink); margin-bottom: 6px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; flex-wrap: wrap;
+}
+.tc-panel-meta {
+  font-size: 10px; font-weight: 500; color: var(--ink-mute);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tc-zone-row-simple {
+  /* Venue-overall panel: no delta column, just bar + % */
+  grid-template-columns: 100px 1fr 40px;
+}
+.tc-zone-fill.venue-bar {
+  background: var(--slate);
+}
+
+.tc-source-note {
+  font-family: var(--font-body); font-size: 10px; color: var(--ink-faint);
+  font-style: italic; margin: 0 0 12px 0;
+  padding: 6px 8px; background: var(--bg); border-radius: 3px;
+}
+
 /* Manual override input row */
 .tc-override {
   background: var(--line-soft); border-radius: 4px;
@@ -1492,11 +1649,13 @@ body {
   color: var(--ink-mute); margin-top: 4px;
 }
 
-/* Mobile - stack header items */
+/* Mobile - stack header items + panels */
 @media (max-width: 720px) {
   .track-conditions-card { padding: 12px 14px; }
   .tc-header { gap: 14px; }
+  .tc-panels { grid-template-columns: 1fr; gap: 10px; }
   .tc-zone-row { grid-template-columns: 80px 1fr 36px 44px; gap: 8px; font-size: 11px; }
+  .tc-zone-row-simple { grid-template-columns: 80px 1fr 36px; }
   .tc-override { grid-template-columns: 1fr; }
 }
 
@@ -4841,126 +5000,22 @@ function renderTrackConditions(race) {
   const overrideRating = trackRatings[trackRatingKey(venue, date)];
   const effectiveGoing = overrideRating || officialGoing;
   const rail = race.rail || '';
-
-  // Compute "how this track plays" from historical races at same venue + going category.
-  // We don't filter by rail here because that slices the sample too thin -
-  // typically <10 races in a venue/going/rail combo. Instead we surface rail
-  // as separate context.
   const goingCat = goingCategoryStr(officialGoing);
-  const histRaces = (RACES || []).filter(r =>
-    r.race_id !== race.race_id &&
-    r.venue === venue &&
-    r.done === 1 &&
-    goingCategoryStr(r.going) === goingCat
-  );
+  const railNorm = normalizeRail(rail);
 
-  let commentary;
-  if (histRaces.length < 8) {
-    commentary = '<div class="tc-commentary tc-insufficient">' +
-      'Insufficient sample (' + histRaces.length + ' historical race' +
-      (histRaces.length === 1 ? '' : 's') +
-      ' at ' + escapeHtml(venue) + ' on ' + escapeHtml(goingCat || 'unknown') +
-      ' going) for a confident bias read.' +
-      '</div>';
-  } else {
-    // For each historical race, look at the winner's avg_settled_pos
-    const winnerPositions = { leaders: 0, onpace: 0, midfield: 0, back: 0, unknown: 0 };
-    let totalWinners = 0;
-    histRaces.forEach(r => {
-      const winner = (r.runners || []).find(u => u.f === 1);
-      if (!winner) return;
-      totalWinners += 1;
-      const asp = winner.asp;
-      if (asp == null) winnerPositions.unknown += 1;
-      else if (asp <= 2) winnerPositions.leaders += 1;
-      else if (asp <= 4) winnerPositions.onpace += 1;
-      else if (asp <= 8) winnerPositions.midfield += 1;
-      else winnerPositions.back += 1;
-    });
-    if (totalWinners === 0) {
-      commentary = '<div class="tc-commentary tc-insufficient">No winner data for historical races at this combo.</div>';
-    } else {
-      // Population baseline (across all races, what % of winners come from each zone)
-      // For comparison so we can flag DEVIATION not absolute %.
-      // Calibrated from your 1,521 historical winners with asp populated:
-      //   leaders 9.1% / onpace 27.0% / midfield 53.4% / back 10.6%
-      // Midfield dominates because horses sitting 5-8 lengths back avoid the early
-      // pace duel and have room to make a run. This baseline is what we measure
-      // venue-specific deviations against.
-      const baseline = { leaders: 0.091, onpace: 0.270, midfield: 0.534, back: 0.106 };
-      const observed = {};
-      ['leaders', 'onpace', 'midfield', 'back'].forEach(k => {
-        observed[k] = winnerPositions[k] / totalWinners;
-      });
-      // Identify the most-deviated zone
-      const deviations = Object.keys(observed).map(k => ({
-        zone: k,
-        observed: observed[k],
-        baseline: baseline[k],
-        delta: observed[k] - baseline[k],
-      }));
-      deviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-      const topDev = deviations[0];
-      const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
+  // ── Look up bias data ───────────────────────────────────────────────
+  // Two filters from VENUE_BIAS:
+  //   1. Specific: venue + going + rail (today's exact setup)
+  //   2. Overall: venue alone (all-conditions baseline at this venue)
+  // We compare the specific against the venue-overall to highlight whether
+  // today's conditions are different from how this venue normally plays.
+  const bias = (typeof VENUE_BIAS !== 'undefined') ? VENUE_BIAS :
+    { byVenueGoingRail: {}, byVenue: {}, totalRaces: 0 };
+  const specKey = venue + '|' + goingCat + '|' + railNorm;
+  const specStats = bias.byVenueGoingRail[specKey];   // may be undefined
+  const venueStats = bias.byVenue[venue];             // may be undefined
 
-      let summary;
-      if (Math.abs(topDev.delta) < 0.05) {
-        summary = '<strong>No strong bias</strong> - winners distributed roughly as expected.';
-      } else if (topDev.delta > 0) {
-        summary = '<strong>' + zoneLabels[topDev.zone] + ' favoured</strong> - winning ' +
-          (topDev.observed * 100).toFixed(0) + '% of races vs ' +
-          (topDev.baseline * 100).toFixed(0) + '% AU average ' +
-          '(+' + (topDev.delta * 100).toFixed(0) + 'pp).';
-      } else {
-        summary = '<strong>' + zoneLabels[topDev.zone] + ' disadvantaged</strong> - winning only ' +
-          (observed[topDev.zone] * 100).toFixed(0) + '% of races vs ' +
-          (baseline[topDev.zone] * 100).toFixed(0) + '% AU average ' +
-          '(' + (topDev.delta * 100).toFixed(0) + 'pp).';
-      }
-
-      // Bar chart of observed vs baseline
-      const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
-        const o = observed[k];
-        const b = baseline[k];
-        const diff = o - b;
-        const diffCls = Math.abs(diff) < 0.05 ? '' : (diff > 0 ? 'pos' : 'neg');
-        const oWidth = (o * 100).toFixed(0);
-        return '<div class="tc-zone-row">' +
-          '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
-          '<div class="tc-zone-bar"><div class="tc-zone-fill" style="width:' + oWidth + '%;"></div></div>' +
-          '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
-          '<span class="tc-zone-delta ' + diffCls + '">' +
-            (diff >= 0 ? '+' : '') + (diff * 100).toFixed(0) + 'pp' +
-          '</span>' +
-          '</div>';
-      }).join('');
-
-      commentary = '<div class="tc-commentary">' +
-        '<div class="tc-summary">' + summary + '</div>' +
-        '<div class="tc-zones">' + barRows + '</div>' +
-        '<div class="tc-sample">Based on ' + totalWinners + ' winners at ' +
-          escapeHtml(venue) + ' on ' + escapeHtml(goingCat) +
-          '. Compared vs your data baseline (Leaders 9% / On-pace 27% / Mid 53% / Back 11%).' +
-        '</div>' +
-        '</div>';
-    }
-  }
-
-  // Manual rating override input
-  const overrideHtml =
-    '<div class="tc-override">' +
-      '<label>' +
-        '<span class="tc-override-lbl">Track rating override</span>' +
-        '<input type="text" class="tc-override-input" id="tc-override-input" ' +
-          'placeholder="e.g. Soft 6" value="' + escapeHtml(overrideRating || '') + '" ' +
-          'maxlength="20"/>' +
-      '</label>' +
-      (overrideRating ?
-        '<button class="btn-tiny" id="tc-override-clear">Clear</button>' : '') +
-      '<div class="tc-override-help">Override the official going if you have intel that differs (e.g. paddock report says it\'s playing softer). Syncs across devices.</div>' +
-    '</div>';
-
-  // Header showing the conditions
+  // ── Header (Going · Rail · Distance) ──
   const headerHtml =
     '<div class="tc-header">' +
       '<div class="tc-going' + (overrideRating ? ' overridden' : '') + '">' +
@@ -4978,7 +5033,188 @@ function renderTrackConditions(race) {
       '</div>' +
     '</div>';
 
-  return headerHtml + commentary + overrideHtml;
+  // ── Side-by-side commentary panels ──
+  // Compute observed % per zone for both specific and venue-overall.
+  function computeZoneObserved(stats) {
+    if (!stats || !stats.n) return null;
+    return {
+      n:        stats.n,
+      leaders:  stats.l / stats.n,
+      onpace:   stats.o / stats.n,
+      midfield: stats.m / stats.n,
+      back:     stats.b / stats.n,
+    };
+  }
+  const specObs = computeZoneObserved(specStats);
+  const venueObs = computeZoneObserved(venueStats);
+
+  // Bias headline derived from specific vs venue-overall comparison.
+  // If we don't have venue-overall, fall back to AU baseline:
+  //   leaders 9% / onpace 27% / midfield 53% / back 11%
+  const auBaseline = { leaders: 0.091, onpace: 0.270, midfield: 0.534, back: 0.106 };
+
+  // Specific panel - if present, compare against venue-overall (or AU
+  // baseline if venue-overall absent). If not present, show insufficient.
+  let specPanelHtml = '';
+  if (specObs) {
+    const compareAgainst = venueObs || auBaseline;
+    const compareLabel = venueObs ? venue + ' overall' : 'AU average';
+    const deviations = ['leaders', 'onpace', 'midfield', 'back'].map(k => ({
+      zone:     k,
+      observed: specObs[k],
+      base:     compareAgainst[k],
+      delta:    specObs[k] - compareAgainst[k],
+    }));
+    deviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const top = deviations[0];
+
+    // Sample-size warning if N is low
+    const sampleWarn = specObs.n < 8 ? ' tc-thin' : '';
+
+    let summary;
+    const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
+    if (specObs.n < 5) {
+      summary = '<strong>Tiny sample (N=' + specObs.n + ')</strong> - read with caution.';
+    } else if (Math.abs(top.delta) < 0.05) {
+      summary = '<strong>No strong bias</strong> vs ' + compareLabel + '.';
+    } else if (top.delta > 0) {
+      summary = '<strong>' + zoneLabels[top.zone] + ' favoured</strong> at this combo: ' +
+        (specObs[top.zone] * 100).toFixed(0) + '% vs ' +
+        (compareAgainst[top.zone] * 100).toFixed(0) + '% ' + compareLabel +
+        ' (+' + (top.delta * 100).toFixed(0) + 'pp).';
+    } else {
+      summary = '<strong>' + zoneLabels[top.zone] + ' disadvantaged</strong> at this combo: ' +
+        (specObs[top.zone] * 100).toFixed(0) + '% vs ' +
+        (compareAgainst[top.zone] * 100).toFixed(0) + '% ' + compareLabel +
+        ' (' + (top.delta * 100).toFixed(0) + 'pp).';
+    }
+
+    const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
+      const o = specObs[k];
+      const b = compareAgainst[k];
+      const diff = o - b;
+      const diffCls = Math.abs(diff) < 0.05 ? '' : (diff > 0 ? 'pos' : 'neg');
+      const oWidth = Math.max(2, Math.round(o * 100));
+      return '<div class="tc-zone-row">' +
+        '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
+        '<div class="tc-zone-bar"><div class="tc-zone-fill" style="width:' + oWidth + '%;"></div></div>' +
+        '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
+        '<span class="tc-zone-delta ' + diffCls + '">' +
+          (diff >= 0 ? '+' : '') + (diff * 100).toFixed(0) + 'pp' +
+        '</span>' +
+        '</div>';
+    }).join('');
+
+    specPanelHtml =
+      '<div class="tc-panel' + sampleWarn + '">' +
+        '<div class="tc-panel-title">Today\'s exact setup' +
+          ' <span class="tc-panel-meta">' + escapeHtml(goingCat || '?') +
+          ' · Rail ' + escapeHtml(railNorm || '?') +
+          ' · N=' + specObs.n + '</span>' +
+        '</div>' +
+        '<div class="tc-summary">' + summary + '</div>' +
+        '<div class="tc-zones">' + barRows + '</div>' +
+      '</div>';
+  } else {
+    specPanelHtml =
+      '<div class="tc-panel tc-insufficient-panel">' +
+        '<div class="tc-panel-title">Today\'s exact setup' +
+          ' <span class="tc-panel-meta">' + escapeHtml(goingCat || '?') +
+          ' · Rail ' + escapeHtml(railNorm || '?') + '</span>' +
+        '</div>' +
+        '<div class="tc-summary">No historical data for this venue/going/rail combination yet.</div>' +
+      '</div>';
+  }
+
+  // Venue-overall panel - always shown if venue has any data
+  let venuePanelHtml = '';
+  if (venueObs && venueObs.n >= 3) {
+    const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
+    // Compare venue-overall vs AU baseline to flag whether this venue
+    // itself is unusual
+    const venueDeviations = ['leaders', 'onpace', 'midfield', 'back'].map(k => ({
+      zone:     k,
+      observed: venueObs[k],
+      base:     auBaseline[k],
+      delta:    venueObs[k] - auBaseline[k],
+    }));
+    venueDeviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const venueTop = venueDeviations[0];
+    let venueSummary;
+    if (Math.abs(venueTop.delta) < 0.05) {
+      venueSummary = 'Plays close to the AU average across all conditions.';
+    } else if (venueTop.delta > 0) {
+      venueSummary = '<strong>' + zoneLabels[venueTop.zone] + ' bias</strong> overall (' +
+        (venueObs[venueTop.zone] * 100).toFixed(0) + '% winners vs ' +
+        (auBaseline[venueTop.zone] * 100).toFixed(0) + '% AU avg).';
+    } else {
+      venueSummary = '<strong>Anti-' + zoneLabels[venueTop.zone].toLowerCase() + '</strong> overall (' +
+        (venueObs[venueTop.zone] * 100).toFixed(0) + '% winners vs ' +
+        (auBaseline[venueTop.zone] * 100).toFixed(0) + '% AU avg).';
+    }
+
+    const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
+      const o = venueObs[k];
+      const oWidth = Math.max(2, Math.round(o * 100));
+      return '<div class="tc-zone-row tc-zone-row-simple">' +
+        '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
+        '<div class="tc-zone-bar"><div class="tc-zone-fill venue-bar" style="width:' + oWidth + '%;"></div></div>' +
+        '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
+        '</div>';
+    }).join('');
+
+    venuePanelHtml =
+      '<div class="tc-panel tc-panel-venue">' +
+        '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall' +
+          ' <span class="tc-panel-meta">all conditions · N=' + venueObs.n + '</span>' +
+        '</div>' +
+        '<div class="tc-summary">' + venueSummary + '</div>' +
+        '<div class="tc-zones">' + barRows + '</div>' +
+      '</div>';
+  } else if (venueObs) {
+    venuePanelHtml =
+      '<div class="tc-panel tc-panel-venue tc-insufficient-panel">' +
+        '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall' +
+          ' <span class="tc-panel-meta">N=' + venueObs.n + '</span>' +
+        '</div>' +
+        '<div class="tc-summary">Need more meetings at this venue for a confident read.</div>' +
+      '</div>';
+  }
+
+  // Wrap both panels in a side-by-side container
+  const commentaryHtml = '<div class="tc-panels">' + specPanelHtml + venuePanelHtml + '</div>';
+
+  // Footer note about data source
+  let footerNote = '';
+  if (bias.totalRaces) {
+    footerNote = '<div class="tc-source-note">Based on ' + bias.totalRaces +
+      ' historical races. Refreshed daily by backfill_venue_history.py.</div>';
+  } else {
+    footerNote = '<div class="tc-source-note">No venue history loaded yet. Run backfill_venue_history.py to populate.</div>';
+  }
+
+  // ── Manual rating override input ──
+  const overrideHtml =
+    '<div class="tc-override">' +
+      '<label>' +
+        '<span class="tc-override-lbl">Track rating override</span>' +
+        '<input type="text" class="tc-override-input" id="tc-override-input" ' +
+          'placeholder="e.g. Soft 6" value="' + escapeHtml(overrideRating || '') + '" ' +
+          'maxlength="20"/>' +
+      '</label>' +
+      (overrideRating ?
+        '<button class="btn-tiny" id="tc-override-clear">Clear</button>' : '') +
+      '<div class="tc-override-help">Override the official going if you have intel that differs (e.g. paddock report says it\'s playing softer). Syncs across devices.</div>' +
+    '</div>';
+
+  return headerHtml + commentaryHtml + footerNote + overrideHtml;
+}
+
+// Normalize rail strings the same way the Python loader does so the
+// JS-side lookup keys match exactly (Caulfield|Good|Out 8m).
+function normalizeRail(rail) {
+  if (!rail) return '';
+  return String(rail).replace('Entire Circuit', '').trim() || 'Unknown';
 }
 
 // Helper - bucket going string into category for matching
@@ -6312,7 +6548,7 @@ function renderActualVsExpected() {
   // Compute totals: actual (using oddsTaken if present, else fxprice as fallback)
   // vs expected (using SP - what the model "expects" to get back)
   let actStake = 0, actRet = 0, expStake = 0, expRet = 0;
-  const window = 30;
+  const windowSize = 30;
   const rollingActROI = [], rollingExpROI = [];
   let winActStake = 0, winActRet = 0, winExpStake = 0, winExpRet = 0;
   const queue = [];  // sliding window of {actPL, expPL, stake}
@@ -6340,7 +6576,7 @@ function renderActualVsExpected() {
     queue.push({ actPL: actRetThis - stake, expPL: expRetThis - stake, stake: stake });
     winActStake += stake; winActRet += actRetThis;
     winExpStake += stake; winExpRet += expRetThis;
-    if (queue.length > window) {
+    if (queue.length > windowSize) {
       const shifted = queue.shift();
       winActStake -= shifted.stake;
       winActRet -= (shifted.actPL + shifted.stake);
