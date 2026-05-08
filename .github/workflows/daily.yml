@@ -1,23 +1,17 @@
 name: TopRate Daily
 
-# Manually trigger from the Actions tab. Optionally schedule a daily run by
-# uncommenting the schedule block below.
+# Triggered manually from the Actions tab or via API from the dashboard.
+# The 'date' input lets you fetch a specific past day.
 on:
   workflow_dispatch:
     inputs:
       date:
-        description: 'Specific date (YYYY-MM-DD), leave blank for today'
+        description: 'Date to fetch (YYYY-MM-DD). Leave blank for today.'
         required: false
         default: ''
-      backfill_days:
-        description: 'Backfill results for last N days'
-        required: false
-        default: '0'
-  # schedule:
-  #   - cron: '0 21 * * *'  # 21:00 UTC = 07:00 AEST next day - tweak to your needs
 
 permissions:
-  contents: write   # needed to commit + push the updated HTML and CSVs
+  contents: write
 
 jobs:
   fetch-and-publish:
@@ -28,13 +22,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so push doesn't reject on a shallow clone
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: pip
 
       - name: Install dependencies
         run: |
@@ -51,16 +44,11 @@ jobs:
           TOPRATE_EMAIL:    ${{ secrets.TOPRATE_EMAIL }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
         run: |
-          ARGS=""
           if [ -n "${{ github.event.inputs.date }}" ]; then
-            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
+            python toprate_daily.py --date "${{ github.event.inputs.date }}"
+          else
+            python toprate_daily.py
           fi
-          if [ "${{ github.event.inputs.backfill_days }}" != "0" ]; then
-            ARGS="$ARGS --backfill ${{ github.event.inputs.backfill_days }}"
-          fi
-          python toprate_daily.py --no-html $ARGS
-          # Rebuild HTML separately so any HTML errors don't block data save
-          python -c "import toprate_daily, pandas as pd; df = toprate_daily.load_runners(); rows = [r for r in __import__('csv').DictReader(open('toprate_model_picks.csv'))] if __import__('os').path.exists('toprate_model_picks.csv') else []; toprate_daily.rebuild_html(df, rows)"
 
       - name: Commit and push
         run: |
