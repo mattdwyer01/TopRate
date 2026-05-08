@@ -164,18 +164,40 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 'tab': pick.get('tab'),
                 'fxprice': pick.get('fxprice'),
                 'tr_rank': pick.get('tr_rank'),
+                'early_rank': pick.get('early_rank'),
                 'mid_rank': pick.get('mid_rank'),
                 'late_rank': pick.get('late_rank'),
+                'total_rank': pick.get('total_rank'),
             })
     # Enrich with finish data and full per-runner context from races
+    # Also compute Early and Total ranks per race (these may be missing from old picks CSVs)
     for tp in all_picks_list:
         race = next((r for r in races if str(r.get('race_id')) == str(tp['race_id'])), None)
         if race:
-            runner = next((u for u in race.get('runners', [])
+            runners_in_race = race.get('runners', [])
+            runner = next((u for u in runners_in_race
                            if str(u.get('rid')) == str(tp['run_id'])), None)
             if runner:
                 tp['runner_full'] = runner
             tp['done'] = race.get('done')
+
+            # Compute ranks if missing from pick payload
+            def _rank_in_race(field, my_rid):
+                # higher value = better rank (rank 1 = highest)
+                vals = [(u.get('rid'), u.get(field)) for u in runners_in_race
+                        if u.get(field) is not None]
+                if not vals:
+                    return None
+                # Sort descending by value, find my position
+                vals.sort(key=lambda x: -x[1])
+                for i, (rid, _) in enumerate(vals):
+                    if str(rid) == str(my_rid):
+                        return i + 1
+                return None
+            if 'early_rank' not in tp or tp.get('early_rank') is None:
+                tp['early_rank'] = _rank_in_race('es', tp['run_id'])
+            if 'total_rank' not in tp or tp.get('total_rank') is None:
+                tp['total_rank'] = _rank_in_race('ts', tp['run_id'])
     # Sort chronologically by date+start_time so JS can filter and the order is correct
     all_picks_list.sort(key=lambda t: (t.get('date') or '', t.get('start_time') or '', t.get('race') or 0))
     today_picks = all_picks_list  # keep variable name for JSON injection
@@ -268,16 +290,18 @@ body {
 .topbar-left { display: flex; align-items: baseline; gap: 14px; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .run-stamp {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  font-weight: 500;
 }
 .brand-mark {
   display: inline-block; width: 6px; height: 6px; background: var(--emerald);
   border-radius: 50%; margin-right: 8px; vertical-align: middle;
 }
 .unit-control {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft);
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-soft);
   background: var(--panel); border: 1px solid var(--line); padding: 4px 8px;
-  border-radius: var(--radius-sm); cursor: pointer;
+  border-radius: var(--radius-sm); cursor: pointer; font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Tabs */
@@ -326,7 +350,7 @@ body {
 }
 .hero-stat { padding: 4px 0; }
 .hero-stat .lbl {
-  font-family: var(--font-mono); font-size: 10px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
   margin-bottom: 4px;
 }
@@ -335,8 +359,8 @@ body {
   letter-spacing: -0.02em; color: var(--ink); line-height: 1.1;
 }
 .hero-stat .sub {
-  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
-  margin-top: 2px;
+  font-family: var(--font-body); font-size: 11px; font-weight: 500;
+  color: var(--ink-mute); margin-top: 4px;
 }
 .val.pos { color: var(--emerald); }
 .val.neg { color: var(--rose); }
@@ -353,8 +377,9 @@ body {
   display: grid;
   grid-template-columns:
     52px         /* time */
-    1fr          /* venue + horse */
-    140px        /* signals strip */
+    140px        /* venue + race # */
+    1fr          /* horse + meta */
+    180px        /* signals strip */
     100px        /* odds */
     100px        /* stake */
     140px        /* result */
@@ -396,6 +421,21 @@ body {
 }
 .pr-time .ttj.imm { color: var(--rose); font-weight: 700; }
 .pr-time .ttj.soon { color: var(--amber); font-weight: 600; }
+
+.pr-venue {
+  display: flex; flex-direction: column; line-height: 1.25;
+  white-space: nowrap; overflow: hidden;
+}
+.pr-venue .v-name {
+  font-family: var(--font-body); font-weight: 700; font-size: 13px;
+  color: var(--ink); letter-spacing: -0.005em;
+  text-overflow: ellipsis; overflow: hidden;
+}
+.pr-venue .v-race {
+  font-family: var(--font-body); font-weight: 600; font-size: 11px;
+  color: var(--ink-mute); margin-top: 1px;
+  letter-spacing: 0.04em;
+}
 
 .pr-runner {
   display: flex; align-items: center; gap: 10px; min-width: 0;
@@ -621,6 +661,7 @@ body {
     grid-template-columns: 1fr auto;
     grid-template-areas:
       'time   chev'
+      'venue  venue'
       'runner runner'
       'sigs   sigs'
       'odds   stake'
@@ -629,6 +670,8 @@ body {
     padding: 12px;
   }
   .pr-time { grid-area: time; }
+  .pr-venue { grid-area: venue; flex-direction: row; gap: 8px; align-items: baseline; }
+  .pr-venue .v-race { margin-top: 0; }
   .pr-runner { grid-area: runner; }
   .pr-sigs { grid-area: sigs; }
   .pr-odds { grid-area: odds; justify-content: flex-start; }
@@ -1245,12 +1288,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- TODAY -->
   <section class="section active" id="sec-today">
     <div class="hero">
-      <div class="hero-head">
-        <div>
-          <div class="hero-title"><span class="label">{primary_label}</span> &middot; <span style="color:var(--ink-mute);font-size:13px;font-weight:500;">{primary_desc}</span></div>
-        </div>
-        <div class="hero-desc" id="today-summary-line">{n_today} picks today &middot; expected {primary_per_day}/day avg</div>
-      </div>
       <div class="hero-stats">
         <div class="hero-stat">
           <div class="lbl">Today's picks</div>
@@ -1783,7 +1820,7 @@ function renderToday() {
         '</span>';
     }
 
-    // Signal pills - just TR, Mid, Late + form string underneath
+    // Signal pills - TR / Mid / Late / Total + form string underneath
     function sigPill(label, rank) {
       if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
@@ -1792,7 +1829,8 @@ function renderToday() {
     const sigsTopHtml =
       sigPill('TR', p.tr_rank) +
       sigPill('Mid', p.mid_rank) +
-      sigPill('Late', p.late_rank);
+      sigPill('Late', p.late_rank) +
+      sigPill('Tot', p.total_rank);
     // Form string row underneath: "3-1-7-2"
     const formHtml = r.fm ?
       '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
@@ -1842,10 +1880,8 @@ function renderToday() {
     row.className = 'pick-row ' + cardClass;
     row.dataset.idx = idx;
 
-    // Meta line shows: venue R# · distance · going · jky · trn
-    // Compact, single line
+    // Meta line shows: distance · going · jky · trn (venue/race # now in its own column)
     const metaParts = [];
-    metaParts.push(escapeHtml(p.venue || '') + ' R' + p.race);
     if (p.distance) metaParts.push(p.distance + 'm');
     if (p.going) metaParts.push(escapeHtml(p.going));
     if (r.j) metaParts.push(escapeHtml(r.j));
@@ -1854,6 +1890,10 @@ function renderToday() {
 
     row.innerHTML =
       '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
+      '<div class="pr-venue">' +
+        '<div class="v-name">' + escapeHtml(p.venue || '') + '</div>' +
+        '<div class="v-race">R' + p.race + '</div>' +
+      '</div>' +
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
         '<div class="rdetails">' +
@@ -1982,10 +2022,10 @@ function buildDetailHTML(p, r) {
   }
   const speedHtml =
     '<div class="pd-speed">' +
-      speedCell('Early', r.es, null) +
+      speedCell('Early', r.es, p.early_rank) +
       speedCell('Mid',   r.ms, p.mid_rank) +
       speedCell('Late',  r.ls, p.late_rank) +
-      speedCell('Total', r.ts, null) +
+      speedCell('Total', r.ts, p.total_rank) +
     '</div>';
 
   // Going category
@@ -2056,7 +2096,6 @@ function buildDetailHTML(p, r) {
     field('Drift',         driftStr, driftCls) +
     field('Settles',       settleStr) +
     field('Speed rating',  r.spd != null ? r.spd.toFixed(0) : null) +
-    field('TR rating',     r.trr != null ? r.trr.toFixed(1) : null) +
     field('TR price',      r.trp != null ? '$' + r.trp.toFixed(2) : null) +
     field('Distance',      p.distance ? p.distance + 'm' : null) +
     field('Going',         p.going) +
