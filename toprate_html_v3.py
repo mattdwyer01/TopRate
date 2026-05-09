@@ -275,6 +275,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 'mid_rank': pick.get('mid_rank'),
                 'late_rank': pick.get('late_rank'),
                 'total_rank': pick.get('total_rank'),
+                'wpr_rank': pick.get('wpr_rank'),
             })
     # Enrich with finish data and full per-runner context from races
     # Also compute Early and Total ranks per race (these may be missing from old picks CSVs)
@@ -291,6 +292,18 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 tp['crk'] = runner.get('crk')
                 # Confidence: signal-agreement metric (1 = unanimous, 0 = split)
                 tp['csc'] = runner.get('csc')
+
+            # Backfill wpr_rank for picks whose CSV row was written before the
+            # column existed. Recompute from the race's runner list using the
+            # same convention as the daily script (highest wpr_nett = rank 1).
+            if tp.get('wpr_rank') is None and runners_in_race:
+                wpr_pairs = [(str(u.get('rid')), u.get('w'))
+                             for u in runners_in_race if u.get('w') is not None]
+                wpr_pairs.sort(key=lambda x: x[1], reverse=True)
+                for idx, (rid, _) in enumerate(wpr_pairs):
+                    if rid == str(tp['run_id']):
+                        tp['wpr_rank'] = idx + 1
+                        break
             tp['done'] = race.get('done')
             # Surface first-starter flag at race level so detail panels can warn
             tp['hfs'] = bool(race.get('hfs'))
@@ -356,6 +369,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'late_rank': r.get('late_rank'),
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
+            'wpr_rank': r.get('wpr_rank'),
             # Score + confidence surfaced for direct access in P&L tab
             'cs':  runner_full.get('cs')  if runner_full else None,
             'crk': runner_full.get('crk') if runner_full else None,
