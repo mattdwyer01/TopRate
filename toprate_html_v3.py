@@ -1925,6 +1925,155 @@ body {
   background: rgba(16,185,129,0.12);
 }
 
+/* Spot-bet pattern (CS≤3 + WPR≤3 + Mid≤2 + Late≤2). Subtle blue accent
+   so it's distinguishable from the model-pick emerald. ~17% ROI in backtest. */
+.race-table tbody tr.spot-bet {
+  background: rgba(59,130,246,0.06);
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+.race-table tbody tr.spot-bet:hover {
+  background: rgba(59,130,246,0.12);
+}
+.race-table tbody tr.spot-bet .horse-cell::after {
+  content: 'SPOT';
+  display: inline-block; margin-left: 8px;
+  padding: 1px 5px; border-radius: 3px;
+  background: #3b82f6; color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+/* Roughie pattern (CS≤3 + Late≤2 + Fxd≥$10). Amber accent — these are the
+   long-shot value plays (~49% ROI in backtest at small samples). */
+.race-table tbody tr.roughie-bet {
+  background: rgba(245,158,11,0.06);
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+.race-table tbody tr.roughie-bet:hover {
+  background: rgba(245,158,11,0.12);
+}
+.race-table tbody tr.roughie-bet .horse-cell::after {
+  content: 'ROUGHIE';
+  display: inline-block; margin-left: 8px;
+  padding: 1px 5px; border-radius: 3px;
+  background: #f59e0b; color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+/* If a row is BOTH spot-bet and roughie (CS≤3 + Mid≤2 + Late≤2 + WPR≤3 + $10+),
+   the roughie tag wins visually since the longer price is the bigger story. */
+.race-table tbody tr.spot-bet.roughie-bet {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+.race-table tbody tr.spot-bet.roughie-bet .horse-cell::after {
+  content: 'ROUGHIE';
+}
+
+/* Watchlist - shows all spot bets and roughies across today's races
+   in one chronological view, separate from the main model picks. */
+.watchlist-section {
+  margin-top: 32px; padding: 0 14px;
+}
+.watchlist-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; flex-wrap: wrap; gap: 12px;
+}
+.watchlist-header h3 {
+  margin: 0; font-size: 16px; font-weight: 700; color: var(--ink);
+}
+.watchlist-sub {
+  font-weight: 400; font-size: 12px; color: var(--ink-mute); margin-left: 8px;
+}
+.watchlist-tabs {
+  display: flex; gap: 4px; background: var(--line-soft); border-radius: 8px; padding: 3px;
+}
+.watchlist-tab {
+  border: none; background: transparent; padding: 6px 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; color: var(--ink-mute); cursor: pointer;
+  transition: all 0.12s;
+}
+.watchlist-tab:hover { color: var(--ink); }
+.watchlist-tab.active {
+  background: var(--panel); color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.watchlist-list {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.wl-row {
+  display: grid;
+  grid-template-columns: 60px 130px 1fr 240px 70px 80px;
+  gap: 10px; align-items: center;
+  padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--line-soft); border-radius: 8px;
+  font-size: 13px;
+}
+.wl-row:hover { background: #fafbfc; }
+.wl-row.is-roughie { border-left: 3px solid #f59e0b; padding-left: 11px; }
+.wl-row.is-spot { border-left: 3px solid #3b82f6; padding-left: 11px; }
+.wl-time { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wl-meeting {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.wl-meeting .v { font-weight: 600; color: var(--ink); font-size: 12px; }
+.wl-meeting .sub { font-size: 10px; color: var(--ink-mute); }
+.wl-runner { display: flex; align-items: center; gap: 8px; }
+.wl-runner .tn-cell {
+  display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
+  text-align: center; background: var(--ink); color: var(--panel);
+  font-weight: 700; border-radius: 4px; padding: 0 6px; font-size: 11px;
+  flex-shrink: 0;
+}
+.wl-runner .horse { font-weight: 700; color: var(--ink); }
+.wl-tag {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+  margin-left: 4px; vertical-align: middle;
+}
+.wl-tag.spot { background: #3b82f6; color: #fff; }
+.wl-tag.roughie { background: #f59e0b; color: #fff; }
+.wl-signals { display: flex; gap: 3px; flex-wrap: wrap; }
+.wl-signals .sig {
+  display: inline-flex; align-items: baseline; gap: 2px;
+  font-family: var(--font-body); font-size: 11px;
+  background: var(--line-soft); border-radius: 3px;
+  padding: 2px 5px; font-weight: 600; color: var(--ink-mute);
+  white-space: nowrap;
+}
+.wl-signals .sig.r1 { background: var(--emerald); color: #fff; }
+.wl-signals .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
+.wl-signals .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+.wl-signals .sig .lbl {
+  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+  font-weight: 600; opacity: 0.7;
+}
+.wl-signals .sig .v {
+  font-weight: 700; font-size: 11px;
+}
+.wl-fxd { text-align: right; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wl-jump { text-align: right; font-size: 11px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.wl-empty {
+  text-align: center; padding: 32px 14px; color: var(--ink-mute); font-style: italic;
+}
+@media (max-width: 720px) {
+  .wl-row {
+    grid-template-columns: 50px 1fr 60px;
+    grid-template-areas:
+      'time  runner price'
+      '.     meeting jump'
+      'sigs  sigs    sigs';
+    gap: 4px 10px;
+  }
+  .wl-time   { grid-area: time; font-size: 12px; }
+  .wl-runner { grid-area: runner; }
+  .wl-meeting { grid-area: meeting; flex-direction: row; gap: 6px; font-size: 10px; }
+  .wl-meeting .v { font-size: 10px; }
+  .wl-fxd    { grid-area: price; }
+  .wl-jump   { grid-area: jump; }
+  .wl-signals { grid-area: sigs; margin-top: 4px; }
+}
+
 .sect-pill {
   display: inline-block; padding: 1px 6px; border-radius: 10px;
   font-size: 11px; font-weight: 600; min-width: 22px; text-align: center;
@@ -3037,6 +3186,20 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="picks-list" id="picks-list">
       <!-- populated by JS -->
     </div>
+    </div>
+
+    <!-- Watchlist: spot bets and roughies across today's races (rendered by JS).
+         Hidden until populated. Shows opportunistic picks outside the main model. -->
+    <div class="watchlist-section" id="watchlist-section" style="display:none;">
+      <div class="watchlist-header">
+        <h3>Watchlist <span class="watchlist-sub">spot bets &amp; roughies across today's races</span></h3>
+        <div class="watchlist-tabs">
+          <button class="watchlist-tab active" data-wlfilter="all">All</button>
+          <button class="watchlist-tab" data-wlfilter="spot">Spot bets</button>
+          <button class="watchlist-tab" data-wlfilter="roughie">Roughies</button>
+        </div>
+      </div>
+      <div class="watchlist-list" id="watchlist-list"></div>
     </div>
   </section>
 
@@ -4164,6 +4327,9 @@ function renderToday() {
     roiEl.classList.remove('pos', 'neg');
     roiSubEl.textContent = 'no placed bets settled';
   }
+
+  // Render the watchlist (spot bets + roughies) for the same date
+  renderWatchlist(browseDate);
 }
 
 // Build the expanded detail panel for a pick
@@ -4397,6 +4563,164 @@ function buildDetailHTML(p, r) {
 function ord(n) {
   const s = ['th','st','nd','rd']; const v = n % 100;
   return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+// ── WATCHLIST tab ─────────────────────────────────────────────────────────
+// Shows spot-bet and roughie candidates from RACES for a given date.
+// Triggered automatically from renderToday() with the browseDate.
+let watchlistFilter = 'all';  // 'all' | 'spot' | 'roughie'
+
+function renderWatchlist(forDate) {
+  const section = document.getElementById('watchlist-section');
+  const list = document.getElementById('watchlist-list');
+  if (!section || !list) return;
+
+  const todaysRaces = (RACES || []).filter(r => r.date === forDate);
+  if (!todaysRaces.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Compute candidates: walk every runner in every race for the date.
+  // Same logic as the Race tab tags so they stay in sync.
+  const candidates = [];
+  todaysRaces.forEach(race => {
+    const runners = race.runners || [];
+    if (!runners.length) return;
+    // Compute within-race ranks for each signal
+    function rankBy(arr, getter, ascending = false) {
+      const valid = arr.filter(r => getter(r) != null);
+      valid.sort((a, b) => ascending ? getter(a) - getter(b) : getter(b) - getter(a));
+      const ranks = {};
+      valid.forEach((r, i) => { ranks[r.rid] = i + 1; });
+      return ranks;
+    }
+    const wprRanks = rankBy(runners, r => r.w);
+    const midRanks = rankBy(runners, r => r.ms);
+    const lateRanks = rankBy(runners, r => r.ls);
+
+    // Find the model picks for this race so we exclude them from the watchlist
+    const pickIds = new Set(
+      ((MODEL_PICKS || {})[String(race.race_id)] && (MODEL_PICKS || {})[String(race.race_id)][PRIMARY_KEY] || [])
+        .map(p => String(p.run_id))
+    );
+
+    runners.forEach(u => {
+      if (pickIds.has(String(u.rid))) return;
+      const csR = u.crk;
+      const wprR = wprRanks[u.rid];
+      const midR = midRanks[u.rid];
+      const lateR = lateRanks[u.rid];
+      const fxp = u.fx;
+
+      const spotMatch = (csR != null && csR <= 3) && (wprR != null && wprR <= 3)
+                       && ((midR != null && midR <= 2) || (lateR != null && lateR <= 2));
+      const roughieMatch = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
+                          && (fxp != null && fxp >= 10);
+      if (!spotMatch && !roughieMatch) return;
+
+      candidates.push({
+        race, runner: u,
+        ranks: { cs: csR, wpr: wprR, mid: midR, late: lateR },
+        isSpot: spotMatch, isRoughie: roughieMatch,
+      });
+    });
+  });
+
+  // Sort by start time
+  candidates.sort((a, b) => {
+    const at = a.race.start_time || '';
+    const bt = b.race.start_time || '';
+    return at.localeCompare(bt);
+  });
+
+  // Apply filter
+  let filtered = candidates;
+  if (watchlistFilter === 'spot') {
+    filtered = candidates.filter(c => c.isSpot);
+  } else if (watchlistFilter === 'roughie') {
+    filtered = candidates.filter(c => c.isRoughie);
+  }
+
+  if (!candidates.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  // Render rows
+  if (!filtered.length) {
+    list.innerHTML = '<div class="wl-empty">No candidates match this filter.</div>';
+  } else {
+    list.innerHTML = filtered.map(c => {
+      const r = c.runner;
+      const race = c.race;
+      const startTime = race.start_time
+        ? new Date(race.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+        : '—';
+      // Time-to-jump (minutes from now)
+      let jumpStr = '';
+      if (race.start_time) {
+        const minsUntil = Math.round((new Date(race.start_time) - new Date()) / 60000);
+        if (minsUntil > 0 && minsUntil < 1440) {
+          jumpStr = minsUntil < 60 ? minsUntil + 'm' : Math.floor(minsUntil / 60) + 'h ' + (minsUntil % 60) + 'm';
+        } else if (minsUntil <= 0 && minsUntil > -180) {
+          jumpStr = 'live/done';
+        }
+      }
+      const tagHtml = c.isRoughie
+        ? '<span class="wl-tag roughie">ROUGHIE</span>'
+        : (c.isSpot ? '<span class="wl-tag spot">SPOT</span>' : '');
+      const sigPills =
+        sigPillSimple('TR', r.rnk && r.rnk.tr) +
+        sigPillSimple('WPR', c.ranks.wpr) +
+        sigPillSimple('Mid', c.ranks.mid) +
+        sigPillSimple('Late', c.ranks.late) +
+        sigPillSimple('CS', c.ranks.cs);
+      const fxStr = r.fx ? '$' + r.fx.toFixed(2) : '—';
+      const cls = 'wl-row ' + (c.isRoughie ? 'is-roughie' : 'is-spot');
+      return '<div class="' + cls + '" data-race-id="' + race.race_id + '">' +
+        '<div class="wl-time">' + startTime + '</div>' +
+        '<div class="wl-meeting"><span class="v">' + (race.venue || '?') + ' R' + race.race + '</span>' +
+          '<span class="sub">' + (race.distance || '') + 'm · ' + (race.going || '') + '</span></div>' +
+        '<div class="wl-runner">' +
+          '<span class="tn-cell">' + (r.tab || r.t || '?') + '</span>' +
+          '<span class="horse">' + escapeHtml(r.h || '') + '</span>' + tagHtml +
+        '</div>' +
+        '<div class="wl-signals">' + sigPills + '</div>' +
+        '<div class="wl-fxd">' + fxStr + '</div>' +
+        '<div class="wl-jump">' + jumpStr + '</div>' +
+      '</div>';
+    }).join('');
+
+    // Click row to jump to race detail
+    list.querySelectorAll('.wl-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const rid = row.dataset.raceId;
+        if (rid) {
+          // Switch to Race tab and open the detail
+          document.querySelector('.tab[data-tab="race"]').click();
+          setTimeout(() => showRaceDetail(rid), 50);
+        }
+      });
+    });
+  }
+
+  // Wire filter tabs
+  document.querySelectorAll('.watchlist-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.wlfilter === watchlistFilter);
+    t.onclick = () => {
+      watchlistFilter = t.dataset.wlfilter;
+      renderWatchlist(forDate);
+    };
+  });
+}
+
+// Compact pill renderer for watchlist rows (matches the Today tab style)
+function sigPillSimple(label, rank) {
+  if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
+  const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+  return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
 }
 
 // ── RACE tab rendering ──────────────────────────────────────────────────────
@@ -4796,7 +5120,7 @@ function renderRaceDetail(raceId) {
             '<span class="rpp-val">' + escapeHtml(paceDisplay) + '</span>' +
           '</div>'
         : '') +
-      renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass) +
+      renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass, race, runners) +
     '</div>';
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
   // computed from historical races at same venue/going/rail
@@ -4988,6 +5312,23 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
+    // Spot-bet pattern: CS≤3 + WPR≤3 + (Mid≤2 OR Late≤2). Loose enough to flag
+    // ~55% of races with a candidate horse. Backtest near break-even (~-1% ROI),
+    // intended for opportunistic spot betting when watching, not flat staking.
+    const csR = u.crk;
+    const wprR = wprRanks[rid];
+    const midR = midRanks[rid];
+    const lateR = lateRanks[rid];
+    const isSpotBet = (csR != null && csR <= 3) && (wprR != null && wprR <= 3)
+                     && ((midR != null && midR <= 2) || (lateR != null && lateR <= 2));
+    if (isSpotBet && !isPick) rowClasses.push('spot-bet');
+
+    // Roughie pattern: CS≤3 + Late≤2 + price ≥ $10 (the +49% ROI roughie spotter).
+    // Use fixed price as a live-betting proxy for SP threshold.
+    const isRoughie = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
+                     && (fxp != null && fxp >= 10);
+    if (isRoughie && !isPick) rowClasses.push('roughie-bet');
+
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
@@ -5064,83 +5405,214 @@ function renderRaceDetail(raceId) {
 // Width-proportional zones (a race with 6 leaders gets a wider Leaders zone
 // than a race with 1). Tab numbers in colored cells. Picks (model picks) get
 // a brighter outline so you can see which horses you're backing in context.
-function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
-  const zones = [
-    { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
-    { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
-    { key: 'midfield', lbl: 'MID',      hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
-    { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
-  ];
+function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race, runners) {
+  // ── New top-down lane diagram ──
+  // X axis: horizontal position from leaders (left) to back (right)
+  // Y axis: lane from rail (top) to outside (bottom)
+  //
+  // Each horse is positioned by:
+  //   X = avg_settled_pos (front-to-back position)
+  //   Y = derived lane based on barrier + rail bias
+  //
+  // The rail line at the top represents the inside running line.
+  // Direction-of-travel arrow on the right shows which way they're racing.
 
   const W = 880;
-  const H = 122;
-  const PAD_X = 8, PAD_Y = 22, BOTTOM_PAD = 6;
-  const plotW = W - PAD_X * 2;
-  const plotH = H - PAD_Y - BOTTOM_PAD;
+  const H = 200;
+  const PAD_TOP = 30;     // room for "RAIL" label
+  const PAD_BOTTOM = 30;  // room for distance markers
+  const PAD_LEFT = 60;    // room for "FINISH" line
+  const PAD_RIGHT = 50;   // room for direction arrow
+  const plotW = W - PAD_LEFT - PAD_RIGHT;
+  const plotH = H - PAD_TOP - PAD_BOTTOM;
 
-  // Allocate width: each zone gets a guaranteed minimum so labels don't collide,
-  // then remaining width is shared proportionally to runner counts.
-  const counts = zones.map(z => settled[z.key].length);
-  const totalRunnersInRace = counts.reduce((a, b) => a + b, 0);
-  const MIN_ZONE_W = 90;
-  const guaranteed = MIN_ZONE_W * zones.length;
-  const sharedW = Math.max(0, plotW - guaranteed);
-
-  const zoneWidths = zones.map((z, i) => {
-    const share = totalRunnersInRace > 0 ? counts[i] / totalRunnersInRace : 0.25;
-    return MIN_ZONE_W + sharedW * share;
+  // Pull together all runners with positions known
+  const allRunners = [];
+  ['leaders', 'onpace', 'midfield', 'back'].forEach(k => {
+    settled[k].forEach(u => allRunners.push(u));
   });
+  const fieldSize = totalRunners || allRunners.length || 12;
 
-  const zoneOffsets = [];
-  let cum = PAD_X;
-  zoneWidths.forEach(w => { zoneOffsets.push(cum); cum += w; });
+  // ── Compute lane (Y) for each horse ──
+  // Inside lane = lower barriers. Wider lane = higher barriers.
+  // Rail bias modifies this: "Out 8m" = horses run wider than usual.
+  const railText = (race && race.rail) ? String(race.rail).toLowerCase() : '';
+  let railOffset = 0;  // 0 = on the rail, larger = horses pushed out
+  const m = railText.match(/(?:out|true\+|\+)\s*(\d+)/);
+  if (m) railOffset = parseInt(m[1], 10);
+  // Treat "true" as on the rail, "true+3m" as +3
+  const isTrueRail = railText.startsWith('true') && !m;
+
+  function laneY(barrier, settlePos) {
+    // Base lane: barrier 1 = innermost, max barrier = outermost
+    // But horses with low settling positions tend to drift in toward the rail
+    // Horses with high settling positions stay in their barrier lane
+    if (barrier == null) return PAD_TOP + plotH * 0.5;  // unknown = middle
+    const barrierFrac = (barrier - 1) / Math.max(1, fieldSize - 1);  // 0..1
+    // Settlement effect: leaders compress to inside, back markers stay wide
+    const isLeading = settlePos != null && settlePos <= 3;
+    const isBack    = settlePos != null && settlePos >= 8;
+    let laneFrac = barrierFrac;
+    if (isLeading) {
+      // Leaders take cover - drift in 30%
+      laneFrac = barrierFrac * 0.5 + 0.0;
+    } else if (isBack) {
+      // Backmarkers often stay where they are - keep barrier lane
+      laneFrac = barrierFrac * 0.85 + 0.05;
+    } else {
+      // Mid-field finds a position - 60% of barrier
+      laneFrac = barrierFrac * 0.7 + 0.05;
+    }
+    // Apply rail bias - shifts everything outward
+    const railShift = Math.min(0.25, railOffset * 0.025);
+    laneFrac = Math.min(0.95, laneFrac + railShift);
+    return PAD_TOP + 6 + laneFrac * (plotH - 14);
+  }
+
+  // ── Compute X position from settling pos ──
+  function settleX(pos) {
+    if (pos == null) return PAD_LEFT + plotW * 0.6;  // unknown = middle-back
+    // pos ranges roughly 1 (leader) to fieldSize (last)
+    // Map to plotW: pos 1 → near left, pos fieldSize → near right
+    const t = Math.min(1, Math.max(0, (pos - 1) / Math.max(1, fieldSize - 1)));
+    return PAD_LEFT + 20 + t * (plotW - 40);
+  }
+
+  // Color by zone (front to back)
+  function zoneColor(pos) {
+    if (pos == null) return '#94a3b8';
+    if (pos <= 2) return '#fbbf24';   // amber - leaders
+    if (pos <= 4) return '#10b981';   // emerald - on-pace
+    if (pos <= 8) return '#3b82f6';   // blue - midfield
+    return '#ec4899';                  // pink - back
+  }
 
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
-  zones.forEach((z, i) => {
-    const x = zoneOffsets[i];
-    const w = zoneWidths[i];
-    const horses = settled[z.key];
+  // Background gradient: green grass with subtle texture
+  svg += '<defs>' +
+    '<linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#86efac" stop-opacity="0.15"/>' +
+      '<stop offset="100%" stop-color="#86efac" stop-opacity="0.08"/>' +
+    '</linearGradient>' +
+  '</defs>';
+  svg += '<rect x="' + PAD_LEFT + '" y="' + PAD_TOP + '" width="' + plotW + '" height="' + plotH +
+    '" fill="url(#grassGrad)" rx="6"/>';
 
-    svg += '<rect x="' + x + '" y="' + PAD_Y + '" width="' + w + '" height="' + plotH +
-      '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
-      '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
+  // The rail (top edge) - bold line
+  svg += '<line x1="' + PAD_LEFT + '" y1="' + PAD_TOP + '" x2="' + (PAD_LEFT + plotW) +
+    '" y2="' + PAD_TOP + '" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>';
+  // Rail label
+  const railLabel = railText
+    ? (isTrueRail ? 'RAIL · TRUE' : 'RAIL · ' + race.rail.toUpperCase())
+    : 'RAIL';
+  svg += '<text x="' + (PAD_LEFT + 6) + '" y="' + (PAD_TOP - 10) + '" ' +
+    'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.08em" ' +
+    'fill="#0f172a">' + escapeHtml(railLabel) + '</text>';
 
-    svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
-      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
-      'text-anchor="middle" fill="' + z.textColor + '">' +
-      z.lbl + ' (' + z.hint + ')</text>';
+  // Outer boundary (subtle)
+  svg += '<line x1="' + PAD_LEFT + '" y1="' + (PAD_TOP + plotH) + '" x2="' + (PAD_LEFT + plotW) +
+    '" y2="' + (PAD_TOP + plotH) + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>';
 
-    const cellSize = 22;
-    const cellGap = 4;
-    const innerPad = 8;
-    const availW = w - innerPad * 2;
-    const cellsPerRow = Math.max(1, Math.floor((availW + cellGap) / (cellSize + cellGap)));
-    horses.forEach((u, hi) => {
-      const row = Math.floor(hi / cellsPerRow);
-      const col = hi % cellsPerRow;
-      const cellX = x + innerPad + col * (cellSize + cellGap);
-      const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
-      if (cellY + cellSize > PAD_Y + plotH - 4) return;
-      svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
-        '" fill="' + z.color + '" rx="3"/>';
-      svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
-        '" font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
-        'fill="#fff">' + (u.tab || '?') + '</text>';
-    });
+  // Finish line (left edge - horses running right-to-left, so finish is on the left)
+  svg += '<line x1="' + PAD_LEFT + '" y1="' + PAD_TOP + '" x2="' + PAD_LEFT +
+    '" y2="' + (PAD_TOP + plotH) + '" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>';
+  svg += '<text x="' + (PAD_LEFT - 40) + '" y="' + (PAD_TOP + plotH / 2) + '" ' +
+    'font-family="Outfit" font-size="11" font-weight="700" letter-spacing="0.1em" ' +
+    'fill="#dc2626" transform="rotate(-90 ' + (PAD_LEFT - 40) + ' ' + (PAD_TOP + plotH / 2) + ')">' +
+    'FINISH</text>';
 
-    if (horses.length === 0) {
-      svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y + plotH / 2 + 4) + '" ' +
-        'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
-        '" fill-opacity="0.4" text-anchor="middle">none</text>';
+  // Direction-of-travel arrow on right side
+  const arrowY = PAD_TOP + plotH / 2;
+  const arrowX = W - PAD_RIGHT + 20;
+  svg += '<path d="M ' + (arrowX - 15) + ' ' + arrowY + ' L ' + (arrowX - 30) + ' ' + (arrowY - 7) +
+    ' L ' + (arrowX - 30) + ' ' + (arrowY + 7) + ' Z" fill="#64748b"/>';
+  svg += '<text x="' + (arrowX - 50) + '" y="' + (arrowY + 25) + '" ' +
+    'font-family="Outfit" font-size="9" font-weight="600" letter-spacing="0.06em" ' +
+    'fill="#64748b" text-anchor="middle">RUNNING</text>';
+
+  // Zone bands at top - subtle vertical bands showing front/mid/back regions
+  const zoneRanges = [
+    { from: 1, to: 2,    color: '#fbbf24', lbl: 'LEAD' },
+    { from: 3, to: 4,    color: '#10b981', lbl: 'ON-PACE' },
+    { from: 5, to: 8,    color: '#3b82f6', lbl: 'MID' },
+    { from: 9, to: fieldSize, color: '#ec4899', lbl: 'BACK' },
+  ];
+  zoneRanges.forEach(z => {
+    if (z.from > fieldSize) return;
+    const x1 = settleX(z.from) - 14;
+    const x2 = settleX(Math.min(z.to, fieldSize)) + 14;
+    if (x2 <= x1) return;
+    // subtle column band
+    svg += '<rect x="' + x1 + '" y="' + (PAD_TOP + plotH + 4) + '" width="' + (x2 - x1) +
+      '" height="2" fill="' + z.color + '" rx="1"/>';
+    svg += '<text x="' + ((x1 + x2) / 2) + '" y="' + (PAD_TOP + plotH + 18) + '" ' +
+      'font-family="Outfit" font-size="9" font-weight="700" letter-spacing="0.08em" ' +
+      'text-anchor="middle" fill="' + z.color + '">' + z.lbl + '</text>';
+  });
+
+  // ── Position each horse ──
+  // First pass: compute target position for each horse
+  // Find model picks for outline highlighting
+  const modelPickIds = (typeof currentRaceId !== 'undefined' && currentRaceId)
+    ? new Set(((MODEL_PICKS || {})[String(currentRaceId)] && (MODEL_PICKS || {})[String(currentRaceId)][PRIMARY_KEY] || []).map(p => String(p.run_id)))
+    : new Set();
+
+  const positioned = [];
+  allRunners.forEach(u => {
+    const cx = settleX(u.asp);
+    const cy = laneY(u.b, u.asp);
+    positioned.push({ u, cx, cy });
+  });
+
+  // Resolve overlaps - if two horses are too close, push the second one slightly down
+  const HORSE_R = 13;  // horse circle radius
+  for (let i = 0; i < positioned.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = positioned[i], b = positioned[j];
+      const dx = a.cx - b.cx, dy = a.cy - b.cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = HORSE_R * 2 + 2;
+      if (dist < minDist && dist > 0) {
+        const push = (minDist - dist) / dist;
+        // Push the later-drawn horse perpendicular (mostly down)
+        a.cx += dx * push * 0.3;
+        a.cy += dy * push * 0.7 + (dy >= 0 ? 4 : -4);
+        // Keep within plot bounds
+        a.cy = Math.max(PAD_TOP + HORSE_R, Math.min(PAD_TOP + plotH - HORSE_R, a.cy));
+      }
+    }
+  }
+
+  // Draw horses
+  positioned.forEach(p => {
+    const { u, cx, cy } = p;
+    const color = zoneColor(u.asp);
+    const isPick = modelPickIds.has(String(u.rid));
+
+    // Selection outline for model picks
+    if (isPick) {
+      svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (HORSE_R + 3) +
+        '" fill="none" stroke="#10b981" stroke-width="2.5" opacity="0.9"/>';
+    }
+    // Horse body (circle with tab number)
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + HORSE_R +
+      '" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
+    svg += '<text x="' + cx + '" y="' + (cy + 4) + '" ' +
+      'font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
+      'fill="#fff">' + (u.tab || '?') + '</text>';
+    // Add a small barrier label below circle
+    if (u.b) {
+      svg += '<text x="' + cx + '" y="' + (cy + HORSE_R + 11) + '" ' +
+        'font-family="Outfit" font-size="8" font-weight="600" text-anchor="middle" ' +
+        'fill="#475569" opacity="0.6">b' + u.b + '</text>';
     }
   });
 
   svg += '</svg>';
 
-  // Pace pill rendered as HTML element above the SVG, in its own row
-  // so it never collides with zone labels. Floats to the right.
+  // Pace pill rendered as HTML element above the SVG
   let pacePill = '';
   if (paceDisplay) {
     const cls = paceClass ? ('rsp-pill rsp-pill-' + paceClass) : 'rsp-pill';
@@ -5156,7 +5628,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   if (settled.unknown && settled.unknown.length > 0) {
     unknownCaption = '<div class="race-shape-unknown">' +
       settled.unknown.length + ' runner' + (settled.unknown.length === 1 ? '' : 's') +
-      ' with no settling history (likely first-up or limited data)</div>';
+      ' with no settling history (positioned in midfield by default)</div>';
   }
 
   return pacePill + svg + unknownCaption;
