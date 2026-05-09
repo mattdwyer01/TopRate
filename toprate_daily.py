@@ -519,15 +519,15 @@ MODEL_DEFS = {
     # display time, not at pick computation time.
     "main": {
         "label":       "Main",
-        "desc":        "TR≤3 + Mid+Late+Total top 2 (gate min $3 at bet placement)",
-        "expected_wr": 0.256, "expected_roi_sp": 0.105, "expected_roi_top": 0.282,
-        "bets_per_day": 7.1, "min_top_odds": 3.0,
+        "desc":        "TR≤3 + Mid≤2 + Late≤2 + Total≤3 (gate min $3 at bet placement)",
+        "expected_wr": 0.247, "expected_roi_sp": 0.119, "expected_roi_top": 0.282,
+        "bets_per_day": 7.7, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
             (ctx["tr_rank"].get(run_id) or 99) <= 3
             and (ctx["mid_rank"].get(run_id) or 99) <= 2
             and (ctx["late_rank"].get(run_id) or 99) <= 2
-            and (ctx["total_rank"].get(run_id) or 99) <= 2,
+            and (ctx["total_rank"].get(run_id) or 99) <= 3,
     },
     # ── REFERENCE MODELS (tracked for comparison, not bet) ──────────────────
     "top_form": {
