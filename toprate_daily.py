@@ -631,6 +631,7 @@ def compute_model_picks(runners_df):
                     "mid_rank":      ctx["mid_rank"].get(qrow["run_id"]),
                     "late_rank":     ctx["late_rank"].get(qrow["run_id"]),
                     "total_rank":    ctx["total_rank"].get(qrow["run_id"]),
+                    "wpr_rank":      ctx["wpr_rank"].get(qrow["run_id"]),
                     "weight_trend":  qrow.get("weight_trend"),
                     "wins_at_dist":  qrow.get("wins_at_dist"),
                     "fixed_win_price": qrow.get("fixed_win_price"),
@@ -1868,6 +1869,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "tr_rank":  r.get("tr_rank"),
                 "mid_rank": r.get("mid_rank"),
                 "late_rank": r.get("late_rank"),
+                "total_rank": r.get("total_rank"),
+                "wpr_rank":  r.get("wpr_rank"),
             })
 
     # ── Build model meta from MODEL_DEFS ─────────────────────────────────────

@@ -594,7 +594,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    240px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
+    300px             /* signals strip - 6 pills (Score TR WPR Mid Late Tot) */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -611,7 +611,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1098px;
+  min-width: 1158px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -701,6 +701,7 @@ body {
 
 .pr-sigs {
   display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  padding-right: 12px;
 }
 .pr-sigs-top {
   display: flex; gap: 4px; align-items: center;
@@ -3876,6 +3877,7 @@ function renderToday() {
     const sigsTopHtml =
       scoreSigPill(p.crk, p.csc) +
       sigPill('TR', p.tr_rank) +
+      sigPill('WPR', p.wpr_rank) +
       sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank) +
       sigPill('Tot', p.total_rank);
@@ -4796,6 +4798,7 @@ function renderRaceDetail(raceId) {
     return ranks;
   }
   const trRanks    = computeRanks(runners, r => r.trr);
+  const wprRanks   = computeRanks(runners, r => r.w);
   const earlyRanks = computeRanks(runners, r => r.es);
   const midRanks   = computeRanks(runners, r => r.ms);
   const lateRanks  = computeRanks(runners, r => r.ls);
@@ -4915,6 +4918,7 @@ function renderRaceDetail(raceId) {
     trnpc: r => r.trt,
     bar:   r => r.b,
     tr:    r => trRanks[r.rid] || 99,
+    wpr:   r => wprRanks[r.rid] || 99,
     early: r => earlyRanks[r.rid] || 99,
     mid:   r => midRanks[r.rid] || 99,
     late:  r => lateRanks[r.rid] || 99,
@@ -4949,6 +4953,8 @@ function renderRaceDetail(raceId) {
     const isPick = pickIds.has(String(rid));
     const trR = trRanks[rid];
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
+    const wprR = wprRanks[rid];
+    const wprClass = wprR === 1 ? 'r1' : (wprR === 2 ? 'r2' : (wprR === 3 ? 'r3' : ''));
     const fxp = u.fx;
     const trp = u.trp;
     // Score-threshold flag - adds emerald row tint for adaptive selection
@@ -4966,6 +4972,7 @@ function renderRaceDetail(raceId) {
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
+      '<td class="rank-cell ' + wprClass + '">' + (wprR || '—') + '</td>' +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       scoreCell(u.cs, u.crk, u.csc) +
@@ -4997,7 +5004,8 @@ function renderRaceDetail(raceId) {
         th('jky', 'Jky') +
         th('trn', 'Trn') +
         th('bar', 'Bar') +
-        th('tr', 'TR$') +
+        th('tr', 'TR') +
+        th('wpr', 'WPR') +
         th('trp', 'TR $') +
         th('fxd', 'Fxd') +
         th('score', 'Score') +
@@ -5020,7 +5028,7 @@ function renderRaceDetail(raceId) {
       } else {
         raceSortState.col = col;
         // Default to ascending for ranks/text, descending for raw values
-        const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr',
+        const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr', 'wpr',
                             'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp', 'score'];
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
