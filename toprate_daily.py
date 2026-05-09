@@ -1795,6 +1795,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpra": sf(row.get("wpr_avg_last3")),
                 "wprt": sf(row.get("wpr_trend")),
                 "wprp": sf(row.get("wpr_peak_rank_1yr")),
+                "w":    sf(row.get("wpr_nett")),
                 "wt":   sf(row.get("weight_carried")),
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
