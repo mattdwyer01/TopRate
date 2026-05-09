@@ -519,12 +519,13 @@ MODEL_DEFS = {
     # display time, not at pick computation time.
     "main": {
         "label":       "Main",
-        "desc":        "TR≤5 + Mid≤2 + Late≤2 + Total≤3 + WPR≤4 (gate min $3 at bet placement)",
-        "expected_wr": 0.222, "expected_roi_sp": 0.200, "expected_roi_top": 0.282,
-        "bets_per_day": 9.2, "min_top_odds": 3.0,
+        "desc":        "TR≤5 + Mid≤2 + Late≤2 + Total≤3 + WPR≤4, skip races with first-starter (gate min $3 at bet placement)",
+        "expected_wr": 0.233, "expected_roi_sp": 0.274, "expected_roi_top": 0.282,
+        "bets_per_day": 6.4, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
-            (ctx["tr_rank"].get(run_id) or 99) <= 5
+            not ctx.get("has_first_starter", False)
+            and (ctx["tr_rank"].get(run_id) or 99) <= 5
             and (ctx["mid_rank"].get(run_id) or 99) <= 2
             and (ctx["late_rank"].get(run_id) or 99) <= 2
             and (ctx["total_rank"].get(run_id) or 99) <= 3
@@ -597,6 +598,12 @@ def compute_model_picks(runners_df):
                                                             pd.Series([None]*n)))),
             "fix_price":    dict(zip(rdf["run_id"], rdf.get("fixed_win_price",
                                                             pd.Series([None]*n)))),
+            # True if any runner in this race has no past WPR data (first/unraced).
+            # Backtest shows model picks in such races give nearly zero ROI uplift,
+            # so primary model skips them. Reference models can still apply.
+            "has_first_starter": bool(
+                rdf["runs_with_wpr"].notna().any() and (rdf["runs_with_wpr"] == 0).any()
+            ),
         }
 
         race_meta = rdf.iloc[0]
