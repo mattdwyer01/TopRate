@@ -594,7 +594,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    200px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
+    240px             /* signals strip - 5 pills (Score TR Mid Late Tot) */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -611,7 +611,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1058px;
+  min-width: 1098px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -711,10 +711,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .pr-sigs .sig {
-  display: inline-flex; align-items: baseline; gap: 3px;
+  display: inline-flex; align-items: baseline; gap: 2px;
   font-family: var(--font-body); font-size: 11px;
   background: var(--line-soft); border-radius: 3px;
-  padding: 3px 7px; font-weight: 600; color: var(--ink-mute);
+  padding: 3px 5px; font-weight: 600; color: var(--ink-mute);
   white-space: nowrap;
 }
 .pr-sigs .sig.r1 { background: var(--emerald); color: #fff; }
