@@ -1442,6 +1442,14 @@ body {
 .race-context-bar .ctx-item .ctx-v {
   color: var(--ink); font-weight: 700; margin-left: 4px;
 }
+.race-context-bar .ctx-item.ctx-overridden .ctx-v {
+  color: #92400e;
+  border-bottom: 2px dashed #d97706;
+}
+.race-context-bar .ctx-item.ctx-overridden::after {
+  content: ' (manual)'; color: #d97706; font-size: 10px; font-weight: 600;
+  margin-left: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+}
 
 /* Pace estimate badge inside header */
 .race-pace-est {
@@ -3547,9 +3555,40 @@ try {
   const raw = localStorage.getItem(TRACK_RATINGS_KEY);
   if (raw) trackRatings = JSON.parse(raw);
 } catch(e) { trackRatings = {}; }
+
+// Per-race override key. Race-level keys win over meeting-level keys, but
+// meeting-level keys (legacy) are still honoured as a fallback.
+function raceTrackRatingKey(raceId) {
+  return 'race:' + (raceId || '');
+}
 function trackRatingKey(venue, date) {
   return (venue || '') + '|' + (date || '');
 }
+function getRaceTrackRating(race) {
+  if (!race) return null;
+  const rk = raceTrackRatingKey(race.race_id);
+  if (trackRatings[rk]) return trackRatings[rk];
+  // Fallback to meeting-level key for legacy compatibility
+  const mk = trackRatingKey(race.venue, race.date);
+  return trackRatings[mk] || null;
+}
+function setRaceTrackRating(race, rating) {
+  if (!race) return;
+  const k = raceTrackRatingKey(race.race_id);
+  if (rating == null || rating === '') {
+    delete trackRatings[k];
+  } else {
+    trackRatings[k] = rating;
+  }
+  try { localStorage.setItem(TRACK_RATINGS_KEY, JSON.stringify(trackRatings)); } catch(e) {}
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+// Returns the going string with override applied if present
+function getEffectiveGoing(race) {
+  if (!race) return '';
+  return getRaceTrackRating(race) || race.going || '';
+}
+// Legacy meeting-level helpers - kept for backward compat with any callers
 function getTrackRating(venue, date, fallback) {
   const k = trackRatingKey(venue, date);
   return trackRatings[k] || fallback;
@@ -4614,13 +4653,15 @@ function renderRaceDetail(raceId) {
   // Context bar
   const ctx = [];
   ctx.push({ lbl: 'Distance', v: race.distance + 'm' });
-  ctx.push({ lbl: 'Going', v: race.going || '—' });
+  ctx.push({ lbl: 'Going', v: getEffectiveGoing(race) || '—', overridden: !!getRaceTrackRating(race) });
+  if (race.rail) ctx.push({ lbl: 'Rail', v: race.rail });
   ctx.push({ lbl: 'Prize', v: '$' + (race.prize / 1000).toFixed(0) + 'k' });
   ctx.push({ lbl: 'Field', v: runners.length });
   document.getElementById('rd-context-bar').innerHTML =
-    ctx.map(c =>
-      '<div class="ctx-item">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>'
-    ).join('');
+    ctx.map(c => {
+      const cls = c.overridden ? 'ctx-item ctx-overridden' : 'ctx-item';
+      return '<div class="' + cls + '">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>';
+    }).join('');
 
   // ── Pace map / race shape ──
   // Horizontal lane diagram: Leaders left → Back right. Horses positioned in
@@ -4671,7 +4712,7 @@ function renderRaceDetail(raceId) {
     if (gl.startsWith('synth')) return 'synth';
     return null;
   }
-  const todayGoing = goingCategory(race.going);
+  const todayGoing = goingCategory(getEffectiveGoing(race));
 
   // Show going column only if at least one runner has going history for today's surface.
   // Otherwise the column wastes horizontal space showing all dashes.
@@ -4894,15 +4935,11 @@ function renderRaceDetail(raceId) {
 // a brighter outline so you can see which horses you're backing in context.
 function renderRaceShapeSVG(settled, totalRunners) {
   const zones = [
-    { key: 'leaders',  lbl: 'Leaders',  hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
-    { key: 'onpace',   lbl: 'On-pace',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
-    { key: 'midfield', lbl: 'Midfield', hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
-    { key: 'back',     lbl: 'Back',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
+    { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
+    { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
+    { key: 'midfield', lbl: 'MID',      hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
+    { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
   ];
-
-  // Compute zone counts and assign min width 1 so empty zones don't disappear
-  const counts = zones.map(z => Math.max(1, settled[z.key].length));
-  const totalUnits = counts.reduce((a, b) => a + b, 0);
 
   const W = 880;
   const H = 130;
@@ -4910,8 +4947,19 @@ function renderRaceShapeSVG(settled, totalRunners) {
   const plotW = W - PAD_X * 2;
   const plotH = H - PAD_Y - BOTTOM_PAD;
 
-  // Each zone's pixel width is proportional to its share of runners
-  const zoneWidths = counts.map(c => (c / totalUnits) * plotW);
+  // Allocate width: each zone gets a guaranteed minimum so labels don't collide,
+  // then remaining width is shared proportionally to runner counts.
+  const counts = zones.map(z => settled[z.key].length);
+  const totalRunnersInRace = counts.reduce((a, b) => a + b, 0);
+  const MIN_ZONE_W = 90;  // enough room for label + horse cell
+  const guaranteed = MIN_ZONE_W * zones.length;
+  const sharedW = Math.max(0, plotW - guaranteed);
+
+  const zoneWidths = zones.map((z, i) => {
+    const share = totalRunnersInRace > 0 ? counts[i] / totalRunnersInRace : 0.25;
+    return MIN_ZONE_W + sharedW * share;
+  });
+
   // Cumulative offsets
   const zoneOffsets = [];
   let cum = PAD_X;
@@ -4937,11 +4985,11 @@ function renderRaceShapeSVG(settled, totalRunners) {
       '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
       '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
-    // Zone label at top
+    // Zone label at top - shows abbreviated name + position hint
     svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
       'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
-      z.lbl.toUpperCase() + ' (' + z.hint + ')</text>';
+      z.lbl + ' (' + z.hint + ')</text>';
 
     // Horse tab cells - lay out in a grid, max 4 per row to keep cells big enough to read
     const cellSize = 22;
@@ -4990,48 +5038,30 @@ function renderRaceShapeSVG(settled, totalRunners) {
 }
 
 
-// Track conditions card - weather/going/rail + commentary on how this track
-// plays at this condition based on historical winners' settled positions.
-// User can override the going via a manual rating that syncs across devices.
+// Track conditions card - bias commentary on how this track plays at this
+// condition based on historical winners' settled positions. User can override
+// the going via a manual rating that syncs across devices and propagates
+// throughout the dashboard for this specific race.
 function renderTrackConditions(race) {
   const venue = race.venue || '';
   const date = race.date || '';
   const officialGoing = race.going || '';
-  const overrideRating = trackRatings[trackRatingKey(venue, date)];
+  const overrideRating = getRaceTrackRating(race);
   const effectiveGoing = overrideRating || officialGoing;
   const rail = race.rail || '';
-  const goingCat = goingCategoryStr(officialGoing);
+  // Use the EFFECTIVE going for bias lookup so override actually changes the panel
+  const goingCat = goingCategoryStr(effectiveGoing);
   const railNorm = normalizeRail(rail);
 
   // ── Look up bias data ───────────────────────────────────────────────
-  // Two filters from VENUE_BIAS:
-  //   1. Specific: venue + going + rail (today's exact setup)
-  //   2. Overall: venue alone (all-conditions baseline at this venue)
-  // We compare the specific against the venue-overall to highlight whether
-  // today's conditions are different from how this venue normally plays.
   const bias = (typeof VENUE_BIAS !== 'undefined') ? VENUE_BIAS :
     { byVenueGoingRail: {}, byVenue: {}, totalRaces: 0 };
   const specKey = venue + '|' + goingCat + '|' + railNorm;
-  const specStats = bias.byVenueGoingRail[specKey];   // may be undefined
-  const venueStats = bias.byVenue[venue];             // may be undefined
+  const specStats = bias.byVenueGoingRail[specKey];
+  const venueStats = bias.byVenue[venue];
 
-  // ── Header (Going · Rail · Distance) ──
-  const headerHtml =
-    '<div class="tc-header">' +
-      '<div class="tc-going' + (overrideRating ? ' overridden' : '') + '">' +
-        '<span class="tc-key">Going</span>' +
-        '<span class="tc-val">' + escapeHtml(effectiveGoing || 'Unknown') + '</span>' +
-        (overrideRating ? '<span class="tc-orig">official: ' + escapeHtml(officialGoing || '?') + '</span>' : '') +
-      '</div>' +
-      '<div class="tc-rail">' +
-        '<span class="tc-key">Rail</span>' +
-        '<span class="tc-val">' + escapeHtml(rail || 'Unknown') + '</span>' +
-      '</div>' +
-      '<div class="tc-distance">' +
-        '<span class="tc-key">Distance</span>' +
-        '<span class="tc-val">' + race.distance + 'm</span>' +
-      '</div>' +
-    '</div>';
+  // No header - context bar above already shows Distance/Going/Rail/Prize/Field
+  const headerHtml = '';
 
   // ── Side-by-side commentary panels ──
   // Compute observed % per zone for both specific and venue-overall.
@@ -5236,19 +5266,20 @@ function wireTrackConditionsCard(race) {
     inp.addEventListener('input', e => {
       clearTimeout(dt);
       dt = setTimeout(() => {
-        setTrackRating(race.venue, race.date, e.target.value.trim());
-        // Re-render the card to show the override badge
-        document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
-        wireTrackConditionsCard(race);
+        setRaceTrackRating(race, e.target.value.trim());
+        // Re-render the entire race detail panel so override propagates to:
+        //   - context bar going value
+        //   - track conditions bias commentary
+        //   - runners table going column (each runner's perf on this going)
+        renderRaceDetail(race.race_id);
       }, 600);
     });
   }
   const clearBtn = document.getElementById('tc-override-clear');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
-      setTrackRating(race.venue, race.date, null);
-      document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
-      wireTrackConditionsCard(race);
+      setRaceTrackRating(race, null);
+      renderRaceDetail(race.race_id);
     });
   }
 }
