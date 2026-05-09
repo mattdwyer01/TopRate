@@ -3874,19 +3874,10 @@ function renderToday() {
       return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
         '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
-    // Pill that shows a numeric VALUE (rounded) with color tint based on within-race rank.
-    // Used for WPR which is a rating, not a rank-meaningful sectional measure.
-    function valueSigPill(label, value, rank) {
-      if (value == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
-      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      const title = rank ? 'Rank ' + rank + ' in field' : '';
-      return '<span class="sig ' + cls + '" title="' + title + '">' +
-        '<span class="lbl">' + label + '</span><span class="v">' + Math.round(value) + '</span></span>';
-    }
     const sigsTopHtml =
       scoreSigPill(p.crk, p.csc) +
       sigPill('TR', p.tr_rank) +
-      valueSigPill('WPR', r.w, p.wpr_rank) +
+      sigPill('WPR', p.wpr_rank) +
       sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank) +
       sigPill('Tot', p.total_rank);
@@ -4857,6 +4848,17 @@ function renderRaceDetail(raceId) {
       '</td>';
   }
 
+  // WPR cell - shows the rating value plus its within-race rank, mirroring scoreCell layout.
+  function wprCell(value, rank) {
+    if (value == null) return '<td class="score-cell">—</td>';
+    const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+    const rkBadge = rank ? '<span class="rk">#' + rank + '</span>' : '';
+    const title = rank ? 'WPR rating. Rank ' + rank + ' in field.' : 'WPR rating';
+    return '<td class="score-cell ' + rkCls + '" title="' + title + '">' +
+      '<span class="v">' + Math.round(value) + '</span>' + rkBadge +
+      '</td>';
+  }
+
   // Distance perf cell - format: "starts: wins | places"
   // Color: green if win rate >= 25%, amber if 10-24%, default if <10%, faint if no history
   function perfCell(starts, wins, places, dnf) {
@@ -4979,7 +4981,7 @@ function renderRaceDetail(raceId) {
       '<td>' + escapeHtml(u.tn || '') + '</td>' +
       '<td>' + (u.b || '') + '</td>' +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      ratingCell(u.w, wprRanks[rid]) +
+      wprCell(u.w, wprRanks[rid]) +
       '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       scoreCell(u.cs, u.crk, u.csc) +
