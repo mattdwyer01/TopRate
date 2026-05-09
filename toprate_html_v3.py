@@ -4974,8 +4974,8 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   ];
 
   const W = 880;
-  const H = 130;
-  const PAD_X = 8, PAD_Y = 28, BOTTOM_PAD = 12;
+  const H = 138;
+  const PAD_X = 8, PAD_Y = 38, BOTTOM_PAD = 6;
   const plotW = W - PAD_X * 2;
   const plotH = H - PAD_Y - BOTTOM_PAD;
 
@@ -5000,7 +5000,8 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
-  // Pace pill in top-right corner
+  // Pace pill in top-right corner - sits in its own row above the zones,
+  // so it doesn't collide with zone labels.
   if (paceDisplay) {
     const pillColors = {
       hot:   { bg: 'rgba(239,68,68,0.15)',   stroke: '#ef4444', text: '#991b1b' },
@@ -5011,7 +5012,6 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
     };
     const c = pillColors[paceClass] || pillColors[''];
     const pillText = 'PACE: ' + paceDisplay.toUpperCase();
-    // Estimate width by character count
     const pillW = Math.max(95, pillText.length * 6.5 + 16);
     const pillX = W - PAD_X - pillW;
     const pillY = 4;
@@ -5032,6 +5032,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
       '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
       '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
+    // Zone label - sits above the zone, well below the pace pill row
     svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
       'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
@@ -5047,7 +5048,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
       const col = hi % cellsPerRow;
       const cellX = x + innerPad + col * (cellSize + cellGap);
       const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
-      if (cellY + cellSize > PAD_Y + plotH - 12) return;
+      if (cellY + cellSize > PAD_Y + plotH - 4) return;
       svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
         '" fill="' + z.color + '" rx="3"/>';
       svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
@@ -5060,10 +5061,6 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
         'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
         '" fill-opacity="0.4" text-anchor="middle">none</text>';
     }
-
-    svg += '<text x="' + (x + w / 2) + '" y="' + (H - 2) + '" ' +
-      'font-family="Outfit" font-size="10" font-weight="600" text-anchor="middle" ' +
-      'fill="' + z.textColor + '" fill-opacity="0.7">' + horses.length + '</text>';
   });
 
   svg += '</svg>';
