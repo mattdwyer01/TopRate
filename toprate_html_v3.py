@@ -1451,6 +1451,30 @@ body {
   margin-left: 4px; text-transform: uppercase; letter-spacing: 0.05em;
 }
 
+.race-context-bar .ctx-item.ctx-override-inline {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: auto;
+}
+.race-context-bar .ctx-override-inline .ctx-lbl {
+  font-family: var(--font-body); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.race-context-bar .ctx-override-input {
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  padding: 4px 8px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--panel); color: var(--ink);
+  width: 100px;
+}
+.race-context-bar .ctx-override-input:focus {
+  outline: 2px solid var(--emerald); outline-offset: -1px;
+}
+.race-context-bar .ctx-override-clear {
+  border: none; background: transparent; color: var(--ink-mute);
+  cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px;
+  font-weight: 700;
+}
+.race-context-bar .ctx-override-clear:hover { color: var(--rose); }
+
 /* Pace estimate badge inside header */
 .race-pace-est {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1586,27 +1610,17 @@ body {
   font-style: italic; margin-top: 8px;
 }
 
-/* Side-by-side panels container */
-.tc-panels {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 14px; margin-bottom: 14px;
-}
+/* Track conditions card - venue overall with AU avg overlay */
 .tc-panel {
-  background: var(--line-soft); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 12px 14px;
-}
-.tc-panel.tc-thin {
-  background: var(--amber-bg); border-color: var(--amber-line);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 14px 16px;
 }
 .tc-panel.tc-insufficient-panel {
-  opacity: 0.65; font-style: italic;
-}
-.tc-panel.tc-panel-venue {
-  background: var(--panel);
+  opacity: 0.7; font-style: italic;
 }
 .tc-panel-title {
-  font-family: var(--font-body); font-size: 12px; font-weight: 700;
-  color: var(--ink); margin-bottom: 6px;
+  font-family: var(--font-body); font-size: 13px; font-weight: 700;
+  color: var(--ink); margin-bottom: 8px;
   display: flex; justify-content: space-between; align-items: baseline;
   gap: 8px; flex-wrap: wrap;
 }
@@ -1614,57 +1628,64 @@ body {
   font-size: 10px; font-weight: 500; color: var(--ink-mute);
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-.tc-zone-row-simple {
-  /* Venue-overall panel: no delta column, just bar + % */
-  grid-template-columns: 100px 1fr 40px;
+.tc-summary {
+  font-family: var(--font-body); font-size: 13px; color: var(--ink-soft);
+  margin-bottom: 12px; line-height: 1.5;
 }
-.tc-zone-fill.venue-bar {
-  background: var(--slate);
+.tc-summary strong { color: var(--ink); font-weight: 700; }
+
+/* Legend row - swatch + label for venue + AU avg */
+.tc-dualbar-legend {
+  display: flex; gap: 16px; margin-bottom: 8px;
+  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
+  font-weight: 500;
 }
+.tc-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.tc-legend-item .swatch {
+  display: inline-block; width: 14px; height: 8px; border-radius: 2px;
+}
+.tc-legend-item .swatch-venue { background: var(--slate); }
+.tc-legend-item .swatch-au    { background: var(--indigo-bg); border: 1px solid var(--indigo); }
+
+/* Dual bars - venue (slate, foreground) overlaid on AU avg (indigo, behind) */
+.tc-dualbars { display: flex; flex-direction: column; gap: 8px; }
+.tc-dualbar-row {
+  display: grid; grid-template-columns: 110px 1fr 80px;
+  gap: 12px; align-items: center;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.tc-dualbar-row .tc-zone-lbl {
+  color: var(--ink-soft); font-weight: 600;
+}
+.tc-dualbar-track {
+  position: relative; height: 18px; background: var(--line-soft);
+  border-radius: 3px; overflow: hidden;
+}
+.tc-dualbar-au {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: var(--indigo-bg); border-right: 2px solid var(--indigo);
+}
+.tc-dualbar-venue {
+  position: absolute; top: 3px; left: 0; height: 12px;
+  background: var(--slate); border-radius: 2px;
+}
+.tc-dualbar-pcts {
+  display: flex; gap: 8px; justify-content: flex-end;
+  font-weight: 600;
+}
+.tc-pct-venue { color: var(--ink); }
+.tc-pct-au    { color: var(--indigo); font-size: 11px; }
 
 .tc-source-note {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-faint);
-  font-style: italic; margin: 0 0 12px 0;
-  padding: 6px 8px; background: var(--bg); border-radius: 3px;
+  font-style: italic; margin-top: 12px;
 }
 
-/* Manual override input row */
-.tc-override {
-  background: var(--line-soft); border-radius: 4px;
-  padding: 10px 12px;
-  display: grid; grid-template-columns: 1fr auto;
-  gap: 10px; align-items: center;
-}
-.tc-override label {
-  display: flex; flex-direction: column; gap: 4px;
-}
-.tc-override-lbl {
-  font-family: var(--font-body); font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
-}
-.tc-override-input {
-  font-family: var(--font-body); font-size: 13px; font-weight: 600;
-  padding: 6px 10px; border: 1px solid var(--line);
-  border-radius: 4px; background: var(--panel); color: var(--ink);
-  max-width: 180px;
-}
-.tc-override-input:focus {
-  outline: 2px solid var(--emerald); outline-offset: -1px;
-}
-.tc-override-help {
-  grid-column: 1 / -1;
-  font-family: var(--font-body); font-size: 11px;
-  color: var(--ink-mute); margin-top: 4px;
-}
-
-/* Mobile - stack header items + panels */
+/* Mobile */
 @media (max-width: 720px) {
   .track-conditions-card { padding: 12px 14px; }
-  .tc-header { gap: 14px; }
-  .tc-panels { grid-template-columns: 1fr; gap: 10px; }
-  .tc-zone-row { grid-template-columns: 80px 1fr 36px 44px; gap: 8px; font-size: 11px; }
-  .tc-zone-row-simple { grid-template-columns: 80px 1fr 36px; }
-  .tc-override { grid-template-columns: 1fr; }
+  .tc-dualbar-row { grid-template-columns: 80px 1fr 70px; gap: 8px; font-size: 11px; }
 }
 
 /* Race detail */
@@ -2981,9 +3002,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-header-stats" id="rd-header-stats"></div>
         </div>
         <div class="race-context-bar" id="rd-context-bar"></div>
-        <div class="track-conditions-card" id="rd-track-conditions"></div>
-        <div class="race-pace-map" id="rd-pace-map"></div>
         <div class="race-table-wrap" id="rd-runners-table"></div>
+        <div class="race-pace-map" id="rd-pace-map"></div>
+        <div class="track-conditions-card" id="rd-track-conditions"></div>
       </div>
     </div>
   </section>
@@ -4650,18 +4671,29 @@ function renderRaceDetail(raceId) {
     scoreThreshHtml +
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
-  // Context bar
+  // Context bar - includes inline track rating override
   const ctx = [];
   ctx.push({ lbl: 'Distance', v: race.distance + 'm' });
   ctx.push({ lbl: 'Going', v: getEffectiveGoing(race) || '—', overridden: !!getRaceTrackRating(race) });
   if (race.rail) ctx.push({ lbl: 'Rail', v: race.rail });
   ctx.push({ lbl: 'Prize', v: '$' + (race.prize / 1000).toFixed(0) + 'k' });
   ctx.push({ lbl: 'Field', v: runners.length });
+  const currentOverride = getRaceTrackRating(race) || '';
+  const overrideInput =
+    '<div class="ctx-item ctx-override-inline">' +
+      '<span class="ctx-lbl">Override</span>' +
+      '<input type="text" class="ctx-override-input" id="ctx-override-input" ' +
+        'placeholder="e.g. Soft 6" value="' + escapeHtml(currentOverride) + '" maxlength="20"/>' +
+      (currentOverride ? '<button class="ctx-override-clear" id="ctx-override-clear" title="Clear override">×</button>' : '') +
+    '</div>';
   document.getElementById('rd-context-bar').innerHTML =
     ctx.map(c => {
       const cls = c.overridden ? 'ctx-item ctx-overridden' : 'ctx-item';
       return '<div class="' + cls + '">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>';
-    }).join('');
+    }).join('') + overrideInput;
+
+  // Wire the inline override input
+  wireContextOverride(race);
 
   // ── Pace map / race shape ──
   // Horizontal lane diagram: Leaders left → Back right. Horses positioned in
@@ -4681,7 +4713,7 @@ function renderRaceDetail(raceId) {
     if (k === 'unknown') return;
     settled[k].sort((a, b) => (a.asp || 99) - (b.asp || 99));
   });
-  document.getElementById('rd-pace-map').innerHTML = renderRaceShapeSVG(settled, runners.length);
+  document.getElementById('rd-pace-map').innerHTML = renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass);
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
   // computed from historical races at same venue/going/rail
   document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
@@ -4933,7 +4965,7 @@ function renderRaceDetail(raceId) {
 // Width-proportional zones (a race with 6 leaders gets a wider Leaders zone
 // than a race with 1). Tab numbers in colored cells. Picks (model picks) get
 // a brighter outline so you can see which horses you're backing in context.
-function renderRaceShapeSVG(settled, totalRunners) {
+function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   const zones = [
     { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
     { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
@@ -4951,7 +4983,7 @@ function renderRaceShapeSVG(settled, totalRunners) {
   // then remaining width is shared proportionally to runner counts.
   const counts = zones.map(z => settled[z.key].length);
   const totalRunnersInRace = counts.reduce((a, b) => a + b, 0);
-  const MIN_ZONE_W = 90;  // enough room for label + horse cell
+  const MIN_ZONE_W = 90;
   const guaranteed = MIN_ZONE_W * zones.length;
   const sharedW = Math.max(0, plotW - guaranteed);
 
@@ -4968,11 +5000,27 @@ function renderRaceShapeSVG(settled, totalRunners) {
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
-  // Direction arrow at top showing flow of race (left = front)
-  svg += '<text x="' + PAD_X + '" y="14" font-family="Outfit" font-size="10" font-weight="700" ' +
-    'fill="#78716c" letter-spacing="0.06em">FRONT →</text>';
-  svg += '<text x="' + (W - PAD_X) + '" y="14" font-family="Outfit" font-size="10" font-weight="700" ' +
-    'fill="#78716c" letter-spacing="0.06em" text-anchor="end">← BACK</text>';
+  // Pace pill in top-right corner
+  if (paceDisplay) {
+    const pillColors = {
+      hot:   { bg: 'rgba(239,68,68,0.15)',   stroke: '#ef4444', text: '#991b1b' },
+      fast:  { bg: 'rgba(245,158,11,0.15)',  stroke: '#f59e0b', text: '#92400e' },
+      slow:  { bg: 'rgba(59,130,246,0.15)',  stroke: '#3b82f6', text: '#1e3a8a' },
+      '':    { bg: 'rgba(100,116,139,0.10)', stroke: '#64748b', text: '#334155' },
+      even:  { bg: 'rgba(100,116,139,0.10)', stroke: '#64748b', text: '#334155' },
+    };
+    const c = pillColors[paceClass] || pillColors[''];
+    const pillText = 'PACE: ' + paceDisplay.toUpperCase();
+    // Estimate width by character count
+    const pillW = Math.max(95, pillText.length * 6.5 + 16);
+    const pillX = W - PAD_X - pillW;
+    const pillY = 4;
+    svg += '<rect x="' + pillX + '" y="' + pillY + '" width="' + pillW + '" height="18" ' +
+      'rx="9" fill="' + c.bg + '" stroke="' + c.stroke + '" stroke-width="1"/>';
+    svg += '<text x="' + (pillX + pillW / 2) + '" y="' + (pillY + 13) + '" ' +
+      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.05em" ' +
+      'text-anchor="middle" fill="' + c.text + '">' + pillText + '</text>';
+  }
 
   // Zone backgrounds + labels + horse cells
   zones.forEach((z, i) => {
@@ -4980,18 +5028,15 @@ function renderRaceShapeSVG(settled, totalRunners) {
     const w = zoneWidths[i];
     const horses = settled[z.key];
 
-    // Zone background panel
     svg += '<rect x="' + x + '" y="' + PAD_Y + '" width="' + w + '" height="' + plotH +
       '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
       '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
-    // Zone label at top - shows abbreviated name + position hint
     svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
       'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
       z.lbl + ' (' + z.hint + ')</text>';
 
-    // Horse tab cells - lay out in a grid, max 4 per row to keep cells big enough to read
     const cellSize = 22;
     const cellGap = 4;
     const innerPad = 8;
@@ -5002,7 +5047,6 @@ function renderRaceShapeSVG(settled, totalRunners) {
       const col = hi % cellsPerRow;
       const cellX = x + innerPad + col * (cellSize + cellGap);
       const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
-      // Skip rendering if cell would overflow zone height (very dense zones)
       if (cellY + cellSize > PAD_Y + plotH - 12) return;
       svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
         '" fill="' + z.color + '" rx="3"/>';
@@ -5011,14 +5055,12 @@ function renderRaceShapeSVG(settled, totalRunners) {
         'fill="#fff">' + (u.tab || '?') + '</text>';
     });
 
-    // Empty zone hint
     if (horses.length === 0) {
       svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y + plotH / 2 + 4) + '" ' +
         'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
         '" fill-opacity="0.4" text-anchor="middle">none</text>';
     }
 
-    // Count at bottom
     svg += '<text x="' + (x + w / 2) + '" y="' + (H - 2) + '" ' +
       'font-family="Outfit" font-size="10" font-weight="600" text-anchor="middle" ' +
       'fill="' + z.textColor + '" fill-opacity="0.7">' + horses.length + '</text>';
@@ -5038,33 +5080,15 @@ function renderRaceShapeSVG(settled, totalRunners) {
 }
 
 
-// Track conditions card - bias commentary on how this track plays at this
-// condition based on historical winners' settled positions. User can override
-// the going via a manual rating that syncs across devices and propagates
-// throughout the dashboard for this specific race.
+// Track conditions card - shows venue's all-conditions winner-zone profile
+// with AU baseline overlay for easy comparison.
 function renderTrackConditions(race) {
   const venue = race.venue || '';
-  const date = race.date || '';
-  const officialGoing = race.going || '';
-  const overrideRating = getRaceTrackRating(race);
-  const effectiveGoing = overrideRating || officialGoing;
-  const rail = race.rail || '';
-  // Use the EFFECTIVE going for bias lookup so override actually changes the panel
-  const goingCat = goingCategoryStr(effectiveGoing);
-  const railNorm = normalizeRail(rail);
 
-  // ── Look up bias data ───────────────────────────────────────────────
   const bias = (typeof VENUE_BIAS !== 'undefined') ? VENUE_BIAS :
     { byVenueGoingRail: {}, byVenue: {}, totalRaces: 0 };
-  const specKey = venue + '|' + goingCat + '|' + railNorm;
-  const specStats = bias.byVenueGoingRail[specKey];
   const venueStats = bias.byVenue[venue];
 
-  // No header - context bar above already shows Distance/Going/Rail/Prize/Field
-  const headerHtml = '';
-
-  // ── Side-by-side commentary panels ──
-  // Compute observed % per zone for both specific and venue-overall.
   function computeZoneObserved(stats) {
     if (!stats || !stats.n) return null;
     return {
@@ -5075,169 +5099,86 @@ function renderTrackConditions(race) {
       back:     stats.b / stats.n,
     };
   }
-  const specObs = computeZoneObserved(specStats);
   const venueObs = computeZoneObserved(venueStats);
 
-  // Bias headline derived from specific vs venue-overall comparison.
-  // If we don't have venue-overall, fall back to AU baseline:
-  //   leaders 9% / onpace 27% / midfield 53% / back 11%
+  // AU baseline percentages (data-derived)
   const auBaseline = { leaders: 0.091, onpace: 0.270, midfield: 0.534, back: 0.106 };
+  const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
 
-  // Specific panel - if present, compare against venue-overall (or AU
-  // baseline if venue-overall absent). If not present, show insufficient.
-  let specPanelHtml = '';
-  if (specObs) {
-    const compareAgainst = venueObs || auBaseline;
-    const compareLabel = venueObs ? venue + ' overall' : 'AU average';
-    const deviations = ['leaders', 'onpace', 'midfield', 'back'].map(k => ({
-      zone:     k,
-      observed: specObs[k],
-      base:     compareAgainst[k],
-      delta:    specObs[k] - compareAgainst[k],
-    }));
-    deviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-    const top = deviations[0];
-
-    // Sample-size warning if N is low
-    const sampleWarn = specObs.n < 8 ? ' tc-thin' : '';
-
-    let summary;
-    const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
-    if (specObs.n < 5) {
-      summary = '<strong>Tiny sample (N=' + specObs.n + ')</strong> - read with caution.';
-    } else if (Math.abs(top.delta) < 0.05) {
-      summary = '<strong>No strong bias</strong> vs ' + compareLabel + '.';
-    } else if (top.delta > 0) {
-      summary = '<strong>' + zoneLabels[top.zone] + ' favoured</strong> at this combo: ' +
-        (specObs[top.zone] * 100).toFixed(0) + '% vs ' +
-        (compareAgainst[top.zone] * 100).toFixed(0) + '% ' + compareLabel +
-        ' (+' + (top.delta * 100).toFixed(0) + 'pp).';
-    } else {
-      summary = '<strong>' + zoneLabels[top.zone] + ' disadvantaged</strong> at this combo: ' +
-        (specObs[top.zone] * 100).toFixed(0) + '% vs ' +
-        (compareAgainst[top.zone] * 100).toFixed(0) + '% ' + compareLabel +
-        ' (' + (top.delta * 100).toFixed(0) + 'pp).';
-    }
-
-    const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
-      const o = specObs[k];
-      const b = compareAgainst[k];
-      const diff = o - b;
-      const diffCls = Math.abs(diff) < 0.05 ? '' : (diff > 0 ? 'pos' : 'neg');
-      const oWidth = Math.max(2, Math.round(o * 100));
-      return '<div class="tc-zone-row">' +
-        '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
-        '<div class="tc-zone-bar"><div class="tc-zone-fill" style="width:' + oWidth + '%;"></div></div>' +
-        '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
-        '<span class="tc-zone-delta ' + diffCls + '">' +
-          (diff >= 0 ? '+' : '') + (diff * 100).toFixed(0) + 'pp' +
-        '</span>' +
-        '</div>';
-    }).join('');
-
-    specPanelHtml =
-      '<div class="tc-panel' + sampleWarn + '">' +
-        '<div class="tc-panel-title">Today\'s exact setup' +
-          ' <span class="tc-panel-meta">' + escapeHtml(goingCat || '?') +
-          ' · Rail ' + escapeHtml(railNorm || '?') +
-          ' · N=' + specObs.n + '</span>' +
-        '</div>' +
-        '<div class="tc-summary">' + summary + '</div>' +
-        '<div class="tc-zones">' + barRows + '</div>' +
+  // Empty state if no data at all
+  if (!venueObs) {
+    const note = bias.totalRaces
+      ? 'No historical races for ' + escapeHtml(venue) + ' yet. The cache will fill in over the coming weeks.'
+      : 'No venue history loaded yet.';
+    return '<div class="tc-panel tc-panel-venue tc-insufficient-panel">' +
+        '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall</div>' +
+        '<div class="tc-summary">' + note + '</div>' +
       '</div>';
+  }
+
+  // Build summary - largest deviation from AU avg becomes the headline
+  const deviations = ['leaders', 'onpace', 'midfield', 'back'].map(k => ({
+    zone:  k,
+    obs:   venueObs[k],
+    base:  auBaseline[k],
+    delta: venueObs[k] - auBaseline[k],
+  }));
+  deviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const top = deviations[0];
+
+  let summary;
+  if (venueObs.n < 5) {
+    summary = '<strong>Tiny sample (N=' + venueObs.n + ')</strong> - read with caution.';
+  } else if (Math.abs(top.delta) < 0.05) {
+    summary = 'Plays close to AU average across all conditions.';
+  } else if (top.delta > 0) {
+    summary = '<strong>' + zoneLabels[top.zone] + ' bias</strong> overall (' +
+      (venueObs[top.zone] * 100).toFixed(0) + '% winners vs ' +
+      (auBaseline[top.zone] * 100).toFixed(0) + '% AU avg).';
   } else {
-    specPanelHtml =
-      '<div class="tc-panel tc-insufficient-panel">' +
-        '<div class="tc-panel-title">Today\'s exact setup' +
-          ' <span class="tc-panel-meta">' + escapeHtml(goingCat || '?') +
-          ' · Rail ' + escapeHtml(railNorm || '?') + '</span>' +
-        '</div>' +
-        '<div class="tc-summary">No historical data for this venue/going/rail combination yet.</div>' +
-      '</div>';
+    summary = '<strong>Anti-' + zoneLabels[top.zone].toLowerCase() + '</strong> overall (' +
+      (venueObs[top.zone] * 100).toFixed(0) + '% winners vs ' +
+      (auBaseline[top.zone] * 100).toFixed(0) + '% AU avg).';
   }
 
-  // Venue-overall panel - always shown if venue has any data
-  let venuePanelHtml = '';
-  if (venueObs && venueObs.n >= 3) {
-    const zoneLabels = { leaders: 'Leaders', onpace: 'On-pace', midfield: 'Midfield', back: 'Back-markers' };
-    // Compare venue-overall vs AU baseline to flag whether this venue
-    // itself is unusual
-    const venueDeviations = ['leaders', 'onpace', 'midfield', 'back'].map(k => ({
-      zone:     k,
-      observed: venueObs[k],
-      base:     auBaseline[k],
-      delta:    venueObs[k] - auBaseline[k],
-    }));
-    venueDeviations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-    const venueTop = venueDeviations[0];
-    let venueSummary;
-    if (Math.abs(venueTop.delta) < 0.05) {
-      venueSummary = 'Plays close to the AU average across all conditions.';
-    } else if (venueTop.delta > 0) {
-      venueSummary = '<strong>' + zoneLabels[venueTop.zone] + ' bias</strong> overall (' +
-        (venueObs[venueTop.zone] * 100).toFixed(0) + '% winners vs ' +
-        (auBaseline[venueTop.zone] * 100).toFixed(0) + '% AU avg).';
-    } else {
-      venueSummary = '<strong>Anti-' + zoneLabels[venueTop.zone].toLowerCase() + '</strong> overall (' +
-        (venueObs[venueTop.zone] * 100).toFixed(0) + '% winners vs ' +
-        (auBaseline[venueTop.zone] * 100).toFixed(0) + '% AU avg).';
-    }
-
-    const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
-      const o = venueObs[k];
-      const oWidth = Math.max(2, Math.round(o * 100));
-      return '<div class="tc-zone-row tc-zone-row-simple">' +
-        '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
-        '<div class="tc-zone-bar"><div class="tc-zone-fill venue-bar" style="width:' + oWidth + '%;"></div></div>' +
-        '<span class="tc-zone-pct">' + (o * 100).toFixed(0) + '%</span>' +
-        '</div>';
-    }).join('');
-
-    venuePanelHtml =
-      '<div class="tc-panel tc-panel-venue">' +
-        '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall' +
-          ' <span class="tc-panel-meta">all conditions · N=' + venueObs.n + '</span>' +
-        '</div>' +
-        '<div class="tc-summary">' + venueSummary + '</div>' +
-        '<div class="tc-zones">' + barRows + '</div>' +
+  // Build dual-bar rows: venue (dark slate) + AU avg (lighter accent) overlapping.
+  // Both percentages shown on the right.
+  const barRows = ['leaders', 'onpace', 'midfield', 'back'].map(k => {
+    const v = venueObs[k];
+    const a = auBaseline[k];
+    const vWidth = Math.max(2, Math.round(v * 100));
+    const aWidth = Math.max(2, Math.round(a * 100));
+    return '<div class="tc-dualbar-row">' +
+      '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
+      '<div class="tc-dualbar-track">' +
+        '<div class="tc-dualbar-au" style="width:' + aWidth + '%;" title="AU avg ' + (a*100).toFixed(0) + '%"></div>' +
+        '<div class="tc-dualbar-venue" style="width:' + vWidth + '%;" title="' + escapeHtml(venue) + ' ' + (v*100).toFixed(0) + '%"></div>' +
+      '</div>' +
+      '<span class="tc-dualbar-pcts">' +
+        '<span class="tc-pct-venue">' + (v * 100).toFixed(0) + '%</span>' +
+        '<span class="tc-pct-au">' + (a * 100).toFixed(0) + '%</span>' +
+      '</span>' +
       '</div>';
-  } else if (venueObs) {
-    venuePanelHtml =
-      '<div class="tc-panel tc-panel-venue tc-insufficient-panel">' +
-        '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall' +
-          ' <span class="tc-panel-meta">N=' + venueObs.n + '</span>' +
-        '</div>' +
-        '<div class="tc-summary">Need more meetings at this venue for a confident read.</div>' +
-      '</div>';
-  }
+  }).join('');
 
-  // Wrap both panels in a side-by-side container
-  const commentaryHtml = '<div class="tc-panels">' + specPanelHtml + venuePanelHtml + '</div>';
-
-  // Footer note about data source
   let footerNote = '';
   if (bias.totalRaces) {
     footerNote = '<div class="tc-source-note">Based on ' + bias.totalRaces +
-      ' historical races. Refreshed daily by backfill_venue_history.py.</div>';
-  } else {
-    footerNote = '<div class="tc-source-note">No venue history loaded yet. Run backfill_venue_history.py to populate.</div>';
+      ' historical races. Refreshed daily.</div>';
   }
 
-  // ── Manual rating override input ──
-  const overrideHtml =
-    '<div class="tc-override">' +
-      '<label>' +
-        '<span class="tc-override-lbl">Track rating override</span>' +
-        '<input type="text" class="tc-override-input" id="tc-override-input" ' +
-          'placeholder="e.g. Soft 6" value="' + escapeHtml(overrideRating || '') + '" ' +
-          'maxlength="20"/>' +
-      '</label>' +
-      (overrideRating ?
-        '<button class="btn-tiny" id="tc-override-clear">Clear</button>' : '') +
-      '<div class="tc-override-help">Override the official going if you have intel that differs (e.g. paddock report says it\'s playing softer). Syncs across devices.</div>' +
+  return '<div class="tc-panel tc-panel-venue">' +
+      '<div class="tc-panel-title">' + escapeHtml(venue) + ' overall' +
+        '<span class="tc-panel-meta">all conditions · N=' + venueObs.n + '</span>' +
+      '</div>' +
+      '<div class="tc-summary">' + summary + '</div>' +
+      '<div class="tc-dualbar-legend">' +
+        '<span class="tc-legend-item"><span class="swatch swatch-venue"></span>' + escapeHtml(venue) + '</span>' +
+        '<span class="tc-legend-item"><span class="swatch swatch-au"></span>AU average</span>' +
+      '</div>' +
+      '<div class="tc-dualbars">' + barRows + '</div>' +
+      footerNote +
     '</div>';
-
-  return headerHtml + commentaryHtml + footerNote + overrideHtml;
 }
 
 // Normalize rail strings the same way the Python loader does so the
@@ -5259,29 +5200,29 @@ function goingCategoryStr(g) {
   return g;
 }
 
-function wireTrackConditionsCard(race) {
-  const inp = document.getElementById('tc-override-input');
+function wireContextOverride(race) {
+  const inp = document.getElementById('ctx-override-input');
   if (inp) {
     let dt = null;
     inp.addEventListener('input', e => {
       clearTimeout(dt);
       dt = setTimeout(() => {
         setRaceTrackRating(race, e.target.value.trim());
-        // Re-render the entire race detail panel so override propagates to:
-        //   - context bar going value
-        //   - track conditions bias commentary
-        //   - runners table going column (each runner's perf on this going)
         renderRaceDetail(race.race_id);
       }, 600);
     });
   }
-  const clearBtn = document.getElementById('tc-override-clear');
+  const clearBtn = document.getElementById('ctx-override-clear');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       setRaceTrackRating(race, null);
       renderRaceDetail(race.race_id);
     });
   }
+}
+
+function wireTrackConditionsCard(race) {
+  // No-op - override moved to the context bar (wireContextOverride handles it)
 }
 
 function paceZoneHtml(cls, lbl, hint, runners) {
