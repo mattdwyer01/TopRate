@@ -1525,6 +1525,32 @@ body {
 .pace-zone.zone-back     { background: #fdf2f8; }
 
 /* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
+.race-shape-wrap {
+  position: relative;
+  padding-top: 8px;
+}
+.race-pace-pill {
+  position: absolute; top: 0; right: 0;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 16px;
+  font-family: var(--font-body); font-size: 12px;
+  border: 1.5px solid; background: var(--panel);
+  z-index: 2;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.race-pace-pill .rpp-lbl {
+  font-size: 10px; font-weight: 600; opacity: 0.75;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.race-pace-pill .rpp-val {
+  font-weight: 700; letter-spacing: 0.02em;
+}
+.race-pace-pill.hot   { color: #991b1b; border-color: #ef4444; background: #fef2f2; }
+.race-pace-pill.fast  { color: #92400e; border-color: #f59e0b; background: #fffbeb; }
+.race-pace-pill.slow  { color: #1e3a8a; border-color: #3b82f6; background: #eff6ff; }
+.race-pace-pill.even,
+.race-pace-pill       { color: #334155; border-color: #64748b; }
+
 .race-shape-svg {
   width: 100%; height: auto; display: block;
   max-height: 180px;
@@ -1533,6 +1559,30 @@ body {
   font-family: var(--font-body); font-size: 11px; color: var(--ink-faint);
   font-style: italic; margin-top: 6px; padding-left: 4px;
 }
+
+/* Pace pill row - HTML element above the speed map SVG */
+.rsp-pill-row {
+  display: flex; justify-content: flex-end;
+  padding: 0 8px 8px 8px;
+}
+.rsp-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px; border-radius: 999px;
+  font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em;
+  background: rgba(100,116,139,0.10);
+  border: 1px solid #64748b;
+  color: #334155;
+}
+.rsp-pill .rsp-pill-lbl {
+  font-size: 9px; font-weight: 600; opacity: 0.75;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.rsp-pill .rsp-pill-val { text-transform: uppercase; }
+.rsp-pill-hot   { background: rgba(239,68,68,0.15);  border-color: #ef4444; color: #991b1b; }
+.rsp-pill-fast  { background: rgba(245,158,11,0.15); border-color: #f59e0b; color: #92400e; }
+.rsp-pill-slow  { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #1e3a8a; }
+.rsp-pill-even  { background: rgba(16,185,129,0.12); border-color: #10b981; color: #065f46; }
 
 /* Track conditions card - sits between context bar and race shape on detail page */
 .track-conditions-card {
@@ -1647,8 +1697,9 @@ body {
 .tc-legend-item .swatch-venue { background: var(--slate); }
 .tc-legend-item .swatch-au    { background: var(--indigo-bg); border: 1px solid var(--indigo); }
 
-/* Dual bars - venue (slate, foreground) overlaid on AU avg (indigo, behind) */
-.tc-dualbars { display: flex; flex-direction: column; gap: 8px; }
+/* Dual bars - venue on top half, AU avg on bottom half. Both equally
+   visible, no overlap, easy side-by-side comparison. */
+.tc-dualbars { display: flex; flex-direction: column; gap: 10px; }
 .tc-dualbar-row {
   display: grid; grid-template-columns: 110px 1fr 80px;
   gap: 12px; align-items: center;
@@ -1659,23 +1710,31 @@ body {
   color: var(--ink-soft); font-weight: 600;
 }
 .tc-dualbar-track {
-  position: relative; height: 18px; background: var(--line-soft);
-  border-radius: 3px; overflow: hidden;
-}
-.tc-dualbar-au {
-  position: absolute; top: 0; left: 0; height: 100%;
-  background: var(--indigo-bg); border-right: 2px solid var(--indigo);
+  position: relative; height: 26px; background: transparent;
+  border-radius: 3px;
+  display: flex; flex-direction: column; gap: 2px;
 }
 .tc-dualbar-venue {
-  position: absolute; top: 3px; left: 0; height: 12px;
-  background: var(--slate); border-radius: 2px;
+  height: 11px; background: var(--slate); border-radius: 2px;
+  min-width: 4px;
+}
+.tc-dualbar-au {
+  height: 11px; background: #6366f1; border-radius: 2px;
+  min-width: 4px;
+  opacity: 0.85;
 }
 .tc-dualbar-pcts {
-  display: flex; gap: 8px; justify-content: flex-end;
-  font-weight: 600;
+  display: flex; flex-direction: column; gap: 2px;
+  justify-content: center;
+  font-weight: 600; line-height: 1.1;
 }
 .tc-pct-venue { color: var(--ink); }
-.tc-pct-au    { color: var(--indigo); font-size: 11px; }
+.tc-pct-au    { color: #6366f1; font-size: 11px; }
+
+/* Legend swatches */
+.tc-legend-item .swatch-au {
+  background: #6366f1;
+}
 
 .tc-source-note {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-faint);
@@ -4713,7 +4772,16 @@ function renderRaceDetail(raceId) {
     if (k === 'unknown') return;
     settled[k].sort((a, b) => (a.asp || 99) - (b.asp || 99));
   });
-  document.getElementById('rd-pace-map').innerHTML = renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass);
+  document.getElementById('rd-pace-map').innerHTML =
+    '<div class="race-shape-wrap">' +
+      (paceDisplay
+        ? '<div class="race-pace-pill ' + (paceClass || 'even') + '">' +
+            '<span class="rpp-lbl">Pace</span>' +
+            '<span class="rpp-val">' + escapeHtml(paceDisplay) + '</span>' +
+          '</div>'
+        : '') +
+      renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass) +
+    '</div>';
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
   // computed from historical races at same venue/going/rail
   document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
@@ -4974,8 +5042,8 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   ];
 
   const W = 880;
-  const H = 138;
-  const PAD_X = 8, PAD_Y = 38, BOTTOM_PAD = 6;
+  const H = 122;
+  const PAD_X = 8, PAD_Y = 22, BOTTOM_PAD = 6;
   const plotW = W - PAD_X * 2;
   const plotH = H - PAD_Y - BOTTOM_PAD;
 
@@ -4992,7 +5060,6 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
     return MIN_ZONE_W + sharedW * share;
   });
 
-  // Cumulative offsets
   const zoneOffsets = [];
   let cum = PAD_X;
   zoneWidths.forEach(w => { zoneOffsets.push(cum); cum += w; });
@@ -5000,29 +5067,6 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
-  // Pace pill in top-right corner - sits in its own row above the zones,
-  // so it doesn't collide with zone labels.
-  if (paceDisplay) {
-    const pillColors = {
-      hot:   { bg: 'rgba(239,68,68,0.15)',   stroke: '#ef4444', text: '#991b1b' },
-      fast:  { bg: 'rgba(245,158,11,0.15)',  stroke: '#f59e0b', text: '#92400e' },
-      slow:  { bg: 'rgba(59,130,246,0.15)',  stroke: '#3b82f6', text: '#1e3a8a' },
-      '':    { bg: 'rgba(100,116,139,0.10)', stroke: '#64748b', text: '#334155' },
-      even:  { bg: 'rgba(100,116,139,0.10)', stroke: '#64748b', text: '#334155' },
-    };
-    const c = pillColors[paceClass] || pillColors[''];
-    const pillText = 'PACE: ' + paceDisplay.toUpperCase();
-    const pillW = Math.max(95, pillText.length * 6.5 + 16);
-    const pillX = W - PAD_X - pillW;
-    const pillY = 4;
-    svg += '<rect x="' + pillX + '" y="' + pillY + '" width="' + pillW + '" height="18" ' +
-      'rx="9" fill="' + c.bg + '" stroke="' + c.stroke + '" stroke-width="1"/>';
-    svg += '<text x="' + (pillX + pillW / 2) + '" y="' + (pillY + 13) + '" ' +
-      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.05em" ' +
-      'text-anchor="middle" fill="' + c.text + '">' + pillText + '</text>';
-  }
-
-  // Zone backgrounds + labels + horse cells
   zones.forEach((z, i) => {
     const x = zoneOffsets[i];
     const w = zoneWidths[i];
@@ -5032,7 +5076,6 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
       '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
       '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
-    // Zone label - sits above the zone, well below the pace pill row
     svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
       'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
@@ -5065,7 +5108,19 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
 
   svg += '</svg>';
 
-  // Add unknown count caption if any
+  // Pace pill rendered as HTML element above the SVG, in its own row
+  // so it never collides with zone labels. Floats to the right.
+  let pacePill = '';
+  if (paceDisplay) {
+    const cls = paceClass ? ('rsp-pill rsp-pill-' + paceClass) : 'rsp-pill';
+    pacePill = '<div class="rsp-pill-row">' +
+      '<span class="' + cls + '">' +
+        '<span class="rsp-pill-lbl">PACE</span>' +
+        '<span class="rsp-pill-val">' + escapeHtml(paceDisplay) + '</span>' +
+      '</span>' +
+    '</div>';
+  }
+
   let unknownCaption = '';
   if (settled.unknown && settled.unknown.length > 0) {
     unknownCaption = '<div class="race-shape-unknown">' +
@@ -5073,7 +5128,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass) {
       ' with no settling history (likely first-up or limited data)</div>';
   }
 
-  return svg + unknownCaption;
+  return pacePill + svg + unknownCaption;
 }
 
 
@@ -5148,8 +5203,8 @@ function renderTrackConditions(race) {
     return '<div class="tc-dualbar-row">' +
       '<span class="tc-zone-lbl">' + zoneLabels[k] + '</span>' +
       '<div class="tc-dualbar-track">' +
-        '<div class="tc-dualbar-au" style="width:' + aWidth + '%;" title="AU avg ' + (a*100).toFixed(0) + '%"></div>' +
         '<div class="tc-dualbar-venue" style="width:' + vWidth + '%;" title="' + escapeHtml(venue) + ' ' + (v*100).toFixed(0) + '%"></div>' +
+        '<div class="tc-dualbar-au" style="width:' + aWidth + '%;" title="AU avg ' + (a*100).toFixed(0) + '%"></div>' +
       '</div>' +
       '<span class="tc-dualbar-pcts">' +
         '<span class="tc-pct-venue">' + (v * 100).toFixed(0) + '%</span>' +
