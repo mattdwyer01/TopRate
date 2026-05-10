@@ -619,41 +619,54 @@ def merge_pf_ratings(runners_df):
 MODEL_DEFS = {
     "main": {
         "label":       "Main",
-        "desc":        "Voting model: at least 5 of 6 signals must rank top-3 (WPR, Late, Class, L600, PF AI, TR) + SP≥$3 (skip first-starter races)",
+        "desc":        "Voting model: 3 of 6 signals must rank #1 AND 5 of 6 must rank top-3 (WPR, Late, Class, L600, PF AI, TR) + SP≥$3 (skip first-starter races)",
         # Backtest (28 days, Apr 9 - May 7, 11,113 reliable rows):
-        #   N=608 picks, 21.7/day, 46.8/Saturday
-        #   WR 21.4%, AvgSP $5.26
-        #   Overall ROI: +11.5%
-        #   Saturday ROI: +16.3% (3 of 4 Saturdays positive)
-        #   Profit factor: 1.15
-        #   Profit (1u flat): +$69.80 over 28 days (matches old strict rule's
-        #     +$71.20 in absolute profit, on 6x more bets)
+        #   N=214 picks, 7.6/day, 17.5/Saturday
+        #   WR 23.8%, AvgSP $4.78
+        #   Overall ROI: +18.4%
+        #   Saturday ROI: +17.1%
+        #   Profit factor: 1.24
+        #   Profit (1u flat): +$39.40 over 28 days
         #
-        # Stress-test results that drove this choice:
-        #   - All 4 weeks individually positive (+22, +4, +1, +18% ROI)
-        #     -> consistent edge, not week-dependent
-        #   - Removing best day: ROI drops only $69.80 -> $63.80
-        #     -> profit isn't lucky-day-dependent
-        #   - Removing worst day: ROI INCREASES to $88.70
-        #     -> the worst day costs more than best day made; rule is robust
-        #   - Wilson 95% CI on WR: [18.3%, 24.8%] (tight)
-        #   - Profit-to-drawdown ratio: 2.21
-        #   - Max losing streak: 22 bets (be prepared for this)
+        # Stress-test context that drove this choice over the prior V2 rule:
+        #   - Higher edge per pick (+18.4% vs V2's +11.5%)
+        #   - Higher win rate (23.8% vs 21.4%)
+        #   - Better profit factor (1.24 vs 1.15)
+        #   - Shorter max losing streak (15 vs 22)
+        #   - 3 of 4 weeks positive (V2 had 4 of 4 - slight regression)
+        #   - Profit-to-drawdown ratio: 1.84 (V2 was 2.21 - slight regression)
         #
-        # The rule replaces the prior "Main OR Sat class-up" hybrid (which was
-        # not profitable live) and the original strict "Main rule" alone (which
-        # had higher per-pick ROI but only 7-9 picks/Sat). V2 trades per-pick
-        # edge for Saturday volume the user wanted.
-        "expected_wr": 0.214, "expected_roi_sp": 0.115, "expected_roi_top": 0.115,
-        "bets_per_day": 21.7, "min_top_odds": 3.0,
+        # The rule adds a "must dominate somewhere" filter on top of V2:
+        # the horse must be ranked #1 on at least 3 signals (not just top-3).
+        # Cuts volume from 608 to 214 picks but lifts ROI by 6.9pp.
+        # Trade is per-pick edge for portfolio robustness vs V2.
+        #
+        # History:
+        #   v1: Strict main rule (WPR<=3 + Late<=3 + Class=1 + L600<=3)
+        #       100 picks, +71.2% ROI, only 7.2/Sat
+        #   v2: 5 of 6 top-3 voting
+        #       608 picks, +11.5% ROI, 46.8/Sat - traded edge for volume
+        #   v3 (current): 3 top-1 AND 5 top-3
+        #       214 picks, +18.4% ROI, 17.5/Sat - middle ground
+        "expected_wr": 0.238, "expected_roi_sp": 0.184, "expected_roi_top": 0.184,
+        "bets_per_day": 7.6, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
             # Skip first-starter races (model signals don't apply to debut runners)
             not ctx.get("has_first_starter", False)
-            # Count "votes" = how many of the 6 signals have this horse in top-3.
-            # A signal vote is 1 if the horse is ranked top-3 for that signal,
-            # 0 otherwise (including missing data - safer to require active hits
-            # rather than counting NaN as positive).
+            # Two-tier voting filter:
+            #   (a) horse must rank #1 on at least 3 of 6 signals (must dominate)
+            #   (b) horse must rank top-3 on at least 5 of 6 signals (broad strength)
+            # Both conditions required. Rank source: TR ranks computed from raw
+            # values, PF ranks taken from the rating service.
+            and (
+                int((ctx["wpr_rank"].get(run_id) or 99) == 1)
+                + int((ctx["late_rank"].get(run_id) or 99) == 1)
+                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx["tr_rank"].get(run_id) or 99) == 1)
+            ) >= 3
             and (
                 int((ctx["wpr_rank"].get(run_id) or 99) <= 3)
                 + int((ctx["late_rank"].get(run_id) or 99) <= 3)

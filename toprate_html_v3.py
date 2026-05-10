@@ -5395,11 +5395,13 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // V2 voting model rule (matches lambda in toprate_daily.py):
-    //   A horse qualifies if it ranks top-3 in at least 5 of 6 signals:
-    //   WPR, Late, PF Class, PF L600, PF AI, TR rating.
-    // Backtest: ~21.4% WR, +11.5% ROI, 21.7 picks/day, 46.8/Saturday,
-    //   all 4 weeks individually positive (+22, +4, +1, +18% ROI).
+    // V3 voting model rule (matches lambda in toprate_daily.py):
+    //   A horse qualifies if BOTH:
+    //     (a) ranks #1 in at least 3 of 6 signals
+    //     (b) ranks top-3 in at least 5 of 6 signals
+    //   Signals: WPR, Late, PF Class, PF L600, PF AI, TR rating.
+    // Backtest: 23.8% WR, +18.4% ROI, 7.6/day, 17.5/Saturday,
+    //   3 of 4 weeks positive, profit factor 1.24.
     // Highlighted as 'spot-bet' (re-using existing CSS for emerald tint).
     // Suppressed when race is already a model pick (no double-highlight).
     // (Note: trR already declared above for muted-row check.)
@@ -5409,15 +5411,22 @@ function renderRaceDetail(raceId) {
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
     const raceHasModelPick = picks.length > 0;
-    // Count how many of the 6 signals have this horse top-3.
-    const _votes =
+    // Count #1 votes (signal == 1) and top-3 votes (signal <= 3) across 6 signals.
+    const _votes_top1 =
+        ((wprR != null && wprR === 1) ? 1 : 0) +
+        ((lateR != null && lateR === 1) ? 1 : 0) +
+        ((u.wcR != null && u.wcR === 1) ? 1 : 0) +
+        ((u.l600R != null && u.l600R === 1) ? 1 : 0) +
+        ((u.pfaiR != null && u.pfaiR === 1) ? 1 : 0) +
+        ((trR != null && trR === 1) ? 1 : 0);
+    const _votes_top3 =
         ((wprR != null && wprR <= 3) ? 1 : 0) +
         ((lateR != null && lateR <= 3) ? 1 : 0) +
         ((u.wcR != null && u.wcR <= 3) ? 1 : 0) +
         ((u.l600R != null && u.l600R <= 3) ? 1 : 0) +
         ((u.pfaiR != null && u.pfaiR <= 3) ? 1 : 0) +
         ((trR != null && trR <= 3) ? 1 : 0);
-    const isUnifiedRule = _votes >= 5;
+    const isUnifiedRule = (_votes_top1 >= 3) && (_votes_top3 >= 5);
     if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
