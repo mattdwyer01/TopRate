@@ -2001,16 +2001,18 @@ body {
 .watchlist-list {
   display: flex; flex-direction: column;
   border: 1px solid var(--line-soft); border-radius: 12px;
-  overflow: hidden; background: var(--panel);
+  overflow-x: auto;
+  background: var(--panel);
 }
 .wl-pickrow {
   display: grid;
-  grid-template-columns: 60px 100px 1fr 320px 80px;
+  grid-template-columns: 60px 100px minmax(180px, 1fr) 280px 80px;
   gap: 12px; align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line-soft);
   cursor: pointer;
   transition: background 0.12s;
+  min-width: 800px;
 }
 .wl-pickrow:last-child { border-bottom: none; }
 .wl-pickrow:hover { background: #fafbfc; }
@@ -2046,7 +2048,7 @@ body {
 }
 .wl-tag.spot { background: #3b82f6; color: #fff; }
 .wl-tag.roughie { background: #f59e0b; color: #fff; }
-.wl-pickrow .pr-sigs { display: flex; flex-wrap: wrap; gap: 3px; }
+.wl-pickrow .pr-sigs { display: flex; flex-wrap: nowrap; gap: 3px; overflow: hidden; }
 .wl-pickrow .pr-sigs .sig {
   display: inline-flex; align-items: baseline; gap: 2px;
   font-family: var(--font-body); font-size: 11px;
@@ -5441,213 +5443,82 @@ function renderRaceDetail(raceId) {
 // than a race with 1). Tab numbers in colored cells. Picks (model picks) get
 // a brighter outline so you can see which horses you're backing in context.
 function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race, runners) {
-  // ── New top-down lane diagram ──
-  // X axis: horizontal position from leaders (left) to back (right)
-  // Y axis: lane from rail (top) to outside (bottom)
-  //
-  // Each horse is positioned by:
-  //   X = avg_settled_pos (front-to-back position)
-  //   Y = derived lane based on barrier + rail bias
-  //
-  // The rail line at the top represents the inside running line.
-  // Direction-of-travel arrow on the right shows which way they're racing.
+  const zones = [
+    { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
+    { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
+    { key: 'midfield', lbl: 'MID',      hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
+    { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
+  ];
 
   const W = 880;
-  const H = 200;
-  const PAD_TOP = 30;     // room for "RAIL" label
-  const PAD_BOTTOM = 30;  // room for distance markers
-  const PAD_LEFT = 60;    // room for "FINISH" line
-  const PAD_RIGHT = 50;   // room for direction arrow
-  const plotW = W - PAD_LEFT - PAD_RIGHT;
-  const plotH = H - PAD_TOP - PAD_BOTTOM;
+  const H = 122;
+  const PAD_X = 8, PAD_Y = 22, BOTTOM_PAD = 6;
+  const plotW = W - PAD_X * 2;
+  const plotH = H - PAD_Y - BOTTOM_PAD;
 
-  // Pull together all runners with positions known
-  const allRunners = [];
-  ['leaders', 'onpace', 'midfield', 'back'].forEach(k => {
-    settled[k].forEach(u => allRunners.push(u));
+  // Allocate width: each zone gets a guaranteed minimum so labels don't collide,
+  // then remaining width is shared proportionally to runner counts.
+  const counts = zones.map(z => settled[z.key].length);
+  const totalRunnersInRace = counts.reduce((a, b) => a + b, 0);
+  const MIN_ZONE_W = 90;
+  const guaranteed = MIN_ZONE_W * zones.length;
+  const sharedW = Math.max(0, plotW - guaranteed);
+
+  const zoneWidths = zones.map((z, i) => {
+    const share = totalRunnersInRace > 0 ? counts[i] / totalRunnersInRace : 0.25;
+    return MIN_ZONE_W + sharedW * share;
   });
-  const fieldSize = totalRunners || allRunners.length || 12;
 
-  // ── Compute lane (Y) for each horse ──
-  // Inside lane = lower barriers. Wider lane = higher barriers.
-  // Rail bias modifies this: "Out 8m" = horses run wider than usual.
-  const railText = (race && race.rail) ? String(race.rail).toLowerCase() : '';
-  let railOffset = 0;  // 0 = on the rail, larger = horses pushed out
-  const m = railText.match(/(?:out|true\+|\+)\s*(\d+)/);
-  if (m) railOffset = parseInt(m[1], 10);
-  // Treat "true" as on the rail, "true+3m" as +3
-  const isTrueRail = railText.startsWith('true') && !m;
-
-  function laneY(barrier, settlePos) {
-    // Base lane: barrier 1 = innermost, max barrier = outermost
-    // But horses with low settling positions tend to drift in toward the rail
-    // Horses with high settling positions stay in their barrier lane
-    if (barrier == null) return PAD_TOP + plotH * 0.5;  // unknown = middle
-    const barrierFrac = (barrier - 1) / Math.max(1, fieldSize - 1);  // 0..1
-    // Settlement effect: leaders compress to inside, back markers stay wide
-    const isLeading = settlePos != null && settlePos <= 3;
-    const isBack    = settlePos != null && settlePos >= 8;
-    let laneFrac = barrierFrac;
-    if (isLeading) {
-      // Leaders take cover - drift in 30%
-      laneFrac = barrierFrac * 0.5 + 0.0;
-    } else if (isBack) {
-      // Backmarkers often stay where they are - keep barrier lane
-      laneFrac = barrierFrac * 0.85 + 0.05;
-    } else {
-      // Mid-field finds a position - 60% of barrier
-      laneFrac = barrierFrac * 0.7 + 0.05;
-    }
-    // Apply rail bias - shifts everything outward
-    const railShift = Math.min(0.25, railOffset * 0.025);
-    laneFrac = Math.min(0.95, laneFrac + railShift);
-    return PAD_TOP + 6 + laneFrac * (plotH - 14);
-  }
-
-  // ── Compute X position from settling pos ──
-  function settleX(pos) {
-    if (pos == null) return PAD_LEFT + plotW * 0.6;  // unknown = middle-back
-    // pos ranges roughly 1 (leader) to fieldSize (last)
-    // Map to plotW: pos 1 → near left, pos fieldSize → near right
-    const t = Math.min(1, Math.max(0, (pos - 1) / Math.max(1, fieldSize - 1)));
-    return PAD_LEFT + 20 + t * (plotW - 40);
-  }
-
-  // Color by zone (front to back)
-  function zoneColor(pos) {
-    if (pos == null) return '#94a3b8';
-    if (pos <= 2) return '#fbbf24';   // amber - leaders
-    if (pos <= 4) return '#10b981';   // emerald - on-pace
-    if (pos <= 8) return '#3b82f6';   // blue - midfield
-    return '#ec4899';                  // pink - back
-  }
+  const zoneOffsets = [];
+  let cum = PAD_X;
+  zoneWidths.forEach(w => { zoneOffsets.push(cum); cum += w; });
 
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
-  // Background gradient: green grass with subtle texture
-  svg += '<defs>' +
-    '<linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="#86efac" stop-opacity="0.15"/>' +
-      '<stop offset="100%" stop-color="#86efac" stop-opacity="0.08"/>' +
-    '</linearGradient>' +
-  '</defs>';
-  svg += '<rect x="' + PAD_LEFT + '" y="' + PAD_TOP + '" width="' + plotW + '" height="' + plotH +
-    '" fill="url(#grassGrad)" rx="6"/>';
+  zones.forEach((z, i) => {
+    const x = zoneOffsets[i];
+    const w = zoneWidths[i];
+    const horses = settled[z.key];
 
-  // The rail (top edge) - bold line
-  svg += '<line x1="' + PAD_LEFT + '" y1="' + PAD_TOP + '" x2="' + (PAD_LEFT + plotW) +
-    '" y2="' + PAD_TOP + '" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>';
-  // Rail label
-  const railLabel = railText
-    ? (isTrueRail ? 'RAIL · TRUE' : 'RAIL · ' + race.rail.toUpperCase())
-    : 'RAIL';
-  svg += '<text x="' + (PAD_LEFT + 6) + '" y="' + (PAD_TOP - 10) + '" ' +
-    'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.08em" ' +
-    'fill="#0f172a">' + escapeHtml(railLabel) + '</text>';
+    svg += '<rect x="' + x + '" y="' + PAD_Y + '" width="' + w + '" height="' + plotH +
+      '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
+      '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
-  // Outer boundary (subtle)
-  svg += '<line x1="' + PAD_LEFT + '" y1="' + (PAD_TOP + plotH) + '" x2="' + (PAD_LEFT + plotW) +
-    '" y2="' + (PAD_TOP + plotH) + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>';
+    svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
+      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
+      'text-anchor="middle" fill="' + z.textColor + '">' +
+      z.lbl + ' (' + z.hint + ')</text>';
 
-  // Finish line (left edge - horses running right-to-left, so finish is on the left)
-  svg += '<line x1="' + PAD_LEFT + '" y1="' + PAD_TOP + '" x2="' + PAD_LEFT +
-    '" y2="' + (PAD_TOP + plotH) + '" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>';
-  svg += '<text x="' + (PAD_LEFT - 40) + '" y="' + (PAD_TOP + plotH / 2) + '" ' +
-    'font-family="Outfit" font-size="11" font-weight="700" letter-spacing="0.1em" ' +
-    'fill="#dc2626" transform="rotate(-90 ' + (PAD_LEFT - 40) + ' ' + (PAD_TOP + plotH / 2) + ')">' +
-    'FINISH</text>';
+    const cellSize = 22;
+    const cellGap = 4;
+    const innerPad = 8;
+    const availW = w - innerPad * 2;
+    const cellsPerRow = Math.max(1, Math.floor((availW + cellGap) / (cellSize + cellGap)));
+    horses.forEach((u, hi) => {
+      const row = Math.floor(hi / cellsPerRow);
+      const col = hi % cellsPerRow;
+      const cellX = x + innerPad + col * (cellSize + cellGap);
+      const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
+      if (cellY + cellSize > PAD_Y + plotH - 4) return;
+      svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
+        '" fill="' + z.color + '" rx="3"/>';
+      svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
+        '" font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
+        'fill="#fff">' + (u.tab || '?') + '</text>';
+    });
 
-  // Direction-of-travel arrow on right side
-  const arrowY = PAD_TOP + plotH / 2;
-  const arrowX = W - PAD_RIGHT + 20;
-  svg += '<path d="M ' + (arrowX - 15) + ' ' + arrowY + ' L ' + (arrowX - 30) + ' ' + (arrowY - 7) +
-    ' L ' + (arrowX - 30) + ' ' + (arrowY + 7) + ' Z" fill="#64748b"/>';
-  svg += '<text x="' + (arrowX - 50) + '" y="' + (arrowY + 25) + '" ' +
-    'font-family="Outfit" font-size="9" font-weight="600" letter-spacing="0.06em" ' +
-    'fill="#64748b" text-anchor="middle">RUNNING</text>';
-
-  // Zone bands at top - subtle vertical bands showing front/mid/back regions
-  const zoneRanges = [
-    { from: 1, to: 2,    color: '#fbbf24', lbl: 'LEAD' },
-    { from: 3, to: 4,    color: '#10b981', lbl: 'ON-PACE' },
-    { from: 5, to: 8,    color: '#3b82f6', lbl: 'MID' },
-    { from: 9, to: fieldSize, color: '#ec4899', lbl: 'BACK' },
-  ];
-  zoneRanges.forEach(z => {
-    if (z.from > fieldSize) return;
-    const x1 = settleX(z.from) - 14;
-    const x2 = settleX(Math.min(z.to, fieldSize)) + 14;
-    if (x2 <= x1) return;
-    // subtle column band
-    svg += '<rect x="' + x1 + '" y="' + (PAD_TOP + plotH + 4) + '" width="' + (x2 - x1) +
-      '" height="2" fill="' + z.color + '" rx="1"/>';
-    svg += '<text x="' + ((x1 + x2) / 2) + '" y="' + (PAD_TOP + plotH + 18) + '" ' +
-      'font-family="Outfit" font-size="9" font-weight="700" letter-spacing="0.08em" ' +
-      'text-anchor="middle" fill="' + z.color + '">' + z.lbl + '</text>';
-  });
-
-  // ── Position each horse ──
-  // First pass: compute target position for each horse
-  // Find model picks for outline highlighting
-  const modelPickIds = (typeof currentRaceId !== 'undefined' && currentRaceId)
-    ? new Set(((MODEL_PICKS || {})[String(currentRaceId)] && (MODEL_PICKS || {})[String(currentRaceId)][PRIMARY_KEY] || []).map(p => String(p.run_id)))
-    : new Set();
-
-  const positioned = [];
-  allRunners.forEach(u => {
-    const cx = settleX(u.asp);
-    const cy = laneY(u.b, u.asp);
-    positioned.push({ u, cx, cy });
-  });
-
-  // Resolve overlaps - if two horses are too close, push the second one slightly down
-  const HORSE_R = 13;  // horse circle radius
-  for (let i = 0; i < positioned.length; i++) {
-    for (let j = 0; j < i; j++) {
-      const a = positioned[i], b = positioned[j];
-      const dx = a.cx - b.cx, dy = a.cy - b.cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = HORSE_R * 2 + 2;
-      if (dist < minDist && dist > 0) {
-        const push = (minDist - dist) / dist;
-        // Push the later-drawn horse perpendicular (mostly down)
-        a.cx += dx * push * 0.3;
-        a.cy += dy * push * 0.7 + (dy >= 0 ? 4 : -4);
-        // Keep within plot bounds
-        a.cy = Math.max(PAD_TOP + HORSE_R, Math.min(PAD_TOP + plotH - HORSE_R, a.cy));
-      }
-    }
-  }
-
-  // Draw horses
-  positioned.forEach(p => {
-    const { u, cx, cy } = p;
-    const color = zoneColor(u.asp);
-    const isPick = modelPickIds.has(String(u.rid));
-
-    // Selection outline for model picks
-    if (isPick) {
-      svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (HORSE_R + 3) +
-        '" fill="none" stroke="#10b981" stroke-width="2.5" opacity="0.9"/>';
-    }
-    // Horse body (circle with tab number)
-    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + HORSE_R +
-      '" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
-    svg += '<text x="' + cx + '" y="' + (cy + 4) + '" ' +
-      'font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
-      'fill="#fff">' + (u.tab || '?') + '</text>';
-    // Add a small barrier label below circle
-    if (u.b) {
-      svg += '<text x="' + cx + '" y="' + (cy + HORSE_R + 11) + '" ' +
-        'font-family="Outfit" font-size="8" font-weight="600" text-anchor="middle" ' +
-        'fill="#475569" opacity="0.6">b' + u.b + '</text>';
+    if (horses.length === 0) {
+      svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y + plotH / 2 + 4) + '" ' +
+        'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
+        '" fill-opacity="0.4" text-anchor="middle">none</text>';
     }
   });
 
   svg += '</svg>';
 
-  // Pace pill rendered as HTML element above the SVG
+  // Pace pill rendered as HTML element above the SVG, in its own row
+  // so it never collides with zone labels. Floats to the right.
   let pacePill = '';
   if (paceDisplay) {
     const cls = paceClass ? ('rsp-pill rsp-pill-' + paceClass) : 'rsp-pill';
@@ -5663,7 +5534,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
   if (settled.unknown && settled.unknown.length > 0) {
     unknownCaption = '<div class="race-shape-unknown">' +
       settled.unknown.length + ' runner' + (settled.unknown.length === 1 ? '' : 's') +
-      ' with no settling history (positioned in midfield by default)</div>';
+      ' with no settling history (likely first-up or limited data)</div>';
   }
 
   return pacePill + svg + unknownCaption;
