@@ -1864,6 +1864,33 @@ body {
   white-space: nowrap; font-weight: 500;
 }
 .race-table tbody tr:hover { background: var(--line-soft); }
+.race-table tbody tr { cursor: pointer; }
+.race-table tbody tr.expanded { background: #ede9e1; }
+.race-table tbody tr.race-detail-row { cursor: default; background: var(--panel) !important; }
+.race-table tbody tr.race-detail-row:hover { background: var(--panel) !important; }
+.race-table tbody tr.race-detail-row > td {
+  padding: 14px 18px; border-top: 2px solid var(--ink);
+}
+.rd-runner-detail {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.rd-section {
+  background: var(--line-soft); border-radius: 6px; padding: 10px 12px;
+}
+.rd-section-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute); font-weight: 700; margin-bottom: 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.rd-section-body { display: flex; flex-direction: column; gap: 6px; }
+.rd-field { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
+.rd-fl { color: var(--ink-mute); min-width: 105px; flex-shrink: 0; }
+.rd-fv { color: var(--ink); font-weight: 500; }
+@media (max-width: 720px) {
+  .rd-runner-detail { grid-template-columns: 1fr; gap: 10px; }
+  .rd-fl { min-width: 90px; }
+}
 .race-table tbody tr.is-pick {
   background: var(--emerald-bg);
 }
@@ -3016,37 +3043,30 @@ body {
      Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
      still available in the detail panel by tapping the horse name on Today
      tab, or by viewing in landscape mode (table will horizontally scroll). */
-  /* Column index (1-based) after PF columns added:
-     1=Tab 2=Horse 3=Jky 4=Trn 5=Bar 6=TR 7=WPR 8=TR$ 9=Fxd 10=Score
-     11=Settles 12=Early 13=Mid 14=Late 15=Total
-     16=PF AI 17=Class 18=L600 19=L400 20=Style 21=ΔCls
-     22=Distance 23=Going(?) 24=JkyRt 25=TrnRt */
-  .race-table thead th:nth-child(3),  /* Jky */
-  .race-table thead th:nth-child(4),  /* Trn */
-  .race-table thead th:nth-child(8),  /* TR price */
-  .race-table thead th:nth-child(12), /* Early */
-  .race-table thead th:nth-child(13), /* Mid */
+  /* Column index after redesign (1-based):
+     1=Tab 2=Horse 3=Bar 4=Fxd
+     5=WPR 6=Late 7=Class 8=L600 9=PF AI (model rule signals - keep on mobile)
+     10=Style 11=Settles 12=TR 13=TR Score 14=Mid 15=Total
+     16=L400 17=ΔCls 18=Distance 19=Going(?)
+     Hide cols 11-19 on mobile (model signals + Style stay visible) */
+  .race-table thead th:nth-child(11), /* Settles */
+  .race-table thead th:nth-child(12), /* TR */
+  .race-table thead th:nth-child(13), /* TR Score */
+  .race-table thead th:nth-child(14), /* Mid */
   .race-table thead th:nth-child(15), /* Total */
-  .race-table thead th:nth-child(19), /* L400 */
-  .race-table thead th:nth-child(20), /* Style */
-  .race-table thead th:nth-child(21), /* ΔCls */
-  .race-table thead th:nth-child(22), /* Distance */
-  .race-table thead th:nth-child(23), /* Going (or JkyRt if no going col) */
-  .race-table thead th:nth-child(24), /* JkyRt or TrnRt */
-  .race-table thead th:nth-child(25), /* TrnRt (only if going col present) */
-  .race-table tbody td:nth-child(3),
-  .race-table tbody td:nth-child(4),
-  .race-table tbody td:nth-child(8),
+  .race-table thead th:nth-child(16), /* L400 */
+  .race-table thead th:nth-child(17), /* ΔCls */
+  .race-table thead th:nth-child(18), /* Distance */
+  .race-table thead th:nth-child(19), /* Going */
+  .race-table tbody td:nth-child(11),
   .race-table tbody td:nth-child(12),
   .race-table tbody td:nth-child(13),
+  .race-table tbody td:nth-child(14),
   .race-table tbody td:nth-child(15),
-  .race-table tbody td:nth-child(19),
-  .race-table tbody td:nth-child(20),
-  .race-table tbody td:nth-child(21),
-  .race-table tbody td:nth-child(22),
-  .race-table tbody td:nth-child(23),
-  .race-table tbody td:nth-child(24),
-  .race-table tbody td:nth-child(25) {
+  .race-table tbody td:nth-child(16),
+  .race-table tbody td:nth-child(17),
+  .race-table tbody td:nth-child(18),
+  .race-table tbody td:nth-child(19) {
     display: none;
   }
   .meeting-strip { padding: 6px 8px; gap: 4px; }
@@ -4084,7 +4104,7 @@ function renderToday() {
     // tightly the underlying signals agreed. Tight cluster = filled green dot,
     // wide spread = hollow grey dot. Helps spot "split" picks vs "unanimous".
     function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+      if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -4095,7 +4115,7 @@ function renderToday() {
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
       return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
-        '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+        '<span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
     const sigsTopHtml =
       scoreSigPill(p.crk, p.csc) +
@@ -4802,7 +4822,7 @@ function renderWatchlist(forDate) {
         return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
       }
       function scoreSigPill(rank, conf) {
-        if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+        if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
         const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
         let confDot = '';
         if (conf != null) {
@@ -4811,7 +4831,7 @@ function renderWatchlist(forDate) {
           confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
         }
         return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
-          '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+          '<span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
       }
       const sigsTopHtml =
         scoreSigPill(p.crk, p.csc) +
@@ -5194,6 +5214,117 @@ function exitRaceDetail() {
 
 // Race detail sort state - {column: name, dir: 'asc'|'desc'}
 let raceSortState = { col: 'tr', dir: 'asc' };
+
+// Build a rich detail panel for a single runner inside the Race tab table.
+// Triggered by clicking a row. Shows what the columns no longer carry: jockey,
+// trainer, their ratings/strike rates, distance/going history, full PF context.
+function buildRaceRunnerDetailHTML(u, race) {
+  function fld(label, value, cls) {
+    if (value == null || value === '' || value === '—') return '';
+    return '<div class="rd-field"><span class="rd-fl">' + label + '</span>' +
+      '<span class="rd-fv ' + (cls || '') + '">' + value + '</span></div>';
+  }
+  function num(v, dp) {
+    if (v == null) return null;
+    return Number(v).toFixed(dp == null ? 1 : dp);
+  }
+
+  // Connections section
+  const jkyHtml = u.j ? escapeHtml(u.j) +
+    (u.jrt != null ? ' <span style="color:var(--ink-mute);">(rt ' + Math.round(u.jrt) + ')</span>' : '') +
+    (u.jw != null ? ' · ' + u.jw.toFixed(0) + '% 90d' : '') : null;
+  const trnHtml = u.tn ? escapeHtml(u.tn) +
+    (u.trt != null ? ' <span style="color:var(--ink-mute);">(rt ' + Math.round(u.trt) + ')</span>' : '') +
+    (u.tw != null ? ' · ' + u.tw.toFixed(0) + '% 365d' : '') : null;
+
+  // Form section
+  const wprStr = u.wpr1 != null ?
+    Math.round(u.wpr1) + (u.wpra != null ? ' · avg ' + Math.round(u.wpra) : '') +
+    (u.wprt != null ? ' · ' + (u.wprt > 0 ? '↑' : '↓') + Math.abs(u.wprt).toFixed(1) : '') : null;
+  let goingPerf = null;
+  if (race && race.going && u.gb) {
+    const gl = race.going.toLowerCase();
+    let key = null;
+    if (gl.startsWith('firm')) key = 'firm';
+    else if (gl.startsWith('good')) key = 'good';
+    else if (gl.startsWith('soft')) key = 'soft';
+    else if (gl.startsWith('heavy')) key = 'heavy';
+    if (key && u.gb[key] && u.gb[key].starts) {
+      const g = u.gb[key];
+      goingPerf = (g.wins||0) + 'W ' + Math.max(0, (g.places||0) - (g.wins||0)) + 'P from ' + g.starts + ' starts';
+    }
+  }
+  const distPerf = (u.ds && u.ds > 0) ?
+    (u.dw||0) + 'W ' + Math.max(0, (u.dp||0) - (u.dw||0)) + 'P from ' + u.ds + ' starts' : null;
+
+  // PF section - all fields when present
+  const pfReliable = u.pfaiR != null ? '<span style="color:var(--emerald-deep);font-weight:600;">✓</span>' : null;
+  const pfAiHtml = u.pfaiR != null ?
+    '#' + u.pfaiR + (u.pfaiPrc != null ? ' · $' + u.pfaiPrc.toFixed(2) : '') +
+    (u.pfaiSc != null ? ' · ' + u.pfaiSc.toFixed(1) : '') : null;
+  const pfClassHtml = u.wcR != null ?
+    '#' + u.wcR + (u.tacwcR != null ? ' (adj #' + u.tacwcR + ')' : '') : null;
+  const pfTimeHtml = u.tR != null ? '#' + u.tR : null;
+  const pfSectHtml = (u.etR != null || u.l600R != null || u.l400R != null || u.l200R != null) ?
+    'Early ' + (u.etR != null ? '#' + u.etR : '—') +
+    ' · L600 ' + (u.l600R != null ? '#' + u.l600R : '—') +
+    ' · L400 ' + (u.l400R != null ? '#' + u.l400R : '—') +
+    ' · L200 ' + (u.l200R != null ? '#' + u.l200R : '—') : null;
+  const pfStyleHtml = u.rs ?
+    '<span style="text-transform:uppercase;font-weight:600;">' + escapeHtml(u.rs) + '</span>' : null;
+  const pfClsChgHtml = (u.clsChg != null && u.clsChg !== 0) ?
+    (u.clsChg > 0 ? '<span style="color:var(--emerald-deep);font-weight:700;">↑ up ' + u.clsChg + '</span>' :
+     '<span style="color:#dc2626;font-weight:700;">↓ down ' + Math.abs(u.clsChg) + '</span>') : null;
+
+  // TR signals detail (the values not shown in main table)
+  const trSpd = u.spd != null ? Math.round(u.spd) : null;
+  const trPrice = u.trp != null ? '$' + u.trp.toFixed(2) : null;
+  const earlyHtml = u.es != null ? num(u.es, 1) : null;
+
+  // Weight
+  const wtHtml = u.wt != null ?
+    u.wt + 'kg' + (u.wtr != null ? ' · ' + (u.wtr > 0 ? '+' : '') + u.wtr.toFixed(1) + 'kg trend' : '') : null;
+
+  return '<div class="rd-runner-detail">' +
+    '<div class="rd-section">' +
+      '<div class="rd-section-title">Connections</div>' +
+      '<div class="rd-section-body">' +
+        fld('Jockey', jkyHtml) +
+        fld('Trainer', trnHtml) +
+        fld('Barrier', u.b != null ? String(u.b) : null) +
+        fld('Weight', wtHtml) +
+      '</div>' +
+    '</div>' +
+    '<div class="rd-section">' +
+      '<div class="rd-section-title">Recent form</div>' +
+      '<div class="rd-section-body">' +
+        fld('Form', u.fm ? escapeHtml(u.fm) : null) +
+        fld('Recent WPR', wprStr) +
+        fld('Distance perf', distPerf) +
+        fld('Going perf', goingPerf) +
+      '</div>' +
+    '</div>' +
+    '<div class="rd-section">' +
+      '<div class="rd-section-title">TR signals</div>' +
+      '<div class="rd-section-body">' +
+        fld('TR price', trPrice) +
+        fld('Speed rating', trSpd) +
+        fld('Early', earlyHtml) +
+      '</div>' +
+    '</div>' +
+    (pfAiHtml ? '<div class="rd-section">' +
+      '<div class="rd-section-title">Punting Form ' + (pfReliable || '') + '</div>' +
+      '<div class="rd-section-body">' +
+        fld('AI rank · price · score', pfAiHtml) +
+        fld('Time rank', pfTimeHtml) +
+        fld('Class rank', pfClassHtml) +
+        fld('Sectional ranks', pfSectHtml) +
+        fld('Run style', pfStyleHtml) +
+        fld('Class change', pfClsChgHtml) +
+      '</div>' +
+    '</div>' : '') +
+  '</div>';
+}
 
 function renderRaceDetail(raceId) {
   const race = RACES.find(r => String(r.race_id) === String(raceId));
@@ -5706,33 +5837,29 @@ function renderRaceDetail(raceId) {
                        && (u.l600R != null && u.l600R <= 3);
     if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
-    rowsHtml += '<tr class="' + rowClasses.join(' ') + '">' +
+    rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
-      '<td>' + escapeHtml(u.j || '') + '</td>' +
-      '<td>' + escapeHtml(u.tn || '') + '</td>' +
       '<td>' + (u.b || '') + '</td>' +
-      '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      wprCell(u.w, wprRanks[rid]) +
-      '<td>' + (trp ? '$' + trp.toFixed(2) : '—') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
-      scoreCell(u.cs, u.crk, u.csc) +
-      '<td>' + settlesLabel(u.asp) + '</td>' +
-      sectCell(u.es, earlyRanks[rid]) +
-      sectCell(u.ms, midRanks[rid]) +
+      // ── Model rule signals (highlighted - these gate every pick) ──
+      wprCell(u.w, wprRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
-      sectCell(u.ts, totalRanks[rid]) +
-      // PF columns - PF AI rank, Class rank, Last600 rank, Last400 rank, Run style
-      pfRankCell(u.pfaiR, 'PF AI') +
       pfRankCell(u.wcR, 'PF Class') +
       pfRankCell(u.l600R, 'PF Last 600m') +
-      pfRankCell(u.l400R, 'PF Last 400m') +
+      pfRankCell(u.pfaiR, 'PF AI') +
+      // ── Supporting signals ──
       pfRunStyleCell(u.rs) +
+      '<td>' + settlesLabel(u.asp) + '</td>' +
+      '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
+      scoreCell(u.cs, u.crk, u.csc) +
+      sectCell(u.ms, midRanks[rid]) +
+      sectCell(u.ts, totalRanks[rid]) +
+      pfRankCell(u.l400R, 'PF Last 400m') +
       pfClassChgCell(u.clsChg) +
+      // ── Conditions / form context ──
       distanceCell(u) +
       (showGoing ? goingCell(u) : '') +
-      ratingCell(u.jrt, jryRanks[rid]) +
-      ratingCell(u.trt, tryRanks[rid]) +
       '</tr>';
   });
 
@@ -5749,22 +5876,25 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         th('tab', 'Tab') + th('horse', 'Horse') +
-        th('jky', 'Jky') +
-        th('trn', 'Trn') +
         th('bar', 'Bar') +
-        th('tr', 'TR') +
-        th('wpr', 'WPR') +
-        th('trp', 'TR $') +
         th('fxd', 'Fxd') +
-        th('score', 'Score') +
+        // Model rule signals (highlighted as primary)
+        th('wpr', 'WPR') +
+        th('late', 'Late') +
+        th('wcR', 'Class') +
+        th('l600R', 'L600') +
+        th('pfai', 'PF AI') +
+        // Supporting signals
+        th('rs', 'Style') +
         th('settles', 'Settles') +
-        th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
-        th('pfai', 'PF AI') + th('wcR', 'Class') +
-        th('l600R', 'L600') + th('l400R', 'L400') +
-        th('rs', 'Style') + th('clsChg', 'Δ Cls') +
+        th('tr', 'TR') +
+        th('score', 'TR Score') +
+        th('mid', 'Mid') +
+        th('total', 'Total') +
+        th('l400R', 'L400') +
+        th('clsChg', 'Δ Cls') +
+        // Conditions
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
-        th('jkypc', 'Jky Rt') +
-        th('trnpc', 'Trn Rt') +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>';
@@ -5785,6 +5915,38 @@ function renderRaceDetail(raceId) {
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
       renderRaceDetail(raceId);
+    });
+  });
+
+  // Row-click expand: clicking a row inserts a detail panel below it.
+  // Collapse other expanded rows first (only one open at a time).
+  document.querySelectorAll('#rd-runners-table tbody tr').forEach(tr => {
+    tr.addEventListener('click', (e) => {
+      // Ignore clicks on the header
+      if (tr.tagName !== 'TR' || !tr.dataset.rid) return;
+      const rid = tr.dataset.rid;
+      const u = runners.find(x => String(x.rid) === String(rid));
+      if (!u) return;
+
+      // Collapse any currently-open detail row
+      const existing = document.querySelector('#rd-runners-table tbody tr.race-detail-row');
+      if (existing) {
+        const wasForThis = existing.dataset.forRid === String(rid);
+        existing.remove();
+        document.querySelectorAll('#rd-runners-table tbody tr.expanded').forEach(t => t.classList.remove('expanded'));
+        if (wasForThis) return;  // toggle off
+      }
+
+      // Insert new detail row immediately after the clicked row
+      tr.classList.add('expanded');
+      const colCount = document.querySelectorAll('#rd-runners-table thead th').length;
+      const detailTr = document.createElement('tr');
+      detailTr.className = 'race-detail-row';
+      detailTr.dataset.forRid = String(rid);
+      detailTr.innerHTML = '<td colspan="' + colCount + '">' +
+        buildRaceRunnerDetailHTML(u, race) +
+      '</td>';
+      tr.parentNode.insertBefore(detailTr, tr.nextSibling);
     });
   });
 }
@@ -6494,7 +6656,7 @@ function renderPnL() {
     }
     // Score pill on settled rows also gets the confidence dot (same as Today)
     function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+      if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -6502,7 +6664,7 @@ function renderPnL() {
         const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
-      return '<span class="sig ' + cls + '"><span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+      return '<span class="sig ' + cls + '"><span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
     const sigsTopHtml =
       scoreSigPill(r.crk, s.csc) +
