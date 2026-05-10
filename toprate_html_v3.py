@@ -773,6 +773,27 @@ body {
 }
 .pr-sigs .sig .conf-dot.low { background: transparent; opacity: 0.5; }
 
+/* Vote count badge (V3 rule transparency).
+   Shows "Votes 5/6 ★3" = 5 of 6 signals top-3, 3 of which are #1.
+   Distinct from rank pills - never coloured by rank, always neutral. */
+.pr-sigs .sig.vote-badge {
+  background: #1f2937; color: #f9fafb;
+  border: 1px solid #111827;
+  padding: 2px 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.pr-sigs .sig.vote-badge .lbl {
+  color: #9ca3af; font-size: 9px; letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.pr-sigs .sig.vote-badge .v {
+  color: #f9fafb; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.pr-sigs .sig.vote-badge .vote-star {
+  color: #fbbf24; font-size: 10px; font-weight: 700;
+  margin-left: 2px;
+}
+
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
 }
@@ -879,6 +900,12 @@ body {
 }
 .pr-result .res-tag.win { background: var(--emerald-bg); color: var(--emerald-deep); }
 .pr-result .res-tag.loss { background: var(--rose-bg); color: var(--rose); }
+/* Loss colour gradient by finish position. 2nd is the closest miss
+   (orange, not rose) - distinguishes "narrowly lost" from "blown out".
+   3rd-5th gets a softer orange-pink. 6+ stays full rose for clear losses. */
+.pr-result .res-tag.loss.fin2 { background: #fff4ed; color: #b45309; }
+.pr-result .res-tag.loss.fin345 { background: #fff1f2; color: #c2410c; }
+.pr-result .res-tag.loss.fin6plus { background: var(--rose-bg); color: var(--rose); }
 .pr-result .res-tag.manual {
   border: 1px dashed currentColor;
 }
@@ -3403,8 +3430,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="pnl-view-toggle" role="group" aria-label="View mode">
         <span class="pnl-view-label">View:</span>
-        <button class="pnl-view-btn active" data-view="actual">Actual</button>
-        <button class="pnl-view-btn" data-view="theoretical">Theoretical</button>
+        <button class="pnl-view-btn active" data-view="actual"
+                title="Actual: P&L based on bets you actually placed and the odds you took. Reflects your real bankroll change.">Actual</button>
+        <button class="pnl-view-btn" data-view="theoretical"
+                title="Theoretical: P&L if you had bet 1u flat at SP on every model pick. Use this to see how the model performed independent of your bet sizing or odds-shopping.">Theoretical</button>
       </div>
     </div>
 
@@ -4116,7 +4145,10 @@ function renderToday() {
           (conf >= 0.80 ? 'unanimous' : conf >= 0.50 ? 'mixed' : 'split');
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
-      return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
+      const scoreTooltip = 'Score rank #' + rank + '. The Score is a logistic regression ' +
+        'probability (Path C) that combines TR rating, WPR, Late, PF AI, PF Class, and PF L600. ' +
+        'Higher = stronger pick. The rank shown here is within this race.';
+      return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
     const sigsTopHtml =
@@ -4125,7 +4157,24 @@ function renderToday() {
       sigPill('Late', p.late_rank) +
       sigPill('Class', p.wcR) +
       sigPill('L600', p.l600R) +
-      sigPill('PFAI', p.pfaiR);
+      sigPill('PFAI', p.pfaiR) +
+      sigPill('TR', p.tr_rank) +
+      // V3 voting model rule transparency: show how many of the 6 signals
+      // hit the top-3 threshold and how many were #1. Format: "5/6 ★3" =
+      // 5 of 6 signals top-3 with 3 #1s. The pick passed the rule if
+      // top-3 votes >= 5 AND top-1 votes >= 3.
+      (function() {
+        const ranks = [p.wpr_rank, p.late_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank];
+        const top3 = ranks.filter(r => r != null && r <= 3).length;
+        const top1 = ranks.filter(r => r != null && r === 1).length;
+        const tooltip = top3 + ' of 6 signals rank top-3, ' + top1 + ' rank #1. ' +
+                        'V3 rule needs >=5 top-3 AND >=3 #1.';
+        return '<span class="sig vote-badge" title="' + tooltip + '">' +
+          '<span class="lbl">Votes</span>' +
+          '<span class="v">' + top3 + '/6</span>' +
+          (top1 >= 3 ? '<span class="vote-star" title="' + top1 + ' #1 votes">★' + top1 + '</span>' : '') +
+          '</span>';
+      })();
     // Form string row underneath: "3-1-7-2"
     const formHtml = r.fm ?
       '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
@@ -4175,12 +4224,22 @@ function renderToday() {
     }
 
     // Result column
+    // Helper: pick a CSS class suffix for losses based on finish position so
+    // "lost as 2nd" (close miss) looks visually different from "lost as 8th".
+    function lossPosClass(fin) {
+      if (fin == null) return '';
+      if (fin === 2) return ' fin2';
+      if (fin >= 3 && fin <= 5) return ' fin345';
+      return ' fin6plus';
+    }
     let resultHtml;
     if (hasOfficial) {
-      resultHtml = '<span class="res-tag ' + (displayWon ? 'win' : 'loss') + '">' +
+      const cls = displayWon ? 'win' : ('loss' + lossPosClass(officialFinish));
+      resultHtml = '<span class="res-tag ' + cls + '">' +
         (displayWon ? 'W' : 'L') + ' · ' + officialFinish + ord(officialFinish) + '</span>';
     } else if (manRes) {
-      resultHtml = '<span class="res-tag manual ' + (displayWon ? 'win' : 'loss') + '" onclick="event.stopPropagation();">' +
+      const cls = displayWon ? 'win' : ('loss' + lossPosClass(manRes.finish));
+      resultHtml = '<span class="res-tag manual ' + cls + '" onclick="event.stopPropagation();">' +
         (displayWon ? 'W' : 'L') + ' · ' + manRes.finish + ord(manRes.finish) +
         '<span class="res-clear" data-clear-rid="' + p.run_id + '" title="Clear">×</span>' +
         '</span>';
@@ -5484,7 +5543,7 @@ function renderRaceDetail(raceId) {
         th('mid', 'Mid') +
         th('total', 'Total') +
         th('l400R', 'L400') +
-        th('clsChg', 'Δ Cls') +
+        th('clsChg', 'Class Δ') +
         // Conditions
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
       '</tr></thead>' +
@@ -5547,12 +5606,18 @@ function renderRaceDetail(raceId) {
 // Width-proportional zones (a race with 6 leaders gets a wider Leaders zone
 // than a race with 1). Tab numbers in colored cells. Picks (model picks) get
 // a brighter outline so you can see which horses you're backing in context.
+//
+// Zone colour scheme: NEUTRAL gradient from light (front) to darker (back).
+// Pace position isn't inherently good or bad - backmarkers can win, leaders
+// can win. The previous coloured scheme (yellow/green/blue/pink) implied
+// value judgements that don't exist. Now zones are clearly distinguishable
+// but the picks (with emerald outline) are what visually pops.
 function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race, runners) {
   const zones = [
-    { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#fbbf24', textColor: '#92400e' },
-    { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#10b981', textColor: '#064e3b' },
-    { key: 'midfield', lbl: 'MID',      hint: '5-8', color: '#3b82f6', textColor: '#1e3a8a' },
-    { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#ec4899', textColor: '#831843' },
+    { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#f3f4f6', textColor: '#374151' },
+    { key: 'onpace',   lbl: 'ON-PACE',  hint: '3-4', color: '#e5e7eb', textColor: '#1f2937' },
+    { key: 'midfield', lbl: 'MID',      hint: '5-8', color: '#d1d5db', textColor: '#111827' },
+    { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#9ca3af', textColor: '#030712' },
   ];
 
   const W = 880;
@@ -5600,14 +5665,24 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
     const innerPad = 8;
     const availW = w - innerPad * 2;
     const cellsPerRow = Math.max(1, Math.floor((availW + cellGap) / (cellSize + cellGap)));
+    // Tab cells need contrast against the (neutral grey) zone background,
+    // so we use a much darker fill regardless of zone. White text remains
+    // readable on the dark fill. Picks get a bright emerald outline so they
+    // visually pop against the neutral palette.
+    const cellFill = '#1f2937';
+    // Lookup pick run_ids for this race so we can outline pick cells
+    const racePicks = race ? (MODEL_PICKS[race.race_id] || {})[PRIMARY_KEY] || [] : [];
+    const pickIds = new Set(racePicks.map(p => String(p.run_id)));
     horses.forEach((u, hi) => {
       const row = Math.floor(hi / cellsPerRow);
       const col = hi % cellsPerRow;
       const cellX = x + innerPad + col * (cellSize + cellGap);
       const cellY = PAD_Y + 8 + row * (cellSize + cellGap);
       if (cellY + cellSize > PAD_Y + plotH - 4) return;
+      const isPick = pickIds.has(String(u.rid));
+      const stroke = isPick ? ' stroke="#10b981" stroke-width="2"' : '';
       svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
-        '" fill="' + z.color + '" rx="3"/>';
+        '" fill="' + cellFill + '" rx="3"' + stroke + '/>';
       svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
         '" font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
         'fill="#fff">' + (u.tab || '?') + '</text>';
@@ -6299,9 +6374,17 @@ function renderPnL() {
     }
 
     // Result chip - shows finish position with W/L tag (same as Today's hasOfficial branch)
+    // Loss colouring varies by finish position - see lossPosClass helper.
+    function lossPosClass(fin) {
+      if (fin == null) return '';
+      if (fin === 2) return ' fin2';
+      if (fin >= 3 && fin <= 5) return ' fin345';
+      return ' fin6plus';
+    }
     let resultHtml;
     if (s.finish != null) {
-      resultHtml = '<span class="res-tag ' + (s.won ? 'win' : 'loss') + '">' +
+      const cls = s.won ? 'win' : ('loss' + lossPosClass(s.finish));
+      resultHtml = '<span class="res-tag ' + cls + '">' +
         (s.won ? 'W' : 'L') + ' · ' + s.finish + ord(s.finish) + '</span>';
     } else {
       resultHtml = '<span class="res-tag ' + (s.won ? 'win' : 'loss') + '">' +
@@ -6774,15 +6857,39 @@ function rankPill(rank) {
 
 // Heatmap colour bucket: 0..80%+
 function heatmapClass(pct) {
+  // Legacy function kept for any other callers - now just returns base class.
+  // Use heatmapStyle() for the new continuous gradient inline styling.
   if (pct == null || pct === 0) return 'hm0';
-  if (pct < 10) return 'hm10';
-  if (pct < 20) return 'hm20';
-  if (pct < 30) return 'hm30';
-  if (pct < 40) return 'hm40';
-  if (pct < 50) return 'hm50';
-  if (pct < 60) return 'hm60';
-  if (pct < 70) return 'hm70';
-  return 'hm80';
+  return 'hm-grad';
+}
+
+// Continuous heatmap colour: maps a win-rate percentage to an inline style.
+// Anchors:
+//   < 10% (below random baseline for top-1 in 10-runner field) = neutral grey
+//   = 10% (random)                                              = white
+//   > 10% scales linearly to bright emerald at 40%+
+// This gives instantly-readable contrast: weak signals fade, strong pop.
+// Note: 10% is the rough random baseline for top-1 picks; for top-3/5 the
+// random baselines are higher (~30%, ~50%) but using 10% across the board
+// keeps the interpretation simple - "above 10% means signal has some edge".
+function heatmapStyle(pct) {
+  if (pct == null) return 'background: #f3f4f6; color: #9ca3af;';
+  // Linear interpolation: 0% white, 40% strong emerald
+  // Clamp to range
+  const clamped = Math.max(0, Math.min(40, pct));
+  // Below 10% = grey (signal noise / dead)
+  if (clamped < 10) {
+    const greyScale = clamped / 10;  // 0..1
+    const lightness = 96 - (greyScale * 4);  // 96 down to 92
+    return 'background: hsl(0, 0%, ' + lightness.toFixed(0) + '%); color: #6b7280;';
+  }
+  // 10-40% = emerald gradient. 10% = pale, 40% = strong
+  const emeraldT = (clamped - 10) / 30;  // 0..1
+  // Use HSL for smooth colour interpolation. emerald at 158deg.
+  const lightness = 95 - (emeraldT * 38);  // 95% down to 57%
+  const saturation = 35 + (emeraldT * 35); // 35% up to 70%
+  const textColor = emeraldT > 0.5 ? '#064e3b' : '#065f46';
+  return 'background: hsl(158, ' + saturation.toFixed(0) + '%, ' + lightness.toFixed(0) + '%); color: ' + textColor + '; font-weight: 600;';
 }
 
 // Master tracking renderer - called whenever period changes
@@ -6844,13 +6951,16 @@ function renderSignalHeatmap(races) {
     const wr1 = b.t1n > 0 ? (b.t1h / b.t1n * 100) : null;
     const wr3 = b.t3n > 0 ? (b.t3h / b.t3n * 100) : null;
     const wr5 = b.t5n > 0 ? (b.t5h / b.t5n * 100) : null;
-    function valHtml(wr, n) {
+    function valHtml(wr, n, level) {
       if (wr == null || n === 0) return '<div class="hm-cell hm-val hm0">—</div>';
-      return '<div class="hm-cell hm-val ' + heatmapClass(wr) + '" title="' + b['t' + (wr === wr1 ? 1 : (wr === wr3 ? 3 : 5)) + 'h'] + '/' + n + '">' +
+      const hits = level === 1 ? b.t1h : (level === 3 ? b.t3h : b.t5h);
+      const baseline = level === 1 ? 10 : (level === 3 ? 30 : 50);
+      const tooltip = hits + ' winners / ' + n + ' picks. Random baseline ~' + baseline + '%.';
+      return '<div class="hm-cell hm-val" style="' + heatmapStyle(wr) + '" title="' + tooltip + '">' +
         wr.toFixed(1) + '%</div>';
     }
     html += '<div class="hm-cell hm-name">' + sig.label + '</div>' +
-      valHtml(wr1, b.t1n) + valHtml(wr3, b.t3n) + valHtml(wr5, b.t5n);
+      valHtml(wr1, b.t1n, 1) + valHtml(wr3, b.t3n, 3) + valHtml(wr5, b.t5n, 5);
   });
   html += '</div>';
   el.innerHTML = html;
@@ -7188,7 +7298,7 @@ function renderQuaddie() {
     const isSelected = legSet.has(r.race_id);
     const legPos = isSelected ? (quaddieState.legRaceIds.indexOf(r.race_id) + 1) : null;
     const time = fmtTime(r.start_time) || '—';
-    const fsTag = r.hfs ? '<span class="qr-firststarter" title="First starter in this race">⚠</span>' : '';
+    const fsTag = r.hfs ? '<span class="qr-firststarter" title="First-starter race: at least one horse has no past WPR data. The model rule excludes these races since signals don\'t apply to debut runners. You can still use this leg manually but model picks won\'t fire.">⚠</span>' : '';
     const legTag = legPos ? '<span class="qr-leg-tag">Leg ' + legPos + '</span>' : '';
     const qualsCls = quals === 0 ? ' zero' : '';
     return '<div class="quaddie-race-card' + (isSelected ? ' selected' : '') + '" data-rid="' + r.race_id + '">' +
@@ -7743,6 +7853,10 @@ async function syncPush() {
     if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
   } catch (e) {
     syncLog('Push failed: ' + e.message);
+    // Re-throw so callers (debounced push, flushSyncPush) can detect failure
+    // and avoid clearing the dirty flag. Without re-throwing, a failed push
+    // looks identical to a successful one and the dirty work would be lost.
+    throw e;
   }
 }
 
@@ -7812,17 +7926,44 @@ if (btnPull) btnPull.addEventListener('click', syncPull);
 // Auto-push debounced when bet log or settings change
 let _syncPushTimer = null;
 let _syncPushPending = false;  // true while a debounced push is queued
+// Dirty flag: incremented on EVERY local change, decremented after push success.
+// Tracked separately from _syncPushPending so that a pull can detect "we have
+// unpushed local work" and refuse to clobber it. Persisted to localStorage so
+// it survives a page refresh that happens before the push completes (iOS bug
+// where the tab gets backgrounded/killed mid-push).
+const SYNC_DIRTY_KEY = 'tr_sync_dirty_v1';
+function getSyncDirty() {
+  try { return parseInt(localStorage.getItem(SYNC_DIRTY_KEY), 10) || 0; } catch(e) { return 0; }
+}
+function setSyncDirty(v) {
+  try { localStorage.setItem(SYNC_DIRTY_KEY, String(Math.max(0, v))); } catch(e) {}
+}
+function bumpSyncDirty() { setSyncDirty(getSyncDirty() + 1); }
+function clearSyncDirty() { setSyncDirty(0); }
+
 function scheduleSyncPush(delayMs) {
   if (!syncCfg.pat || !syncCfg.gistId) return;  // not configured
+  bumpSyncDirty();  // record that we have unpushed local work
   clearTimeout(_syncPushTimer);
   _syncPushPending = true;
   if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+  // 500ms default (was 1500). iOS Safari aggressively backgrounds tabs and
+  // throttles long timers, so a shorter window means more pushes actually fire
+  // before iOS can kill the in-flight request.
   _syncPushTimer = setTimeout(() => {
     _syncPushPending = false;
-    syncPush().finally(() => {
-      if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-    });
-  }, delayMs != null ? delayMs : 1500);
+    const dirtyAtPushStart = getSyncDirty();
+    syncPush()
+      .then(() => {
+        // If no NEW changes happened between scheduling and completion, clear
+        // the dirty flag. If there were new changes, a fresh schedule will
+        // have bumped the count - leave it for the next push.
+        if (getSyncDirty() === dirtyAtPushStart) clearSyncDirty();
+      })
+      .finally(() => {
+        if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+      });
+  }, delayMs != null ? delayMs : 500);
 }
 
 // Force-push immediately, cancelling any pending debounced push.
@@ -7830,13 +7971,20 @@ function scheduleSyncPush(delayMs) {
 // pagehide, beforeunload) so we don't lose the user's most recent change.
 function flushSyncPush() {
   if (!syncCfg.pat || !syncCfg.gistId) return;
-  if (!_syncPushPending) return;  // nothing to flush
+  if (!_syncPushPending && getSyncDirty() === 0) return;  // nothing to flush
   clearTimeout(_syncPushTimer);
   _syncPushPending = false;
-  // Fire-and-forget; if it fails the user can re-open and we'll catch up later
-  syncPush().catch(() => {}).finally(() => {
-    if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-  });
+  const dirtyAtPushStart = getSyncDirty();
+  // Fire-and-forget; if it fails the dirty flag stays set so we can recover
+  // on next page load (auto-pull will detect dirty and push instead of pull)
+  syncPush()
+    .then(() => {
+      if (getSyncDirty() === dirtyAtPushStart) clearSyncDirty();
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+    });
 }
 
 // Visible sync indicator: shows in the header strip so user can see when last pulled.
@@ -7849,8 +7997,10 @@ function updateSyncIndicator() {
     el.className = 'sync-pill off';
     return;
   }
-  if (_syncPushPending) {
-    el.textContent = 'pushing…';
+  // Pending push state - either currently waiting for debounce, or has unpushed
+  // local work from a prior session (e.g. iOS killed the tab mid-push).
+  if (_syncPushPending || getSyncDirty() > 0) {
+    el.textContent = _syncPushPending ? 'pushing…' : 'unsaved';
     el.className = 'sync-pill pending';
     return;
   }
@@ -7879,14 +8029,32 @@ setInterval(updateSyncIndicator, 30000);
 
 // Auto-pull on page load if sync is configured
 // (so opening the dashboard on iPhone after entering odds on computer just works)
+//
+// CRITICAL: if there are unpushed local changes (dirty flag set), DO NOT pull.
+// Pulling would clobber the local changes with stale Gist data. This is the
+// scenario where on iOS the tab gets backgrounded mid-push, the push never
+// completes, and on next page load the auto-pull would erase the user's edits.
+// In that case, push first (recover the local changes) then a future pull
+// will get fresh data including those changes.
 if (syncCfg.pat && syncCfg.gistId) {
-  syncPull().catch(() => {/* silent on auto-pull */});
+  if (getSyncDirty() > 0) {
+    // Local changes are unpushed - flush them first instead of pulling
+    flushSyncPush();
+  } else {
+    syncPull().catch(() => {/* silent on auto-pull */});
+  }
 }
 
 // Auto-pull when the tab becomes visible again (mobile users often switch
 // apps between making changes on desktop and viewing on mobile)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && syncCfg.pat && syncCfg.gistId) {
+    // If we have unpushed local changes, push them rather than pulling.
+    // This preserves changes that were queued before the tab was backgrounded.
+    if (getSyncDirty() > 0) {
+      flushSyncPush();
+      return;
+    }
     // Only re-pull if it's been more than 30 seconds since last pull
     let lastPull = 0;
     try { lastPull = parseInt(localStorage.getItem('tr_sync_last_pull_v1'), 10) || 0; } catch(e) {}
@@ -7906,13 +8074,14 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', flushSyncPush);
 window.addEventListener('beforeunload', flushSyncPush);
 
-// Tap the sync indicator: if there's a pending local change, push it now;
+// Tap the sync indicator: if there's a pending local change OR unpushed dirty
+// state from a prior session (iOS killed the tab mid-push), push it now;
 // otherwise pull the latest from the gist
 const syncPill = document.getElementById('sync-pill');
 if (syncPill) {
   syncPill.addEventListener('click', () => {
     if (!syncCfg.pat || !syncCfg.gistId) return;
-    if (_syncPushPending) flushSyncPush();
+    if (_syncPushPending || getSyncDirty() > 0) flushSyncPush();
     else syncPull().catch(() => {});
   });
 }
