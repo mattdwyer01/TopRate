@@ -4634,11 +4634,11 @@ function renderWatchlist(forDate) {
       const totR = totalRanks[u.rid];
       const fxp = u.fx;
 
-      // Spot match: WPR≤4 AND (Late≤3 OR Mid≤3 OR Total≤3)
-      const spotMatch = (wprR != null && wprR <= 4)
+      // Spot match: WPR≤3 AND Total≤3 AND (Late≤3 OR Mid≤3)
+      const spotMatch = (wprR != null && wprR <= 3)
+                       && (totR != null && totR <= 3)
                        && (((lateR != null && lateR <= 3))
-                         || ((midR != null && midR <= 3))
-                         || ((totR != null && totR <= 3)));
+                         || ((midR != null && midR <= 3)));
       const roughieMatch = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
                           && (fxp != null && fxp >= 10);
       if (!spotMatch && !roughieMatch) return;
@@ -5342,18 +5342,20 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Spot-bet pattern: WPR≤4 AND (Late≤3 OR Mid≤3 OR Total≤3).
-    // Wider coverage (~98% of races have a candidate) since these are intended
-    // as opportunistic watch-and-bet picks, not flat-staked.
+    // Spot-bet pattern: WPR≤3 AND Total≤3 AND (Late≤3 OR Mid≤3).
+    // Tighter than first iteration: requires top-3 on both WPR and Total,
+    // plus top-3 on at least one mid-race or finish-section sectional.
+    // ~73% of races have a candidate. Backtest -11% ROI (intended for selective
+    // watch-and-bet use, not flat staking).
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
-    const isSpotBet = (wprR != null && wprR <= 4)
+    const isSpotBet = (wprR != null && wprR <= 3)
+                     && (totR != null && totR <= 3)
                      && (((lateR != null && lateR <= 3))
-                       || ((midR != null && midR <= 3))
-                       || ((totR != null && totR <= 3)));
+                       || ((midR != null && midR <= 3)));
     if (isSpotBet && !isPick) rowClasses.push('spot-bet');
 
     // Roughie pattern: CS≤3 + Late≤2 + price ≥ $10 (the +49% ROI roughie spotter).
