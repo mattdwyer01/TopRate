@@ -3186,12 +3186,12 @@ body {
   /* Column index after redesign (1-based):
      1=Tab 2=Horse 3=Bar 4=Fxd
      5=WPR 6=Late 7=Class 8=L600 9=PF AI (model rule signals - keep on mobile)
-     10=Style 11=Settles 12=TR 13=TR Score 14=Mid 15=Total
+     10=Style 11=Settles 12=TR 13=Score 14=Mid 15=Total
      16=L400 17=ΔCls 18=Distance 19=Going(?)
      Hide cols 11-19 on mobile (model signals + Style stay visible) */
   .race-table thead th:nth-child(11), /* Settles */
   .race-table thead th:nth-child(12), /* TR */
-  .race-table thead th:nth-child(13), /* TR Score */
+  .race-table thead th:nth-child(13), /* Score */
   .race-table thead th:nth-child(14), /* Mid */
   .race-table thead th:nth-child(15), /* Total */
   .race-table thead th:nth-child(16), /* L400 */
@@ -3673,13 +3673,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="lbl">Threshold</div>
           <div class="desc">
             Minimum cumulative score for a horse to qualify on the Quaddie tab.
-            Higher = stricter, fewer picks. Note: this is the legacy TR-only
-            cumulative score and does not include Punting Form signals yet.
-            The main betting model rule (WPR ≤ 3 + Late ≤ 3 + Class = 1 +
-            L600 ≤ 3) does not use this threshold.
+            Higher = stricter, fewer picks. The score is a logistic-regression
+            blend of TR rating, WPR, Late speed, PF AI, PF Class, and PF L600
+            signals (Path C). Path C scores are sigmoid-bounded in [0, 1] and
+            tend to cluster near the middle of the range; a threshold around
+            0.40-0.50 matches what 0.70 used to mean for the legacy formula.
+            The main betting model rule does not use this threshold.
           </div>
         </div>
-        <input type="number" class="setting-input" id="setting-score-thresh" value="0.70" min="0" max="1" step="0.05">
+        <input type="number" class="setting-input" id="setting-score-thresh" value="0.40" min="0" max="1" step="0.05">
       </div>
     </div>
 
@@ -3841,10 +3843,11 @@ const defaultSettings = {
   minStake: 0.25,
   maxStake: 4,
   // Score threshold for the cumulative-score-based selection (used by
-  // Quaddie tab and threshold highlighting on Race/Today). 0.70 = ~3 picks/race
-  // average, 95% place coverage. See the cumulative score docstring for
-  // backtest validation across thresholds.
-  scoreThreshold: 0.70,
+  // Quaddie tab and threshold highlighting on Race/Today).
+  // Path C (LogReg) scores are sigmoid-bounded in [0, 1] and tend to cluster
+  // near the middle (rarely above 0.70). Default 0.40 gives roughly the same
+  // pick volume that 0.70 used to give for the legacy Path B formula.
+  scoreThreshold: 0.40,
   // Sync settings (configured per-device)
   syncEnabled: false,
   syncGistId: '',
@@ -3859,6 +3862,16 @@ try {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) settings = Object.assign({}, defaultSettings, JSON.parse(raw));
 } catch(e) {}
+
+// Migration: Path C ships 2026-05-10 with new score scale. Users with the
+// old 0.70 default would see zero qualifying horses on Quaddie tab since
+// sigmoid scores rarely exceed 0.70. Auto-migrate exactly the old default
+// (we don't touch user-customised values - if they set 0.65 or 0.85 we leave
+// it alone since that signals deliberate choice).
+if (settings.scoreThreshold === 0.70) {
+  settings.scoreThreshold = 0.40;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
+}
 
 function saveSettings() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
@@ -4213,7 +4226,7 @@ function renderToday() {
     // tightly the underlying signals agreed. Tight cluster = filled green dot,
     // wide spread = hollow grey dot. Helps spot "split" picks vs "unanimous".
     function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
+      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -4224,7 +4237,7 @@ function renderToday() {
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
       return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
-        '<span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+        '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
     const sigsTopHtml =
       scoreSigPill(p.crk, p.csc) +
@@ -4930,7 +4943,7 @@ function renderWatchlist(forDate) {
         return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
       }
       function scoreSigPill(rank, conf) {
-        if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
+        if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
         const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
         let confDot = '';
         if (conf != null) {
@@ -4939,7 +4952,7 @@ function renderWatchlist(forDate) {
           confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
         }
         return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
-          '<span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+          '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
       }
       const sigsTopHtml =
         scoreSigPill(p.crk, p.csc) +
@@ -5608,7 +5621,7 @@ function renderRaceDetail(raceId) {
   // Adaptive selection: horses meeting the cumulative-score threshold
   // The threshold setting drives picks per race - more in open races, fewer
   // in races with a clear favourite.
-  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
+  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.40;
   const qualifiers = runners.filter(u => u.cs != null && u.cs >= thresh)
     .sort((a, b) => (a.crk || 99) - (b.crk || 99));
   let scoreThreshHtml = '';
@@ -5997,7 +6010,7 @@ function renderRaceDetail(raceId) {
         th('rs', 'Style') +
         th('settles', 'Settles') +
         th('tr', 'TR') +
-        th('score', 'TR Score') +
+        th('score', 'Score') +
         th('mid', 'Mid') +
         th('total', 'Total') +
         th('l400R', 'L400') +
@@ -6765,7 +6778,7 @@ function renderPnL() {
     }
     // Score pill on settled rows also gets the confidence dot (same as Today)
     function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">TR Score</span><span class="v">—</span></span>';
+      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -6773,7 +6786,7 @@ function renderPnL() {
         const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
-      return '<span class="sig ' + cls + '"><span class="lbl">TR Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+      return '<span class="sig ' + cls + '"><span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
     const sigsTopHtml =
       scoreSigPill(r.crk, s.csc) +
@@ -7616,7 +7629,7 @@ function legCoverage(nPicks, path) {
 
 function getQuaddieThreshold() {
   if (quaddieState.threshOverride != null) return quaddieState.threshOverride;
-  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
+  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.40;
 }
 
 function quaddieRacesForDate(dateStr) {

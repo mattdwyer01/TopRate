@@ -877,66 +877,88 @@ def model_picks_summary(rows, today_only=True):
 # -----------------------------------------------------------------------
 # CUMULATIVE PREDICTIVE SCORE
 # -----------------------------------------------------------------------
-# Designed for use as a tipping aid for quaddies / exotics rather than for
-# straight win-betting (the v3 primary model `main` already handles win
-# betting filtering). Validated against the Apr 9 - May 7 backtest data.
+# Designed for use as a tipping aid (rank top horses for quaddies / exotics)
+# rather than as a betting signal directly. The v3 main model handles win
+# betting; Score is informational ranking shown in the dashboard.
 #
-# Formula (Path B proxy, version 1):
-#     score = 2.0 * tr_pct + 0.5 * wpr_avg_last3_pct + 0.3 * late_speed_pct
-# where each *_pct is the within-race percentile rank (1.0 = best in field,
-# 0.0 = worst). Missing values get 0 (effectively pushed to the bottom).
+# Active formula (Path C, version 2 - shipped 2026-05-10):
+#     Logistic regression on percentile-rank features, fit on Apr 9 - May 7
+#     backtest (28 days, 11,113 reliable rows).
 #
-# Validation (full 1608-race backtest, 14,924 runners):
-#     rk1 horse: 33.6% WR, 67.4% PR, 76% top-4 rate
-#     rk2 horse: 19.9% WR, 55.2% PR
-#     rk3 horse: 14.6% WR, 47.2% PR
-#     Coverage: top-2 picks contain winner 54%, top-3 contain winner 69%
-#     Place coverage: top-3 picks contain at least 1 of top-3 finishers 95%
+#     score = sigmoid(intercept + sum(weight_i * pct_i))
 #
-# Future upgrade path (Path A): replace this with
-#     score = 1.0 * jt_combo_pct + 1.2 * tr_pct
-# once jockey/trainer combo win % is fetched from the API. That formula
-# improves rk1 WR to 44%, top-3 winner-coverage to 80%.
+#     intercept = -1.96
+#     weights:
+#         toprate_rating    pct: +2.97  (TR remains dominant signal)
+#         wpr_avg_last3     pct: +0.17
+#         late_speed_score  pct: +0.20
+#         pf_ai_rank        pct: +0.10  (PF AI adds small positive signal)
+#         pf_class_rank     pct: -0.09  (small negative -> class is correlated
+#                                         with TR so over-weighting hurts)
+#         pf_last600_rank   pct: -0.04
 #
-# This module supports BOTH formulas. compute_cumulative_score auto-detects
-# whether jt_combo_win_pct is populated for the race (>= 50% of runners with
-# data) and switches to the Path A formula automatically. If not, the proxy
-# formula is used. This means the upgrade ships transparently as soon as the
-# API integration starts returning the field.
-# Future upgrade path (Path A): replace this with
-#     score = 1.0 * jt_combo_pct + 1.2 * tr_pct
-# once jockey/trainer combo win % is fetched from the API.
+#     pct(signal) is the within-race percentile of that signal. For
+#     "higher = better" signals (TR, WPR, Late) percentile is computed
+#     by ranking descending. For PF rank signals where lower rank = better,
+#     the PF rank is converted to percentile by ranking ascending.
+#
+# Out-of-sample validation (test on second 14 days, train on first 14):
+#     rk1 WR: 35.3% (vs 32.7% baseline = +2.6pp)
+#     rk1 ROI: -3.0% (vs -9.8% baseline = +6.8pp better)
+#     covT3:  66.0% (vs 67.6% baseline = -1.6pp slightly worse)
+#     covT5:  83.7% (vs 85.4% baseline = -1.7pp slightly worse)
+#
+# Net: the new Score is BETTER at picking the actual winner (rk1 WR +2.6pp)
+# at the cost of being marginally less reliable for top-3/5 ranges.
+# Since Score is shown to users to indicate "the system's #1 pick", rank-1
+# accuracy matters most. Trade is worth it.
+#
+# History:
+#   Path A (jt_combo + TR):   designed but jt_combo data has lookahead
+#                              leakage, so Path A is disabled (JT_COMBO_TRUST=False).
+#   Path B (TR-only proxy):   prior default formula. 32.7% rk1 WR. Replaced.
+#   Path C (LogReg PF+TR):    current default. 35.3% rk1 WR.
 #
 # DATA INTEGRITY WARNING (2026-05-08):
 # The backtest xlsx export's jt_combo fields appear to contain lookahead leakage.
-# Re-running the threshold P&L analysis showed Path B (no jt_combo) gives -15%
-# ROI flat-betting at SP (realistic - bookmaker over-round) but Path A gives +20%
-# ROI which is implausibly profitable. The 30-point swing comes from jt_combo
-# values that were calculated AFTER the period and applied retroactively.
-#
-# Until we have a confirmed "as at race date" jt_combo source from the live API
-# (see DIAG: logging in build_stats_lookup), JT_COMBO_TRUST is False so all
-# races use Path B regardless of jt_combo presence in the CSV. Once the live
-# API integration is verified clean, flip this flag.
+# JT_COMBO_TRUST stays False so Path A doesn't accidentally activate.
+# Once the live API integration provides clean "as at race date" jt_combo,
+# flip this flag and re-run the LogReg analysis with jt_combo as a feature.
 JT_COMBO_TRUST = False
 
+# Path C: LogReg-fit weights (active default).
+# Applied via _logreg_score() to percentile-rank features.
+SCORE_WEIGHTS_LOGREG = {
+    "toprate_rating":   +2.97,
+    "wpr_avg_last3":    +0.17,
+    "late_speed_score": +0.20,
+    "pf_ai_rank":       +0.10,
+    "pf_class_rank":    -0.09,
+    "pf_last600_rank":  -0.04,
+}
+SCORE_LOGREG_INTERCEPT = -1.96
+
+# Path B: prior TR-only formula. Kept as fallback if PF data is missing
+# from a race (we degrade gracefully rather than scoring 0).
 SCORE_WEIGHTS_PROXY = {
-    # Path B (current default): TR-dominant proxy. 33% rk1 WR, -15% ROI@SP flat.
     "toprate_rating":   2.0,
     "wpr_avg_last3":    0.5,
     "late_speed_score": 0.3,
 }
+# Path A (jt_combo + TR): disabled pending clean data.
 SCORE_WEIGHTS_FULL = {
-    # Path A (disabled until clean data): jt_combo + TR.
     "jt_combo_win_pct": 1.0,
     "toprate_rating":   1.2,
 }
-# Min coverage of jt_combo_win_pct in a race (as a fraction of runners) before
-# the Path A formula is used. Below this we fall back to Path B for that race.
 SCORE_PATH_A_MIN_COVERAGE = 0.5
 
+# Which signals are "lower rank = better" (PF rank signals).
+# When computing percentile for these we rank ascending instead of descending.
+PF_RANK_SIGNALS = {"pf_ai_rank", "pf_class_rank", "pf_last600_rank",
+                   "pf_last400_rank", "pf_last200_rank", "pf_time_rank"}
+
 # Backwards-compat alias (other callers may reference this directly)
-SCORE_WEIGHTS = SCORE_WEIGHTS_PROXY
+SCORE_WEIGHTS = SCORE_WEIGHTS_PROXY  # legacy callers - still uses proxy weights
 SCORE_DIRECTION = "higher"
 
 
@@ -972,16 +994,39 @@ def _shrink_jt_combo(rdf):
 
 
 def _resolve_score_weights(rdf):
-    """Decide which formula to use for this race based on jt_combo_win_pct coverage."""
-    # Path A is only used if the global trust flag is on AND coverage is sufficient.
-    # See JT_COMBO_TRUST docstring above for why this defaults to False.
-    if not JT_COMBO_TRUST:
-        return SCORE_WEIGHTS_PROXY, "B"
-    if "jt_combo_win_pct" in rdf.columns:
+    """
+    Decide which formula to use for this race.
+
+    Priority order:
+      Path A: jt_combo + TR (only if JT_COMBO_TRUST AND coverage >= 50%)
+      Path C: LogReg PF+TR (if at least one PF signal has coverage >= 50%)
+      Path B: TR-only proxy (fallback if no PF data)
+
+    Returns (weights_dict, path_letter, intercept). Intercept is None for
+    Path A/B (linear sum, no sigmoid). For Path C, the intercept is used
+    in the sigmoid wrapping.
+    """
+    # Path A only used if jt_combo trust flag is on AND coverage is sufficient.
+    if JT_COMBO_TRUST and "jt_combo_win_pct" in rdf.columns:
         non_null = pd.to_numeric(rdf["jt_combo_win_pct"], errors="coerce").notna().sum()
         if non_null >= len(rdf) * SCORE_PATH_A_MIN_COVERAGE:
-            return SCORE_WEIGHTS_FULL, "A"
-    return SCORE_WEIGHTS_PROXY, "B"
+            return SCORE_WEIGHTS_FULL, "A", None
+
+    # Path C: prefer LogReg if any PF signal has coverage in the race.
+    # We check at least one PF signal is present for >= half the runners.
+    pf_check_cols = ["pf_ai_rank", "pf_class_rank", "pf_last600_rank"]
+    has_pf = False
+    for col in pf_check_cols:
+        if col in rdf.columns:
+            non_null = pd.to_numeric(rdf[col], errors="coerce").notna().sum()
+            if non_null >= len(rdf) * 0.5:
+                has_pf = True
+                break
+    if has_pf:
+        return SCORE_WEIGHTS_LOGREG, "C", SCORE_LOGREG_INTERCEPT
+
+    # Path B fallback (legacy proxy formula)
+    return SCORE_WEIGHTS_PROXY, "B", None
 
 
 def compute_cumulative_score(rdf):
@@ -990,18 +1035,19 @@ def compute_cumulative_score(rdf):
     and confidence metric.
 
     Returns: dict(run_id -> {
-        score: float in [0,1] - weighted percentile-rank composite
+        score: float in [0,1] - per-runner score, higher = better
         rank: int 1..N - rank within race by score
-        path: 'A'|'B' - which formula was used
+        path: 'A'|'B'|'C' - which formula was used
         conf: float in [0,1] - signal agreement (1 = unanimous, 0 = split)
         sigs: dict(sig_name -> percentile) - per-signal percentile breakdown
     })
 
-    Confidence is computed as 1 - (sd / max_sd) where sd is the standard
-    deviation of the horse's percentile ranks across signals, and max_sd is
-    the theoretical max (~0.5 for percentiles in [0,1] split bimodally).
-    A horse with all signals percentile-ranked in tight cluster gets high
-    conf. A horse where signals disagree wildly gets low conf.
+    Score is normalized to [0,1] regardless of formula:
+      Path A/B: weighted percentile-rank sum, divided by total weight.
+      Path C:   sigmoid(intercept + sum(weight * pct)). Naturally in [0,1].
+
+    Confidence: low SD across signal percentiles = high agreement (1 = unanimous).
+    Horses with only 1 signal populated get conf = None.
 
     The 'sigs' breakdown lets the detail panel show signal-by-signal so the
     user can see exactly which signals agreed and which disagreed.
@@ -1012,14 +1058,13 @@ def compute_cumulative_score(rdf):
     # Apply Bayesian shrinkage to jt_combo so small-sample pairs don't dominate
     rdf = _shrink_jt_combo(rdf)
 
+    weights, path, intercept = _resolve_score_weights(rdf)
+
     if n == 1:
         rid = str(rdf.iloc[0].get("run_id", ""))
-        weights, path = _resolve_score_weights(rdf)
         return {rid: {"score": 1.0, "rank": 1, "path": path, "conf": 1.0, "sigs": {}}}
 
-    weights, path = _resolve_score_weights(rdf)
-    total_w = sum(weights.values())
-    runner_scores = [0.0] * n  # positional
+    runner_raw_scores = [0.0] * n  # positional - the linear sum before sigmoid
     # Track per-signal percentile per runner (for confidence calc + detail panel)
     runner_sigs = [dict() for _ in range(n)]
 
@@ -1027,19 +1072,35 @@ def compute_cumulative_score(rdf):
         if sig not in rdf.columns:
             continue
         col = pd.to_numeric(rdf[sig], errors="coerce")
-        # Rank descending (higher = rank 1 = best). NaNs to bottom.
-        rk = col.rank(method="min", ascending=False, na_option="bottom")
+        # Determine rank direction: higher = better for TR signals,
+        # lower rank = better for PF rank signals (already integer ranks).
+        ascending = sig in PF_RANK_SIGNALS
+        rk = col.rank(method="min", ascending=ascending, na_option="bottom")
         for i in range(n):
             r = rk.iloc[i]
             if pd.isna(r):
                 continue
             # Convert rank to percentile in [0, 1]: rank 1 -> 1.0, rank N -> 0.0
-            pct = (n - r) / (n - 1)
-            runner_scores[i] += w * pct
+            pct = (n - r) / (n - 1) if n > 1 else 1.0
+            runner_raw_scores[i] += w * pct
             runner_sigs[i][sig] = round(pct, 3)
 
-    # Normalise to [0, 1]
-    runner_scores = [s / total_w for s in runner_scores]
+    # Apply sigmoid wrapper for Path C (LogReg formula),
+    # else linear-sum-divided-by-total-weight for Paths A/B.
+    if path == "C" and intercept is not None:
+        # sigmoid(intercept + linear_sum). Result in [0,1] naturally.
+        import math as _math
+        runner_scores = []
+        for raw in runner_raw_scores:
+            z = intercept + raw
+            # Clamp to avoid overflow on extreme z
+            z = max(-30.0, min(30.0, z))
+            sigmoid = 1.0 / (1.0 + _math.exp(-z))
+            runner_scores.append(sigmoid)
+    else:
+        # Path A/B: linear normalisation by total weight magnitude.
+        total_w = sum(abs(v) for v in weights.values()) or 1.0
+        runner_scores = [s / total_w for s in runner_raw_scores]
 
     # Compute ranks (1 = highest score)
     indexed = sorted(enumerate(runner_scores), key=lambda x: -x[1])
