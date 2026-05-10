@@ -538,6 +538,15 @@ body {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     margin-bottom: 12px;
+    /* Keep nav visible when scrolling. Without this, users scroll 5 picks
+       deep on Today and lose access to switch tabs without scrolling back up.
+       Background must be solid so picks don't bleed through. */
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 50;
+    /* Add bottom padding so the underline border doesn't touch picks below */
+    padding-bottom: 1px;
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tab {
@@ -575,16 +584,18 @@ body {
   gap: 18px;
 }
 @media (max-width: 720px) {
-  .hero { padding: 14px 16px; margin-bottom: 12px; }
+  .hero { padding: 12px 14px; margin-bottom: 10px; }
   .hero-stats {
-    /* 2x2 grid for 4 KPIs - far better than full-width stack */
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px 12px;
+    /* 4-column on phones for at-a-glance scanning. The 2x2 grid was
+       too tall - eats prime screen real estate before users see picks.
+       4 narrow cells keep all key metrics in one horizontal strip. */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
   }
   .hero-stat { padding: 0; }
-  .hero-stat .val { font-size: 18px; }
-  .hero-stat .lbl { font-size: 9px; }
-  .hero-stat .sub { font-size: 10px; }
+  .hero-stat .lbl { font-size: 8px; margin-bottom: 2px; letter-spacing: 0.04em; }
+  .hero-stat .val { font-size: 15px; line-height: 1; }
+  .hero-stat .sub { font-size: 9px; margin-top: 2px; }
 }
 .hero-stat { padding: 4px 0; }
 .hero-stat .lbl {
@@ -1141,8 +1152,8 @@ body {
       'runner runner  runner'
       'sigs   sigs    sigs'
       'odds   result  bet';
-    gap: 6px 10px;
-    padding: 10px 12px;
+    gap: 4px 8px;
+    padding: 8px 12px;
     min-width: 0;
     align-items: center;
   }
@@ -1154,6 +1165,19 @@ body {
      Hide cell labels too since the new layout doesn't use them. */
   .pick-row .pr-stake { display: none; }
   .cell-lbl { display: none; }
+
+  /* Compact signal pills on mobile - smaller labels and values to allow
+     all 8 chips (Score, WPR, Late, Class, L600, PFAI, TR, Votes) to fit
+     on one line. Vote badge stays prominent (slightly larger). */
+  .pick-row .pr-sigs-top .sig {
+    padding: 2px 5px; font-size: 10px;
+    gap: 3px;
+  }
+  .pick-row .pr-sigs-top .sig .lbl { font-size: 9px; }
+  .pick-row .pr-sigs-top .sig .v { font-size: 11px; }
+  /* Vote badge gets slightly more presence so users can scan it */
+  .pick-row .pr-sigs-top .sig.vote-badge { padding: 2px 6px; }
+  .pick-row .pr-sigs-top .sig.vote-badge .v { font-size: 11px; font-weight: 800; }
 
   /* On Today (pending) rows, hide return too - shown in expand panel.
      On P&L (settled) rows, show return as the most useful at-a-glance number. */
@@ -1209,18 +1233,33 @@ body {
     grid-area: result; justify-content: center;
     flex-wrap: wrap; gap: 4px;
   }
-  /* The unset state res-select dropdown - keep compact */
-  .pr-result .res-select { font-size: 11px; padding: 3px 4px 3px 6px; }
+  /* Bigger touch targets on mobile - the unset state res-select dropdown
+     was 26px tall which is below Apple HIG (44pt) and Google guidance (48dp).
+     Bump to 36px for thumb-friendly tapping without dominating the row. */
+  .pr-result .res-select {
+    font-size: 12px; padding: 6px 6px 6px 10px;
+    min-height: 36px;
+  }
+  /* Result tag (W·1st, L·3rd) - tappable to clear, gets bigger touch zone */
+  .pr-result .res-tag {
+    padding: 6px 8px; font-size: 12px;
+  }
   .pr-bet {
     grid-area: bet; justify-content: flex-end;
     gap: 4px; flex-wrap: nowrap;
   }
-  /* Tighten odds-input on mobile since space is at premium */
-  .pr-bet .odds-input-wrap { padding: 2px 6px; }
-  .pr-bet .odds-input { width: 50px; font-size: 12px; }
+  /* Bet button: 28px desktop -> 36px mobile for proper touch target */
+  .pr-bet .bet-btn {
+    width: 36px; height: 36px; font-size: 16px;
+  }
+  /* Odds input: a bit bigger and more padding so tapping it is easy */
+  .pr-bet .odds-input-wrap { padding: 6px 8px; min-height: 36px; }
+  .pr-bet .odds-input { width: 55px; font-size: 13px; }
   .pr-chev {
     grid-area: chev;
-    font-size: 14px; color: var(--ink-faint);
+    font-size: 16px; color: var(--ink-faint);
+    min-width: 28px; min-height: 28px;
+    display: flex; align-items: center; justify-content: center;
   }
   /* Detail panel adjustments */
   .pd-speed { grid-template-columns: repeat(2, 1fr); }
@@ -1534,6 +1573,12 @@ body {
   font-weight: 700;
 }
 .race-context-bar .ctx-override-clear:hover { color: var(--rose); }
+@media (max-width: 720px) {
+  /* Override input is fiddly to type on mobile and rarely needed there.
+     Hide both label and input - desktop users can still set track condition
+     overrides; mobile users use the system going as-is. */
+  .race-context-bar .ctx-override-inline { display: none; }
+}
 
 /* PF data freshness indicator - shown above the runners table when this
    meeting's Punting Form ratings are stale or absent. Hidden when PF data
@@ -1850,7 +1895,15 @@ body {
 .race-header-stats .item { color: #a8a29e; }
 .race-header-stats .item .v { color: #fafaf9; font-weight: 700; }
 @media (max-width: 720px) {
-  .race-header-stats { gap: 10px 14px; font-size: 11px; }
+  /* Black race banner: tighter padding, smaller fonts, allow stats to wrap
+     onto own line beneath title to free horizontal space */
+  .race-header {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .race-header h2 { font-size: 16px; }
+  .race-header .race-meta-line { font-size: 11px; margin-top: 2px; }
+  .race-header-stats { gap: 8px 12px; font-size: 11px; width: 100%; }
   .race-header-stats .item { font-size: 11px; }
   /* Score-top3 indicator inline alongside other items rather than full row */
   .score-top3 { padding: 3px 8px; font-size: 11px; }
@@ -1870,6 +1923,16 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
   cursor: pointer; user-select: none; white-space: nowrap;
+  /* Sticky on all screens so the column headers stay visible while scrolling
+     the runner list. Top offset matches the .tabs sticky nav (40px) on mobile,
+     0 on desktop where tabs aren't sticky. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+@media (max-width: 720px) {
+  /* Below the sticky tabs nav (~40px tall on mobile) */
+  .race-table thead th { top: 40px; }
 }
 .race-table thead th:hover { background: #ede9e1; }
 .race-table tbody td {
@@ -3125,24 +3188,41 @@ body {
      Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
      still available in the detail panel by tapping the horse name on Today
      tab, or by viewing in landscape mode (table will horizontally scroll). */
-  /* Column index after redesign (1-based):
+  /* Race table mobile column structure (1-based indices):
      1=Tab 2=Horse 3=Bar 4=Fxd
-     5=WPR 6=Late 7=Class 8=L600 9=PF AI (model rule signals - keep on mobile)
-     10=Style 11=Settles 12=TR 13=Score 14=Mid 15=Total
-     16=L400 17=ΔCls 18=Distance 19=Going(?)
-     Hide cols 11-19 on mobile (model signals + Style stay visible) */
+     5=WPR 6=Late 7=Class 8=L600 9=PF AI (signal columns - hide on mobile)
+     10=Style 11=Settles 12=TR 13=Score
+     14=Mid 15=Total 16=L400 17=ΔCls 18=Distance 19=Going
+
+     On mobile we hide everything except: Tab, Horse, Fxd, Score, Style.
+     The signal columns are redundant on mobile because users can tap a row
+     to expand the detail panel which shows full signals + ranks. Keeping
+     the table narrow means horses fit on screen without horizontal scroll.
+
+     Bar (col 3) is also hidden - barrier draw is non-essential at-a-glance.
+     Score is what users glance at first. Style helps with pace context. */
+  .race-table thead th:nth-child(3),  /* Bar */
+  .race-table thead th:nth-child(5),  /* WPR */
+  .race-table thead th:nth-child(6),  /* Late */
+  .race-table thead th:nth-child(7),  /* Class */
+  .race-table thead th:nth-child(8),  /* L600 */
+  .race-table thead th:nth-child(9),  /* PF AI */
   .race-table thead th:nth-child(11), /* Settles */
   .race-table thead th:nth-child(12), /* TR */
-  .race-table thead th:nth-child(13), /* Score */
   .race-table thead th:nth-child(14), /* Mid */
   .race-table thead th:nth-child(15), /* Total */
   .race-table thead th:nth-child(16), /* L400 */
   .race-table thead th:nth-child(17), /* ΔCls */
   .race-table thead th:nth-child(18), /* Distance */
   .race-table thead th:nth-child(19), /* Going */
+  .race-table tbody td:nth-child(3),
+  .race-table tbody td:nth-child(5),
+  .race-table tbody td:nth-child(6),
+  .race-table tbody td:nth-child(7),
+  .race-table tbody td:nth-child(8),
+  .race-table tbody td:nth-child(9),
   .race-table tbody td:nth-child(11),
   .race-table tbody td:nth-child(12),
-  .race-table tbody td:nth-child(13),
   .race-table tbody td:nth-child(14),
   .race-table tbody td:nth-child(15),
   .race-table tbody td:nth-child(16),
