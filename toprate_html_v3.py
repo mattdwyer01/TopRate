@@ -2793,6 +2793,15 @@ body {
 .hm-val.hm70 { background: #059669; color: #fff; }
 .hm-val.hm80 { background: #047857; color: #fff; }
 
+@media (max-width: 720px) {
+  .heatmap-grid {
+    grid-template-columns: minmax(70px, 1fr) repeat(3, 1fr);
+  }
+  .heatmap-grid .hm-cell { padding: 5px 4px; font-size: 11px; }
+  .heatmap-grid .hm-head { font-size: 9px; letter-spacing: 0.02em; padding: 5px 2px; }
+  .heatmap-grid .hm-val { font-size: 11px; }
+}
+
 /* Winners and placegetters tables - similar shape, scrollable */
 .tracking-table-wrap { overflow-x: auto; }
 .tracking-table {
@@ -2832,6 +2841,64 @@ body {
 .tracking-table .pos-3 { color: #b45309; font-weight: 600; }
 .tracking-table .horse-cell { font-weight: 600; min-width: 130px; }
 .tracking-table .price-cell { color: var(--ink); font-weight: 500; }
+
+/* ── Mobile responsive layout for tracking tables ─────────────────────────
+   Two tables:
+     .tracking-winners columns:
+       1=Date, 2=Meeting, 3=Race, 4=Dist, 5=Winner, 6=SP,
+       7=WPR, 8=Late, 9=Class, 10=L600, 11=PFAI, 12=TR,
+       13=Mid, 14=Total, 15=L400, 16=L200, 17=Time
+     .tracking-places columns:
+       1=Date, 2=Meeting, 3=Race, 4=Pos, 5=Horse, 6=SP,
+       7=WPR, 8=Late, 9=Class, 10=L600, 11=PFAI, 12=TR,
+       13=Mid, 14=Total, 15=L400, 16=L200, 17=Time
+
+   On mobile: hide long-tail signal columns (Mid/Total/L400/L200/Time = cols
+   13-17) on both tables. Hide Race (col 3) on both, plus Dist (col 4) on
+   winners table only (Pos stays on places table since it's vital context).
+*/
+@media (max-width: 720px) {
+  .tracking-table {
+    min-width: auto;
+    font-size: 11px;
+  }
+  .tracking-table thead th,
+  .tracking-table tbody td {
+    padding: 4px 5px;
+  }
+  .tracking-table thead th {
+    font-size: 9px;
+    letter-spacing: 0.02em;
+  }
+  /* Hide Race column (col 3) on both tables */
+  .tracking-table thead th:nth-child(3),
+  .tracking-table tbody td:nth-child(3) {
+    display: none;
+  }
+  /* Hide Dist column (col 4) on Winners table only */
+  .tracking-winners thead th:nth-child(4),
+  .tracking-winners tbody td:nth-child(4) {
+    display: none;
+  }
+  /* Hide Mid (13), Total (14), L400 (15), L200 (16), Time (17) */
+  .tracking-table thead th:nth-child(13),
+  .tracking-table thead th:nth-child(14),
+  .tracking-table thead th:nth-child(15),
+  .tracking-table thead th:nth-child(16),
+  .tracking-table thead th:nth-child(17),
+  .tracking-table tbody td:nth-child(13),
+  .tracking-table tbody td:nth-child(14),
+  .tracking-table tbody td:nth-child(15),
+  .tracking-table tbody td:nth-child(16),
+  .tracking-table tbody td:nth-child(17) {
+    display: none;
+  }
+  /* Tighten horse cell on mobile */
+  .tracking-table .horse-cell { min-width: 80px; font-size: 11px; }
+  .tracking-table .rank-pill {
+    min-width: 18px; padding: 1px 3px; font-size: 10px;
+  }
+}
 
 /* Threshold P&L table */
 .thresh-table {
@@ -7360,7 +7427,7 @@ function renderTrackingWinners(races) {
     return '<th class="' + cls.join(' ') + '" data-tsort="' + col + '">' + label + '</th>';
   }
 
-  let html = '<div class="tracking-table-wrap"><table class="tracking-table"><thead><tr>' +
+  let html = '<div class="tracking-table-wrap"><table class="tracking-table tracking-winners"><thead><tr>' +
     thW('date', 'Date') +
     thW('venue', 'Meeting') +
     '<th>Race</th>' +
@@ -7449,7 +7516,7 @@ function renderTrackingPlacegetters(races) {
     });
   });
 
-  let html = '<div class="tracking-table-wrap"><table class="tracking-table"><thead><tr>' +
+  let html = '<div class="tracking-table-wrap"><table class="tracking-table tracking-places"><thead><tr>' +
     '<th>Date</th>' +
     '<th>Meeting</th>' +
     '<th>Race</th>' +
