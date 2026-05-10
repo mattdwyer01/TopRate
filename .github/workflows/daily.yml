@@ -1,4 +1,4 @@
-name: Daily Refresh
+name: TopRate Daily
 
 # Triggered manually from the dashboard's Settings tab "Fetch data" button via
 # workflow_dispatch. The optional `date` input lets the dashboard request a
