@@ -2760,6 +2760,79 @@ body {
   font-style: italic; padding: 12px 0;
 }
 
+/* ── Tracking tab tables ─────────────────────────────────────────────── */
+/* Heatmap grid: signal name + 3 columns (top1/top3/top5 WR%) */
+.heatmap-grid {
+  display: grid; grid-template-columns: minmax(140px, 1fr) repeat(3, 100px);
+  gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-family: var(--font-body); font-variant-numeric: tabular-nums;
+}
+.heatmap-grid .hm-cell {
+  background: var(--panel); padding: 8px 12px; font-size: 12px;
+  display: flex; align-items: center;
+}
+.heatmap-grid .hm-head {
+  background: #f5f3ee; font-weight: 700; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink); justify-content: center;
+}
+.heatmap-grid .hm-name { font-weight: 600; color: var(--ink); }
+.heatmap-grid .hm-val {
+  justify-content: center; font-weight: 600; font-size: 13px;
+}
+/* Heatmap cell colour by WR%: 0 = grey, 50% = mid green, 80%+ = deep green */
+.hm-val.hm0 { background: #fafaf9; color: var(--ink-faint); }
+.hm-val.hm10 { background: #fef3c7; color: #92400e; }
+.hm-val.hm20 { background: #d1fae5; color: #065f46; }
+.hm-val.hm30 { background: #a7f3d0; color: #064e3b; }
+.hm-val.hm40 { background: #6ee7b7; color: #064e3b; }
+.hm-val.hm50 { background: #34d399; color: #064e3b; }
+.hm-val.hm60 { background: #10b981; color: #fff; }
+.hm-val.hm70 { background: #059669; color: #fff; }
+.hm-val.hm80 { background: #047857; color: #fff; }
+
+/* Winners and placegetters tables - similar shape, scrollable */
+.tracking-table-wrap { overflow-x: auto; }
+.tracking-table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums; min-width: 1100px;
+}
+.tracking-table thead th {
+  background: var(--ink); color: #fafaf9;
+  text-align: left; padding: 8px 10px; font-weight: 600;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  position: sticky; top: 0;
+}
+.tracking-table thead th.sortable { cursor: pointer; }
+.tracking-table thead th.sortable:hover { background: #1f1d1a; }
+.tracking-table thead th.sort-asc::after  { content: ' ↑'; color: var(--emerald); }
+.tracking-table thead th.sort-desc::after { content: ' ↓'; color: var(--emerald); }
+.tracking-table tbody td {
+  padding: 6px 10px; border-bottom: 1px solid var(--line-soft);
+}
+.tracking-table tbody tr:hover { background: var(--line-soft); }
+.tracking-table tbody tr.race-row { background: #f5f3ee; font-weight: 600; }
+.tracking-table .rank-pill {
+  display: inline-block; min-width: 22px; padding: 1px 6px;
+  border-radius: 3px; text-align: center; font-weight: 600; font-size: 11px;
+  background: var(--line-soft); color: var(--ink-mute);
+}
+.tracking-table .rank-pill.r-top { background: #d1fae5; color: #065f46; }
+.tracking-table .rank-pill.r-mid { background: #fef3c7; color: #92400e; }
+.tracking-table .rank-pill.r-out { background: var(--line-soft); color: var(--ink-faint); }
+.tracking-table .meeting-link {
+  color: var(--ink); text-decoration: none; font-weight: 600;
+}
+.tracking-table .meeting-link:hover { color: var(--emerald-deep); text-decoration: underline; }
+.tracking-table .pos-1 { color: var(--emerald-deep); font-weight: 700; }
+.tracking-table .pos-2 { color: #92400e; font-weight: 600; }
+.tracking-table .pos-3 { color: #b45309; font-weight: 600; }
+.tracking-table .horse-cell { font-weight: 600; min-width: 130px; }
+.tracking-table .price-cell { color: var(--ink); font-weight: 500; }
+
 /* Threshold P&L table */
 .thresh-table {
   display: grid; grid-template-columns: auto auto auto auto auto auto;
@@ -3173,7 +3246,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="tab" data-tab="race">Race</div>
     <div class="tab" data-tab="quaddie">Quaddie</div>
     <div class="tab" data-tab="pnl">P&amp;L</div>
-    <div class="tab" data-tab="insights">Insights</div>
+    <div class="tab" data-tab="insights">Tracking</div>
     <div class="tab" data-tab="settings">Settings</div>
   </nav>
 
@@ -3445,72 +3518,47 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- INSIGHTS -->
   <section class="section" id="sec-insights">
-    <!-- Period selector applies to most cards below -->
+    <!-- Period selector applies to all tracking sections below -->
     <div class="insights-controls">
       <div class="ic-period-toggle">
-        <button class="ic-period-btn" data-iperiod="30">Last 30 days</button>
-        <button class="ic-period-btn active" data-iperiod="all">All time</button>
+        <button class="ic-period-btn" data-iperiod="7">Last 7 days</button>
+        <button class="ic-period-btn active" data-iperiod="30">Last 30 days</button>
+        <button class="ic-period-btn" data-iperiod="90">Last 90 days</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
 
-    <!-- 1. The big one: how do different thresholds compare across full history? -->
+    <!-- 1. Signal heatmap - which signals are most predictive of winners -->
     <div class="insight-card insight-wide">
-      <h3>Score threshold backtest</h3>
+      <h3>Signal heatmap</h3>
       <div class="desc">
-        Cumulative units P&amp;L if you'd flat-bet 1u at fixed-win price on every horse
-        above each threshold across the full backtest. Use this to pick where to set
-        your threshold (Settings tab). Your current threshold is highlighted.
+        Win rate of horses ranked top-1, top-3, and top-5 in each signal across all
+        resulted races in the period. Darker green = stronger predictive power. Use
+        this to spot which signals are working now and which have decayed.
       </div>
-      <div id="threshold-pnl-chart"></div>
-      <div id="threshold-pnl-table"></div>
+      <div id="signal-heatmap"></div>
     </div>
 
-    <!-- 2. Variance / streaks - what to expect emotionally -->
+    <!-- 2. Winners table - one row per resulted race, full signal ranks for the winner -->
     <div class="insight-card insight-wide">
-      <h3>Variance and streaks</h3>
+      <h3>Winners — signal ranks</h3>
       <div class="desc">
-        How rough does the ride get? If the longest historical losing run is 14 bets,
-        don't panic at 8. Drawdown shows the deepest trough relative to a prior peak.
+        Every resulted race in the period. Each row shows the winner's rank for
+        all 11 signals. Green = top 3, yellow = top 5, grey = beyond. Race link
+        opens the Race tab. Sort by clicking column headers.
       </div>
-      <div id="variance-stats"></div>
-      <div id="variance-chart"></div>
+      <div id="tracking-winners"></div>
     </div>
 
-    <!-- 3. Actual vs expected - is the model still working? -->
+    <!-- 3. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
     <div class="insight-card insight-wide">
-      <h3>Actual vs expected performance</h3>
+      <h3>Placegetters detail</h3>
       <div class="desc">
-        Your real ROI (using prices you actually took) vs what the model expects at SP.
-        Rolling 30-bet window. If actual sustainably underperforms expected, you're
-        getting beaten by market drift between Fxd display time and bet placement.
+        First, second, and third placegetters per race with all signal ranks.
+        Use to spot patterns where the model lost a photo finish to a similar
+        runner. Click a race to open it in the Race tab.
       </div>
-      <div id="aex-stats"></div>
-      <div id="aex-chart"></div>
-    </div>
-
-    <!-- 4. Edge by price band with confidence intervals -->
-    <div class="insight-card insight-wide">
-      <h3>Edge by price band</h3>
-      <div class="desc">
-        ROI by fixed-win price band with 95% confidence intervals. Bands where the CI
-        crosses zero have insufficient evidence to be confident the edge is real.
-      </div>
-      <div id="edge-by-price"></div>
-    </div>
-
-    <!-- 5. Bottom row of small descriptive cards (counts only, not perf) -->
-    <div class="insights-grid">
-      <div class="insight-card">
-        <h3>Bets by venue</h3>
-        <div class="desc">Where the model finds qualifying bets most often.</div>
-        <div class="dist-bars" id="dist-venue"></div>
-      </div>
-      <div class="insight-card">
-        <h3>Bets by going</h3>
-        <div class="desc">Distribution by track condition.</div>
-        <div class="dist-bars" id="dist-going"></div>
-      </div>
+      <div id="tracking-placegetters"></div>
     </div>
   </section>
 
@@ -3557,17 +3605,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <div class="lbl">Threshold</div>
           <div class="desc">
-            Minimum cumulative score for a horse to qualify on the Quaddie tab and
-            be highlighted on the Race tab. Higher = stricter, fewer picks.
-            <br><br>
-            <strong>Backtest reference</strong> (1,608 races, Path B proxy formula):
-            0.85 = ~1.6 picks/race, 28% strike rate, 47% race-coverage.
-            0.80 = ~2.1 picks/race, 25% strike, 53% coverage.
-            0.75 = ~2.7 picks/race, 23% strike, 60% coverage.
-            <strong>0.70 = ~3.2 picks/race, 21% strike, 65% coverage</strong> (recommended).
-            0.65 = ~3.7 picks/race, 20% strike, 71% coverage.
-            <br><br>
-            See the Insights tab for full P&amp;L curves at each threshold.
+            Minimum cumulative score for a horse to qualify on the Quaddie tab.
+            Higher = stricter, fewer picks. Note: this is the legacy TR-only
+            cumulative score and does not include Punting Form signals yet.
+            The main betting model rule (WPR ≤ 3 + Late ≤ 3 + Class = 1 +
+            L600 ≤ 3) does not use this threshold.
           </div>
         </div>
         <input type="number" class="setting-input" id="setting-score-thresh" value="0.70" min="0" max="1" step="0.05">
@@ -4629,7 +4671,6 @@ function buildDetailHTML(p, r) {
 
   return fsWarningHtml +
          '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
-         '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
          scoreBreakdownHtml +
          adjustmentsHtml;
 }
@@ -5258,28 +5299,23 @@ function buildRaceRunnerDetailHTML(u, race) {
     (u.dw||0) + 'W ' + Math.max(0, (u.dp||0) - (u.dw||0)) + 'P from ' + u.ds + ' starts' : null;
 
   // PF section - all fields when present
-  const pfReliable = u.pfaiR != null ? '<span style="color:var(--emerald-deep);font-weight:600;">✓</span>' : null;
-  const pfAiHtml = u.pfaiR != null ?
-    '#' + u.pfaiR + (u.pfaiPrc != null ? ' · $' + u.pfaiPrc.toFixed(2) : '') +
-    (u.pfaiSc != null ? ' · ' + u.pfaiSc.toFixed(1) : '') : null;
+  const pfReliable = u.pfaiR != null ? '<span style="color:var(--emerald-deep);font-weight:600;">✓</span>' : '';
+  const pfAiHtml = u.pfaiR != null ? '#' + u.pfaiR : null;
   const pfClassHtml = u.wcR != null ?
     '#' + u.wcR + (u.tacwcR != null ? ' (adj #' + u.tacwcR + ')' : '') : null;
   const pfTimeHtml = u.tR != null ? '#' + u.tR : null;
-  const pfSectHtml = (u.etR != null || u.l600R != null || u.l400R != null || u.l200R != null) ?
-    'Early ' + (u.etR != null ? '#' + u.etR : '—') +
-    ' · L600 ' + (u.l600R != null ? '#' + u.l600R : '—') +
-    ' · L400 ' + (u.l400R != null ? '#' + u.l400R : '—') +
-    ' · L200 ' + (u.l200R != null ? '#' + u.l200R : '—') : null;
+  const pfEarlyHtml = u.etR != null ? '#' + u.etR : null;
+  const pfL600Html  = u.l600R != null ? '#' + u.l600R : null;
+  const pfL400Html  = u.l400R != null ? '#' + u.l400R : null;
+  const pfL200Html  = u.l200R != null ? '#' + u.l200R : null;
   const pfStyleHtml = u.rs ?
     '<span style="text-transform:uppercase;font-weight:600;">' + escapeHtml(u.rs) + '</span>' : null;
   const pfClsChgHtml = (u.clsChg != null && u.clsChg !== 0) ?
     (u.clsChg > 0 ? '<span style="color:var(--emerald-deep);font-weight:700;">↑ up ' + u.clsChg + '</span>' :
      '<span style="color:#dc2626;font-weight:700;">↓ down ' + Math.abs(u.clsChg) + '</span>') : null;
 
-  // TR signals detail (the values not shown in main table)
+  // TR signals - we keep speed rating only (TR price, Early speed removed per design)
   const trSpd = u.spd != null ? Math.round(u.spd) : null;
-  const trPrice = u.trp != null ? '$' + u.trp.toFixed(2) : null;
-  const earlyHtml = u.es != null ? num(u.es, 1) : null;
 
   // Weight
   const wtHtml = u.wt != null ?
@@ -5305,24 +5341,20 @@ function buildRaceRunnerDetailHTML(u, race) {
       '</div>' +
     '</div>' +
     '<div class="rd-section">' +
-      '<div class="rd-section-title">TR signals</div>' +
+      '<div class="rd-section-title">Signals ' + pfReliable + '</div>' +
       '<div class="rd-section-body">' +
-        fld('TR price', trPrice) +
         fld('Speed rating', trSpd) +
-        fld('Early', earlyHtml) +
-      '</div>' +
-    '</div>' +
-    (pfAiHtml ? '<div class="rd-section">' +
-      '<div class="rd-section-title">Punting Form ' + (pfReliable || '') + '</div>' +
-      '<div class="rd-section-body">' +
-        fld('AI rank · price · score', pfAiHtml) +
+        fld('PF AI', pfAiHtml) +
         fld('Time rank', pfTimeHtml) +
         fld('Class rank', pfClassHtml) +
-        fld('Sectional ranks', pfSectHtml) +
+        fld('Early sect', pfEarlyHtml) +
+        fld('L600 sect', pfL600Html) +
+        fld('L400 sect', pfL400Html) +
+        fld('L200 sect', pfL200Html) +
         fld('Run style', pfStyleHtml) +
         fld('Class change', pfClsChgHtml) +
       '</div>' +
-    '</div>' : '') +
+    '</div>' +
   '</div>';
 }
 
@@ -5820,9 +5852,10 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // New unified model rule signal pattern:
-    //   wpr_rank<=3 + late_rank<=3 + pf_class_rank<=1 + pf_last600_rank<=3
-    // Backtest: 26.7% WR, AvgSP $6.13, +62.1% ROI, profit factor 1.85.
+    // Hybrid model rule signal pattern (matches lambda in toprate_daily.py):
+    //   Rule A: wpr_rank<=3 + late_rank<=3 + pf_class_rank<=1 + pf_last600_rank<=3
+    //   Rule B (Saturday only): pf_class_change>=5 + wpr_rank<=3 + late_rank<=3
+    // Combined backtest: ~22% WR, +45% ROI weighted, ~25 picks/Saturday.
     // Highlighted as 'spot-bet' (re-using existing CSS for emerald tint).
     // Suppressed when race is already a model pick (no double-highlight).
     const csR = u.crk;
@@ -5831,10 +5864,19 @@ function renderRaceDetail(raceId) {
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
     const raceHasModelPick = picks.length > 0;
-    const isUnifiedRule = (wprR != null && wprR <= 3)
-                       && (lateR != null && lateR <= 3)
-                       && (u.wcR != null && u.wcR <= 1)
-                       && (u.l600R != null && u.l600R <= 3);
+    // Determine race day-of-week for Rule B (Saturday class-up tier).
+    // Race date is on the meta object as 'date' in YYYY-MM-DD format.
+    const _raceDate = race && race.date ? new Date(race.date + 'T12:00:00') : null;
+    const _isSaturday = _raceDate && _raceDate.getDay() === 6;
+    const _ruleA = (wprR != null && wprR <= 3)
+                && (lateR != null && lateR <= 3)
+                && (u.wcR != null && u.wcR <= 1)
+                && (u.l600R != null && u.l600R <= 3);
+    const _ruleB = _isSaturday
+                && (u.clsChg != null && Number(u.clsChg) >= 5)
+                && (wprR != null && wprR <= 3)
+                && (lateR != null && lateR <= 3);
+    const isUnifiedRule = _ruleA || _ruleB;
     if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
@@ -7013,7 +7055,6 @@ function renderBhDetail(s) {
   return linkHtml +
     fsWarningHtml +
     '<div class="pd-section"><div class="pd-section-title">Context</div>' + contextHtml + '</div>' +
-    '<div class="pd-section"><div class="pd-section-title">Speed scores</div>' + speedHtml + '</div>' +
     adjustmentsHtml +
     recordHtml;
 }
@@ -7110,611 +7151,345 @@ function exportSettledCSV() {
   a.click();
 }
 
-// ── INSIGHTS tab rendering ─────────────────────────────────────────────────
-// ── INSIGHTS tab rendering ─────────────────────────────────────────────────
-// State for the period filter (30d / all-time)
-let insightsPeriod = 'all';
 
+
+// ── TRACKING tab rendering ─────────────────────────────────────────────────
+// Three sections:
+//   1. Signal heatmap   - WR% per signal at top-1/3/5 across resulted races
+//   2. Winners table    - one row per resulted race showing winner's signal ranks
+//   3. Placegetters     - 1st/2nd/3rd per race with all signal ranks
+//
+// All sections respect a single period filter (7/30/90 days). Data source is
+// SETTLED (model picks with results) plus RACES (full field data including
+// finish positions and per-runner signal values).
+
+let trackingPeriod = '30';   // '7' | '30' | '90'
+let trackingSortCol = 'date';
+let trackingSortDir = 'desc';
+
+// The 11 signals shown on each row, ordered by importance:
+//   model rule signals first, then supporting context.
+const TRACKING_SIGNALS = [
+  { key: 'wpr',   label: 'WPR',   field: 'w' },        // raw value, sort desc
+  { key: 'late',  label: 'Late',  field: 'ls' },
+  { key: 'class', label: 'Class', field: 'wcR',  rankField: true }, // rank, sort asc
+  { key: 'l600',  label: 'L600',  field: 'l600R', rankField: true },
+  { key: 'pfai',  label: 'PFAI',  field: 'pfaiR', rankField: true },
+  { key: 'tr',    label: 'TR',    field: 'trr' },
+  { key: 'mid',   label: 'Mid',   field: 'ms' },
+  { key: 'total', label: 'Total', field: 'ts' },
+  { key: 'l400',  label: 'L400',  field: 'l400R', rankField: true },
+  { key: 'l200',  label: 'L200',  field: 'l200R', rankField: true },
+  { key: 'time',  label: 'Time',  field: 'tR',    rankField: true },
+];
+
+// Compute per-race within-field rank for one signal.
+// rankField=true means the value already IS a rank (lower = better).
+// rankField=false means it's a raw value (higher = better, rank 1 = highest).
+function rankInRace(runners, rid, sigDef) {
+  const me = runners.find(u => String(u.rid) === String(rid));
+  if (!me) return null;
+  const v = me[sigDef.field];
+  if (v == null) return null;
+  if (sigDef.rankField) return Math.round(v);
+  // value-based: rank 1 = highest
+  const valid = runners.filter(u => u[sigDef.field] != null);
+  valid.sort((a, b) => b[sigDef.field] - a[sigDef.field]);
+  const idx = valid.findIndex(u => String(u.rid) === String(rid));
+  return idx >= 0 ? idx + 1 : null;
+}
+
+// Get all resulted races (where finish_position is known for at least one runner)
+// filtered to the period. Returns array of races with their original runners array.
+function trackingResultedRaces() {
+  const days = parseInt(trackingPeriod, 10);
+  const cutoff = new Date(Date.now() - days * 86400000);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return (RACES || [])
+    .filter(r => r.done === 1 || (r.runners || []).some(u => u.f != null))
+    .filter(r => (r.date || '') >= cutoffStr);
+}
+
+function rankPillCls(rank) {
+  if (rank == null) return 'r-out';
+  if (rank <= 3) return 'r-top';
+  if (rank <= 5) return 'r-mid';
+  return 'r-out';
+}
+
+function rankPill(rank) {
+  if (rank == null) return '<span class="rank-pill r-out">—</span>';
+  return '<span class="rank-pill ' + rankPillCls(rank) + '">' + rank + '</span>';
+}
+
+// Heatmap colour bucket: 0..80%+
+function heatmapClass(pct) {
+  if (pct == null || pct === 0) return 'hm0';
+  if (pct < 10) return 'hm10';
+  if (pct < 20) return 'hm20';
+  if (pct < 30) return 'hm30';
+  if (pct < 40) return 'hm40';
+  if (pct < 50) return 'hm50';
+  if (pct < 60) return 'hm60';
+  if (pct < 70) return 'hm70';
+  return 'hm80';
+}
+
+// Master tracking renderer - called whenever period changes
 function renderInsights() {
-  const allSettled = SETTLED || [];
-  const allRaces = RACES || [];
+  const races = trackingResultedRaces();
 
-  // Apply period filter: 30d shows only bets/races from last 30 days
-  let cutoff = null;
-  if (insightsPeriod === '30') {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    cutoff = d.toISOString().slice(0, 10);
-  }
-  const settled = cutoff ? allSettled.filter(s => (s.date || '') >= cutoff) : allSettled;
-  const races = cutoff ? allRaces.filter(r => (r.date || '') >= cutoff) : allRaces;
-
-  // Stash filtered data on the window for sub-renderers to use
-  // (avoids re-passing through every function call)
-  window._insightsFiltered = { settled, races };
-
-  // Update summary line at the top
+  // Summary line
   const summaryEl = document.getElementById('insights-summary');
   if (summaryEl) {
-    const totalSettled = settled.length;
-    const totalResultedRaces = races.filter(r => r.done === 1).length;
-    const periodLbl = insightsPeriod === '30' ? 'last 30 days' : 'all time';
-    summaryEl.innerHTML = '<strong>' + totalSettled + '</strong> settled bets across ' +
-      '<strong>' + totalResultedRaces + '</strong> resulted races · ' + periodLbl;
+    const totalRaces = races.length;
+    const totalRunners = races.reduce((s, r) => s + (r.runners || []).length, 0);
+    const periodLbl = 'last ' + trackingPeriod + ' days';
+    summaryEl.textContent = totalRaces + ' resulted races · ' + totalRunners + ' runners · ' + periodLbl;
   }
 
-  // ── 1. Score threshold backtest ──────────────────────────────────────────
-  renderThresholdPnl();
-
-  // ── 2. Variance and streaks ──────────────────────────────────────────────
-  renderVarianceStats();
-
-  // ── 3. Actual vs expected ────────────────────────────────────────────────
-  renderActualVsExpected();
-
-  // ── 4. Edge by price band ────────────────────────────────────────────────
-  renderEdgeByPrice();
-
-  // ── 5. Distribution cards (counts only) ──────────────────────────────────
-  renderDistribution('dist-venue', settled, s => s.venue || 'Unknown', 10);
-  renderDistribution('dist-going', settled, s => goingCategoryLabel(s.going), 6);
+  renderSignalHeatmap(races);
+  renderTrackingWinners(races);
+  renderTrackingPlacegetters(races);
 }
 
-// Helper: bucket by going category
-function goingCategoryLabel(g) {
-  if (!g) return 'Unknown';
-  const gl = g.toLowerCase();
-  if (gl.startsWith('firm')) return 'Firm';
-  if (gl.startsWith('good')) return 'Good';
-  if (gl.startsWith('soft')) return 'Soft';
-  if (gl.startsWith('heavy')) return 'Heavy';
-  if (gl.startsWith('synth')) return 'Synthetic';
-  return g;
-}
-
-// Generic distribution card renderer (count by category, no perf math)
-function renderDistribution(elId, settled, keyFn, topN) {
-  const el = document.getElementById(elId);
+// ── Section 1: Signal Heatmap ────────────────────────────────────────────
+// For each signal, compute WR% of horses ranked top-1/3/5 across all resulted races.
+function renderSignalHeatmap(races) {
+  const el = document.getElementById('signal-heatmap');
   if (!el) return;
-  if (settled.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets yet.</div>';
-    return;
-  }
-  const counts = {};
-  settled.forEach(s => {
-    const k = keyFn(s);
-    counts[k] = (counts[k] || 0) + 1;
-  });
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, topN);
-  const max = Math.max(1, ...sorted.map(e => e[1]));
-  el.innerHTML = sorted.map(([k, c]) => {
-    const pct = (c / max * 100).toFixed(0);
-    return '<div class="dist-bar"><div class="label">' + escapeHtml(k) +
-      '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
-      '<div class="count">' + c + '</div></div>';
-  }).join('');
-}
-
-// ─── 1. Score threshold backtest ──────────────────────────────────────────
-// Walks every resulted race, computes flat 1u P&L at multiple thresholds,
-// renders cumulative-units chart + summary table.
-function renderThresholdPnl() {
-  const races = (window._insightsFiltered && window._insightsFiltered.races) || RACES || [];
-  const resulted = races.filter(r => r.done === 1)
-    .sort((a, b) => (a.date || '').localeCompare(b.date || '') ||
-                    (a.start_time || '').localeCompare(b.start_time || ''));
-
-  if (resulted.length < 50) {
-    document.getElementById('threshold-pnl-chart').innerHTML =
-      '<div class="empty-text">Need at least 50 resulted races for meaningful threshold analysis.</div>';
-    document.getElementById('threshold-pnl-table').innerHTML = '';
+  if (races.length === 0) {
+    el.innerHTML = '<div class="empty-text">No resulted races in the selected period.</div>';
     return;
   }
 
-  const thresholds = [0.65, 0.70, 0.75, 0.80, 0.85];
-  // For each threshold, build cumulative P&L series + stats
-  const series = thresholds.map(t => ({ thresh: t, points: [], cumPnL: 0,
-    bets: 0, wins: 0, stakeTotal: 0, retTotal: 0 }));
+  // For each signal, count {top1Hits, top3Hits, top5Hits, top1N, top3N, top5N}
+  const buckets = {};
+  TRACKING_SIGNALS.forEach(sig => buckets[sig.key] = { t1h: 0, t1n: 0, t3h: 0, t3n: 0, t5h: 0, t5n: 0 });
 
-  resulted.forEach(race => {
-    (race.runners || []).forEach(u => {
-      if (u.cs == null || u.fx == null || u.fx <= 1) return;
-      const won = u.f === 1;
-      thresholds.forEach((t, i) => {
-        if (u.cs >= t) {
-          // Flat 1u stake
-          series[i].bets += 1;
-          series[i].stakeTotal += 1;
-          if (won) {
-            series[i].wins += 1;
-            // Use SP if available, else fxprice (more conservative simulation)
-            const settlePrice = u.sp || u.fx;
-            series[i].cumPnL += (settlePrice - 1);
-            series[i].retTotal += settlePrice;
-          } else {
-            series[i].cumPnL += -1;
-          }
-          series[i].points.push(series[i].cumPnL);
-        }
+  races.forEach(race => {
+    const runners = race.runners || [];
+    // Find the winner (finish_position == 1)
+    const winnerRid = (runners.find(u => u.f === 1) || {}).rid;
+    if (!winnerRid) return;
+    TRACKING_SIGNALS.forEach(sig => {
+      runners.forEach(u => {
+        const r = rankInRace(runners, u.rid, sig);
+        if (r == null) return;
+        const isWinner = String(u.rid) === String(winnerRid);
+        if (r === 1) { buckets[sig.key].t1n++; if (isWinner) buckets[sig.key].t1h++; }
+        if (r <= 3) { buckets[sig.key].t3n++; if (isWinner) buckets[sig.key].t3h++; }
+        if (r <= 5) { buckets[sig.key].t5n++; if (isWinner) buckets[sig.key].t5h++; }
       });
     });
   });
 
-  // Render the table summary
-  const currentThresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.70;
-  let tableHtml = '<div class="thresh-table">' +
-    '<div class="h">Threshold</div>' +
-    '<div class="h">Bets</div>' +
-    '<div class="h">Win rate</div>' +
-    '<div class="h">Avg div</div>' +
-    '<div class="h">ROI</div>' +
-    '<div class="h">P&amp;L (units)</div>';
-  series.forEach(s => {
-    const wr = s.bets > 0 ? s.wins / s.bets : 0;
-    const roi = s.stakeTotal > 0 ? (s.retTotal - s.stakeTotal) / s.stakeTotal : 0;
-    const avgDiv = s.wins > 0 ? s.retTotal / s.wins : 0;
-    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
-    const rowCls = isCurrent ? ' row-current' : '';
-    const pnlCls = s.cumPnL > 0 ? 'pos' : (s.cumPnL < 0 ? 'neg' : '');
-    const roiCls = roi > 0 ? 'pos' : (roi < 0 ? 'neg' : '');
-    tableHtml += '<div class="row-thresh' + rowCls + '">' + s.thresh.toFixed(2) +
-      (isCurrent ? ' (current)' : '') + '</div>' +
-      '<div class="' + rowCls + '">' + s.bets + '</div>' +
-      '<div class="' + rowCls + '">' + (wr * 100).toFixed(1) + '%</div>' +
-      '<div class="' + rowCls + '">' + (avgDiv > 0 ? '$' + avgDiv.toFixed(2) : '—') + '</div>' +
-      '<div class="' + rowCls + '"><span class="' + roiCls + '">' +
-        (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%</span></div>' +
-      '<div class="' + rowCls + '"><span class="' + pnlCls + '">' +
-        (s.cumPnL >= 0 ? '+' : '') + s.cumPnL.toFixed(0) + 'u</span></div>';
-  });
-  tableHtml += '</div>';
-  document.getElementById('threshold-pnl-table').innerHTML = tableHtml;
-
-  // Render the cumulative P&L chart as inline SVG.
-  // Each series has different number of bets (higher threshold = fewer bets), so
-  // normalize X to "% through the period" instead of raw bet count. Y = cumulative units.
-  // Highlight the current threshold's series so it stands out.
-  const colors = ['#94a3b8', '#10b981', '#3b82f6', '#f59e0b', '#dc2626'];
-  let yMin = 0, yMax = 0;
-  series.forEach(s => {
-    s.points.forEach(p => { if (p < yMin) yMin = p; if (p > yMax) yMax = p; });
-  });
-  // Pad
-  const yRange = (yMax - yMin) || 1;
-  yMin -= yRange * 0.05; yMax += yRange * 0.05;
-
-  const W = 800, H = 240, PAD_L = 40, PAD_R = 12, PAD_T = 12, PAD_B = 28;
-  const plotW = W - PAD_L - PAD_R;
-  const plotH = H - PAD_T - PAD_B;
-
-  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
-
-  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
-  // Background grid - horizontal lines at 0 and the y axis bounds
-  const yZero = yScale(0);
-  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
-    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
-
-  // Y axis labels
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + yMax.toFixed(0) + 'u</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">0</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + yMin.toFixed(0) + 'u</text>';
-
-  // Plot each series. Per-series xScale because different thresholds have
-  // different bet counts (higher = fewer bets). Normalizing to "% progress"
-  // makes the curves comparable on shape rather than absolute bet count.
-  // Bold the current threshold so it pops out against the others.
-  series.forEach((s, idx) => {
-    if (s.points.length === 0) return;
-    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
-    const xScale = (i) => PAD_L + (i / Math.max(1, s.points.length - 1)) * plotW;
-    const path = s.points.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
-    const strokeWidth = isCurrent ? 2.5 : 1.3;
-    const opacity = isCurrent ? 1.0 : 0.55;
-    svg += '<path d="' + path + '" stroke="' + colors[idx] + '" stroke-width="' + strokeWidth + '" ' +
-      'fill="none" opacity="' + opacity + '"/>';
-  });
-
-  // Legend
-  let lx = PAD_L + 10;
-  series.forEach((s, idx) => {
-    const isCurrent = Math.abs(s.thresh - currentThresh) < 0.01;
-    const fontWeight = isCurrent ? 700 : 600;
-    svg += '<rect x="' + lx + '" y="' + (PAD_T + 4) + '" width="10" height="3" ' +
-      'fill="' + colors[idx] + '"/>';
-    svg += '<text x="' + (lx + 14) + '" y="' + (PAD_T + 8) + '" ' +
-      'font-family="Outfit" font-size="10" font-weight="' + fontWeight + '" fill="' + colors[idx] + '">' +
-      s.thresh.toFixed(2) + (isCurrent ? '★' : '') + '</text>';
-    lx += 64;
-  });
-
-  // X axis label
-  svg += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">% through betting history</text>';
-
-  svg += '</svg>';
-  document.getElementById('threshold-pnl-chart').innerHTML = svg;
-}
-
-// ─── 2. Variance and streaks ──────────────────────────────────────────────
-// Walks settled bets in chronological order, computes:
-//   - Longest winning and losing streaks
-//   - Max drawdown (deepest trough below prior peak in cumulative units)
-//   - Bets to recover from worst drawdown
-function renderVarianceStats() {
-  const allSettled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
-  const settled = allSettled.slice().sort((a, b) =>
-    (a.date || '').localeCompare(b.date || ''));
-
-  const statsEl = document.getElementById('variance-stats');
-  const chartEl = document.getElementById('variance-chart');
-  if (!statsEl || !chartEl) return;
-
-  if (settled.length < 10) {
-    statsEl.innerHTML = '<div class="empty-text">Need at least 10 settled bets for variance stats.</div>';
-    chartEl.innerHTML = '';
-    return;
-  }
-
-  // Walk settled, compute cumulative P&L (using actual prices the user took
-  // where available, else SP, else fxprice fallback)
-  const log = getBetLog();
-  let cumPnL = 0;
-  const points = [];
-  let curWinStreak = 0, curLossStreak = 0;
-  let maxWinStreak = 0, maxLossStreak = 0;
-  let peak = 0, maxDD = 0, ddStart = -1, ddEnd = -1;
-  let curDDStart = -1;
-
-  settled.forEach((s, i) => {
-    const e = log[String(s.run_id)] || {};
-    const stake = calcStake(s.fxprice);
-    if (!stake) {
-      points.push(cumPnL);
-      return;
+  let html = '<div class="heatmap-grid">' +
+    '<div class="hm-cell hm-head">Signal</div>' +
+    '<div class="hm-cell hm-head">Top-1 WR%</div>' +
+    '<div class="hm-cell hm-head">Top-3 WR%</div>' +
+    '<div class="hm-cell hm-head">Top-5 WR%</div>';
+  TRACKING_SIGNALS.forEach(sig => {
+    const b = buckets[sig.key];
+    const wr1 = b.t1n > 0 ? (b.t1h / b.t1n * 100) : null;
+    const wr3 = b.t3n > 0 ? (b.t3h / b.t3n * 100) : null;
+    const wr5 = b.t5n > 0 ? (b.t5h / b.t5n * 100) : null;
+    function valHtml(wr, n) {
+      if (wr == null || n === 0) return '<div class="hm-cell hm-val hm0">—</div>';
+      return '<div class="hm-cell hm-val ' + heatmapClass(wr) + '" title="' + b['t' + (wr === wr1 ? 1 : (wr === wr3 ? 3 : 5)) + 'h'] + '/' + n + '">' +
+        wr.toFixed(1) + '%</div>';
     }
-    const price = e.oddsTaken || s.sp || s.top || s.fxprice;
-    const dhMult = e.deadHeat ? 0.5 : 1;
-    const ret = s.won ? stake * price * dhMult : 0;
-    const pl = ret - stake;
-    cumPnL += pl;
-    points.push(cumPnL);
-
-    if (s.won) {
-      curWinStreak += 1; curLossStreak = 0;
-      if (curWinStreak > maxWinStreak) maxWinStreak = curWinStreak;
-    } else {
-      curLossStreak += 1; curWinStreak = 0;
-      if (curLossStreak > maxLossStreak) maxLossStreak = curLossStreak;
-    }
-
-    // Drawdown tracking
-    if (cumPnL > peak) {
-      peak = cumPnL;
-      curDDStart = -1;  // back at new high, drawdown reset
-    } else {
-      if (curDDStart === -1) curDDStart = i;
-      const dd = peak - cumPnL;
-      if (dd > maxDD) {
-        maxDD = dd;
-        ddStart = curDDStart;
-        ddEnd = i;
-      }
-    }
+    html += '<div class="hm-cell hm-name">' + sig.label + '</div>' +
+      valHtml(wr1, b.t1n) + valHtml(wr3, b.t3n) + valHtml(wr5, b.t5n);
   });
-
-  // Final P&L
-  const finalPnL = points[points.length - 1] || 0;
-
-  statsEl.innerHTML = '<div class="var-stats">' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Longest win streak</div>' +
-      '<div class="val pos">' + maxWinStreak + '</div>' +
-      '<div class="sub">consecutive wins</div>' +
-    '</div>' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Longest loss streak</div>' +
-      '<div class="val neg">' + maxLossStreak + '</div>' +
-      '<div class="sub">consecutive losses</div>' +
-    '</div>' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Max drawdown</div>' +
-      '<div class="val neg">' + (-maxDD).toFixed(1) + 'u</div>' +
-      '<div class="sub">' + (ddEnd - ddStart) + ' bets, peak to trough</div>' +
-    '</div>' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Total P&amp;L</div>' +
-      '<div class="val ' + (finalPnL >= 0 ? 'pos' : 'neg') + '">' +
-        (finalPnL >= 0 ? '+' : '') + finalPnL.toFixed(1) + 'u</div>' +
-      '<div class="sub">' + settled.length + ' settled bets</div>' +
-    '</div>' +
-  '</div>';
-
-  // Cumulative P&L chart
-  const W = 800, H = 200, PAD_L = 40, PAD_R = 12, PAD_T = 12, PAD_B = 24;
-  const plotW = W - PAD_L - PAD_R;
-  const plotH = H - PAD_T - PAD_B;
-  let yMin = 0, yMax = 0;
-  points.forEach(p => { if (p < yMin) yMin = p; if (p > yMax) yMax = p; });
-  const yRange = yMax - yMin || 1;
-  yMin -= yRange * 0.05; yMax += yRange * 0.05;
-
-  function xScale(i) { return PAD_L + (i / Math.max(1, points.length - 1)) * plotW; }
-  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
-
-  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
-  const yZero = yScale(0);
-  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
-    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
-
-  // Highlight the max-drawdown region
-  if (ddStart >= 0 && ddEnd > ddStart) {
-    svg += '<rect x="' + xScale(ddStart) + '" y="' + PAD_T + '" ' +
-      'width="' + (xScale(ddEnd) - xScale(ddStart)) + '" height="' + plotH + '" ' +
-      'fill="#fee2e2" opacity="0.4"/>';
-  }
-
-  // P&L line
-  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
-  svg += '<path d="' + path + '" stroke="#0f766e" stroke-width="1.8" fill="none"/>';
-
-  // Y axis labels
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + yMax.toFixed(0) + 'u</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">0</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + yMin.toFixed(0) + 'u</text>';
-
-  svg += '</svg>';
-  chartEl.innerHTML = svg;
-}
-
-// ─── 3. Actual vs expected performance ───────────────────────────────────
-function renderActualVsExpected() {
-  const allSettled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
-  const settled = allSettled.slice().sort((a, b) =>
-    (a.date || '').localeCompare(b.date || ''));
-
-  const statsEl = document.getElementById('aex-stats');
-  const chartEl = document.getElementById('aex-chart');
-  if (!statsEl || !chartEl) return;
-
-  if (settled.length < 10) {
-    statsEl.innerHTML = '<div class="empty-text">Need at least 10 settled bets.</div>';
-    chartEl.innerHTML = '';
-    return;
-  }
-
-  const log = getBetLog();
-  // Compute totals: actual (using oddsTaken if present, else fxprice as fallback)
-  // vs expected (using SP - what the model "expects" to get back)
-  let actStake = 0, actRet = 0, expStake = 0, expRet = 0;
-  const windowSize = 30;
-  const rollingActROI = [], rollingExpROI = [];
-  let winActStake = 0, winActRet = 0, winExpStake = 0, winExpRet = 0;
-  const queue = [];  // sliding window of {actPL, expPL, stake}
-
-  settled.forEach((s, i) => {
-    const e = log[String(s.run_id)] || {};
-    const stake = calcStake(s.fxprice);
-    if (!stake || stake <= 0) {
-      // No valid stake - skip but still output a rolling point
-      rollingActROI.push(rollingActROI[rollingActROI.length - 1] || 0);
-      rollingExpROI.push(rollingExpROI[rollingExpROI.length - 1] || 0);
-      return;
-    }
-    const dhMult = e.deadHeat ? 0.5 : 1;
-    // Actual: price the user actually got (oddsTaken) or SP, with fallback to fxprice
-    const actPrice = e.oddsTaken || s.sp || s.fxprice;
-    const actRetThis = s.won ? stake * actPrice * dhMult : 0;
-    // Expected: SP-based, what the model assumes
-    const expPrice = s.sp || s.fxprice;
-    const expRetThis = s.won ? stake * expPrice * dhMult : 0;
-
-    actStake += stake; actRet += actRetThis;
-    expStake += stake; expRet += expRetThis;
-
-    queue.push({ actPL: actRetThis - stake, expPL: expRetThis - stake, stake: stake });
-    winActStake += stake; winActRet += actRetThis;
-    winExpStake += stake; winExpRet += expRetThis;
-    if (queue.length > windowSize) {
-      const shifted = queue.shift();
-      winActStake -= shifted.stake;
-      winActRet -= (shifted.actPL + shifted.stake);
-      winExpStake -= shifted.stake;
-      winExpRet -= (shifted.expPL + shifted.stake);
-    }
-    rollingActROI.push(winActStake > 0 ? (winActRet - winActStake) / winActStake : 0);
-    rollingExpROI.push(winExpStake > 0 ? (winExpRet - winExpStake) / winExpStake : 0);
-  });
-
-  const actROI = actStake > 0 ? (actRet - actStake) / actStake : 0;
-  const expROI = expStake > 0 ? (expRet - expStake) / expStake : 0;
-  const gap = actROI - expROI;
-
-  statsEl.innerHTML = '<div class="var-stats" style="grid-template-columns: repeat(3, 1fr);">' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Actual ROI</div>' +
-      '<div class="val ' + (actROI >= 0 ? 'pos' : 'neg') + '">' +
-        (actROI >= 0 ? '+' : '') + (actROI * 100).toFixed(1) + '%</div>' +
-      '<div class="sub">at prices you took</div>' +
-    '</div>' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Expected ROI</div>' +
-      '<div class="val ' + (expROI >= 0 ? 'pos' : 'neg') + '">' +
-        (expROI >= 0 ? '+' : '') + (expROI * 100).toFixed(1) + '%</div>' +
-      '<div class="sub">at SP</div>' +
-    '</div>' +
-    '<div class="var-stat">' +
-      '<div class="lbl">Gap (your edge vs SP)</div>' +
-      '<div class="val ' + (gap >= 0 ? 'pos' : 'neg') + '">' +
-        (gap >= 0 ? '+' : '') + (gap * 100).toFixed(1) + 'pp</div>' +
-      '<div class="sub">' + (gap >= 0 ? 'you beat SP' : 'lost to drift') + '</div>' +
-    '</div>' +
-  '</div>';
-
-  // Rolling ROI chart - actual (dark) vs expected (light)
-  const W = 800, H = 180, PAD_L = 50, PAD_R = 12, PAD_T = 12, PAD_B = 24;
-  const plotW = W - PAD_L - PAD_R;
-  const plotH = H - PAD_T - PAD_B;
-  let yMin = 0, yMax = 0;
-  rollingActROI.concat(rollingExpROI).forEach(p => {
-    if (p < yMin) yMin = p; if (p > yMax) yMax = p;
-  });
-  const yRange = (yMax - yMin) || 0.2;
-  yMin -= yRange * 0.1; yMax += yRange * 0.1;
-
-  function xScale(i) { return PAD_L + (i / Math.max(1, rollingActROI.length - 1)) * plotW; }
-  function yScale(v) { return PAD_T + plotH - ((v - yMin) / Math.max(0.001, yMax - yMin)) * plotH; }
-
-  let svg = '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
-  const yZero = yScale(0);
-  svg += '<line x1="' + PAD_L + '" y1="' + yZero + '" x2="' + (W - PAD_R) + '" y2="' + yZero + '" ' +
-    'stroke="#e7e5e4" stroke-width="1" stroke-dasharray="4 4"/>';
-
-  // Expected line (light)
-  const expPath = rollingExpROI.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
-  svg += '<path d="' + expPath + '" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>';
-  // Actual line (dark)
-  const actPath = rollingActROI.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(p)).join(' ');
-  svg += '<path d="' + actPath + '" stroke="#0f766e" stroke-width="1.8" fill="none"/>';
-
-  // Y labels
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + 10) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + (yMax * 100).toFixed(0) + '%</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (yZero + 3) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">0%</text>';
-  svg += '<text x="' + (PAD_L - 6) + '" y="' + (PAD_T + plotH - 2) + '" text-anchor="end" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">' + (yMin * 100).toFixed(0) + '%</text>';
-
-  // Legend
-  svg += '<rect x="' + (PAD_L + 10) + '" y="' + (PAD_T + 4) + '" width="14" height="3" fill="#0f766e"/>';
-  svg += '<text x="' + (PAD_L + 28) + '" y="' + (PAD_T + 8) + '" font-family="Outfit" font-size="10" fill="#0f766e" font-weight="600">Actual</text>';
-  svg += '<rect x="' + (PAD_L + 80) + '" y="' + (PAD_T + 4) + '" width="14" height="3" fill="#94a3b8"/>';
-  svg += '<text x="' + (PAD_L + 98) + '" y="' + (PAD_T + 8) + '" font-family="Outfit" font-size="10" fill="#94a3b8" font-weight="600">Expected (SP)</text>';
-
-  svg += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" ' +
-    'font-family="Outfit" font-size="10" fill="#78716c">rolling ' + window + '-bet ROI</text>';
-
-  svg += '</svg>';
-  chartEl.innerHTML = svg;
-}
-
-// ─── 4. Edge by price band with Wilson confidence intervals ──────────────
-// For each band, compute ROI and a 95% CI using Wilson interval on win rate.
-// Bands where the CI crosses zero are flagged as inconclusive.
-function renderEdgeByPrice() {
-  const settled = (window._insightsFiltered && window._insightsFiltered.settled) || SETTLED || [];
-  const el = document.getElementById('edge-by-price');
-  if (!el) return;
-  if (settled.length < 20) {
-    el.innerHTML = '<div class="empty-text">Need at least 20 settled bets for edge analysis.</div>';
-    return;
-  }
-
-  // Bands sized to match actual primary-model bet distribution (most picks
-  // sit in $3-5 range with shorter tail above). 4 bands instead of 5 because
-  // the $15+ band is empty for typical primary model output.
-  const bands = [
-    { lo: 0, hi: 3, lbl: 'Under $3' },
-    { lo: 3, hi: 5, lbl: '$3 to $5' },
-    { lo: 5, hi: 8, lbl: '$5 to $8' },
-    { lo: 8, hi: 1000, lbl: '$8 plus' },
-  ];
-
-  // Collect bets per band
-  bands.forEach(b => { b.bets = []; });
-  settled.forEach(s => {
-    const p = s.fxprice;
-    if (!p) return;
-    for (const b of bands) {
-      if (p >= b.lo && p < b.hi) { b.bets.push(s); break; }
-    }
-  });
-
-  // Compute ROI + Wilson CI per band
-  // Wilson 95% interval for binomial proportion p with n trials:
-  //   z=1.96. center = (p + z²/2n) / (1 + z²/n)
-  //   width = z*sqrt(p(1-p)/n + z²/(4n²)) / (1 + z²/n)
-  // Translate WR CI to ROI CI via avg_dividend (treat as fixed for the band).
-  const z = 1.96;
-
-  bands.forEach(b => {
-    if (b.bets.length === 0) { b.roi = null; return; }
-    let stake = 0, ret = 0, wins = 0, retSumWins = 0;
-    b.bets.forEach(s => {
-      const st = calcStake(s.fxprice);
-      if (!st) return;
-      stake += st;
-      const price = s.sp || s.top || s.fxprice;
-      if (s.won) { wins += 1; ret += st * price; retSumWins += st * price; }
-    });
-    if (stake === 0) { b.roi = null; return; }
-    b.n = b.bets.length;
-    b.wins = wins;
-    b.wr = wins / b.n;
-    b.roi = (ret - stake) / stake;
-    b.avgDiv = wins > 0 ? retSumWins / wins / (stake / b.n) : 0;
-    // Wilson CI
-    const p = b.wr, n = b.n;
-    const denom = 1 + z*z/n;
-    const center = (p + z*z/(2*n)) / denom;
-    const halfW = z * Math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / denom;
-    b.wrLo = Math.max(0, center - halfW);
-    b.wrHi = Math.min(1, center + halfW);
-    // Translate WR CI to ROI CI: ROI = WR * avgDiv - 1
-    b.roiLo = b.wrLo * b.avgDiv - 1;
-    b.roiHi = b.wrHi * b.avgDiv - 1;
-  });
-
-  // Build the visualization. ROI scale: use a fixed range of -100% to +100%
-  // so all bands share the same coordinate system.
-  const minROI = -1.0, maxROI = 1.0;
-  function pct(v) { return ((v - minROI) / (maxROI - minROI)) * 100; }
-
-  let html = '';
-  bands.forEach(b => {
-    if (b.roi == null) {
-      html += '<div class="edge-band-row">' +
-        '<div class="label">' + b.lbl + '</div>' +
-        '<div class="ci-track"><div class="ci-zero" style="left:' + pct(0) + '%;"></div></div>' +
-        '<div class="roi-val">—</div>' +
-        '<div class="n-val">0</div>' +
-      '</div>';
-      return;
-    }
-    const lower = Math.max(minROI, b.roiLo);
-    const upper = Math.min(maxROI, b.roiHi);
-    const left = pct(lower);
-    const width = pct(upper) - pct(lower);
-    // CI crosses zero -> inconclusive (grey)
-    let barCls;
-    if (b.roiLo > 0) barCls = 'pos';
-    else if (b.roiHi < 0) barCls = 'neg';
-    else barCls = 'unclear';
-    const roiCls = b.roi > 0 ? 'pos' : (b.roi < 0 ? 'neg' : '');
-    html += '<div class="edge-band-row">' +
-      '<div class="label">' + b.lbl + '</div>' +
-      '<div class="ci-track">' +
-        '<div class="ci-bar ' + barCls + '" style="left:' + left + '%; width:' + width + '%;"></div>' +
-        '<div class="ci-mean" style="left:' + pct(b.roi) + '%;"></div>' +
-        '<div class="ci-zero" style="left:' + pct(0) + '%;"></div>' +
-      '</div>' +
-      '<div class="roi-val ' + roiCls + '">' + (b.roi >= 0 ? '+' : '') + (b.roi * 100).toFixed(0) + '%</div>' +
-      '<div class="n-val">' + b.n + '</div>' +
-    '</div>';
-  });
+  html += '</div>';
   el.innerHTML = html;
+}
+
+// ── Section 2: Winners table ─────────────────────────────────────────────
+// One row per resulted race. Columns: Date · Meeting (link) · Race · Distance ·
+// Winner horse · Win SP · then 11 signal-rank cells.
+function renderTrackingWinners(races) {
+  const el = document.getElementById('tracking-winners');
+  if (!el) return;
+  if (races.length === 0) {
+    el.innerHTML = '<div class="empty-text">No resulted races.</div>';
+    return;
+  }
+
+  // Build row data
+  const rows = races.map(race => {
+    const runners = race.runners || [];
+    const winner = runners.find(u => u.f === 1);
+    if (!winner) return null;
+    const ranks = {};
+    TRACKING_SIGNALS.forEach(sig => {
+      ranks[sig.key] = rankInRace(runners, winner.rid, sig);
+    });
+    return {
+      race_id: race.race_id,
+      date: race.date || '',
+      venue: race.venue || '',
+      race: race.race || 0,
+      distance: race.distance || 0,
+      horse: winner.h || '',
+      sp: winner.sp,
+      ranks: ranks,
+    };
+  }).filter(r => r != null);
+
+  // Sort
+  rows.sort((a, b) => {
+    let av, bv;
+    if (trackingSortCol === 'date')      { av = a.date + a.venue + a.race; bv = b.date + b.venue + b.race; }
+    else if (trackingSortCol === 'venue'){ av = a.venue; bv = b.venue; }
+    else if (trackingSortCol === 'horse'){ av = a.horse.toLowerCase(); bv = b.horse.toLowerCase(); }
+    else if (trackingSortCol === 'sp')   { av = a.sp || 9999; bv = b.sp || 9999; }
+    else { // signal rank
+      av = a.ranks[trackingSortCol] != null ? a.ranks[trackingSortCol] : 99;
+      bv = b.ranks[trackingSortCol] != null ? b.ranks[trackingSortCol] : 99;
+    }
+    if (typeof av === 'string') return trackingSortDir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv);
+    return trackingSortDir === 'desc' ? bv - av : av - bv;
+  });
+
+  function thW(col, label) {
+    const isCur = trackingSortCol === col;
+    const cls = ['sortable'];
+    if (isCur) cls.push('sort-' + trackingSortDir);
+    return '<th class="' + cls.join(' ') + '" data-tsort="' + col + '">' + label + '</th>';
+  }
+
+  let html = '<div class="tracking-table-wrap"><table class="tracking-table"><thead><tr>' +
+    thW('date', 'Date') +
+    thW('venue', 'Meeting') +
+    '<th>Race</th>' +
+    '<th>Dist</th>' +
+    thW('horse', 'Winner') +
+    thW('sp', 'SP') ;
+  TRACKING_SIGNALS.forEach(sig => { html += thW(sig.key, sig.label); });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(r => {
+    html += '<tr>' +
+      '<td>' + escapeHtml(r.date) + '</td>' +
+      '<td><a class="meeting-link" href="#" data-nav-rid="' + escapeHtml(String(r.race_id)) + '">' + escapeHtml(r.venue) + '</a></td>' +
+      '<td>R' + r.race + '</td>' +
+      '<td>' + r.distance + 'm</td>' +
+      '<td class="horse-cell">' + escapeHtml(r.horse) + '</td>' +
+      '<td class="price-cell">' + (r.sp != null ? '$' + r.sp.toFixed(2) : '—') + '</td>';
+    TRACKING_SIGNALS.forEach(sig => { html += '<td>' + rankPill(r.ranks[sig.key]) + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+
+  // Wire sort headers
+  el.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.tsort;
+      if (trackingSortCol === col) {
+        trackingSortDir = trackingSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        trackingSortCol = col;
+        // Most signal/numeric cols default to ASC (1 = best); date/sp default DESC
+        const ascDefault = ['horse', 'venue'];
+        const descDefault = ['date', 'sp'];
+        if (ascDefault.includes(col)) trackingSortDir = 'asc';
+        else if (descDefault.includes(col)) trackingSortDir = 'desc';
+        else trackingSortDir = 'asc';
+      }
+      renderTrackingWinners(trackingResultedRaces());
+    });
+  });
+  // Wire meeting links
+  el.querySelectorAll('a.meeting-link').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const rid = a.dataset.navRid;
+      if (typeof navigateToRace === 'function') navigateToRace(rid);
+    });
+  });
+}
+
+// ── Section 3: Placegetters detail ───────────────────────────────────────
+// 1st / 2nd / 3rd per race with all signal ranks. Useful for spotting where
+// the model picked a runner that lost a photo finish to a similar-profile horse.
+function renderTrackingPlacegetters(races) {
+  const el = document.getElementById('tracking-placegetters');
+  if (!el) return;
+  if (races.length === 0) {
+    el.innerHTML = '<div class="empty-text">No resulted races.</div>';
+    return;
+  }
+
+  // Build rows: for each race, up to 3 rows (1st, 2nd, 3rd)
+  const rows = [];
+  races.sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(race => {
+    const runners = race.runners || [];
+    [1, 2, 3].forEach(pos => {
+      const runner = runners.find(u => u.f === pos);
+      if (!runner) return;
+      const ranks = {};
+      TRACKING_SIGNALS.forEach(sig => {
+        ranks[sig.key] = rankInRace(runners, runner.rid, sig);
+      });
+      rows.push({
+        race_id: race.race_id,
+        date: race.date || '',
+        venue: race.venue || '',
+        race: race.race || 0,
+        pos: pos,
+        horse: runner.h || '',
+        sp: runner.sp,
+        ranks: ranks,
+        // First-place row marks a meeting boundary (we'll show divider)
+        isFirstOfRace: pos === 1,
+      });
+    });
+  });
+
+  let html = '<div class="tracking-table-wrap"><table class="tracking-table"><thead><tr>' +
+    '<th>Date</th>' +
+    '<th>Meeting</th>' +
+    '<th>Race</th>' +
+    '<th>Pos</th>' +
+    '<th>Horse</th>' +
+    '<th>SP</th>';
+  TRACKING_SIGNALS.forEach(sig => { html += '<th>' + sig.label + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(r => {
+    const trClass = r.isFirstOfRace ? 'race-row' : '';
+    const posClass = 'pos-' + r.pos;
+    html += '<tr class="' + trClass + '">' +
+      '<td>' + (r.isFirstOfRace ? escapeHtml(r.date) : '') + '</td>' +
+      '<td>' + (r.isFirstOfRace ?
+        '<a class="meeting-link" href="#" data-nav-rid="' + escapeHtml(String(r.race_id)) + '">' + escapeHtml(r.venue) + '</a>' : '') + '</td>' +
+      '<td>' + (r.isFirstOfRace ? 'R' + r.race : '') + '</td>' +
+      '<td><span class="' + posClass + '">' + r.pos + (r.pos === 1 ? 'st' : (r.pos === 2 ? 'nd' : 'rd')) + '</span></td>' +
+      '<td class="horse-cell">' + escapeHtml(r.horse) + '</td>' +
+      '<td class="price-cell">' + (r.sp != null ? '$' + r.sp.toFixed(2) : '—') + '</td>';
+    TRACKING_SIGNALS.forEach(sig => { html += '<td>' + rankPill(r.ranks[sig.key]) + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+
+  // Wire meeting links
+  el.querySelectorAll('a.meeting-link').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const rid = a.dataset.navRid;
+      if (typeof navigateToRace === 'function') navigateToRace(rid);
+    });
+  });
 }
 
 // Wire the period toggle buttons
 document.querySelectorAll('.ic-period-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    insightsPeriod = btn.dataset.iperiod;
+    trackingPeriod = btn.dataset.iperiod;
     document.querySelectorAll('.ic-period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderInsights();

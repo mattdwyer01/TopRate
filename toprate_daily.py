@@ -619,16 +619,44 @@ def merge_pf_ratings(runners_df):
 MODEL_DEFS = {
     "main": {
         "label":       "Main",
-        "desc":        "WPR≤3 + Late≤3 + ClassRank=1 + Last600≤3 + SP≥$3 (skip first-starter races)",
-        "expected_wr": 0.267, "expected_roi_sp": 0.621, "expected_roi_top": 0.621,
-        "bets_per_day": 4.3, "min_top_odds": 3.0,
+        "desc":        "Main: WPR≤3 + Late≤3 + ClassRank=1 + Last600≤3 + SP≥$3  OR  Sat class-up: classChange≥5 + WPR≤3 + Late≤3 + SP≥$3 (skip first-starter races)",
+        # Combined backtest (28 days, Apr 9 - May 7):
+        # Main rule alone: 120 picks, 26.7% WR, +62.1% ROI, 8.8/Sat
+        # Sat class-up incremental: 65 picks, 15.4% WR, +27.7% ROI, 16.2/Sat
+        # Combined: ~185 picks, ~22% WR weighted, ~+45% ROI weighted
+        # Saturday combined: ~25/Saturday at ~+28% Saturday ROI
+        # Overlap between rules is 1/66 (0.5%) - genuinely additive picks.
+        "expected_wr": 0.215, "expected_roi_sp": 0.450, "expected_roi_top": 0.450,
+        "bets_per_day": 6.6, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
+            # Both branches require: NOT a first-starter race
             not ctx.get("has_first_starter", False)
-            and (ctx["wpr_rank"].get(run_id) or 99) <= 3
-            and (ctx["late_rank"].get(run_id) or 99) <= 3
-            and (ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 1
-            and (ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3
+            and (
+                # RULE A: Original main rule
+                # WPR top-3 + Late top-3 + Class=#1 + L600 top-3
+                (
+                    (ctx["wpr_rank"].get(run_id) or 99) <= 3
+                    and (ctx["late_rank"].get(run_id) or 99) <= 3
+                    and (ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 1
+                    and (ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3
+                )
+                or
+                # RULE B: Saturday class-up tier (NEW, ships May 2026)
+                # Big class jump (>=5) + WPR top-3 + Late top-3, Saturday only.
+                # Volume booster: ~16 incremental picks/Saturday at +27.7% ROI.
+                # Why Saturday only: midweek class-up was H2 -4% on backtest;
+                # restricting to Saturday gave +18% H1 / +18% H2 stability.
+                # classChange comes from PF as numeric, NaN/None if missing.
+                # The chained "or 0" handles None; pd.notna check handles NaN.
+                (
+                    ctx.get("dow") == "Saturday"
+                    and pd.notna(ctx.get("pf_class_change", {}).get(run_id))
+                    and (ctx.get("pf_class_change", {}).get(run_id) or 0) >= 5
+                    and (ctx["wpr_rank"].get(run_id) or 99) <= 3
+                    and (ctx["late_rank"].get(run_id) or 99) <= 3
+                )
+            )
             # Note: SP gate ($3) applied at display time, not at pick computation.
             # Empirically equivalent to fixed_win_price >= $3 at bet time.
     },
@@ -687,6 +715,14 @@ def compute_model_picks(runners_df):
                                                                 pd.Series([None]*n)))),
             "pf_ai_rank":      dict(zip(rdf["run_id"], rdf.get("pf_ai_rank",
                                                                 pd.Series([None]*n)))),
+            # PF classChange (numeric difference in weight class vs last start).
+            # Used by the Saturday class-up tier to find horses moving up in class.
+            "pf_class_change": dict(zip(rdf["run_id"], rdf.get("pf_class_change",
+                                                                pd.Series([None]*n)))),
+            # Day of week the race is on - needed for Saturday-only rules.
+            # All runners in a race share the same date so we just need it once.
+            "dow": (pd.to_datetime(rdf.iloc[0].get("date")).day_name()
+                    if rdf.iloc[0].get("date") else ""),
             # True if any runner in this race has no past WPR data (first/unraced).
             # Backtest shows model picks in such races give nearly zero ROI uplift,
             # so primary model skips them. Reference models can still apply.
