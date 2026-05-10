@@ -276,6 +276,15 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 'late_rank': pick.get('late_rank'),
                 'total_rank': pick.get('total_rank'),
                 'wpr_rank': pick.get('wpr_rank'),
+                # PF data carried through from compute_model_picks
+                'pfaiR':   pick.get('pf_ai_rank'),
+                'pfaiPrc': pick.get('pf_ai_price'),
+                'wcR':     pick.get('pf_class_rank'),
+                'l600R':   pick.get('pf_last600_rank'),
+                'l400R':   pick.get('pf_last400_rank'),
+                'l200R':   pick.get('pf_last200_rank'),
+                'rs':      pick.get('pf_run_style'),
+                'clsChg':  pick.get('pf_class_change'),
             })
     # Enrich with finish data and full per-runner context from races
     # Also compute Early and Total ranks per race (these may be missing from old picks CSVs)
@@ -370,6 +379,15 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
             'wpr_rank': r.get('wpr_rank'),
+            # PF data on settled bets
+            'pfaiR':   r.get('pf_ai_rank'),
+            'pfaiPrc': r.get('pf_ai_price'),
+            'wcR':     r.get('pf_class_rank'),
+            'l600R':   r.get('pf_last600_rank'),
+            'l400R':   r.get('pf_last400_rank'),
+            'l200R':   r.get('pf_last200_rank'),
+            'rs':      r.get('pf_run_style'),
+            'clsChg':  r.get('pf_class_change'),
             # Score + confidence surfaced for direct access in P&L tab
             'cs':  runner_full.get('cs')  if runner_full else None,
             'crk': runner_full.get('crk') if runner_full else None,

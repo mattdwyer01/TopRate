@@ -56,6 +56,12 @@ PRICE_HISTORY_CSV = Path(__file__).parent / "toprate_price_history.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 
+# Punting Form ratings - ingested separately by puntingform_ingest.py.
+# Joined into runners_df during the daily run by merge_pf_ratings(). When
+# the file doesn't exist or fails to load, all PF columns are None and the
+# new model rule produces zero picks (since it requires PF data).
+PF_RATINGS_CSV = Path(__file__).parent / "puntingform_data" / "pf_ratings.csv"
+
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
                   "jockey_win_pct_90d","trainer_win_pct_365d","toprate_rating","speed_rating",
@@ -95,6 +101,15 @@ RUNNER_COLS = [
     "starting_price_sp","price_top",
     # Result fields
     "finish_position","won","placed","resulted",
+    # ── Punting Form ratings ──────────────────────────────────────────────
+    # Merged in by merge_pf_ratings() each daily run. Frozen at PF's
+    # ratingsUpdated time per meeting so safe to backtest. None when PF
+    # didn't rate the meeting (model rule excludes those races).
+    "pf_ai_rank","pf_ai_price","pf_ai_score",
+    "pf_class_rank","pf_tac_class_rank",
+    "pf_time_rank","pf_early_time_rank",
+    "pf_last600_rank","pf_last400_rank","pf_last200_rank",
+    "pf_run_style","pf_class_change","pf_reliable",
 ]
 
 # -----------------------------------------------------------------------
@@ -496,61 +511,125 @@ def compute_votes(runners_df):
     return sc, total
 
 
+def merge_pf_ratings(runners_df):
+    """
+    Merge Punting Form ratings into runners_df.
+
+    PF ratings are stored in puntingform_data/pf_ratings.csv (one row per
+    runner per meeting). The merge key is (date, venue_lower, race_no, horse_lower).
+
+    PF data is point-in-time clean (frozen at PF's ratingsUpdated time per
+    meeting). Used by the new unified model rule which requires PF signals.
+
+    When PF data isn't available (file missing, meeting not rated, runner
+    not matched), the PF columns are filled with None. Downstream the model
+    rule excludes any runner without all required PF signals.
+    """
+    if not PF_RATINGS_CSV.exists():
+        print(f"  Warning: {PF_RATINGS_CSV} not found - skipping PF merge")
+        for col in ("pf_ai_rank", "pf_ai_price", "pf_ai_score",
+                    "pf_class_rank", "pf_tac_class_rank",
+                    "pf_time_rank", "pf_early_time_rank",
+                    "pf_last600_rank", "pf_last400_rank", "pf_last200_rank",
+                    "pf_run_style", "pf_class_change", "pf_reliable"):
+            if col not in runners_df.columns:
+                runners_df[col] = None
+        return runners_df
+
+    try:
+        pf = pd.read_csv(PF_RATINGS_CSV)
+    except Exception as e:
+        print(f"  Warning: failed to load {PF_RATINGS_CSV} ({e})")
+        return runners_df
+
+    # Strip right-padded run style values ("bm        " -> "bm")
+    if "runStyle" in pf.columns:
+        pf["runStyle"] = pf["runStyle"].astype(str).str.strip()
+
+    # Build join key on PF side
+    pf["_pf_horse_lc"] = pf["runnerName"].astype(str).str.lower().str.strip()
+    pf["_pf_venue_lc"] = pf["track"].astype(str).str.lower().str.strip()
+    pf["_join_key"] = (pf["_pf_date"].astype(str) + "|" +
+                       pf["_pf_venue_lc"] + "|" +
+                       pf["raceNo"].astype(str) + "|" +
+                       pf["_pf_horse_lc"])
+
+    # Build join key on runners_df side
+    runners_df = runners_df.copy()
+    runners_df["_tr_horse_lc"] = runners_df["horse"].astype(str).str.lower().str.strip()
+    runners_df["_tr_venue_lc"] = runners_df["venue"].astype(str).str.lower().str.strip()
+    runners_df["_join_key"] = (runners_df["date"].astype(str) + "|" +
+                               runners_df["_tr_venue_lc"] + "|" +
+                               runners_df["race"].astype(str) + "|" +
+                               runners_df["_tr_horse_lc"])
+
+    # Select PF columns we need and rename to our naming convention
+    pf_cols = {
+        "_join_key": "_join_key",
+        "pfaiRank": "pf_ai_rank",
+        "pfaiPrice": "pf_ai_price",
+        "pfaiScore": "pf_ai_score",
+        "weightClassRank": "pf_class_rank",
+        "timeAdjustedWeightClassRank": "pf_tac_class_rank",
+        "timeRank": "pf_time_rank",
+        "earlyTimeRank": "pf_early_time_rank",
+        "last600TimeRank": "pf_last600_rank",
+        "last400TimeRank": "pf_last400_rank",
+        "last200TimeRank": "pf_last200_rank",
+        "runStyle": "pf_run_style",
+        "classChange": "pf_class_change",
+        "isReliable": "pf_reliable",
+    }
+    have_cols = [c for c in pf_cols if c in pf.columns]
+    pf_subset = pf[have_cols].rename(columns={k: v for k, v in pf_cols.items() if k in have_cols})
+    pf_subset = pf_subset.drop_duplicates(subset=["_join_key"], keep="last")
+
+    # Drop existing PF columns to avoid duplicate suffixing on re-merge
+    for col in pf_subset.columns:
+        if col != "_join_key" and col in runners_df.columns:
+            runners_df = runners_df.drop(columns=[col])
+
+    merged = runners_df.merge(pf_subset, on="_join_key", how="left")
+
+    # Cleanup join scratch columns
+    merged = merged.drop(columns=["_join_key", "_tr_horse_lc", "_tr_venue_lc"])
+
+    n_total = len(merged)
+    n_matched = merged["pf_ai_rank"].notna().sum()
+    print(f"  PF ratings merged: {n_matched:,}/{n_total:,} runners have PF data ({n_matched/n_total*100:.1f}%)")
+    return merged
+
+
 # -----------------------------------------------------------------------
-# V3 CORE MODELS - walk-forward verified filters from May 2026 analysis
+# UNIFIED MODEL RULE - validated against 28-day backtest (Apr 9 - May 7)
 # -----------------------------------------------------------------------
-# Each model defines a filter against a per-race DataFrame and returns
-# matching run_ids. Backtest stats are from the Apr 9 - May 7 dataset
-# after fixing the wpr_peak_rank_1yr leakage bug.
+# Single rule combining TopRate signals (wpr_rank, late_rank) with
+# Punting Form signals (weightClassRank, last600TimeRank). Validated
+# against full 28-day window with these results:
+#   N=120, WR=26.7%, AvgSP=$6.13, ROI=+62.1%, profit factor 1.85
+# Saturday performance: 8.8 picks/Saturday, +30.3% ROI
 #
-# Models are intentionally inclusive (multiple horses per race may match).
-# The `top_form` model is most selective and has highest per-bet edge.
-# `volume_main` is the recommended default for daily volume play.
+# Rule: wpr_rank<=3 AND late_rank<=3 AND pf_class_rank<=1
+#       AND pf_last600_rank<=3 AND fixed_win_price >= 3
+#
+# When PF data is missing for a meeting (PF didn't rate it), no picks
+# are generated for that meeting. When TR data is missing for a runner
+# (e.g. first starter with no WPR history), that runner doesn't qualify.
 
 MODEL_DEFS = {
-    # ── PRIMARY MODEL (the one we bet) ──────────────────────────────────────
-    # NOTE on price gate: The backtest validation used `price_top >= $3` because
-    # in retrospect we know the highest fluctuation reached. For live picks we
-    # don't know that yet, so the dashboard surfaces ALL signal-qualifying
-    # candidates and gates by the fixed odds you actually take at bet time.
-    # Empirically a $3 SP gate produces near-identical performance to $3 top gate
-    # (see analysis dated 2026-05-07) so this is the correct architecture.
-    # The min_top_odds field below is recorded for the dashboard to apply at
-    # display time, not at pick computation time.
     "main": {
         "label":       "Main",
-        "desc":        "TR≤5 + Mid≤2 + Late≤2 + Total≤3 + WPR≤4, skip races with first-starter (gate min $3 at bet placement)",
-        "expected_wr": 0.233, "expected_roi_sp": 0.274, "expected_roi_top": 0.282,
-        "bets_per_day": 6.4, "min_top_odds": 3.0,
+        "desc":        "WPR≤3 + Late≤3 + ClassRank=1 + Last600≤3 + SP≥$3",
+        "expected_wr": 0.267, "expected_roi_sp": 0.621, "expected_roi_top": 0.621,
+        "bets_per_day": 4.3, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
-            not ctx.get("has_first_starter", False)
-            and (ctx["tr_rank"].get(run_id) or 99) <= 5
-            and (ctx["mid_rank"].get(run_id) or 99) <= 2
-            and (ctx["late_rank"].get(run_id) or 99) <= 2
-            and (ctx["total_rank"].get(run_id) or 99) <= 3
-            and (ctx["wpr_rank"].get(run_id) or 99) <= 4,
-    },
-    # ── REFERENCE MODELS (tracked for comparison, not bet) ──────────────────
-    "top_form": {
-        "label":       "Top Form (ref)",
-        "desc":        "TR≤2 + Mid top2 + weight_up (gate min $4 at bet placement)",
-        "expected_wr": 0.238, "expected_roi_sp": 0.141, "expected_roi_top": 0.360,
-        "bets_per_day": 5.2, "min_top_odds": 4.0,
-        "is_primary":  False,
-        "applies": lambda race_df, run_id, ctx:
-            (ctx["tr_rank"].get(run_id) or 99) <= 2
-            and (ctx["mid_rank"].get(run_id) or 99) <= 2
-            and (ctx["weight_trend"].get(run_id) or 0) > 0,
-    },
-    "tr1_min4": {
-        "label":       "TR1 Min$4 (ref)",
-        "desc":        "TR1 (gate min $4 at bet placement)",
-        "expected_wr": 0.252, "expected_roi_sp": 0.036, "expected_roi_top": 0.223,
-        "bets_per_day": 10.7, "min_top_odds": 4.0,
-        "is_primary":  False,
-        "applies": lambda race_df, run_id, ctx:
-            ctx["tr_rank"].get(run_id) == 1,
+            (ctx["wpr_rank"].get(run_id) or 99) <= 3
+            and (ctx["late_rank"].get(run_id) or 99) <= 3
+            and (ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 1
+            and (ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3
+            # Note: SP gate ($3) applied at display time, not at pick computation.
+            # Empirically equivalent to fixed_win_price >= $3 at bet time.
     },
 }
 
@@ -598,6 +677,15 @@ def compute_model_picks(runners_df):
                                                             pd.Series([None]*n)))),
             "fix_price":    dict(zip(rdf["run_id"], rdf.get("fixed_win_price",
                                                             pd.Series([None]*n)))),
+            # PF ratings - already ranked by PF (lower = better). We pass them
+            # through as run_id -> rank lookups so the lambda can read them
+            # alongside the TR ranks. None if PF didn't rate the runner.
+            "pf_class_rank":   dict(zip(rdf["run_id"], rdf.get("pf_class_rank",
+                                                                pd.Series([None]*n)))),
+            "pf_last600_rank": dict(zip(rdf["run_id"], rdf.get("pf_last600_rank",
+                                                                pd.Series([None]*n)))),
+            "pf_ai_rank":      dict(zip(rdf["run_id"], rdf.get("pf_ai_rank",
+                                                                pd.Series([None]*n)))),
             # True if any runner in this race has no past WPR data (first/unraced).
             # Backtest shows model picks in such races give nearly zero ROI uplift,
             # so primary model skips them. Reference models can still apply.
@@ -639,6 +727,16 @@ def compute_model_picks(runners_df):
                     "late_rank":     ctx["late_rank"].get(qrow["run_id"]),
                     "total_rank":    ctx["total_rank"].get(qrow["run_id"]),
                     "wpr_rank":      ctx["wpr_rank"].get(qrow["run_id"]),
+                    # PF data for the picked runner (None if PF didn't rate)
+                    "pf_ai_rank":      qrow.get("pf_ai_rank"),
+                    "pf_ai_price":     qrow.get("pf_ai_price"),
+                    "pf_ai_score":     qrow.get("pf_ai_score"),
+                    "pf_class_rank":   qrow.get("pf_class_rank"),
+                    "pf_last600_rank": qrow.get("pf_last600_rank"),
+                    "pf_last400_rank": qrow.get("pf_last400_rank"),
+                    "pf_last200_rank": qrow.get("pf_last200_rank"),
+                    "pf_run_style":    qrow.get("pf_run_style"),
+                    "pf_class_change": qrow.get("pf_class_change"),
                     "weight_trend":  qrow.get("weight_trend"),
                     "wins_at_dist":  qrow.get("wins_at_dist"),
                     "fixed_win_price": qrow.get("fixed_win_price"),
@@ -1839,6 +1937,23 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Per-signal percentile breakdown (for the detail panel) -
                 # dict of signal_name -> percentile in [0,1]
                 "csg":  _cs.get("sigs") or {},
+                # ── Punting Form ratings (None if PF didn't rate this runner) ─
+                # AI signals
+                "pfaiR":   sf(row.get("pf_ai_rank")),
+                "pfaiPrc": sf(row.get("pf_ai_price")),
+                "pfaiSc":  sf(row.get("pf_ai_score")),
+                # Class signals
+                "wcR":     sf(row.get("pf_class_rank")),
+                "tacwcR":  sf(row.get("pf_tac_class_rank")),
+                # Time / sectional ranks
+                "tR":      sf(row.get("pf_time_rank")),
+                "etR":     sf(row.get("pf_early_time_rank")),
+                "l600R":   sf(row.get("pf_last600_rank")),
+                "l400R":   sf(row.get("pf_last400_rank")),
+                "l200R":   sf(row.get("pf_last200_rank")),
+                # Pace / class change
+                "rs":      str(row.get("pf_run_style")) if row.get("pf_run_style") else None,
+                "clsChg":  sf(row.get("pf_class_change")),
             })
 
         # Get price drift fields (open/current) from price history if available
@@ -1862,6 +1977,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rsm":       sf(first.get("race_shape_mid")) if callable(sf) else None,
             "rsl":       sf(first.get("race_shape_late")) if callable(sf) else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
+            # PF coverage at race level: 1 if all runners in this race have
+            # PF AI rank populated (meeting was rated by PF), 0 otherwise.
+            # When 0, the new model rule produces no picks for this race.
+            "pfRel":     int(bool(rdf.get("pf_ai_rank") is not None
+                                   and rdf["pf_ai_rank"].notna().all())) if "pf_ai_rank" in rdf.columns else 0,
             "fs":        len(rdf),
             "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),
             # Cumulative score formula path used for this race ('A' or 'B').
@@ -1893,6 +2013,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "late_rank": r.get("late_rank"),
                 "total_rank": r.get("total_rank"),
                 "wpr_rank":  r.get("wpr_rank"),
+                # PF data carried through to picks for the Today tab and history
+                "pf_ai_rank":      r.get("pf_ai_rank"),
+                "pf_ai_price":     r.get("pf_ai_price"),
+                "pf_class_rank":   r.get("pf_class_rank"),
+                "pf_last600_rank": r.get("pf_last600_rank"),
+                "pf_last400_rank": r.get("pf_last400_rank"),
+                "pf_last200_rank": r.get("pf_last200_rank"),
+                "pf_run_style":    r.get("pf_run_style"),
+                "pf_class_change": r.get("pf_class_change"),
             })
 
     # ── Build model meta from MODEL_DEFS ─────────────────────────────────────
@@ -2097,6 +2226,14 @@ def main():
 
     print("── Step 2: Fetching today's races ──")
     runners_df = fetch_todays_races(jwt, runners_df, args.date)
+    print()
+
+    # ── Step 2b: Merge in Punting Form ratings ──────────────────────────────
+    # PF data is the foundation of the new unified model rule. It's pulled
+    # by puntingform_ingest.py (separate cron) into puntingform_data/pf_ratings.csv.
+    # The merge is keyed on (date, venue, race_no, horse_name lower-cased).
+    print("── Step 2b: Merging Punting Form ratings ──")
+    runners_df = merge_pf_ratings(runners_df)
     print()
 
     save_runners(runners_df)
