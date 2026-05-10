@@ -2006,7 +2006,7 @@ body {
 }
 .wl-pickrow {
   display: grid;
-  grid-template-columns: 60px 100px minmax(180px, 1fr) 280px 80px;
+  grid-template-columns: 60px 100px minmax(180px, 1fr) 280px 80px 24px;
   gap: 8px; align-items: center;
   padding: 10px 14px;
   min-height: 48px;
@@ -2015,6 +2015,20 @@ body {
   transition: background 0.12s;
   min-width: 800px;
 }
+.wl-pickrow .pr-chev {
+  font-size: 10px; color: var(--ink-mute); text-align: center;
+  transition: transform 0.15s;
+}
+.wl-pickrow.expanded .pr-chev { transform: rotate(180deg); }
+.wl-pickrow .pr-venue.clickable { cursor: pointer; }
+.wl-pickrow .pr-venue.clickable:hover .v-name { color: var(--emerald-deep); }
+.wl-detail {
+  display: none; padding: 12px 16px;
+  background: #fafbfc; border-bottom: 1px solid var(--line-soft);
+  border-left: 3px solid #3b82f6;
+}
+.wl-detail.is-roughie { border-left-color: #f59e0b; }
+.wl-detail.show { display: block; }
 .wl-pickrow:last-child { border-bottom: none; }
 .wl-pickrow:hover { background: #fafbfc; }
 .wl-pickrow.is-spot { border-left: 3px solid #3b82f6; padding-left: 11px; }
@@ -4111,12 +4125,17 @@ function renderToday() {
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
         '<span class="ret">' + fmtDollar(stake) + '</span>';
 
-      // Return: gross payout if bet wins.
-      // Dead heat halves the return (joint winner).
-      const dhMult = betEntry.deadHeat ? 0.5 : 1;
-      const returnUnits = stake * stakePrice * dhMult;
-      returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
-        '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
+      // Return: only show actual payout when bet has settled and won.
+      // Pre-result or losing bets show em-dash so the column doesn't imply winnings.
+      if (isSettled && displayWon) {
+        // Dead heat halves the return (joint winner).
+        const dhMult = betEntry.deadHeat ? 0.5 : 1;
+        const returnUnits = stake * stakePrice * dhMult;
+        returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
+          '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
+      } else {
+        returnHtml = '<span class="skip">&mdash;</span>';
+      }
     } else if (!isActiveBet) {
       stakeHtml = '<span class="skip">no bet</span>';
       returnHtml = '<span class="skip">&mdash;</span>';
@@ -4690,7 +4709,8 @@ function renderWatchlist(forDate) {
   if (!filtered.length) {
     list.innerHTML = '<div class="wl-empty">No candidates match this filter.</div>';
   } else {
-    list.innerHTML = filtered.map(c => {
+    list.innerHTML = '';
+    filtered.forEach(c => {
       const r = c.runner;
       const race = c.race;
       const startTime = race.start_time
@@ -4720,9 +4740,13 @@ function renderWatchlist(forDate) {
       const trnLine = r.tn ? ' · ' + escapeHtml(r.tn) : '';
       const meta = (race.distance || '') + 'm · ' + (race.going || '') +
                    (r.j ? ' · ' + escapeHtml(r.j) : '') + trnLine;
-      return '<div class="' + cls + '" data-race-id="' + race.race_id + '">' +
+
+      const row = document.createElement('div');
+      row.className = cls;
+      row.dataset.raceId = race.race_id;
+      row.innerHTML =
         '<div class="pr-time">' + startTime + ttjHtml + '</div>' +
-        '<div class="pr-venue">' +
+        '<div class="pr-venue clickable" data-nav-rid="' + race.race_id + '" title="Open race detail">' +
           '<div class="v-name">' + escapeHtml(race.venue || '') + '</div>' +
           '<div class="v-race">R' + race.race + ' ↗</div>' +
         '</div>' +
@@ -4735,17 +4759,41 @@ function renderWatchlist(forDate) {
         '</div>' +
         '<div class="pr-sigs"><div class="pr-sigs-top">' + sigPills + '</div></div>' +
         '<div class="pr-odds"><span class="cell-lbl">Fxd</span><span class="v">' + fxStr + '</span></div>' +
-      '</div>';
-    }).join('');
+        '<div class="pr-chev">▾</div>';
+      list.appendChild(row);
 
-    // Click row to jump to race detail
-    list.querySelectorAll('.wl-pickrow').forEach(row => {
-      row.addEventListener('click', () => {
-        const rid = row.dataset.raceId;
-        if (rid) {
+      // Detail panel - reuses the same buildDetailHTML used by the picks list.
+      // Construct a minimal pick-like object from the candidate's race + ranks.
+      const fakePick = {
+        race_id: race.race_id, run_id: r.rid, horse: r.h, tab: r.tab || r.t,
+        venue: race.venue, race: race.race, start_time: race.start_time,
+        distance: race.distance, going: race.going, prize: race.prize,
+        rail: race.rail,
+        early_rank: null,  // not computed for watchlist
+        mid_rank: c.ranks.mid, late_rank: c.ranks.late,
+        total_rank: c.ranks.total, wpr_rank: c.ranks.wpr, tr_rank: c.ranks.tr,
+        fxprice: r.fx, fixed_win_price: r.fx,
+        runner_full: r,
+        cs: r.cs, crk: r.crk, csc: r.csc,
+        // Buildings detail expects these to exist on p
+        jockey: r.j, trainer: r.tn,
+      };
+      const detail = document.createElement('div');
+      detail.className = 'wl-detail' + (c.isRoughie ? ' is-roughie' : '');
+      detail.innerHTML = buildDetailHTML(fakePick, r);
+      list.appendChild(detail);
+
+      // Row click: expand/collapse. But clicking the venue navigates to race detail.
+      row.addEventListener('click', e => {
+        const navTarget = e.target.closest('.pr-venue.clickable');
+        if (navTarget) {
+          e.stopPropagation();
           document.querySelector('.tab[data-tab="race"]').click();
-          setTimeout(() => showRaceDetail(rid), 50);
+          setTimeout(() => showRaceDetail(navTarget.dataset.navRid), 50);
+          return;
         }
+        const isExpanded = row.classList.toggle('expanded');
+        detail.classList.toggle('show', isExpanded);
       });
     });
   }
@@ -6186,15 +6234,14 @@ function renderPnL() {
     if (stake) {
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
         '<span class="ret">' + fmtDollar(stake) + '</span>';
-      // Return for settled bets is the ACTUAL return: stake * settlePrice on a win,
-      // 0 on a loss. Dead heat halving applies to the win return.
-      const returnUnits = s.won ? (stake * settlePrice * dhMult) : 0;
+      // Return: only the actual payout on a win (stake * settlePrice, dead-heat halved).
+      // Losing bets show em-dash so the column doesn't imply winnings.
       if (s.won) {
+        const returnUnits = stake * settlePrice * dhMult;
         returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
           '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
       } else {
-        returnHtml = '<span class="units" style="color:var(--ink-faint);">0.00u</span>' +
-          '<span class="ret" style="color:var(--ink-faint);">$0</span>';
+        returnHtml = '<span class="skip">&mdash;</span>';
       }
     } else {
       stakeHtml = '<span class="skip">—</span>';
