@@ -750,7 +750,18 @@ body {
   padding-right: 12px;
 }
 .pr-sigs-top {
-  display: flex; gap: 4px; align-items: center;
+  display: flex; gap: 8px; align-items: center;
+}
+/* Desktop signal chip layout: 3-column grid for the 6 voting signals.
+   Two compact rows (WPR/Late/Class top, L600/PFAI/TR bottom) instead of
+   4+2 wrap, giving cleaner alignment and predictable column widths
+   regardless of which signal labels are longest. Votes badge stays
+   to the right of the grid via the parent flex container. */
+.pr-sigs-top .desktop-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px 5px;
+  flex: 0 0 auto;
 }
 .pr-form {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
@@ -6829,7 +6840,7 @@ function renderPnL() {
     }
     // Vote count badge - shows model-rule conformance for the original pick
     // (mobile-friendly summary, replaces the chip row on small screens).
-    const pVoteRanks = [r.wpr_rank, r.late_rank, r.wcR, r.l600R, r.pfaiR, r.tr_rank];
+    const pVoteRanks = [s.wpr_rank, s.late_rank, s.wcR, s.l600R, s.pfaiR, s.tr_rank];
     const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
     const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
     const pVoteTooltip = pVoteTop3 + ' of 6 signals rank top-3, ' + pVoteTop1 + ' rank #1.';
@@ -6839,11 +6850,20 @@ function renderPnL() {
       (pVoteTop1 >= 3 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
+    // Desktop signal chips - the 6 voting signals (same as Today tab).
+    // Previously P&L showed TR/Mid/Late/Tot but feedback was that P&L should
+    // mirror Today's layout exactly so the eye can compare them directly.
+    // The original pick was made by these 6 signals - showing them here
+    // makes "why was this picked" easy to retrace post-hoc.
+    // Fields are on the settled bet (`s`), not on the runner_full record (`r`)
+    // which contains race-level context but not the pre-computed ranks.
     const desktopChipsHtml =
-      sigPill('TR', s.tr_rank) +
-      sigPill('Mid', s.mid_rank) +
-      sigPill('Late', s.late_rank) +
-      sigPill('Tot', s.total_rank);
+      sigPill('WPR',   s.wpr_rank) +
+      sigPill('Late',  s.late_rank) +
+      sigPill('Class', s.wcR) +
+      sigPill('L600',  s.l600R) +
+      sigPill('PFAI',  s.pfaiR) +
+      sigPill('TR',    s.tr_rank);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
