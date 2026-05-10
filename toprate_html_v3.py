@@ -2049,7 +2049,14 @@ body {
 }
 .wl-tag.spot { background: #3b82f6; color: #fff; }
 .wl-tag.roughie { background: #f59e0b; color: #fff; }
-.wl-pickrow .pr-sigs { display: flex; flex-wrap: nowrap; gap: 3px; overflow: hidden; }
+.wl-pickrow .pr-sigs {
+  display: flex !important; flex-direction: row !important;
+  flex-wrap: nowrap; gap: 3px; overflow: hidden;
+  padding-right: 0;
+}
+.wl-pickrow .pr-sigs-top {
+  display: flex; flex-wrap: nowrap; gap: 3px; align-items: center;
+}
 .wl-pickrow .pr-sigs .sig {
   display: inline-flex; align-items: baseline; gap: 2px;
   font-family: var(--font-body); font-size: 11px;
@@ -4726,7 +4733,7 @@ function renderWatchlist(forDate) {
             '<div class="rmeta">' + meta + '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="pr-sigs">' + sigPills + '</div>' +
+        '<div class="pr-sigs"><div class="pr-sigs-top">' + sigPills + '</div></div>' +
         '<div class="pr-odds"><span class="cell-lbl">Fxd</span><span class="v">' + fxStr + '</span></div>' +
       '</div>';
     }).join('');
