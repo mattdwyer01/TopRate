@@ -4636,8 +4636,9 @@ function renderWatchlist(forDate) {
       const totR = totalRanks[u.rid];
       const fxp = u.fx;
 
-      // Spot match: WPR≤3 AND Total≤3 AND (Late≤3 OR Mid≤3)
-      const spotMatch = (wprR != null && wprR <= 3)
+      // Spot match: CS≤3 + WPR≤3 + Total≤3 + (Late≤3 OR Mid≤3)
+      const spotMatch = (csR != null && csR <= 3)
+                       && (wprR != null && wprR <= 3)
                        && (totR != null && totR <= 3)
                        && (((lateR != null && lateR <= 3))
                          || ((midR != null && midR <= 3)));
@@ -5344,17 +5345,17 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Spot-bet pattern: WPR≤3 AND Total≤3 AND (Late≤3 OR Mid≤3).
-    // Tighter than first iteration: requires top-3 on both WPR and Total,
-    // plus top-3 on at least one mid-race or finish-section sectional.
-    // ~73% of races have a candidate. Backtest -11% ROI (intended for selective
-    // watch-and-bet use, not flat staking).
+    // Spot-bet pattern: CS≤3 + WPR≤3 + Total≤3 + (Late≤3 OR Mid≤3).
+    // Adds CS≤3 rating anchor for selectivity. ~37 picks/day in backtest,
+    // 19.1% WR, AvgSP $6.32, ~-3% ROI (near break-even, intended for
+    // selective watch-and-bet use, not flat staking).
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
-    const isSpotBet = (wprR != null && wprR <= 3)
+    const isSpotBet = (csR != null && csR <= 3)
+                     && (wprR != null && wprR <= 3)
                      && (totR != null && totR <= 3)
                      && (((lateR != null && lateR <= 3))
                        || ((midR != null && midR <= 3)));
