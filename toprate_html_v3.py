@@ -4640,6 +4640,7 @@ function renderWatchlist(forDate) {
       const fxp = u.fx;
 
       // Spot match: CS≤3 + WPR≤3 + Total≤3 + (Late≤3 OR Mid≤3)
+      // No price gate - apply manually at bet placement.
       const spotMatch = (csR != null && csR <= 3)
                        && (wprR != null && wprR <= 3)
                        && (totR != null && totR <= 3)
@@ -5343,11 +5344,9 @@ function renderRaceDetail(raceId) {
     if (qualifies) rowClasses.push('score-qualify');
 
     // Spot-bet pattern: CS≤3 + WPR≤3 + Total≤3 + (Late≤3 OR Mid≤3).
-    // Adds CS≤3 rating anchor for selectivity. ~37 picks/day in backtest,
-    // 19.1% WR, AvgSP $6.32, ~-3% ROI (near break-even, intended for
-    // selective watch-and-bet use, not flat staking).
-    // Suppressed when race already has a model pick - in those races the
-    // model pick is the bet, not an alternative.
+    // No price gate - apply manually at bet placement.
+    // Backtest reference: with $5 SP gate, +10% ROI; without, ~-3% ROI.
+    // Suppressed when race already has a model pick.
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
