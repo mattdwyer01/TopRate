@@ -647,6 +647,20 @@ body {
   background: #fafbfc;
 }
 
+/* Watchlist rows reuse the picks-list pick-row layout but get blue (spot) or
+   amber (roughie) left bars instead of emerald/rose, since these aren't model
+   picks. The settled-win/loss styling still applies (background gradient) but
+   the bar colour signals the bet category. */
+.pick-row.wl-spot { border-left: 3px solid #3b82f6 !important; padding-left: 11px; }
+.pick-row.wl-roughie { border-left: 3px solid #f59e0b !important; padding-left: 11px; }
+.wl-tag {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+  margin-left: 6px; vertical-align: middle;
+}
+.wl-tag.spot { background: #3b82f6; color: #fff; }
+.wl-tag.roughie { background: #f59e0b; color: #fff; }
+
 .pr-time {
   font-family: var(--font-body); font-weight: 700; font-size: 14px;
   color: var(--ink); white-space: nowrap;
@@ -1999,121 +2013,9 @@ body {
   box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 .watchlist-list {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--line-soft); border-radius: 12px;
-  overflow-x: auto;
-  background: var(--panel);
+  /* Same outer styling as picks-list - inherits from .picks-list class */
 }
-.wl-pickrow {
-  display: grid;
-  grid-template-columns: 60px 100px minmax(180px, 1fr) 280px 80px 24px;
-  gap: 8px; align-items: center;
-  padding: 10px 14px;
-  min-height: 48px;
-  border-bottom: 1px solid var(--line-soft);
-  cursor: pointer;
-  transition: background 0.12s;
-  min-width: 800px;
-}
-.wl-pickrow .pr-chev {
-  font-size: 10px; color: var(--ink-mute); text-align: center;
-  transition: transform 0.15s;
-}
-.wl-pickrow.expanded .pr-chev { transform: rotate(180deg); }
-.wl-pickrow .pr-venue.clickable { cursor: pointer; }
-.wl-pickrow .pr-venue.clickable:hover .v-name { color: var(--emerald-deep); }
-.wl-detail {
-  display: none; padding: 12px 16px;
-  background: #fafbfc; border-bottom: 1px solid var(--line-soft);
-  border-left: 3px solid #3b82f6;
-}
-.wl-detail.is-roughie { border-left-color: #f59e0b; }
-.wl-detail.show { display: block; }
-.wl-pickrow:last-child { border-bottom: none; }
-.wl-pickrow:hover { background: #fafbfc; }
-.wl-pickrow.is-spot { border-left: 3px solid #3b82f6; padding-left: 11px; }
-.wl-pickrow.is-roughie { border-left: 3px solid #f59e0b; padding-left: 11px; }
-.wl-pickrow .pr-time {
-  display: flex; flex-direction: column; gap: 1px;
-  font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums;
-  font-size: 13px;
-}
-.wl-pickrow .pr-time .ttj {
-  font-size: 10px; font-weight: 600; color: var(--ink-mute);
-}
-.wl-pickrow .pr-time .ttj.imm { color: var(--rose); }
-.wl-pickrow .pr-time .ttj.soon { color: var(--amber); }
-.wl-pickrow .pr-venue { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
-.wl-pickrow .pr-venue .v-name { font-weight: 600; color: var(--ink); font-size: 12px; }
-.wl-pickrow .pr-venue .v-race { font-size: 10px; color: var(--ink-mute); }
-.wl-pickrow .pr-runner { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.wl-pickrow .tab-bdg {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 24px; height: 24px; background: var(--ink); color: var(--panel);
-  font-weight: 700; border-radius: 5px; padding: 0 7px; font-size: 12px;
-  flex-shrink: 0;
-}
-.wl-pickrow .rdetails { min-width: 0; line-height: 1.2; }
-.wl-pickrow .rhorse { font-weight: 700; color: var(--ink); font-size: 13px; }
-.wl-pickrow .rmeta { font-size: 10px; color: var(--ink-mute); margin-top: 1px; }
-.wl-tag {
-  display: inline-block; padding: 1px 5px; border-radius: 3px;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
-  margin-left: 6px; vertical-align: middle;
-}
-.wl-tag.spot { background: #3b82f6; color: #fff; }
-.wl-tag.roughie { background: #f59e0b; color: #fff; }
-.wl-pickrow .pr-sigs {
-  display: flex !important; flex-direction: row !important;
-  flex-wrap: nowrap; gap: 3px; overflow: hidden;
-  padding-right: 0;
-}
-.wl-pickrow .pr-sigs-top {
-  display: flex; flex-wrap: nowrap; gap: 3px; align-items: center;
-}
-.wl-pickrow .pr-sigs .sig {
-  display: inline-flex; align-items: baseline; gap: 2px;
-  font-family: var(--font-body); font-size: 11px;
-  background: var(--line-soft); border-radius: 3px;
-  padding: 3px 5px; font-weight: 600; color: var(--ink-mute);
-  white-space: nowrap;
-}
-.wl-pickrow .pr-sigs .sig.r1 { background: var(--emerald); color: #fff; }
-.wl-pickrow .pr-sigs .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
-.wl-pickrow .pr-sigs .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
-.wl-pickrow .pr-sigs .sig .lbl {
-  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
-  font-weight: 600; opacity: 0.7;
-}
-.wl-pickrow .pr-sigs .sig .v { font-weight: 700; font-size: 11px; }
-.wl-pickrow .pr-odds {
-  text-align: right; font-weight: 700; color: var(--ink);
-  font-variant-numeric: tabular-nums; font-size: 14px;
-}
-.wl-pickrow .pr-odds .cell-lbl {
-  display: block; font-size: 9px; color: var(--ink-mute); font-weight: 500;
-  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 1px;
-}
-.wl-empty {
-  text-align: center; padding: 32px 14px; color: var(--ink-mute); font-style: italic;
-}
-
-@media (max-width: 720px) {
-  .wl-pickrow {
-    grid-template-columns: 60px 1fr 70px;
-    grid-template-areas:
-      'time runner odds'
-      '.    venue  .'
-      'sigs sigs   sigs';
-    gap: 6px 12px;
-  }
-  .wl-pickrow .pr-time   { grid-area: time; }
-  .wl-pickrow .pr-venue  { grid-area: venue; flex-direction: row; gap: 4px; }
-  .wl-pickrow .pr-venue .v-name { font-size: 11px; }
-  .wl-pickrow .pr-runner { grid-area: runner; }
-  .wl-pickrow .pr-sigs   { grid-area: sigs; padding-top: 4px; }
-  .wl-pickrow .pr-odds   { grid-area: odds; }
-}
+.watchlist-cols-header { /* matches picks-header layout already */ }
 
 .sect-pill {
   display: inline-block; padding: 1px 6px; border-radius: 10px;
@@ -3240,7 +3142,19 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <button class="watchlist-tab" data-wlfilter="roughie">Roughies</button>
         </div>
       </div>
-      <div class="watchlist-list" id="watchlist-list"></div>
+      <div class="picks-header watchlist-cols-header">
+        <div>Time</div>
+        <div>Meeting</div>
+        <div>Runner</div>
+        <div>Signals</div>
+        <div class="th-right">Fxd</div>
+        <div class="th-right">Stake</div>
+        <div class="th-right">Return</div>
+        <div class="th-right">Result</div>
+        <div class="th-right">Odds taken</div>
+        <div></div>
+      </div>
+      <div class="picks-list watchlist-list" id="watchlist-list"></div>
     </div>
   </section>
 
@@ -4710,91 +4624,285 @@ function renderWatchlist(forDate) {
     list.innerHTML = '<div class="wl-empty">No candidates match this filter.</div>';
   } else {
     list.innerHTML = '';
-    filtered.forEach(c => {
+    const minOdds = (MODEL_META[PRIMARY_KEY] && MODEL_META[PRIMARY_KEY].min_odds) || 3.0;
+    const now = new Date();
+
+    filtered.forEach((c, idx) => {
       const r = c.runner;
       const race = c.race;
-      const startTime = race.start_time
-        ? new Date(race.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-        : '—';
-      // Time-to-jump (minutes from now)
-      let ttjHtml = '';
-      if (race.start_time) {
-        const minsUntil = Math.round((new Date(race.start_time) - new Date()) / 60000);
-        if (minsUntil > 0 && minsUntil < 1440) {
-          const txt = minsUntil < 60 ? minsUntil + 'm' : Math.floor(minsUntil / 60) + 'h' + (minsUntil % 60) + 'm';
-          const cls = minsUntil < 5 ? 'imm' : (minsUntil < 30 ? 'soon' : '');
-          ttjHtml = '<span class="ttj ' + cls + '">↗ ' + txt + '</span>';
-        }
-      }
-      const tagHtml = c.isRoughie
-        ? '<span class="wl-tag roughie">ROUGHIE</span>'
-        : (c.isSpot ? '<span class="wl-tag spot">SPOT</span>' : '');
-      const sigPills =
-        sigPillSimple('TR', c.ranks.tr) +
-        sigPillSimple('WPR', c.ranks.wpr) +
-        sigPillSimple('Mid', c.ranks.mid) +
-        sigPillSimple('Late', c.ranks.late) +
-        sigPillSimple('Tot', c.ranks.total);
-      const fxStr = r.fx ? '$' + r.fx.toFixed(2) : '—';
-      const cls = 'wl-pickrow ' + (c.isRoughie ? 'is-roughie' : 'is-spot');
-      const trnLine = r.tn ? ' · ' + escapeHtml(r.tn) : '';
-      const meta = (race.distance || '') + 'm · ' + (race.going || '') +
-                   (r.j ? ' · ' + escapeHtml(r.j) : '') + trnLine;
 
-      const row = document.createElement('div');
-      row.className = cls;
-      row.dataset.raceId = race.race_id;
-      row.innerHTML =
-        '<div class="pr-time">' + startTime + ttjHtml + '</div>' +
-        '<div class="pr-venue clickable" data-nav-rid="' + race.race_id + '" title="Open race detail">' +
-          '<div class="v-name">' + escapeHtml(race.venue || '') + '</div>' +
-          '<div class="v-race">R' + race.race + ' ↗</div>' +
-        '</div>' +
-        '<div class="pr-runner">' +
-          '<span class="tab-bdg">' + (r.tab || r.t || '?') + '</span>' +
-          '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(r.h || '') + tagHtml + '</div>' +
-            '<div class="rmeta">' + meta + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="pr-sigs"><div class="pr-sigs-top">' + sigPills + '</div></div>' +
-        '<div class="pr-odds"><span class="cell-lbl">Fxd</span><span class="v">' + fxStr + '</span></div>' +
-        '<div class="pr-chev">▾</div>';
-      list.appendChild(row);
-
-      // Detail panel - reuses the same buildDetailHTML used by the picks list.
-      // Construct a minimal pick-like object from the candidate's race + ranks.
-      const fakePick = {
+      // Convert candidate to a pick-shaped object so the row builder can use the
+      // same field names as model picks. Lets us reuse buildDetailHTML and the
+      // bet/odds/result handler wiring.
+      const p = {
         race_id: race.race_id, run_id: r.rid, horse: r.h, tab: r.tab || r.t,
         venue: race.venue, race: race.race, start_time: race.start_time,
         distance: race.distance, going: race.going, prize: race.prize,
-        rail: race.rail,
-        early_rank: null,  // not computed for watchlist
+        rail: race.rail, date: race.date,
+        early_rank: null,
         mid_rank: c.ranks.mid, late_rank: c.ranks.late,
         total_rank: c.ranks.total, wpr_rank: c.ranks.wpr, tr_rank: c.ranks.tr,
+        crk: r.crk, csc: r.csc,
         fxprice: r.fx, fixed_win_price: r.fx,
         runner_full: r,
-        cs: r.cs, crk: r.crk, csc: r.csc,
-        // Buildings detail expects these to exist on p
-        jockey: r.j, trainer: r.tn,
       };
+
+      // ── Replicate the picks-list row build, minus stats accumulation ──
+      const csvPrice = p.fxprice;
+      const betEntry = getBetEntry(p.run_id);
+      const isBetPlaced = !!betEntry.placed;
+      const oddsTaken = betEntry.oddsTaken;
+      const stakePrice = (oddsTaken != null && oddsTaken > 1) ? oddsTaken : csvPrice;
+      const usingFallback = !(oddsTaken != null && oddsTaken > 1);
+      const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
+      const meetsThreshold = csvPrice != null && csvPrice >= minOdds;
+      const isActiveBet = meetsThreshold || hasOddsTaken;
+      const stake = (isActiveBet && stakePrice != null && stakePrice > 1)
+                      ? calcStake(stakePrice, { capExempt: hasOddsTaken }) : null;
+
+      // Result state
+      const manRes = manualResults[String(p.run_id)];
+      const officialFinish = r.f;
+      const hasOfficial = officialFinish != null;
+      const isSettled = hasOfficial || (manRes != null);
+      const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
+
+      // Card class - same logic as the picks list, gives consistent visual states
+      let cardClass = 'pending';
+      if (isSettled) {
+        if (isActiveBet && stake) {
+          cardClass = displayWon ? 'settled-win' : 'settled-loss';
+        } else {
+          cardClass = 'below-threshold';
+        }
+      } else if (!isActiveBet) {
+        cardClass = 'below-threshold';
+      } else {
+        cardClass = 'qualifies';
+      }
+
+      // Time-to-jump
+      let ttj = null;
+      if (p.start_time) {
+        const mins = Math.round((new Date(p.start_time) - now) / 60000);
+        if (mins >= -2 && mins <= 240) ttj = mins;
+      }
+      let ttjHtml = '';
+      if (ttj !== null) {
+        const ttjCls = ttj <= 5 ? 'imm' : (ttj <= 30 ? 'soon' : '');
+        ttjHtml = '<span class="ttj ' + ttjCls + '">' +
+          (ttj <= 0 ? 'NOW' : (ttj < 60 ? ttj + 'm' : Math.floor(ttj/60) + 'h ' + (ttj%60) + 'm')) +
+          '</span>';
+      }
+
+      // Signal pills - same renderer as picks list
+      function sigPill(label, rank) {
+        if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
+        const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+        return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
+      }
+      function scoreSigPill(rank, conf) {
+        if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+        const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+        let confDot = '';
+        if (conf != null) {
+          const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
+          const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
+          confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
+        }
+        return '<span class="sig ' + cls + '" title="Cumulative score rank">' +
+          '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+      }
+      const sigsTopHtml =
+        scoreSigPill(p.crk, p.csc) +
+        sigPill('TR', p.tr_rank) +
+        sigPill('WPR', p.wpr_rank) +
+        sigPill('Mid', p.mid_rank) +
+        sigPill('Late', p.late_rank) +
+        sigPill('Tot', p.total_rank);
+      const formHtml = r.fm ?
+        '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
+      const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
+
+      // Live fixed odds display
+      const oddsCls = meetsThreshold ? 'qualifies' : 'below';
+      const oddsValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
+      const oddsValCls = csvPrice != null ? 'v' : 'v empty';
+      const oddsHtml =
+        '<div class="pr-odds-display ' + oddsCls + '" title="Live fixed odds at last refresh">' +
+          (csvPrice != null ? '<span class="cur">$</span>' : '') +
+          '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
+        '</div>';
+
+      // Stake / Return cells - same logic as picks list
+      const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
+      const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
+      let stakeHtml, returnHtml;
+      if (isActiveBet && stake) {
+        stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
+          '<span class="ret">' + fmtDollar(stake) + '</span>';
+        if (isSettled && displayWon) {
+          const dhMult = betEntry.deadHeat ? 0.5 : 1;
+          const returnUnits = stake * stakePrice * dhMult;
+          returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
+            '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
+        } else {
+          returnHtml = '<span class="skip">&mdash;</span>';
+        }
+      } else if (!isActiveBet) {
+        stakeHtml = '<span class="skip">no bet</span>';
+        returnHtml = '<span class="skip">&mdash;</span>';
+      } else {
+        stakeHtml = '<span class="skip">enter odds</span>';
+        returnHtml = '<span class="skip">&mdash;</span>';
+      }
+
+      // Result column
+      let resultHtml;
+      if (hasOfficial) {
+        resultHtml = '<span class="res-tag ' + (displayWon ? 'win' : 'loss') + '">' +
+          (displayWon ? 'W' : 'L') + ' · ' + officialFinish + ord(officialFinish) + '</span>';
+      } else if (manRes) {
+        resultHtml = '<span class="res-tag manual ' + (displayWon ? 'win' : 'loss') + '" onclick="event.stopPropagation();">' +
+          (displayWon ? 'W' : 'L') + ' · ' + manRes.finish + ord(manRes.finish) +
+          '<span class="res-clear" data-clear-rid="' + p.run_id + '" title="Clear">×</span>' +
+          '</span>';
+      } else {
+        resultHtml = '<select class="res-select" data-set-rid="' + p.run_id + '" ' +
+          'onclick="event.stopPropagation();" title="Set result">' +
+          '<option value="">— set —</option>' +
+          '<option value="1">1st</option>' +
+          '<option value="2">2nd</option>' +
+          '<option value="3">3rd</option>' +
+          '<option value="0">Lost</option>' +
+          '</select>';
+      }
+
+      // Bet toggle and odds-taken
+      let betHtml = '<button class="bet-btn ' + (isBetPlaced ? 'placed' : '') +
+                    '" data-bet-rid="' + p.run_id + '" title="' +
+                    (isBetPlaced ? 'Mark as not bet' : 'Mark this bet as placed') +
+                    '" onclick="event.stopPropagation();">' +
+                    (isBetPlaced ? '✓' : '+') + '</button>';
+      if (isBetPlaced) {
+        const oddsVal = betEntry.oddsTaken != null ? betEntry.oddsTaken.toFixed(2) : '';
+        const showWarning = !betEntry.oddsTaken;
+        betHtml += '<span class="odds-input-wrap" onclick="event.stopPropagation();">' +
+                     '<span class="cur">$</span>' +
+                     '<input type="number" step="0.01" min="1" class="odds-input" ' +
+                     'data-odds-rid="' + p.run_id + '" placeholder="0.00" ' +
+                     'value="' + oddsVal + '" />' +
+                   '</span>';
+        if (showWarning) {
+          betHtml += '<span class="odds-warning" title="No odds-taken entered. Stake will use live Fxd price as fallback.">⚠</span>';
+        }
+      }
+
+      // Build the row - same class as picks list, plus spot/roughie marker
+      const tagHtml = c.isRoughie
+        ? '<span class="wl-tag roughie">ROUGHIE</span>'
+        : (c.isSpot ? '<span class="wl-tag spot">SPOT</span>' : '');
+      const wlClass = c.isRoughie ? ' wl-roughie' : ' wl-spot';
+      const row = document.createElement('div');
+      row.className = 'pick-row ' + cardClass + (isBetPlaced ? ' bet-placed' : '') + wlClass;
+      row.dataset.runId = p.run_id;
+
+      const metaParts = [];
+      if (p.distance) metaParts.push(p.distance + 'm');
+      if (p.going) metaParts.push(escapeHtml(p.going));
+      if (r.j) metaParts.push(escapeHtml(r.j));
+      if (r.tn) metaParts.push(escapeHtml(r.tn));
+      const metaLine = metaParts.join(' · ');
+
+      row.innerHTML =
+        '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
+        '<div class="pr-venue clickable" data-nav-rid="' + (p.race_id || '') + '" title="Open race detail">' +
+          '<div class="v-name">' + escapeHtml(p.venue || '') + '</div>' +
+          '<div class="v-race">R' + p.race + ' ↗</div>' +
+        '</div>' +
+        '<div class="pr-runner">' +
+          '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
+          '<div class="rdetails">' +
+            '<div class="rhorse">' + escapeHtml(p.horse || '') + tagHtml + '</div>' +
+            '<div class="rmeta">' + metaLine + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pr-sigs">' + sigsHtml + '</div>' +
+        '<div class="pr-odds"><span class="cell-lbl">Fxd</span>' + oddsHtml + '</div>' +
+        '<div class="' + stakeWrapCls + '"><span class="cell-lbl">Stake</span>' + stakeHtml + '</div>' +
+        '<div class="' + returnWrapCls + '"><span class="cell-lbl">Return</span>' + returnHtml + '</div>' +
+        '<div class="pr-result"><span class="cell-lbl">Result</span>' + resultHtml + '</div>' +
+        '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
+        '<div class="pr-chev">▾</div>';
+
+      list.appendChild(row);
+
+      // Detail panel
       const detail = document.createElement('div');
-      detail.className = 'wl-detail' + (c.isRoughie ? ' is-roughie' : '');
-      detail.innerHTML = buildDetailHTML(fakePick, r);
+      detail.className = 'pick-detail';
+      detail.innerHTML = buildDetailHTML(p, r);
       list.appendChild(detail);
 
-      // Row click: expand/collapse. But clicking the venue navigates to race detail.
+      // Click handlers - same as picks list
       row.addEventListener('click', e => {
+        if (e.target.closest('.odds-input, .odds-input-wrap, .pr-result button, .res-clear, .bet-btn, .res-select')) return;
         const navTarget = e.target.closest('.pr-venue.clickable');
         if (navTarget) {
           e.stopPropagation();
-          document.querySelector('.tab[data-tab="race"]').click();
-          setTimeout(() => showRaceDetail(navTarget.dataset.navRid), 50);
+          navigateToRace(navTarget.dataset.navRid);
           return;
         }
         const isExpanded = row.classList.toggle('expanded');
         detail.classList.toggle('show', isExpanded);
       });
+    });
+
+    // Wire result/bet/odds handlers - same delegation pattern as picks list.
+    // Note: this means changes propagate through saveResults() and renderToday()
+    // which in turn re-renders the watchlist. Bet entries persist across both lists.
+    list.querySelectorAll('[data-set-rid]').forEach(el => {
+      const eventName = el.tagName === 'SELECT' ? 'change' : 'click';
+      el.addEventListener(eventName, e => {
+        e.stopPropagation();
+        const rid = el.dataset.setRid;
+        const raw = el.tagName === 'SELECT' ? el.value : el.dataset.pos;
+        if (raw === '' || raw == null) return;
+        const pos = parseInt(raw);
+        if (isNaN(pos)) return;
+        manualResults[String(rid)] = { finish: pos, ts: new Date().toISOString() };
+        saveResults();
+        renderToday();
+      });
+    });
+    list.querySelectorAll('[data-clear-rid]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        delete manualResults[String(el.dataset.clearRid)];
+        saveResults();
+        renderToday();
+      });
+    });
+    list.querySelectorAll('[data-bet-rid]').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        const rid = el.dataset.betRid;
+        const entry = getBetEntry(rid);
+        entry.placed = !entry.placed;
+        if (!entry.placed) entry.oddsTaken = null;
+        setBetEntry(rid, entry);
+        renderToday();
+      });
+    });
+    list.querySelectorAll('[data-odds-rid]').forEach(el => {
+      el.addEventListener('change', e => {
+        const rid = el.dataset.oddsRid;
+        const entry = getBetEntry(rid);
+        const v = parseFloat(el.value);
+        entry.oddsTaken = (isFinite(v) && v > 1) ? v : null;
+        setBetEntry(rid, entry);
+        renderToday();
+      });
+      el.addEventListener('click', e => e.stopPropagation());
     });
   }
 
