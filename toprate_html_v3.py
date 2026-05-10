@@ -1999,79 +1999,96 @@ body {
   box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 .watchlist-list {
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-soft); border-radius: 12px;
+  overflow: hidden; background: var(--panel);
 }
-.wl-row {
+.wl-pickrow {
   display: grid;
-  grid-template-columns: 60px 130px 1fr 240px 70px 80px;
-  gap: 10px; align-items: center;
-  padding: 10px 14px; background: var(--panel);
-  border: 1px solid var(--line-soft); border-radius: 8px;
-  font-size: 13px;
+  grid-template-columns: 60px 100px 1fr 320px 80px;
+  gap: 12px; align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition: background 0.12s;
 }
-.wl-row:hover { background: #fafbfc; }
-.wl-row.is-roughie { border-left: 3px solid #f59e0b; padding-left: 11px; }
-.wl-row.is-spot { border-left: 3px solid #3b82f6; padding-left: 11px; }
-.wl-time { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-.wl-meeting {
+.wl-pickrow:last-child { border-bottom: none; }
+.wl-pickrow:hover { background: #fafbfc; }
+.wl-pickrow.is-spot { border-left: 3px solid #3b82f6; padding-left: 13px; }
+.wl-pickrow.is-roughie { border-left: 3px solid #f59e0b; padding-left: 13px; }
+.wl-pickrow .pr-time {
   display: flex; flex-direction: column; gap: 2px;
+  font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums;
+  font-size: 14px;
 }
-.wl-meeting .v { font-weight: 600; color: var(--ink); font-size: 12px; }
-.wl-meeting .sub { font-size: 10px; color: var(--ink-mute); }
-.wl-runner { display: flex; align-items: center; gap: 8px; }
-.wl-runner .tn-cell {
-  display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
-  text-align: center; background: var(--ink); color: var(--panel);
-  font-weight: 700; border-radius: 4px; padding: 0 6px; font-size: 11px;
+.wl-pickrow .pr-time .ttj {
+  font-size: 10px; font-weight: 600; color: var(--ink-mute);
+}
+.wl-pickrow .pr-time .ttj.imm { color: var(--rose); }
+.wl-pickrow .pr-time .ttj.soon { color: var(--amber); }
+.wl-pickrow .pr-venue { display: flex; flex-direction: column; gap: 1px; }
+.wl-pickrow .pr-venue .v-name { font-weight: 600; color: var(--ink); font-size: 13px; }
+.wl-pickrow .pr-venue .v-race { font-size: 11px; color: var(--ink-mute); }
+.wl-pickrow .pr-runner { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wl-pickrow .tab-bdg {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; background: var(--ink); color: var(--panel);
+  font-weight: 700; border-radius: 6px; padding: 0 8px; font-size: 13px;
   flex-shrink: 0;
 }
-.wl-runner .horse { font-weight: 700; color: var(--ink); }
+.wl-pickrow .rdetails { min-width: 0; }
+.wl-pickrow .rhorse { font-weight: 700; color: var(--ink); font-size: 14px; line-height: 1.2; }
+.wl-pickrow .rmeta { font-size: 11px; color: var(--ink-mute); margin-top: 2px; line-height: 1.2; }
 .wl-tag {
   display: inline-block; padding: 1px 5px; border-radius: 3px;
   font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
-  margin-left: 4px; vertical-align: middle;
+  margin-left: 6px; vertical-align: middle;
 }
 .wl-tag.spot { background: #3b82f6; color: #fff; }
 .wl-tag.roughie { background: #f59e0b; color: #fff; }
-.wl-signals { display: flex; gap: 3px; flex-wrap: wrap; }
-.wl-signals .sig {
+.wl-pickrow .pr-sigs { display: flex; flex-wrap: wrap; gap: 3px; }
+.wl-pickrow .pr-sigs .sig {
   display: inline-flex; align-items: baseline; gap: 2px;
   font-family: var(--font-body); font-size: 11px;
   background: var(--line-soft); border-radius: 3px;
-  padding: 2px 5px; font-weight: 600; color: var(--ink-mute);
+  padding: 3px 5px; font-weight: 600; color: var(--ink-mute);
   white-space: nowrap;
 }
-.wl-signals .sig.r1 { background: var(--emerald); color: #fff; }
-.wl-signals .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
-.wl-signals .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
-.wl-signals .sig .lbl {
+.wl-pickrow .pr-sigs .sig.r1 { background: var(--emerald); color: #fff; }
+.wl-pickrow .pr-sigs .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
+.wl-pickrow .pr-sigs .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+.wl-pickrow .pr-sigs .sig .lbl {
   font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
   font-weight: 600; opacity: 0.7;
 }
-.wl-signals .sig .v {
-  font-weight: 700; font-size: 11px;
+.wl-pickrow .pr-sigs .sig .v { font-weight: 700; font-size: 11px; }
+.wl-pickrow .pr-odds {
+  text-align: right; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; font-size: 14px;
 }
-.wl-fxd { text-align: right; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-.wl-jump { text-align: right; font-size: 11px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.wl-pickrow .pr-odds .cell-lbl {
+  display: block; font-size: 9px; color: var(--ink-mute); font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 1px;
+}
 .wl-empty {
   text-align: center; padding: 32px 14px; color: var(--ink-mute); font-style: italic;
 }
+
 @media (max-width: 720px) {
-  .wl-row {
-    grid-template-columns: 50px 1fr 60px;
+  .wl-pickrow {
+    grid-template-columns: 60px 1fr 70px;
     grid-template-areas:
-      'time  runner price'
-      '.     meeting jump'
-      'sigs  sigs    sigs';
-    gap: 4px 10px;
+      'time runner odds'
+      '.    venue  .'
+      'sigs sigs   sigs';
+    gap: 6px 12px;
   }
-  .wl-time   { grid-area: time; font-size: 12px; }
-  .wl-runner { grid-area: runner; }
-  .wl-meeting { grid-area: meeting; flex-direction: row; gap: 6px; font-size: 10px; }
-  .wl-meeting .v { font-size: 10px; }
-  .wl-fxd    { grid-area: price; }
-  .wl-jump   { grid-area: jump; }
-  .wl-signals { grid-area: sigs; margin-top: 4px; }
+  .wl-pickrow .pr-time   { grid-area: time; }
+  .wl-pickrow .pr-venue  { grid-area: venue; flex-direction: row; gap: 4px; }
+  .wl-pickrow .pr-venue .v-name { font-size: 11px; }
+  .wl-pickrow .pr-runner { grid-area: runner; }
+  .wl-pickrow .pr-sigs   { grid-area: sigs; padding-top: 4px; }
+  .wl-pickrow .pr-odds   { grid-area: odds; }
 }
 
 .sect-pill {
@@ -4598,6 +4615,8 @@ function renderWatchlist(forDate) {
     const wprRanks = rankBy(runners, r => r.w);
     const midRanks = rankBy(runners, r => r.ms);
     const lateRanks = rankBy(runners, r => r.ls);
+    const totalRanks = rankBy(runners, r => r.ts);
+    const trRanks = rankBy(runners, r => r.trr);
 
     // Find the model picks for this race so we exclude them from the watchlist
     const pickIds = new Set(
@@ -4608,20 +4627,25 @@ function renderWatchlist(forDate) {
     runners.forEach(u => {
       if (pickIds.has(String(u.rid))) return;
       const csR = u.crk;
+      const trR = trRanks[u.rid];
       const wprR = wprRanks[u.rid];
       const midR = midRanks[u.rid];
       const lateR = lateRanks[u.rid];
+      const totR = totalRanks[u.rid];
       const fxp = u.fx;
 
-      const spotMatch = (csR != null && csR <= 3) && (wprR != null && wprR <= 3)
-                       && ((midR != null && midR <= 2) || (lateR != null && lateR <= 2));
+      // Spot match: WPR≤4 AND (Late≤3 OR Mid≤3 OR Total≤3)
+      const spotMatch = (wprR != null && wprR <= 4)
+                       && (((lateR != null && lateR <= 3))
+                         || ((midR != null && midR <= 3))
+                         || ((totR != null && totR <= 3)));
       const roughieMatch = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
                           && (fxp != null && fxp >= 10);
       if (!spotMatch && !roughieMatch) return;
 
       candidates.push({
         race, runner: u,
-        ranks: { cs: csR, wpr: wprR, mid: midR, late: lateR },
+        ranks: { cs: csR, tr: trR, wpr: wprR, mid: midR, late: lateR, total: totR },
         isSpot: spotMatch, isRoughie: roughieMatch,
       });
     });
@@ -4659,46 +4683,52 @@ function renderWatchlist(forDate) {
         ? new Date(race.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
         : '—';
       // Time-to-jump (minutes from now)
-      let jumpStr = '';
+      let ttjHtml = '';
       if (race.start_time) {
         const minsUntil = Math.round((new Date(race.start_time) - new Date()) / 60000);
         if (minsUntil > 0 && minsUntil < 1440) {
-          jumpStr = minsUntil < 60 ? minsUntil + 'm' : Math.floor(minsUntil / 60) + 'h ' + (minsUntil % 60) + 'm';
-        } else if (minsUntil <= 0 && minsUntil > -180) {
-          jumpStr = 'live/done';
+          const txt = minsUntil < 60 ? minsUntil + 'm' : Math.floor(minsUntil / 60) + 'h' + (minsUntil % 60) + 'm';
+          const cls = minsUntil < 5 ? 'imm' : (minsUntil < 30 ? 'soon' : '');
+          ttjHtml = '<span class="ttj ' + cls + '">↗ ' + txt + '</span>';
         }
       }
       const tagHtml = c.isRoughie
         ? '<span class="wl-tag roughie">ROUGHIE</span>'
         : (c.isSpot ? '<span class="wl-tag spot">SPOT</span>' : '');
       const sigPills =
-        sigPillSimple('TR', r.rnk && r.rnk.tr) +
+        sigPillSimple('TR', c.ranks.tr) +
         sigPillSimple('WPR', c.ranks.wpr) +
         sigPillSimple('Mid', c.ranks.mid) +
         sigPillSimple('Late', c.ranks.late) +
-        sigPillSimple('CS', c.ranks.cs);
+        sigPillSimple('Tot', c.ranks.total);
       const fxStr = r.fx ? '$' + r.fx.toFixed(2) : '—';
-      const cls = 'wl-row ' + (c.isRoughie ? 'is-roughie' : 'is-spot');
+      const cls = 'wl-pickrow ' + (c.isRoughie ? 'is-roughie' : 'is-spot');
+      const trnLine = r.tn ? ' · ' + escapeHtml(r.tn) : '';
+      const meta = (race.distance || '') + 'm · ' + (race.going || '') +
+                   (r.j ? ' · ' + escapeHtml(r.j) : '') + trnLine;
       return '<div class="' + cls + '" data-race-id="' + race.race_id + '">' +
-        '<div class="wl-time">' + startTime + '</div>' +
-        '<div class="wl-meeting"><span class="v">' + (race.venue || '?') + ' R' + race.race + '</span>' +
-          '<span class="sub">' + (race.distance || '') + 'm · ' + (race.going || '') + '</span></div>' +
-        '<div class="wl-runner">' +
-          '<span class="tn-cell">' + (r.tab || r.t || '?') + '</span>' +
-          '<span class="horse">' + escapeHtml(r.h || '') + '</span>' + tagHtml +
+        '<div class="pr-time">' + startTime + ttjHtml + '</div>' +
+        '<div class="pr-venue">' +
+          '<div class="v-name">' + escapeHtml(race.venue || '') + '</div>' +
+          '<div class="v-race">R' + race.race + ' ↗</div>' +
         '</div>' +
-        '<div class="wl-signals">' + sigPills + '</div>' +
-        '<div class="wl-fxd">' + fxStr + '</div>' +
-        '<div class="wl-jump">' + jumpStr + '</div>' +
+        '<div class="pr-runner">' +
+          '<span class="tab-bdg">' + (r.tab || r.t || '?') + '</span>' +
+          '<div class="rdetails">' +
+            '<div class="rhorse">' + escapeHtml(r.h || '') + tagHtml + '</div>' +
+            '<div class="rmeta">' + meta + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pr-sigs">' + sigPills + '</div>' +
+        '<div class="pr-odds"><span class="cell-lbl">Fxd</span><span class="v">' + fxStr + '</span></div>' +
       '</div>';
     }).join('');
 
     // Click row to jump to race detail
-    list.querySelectorAll('.wl-row').forEach(row => {
+    list.querySelectorAll('.wl-pickrow').forEach(row => {
       row.addEventListener('click', () => {
         const rid = row.dataset.raceId;
         if (rid) {
-          // Switch to Race tab and open the detail
           document.querySelector('.tab[data-tab="race"]').click();
           setTimeout(() => showRaceDetail(rid), 50);
         }
@@ -5312,15 +5342,18 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Spot-bet pattern: CS≤3 + WPR≤3 + (Mid≤2 OR Late≤2). Loose enough to flag
-    // ~55% of races with a candidate horse. Backtest near break-even (~-1% ROI),
-    // intended for opportunistic spot betting when watching, not flat staking.
+    // Spot-bet pattern: WPR≤4 AND (Late≤3 OR Mid≤3 OR Total≤3).
+    // Wider coverage (~98% of races have a candidate) since these are intended
+    // as opportunistic watch-and-bet picks, not flat-staked.
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
-    const isSpotBet = (csR != null && csR <= 3) && (wprR != null && wprR <= 3)
-                     && ((midR != null && midR <= 2) || (lateR != null && lateR <= 2));
+    const totR = totalRanks[rid];
+    const isSpotBet = (wprR != null && wprR <= 4)
+                     && (((lateR != null && lateR <= 3))
+                       || ((midR != null && midR <= 3))
+                       || ((totR != null && totR <= 3)));
     if (isSpotBet && !isPick) rowClasses.push('spot-bet');
 
     // Roughie pattern: CS≤3 + Late≤2 + price ≥ $10 (the +49% ROI roughie spotter).
