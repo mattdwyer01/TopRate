@@ -2012,6 +2012,44 @@ body {
   background: var(--panel); color: var(--ink);
   box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
+
+/* Price gate input - filters watchlist by min fixed price.
+   Saved to settings so it persists across sessions. */
+.watchlist-controls {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.watchlist-pricegate {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 12px;
+  color: var(--ink-mute); cursor: pointer;
+}
+.watchlist-pricegate .wpg-lbl {
+  font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: 10px;
+}
+.watchlist-pricegate .wpg-input {
+  display: inline-flex; align-items: center;
+  background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: 6px; padding: 3px 6px;
+  transition: border-color 0.12s;
+}
+.watchlist-pricegate .wpg-input:focus-within {
+  border-color: var(--emerald);
+}
+.watchlist-pricegate .cur {
+  font-size: 11px; color: var(--ink-mute); font-weight: 600;
+}
+.watchlist-pricegate input {
+  border: none; outline: none; background: transparent;
+  width: 50px; font-family: var(--font-body); font-size: 13px;
+  font-weight: 700; color: var(--ink); padding: 0 2px;
+  text-align: right; font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.watchlist-pricegate input::-webkit-outer-spin-button,
+.watchlist-pricegate input::-webkit-inner-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
 .watchlist-list {
   /* Same outer styling as picks-list - inherits from .picks-list class */
 }
@@ -3136,10 +3174,20 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="watchlist-section" id="watchlist-section" style="display:none;">
       <div class="watchlist-header">
         <h3>Watchlist <span class="watchlist-sub">spot bets &amp; roughies across today's races</span></h3>
-        <div class="watchlist-tabs">
-          <button class="watchlist-tab active" data-wlfilter="all">All</button>
-          <button class="watchlist-tab" data-wlfilter="spot">Spot bets</button>
-          <button class="watchlist-tab" data-wlfilter="roughie">Roughies</button>
+        <div class="watchlist-controls">
+          <label class="watchlist-pricegate" title="Hide picks below this fixed price. Higher gate = fewer but better-value picks.">
+            <span class="wpg-lbl">Min price</span>
+            <span class="wpg-input">
+              <span class="cur">$</span>
+              <input type="number" id="watchlist-min-price" min="0" max="100" step="0.5"
+                     value="0" placeholder="0" />
+            </span>
+          </label>
+          <div class="watchlist-tabs">
+            <button class="watchlist-tab active" data-wlfilter="all">All</button>
+            <button class="watchlist-tab" data-wlfilter="spot">Spot bets</button>
+            <button class="watchlist-tab" data-wlfilter="roughie">Roughies</button>
+          </div>
         </div>
       </div>
       <div class="picks-header watchlist-cols-header">
@@ -4529,6 +4577,7 @@ function ord(n) {
 // Shows spot-bet and roughie candidates from RACES for a given date.
 // Triggered automatically from renderToday() with the browseDate.
 let watchlistFilter = 'all';  // 'all' | 'spot' | 'roughie'
+let watchlistMinPrice = 0;     // Hide picks with fixed price below this
 
 function renderWatchlist(forDate) {
   const section = document.getElementById('watchlist-section');
@@ -4611,6 +4660,11 @@ function renderWatchlist(forDate) {
     filtered = candidates.filter(c => c.isSpot);
   } else if (watchlistFilter === 'roughie') {
     filtered = candidates.filter(c => c.isRoughie);
+  }
+  // Price gate - hides picks below the user-set minimum fixed price.
+  // If a runner has no fxp, it stays visible (better to see than hide blindly).
+  if (watchlistMinPrice > 0) {
+    filtered = filtered.filter(c => c.runner.fx == null || c.runner.fx >= watchlistMinPrice);
   }
 
   if (!candidates.length) {
@@ -4914,6 +4968,19 @@ function renderWatchlist(forDate) {
       renderWatchlist(forDate);
     };
   });
+
+  // Wire min-price input - debounced re-render on change.
+  const priceInput = document.getElementById('watchlist-min-price');
+  if (priceInput) {
+    if (priceInput.value === '' || priceInput.value === '0') {
+      priceInput.value = watchlistMinPrice > 0 ? watchlistMinPrice : '';
+    }
+    priceInput.oninput = e => {
+      const v = parseFloat(e.target.value);
+      watchlistMinPrice = (isFinite(v) && v > 0) ? v : 0;
+      renderWatchlist(forDate);
+    };
+  }
 }
 
 // Compact pill renderer for watchlist rows (matches the Today tab style)

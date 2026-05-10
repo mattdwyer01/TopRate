@@ -1012,6 +1012,11 @@ def compute_signal_rankings(rdf):
 # -----------------------------------------------------------------------
 # LOAD / SAVE
 # -----------------------------------------------------------------------
+# Prize money threshold for TAB filter. Races with prize_money below this
+# are bush/country meetings that the user can't bet on at TAB and so are
+# excluded from all outputs (HTML, picks, watchlist).
+TAB_PRIZE_MIN = 20000
+
 def load_runners():
     if RUNNERS_CSV.exists():
         df = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str, "race_id": str})
@@ -1023,6 +1028,15 @@ def load_runners():
         df = df.drop_duplicates(subset=["run_id"], keep="last").reset_index(drop=True)
         if len(df) < before:
             print(f"  Removed {before - len(df)} duplicate runner rows from CSV")
+        # Filter out non-TAB meetings by prize money. We keep these in the CSV
+        # (saved by daily ingestion) but exclude from all downstream processing.
+        # User can't bet on bush meetings at TAB, so they shouldn't clutter the UI.
+        if "prize_money" in df.columns:
+            before_tab = len(df)
+            df = df[df["prize_money"].fillna(0) >= TAB_PRIZE_MIN].reset_index(drop=True)
+            removed = before_tab - len(df)
+            if removed > 0:
+                print(f"  Filtered out {removed} non-TAB runners (prize_money < ${TAB_PRIZE_MIN:,})")
         return df
     return pd.DataFrame(columns=RUNNER_COLS)
 
