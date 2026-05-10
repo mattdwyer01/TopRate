@@ -2007,8 +2007,9 @@ body {
 .wl-pickrow {
   display: grid;
   grid-template-columns: 60px 100px minmax(180px, 1fr) 280px 80px;
-  gap: 12px; align-items: center;
-  padding: 12px 16px;
+  gap: 8px; align-items: center;
+  padding: 10px 14px;
+  min-height: 48px;
   border-bottom: 1px solid var(--line-soft);
   cursor: pointer;
   transition: background 0.12s;
@@ -2016,31 +2017,31 @@ body {
 }
 .wl-pickrow:last-child { border-bottom: none; }
 .wl-pickrow:hover { background: #fafbfc; }
-.wl-pickrow.is-spot { border-left: 3px solid #3b82f6; padding-left: 13px; }
-.wl-pickrow.is-roughie { border-left: 3px solid #f59e0b; padding-left: 13px; }
+.wl-pickrow.is-spot { border-left: 3px solid #3b82f6; padding-left: 11px; }
+.wl-pickrow.is-roughie { border-left: 3px solid #f59e0b; padding-left: 11px; }
 .wl-pickrow .pr-time {
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: 1px;
   font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: 13px;
 }
 .wl-pickrow .pr-time .ttj {
   font-size: 10px; font-weight: 600; color: var(--ink-mute);
 }
 .wl-pickrow .pr-time .ttj.imm { color: var(--rose); }
 .wl-pickrow .pr-time .ttj.soon { color: var(--amber); }
-.wl-pickrow .pr-venue { display: flex; flex-direction: column; gap: 1px; }
-.wl-pickrow .pr-venue .v-name { font-weight: 600; color: var(--ink); font-size: 13px; }
-.wl-pickrow .pr-venue .v-race { font-size: 11px; color: var(--ink-mute); }
-.wl-pickrow .pr-runner { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wl-pickrow .pr-venue { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+.wl-pickrow .pr-venue .v-name { font-weight: 600; color: var(--ink); font-size: 12px; }
+.wl-pickrow .pr-venue .v-race { font-size: 10px; color: var(--ink-mute); }
+.wl-pickrow .pr-runner { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .wl-pickrow .tab-bdg {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 28px; height: 28px; background: var(--ink); color: var(--panel);
-  font-weight: 700; border-radius: 6px; padding: 0 8px; font-size: 13px;
+  min-width: 24px; height: 24px; background: var(--ink); color: var(--panel);
+  font-weight: 700; border-radius: 5px; padding: 0 7px; font-size: 12px;
   flex-shrink: 0;
 }
-.wl-pickrow .rdetails { min-width: 0; }
-.wl-pickrow .rhorse { font-weight: 700; color: var(--ink); font-size: 14px; line-height: 1.2; }
-.wl-pickrow .rmeta { font-size: 11px; color: var(--ink-mute); margin-top: 2px; line-height: 1.2; }
+.wl-pickrow .rdetails { min-width: 0; line-height: 1.2; }
+.wl-pickrow .rhorse { font-weight: 700; color: var(--ink); font-size: 13px; }
+.wl-pickrow .rmeta { font-size: 10px; color: var(--ink-mute); margin-top: 1px; }
 .wl-tag {
   display: inline-block; padding: 1px 5px; border-radius: 3px;
   font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
@@ -4620,11 +4621,13 @@ function renderWatchlist(forDate) {
     const totalRanks = rankBy(runners, r => r.ts);
     const trRanks = rankBy(runners, r => r.trr);
 
-    // Find the model picks for this race so we exclude them from the watchlist
+    // Find the model picks for this race. If the race has a model pick,
+    // skip the entire race - the model pick is the bet, not the spot/roughie.
     const pickIds = new Set(
       ((MODEL_PICKS || {})[String(race.race_id)] && (MODEL_PICKS || {})[String(race.race_id)][PRIMARY_KEY] || [])
         .map(p => String(p.run_id))
     );
+    if (pickIds.size > 0) return;  // skip race entirely
 
     runners.forEach(u => {
       if (pickIds.has(String(u.rid))) return;
@@ -5147,12 +5150,6 @@ function renderRaceDetail(raceId) {
   });
   document.getElementById('rd-pace-map').innerHTML =
     '<div class="race-shape-wrap">' +
-      (paceDisplay
-        ? '<div class="race-pace-pill ' + (paceClass || 'even') + '">' +
-            '<span class="rpp-lbl">Pace</span>' +
-            '<span class="rpp-val">' + escapeHtml(paceDisplay) + '</span>' +
-          '</div>'
-        : '') +
       renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass, race, runners) +
     '</div>';
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
@@ -5349,23 +5346,26 @@ function renderRaceDetail(raceId) {
     // Adds CS≤3 rating anchor for selectivity. ~37 picks/day in backtest,
     // 19.1% WR, AvgSP $6.32, ~-3% ROI (near break-even, intended for
     // selective watch-and-bet use, not flat staking).
+    // Suppressed when race already has a model pick - in those races the
+    // model pick is the bet, not an alternative.
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
+    const raceHasModelPick = picks.length > 0;
     const isSpotBet = (csR != null && csR <= 3)
                      && (wprR != null && wprR <= 3)
                      && (totR != null && totR <= 3)
                      && (((lateR != null && lateR <= 3))
                        || ((midR != null && midR <= 3)));
-    if (isSpotBet && !isPick) rowClasses.push('spot-bet');
+    if (isSpotBet && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
     // Roughie pattern: CS≤3 + Late≤2 + price ≥ $10 (the +49% ROI roughie spotter).
-    // Use fixed price as a live-betting proxy for SP threshold.
+    // Also suppressed when race has a model pick.
     const isRoughie = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
                      && (fxp != null && fxp >= 10);
-    if (isRoughie && !isPick) rowClasses.push('roughie-bet');
+    if (isRoughie && !isPick && !raceHasModelPick) rowClasses.push('roughie-bet');
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
