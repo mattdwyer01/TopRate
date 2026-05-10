@@ -869,8 +869,13 @@ body {
 /* Picks list column header */
 .picks-header {
   display: grid;
+  /* Column widths MUST match .pick-row exactly so the header labels line
+     up with the data cells below them. Signals column is 300px to fit the
+     3-column chip grid (WPR/Late/Class on top, L600/PFAI/TR on bottom)
+     plus the Votes badge. Previously this header had 200px which left
+     Result/Odds Taken visually disconnected from their data cells. */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 200px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 300px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -879,7 +884,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1058px;
+  min-width: 1158px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
