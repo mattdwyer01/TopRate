@@ -4082,7 +4082,9 @@ function renderToday() {
     const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
     const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
     let stakeHtml, returnHtml;
-    if (isActiveBet && stake) {
+    // Stake/Return only populate when the user has explicitly marked the bet as
+    // placed. A qualifying pick they didn't bet shouldn't imply a stake outlay.
+    if (isBetPlaced && stake) {
       // Stake: how much I'm putting down
       stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
         '<span class="ret">' + fmtDollar(stake) + '</span>';
@@ -4102,7 +4104,8 @@ function renderToday() {
       stakeHtml = '<span class="skip">no bet</span>';
       returnHtml = '<span class="skip">&mdash;</span>';
     } else {
-      stakeHtml = '<span class="skip">enter odds</span>';
+      // Qualifying pick but user hasn't placed the bet
+      stakeHtml = '<span class="skip">&mdash;</span>';
       returnHtml = '<span class="skip">&mdash;</span>';
     }
 
@@ -4788,11 +4791,11 @@ function renderWatchlist(forDate) {
           '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
         '</div>';
 
-      // Stake / Return cells - same logic as picks list
+      // Stake / Return cells - only populate when bet is actually placed.
       const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
       const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
       let stakeHtml, returnHtml;
-      if (isActiveBet && stake) {
+      if (isBetPlaced && stake) {
         stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
           '<span class="ret">' + fmtDollar(stake) + '</span>';
         if (isSettled && displayWon) {
@@ -4803,11 +4806,8 @@ function renderWatchlist(forDate) {
         } else {
           returnHtml = '<span class="skip">&mdash;</span>';
         }
-      } else if (!isActiveBet) {
-        stakeHtml = '<span class="skip">no bet</span>';
-        returnHtml = '<span class="skip">&mdash;</span>';
       } else {
-        stakeHtml = '<span class="skip">enter odds</span>';
+        stakeHtml = '<span class="skip">&mdash;</span>';
         returnHtml = '<span class="skip">&mdash;</span>';
       }
 
