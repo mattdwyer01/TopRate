@@ -1262,13 +1262,22 @@ body {
   .pr-runner .rhorse { font-size: 14px; }
   .pr-runner .rmeta { font-size: 11px; line-height: 1.35; }
   .pr-sigs { grid-area: sigs; }
-  /* Mobile: hide all individual signal chips and form string - only the
-     Votes badge remains visible. Score and per-signal ranks are accessible
-     by tapping to expand the row. This keeps pick rows tight enough to scan
-     a full day's picks without endless scrolling. */
-  .pr-sigs-top { flex-wrap: nowrap; gap: 0; justify-content: flex-start; }
-  .pr-sigs-top .desktop-chips { display: none; }
+  /* Mobile: show all 6 voting signal chips inline alongside the Votes badge.
+     Chips wrap to a second row if needed. Form string stays in detail to
+     save vertical space, but signal ranks are useful at a glance and should
+     stay in the row (user feedback - they're scanning for #1 votes across
+     signals to gauge pick strength visually). */
+  .pr-sigs-top { flex-wrap: wrap; gap: 4px 5px; justify-content: flex-start; }
+  .pr-sigs-top .desktop-chips {
+    display: inline-flex; flex-wrap: wrap; gap: 4px 5px;
+  }
   .pr-form.desktop-only { display: none; }
+  /* Slightly compress the signal pills on mobile so all 7 fit comfortably */
+  .pr-sigs-top .desktop-chips .sig {
+    padding: 2px 6px; font-size: 10px;
+  }
+  .pr-sigs-top .desktop-chips .sig .lbl { font-size: 9px; }
+  .pr-sigs-top .desktop-chips .sig .v { font-size: 11px; font-weight: 700; }
 
   /* Bottom strip: Fxd | result | bet (or return for settled), single row */
   .pr-odds {
@@ -1951,10 +1960,19 @@ body {
   .race-header .race-meta-line { font-size: 11px; margin-top: 2px; }
   .race-header-stats { gap: 8px 12px; font-size: 11px; width: 100%; }
   .race-header-stats .item { font-size: 11px; }
-  /* Score-top3 indicator inline alongside other items rather than full row */
-  .score-top3 { padding: 3px 8px; font-size: 11px; }
+  /* Score-top3 indicator inline alongside other items rather than full row.
+     Brighten background and badges so the #1 #3 #10 readout is clearly
+     readable on the dark banner. Previously the rgba(.15) badges rendered
+     near-invisible against the black gradient. */
+  .score-top3 {
+    padding: 4px 10px; font-size: 11px;
+    background: rgba(255,255,255,0.12);
+  }
   .score-top3 .lbl { font-size: 9px; }
-  .score-top3 .tab-num { padding: 1px 5px; font-size: 10px; }
+  .score-top3 .tab-num {
+    padding: 2px 7px; font-size: 11px; font-weight: 700;
+    background: rgba(255,255,255,0.28); color: #fff;
+  }
 }
 
 .race-table-wrap { overflow-x: auto; }
@@ -1969,16 +1987,20 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute);
   cursor: pointer; user-select: none; white-space: nowrap;
-  /* Sticky on all screens so the column headers stay visible while scrolling
-     the runner list. Top offset matches the .tabs sticky nav (40px) on mobile,
-     0 on desktop where tabs aren't sticky. */
+  /* Sticky on desktop only - column headers stay visible while scrolling
+     the runner list. Disabled on mobile because the sticky header was
+     overlapping the race banner's "X above 0.60" indicator and made the
+     layered headers feel crowded (sticky tabs + sticky thead = 2 sticky
+     layers competing for space). On mobile, scrolling back to see header
+     labels is acceptable; the table is short enough that scroll cost is low. */
   position: sticky;
   top: 0;
   z-index: 5;
 }
 @media (max-width: 720px) {
-  /* Below the sticky tabs nav (~40px tall on mobile) */
-  .race-table thead th { top: 40px; }
+  /* Mobile: drop the sticky behaviour - it was conflicting with the race
+     banner. Headers scroll naturally with the table. */
+  .race-table thead th { position: static; }
 }
 .race-table thead th:hover { background: #ede9e1; }
 .race-table tbody td {
@@ -5163,8 +5185,11 @@ function renderMeetingsGrid() {
 function showRaceDetail(raceId) {
   document.getElementById('race-browser').style.display = 'none';
   document.getElementById('race-detail').style.display = 'block';
-  // Reset sort to TR$ rank ascending whenever a new race is opened
-  raceSortState = { col: 'tr', dir: 'asc' };
+  // Reset sort to Score (cumulative model score) ascending whenever a new
+  // race is opened. Score rank 1 = best model pick, so asc = best first.
+  // Previously this defaulted to TR rating rank which is now just one of
+  // several inputs to Score; Score is the headline metric.
+  raceSortState = { col: 'score', dir: 'asc' };
   renderRaceDetail(raceId);
 }
 
@@ -5194,7 +5219,9 @@ function exitRaceDetail() {
 }
 
 // Race detail sort state - {column: name, dir: 'asc'|'desc'}
-let raceSortState = { col: 'tr', dir: 'asc' };
+// Default: Score asc (best model pick first). showRaceDetail() resets this
+// every time a new race is opened.
+let raceSortState = { col: 'score', dir: 'asc' };
 
 // Build a rich detail panel for a single runner inside the Race tab table.
 // Triggered by clicking a row. Shows what the columns no longer carry: jockey,
