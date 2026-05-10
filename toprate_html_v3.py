@@ -1522,6 +1522,22 @@ body {
 }
 .race-context-bar .ctx-override-clear:hover { color: var(--rose); }
 
+/* PF data freshness indicator - shown above the runners table when this
+   meeting's Punting Form ratings are stale or absent. Hidden when PF data
+   is fresh (rated within 24h of race time). */
+.pf-freshness-bar {
+  display: none; /* shown via JS when relevant */
+  padding: 8px 20px; font-family: var(--font-body); font-size: 12px;
+  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--line-soft); color: var(--ink-mute);
+}
+.pf-freshness-bar.warn  { background: #fef3c7; color: #92400e;
+  border-bottom: 1px solid #fde68a; font-weight: 500; }
+.pf-freshness-bar.error { background: #fee2e2; color: #991b1b;
+  border-bottom: 1px solid #fecaca; font-weight: 600; }
+.pf-freshness-bar .pf-label { font-weight: 700; margin-right: 6px; }
+
 /* Pace estimate badge inside header */
 .race-pace-est {
   display: inline-flex; align-items: center; gap: 6px;
@@ -3000,29 +3016,37 @@ body {
      Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
      still available in the detail panel by tapping the horse name on Today
      tab, or by viewing in landscape mode (table will horizontally scroll). */
-  /* Column index (1-based):
-     1=Tab 2=Horse 3=Jky 4=Trn 5=Bar 6=TR$ 7=TRprice 8=Fxd 9=Score
-     10=Settles 11=Early 12=Mid 13=Late 14=Total 15=Distance 16=Going(?) 17=JkyRt 18=TrnRt */
+  /* Column index (1-based) after PF columns added:
+     1=Tab 2=Horse 3=Jky 4=Trn 5=Bar 6=TR 7=WPR 8=TR$ 9=Fxd 10=Score
+     11=Settles 12=Early 13=Mid 14=Late 15=Total
+     16=PF AI 17=Class 18=L600 19=L400 20=Style 21=ΔCls
+     22=Distance 23=Going(?) 24=JkyRt 25=TrnRt */
   .race-table thead th:nth-child(3),  /* Jky */
   .race-table thead th:nth-child(4),  /* Trn */
-  .race-table thead th:nth-child(7),  /* TR price */
-  .race-table thead th:nth-child(11), /* Early */
-  .race-table thead th:nth-child(12), /* Mid */
-  .race-table thead th:nth-child(13), /* Late */
-  .race-table thead th:nth-child(15), /* Distance */
-  .race-table thead th:nth-child(16), /* Going (or JkyRt if no going col) */
-  .race-table thead th:nth-child(17), /* JkyRt or TrnRt */
-  .race-table thead th:nth-child(18), /* TrnRt (only if going col present) */
+  .race-table thead th:nth-child(8),  /* TR price */
+  .race-table thead th:nth-child(12), /* Early */
+  .race-table thead th:nth-child(13), /* Mid */
+  .race-table thead th:nth-child(15), /* Total */
+  .race-table thead th:nth-child(19), /* L400 */
+  .race-table thead th:nth-child(20), /* Style */
+  .race-table thead th:nth-child(21), /* ΔCls */
+  .race-table thead th:nth-child(22), /* Distance */
+  .race-table thead th:nth-child(23), /* Going (or JkyRt if no going col) */
+  .race-table thead th:nth-child(24), /* JkyRt or TrnRt */
+  .race-table thead th:nth-child(25), /* TrnRt (only if going col present) */
   .race-table tbody td:nth-child(3),
   .race-table tbody td:nth-child(4),
-  .race-table tbody td:nth-child(7),
-  .race-table tbody td:nth-child(11),
+  .race-table tbody td:nth-child(8),
   .race-table tbody td:nth-child(12),
   .race-table tbody td:nth-child(13),
   .race-table tbody td:nth-child(15),
-  .race-table tbody td:nth-child(16),
-  .race-table tbody td:nth-child(17),
-  .race-table tbody td:nth-child(18) {
+  .race-table tbody td:nth-child(19),
+  .race-table tbody td:nth-child(20),
+  .race-table tbody td:nth-child(21),
+  .race-table tbody td:nth-child(22),
+  .race-table tbody td:nth-child(23),
+  .race-table tbody td:nth-child(24),
+  .race-table tbody td:nth-child(25) {
     display: none;
   }
   .meeting-strip { padding: 6px 8px; gap: 4px; }
@@ -3260,6 +3284,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-header-stats" id="rd-header-stats"></div>
         </div>
         <div class="race-context-bar" id="rd-context-bar"></div>
+        <div class="pf-freshness-bar" id="rd-pf-freshness"></div>
         <div class="race-table-wrap" id="rd-runners-table"></div>
         <div class="race-pace-map" id="rd-pace-map"></div>
         <div class="track-conditions-card" id="rd-track-conditions"></div>
@@ -4074,11 +4099,11 @@ function renderToday() {
     }
     const sigsTopHtml =
       scoreSigPill(p.crk, p.csc) +
-      sigPill('TR', p.tr_rank) +
       sigPill('WPR', p.wpr_rank) +
-      sigPill('Mid', p.mid_rank) +
       sigPill('Late', p.late_rank) +
-      sigPill('Tot', p.total_rank);
+      sigPill('Class', p.wcR) +
+      sigPill('L600', p.l600R) +
+      sigPill('PFAI', p.pfaiR);
     // Form string row underneath: "3-1-7-2"
     const formHtml = r.fm ?
       '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
@@ -4790,11 +4815,11 @@ function renderWatchlist(forDate) {
       }
       const sigsTopHtml =
         scoreSigPill(p.crk, p.csc) +
-        sigPill('TR', p.tr_rank) +
         sigPill('WPR', p.wpr_rank) +
-        sigPill('Mid', p.mid_rank) +
         sigPill('Late', p.late_rank) +
-        sigPill('Tot', p.total_rank);
+        sigPill('Class', p.wcR) +
+        sigPill('L600', p.l600R) +
+        sigPill('PFAI', p.pfaiR);
       const formHtml = r.fm ?
         '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
       const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
@@ -5180,6 +5205,35 @@ function renderRaceDetail(raceId) {
   const pickIds = new Set(picks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
+  // ── PF data freshness indicator ──
+  // Show a banner when PF didn't rate this meeting (no picks possible) or
+  // when only some runners have PF data (partial coverage).
+  (function updatePfBar() {
+    const bar = document.getElementById('rd-pf-freshness');
+    if (!bar) return;
+    const total = runners.length;
+    const withPf = runners.filter(u => u.pfaiR != null).length;
+    bar.className = 'pf-freshness-bar';
+    bar.style.display = '';
+    if (total === 0) {
+      bar.style.display = 'none';
+      return;
+    }
+    if (withPf === 0) {
+      bar.classList.add('error');
+      bar.innerHTML = '<span class="pf-label">⚠ Punting Form data missing</span>' +
+        'No PF ratings for this meeting. Model picks unavailable.';
+    } else if (withPf < total) {
+      bar.classList.add('warn');
+      bar.innerHTML = '<span class="pf-label">PF data partial</span>' +
+        withPf + ' of ' + total + ' runners rated by Punting Form. ' +
+        'Model picks may be incomplete.';
+    } else {
+      // Full coverage - hide
+      bar.style.display = 'none';
+    }
+  })();
+
   // ── Meeting jump strip - all races at this venue on this date ──
   // Filter all RACES to same venue+date, sort by race number
   const meetingRaces = RACES.filter(r =>
@@ -5476,6 +5530,43 @@ function renderRaceDetail(raceId) {
       '</td>';
   }
 
+  // PF rank cell - PF rank is already a within-race rank (1 = best). Displays
+  // just the rank number with the same colour-coding as sectCell.
+  // Used for pfaiR, wcR, l600R, l400R columns.
+  function pfRankCell(rank, label) {
+    if (rank == null) return '<td class="sect-cell">—</td>';
+    const r = Math.round(rank);
+    const rkCls = r === 1 ? 'r1' : (r === 2 ? 'r2' : (r === 3 ? 'r3' : ''));
+    return '<td class="sect-cell ' + rkCls + '" title="' + label + ' rank ' + r + '">' +
+      '<span class="v">' + r + '</span></td>';
+  }
+
+  // PF run-style cell - shows the run-style code (l/op/mf/bm etc). Coloured
+  // by category: leaders=amber, on-pace=green, mid=blue, back=pink. Mirrors
+  // the race-shape SVG zones.
+  function pfRunStyleCell(rs) {
+    if (!rs) return '<td>—</td>';
+    let color = 'var(--ink-mute)';
+    let bg = 'transparent';
+    const s = String(rs).trim().toLowerCase();
+    if (s === 'l')              { bg = '#fef3c7'; color = '#92400e'; }
+    else if (s.startsWith('op')) { bg = '#d1fae5'; color = '#064e3b'; }
+    else if (s.startsWith('mf') && !s.includes('bm')) { bg = '#dbeafe'; color = '#1e3a8a'; }
+    else if (s.includes('bm') || s === 'bm')     { bg = '#fce7f3'; color = '#831843'; }
+    else if (s === 'no data')   { return '<td style="color:var(--ink-faint);">—</td>'; }
+    return '<td><span style="background:' + bg + ';color:' + color +
+      ';padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;text-transform:uppercase;">' +
+      s + '</span></td>';
+  }
+
+  // PF class-change cell - shows the class delta as up/down arrow.
+  function pfClassChgCell(chg) {
+    if (chg == null || chg === 0) return '<td style="color:var(--ink-faint);">—</td>';
+    const arrow = chg > 0 ? '↑' : '↓';
+    const color = chg > 0 ? 'var(--emerald-deep)' : '#dc2626';
+    return '<td style="color:' + color + ';font-weight:700;">' + arrow + ' ' + Math.abs(chg) + '</td>';
+  }
+
   // Distance perf cell - format: "starts: wins | places"
   // Color: green if win rate >= 25%, amber if 10-24%, default if <10%, faint if no history
   function perfCell(starts, wins, places, dnf) {
@@ -5561,6 +5652,13 @@ function renderRaceDetail(raceId) {
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
     score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
+    // PF columns sort ascending (1 = best PF rank)
+    pfai:    r => r.pfaiR != null ? r.pfaiR : 99,
+    wcR:     r => r.wcR != null ? r.wcR : 99,
+    l600R:   r => r.l600R != null ? r.l600R : 99,
+    l400R:   r => r.l400R != null ? r.l400R : 99,
+    rs:      r => (r.rs || 'zz').toLowerCase(),  // sort alphabetic
+    clsChg:  r => r.clsChg != null ? -r.clsChg : 0,  // class UP first when desc
   };
 
   const sortedRunners = runners.slice().sort((a, b) => {
@@ -5591,28 +5689,22 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Spot-bet pattern: CS≤3 + WPR≤3 + Total≤3 + (Late≤3 OR Mid≤3).
-    // No price gate - apply manually at bet placement.
-    // Backtest reference: with $5 SP gate, +10% ROI; without, ~-3% ROI.
-    // Suppressed when race already has a model pick.
+    // New unified model rule signal pattern:
+    //   wpr_rank<=3 + late_rank<=3 + pf_class_rank<=1 + pf_last600_rank<=3
+    // Backtest: 26.7% WR, AvgSP $6.13, +62.1% ROI, profit factor 1.85.
+    // Highlighted as 'spot-bet' (re-using existing CSS for emerald tint).
+    // Suppressed when race is already a model pick (no double-highlight).
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
     const raceHasModelPick = picks.length > 0;
-    const isSpotBet = (csR != null && csR <= 3)
-                     && (wprR != null && wprR <= 3)
-                     && (totR != null && totR <= 3)
-                     && (((lateR != null && lateR <= 3))
-                       || ((midR != null && midR <= 3)));
-    if (isSpotBet && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
-
-    // Roughie pattern: CS≤3 + Late≤2 + price ≥ $10 (the +49% ROI roughie spotter).
-    // Also suppressed when race has a model pick.
-    const isRoughie = (csR != null && csR <= 3) && (lateR != null && lateR <= 2)
-                     && (fxp != null && fxp >= 10);
-    if (isRoughie && !isPick && !raceHasModelPick) rowClasses.push('roughie-bet');
+    const isUnifiedRule = (wprR != null && wprR <= 3)
+                       && (lateR != null && lateR <= 3)
+                       && (u.wcR != null && u.wcR <= 1)
+                       && (u.l600R != null && u.l600R <= 3);
+    if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '">' +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
@@ -5630,6 +5722,13 @@ function renderRaceDetail(raceId) {
       sectCell(u.ms, midRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
+      // PF columns - PF AI rank, Class rank, Last600 rank, Last400 rank, Run style
+      pfRankCell(u.pfaiR, 'PF AI') +
+      pfRankCell(u.wcR, 'PF Class') +
+      pfRankCell(u.l600R, 'PF Last 600m') +
+      pfRankCell(u.l400R, 'PF Last 400m') +
+      pfRunStyleCell(u.rs) +
+      pfClassChgCell(u.clsChg) +
       distanceCell(u) +
       (showGoing ? goingCell(u) : '') +
       ratingCell(u.jrt, jryRanks[rid]) +
@@ -5660,6 +5759,9 @@ function renderRaceDetail(raceId) {
         th('score', 'Score') +
         th('settles', 'Settles') +
         th('early', 'Early') + th('mid', 'Mid') + th('late', 'Late') + th('total', 'Total') +
+        th('pfai', 'PF AI') + th('wcR', 'Class') +
+        th('l600R', 'L600') + th('l400R', 'L400') +
+        th('rs', 'Style') + th('clsChg', 'Δ Cls') +
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
         th('jkypc', 'Jky Rt') +
         th('trnpc', 'Trn Rt') +
@@ -5678,7 +5780,8 @@ function renderRaceDetail(raceId) {
         raceSortState.col = col;
         // Default to ascending for ranks/text, descending for raw values
         const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr', 'wpr',
-                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp', 'score'];
+                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp', 'score',
+                            'pfai', 'wcR', 'l600R', 'l400R', 'rs'];
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
       renderRaceDetail(raceId);
