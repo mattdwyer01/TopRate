@@ -1,61 +1,111 @@
-name: TopRate Daily
+name: Daily Refresh
 
-# Triggered manually from the Actions tab or via API from the dashboard.
-# The 'date' input lets you fetch a specific past day.
+# Triggered manually from the dashboard's Settings tab "Fetch data" button via
+# workflow_dispatch. The optional `date` input lets the dashboard request a
+# specific date (used by the "Fetch [date]" button); empty means today.
 on:
   workflow_dispatch:
     inputs:
       date:
         description: 'Date to fetch (YYYY-MM-DD). Leave blank for today.'
         required: false
-        default: ''
+        type: string
 
-permissions:
-  contents: write
+# Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
+# parallel-execute (parallel pushes would race-condition the CSV commits).
+concurrency:
+  group: toprate-daily
+  cancel-in-progress: false
 
 jobs:
-  fetch-and-publish:
+  fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Need write access to push CSV+HTML changes back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas openpyxl
+          pip install pandas requests openpyxl
 
-      - name: Configure git
-        run: |
-          git config user.name  "TopRate Bot"
-          git config user.email "actions@github.com"
-
-      - name: Run toprate_daily.py
+      # ─────────────────────────────────────────────────────────
+      # Step 1: Refresh Punting Form data FIRST.
+      # PF data is the foundation of the V3 voting model rule (3 of 6 signals
+      # must rank #1 AND 5 of 6 must rank top-3). PF AI rank, PF Class rank,
+      # and PF L600 rank are 3 of those 6 signals.
+      #
+      # Failure here is non-fatal: the PF CSV may be stale but toprate_daily.py
+      # will still produce a working dashboard with whatever PF data exists.
+      # If we made it fatal, an expired PF API key would block the entire
+      # daily fetch which is worse than slightly-stale PF data.
+      # ─────────────────────────────────────────────────────────
+      - name: Refresh Punting Form data
         env:
-          TOPRATE_EMAIL:    ${{ secrets.TOPRATE_EMAIL }}
-          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          PUNTINGFORM_API_KEY: ${{ secrets.PUNTINGFORM_API_KEY }}
+        continue-on-error: true
         run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            python toprate_daily.py --date "${{ github.event.inputs.date }}"
+          if [ -f puntingform_ingest.py ]; then
+            if [ -n "$PUNTINGFORM_API_KEY" ]; then
+              if [ -n "${{ inputs.date }}" ]; then
+                python puntingform_ingest.py --date "${{ inputs.date }}"
+              else
+                python puntingform_ingest.py
+              fi
+            else
+              echo "PUNTINGFORM_API_KEY secret not configured. Skipping PF refresh."
+              echo "Add PUNTINGFORM_API_KEY in repo Settings -> Secrets and variables -> Actions."
+            fi
           else
-            python toprate_daily.py
+            echo "puntingform_ingest.py not found in repo. Skipping PF refresh."
           fi
 
-      - name: Commit and push
+      # ─────────────────────────────────────────────────────────
+      # Step 2: Fetch TopRate data + rebuild HTML + publish.
+      # The --publish flag in toprate_daily.py runs the full pipeline:
+      # fetch -> rebuild HTML -> snapshot prices.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch TopRate data and rebuild
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
         run: |
-          git add toprate_live.html toprate_runners.csv toprate_model_picks.csv toprate_price_history.csv 2>/dev/null || true
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
+          if [ -n "${{ inputs.date }}" ]; then
+            python toprate_daily.py --date "${{ inputs.date }}" --publish
           else
-            git commit -m "TopRate update via Actions $(date -u '+%Y-%m-%d %H:%M UTC')"
+            python toprate_daily.py --publish
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 3: Commit and push refreshed data + HTML.
+      # PF CSVs are staged alongside TR CSVs so the deployed HTML and the
+      # repo always agree on what data was used to build it.
+      # ─────────────────────────────────────────────────────────
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage everything that the daily run might have updated
+          [ -f toprate_runners.csv ] && git add toprate_runners.csv
+          [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
+          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
+          [ -f toprate_live.html ] && git add toprate_live.html
+          [ -f puntingform_data/pf_ratings.csv ] && git add puntingform_data/pf_ratings.csv
+          [ -f puntingform_data/pf_runners.csv ] && git add puntingform_data/pf_runners.csv
+          [ -f puntingform_data/pf_meetings.csv ] && git add puntingform_data/pf_meetings.csv
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
             git push
+          else
+            echo "No changes to commit"
           fi
