@@ -1003,6 +1003,19 @@ body {
   margin-left: 2px;
 }
 
+/* vs-SP timing edge indicator on placed bets in P&L tab. Shows how much
+   better/worse your taken odds were vs SP. Tiny pill next to odds input. */
+.vs-sp {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 4px; margin-left: 4px; border-radius: 3px;
+  cursor: help;
+}
+.vs-sp.pos { background: var(--emerald-bg); color: var(--emerald-deep); }
+.vs-sp.neg { background: var(--rose-bg); color: var(--rose); }
+.vs-sp.neutral { background: var(--line-soft); color: var(--ink-mute); }
+
 .pr-chev {
   color: var(--ink-faint); font-size: 12px; transition: transform 0.15s;
   text-align: center;
@@ -2786,8 +2799,11 @@ body {
 .heatmap-grid .hm-name { font-weight: 600; color: var(--ink); }
 .heatmap-grid .hm-val {
   justify-content: center; font-weight: 600; font-size: 13px;
+  flex-direction: column; gap: 1px;
 }
-/* Heatmap cell colour by WR%: 0 = grey, 50% = mid green, 80%+ = deep green */
+/* Heatmap cell colour by WR%: 0 = grey, 50% = mid green, 80%+ = deep green
+   Legacy bucketed classes - kept for fallback. Continuous gradient applied
+   via inline style (heatmapStyle function) takes precedence. */
 .hm-val.hm0 { background: #fafaf9; color: var(--ink-faint); }
 .hm-val.hm10 { background: #fef3c7; color: #92400e; }
 .hm-val.hm20 { background: #d1fae5; color: #065f46; }
@@ -2798,6 +2814,27 @@ body {
 .hm-val.hm70 { background: #059669; color: #fff; }
 .hm-val.hm80 { background: #047857; color: #fff; }
 
+/* Baseline annotation in heatmap headers - tells users what random
+   performance looks like at each top-N level so 13% top-1 (+3 over random)
+   reads differently from 13% top-3 (-17 below random). */
+.heatmap-grid .hm-baseline {
+  font-size: 9px; font-weight: 400; color: var(--ink-faint);
+  text-transform: none; letter-spacing: 0; margin-top: 2px;
+}
+
+/* Edge indicator under each WR% value - shows signed pp difference from
+   random baseline. Tiny subscript so it doesn't dominate the cell. */
+.heatmap-grid .hm-edge {
+  font-size: 9px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  line-height: 1;
+}
+.heatmap-grid .hm-edge.hm-edge-strong { color: #064e3b; }
+.heatmap-grid .hm-edge.hm-edge-pos { color: #065f46; }
+.heatmap-grid .hm-edge.hm-edge-flat { color: var(--ink-faint); opacity: 0.6; }
+.heatmap-grid .hm-edge.hm-edge-neg { color: #c2410c; }
+
 @media (max-width: 720px) {
   .heatmap-grid {
     grid-template-columns: minmax(70px, 1fr) repeat(3, 1fr);
@@ -2805,6 +2842,135 @@ body {
   .heatmap-grid .hm-cell { padding: 5px 4px; font-size: 11px; }
   .heatmap-grid .hm-head { font-size: 9px; letter-spacing: 0.02em; padding: 5px 2px; }
   .heatmap-grid .hm-val { font-size: 11px; }
+  .heatmap-grid .hm-baseline { display: none; }
+  .heatmap-grid .hm-edge { font-size: 8px; }
+}
+
+/* Period comparison strip - shows top-1 WR for strongest signals across
+   7/30/90 day windows. Current window highlighted in emerald. */
+.hm-period-cmp {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.hm-period-cmp:empty { display: none; }
+.hm-cmp-title {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute); margin-bottom: 8px;
+}
+.hm-cmp-rows { display: flex; flex-direction: column; gap: 6px; }
+.hm-cmp-row {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--font-body); font-size: 12px;
+}
+.hm-cmp-sig {
+  min-width: 56px; font-weight: 600; color: var(--ink);
+}
+.hm-cmp-cell {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 3px 8px; border-radius: 4px;
+  background: var(--line-soft);
+  font-variant-numeric: tabular-nums;
+}
+.hm-cmp-cell.cur {
+  background: var(--emerald-bg); color: var(--emerald-deep);
+  font-weight: 700;
+}
+.hm-cmp-cell .lbl {
+  font-size: 9px; color: var(--ink-mute); font-weight: 500;
+}
+.hm-cmp-cell.cur .lbl { color: var(--emerald-deep); opacity: 0.7; }
+.hm-cmp-cell .val { font-weight: 600; }
+@media (max-width: 720px) {
+  .hm-cmp-row { gap: 6px; font-size: 11px; flex-wrap: wrap; }
+  .hm-cmp-sig { min-width: 44px; }
+  .hm-cmp-cell { padding: 2px 6px; }
+}
+
+/* Winners table filter bar - sits above the table, lets users filter by
+   signal-rank and free-text. Shows "X of Y" count when filters active. */
+.winners-filter-bar {
+  display: flex; flex-wrap: wrap; gap: 12px 18px;
+  padding: 10px 12px; margin-bottom: 8px;
+  background: var(--line-soft);
+  border-radius: 6px;
+  font-family: var(--font-body); font-size: 12px;
+  align-items: center;
+}
+.wfb-group { display: flex; align-items: center; gap: 6px; }
+.wfb-lbl {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.wfb-select, .wfb-text, .wfb-num {
+  font-family: var(--font-body); font-size: 12px;
+  padding: 4px 8px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--panel); color: var(--ink);
+}
+.wfb-text { width: 140px; }
+.wfb-num { width: 48px; text-align: center; }
+.wfb-range { display: inline-flex; align-items: center; gap: 4px; }
+.wfb-dash { font-size: 10px; color: var(--ink-mute); }
+.wfb-info { margin-left: auto; }
+.wfb-clear {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--panel); color: var(--ink-mute);
+  cursor: pointer; transition: all 0.12s;
+}
+.wfb-clear:hover { background: var(--rose-bg); color: var(--rose); border-color: var(--rose); }
+.wfb-count {
+  font-size: 11px; color: var(--ink-mute); font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+  .winners-filter-bar { gap: 8px 10px; padding: 8px; }
+  .wfb-text { width: 100%; }
+  .wfb-info { margin-left: 0; width: 100%; justify-content: space-between; }
+}
+
+/* Signal correlation matrix: pairwise agreement grid. Diagonal cells are
+   100% (self). Off-diagonal cells gradient from emerald (independent) to
+   amber (redundant). Helps the user see which signals add unique value. */
+.corr-grid {
+  display: grid; gap: 2px;
+  margin-top: 8px;
+  font-family: var(--font-body); font-size: 12px;
+}
+.corr-cell {
+  padding: 8px 6px; text-align: center;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel); min-height: 32px;
+}
+.corr-head {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-mute); background: var(--line-soft);
+}
+.corr-row-head {
+  font-weight: 600; color: var(--ink);
+  background: var(--line-soft);
+  font-size: 11px;
+  justify-content: flex-end; padding-right: 10px;
+}
+.corr-val {
+  font-variant-numeric: tabular-nums; cursor: help;
+}
+.corr-summary {
+  margin-top: 12px; padding: 10px 12px;
+  background: var(--line-soft); border-radius: 6px;
+  font-family: var(--font-body); font-size: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.corr-summary .lbl {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-mute);
+  margin-right: 6px;
+}
+@media (max-width: 720px) {
+  .corr-grid { font-size: 10px; }
+  .corr-cell { padding: 4px 2px; min-height: 26px; }
+  .corr-head, .corr-row-head { font-size: 9px; }
 }
 
 /* Winners and placegetters tables - similar shape, scrollable */
@@ -3593,6 +3759,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         this to spot which signals are working now and which have decayed.
       </div>
       <div id="signal-heatmap"></div>
+      <!-- Period comparison: top-1 WR across 7/30/90 day windows for the
+           strongest signals in the current view. Helps spot decay vs improvement. -->
+      <div id="heatmap-period-cmp" class="hm-period-cmp"></div>
     </div>
 
     <!-- 2. Winners table - one row per resulted race, full signal ranks for the winner -->
@@ -3606,7 +3775,21 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="tracking-winners"></div>
     </div>
 
-    <!-- 3. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
+    <!-- 3. Signal correlation matrix - shows agreement between pairs of signals.
+         High agreement = signal redundancy (one of them adds little info beyond
+         the other). Low agreement = signals are picking different horses, so
+         a voting model genuinely combines them. -->
+    <div class="insight-card insight-wide">
+      <h3>Signal correlation</h3>
+      <div class="desc">
+        How often each pair of signals agrees on the top horse in a race.
+        High % = signals are redundant. Low % = signals capture different
+        information and combine well in the voting model.
+      </div>
+      <div id="signal-correlation"></div>
+    </div>
+
+    <!-- 4. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
     <div class="insight-card insight-wide">
       <h3>Placegetters detail</h3>
       <div class="desc">
@@ -6073,7 +6256,17 @@ let pnlState = {
   customFrom: null,      // ISO date string for custom range
   customTo: null,
   view: 'actual',        // 'actual' | 'theoretical'
-  filterOnlyBet: false,  // when true, hides bets marked No
+  // Default true: most users browse P&L to review their own bets, not all
+  // model picks. The "show all picks" toggle is one click away when needed.
+  // Persisted to localStorage so the user's preference sticks.
+  filterOnlyBet: (function() {
+    try {
+      const v = localStorage.getItem('tr_pnl_filter_only_bet_v1');
+      if (v === '0') return false;
+      if (v === '1') return true;
+    } catch(e) {}
+    return true;  // default
+  })(),
 };
 
 // Bet log persisted in localStorage
@@ -6173,6 +6366,11 @@ function renderPnL() {
   let curWinStreak = 0, curLossStreak = 0;
   let longestWinStreak = 0, longestLossStreak = 0;
   let runningWS = 0, runningLS = 0;
+  // Timing edge tracking: average difference between oddsTaken and SP across
+  // all bets that have both values recorded. Positive = you consistently beat
+  // the SP (good timing). Negative = horses firmed after you bet (drift bias).
+  // Only counts bets with BOTH oddsTaken and SP recorded.
+  let vsSpSum = 0, vsSpCount = 0;
 
   sortedForStats.forEach(s => {
     const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
@@ -6183,6 +6381,12 @@ function renderPnL() {
     if (!stakePrice || stakePrice <= 1) return;
     const stake = calcStake(stakePrice, { capExempt: hasOddsTaken });
     if (!stake) return;
+
+    // Track vs-SP timing edge if both values are available
+    if (hasOddsTaken && s.sp != null && s.sp > 1) {
+      vsSpSum += (entry.oddsTaken - s.sp);
+      vsSpCount++;
+    }
 
     // Settle price: oddsTaken if recorded, else SP, else fxprice
     const settlePrice = hasOddsTaken ? entry.oddsTaken : (s.sp || s.fxprice);
@@ -6219,8 +6423,9 @@ function renderPnL() {
   // rolling WR chart both still need this.
   const meta = MODEL_META[PRIMARY_KEY] || {};
 
-  function statBlock(lbl, val, sub, cls) {
-    return '<div class="pnl-stat">' +
+  function statBlock(lbl, val, sub, cls, tooltip) {
+    const titleAttr = tooltip ? ' title="' + tooltip + '"' : '';
+    return '<div class="pnl-stat"' + titleAttr + '>' +
       '<div class="lbl">' + lbl + '</div>' +
       '<div class="val ' + (cls || '') + '">' + val + '</div>' +
       '<div class="sub">' + (sub || '') + '</div>' +
@@ -6240,14 +6445,33 @@ function renderPnL() {
   const lossStreakStr = curLossStreak > 0 ? curLossStreak.toString() : '0';
   const lossStreakSub = longestLossStreak > 0 ? 'longest ' + longestLossStreak : '—';
 
+  // Avg vs SP: average odds-taken minus SP across bets where both are known.
+  // Positive = you typically beat SP (good timing); negative = horses firmed.
+  const avgVsSp = vsSpCount > 0 ? vsSpSum / vsSpCount : null;
+  const vsSpStr = avgVsSp != null ? (avgVsSp >= 0 ? '+' : '') + avgVsSp.toFixed(2) : '—';
+  const vsSpSub = avgVsSp != null ? 'avg $ on ' + vsSpCount + ' bets' : 'no data';
+  const vsSpCls = avgVsSp != null && avgVsSp > 0.05 ? 'pos' : (avgVsSp != null && avgVsSp < -0.05 ? 'neg' : '');
+
+  // Total model picks in period regardless of placement status. The
+  // "Bets" stat value depends on view mode (Actual = bets placed; Theoretical
+  // = all model picks) but always shows both numbers in the tooltip so user
+  // can see the gap between picks and actual bets.
+  const totalAllPicks = settled.length;
+  const totalPlaced = actualBets.length;
+  const betsTooltip = pnlState.view === 'actual'
+    ? 'Bets you placed: ' + totalPlaced + '. Total model picks in period: ' + totalAllPicks + '. Difference (' + (totalAllPicks - totalPlaced) + ') = picks you skipped.'
+    : 'All model picks in period: ' + totalAllPicks + '. Bets you actually placed: ' + totalPlaced + ' (' + (totalAllPicks > 0 ? Math.round(totalPlaced / totalAllPicks * 100) : 0) + '%).';
+
   document.getElementById('pnl-stats-strip').innerHTML =
-    statBlock('Bets', sortedForStats.length, pnlState.view === 'actual' ? 'placed' : 'all picks') +
+    statBlock('Bets', sortedForStats.length, pnlState.view === 'actual' ? 'placed of ' + totalAllPicks : 'all picks', '', betsTooltip) +
     statBlock('P&amp;L', profitStr, profitDollarSub, profitCls) +
     statBlock('Win rate', wrStr, '') +
     statBlock('Place rate', prStr, '') +
     statBlock('ROI', roiStr, '', roiCls) +
     statBlock('Win streak', winStreakStr, winStreakSub, curWinStreak > 0 ? 'pos' : '') +
-    statBlock('Loss streak', lossStreakStr, lossStreakSub, curLossStreak > 0 ? 'neg' : '');
+    statBlock('Loss streak', lossStreakStr, lossStreakSub, curLossStreak > 0 ? 'neg' : '',
+              longestLossStreak >= 10 ? 'Bankroll planning: longest streak in period was ' + longestLossStreak + ' losses. Plan for at least 15 at 1u stake.' : null) +
+    statBlock('vs SP', vsSpStr, vsSpSub, vsSpCls, 'Average difference between odds-taken and starting price. Positive = you typically beat SP (good timing). Negative = horses firmed after you bet.');
 
   // ── Cumulative units chart ──
   // Sort by date+time chronologically
@@ -6281,13 +6505,33 @@ function renderPnL() {
       (pnlState.view === 'actual' ? 'No bets placed yet in this period' : 'No settled picks in this period') + '</text>';
   } else {
     const W = 600, H = 200, pad = 30;
-    const maxV = Math.max(1, ...cumPoints.map(p => Math.max(p.cum, p.expected)));
-    const minV = Math.min(0, ...cumPoints.map(p => Math.min(p.cum, p.expected)));
+    // Y-axis lock: rather than auto-scaling to fit the data exactly (which
+    // causes the chart to feel like it's "exploding" during a bad week as
+    // a new low forces a rescale), we fix a sane minimum range based on
+    // expected variance. The chart still expands to fit larger swings but
+    // small day-to-day moves stay visually proportional.
+    //
+    // Floor min at -1.5 * longest-loss-streak (a reasonable worst case in
+    // bankroll terms) or -8u (whichever is more negative), so a 5-bet
+    // drawdown doesn't dominate the chart visually.
+    // Ceil max at +max(actual, expected end-point + 5u).
+    const observedMax = Math.max(1, ...cumPoints.map(p => Math.max(p.cum, p.expected)));
+    const observedMin = Math.min(0, ...cumPoints.map(p => Math.min(p.cum, p.expected)));
+    const expectedFloor = -Math.max(8, longestLossStreak * 1.5);
+    const maxV = Math.max(observedMax, 5);
+    const minV = Math.min(observedMin, expectedFloor);
     const range = maxV - minV || 1;
     const xs = cumPoints.map((_, i) => pad + (cumPoints.length === 1 ? (W - 2*pad) / 2 : i * (W - 2*pad) / (cumPoints.length - 1)));
     const yScale = v => H - pad - ((v - minV) / range) * (H - 2*pad);
     const zeroY = yScale(0);
     let svgHtml = '<line class="axis" x1="' + pad + '" y1="' + zeroY + '" x2="' + (W-pad) + '" y2="' + zeroY + '" stroke-width="1"/>';
+    // Reference drawdown band: show the expected-floor as a thin dashed line
+    // so users have a visual anchor for "how bad would a real bad week look".
+    const floorY = yScale(expectedFloor);
+    svgHtml += '<line x1="' + pad + '" y1="' + floorY + '" x2="' + (W-pad) + '" y2="' + floorY +
+               '" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="2,4"/>';
+    svgHtml += '<text x="' + (W-pad) + '" y="' + (floorY - 4) + '" class="axis-text" text-anchor="end" style="font-size:9px;opacity:0.6;">' +
+               'planning floor</text>';
     const actualPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.cum)).join(' ');
     svgHtml += '<path class="actual" d="' + actualPath + '"/>';
     const expPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.expected)).join(' ');
@@ -6488,6 +6732,19 @@ function renderPnL() {
                  '</span>';
       if (showWarning) {
         betHtml += '<span class="odds-warning" title="No odds-taken entered. P&L uses live fxprice as fallback.">⚠</span>';
+      }
+      // Timing edge vs SP: shows whether you got better/worse odds than starting
+      // price. Positive number = you took an early price that drifted (good).
+      // Negative = the horse firmed and SP was shorter than your bet (bad).
+      // Only show when both oddsTaken AND SP are known.
+      if (hasOddsTaken && s.sp != null && s.sp > 1) {
+        const diff = oddsTaken - s.sp;
+        const diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+        const edgeCls = diff > 0.05 ? 'pos' : (diff < -0.05 ? 'neg' : 'neutral');
+        betHtml += '<span class="vs-sp ' + edgeCls + '" ' +
+          'title="Odds taken $' + oddsTaken.toFixed(2) + ' vs SP $' + s.sp.toFixed(2) + '. ' +
+          (diff > 0 ? 'You beat SP by $' + diff.toFixed(2) : diff < 0 ? 'SP beat your odds by $' + Math.abs(diff).toFixed(2) : 'You matched SP') +
+          '">' + diffStr + '</span>';
       }
     }
 
@@ -6799,11 +7056,15 @@ function wirePnLControls() {
       renderPnL();
     });
   });
-  // Filter checkbox
+  // Filter checkbox. State is loaded from localStorage on init (see pnlState
+  // defaults) and persisted on change so the user's preference sticks across
+  // sessions and page reloads.
   const filterChk = document.getElementById('bh-filter-only-bet');
   if (filterChk) {
+    filterChk.checked = pnlState.filterOnlyBet;
     filterChk.addEventListener('change', e => {
       pnlState.filterOnlyBet = e.target.checked;
+      try { localStorage.setItem('tr_pnl_filter_only_bet_v1', e.target.checked ? '1' : '0'); } catch(err) {}
       renderPnL();
     });
   }
@@ -6879,6 +7140,14 @@ function exportSettledCSV() {
 let trackingPeriod = '30';   // '7' | '30' | '90'
 let trackingSortCol = 'date';
 let trackingSortDir = 'desc';
+// Winners-table filter state. Show only winners where signal X had rank
+// >= rankFilter (i.e. signal MISSED the winner). Useful for spotting which
+// signals are dropping known winners.
+let winnersFilterSig = '';   // empty = no filter
+let winnersFilterMin = 0;    // 0 = no minimum
+let winnersFilterMax = 99;   // 99 = no maximum
+// Free-text horse/venue filter
+let winnersTextFilter = '';
 
 // The 11 signals shown on each row, ordered by importance:
 //   model rule signals first, then supporting context.
@@ -6914,13 +7183,41 @@ function rankInRace(runners, rid, sigDef) {
 
 // Get all resulted races (where finish_position is known for at least one runner)
 // filtered to the period. Returns array of races with their original runners array.
-function trackingResultedRaces() {
-  const days = parseInt(trackingPeriod, 10);
+function trackingResultedRaces(daysOverride) {
+  // daysOverride lets callers (e.g. period comparison) pull a different window
+  // than the active trackingPeriod state. Most callers just use the default.
+  const days = daysOverride != null ? daysOverride : parseInt(trackingPeriod, 10);
   const cutoff = new Date(Date.now() - days * 86400000);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   return (RACES || [])
     .filter(r => r.done === 1 || (r.runners || []).some(u => u.f != null))
     .filter(r => (r.date || '') >= cutoffStr);
+}
+
+// Compute heatmap buckets for a given race set. Pulled out so we can call it
+// for multiple windows (7/30/90 days) for the period comparison footer.
+// Mirrors the inline logic in renderSignalHeatmap.
+function computeHeatmapBuckets(races) {
+  const buckets = {};
+  TRACKING_SIGNALS.forEach(sig => {
+    buckets[sig.key] = { t1n: 0, t1h: 0, t3n: 0, t3h: 0, t5n: 0, t5h: 0 };
+  });
+  races.forEach(race => {
+    const runners = race.runners || [];
+    const winnerRid = (runners.find(u => u.f === 1) || {}).rid;
+    if (!winnerRid) return;
+    TRACKING_SIGNALS.forEach(sig => {
+      runners.forEach(u => {
+        const r = rankInRace(runners, u.rid, sig);
+        if (r == null) return;
+        const isWinner = String(u.rid) === String(winnerRid);
+        if (r === 1) { buckets[sig.key].t1n++; if (isWinner) buckets[sig.key].t1h++; }
+        if (r <= 3) { buckets[sig.key].t3n++; if (isWinner) buckets[sig.key].t3h++; }
+        if (r <= 5) { buckets[sig.key].t5n++; if (isWinner) buckets[sig.key].t5h++; }
+      });
+    });
+  });
+  return buckets;
 }
 
 function rankPillCls(rank) {
@@ -6987,6 +7284,7 @@ function renderInsights() {
 
   renderSignalHeatmap(races);
   renderTrackingWinners(races);
+  renderSignalCorrelation(races);
   renderTrackingPlacegetters(races);
 }
 
@@ -7021,11 +7319,16 @@ function renderSignalHeatmap(races) {
     });
   });
 
+  // Random baselines for top-N picks in average 10-runner field. These are
+  // the floor each signal needs to clear to demonstrate ANY predictive edge.
+  // Top-1: 1/10 = 10%, Top-3: 3/10 = 30%, Top-5: 5/10 = 50%.
+  const BASELINE = { 1: 10, 3: 30, 5: 50 };
+
   let html = '<div class="heatmap-grid">' +
     '<div class="hm-cell hm-head">Signal</div>' +
-    '<div class="hm-cell hm-head">Top-1 WR%</div>' +
-    '<div class="hm-cell hm-head">Top-3 WR%</div>' +
-    '<div class="hm-cell hm-head">Top-5 WR%</div>';
+    '<div class="hm-cell hm-head">Top-1 WR%<div class="hm-baseline">vs 10% random</div></div>' +
+    '<div class="hm-cell hm-head">Top-3 WR%<div class="hm-baseline">vs 30% random</div></div>' +
+    '<div class="hm-cell hm-head">Top-5 WR%<div class="hm-baseline">vs 50% random</div></div>';
   TRACKING_SIGNALS.forEach(sig => {
     const b = buckets[sig.key];
     const wr1 = b.t1n > 0 ? (b.t1h / b.t1n * 100) : null;
@@ -7034,16 +7337,78 @@ function renderSignalHeatmap(races) {
     function valHtml(wr, n, level) {
       if (wr == null || n === 0) return '<div class="hm-cell hm-val hm0">—</div>';
       const hits = level === 1 ? b.t1h : (level === 3 ? b.t3h : b.t5h);
-      const baseline = level === 1 ? 10 : (level === 3 ? 30 : 50);
-      const tooltip = hits + ' winners / ' + n + ' picks. Random baseline ~' + baseline + '%.';
+      const baseline = BASELINE[level];
+      const edge = wr - baseline;
+      const edgeStr = (edge >= 0 ? '+' : '') + edge.toFixed(1);
+      // Edge label: shows how far above/below random this signal is performing.
+      // Useful because 13% top-1 looks "low" but is actually +3% over random.
+      // The headline number stays as the WR%; edge is a small subscript.
+      const edgeCls = edge >= 5 ? 'hm-edge-strong' :
+                      edge >= 1 ? 'hm-edge-pos' :
+                      edge <= -3 ? 'hm-edge-neg' : 'hm-edge-flat';
+      const tooltip = hits + ' winners / ' + n + ' picks. ' +
+                      'Random baseline for this level: ' + baseline + '%. ' +
+                      'Signal edge: ' + edgeStr + ' percentage points.';
       return '<div class="hm-cell hm-val" style="' + heatmapStyle(wr) + '" title="' + tooltip + '">' +
-        wr.toFixed(1) + '%</div>';
+        wr.toFixed(1) + '%' +
+        '<div class="hm-edge ' + edgeCls + '">' + edgeStr + '</div>' +
+        '</div>';
     }
     html += '<div class="hm-cell hm-name">' + sig.label + '</div>' +
       valHtml(wr1, b.t1n, 1) + valHtml(wr3, b.t3n, 3) + valHtml(wr5, b.t5n, 5);
   });
   html += '</div>';
   el.innerHTML = html;
+
+  // Period comparison: show top-1 WR for the top-performing signals across
+  // 7/30/90 day windows so user can spot decay or improvement. Only shown
+  // when current period is not 90d (otherwise the comparison would be against
+  // the same window). Renders below the heatmap as a small strip.
+  const cmpHost = document.getElementById('heatmap-period-cmp');
+  if (cmpHost) {
+    const currentDays = parseInt(trackingPeriod, 10);
+    const otherWindows = [7, 30, 90].filter(d => d !== currentDays);
+    // Pick the 3 strongest signals at the CURRENT window (by top-1 WR) to compare
+    const wrAtCurrent = TRACKING_SIGNALS
+      .map(sig => ({ sig: sig, wr: buckets[sig.key].t1n > 0 ? (buckets[sig.key].t1h / buckets[sig.key].t1n * 100) : -1 }))
+      .filter(o => o.wr > 0)
+      .sort((a, b) => b.wr - a.wr)
+      .slice(0, 3);
+    if (wrAtCurrent.length === 0 || otherWindows.length === 0) {
+      cmpHost.innerHTML = '';
+    } else {
+      // Compute buckets for other windows
+      const otherBuckets = {};
+      otherWindows.forEach(d => {
+        otherBuckets[d] = computeHeatmapBuckets(trackingResultedRaces(d));
+      });
+      let cmpHtml = '<div class="hm-cmp-title">Top-1 WR across windows</div>' +
+                    '<div class="hm-cmp-rows">';
+      wrAtCurrent.forEach(o => {
+        cmpHtml += '<div class="hm-cmp-row">' +
+          '<span class="hm-cmp-sig">' + o.sig.label + '</span>';
+        // Show current first, then others, with arrow indicators for trend
+        const allDays = [currentDays].concat(otherWindows).sort((a, b) => a - b);
+        allDays.forEach(d => {
+          let wr;
+          if (d === currentDays) {
+            wr = o.wr;
+          } else {
+            const ob = otherBuckets[d][o.sig.key];
+            wr = ob.t1n > 0 ? (ob.t1h / ob.t1n * 100) : null;
+          }
+          const cur = d === currentDays;
+          cmpHtml += '<span class="hm-cmp-cell' + (cur ? ' cur' : '') + '">' +
+            '<span class="lbl">' + d + 'd</span>' +
+            '<span class="val">' + (wr != null ? wr.toFixed(1) + '%' : '—') + '</span>' +
+            '</span>';
+        });
+        cmpHtml += '</div>';
+      });
+      cmpHtml += '</div>';
+      cmpHost.innerHTML = cmpHtml;
+    }
+  }
 }
 
 // ── Section 2: Winners table ─────────────────────────────────────────────
@@ -7058,7 +7423,7 @@ function renderTrackingWinners(races) {
   }
 
   // Build row data
-  const rows = races.map(race => {
+  let rows = races.map(race => {
     const runners = race.runners || [];
     const winner = runners.find(u => u.f === 1);
     if (!winner) return null;
@@ -7077,6 +7442,27 @@ function renderTrackingWinners(races) {
       ranks: ranks,
     };
   }).filter(r => r != null);
+
+  const totalRows = rows.length;
+
+  // Apply filters BEFORE sort (filter then sort is cheaper since filtered set
+  // is usually smaller). The filters are:
+  //   - signal-rank: winners where signal X had rank in [min, max]
+  //   - text: substring match on horse name or venue (case-insensitive)
+  if (winnersFilterSig && winnersFilterSig !== '') {
+    rows = rows.filter(r => {
+      const v = r.ranks[winnersFilterSig];
+      if (v == null) return false;
+      return v >= winnersFilterMin && v <= winnersFilterMax;
+    });
+  }
+  if (winnersTextFilter && winnersTextFilter.length > 0) {
+    const needle = winnersTextFilter.toLowerCase();
+    rows = rows.filter(r =>
+      r.horse.toLowerCase().includes(needle) ||
+      r.venue.toLowerCase().includes(needle)
+    );
+  }
 
   // Sort
   rows.sort((a, b) => {
@@ -7100,7 +7486,35 @@ function renderTrackingWinners(races) {
     return '<th class="' + cls.join(' ') + '" data-tsort="' + col + '">' + label + '</th>';
   }
 
-  let html = '<div class="tracking-table-wrap"><table class="tracking-table tracking-winners"><thead><tr>' +
+  // Filter bar: signal+rank selector and free-text input. Renders above the
+  // table so users can narrow the view without losing context. Shows result
+  // count "Showing X of Y" so users know if filters are active.
+  const sigOpts = '<option value="">— signal —</option>' +
+    TRACKING_SIGNALS.map(s =>
+      '<option value="' + s.key + '"' + (winnersFilterSig === s.key ? ' selected' : '') + '>' +
+      s.label + '</option>').join('');
+  const filterBar =
+    '<div class="winners-filter-bar">' +
+      '<div class="wfb-group">' +
+        '<label class="wfb-lbl">Filter by rank:</label>' +
+        '<select id="winners-filter-sig" class="wfb-select">' + sigOpts + '</select>' +
+        '<span class="wfb-range">' +
+          '<input type="number" id="winners-filter-min" class="wfb-num" min="1" max="99" value="' + winnersFilterMin + '" title="Min rank">' +
+          '<span class="wfb-dash">to</span>' +
+          '<input type="number" id="winners-filter-max" class="wfb-num" min="1" max="99" value="' + winnersFilterMax + '" title="Max rank">' +
+        '</span>' +
+      '</div>' +
+      '<div class="wfb-group">' +
+        '<label class="wfb-lbl">Search:</label>' +
+        '<input type="text" id="winners-filter-text" class="wfb-text" placeholder="horse or venue" value="' + escapeHtml(winnersTextFilter) + '">' +
+      '</div>' +
+      '<div class="wfb-group wfb-info">' +
+        '<button class="wfb-clear" id="winners-filter-clear" title="Clear all filters">Clear</button>' +
+        '<span class="wfb-count">' + rows.length + ' of ' + totalRows + '</span>' +
+      '</div>' +
+    '</div>';
+
+  let html = filterBar + '<div class="tracking-table-wrap"><table class="tracking-table tracking-winners"><thead><tr>' +
     thW('date', 'Date') +
     thW('venue', 'Meeting') +
     '<th>Race</th>' +
@@ -7150,9 +7564,172 @@ function renderTrackingWinners(races) {
       if (typeof navigateToRace === 'function') navigateToRace(rid);
     });
   });
+  // Wire filter controls. Each input/select triggers a re-render but
+  // preserves the user's focus state via a debounce on text input.
+  let winnersTextDebounce = null;
+  const sigSel = document.getElementById('winners-filter-sig');
+  const minInp = document.getElementById('winners-filter-min');
+  const maxInp = document.getElementById('winners-filter-max');
+  const txtInp = document.getElementById('winners-filter-text');
+  const clrBtn = document.getElementById('winners-filter-clear');
+  if (sigSel) sigSel.addEventListener('change', e => {
+    winnersFilterSig = e.target.value;
+    renderTrackingWinners(trackingResultedRaces());
+  });
+  if (minInp) minInp.addEventListener('change', e => {
+    winnersFilterMin = Math.max(0, parseInt(e.target.value, 10) || 0);
+    renderTrackingWinners(trackingResultedRaces());
+  });
+  if (maxInp) maxInp.addEventListener('change', e => {
+    winnersFilterMax = Math.max(1, parseInt(e.target.value, 10) || 99);
+    renderTrackingWinners(trackingResultedRaces());
+  });
+  if (txtInp) txtInp.addEventListener('input', e => {
+    if (winnersTextDebounce) clearTimeout(winnersTextDebounce);
+    const val = e.target.value;
+    winnersTextDebounce = setTimeout(() => {
+      winnersTextFilter = val;
+      renderTrackingWinners(trackingResultedRaces());
+      // Re-focus and put cursor at end so user can keep typing
+      const inp = document.getElementById('winners-filter-text');
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(val.length, val.length);
+      }
+    }, 200);
+  });
+  if (clrBtn) clrBtn.addEventListener('click', () => {
+    winnersFilterSig = '';
+    winnersFilterMin = 0;
+    winnersFilterMax = 99;
+    winnersTextFilter = '';
+    renderTrackingWinners(trackingResultedRaces());
+  });
 }
 
-// ── Section 3: Placegetters detail ───────────────────────────────────────
+// ── Section 3: Signal correlation matrix ─────────────────────────────────
+// For each pair of signals, what % of races did they agree on which horse
+// is ranked #1? Useful for detecting redundancy: if WPR and TR agree 90% of
+// the time, you're effectively just using one signal twice in your voting.
+// Conversely if PFAI and Late only agree 30% of the time, they're capturing
+// genuinely different information.
+function renderSignalCorrelation(races) {
+  const el = document.getElementById('signal-correlation');
+  if (!el) return;
+  if (races.length === 0) {
+    el.innerHTML = '<div class="empty-text">No resulted races in the selected period.</div>';
+    return;
+  }
+
+  // Only include signals that are part of the V3 voting model. Including all
+  // 11 would make the matrix unreadable on screen and most of the non-voting
+  // signals aren't decision-relevant anyway.
+  const VOTING_KEYS = ['wpr', 'late', 'class', 'l600', 'pfai', 'tr'];
+  const sigs = TRACKING_SIGNALS.filter(s => VOTING_KEYS.includes(s.key));
+
+  // For each pair (i, j) compute agreement: % of races where rank-1 horse
+  // for signal i == rank-1 horse for signal j.
+  const N = sigs.length;
+  const agreement = Array.from({ length: N }, () => Array(N).fill(null));
+  const counts = Array.from({ length: N }, () => Array(N).fill(0));
+
+  for (let i = 0; i < N; i++) {
+    agreement[i][i] = 100;  // self-agreement is always 100%
+    counts[i][i] = races.length;
+    for (let j = i + 1; j < N; j++) {
+      let agree = 0, total = 0;
+      races.forEach(race => {
+        const runners = race.runners || [];
+        if (runners.length === 0) return;
+        // Find rank-1 horse for each signal in this race
+        const top_i = topRankedHorse(runners, sigs[i]);
+        const top_j = topRankedHorse(runners, sigs[j]);
+        if (top_i == null || top_j == null) return;
+        total++;
+        if (String(top_i) === String(top_j)) agree++;
+      });
+      const pct = total > 0 ? (agree / total * 100) : null;
+      agreement[i][j] = pct;
+      agreement[j][i] = pct;
+      counts[i][j] = total;
+      counts[j][i] = total;
+    }
+  }
+
+  // Render as a grid: first row = column headers, then one row per signal
+  // with values in each column. Colour scale similar to heatmap but inverted:
+  // HIGH agreement = redundancy = warm/orange tones; LOW = good = green.
+  function corrStyle(pct) {
+    if (pct == null) return 'background: #f3f4f6; color: #9ca3af;';
+    if (pct === 100) return 'background: #1f2937; color: #f9fafb; font-weight: 700;';  // self
+    // 30%..90% maps to green..orange
+    const clamped = Math.max(30, Math.min(90, pct));
+    const t = (clamped - 30) / 60;  // 0..1 where 1 = high redundancy
+    // Hue: 158 (emerald) -> 25 (orange) as t increases
+    const hue = 158 - (t * 133);
+    const lightness = 92 - (t * 30);
+    const saturation = 35 + (t * 35);
+    return 'background: hsl(' + hue.toFixed(0) + ', ' + saturation.toFixed(0) + '%, ' + lightness.toFixed(0) + '%); ' +
+           'color: ' + (t > 0.6 ? '#7c2d12' : '#064e3b') + '; font-weight: 600;';
+  }
+
+  let html = '<div class="corr-grid" style="grid-template-columns: 80px repeat(' + N + ', 1fr);">' +
+    '<div class="corr-cell corr-head"></div>';
+  sigs.forEach(s => {
+    html += '<div class="corr-cell corr-head">' + s.label + '</div>';
+  });
+  for (let i = 0; i < N; i++) {
+    html += '<div class="corr-cell corr-row-head">' + sigs[i].label + '</div>';
+    for (let j = 0; j < N; j++) {
+      const pct = agreement[i][j];
+      const cnt = counts[i][j];
+      const cell = pct == null ?
+        '<div class="corr-cell corr-val" style="background:#f3f4f6;color:#9ca3af;">—</div>' :
+        '<div class="corr-cell corr-val" style="' + corrStyle(pct) + '" ' +
+          'title="' + sigs[i].label + ' and ' + sigs[j].label + ' agree on top pick in ' +
+          pct.toFixed(0) + '% of ' + cnt + ' races">' + pct.toFixed(0) + '%</div>';
+      html += cell;
+    }
+  }
+  html += '</div>';
+
+  // Quick interpretation line: find most redundant pair (highest off-diagonal)
+  // and least redundant pair (lowest off-diagonal).
+  let maxPair = null, minPair = null;
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < N; j++) {
+      const p = agreement[i][j];
+      if (p == null) continue;
+      if (maxPair == null || p > maxPair.pct) maxPair = { i, j, pct: p };
+      if (minPair == null || p < minPair.pct) minPair = { i, j, pct: p };
+    }
+  }
+  if (maxPair && minPair) {
+    html += '<div class="corr-summary">' +
+      '<div><span class="lbl">Most redundant:</span> ' +
+        sigs[maxPair.i].label + ' &harr; ' + sigs[maxPair.j].label + ' (' + maxPair.pct.toFixed(0) + '%)</div>' +
+      '<div><span class="lbl">Most independent:</span> ' +
+        sigs[minPair.i].label + ' &harr; ' + sigs[minPair.j].label + ' (' + minPair.pct.toFixed(0) + '%)</div>' +
+      '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// Helper: which horse is ranked #1 in a given race for a given signal?
+function topRankedHorse(runners, sigDef) {
+  let best = null, bestRank = 99;
+  runners.forEach(u => {
+    const r = rankInRace(runners, u.rid, sigDef);
+    if (r != null && r < bestRank) {
+      bestRank = r;
+      best = u.rid;
+    }
+  });
+  return best;
+}
+
+// ── Section 4: Placegetters detail ───────────────────────────────────────
 // 1st / 2nd / 3rd per race with all signal ranks. Useful for spotting where
 // the model picked a runner that lost a photo finish to a similar-profile horse.
 function renderTrackingPlacegetters(races) {
@@ -7644,13 +8221,25 @@ if (qMeetingSel) {
 }
 const qThreshInp = document.getElementById('quaddie-thresh');
 if (qThreshInp) {
-  qThreshInp.addEventListener('change', e => {
-    const v = parseFloat(e.target.value);
+  // Live preview: re-render on every keystroke (debounced ~150ms) so user
+  // sees combo count / hit rate / cost update as they tweak the threshold.
+  // The previous 'change' listener (which only fires on blur) is now redundant
+  // but we keep it for safety in case 'input' doesn't fire in some browser
+  // (extremely unlikely but the cost is one extra render on blur).
+  let qThreshDebounceTimer = null;
+  function applyQThreshChange(rawVal) {
+    const v = parseFloat(rawVal);
     if (isNaN(v)) return;
     quaddieState.threshOverride = Math.max(0, Math.min(1, v));
     saveQuaddieState();
     renderQuaddie();
+  }
+  qThreshInp.addEventListener('input', e => {
+    if (qThreshDebounceTimer) clearTimeout(qThreshDebounceTimer);
+    const val = e.target.value;
+    qThreshDebounceTimer = setTimeout(() => applyQThreshChange(val), 150);
   });
+  qThreshInp.addEventListener('change', e => applyQThreshChange(e.target.value));
 }
 const qThreshReset = document.getElementById('quaddie-thresh-reset');
 if (qThreshReset) {
