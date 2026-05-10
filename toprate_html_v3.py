@@ -1179,18 +1179,15 @@ body {
   .pick-row .pr-stake { display: none; }
   .cell-lbl { display: none; }
 
-  /* Compact signal pills on mobile - smaller labels and values to allow
-     all 8 chips (Score, WPR, Late, Class, L600, PFAI, TR, Votes) to fit
-     on one line. Vote badge stays prominent (slightly larger). */
-  .pick-row .pr-sigs-top .sig {
-    padding: 2px 5px; font-size: 10px;
-    gap: 3px;
+  /* Vote badge is now the sole pick-row indicator on mobile (all individual
+     signal chips hidden via .desktop-chips). Give it presence so it's
+     clearly readable - slightly larger label and value than before. */
+  .pick-row .pr-sigs-top .sig.vote-badge {
+    padding: 4px 10px; gap: 5px;
   }
-  .pick-row .pr-sigs-top .sig .lbl { font-size: 9px; }
-  .pick-row .pr-sigs-top .sig .v { font-size: 11px; }
-  /* Vote badge gets slightly more presence so users can scan it */
-  .pick-row .pr-sigs-top .sig.vote-badge { padding: 2px 6px; }
-  .pick-row .pr-sigs-top .sig.vote-badge .v { font-size: 11px; font-weight: 800; }
+  .pick-row .pr-sigs-top .sig.vote-badge .lbl { font-size: 9px; }
+  .pick-row .pr-sigs-top .sig.vote-badge .v { font-size: 13px; font-weight: 800; }
+  .pick-row .pr-sigs-top .sig.vote-badge .vote-star { font-size: 11px; }
 
   /* On Today (pending) rows, hide return too - shown in expand panel.
      On P&L (settled) rows, show return as the most useful at-a-glance number. */
@@ -1232,10 +1229,13 @@ body {
   .pr-runner .rhorse { font-size: 14px; }
   .pr-runner .rmeta { font-size: 11px; line-height: 1.35; }
   .pr-sigs { grid-area: sigs; }
-  /* Allow pills to wrap if needed but try to keep on one line */
-  .pr-sigs-top { flex-wrap: wrap; gap: 4px 5px; }
-  /* Form string row underneath signals - small, muted */
-  .pr-form { font-size: 11px; }
+  /* Mobile: hide all individual signal chips and form string - only the
+     Votes badge remains visible. Score and per-signal ranks are accessible
+     by tapping to expand the row. This keeps pick rows tight enough to scan
+     a full day's picks without endless scrolling. */
+  .pr-sigs-top { flex-wrap: nowrap; gap: 0; justify-content: flex-start; }
+  .pr-sigs-top .desktop-chips { display: none; }
+  .pr-form.desktop-only { display: none; }
 
   /* Bottom strip: Fxd | result | bet (or return for settled), single row */
   .pr-odds {
@@ -2032,6 +2032,22 @@ body {
 .score-cell.r2 .v { color: var(--emerald-deep); }
 .score-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
 .score-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
+
+/* Votes cell on race table - shows N/6 voting signal hits at top-3 for each
+   horse. Colour-coded so users can spot spot-bet candidates without reading
+   the number: 5-6 votes (the V3 threshold) = strong emerald; 4 = light;
+   <=2 = muted grey to fade non-contenders. */
+.votes-cell { white-space: nowrap; font-weight: 600; text-align: left; }
+.votes-cell .v { font-variant-numeric: tabular-nums; }
+.votes-cell .votes-star {
+  font-size: 10px; color: #fbbf24; font-weight: 700; margin-left: 3px;
+}
+.votes-cell.votes-strong {
+  background: rgba(16,185,129,0.10);
+}
+.votes-cell.votes-strong .v { color: var(--emerald-deep); font-weight: 700; }
+.votes-cell.votes-mid .v { color: var(--emerald-deep); }
+.votes-cell.votes-weak .v { color: var(--ink-faint); }
 /* Confidence dot in race-table score cell - filled = unanimous, hollow = split */
 .score-cell .conf-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 50%;
@@ -3354,49 +3370,42 @@ body {
      Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
      still available in the detail panel by tapping the horse name on Today
      tab, or by viewing in landscape mode (table will horizontally scroll). */
-  /* Race table mobile column structure (1-based indices):
-     1=Tab 2=Horse 3=Bar 4=Fxd
-     5=WPR 6=Late 7=Class 8=L600 9=PF AI (signal columns - hide on mobile)
-     10=Style 11=Settles 12=TR 13=Score
-     14=Mid 15=Total 16=L400 17=ΔCls 18=Distance 19=Going
+  /* Race table mobile column structure (1-based indices after restructure):
+     1=Tab 2=Horse 3=Fxd 4=Score 5=Votes
+     6=WPR 7=Late 8=Class 9=L600 10=PF AI 11=TR
+     12=Bar 13=Style 14=Settles 15=Mid 16=Total
+     17=L400 18=Class Δ 19=Distance 20=Going(?)
 
-     On mobile we hide everything except: Tab, Horse, Fxd, Score, Style.
-     The signal columns are redundant on mobile because users can tap a row
-     to expand the detail panel which shows full signals + ranks. Keeping
-     the table narrow means horses fit on screen without horizontal scroll.
-
-     Bar (col 3) is also hidden - barrier draw is non-essential at-a-glance.
-     Score is what users glance at first. Style helps with pace context. */
-  .race-table thead th:nth-child(3),  /* Bar */
-  .race-table thead th:nth-child(5),  /* WPR */
-  .race-table thead th:nth-child(6),  /* Late */
-  .race-table thead th:nth-child(7),  /* Class */
-  .race-table thead th:nth-child(8),  /* L600 */
-  .race-table thead th:nth-child(9),  /* PF AI */
-  .race-table thead th:nth-child(11), /* Settles */
-  .race-table thead th:nth-child(12), /* TR */
-  .race-table thead th:nth-child(14), /* Mid */
-  .race-table thead th:nth-child(15), /* Total */
-  .race-table thead th:nth-child(16), /* L400 */
-  .race-table thead th:nth-child(17), /* ΔCls */
-  .race-table thead th:nth-child(18), /* Distance */
-  .race-table thead th:nth-child(19), /* Going */
-  .race-table tbody td:nth-child(3),
-  .race-table tbody td:nth-child(5),
-  .race-table tbody td:nth-child(6),
-  .race-table tbody td:nth-child(7),
-  .race-table tbody td:nth-child(8),
-  .race-table tbody td:nth-child(9),
-  .race-table tbody td:nth-child(11),
+     On mobile we show columns 1-11 (the primary scan columns) and hide
+     everything else (Bar, Style, Settles, Mid, Total, L400, ClassΔ, Dist,
+     Going). The hidden columns are accessible by tapping a row to expand
+     the detail panel. This keeps the table readable on phones while
+     preserving all data on tap. */
+  .race-table thead th:nth-child(12), /* Bar */
+  .race-table thead th:nth-child(13), /* Style */
+  .race-table thead th:nth-child(14), /* Settles */
+  .race-table thead th:nth-child(15), /* Mid */
+  .race-table thead th:nth-child(16), /* Total */
+  .race-table thead th:nth-child(17), /* L400 */
+  .race-table thead th:nth-child(18), /* Class Δ */
+  .race-table thead th:nth-child(19), /* Distance */
+  .race-table thead th:nth-child(20), /* Going */
   .race-table tbody td:nth-child(12),
+  .race-table tbody td:nth-child(13),
   .race-table tbody td:nth-child(14),
   .race-table tbody td:nth-child(15),
   .race-table tbody td:nth-child(16),
   .race-table tbody td:nth-child(17),
   .race-table tbody td:nth-child(18),
-  .race-table tbody td:nth-child(19) {
+  .race-table tbody td:nth-child(19),
+  .race-table tbody td:nth-child(20) {
     display: none;
   }
+  /* Tighter cell padding on mobile - 11 visible columns need compact cells
+     to fit phone widths without horizontal scroll */
+  .race-table thead th { padding: 6px 4px; font-size: 9px; }
+  .race-table tbody td { padding: 6px 4px; font-size: 11px; }
+  .race-table .horse-cell { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
   .meeting-strip { padding: 6px 8px; gap: 4px; }
   .meeting-tile { width: 86px; padding: 5px 8px; }
   .mt-race { font-size: 12px; }
@@ -4414,33 +4423,42 @@ function renderToday() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
-    const sigsTopHtml =
-      scoreSigPill(p.crk, p.csc) +
+    // V3 voting model rule transparency: show how many of the 6 signals
+    // hit the top-3 threshold and how many were #1. Format: "5/6 ★3" =
+    // 5 of 6 signals top-3 with 3 #1s. The pick passed the rule if
+    // top-3 votes >= 5 AND top-1 votes >= 3.
+    // Vote badge is the ONLY signal indicator shown on mobile (everything
+    // else moves to the expanded detail panel for cleaner scanning).
+    const voteRanks = [p.wpr_rank, p.late_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank];
+    const voteTop3 = voteRanks.filter(r => r != null && r <= 3).length;
+    const voteTop1 = voteRanks.filter(r => r != null && r === 1).length;
+    const voteTooltip = voteTop3 + ' of 6 signals rank top-3, ' + voteTop1 + ' rank #1. ' +
+                    'V3 rule needs >=5 top-3 AND >=3 #1.';
+    const voteBadgeHtml = '<span class="sig vote-badge" title="' + voteTooltip + '">' +
+      '<span class="lbl">Votes</span>' +
+      '<span class="v">' + voteTop3 + '/6</span>' +
+      (voteTop1 >= 3 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
+      '</span>';
+
+    // Desktop signal chips - the 6 voting signals (Score is excluded; it's
+    // not part of the model rule, so it shouldn't appear in the rule-summary
+    // chip row. Score still appears in the detail panel breakdown.). Hidden
+    // on mobile via CSS where only the votes badge stays visible.
+    const desktopChipsHtml =
       sigPill('WPR', p.wpr_rank) +
       sigPill('Late', p.late_rank) +
       sigPill('Class', p.wcR) +
       sigPill('L600', p.l600R) +
       sigPill('PFAI', p.pfaiR) +
-      sigPill('TR', p.tr_rank) +
-      // V3 voting model rule transparency: show how many of the 6 signals
-      // hit the top-3 threshold and how many were #1. Format: "5/6 ★3" =
-      // 5 of 6 signals top-3 with 3 #1s. The pick passed the rule if
-      // top-3 votes >= 5 AND top-1 votes >= 3.
-      (function() {
-        const ranks = [p.wpr_rank, p.late_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank];
-        const top3 = ranks.filter(r => r != null && r <= 3).length;
-        const top1 = ranks.filter(r => r != null && r === 1).length;
-        const tooltip = top3 + ' of 6 signals rank top-3, ' + top1 + ' rank #1. ' +
-                        'V3 rule needs >=5 top-3 AND >=3 #1.';
-        return '<span class="sig vote-badge" title="' + tooltip + '">' +
-          '<span class="lbl">Votes</span>' +
-          '<span class="v">' + top3 + '/6</span>' +
-          (top1 >= 3 ? '<span class="vote-star" title="' + top1 + ' #1 votes">★' + top1 + '</span>' : '') +
-          '</span>';
-      })();
-    // Form string row underneath: "3-1-7-2"
+      sigPill('TR', p.tr_rank);
+
+    const sigsTopHtml =
+      '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
+      voteBadgeHtml;
+    // Form string row underneath: "3-1-7-2" - shown on desktop only; on
+    // mobile it moves into the expand panel to keep rows tight.
     const formHtml = r.fm ?
-      '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
+      '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
 
     // Live fixed odds display (read-only)
@@ -5680,6 +5698,21 @@ function renderRaceDetail(raceId) {
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
     score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
+    // Votes sort: compute on the fly using the same 6-signal logic as the
+    // row. Higher count = stronger pick; negate so default desc = highest first.
+    votes: r => {
+      const tr = (typeof trRanks !== 'undefined') ? trRanks[r.rid] : null;
+      const w = (typeof wprRanks !== 'undefined') ? wprRanks[r.rid] : null;
+      const la = (typeof lateRanks !== 'undefined') ? lateRanks[r.rid] : null;
+      const top3 =
+        ((w != null && w <= 3) ? 1 : 0) +
+        ((la != null && la <= 3) ? 1 : 0) +
+        ((r.wcR != null && r.wcR <= 3) ? 1 : 0) +
+        ((r.l600R != null && r.l600R <= 3) ? 1 : 0) +
+        ((r.pfaiR != null && r.pfaiR <= 3) ? 1 : 0) +
+        ((tr != null && tr <= 3) ? 1 : 0);
+      return -top3;  // negate so default ASC sort = lowest top3 first
+    },
     // PF columns sort ascending (1 = best PF rank)
     pfai:    r => r.pfaiR != null ? r.pfaiR : 99,
     wcR:     r => r.wcR != null ? r.wcR : 99,
@@ -5751,22 +5784,39 @@ function renderRaceDetail(raceId) {
     const isUnifiedRule = (_votes_top1 >= 3) && (_votes_top3 >= 5);
     if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
+    // Vote count cell - shows N/6 voting signals where this horse hit top-3
+    // (the primary voting condition). Coloured by count for fast scanning:
+    // 5-6 = emerald (strong), 4 = light emerald, 3 = neutral, 0-2 = muted.
+    // Star indicator added when 3+ #1 votes (the second V3 condition).
+    function votesCell(top3, top1) {
+      let cls = '';
+      if (top3 >= 5) cls = 'votes-strong';
+      else if (top3 === 4) cls = 'votes-mid';
+      else if (top3 === 3) cls = '';
+      else cls = 'votes-weak';
+      const star = top1 >= 3 ? '<span class="votes-star">★' + top1 + '</span>' : '';
+      const tip = top3 + ' of 6 signals top-3, ' + top1 + ' #1';
+      return '<td class="votes-cell ' + cls + '" title="' + tip + '">' +
+        '<span class="v">' + top3 + '/6</span>' + star + '</td>';
+    }
+
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
+      // ── Primary columns (visible on mobile) ──
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
-      '<td>' + (u.b || '') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
-      // ── Model rule signals (highlighted - these gate every pick) ──
+      scoreCell(u.cs, u.crk, u.csc) +
+      votesCell(_votes_top3, _votes_top1) +
       wprCell(u.w, wprRanks[rid]) +
       sectCell(u.ls, lateRanks[rid]) +
       pfRankCell(u.wcR, 'PF Class') +
       pfRankCell(u.l600R, 'PF Last 600m') +
       pfRankCell(u.pfaiR, 'PF AI') +
-      // ── Supporting signals ──
+      '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
+      // ── Supporting columns (hidden on mobile) ──
+      '<td>' + (u.b || '') + '</td>' +
       pfRunStyleCell(u.rs) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
-      '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      scoreCell(u.cs, u.crk, u.csc) +
       sectCell(u.ms, midRanks[rid]) +
       sectCell(u.ts, totalRanks[rid]) +
       pfRankCell(u.l400R, 'PF Last 400m') +
@@ -5789,20 +5839,26 @@ function renderRaceDetail(raceId) {
   document.getElementById('rd-runners-table').innerHTML =
     '<table class="race-table">' +
       '<thead><tr>' +
+        // ── Primary scan columns (visible on mobile) ──
+        // Order optimised for the voting model: Tab, Horse, Fxd (price),
+        // then Score (logreg probability), Votes (model rule conformance),
+        // then each individual voting signal so users can see WHERE the
+        // votes came from. This is the same set of columns kept visible
+        // on mobile.
         th('tab', 'Tab') + th('horse', 'Horse') +
-        th('bar', 'Bar') +
         th('fxd', 'Fxd') +
-        // Model rule signals (highlighted as primary)
+        th('score', 'Score') +
+        th('votes', 'Votes') +
         th('wpr', 'WPR') +
         th('late', 'Late') +
         th('wcR', 'Class') +
         th('l600R', 'L600') +
         th('pfai', 'PF AI') +
-        // Supporting signals
+        th('tr', 'TR') +
+        // ── Supporting / context columns (hidden on mobile) ──
+        th('bar', 'Bar') +
         th('rs', 'Style') +
         th('settles', 'Settles') +
-        th('tr', 'TR') +
-        th('score', 'Score') +
         th('mid', 'Mid') +
         th('total', 'Total') +
         th('l400R', 'L400') +
@@ -5883,9 +5939,17 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
     { key: 'back',     lbl: 'BACK',     hint: '9+',  color: '#9ca3af', textColor: '#030712' },
   ];
 
-  const W = 880;
-  const H = 122;
-  const PAD_X = 8, PAD_Y = 22, BOTTOM_PAD = 6;
+  // Detect mobile viewport at render time. SVG scales proportionally via
+  // viewBox, so on small screens a 22px cell in 880-unit space displays as
+  // ~9.5px - illegible. Mobile renders with a smaller viewBox (so the SAME
+  // pixel-sized elements appear larger relative to the viewBox) AND larger
+  // font sizes. The result: cells and labels are readable on phones.
+  const isMobile = (typeof window !== 'undefined') && window.innerWidth <= 720;
+
+  // ViewBox dimensions. Mobile: narrower viewBox = larger visual elements.
+  const W = isMobile ? 440 : 880;
+  const H = isMobile ? 140 : 122;
+  const PAD_X = 8, PAD_Y = isMobile ? 26 : 22, BOTTOM_PAD = 6;
   const plotW = W - PAD_X * 2;
   const plotH = H - PAD_Y - BOTTOM_PAD;
 
@@ -5893,7 +5957,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
   // then remaining width is shared proportionally to runner counts.
   const counts = zones.map(z => settled[z.key].length);
   const totalRunnersInRace = counts.reduce((a, b) => a + b, 0);
-  const MIN_ZONE_W = 90;
+  const MIN_ZONE_W = isMobile ? 70 : 90;
   const guaranteed = MIN_ZONE_W * zones.length;
   const sharedW = Math.max(0, plotW - guaranteed);
 
@@ -5909,6 +5973,13 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
   let svg = '<svg class="race-shape-svg" viewBox="0 0 ' + W + ' ' + H +
     '" preserveAspectRatio="xMidYMid meet">';
 
+  // Zone label and tab cell sizing - larger on mobile so they're readable
+  // when the SVG scales to the phone width
+  const zoneLabelFontSize = isMobile ? 13 : 10;
+  const cellSize = isMobile ? 30 : 22;
+  const cellFontSize = isMobile ? 15 : 11;
+  const cellGap = isMobile ? 5 : 4;
+
   zones.forEach((z, i) => {
     const x = zoneOffsets[i];
     const w = zoneWidths[i];
@@ -5918,13 +5989,11 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
       '" fill="' + z.color + '" fill-opacity="0.08" stroke="' + z.color +
       '" stroke-opacity="0.25" stroke-width="1" rx="4"/>';
 
-    svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 8) + '" ' +
-      'font-family="Outfit" font-size="10" font-weight="700" letter-spacing="0.06em" ' +
+    svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 10) + '" ' +
+      'font-family="Outfit" font-size="' + zoneLabelFontSize + '" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
       z.lbl + ' (' + z.hint + ')</text>';
 
-    const cellSize = 22;
-    const cellGap = 4;
     const innerPad = 8;
     const availW = w - innerPad * 2;
     const cellsPerRow = Math.max(1, Math.floor((availW + cellGap) / (cellSize + cellGap)));
@@ -5946,14 +6015,14 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
       const stroke = isPick ? ' stroke="#10b981" stroke-width="2"' : '';
       svg += '<rect x="' + cellX + '" y="' + cellY + '" width="' + cellSize + '" height="' + cellSize +
         '" fill="' + cellFill + '" rx="3"' + stroke + '/>';
-      svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + 4) +
-        '" font-family="Outfit" font-size="11" font-weight="700" text-anchor="middle" ' +
+      svg += '<text x="' + (cellX + cellSize / 2) + '" y="' + (cellY + cellSize / 2 + cellFontSize / 3) +
+        '" font-family="Outfit" font-size="' + cellFontSize + '" font-weight="700" text-anchor="middle" ' +
         'fill="#fff">' + (u.tab || '?') + '</text>';
     });
 
     if (horses.length === 0) {
       svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y + plotH / 2 + 4) + '" ' +
-        'font-family="Outfit" font-size="11" font-style="italic" fill="' + z.textColor +
+        'font-family="Outfit" font-size="' + (isMobile ? 13 : 11) + '" font-style="italic" fill="' + z.textColor +
         '" fill-opacity="0.4" text-anchor="middle">none</text>';
     }
   });
@@ -6657,14 +6726,29 @@ function renderPnL() {
       }
       return '<span class="sig ' + cls + '"><span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
     }
-    const sigsTopHtml =
-      scoreSigPill(r.crk, s.csc) +
+    // Vote count badge - shows model-rule conformance for the original pick
+    // (mobile-friendly summary, replaces the chip row on small screens).
+    const pVoteRanks = [r.wpr_rank, r.late_rank, r.wcR, r.l600R, r.pfaiR, r.tr_rank];
+    const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
+    const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
+    const pVoteTooltip = pVoteTop3 + ' of 6 signals rank top-3, ' + pVoteTop1 + ' rank #1.';
+    const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
+      '<span class="lbl">Votes</span>' +
+      '<span class="v">' + pVoteTop3 + '/6</span>' +
+      (pVoteTop1 >= 3 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
+      '</span>';
+
+    const desktopChipsHtml =
       sigPill('TR', s.tr_rank) +
       sigPill('Mid', s.mid_rank) +
       sigPill('Late', s.late_rank) +
       sigPill('Tot', s.total_rank);
+
+    const sigsTopHtml =
+      '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
+      pVoteBadgeHtml;
     const formHtml = r.fm ?
-      '<div class="pr-form" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
+      '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
 
     // Fxd display (read-only, same as Today)
