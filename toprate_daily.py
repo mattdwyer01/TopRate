@@ -619,12 +619,13 @@ def merge_pf_ratings(runners_df):
 MODEL_DEFS = {
     "main": {
         "label":       "Main",
-        "desc":        "WPR≤3 + Late≤3 + ClassRank=1 + Last600≤3 + SP≥$3",
+        "desc":        "WPR≤3 + Late≤3 + ClassRank=1 + Last600≤3 + SP≥$3 (skip first-starter races)",
         "expected_wr": 0.267, "expected_roi_sp": 0.621, "expected_roi_top": 0.621,
         "bets_per_day": 4.3, "min_top_odds": 3.0,
         "is_primary":  True,
         "applies": lambda race_df, run_id, ctx:
-            (ctx["wpr_rank"].get(run_id) or 99) <= 3
+            not ctx.get("has_first_starter", False)
+            and (ctx["wpr_rank"].get(run_id) or 99) <= 3
             and (ctx["late_rank"].get(run_id) or 99) <= 3
             and (ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 1
             and (ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3
@@ -751,21 +752,52 @@ def compute_model_picks(runners_df):
 
 
 def save_model_picks(rows, path=None):
-    """Append model picks to the persistent CSV, deduping on (run_id, model)."""
+    """
+    Save model picks to CSV.
+
+    NOTE: stale picks for re-evaluated races are cleared FIRST by
+    remove_excluded_picks_for_evaluated_races() in main(). So this function
+    just appends the fresh picks. There can still be duplicate (race_id,
+    run_id, model) rows if the cleanup wasn't called - dedup keeps last.
+    """
     if not rows:
         return None
     if path is None:
         path = Path(__file__).parent / "toprate_model_picks.csv"
     new_df = pd.DataFrame(rows)
+    new_df["race_id"] = new_df["race_id"].astype(str)
+    new_df["run_id"]  = new_df["run_id"].astype(str)
     if path.exists():
-        existing = pd.read_csv(path)
-        # Combine, prefer new rows (so result fields update on later runs)
+        existing = pd.read_csv(path, dtype={"race_id": str, "run_id": str})
         combined = pd.concat([existing, new_df], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["run_id", "model"], keep="last")
+        combined = combined.drop_duplicates(subset=["race_id", "run_id", "model"], keep="last")
     else:
         combined = new_df
     combined.to_csv(path, index=False)
     return path
+
+
+def remove_excluded_picks_for_evaluated_races(runners_df, path=None):
+    """
+    Drop picks from CSV for races that were evaluated this run but produced
+    no qualifying horses. Without this, a race that USED to have a pick
+    keeps that pick forever even after the rule excludes it.
+
+    Called by main() right before save_model_picks. Operates on the set
+    of race_ids in runners_df (i.e. races that were evaluated this run).
+    """
+    if path is None:
+        path = Path(__file__).parent / "toprate_model_picks.csv"
+    if not path.exists():
+        return
+    existing = pd.read_csv(path, dtype={"race_id": str, "run_id": str})
+    evaluated_race_ids = set(runners_df["race_id"].astype(str).unique())
+    # Keep picks NOT in the evaluated set (preserves history for older races
+    # that aren't being re-evaluated this run).
+    kept = existing[~existing["race_id"].isin(evaluated_race_ids)]
+    if len(kept) < len(existing):
+        kept.to_csv(path, index=False)
+        print(f"  Cleared {len(existing) - len(kept)} stale picks from races re-evaluated this run.")
 
 
 def model_picks_summary(rows, today_only=True):
@@ -1368,15 +1400,50 @@ def update_results(jwt, runners_df):
 
     race_ids = pending["race_id"].astype(str).unique()
     updated  = 0
+    skipped_future = 0
+    skipped_old = 0
+    api_calls = 0
+
+    # ── Build start-time lookup so we can skip races that haven't started ──
+    # We compute "now" with a 5-minute buffer (results aren't immediate)
+    now = datetime.now()
+    five_min_ago = now - timedelta(minutes=5)
+    cutoff_old = today - timedelta(days=14)  # don't keep retrying ancient races
 
     for race_id in race_ids:
         mask = runners_df["race_id"].astype(str) == str(race_id)
         sample = runners_df[mask].iloc[0]
         race_date = pd.to_datetime(sample["date"]).date() if sample.get("date") else None
+
+        # Skip races scheduled for future dates
         if race_date and race_date > today:
+            skipped_future += 1
             continue
 
+        # Skip races more than 14 days old that still aren't resulted - the API
+        # almost certainly won't give them now and we burn API calls every run.
+        if race_date and race_date < cutoff_old:
+            skipped_old += 1
+            continue
+
+        # For races on TODAY, check if they've actually started yet.
+        # If start_time is in the future (with 5-minute buffer), skip.
+        if race_date == today:
+            start_time_str = sample.get("start_time")
+            if start_time_str:
+                try:
+                    # start_time is HH:MM, combine with today's date
+                    hh, mm = str(start_time_str).split(":")[:2]
+                    race_start = datetime.combine(today, datetime.min.time()).replace(
+                        hour=int(hh), minute=int(mm))
+                    if race_start > five_min_ago:
+                        skipped_future += 1
+                        continue
+                except Exception:
+                    pass  # if we can't parse, fall through and call API
+
         try:
+            api_calls += 1
             result_raw = api_race_results(jwt, int(race_id)) or {}
             result_runners = result_raw.get("runners", []) if isinstance(result_raw, dict) else []
             if not result_runners:
@@ -1428,11 +1495,17 @@ def update_results(jwt, runners_df):
                         sp_str = f" @ ${float(sp):.2f}" if sp else ""
                         print(f"  Result: {venue} R{race} {horse} — {status}{sp_str}")
 
-            time.sleep(0.3)
+            time.sleep(0.1)  # reduced from 0.3 - API hasn't been rate-limiting us
         except Exception as e:
             print(f"  Error fetching results for race {race_id}: {e}")
 
-    print(f"Updated {updated} runner results.")
+    summary_bits = [f"Updated {updated} runner results"]
+    if skipped_future:
+        summary_bits.append(f"skipped {skipped_future} not-yet-run")
+    if skipped_old:
+        summary_bits.append(f"skipped {skipped_old} stale (>14 days)")
+    summary_bits.append(f"{api_calls} API calls")
+    print(", ".join(summary_bits) + ".")
     return runners_df
 
 # -----------------------------------------------------------------------
@@ -1712,7 +1785,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                       f"{sp_str} trend={trend_str} prize=${prize_v:,.0f} runners={len(race_runners)}")
 
             new_rows.extend(race_runners)
-            time.sleep(0.3)
+            time.sleep(0.1)  # reduced from 0.3 - API hasn't been rate-limiting
 
         except Exception as e:
             print(f"  Error on {race_meta['venue']} R{race_meta['number']}: {e}")
@@ -2246,6 +2319,10 @@ def main():
 
     # ── V3 Core Model picks (walk-forward verified filters) ──
     print("── Step 3: Computing v3 model picks ──")
+    # First clear stale picks for races we're about to re-evaluate. Without
+    # this, a race that USED to qualify a horse keeps that pick forever even
+    # if the rule has changed (e.g. first-starter exclusion now removes it).
+    remove_excluded_picks_for_evaluated_races(runners_df)
     # Compute picks for EVERY race in the dataframe, not just today's. This way
     # historical data already in toprate_runners.csv (e.g. yesterday's races
     # whose results came in overnight) get picks computed and saved too.
