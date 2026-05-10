@@ -270,6 +270,9 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 'horse': pick.get('horse'),
                 'tab': pick.get('tab'),
                 'fxprice': pick.get('fxprice'),
+                # Post-race prices - null pre-race, filled when results land
+                'sp':      pick.get('starting_price_sp'),
+                'top':     pick.get('price_top'),  # Top Fluc - highest bookie price pre-race
                 'tr_rank': pick.get('tr_rank'),
                 'early_rank': pick.get('early_rank'),
                 'mid_rank': pick.get('mid_rank'),
@@ -808,11 +811,16 @@ body {
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
 }
-/* Live fixed odds display (read-only) - no border/box, looks like static text */
+/* Live fixed odds display (read-only) - no border/box, looks like static text.
+   Now contains TWO lines: main Fxd price, and a small TF (Top Fluc) sub-line
+   that's empty pre-race and populated when results sync. */
 .pr-odds-display {
-  display: inline-flex; align-items: baseline; gap: 1px;
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0;
   font-variant-numeric: tabular-nums;
-  padding: 0;
+  padding: 0; line-height: 1.1;
+}
+.pr-odds-display .pr-odds-main {
+  display: inline-flex; align-items: baseline; gap: 1px;
 }
 .pr-odds-display .cur {
   font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
@@ -826,6 +834,25 @@ body {
 .pr-odds-display.below .v { color: var(--ink-soft); }
 .pr-odds-display .v.empty {
   color: var(--ink-faint); font-weight: 500;
+}
+/* TF (Top Fluc) sub-line: shows highest bookie price during pre-race market.
+   Populated post-race only; shows '—' before results sync to indicate
+   "not available yet" rather than absence. Always reserves space so the
+   row height doesn't jump when data arrives. */
+.pr-odds-display .pr-odds-tf {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  font-family: var(--font-body); font-size: 10px;
+  margin-top: 1px; cursor: help;
+}
+.pr-odds-display .pr-odds-tf .tf-lbl {
+  color: var(--ink-faint); font-weight: 600;
+  font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.pr-odds-display .pr-odds-tf .tf-val {
+  color: var(--ink-mute); font-weight: 600;
+}
+.pr-odds-display .pr-odds-tf .tf-val.empty {
+  color: var(--ink-faint); font-weight: 500; opacity: 0.6;
 }
 
 /* Picks list column header */
@@ -1104,6 +1131,12 @@ body {
 .pd-field .fv {
   font-size: 13px; font-weight: 600; color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+/* Muted variant for values that aren't yet available (e.g. post-race
+   prices before the results sync). Shown in greyed italic so user
+   sees the placeholder rather than wondering if data is missing. */
+.pd-field .fv.muted {
+  color: var(--ink-faint); font-weight: 500; font-style: italic;
 }
 
 /* Score breakdown - per-signal percentile bars */
@@ -4465,10 +4498,25 @@ function renderToday() {
     const oddsCls = meetsThreshold ? 'qualifies' : 'below';
     const oddsValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
     const oddsValCls = csvPrice != null ? 'v' : 'v empty';
+    // Top Fluc (TF) - the highest bookie price during the pre-race market.
+    // Null until results sync, so show as '—' placeholder until post-race.
+    // Rendered as a small sub-line under the Fxd so users can compare what
+    // they took vs the peak available, especially for settled picks.
+    const tfPrice = p.top;
+    const tfStr = tfPrice != null ? '$' + tfPrice.toFixed(2) : '—';
+    const tfTitle = tfPrice != null
+      ? 'Top Fluc $' + tfPrice.toFixed(2) + ' - highest bookie price during pre-race market'
+      : 'Top Fluc - available after results sync';
     const oddsHtml =
       '<div class="pr-odds-display ' + oddsCls + '" title="Live fixed odds at last refresh">' +
-        (csvPrice != null ? '<span class="cur">$</span>' : '') +
-        '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
+        '<div class="pr-odds-main">' +
+          (csvPrice != null ? '<span class="cur">$</span>' : '') +
+          '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
+        '</div>' +
+        '<div class="pr-odds-tf" title="' + tfTitle + '">' +
+          '<span class="tf-lbl">TF</span>' +
+          '<span class="tf-val' + (tfPrice == null ? ' empty' : '') + '">' + tfStr + '</span>' +
+        '</div>' +
       '</div>';
 
     // Stake display - units (large) + dollar value (small) below
@@ -4832,12 +4880,21 @@ function buildDetailHTML(p, r) {
       '<span class="fv ' + (cls || '') + '">' + escapeHtml(String(value)) + '</span></div>';
   }
 
+  // Post-race prices - null until results sync. Render as '— (post-race)'
+  // when missing so user knows it'll populate later, not that it's missing data.
+  const tfDetailStr = p.top != null ? '$' + p.top.toFixed(2) : '— post-race';
+  const spDetailStr = p.sp != null ? '$' + p.sp.toFixed(2) : '— post-race';
+  const tfCls = p.top != null ? '' : 'muted';
+  const spCls = p.sp != null ? '' : 'muted';
+
   const contextHtml = '<div class="pd-context">' +
     field('Form',          r.fm) +
     field('Drift',         driftStr, driftCls) +
     field('Settles',       settleStr) +
     field('Speed rating',  r.spd != null ? r.spd.toFixed(0) : null) +
     field('TR price',      r.trp != null ? '$' + r.trp.toFixed(2) : null) +
+    field('Top Fluc',      tfDetailStr, tfCls) +
+    field('SP',            spDetailStr, spCls) +
     field('Distance',      p.distance ? p.distance + 'm' : null) +
     field('Going',         p.going) +
     field('Field size',    p.field_size || r.fs) +
@@ -5204,7 +5261,24 @@ function buildRaceRunnerDetailHTML(u, race) {
   const wtHtml = u.wt != null ?
     u.wt + 'kg' + (u.wtr != null ? ' · ' + (u.wtr > 0 ? '+' : '') + u.wtr.toFixed(1) + 'kg trend' : '') : null;
 
+  // Pre/post-race prices section. Fxd is live (always populated when book is
+  // open), TF and SP are filled when results sync. Showing them together lets
+  // the user see how the market moved on this runner.
+  const fxStr  = u.fx  != null ? '$' + u.fx.toFixed(2)  : '—';
+  const tfStr  = u.top != null ? '$' + u.top.toFixed(2) : '— post-race';
+  const spStrR = u.sp  != null ? '$' + u.sp.toFixed(2)  : '— post-race';
+  const trpStr = u.trp != null ? '$' + u.trp.toFixed(2) : null;
+
   return '<div class="rd-runner-detail">' +
+    '<div class="rd-section">' +
+      '<div class="rd-section-title">Prices</div>' +
+      '<div class="rd-section-body">' +
+        fld('Fixed', fxStr) +
+        fld('Top Fluc', tfStr) +
+        fld('SP', spStrR) +
+        fld('TR price', trpStr) +
+      '</div>' +
+    '</div>' +
     '<div class="rd-section">' +
       '<div class="rd-section-title">Connections</div>' +
       '<div class="rd-section-body">' +
@@ -6754,10 +6828,24 @@ function renderPnL() {
     // Fxd display (read-only, same as Today)
     const fxdValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
     const fxdValCls = csvPrice != null ? 'v' : 'v empty';
+    // Top Fluc - populated post-race, useful to compare vs odds-taken on
+    // settled bets. Shows whether the user took close to peak or got beaten
+    // by the market drift.
+    const tfPrice2 = s.top;
+    const tfStr2 = tfPrice2 != null ? '$' + tfPrice2.toFixed(2) : '—';
+    const tfTitle2 = tfPrice2 != null
+      ? 'Top Fluc $' + tfPrice2.toFixed(2) + ' - highest bookie price during pre-race market'
+      : 'Top Fluc - available after results sync';
     const oddsHtml =
       '<div class="pr-odds-display" title="Live fixed odds at last refresh">' +
-        (csvPrice != null ? '<span class="cur">$</span>' : '') +
-        '<span class="' + fxdValCls + '">' + fxdValStr + '</span>' +
+        '<div class="pr-odds-main">' +
+          (csvPrice != null ? '<span class="cur">$</span>' : '') +
+          '<span class="' + fxdValCls + '">' + fxdValStr + '</span>' +
+        '</div>' +
+        '<div class="pr-odds-tf" title="' + tfTitle2 + '">' +
+          '<span class="tf-lbl">TF</span>' +
+          '<span class="tf-val' + (tfPrice2 == null ? ' empty' : '') + '">' + tfStr2 + '</span>' +
+        '</div>' +
       '</div>';
 
     // Stake display (units + dollars)
@@ -7036,12 +7124,17 @@ function renderBhDetail(s) {
       '<span class="fv">' + escapeHtml(String(value)) + '</span></div>';
   }
 
+  const tfDetail = s.top != null ? '$' + s.top.toFixed(2) : '— post-race';
+  const spDetail = s.sp != null ? '$' + s.sp.toFixed(2) : '— post-race';
+
   const contextHtml = '<div class="pd-context">' +
     field('Form', r.fm) +
     field('Drift', driftStr) +
     field('Settles', settleStr) +
     field('Distance', s.distance ? s.distance + 'm' : null) +
     field('Going', s.going) +
+    field('Top Fluc', tfDetail) +
+    field('SP', spDetail) +
     field('Distance perf', distPerf) +
     field('Going perf', goingPerf) +
     field('Jockey', r.j || s.jockey) +

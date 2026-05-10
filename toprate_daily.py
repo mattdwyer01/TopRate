@@ -2197,6 +2197,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "horse":    r.get("horse"),
                 "tab":      r.get("tab_number"),
                 "fxprice":  r.get("fixed_win_price"),
+                # Post-race prices - null until results sync. Used to show
+                # SP and Top Fluc on settled picks (Today tab shows result + TF).
+                "starting_price_sp": r.get("starting_price_sp"),
+                "price_top":         r.get("price_top"),
                 "tr_rank":  r.get("tr_rank"),
                 "mid_rank": r.get("mid_rank"),
                 "late_rank": r.get("late_rank"),
