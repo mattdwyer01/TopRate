@@ -3744,9 +3744,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- Top control bar: period selector + view mode toggle -->
     <div class="pnl-controls">
       <div class="pnl-period-group" role="group" aria-label="Time period">
-        <button class="pnl-period-btn active" data-period="7d">7d</button>
+        <button class="pnl-period-btn" data-period="7d">7d</button>
         <button class="pnl-period-btn" data-period="30d">30d</button>
-        <button class="pnl-period-btn" data-period="all">All time</button>
+        <button class="pnl-period-btn active" data-period="all">All time</button>
         <button class="pnl-period-btn" data-period="custom">Custom</button>
       </div>
       <div class="pnl-period-custom" id="pnl-custom-range" style="display:none;">
@@ -6438,7 +6438,7 @@ if (ntjToggle) {
 
 // ── PNL tab state ──────────────────────────────────────────────────────────
 let pnlState = {
-  period: '7d',          // '7d' | '30d' | 'all' | 'custom'
+  period: 'all',         // '7d' | '30d' | 'all' | 'custom' - default to All time
   customFrom: null,      // ISO date string for custom range
   customTo: null,
   view: 'actual',        // 'actual' | 'theoretical'
