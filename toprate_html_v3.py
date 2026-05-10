@@ -931,7 +931,7 @@ body {
 }
 
 .pr-result {
-  display: flex; gap: 4px; justify-content: flex-end; align-items: center;
+  display: flex; gap: 4px; justify-content: flex-start; align-items: center;
 }
 .pr-result button {
   font-family: var(--font-body); font-size: 11px; font-weight: 600;
@@ -3630,7 +3630,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="th-right">Fxd</div>
       <div class="th-right">Stake</div>
       <div class="th-right">Return</div>
-      <div class="th-right">Result</div>
+      <div>Result</div>
       <div class="th-right">Odds taken</div>
       <div></div>
     </div>
@@ -3807,7 +3807,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="th-right">Fxd</div>
         <div class="th-right">Stake</div>
         <div class="th-right">Return</div>
-        <div class="th-right">Result</div>
+        <div>Result</div>
         <div class="th-right">Odds taken</div>
         <div></div>
       </div>
