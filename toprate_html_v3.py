@@ -2737,6 +2737,66 @@ body {
   font-size: 11px; color: #f59e0b;
 }
 
+/* Strategy filter chip - top-left corner of each race card. ✓ for races
+   that pass the user's quaddie bet criteria (prize >= $50k AND field >= 8),
+   ✗ for ones that fail. Failing cards also get a subtle visual dim so they
+   stand out as "would not normally bet" when scanning the meeting. */
+.quaddie-race-card .qr-strat {
+  position: absolute; top: 6px; left: 8px;
+  font-size: 11px; font-weight: 800; line-height: 1;
+  padding: 3px 6px; border-radius: 10px;
+  cursor: help;
+}
+.quaddie-race-card .qr-strat.pass {
+  background: var(--emerald-bg); color: var(--emerald-deep);
+}
+.quaddie-race-card .qr-strat.fail {
+  background: var(--rose-bg); color: var(--rose);
+}
+.quaddie-race-card.strat-fail {
+  opacity: 0.55;
+}
+.quaddie-race-card.strat-fail:hover,
+.quaddie-race-card.strat-fail.selected {
+  opacity: 1;  /* restore full opacity when interacting/selected */
+}
+/* Push qr-num down a touch so it doesn't collide with the strat chip on
+   narrow cards (mobile compact layout especially). */
+.quaddie-race-card .qr-num {
+  margin-top: 10px;
+}
+
+/* Strategy banner above the race grid - meeting-level summary or full
+   quaddie pass/fail when 4 legs are selected. */
+.quaddie-strategy-banner {
+  margin-bottom: 12px;
+}
+.quaddie-strategy-banner .stratb {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-radius: var(--radius-md);
+  font-family: var(--font-body); font-size: 13px;
+}
+.quaddie-strategy-banner .stratb .ico {
+  font-weight: 800; font-size: 16px; line-height: 1;
+}
+.quaddie-strategy-banner .stratb .lbl {
+  font-weight: 700; color: var(--ink);
+}
+.quaddie-strategy-banner .stratb .meta {
+  color: var(--ink-mute); font-size: 12px;
+}
+.quaddie-strategy-banner .stratb.info {
+  background: var(--panel); border: 1px solid var(--line);
+}
+.quaddie-strategy-banner .stratb.pass-quaddie {
+  background: var(--emerald-bg); border: 1px solid var(--emerald-line);
+}
+.quaddie-strategy-banner .stratb.pass-quaddie .ico { color: var(--emerald-deep); }
+.quaddie-strategy-banner .stratb.fail-quaddie {
+  background: var(--rose-bg); border: 1px solid var(--rose-line);
+}
+.quaddie-strategy-banner .stratb.fail-quaddie .ico { color: var(--rose); }
+
 /* Summary panel: combos, hit rate, $ at unit */
 .quaddie-summary {
   background: var(--panel); border: 1px solid var(--line);
@@ -3817,6 +3877,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Race chooser: shows all races at the meeting, click to add to legs -->
+    <!-- Strategy filter summary - shows whether the active meeting meets
+         the user's quaddie bet criteria (prize >= $50k AND field >= 8 per
+         leg). Populated by renderQuaddie when a meeting is selected. -->
+    <div class="quaddie-strategy-banner" id="quaddie-strategy-banner" style="display:none;"></div>
+
     <div class="quaddie-race-grid" id="quaddie-race-grid">
       <!-- populated by JS -->
     </div>
@@ -8768,6 +8833,8 @@ function renderQuaddie() {
     quaddieState.legRaceIds = [];
     grid.innerHTML = '';
     legsWrap.style.display = 'none';
+    const stratBannerHide = document.getElementById('quaddie-strategy-banner');
+    if (stratBannerHide) stratBannerHide.style.display = 'none';
     empty.style.display = 'block';
     empty.textContent = meetings.length === 0
       ? 'No races available for ' + quaddieState.date + '. Pick another date.'
@@ -8782,6 +8849,19 @@ function renderQuaddie() {
   const meetingRaceIds = new Set(activeMeeting.races.map(r => r.race_id));
   quaddieState.legRaceIds = quaddieState.legRaceIds.filter(rid => meetingRaceIds.has(rid));
 
+  // Strategy filter constants - user's manual play criteria. Quaddie strategy
+  // backtest showed clear edge ONLY on meetings where all 4 legs have prize
+  // money >= $50k AND field size >= 8. Below either threshold the strategy
+  // is unprofitable, so flag races that fail either filter to make manual
+  // selection effortless.
+  const QUADDIE_MIN_PRIZE = 50000;
+  const QUADDIE_MIN_FIELD = 8;
+  function raceStratPass(r) {
+    const prize = (r.prize || 0);
+    const fs = (r.fs || (r.runners || []).length || 0);
+    return prize >= QUADDIE_MIN_PRIZE && fs >= QUADDIE_MIN_FIELD;
+  }
+
   // Render race grid
   const thresh = getQuaddieThreshold();
   const legSet = new Set(quaddieState.legRaceIds);
@@ -8793,14 +8873,77 @@ function renderQuaddie() {
     const fsTag = r.hfs ? '<span class="qr-firststarter" title="First-starter race: at least one horse has no past WPR data. The model rule excludes these races since signals don\'t apply to debut runners. You can still use this leg manually but model picks won\'t fire.">⚠</span>' : '';
     const legTag = legPos ? '<span class="qr-leg-tag">Leg ' + legPos + '</span>' : '';
     const qualsCls = quals === 0 ? ' zero' : '';
-    return '<div class="quaddie-race-card' + (isSelected ? ' selected' : '') + '" data-rid="' + r.race_id + '">' +
+    // Strategy flag - small tick or cross indicating whether THIS race meets
+    // the user's bet criteria (prize >= $50k AND field >= 8 runners).
+    // Tooltip explains why a race fails. Cards are still clickable either
+    // way - this is a guide, not a hard restriction.
+    const stratPass = raceStratPass(r);
+    const stratPrize = (r.prize || 0);
+    const stratFs = (r.fs || (r.runners || []).length || 0);
+    const stratReasons = [];
+    if (stratPrize < QUADDIE_MIN_PRIZE) {
+      stratReasons.push('prize $' + (stratPrize / 1000).toFixed(0) + 'k < $50k');
+    }
+    if (stratFs < QUADDIE_MIN_FIELD) {
+      stratReasons.push('field ' + stratFs + ' < 8 runners');
+    }
+    const stratTip = stratPass
+      ? 'Meets strategy: prize $' + (stratPrize / 1000).toFixed(0) + 'k, ' + stratFs + ' runners'
+      : 'Below strategy: ' + stratReasons.join(', ');
+    const stratTag = '<span class="qr-strat ' + (stratPass ? 'pass' : 'fail') +
+      '" title="' + stratTip + '">' + (stratPass ? '✓' : '✗') + '</span>';
+    return '<div class="quaddie-race-card' + (isSelected ? ' selected' : '') +
+      (stratPass ? '' : ' strat-fail') + '" data-rid="' + r.race_id + '">' +
       legTag +
+      stratTag +
       '<div class="qr-num">R' + r.race + '</div>' +
       '<div class="qr-time">' + time + '</div>' +
       '<div class="qr-quals' + qualsCls + '">' + quals + ' above ' + thresh.toFixed(2) + '</div>' +
       fsTag +
       '</div>';
   }).join('');
+
+  // Strategy banner above grid - tells user at a glance how many races at
+  // this meeting meet their bet criteria. If selected legs are already
+  // picked, also reports whether the chosen quaddie passes (all 4 legs
+  // meeting strategy). Hidden when no meeting active.
+  const stratBanner = document.getElementById('quaddie-strategy-banner');
+  if (stratBanner) {
+    const allRaces = activeMeeting.races;
+    const passingRaces = allRaces.filter(raceStratPass);
+    const selectedLegRaces = quaddieState.legRaceIds
+      .map(rid => allRaces.find(r => r.race_id === rid))
+      .filter(Boolean);
+    const selectedPassing = selectedLegRaces.filter(raceStratPass).length;
+    const allSelectedPass = selectedLegRaces.length === 4 && selectedPassing === 4;
+    let html = '';
+    if (selectedLegRaces.length === 4) {
+      // Quaddie is fully built - emphasise pass/fail status for the whole quaddie
+      if (allSelectedPass) {
+        html = '<div class="stratb pass-quaddie">' +
+          '<span class="ico">✓</span>' +
+          '<span class="lbl">All 4 selected legs meet strategy</span>' +
+          '<span class="meta">prize $50k+ and 8+ runners per leg</span>' +
+          '</div>';
+      } else {
+        const failing = selectedLegRaces.length - selectedPassing;
+        html = '<div class="stratb fail-quaddie">' +
+          '<span class="ico">✗</span>' +
+          '<span class="lbl">' + failing + ' of 4 selected legs fail strategy</span>' +
+          '<span class="meta">strategy needs prize $50k+ and 8+ runners per leg</span>' +
+          '</div>';
+      }
+    } else {
+      // No full quaddie yet - just show meeting-level summary
+      html = '<div class="stratb info">' +
+        '<span class="lbl">Strategy:</span>' +
+        '<span class="meta">' + passingRaces.length + ' of ' + allRaces.length +
+        ' races meet bet criteria (prize $50k+, field 8+)</span>' +
+        '</div>';
+    }
+    stratBanner.innerHTML = html;
+    stratBanner.style.display = 'block';
+  }
 
   // Wire race-card click handlers
   grid.querySelectorAll('.quaddie-race-card').forEach(card => {
