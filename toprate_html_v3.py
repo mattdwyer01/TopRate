@@ -816,13 +816,29 @@ body {
 .pr-sigs-top .score-votes-stack {
   display: inline-flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 3px 5px;
   align-items: stretch;
   flex: 0 0 auto;
+  /* Match the natural width of a voting chip in the 3-col grid above so the
+     Score and Votes pills line up visually with the WPR/Late/Class/etc chips
+     to their left. The widest voting chip content (e.g. "CLASS 1") renders
+     at roughly this width with the standard 3px/5px padding. */
+  width: 52px;
 }
-/* Stretch chips inside the stack so they have matching width */
+/* Stretch chips inside the stack so they have matching width, and centre
+   their content. The vote badge gets a horizontal padding clip so the
+   ★ star suffix doesn't push past the 52px stack width. */
 .pr-sigs-top .score-votes-stack .sig {
   justify-content: center;
+  padding-left: 3px; padding-right: 3px;
+  gap: 3px;
+  overflow: hidden;
+}
+.pr-sigs-top .score-votes-stack .vote-badge .lbl {
+  /* Hide the "VOTES" label on the stacked badge - the position next to
+     Score makes its purpose obvious and the saved width keeps "6/6 ★3"
+     readable inside the constrained stack. */
+  display: none;
 }
 .pr-form {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
@@ -1354,6 +1370,19 @@ body {
   }
   .pr-sigs-top .desktop-chips .sig .lbl { font-size: 9px; }
   .pr-sigs-top .desktop-chips .sig .v { font-size: 11px; font-weight: 700; }
+  /* Undo the desktop-only width clamp on the score-votes-stack: the
+     enlarged mobile vote-badge needs to expand to its full content width,
+     and the VOTES label must be visible since the badge is the sole
+     indicator on mobile (when desktop-chips wrap). */
+  .pr-sigs-top .score-votes-stack {
+    width: auto;
+  }
+  .pr-sigs-top .score-votes-stack .sig {
+    padding-left: 5px; padding-right: 5px; overflow: visible;
+  }
+  .pr-sigs-top .score-votes-stack .vote-badge .lbl {
+    display: inline;
+  }
 
   /* Bottom strip: Fxd | result | bet (or return for settled), single row */
   .pr-odds {
