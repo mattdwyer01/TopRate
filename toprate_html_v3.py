@@ -1578,6 +1578,32 @@ body {
   background: var(--emerald);
 }
 .mt-race-cell.mt-imminent.has-pick::before { background: #fff; }
+
+/* Field-size strategy indicator. Bottom-right corner, mirrors the top-right
+   has-pick dot. Shown when fs >= 8 - the user's metro Saturday filter
+   threshold (same gate the Quaddie tab uses). Lets you scan a day's card
+   and immediately see which races clear the field-size bar without
+   expanding each cell. Imminent cells (green bg) and pending-late (red bg)
+   override the colour so the chip stays readable on those backgrounds. */
+.mt-race-cell.mt-fsok::after {
+  content: 'F+'; position: absolute; bottom: 3px; right: 4px;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+  letter-spacing: 0.02em; line-height: 1;
+  padding: 1px 3px; border-radius: 2px;
+  background: var(--emerald-bg); color: var(--emerald-deep);
+}
+.mt-race-cell.mt-fsok.mt-imminent::after {
+  background: rgba(255,255,255,0.22); color: #fff;
+}
+.mt-race-cell.mt-fsok.mt-soon::after {
+  background: rgba(146,64,14,0.12); color: #92400e;
+}
+.mt-race-cell.mt-fsok.mt-pending-late::after {
+  background: rgba(255,255,255,0.4); color: #991b1b;
+}
+.mt-race-cell.mt-fsok.mt-resulted::after,
+.mt-race-cell.mt-fsok.mt-empty::after { display: none; }
+
 .mt-cd, .mt-cd-soon {
   font-family: var(--font-mono); font-size: 9px; font-weight: 700;
   margin-top: 2px;
@@ -1857,33 +1883,6 @@ body {
   border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
   padding: 14px 20px;
 }
-.pace-map-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-.pace-zone {
-  background: var(--line-soft); border-radius: var(--radius-sm);
-  padding: 10px 12px;
-}
-.pace-zone .zone-lbl {
-  font-family: var(--font-body); font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-mute); margin-bottom: 6px;
-  display: flex; justify-content: space-between;
-}
-.pace-zone .zone-tabs {
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
-.pace-zone .zone-tab {
-  display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
-  text-align: center; background: var(--panel); color: var(--ink);
-  font-family: var(--font-body); font-size: 11px; font-weight: 700;
-  border: 1px solid var(--line); border-radius: 4px; padding: 0 6px;
-}
-.pace-zone.zone-leaders  { background: #fef3c7; }
-.pace-zone.zone-onpace   { background: var(--emerald-bg); }
-.pace-zone.zone-midfield { background: #eff6ff; }
-.pace-zone.zone-back     { background: #fdf2f8; }
 
 /* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
 .race-shape-wrap {
@@ -5644,9 +5643,16 @@ function renderMeetingsGrid() {
       const isImminent = mins !== null && mins >= -2 && mins <= 15;
       const isSoon = mins !== null && mins > 15 && mins <= 45;
       const hasPick = !!((MODEL_PICKS[race.race_id] || {})[PRIMARY_KEY] || []).length;
+      // Field-size strategy gate. Same source-of-truth pattern as the Quaddie
+      // tab (race.fs falling back to runners.length). Threshold 8 is the
+      // user's metro-Saturday filter - fields of 7 or fewer push picks into
+      // longshot territory because SP>=3 filter excludes short favourites.
+      const cellFs = race.fs || (race.runners || []).length || 0;
+      const fsOk = cellFs >= 8;
 
       let cellCls = 'mt-race-cell';
       if (hasPick) cellCls += ' has-pick';
+      if (fsOk) cellCls += ' mt-fsok';
       let badge = '';
       let lbl = tm || ('R' + i);
       if (isResulted) { cellCls += ' mt-resulted'; lbl = 'Result'; }
@@ -5657,7 +5663,16 @@ function renderMeetingsGrid() {
       else if (isSoon) { cellCls += ' mt-soon'; badge = '<span class="mt-cd-soon">' + mins + 'm</span>'; }
       else if (isPast && !isResulted) cellCls += ' mt-pending-late';
 
-      html += '<div class="' + cellCls + '" data-rid="' + race.race_id + '">' +
+      // Tooltip explains the corner indicators. Only built when there's
+      // something to explain - no point on empty/plain cells.
+      let titleAttr = '';
+      const tipParts = [];
+      if (hasPick) tipParts.push('Model pick available');
+      if (fsOk && !isResulted) tipParts.push('Field size ' + cellFs + ' (meets bet criteria)');
+      else if (cellFs > 0 && !isResulted) tipParts.push('Field size ' + cellFs + ' (below 8-runner threshold)');
+      if (tipParts.length) titleAttr = ' title="' + tipParts.join(' · ') + '"';
+
+      html += '<div class="' + cellCls + '" data-rid="' + race.race_id + '"' + titleAttr + '>' +
         '<div class="mt-time">' + lbl + '</div>' + badge + '</div>';
     }
     html += '</div>';
@@ -6806,20 +6821,6 @@ function wireContextOverride(race) {
 
 function wireTrackConditionsCard(race) {
   // No-op - override moved to the context bar (wireContextOverride handles it)
-}
-
-function paceZoneHtml(cls, lbl, hint, runners) {
-  if (runners.length === 0) {
-    return '<div class="pace-zone ' + cls + '">' +
-      '<div class="zone-lbl"><span>' + lbl + ' ' + hint + '</span><span>0</span></div>' +
-      '<div class="zone-tabs"><span style="color:var(--ink-faint);font-size:11px;">—</span></div>' +
-      '</div>';
-  }
-  return '<div class="pace-zone ' + cls + '">' +
-    '<div class="zone-lbl"><span>' + lbl + ' ' + hint + '</span><span>' + runners.length + '</span></div>' +
-    '<div class="zone-tabs">' +
-    runners.map(r => '<span class="zone-tab">' + (r.tab || '?') + '</span>').join('') +
-    '</div></div>';
 }
 
 // Wire date controls
