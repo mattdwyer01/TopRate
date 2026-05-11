@@ -3060,6 +3060,51 @@ body {
   .corr-head, .corr-row-head { font-size: 9px; }
 }
 
+/* Mini-tables shared by threshold curve, day-of-week, venue, distance,
+   going, and field-size breakdowns. Simpler than the full tracking tables -
+   no sticky headers, no horizontal scroll, just clean rows of stats. */
+.tracking-mini-table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--font-body); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.tracking-mini-table thead th {
+  background: var(--line-soft);
+  text-align: left; padding: 8px 10px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--line);
+}
+.tracking-mini-table thead th + th { text-align: right; }
+.tracking-mini-table tbody td {
+  padding: 7px 10px; border-bottom: 1px solid var(--line-soft);
+}
+.tracking-mini-table tbody td.lbl { font-weight: 600; color: var(--ink); }
+.tracking-mini-table tbody td.num { text-align: right; }
+.tracking-mini-table tbody td.num.pos { color: var(--emerald-deep); font-weight: 700; }
+.tracking-mini-table tbody td.num.neg { color: var(--rose); font-weight: 700; }
+.tracking-mini-table tbody td.empty {
+  color: var(--ink-faint); font-style: italic; text-align: center;
+}
+.tracking-mini-table tbody tr:last-child td { border-bottom: none; }
+.tracking-mini-table .small-sample {
+  color: var(--amber); font-weight: 700; cursor: help;
+}
+.tracking-note {
+  margin-top: 10px;
+  font-family: var(--font-body); font-size: 11px;
+  color: var(--ink-mute); line-height: 1.5;
+  padding: 8px 12px; background: var(--line-soft);
+  border-left: 3px solid var(--ink-faint); border-radius: 3px;
+}
+@media (max-width: 720px) {
+  .tracking-mini-table { font-size: 11px; }
+  .tracking-mini-table thead th, .tracking-mini-table tbody td {
+    padding: 6px 6px;
+  }
+}
+
 /* Winners and placegetters tables - similar shape, scrollable */
 .tracking-table-wrap { overflow-x: auto; }
 .tracking-table {
@@ -3869,7 +3914,72 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="signal-correlation"></div>
     </div>
 
-    <!-- 4. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
+    <!-- 4. Score threshold performance curve - what threshold should you bet at?
+         Shows pick count, WR%, ROI% at each threshold step so the sweet spot is
+         visible. The single most actionable analytic on this tab. -->
+    <div class="insight-card insight-wide">
+      <h3>Score threshold performance</h3>
+      <div class="desc">
+        Performance at each Score threshold step. Higher threshold = fewer picks
+        but stronger conviction. Use this to set your stake threshold in Settings
+        based on actual live data, not assumption.
+      </div>
+      <div id="threshold-curve"></div>
+    </div>
+
+    <!-- 5. Day-of-week breakdown - some days have more meetings/quality (esp Sat).
+         Useful to confirm the model is performing across the week, not just one day. -->
+    <div class="insight-card insight-wide">
+      <h3>Day of week</h3>
+      <div class="desc">
+        Pick count, win rate, and ROI by weekday. Saturday is typically the heaviest
+        day; check if performance is concentrated there or spread evenly.
+      </div>
+      <div id="dow-breakdown"></div>
+    </div>
+
+    <!-- 6. Venue performance - top 10 venues by pick volume. Some tracks
+         suit the model better than others. -->
+    <div class="insight-card insight-wide">
+      <h3>Venue performance</h3>
+      <div class="desc">
+        Top venues by pick count in the period. Sortable. Small samples are noisy -
+        venues with under 5 picks are de-emphasised but still shown.
+      </div>
+      <div id="venue-performance"></div>
+    </div>
+
+    <!-- 7. Distance bracket - WR/ROI by race distance band -->
+    <div class="insight-card insight-wide">
+      <h3>Distance bracket</h3>
+      <div class="desc">
+        Performance by race distance. Tells you whether the model handles sprints,
+        miles, and staying races equally well.
+      </div>
+      <div id="distance-breakdown"></div>
+    </div>
+
+    <!-- 8. Going breakdown - track condition impact -->
+    <div class="insight-card insight-wide">
+      <h3>Track condition</h3>
+      <div class="desc">
+        Performance grouped by going (Firm/Good/Soft/Heavy). Wet-track racing
+        is structurally different and signals may behave differently.
+      </div>
+      <div id="going-breakdown"></div>
+    </div>
+
+    <!-- 9. Field size - small fields are easier to predict; large fields are noisier -->
+    <div class="insight-card insight-wide">
+      <h3>Field size</h3>
+      <div class="desc">
+        Performance by number of runners. Smaller fields concentrate the contest;
+        bigger fields dilute the signal edge.
+      </div>
+      <div id="fieldsize-breakdown"></div>
+    </div>
+
+    <!-- 10. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
     <div class="insight-card insight-wide">
       <h3>Placegetters detail</h3>
       <div class="desc">
@@ -7514,6 +7624,12 @@ function renderInsights() {
   renderSignalHeatmap(races);
   renderTrackingWinners(races);
   renderSignalCorrelation(races);
+  renderThresholdCurve(races);
+  renderDowBreakdown(races);
+  renderVenuePerformance(races);
+  renderDistanceBreakdown(races);
+  renderGoingBreakdown(races);
+  renderFieldSizeBreakdown(races);
   renderTrackingPlacegetters(races);
 }
 
@@ -7956,6 +8072,279 @@ function topRankedHorse(runners, sigDef) {
     }
   });
   return best;
+}
+
+// ── Period-bound settled bets helper ─────────────────────────────────────
+// Tracking analytics operate on settled BETS, not raw races. Pulls from
+// SETTLED filtered by the active trackingPeriod window. Each entry has the
+// fields populated by toprate_html_v3.py:settled_history (line ~358):
+//   date, venue, cs (cumulative score), won, sp, top, fxprice, distance,
+//   going, field_size.
+function trackingSettledBets() {
+  const days = parseInt(trackingPeriod, 10);
+  const cutoff = new Date(Date.now() - days * 86400000);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return (typeof SETTLED !== 'undefined' ? SETTLED : [])
+    .filter(s => (s.date || '') >= cutoffStr);
+}
+
+// Aggregate helper: compute pick count, win count, win-rate, and SP-based
+// ROI from a list of settled bets. Returns null if no bets contributed.
+// ROI is calculated at SP (1u stake): wins return SP-1 units, losses -1.
+function aggregateBets(bets) {
+  if (bets.length === 0) return null;
+  let wins = 0, sumProfit = 0, sumStake = 0, oddsList = [];
+  bets.forEach(b => {
+    if (!(b.sp != null && b.sp > 1)) return;
+    sumStake += 1;
+    oddsList.push(b.sp);
+    if (b.won) {
+      wins++;
+      sumProfit += (b.sp - 1);
+    } else {
+      sumProfit -= 1;
+    }
+  });
+  if (sumStake === 0) return null;
+  return {
+    n: bets.length,
+    wins: wins,
+    wr: bets.length > 0 ? wins / bets.length : 0,
+    roi: sumStake > 0 ? sumProfit / sumStake : 0,
+    avgSp: oddsList.length > 0 ? oddsList.reduce((a, b) => a + b, 0) / oddsList.length : null,
+  };
+}
+
+// Render helper - 4 column stat row: label / N / WR / ROI / Avg SP
+function statRow(label, agg, extras) {
+  if (agg == null) {
+    return '<tr><td class="lbl">' + label + '</td>' +
+      '<td colspan="4" class="empty">No bets</td></tr>';
+  }
+  const wrStr = (agg.wr * 100).toFixed(1) + '%';
+  const roiStr = (agg.roi >= 0 ? '+' : '') + (agg.roi * 100).toFixed(1) + '%';
+  const roiCls = agg.roi > 0.05 ? 'pos' : agg.roi < -0.05 ? 'neg' : '';
+  const avgSpStr = agg.avgSp != null ? '$' + agg.avgSp.toFixed(2) : '—';
+  const sample = agg.n < 10 ? ' <span class="small-sample" title="Small sample - results may be noisy">·</span>' : '';
+  return '<tr><td class="lbl">' + label + sample + '</td>' +
+    '<td class="num">' + agg.n + '</td>' +
+    '<td class="num">' + wrStr + '</td>' +
+    '<td class="num ' + roiCls + '">' + roiStr + '</td>' +
+    '<td class="num">' + avgSpStr + '</td>' +
+    (extras || '') +
+    '</tr>';
+}
+
+// ── Score threshold performance curve ────────────────────────────────────
+// At each threshold step, how would you have performed if you only bet picks
+// with Score >= threshold? Helps the user pick a stake threshold from real
+// data rather than guessing.
+function renderThresholdCurve(races) {
+  const el = document.getElementById('threshold-curve');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  // Threshold steps from 0.30 to 0.90 in 0.10 increments
+  const steps = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Threshold</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  steps.forEach(t => {
+    // Filter bets where cs (cumulative score) >= threshold
+    const subset = bets.filter(b => b.cs != null && b.cs >= t);
+    const agg = aggregateBets(subset);
+    html += statRow('>= ' + t.toFixed(2), agg);
+  });
+  html += '</tbody></table>';
+  // Helpful note below the table
+  html += '<div class="tracking-note">Use this to pick a Score threshold in Settings. ' +
+    'Higher threshold = fewer picks but typically stronger ROI. ROI is at SP, 1u flat stake. ' +
+    'Dot (·) flags small samples (under 10 picks).</div>';
+  el.innerHTML = html;
+}
+
+// ── Day of week breakdown ────────────────────────────────────────────────
+function renderDowBreakdown(races) {
+  const el = document.getElementById('dow-breakdown');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // Group by weekday
+  const byDay = {};
+  days.forEach(d => byDay[d] = []);
+  bets.forEach(b => {
+    if (!b.date) return;
+    const d = new Date(b.date + 'T00:00:00');
+    if (isNaN(d.getTime())) return;
+    byDay[days[d.getDay()]].push(b);
+  });
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Day</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  days.forEach(d => {
+    const agg = aggregateBets(byDay[d]);
+    html += statRow(d, agg);
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── Venue performance ────────────────────────────────────────────────────
+function renderVenuePerformance(races) {
+  const el = document.getElementById('venue-performance');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  // Group by venue
+  const byVenue = {};
+  bets.forEach(b => {
+    const v = b.venue || 'Unknown';
+    if (!byVenue[v]) byVenue[v] = [];
+    byVenue[v].push(b);
+  });
+  // Sort by pick count desc, then take top 15
+  const venues = Object.entries(byVenue)
+    .map(([v, bs]) => ({ venue: v, bets: bs, agg: aggregateBets(bs) }))
+    .filter(o => o.agg != null)
+    .sort((a, b) => b.bets.length - a.bets.length)
+    .slice(0, 15);
+  if (venues.length === 0) {
+    el.innerHTML = '<div class="empty-text">No venue data.</div>';
+    return;
+  }
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Venue</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  venues.forEach(v => {
+    const rowOpacity = v.bets.length < 5 ? ' style="opacity:0.55"' : '';
+    html += '<tr' + rowOpacity + '>' +
+      '<td class="lbl">' + escapeHtml(v.venue) + '</td>' +
+      '<td class="num">' + v.agg.n + '</td>' +
+      '<td class="num">' + (v.agg.wr * 100).toFixed(1) + '%</td>' +
+      '<td class="num ' + (v.agg.roi > 0.05 ? 'pos' : v.agg.roi < -0.05 ? 'neg' : '') + '">' +
+        (v.agg.roi >= 0 ? '+' : '') + (v.agg.roi * 100).toFixed(1) + '%</td>' +
+      '<td class="num">' + (v.agg.avgSp != null ? '$' + v.agg.avgSp.toFixed(2) : '—') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  if (Object.keys(byVenue).length > 15) {
+    html += '<div class="tracking-note">Showing top 15 by pick count. ' +
+      'Total venues: ' + Object.keys(byVenue).length + '. Faded rows have under 5 picks (small sample).</div>';
+  } else {
+    html += '<div class="tracking-note">Faded rows have under 5 picks - small sample, results are noisy.</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Distance bracket breakdown ───────────────────────────────────────────
+function renderDistanceBreakdown(races) {
+  const el = document.getElementById('distance-breakdown');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  // Buckets: sprint, mile, middle, staying
+  const buckets = [
+    { lbl: 'Sprint (≤1100m)',    test: d => d != null && d <= 1100,                bets: [] },
+    { lbl: 'Short (1200-1400m)', test: d => d != null && d >= 1200 && d <= 1400,   bets: [] },
+    { lbl: 'Middle (1500-1800m)', test: d => d != null && d >= 1500 && d <= 1800,  bets: [] },
+    { lbl: 'Long (1900-2200m)',  test: d => d != null && d >= 1900 && d <= 2200,   bets: [] },
+    { lbl: 'Staying (≥2300m)',   test: d => d != null && d >= 2300,                bets: [] },
+  ];
+  bets.forEach(b => {
+    for (const bk of buckets) {
+      if (bk.test(b.distance)) { bk.bets.push(b); break; }
+    }
+  });
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Distance</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  buckets.forEach(bk => {
+    html += statRow(bk.lbl, aggregateBets(bk.bets));
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── Going (track condition) breakdown ────────────────────────────────────
+function renderGoingBreakdown(races) {
+  const el = document.getElementById('going-breakdown');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  // Group by going category. AU going strings are like "Good 4", "Soft 5",
+  // "Heavy 8", "Firm 1". Strip the numeric suffix to group by category.
+  function goingCat(g) {
+    if (!g) return 'Unknown';
+    const s = String(g).trim().toLowerCase();
+    if (s.startsWith('firm')) return 'Firm';
+    if (s.startsWith('good')) return 'Good';
+    if (s.startsWith('soft')) return 'Soft';
+    if (s.startsWith('heavy')) return 'Heavy';
+    if (s.startsWith('synth') || s === 'awt') return 'Synthetic';
+    return 'Other';
+  }
+  const categories = ['Firm', 'Good', 'Soft', 'Heavy', 'Synthetic', 'Other'];
+  const byGoing = {};
+  categories.forEach(c => byGoing[c] = []);
+  bets.forEach(b => {
+    const cat = goingCat(b.going);
+    if (byGoing[cat]) byGoing[cat].push(b);
+  });
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Going</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  categories.forEach(c => {
+    if (byGoing[c].length === 0 && c !== 'Good') return;  // skip empty categories (except Good which is the default)
+    html += statRow(c, aggregateBets(byGoing[c]));
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── Field size breakdown ─────────────────────────────────────────────────
+function renderFieldSizeBreakdown(races) {
+  const el = document.getElementById('fieldsize-breakdown');
+  if (!el) return;
+  const bets = trackingSettledBets();
+  if (bets.length === 0) {
+    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    return;
+  }
+  const buckets = [
+    { lbl: 'Small (≤7 runners)',  test: n => n != null && n <= 7,                bets: [] },
+    { lbl: 'Medium (8-11)',       test: n => n != null && n >= 8 && n <= 11,     bets: [] },
+    { lbl: 'Large (12-15)',       test: n => n != null && n >= 12 && n <= 15,    bets: [] },
+    { lbl: 'Huge (≥16)',          test: n => n != null && n >= 16,               bets: [] },
+  ];
+  bets.forEach(b => {
+    for (const bk of buckets) {
+      if (bk.test(b.field_size)) { bk.bets.push(b); break; }
+    }
+  });
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Field</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '</tr></thead><tbody>';
+  buckets.forEach(bk => {
+    html += statRow(bk.lbl, aggregateBets(bk.bets));
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
 }
 
 // ── Section 4: Placegetters detail ───────────────────────────────────────
