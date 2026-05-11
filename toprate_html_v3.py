@@ -640,7 +640,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    340px             /* signals strip - 4-col grid for Score + 6 voting + Votes badge */
+    330px             /* signals strip - 3-col voting chips + Score/Votes stack */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -657,7 +657,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1198px;
+  min-width: 1188px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -773,16 +773,27 @@ body {
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
 }
-/* Desktop signal chip layout: 4-column grid for 7 chips (Score + 6 voting
-   signals). Lays out as Score|WPR|Late|Class on row 1, L600|PFAI|TR|—
-   on row 2. The 8th cell stays empty rather than letting the chips wrap
-   irregularly, giving predictable two-row alignment. Votes badge sits to
-   the right of the grid via the parent flex container. */
+/* Desktop signal chip layout: 3-column grid for the 6 voting signals.
+   Two compact rows (WPR/Late/Class top, L600/PFAI/TR bottom). To the
+   right of this grid sits the score-votes-stack: Score chip above Votes
+   badge in their own mini-column. This separates "why this was picked"
+   (6 voting chips) from "how strong is the pick" (Score + Votes summary). */
 .pr-sigs-top .desktop-chips {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px 5px;
   flex: 0 0 auto;
+}
+.pr-sigs-top .score-votes-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: stretch;
+  flex: 0 0 auto;
+}
+/* Stretch chips inside the stack so they have matching width */
+.pr-sigs-top .score-votes-stack .sig {
+  justify-content: center;
 }
 .pr-form {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
@@ -891,11 +902,11 @@ body {
 .picks-header {
   display: grid;
   /* Column widths MUST match .pick-row exactly so the header labels line
-     up with the data cells below them. Signals column is 340px to fit the
-     4-column chip grid (Score|WPR|Late|Class on top, L600|PFAI|TR|— on
-     bottom) plus the Votes badge to the right. */
+     up with the data cells below them. Signals column is 330px: 3-col grid
+     for the 6 voting signals (WPR/Late/Class on row 1, L600/PFAI/TR on row 2)
+     plus the Score+Votes stack to the right. */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 340px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 330px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -904,7 +915,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1198px;
+  min-width: 1188px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -4879,24 +4890,25 @@ function renderToday() {
       (voteTop1 >= 3 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - Score pill (the logreg probability rank) plus
-    // the 6 voting signals. Score is the headline metric the user asked to
-    // see back in the row, so it leads. With 7 chips in a 3-column grid
-    // the layout is Score|WPR|Late then L600|PFAI|TR (Class moves to row 2
-    // visually, alongside L600/PFAI/TR). Hidden on mobile via CSS where
-    // only the votes badge stays visible.
+    // Desktop signal chips - the 6 voting signals in a 3-col grid. Score is
+    // separate (stacked above the Votes badge in its own mini-column) since
+    // it's NOT part of the voting rule - it's the headline metric. Visual
+    // hierarchy: voting chips on the left = "why this was picked",
+    // Score+Votes on the right = "how strong is the pick". Hidden on mobile
+    // via CSS where only the votes badge stays visible.
     const desktopChipsHtml =
-      scoreSigPill(p.crk, p.csc) +
       sigPill('WPR', p.wpr_rank) +
       sigPill('Late', p.late_rank) +
       sigPill('Class', p.wcR) +
       sigPill('L600', p.l600R) +
       sigPill('PFAI', p.pfaiR) +
       sigPill('TR', p.tr_rank);
+    // Score chip stacks above Votes badge in a dedicated mini-column
+    const scoreChipHtml = scoreSigPill(p.crk, p.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      voteBadgeHtml;
+      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + '</span>';
     // Form string row underneath: "3-1-7-2" - shown on desktop only; on
     // mobile it moves into the expand panel to keep rows tight.
     const formHtml = r.fm ?
@@ -5311,6 +5323,41 @@ function buildDetailHTML(p, r) {
   const tfCls = p.top != null ? '' : 'muted';
   const spCls = p.sp != null ? '' : 'muted';
 
+  // Jockey + Trainer rating context: show this runner's TR-internal rating,
+  // its rank within the race field, and how far it sits behind the #1 in
+  // each metric. Replaces the prior Jky 90d / Trn 365d (which were strike
+  // rate % - useful but tangential to the model's rating signal). The
+  // rating itself is a TopRate internal number; rank + delta puts it in
+  // race context so the user can see e.g. "rating 84 (rank 3, -8 from #1)".
+  function ratingContext(label, getter) {
+    const myVal = getter(r);
+    if (myVal == null) return null;
+    // Look up the parent race + its runners to compute rank/delta
+    const race = (typeof RACES !== 'undefined' && RACES)
+      ? RACES.find(rc => String(rc.race_id) === String(p.race_id))
+      : null;
+    const runners = (race && race.runners) ? race.runners : [];
+    const valid = runners.filter(u => getter(u) != null);
+    if (valid.length === 0) {
+      return Math.round(myVal).toString();  // just the rating if we can't rank
+    }
+    valid.sort((a, b) => getter(b) - getter(a));
+    const myIdx = valid.findIndex(u => String(u.rid) === String(p.run_id));
+    const rank = myIdx >= 0 ? (myIdx + 1) : null;
+    const top = getter(valid[0]);
+    const delta = myVal - top;
+    let parts = [Math.round(myVal).toString()];
+    if (rank != null) parts.push('#' + rank);
+    if (rank != null && rank > 1) {
+      // delta is negative or 0; show as -X from #1
+      const d = Math.round(delta);
+      if (d < 0) parts.push(d.toString() + ' from #1');
+    }
+    return parts.join(' · ');
+  }
+  const jockeyRatingStr = ratingContext('Jockey rating', u => u.jrt);
+  const trainerRatingStr = ratingContext('Trainer rating', u => u.trt);
+
   const contextHtml = '<div class="pd-context">' +
     field('Form',          r.fm) +
     field('Drift',         driftStr, driftCls) +
@@ -5327,9 +5374,9 @@ function buildDetailHTML(p, r) {
     field('Wt today',      r.wt != null ? r.wt + 'kg' : null) +
     field('Wt trend',      r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : null) +
     field('Jockey',        r.j) +
-    field('Jky 90d',       r.jw != null ? r.jw.toFixed(1) + '% wins' : null) +
+    field('Jockey rating', jockeyRatingStr) +
     field('Trainer',       r.tn) +
-    field('Trn 365d',      r.tw != null ? r.tw.toFixed(1) + '% wins' : null) +
+    field('Trainer rating', trainerRatingStr) +
     field('Barrier',       r.b) +
     field('Recent WPR',    wprStr) +
   '</div>';
@@ -7241,24 +7288,24 @@ function renderPnL() {
       (pVoteTop1 >= 3 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - Score pill plus the 6 voting signals. Matches
-    // the Today tab layout exactly so the user can compare picks/results
-    // side-by-side. Fields are on the settled bet (`s`), not on the
-    // runner_full record (`r`) which contains race-level context but not
-    // the pre-computed ranks. Score uses crk (cumulative rank) + csc
-    // (confidence) which we surfaced on the settled bet payload.
+    // Desktop signal chips - the 6 voting signals. Matches the Today tab
+    // layout. Fields are on the settled bet (`s`), not on the runner_full
+    // record (`r`) which contains race-level context but not pre-computed ranks.
     const desktopChipsHtml =
-      scoreSigPill(s.crk, s.csc) +
       sigPill('WPR',   s.wpr_rank) +
       sigPill('Late',  s.late_rank) +
       sigPill('Class', s.wcR) +
       sigPill('L600',  s.l600R) +
       sigPill('PFAI',  s.pfaiR) +
       sigPill('TR',    s.tr_rank);
+    // Score chip stacks above Votes badge in its own mini-column - same
+    // layout as Today tab. Score uses crk (cumulative rank) + csc (confidence)
+    // surfaced on the settled bet payload.
+    const scoreChipHtml = scoreSigPill(s.crk, s.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      pVoteBadgeHtml;
+      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + '</span>';
     const formHtml = r.fm ?
       '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
@@ -7579,6 +7626,34 @@ function renderBhDetail(s) {
   const tfDetail = s.top != null ? '$' + s.top.toFixed(2) : '— post-race';
   const spDetail = s.sp != null ? '$' + s.sp.toFixed(2) : '— post-race';
 
+  // Jockey + Trainer rating context: rating + rank in race + delta to #1.
+  // Same logic as Today tab. The settled bet doesn't carry full race
+  // context, so we look up the race via s.race_id and read runners.
+  function ratingContext(getter) {
+    const myVal = getter(r);
+    if (myVal == null) return null;
+    const race = (typeof RACES !== 'undefined' && RACES)
+      ? RACES.find(rc => String(rc.race_id) === String(s.race_id))
+      : null;
+    const runners = (race && race.runners) ? race.runners : [];
+    const valid = runners.filter(u => getter(u) != null);
+    if (valid.length === 0) return Math.round(myVal).toString();
+    valid.sort((a, b) => getter(b) - getter(a));
+    const myIdx = valid.findIndex(u => String(u.rid) === String(s.run_id));
+    const rank = myIdx >= 0 ? (myIdx + 1) : null;
+    const top = getter(valid[0]);
+    const delta = myVal - top;
+    let parts = [Math.round(myVal).toString()];
+    if (rank != null) parts.push('#' + rank);
+    if (rank != null && rank > 1) {
+      const d = Math.round(delta);
+      if (d < 0) parts.push(d.toString() + ' from #1');
+    }
+    return parts.join(' · ');
+  }
+  const jockeyRatingStr = ratingContext(u => u.jrt);
+  const trainerRatingStr = ratingContext(u => u.trt);
+
   const contextHtml = '<div class="pd-context">' +
     field('Form', r.fm) +
     field('Drift', driftStr) +
@@ -7590,7 +7665,9 @@ function renderBhDetail(s) {
     field('Distance perf', distPerf) +
     field('Going perf', goingPerf) +
     field('Jockey', r.j || s.jockey) +
+    field('Jockey rating', jockeyRatingStr) +
     field('Trainer', r.tn || s.trainer) +
+    field('Trainer rating', trainerRatingStr) +
     field('Barrier', r.b) +
     field('Speed rating', r.spd != null ? r.spd.toFixed(0) : null) +
     field('TR rating', r.trr != null ? r.trr.toFixed(1) : null) +
