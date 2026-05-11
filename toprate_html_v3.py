@@ -2833,6 +2833,20 @@ body {
   border-radius: 4px;
 }
 .ic-period-btn.active { background: var(--ink); color: var(--panel); }
+/* Tracking mode toggle - same shape as period toggle so the two pairs read
+   as parallel control groups. Selecting 'All theoretical' switches the 6
+   pick-based sections to operate on every horse in resulted races. */
+.ic-mode-toggle {
+  display: inline-flex; gap: 1px; background: var(--line);
+  border-radius: var(--radius-sm); padding: 1px;
+}
+.ic-mode-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 6px 12px; border: none; cursor: pointer;
+  background: var(--panel); color: var(--ink-mute);
+  border-radius: 4px;
+}
+.ic-mode-btn.active { background: var(--ink); color: var(--panel); }
 .ic-info {
   font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
   font-variant-numeric: tabular-nums;
@@ -3889,6 +3903,18 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <button class="ic-period-btn" data-iperiod="7">Last 7 days</button>
         <button class="ic-period-btn active" data-iperiod="30">Last 30 days</button>
         <button class="ic-period-btn" data-iperiod="90">Last 90 days</button>
+      </div>
+      <!-- Mode toggle: 3-way - Actual (bets you placed) / Theoretical (all
+           V3 picks regardless of placement) / All races (every horse in every
+           resulted race, no filter). Naming matches P&L tab's Actual vs
+           Theoretical convention. Applies to the 6 pick-based sections
+           (threshold, dow, venue, distance, going, field size). The other
+           sections (heatmap, correlation, winners, placegetters) inherently
+           operate on all resulted races and are unaffected by this toggle. -->
+      <div class="ic-mode-toggle">
+        <button class="ic-mode-btn" data-imode="actual" title="Bets you actually placed (bet toggle = on in P&L). What you actually wagered.">Actual</button>
+        <button class="ic-mode-btn active" data-imode="theoretical" title="All V3 model picks regardless of whether you bet them. The model's full output.">Theoretical</button>
+        <button class="ic-mode-btn" data-imode="all" title="Every horse in every resulted race, no model filtering. Raw cumulative-score predictive power.">All races</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -7497,6 +7523,24 @@ function exportSettledCSV() {
 // finish positions and per-runner signal values).
 
 let trackingPeriod = '30';   // '7' | '30' | '90'
+// trackingMode controls 6 pick-based sections (threshold, dow, venue,
+// distance, going, field size). Three modes (matches P&L tab vocab):
+//   'actual'      - bets you actually placed (P&L bet toggle = on).
+//                   "what I really wagered".
+//   'theoretical' - all V3 model picks regardless of placement. Same data
+//                   the P&L tab shows under its Theoretical view. Default.
+//   'all'         - every horse in every resulted race, no model filter.
+//                   Raw predictive power of the cumulative score.
+// The other sections (heatmap, correlation, winners, placegetters) operate
+// on all resulted races regardless of this toggle.
+const TRACKING_MODE_KEY = 'tr_tracking_mode_v2';
+let trackingMode = (function() {
+  try {
+    const v = localStorage.getItem(TRACKING_MODE_KEY);
+    if (v === 'actual' || v === 'theoretical' || v === 'all') return v;
+  } catch(e) {}
+  return 'theoretical';  // default = same as P&L's Theoretical view
+})();
 let trackingSortCol = 'date';
 let trackingSortDir = 'desc';
 // Winners-table filter state. Show only winners where signal X had rank
@@ -8108,6 +8152,47 @@ function trackingSettledBets() {
     .filter(s => (s.date || '') >= cutoffStr);
 }
 
+// Unified data source for the 6 pick-based tracking sections (threshold,
+// dow, venue, distance, going, field size). Three modes:
+//   - 'actual': only SETTLED bets where bet log has placed=true.
+//                "What I actually wagered".
+//   - 'theoretical': all SETTLED bets (V3 picks regardless of placement).
+//                Same as P&L tab's Theoretical view.
+//   - 'all': every horse in every resulted race (no rule filter).
+//                Raw cumulative-score predictive power.
+// All three modes return records of the same shape so the downstream
+// aggregators don't care which mode is active.
+function trackingActiveBets(races) {
+  if (trackingMode === 'all') {
+    return trackingAllRunnerBets(races || []);
+  }
+  const settled = trackingSettledBets();
+  if (trackingMode === 'actual') {
+    // Filter to bets the user actually placed. Uses the same bet log
+    // helper as the P&L tab so the "Actual" semantics are identical.
+    const log = getBetLog();
+    return settled.filter(s => {
+      const entry = log[String(s.run_id)];
+      return !!(entry && entry.placed);
+    });
+  }
+  // 'theoretical' (default): all settled picks
+  return settled;
+}
+
+// Mode-aware label for the count column header and empty-state message.
+// Centralised so the 6 renderers stay in sync if the mode names change.
+function trackingCountLabel() {
+  if (trackingMode === 'all') return 'Runners';
+  if (trackingMode === 'actual') return 'Bets';
+  return 'Picks';  // theoretical (default)
+}
+function trackingEmptyLabel() {
+  if (trackingMode === 'all') return 'No resulted runners';
+  if (trackingMode === 'actual') return 'No placed bets';
+  return 'No model picks';
+}
+
 // Aggregate helper: compute pick count, win count, win-rate, and SP-based
 // ROI from a list of settled bets. Returns null if no bets contributed.
 // ROI is calculated at SP (1u stake): wins return SP-1 units, losses -1.
@@ -8157,31 +8242,14 @@ function statRow(label, agg, extras) {
 
 // ── Score threshold performance curve ────────────────────────────────────
 // At each threshold step, how would you have performed at that threshold?
-// Two modes:
-//   - 'picks' (default): only horses the model actually picked (V3 rule applied).
-//     This is what you'd actually have bet.
-//   - 'all': every horse in every resulted race, regardless of voting rule.
-//     This isolates the raw predictive power of the Score - what % of horses
-//     above each threshold won, independent of any rule filtering.
+// Population source determined by the GLOBAL trackingMode (toggle at the
+// top of the Tracking tab): either picks (V3 rule applied) or all horses
+// in every resulted race (raw score predictive power).
+//
 // The two views together tell you:
-//   - whether the voting rule adds edge beyond raw Score (compare ROIs)
+//   - whether the voting rule adds edge beyond raw Score (compare ROIs
+//     between modes)
 //   - what threshold to use if you wanted to bet outside the voting rule
-const THRESHOLD_MODE_KEY = 'tr_threshold_mode_v1';
-let thresholdMode = (function() {
-  try {
-    const v = localStorage.getItem(THRESHOLD_MODE_KEY);
-    if (v === 'picks' || v === 'all') return v;
-  } catch(e) {}
-  return 'picks';
-})();
-
-function setThresholdMode(mode) {
-  if (mode !== 'picks' && mode !== 'all') return;
-  thresholdMode = mode;
-  try { localStorage.setItem(THRESHOLD_MODE_KEY, mode); } catch(e) {}
-  // Re-render with the period-filtered race set (same as renderInsights uses)
-  renderThresholdCurve(trackingResultedRaces());
-}
 
 // Build a synthetic 'bets' list from resulted races (all horses) for the
 // 'all' mode. Mirrors the structure of SETTLED entries so aggregateBets()
@@ -8213,30 +8281,17 @@ function trackingAllRunnerBets(races) {
 function renderThresholdCurve(races) {
   const el = document.getElementById('threshold-curve');
   if (!el) return;
-  // Pick the source population based on the active mode
-  const source = thresholdMode === 'all'
-    ? trackingAllRunnerBets(races)
-    : trackingSettledBets();
-  // Mode toggle pills - always shown even on empty data so user can switch
-  const modeToggle =
-    '<div class="threshold-mode-toggle">' +
-      '<button class="th-mode-btn ' + (thresholdMode === 'picks' ? 'active' : '') +
-        '" data-th-mode="picks">Picks only</button>' +
-      '<button class="th-mode-btn ' + (thresholdMode === 'all' ? 'active' : '') +
-        '" data-th-mode="all">All resulted runners</button>' +
-    '</div>';
+  const source = trackingActiveBets(races);
   if (source.length === 0) {
-    el.innerHTML = modeToggle +
-      '<div class="empty-text">No data for the selected mode and period.</div>';
-    wireThresholdModeButtons();
+    el.innerHTML = '<div class="empty-text">No data for the selected mode and period.</div>';
     return;
   }
   // Threshold steps from 0.30 to 0.90 in 0.10 increments
   const steps = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
-  // Column label changes by mode: "Picks" for picks mode, "Runners" for all
-  const countCol = thresholdMode === 'all' ? 'Runners' : 'Picks';
-  let html = modeToggle +
-    '<table class="tracking-mini-table"><thead><tr>' +
+  // Column label changes by mode: "Picks" when in picks mode, "Runners"
+  // when in all-theoretical mode, since the meaning of the row count differs.
+  const countCol = trackingCountLabel();
+  let html = '<table class="tracking-mini-table"><thead><tr>' +
     '<th>Threshold</th><th>' + countCol + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   steps.forEach(t => {
@@ -8245,34 +8300,32 @@ function renderThresholdCurve(races) {
     html += statRow('>= ' + t.toFixed(2), agg);
   });
   html += '</tbody></table>';
-  // Note copy depends on mode - the right framing for what they're looking at
-  const note = thresholdMode === 'picks'
-    ? 'Performance of horses you actually picked (V3 voting rule applied) at each Score threshold. ' +
-      'Use this to pick a stake threshold for your live bets. ROI is at SP, 1u flat stake.'
-    : 'Performance of EVERY horse in resulted races (no model filtering), grouped by Score. ' +
+  // Note copy depends on mode - frame the analysis correctly for each view
+  let note;
+  if (trackingMode === 'actual') {
+    note = 'Performance of bets you actually placed (P&L bet toggle = on) at each Score threshold. ' +
+      'This is your real wagering record. ROI is at SP, 1u flat stake.';
+  } else if (trackingMode === 'theoretical') {
+    note = 'Performance of all V3 model picks (regardless of placement) at each Score threshold. ' +
+      'Use this to pick a stake threshold for your live bets. ROI is at SP, 1u flat stake. ' +
+      'Same data as P&L tab Theoretical view.';
+  } else {
+    note = 'Performance of EVERY horse in resulted races (no model filtering), grouped by Score. ' +
       'Shows the raw predictive power of the cumulative score independent of the voting rule. ' +
-      'Compare ROI here vs Picks-only mode to see how much edge the voting rule adds.';
+      'Compare ROI here vs Theoretical mode to see how much edge the voting rule adds.';
+  }
   html += '<div class="tracking-note">' + note +
     '<br>Dot (·) flags small samples (under 10).</div>';
   el.innerHTML = html;
-  wireThresholdModeButtons();
-}
-
-function wireThresholdModeButtons() {
-  document.querySelectorAll('.th-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setThresholdMode(btn.dataset.thMode);
-    });
-  });
 }
 
 // ── Day of week breakdown ────────────────────────────────────────────────
 function renderDowBreakdown(races) {
   const el = document.getElementById('dow-breakdown');
   if (!el) return;
-  const bets = trackingSettledBets();
+  const bets = trackingActiveBets(races);
   if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    el.innerHTML = '<div class="empty-text">' + trackingEmptyLabel() + ' in the selected period.</div>';
     return;
   }
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -8286,7 +8339,7 @@ function renderDowBreakdown(races) {
     byDay[days[d.getDay()]].push(b);
   });
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Day</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Day</th><th>' + trackingCountLabel() + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   days.forEach(d => {
     const agg = aggregateBets(byDay[d]);
@@ -8300,9 +8353,9 @@ function renderDowBreakdown(races) {
 function renderVenuePerformance(races) {
   const el = document.getElementById('venue-performance');
   if (!el) return;
-  const bets = trackingSettledBets();
+  const bets = trackingActiveBets(races);
   if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    el.innerHTML = '<div class="empty-text">' + trackingEmptyLabel() + ' in the selected period.</div>';
     return;
   }
   // Group by venue
@@ -8323,7 +8376,7 @@ function renderVenuePerformance(races) {
     return;
   }
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Venue</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Venue</th><th>' + trackingCountLabel() + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   venues.forEach(v => {
     const rowOpacity = v.bets.length < 5 ? ' style="opacity:0.55"' : '';
@@ -8350,9 +8403,9 @@ function renderVenuePerformance(races) {
 function renderDistanceBreakdown(races) {
   const el = document.getElementById('distance-breakdown');
   if (!el) return;
-  const bets = trackingSettledBets();
+  const bets = trackingActiveBets(races);
   if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    el.innerHTML = '<div class="empty-text">' + trackingEmptyLabel() + ' in the selected period.</div>';
     return;
   }
   // Buckets: sprint, mile, middle, staying
@@ -8369,7 +8422,7 @@ function renderDistanceBreakdown(races) {
     }
   });
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Distance</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Distance</th><th>' + trackingCountLabel() + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   buckets.forEach(bk => {
     html += statRow(bk.lbl, aggregateBets(bk.bets));
@@ -8382,9 +8435,9 @@ function renderDistanceBreakdown(races) {
 function renderGoingBreakdown(races) {
   const el = document.getElementById('going-breakdown');
   if (!el) return;
-  const bets = trackingSettledBets();
+  const bets = trackingActiveBets(races);
   if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    el.innerHTML = '<div class="empty-text">' + trackingEmptyLabel() + ' in the selected period.</div>';
     return;
   }
   // Group by going category. AU going strings are like "Good 4", "Soft 5",
@@ -8407,7 +8460,7 @@ function renderGoingBreakdown(races) {
     if (byGoing[cat]) byGoing[cat].push(b);
   });
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Going</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Going</th><th>' + trackingCountLabel() + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   categories.forEach(c => {
     if (byGoing[c].length === 0 && c !== 'Good') return;  // skip empty categories (except Good which is the default)
@@ -8421,9 +8474,9 @@ function renderGoingBreakdown(races) {
 function renderFieldSizeBreakdown(races) {
   const el = document.getElementById('fieldsize-breakdown');
   if (!el) return;
-  const bets = trackingSettledBets();
+  const bets = trackingActiveBets(races);
   if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+    el.innerHTML = '<div class="empty-text">' + trackingEmptyLabel() + ' in the selected period.</div>';
     return;
   }
   const buckets = [
@@ -8438,7 +8491,7 @@ function renderFieldSizeBreakdown(races) {
     }
   });
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Field</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Field</th><th>' + trackingCountLabel() + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   buckets.forEach(bk => {
     html += statRow(bk.lbl, aggregateBets(bk.bets));
@@ -8526,6 +8579,20 @@ document.querySelectorAll('.ic-period-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     trackingPeriod = btn.dataset.iperiod;
     document.querySelectorAll('.ic-period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderInsights();
+  });
+});
+
+// Wire the mode toggle buttons (picks vs all theoretical). On click,
+// flip trackingMode, persist to localStorage, re-render. Also sync the
+// active class on initial load to reflect the persisted state.
+document.querySelectorAll('.ic-mode-btn').forEach(btn => {
+  btn.classList.toggle('active', btn.dataset.imode === trackingMode);
+  btn.addEventListener('click', () => {
+    trackingMode = btn.dataset.imode;
+    try { localStorage.setItem(TRACKING_MODE_KEY, trackingMode); } catch(e) {}
+    document.querySelectorAll('.ic-mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderInsights();
   });
