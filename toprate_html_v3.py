@@ -1305,15 +1305,11 @@ body {
   .pick-row .pr-stake { display: none; }
   .cell-lbl { display: none; }
 
-  /* Vote badge is now the sole pick-row indicator on mobile (all individual
-     signal chips hidden via .desktop-chips). Give it presence so it's
-     clearly readable - slightly larger label and value than before. */
-  .pick-row .pr-sigs-top .sig.vote-badge {
-    padding: 4px 10px; gap: 5px;
-  }
-  .pick-row .pr-sigs-top .sig.vote-badge .lbl { font-size: 9px; }
-  .pick-row .pr-sigs-top .sig.vote-badge .v { font-size: 13px; font-weight: 800; }
-  .pick-row .pr-sigs-top .sig.vote-badge .vote-star { font-size: 11px; }
+  /* (Previously had an enlarged vote-badge override here when the badge
+     was the sole mobile indicator. Now that all 6 voting chips render
+     inline on mobile alongside the score-votes-stack chips, the badge
+     uses the same compact sizing as the other chips - see the
+     score-votes-stack rules further down for the unified sizing.) */
 
   /* On Today (pending) rows, hide return too - shown in expand panel.
      On P&L (settled) rows, show return as the most useful at-a-glance number. */
@@ -1371,18 +1367,31 @@ body {
   }
   .pr-sigs-top .desktop-chips .sig .lbl { font-size: 9px; }
   .pr-sigs-top .desktop-chips .sig .v { font-size: 11px; font-weight: 700; }
-  /* Undo the desktop-only width clamp on the score-votes-stack: the
-     enlarged mobile vote-badge needs to expand to its full content width,
-     and the Score/Votes labels must be visible since the badge is the
-     sole indicator on mobile (when desktop-chips wrap). */
+  /* On mobile, dissolve the Score/Votes stack column so Score and Votes
+     join the same wrap-flow as the voting chips. display: contents makes
+     the wrapper invisible to the layout - the two chips become direct
+     children of pr-sigs-top and flow alongside WPR/Late/Class/etc. This
+     replaces the previous vertical-column layout which visually separated
+     Score and Votes from the voting chips. */
   .pr-sigs-top .score-votes-stack {
-    width: auto;
+    display: contents;
   }
+  /* Match the voting chips' compressed sizing so Score and Votes sit
+     visually consistent in the wrapped row. */
   .pr-sigs-top .score-votes-stack .sig {
-    padding-left: 5px; padding-right: 5px;
+    padding: 2px 6px; font-size: 10px;
   }
   .pr-sigs-top .score-votes-stack .sig .lbl {
-    display: inline;
+    display: inline; font-size: 9px;
+  }
+  .pr-sigs-top .score-votes-stack .sig .v {
+    font-size: 11px; font-weight: 700;
+  }
+  /* Vote badge keeps its enlarged presence override from earlier in this
+     media query (line ~1294) for the star + ratio. Tighten it to match
+     the other chip sizing now that it sits inline with them. */
+  .pr-sigs-top .score-votes-stack .vote-badge {
+    padding: 2px 7px;
   }
 
   /* Bottom strip: Fxd | result | bet (or return for settled), single row */
@@ -6657,7 +6666,7 @@ function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race,
     svg += '<text x="' + (x + w / 2) + '" y="' + (PAD_Y - 10) + '" ' +
       'font-family="Outfit" font-size="' + zoneLabelFontSize + '" font-weight="700" letter-spacing="0.06em" ' +
       'text-anchor="middle" fill="' + z.textColor + '">' +
-      z.lbl + ' (' + z.hint + ')</text>';
+      z.lbl + '</text>';
 
     const innerPad = 8;
     const availW = w - innerPad * 2;
