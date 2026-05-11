@@ -1551,6 +1551,115 @@ body {
   .mt-row { grid-template-columns: 140px repeat(12, minmax(48px, 1fr)); min-width: 600px; }
 }
 
+/* Quaddie meetings table - same layout pattern as .meetings-table on the
+   Race tab but with quaddie-specific cell content: qualifier count, strategy
+   chip, leg position. Rows are clickable to select a meeting; cells are
+   clickable to toggle leg membership. */
+.quaddie-meetings-table {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-md); overflow: hidden; margin-bottom: 14px;
+}
+.qmt-row {
+  display: grid;
+  grid-template-columns: 220px repeat(auto-fill, minmax(64px, 1fr));
+  border-bottom: 1px solid var(--line-soft); align-items: stretch;
+}
+.qmt-row:last-child { border-bottom: none; }
+.qmt-row.qmt-head {
+  background: var(--line-soft); border-bottom: 1px solid var(--line);
+}
+.qmt-row.qmt-head .qmt-venue-col,
+.qmt-row.qmt-head .qmt-race-head {
+  padding: 10px 12px; font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.08em; color: var(--ink-mute);
+  font-weight: 600; text-transform: uppercase;
+}
+.qmt-row.qmt-head .qmt-race-head {
+  text-align: center; border-left: 1px solid var(--line-soft);
+}
+.qmt-venue-row.active { background: var(--emerald-bg); }
+.qmt-venue-row.no-strat-races .qmt-venue-name { color: var(--ink-mute); }
+.qmt-venue-row.no-strat-races { opacity: 0.65; }
+.qmt-venue-col {
+  padding: 12px 16px; border-right: 1px solid var(--line-soft);
+  display: flex; flex-direction: column; justify-content: center;
+  cursor: pointer; transition: background 0.12s;
+}
+.qmt-venue-col:hover { background: var(--line-soft); }
+.qmt-venue-row.active .qmt-venue-col:hover { background: var(--emerald-bg); }
+.qmt-venue-name {
+  font-family: var(--font-body); font-weight: 600; font-size: 14px;
+  color: var(--ink); letter-spacing: -0.005em;
+}
+.qmt-venue-state {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-mute);
+  margin-top: 2px; letter-spacing: 0.04em;
+}
+.qmt-strat-summary {
+  margin-top: 4px; font-family: var(--font-body); font-size: 10px;
+  font-weight: 700; letter-spacing: 0.02em;
+}
+.qmt-strat-summary.qmt-strat-good { color: var(--emerald-deep); }
+.qmt-strat-summary.qmt-strat-some { color: var(--amber); }
+.qmt-strat-summary.qmt-strat-none { color: var(--ink-faint); }
+.qmt-race-cell {
+  padding: 8px 4px; border-left: 1px solid var(--line-soft);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 11px; background: var(--panel);
+  transition: background 0.12s; position: relative; min-height: 52px;
+}
+.qmt-race-cell:hover { background: var(--line-soft); }
+.qmt-race-cell.qmt-empty { color: var(--ink-faint); cursor: default; background: var(--bg); }
+.qmt-race-cell.qmt-empty:hover { background: var(--bg); }
+.qmt-race-cell.strat-pass { background: rgba(16, 185, 129, 0.05); }
+.qmt-race-cell.strat-pass:hover { background: rgba(16, 185, 129, 0.12); }
+.qmt-race-cell.strat-fail { opacity: 0.55; }
+.qmt-race-cell.strat-fail:hover { opacity: 1; }
+.qmt-race-cell.resulted { color: var(--ink-mute); }
+.qmt-race-cell.resulted .qmt-quals { color: var(--ink-faint); }
+.qmt-race-cell.selected {
+  background: var(--emerald) !important; color: #fff;
+  box-shadow: 0 0 0 1px var(--emerald) inset; opacity: 1;
+}
+.qmt-race-cell.selected .qmt-quals,
+.qmt-race-cell.selected .qmt-strat-icon { color: #fff; }
+.qmt-quals {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
+  color: var(--emerald-deep);
+}
+.qmt-strat-icon {
+  font-size: 10px; font-weight: 700; margin-top: 2px;
+}
+.qmt-race-cell.strat-pass .qmt-strat-icon { color: var(--emerald-deep); }
+.qmt-race-cell.strat-fail .qmt-strat-icon { color: var(--rose); }
+.qmt-leg-tag {
+  position: absolute; top: 3px; right: 4px;
+  font-size: 9px; font-weight: 800;
+  background: #fff; color: var(--emerald-deep);
+  padding: 1px 5px; border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+/* Key/legend under the table - explains the cell contents to the user */
+.qmt-key {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  padding: 8px 14px; font-family: var(--font-body); font-size: 11px;
+  color: var(--ink-mute); margin-bottom: 14px;
+}
+.qmt-key .qmt-key-tick { color: var(--emerald-deep); font-weight: 800; }
+.qmt-key .qmt-key-num { font-weight: 700; color: var(--ink); }
+.qmt-key .qmt-key-leg {
+  display: inline-block; background: var(--emerald); color: #fff;
+  padding: 1px 5px; border-radius: 8px; font-weight: 800; font-size: 9px;
+}
+
+@media (max-width: 720px) {
+  .quaddie-meetings-table { overflow-x: auto; }
+  .qmt-row { grid-template-columns: 130px repeat(12, minmax(48px, 1fr)); min-width: 600px; }
+  .qmt-quals { font-size: 13px; }
+  .qmt-venue-name { font-size: 12px; }
+  .qmt-key { font-size: 10px; gap: 8px; }
+}
+
 /* Race detail back bar */
 .race-back-bar {
   display: flex; align-items: center; gap: 8px;
@@ -3845,7 +3954,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- QUADDIE -->
   <section class="section" id="sec-quaddie">
-    <!-- Top: meeting + date controls -->
+    <!-- Top: date + threshold controls. Meeting picker is now a grid below
+         (was a dropdown - too much friction when the meetings list could fit
+         on screen). The Race tab uses a similar meetings-grid layout, so the
+         Quaddie tab now mirrors it for consistency. -->
     <div class="quaddie-controls">
       <div class="quaddie-control-row">
         <div class="quaddie-control-group">
@@ -3858,32 +3970,38 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
         <div class="quaddie-control-group">
-          <label class="quaddie-lbl">Meeting</label>
-          <select id="quaddie-meeting" class="quaddie-select">
-            <option value="">— pick a meeting —</option>
-          </select>
-        </div>
-        <div class="quaddie-control-group">
           <label class="quaddie-lbl">Threshold</label>
           <input type="number" id="quaddie-thresh" class="quaddie-thresh-input" min="0" max="1" step="0.05">
           <button class="btn-tiny" id="quaddie-thresh-reset" title="Reset to your default in Settings">↺</button>
         </div>
       </div>
       <div class="quaddie-help">
-        Pick a meeting and the 4 races for your quaddie. Each leg shows horses meeting the score threshold,
-        the resulting combo count, and the projected per-leg winner coverage based on backtest data.
-        Adjust the threshold to add/remove horses per leg.
+        Pick a meeting then click 4 races for your quaddie. Race cells show how many horses meet the score threshold,
+        plus a ✓ or ✗ flag indicating whether the race meets your bet criteria (prize $50k+ and 8+ runners).
       </div>
     </div>
 
-    <!-- Race chooser: shows all races at the meeting, click to add to legs -->
+    <!-- Meetings grid: all meetings on the date, races as cells across.
+         Click a meeting row to select it; click race cells to add as legs.
+         Layout matches the Race tab so users have one mental model. -->
+    <div id="quaddie-meetings-list">
+      <div class="empty-state">
+        <div class="head">Loading meetings…</div>
+      </div>
+    </div>
+
     <!-- Strategy filter summary - shows whether the active meeting meets
          the user's quaddie bet criteria (prize >= $50k AND field >= 8 per
          leg). Populated by renderQuaddie when a meeting is selected. -->
     <div class="quaddie-strategy-banner" id="quaddie-strategy-banner" style="display:none;"></div>
 
-    <div class="quaddie-race-grid" id="quaddie-race-grid">
-      <!-- populated by JS -->
+    <!-- Legacy race-grid: still populated by renderQuaddie for the strategy
+         banner code path, but hidden visually since the meetings-table above
+         already shows every race with the same data. Keeping the rendering
+         code intact avoids a riskier rewrite; one day this element can be
+         removed entirely. -->
+    <div class="quaddie-race-grid" id="quaddie-race-grid" style="display:none;">
+      <!-- populated by JS but hidden - meetings-table above is the new picker -->
     </div>
 
     <!-- Selected legs and combo summary -->
@@ -4339,9 +4457,12 @@ const defaultSettings = {
   // Score threshold for the cumulative-score-based selection (used by
   // Quaddie tab and threshold highlighting on Race/Today).
   // Path C (LogReg) scores are sigmoid-bounded in [0, 1] and tend to cluster
-  // near the middle (rarely above 0.70). Default 0.40 gives roughly the same
-  // pick volume that 0.70 used to give for the legacy Path B formula.
-  scoreThreshold: 0.40,
+  // near the middle (rarely above 0.70). 0.50 is the value chosen after
+  // backtesting quaddie strategies on metro Saturdays with 8+ runners -
+  // it had the lowest synthetic loss across 0.50/0.55/0.60 (best hit rate
+  // per combo cost) and the field-size+prize-money filter on top removes
+  // the worst of the small-field longshot drag.
+  scoreThreshold: 0.50,
   // Sync settings (configured per-device)
   syncEnabled: false,
   syncGistId: '',
@@ -4363,7 +4484,13 @@ try {
 // (we don't touch user-customised values - if they set 0.65 or 0.85 we leave
 // it alone since that signals deliberate choice).
 if (settings.scoreThreshold === 0.70) {
-  settings.scoreThreshold = 0.40;
+  settings.scoreThreshold = 0.50;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
+}
+// Second migration: bump 0.40 default to 0.50 after quaddie backtest analysis.
+// Same logic - only touch exact prior default, leave customised values alone.
+if (settings.scoreThreshold === 0.40) {
+  settings.scoreThreshold = 0.50;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
 }
 
@@ -5798,7 +5925,7 @@ function renderRaceDetail(raceId) {
   // Adaptive selection: horses meeting the cumulative-score threshold
   // The threshold setting drives picks per race - more in open races, fewer
   // in races with a clear favourite.
-  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.40;
+  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.50;
   const qualifiers = runners.filter(u => u.cs != null && u.cs >= thresh)
     .sort((a, b) => (a.crk || 99) - (b.crk || 99));
   let scoreThreshHtml = '';
@@ -8766,7 +8893,7 @@ function legCoverage(nPicks, path) {
 
 function getQuaddieThreshold() {
   if (quaddieState.threshOverride != null) return quaddieState.threshOverride;
-  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.40;
+  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.50;
 }
 
 function quaddieRacesForDate(dateStr) {
@@ -8788,6 +8915,151 @@ function quaddieMeetingsForDate(dateStr) {
   return Object.values(groups).sort((a, b) => a.venue.localeCompare(b.venue));
 }
 
+function renderQuaddieMeetingsGrid(meetings) {
+  const host = document.getElementById('quaddie-meetings-list');
+  if (!host) return;
+  if (meetings.length === 0) {
+    host.innerHTML = '<div class="empty-state">' +
+      '<div class="head">No meetings for ' + quaddieState.date + '</div>' +
+      '<div class="sub">Try Yesterday or Tomorrow, or pick another date.</div>' +
+      '</div>';
+    return;
+  }
+  // Strategy filter constants - same as the per-meeting renderer below.
+  const QUADDIE_MIN_PRIZE = 50000;
+  const QUADDIE_MIN_FIELD = 8;
+  function raceStratPass(r) {
+    const prize = r.prize || 0;
+    const fs = r.fs || (r.runners || []).length || 0;
+    return prize >= QUADDIE_MIN_PRIZE && fs >= QUADDIE_MIN_FIELD;
+  }
+
+  const thresh = getQuaddieThreshold();
+  const legSet = new Set(quaddieState.legRaceIds);
+  // Find the max race number to align all venues against the same column grid
+  const maxR = Math.max(...meetings.map(m =>
+    Math.max(...m.races.map(r => r.race || 0))));
+
+  let html = '<div class="quaddie-meetings-table">';
+  // Header row
+  html += '<div class="qmt-row qmt-head">';
+  html += '<div class="qmt-venue-col">Venue</div>';
+  for (let i = 1; i <= maxR; i++) {
+    html += '<div class="qmt-race-head">R' + i + '</div>';
+  }
+  html += '</div>';
+
+  // Sort meetings: passing-strategy meetings first (most useful), then by name
+  const meetingsAnnotated = meetings.map(m => {
+    const passingCount = m.races.filter(raceStratPass).length;
+    return { m, passingCount };
+  });
+  meetingsAnnotated.sort((a, b) => {
+    if (a.passingCount !== b.passingCount) return b.passingCount - a.passingCount;
+    return a.m.venue.localeCompare(b.m.venue);
+  });
+
+  meetingsAnnotated.forEach(({ m, passingCount }) => {
+    const meetingKey = m.venue + '|' + m.state;
+    const isActive = meetingKey === quaddieState.meetingKey;
+    const rowCls = ['qmt-row', 'qmt-venue-row'];
+    if (isActive) rowCls.push('active');
+    if (passingCount === 0) rowCls.push('no-strat-races');
+    html += '<div class="' + rowCls.join(' ') + '" data-meeting-key="' + escapeHtml(meetingKey) + '">';
+    // Venue cell with strategy summary inline (X of Y races meet criteria)
+    const stratSummaryCls = passingCount === 0 ? 'qmt-strat-none' :
+                            passingCount >= 4 ? 'qmt-strat-good' : 'qmt-strat-some';
+    html += '<div class="qmt-venue-col">' +
+      '<div class="qmt-venue-name">' + escapeHtml(m.venue) + '</div>' +
+      (m.state ? '<div class="qmt-venue-state">' + escapeHtml(m.state) + '</div>' : '') +
+      '<div class="qmt-strat-summary ' + stratSummaryCls + '" title="Races at this meeting meeting your bet criteria (prize $50k+ AND 8+ runners)">' +
+      passingCount + '/' + m.races.length + ' ✓' +
+      '</div>' +
+      '</div>';
+
+    for (let i = 1; i <= maxR; i++) {
+      const race = m.races.find(r => r.race === i);
+      if (!race) {
+        html += '<div class="qmt-race-cell qmt-empty">—</div>';
+        continue;
+      }
+      const stratPass = raceStratPass(race);
+      const quals = race.runners.filter(u => u.cs != null && u.cs >= thresh).length;
+      const isSelected = legSet.has(race.race_id) && isActive;
+      const legPos = isSelected ? (quaddieState.legRaceIds.indexOf(race.race_id) + 1) : null;
+      const cellCls = ['qmt-race-cell'];
+      if (stratPass) cellCls.push('strat-pass');
+      else cellCls.push('strat-fail');
+      if (isSelected) cellCls.push('selected');
+      if (race.done === 1) cellCls.push('resulted');
+      // Cell click target: data attrs for both meeting select + race toggle
+      html += '<div class="' + cellCls.join(' ') + '" ' +
+        'data-meeting-key="' + escapeHtml(meetingKey) + '" ' +
+        'data-rid="' + race.race_id + '" ' +
+        'title="' + (stratPass ? '✓' : '✗') + ' R' + race.race +
+        ' · prize $' + ((race.prize || 0) / 1000).toFixed(0) + 'k' +
+        ' · field ' + (race.fs || (race.runners || []).length || 0) + '">' +
+        (legPos ? '<span class="qmt-leg-tag">' + legPos + '</span>' : '') +
+        '<div class="qmt-quals">' + quals + '</div>' +
+        '<div class="qmt-strat-icon">' + (stratPass ? '✓' : '✗') + '</div>' +
+        '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Help line under the grid - explains the cell layout
+  html += '<div class="qmt-key">' +
+    '<span><span class="qmt-key-tick">✓</span> meets bet strategy (prize $50k+, field 8+)</span>' +
+    '<span><span class="qmt-key-num">3</span> = horses meeting score threshold</span>' +
+    '<span><span class="qmt-key-leg">1</span> = selected as leg 1 of your quaddie</span>' +
+    '</div>';
+
+  host.innerHTML = html;
+
+  // Wire venue-row clicks - select meeting (but don't toggle a race)
+  host.querySelectorAll('.qmt-venue-row .qmt-venue-col').forEach(cell => {
+    cell.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const row = ev.currentTarget.closest('.qmt-venue-row');
+      const key = row.dataset.meetingKey;
+      if (quaddieState.meetingKey !== key) {
+        quaddieState.meetingKey = key;
+        quaddieState.legRaceIds = [];  // reset legs when switching meetings
+        saveQuaddieState();
+        renderQuaddie();
+      }
+    });
+  });
+
+  // Wire race-cell clicks - select meeting if not already, then toggle leg
+  host.querySelectorAll('.qmt-race-cell[data-rid]').forEach(cell => {
+    cell.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const key = cell.dataset.meetingKey;
+      const rid = cell.dataset.rid;
+      // If clicking a race at a different meeting, switch meetings first
+      if (quaddieState.meetingKey !== key) {
+        quaddieState.meetingKey = key;
+        quaddieState.legRaceIds = [rid];  // start fresh with this race as leg 1
+      } else {
+        // Same meeting - toggle leg membership
+        const idx = quaddieState.legRaceIds.indexOf(rid);
+        if (idx >= 0) {
+          quaddieState.legRaceIds.splice(idx, 1);
+        } else {
+          if (quaddieState.legRaceIds.length >= 4) {
+            quaddieState.legRaceIds.shift();
+          }
+          quaddieState.legRaceIds.push(rid);
+        }
+      }
+      saveQuaddieState();
+      renderQuaddie();
+    });
+  });
+}
+
 function renderQuaddie() {
   // Initialise date if missing
   if (!quaddieState.date) quaddieState.date = isoDate(0);
@@ -8806,19 +9078,16 @@ function renderQuaddie() {
     threshInp.value = getQuaddieThreshold().toFixed(2);
   }
 
-  // Meeting dropdown
-  const meetingSel = document.getElementById('quaddie-meeting');
   const meetings = quaddieMeetingsForDate(quaddieState.date);
   const currentMeetingKey = quaddieState.meetingKey;
-  meetingSel.innerHTML = '<option value="">— pick a meeting —</option>' +
-    meetings.map(m => {
-      const key = m.venue + '|' + m.state;
-      const sel = key === currentMeetingKey ? ' selected' : '';
-      return '<option value="' + escapeHtml(key) + '"' + sel + '>' +
-        escapeHtml(m.venue) + (m.state ? ' (' + escapeHtml(m.state) + ')' : '') +
-        ' · ' + m.races.length + ' races' +
-        '</option>';
-    }).join('');
+
+  // Render meetings grid (rows = venues, columns = race numbers across)
+  // matching the Race tab's meetings-table layout. Each race cell shows
+  // qualifier count + strategy ✓/✗ + leg position if selected. Clicking
+  // a venue row selects it as the active meeting; clicking a race cell
+  // toggles that race in/out of the legs. This replaces the old dropdown
+  // which required a 2-step "pick meeting > then click races" flow.
+  renderQuaddieMeetingsGrid(meetings);
 
   // Determine what to render based on current meeting
   const grid = document.getElementById('quaddie-race-grid');
