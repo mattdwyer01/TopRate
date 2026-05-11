@@ -759,6 +759,33 @@ body {
   background: var(--rose-bg); color: var(--rose);
   border: 1px solid var(--rose-line);
 }
+/* Jockey rating delta chip - sits next to fs-chip. Shows how many rating
+   points behind the top-rated jockey in the race the pick's jockey is.
+   Colour-coded:
+     good (0 to -4) - dimmed grey, in the "fine" range
+     warn (-5 to -10) - amber, the underperforming bucket per backtest
+     bad (-11+) - rose red, clearly worse than top jockey
+   Tooltips on hover give full context (rating + top in race). */
+.jky-chip {
+  display: inline-block; vertical-align: baseline;
+  margin-left: 4px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 3px;
+  background: var(--line-soft); color: var(--ink-mute);
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+.jky-chip.good {
+  background: var(--line-soft); color: var(--ink-mute);
+}
+.jky-chip.warn {
+  background: #fef3c7; color: #92400e;
+  border: 1px solid #fde68a;
+}
+.jky-chip.bad {
+  background: var(--rose-bg); color: var(--rose);
+  border: 1px solid var(--rose-line);
+}
 .pr-runner .rmeta {
   font-family: var(--font-body); font-weight: 500; font-size: 11px;
   color: var(--ink-mute); margin-top: 1px;
@@ -5055,6 +5082,36 @@ function renderToday() {
         'F' + fsValue + '</span>';
     }
 
+    // Jockey rating delta from #1 in race - sits next to field-size chip.
+    // Negative delta = X rating points behind the top jockey. Manual rule
+    // (from data analysis): picks with delta worse than -5 historically have
+    // lower WR (-33% to -43% ROI on -5 to -10 bucket vs +12% at delta 0).
+    // Visual: green chip for 0 to -4, amber for -5 to -10, red for -11+.
+    // Hover tooltip explains the gap to top jockey.
+    let jkyChipHtml = '';
+    if (r.jrt != null) {
+      const race = (typeof RACES !== 'undefined' && RACES)
+        ? RACES.find(rc => String(rc.race_id) === String(p.race_id))
+        : null;
+      const allJ = race && race.runners
+        ? race.runners.map(u => u.jrt).filter(v => v != null)
+        : [];
+      if (allJ.length > 0) {
+        const topJ = Math.max.apply(null, allJ);
+        const delta = Math.round(r.jrt - topJ);
+        let cls = '';
+        let lbl = '';
+        if (delta >= -4) { cls = 'good'; lbl = 'Top jockey range (within 4 pts of #1).'; }
+        else if (delta >= -10) { cls = 'warn'; lbl = 'Caution zone (-5 to -10 was the worst-performing bucket in backtest).'; }
+        else { cls = 'bad'; lbl = 'Far behind top jockey (-11+ rating points).'; }
+        const tip = 'Jockey rating ' + Math.round(r.jrt) + ' (top in race: ' +
+          Math.round(topJ) + '). Delta ' + (delta >= 0 ? '0' : delta) + '. ' + lbl;
+        const lblText = delta >= 0 ? 'Jky 0' : 'Jky ' + delta;
+        jkyChipHtml = '<span class="jky-chip ' + cls + '" title="' + tip + '">' + lblText + '</span>';
+      }
+    }
+    const fsAndJkyChips = fsChipHtml + jkyChipHtml;
+
     row.innerHTML =
       '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
       '<div class="pr-venue clickable" data-nav-rid="' + (p.race_id || '') + '" title="Open race detail">' +
@@ -5064,7 +5121,7 @@ function renderToday() {
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
         '<div class="rdetails">' +
-          '<div class="rhorse">' + escapeHtml(p.horse || '') + fsChipHtml + '</div>' +
+          '<div class="rhorse">' + escapeHtml(p.horse || '') + fsAndJkyChips + '</div>' +
           '<div class="rmeta">' + metaLine + '</div>' +
         '</div>' +
       '</div>' +
@@ -7427,6 +7484,34 @@ function renderPnL() {
         'F' + fsValueP + '</span>';
     }
 
+    // Jockey rating delta chip - same logic as Today tab. Negative = points
+    // behind top jockey in race. Colour-coded: good 0 to -4, warn -5 to -10,
+    // bad -11+. Useful on P&L to retrospectively spot picks that DID fail
+    // because the jockey was meaningfully behind the race's top rider.
+    let jkyChipHtmlP = '';
+    if (r.jrt != null) {
+      const race = (typeof RACES !== 'undefined' && RACES)
+        ? RACES.find(rc => String(rc.race_id) === String(s.race_id))
+        : null;
+      const allJ = race && race.runners
+        ? race.runners.map(u => u.jrt).filter(v => v != null)
+        : [];
+      if (allJ.length > 0) {
+        const topJ = Math.max.apply(null, allJ);
+        const delta = Math.round(r.jrt - topJ);
+        let cls = '';
+        let lbl = '';
+        if (delta >= -4) { cls = 'good'; lbl = 'Top jockey range (within 4 pts of #1).'; }
+        else if (delta >= -10) { cls = 'warn'; lbl = 'Caution zone (-5 to -10 was the worst-performing bucket in backtest).'; }
+        else { cls = 'bad'; lbl = 'Far behind top jockey (-11+ rating points).'; }
+        const tip = 'Jockey rating ' + Math.round(r.jrt) + ' (top in race: ' +
+          Math.round(topJ) + '). Delta ' + (delta >= 0 ? '0' : delta) + '. ' + lbl;
+        const lblText = delta >= 0 ? 'Jky 0' : 'Jky ' + delta;
+        jkyChipHtmlP = '<span class="jky-chip ' + cls + '" title="' + tip + '">' + lblText + '</span>';
+      }
+    }
+    const fsAndJkyChipsP = fsChipHtmlP + jkyChipHtmlP;
+
     const rowHtml =
       '<div class="pick-row is-settled ' + cardClass + (placed ? ' bet-placed' : '') +
         '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
@@ -7438,7 +7523,7 @@ function renderPnL() {
         '<div class="pr-runner">' +
           '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
           '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsChipHtmlP + '</div>' +
+            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsAndJkyChipsP + '</div>' +
             '<div class="rmeta">' + metaLine + '</div>' +
           '</div>' +
         '</div>' +
