@@ -4262,8 +4262,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <h3>Winners — signal ranks</h3>
       <div class="desc">
         Every resulted race in the period. Each row shows the winner's rank for
-        all 11 signals. Green = top 3, yellow = top 5, grey = beyond. Race link
-        opens the Race tab. Sort by clicking column headers.
+        all 12 signals (Score first, then the 11 individual signals). Green = top 3,
+        yellow = top 5, grey = beyond. Race link opens the Race tab. Sort by clicking
+        column headers.
       </div>
       <div id="tracking-winners"></div>
     </div>
@@ -7957,9 +7958,12 @@ let winnersFilterMax = 99;   // 99 = no maximum
 // Free-text horse/venue filter
 let winnersTextFilter = '';
 
-// The 11 signals shown on each row, ordered by importance:
-//   model rule signals first, then supporting context.
+// The 12 signals shown on each row: Score (cumulative rank) first, then
+// the 11 individual signals (model rule signals + supporting context).
 const TRACKING_SIGNALS = [
+  // Score (cumulative score rank) - leads the list since it's the headline
+  // metric. Already a rank (lower = better) so rankField is true.
+  { key: 'score', label: 'Score', field: 'crk', rankField: true },
   { key: 'wpr',   label: 'WPR',   field: 'w' },        // raw value, sort desc
   { key: 'late',  label: 'Late',  field: 'ls' },
   { key: 'class', label: 'Class', field: 'wcR',  rankField: true }, // rank, sort asc
@@ -8227,7 +8231,7 @@ function renderSignalHeatmap(races) {
 
 // ── Section 2: Winners table ─────────────────────────────────────────────
 // One row per resulted race. Columns: Date · Meeting (link) · Race · Distance ·
-// Winner horse · Win SP · then 11 signal-rank cells.
+// Winner horse · Win SP · then 12 signal-rank cells (Score + 11 signals).
 function renderTrackingWinners(races) {
   const el = document.getElementById('tracking-winners');
   if (!el) return;
