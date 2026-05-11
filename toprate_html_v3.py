@@ -826,18 +826,19 @@ body {
   width: 52px;
 }
 /* Stretch chips inside the stack so they have matching width, and centre
-   their content. The vote badge gets a horizontal padding clip so the
-   ★ star suffix doesn't push past the 52px stack width. */
+   their content. Padding clipped to 3px (vs the default 5px) so the
+   stripped-label content fits cleanly inside the 52px stack. */
 .pr-sigs-top .score-votes-stack .sig {
   justify-content: center;
   padding-left: 3px; padding-right: 3px;
   gap: 3px;
-  overflow: hidden;
 }
-.pr-sigs-top .score-votes-stack .vote-badge .lbl {
-  /* Hide the "VOTES" label on the stacked badge - the position next to
-     Score makes its purpose obvious and the saved width keeps "6/6 ★3"
-     readable inside the constrained stack. */
+/* Hide both "Score" and "Votes" labels on the stacked chips - at 52px
+   wide there isn't room for both label + value + suffix (confidence dot
+   on Score, ★ count on Votes). The column position next to the voting
+   chips already implies the meaning, and the suffixes self-label
+   (• indicator for confidence, ★N for top-1 vote count). */
+.pr-sigs-top .score-votes-stack .sig .lbl {
   display: none;
 }
 .pr-form {
@@ -1372,15 +1373,15 @@ body {
   .pr-sigs-top .desktop-chips .sig .v { font-size: 11px; font-weight: 700; }
   /* Undo the desktop-only width clamp on the score-votes-stack: the
      enlarged mobile vote-badge needs to expand to its full content width,
-     and the VOTES label must be visible since the badge is the sole
-     indicator on mobile (when desktop-chips wrap). */
+     and the Score/Votes labels must be visible since the badge is the
+     sole indicator on mobile (when desktop-chips wrap). */
   .pr-sigs-top .score-votes-stack {
     width: auto;
   }
   .pr-sigs-top .score-votes-stack .sig {
-    padding-left: 5px; padding-right: 5px; overflow: visible;
+    padding-left: 5px; padding-right: 5px;
   }
-  .pr-sigs-top .score-votes-stack .vote-badge .lbl {
+  .pr-sigs-top .score-votes-stack .sig .lbl {
     display: inline;
   }
 
