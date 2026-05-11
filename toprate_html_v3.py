@@ -3098,6 +3098,24 @@ body {
   padding: 8px 12px; background: var(--line-soft);
   border-left: 3px solid var(--ink-faint); border-radius: 3px;
 }
+
+/* Threshold curve mode toggle - sits above the table, lets user switch
+   between picks-only and all-runners view. Same pill style as P&L period
+   buttons so the toggle visual language is consistent across the app. */
+.threshold-mode-toggle {
+  display: inline-flex; gap: 4px; margin-bottom: 10px;
+  padding: 3px; background: var(--line-soft); border-radius: 6px;
+}
+.th-mode-btn {
+  padding: 5px 12px; font-family: var(--font-body); font-size: 11px;
+  font-weight: 600; color: var(--ink-mute);
+  background: transparent; border: none; border-radius: 4px;
+  cursor: pointer; transition: all 0.12s;
+}
+.th-mode-btn:hover { color: var(--ink); }
+.th-mode-btn.active {
+  background: var(--ink); color: #fafaf9;
+}
 @media (max-width: 720px) {
   .tracking-mini-table { font-size: 11px; }
   .tracking-mini-table thead th, .tracking-mini-table tbody td {
@@ -8138,34 +8156,114 @@ function statRow(label, agg, extras) {
 }
 
 // ── Score threshold performance curve ────────────────────────────────────
-// At each threshold step, how would you have performed if you only bet picks
-// with Score >= threshold? Helps the user pick a stake threshold from real
-// data rather than guessing.
+// At each threshold step, how would you have performed at that threshold?
+// Two modes:
+//   - 'picks' (default): only horses the model actually picked (V3 rule applied).
+//     This is what you'd actually have bet.
+//   - 'all': every horse in every resulted race, regardless of voting rule.
+//     This isolates the raw predictive power of the Score - what % of horses
+//     above each threshold won, independent of any rule filtering.
+// The two views together tell you:
+//   - whether the voting rule adds edge beyond raw Score (compare ROIs)
+//   - what threshold to use if you wanted to bet outside the voting rule
+const THRESHOLD_MODE_KEY = 'tr_threshold_mode_v1';
+let thresholdMode = (function() {
+  try {
+    const v = localStorage.getItem(THRESHOLD_MODE_KEY);
+    if (v === 'picks' || v === 'all') return v;
+  } catch(e) {}
+  return 'picks';
+})();
+
+function setThresholdMode(mode) {
+  if (mode !== 'picks' && mode !== 'all') return;
+  thresholdMode = mode;
+  try { localStorage.setItem(THRESHOLD_MODE_KEY, mode); } catch(e) {}
+  // Re-render with the period-filtered race set (same as renderInsights uses)
+  renderThresholdCurve(trackingResultedRaces());
+}
+
+// Build a synthetic 'bets' list from resulted races (all horses) for the
+// 'all' mode. Mirrors the structure of SETTLED entries so aggregateBets()
+// works without modification. Only includes runners with both cs and sp,
+// since we need a score (for threshold) AND price (for ROI calculation).
+function trackingAllRunnerBets(races) {
+  const out = [];
+  races.forEach(race => {
+    (race.runners || []).forEach(u => {
+      if (u.cs == null) return;
+      if (u.sp == null || u.sp <= 1) return;
+      out.push({
+        date:    race.date,
+        venue:   race.venue,
+        distance: race.distance,
+        going:    race.going,
+        field_size: (race.runners || []).length,
+        cs:      u.cs,
+        won:     u.won === 1,
+        sp:      u.sp,
+        top:     u.top,
+        fxprice: u.fx,
+      });
+    });
+  });
+  return out;
+}
+
 function renderThresholdCurve(races) {
   const el = document.getElementById('threshold-curve');
   if (!el) return;
-  const bets = trackingSettledBets();
-  if (bets.length === 0) {
-    el.innerHTML = '<div class="empty-text">No settled bets in the selected period.</div>';
+  // Pick the source population based on the active mode
+  const source = thresholdMode === 'all'
+    ? trackingAllRunnerBets(races)
+    : trackingSettledBets();
+  // Mode toggle pills - always shown even on empty data so user can switch
+  const modeToggle =
+    '<div class="threshold-mode-toggle">' +
+      '<button class="th-mode-btn ' + (thresholdMode === 'picks' ? 'active' : '') +
+        '" data-th-mode="picks">Picks only</button>' +
+      '<button class="th-mode-btn ' + (thresholdMode === 'all' ? 'active' : '') +
+        '" data-th-mode="all">All resulted runners</button>' +
+    '</div>';
+  if (source.length === 0) {
+    el.innerHTML = modeToggle +
+      '<div class="empty-text">No data for the selected mode and period.</div>';
+    wireThresholdModeButtons();
     return;
   }
   // Threshold steps from 0.30 to 0.90 in 0.10 increments
   const steps = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
-  let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Threshold</th><th>Picks</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+  // Column label changes by mode: "Picks" for picks mode, "Runners" for all
+  const countCol = thresholdMode === 'all' ? 'Runners' : 'Picks';
+  let html = modeToggle +
+    '<table class="tracking-mini-table"><thead><tr>' +
+    '<th>Threshold</th><th>' + countCol + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   steps.forEach(t => {
-    // Filter bets where cs (cumulative score) >= threshold
-    const subset = bets.filter(b => b.cs != null && b.cs >= t);
+    const subset = source.filter(b => b.cs != null && b.cs >= t);
     const agg = aggregateBets(subset);
     html += statRow('>= ' + t.toFixed(2), agg);
   });
   html += '</tbody></table>';
-  // Helpful note below the table
-  html += '<div class="tracking-note">Use this to pick a Score threshold in Settings. ' +
-    'Higher threshold = fewer picks but typically stronger ROI. ROI is at SP, 1u flat stake. ' +
-    'Dot (·) flags small samples (under 10 picks).</div>';
+  // Note copy depends on mode - the right framing for what they're looking at
+  const note = thresholdMode === 'picks'
+    ? 'Performance of horses you actually picked (V3 voting rule applied) at each Score threshold. ' +
+      'Use this to pick a stake threshold for your live bets. ROI is at SP, 1u flat stake.'
+    : 'Performance of EVERY horse in resulted races (no model filtering), grouped by Score. ' +
+      'Shows the raw predictive power of the cumulative score independent of the voting rule. ' +
+      'Compare ROI here vs Picks-only mode to see how much edge the voting rule adds.';
+  html += '<div class="tracking-note">' + note +
+    '<br>Dot (·) flags small samples (under 10).</div>';
   el.innerHTML = html;
+  wireThresholdModeButtons();
+}
+
+function wireThresholdModeButtons() {
+  document.querySelectorAll('.th-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setThresholdMode(btn.dataset.thMode);
+    });
+  });
 }
 
 // ── Day of week breakdown ────────────────────────────────────────────────
