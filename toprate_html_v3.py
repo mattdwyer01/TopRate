@@ -736,7 +736,28 @@ body {
 .pr-runner .rhorse {
   font-family: var(--font-body); font-weight: 600; font-size: 14px;
   color: var(--ink); letter-spacing: -0.005em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* nowrap stays so horse names don't break mid-word; the fs-chip is
+     a small inline-block that fits at the end of the line. If the
+     name is so long it gets ellipsised the chip moves to the next
+     line via the parent rdetails layout. */
+  white-space: nowrap; overflow: visible;
+}
+/* Field size chip - sits inline after horse name. Neutral grey when field
+   is 8+; red-bordered when 7 or fewer to flag the user's manual-skip
+   strategy (small fields tend to push picks into longshot territory due
+   to the SP>=3 filter excluding short favs). */
+.fs-chip {
+  display: inline-block; vertical-align: baseline;
+  margin-left: 6px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 3px;
+  background: var(--line-soft); color: var(--ink-mute);
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+.fs-chip.warn {
+  background: var(--rose-bg); color: var(--rose);
+  border: 1px solid var(--rose-line);
 }
 .pr-runner .rmeta {
   font-family: var(--font-body); font-weight: 500; font-size: 11px;
@@ -4813,6 +4834,21 @@ function renderToday() {
     if (r.tn) metaParts.push(escapeHtml(r.tn));
     const metaLine = metaParts.join(' · ');
 
+    // Field size chip - shown next to horse name. Small fields (<=7) get
+    // a warn-style red badge to flag "manual skip" candidates. Below the
+    // small-field threshold the model tends to pick longshots (favs under
+    // the SP filter are excluded), so user wants a visual flag.
+    const fsValue = p.field_size || (r.fs || null);
+    let fsChipHtml = '';
+    if (fsValue != null) {
+      const fsWarn = fsValue <= 7;
+      const fsTip = fsWarn
+        ? 'Small field (' + fsValue + ' runners). User strategy: skip bets in fields of 7 or fewer.'
+        : fsValue + ' runners in this race';
+      fsChipHtml = '<span class="fs-chip ' + (fsWarn ? 'warn' : '') + '" title="' + fsTip + '">' +
+        'F' + fsValue + '</span>';
+    }
+
     row.innerHTML =
       '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
       '<div class="pr-venue clickable" data-nav-rid="' + (p.race_id || '') + '" title="Open race detail">' +
@@ -4822,7 +4858,7 @@ function renderToday() {
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
         '<div class="rdetails">' +
-          '<div class="rhorse">' + escapeHtml(p.horse || '') + '</div>' +
+          '<div class="rhorse">' + escapeHtml(p.horse || '') + fsChipHtml + '</div>' +
           '<div class="rmeta">' + metaLine + '</div>' +
         '</div>' +
       '</div>' +
@@ -7136,6 +7172,20 @@ function renderPnL() {
     if (r.tn || s.trainer) metaParts.push(escapeHtml(r.tn || s.trainer));
     const metaLine = metaParts.join(' · ');
 
+    // Field size chip - same as Today tab. <=7 = warn red, flag skip
+    // candidates for the user. Useful retrospectively on P&L too: shows
+    // which past picks were small-field (the segment user wants to avoid).
+    const fsValueP = s.field_size || (r.fs || null);
+    let fsChipHtmlP = '';
+    if (fsValueP != null) {
+      const fsWarn = fsValueP <= 7;
+      const fsTip = fsWarn
+        ? 'Small field (' + fsValueP + ' runners). User strategy: skip bets in fields of 7 or fewer.'
+        : fsValueP + ' runners in this race';
+      fsChipHtmlP = '<span class="fs-chip ' + (fsWarn ? 'warn' : '') + '" title="' + fsTip + '">' +
+        'F' + fsValueP + '</span>';
+    }
+
     const rowHtml =
       '<div class="pick-row is-settled ' + cardClass + (placed ? ' bet-placed' : '') +
         '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
@@ -7147,7 +7197,7 @@ function renderPnL() {
         '<div class="pr-runner">' +
           '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
           '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(s.horse || '') + '</div>' +
+            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsChipHtmlP + '</div>' +
             '<div class="rmeta">' + metaLine + '</div>' +
           '</div>' +
         '</div>' +
