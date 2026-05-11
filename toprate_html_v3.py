@@ -640,7 +640,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    300px             /* signals strip - 6 pills (Score TR WPR Mid Late Tot) */
+    340px             /* signals strip - 4-col grid for Score + 6 voting + Votes badge */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -657,7 +657,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1158px;
+  min-width: 1198px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -773,14 +773,14 @@ body {
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
 }
-/* Desktop signal chip layout: 3-column grid for the 6 voting signals.
-   Two compact rows (WPR/Late/Class top, L600/PFAI/TR bottom) instead of
-   4+2 wrap, giving cleaner alignment and predictable column widths
-   regardless of which signal labels are longest. Votes badge stays
-   to the right of the grid via the parent flex container. */
+/* Desktop signal chip layout: 4-column grid for 7 chips (Score + 6 voting
+   signals). Lays out as Score|WPR|Late|Class on row 1, L600|PFAI|TR|—
+   on row 2. The 8th cell stays empty rather than letting the chips wrap
+   irregularly, giving predictable two-row alignment. Votes badge sits to
+   the right of the grid via the parent flex container. */
 .pr-sigs-top .desktop-chips {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px 5px;
   flex: 0 0 auto;
 }
@@ -891,12 +891,11 @@ body {
 .picks-header {
   display: grid;
   /* Column widths MUST match .pick-row exactly so the header labels line
-     up with the data cells below them. Signals column is 300px to fit the
-     3-column chip grid (WPR/Late/Class on top, L600/PFAI/TR on bottom)
-     plus the Votes badge. Previously this header had 200px which left
-     Result/Odds Taken visually disconnected from their data cells. */
+     up with the data cells below them. Signals column is 340px to fit the
+     4-column chip grid (Score|WPR|Late|Class on top, L600|PFAI|TR|— on
+     bottom) plus the Votes badge to the right. */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 300px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 340px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -905,7 +904,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1158px;
+  min-width: 1198px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -4880,11 +4879,14 @@ function renderToday() {
       (voteTop1 >= 3 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 6 voting signals (Score is excluded; it's
-    // not part of the model rule, so it shouldn't appear in the rule-summary
-    // chip row. Score still appears in the detail panel breakdown.). Hidden
-    // on mobile via CSS where only the votes badge stays visible.
+    // Desktop signal chips - Score pill (the logreg probability rank) plus
+    // the 6 voting signals. Score is the headline metric the user asked to
+    // see back in the row, so it leads. With 7 chips in a 3-column grid
+    // the layout is Score|WPR|Late then L600|PFAI|TR (Class moves to row 2
+    // visually, alongside L600/PFAI/TR). Hidden on mobile via CSS where
+    // only the votes badge stays visible.
     const desktopChipsHtml =
+      scoreSigPill(p.crk, p.csc) +
       sigPill('WPR', p.wpr_rank) +
       sigPill('Late', p.late_rank) +
       sigPill('Class', p.wcR) +
@@ -7239,14 +7241,14 @@ function renderPnL() {
       (pVoteTop1 >= 3 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 6 voting signals (same as Today tab).
-    // Previously P&L showed TR/Mid/Late/Tot but feedback was that P&L should
-    // mirror Today's layout exactly so the eye can compare them directly.
-    // The original pick was made by these 6 signals - showing them here
-    // makes "why was this picked" easy to retrace post-hoc.
-    // Fields are on the settled bet (`s`), not on the runner_full record (`r`)
-    // which contains race-level context but not the pre-computed ranks.
+    // Desktop signal chips - Score pill plus the 6 voting signals. Matches
+    // the Today tab layout exactly so the user can compare picks/results
+    // side-by-side. Fields are on the settled bet (`s`), not on the
+    // runner_full record (`r`) which contains race-level context but not
+    // the pre-computed ranks. Score uses crk (cumulative rank) + csc
+    // (confidence) which we surfaced on the settled bet payload.
     const desktopChipsHtml =
+      scoreSigPill(s.crk, s.csc) +
       sigPill('WPR',   s.wpr_rank) +
       sigPill('Late',  s.late_rank) +
       sigPill('Class', s.wcR) +
