@@ -546,20 +546,23 @@ def merge_pf_ratings(runners_df):
     if "runStyle" in pf.columns:
         pf["runStyle"] = pf["runStyle"].astype(str).str.strip()
 
-    # Build join key on PF side
+    # Build join key on PF side. Venue is intentionally EXCLUDED from the
+    # key because PF and TR use different naming for secondary tracks - PF
+    # uses fully qualified names like "Randwick-Kensington" while TR
+    # collapses these to the parent track "Randwick". Other examples include
+    # Flemington side tracks, Eagle Farm vs Doomben, etc. Keying on date +
+    # race number + horse name is unique in practice (a horse runs once per
+    # day, and the combination of date+race_no+horse is effectively unique
+    # since a horse can only be in one race at one venue at a time).
     pf["_pf_horse_lc"] = pf["runnerName"].astype(str).str.lower().str.strip()
-    pf["_pf_venue_lc"] = pf["track"].astype(str).str.lower().str.strip()
     pf["_join_key"] = (pf["_pf_date"].astype(str) + "|" +
-                       pf["_pf_venue_lc"] + "|" +
                        pf["raceNo"].astype(str) + "|" +
                        pf["_pf_horse_lc"])
 
     # Build join key on runners_df side
     runners_df = runners_df.copy()
     runners_df["_tr_horse_lc"] = runners_df["horse"].astype(str).str.lower().str.strip()
-    runners_df["_tr_venue_lc"] = runners_df["venue"].astype(str).str.lower().str.strip()
     runners_df["_join_key"] = (runners_df["date"].astype(str) + "|" +
-                               runners_df["_tr_venue_lc"] + "|" +
                                runners_df["race"].astype(str) + "|" +
                                runners_df["_tr_horse_lc"])
 
@@ -582,7 +585,17 @@ def merge_pf_ratings(runners_df):
     }
     have_cols = [c for c in pf_cols if c in pf.columns]
     pf_subset = pf[have_cols].rename(columns={k: v for k, v in pf_cols.items() if k in have_cols})
+    # Detect collisions before dedup. Since the join key no longer includes
+    # venue, two different horses with the same name running in race 5 on
+    # the same date at different venues would collide. In practice this
+    # doesn't happen (horse names are unique in Australian racing) but log
+    # any collisions so we'd catch it if it ever did.
+    n_before_dedup = len(pf_subset)
     pf_subset = pf_subset.drop_duplicates(subset=["_join_key"], keep="last")
+    n_collisions = n_before_dedup - len(pf_subset)
+    if n_collisions > 0:
+        print(f"  Warning: {n_collisions} duplicate PF rows on (date, race_no, horse) - "
+              f"check for cross-venue horse name collisions")
 
     # Drop existing PF columns to avoid duplicate suffixing on re-merge
     for col in pf_subset.columns:
@@ -592,7 +605,7 @@ def merge_pf_ratings(runners_df):
     merged = runners_df.merge(pf_subset, on="_join_key", how="left")
 
     # Cleanup join scratch columns
-    merged = merged.drop(columns=["_join_key", "_tr_horse_lc", "_tr_venue_lc"])
+    merged = merged.drop(columns=["_join_key", "_tr_horse_lc"])
 
     n_total = len(merged)
     n_matched = merged["pf_ai_rank"].notna().sum()
