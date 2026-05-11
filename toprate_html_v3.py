@@ -5084,48 +5084,33 @@ function renderToday() {
         'F' + fsValue + '</span>';
     }
 
-    // Jockey rating chip - combined absolute + delta rule from data analysis.
-    // 4-tier visual based on jockey_rating analysis (84 picks):
-    //   GREEN (good):  rating >= 85 AND delta >= -4  (+43.5% ROI, 41% WR bucket)
-    //   GREY (neutral): rating >= 80 OR delta >= -2  (decent in at least one dimension)
-    //   AMBER (warn):  rating 75-79                  (-9.6% ROI bucket; mediocre)
-    //   RED (bad):     rating < 75 OR delta < -10    (weak in both dimensions)
-    // Label shows "Jky 87 -3" - absolute rating then delta from #1.
-    // Tooltip explains both.
+    // Jockey rating chip - absolute rating buckets (delta dropped for simplicity).
+    // 4 bands: red <75, amber 75-79, grey 80-84, green 85+.
+    // Based on jockey_rating_analysis: rating >=85 was the +2.6% ROI bucket,
+    // 80-84 the worst at -22.9%, 75-79 mediocre at -9.6%, <75 weak.
+    // (Earlier combined Abs+Delta rule was simpler to read but the user
+    // preference is to just see the rating - no race-context maths needed
+    // since the rating itself encodes jockey quality on its own.)
     let jkyChipHtml = '';
     if (r.jrt != null) {
-      const race = (typeof RACES !== 'undefined' && RACES)
-        ? RACES.find(rc => String(rc.race_id) === String(p.race_id))
-        : null;
-      const allJ = race && race.runners
-        ? race.runners.map(u => u.jrt).filter(v => v != null)
-        : [];
-      if (allJ.length > 0) {
-        const topJ = Math.max.apply(null, allJ);
-        const myRating = Math.round(r.jrt);
-        const delta = Math.round(r.jrt - topJ);
-        let cls = '';
-        let lbl = '';
-        if (myRating >= 85 && delta >= -4) {
-          cls = 'good';
-          lbl = 'Premium pick zone (rating 85+ AND within 4 pts of top jockey). +43.5% ROI bucket in backtest.';
-        } else if (myRating < 75 || delta < -10) {
-          cls = 'bad';
-          lbl = (myRating < 75 ? 'Weak jockey (rating below 75)' : 'Far behind top jockey (-11+ rating points)') +
-            '. Worst-performing bucket in backtest.';
-        } else if (myRating >= 75 && myRating < 80) {
-          cls = 'warn';
-          lbl = 'Mediocre jockey rating (75-79). Underperforming bucket in backtest.';
-        } else {
-          cls = '';  // grey neutral
-          lbl = 'Acceptable jockey but not in the premium zone.';
-        }
-        const deltaStr = delta >= 0 ? '0' : delta.toString();
-        const tip = 'Jockey rating ' + myRating + ' (top in race: ' + Math.round(topJ) +
-          ', delta ' + deltaStr + '). ' + lbl;
-        const lblText = 'Jky ' + myRating + ' ' + (delta >= 0 ? '0' : delta);
-        jkyChipHtml = '<span class="jky-chip ' + cls + '" title="' + tip + '">' + lblText + '</span>';
+      const myRating = Math.round(r.jrt);
+      let cls = '';
+      let lbl = '';
+      if (myRating >= 85) {
+        cls = 'good';
+        lbl = 'Elite jockey rating (85+). +2.6% ROI bucket in backtest, 29.6% WR.';
+      } else if (myRating >= 80) {
+        cls = '';  // grey neutral
+        lbl = 'Decent jockey rating (80-84). Underperforming bucket in backtest (-22.9% ROI).';
+      } else if (myRating >= 75) {
+        cls = 'warn';
+        lbl = 'Mediocre jockey rating (75-79). -9.6% ROI bucket in backtest.';
+      } else {
+        cls = 'bad';
+        lbl = 'Weak jockey rating (below 75). Worst-performing bucket in backtest.';
       }
+      const tip = 'Jockey rating ' + myRating + '. ' + lbl;
+      jkyChipHtml = '<span class="jky-chip ' + cls + '" title="' + tip + '">Jky ' + myRating + '</span>';
     }
     const fsAndJkyChips = fsChipHtml + jkyChipHtml;
 
@@ -7501,46 +7486,28 @@ function renderPnL() {
         'F' + fsValueP + '</span>';
     }
 
-    // Jockey rating chip - combined absolute + delta rule (matches Today tab).
-    // 4-tier visual based on jockey_rating analysis (84 picks):
-    //   GREEN (good):  rating >= 85 AND delta >= -4  (+43.5% ROI bucket)
-    //   GREY (neutral): rating 80-84 AND delta >= -4 (or rating >= 80, delta >= -2)
-    //   AMBER (warn):  rating 75-79                  (mediocre bucket)
-    //   RED (bad):     rating < 75 OR delta < -10    (weak)
+    // Jockey rating chip - absolute rating buckets (matches Today tab).
+    // 4 bands: red <75, amber 75-79, grey 80-84, green 85+.
     let jkyChipHtmlP = '';
     if (r.jrt != null) {
-      const race = (typeof RACES !== 'undefined' && RACES)
-        ? RACES.find(rc => String(rc.race_id) === String(s.race_id))
-        : null;
-      const allJ = race && race.runners
-        ? race.runners.map(u => u.jrt).filter(v => v != null)
-        : [];
-      if (allJ.length > 0) {
-        const topJ = Math.max.apply(null, allJ);
-        const myRating = Math.round(r.jrt);
-        const delta = Math.round(r.jrt - topJ);
-        let cls = '';
-        let lbl = '';
-        if (myRating >= 85 && delta >= -4) {
-          cls = 'good';
-          lbl = 'Premium pick zone (rating 85+ AND within 4 pts of top jockey). +43.5% ROI bucket in backtest.';
-        } else if (myRating < 75 || delta < -10) {
-          cls = 'bad';
-          lbl = (myRating < 75 ? 'Weak jockey (rating below 75)' : 'Far behind top jockey (-11+ rating points)') +
-            '. Worst-performing bucket in backtest.';
-        } else if (myRating >= 75 && myRating < 80) {
-          cls = 'warn';
-          lbl = 'Mediocre jockey rating (75-79). Underperforming bucket in backtest.';
-        } else {
-          cls = '';
-          lbl = 'Acceptable jockey but not in the premium zone.';
-        }
-        const deltaStr = delta >= 0 ? '0' : delta.toString();
-        const tip = 'Jockey rating ' + myRating + ' (top in race: ' + Math.round(topJ) +
-          ', delta ' + deltaStr + '). ' + lbl;
-        const lblText = 'Jky ' + myRating + ' ' + (delta >= 0 ? '0' : delta);
-        jkyChipHtmlP = '<span class="jky-chip ' + cls + '" title="' + tip + '">' + lblText + '</span>';
+      const myRating = Math.round(r.jrt);
+      let cls = '';
+      let lbl = '';
+      if (myRating >= 85) {
+        cls = 'good';
+        lbl = 'Elite jockey rating (85+).';
+      } else if (myRating >= 80) {
+        cls = '';
+        lbl = 'Decent jockey rating (80-84).';
+      } else if (myRating >= 75) {
+        cls = 'warn';
+        lbl = 'Mediocre jockey rating (75-79).';
+      } else {
+        cls = 'bad';
+        lbl = 'Weak jockey rating (below 75).';
       }
+      const tip = 'Jockey rating ' + myRating + '. ' + lbl;
+      jkyChipHtmlP = '<span class="jky-chip ' + cls + '" title="' + tip + '">Jky ' + myRating + '</span>';
     }
     const fsAndJkyChipsP = fsChipHtmlP + jkyChipHtmlP;
 
