@@ -4912,11 +4912,16 @@ function renderToday() {
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
-    // The Score pill is special - shows rank + a confidence dot indicating how
-    // tightly the underlying signals agreed. Tight cluster = filled green dot,
-    // wide spread = hollow grey dot. Helps spot "split" picks vs "unanimous".
-    function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+    // The Score pill is special - shows the underlying probability score
+    // (0.00-1.00, displayed as a 2-digit percentage) plus a confidence dot
+    // indicating how tightly the signals agreed. The rank is still the
+    // colour driver (#1 in race = emerald, #2 = light emerald, etc) so the
+    // chip retains its "best in race" visual cue, but the displayed value
+    // is the absolute score - which is what the 0.50 threshold actually
+    // gates on. Showing the raw score makes it obvious why a pick clears
+    // or fails the threshold.
+    function scoreSigPill(rank, score, conf) {
+      if (score == null && rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -4926,11 +4931,16 @@ function renderToday() {
           (conf >= 0.80 ? 'unanimous' : conf >= 0.50 ? 'mixed' : 'split');
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
-      const scoreTooltip = 'Score rank #' + rank + '. The Score is a logistic regression ' +
-        'probability (Path C) that combines TR rating, WPR, Late, PF AI, PF Class, and PF L600. ' +
-        'Higher = stronger pick. The rank shown here is within this race.';
+      // Format score as 2-digit integer (0.62 -> 62). Compact for the
+      // constrained 52px chip and reads as a percentage at a glance.
+      const scoreDisplay = score != null ? Math.round(score * 100) : '—';
+      const rankBit = rank != null ? ' (rank #' + rank + ' in this race)' : '';
+      const scoreTooltip = 'Score ' + (score != null ? score.toFixed(3) : 'n/a') + rankBit +
+        '. The Score is a logistic regression probability (Path C) that combines TR rating, ' +
+        'WPR, Late, PF AI, PF Class, and PF L600. Threshold for picks is 0.50. ' +
+        'Higher = stronger pick.';
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
-        '<span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+        '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
     // V3 voting model rule transparency: show how many of the 6 signals
     // hit the top-3 threshold and how many were #1. Format: "5/6 ★3" =
@@ -4963,7 +4973,7 @@ function renderToday() {
       sigPill('PFAI', p.pfaiR) +
       sigPill('TR', p.tr_rank);
     // Score chip stacks above Votes badge in a dedicated mini-column
-    const scoreChipHtml = scoreSigPill(p.crk, p.csc);
+    const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
@@ -7355,9 +7365,13 @@ function renderPnL() {
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
     }
-    // Score pill on settled rows also gets the confidence dot (same as Today)
-    function scoreSigPill(rank, conf) {
-      if (rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
+    // Score pill on settled rows also gets the confidence dot (same as Today).
+    // Displays the raw score (0.00-1.00 as a 2-digit percentage), keeping
+    // the within-race rank only as the colour driver. Showing the absolute
+    // score lets you eyeball how close a settled pick was to the 0.50
+    // threshold retrospectively.
+    function scoreSigPill(rank, score, conf) {
+      if (score == null && rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
       const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
       let confDot = '';
       if (conf != null) {
@@ -7365,7 +7379,12 @@ function renderPnL() {
         const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
         confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
       }
-      return '<span class="sig ' + cls + '"><span class="lbl">Score</span><span class="v">' + rank + '</span>' + confDot + '</span>';
+      const scoreDisplay = score != null ? Math.round(score * 100) : '—';
+      const rankBit = rank != null ? ' (rank #' + rank + ' in this race)' : '';
+      const scoreTooltip = 'Score ' + (score != null ? score.toFixed(3) : 'n/a') + rankBit +
+        '. Threshold for picks was 0.50.';
+      return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
+        '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
     // Vote count badge - shows model-rule conformance for the original pick
     // (mobile-friendly summary, replaces the chip row on small screens).
@@ -7390,9 +7409,9 @@ function renderPnL() {
       sigPill('PFAI',  s.pfaiR) +
       sigPill('TR',    s.tr_rank);
     // Score chip stacks above Votes badge in its own mini-column - same
-    // layout as Today tab. Score uses crk (cumulative rank) + csc (confidence)
-    // surfaced on the settled bet payload.
-    const scoreChipHtml = scoreSigPill(s.crk, s.csc);
+    // layout as Today tab. Score uses cs (cumulative score), crk (within-race
+    // rank for colour tier) + csc (confidence) surfaced on the settled bet.
+    const scoreChipHtml = scoreSigPill(s.crk, s.cs, s.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
