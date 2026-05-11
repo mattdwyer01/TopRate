@@ -3889,17 +3889,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="heatmap-period-cmp" class="hm-period-cmp"></div>
     </div>
 
-    <!-- 2. Winners table - one row per resulted race, full signal ranks for the winner -->
-    <div class="insight-card insight-wide">
-      <h3>Winners — signal ranks</h3>
-      <div class="desc">
-        Every resulted race in the period. Each row shows the winner's rank for
-        all 11 signals. Green = top 3, yellow = top 5, grey = beyond. Race link
-        opens the Race tab. Sort by clicking column headers.
-      </div>
-      <div id="tracking-winners"></div>
-    </div>
-
     <!-- 3. Signal correlation matrix - shows agreement between pairs of signals.
          High agreement = signal redundancy (one of them adds little info beyond
          the other). Low agreement = signals are picking different horses, so
@@ -3977,6 +3966,19 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         bigger fields dilute the signal edge.
       </div>
       <div id="fieldsize-breakdown"></div>
+    </div>
+
+    <!-- 9. Winners table (penultimate, above Placegetters): one row per
+         resulted race, full signal ranks for the winner. Heavy table - sits
+         near the bottom so the lighter analytic cards scroll first. -->
+    <div class="insight-card insight-wide">
+      <h3>Winners — signal ranks</h3>
+      <div class="desc">
+        Every resulted race in the period. Each row shows the winner's rank for
+        all 11 signals. Green = top 3, yellow = top 5, grey = beyond. Race link
+        opens the Race tab. Sort by clicking column headers.
+      </div>
+      <div id="tracking-winners"></div>
     </div>
 
     <!-- 10. Placegetters drill-down - 1st/2nd/3rd with full signal context -->
