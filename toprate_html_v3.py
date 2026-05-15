@@ -1771,15 +1771,6 @@ body {
   margin-left: auto;
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
 }
-/* Cell state when a race fails one or more active filters. Stays visible
-   and clickable, just dimmed - so the user can see WHY it was filtered
-   and inspect the race anyway if they want. */
-.mt-race-cell.mt-filtered-out {
-  opacity: 0.28;
-}
-.mt-race-cell.mt-filtered-out:hover {
-  opacity: 0.5;
-}
 @media (max-width: 720px) {
   .race-filters-bar { padding: 8px 10px; gap: 8px; }
   .race-filter-group label { display: none; }
@@ -4374,6 +4365,35 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="race-date-info" id="today-date-info">&mdash;</div>
     </div>
+
+    <!-- Today filters bar - field size, jockey rating. Filters narrow which
+         model picks show up in the row list below. Filtered-out rows dim
+         but stay visible/clickable so user can still inspect them. Filters
+         persist across reloads via localStorage. -->
+    <div class="race-filters-bar">
+      <div class="race-filter-group">
+        <label for="today-filter-fs">Field</label>
+        <select class="race-filter-select" id="today-filter-fs">
+          <option value="0">All</option>
+          <option value="8">8+</option>
+          <option value="10">10+</option>
+          <option value="12">12+</option>
+        </select>
+      </div>
+      <div class="race-filter-group">
+        <label for="today-filter-jky">Jky rating</label>
+        <select class="race-filter-select" id="today-filter-jky">
+          <option value="0">All</option>
+          <option value="75">75+</option>
+          <option value="80">80+</option>
+          <option value="85">85+</option>
+          <option value="90">90+</option>
+        </select>
+      </div>
+      <button class="race-filter-reset" id="today-filter-reset" type="button">Reset</button>
+      <div class="race-filter-summary" id="today-filter-summary"></div>
+    </div>
+
     <div class="picks-scroll" id="picks-scroll">
     <div class="picks-header" id="picks-header">
       <div>Time</div>
@@ -4406,38 +4426,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <input type="date" id="race-date-input" class="race-date-input">
         </div>
         <div class="race-date-info" id="race-date-info">—</div>
-      </div>
-
-      <!-- Filters bar - field size, jockey rating, pick-only toggle.
-           Selections persist via localStorage. Filtered races dim to ~30%
-           opacity but stay visible and clickable so the user can still
-           inspect a filtered race if they want. -->
-      <div class="race-filters-bar">
-        <div class="race-filter-group">
-          <label for="race-filter-fs">Field</label>
-          <select class="race-filter-select" id="race-filter-fs">
-            <option value="0">All</option>
-            <option value="8">8+</option>
-            <option value="10">10+</option>
-            <option value="12">12+</option>
-          </select>
-        </div>
-        <div class="race-filter-group">
-          <label for="race-filter-jky">Jky rating</label>
-          <select class="race-filter-select" id="race-filter-jky">
-            <option value="0">All</option>
-            <option value="75">75+</option>
-            <option value="80">80+</option>
-            <option value="85">85+</option>
-            <option value="90">90+</option>
-          </select>
-        </div>
-        <label class="race-filter-check">
-          <input type="checkbox" id="race-filter-pickonly">
-          Pick only
-        </label>
-        <button class="race-filter-reset" id="race-filter-reset" type="button">Reset</button>
-        <div class="race-filter-summary" id="race-filter-summary"></div>
       </div>
 
       <div id="race-meetings-list">
@@ -5295,15 +5283,44 @@ function renderToday() {
   const localToday = isoDate(0);
   // Picks for this date across all models (used for sub-tab badge counts)
   const dateAllPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
-  // Active-model-only picks (used for the actual row rendering)
+  // Active-model-only picks for this date (pre-filter)
   const activeModel = (activeModels && activeModels.today) || 'main';
-  const todaysPicks = dateAllPicks.filter(p => (p.model || 'main') === activeModel);
+  const modelPicksForDate = dateAllPicks.filter(p => (p.model || 'main') === activeModel);
+  // Apply Today filters (field size, jky rating). Rows that fail filters
+  // are hidden entirely (not dimmed) because Today rows are large and
+  // action-oriented - dimming would be visually noisy. Hero stats below
+  // recompute against the FILTERED set, so a user filtering to "Jky 85+"
+  // sees the P&L/WR for that subset specifically.
+  const todaysPicks = modelPicksForDate.filter(p => todayPickPassesFilters(p));
 
   // Update sub-tab badge counts to reflect picks-per-model for browsed date
+  // (pre-filter so user sees total available across models)
   ['main', 'loose'].forEach(m => {
     const badge = document.getElementById('today-subtab-count-' + m);
     if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'main') === m).length;
   });
+
+  // Update filter-bar summary: "Showing N of M picks" when filters are active.
+  // Empty when filters at defaults so the bar doesn't show stale info.
+  const _todayFilterSumEl = document.getElementById('today-filter-summary');
+  if (_todayFilterSumEl) {
+    const anyActive = todayFilters.minFs > 0 || todayFilters.minJky > 0;
+    if (anyActive && modelPicksForDate.length > 0) {
+      _todayFilterSumEl.textContent =
+        'Showing ' + todaysPicks.length + ' of ' + modelPicksForDate.length + ' picks';
+    } else {
+      _todayFilterSumEl.textContent = '';
+    }
+  }
+  // Sync filter control values from persisted state on re-render
+  const _todayFilterFsSel = document.getElementById('today-filter-fs');
+  if (_todayFilterFsSel && String(_todayFilterFsSel.value) !== String(todayFilters.minFs)) {
+    _todayFilterFsSel.value = String(todayFilters.minFs);
+  }
+  const _todayFilterJkySel = document.getElementById('today-filter-jky');
+  if (_todayFilterJkySel && String(_todayFilterJkySel.value) !== String(todayFilters.minJky)) {
+    _todayFilterJkySel.value = String(todayFilters.minJky);
+  }
 
   // Update date bar UI
   const tdInput = document.getElementById('today-date-input');
@@ -5322,14 +5339,25 @@ function renderToday() {
   }
 
   if (todaysPicks.length === 0) {
-    const dates = [...new Set((PICKS_TODAY || []).map(p => p.date).filter(Boolean))];
-    let hint = '';
-    if (dates.length > 0) {
-      hint = '<div class="sub" style="margin-top:12px;">Picks available for: ' +
-        dates.slice(-3).join(', ') + '. Pick a different date above or use the Race tab to browse.</div>';
+    // Distinguish "actually no picks for this date" from "all picks failed filters"
+    const filtersActive = todayFilters.minFs > 0 || todayFilters.minJky > 0;
+    if (filtersActive && modelPicksForDate.length > 0) {
+      list.innerHTML = '<div class="empty-state">' +
+        '<div class="head">No picks match current filters</div>' +
+        '<div class="sub">' + modelPicksForDate.length + ' pick' +
+        (modelPicksForDate.length === 1 ? '' : 's') +
+        ' for this date are hidden by your Field/Jky filters. Click Reset to show all.</div>' +
+        '</div>';
+    } else {
+      const dates = [...new Set((PICKS_TODAY || []).map(p => p.date).filter(Boolean))];
+      let hint = '';
+      if (dates.length > 0) {
+        hint = '<div class="sub" style="margin-top:12px;">Picks available for: ' +
+          dates.slice(-3).join(', ') + '. Pick a different date above or use the Race tab to browse.</div>';
+      }
+      list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + browseDate + '</div>' +
+        '<div class="sub">The model did not find any qualifying runners on this date, or the data has not been refreshed yet.</div>' + hint + '</div>';
     }
-    list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + browseDate + '</div>' +
-      '<div class="sub">The model did not find any qualifying runners on this date, or the data has not been refreshed yet.</div>' + hint + '</div>';
     const hdrEmpty = document.getElementById('picks-header');
     if (hdrEmpty) hdrEmpty.style.display = 'none';
     return;
@@ -6149,60 +6177,59 @@ function ord(n) {
 let currentBrowseDate = null;     // YYYY-MM-DD being browsed
 let currentRaceId = null;          // race_id of the currently open detail
 
-// Filter state for the meetings grid. Persisted across reloads so users
-// don't lose their filters when switching pages or refreshing.
-//   minFs   = minimum field size (race.fs >= minFs); 0 = no filter
-//   minJky  = minimum jockey rating on the active model pick; 0 = no filter
-//   pickOnly = only races where some model has a pick
-const RACE_FILTERS_KEY = 'toprate_v3_race_filters';
-let raceFilters = { minFs: 0, minJky: 0, pickOnly: false };
+// Filter state for the Today tab pick rows. Persisted across reloads so
+// users don't lose their filters when refreshing.
+//   minFs   = minimum field size of the pick's race (race.fs >= minFs); 0 = no filter
+//   minJky  = minimum jockey rating on the pick (runner.jrt >= minJky); 0 = no filter
+// Re-uses the old RACE_FILTERS_KEY since the shape is identical to the
+// previous race-tab implementation; users who had filters set on the Race
+// tab will see them migrate to the Today tab naturally.
+const TODAY_FILTERS_KEY = 'toprate_v3_today_filters';
+let todayFilters = { minFs: 0, minJky: 0 };
 try {
-  const stored = localStorage.getItem(RACE_FILTERS_KEY);
+  // Try new key first, fall back to old race-filters key for migration
+  let stored = localStorage.getItem(TODAY_FILTERS_KEY);
+  if (!stored) stored = localStorage.getItem('toprate_v3_race_filters');
   if (stored) {
     const parsed = JSON.parse(stored);
     if (parsed && typeof parsed === 'object') {
-      raceFilters = Object.assign(raceFilters, parsed);
+      todayFilters = Object.assign(todayFilters, parsed);
+      // Drop legacy pickOnly field if present in migrated state
+      delete todayFilters.pickOnly;
     }
   }
 } catch(e) {}
-function saveRaceFilters() {
-  try { localStorage.setItem(RACE_FILTERS_KEY, JSON.stringify(raceFilters)); } catch(e) {}
+function saveTodayFilters() {
+  try { localStorage.setItem(TODAY_FILTERS_KEY, JSON.stringify(todayFilters)); } catch(e) {}
 }
 
-// Returns true if a race passes all currently-active filters. Used by
-// renderMeetingsGrid to decide whether each cell is dimmed.
-function racePassesFilters(race) {
-  // Field size filter
-  if (raceFilters.minFs > 0) {
-    const fs = race.fs || (race.runners || []).length || 0;
-    if (fs < raceFilters.minFs) return false;
+// Returns true if a Today-tab pick row passes all active filters.
+// `pick` is an entry from PICKS_TODAY - has run_id, race_id, field_size,
+// and we look up jrt via the race's runner list.
+function todayPickPassesFilters(pick) {
+  // Field size filter - pick.field_size is set from race.fs at build time
+  if (todayFilters.minFs > 0) {
+    const fs = pick.field_size || 0;
+    if (fs < todayFilters.minFs) return false;
   }
-  // Pick-only filter
-  const racePicks = (MODEL_PICKS[race.race_id] || {});
-  const mainPicks = racePicks[PRIMARY_KEY] || [];
-  const loosePicks = racePicks['loose'] || [];
-  const hasAnyPick = mainPicks.length > 0 || loosePicks.length > 0;
-  if (raceFilters.pickOnly && !hasAnyPick) return false;
-  // Jockey rating filter - checks Main pick's jky rating first, falls back
-  // to Loose pick's. Only applies when there's a pick - races with no pick
-  // are unaffected by this filter (use pickOnly to gate those out).
-  if (raceFilters.minJky > 0) {
-    let bestJky = null;
-    const checkPicks = (picks) => {
-      picks.forEach(p => {
-        // Pick objects don't carry jrt - look up in race.runners by run_id
-        if (!race.runners) return;
-        const runner = race.runners.find(u => String(u.rid) === String(p.run_id));
-        if (runner && runner.jrt != null) {
-          if (bestJky == null || runner.jrt > bestJky) bestJky = runner.jrt;
-        }
-      });
-    };
-    checkPicks(mainPicks);
-    checkPicks(loosePicks);
-    // Races with no pick or no jky data on picks fail this filter (intentional -
-    // user is asking "races where the pick has a strong jockey")
-    if (bestJky == null || bestJky < raceFilters.minJky) return false;
+  // Jockey rating filter - look up the picked runner in its race to read jrt.
+  // Picks don't carry jrt directly because they're built before all race
+  // context is enriched; we fetch from the runner_full reference if present
+  // (set in the enrichment loop), otherwise look up via RACES.
+  if (todayFilters.minJky > 0) {
+    let jrt = null;
+    if (pick.runner_full && pick.runner_full.jrt != null) {
+      jrt = pick.runner_full.jrt;
+    } else {
+      const race = RACES.find(r => String(r.race_id) === String(pick.race_id));
+      if (race && race.runners) {
+        const runner = race.runners.find(u => String(u.rid) === String(pick.run_id));
+        if (runner && runner.jrt != null) jrt = runner.jrt;
+      }
+    }
+    // Picks without jrt data fail the filter (intentional - user is asking
+    // "show me picks where the jockey rating is at least N")
+    if (jrt == null || jrt < todayFilters.minJky) return false;
   }
   return true;
 }
@@ -6294,10 +6321,6 @@ function renderMeetingsGrid() {
       if (hasPick) cellCls += ' has-pick';
       if (hasLoose) cellCls += ' has-loose-pick';
       if (fsOk) cellCls += ' mt-fsok';
-      // Filter check - dims the cell but keeps it visible/clickable. Counted
-      // for the filter summary so the user can see how many races passed.
-      const passesFilters = racePassesFilters(race);
-      if (!passesFilters) cellCls += ' mt-filtered-out';
       let badge = '';
       let lbl = tm || ('R' + i);
       if (isResulted) {
@@ -6357,32 +6380,6 @@ function renderMeetingsGrid() {
   document.getElementById('race-date-info').textContent =
     meetings.length + ' meeting' + (meetings.length !== 1 ? 's' : '') + ' · ' +
     dateRaces.length + ' races';
-
-  // Filter summary: show "N of M passing" only when any filter is active.
-  // When all filters at defaults, summary stays empty so it doesn't add noise.
-  const sumEl = document.getElementById('race-filter-summary');
-  if (sumEl) {
-    const anyActive = raceFilters.minFs > 0 || raceFilters.minJky > 0 || raceFilters.pickOnly;
-    if (anyActive) {
-      const passing = dateRaces.filter(r => racePassesFilters(r)).length;
-      sumEl.textContent = passing + ' of ' + dateRaces.length + ' passing';
-    } else {
-      sumEl.textContent = '';
-    }
-  }
-  // Make sure the filter control values reflect persisted state on render
-  const fsSel = document.getElementById('race-filter-fs');
-  if (fsSel && String(fsSel.value) !== String(raceFilters.minFs)) {
-    fsSel.value = String(raceFilters.minFs);
-  }
-  const jkySel = document.getElementById('race-filter-jky');
-  if (jkySel && String(jkySel.value) !== String(raceFilters.minJky)) {
-    jkySel.value = String(raceFilters.minJky);
-  }
-  const pickChk = document.getElementById('race-filter-pickonly');
-  if (pickChk && pickChk.checked !== !!raceFilters.pickOnly) {
-    pickChk.checked = !!raceFilters.pickOnly;
-  }
 
   // Wire cell clicks
   host.querySelectorAll('.mt-race-cell[data-rid]').forEach(cell => {
@@ -7655,45 +7652,36 @@ if (rdInp) {
   });
 }
 
-// Wire race filter controls (field size, jky rating, pick-only, reset).
-// Each change persists to localStorage and re-renders the meetings grid.
-const _raceFilterFs = document.getElementById('race-filter-fs');
-if (_raceFilterFs) {
-  _raceFilterFs.value = String(raceFilters.minFs);
-  _raceFilterFs.addEventListener('change', e => {
-    raceFilters.minFs = parseInt(e.target.value, 10) || 0;
-    saveRaceFilters();
-    renderMeetingsGrid();
+// Wire Today tab filter controls (field size, jky rating, reset).
+// Each change persists to localStorage and re-renders the picks list.
+// Picks that fail the active filter dim but stay visible/clickable so
+// the user can still see what's been filtered out.
+const _todayFilterFs = document.getElementById('today-filter-fs');
+if (_todayFilterFs) {
+  _todayFilterFs.value = String(todayFilters.minFs);
+  _todayFilterFs.addEventListener('change', e => {
+    todayFilters.minFs = parseInt(e.target.value, 10) || 0;
+    saveTodayFilters();
+    renderToday();
   });
 }
-const _raceFilterJky = document.getElementById('race-filter-jky');
-if (_raceFilterJky) {
-  _raceFilterJky.value = String(raceFilters.minJky);
-  _raceFilterJky.addEventListener('change', e => {
-    raceFilters.minJky = parseInt(e.target.value, 10) || 0;
-    saveRaceFilters();
-    renderMeetingsGrid();
+const _todayFilterJky = document.getElementById('today-filter-jky');
+if (_todayFilterJky) {
+  _todayFilterJky.value = String(todayFilters.minJky);
+  _todayFilterJky.addEventListener('change', e => {
+    todayFilters.minJky = parseInt(e.target.value, 10) || 0;
+    saveTodayFilters();
+    renderToday();
   });
 }
-const _raceFilterPickOnly = document.getElementById('race-filter-pickonly');
-if (_raceFilterPickOnly) {
-  _raceFilterPickOnly.checked = !!raceFilters.pickOnly;
-  _raceFilterPickOnly.addEventListener('change', e => {
-    raceFilters.pickOnly = !!e.target.checked;
-    saveRaceFilters();
-    renderMeetingsGrid();
-  });
-}
-const _raceFilterReset = document.getElementById('race-filter-reset');
-if (_raceFilterReset) {
-  _raceFilterReset.addEventListener('click', () => {
-    raceFilters = { minFs: 0, minJky: 0, pickOnly: false };
-    saveRaceFilters();
-    // Reset control values then re-render
-    if (_raceFilterFs) _raceFilterFs.value = '0';
-    if (_raceFilterJky) _raceFilterJky.value = '0';
-    if (_raceFilterPickOnly) _raceFilterPickOnly.checked = false;
-    renderMeetingsGrid();
+const _todayFilterReset = document.getElementById('today-filter-reset');
+if (_todayFilterReset) {
+  _todayFilterReset.addEventListener('click', () => {
+    todayFilters = { minFs: 0, minJky: 0 };
+    saveTodayFilters();
+    if (_todayFilterFs) _todayFilterFs.value = '0';
+    if (_todayFilterJky) _todayFilterJky.value = '0';
+    renderToday();
   });
 }
 
