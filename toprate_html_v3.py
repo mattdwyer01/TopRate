@@ -664,9 +664,11 @@ body {
     margin-bottom: 12px;
     /* Keep nav visible when scrolling. Without this, users scroll 5 picks
        deep on Today and lose access to switch tabs without scrolling back up.
-       Background must be solid so picks don't bleed through. */
+       Background must be solid so picks don't bleed through.
+       Stacks BELOW the sticky NTJ ticker (top: 46px ~= ticker height) so
+       both ticker and tabs stay visible together. */
     position: sticky;
-    top: 0;
+    top: 46px;
     background: var(--bg);
     z-index: 50;
     /* Add bottom padding so the underline border doesn't touch picks below */
@@ -1620,6 +1622,11 @@ body {
   display: flex; align-items: center; gap: 14px;
   padding: 8px 12px; border-radius: var(--radius-md);
   margin-bottom: 14px; overflow: hidden;
+  /* Stick to top of viewport so the next-to-jump countdowns stay visible
+     as the user scrolls through the day's picks. Background is solid dark
+     so picks scrolling underneath don't bleed through. z-index 60 keeps
+     it above the mobile-sticky .tabs (z-index 50). */
+  position: sticky; top: 0; z-index: 60;
 }
 .ntj-ticker.collapsed { padding: 6px 12px; }
 .ntj-ticker.collapsed .ntj-pills { display: none; }
@@ -1657,23 +1664,16 @@ body {
 .ntj-pill.has-pick .ntj-pill-name::before {
   content: '●'; color: var(--emerald); margin-right: 6px;
 }
-/* Loose-model pick indicator. Sits after the race name. Amber colour to
-   visually differentiate from Main pick (emerald dot). Compact pill so it
-   doesn't dominate the race name. Used on NTJ ticker and Race tab cells. */
-.ntj-pill-loose-badge,
-.mt-race-cell-loose-badge,
-.meeting-tile-loose-badge {
-  display: inline-block; margin-left: 5px;
-  font-family: var(--font-body); font-size: 9px; font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 1px 5px; border-radius: 3px;
-  background: #f59e0b; color: #0f1729;
-  vertical-align: 1px;
+/* Loose-model pick indicator on NTJ ticker pill. Amber dot mirrors the
+   green dot used for Main picks. When both Main AND Loose pick the same
+   race, the Main green dot wins (the has-pick rule above runs second in
+   the cascade and overrides this one). */
+.ntj-pill.has-loose-pick:not(.has-pick) {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, .12);
 }
-/* Race tab cell variant - slightly different shade for the lighter bg */
-.mt-race-cell-loose-badge,
-.meeting-tile-loose-badge {
-  background: #d97706; color: #fff;
+.ntj-pill.has-loose-pick:not(.has-pick) .ntj-pill-name::before {
+  content: '●'; color: #d97706; margin-right: 6px;
 }
 .ntj-pill-cd {
   font-family: var(--font-mono); font-size: 10px; font-weight: 700;
@@ -1834,6 +1834,22 @@ body {
 .mt-race-cell.mt-empty { color: var(--ink-faint); cursor: default; background: var(--bg); }
 .mt-race-cell.mt-empty:hover { background: var(--bg); color: var(--ink-faint); }
 .mt-race-cell.mt-resulted { color: var(--ink-mute); background: var(--bg); }
+/* Resulted-race outcome highlighting. mt-result-main-hit: emerald tint when
+   the Main model pick won. mt-result-loose-hit: amber tint when only the
+   Loose pick won (Main missed). Lets the user scan a day's card and
+   immediately see model accuracy without clicking into each race. */
+.mt-race-cell.mt-resulted.mt-result-main-hit {
+  background: #d1fae5;
+  color: var(--emerald-deep);
+  font-weight: 600;
+}
+.mt-race-cell.mt-resulted.mt-result-main-hit:hover { background: #a7f3d0; }
+.mt-race-cell.mt-resulted.mt-result-loose-hit {
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+.mt-race-cell.mt-resulted.mt-result-loose-hit:hover { background: #fde68a; }
 .mt-race-cell.mt-imminent {
   background: var(--emerald); color: #fff; font-weight: 600;
 }
@@ -1848,6 +1864,26 @@ body {
   background: var(--emerald);
 }
 .mt-race-cell.mt-imminent.has-pick::before { background: #fff; }
+
+/* Loose-model pick indicator. Amber dot in same top-right position as the
+   Main pick dot. When a cell has BOTH classes the green dot wins (the
+   has-pick::before above runs second in the cascade). Loose-ONLY cells
+   also get a subtle amber background tint so they're scannable at a
+   glance without needing to read the dot. */
+.mt-race-cell.has-loose-pick:not(.has-pick)::before {
+  content: ''; position: absolute; top: 4px; right: 4px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #d97706;
+}
+.mt-race-cell.has-loose-pick:not(.has-pick) {
+  background: rgba(217, 119, 6, 0.06);
+}
+.mt-race-cell.has-loose-pick:not(.has-pick):hover {
+  background: rgba(217, 119, 6, 0.14);
+}
+/* When loose-only cell is imminent (live/very-soon), keep the imminent
+   emerald look dominant but use white amber-dot for visibility */
+.mt-race-cell.mt-imminent.has-loose-pick:not(.has-pick)::before { background: #fff; }
 
 /* Field-size strategy indicator. Bottom-right corner, mirrors the top-right
    has-pick dot. Shown when fs >= 8 - the user's metro Saturday filter
@@ -2039,6 +2075,15 @@ body {
 .meeting-tile.has-pick {
   border-left: 3px solid var(--emerald);
   padding-left: 8px;
+}
+/* Loose-only meeting tile - amber border-left mirroring Main's emerald
+   treatment. When BOTH classes present, has-pick (emerald) wins because
+   it appears later in the cascade. */
+.meeting-tile.has-loose-pick:not(.has-pick) {
+  border-left: 3px solid #d97706;
+  padding-left: 8px;
+  /* No opacity dimming - this IS a pick, just from the experimental model */
+  opacity: 1;
 }
 .meeting-tile.no-pick { opacity: 0.55; }
 .meeting-tile.done { opacity: 0.4; }
@@ -2586,6 +2631,37 @@ body {
 }
 .race-table tbody tr.is-pick:hover { background: #d1fae5; }
 .race-table tbody tr.muted { color: var(--ink-mute); }
+
+/* Finish-position row treatment. Subtle background tint so the visual order
+   reads "winner → placegetters → also-rans" at a glance. Combines with
+   is-pick (emerald bg) without fighting it: finish-1 deepens the green when
+   the model picked the winner; finish-2/3 keep their blue and just sit next
+   to a green is-pick row. */
+.race-table tbody tr.finish-1 { background: #d1fae5; }
+.race-table tbody tr.finish-1:hover { background: #a7f3d0; }
+.race-table tbody tr.finish-2 { background: #dbeafe; }
+.race-table tbody tr.finish-2:hover { background: #bfdbfe; }
+.race-table tbody tr.finish-3 { background: #fef3c7; }
+.race-table tbody tr.finish-3:hover { background: #fde68a; }
+.race-table tbody tr.finish-other { color: var(--ink-mute); }
+/* Pick + winner = special "we got it right" treatment */
+.race-table tbody tr.is-pick.finish-1 { background: #6ee7b7; }
+.race-table tbody tr.is-pick.finish-1:hover { background: #34d399; }
+
+/* Finish badge - sits inline before the horse name. Gold/silver/bronze
+   colours for top-3, neutral grey for everything below. Compact so it
+   doesn't shove the horse name too far right. */
+.finish-badge {
+  display: inline-block; margin-right: 6px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 5px; border-radius: 3px;
+  vertical-align: 1px;
+}
+.finish-badge-1 { background: #fbbf24; color: #78350f; }   /* gold */
+.finish-badge-2 { background: #cbd5e1; color: #1e293b; }   /* silver */
+.finish-badge-3 { background: #fdba74; color: #7c2d12; }   /* bronze */
+.finish-badge-other { background: var(--line); color: var(--ink-mute); }
 .tn-cell {
   display: inline-block; min-width: 22px; height: 22px; line-height: 22px;
   text-align: center; background: var(--ink); color: var(--panel);
@@ -6216,6 +6292,7 @@ function renderMeetingsGrid() {
 
       let cellCls = 'mt-race-cell';
       if (hasPick) cellCls += ' has-pick';
+      if (hasLoose) cellCls += ' has-loose-pick';
       if (fsOk) cellCls += ' mt-fsok';
       // Filter check - dims the cell but keeps it visible/clickable. Counted
       // for the filter summary so the user can see how many races passed.
@@ -6223,7 +6300,22 @@ function renderMeetingsGrid() {
       if (!passesFilters) cellCls += ' mt-filtered-out';
       let badge = '';
       let lbl = tm || ('R' + i);
-      if (isResulted) { cellCls += ' mt-resulted'; lbl = 'Result'; }
+      if (isResulted) {
+        cellCls += ' mt-resulted';
+        // Find the winner (finish_position == 1) and show tab number.
+        // Mark green if Main pick won, amber if Loose pick won, neutral otherwise.
+        // This lets users scan resulted cards and immediately see model accuracy.
+        const winner = (race.runners || []).find(u => u.f === 1);
+        const winnerTab = winner ? winner.tab : null;
+        const winnerRid = winner ? String(winner.rid) : null;
+        const mainPickRids = (racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id));
+        const loosePickRids = (racePicks['loose'] || []).map(p => String(p.run_id));
+        const mainHit = winnerRid && mainPickRids.indexOf(winnerRid) >= 0;
+        const looseHit = winnerRid && loosePickRids.indexOf(winnerRid) >= 0;
+        if (mainHit) cellCls += ' mt-result-main-hit';
+        else if (looseHit) cellCls += ' mt-result-loose-hit';
+        lbl = winnerTab != null ? ('#' + winnerTab) : 'Result';
+      }
       else if (isImminent) {
         cellCls += ' mt-imminent';
         badge = '<span class="mt-cd">' + (mins <= 0 ? 'NOW' : mins + 'm') + '</span>';
@@ -6231,22 +6323,31 @@ function renderMeetingsGrid() {
       else if (isSoon) { cellCls += ' mt-soon'; badge = '<span class="mt-cd-soon">' + mins + 'm</span>'; }
       else if (isPast && !isResulted) cellCls += ' mt-pending-late';
 
-      // Loose-model indicator. Separate badge from countdown so they can both
-      // show. Sits next to the time label inside the cell.
-      const looseBadge = hasLoose ? '<span class="mt-race-cell-loose-badge" title="Loose model pick">L</span>' : '';
-
       // Tooltip explains the corner indicators. Only built when there's
       // something to explain - no point on empty/plain cells.
       let titleAttr = '';
       const tipParts = [];
       if (hasPick) tipParts.push('Main model pick');
       if (hasLoose) tipParts.push('Loose model pick');
-      if (fsOk && !isResulted) tipParts.push('Field size ' + cellFs + ' (meets bet criteria)');
-      else if (cellFs > 0 && !isResulted) tipParts.push('Field size ' + cellFs + ' (below 8-runner threshold)');
+      if (isResulted) {
+        const winner = (race.runners || []).find(u => u.f === 1);
+        if (winner) {
+          let resultTxt = 'Winner: ' + (winner.h || '#' + winner.tab);
+          const winnerRid = String(winner.rid);
+          const mainPickRids = (racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id));
+          const loosePickRids = (racePicks['loose'] || []).map(p => String(p.run_id));
+          if (mainPickRids.indexOf(winnerRid) >= 0) resultTxt += ' (Main hit)';
+          else if (loosePickRids.indexOf(winnerRid) >= 0) resultTxt += ' (Loose hit)';
+          tipParts.push(resultTxt);
+        }
+      } else {
+        if (fsOk) tipParts.push('Field size ' + cellFs + ' (meets bet criteria)');
+        else if (cellFs > 0) tipParts.push('Field size ' + cellFs + ' (below 8-runner threshold)');
+      }
       if (tipParts.length) titleAttr = ' title="' + tipParts.join(' · ') + '"';
 
       html += '<div class="' + cellCls + '" data-rid="' + race.race_id + '"' + titleAttr + '>' +
-        '<div class="mt-time">' + lbl + looseBadge + '</div>' + badge + '</div>';
+        '<div class="mt-time">' + lbl + '</div>' + badge + '</div>';
     }
     html += '</div>';
   });
@@ -6578,9 +6679,9 @@ function renderRaceDetail(raceId) {
       const cls = ['meeting-tile'];
       if (isActive) cls.push('active');
       if (hasPick) cls.push('has-pick'); else cls.push('no-pick');
+      if (hasLoose) cls.push('has-loose-pick');
       if (isDone) cls.push('done');
       const cdHtml = (cdtxt && !isDone) ? '<span class="mt-cd ' + cdcls + '">' + cdtxt + '</span>' : '';
-      const looseBadge = hasLoose ? '<span class="meeting-tile-loose-badge" title="Loose model pick">L</span>' : '';
       // Build info line: "1400m · Maiden" or just "1400m" if class unknown
       const infoParts = [];
       if (r.distance) infoParts.push(r.distance + 'm');
@@ -6588,7 +6689,7 @@ function renderRaceDetail(raceId) {
       if (cls2) infoParts.push(cls2);
       const infoLine = infoParts.join(' · ');
       return '<div class="' + cls.join(' ') + '" data-race-id="' + r.race_id + '">' +
-        '<span class="mt-race">R' + r.race + cdHtml + looseBadge + '</span>' +
+        '<span class="mt-race">R' + r.race + cdHtml + '</span>' +
         '<span class="mt-time">' + timeStr + '</span>' +
         (infoLine ? '<span class="mt-info">' + escapeHtml(infoLine) + '</span>' : '') +
         '</div>';
@@ -6992,6 +7093,25 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
+    // Finish-position indicators - only when the race is resulted and we
+    // have a finish for this runner. Adds:
+    //   1. A 'finish-N' class on the row so CSS can tint winner/placegetter rows
+    //   2. A position badge ("1st"/"2nd"/"3rd"/Nth) before the horse name
+    // u.f comes from finish_position on the runner payload (null pre-race).
+    let finishBadge = '';
+    if (u.f != null) {
+      const f = parseInt(u.f, 10);
+      if (!isNaN(f) && f > 0) {
+        rowClasses.push('finish-' + (f <= 3 ? f : 'other'));
+        let label = f + 'th';
+        if (f === 1) label = '1st';
+        else if (f === 2) label = '2nd';
+        else if (f === 3) label = '3rd';
+        finishBadge = '<span class="finish-badge finish-badge-' +
+          (f <= 3 ? f : 'other') + '">' + label + '</span>';
+      }
+    }
+
     // V3 voting model rule (matches lambda in toprate_daily.py):
     //   A horse qualifies if BOTH:
     //     (a) ranks #1 in at least 3 of 6 signals
@@ -7045,7 +7165,7 @@ function renderRaceDetail(raceId) {
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       // ── Primary columns (visible on mobile) ──
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
-      '<td class="horse-cell">' + escapeHtml(u.h || '') + '</td>' +
+      '<td class="horse-cell">' + finishBadge + escapeHtml(u.h || '') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       scoreCell(u.cs, u.crk, u.csc) +
       votesCell(_votes_top3, _votes_top1) +
@@ -7635,9 +7755,11 @@ function renderNtjTicker() {
     const racePicks = (MODEL_PICKS[race.race_id] || {});
     const hasPick = !!(racePicks[PRIMARY_KEY] || []).length;
     const hasLoose = !!(racePicks['loose'] || []).length;
-    const looseBadge = hasLoose ? '<span class="ntj-pill-loose-badge" title="Loose model pick">L</span>' : '';
-    return '<div class="ntj-pill ' + (hasPick ? 'has-pick' : '') + '" data-rid="' + race.race_id + '">' +
-      '<span class="ntj-pill-name">' + escapeHtml(race.venue) + ' R' + race.race + looseBadge + '</span>' +
+    const pillClasses = ['ntj-pill'];
+    if (hasPick) pillClasses.push('has-pick');
+    if (hasLoose) pillClasses.push('has-loose-pick');
+    return '<div class="' + pillClasses.join(' ') + '" data-rid="' + race.race_id + '">' +
+      '<span class="ntj-pill-name">' + escapeHtml(race.venue) + ' R' + race.race + '</span>' +
       '<span class="ntj-pill-cd ' + cdCls + '">' + fmtCountdown(secsUntil) + '</span>' +
       '</div>';
   }).join('');
