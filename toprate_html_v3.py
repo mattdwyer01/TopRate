@@ -2663,21 +2663,12 @@ body {
 .pick-badge-main  { background: var(--emerald); color: #fff; }
 .pick-badge-loose { background: #d97706; color: #fff; }
 
-/* Finish-position row treatment. Subtle background tint so the visual order
-   reads "winner → placegetters → also-rans" at a glance. Combines with
-   is-pick (emerald bg) without fighting it: finish-1 deepens the green when
-   the model picked the winner; finish-2/3 keep their blue and just sit next
-   to a green is-pick row. */
-.race-table tbody tr.finish-1 { background: #d1fae5; }
-.race-table tbody tr.finish-1:hover { background: #a7f3d0; }
-.race-table tbody tr.finish-2 { background: #dbeafe; }
-.race-table tbody tr.finish-2:hover { background: #bfdbfe; }
-.race-table tbody tr.finish-3 { background: #fef3c7; }
-.race-table tbody tr.finish-3:hover { background: #fde68a; }
+/* Finish-position row treatment.
+   Row-level background tints removed 2026-05-15 - they were visually busy
+   on resulted races. The small "1st"/"2nd"/"3rd" pill before the horse
+   name (.finish-badge) is sufficient to convey position. Non-runners
+   (finish-other) still mute slightly so they recede visually. */
 .race-table tbody tr.finish-other { color: var(--ink-mute); }
-/* Pick + winner = special "we got it right" treatment */
-.race-table tbody tr.is-pick.finish-1 { background: #6ee7b7; }
-.race-table tbody tr.is-pick.finish-1:hover { background: #34d399; }
 
 /* Finish badge - sits inline before the horse name. Gold/silver/bronze
    colours for top-3, neutral grey for everything below. Compact so it
