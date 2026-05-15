@@ -1133,9 +1133,38 @@ body {
 .picks-list {
   border-top-left-radius: 0; border-top-right-radius: 0;
 }
+
+/* Section heads on the Today tab - "Pending" / "Resulted" separators
+   between the two row groups. Each shows a count of rows in that section.
+   Compact strip so it doesn't compete with the picks themselves.
+   min-width matches .pick-row so the head stays aligned with the row
+   columns when the user scrolls horizontally on narrow viewports. */
+.picks-section-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px 6px 14px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-mute);
+  min-width: 1188px;
+  box-sizing: border-box;
+}
+.picks-section-head:first-child { padding-top: 4px; }
+.picks-section-count {
+  display: inline-block;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 8px;
+  background: var(--line); color: var(--ink-soft);
+  letter-spacing: 0;
+}
+/* Pending = active = highlight count slightly */
+#pending-head .picks-section-count {
+  background: var(--ink); color: var(--panel);
+}
+
 @media (max-width: 720px) {
   .picks-header { display: none; }
   .picks-list { border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md); }
+  .picks-section-head { padding: 8px 12px 4px 12px; }
 }
 
 /* Inline cell labels - shown only on mobile so each value is self-explanatory.
@@ -1461,6 +1490,7 @@ body {
   /* Disable horizontal scroll on mobile - row fits naturally */
   .picks-scroll { overflow-x: hidden; }
   .picks-list { min-width: 0; border-top: 1px solid var(--line); }
+  .picks-section-head { min-width: 0; }
 
   /* Hide stake on mobile - it's in the expand panel for placed bets.
      Hide cell labels too since the new layout doesn't use them. */
@@ -4412,8 +4442,25 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="th-right">Odds taken</div>
       <div></div>
     </div>
-    <div class="picks-list" id="picks-list">
-      <!-- populated by JS -->
+
+    <!-- Two-section list: Pending bets above, Resulted below. Both share the
+         same .picks-scroll container so column widths stay aligned and a
+         single horizontal scroll moves them together. Section heads carry
+         their per-section counts and hide-when-empty. -->
+    <div class="picks-section-head" id="pending-head" style="display:none;">
+      <span class="picks-section-label">Pending</span>
+      <span class="picks-section-count" id="pending-count">0</span>
+    </div>
+    <div class="picks-list" id="picks-list-pending">
+      <!-- populated by JS - rows without official/manual results -->
+    </div>
+
+    <div class="picks-section-head" id="resulted-head" style="display:none;">
+      <span class="picks-section-label">Resulted</span>
+      <span class="picks-section-count" id="resulted-count">0</span>
+    </div>
+    <div class="picks-list" id="picks-list-resulted">
+      <!-- populated by JS - rows with official or manual results -->
     </div>
     </div>
 
@@ -5267,8 +5314,20 @@ function setTrackRating(venue, date, rating) {
 let currentTodayDate = null;
 
 function renderToday() {
-  const list = document.getElementById('picks-list');
-  list.innerHTML = '';
+  const listPending  = document.getElementById('picks-list-pending');
+  const listResulted = document.getElementById('picks-list-resulted');
+  const headPending  = document.getElementById('pending-head');
+  const headResulted = document.getElementById('resulted-head');
+  listPending.innerHTML = '';
+  listResulted.innerHTML = '';
+  // Counters for section heads - updated as rows are appended below
+  let countPending = 0;
+  let countResulted = 0;
+  // Legacy `list` reference kept for any code below that referenced it as
+  // the empty-state placeholder. We'll render the empty state into the
+  // pending list (above resulted) so users see it in the natural reading
+  // order.
+  const list = listPending;
 
   // Clean up stale manual results - if any official result has arrived for a
   // run_id that has a manual entry, drop the manual one.
@@ -5365,6 +5424,9 @@ function renderToday() {
     }
     const hdrEmpty = document.getElementById('picks-header');
     if (hdrEmpty) hdrEmpty.style.display = 'none';
+    // Hide section heads - empty state owns the visual space
+    headPending.style.display = 'none';
+    headResulted.style.display = 'none';
     return;
   }
   // Show header (in case it was hidden previously)
@@ -5748,14 +5810,18 @@ function renderToday() {
       '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
       '<div class="pr-chev">▾</div>';
 
-    list.appendChild(row);
+    // Route row + detail to the correct section list. isSettled was computed
+    // earlier in this loop (line ~5440) from hasOfficial OR manRes.
+    const sectionList = isSettled ? listResulted : listPending;
+    if (isSettled) countResulted++; else countPending++;
+    sectionList.appendChild(row);
 
     // Detail panel (initially hidden)
     const detail = document.createElement('div');
     detail.className = 'pick-detail';
     detail.dataset.idx = idx;
     detail.innerHTML = buildDetailHTML(p, r);
-    list.appendChild(detail);
+    sectionList.appendChild(detail);
 
     // Click row to expand/collapse (but not when clicking inputs/buttons or
     // the clickable venue block which navigates to race detail)
@@ -5773,9 +5839,22 @@ function renderToday() {
     });
   });
 
+  // Update section heads with counts. Hide a section's head when empty so
+  // we don't show "Resulted (0)" before any race has run. When BOTH are
+  // empty the larger empty-state branch above has already taken over.
+  document.getElementById('pending-count').textContent  = countPending;
+  document.getElementById('resulted-count').textContent = countResulted;
+  headPending.style.display  = countPending  > 0 ? 'flex' : 'none';
+  headResulted.style.display = countResulted > 0 ? 'flex' : 'none';
+
+  // Handlers must scope across BOTH pending and resulted lists since rows
+  // can live in either. Use the shared parent (.picks-scroll) so the
+  // existing single querySelectorAll pattern still works.
+  const picksScroll = document.getElementById('picks-scroll');
+
   // Result chip handlers - works for both <button data-pos> (legacy) and
   // <select> (new compact dropdown). The handler picks the right event type.
-  list.querySelectorAll('[data-set-rid]').forEach(el => {
+  picksScroll.querySelectorAll('[data-set-rid]').forEach(el => {
     const eventName = el.tagName === 'SELECT' ? 'change' : 'click';
     el.addEventListener(eventName, e => {
       e.stopPropagation();
@@ -5790,7 +5869,7 @@ function renderToday() {
       renderToday();
     });
   });
-  list.querySelectorAll('[data-clear-rid]').forEach(el => {
+  picksScroll.querySelectorAll('[data-clear-rid]').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
       const rid = el.dataset.clearRid;
@@ -5800,7 +5879,7 @@ function renderToday() {
     });
   });
   // Bet toggle button
-  list.querySelectorAll('[data-bet-rid]').forEach(el => {
+  picksScroll.querySelectorAll('[data-bet-rid]').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
       const rid = el.dataset.betRid;
@@ -5811,7 +5890,7 @@ function renderToday() {
     });
   });
   // Odds input field
-  list.querySelectorAll('[data-odds-rid]').forEach(el => {
+  picksScroll.querySelectorAll('[data-odds-rid]').forEach(el => {
     el.addEventListener('input', e => {
       const rid = el.dataset.oddsRid;
       const v = parseFloat(e.target.value);
@@ -5831,7 +5910,7 @@ function renderToday() {
     el.addEventListener('click', e => e.stopPropagation());
   });
   // Dead heat toggle (in detail panel)
-  list.querySelectorAll('[data-deadheat-rid]').forEach(el => {
+  picksScroll.querySelectorAll('[data-deadheat-rid]').forEach(el => {
     el.addEventListener('change', e => {
       e.stopPropagation();
       const rid = el.dataset.deadheatRid;
