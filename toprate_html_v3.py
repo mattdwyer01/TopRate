@@ -2617,11 +2617,42 @@ body {
   .rd-runner-detail { grid-template-columns: 1fr; gap: 10px; }
   .rd-fl { min-width: 90px; }
 }
+/* Pick rows - emerald-tinted background + 4px emerald left border so they're
+   unmistakable when scanning down the runners table. The border accent uses
+   box-shadow inset (not border-left) because adding a real border would push
+   table cells over and break alignment. box-shadow inset paints over the
+   first cell's background without affecting layout. */
 .race-table tbody tr.is-pick {
   background: var(--emerald-bg);
+  box-shadow: inset 4px 0 0 var(--emerald);
 }
 .race-table tbody tr.is-pick:hover { background: #d1fae5; }
+/* Loose-only pick rows - amber treatment mirroring Main's emerald. */
+.race-table tbody tr.is-loose-pick {
+  background: rgba(217, 119, 6, 0.08);
+  box-shadow: inset 4px 0 0 #d97706;
+}
+.race-table tbody tr.is-loose-pick:hover { background: rgba(217, 119, 6, 0.16); }
 .race-table tbody tr.muted { color: var(--ink-mute); }
+
+/* Pick badge - inline label sitting between the finish badge and the horse
+   name. Reads at a glance: "this row is the model pick".
+   - pick-badge-main:  emerald background, white text (production model)
+   - pick-badge-loose: amber background, dark text (experimental model)
+   - pick-badge-both:  emerald + amber gradient (rare, both models agree) */
+.pick-badge {
+  display: inline-block; margin-right: 6px;
+  font-family: var(--font-body); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 5px; border-radius: 3px;
+  vertical-align: 1px; line-height: 1;
+}
+.pick-badge-main  { background: var(--emerald); color: #fff; }
+.pick-badge-loose { background: #d97706; color: #fff; }
+.pick-badge-both  {
+  background: linear-gradient(90deg, var(--emerald) 0%, var(--emerald) 50%, #d97706 50%, #d97706 100%);
+  color: #fff;
+}
 
 /* Finish-position row treatment. Subtle background tint so the visual order
    reads "winner → placegetters → also-rans" at a glance. Combines with
@@ -2661,6 +2692,7 @@ body {
 }
 .horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
+.is-loose-pick .horse-cell { color: #b45309; }
 
 .rank-cell { font-weight: 600; color: var(--ink-soft); }
 .rank-cell.r1 { color: var(--emerald-deep); font-weight: 700; }
@@ -6569,8 +6601,11 @@ function renderRaceDetail(raceId) {
     document.getElementById('rd-title').textContent = 'Race not found';
     return;
   }
-  const picks = (MODEL_PICKS[raceId] || {})[PRIMARY_KEY] || [];
+  const racePicksLookup = MODEL_PICKS[raceId] || {};
+  const picks = racePicksLookup[PRIMARY_KEY] || [];
+  const loosePicks = racePicksLookup['loose'] || [];
   const pickIds = new Set(picks.map(p => String(p.run_id)));
+  const looseIds = new Set(loosePicks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
   // ── PF data freshness indicator ──
@@ -6770,13 +6805,29 @@ function renderRaceDetail(raceId) {
       '</div>';
   }
 
+  // Pick count display in header stats - shows Main count plus Loose if it
+  // also picked. Reads "1 model pick" or "1 Main · 2 Loose picks" so the
+  // user can see both models' picks at a glance from the race header.
+  let picksDisplay;
+  if (picks.length === 0 && loosePicks.length === 0) {
+    picksDisplay = '<span class="v">0</span> model picks';
+  } else if (loosePicks.length === 0) {
+    picksDisplay = '<span class="v">' + picks.length + '</span> Main pick' +
+      (picks.length !== 1 ? 's' : '');
+  } else if (picks.length === 0) {
+    picksDisplay = '<span class="v">' + loosePicks.length + '</span> Loose pick' +
+      (loosePicks.length !== 1 ? 's' : '');
+  } else {
+    picksDisplay = '<span class="v">' + picks.length + '</span> Main · ' +
+      '<span class="v">' + loosePicks.length + '</span> Loose';
+  }
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
     '<div class="item">' + race.distance + 'm</div>' +
     '<div class="item">' + escapeHtml(race.going || '') + '</div>' +
     '<div class="item">$' + (race.prize/1000).toFixed(0) + 'k</div>' +
     '<div class="item">' + runners.length + ' runners</div>' +
-    '<div class="item"><span class="v">' + picks.length + '</span> model pick' + (picks.length !== 1 ? 's' : '') + '</div>' +
+    '<div class="item">' + picksDisplay + '</div>' +
     scoreThreshHtml +
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
 
@@ -7078,6 +7129,7 @@ function renderRaceDetail(raceId) {
   sortedRunners.forEach(u => {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
+    const isLoose = looseIds.has(String(rid));
     const trR = trRanks[rid];
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
@@ -7087,8 +7139,24 @@ function renderRaceDetail(raceId) {
 
     const rowClasses = [];
     if (isPick) rowClasses.push('is-pick');
+    else if (isLoose) rowClasses.push('is-loose-pick');
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
+
+    // Pick badge - small label next to horse name making it unmistakable
+    // that this is a model pick. Three states:
+    //   - Both models: "MAIN+LOOSE" (rare, strong signal)
+    //   - Main only:   "MAIN"
+    //   - Loose only:  "LOOSE"
+    // Coloured by whichever is "highest" - emerald for Main, amber for Loose.
+    let pickBadge = '';
+    if (isPick && isLoose) {
+      pickBadge = '<span class="pick-badge pick-badge-both">MAIN+LOOSE</span>';
+    } else if (isPick) {
+      pickBadge = '<span class="pick-badge pick-badge-main">MAIN</span>';
+    } else if (isLoose) {
+      pickBadge = '<span class="pick-badge pick-badge-loose">LOOSE</span>';
+    }
 
     // Finish-position indicators - only when the race is resulted and we
     // have a finish for this runner. Adds:
@@ -7162,7 +7230,7 @@ function renderRaceDetail(raceId) {
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       // ── Primary columns (visible on mobile) ──
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
-      '<td class="horse-cell">' + finishBadge + escapeHtml(u.h || '') + '</td>' +
+      '<td class="horse-cell">' + finishBadge + pickBadge + escapeHtml(u.h || '') + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       scoreCell(u.cs, u.crk, u.csc) +
       votesCell(_votes_top3, _votes_top1) +
