@@ -290,3 +290,4 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-16,239620,Toowoomba,258,QLD,AUS,TWBA,Turf,+3m Entire,A,True,,2026-05-15T10:26:47,2026-05-15T07:32:04,False
 2026-05-16,239629,Wodonga,335,VIC,AUS,WOD,Turf,True Entire Circuit,A,True,,2026-05-15T10:27:31,2026-05-15T06:57:03,False
 2026-05-16,239646,Gold Coast Poly,1158,QLD,AUS,GCPT,Synthetic,True,A,True,,2026-05-15T11:09:42,2026-05-15T10:34:24,False
+2026-05-16,239670,Grafton,110,NSW,AUS,GRAF,Turf,+5m entire,A,True,,2026-05-15T18:23:58.123,2026-05-15T18:23:56,False
