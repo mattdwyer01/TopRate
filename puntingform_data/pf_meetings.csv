@@ -282,3 +282,11 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-15,239600,Kilmore,306,VIC,AUS,KILM,Turf,"Out 3m 400m - 1600m, Out 5m Remainder",A,True,,2026-05-13T15:15:28,2026-05-13T14:29:48,False
 2026-05-15,239574,Albany,378,WA,AUS,ABNY,Turf,True,A,True,,2026-05-13T15:13:32,2026-05-13T13:50:14,False
 2026-05-15,239595,Pakenham,1134,VIC,AUS,PAKM,Turf,Out 3m Entire Circuit,A,True,,2026-05-13T15:16:04,2026-05-13T14:29:48,False
+2026-05-16,239624,Lismore,112,NSW,AUS,LISM,Turf,+2.5m 950m-300m; +1.5m 300m-W/Post; True Remainder,A,True,,2026-05-15T10:23:43,2026-05-15T08:49:26,False
+2026-05-16,239617,Kembla Grange,120,NSW,AUS,K GR,Turf,"+7m 1100m-W/Post, +5m Remainder",A,True,,2026-05-15T10:25:34.64,2026-05-15T10:25:30,False
+2026-05-16,239628,Emerald,180,QLD,AUS,EMER,Turf,True Entire Course,A,True,,2026-05-15T10:21:20,2026-05-15T04:45:46,False
+2026-05-16,239630,Home Hill,196,QLD,AUS,HOME,Turf,True,A,True,,2026-05-15T10:22:27,2026-05-15T09:15:46,False
+2026-05-16,239623,Gold Coast,240,QLD,AUS,GCST,Turf,+8 metres 900-W/Post; +5 metres Remainder.,A,True,,2026-05-15T10:01:15,2026-05-15T07:20:32,False
+2026-05-16,239620,Toowoomba,258,QLD,AUS,TWBA,Turf,+3m Entire,A,True,,2026-05-15T10:26:47,2026-05-15T07:32:04,False
+2026-05-16,239629,Wodonga,335,VIC,AUS,WOD,Turf,True Entire Circuit,A,True,,2026-05-15T10:27:31,2026-05-15T06:57:03,False
+2026-05-16,239646,Gold Coast Poly,1158,QLD,AUS,GCPT,Synthetic,True,A,True,,2026-05-15T11:09:42,2026-05-15T10:34:24,False
