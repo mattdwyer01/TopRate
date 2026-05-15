@@ -3539,6 +3539,25 @@ body {
   border-radius: 4px;
 }
 .ic-mode-btn.active { background: var(--ink); color: var(--panel); }
+/* Model toggle - styled the same as mode toggle. Active button uses
+   model-specific color (emerald for main, amber for loose) so the user
+   can tell at a glance which model the displayed stats belong to. */
+.ic-model-toggle {
+  display: inline-flex; gap: 1px; background: var(--line);
+  border-radius: var(--radius-sm); padding: 1px;
+}
+.ic-model-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  padding: 6px 12px; border: none; cursor: pointer;
+  background: var(--panel); color: var(--ink-mute);
+  border-radius: 4px;
+}
+.ic-model-btn.active { background: var(--ink); color: var(--panel); }
+.ic-model-btn[data-imodel="main"].active  { background: var(--emerald); color: #fff; }
+.ic-model-btn[data-imodel="loose"].active { background: #d97706; color: #fff; }
+/* Toggle hides entirely in "All races" mode - model filter is meaningless
+   when not looking at picks at all */
+.ic-model-toggle.hidden { display: none; }
 .ic-info {
   font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
   font-variant-numeric: tabular-nums;
@@ -4688,6 +4707,17 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <button class="ic-mode-btn" data-imode="actual" title="Bets you actually placed (bet toggle = on in P&L). What you actually wagered.">Actual</button>
         <button class="ic-mode-btn active" data-imode="theoretical" title="All V3 model picks regardless of whether you bet them. The model's full output.">Theoretical</button>
         <button class="ic-mode-btn" data-imode="all" title="Every horse in every resulted race, no model filtering. Raw cumulative-score predictive power.">All races</button>
+      </div>
+      <!-- Model toggle - filters the 6 pick-based sections by which model
+           produced the pick. Defaults to "Main" so the user sees production
+           model performance first. "Both" unions Main and Loose picks
+           (note: duplicates if both models picked the same horse). Toggle
+           is hidden when mode = 'all' (model filter is meaningless when
+           we're analysing every runner regardless of pick). -->
+      <div class="ic-model-toggle" id="ic-model-toggle">
+        <button class="ic-model-btn active" data-imodel="main" title="Production main model picks only (3 of 6 top-1 votes, 5 of 6 top-3 votes).">Main</button>
+        <button class="ic-model-btn" data-imodel="loose" title="Experimental loose model picks only (2 of 6 top-1, 4 of 6 top-3).">Loose</button>
+        <button class="ic-model-btn" data-imodel="both" title="Union of Main and Loose picks. A horse picked by both models counts in each section's totals separately.">Both</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -8946,6 +8976,25 @@ let trackingMode = (function() {
   } catch(e) {}
   return 'theoretical';  // default = same as P&L's Theoretical view
 })();
+// Model selector for the 6 pick-based tracking sections. Filters the
+// underlying SETTLED list by the pick's model_id so Main and Loose can
+// be analysed separately (mixing them defaults blurs both models' true
+// performance since they have different volume profiles: Main ~7/day,
+// Loose ~20/day). Default 'main' = production model.
+//   'main'  - only picks where model_id == 'main' (production rule).
+//   'loose' - only picks where model_id == 'loose' (experimental rule).
+//   'both'  - union of both. A horse picked by both models appears twice
+//             in the underlying list and contributes to each section's
+//             totals separately. This was the implicit behaviour before
+//             the toggle existed.
+const TRACKING_MODEL_KEY = 'tr_tracking_model_v1';
+let trackingModel = (function() {
+  try {
+    const v = localStorage.getItem(TRACKING_MODEL_KEY);
+    if (v === 'main' || v === 'loose' || v === 'both') return v;
+  } catch(e) {}
+  return 'main';
+})();
 let trackingSortCol = 'date';
 let trackingSortDir = 'desc';
 // Winners-table filter state. Show only winners where signal X had rank
@@ -9090,7 +9139,13 @@ function renderInsights() {
     const totalRaces = races.length;
     const totalRunners = races.reduce((s, r) => s + (r.runners || []).length, 0);
     const periodLbl = 'last ' + trackingPeriod + ' days';
-    summaryEl.textContent = totalRaces + ' resulted races · ' + totalRunners + ' runners · ' + periodLbl;
+    // Add model-filter context when not in 'all races' mode and not 'both'.
+    // Lets the user see at a glance which model's stats they're viewing.
+    let modelLbl = '';
+    if (trackingMode !== 'all' && trackingModel !== 'both') {
+      modelLbl = ' · ' + (trackingModel === 'main' ? 'Main' : 'Loose') + ' model';
+    }
+    summaryEl.textContent = totalRaces + ' resulted races · ' + totalRunners + ' runners · ' + periodLbl + modelLbl;
   }
 
   renderSignalHeatmap(races);
@@ -9556,8 +9611,13 @@ function trackingSettledBets() {
   const days = parseInt(trackingPeriod, 10);
   const cutoff = new Date(Date.now() - days * 86400000);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return (typeof SETTLED !== 'undefined' ? SETTLED : [])
+  const all = (typeof SETTLED !== 'undefined' ? SETTLED : [])
     .filter(s => (s.date || '') >= cutoffStr);
+  // Model filter - 'both' is pass-through. 'main'/'loose' filters by tag.
+  // Older SETTLED entries without an explicit 'model' field default to
+  // 'main' since they pre-date the loose model being added.
+  if (trackingModel === 'both') return all;
+  return all.filter(s => (s.model || 'main') === trackingModel);
 }
 
 // Unified data source for the 6 pick-based tracking sections (threshold,
@@ -9606,7 +9666,7 @@ function trackingEmptyLabel() {
 // ROI is calculated at SP (1u stake): wins return SP-1 units, losses -1.
 function aggregateBets(bets) {
   if (bets.length === 0) return null;
-  let wins = 0, sumProfit = 0, sumStake = 0, oddsList = [];
+  let wins = 0, places = 0, sumProfit = 0, sumStake = 0, oddsList = [];
   bets.forEach(b => {
     if (!(b.sp != null && b.sp > 1)) return;
     sumStake += 1;
@@ -9617,12 +9677,20 @@ function aggregateBets(bets) {
     } else {
       sumProfit -= 1;
     }
+    // Place = finished 1st, 2nd, or 3rd. b.placed is set Python-side from
+    // finish_position <= 3. Counted separately from wins so Tracking can
+    // show place rate as a softer measure of model accuracy (a horse
+    // finishing 2nd or 3rd still validates the prediction even though
+    // the bet lost on a win-only stake).
+    if (b.placed) places++;
   });
   if (sumStake === 0) return null;
   return {
     n: bets.length,
     wins: wins,
+    places: places,
     wr: bets.length > 0 ? wins / bets.length : 0,
+    placeRate: bets.length > 0 ? places / bets.length : 0,
     roi: sumStake > 0 ? sumProfit / sumStake : 0,
     avgSp: oddsList.length > 0 ? oddsList.reduce((a, b) => a + b, 0) / oddsList.length : null,
   };
@@ -9699,28 +9767,51 @@ function renderThresholdCurve(races) {
   // Column label changes by mode: "Picks" when in picks mode, "Runners"
   // when in all-theoretical mode, since the meaning of the row count differs.
   const countCol = trackingCountLabel();
+  // Custom row renderer for this table since it includes Place Rate.
+  // Other tracking tables stick with the 4-column statRow shape.
+  function thresholdRow(label, agg) {
+    if (agg == null) {
+      return '<tr><td class="lbl">' + label + '</td>' +
+        '<td colspan="5" class="empty">No bets</td></tr>';
+    }
+    const wrStr  = (agg.wr        * 100).toFixed(1) + '%';
+    const prStr  = (agg.placeRate * 100).toFixed(1) + '%';
+    const roiStr = (agg.roi >= 0 ? '+' : '') + (agg.roi * 100).toFixed(1) + '%';
+    const roiCls = agg.roi > 0.05 ? 'pos' : agg.roi < -0.05 ? 'neg' : '';
+    const avgSpStr = agg.avgSp != null ? '$' + agg.avgSp.toFixed(2) : '—';
+    const sample = agg.n < 10 ? ' <span class="small-sample" title="Small sample - results may be noisy">·</span>' : '';
+    return '<tr><td class="lbl">' + label + sample + '</td>' +
+      '<td class="num">' + agg.n + '</td>' +
+      '<td class="num">' + wrStr + '</td>' +
+      '<td class="num">' + prStr + '</td>' +
+      '<td class="num ' + roiCls + '">' + roiStr + '</td>' +
+      '<td class="num">' + avgSpStr + '</td>' +
+      '</tr>';
+  }
   let html = '<table class="tracking-mini-table"><thead><tr>' +
-    '<th>Threshold</th><th>' + countCol + '</th><th>WR%</th><th>ROI%</th><th>Avg SP</th>' +
+    '<th>Threshold</th><th>' + countCol + '</th><th>WR%</th><th>PR%</th><th>ROI%</th><th>Avg SP</th>' +
     '</tr></thead><tbody>';
   steps.forEach(t => {
     const subset = source.filter(b => b.cs != null && b.cs >= t);
     const agg = aggregateBets(subset);
-    html += statRow('>= ' + t.toFixed(2), agg);
+    html += thresholdRow('>= ' + t.toFixed(2), agg);
   });
   html += '</tbody></table>';
   // Note copy depends on mode - frame the analysis correctly for each view
   let note;
   if (trackingMode === 'actual') {
     note = 'Performance of bets you actually placed (P&L bet toggle = on) at each Score threshold. ' +
-      'This is your real wagering record. ROI is at SP, 1u flat stake.';
+      'This is your real wagering record. ROI is at SP, 1u flat stake. ' +
+      'PR (place rate) = % finishing top 3.';
   } else if (trackingMode === 'theoretical') {
     note = 'Performance of all V3 model picks (regardless of placement) at each Score threshold. ' +
       'Use this to pick a stake threshold for your live bets. ROI is at SP, 1u flat stake. ' +
-      'Same data as P&L tab Theoretical view.';
+      'PR (place rate) = % finishing top 3 - a softer accuracy measure than WR.';
   } else {
     note = 'Performance of EVERY horse in resulted races (no model filtering), grouped by Score. ' +
       'Shows the raw predictive power of the cumulative score independent of the voting rule. ' +
-      'Compare ROI here vs Theoretical mode to see how much edge the voting rule adds.';
+      'Compare ROI here vs Theoretical mode to see how much edge the voting rule adds. ' +
+      'PR = place rate (top 3 finish).';
   }
   html += '<div class="tracking-note">' + note +
     '<br>Dot (·) flags small samples (under 10).</div>';
@@ -10002,9 +10093,34 @@ document.querySelectorAll('.ic-mode-btn').forEach(btn => {
     try { localStorage.setItem(TRACKING_MODE_KEY, trackingMode); } catch(e) {}
     document.querySelectorAll('.ic-mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    _updateTrackingModelToggleVisibility();
     renderInsights();
   });
 });
+
+// Wire the model toggle buttons (main / loose / both). On click, flip
+// trackingModel, persist, re-render. Active class synced on initial load.
+document.querySelectorAll('.ic-model-btn').forEach(btn => {
+  btn.classList.toggle('active', btn.dataset.imodel === trackingModel);
+  btn.addEventListener('click', () => {
+    trackingModel = btn.dataset.imodel;
+    try { localStorage.setItem(TRACKING_MODEL_KEY, trackingModel); } catch(e) {}
+    document.querySelectorAll('.ic-model-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderInsights();
+  });
+});
+
+// Show/hide the model toggle based on mode. In 'all' mode, the model
+// filter is meaningless since we're analysing every runner regardless
+// of pick. Hide the toggle in that case so the UI doesn't suggest it
+// has an effect.
+function _updateTrackingModelToggleVisibility() {
+  const tog = document.getElementById('ic-model-toggle');
+  if (!tog) return;
+  tog.classList.toggle('hidden', trackingMode === 'all');
+}
+_updateTrackingModelToggleVisibility();
 
 
 // ── Quaddie tab ─────────────────────────────────────────────────────────────
