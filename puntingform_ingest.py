@@ -237,12 +237,15 @@ def process_date(date_iso: str) -> None:
     (RAW_DIR / f"meetings_{date_iso}.json").write_text(json.dumps(meetings, indent=2))
 
     # Filter to TAB meetings - PF gives us tabMeeting flag directly!
+    # Previously also filtered out isJumps meetings, but PF flags a meeting
+    # as isJumps even when only SOME races are jumps - losing flat races
+    # on mixed cards (e.g. Warrnambool). User now flags jumps races
+    # manually at bet placement.
     tab_meetings = [m for m in meetings
                     if isinstance(m, dict)
                     and m.get("tabMeeting") is True
-                    and not m.get("isJumps")
                     and not m.get("isBarrierTrial")]
-    print(f"  {len(meetings)} total meetings, {len(tab_meetings)} TAB meetings (filtered out non-TAB, jumps, trials)")
+    print(f"  {len(meetings)} total meetings, {len(tab_meetings)} TAB meetings (filtered out non-TAB, trials)")
 
     # Save meeting metadata
     meeting_rows = []
