@@ -691,6 +691,59 @@ MODEL_DEFS = {
             # Note: SP gate ($3) applied at display time, not pick computation.
             # Same convention as prior rule - users decide bet at the right price.
     },
+
+    # "Loose" model - second model running in parallel for shadow-mode evaluation.
+    # Relaxes the voting thresholds from (3 top-1, 5 top-3) to (2 top-1, 4 top-3).
+    # Same six signals, same SP-min, same first-starter exclusion.
+    #
+    # Why this exists: the strict "main" rule is favourite-aligned (correlates
+    # strongly with market price) and rarely surfaces value runners. The
+    # relaxed rule catches a wider net of horses that are top-3 on most
+    # signals but not necessarily #1 on three of them.
+    #
+    # Backtest evidence (14 days on toprate_runners.csv, May 1-14):
+    #   t1>=2, t3>=4: 290 picks, 21.4% WR, AvgSP $5.57, ROI +14.4%
+    #   t1>=3, t3>=5 (main): 125 picks, 20.8% WR, AvgSP $4.82, ROI -24.7%
+    #
+    # IMPORTANT CAVEAT: digging into the +14.4% finding showed it was largely
+    # driven by ONE longshot win (Orsum @ $41). Strip that race out and the
+    # loose model's ROI drops to roughly break-even. The "edge" is fragile
+    # at 14 days. Shipping this as a SHADOW model (track-only) lets us
+    # accumulate independent data over 30-60 days to see if the lift is
+    # real signal or 14-day variance dressed up as a pattern.
+    #
+    # The dashboard will allow betting on Loose picks per user preference,
+    # so it's not strict shadow mode - it's "available as a second model".
+    # P&L will be tracked separately for each model.
+    "loose": {
+        "label":       "Loose",
+        "desc":        "Relaxed voting: 2 of 6 signals must rank #1 AND 4 of 6 must rank top-3. Wider net than Main - catches more potential value runners. Experimental.",
+        "expected_wr": 0.214, "expected_roi_sp": 0.05, "expected_roi_top": 0.05,
+        "bets_per_day": 20.7, "min_top_odds": 3.0,
+        "is_primary":  False,
+        "applies": lambda race_df, run_id, ctx:
+            not ctx.get("has_first_starter", False)
+            # Two-tier voting filter - relaxed thresholds vs main:
+            #   (a) at least 2 of 6 signals rank #1 (was 3)
+            #   (b) at least 4 of 6 signals rank top-3 (was 5)
+            and (
+                int((ctx["wpr_rank"].get(run_id) or 99) == 1)
+                + int((ctx["late_rank"].get(run_id) or 99) == 1)
+                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) == 1)
+                + int((ctx["tr_rank"].get(run_id) or 99) == 1)
+            ) >= 2
+            and (
+                int((ctx["wpr_rank"].get(run_id) or 99) <= 3)
+                + int((ctx["late_rank"].get(run_id) or 99) <= 3)
+                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 3)
+                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3)
+                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) <= 3)
+                + int((ctx["tr_rank"].get(run_id) or 99) <= 3)
+            ) >= 4
+            # Note: SP gate applied at display time, not here.
+    },
 }
 
 
@@ -921,7 +974,9 @@ def model_picks_summary(rows, today_only=True):
 #
 #     intercept = -1.96
 #     weights:
-#         toprate_rating    pct: +2.97  (TR remains dominant signal)
+#         toprate_rating    pct: +2.5   (TR remains dominant signal but dampened
+#                                         2026-05-15 to reduce favourite-bias on
+#                                         quaddie leg selection - see SCORE_WEIGHTS_LOGREG)
 #         wpr_avg_last3     pct: +0.17
 #         late_speed_score  pct: +0.20
 #         pf_ai_rank        pct: +0.10  (PF AI adds small positive signal)
@@ -960,8 +1015,20 @@ JT_COMBO_TRUST = False
 
 # Path C: LogReg-fit weights (active default).
 # Applied via _logreg_score() to percentile-rank features.
+#
+# TR weight reduced 2.97 -> 2.5 on 2026-05-15 after quaddie backtest analysis.
+# Original 2.97 was 83% of the model's absolute weight sum, so the score was
+# effectively a sigmoid-wrapped market-favourite proxy. Quaddie leg picks
+# hit at 40% but yielded -50% on synthetic dividends because favourite-only
+# qualifier sets produced cheap dividends that couldn't cover stake on
+# inevitable losing quaddies. Dampening TR to 2.5 (combined with raising the
+# dashboard score threshold from 0.50 to 0.55) shifts qualifier sets toward
+# slightly tighter, less-favourite-aligned picks. Backtest yield over Apr 9 -
+# May 7 went from -50% to +4% under that combined config. Small change,
+# small sample (25 hits over 134 windows), but the right direction.
+# See quaddie_score_backtest.py for the analysis.
 SCORE_WEIGHTS_LOGREG = {
-    "toprate_rating":   +2.97,
+    "toprate_rating":   +2.5,
     "wpr_avg_last3":    +0.17,
     "late_speed_score": +0.20,
     "pf_ai_rank":       +0.10,

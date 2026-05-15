@@ -356,52 +356,56 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
 
 
     # Build picks list (all dates - JS filters to today's local date)
+    # All models included; each pick tagged with 'model' so JS sub-tabs can
+    # filter by active model on Today/P&L. Previously only primary_model_key
+    # picks were emitted - changed when the "loose" experimental model was
+    # added so users can flip between them in the dashboard.
     all_picks_list = []
     for race_id, models in model_picks_by_race.items():
-        for pick in models.get(primary_model_key, []):
-            # Find the parent race row for context
-            race = next((r for r in races if str(r.get('race_id')) == str(race_id)), None)
-            if not race:
-                continue
-            all_picks_list.append({
-                'race_id': race_id,
-                'date': race.get('date'),
-                'venue': race.get('venue'),
-                'race': race.get('race'),
-                'race_name': race.get('race_name'),
-                'start_time': race.get('start_time'),
-                'distance': race.get('distance'),
-                'going': race.get('going'),
-                'track_grading': race.get('track_grading'),
-                'prize': race.get('prize'),
-                'pace_score': race.get('pace_score'),
-                'field_size': race.get('fs'),
-                'rse': race.get('rse'),  # race shape early
-                'rsm': race.get('rsm'),  # race shape mid
-                'rsl': race.get('rsl'),  # race shape late
-                'run_id': pick.get('run_id'),
-                'horse': pick.get('horse'),
-                'tab': pick.get('tab'),
-                'fxprice': pick.get('fxprice'),
-                # Post-race prices - null pre-race, filled when results land
-                'sp':      pick.get('starting_price_sp'),
-                'top':     pick.get('price_top'),  # Top Fluc - highest bookie price pre-race
-                'tr_rank': pick.get('tr_rank'),
-                'early_rank': pick.get('early_rank'),
-                'mid_rank': pick.get('mid_rank'),
-                'late_rank': pick.get('late_rank'),
-                'total_rank': pick.get('total_rank'),
-                'wpr_rank': pick.get('wpr_rank'),
-                # PF data carried through from compute_model_picks
-                'pfaiR':   pick.get('pf_ai_rank'),
-                'pfaiPrc': pick.get('pf_ai_price'),
-                'wcR':     pick.get('pf_class_rank'),
-                'l600R':   pick.get('pf_last600_rank'),
-                'l400R':   pick.get('pf_last400_rank'),
-                'l200R':   pick.get('pf_last200_rank'),
-                'rs':      pick.get('pf_run_style'),
-                'clsChg':  pick.get('pf_class_change'),
-            })
+        for model_key, picks in models.items():
+            for pick in picks:
+                # Find the parent race row for context
+                race = next((r for r in races if str(r.get('race_id')) == str(race_id)), None)
+                if not race:
+                    continue
+                all_picks_list.append({
+                    'race_id': race_id,
+                    'model': model_key,
+                    'date': race.get('date'),
+                    'venue': race.get('venue'),
+                    'race': race.get('race'),
+                    'race_name': race.get('race_name'),
+                    'start_time': race.get('start_time'),
+                    'distance': race.get('distance'),
+                    'going': race.get('going'),
+                    'track_grading': race.get('track_grading'),
+                    'prize': race.get('prize'),
+                    'pace_score': race.get('pace_score'),
+                    'field_size': race.get('fs'),
+                    'rse': race.get('rse'),
+                    'rsm': race.get('rsm'),
+                    'rsl': race.get('rsl'),
+                    'run_id': pick.get('run_id'),
+                    'horse': pick.get('horse'),
+                    'tab': pick.get('tab'),
+                    'fxprice': pick.get('fxprice'),
+                    'sp':      pick.get('starting_price_sp'),
+                    'top':     pick.get('price_top'),
+                    'tr_rank': pick.get('tr_rank'),
+                    'early_rank': pick.get('early_rank'),
+                    'mid_rank': pick.get('mid_rank'),
+                    'late_rank': pick.get('late_rank'),
+                    'total_rank': pick.get('total_rank'),
+                    'wpr_rank': pick.get('wpr_rank'),
+                    'pfaiR':   pick.get('pf_ai_rank'),
+                    'pfaiPrc': pick.get('pf_ai_price'),
+                    'wcR':     pick.get('pf_class_rank'),
+                    'l600R':   pick.get('pf_last600_rank'),
+                    'l400R':   pick.get('pf_last400_rank'),
+                    'l200R':   pick.get('pf_last200_rank'),
+                    'rs':      pick.get('pf_run_style'),
+                    'clsChg':  pick.get('pf_class_change'),
+                })
     # Enrich with finish data and full per-runner context from races
     # Also compute Early and Total ranks per race (these may be missing from old picks CSVs)
     for tp in all_picks_list:
@@ -454,21 +458,22 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     all_picks_list.sort(key=lambda t: (t.get('date') or '', t.get('start_time') or '', t.get('race') or 0))
     today_picks = all_picks_list  # keep variable name for JSON injection
 
-    # Build settled bet history for the primary model from the flat picks list
+    # Build settled bet history for ALL models. Each entry tagged with 'model'
+    # so JS can filter by active model on the P&L sub-tab. Previously only the
+    # primary model's settled rows were emitted - changed when "loose"
+    # experimental model was added.
     settled_history = []
     for r in (model_pick_rows or []):
-        if r.get('model') != primary_model_key:
-            continue
         if not r.get('resulted'):
             continue
         race_id = r.get('race_id')
         run_id = r.get('run_id')
-        # Find race context and runner full data
         race = next((rc for rc in races if str(rc.get('race_id')) == str(race_id)), None)
         runner_full = None
         if race:
             runner_full = next((u for u in race.get('runners', []) if str(u.get('rid')) == str(run_id)), None)
         settled_history.append({
+            'model': r.get('model'),
             'date': r.get('date'),
             'venue': r.get('venue'),
             'race': r.get('race'),
@@ -495,7 +500,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
             'wpr_rank': r.get('wpr_rank'),
-            # PF data on settled bets
             'pfaiR':   r.get('pf_ai_rank'),
             'pfaiPrc': r.get('pf_ai_price'),
             'wcR':     r.get('pf_class_rank'),
@@ -504,7 +508,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'l200R':   r.get('pf_last200_rank'),
             'rs':      r.get('pf_run_style'),
             'clsChg':  r.get('pf_class_change'),
-            # Score + confidence surfaced for direct access in P&L tab
             'cs':  runner_full.get('cs')  if runner_full else None,
             'crk': runner_full.get('crk') if runner_full else None,
             'csc': runner_full.get('csc') if runner_full else None,
@@ -673,6 +676,45 @@ body {
   .tab {
     padding: 10px 12px; font-size: 11px; flex-shrink: 0;
   }
+}
+
+/* Sub-tabs - per-section model selector. Shows "Main | Loose" pill row
+   directly under the hero on Today and P&L tabs. Visually distinct from
+   the main tabs (smaller, pill-styled with rounded background highlight)
+   so users see the hierarchy: which tab they're on, then which model
+   within that tab. */
+.subtabs-row {
+  display: flex; gap: 4px; margin: 0 0 14px 0;
+  background: var(--line-soft);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  width: fit-content;
+}
+.subtab {
+  font-family: var(--font-body); font-weight: 600; font-size: 11px;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 6px 14px; cursor: pointer; color: var(--ink-mute);
+  border-radius: calc(var(--radius-md) - 3px);
+  transition: background 0.15s, color 0.15s;
+  border: 0; background: transparent;
+}
+.subtab:hover { color: var(--ink-soft); }
+.subtab.active {
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.subtab .subtab-badge {
+  display: inline-block; margin-left: 5px;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 5px; border-radius: 8px;
+  background: var(--ink-faint); color: white;
+  vertical-align: 1px;
+}
+.subtab.active .subtab-badge { background: var(--emerald); }
+@media (max-width: 720px) {
+  .subtabs-row { margin-bottom: 10px; }
+  .subtab { padding: 5px 11px; font-size: 10px; }
 }
 
 /* Sections */
@@ -4166,6 +4208,16 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Model sub-tabs - switches which model's picks fill the rows below.
+         Badge count is filled in by JS on render. Two models currently:
+         "main" (production rule, 3 top-1 votes + 5 top-3) and "loose"
+         (experimental, 2 top-1 + 4 top-3). Switching also drives the hero
+         stats above - WR/ROI/etc reflect only the active model's bets. -->
+    <div class="subtabs-row" id="today-subtabs">
+      <button class="subtab active" data-model="main">Main<span class="subtab-badge" id="today-subtab-count-main">0</span></button>
+      <button class="subtab" data-model="loose">Loose<span class="subtab-badge" id="today-subtab-count-loose">0</span></button>
+    </div>
+
     <div class="race-date-bar" id="today-date-bar">
       <div class="race-date-controls">
         <button class="today-date-quick race-date-quick" data-tdate="yesterday">Yesterday</button>
@@ -4310,6 +4362,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- PNL -->
   <section class="section" id="sec-pnl">
+    <!-- Model sub-tabs - filters all P&L stats, charts, and settled bet
+         rows to the selected model. Counts updated on render to show
+         settled bets per model in current period. Switching reloads
+         everything below. -->
+    <div class="subtabs-row" id="pnl-subtabs">
+      <button class="subtab active" data-model="main">Main<span class="subtab-badge" id="pnl-subtab-count-main">0</span></button>
+      <button class="subtab" data-model="loose">Loose<span class="subtab-badge" id="pnl-subtab-count-loose">0</span></button>
+    </div>
+
     <!-- Top control bar: period selector + view mode toggle -->
     <div class="pnl-controls">
       <div class="pnl-period-group" role="group" aria-label="Time period">
@@ -4751,7 +4812,14 @@ const defaultSettings = {
   // it had the lowest synthetic loss across 0.50/0.55/0.60 (best hit rate
   // per combo cost) and the field-size+prize-money filter on top removes
   // the worst of the small-field longshot drag.
-  scoreThreshold: 0.50,
+  //
+  // Updated 2026-05-15 from 0.50 -> 0.55 after the quaddie score backtest
+  // (Apr 9 - May 7 dataset). Paired with the TR weight drop 2.97 -> 2.5
+  // in toprate_daily.py, this combination is the only config in the
+  // backtest that delivered positive synthetic yield (+4.3% on 134
+  // windows). 0.50 + dampened TR collapses qualifier sets; 0.55 keeps
+  // them tight enough to be profitable. See quaddie_score_backtest.py.
+  scoreThreshold: 0.55,
   // Sync settings (configured per-device)
   syncEnabled: false,
   syncGistId: '',
@@ -4773,13 +4841,21 @@ try {
 // (we don't touch user-customised values - if they set 0.65 or 0.85 we leave
 // it alone since that signals deliberate choice).
 if (settings.scoreThreshold === 0.70) {
-  settings.scoreThreshold = 0.50;
+  settings.scoreThreshold = 0.55;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
 }
-// Second migration: bump 0.40 default to 0.50 after quaddie backtest analysis.
-// Same logic - only touch exact prior default, leave customised values alone.
+// Second migration: bump 0.40 default to 0.55 after quaddie backtest analysis.
 if (settings.scoreThreshold === 0.40) {
-  settings.scoreThreshold = 0.50;
+  settings.scoreThreshold = 0.55;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
+}
+// Third migration: bump 0.50 default to 0.55 after second quaddie backtest
+// (2026-05-15). Paired with the TR weight drop in toprate_daily.py - 0.50
+// with the new dampened TR weights produces collapsed qualifier sets.
+// As before, only the EXACT prior default 0.50 is touched. Users who
+// customised to e.g. 0.52 or 0.48 stay where they put it.
+if (settings.scoreThreshold === 0.50) {
+  settings.scoreThreshold = 0.55;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch(e) {}
 }
 
@@ -4791,6 +4867,58 @@ function saveSettings() {
   renderPnL();
   renderInsights();
 }
+
+// ── Model sub-tab state ─────────────────────────────────────────────────
+// Each section that has model sub-tabs (Today, P&L) tracks which model is
+// active independently. So you can browse Main picks on Today while
+// reviewing Loose settled bets on P&L. Persisted across reloads.
+const MODEL_TAB_KEY = 'toprate_v3_active_model';
+let activeModels = { today: 'main', pnl: 'main' };
+try {
+  const stored = localStorage.getItem(MODEL_TAB_KEY);
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed === 'object') {
+      activeModels = Object.assign(activeModels, parsed);
+    }
+  }
+} catch(e) {}
+
+function saveActiveModels() {
+  try { localStorage.setItem(MODEL_TAB_KEY, JSON.stringify(activeModels)); } catch(e) {}
+}
+
+function setActiveModel(section, modelKey) {
+  if (activeModels[section] === modelKey) return;
+  activeModels[section] = modelKey;
+  saveActiveModels();
+  // Update UI - flip .active class on the sub-tab buttons
+  const row = document.getElementById(section + '-subtabs');
+  if (row) {
+    row.querySelectorAll('.subtab').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-model') === modelKey);
+    });
+  }
+  // Re-render the section
+  if (section === 'today') renderToday();
+  else if (section === 'pnl') renderPnL();
+}
+
+// Wire sub-tab clicks. Delegation pattern in case the DOM is regenerated.
+['today', 'pnl'].forEach(section => {
+  const row = document.getElementById(section + '-subtabs');
+  if (!row) return;
+  row.addEventListener('click', e => {
+    const btn = e.target.closest('.subtab');
+    if (!btn) return;
+    const model = btn.getAttribute('data-model');
+    if (model) setActiveModel(section, model);
+  });
+  // Initial visual state - restore active class from saved state
+  row.querySelectorAll('.subtab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-model') === activeModels[section]);
+  });
+});
 
 ['setting-unit','setting-target','setting-min','setting-max','setting-score-thresh'].forEach(id => {
   const el = document.getElementById(id);
@@ -4985,7 +5113,17 @@ function renderToday() {
   if (!currentTodayDate) currentTodayDate = isoDate(0);
   const browseDate = currentTodayDate;
   const localToday = isoDate(0);
-  const todaysPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
+  // Picks for this date across all models (used for sub-tab badge counts)
+  const dateAllPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
+  // Active-model-only picks (used for the actual row rendering)
+  const activeModel = (activeModels && activeModels.today) || 'main';
+  const todaysPicks = dateAllPicks.filter(p => (p.model || 'main') === activeModel);
+
+  // Update sub-tab badge counts to reflect picks-per-model for browsed date
+  ['main', 'loose'].forEach(m => {
+    const badge = document.getElementById('today-subtab-count-' + m);
+    if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'main') === m).length;
+  });
 
   // Update date bar UI
   const tdInput = document.getElementById('today-date-input');
@@ -5022,7 +5160,9 @@ function renderToday() {
     hdrShow.style.display = 'grid';
   }
 
-  const minOdds = (MODEL_META[PRIMARY_KEY] && MODEL_META[PRIMARY_KEY].min_odds) || 3.0;
+  // Use the active model's min_odds. Fallback to primary if active has none.
+  const _activeModelMeta = MODEL_META[activeModel] || MODEL_META[PRIMARY_KEY] || {};
+  const minOdds = _activeModelMeta.min_odds || 3.0;
 
   // Sort by start time
   todaysPicks.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
@@ -6309,7 +6449,7 @@ function renderRaceDetail(raceId) {
   // Adaptive selection: horses meeting the cumulative-score threshold
   // The threshold setting drives picks per race - more in open races, fewer
   // in races with a clear favourite.
-  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.50;
+  const thresh = (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.55;
   const qualifiers = runners.filter(u => u.cs != null && u.cs >= thresh)
     .sort((a, b) => (a.crk || 99) - (b.crk || 99));
   let scoreThreshHtml = '';
@@ -7342,6 +7482,12 @@ function effectivePrice(s, betLogEntry) {
 function renderPnL() {
   // Get settled bets within the chosen time period
   const allSettled = SETTLED || [];
+  // Filter to the active sub-tab's model. Older settled entries (pre-model-tagging)
+  // default to 'main' so historical bets show up in the Main sub-tab.
+  const pnlActiveModel = (activeModels && activeModels.pnl) || 'main';
+  const modelSettled = allSettled.filter(s => (s.model || 'main') === pnlActiveModel);
+
+  // Update sub-tab badge counts to reflect settled counts per model (in current period)
   const today = new Date();
   today.setHours(0,0,0,0);
 
@@ -7369,7 +7515,17 @@ function renderPnL() {
     }
     return true;
   }
-  const settled = allSettled.filter(s => withinPeriod(s.date));
+  // Set sub-tab badges to show settled count per model within current period
+  ['main', 'loose'].forEach(m => {
+    const badge = document.getElementById('pnl-subtab-count-' + m);
+    if (badge) {
+      badge.textContent = allSettled
+        .filter(s => (s.model || 'main') === m && withinPeriod(s.date))
+        .length;
+    }
+  });
+
+  const settled = modelSettled.filter(s => withinPeriod(s.date));
 
   // Get bet log to determine which bets the user actually placed
   const log = getBetLog();
@@ -7447,10 +7603,11 @@ function renderPnL() {
   const realWR = sortedForStats.length > 0 ? totalWins / sortedForStats.length : null;
   const realPR = sortedForStats.length > 0 ? totalPlaces / sortedForStats.length : null;
   const realROI = totalStake > 0 ? (totalReturn - totalStake) / totalStake : null;
-  // Model metadata for chart baselines (expected ROI / WR lines on the dashed lines).
-  // Reintroduced after stats rewrite removed earlier reference - cum-units chart and
-  // rolling WR chart both still need this.
-  const meta = MODEL_META[PRIMARY_KEY] || {};
+  // Use the ACTIVE model's metadata for chart baselines (expected ROI/WR
+  // lines). Each model has its own expected_roi_sp / expected_wr from
+  // toprate_daily.py MODEL_DEFS - this way the dashed-line target adjusts
+  // when the user flips between Main and Loose sub-tabs.
+  const meta = MODEL_META[pnlActiveModel] || MODEL_META[PRIMARY_KEY] || {};
 
   function statBlock(lbl, val, sub, cls, tooltip) {
     const titleAttr = tooltip ? ' title="' + tooltip + '"' : '';
@@ -9419,7 +9576,7 @@ function legCoverage(nPicks, path) {
 
 function getQuaddieThreshold() {
   if (quaddieState.threshOverride != null) return quaddieState.threshOverride;
-  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.50;
+  return (settings && settings.scoreThreshold != null) ? settings.scoreThreshold : 0.55;
 }
 
 function quaddieRacesForDate(dateStr) {
