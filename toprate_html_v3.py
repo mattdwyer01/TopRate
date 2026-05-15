@@ -2613,6 +2613,18 @@ body {
 .rd-field { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
 .rd-fl { color: var(--ink-mute); min-width: 105px; flex-shrink: 0; }
 .rd-fv { color: var(--ink); font-weight: 500; }
+/* Inline rank pill used in detail panel for Mid/Total speed score fields.
+   Shows the per-race rank (#1, #2, #3) alongside the raw value. Colour
+   matches the table sectCell convention - emerald for top-3, plain for rest. */
+.rd-rank-pill {
+  display: inline-block; margin-left: 4px;
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 0 4px; border-radius: 3px;
+  background: var(--line); color: var(--ink-mute);
+}
+.rd-rank-pill.r1 { background: var(--emerald); color: #fff; font-weight: 600; }
+.rd-rank-pill.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
+.rd-rank-pill.r3 { background: #f0fdf4; color: var(--emerald-deep); }
 @media (max-width: 720px) {
   .rd-runner-detail { grid-template-columns: 1fr; gap: 10px; }
   .rd-fl { min-width: 90px; }
@@ -6449,7 +6461,12 @@ let raceSortState = { col: 'score', dir: 'asc' };
 // Build a rich detail panel for a single runner inside the Race tab table.
 // Triggered by clicking a row. Shows what the columns no longer carry: jockey,
 // trainer, their ratings/strike rates, distance/going history, full PF context.
-function buildRaceRunnerDetailHTML(u, race) {
+// Build the expanded runner-detail row HTML. Shown when user clicks a row.
+// rankCtx (optional): { mid: {rid: rank}, total: {rid: rank} } so the
+// detail panel can show Mid/Total speed score ranks inline with their values.
+// Made these per-race ranks available because the Mid/Total columns were
+// removed from the table to declutter - the detail panel now carries them.
+function buildRaceRunnerDetailHTML(u, race, rankCtx) {
   function fld(label, value, cls) {
     if (value == null || value === '' || value === '—') return '';
     return '<div class="rd-field"><span class="rd-fl">' + label + '</span>' +
@@ -6507,6 +6524,22 @@ function buildRaceRunnerDetailHTML(u, race) {
   // TR signals - we keep speed rating only (TR price, Early speed removed per design)
   const trSpd = u.spd != null ? Math.round(u.spd) : null;
 
+  // Mid/Total speed scores - moved here from the runners table to declutter
+  // the table. Shows value with rank if rankCtx provided, otherwise just value.
+  function speedScoreHtml(value, rank) {
+    if (value == null) return null;
+    const valStr = Number(value).toFixed(1);
+    if (rank != null) {
+      const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
+      return valStr + ' <span class="rd-rank-pill ' + rkCls + '">#' + rank + '</span>';
+    }
+    return valStr;
+  }
+  const midRank   = (rankCtx && rankCtx.mid)   ? rankCtx.mid[u.rid]   : null;
+  const totalRank = (rankCtx && rankCtx.total) ? rankCtx.total[u.rid] : null;
+  const midHtml   = speedScoreHtml(u.ms, midRank);
+  const totalHtml = speedScoreHtml(u.ts, totalRank);
+
   // Weight
   const wtHtml = u.wt != null ?
     u.wt + 'kg' + (u.wtr != null ? ' · ' + (u.wtr > 0 ? '+' : '') + u.wtr.toFixed(1) + 'kg trend' : '') : null;
@@ -6551,6 +6584,8 @@ function buildRaceRunnerDetailHTML(u, race) {
       '<div class="rd-section-title">Signals ' + pfReliable + '</div>' +
       '<div class="rd-section-body">' +
         fld('Speed rating', trSpd) +
+        fld('Mid speed', midHtml) +
+        fld('Total speed', totalHtml) +
         fld('PF AI', pfAiHtml) +
         fld('Time rank', pfTimeHtml) +
         fld('Class rank', pfClassHtml) +
@@ -7200,13 +7235,10 @@ function renderRaceDetail(raceId) {
       pfRankCell(u.pfaiR, 'PF AI') +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
       // ── Supporting columns (hidden on mobile) ──
+      // Style, Mid, Total, L400, Class∆ moved to detail panel (2026-05-15)
+      // to declutter horizontal table scroll. Still visible by clicking row.
       '<td>' + (u.b || '') + '</td>' +
-      pfRunStyleCell(u.rs) +
       '<td>' + settlesLabel(u.asp) + '</td>' +
-      sectCell(u.ms, midRanks[rid]) +
-      sectCell(u.ts, totalRanks[rid]) +
-      pfRankCell(u.l400R, 'PF Last 400m') +
-      pfClassChgCell(u.clsChg) +
       // ── Conditions / form context ──
       distanceCell(u) +
       (showGoing ? goingCell(u) : '') +
@@ -7242,13 +7274,10 @@ function renderRaceDetail(raceId) {
         th('pfai', 'PF AI') +
         th('tr', 'TR') +
         // ── Supporting / context columns (hidden on mobile) ──
+        // Style, Mid, Total, L400, Class∆ moved to detail panel (2026-05-15)
+        // to declutter horizontal table scroll.
         th('bar', 'Bar') +
-        th('rs', 'Style') +
         th('settles', 'Settles') +
-        th('mid', 'Mid') +
-        th('total', 'Total') +
-        th('l400R', 'L400') +
-        th('clsChg', 'Class Δ') +
         // Conditions
         (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
       '</tr></thead>' +
@@ -7300,7 +7329,7 @@ function renderRaceDetail(raceId) {
       detailTr.className = 'race-detail-row';
       detailTr.dataset.forRid = String(rid);
       detailTr.innerHTML = '<td colspan="' + colCount + '">' +
-        buildRaceRunnerDetailHTML(u, race) +
+        buildRaceRunnerDetailHTML(u, race, { mid: midRanks, total: totalRanks }) +
       '</td>';
       tr.parentNode.insertBefore(detailTr, tr.nextSibling);
     });
@@ -10767,6 +10796,27 @@ async function gistFetch(method, path, body) {
   }
   const r = await fetch(url, opts);
   if (!r.ok) {
+    // On rate-limit responses, GitHub sends X-RateLimit-Reset (unix seconds)
+    // indicating when the limit resets. Capture it so the sync layer can
+    // back off until then instead of hammering the API and worsening the
+    // problem. 403 is GitHub's rate-limit status; 429 is the standard one
+    // that GitHub uses for secondary (per-minute) limits.
+    if (r.status === 403 || r.status === 429) {
+      const resetHeader = r.headers.get('X-RateLimit-Reset');
+      if (resetHeader) {
+        const resetMs = parseInt(resetHeader, 10) * 1000;
+        if (!isNaN(resetMs) && resetMs > Date.now()) {
+          try {
+            localStorage.setItem(SYNC_BLOCKED_UNTIL_KEY, String(resetMs));
+          } catch(e) {}
+        }
+      } else {
+        // No reset header - fall back to a 5-minute pause as a safety
+        try {
+          localStorage.setItem(SYNC_BLOCKED_UNTIL_KEY, String(Date.now() + 5 * 60 * 1000));
+        } catch(e) {}
+      }
+    }
     const txt = await r.text();
     throw new Error('GitHub API ' + r.status + ': ' + txt.slice(0, 200));
   }
@@ -10821,18 +10871,94 @@ function buildSyncPayload() {
   };
 }
 
+// ── Sync rate limiting ──────────────────────────────────────────────────
+// Prevent runaway push frequency, which can blow through GitHub's 5,000
+// requests/hour PAT limit and cause hours-long sync outages. Three guards:
+//
+//   1. SYNC_MIN_PUSH_INTERVAL_MS: hard floor on push frequency.  Even when
+//      callers ask for an immediate flush, refuse if we pushed too recently.
+//      Set to 15 seconds = max 240 pushes/hr, comfortably under the 5,000
+//      cap with room for pulls too.
+//
+//   2. Last-pushed content hash. Many code paths bump the dirty flag without
+//      actually changing payload contents (e.g. clicking the same checkbox
+//      twice). Hash the serialised payload before pushing; if it matches the
+//      last successful push, skip. The local dirty flag still clears, since
+//      "remote already has this state" is the relevant invariant.
+//
+//   3. 403/429 backoff. When GitHub returns a rate-limit error, gistFetch
+//      stashes X-RateLimit-Reset in SYNC_BLOCKED_UNTIL_KEY. Push refuses
+//      until that time passes. Stops the cascade of failed retries that
+//      makes the rate limit problem worse than it needs to be.
+const SYNC_MIN_PUSH_INTERVAL_MS = 15 * 1000;
+const SYNC_LAST_PUSH_KEY        = 'tr_sync_last_push_v1';
+const SYNC_LAST_HASH_KEY        = 'tr_sync_last_hash_v1';
+const SYNC_BLOCKED_UNTIL_KEY    = 'tr_sync_blocked_until_v1';
+
+function _getSyncBlockedUntil() {
+  try { return parseInt(localStorage.getItem(SYNC_BLOCKED_UNTIL_KEY), 10) || 0; }
+  catch(e) { return 0; }
+}
+function _getLastPushTime() {
+  try { return parseInt(localStorage.getItem(SYNC_LAST_PUSH_KEY), 10) || 0; }
+  catch(e) { return 0; }
+}
+// Cheap deterministic string hash (djb2 variant). Doesn't need to be
+// cryptographic - just needs to differ when payloads differ.
+function _hashString(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h.toString(36);
+}
+
 async function syncPush() {
   if (!syncCfg.pat || !syncCfg.gistId) { syncLog('Need both PAT and Gist ID.'); return; }
+
+  // Guard 1: are we still blocked by a previous rate-limit response?
+  const blockedUntil = _getSyncBlockedUntil();
+  if (blockedUntil > Date.now()) {
+    const minsLeft = Math.ceil((blockedUntil - Date.now()) / 60000);
+    syncLog('Push skipped: GitHub rate limit active (' + minsLeft + 'min remaining)');
+    return;
+  }
+
+  // Guard 2: minimum interval since last push. Anything inside the window
+  // gets deferred - the dirty flag stays set so the next scheduled push
+  // will retry. This protects against runaway flushSyncPush callers.
+  const sinceLast = Date.now() - _getLastPushTime();
+  if (sinceLast < SYNC_MIN_PUSH_INTERVAL_MS) {
+    const waitS = Math.ceil((SYNC_MIN_PUSH_INTERVAL_MS - sinceLast) / 1000);
+    syncLog('Push throttled: too soon since last push (' + waitS + 's wait)');
+    return;
+  }
+
+  // Guard 3: content-hash skip. If the payload is identical to what's
+  // already on the gist, no point re-uploading. Clear dirty flag since
+  // remote already has the latest state.
+  const payload = buildSyncPayload();
+  const payloadStr = JSON.stringify(payload);
+  const payloadHash = _hashString(payloadStr);
+  let lastHash = null;
+  try { lastHash = localStorage.getItem(SYNC_LAST_HASH_KEY); } catch(e) {}
+  if (lastHash && lastHash === payloadHash) {
+    syncLog('Push skipped: no changes since last push');
+    clearSyncDirty();
+    return;
+  }
+
   syncLog('Pushing to Gist…');
   try {
-    const payload = buildSyncPayload();
     await gistFetch('PATCH', '/gists/' + syncCfg.gistId, {
       files: { 'toprate_sync.json': { content: JSON.stringify(payload, null, 2) } },
     });
     syncLog('Pushed ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
             Object.keys(payload.manualOdds || {}).length + ' odds entries + settings.');
-    // Record the push time so the indicator stays "fresh" after a push too
-    try { localStorage.setItem('tr_sync_last_pull_v1', String(Date.now())); } catch(e) {}
+    // Record success: timestamp + content hash, so next push can short-circuit.
+    try {
+      localStorage.setItem(SYNC_LAST_PUSH_KEY, String(Date.now()));
+      localStorage.setItem(SYNC_LAST_HASH_KEY, payloadHash);
+      localStorage.setItem('tr_sync_last_pull_v1', String(Date.now()));
+    } catch(e) {}
     if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
   } catch (e) {
     syncLog('Push failed: ' + e.message);
@@ -10930,9 +11056,23 @@ function scheduleSyncPush(delayMs) {
   clearTimeout(_syncPushTimer);
   _syncPushPending = true;
   if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-  // 500ms default (was 1500). iOS Safari aggressively backgrounds tabs and
-  // throttles long timers, so a shorter window means more pushes actually fire
-  // before iOS can kill the in-flight request.
+  // Default delay (debounce window). Combines with the rate-limit guard
+  // below - if we pushed less than SYNC_MIN_PUSH_INTERVAL_MS ago, defer
+  // to just after the cooldown ends so the push will actually fire when
+  // its timer expires (otherwise syncPush would refuse and the dirty flag
+  // would never clear until the user makes another change).
+  let actualDelay = delayMs != null ? delayMs : 500;
+  const sinceLast = Date.now() - _getLastPushTime();
+  if (sinceLast < SYNC_MIN_PUSH_INTERVAL_MS) {
+    const cooldownLeft = SYNC_MIN_PUSH_INTERVAL_MS - sinceLast;
+    if (cooldownLeft > actualDelay) actualDelay = cooldownLeft + 100;
+  }
+  // Also respect any active 403/429 backoff
+  const blockedUntil = _getSyncBlockedUntil();
+  if (blockedUntil > Date.now()) {
+    const blockedLeft = blockedUntil - Date.now();
+    if (blockedLeft > actualDelay) actualDelay = blockedLeft + 1000;
+  }
   _syncPushTimer = setTimeout(() => {
     _syncPushPending = false;
     const dirtyAtPushStart = getSyncDirty();
@@ -10946,7 +11086,7 @@ function scheduleSyncPush(delayMs) {
       .finally(() => {
         if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
       });
-  }, delayMs != null ? delayMs : 500);
+  }, actualDelay);
 }
 
 // Force-push immediately, cancelling any pending debounced push.
