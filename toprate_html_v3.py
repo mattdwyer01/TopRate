@@ -2635,24 +2635,21 @@ body {
 .race-table tbody tr.is-loose-pick:hover { background: rgba(217, 119, 6, 0.16); }
 .race-table tbody tr.muted { color: var(--ink-mute); }
 
-/* Pick badge - inline label sitting between the finish badge and the horse
-   name. Reads at a glance: "this row is the model pick".
-   - pick-badge-main:  emerald background, white text (production model)
-   - pick-badge-loose: amber background, dark text (experimental model)
-   - pick-badge-both:  emerald + amber gradient (rare, both models agree) */
+/* Pick badge - compact single-letter indicator AFTER the horse name.
+   Two badges can appear side-by-side when both models pick (M then L).
+   - pick-badge-main:  green "M" (production model)
+   - pick-badge-loose: amber "L" (experimental model) */
 .pick-badge {
-  display: inline-block; margin-right: 6px;
-  font-family: var(--font-body); font-size: 9px; font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 2px 5px; border-radius: 3px;
-  vertical-align: 1px; line-height: 1;
+  display: inline-block; margin-left: 6px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 5px; border-radius: 3px;
+  vertical-align: 1px; line-height: 1.2;
+  min-width: 8px; text-align: center;
 }
+.pick-badge + .pick-badge { margin-left: 3px; }
 .pick-badge-main  { background: var(--emerald); color: #fff; }
 .pick-badge-loose { background: #d97706; color: #fff; }
-.pick-badge-both  {
-  background: linear-gradient(90deg, var(--emerald) 0%, var(--emerald) 50%, #d97706 50%, #d97706 100%);
-  color: #fff;
-}
 
 /* Finish-position row treatment. Subtle background tint so the visual order
    reads "winner → placegetters → also-rans" at a glance. Combines with
@@ -2734,7 +2731,7 @@ body {
 .score-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
 
 /* Votes cell on race table - shows N/6 voting signal hits at top-3 for each
-   horse. Colour-coded so users can spot spot-bet candidates without reading
+   horse. Colour-coded so users can spot strong candidates without reading
    the number: 5-6 votes (the V3 threshold) = strong emerald; 4 = light;
    <=2 = muted grey to fade non-contenders. */
 .votes-cell { white-space: nowrap; font-weight: 600; text-align: left; }
@@ -2805,24 +2802,6 @@ body {
   background: rgba(16,185,129,0.12);
 }
 
-/* Spot-bet pattern (CS≤3 + WPR≤3 + Mid≤2 + Late≤2). Subtle blue accent
-   so it's distinguishable from the model-pick emerald. ~17% ROI in backtest. */
-.race-table tbody tr.spot-bet {
-  background: rgba(59,130,246,0.06);
-  box-shadow: inset 3px 0 0 #3b82f6;
-}
-.race-table tbody tr.spot-bet:hover {
-  background: rgba(59,130,246,0.12);
-}
-.race-table tbody tr.spot-bet .horse-cell::after {
-  content: 'SPOT';
-  display: inline-block; margin-left: 8px;
-  padding: 1px 5px; border-radius: 3px;
-  background: #3b82f6; color: #fff;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
-  vertical-align: middle;
-}
-
 /* Roughie pattern (CS≤3 + Late≤2 + Fxd≥$10). Amber accent — these are the
    long-shot value plays (~49% ROI in backtest at small samples). */
 .race-table tbody tr.roughie-bet {
@@ -2839,15 +2818,6 @@ body {
   background: #f59e0b; color: #fff;
   font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
   vertical-align: middle;
-}
-
-/* If a row is BOTH spot-bet and roughie (CS≤3 + Mid≤2 + Late≤2 + WPR≤3 + $10+),
-   the roughie tag wins visually since the longer price is the bigger story. */
-.race-table tbody tr.spot-bet.roughie-bet {
-  box-shadow: inset 3px 0 0 #f59e0b;
-}
-.race-table tbody tr.spot-bet.roughie-bet .horse-cell::after {
-  content: 'ROUGHIE';
 }
 
 .sect-pill {
@@ -7143,19 +7113,17 @@ function renderRaceDetail(raceId) {
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Pick badge - small label next to horse name making it unmistakable
-    // that this is a model pick. Three states:
-    //   - Both models: "MAIN+LOOSE" (rare, strong signal)
-    //   - Main only:   "MAIN"
-    //   - Loose only:  "LOOSE"
-    // Coloured by whichever is "highest" - emerald for Main, amber for Loose.
+    // Pick badge - compact letter indicator AFTER the horse name. Two badges
+    // can show together when both models pick the same horse:
+    //   - Main pick: green "M"
+    //   - Loose pick: amber "L"
+    //   - Both: green "M" + amber "L" side by side
     let pickBadge = '';
-    if (isPick && isLoose) {
-      pickBadge = '<span class="pick-badge pick-badge-both">MAIN+LOOSE</span>';
-    } else if (isPick) {
-      pickBadge = '<span class="pick-badge pick-badge-main">MAIN</span>';
-    } else if (isLoose) {
-      pickBadge = '<span class="pick-badge pick-badge-loose">LOOSE</span>';
+    if (isPick) {
+      pickBadge += '<span class="pick-badge pick-badge-main" title="Main model pick">M</span>';
+    }
+    if (isLoose) {
+      pickBadge += '<span class="pick-badge pick-badge-loose" title="Loose model pick">L</span>';
     }
 
     // Finish-position indicators - only when the race is resulted and we
@@ -7177,22 +7145,15 @@ function renderRaceDetail(raceId) {
       }
     }
 
-    // V3 voting model rule (matches lambda in toprate_daily.py):
-    //   A horse qualifies if BOTH:
-    //     (a) ranks #1 in at least 3 of 6 signals
-    //     (b) ranks top-3 in at least 5 of 6 signals
-    //   Signals: WPR, Late, PF Class, PF L600, PF AI, TR rating.
-    // Backtest: 23.8% WR, +18.4% ROI, 7.6/day, 17.5/Saturday,
-    //   3 of 4 weeks positive, profit factor 1.24.
-    // Highlighted as 'spot-bet' (re-using existing CSS for emerald tint).
-    // Suppressed when race is already a model pick (no double-highlight).
+    // Vote counts - the Votes column shows N/6 top-3 hits with a star
+    // indicator for #1-vote density. Same six signals as the model rule
+    // (WPR, Late, PF Class, PF L600, PF AI, TR).
     // (Note: trR already declared above for muted-row check.)
     const csR = u.crk;
     const wprR = wprRanks[rid];
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
-    const raceHasModelPick = picks.length > 0;
     // Count #1 votes (signal == 1) and top-3 votes (signal <= 3) across 6 signals.
     const _votes_top1 =
         ((wprR != null && wprR === 1) ? 1 : 0) +
@@ -7208,8 +7169,6 @@ function renderRaceDetail(raceId) {
         ((u.l600R != null && u.l600R <= 3) ? 1 : 0) +
         ((u.pfaiR != null && u.pfaiR <= 3) ? 1 : 0) +
         ((trR != null && trR <= 3) ? 1 : 0);
-    const isUnifiedRule = (_votes_top1 >= 3) && (_votes_top3 >= 5);
-    if (isUnifiedRule && !isPick && !raceHasModelPick) rowClasses.push('spot-bet');
 
     // Vote count cell - shows N/6 voting signals where this horse hit top-3
     // (the primary voting condition). Coloured by count for fast scanning:
@@ -7230,7 +7189,7 @@ function renderRaceDetail(raceId) {
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       // ── Primary columns (visible on mobile) ──
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
-      '<td class="horse-cell">' + finishBadge + pickBadge + escapeHtml(u.h || '') + '</td>' +
+      '<td class="horse-cell">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
       '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       scoreCell(u.cs, u.crk, u.csc) +
       votesCell(_votes_top3, _votes_top1) +
