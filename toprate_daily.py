@@ -778,6 +778,20 @@ def compute_model_picks(runners_df):
         if n == 0:
             continue
 
+        # Prize money gate. Races below TAB_PRIZE_MIN (bush/picnic) flow
+        # through to the HTML for browsing in the Race tab, but we don't
+        # generate model or loose picks for them. Constant is defined later
+        # in the file for the load_runners() filter; we reference it via
+        # globals() to avoid an import-order issue. If prize is missing on
+        # the race row (rare), treat as below-threshold (conservative).
+        prize_val = race_meta_prize = 0
+        try:
+            prize_val = int(rdf.iloc[0].get("prize_money") or 0)
+        except (TypeError, ValueError):
+            prize_val = 0
+        if prize_val < globals().get("TAB_PRIZE_MIN", 20000):
+            continue
+
         # Pre-compute per-race rank lookups for all anchor signals
         ctx = {
             "tr_rank":      _rank_lookup(rdf, "toprate_rating",    ascending=False),
@@ -1691,7 +1705,10 @@ def update_results(jwt, runners_df):
                         sp_str = f" @ ${float(sp):.2f}" if sp else ""
                         print(f"  Result: {venue} R{race} {horse} — {status}{sp_str}")
 
-            time.sleep(0.1)  # reduced from 0.3 - API hasn't been rate-limiting us
+            # Previously time.sleep(0.1) here as anti-rate-limit precaution.
+            # Removed 2026-05-16 - the comment said "API hasn't been rate-
+            # limiting us" so this was cargo-cult slowness. Saves ~10s per
+            # daily run on busy days. Add back if 429s appear.
         except Exception as e:
             print(f"  Error fetching results for race {race_id}: {e}")
 
@@ -1981,7 +1998,10 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
                       f"{sp_str} trend={trend_str} prize=${prize_v:,.0f} runners={len(race_runners)}")
 
             new_rows.extend(race_runners)
-            time.sleep(0.1)  # reduced from 0.3 - API hasn't been rate-limiting
+            # Previously time.sleep(0.1) here as anti-rate-limit precaution.
+            # Removed 2026-05-16 - the comment said "API hasn't been rate-
+            # limiting" so this was cargo-cult slowness. Saves ~5s per day
+            # on a typical new-race fetch. Add back if 429s appear.
 
         except Exception as e:
             print(f"  Error on {race_meta['venue']} R{race_meta['number']}: {e}")
