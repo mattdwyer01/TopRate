@@ -1855,6 +1855,38 @@ body {
 .mt-race-cell.mt-empty { color: var(--ink-faint); cursor: default; background: var(--bg); }
 .mt-race-cell.mt-empty:hover { background: var(--bg); color: var(--ink-faint); }
 .mt-race-cell.mt-resulted { color: var(--ink-mute); background: var(--bg); }
+
+/* Abandoned styling. Whole row fades and strikes through when meeting is
+   marked abandoned. Race-level abandon strikes that single cell. Hover
+   still works so the user can unmark. The abandon button itself stays
+   visible (no strike-through) so the unmark target is always reachable. */
+.mt-row.is-abandoned .mt-venue-name,
+.mt-row.is-abandoned .mt-venue-state,
+.mt-row.is-abandoned .mt-race-cell {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+.mt-row.is-abandoned .mt-race-cell:hover { opacity: 0.65; }
+.mt-race-cell.is-abandoned {
+  text-decoration: line-through; opacity: 0.45;
+}
+.mt-race-cell.is-abandoned:hover { opacity: 0.65; }
+.mt-abandon-btn {
+  margin-top: 4px;
+  font-family: var(--font-body); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  background: transparent; color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 2px 6px; cursor: pointer;
+  align-self: flex-start;
+}
+.mt-abandon-btn:hover { color: var(--rose); border-color: var(--rose); }
+.mt-row.is-abandoned .mt-abandon-btn {
+  background: var(--rose); color: #fff; border-color: var(--rose);
+  text-decoration: none; opacity: 1;
+}
+.mt-row.is-abandoned .mt-abandon-btn:hover { background: #b91c1c; }
+
 /* Resulted-race outcome highlighting. mt-result-main-hit: emerald tint when
    the Main model pick won. mt-result-loose-hit: amber tint when only the
    Loose pick won (Main missed). Lets the user scan a day's card and
@@ -2212,6 +2244,28 @@ body {
 .race-pace-est.hot { background: rgba(239,68,68,0.2); }
 .race-pace-est.fast { background: rgba(245,158,11,0.2); }
 .race-pace-est.slow { background: rgba(59,130,246,0.2); }
+
+/* Race-detail abandon toggle. Sits alongside the other header stat items.
+   Default: muted outline. Active (race abandoned): rose filled. If the
+   whole meeting is marked, the toggle is replaced by a static "MEETING
+   ABANDONED" tag that's read-only here (unmark on the meetings grid). */
+.rd-abandon-btn {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  background: transparent; color: var(--ink-mute);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 4px 10px; cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.rd-abandon-btn:hover { color: var(--rose); border-color: var(--rose); }
+.rd-abandon-btn.is-on {
+  background: var(--rose); color: #fff; border-color: var(--rose);
+}
+.rd-abandon-btn.is-on:hover { background: #b91c1c; }
+.rd-abandon-item.is-meeting-abandoned {
+  background: var(--rose); color: #fff;
+  font-weight: 700; letter-spacing: 0.04em; font-size: 10px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+}
 
 /* Pace map - settling positions */
 .race-pace-map {
@@ -5620,6 +5674,57 @@ function escapeHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ── Abandoned meeting / race tracking ───────────────────────────────────────
+// User-managed: PF and TR don't surface abandonment until results come in
+// (often hours after the abandoned races would have run), so picks for
+// abandoned races stay visible as "pending" until the user manually marks
+// them. Two granularities:
+//   abandonedMeetings: keyed by (date|venue) - covers entire cards
+//   abandonedRaces:    keyed by race_id      - covers single-race edge cases
+// Helpers below check BOTH (race-level OR meeting-level returns abandoned).
+// Marking a meeting and then unmarking a specific race within it is not
+// supported - meeting toggle dominates. Add a per-race opt-out later if
+// needed.
+const ABANDONED_MEETINGS_KEY = 'tr_abandoned_meetings_v1';
+const ABANDONED_RACES_KEY    = 'tr_abandoned_races_v1';
+let abandonedMeetings = {};
+let abandonedRaces    = {};
+try {
+  const raw = localStorage.getItem(ABANDONED_MEETINGS_KEY);
+  if (raw) abandonedMeetings = JSON.parse(raw);
+} catch(e) { abandonedMeetings = {}; }
+try {
+  const raw = localStorage.getItem(ABANDONED_RACES_KEY);
+  if (raw) abandonedRaces = JSON.parse(raw);
+} catch(e) { abandonedRaces = {}; }
+
+function abandonedMeetingKey(venue, date) {
+  return (venue || '') + '|' + (date || '');
+}
+function isMeetingAbandoned(venue, date) {
+  return !!abandonedMeetings[abandonedMeetingKey(venue, date)];
+}
+function isRaceAbandoned(race) {
+  if (!race) return false;
+  // Race-level mark takes precedence; meeting-level mark covers the rest.
+  if (abandonedRaces[String(race.race_id)]) return true;
+  return isMeetingAbandoned(race.venue, race.date);
+}
+function setMeetingAbandoned(venue, date, isAbandoned) {
+  const k = abandonedMeetingKey(venue, date);
+  if (isAbandoned) abandonedMeetings[k] = { ts: new Date().toISOString() };
+  else delete abandonedMeetings[k];
+  try { localStorage.setItem(ABANDONED_MEETINGS_KEY, JSON.stringify(abandonedMeetings)); } catch(e) {}
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+function setRaceAbandoned(raceId, isAbandoned) {
+  const k = String(raceId);
+  if (isAbandoned) abandonedRaces[k] = { ts: new Date().toISOString() };
+  else delete abandonedRaces[k];
+  try { localStorage.setItem(ABANDONED_RACES_KEY, JSON.stringify(abandonedRaces)); } catch(e) {}
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+
 // ── Legacy: manualOdds storage ──────────────────────────────────────────────
 // Earlier versions let the user override the live fxprice on each pick row.
 // That's been replaced by the read-only Fxd column + dedicated odds-taken
@@ -6710,6 +6815,15 @@ function saveTodayFilters() {
 // `pick` is an entry from PICKS_TODAY - has run_id, race_id, field_size,
 // and we look up jrt via the race's runner list.
 function todayPickPassesFilters(pick) {
+  // Abandoned meetings/races: hide the pick from Today entirely. This is
+  // the manual override for the PF/TR blind spot - abandonment data
+  // doesn't reach the API until results come in (often hours late), so
+  // the user marks it themselves and we honour that immediately. Resulted
+  // picks with a finish position are not filtered here - they live in
+  // P&L history. The pick's race may not be in RACES if the data is
+  // stale, in which case we can't check - default to letting it pass.
+  const raceForAbandon = RACES.find(r => String(r.race_id) === String(pick.race_id));
+  if (raceForAbandon && isRaceAbandoned(raceForAbandon)) return false;
   // Field size filter - pick.field_size is set from race.fs at build time
   if (todayFilters.minFs > 0) {
     const fs = pick.field_size || 0;
@@ -6790,10 +6904,23 @@ function renderMeetingsGrid() {
   // Meeting rows
   const now = new Date();
   meetings.forEach(m => {
-    html += '<div class="mt-row">';
+    // Abandon state - check the meeting key. Note: m.races[0] gives us the
+    // date (not stored on the meeting object itself; same across all races).
+    const meetingDate = m.races[0] ? m.races[0].date : currentBrowseDate;
+    const meetingAbandoned = isMeetingAbandoned(m.venue, meetingDate);
+    const rowCls = 'mt-row' + (meetingAbandoned ? ' is-abandoned' : '');
+    html += '<div class="' + rowCls + '" data-venue="' + escapeHtml(m.venue) +
+      '" data-mdate="' + escapeHtml(meetingDate) + '">';
+    const btnLabel = meetingAbandoned ? 'Abandoned ✓' : 'Mark abandoned';
+    const btnTitle = meetingAbandoned
+      ? 'Meeting marked abandoned - all picks hidden. Click to unmark.'
+      : 'Mark this meeting as abandoned (hides picks for all its races).';
     html += '<div class="mt-venue-col">' +
       '<div class="mt-venue-name">' + escapeHtml(m.venue) + '</div>' +
       (m.state ? '<div class="mt-venue-state">' + escapeHtml(m.state) + '</div>' : '') +
+      '<button type="button" class="mt-abandon-btn" data-abandon-meeting="' +
+      escapeHtml(m.venue) + '|' + escapeHtml(meetingDate) + '" title="' +
+      escapeHtml(btnTitle) + '">' + btnLabel + '</button>' +
       '</div>';
     for (let i = 1; i <= maxR; i++) {
       const race = m.races.find(r => r.race === i);
@@ -6824,6 +6951,11 @@ function renderMeetingsGrid() {
       if (hasPick) cellCls += ' has-pick';
       if (hasLoose) cellCls += ' has-loose-pick';
       if (fsOk) cellCls += ' mt-fsok';
+      // Race-level abandon (or meeting-level, since isRaceAbandoned checks both).
+      // Meeting-level fade applies via the row class, but race-level marks
+      // need their own cell class for the case where only a single race is
+      // abandoned within an otherwise normal meeting.
+      if (isRaceAbandoned(race)) cellCls += ' is-abandoned';
       let badge = '';
       let lbl = tm || ('R' + i);
       if (isResulted) {
@@ -6889,6 +7021,28 @@ function renderMeetingsGrid() {
     cell.addEventListener('click', () => {
       currentRaceId = cell.dataset.rid;
       showRaceDetail(currentRaceId);
+    });
+  });
+
+  // Wire abandon-meeting button clicks
+  host.querySelectorAll('[data-abandon-meeting]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const [venue, date] = btn.dataset.abandonMeeting.split('|');
+      const currentlyAbandoned = isMeetingAbandoned(venue, date);
+      // Confirm before marking, to avoid accidental clicks on a long card.
+      // Unmarking doesn't need a confirm - if it was a mistake the user
+      // can re-mark trivially.
+      if (!currentlyAbandoned) {
+        const ok = confirm('Mark all races at ' + venue + ' on ' + date +
+          ' as abandoned? This will hide their picks from Today/Quaddie.');
+        if (!ok) return;
+      }
+      setMeetingAbandoned(venue, date, !currentlyAbandoned);
+      renderMeetingsGrid();
+      // Cascade to other tabs that filter on abandoned state.
+      if (typeof renderToday === 'function') renderToday();
+      if (typeof renderQuaddie === 'function') renderQuaddie();
     });
   });
 
@@ -7336,6 +7490,28 @@ function renderRaceDetail(raceId) {
     picksDisplay = '<span class="v">' + picks.length + '</span> Main · ' +
       '<span class="v">' + loosePicks.length + '</span> Loose';
   }
+  // Race-level abandon toggle. Distinct from meeting-level (which lives on
+  // the meetings grid) - this is for edge cases where one race is called
+  // off but the rest of the card runs. If the meeting is already marked
+  // abandoned, the race inherits it; the button text reflects this.
+  const raceAbandoned = isRaceAbandoned(race);
+  const meetingAbandoned = isMeetingAbandoned(race.venue, race.date);
+  let abandonHtml;
+  if (meetingAbandoned) {
+    // Meeting-level mark - cannot un-mark just this race here. Direct user
+    // to the Race tab meetings grid.
+    abandonHtml = '<div class="item rd-abandon-item is-meeting-abandoned" ' +
+      'title="Whole meeting marked abandoned. Unmark on the meetings grid.">' +
+      'MEETING ABANDONED</div>';
+  } else if (raceAbandoned) {
+    abandonHtml = '<button type="button" class="rd-abandon-btn is-on" ' +
+      'id="rd-abandon-btn" title="Click to unmark this race.">' +
+      'Race abandoned ✓</button>';
+  } else {
+    abandonHtml = '<button type="button" class="rd-abandon-btn" ' +
+      'id="rd-abandon-btn" title="Mark this race abandoned. Hides its picks ' +
+      'from Today/Quaddie.">Mark race abandoned</button>';
+  }
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
     '<div class="item">' + race.distance + 'm</div>' +
@@ -7344,7 +7520,8 @@ function renderRaceDetail(raceId) {
     '<div class="item">' + runners.length + ' runners</div>' +
     '<div class="item">' + picksDisplay + '</div>' +
     scoreThreshHtml +
-    '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>';
+    '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>' +
+    abandonHtml;
 
   // Context bar - includes inline track rating override
   const ctx = [];
@@ -7369,6 +7546,25 @@ function renderRaceDetail(raceId) {
 
   // Wire the inline override input
   wireContextOverride(race);
+
+  // Wire race-level abandon toggle (rendered in rd-header-stats above).
+  // Only present when meeting isn't already marked abandoned.
+  const rdAbandonBtn = document.getElementById('rd-abandon-btn');
+  if (rdAbandonBtn) {
+    rdAbandonBtn.addEventListener('click', () => {
+      const currentlyOn = isRaceAbandoned(race) && !isMeetingAbandoned(race.venue, race.date);
+      if (!currentlyOn) {
+        const ok = confirm('Mark this race as abandoned? It will be hidden ' +
+          'from Today/Quaddie picks.');
+        if (!ok) return;
+      }
+      setRaceAbandoned(race.race_id, !currentlyOn);
+      renderRaceDetail(race.race_id);
+      if (typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+      if (typeof renderToday === 'function') renderToday();
+      if (typeof renderQuaddie === 'function') renderQuaddie();
+    });
+  }
 
   // ── Pace map / race shape ──
   // Horizontal lane diagram: Leaders left → Back right. Horses positioned in
@@ -11117,7 +11313,10 @@ function getQuaddieThreshold() {
 }
 
 function quaddieRacesForDate(dateStr) {
-  return RACES.filter(r => r.date === dateStr);
+  // Exclude races/meetings the user has marked abandoned. Quaddies can't be
+  // formed across abandoned races so filtering here is the cleanest spot -
+  // the meetings grid, legs picker, qualifier counts all flow from this.
+  return RACES.filter(r => r.date === dateStr && !isRaceAbandoned(r));
 }
 
 function quaddieMeetingsForDate(dateStr) {
@@ -11992,6 +12191,11 @@ function buildSyncPayload() {
     // Manual track-rating overrides keyed by venue|date - syncs your "track is
     // playing softer than official" judgments to mobile
     trackRatings: trackRatings,
+    // Abandoned meetings/races - hides picks once user marks abandonment.
+    // Crucial for sync because PF/TR don't surface abandonment until results,
+    // and a user might mark Lismore on phone but want it hidden on desktop too.
+    abandonedMeetings: abandonedMeetings,
+    abandonedRaces: abandonedRaces,
   };
 }
 
@@ -12133,6 +12337,16 @@ async function syncPull() {
     if (payload.trackRatings && typeof payload.trackRatings === 'object') {
       trackRatings = Object.assign({}, trackRatings, payload.trackRatings);
       try { localStorage.setItem(TRACK_RATINGS_KEY, JSON.stringify(trackRatings)); } catch(e) {}
+    }
+    // Abandoned meetings/races - last-write-wins merge. Same shape as
+    // trackRatings: dict keyed by (venue|date) or race_id, value is metadata.
+    if (payload.abandonedMeetings && typeof payload.abandonedMeetings === 'object') {
+      abandonedMeetings = Object.assign({}, abandonedMeetings, payload.abandonedMeetings);
+      try { localStorage.setItem(ABANDONED_MEETINGS_KEY, JSON.stringify(abandonedMeetings)); } catch(e) {}
+    }
+    if (payload.abandonedRaces && typeof payload.abandonedRaces === 'object') {
+      abandonedRaces = Object.assign({}, abandonedRaces, payload.abandonedRaces);
+      try { localStorage.setItem(ABANDONED_RACES_KEY, JSON.stringify(abandonedRaces)); } catch(e) {}
     }
     renderToday(); renderPnL(); renderInsights();
     syncLog('Pulled ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
