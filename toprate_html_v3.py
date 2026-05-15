@@ -5099,6 +5099,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             <input type="number" id="db-max-score" class="db-input db-input-narrow" placeholder="1.00" min="0" max="1" step="0.05">
           </div>
           <div class="db-filter-group">
+            <label for="db-min-sp" title="Starting price filter. Only applies to resulted rows (unresulted rows have no SP and will be hidden when this filter is active).">SP ≥</label>
+            <input type="number" id="db-min-sp" class="db-input db-input-narrow" placeholder="$3" min="0" step="0.5">
+          </div>
+          <div class="db-filter-group">
             <label for="db-min-jky">Jky rating ≥</label>
             <select class="db-input" id="db-min-jky">
               <option value="0">Any</option>
@@ -10505,6 +10509,7 @@ let dbFilters = {
   minFs: 0, minPrize: 0, going: '',
   minDist: null, maxDist: null,
   minScore: null, maxScore: null,
+  minSp: null,
   minJky: 0,
   model: 'any',     // any | main | loose | any-pick | none
   result: 'any',    // any | won | placed | lost | resulted | unresulted
@@ -10629,6 +10634,11 @@ function filterDatabaseRows(rows) {
     if (dbFilters.maxDist != null && (r.distance || 0) > dbFilters.maxDist) return false;
     if (dbFilters.minScore != null && (r.score == null || r.score < dbFilters.minScore)) return false;
     if (dbFilters.maxScore != null && (r.score == null || r.score > dbFilters.maxScore)) return false;
+    // Min SP filter - SP only exists on resulted rows, so this filter
+    // implicitly hides unresulted ones (no way to compare). That's the
+    // intended behaviour: filtering by SP means you're looking at
+    // completed races.
+    if (dbFilters.minSp != null && (r.sp == null || r.sp < dbFilters.minSp)) return false;
     if (dbFilters.minJky > 0 && (r.jrt == null || r.jrt < dbFilters.minJky)) return false;
     // Model pick filter
     if (dbFilters.model === 'main'     && !r.isMain) return false;
@@ -10673,6 +10683,7 @@ function sortDatabaseRows(rows) {
     horse:   r => r.horse || '',
     tab:     r => r.tab || 99,
     fxd:     r => r.fxd != null ? r.fxd : 9999,
+    sp:      r => r.sp != null ? r.sp : 9999,
     score:   r => r.score != null ? r.score : -1,
     crk:     r => r.crk != null ? r.crk : 99,
     wpr:     r => r.wpr != null ? r.wpr : -9999,
@@ -10809,7 +10820,7 @@ function renderDatabaseTable(rows) {
     th('date', 'Date') + th('venue', 'Venue') + th('race', 'R#') +
     th('tab', 'Tab') + th('horse', 'Horse') +
     th('fs', 'Field') + th('prize', '$') + th('distance', 'Dist') +
-    th('barrier', 'Bar') + th('fxd', 'Fxd') +
+    th('barrier', 'Bar') + th('fxd', 'Fxd') + th('sp', 'SP') +
     th('score', 'Score') + th('crk', 'Score#') +
     th('wpr', 'WPR') + th('late', 'Late') +
     th('wcR', 'Cls') + th('l600R', 'L600') + th('pfaiR', 'PFAI') +
@@ -10845,6 +10856,7 @@ function renderDatabaseTable(rows) {
       cell(r.distance != null ? r.distance + 'm' : null, ' class="num"') +
       cell(r.barrier != null ? r.barrier : null, ' class="num"') +
       cell(r.fxd != null ? '$' + r.fxd.toFixed(2) : null, ' class="num"') +
+      cell(r.sp != null ? '$' + r.sp.toFixed(2) : null, ' class="num"') +
       cell(r.score != null ? r.score.toFixed(2) : null, ' class="num"') +
       rankCell(r.crk) +
       rankCell(r.wprRank) +
@@ -10869,7 +10881,7 @@ function renderDatabaseTable(rows) {
     h.addEventListener('click', () => {
       const col = h.dataset.sort;
       if (dbSort.col === col) dbSort.dir = dbSort.dir === 'asc' ? 'desc' : 'asc';
-      else { dbSort.col = col; dbSort.dir = (col === 'score' || col === 'wpr' || col === 'late' || col === 'tr' || col === 'fxd' || col === 'jky' || col === 'prize') ? 'desc' : 'asc'; }
+      else { dbSort.col = col; dbSort.dir = (col === 'score' || col === 'wpr' || col === 'late' || col === 'tr' || col === 'fxd' || col === 'sp' || col === 'jky' || col === 'prize') ? 'desc' : 'asc'; }
       renderDatabase();
     });
   });
@@ -10934,6 +10946,7 @@ function _wireDatabaseFilters() {
   bind('db-max-dist',  'maxDist',  toIntOrNull);
   bind('db-min-score', 'minScore', toFloatOrNull);
   bind('db-max-score', 'maxScore', toFloatOrNull);
+  bind('db-min-sp',    'minSp',    toFloatOrNull);
   bind('db-min-jky',   'minJky',   toInt);
   bind('db-model',     'model');
   bind('db-result',    'result');
@@ -10977,13 +10990,14 @@ function _wireDatabaseFilters() {
         minFs: 0, minPrize: 0, going: '',
         minDist: null, maxDist: null,
         minScore: null, maxScore: null,
+        minSp: null,
         minJky: 0, model: 'any', result: 'any',
         sigWpr: 'any', sigLate: 'any', sigWcR: 'any',
         sigL600R: 'any', sigPfaiR: 'any', sigTr: 'any',
       };
       saveDbFilters();
       // Clear all input UI
-      ['db-date-from','db-date-to','db-venue','db-horse','db-min-dist','db-max-dist','db-min-score','db-max-score']
+      ['db-date-from','db-date-to','db-venue','db-horse','db-min-dist','db-max-dist','db-min-score','db-max-score','db-min-sp']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       ['db-min-fs','db-min-prize','db-going','db-min-jky','db-model','db-result']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = (id === 'db-going') ? '' : (id === 'db-model' || id === 'db-result') ? 'any' : '0'; });
