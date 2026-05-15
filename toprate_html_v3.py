@@ -1657,6 +1657,24 @@ body {
 .ntj-pill.has-pick .ntj-pill-name::before {
   content: '●'; color: var(--emerald); margin-right: 6px;
 }
+/* Loose-model pick indicator. Sits after the race name. Amber colour to
+   visually differentiate from Main pick (emerald dot). Compact pill so it
+   doesn't dominate the race name. Used on NTJ ticker and Race tab cells. */
+.ntj-pill-loose-badge,
+.mt-race-cell-loose-badge,
+.meeting-tile-loose-badge {
+  display: inline-block; margin-left: 5px;
+  font-family: var(--font-body); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px; border-radius: 3px;
+  background: #f59e0b; color: #0f1729;
+  vertical-align: 1px;
+}
+/* Race tab cell variant - slightly different shade for the lighter bg */
+.mt-race-cell-loose-badge,
+.meeting-tile-loose-badge {
+  background: #d97706; color: #fff;
+}
 .ntj-pill-cd {
   font-family: var(--font-mono); font-size: 10px; font-weight: 700;
   padding: 2px 7px; border-radius: 4px; letter-spacing: .02em; white-space: nowrap;
@@ -1713,6 +1731,59 @@ body {
   .race-date-quick { padding: 6px 10px; flex: 0 1 auto; }
   .race-date-input { flex: 1 1 130px; margin-left: 0; }
   .race-date-info { text-align: right; font-size: 11px; }
+}
+
+/* Race tab filters bar - sits below date bar, above meetings grid.
+   Compact dropdowns + checkbox + reset link. Filtered-out cells dim
+   to ~30% opacity but stay clickable so user can still inspect why
+   they were filtered. Filters persist in localStorage. */
+.race-filters-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-md); padding: 8px 14px;
+  margin-bottom: 14px; flex-wrap: wrap;
+  font-family: var(--font-body); font-size: 12px;
+}
+.race-filter-group { display: flex; align-items: center; gap: 6px; }
+.race-filter-group label {
+  color: var(--ink-mute); font-weight: 500;
+  letter-spacing: 0.03em; text-transform: uppercase; font-size: 10px;
+}
+.race-filter-select {
+  font-family: var(--font-body); font-size: 12px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 4px 8px; cursor: pointer;
+}
+.race-filter-select:hover { border-color: var(--ink-faint); }
+.race-filter-check {
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 11px; color: var(--ink-soft);
+}
+.race-filter-check input { cursor: pointer; }
+.race-filter-reset {
+  background: none; border: 0; color: var(--ink-mute);
+  font-size: 11px; cursor: pointer;
+  text-decoration: underline; padding: 2px 4px;
+}
+.race-filter-reset:hover { color: var(--rose); }
+.race-filter-summary {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+}
+/* Cell state when a race fails one or more active filters. Stays visible
+   and clickable, just dimmed - so the user can see WHY it was filtered
+   and inspect the race anyway if they want. */
+.mt-race-cell.mt-filtered-out {
+  opacity: 0.28;
+}
+.mt-race-cell.mt-filtered-out:hover {
+  opacity: 0.5;
+}
+@media (max-width: 720px) {
+  .race-filters-bar { padding: 8px 10px; gap: 8px; }
+  .race-filter-group label { display: none; }
+  .race-filter-summary { display: none; }
 }
 
 /* Race page - meetings grid table */
@@ -4260,6 +4331,39 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="race-date-info" id="race-date-info">—</div>
       </div>
+
+      <!-- Filters bar - field size, jockey rating, pick-only toggle.
+           Selections persist via localStorage. Filtered races dim to ~30%
+           opacity but stay visible and clickable so the user can still
+           inspect a filtered race if they want. -->
+      <div class="race-filters-bar">
+        <div class="race-filter-group">
+          <label for="race-filter-fs">Field</label>
+          <select class="race-filter-select" id="race-filter-fs">
+            <option value="0">All</option>
+            <option value="8">8+</option>
+            <option value="10">10+</option>
+            <option value="12">12+</option>
+          </select>
+        </div>
+        <div class="race-filter-group">
+          <label for="race-filter-jky">Jky rating</label>
+          <select class="race-filter-select" id="race-filter-jky">
+            <option value="0">All</option>
+            <option value="75">75+</option>
+            <option value="80">80+</option>
+            <option value="85">85+</option>
+            <option value="90">90+</option>
+          </select>
+        </div>
+        <label class="race-filter-check">
+          <input type="checkbox" id="race-filter-pickonly">
+          Pick only
+        </label>
+        <button class="race-filter-reset" id="race-filter-reset" type="button">Reset</button>
+        <div class="race-filter-summary" id="race-filter-summary"></div>
+      </div>
+
       <div id="race-meetings-list">
         <div class="empty-state">
           <div class="head">Loading meetings…</div>
@@ -5969,6 +6073,64 @@ function ord(n) {
 let currentBrowseDate = null;     // YYYY-MM-DD being browsed
 let currentRaceId = null;          // race_id of the currently open detail
 
+// Filter state for the meetings grid. Persisted across reloads so users
+// don't lose their filters when switching pages or refreshing.
+//   minFs   = minimum field size (race.fs >= minFs); 0 = no filter
+//   minJky  = minimum jockey rating on the active model pick; 0 = no filter
+//   pickOnly = only races where some model has a pick
+const RACE_FILTERS_KEY = 'toprate_v3_race_filters';
+let raceFilters = { minFs: 0, minJky: 0, pickOnly: false };
+try {
+  const stored = localStorage.getItem(RACE_FILTERS_KEY);
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed === 'object') {
+      raceFilters = Object.assign(raceFilters, parsed);
+    }
+  }
+} catch(e) {}
+function saveRaceFilters() {
+  try { localStorage.setItem(RACE_FILTERS_KEY, JSON.stringify(raceFilters)); } catch(e) {}
+}
+
+// Returns true if a race passes all currently-active filters. Used by
+// renderMeetingsGrid to decide whether each cell is dimmed.
+function racePassesFilters(race) {
+  // Field size filter
+  if (raceFilters.minFs > 0) {
+    const fs = race.fs || (race.runners || []).length || 0;
+    if (fs < raceFilters.minFs) return false;
+  }
+  // Pick-only filter
+  const racePicks = (MODEL_PICKS[race.race_id] || {});
+  const mainPicks = racePicks[PRIMARY_KEY] || [];
+  const loosePicks = racePicks['loose'] || [];
+  const hasAnyPick = mainPicks.length > 0 || loosePicks.length > 0;
+  if (raceFilters.pickOnly && !hasAnyPick) return false;
+  // Jockey rating filter - checks Main pick's jky rating first, falls back
+  // to Loose pick's. Only applies when there's a pick - races with no pick
+  // are unaffected by this filter (use pickOnly to gate those out).
+  if (raceFilters.minJky > 0) {
+    let bestJky = null;
+    const checkPicks = (picks) => {
+      picks.forEach(p => {
+        // Pick objects don't carry jrt - look up in race.runners by run_id
+        if (!race.runners) return;
+        const runner = race.runners.find(u => String(u.rid) === String(p.run_id));
+        if (runner && runner.jrt != null) {
+          if (bestJky == null || runner.jrt > bestJky) bestJky = runner.jrt;
+        }
+      });
+    };
+    checkPicks(mainPicks);
+    checkPicks(loosePicks);
+    // Races with no pick or no jky data on picks fail this filter (intentional -
+    // user is asking "races where the pick has a strong jockey")
+    if (bestJky == null || bestJky < raceFilters.minJky) return false;
+  }
+  return true;
+}
+
 function isoDate(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + (offsetDays || 0));
@@ -6042,7 +6204,9 @@ function renderMeetingsGrid() {
       const isPast = mins !== null && mins < -2;
       const isImminent = mins !== null && mins >= -2 && mins <= 15;
       const isSoon = mins !== null && mins > 15 && mins <= 45;
-      const hasPick = !!((MODEL_PICKS[race.race_id] || {})[PRIMARY_KEY] || []).length;
+      const racePicks = (MODEL_PICKS[race.race_id] || {});
+      const hasPick = !!(racePicks[PRIMARY_KEY] || []).length;
+      const hasLoose = !!(racePicks['loose'] || []).length;
       // Field-size strategy gate. Same source-of-truth pattern as the Quaddie
       // tab (race.fs falling back to runners.length). Threshold 8 is the
       // user's metro-Saturday filter - fields of 7 or fewer push picks into
@@ -6053,6 +6217,10 @@ function renderMeetingsGrid() {
       let cellCls = 'mt-race-cell';
       if (hasPick) cellCls += ' has-pick';
       if (fsOk) cellCls += ' mt-fsok';
+      // Filter check - dims the cell but keeps it visible/clickable. Counted
+      // for the filter summary so the user can see how many races passed.
+      const passesFilters = racePassesFilters(race);
+      if (!passesFilters) cellCls += ' mt-filtered-out';
       let badge = '';
       let lbl = tm || ('R' + i);
       if (isResulted) { cellCls += ' mt-resulted'; lbl = 'Result'; }
@@ -6063,17 +6231,22 @@ function renderMeetingsGrid() {
       else if (isSoon) { cellCls += ' mt-soon'; badge = '<span class="mt-cd-soon">' + mins + 'm</span>'; }
       else if (isPast && !isResulted) cellCls += ' mt-pending-late';
 
+      // Loose-model indicator. Separate badge from countdown so they can both
+      // show. Sits next to the time label inside the cell.
+      const looseBadge = hasLoose ? '<span class="mt-race-cell-loose-badge" title="Loose model pick">L</span>' : '';
+
       // Tooltip explains the corner indicators. Only built when there's
       // something to explain - no point on empty/plain cells.
       let titleAttr = '';
       const tipParts = [];
-      if (hasPick) tipParts.push('Model pick available');
+      if (hasPick) tipParts.push('Main model pick');
+      if (hasLoose) tipParts.push('Loose model pick');
       if (fsOk && !isResulted) tipParts.push('Field size ' + cellFs + ' (meets bet criteria)');
       else if (cellFs > 0 && !isResulted) tipParts.push('Field size ' + cellFs + ' (below 8-runner threshold)');
       if (tipParts.length) titleAttr = ' title="' + tipParts.join(' · ') + '"';
 
       html += '<div class="' + cellCls + '" data-rid="' + race.race_id + '"' + titleAttr + '>' +
-        '<div class="mt-time">' + lbl + '</div>' + badge + '</div>';
+        '<div class="mt-time">' + lbl + looseBadge + '</div>' + badge + '</div>';
     }
     html += '</div>';
   });
@@ -6083,6 +6256,32 @@ function renderMeetingsGrid() {
   document.getElementById('race-date-info').textContent =
     meetings.length + ' meeting' + (meetings.length !== 1 ? 's' : '') + ' · ' +
     dateRaces.length + ' races';
+
+  // Filter summary: show "N of M passing" only when any filter is active.
+  // When all filters at defaults, summary stays empty so it doesn't add noise.
+  const sumEl = document.getElementById('race-filter-summary');
+  if (sumEl) {
+    const anyActive = raceFilters.minFs > 0 || raceFilters.minJky > 0 || raceFilters.pickOnly;
+    if (anyActive) {
+      const passing = dateRaces.filter(r => racePassesFilters(r)).length;
+      sumEl.textContent = passing + ' of ' + dateRaces.length + ' passing';
+    } else {
+      sumEl.textContent = '';
+    }
+  }
+  // Make sure the filter control values reflect persisted state on render
+  const fsSel = document.getElementById('race-filter-fs');
+  if (fsSel && String(fsSel.value) !== String(raceFilters.minFs)) {
+    fsSel.value = String(raceFilters.minFs);
+  }
+  const jkySel = document.getElementById('race-filter-jky');
+  if (jkySel && String(jkySel.value) !== String(raceFilters.minJky)) {
+    jkySel.value = String(raceFilters.minJky);
+  }
+  const pickChk = document.getElementById('race-filter-pickonly');
+  if (pickChk && pickChk.checked !== !!raceFilters.pickOnly) {
+    pickChk.checked = !!raceFilters.pickOnly;
+  }
 
   // Wire cell clicks
   host.querySelectorAll('.mt-race-cell[data-rid]').forEach(cell => {
@@ -6361,8 +6560,10 @@ function renderRaceDetail(raceId) {
   const stripHtml =
     '<div class="meeting-strip-label">' + escapeHtml(race.venue) + '</div>' +
     meetingRaces.map(r => {
-      const rPicks = (MODEL_PICKS[r.race_id] || {})[PRIMARY_KEY] || [];
+      const racePicks = (MODEL_PICKS[r.race_id] || {});
+      const rPicks = racePicks[PRIMARY_KEY] || [];
       const hasPick = rPicks.length > 0;
+      const hasLoose = !!(racePicks['loose'] || []).length;
       const isActive = String(r.race_id) === String(raceId);
       const isDone = r.done === 1;
       const startMs = r.start_time ? new Date(r.start_time).getTime() : null;
@@ -6379,6 +6580,7 @@ function renderRaceDetail(raceId) {
       if (hasPick) cls.push('has-pick'); else cls.push('no-pick');
       if (isDone) cls.push('done');
       const cdHtml = (cdtxt && !isDone) ? '<span class="mt-cd ' + cdcls + '">' + cdtxt + '</span>' : '';
+      const looseBadge = hasLoose ? '<span class="meeting-tile-loose-badge" title="Loose model pick">L</span>' : '';
       // Build info line: "1400m · Maiden" or just "1400m" if class unknown
       const infoParts = [];
       if (r.distance) infoParts.push(r.distance + 'm');
@@ -6386,7 +6588,7 @@ function renderRaceDetail(raceId) {
       if (cls2) infoParts.push(cls2);
       const infoLine = infoParts.join(' · ');
       return '<div class="' + cls.join(' ') + '" data-race-id="' + r.race_id + '">' +
-        '<span class="mt-race">R' + r.race + cdHtml + '</span>' +
+        '<span class="mt-race">R' + r.race + cdHtml + looseBadge + '</span>' +
         '<span class="mt-time">' + timeStr + '</span>' +
         (infoLine ? '<span class="mt-info">' + escapeHtml(infoLine) + '</span>' : '') +
         '</div>';
@@ -7333,6 +7535,48 @@ if (rdInp) {
   });
 }
 
+// Wire race filter controls (field size, jky rating, pick-only, reset).
+// Each change persists to localStorage and re-renders the meetings grid.
+const _raceFilterFs = document.getElementById('race-filter-fs');
+if (_raceFilterFs) {
+  _raceFilterFs.value = String(raceFilters.minFs);
+  _raceFilterFs.addEventListener('change', e => {
+    raceFilters.minFs = parseInt(e.target.value, 10) || 0;
+    saveRaceFilters();
+    renderMeetingsGrid();
+  });
+}
+const _raceFilterJky = document.getElementById('race-filter-jky');
+if (_raceFilterJky) {
+  _raceFilterJky.value = String(raceFilters.minJky);
+  _raceFilterJky.addEventListener('change', e => {
+    raceFilters.minJky = parseInt(e.target.value, 10) || 0;
+    saveRaceFilters();
+    renderMeetingsGrid();
+  });
+}
+const _raceFilterPickOnly = document.getElementById('race-filter-pickonly');
+if (_raceFilterPickOnly) {
+  _raceFilterPickOnly.checked = !!raceFilters.pickOnly;
+  _raceFilterPickOnly.addEventListener('change', e => {
+    raceFilters.pickOnly = !!e.target.checked;
+    saveRaceFilters();
+    renderMeetingsGrid();
+  });
+}
+const _raceFilterReset = document.getElementById('race-filter-reset');
+if (_raceFilterReset) {
+  _raceFilterReset.addEventListener('click', () => {
+    raceFilters = { minFs: 0, minJky: 0, pickOnly: false };
+    saveRaceFilters();
+    // Reset control values then re-render
+    if (_raceFilterFs) _raceFilterFs.value = '0';
+    if (_raceFilterJky) _raceFilterJky.value = '0';
+    if (_raceFilterPickOnly) _raceFilterPickOnly.checked = false;
+    renderMeetingsGrid();
+  });
+}
+
 // Wire Today tab date controls (mirrors the Race tab pattern)
 document.querySelectorAll('.today-date-quick').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -7388,9 +7632,12 @@ function renderNtjTicker() {
     if (secsUntil <= 0) cdCls = 'cd-live';
     else if (secsUntil <= 120) cdCls = 'cd-imminent';
     else if (secsUntil <= 600) cdCls = 'cd-soon';
-    const hasPick = !!((MODEL_PICKS[race.race_id] || {})[PRIMARY_KEY] || []).length;
+    const racePicks = (MODEL_PICKS[race.race_id] || {});
+    const hasPick = !!(racePicks[PRIMARY_KEY] || []).length;
+    const hasLoose = !!(racePicks['loose'] || []).length;
+    const looseBadge = hasLoose ? '<span class="ntj-pill-loose-badge" title="Loose model pick">L</span>' : '';
     return '<div class="ntj-pill ' + (hasPick ? 'has-pick' : '') + '" data-rid="' + race.race_id + '">' +
-      '<span class="ntj-pill-name">' + escapeHtml(race.venue) + ' R' + race.race + '</span>' +
+      '<span class="ntj-pill-name">' + escapeHtml(race.venue) + ' R' + race.race + looseBadge + '</span>' +
       '<span class="ntj-pill-cd ' + cdCls + '">' + fmtCountdown(secsUntil) + '</span>' +
       '</div>';
   }).join('');
