@@ -6428,6 +6428,24 @@ function buildDetailHTML(p, r) {
     const g = r.gb[todayGoing];
     goingPerf = perfStr(g.starts, g.wins, g.places) || 'no runs';
   }
+  // Wet-track form (Soft + Heavy combined). Surfaced only when today's
+  // track is wet, because that's when the question "can this horse handle
+  // wet?" actually matters. Analysis showed Soft form transfers to Heavy
+  // tracks (Soft-placers on Heavy: WR 31.8%, ROI -9.8% on n=22) - so a
+  // combined Wet metric is the most decision-useful framing.
+  let wetPerf = null;
+  if ((todayGoing === 'soft' || todayGoing === 'heavy') && r.gb) {
+    const soft  = r.gb.soft  || {};
+    const heavy = r.gb.heavy || {};
+    const s_starts = (soft.starts  || 0) + (heavy.starts  || 0);
+    const s_wins   = (soft.wins    || 0) + (heavy.wins    || 0);
+    const s_places = (soft.places  || 0) + (heavy.places  || 0);
+    if (s_starts > 0) {
+      wetPerf = perfStr(s_starts, s_wins, s_places);
+    } else {
+      wetPerf = 'no wet runs';
+    }
+  }
 
   // Recent WPR
   const wpr1 = r.wpr1, wpra = r.wpra, wprt = r.wprt;
@@ -6522,6 +6540,7 @@ function buildDetailHTML(p, r) {
     field('Field size',    p.field_size || r.fs) +
     field('Distance perf', distPerf) +
     field('Going perf',    goingPerf) +
+    field('Wet form',      wetPerf) +
     field('Wt today',      r.wt != null ? r.wt + 'kg' : null) +
     field('Wt trend',      r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : null) +
     field('Jockey',        r.j) +
@@ -6972,6 +6991,26 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       goingPerf = (g.wins||0) + 'W ' + Math.max(0, (g.places||0) - (g.wins||0)) + 'P from ' + g.starts + ' starts';
     }
   }
+  // Wet-track form (Soft + Heavy combined). Surfaced only on Soft/Heavy
+  // days, matching the Today/P&L panel behaviour. Mirrors the analysis
+  // finding that Soft form transfers usefully to Heavy.
+  let wetPerf = null;
+  if (race && race.going && u.gb) {
+    const gl = race.going.toLowerCase();
+    if (gl.startsWith('soft') || gl.startsWith('heavy')) {
+      const soft  = u.gb.soft  || {};
+      const heavy = u.gb.heavy || {};
+      const s_starts = (soft.starts  || 0) + (heavy.starts  || 0);
+      const s_wins   = (soft.wins    || 0) + (heavy.wins    || 0);
+      const s_places = (soft.places  || 0) + (heavy.places  || 0);
+      if (s_starts > 0) {
+        wetPerf = s_wins + 'W ' + Math.max(0, s_places - s_wins) +
+                  'P from ' + s_starts + ' starts';
+      } else {
+        wetPerf = 'no wet runs';
+      }
+    }
+  }
   const distPerf = (u.ds && u.ds > 0) ?
     (u.dw||0) + 'W ' + Math.max(0, (u.dp||0) - (u.dw||0)) + 'P from ' + u.ds + ' starts' : null;
 
@@ -7048,6 +7087,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         fld('Recent WPR', wprStr) +
         fld('Distance perf', distPerf) +
         fld('Going perf', goingPerf) +
+        fld('Wet form', wetPerf) +
       '</div>' +
     '</div>' +
     '<div class="rd-section">' +
