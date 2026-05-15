@@ -304,3 +304,4 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-18,239627,Port Macquarie,98,NSW,AUS,P MQ,Turf,+3m Entire,A,True,,2026-05-15T15:28:15,2026-05-15T14:38:56,False
 2026-05-18,239655,Stawell,329,VIC,AUS,STAW,Turf,True Entire Circuit,A,True,,2026-05-15T15:28:49,2026-05-15T12:32:22,False
 2026-05-05,239299,Warrnambool,307,VIC,AUS,WNBL,,True Entire Circuit,A,True,,2026-05-05T13:22:06,2026-05-05T13:22:02,True
+2026-05-06,239378,Warrnambool,307,VIC,AUS,WNBL,,True Entire Circuit,A,True,,2026-05-06T16:55:10,2026-05-06T15:36:38,True
