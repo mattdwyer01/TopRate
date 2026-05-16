@@ -1368,15 +1368,13 @@ def load_runners():
         df = df.drop_duplicates(subset=["run_id"], keep="last").reset_index(drop=True)
         if len(df) < before:
             print(f"  Removed {before - len(df)} duplicate runner rows from CSV")
-        # Filter out non-TAB meetings by prize money. We keep these in the CSV
-        # (saved by daily ingestion) but exclude from all downstream processing.
-        # User can't bet on bush meetings at TAB, so they shouldn't clutter the UI.
-        if "prize_money" in df.columns:
-            before_tab = len(df)
-            df = df[df["prize_money"].fillna(0) >= TAB_PRIZE_MIN].reset_index(drop=True)
-            removed = before_tab - len(df)
-            if removed > 0:
-                print(f"  Filtered out {removed} non-TAB runners (prize_money < ${TAB_PRIZE_MIN:,})")
+        # Note: previous TAB_PRIZE_MIN filter removed here. Bush/picnic
+        # races (< $20k prize) used to be hidden from ALL downstream work,
+        # but user wants them visible in the Race tab for browsing while
+        # keeping picks suppressed. The pick gate lives in
+        # compute_model_picks (skip races below TAB_PRIZE_MIN there), so
+        # this load-time filter is redundant and was removing data the
+        # user wanted visible. TAB_PRIZE_MIN constant kept for pick gate.
         return df
     return pd.DataFrame(columns=RUNNER_COLS)
 
