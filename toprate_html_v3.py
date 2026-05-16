@@ -1871,21 +1871,34 @@ body {
   text-decoration: line-through; opacity: 0.45;
 }
 .mt-race-cell.is-abandoned:hover { opacity: 0.65; }
+/* Abandon button: deliberately subtle, since it's a rarely-used safety
+   action. Borderless ghost text by default, faint enough to fade into
+   the row. Border + color appear on hover so it's still discoverable.
+   Active state stays understated - bold rose text without background
+   fill, so a row of marked meetings doesn't turn into a wall of red.
+   Don't add prominence unless user requests. */
 .mt-abandon-btn {
-  margin-top: 4px;
-  font-family: var(--font-body); font-size: 9px; font-weight: 600;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  background: transparent; color: var(--ink-mute);
-  border: 1px solid var(--line); border-radius: 3px;
-  padding: 2px 6px; cursor: pointer;
+  margin-top: 6px;
+  font-family: var(--font-body); font-size: 9px; font-weight: 500;
+  letter-spacing: 0.02em;
+  background: transparent; color: var(--ink-faint);
+  border: 0; border-radius: 3px;
+  padding: 1px 2px; cursor: pointer;
   align-self: flex-start;
+  text-decoration: none;
 }
-.mt-abandon-btn:hover { color: var(--rose); border-color: var(--rose); }
+.mt-abandon-btn:hover {
+  color: var(--rose);
+  text-decoration: underline;
+}
 .mt-row.is-abandoned .mt-abandon-btn {
-  background: var(--rose); color: #fff; border-color: var(--rose);
+  background: transparent; color: var(--rose);
+  font-weight: 600;
   text-decoration: none; opacity: 1;
 }
-.mt-row.is-abandoned .mt-abandon-btn:hover { background: #b91c1c; }
+.mt-row.is-abandoned .mt-abandon-btn:hover {
+  color: #b91c1c; text-decoration: underline;
+}
 
 /* Resulted-race outcome highlighting. mt-result-main-hit: emerald tint when
    the Main model pick won. mt-result-loose-hit: amber tint when only the
@@ -2245,26 +2258,33 @@ body {
 .race-pace-est.fast { background: rgba(245,158,11,0.2); }
 .race-pace-est.slow { background: rgba(59,130,246,0.2); }
 
-/* Race-detail abandon toggle. Sits alongside the other header stat items.
-   Default: muted outline. Active (race abandoned): rose filled. If the
-   whole meeting is marked, the toggle is replaced by a static "MEETING
-   ABANDONED" tag that's read-only here (unmark on the meetings grid). */
+/* Race-detail abandon toggle. Subtle - rarely-used safety action that
+   shouldn't compete visually with the primary header stats. Borderless
+   text-link styling. Active state stays understated (rose text, no fill)
+   so a marked race doesn't shout. If the whole meeting is already
+   marked, this becomes a small read-only badge directing the user to
+   the meetings grid for unmarking. */
 .rd-abandon-btn {
-  font-family: var(--font-body); font-size: 11px; font-weight: 600;
-  background: transparent; color: var(--ink-mute);
-  border: 1px solid var(--line); border-radius: var(--radius-sm);
-  padding: 4px 10px; cursor: pointer;
-  letter-spacing: 0.02em;
+  font-family: var(--font-body); font-size: 10px; font-weight: 500;
+  background: transparent; color: var(--ink-faint);
+  border: 0; border-radius: 0;
+  padding: 4px 6px; cursor: pointer;
+  letter-spacing: 0.02em; text-decoration: none;
 }
-.rd-abandon-btn:hover { color: var(--rose); border-color: var(--rose); }
+.rd-abandon-btn:hover {
+  color: var(--rose); text-decoration: underline;
+}
 .rd-abandon-btn.is-on {
-  background: var(--rose); color: #fff; border-color: var(--rose);
+  background: transparent; color: var(--rose);
+  font-weight: 600;
 }
-.rd-abandon-btn.is-on:hover { background: #b91c1c; }
+.rd-abandon-btn.is-on:hover {
+  color: #b91c1c; text-decoration: underline;
+}
 .rd-abandon-item.is-meeting-abandoned {
-  background: var(--rose); color: #fff;
-  font-weight: 700; letter-spacing: 0.04em; font-size: 10px;
-  padding: 4px 10px; border-radius: var(--radius-sm);
+  background: transparent; color: var(--rose);
+  font-weight: 600; letter-spacing: 0.04em; font-size: 10px;
+  padding: 4px 6px; border-radius: 0;
 }
 
 /* Pace map - settling positions */
@@ -6911,7 +6931,7 @@ function renderMeetingsGrid() {
     const rowCls = 'mt-row' + (meetingAbandoned ? ' is-abandoned' : '');
     html += '<div class="' + rowCls + '" data-venue="' + escapeHtml(m.venue) +
       '" data-mdate="' + escapeHtml(meetingDate) + '">';
-    const btnLabel = meetingAbandoned ? 'Abandoned ✓' : 'Mark abandoned';
+    const btnLabel = meetingAbandoned ? 'abandoned' : 'mark abandoned';
     const btnTitle = meetingAbandoned
       ? 'Meeting marked abandoned - all picks hidden. Click to unmark.'
       : 'Mark this meeting as abandoned (hides picks for all its races).';
@@ -7500,17 +7520,17 @@ function renderRaceDetail(raceId) {
   if (meetingAbandoned) {
     // Meeting-level mark - cannot un-mark just this race here. Direct user
     // to the Race tab meetings grid.
-    abandonHtml = '<div class="item rd-abandon-item is-meeting-abandoned" ' +
+    abandonHtml = '<div class="rd-abandon-item is-meeting-abandoned" ' +
       'title="Whole meeting marked abandoned. Unmark on the meetings grid.">' +
-      'MEETING ABANDONED</div>';
+      'meeting abandoned</div>';
   } else if (raceAbandoned) {
     abandonHtml = '<button type="button" class="rd-abandon-btn is-on" ' +
       'id="rd-abandon-btn" title="Click to unmark this race.">' +
-      'Race abandoned ✓</button>';
+      'race abandoned</button>';
   } else {
     abandonHtml = '<button type="button" class="rd-abandon-btn" ' +
       'id="rd-abandon-btn" title="Mark this race abandoned. Hides its picks ' +
-      'from Today/Quaddie.">Mark race abandoned</button>';
+      'from Today/Quaddie.">mark abandoned</button>';
   }
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
