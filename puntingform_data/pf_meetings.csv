@@ -306,3 +306,4 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-05,239299,Warrnambool,307,VIC,AUS,WNBL,,True Entire Circuit,A,True,,2026-05-05T13:22:06,2026-05-05T13:22:02,True
 2026-05-06,239378,Warrnambool,307,VIC,AUS,WNBL,,True Entire Circuit,A,True,,2026-05-06T16:55:10,2026-05-06T15:36:38,True
 2026-05-07,239382,Warrnambool,307,VIC,AUS,WNBL,,"Out 4m 1300m - 300m, True Remainder",A,True,,2026-05-07T10:42:45,2026-05-07T08:33:53,True
+2026-05-17,239639,Casterton,286,VIC,AUS,CAST,Turf,True Entire Circuit,A,True,,2026-05-16T16:30:54.64,2026-05-16T16:30:52,False
