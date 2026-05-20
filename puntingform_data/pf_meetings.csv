@@ -319,3 +319,9 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-20,239743,Happy Valley,942,HK,HK,H V,,True,A,True,,2026-05-20T06:55:57.733,2026-05-20T06:55:39,False
 2026-05-20,239744,Caulfield Heath,1163,VIC,AUS,CAUH,Turf,True Entire Circuit,A,True,,2026-05-20T07:42:16.953,2026-05-20T07:42:12,False
 2026-05-20,239729,Cambridge Synthetic,1166,NZ,NZ,CSYN,,True,A,True,,2026-05-20T06:55:57.733,2026-05-20T06:55:39,False
+2026-05-21,239762,Hawkesbury,128,NSW,AUS,HAWK,Turf,"+5m 1100-450, +3m 450 -WP, True remainder",A,True,,2026-05-20T14:13:24.37,2026-05-20T14:13:16,False
+2026-05-21,239749,Ipswich,144,QLD,AUS,IPSW,Turf,+6.5 metres Entire Course,A,True,,2026-05-20T18:42:37.193,2026-05-20T14:47:13,False
+2026-05-21,239761,Rockhampton,238,QLD,AUS,ROCK,Turf,+4 metres Entire Course.,A,True,,2026-05-20T16:46:18.62,2026-05-20T16:46:12,False
+2026-05-21,239763,Seymour,326,VIC,AUS,SEYM,Turf,Out 7m Entire Circuit,A,True,,2026-05-20T18:27:43.23,2026-05-20T18:27:40,False
+2026-05-21,239748,Pinjarra,417,WA,AUS,PINJ,Turf,+3m Entire,A,True,,2026-05-20T11:54:00.063,2026-05-20T11:53:55,False
+2026-05-21,239760,Hastings,465,NZ,NZ,HAST,,True,A,True,,2026-05-20T13:10:22.18,2026-05-20T13:10:18,False
