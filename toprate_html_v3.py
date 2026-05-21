@@ -455,6 +455,11 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 tp['early_rank'] = _rank_in_race('es', tp['run_id'])
             if 'total_rank' not in tp or tp.get('total_rank') is None:
                 tp['total_rank'] = _rank_in_race('ts', tp['run_id'])
+            # Backfill time_rank from speed_rating (u.spd) within the race.
+            # Covers old picks generated before daily.py emitted time_rank,
+            # and any new picks where the CSV value is missing for any reason.
+            if tp.get('time_rank') is None:
+                tp['time_rank'] = _rank_in_race('spd', tp['run_id'])
     # Sort chronologically by date+start_time so JS can filter and the order is correct
     all_picks_list.sort(key=lambda t: (t.get('date') or '', t.get('start_time') or '', t.get('race') or 0))
     today_picks = all_picks_list  # keep variable name for JSON injection
@@ -472,6 +477,20 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         runner_full = None
         if race:
             runner_full = next((u for u in race.get('runners', []) if str(u.get('rid')) == str(run_id)), None)
+
+        # Backfill time_rank if CSV doesn't have it - compute from speed_rating
+        # within the race. Same _rank_in_race helper as picks path.
+        time_rank_val = r.get('time_rank')
+        if time_rank_val is None and race:
+            runners_in_race = race.get('runners', [])
+            vals = [(u.get('rid'), u.get('spd')) for u in runners_in_race
+                    if u.get('spd') is not None]
+            if vals:
+                vals.sort(key=lambda x: -x[1])
+                for i, (rid, _) in enumerate(vals):
+                    if str(rid) == str(run_id):
+                        time_rank_val = i + 1
+                        break
         settled_history.append({
             'model': r.get('model'),
             'date': r.get('date'),
@@ -500,8 +519,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
             'wpr_rank': r.get('wpr_rank'),
-            # NEW: time_rank used by Edge model
-            'time_rank': r.get('time_rank'),
+            # time_rank used by Edge model. Backfilled above if CSV missing it.
+            'time_rank': time_rank_val,
             'pfaiR':   r.get('pf_ai_rank'),
             'pfaiPrc': r.get('pf_ai_price'),
             'wcR':     r.get('pf_class_rank'),
