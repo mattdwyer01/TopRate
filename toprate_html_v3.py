@@ -396,6 +396,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                     'late_rank': pick.get('late_rank'),
                     'total_rank': pick.get('total_rank'),
                     'wpr_rank': pick.get('wpr_rank'),
+                    # NEW: time_rank used by Edge model
+                    'time_rank': pick.get('time_rank'),
                     'pfaiR':   pick.get('pf_ai_rank'),
                     'pfaiPrc': pick.get('pf_ai_price'),
                     'wcR':     pick.get('pf_class_rank'),
@@ -498,6 +500,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
             'wpr_rank': r.get('wpr_rank'),
+            # NEW: time_rank used by Edge model
+            'time_rank': r.get('time_rank'),
             'pfaiR':   r.get('pf_ai_rank'),
             'pfaiPrc': r.get('pf_ai_price'),
             'wcR':     r.get('pf_class_rank'),
@@ -800,7 +804,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    330px             /* signals strip - 3-col voting chips + Score/Votes stack */
+    410px             /* signals strip - 4-col voting chips (7 signals) + Score/Votes stack */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -817,7 +821,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1188px;
+  min-width: 1268px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -962,14 +966,15 @@ body {
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
 }
-/* Desktop signal chip layout: 3-column grid for the 6 voting signals.
-   Two compact rows (WPR/Late/Class top, L600/PFAI/TR bottom). To the
+/* Desktop signal chip layout: 4-column grid for the 7 voting signals.
+   Two rows (WPR/Class/L600/PFAI top, TR/Time/L400 + empty bottom). To the
    right of this grid sits the score-votes-stack: Score chip above Votes
-   badge in their own mini-column. This separates "why this was picked"
-   (6 voting chips) from "how strong is the pick" (Score + Votes summary). */
+   badge. This separates "why this was picked" (7 voting chips across
+   both Edge and Volume models) from "how strong is the pick" (Score +
+   Votes summary). */
 .pr-sigs-top .desktop-chips {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px 5px;
   flex: 0 0 auto;
 }
@@ -1108,11 +1113,11 @@ body {
 .picks-header {
   display: grid;
   /* Column widths MUST match .pick-row exactly so the header labels line
-     up with the data cells below them. Signals column is 330px: 3-col grid
-     for the 6 voting signals (WPR/Late/Class on row 1, L600/PFAI/TR on row 2)
-     plus the Score+Votes stack to the right. */
+     up with the data cells below them. Signals column is 410px: 4-col grid
+     for the 7 voting signals (WPR/Class/L600/PFAI on row 1, TR/Time/L400
+     on row 2) plus the Score+Votes stack to the right. */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 330px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 410px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -1121,7 +1126,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1188px;
+  min-width: 1268px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -1143,7 +1148,7 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ink-mute);
-  min-width: 1188px;
+  min-width: 1268px;
   box-sizing: border-box;
 }
 .picks-section-head:first-child { padding-top: 4px; }
@@ -4002,7 +4007,8 @@ body {
   display: inline-block; font-size: 9px; font-weight: 700;
   padding: 1px 4px; border-radius: 3px; margin-left: 4px;
 }
-.db-table .db-pick-pill.main  { background: var(--emerald); color: #fff; }
+.db-table .db-pick-pill.main   { background: var(--emerald); color: #fff; }
+.db-table .db-pick-pill.volume { background: #d97706; color: #fff; }
 .db-table .db-finish {
   display: inline-block; min-width: 22px;
   font-size: 11px; font-weight: 700; text-align: center;
@@ -6059,36 +6065,36 @@ function renderToday() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
-    // V3 voting model rule transparency: show how many of the 6 signals
-    // hit the top-3 threshold and how many were #1. Format: "5/6 ★3" =
-    // 5 of 6 signals top-3 with 3 #1s. The pick passed the rule if
-    // top-3 votes >= 5 AND top-1 votes >= 3.
-    // Vote badge is the ONLY signal indicator shown on mobile (everything
-    // else moves to the expanded detail panel for cleaner scanning).
-    const voteRanks = [p.wpr_rank, p.late_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank];
+    // Voting rule transparency: show how many of the 7 signals hit top-3
+    // and how many were #1. New 7-signal set: WPR, Class, L600, PFAI, TR,
+    // Time, L400 (Late dropped, no longer used by either model).
+    // Edge rule: WPR+L600+Time+L400 (2 top-1, 3 top-3).
+    // Volume rule: PFAI+TR+L400 (1 top-1, 2 top-3).
+    // Vote badge is the ONLY signal indicator shown on mobile.
+    const voteRanks = [p.wpr_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank, p.time_rank, p.l400R];
     const voteTop3 = voteRanks.filter(r => r != null && r <= 3).length;
     const voteTop1 = voteRanks.filter(r => r != null && r === 1).length;
-    const voteTooltip = voteTop3 + ' of 6 signals rank top-3, ' + voteTop1 + ' rank #1. ' +
-                    'V3 rule needs >=5 top-3 AND >=3 #1.';
+    const voteTooltip = voteTop3 + ' of 7 signals rank top-3, ' + voteTop1 + ' rank #1. ' +
+                    'Edge rule needs >=3 top-3 AND >=2 #1 of WPR+L600+Time+L400. ' +
+                    'Volume rule needs >=2 top-3 AND >=1 #1 of PFAI+TR+L400.';
     const voteBadgeHtml = '<span class="sig vote-badge" title="' + voteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
-      '<span class="v">' + voteTop3 + '/6</span>' +
-      (voteTop1 >= 3 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
+      '<span class="v">' + voteTop3 + '/7</span>' +
+      (voteTop1 >= 2 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 6 voting signals in a 3-col grid. Score is
-    // separate (stacked above the Votes badge in its own mini-column) since
-    // it's NOT part of the voting rule - it's the headline metric. Visual
-    // hierarchy: voting chips on the left = "why this was picked",
-    // Score+Votes on the right = "how strong is the pick". Hidden on mobile
-    // via CSS where only the votes badge stays visible.
+    // Desktop signal chips - the 7 voting signals across both models.
+    // Edge uses WPR+L600+Time+L400; Volume uses PFAI+TR+L400. Class shown
+    // for context. Score is separate (mini-column right) since it's the
+    // headline confidence metric, not a voting signal.
     const desktopChipsHtml =
-      sigPill('WPR', p.wpr_rank) +
-      sigPill('Late', p.late_rank) +
+      sigPill('WPR',   p.wpr_rank) +
       sigPill('Class', p.wcR) +
-      sigPill('L600', p.l600R) +
-      sigPill('PFAI', p.pfaiR) +
-      sigPill('TR', p.tr_rank);
+      sigPill('L600',  p.l600R) +
+      sigPill('PFAI',  p.pfaiR) +
+      sigPill('TR',    p.tr_rank) +
+      sigPill('Time',  p.time_rank) +
+      sigPill('L400',  p.l400R);
     // Score chip stacks above Votes badge in a dedicated mini-column
     const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
 
@@ -7589,6 +7595,11 @@ function renderRaceDetail(raceId) {
   const midRanks   = computeRanks(runners, r => r.ms);
   const lateRanks  = computeRanks(runners, r => r.ls);
   const totalRanks = computeRanks(runners, r => r.ts);
+  // NEW: timeRanks - within-race rank of speed_rating (u.spd). This is the
+  // "Time" voting signal used by the Edge model. Not to be confused with
+  // u.tR which is PF's pre-computed time rank (a different signal from
+  // PF's API, currently unused by either model).
+  const timeRanks  = computeRanks(runners, r => r.spd);
 
   // Going category
   function goingCategory(g) {
@@ -7757,6 +7768,8 @@ function renderRaceDetail(raceId) {
     mid:   r => midRanks[r.rid] || 99,
     late:  r => lateRanks[r.rid] || 99,
     total: r => totalRanks[r.rid] || 99,
+    // NEW: time sort - uses timeRanks (within-race rank of speed_rating)
+    time:  r => timeRanks[r.rid] || 99,
     dist:  r => (r.ds && r.dw != null) ? (r.dw / r.ds) : -1,
     going: r => {
       if (!todayGoing || !r.gb || !r.gb[todayGoing]) return -1;
@@ -7767,19 +7780,21 @@ function renderRaceDetail(raceId) {
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
     score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
-    // Votes sort: compute on the fly using the same 6-signal logic as the
-    // row. Higher count = stronger pick; negate so default desc = highest first.
+    // Votes sort: 7-signal set (WPR, Class, L600, PFAI, TR, Time, L400).
+    // Late dropped - no longer used by Edge or Volume.
+    // Higher count = stronger pick; negate so default desc = highest first.
     votes: r => {
       const tr = (typeof trRanks !== 'undefined') ? trRanks[r.rid] : null;
       const w = (typeof wprRanks !== 'undefined') ? wprRanks[r.rid] : null;
-      const la = (typeof lateRanks !== 'undefined') ? lateRanks[r.rid] : null;
+      const ti = (typeof timeRanks !== 'undefined') ? timeRanks[r.rid] : null;
       const top3 =
         ((w != null && w <= 3) ? 1 : 0) +
-        ((la != null && la <= 3) ? 1 : 0) +
         ((r.wcR != null && r.wcR <= 3) ? 1 : 0) +
         ((r.l600R != null && r.l600R <= 3) ? 1 : 0) +
         ((r.pfaiR != null && r.pfaiR <= 3) ? 1 : 0) +
-        ((tr != null && tr <= 3) ? 1 : 0);
+        ((tr != null && tr <= 3) ? 1 : 0) +
+        ((ti != null && ti <= 3) ? 1 : 0) +
+        ((r.l400R != null && r.l400R <= 3) ? 1 : 0);
       return -top3;  // negate so default ASC sort = lowest top3 first
     },
     // PF columns sort ascending (1 = best PF rank)
@@ -7864,36 +7879,40 @@ function renderRaceDetail(raceId) {
     const midR = midRanks[rid];
     const lateR = lateRanks[rid];
     const totR = totalRanks[rid];
-    // Count #1 votes (signal == 1) and top-3 votes (signal <= 3) across 6 signals.
+    const timeR = timeRanks[rid];
+    // Count #1 votes (signal == 1) and top-3 votes (signal <= 3) across the
+    // 7 voting signals: WPR, Class, L600, PFAI, TR, Time, L400.
+    // Late dropped (no longer used by either Edge or Volume).
     const _votes_top1 =
-        ((wprR != null && wprR === 1) ? 1 : 0) +
-        ((lateR != null && lateR === 1) ? 1 : 0) +
+        ((wprR  != null && wprR  === 1) ? 1 : 0) +
         ((u.wcR != null && u.wcR === 1) ? 1 : 0) +
         ((u.l600R != null && u.l600R === 1) ? 1 : 0) +
         ((u.pfaiR != null && u.pfaiR === 1) ? 1 : 0) +
-        ((trR != null && trR === 1) ? 1 : 0);
+        ((trR != null && trR === 1) ? 1 : 0) +
+        ((timeR != null && timeR === 1) ? 1 : 0) +
+        ((u.l400R != null && u.l400R === 1) ? 1 : 0);
     const _votes_top3 =
-        ((wprR != null && wprR <= 3) ? 1 : 0) +
-        ((lateR != null && lateR <= 3) ? 1 : 0) +
+        ((wprR  != null && wprR  <= 3) ? 1 : 0) +
         ((u.wcR != null && u.wcR <= 3) ? 1 : 0) +
         ((u.l600R != null && u.l600R <= 3) ? 1 : 0) +
         ((u.pfaiR != null && u.pfaiR <= 3) ? 1 : 0) +
-        ((trR != null && trR <= 3) ? 1 : 0);
+        ((trR != null && trR <= 3) ? 1 : 0) +
+        ((timeR != null && timeR <= 3) ? 1 : 0) +
+        ((u.l400R != null && u.l400R <= 3) ? 1 : 0);
 
-    // Vote count cell - shows N/6 voting signals where this horse hit top-3
-    // (the primary voting condition). Coloured by count for fast scanning:
-    // 5-6 = emerald (strong), 4 = light emerald, 3 = neutral, 0-2 = muted.
-    // Star indicator added when 3+ #1 votes (the second V3 condition).
+    // Vote count cell - shows N/7 voting signals where this horse hit top-3.
+    // Coloured by count: 6-7 = strong, 5 = mid, 4 = neutral, 0-3 = weak.
+    // Star indicator when 2+ #1 votes (Edge needs 2 #1, Volume needs 1 #1).
     function votesCell(top3, top1) {
       let cls = '';
-      if (top3 >= 5) cls = 'votes-strong';
-      else if (top3 === 4) cls = 'votes-mid';
-      else if (top3 === 3) cls = '';
+      if (top3 >= 6) cls = 'votes-strong';
+      else if (top3 === 5) cls = 'votes-mid';
+      else if (top3 === 4) cls = '';
       else cls = 'votes-weak';
-      const star = top1 >= 3 ? '<span class="votes-star">★' + top1 + '</span>' : '';
-      const tip = top3 + ' of 6 signals top-3, ' + top1 + ' #1';
+      const star = top1 >= 2 ? '<span class="votes-star">★' + top1 + '</span>' : '';
+      const tip = top3 + ' of 7 signals top-3, ' + top1 + ' #1';
       return '<td class="votes-cell ' + cls + '" title="' + tip + '">' +
-        '<span class="v">' + top3 + '/6</span>' + star + '</td>';
+        '<span class="v">' + top3 + '/7</span>' + star + '</td>';
     }
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
@@ -7904,14 +7923,17 @@ function renderRaceDetail(raceId) {
       scoreCell(u.cs, u.crk, u.csc) +
       votesCell(_votes_top3, _votes_top1) +
       wprCell(u.w, wprRanks[rid]) +
-      sectCell(u.ls, lateRanks[rid]) +
       pfRankCell(u.wcR, 'PF Class') +
       pfRankCell(u.l600R, 'PF Last 600m') +
       pfRankCell(u.pfaiR, 'PF AI') +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
+      // Time = within-race rank of speed_rating (Edge voting signal)
+      sectCell(u.spd, timeR) +
+      // L400 = PF Last 400m rank (Edge voting signal)
+      pfRankCell(u.l400R, 'PF Last 400m') +
       // ── Supporting columns (hidden on mobile) ──
-      // Style, Mid, Total, L400, Class∆ moved to detail panel (2026-05-15)
-      // to declutter horizontal table scroll. Still visible by clicking row.
+      // Late/Mid/Total/Early moved to detail panel (no longer voting signals
+      // in Edge or Volume models). Class∆ retained.
       '<td>' + (u.b || '') + '</td>' +
       '<td>' + settlesLabel(u.asp) + '</td>' +
       // ── Conditions / form context ──
@@ -7933,24 +7955,21 @@ function renderRaceDetail(raceId) {
     '<table class="race-table">' +
       '<thead><tr>' +
         // ── Primary scan columns (visible on mobile) ──
-        // Order optimised for the voting model: Tab, Horse, Fxd (price),
-        // then Score (logreg probability), Votes (model rule conformance),
-        // then each individual voting signal so users can see WHERE the
-        // votes came from. This is the same set of columns kept visible
-        // on mobile.
+        // Voting signal columns ordered Edge-first (WPR, Class, L600, PFAI,
+        // TR, Time, L400). Class shown for context; both models look at the
+        // others. Late removed - no longer used by either Edge or Volume.
         th('tab', 'Tab') + th('horse', 'Horse') +
         th('fxd', 'Fxd') +
         th('score', 'Score') +
         th('votes', 'Votes') +
-        th('wpr', 'WPR') +
-        th('late', 'Late') +
-        th('wcR', 'Class') +
+        th('wpr',   'WPR') +
+        th('wcR',   'Class') +
         th('l600R', 'L600') +
-        th('pfai', 'PF AI') +
-        th('tr', 'TR') +
+        th('pfai',  'PF AI') +
+        th('tr',    'TR') +
+        th('time',  'Time') +
+        th('l400R', 'L400') +
         // ── Supporting / context columns (hidden on mobile) ──
-        // Style, Mid, Total, L400, Class∆ moved to detail panel (2026-05-15)
-        // to declutter horizontal table scroll.
         th('bar', 'Bar') +
         th('settles', 'Settles') +
         // Conditions
@@ -7968,9 +7987,11 @@ function renderRaceDetail(raceId) {
         raceSortState.dir = raceSortState.dir === 'asc' ? 'desc' : 'asc';
       } else {
         raceSortState.col = col;
-        // Default to ascending for ranks/text, descending for raw values
+        // Default to ascending for ranks/text, descending for raw values.
+        // 'time' added - it's a rank (1=best speed_rating) so ascending default.
         const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr', 'wpr',
-                            'early', 'mid', 'late', 'total', 'settles', 'fxd', 'trp', 'score',
+                            'early', 'mid', 'late', 'total', 'time', 'settles',
+                            'fxd', 'trp', 'score',
                             'pfai', 'wcR', 'l600R', 'l400R', 'rs'];
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
@@ -8940,28 +8961,29 @@ function renderPnL() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
-    // Vote count badge - shows model-rule conformance for the original pick
-    // (mobile-friendly summary, replaces the chip row on small screens).
-    const pVoteRanks = [s.wpr_rank, s.late_rank, s.wcR, s.l600R, s.pfaiR, s.tr_rank];
+    // Vote count badge - shows model-rule conformance for the original pick.
+    // New 7-signal set matching Today tab: WPR, Class, L600, PFAI, TR, Time, L400.
+    const pVoteRanks = [s.wpr_rank, s.wcR, s.l600R, s.pfaiR, s.tr_rank, s.time_rank, s.l400R];
     const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
     const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
-    const pVoteTooltip = pVoteTop3 + ' of 6 signals rank top-3, ' + pVoteTop1 + ' rank #1.';
+    const pVoteTooltip = pVoteTop3 + ' of 7 signals rank top-3, ' + pVoteTop1 + ' rank #1.';
     const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
-      '<span class="v">' + pVoteTop3 + '/6</span>' +
-      (pVoteTop1 >= 3 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
+      '<span class="v">' + pVoteTop3 + '/7</span>' +
+      (pVoteTop1 >= 2 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 6 voting signals. Matches the Today tab
-    // layout. Fields are on the settled bet (`s`), not on the runner_full
-    // record (`r`) which contains race-level context but not pre-computed ranks.
+    // Desktop signal chips - the 7 voting signals across both models.
+    // Matches the Today tab layout. Fields are on the settled bet (`s`),
+    // not on the runner_full record (`r`).
     const desktopChipsHtml =
       sigPill('WPR',   s.wpr_rank) +
-      sigPill('Late',  s.late_rank) +
       sigPill('Class', s.wcR) +
       sigPill('L600',  s.l600R) +
       sigPill('PFAI',  s.pfaiR) +
-      sigPill('TR',    s.tr_rank);
+      sigPill('TR',    s.tr_rank) +
+      sigPill('Time',  s.time_rank) +
+      sigPill('L400',  s.l400R);
     // Score chip stacks above Votes badge in its own mini-column - same
     // layout as Today tab. Score uses cs (cumulative score), crk (within-race
     // rank for colour tier) + csc (confidence) surfaced on the settled bet.
@@ -10763,6 +10785,8 @@ function getDatabaseRows() {
     const wprRanks  = rankByField('w', false);
     const lateRanks = rankByField('ls', false);
     const trRanks   = rankByField('trr', false);
+    // NEW: time = within-race rank of speed_rating (u.spd). Edge model signal.
+    const timeRanks = rankByField('spd', false);
 
     // Pick membership for this race - both Edge and Volume tracked
     const racePicks = MODEL_PICKS[race.race_id] || {};
@@ -10797,9 +10821,13 @@ function getDatabaseRows() {
         lateRank: lateRanks[ridStr],
         wcR: u.wcR,
         l600R: u.l600R,
+        l400R: u.l400R,
         pfaiR: u.pfaiR,
         tr: u.trr,
         trRank: trRanks[ridStr],
+        // NEW: Time = within-race rank of speed_rating
+        time: u.spd,
+        timeRank: timeRanks[ridStr],
         jrt: u.jrt,
         trt: u.trt,
         runStyle: u.rs,
@@ -10898,8 +10926,10 @@ function sortDatabaseRows(rows) {
     late:    r => r.late != null ? r.late : -9999,
     wcR:     r => r.wcR != null ? r.wcR : 99,
     l600R:   r => r.l600R != null ? r.l600R : 99,
+    l400R:   r => r.l400R != null ? r.l400R : 99,
     pfaiR:   r => r.pfaiR != null ? r.pfaiR : 99,
     tr:      r => r.tr != null ? r.tr : -9999,
+    time:    r => r.time != null ? r.time : -9999,
     fs:      r => r.fs || 0,
     prize:   r => r.prize || 0,
     distance: r => r.distance || 0,
@@ -11030,18 +11060,22 @@ function renderDatabaseTable(rows) {
     th('fs', 'Field') + th('prize', '$') + th('distance', 'Dist') +
     th('barrier', 'Bar') + th('fxd', 'Fxd') + th('sp', 'SP') +
     th('score', 'Score') + th('crk', 'Score#') +
-    th('wpr', 'WPR') + th('late', 'Late') +
-    th('wcR', 'Cls') + th('l600R', 'L600') + th('pfaiR', 'PFAI') +
-    th('tr', 'TR') + th('jky', 'Jky rt') +
+    // 7-signal voting set (matches Today/P&L/Race tabs)
+    th('wpr', 'WPR') + th('wcR', 'Cls') + th('l600R', 'L600') +
+    th('pfaiR', 'PFAI') + th('tr', 'TR') +
+    th('time', 'Time') + th('l400R', 'L400') +
+    th('jky', 'Jky rt') +
     th('finish', 'Fin') +
     '</tr></thead><tbody>';
   display.forEach(r => {
     let cls = '';
     if (r.isEdge) cls = 'is-pick';
-    // Horse cell with pick pill - single Edge model
+    else if (r.isVolume) cls = 'is-volume-pick';
+    // Horse cell with pick pill(s) - both Edge and Volume can be set
     let horseHtml = '<span class="horse-link" data-rid="' + r.race_id + '">' +
       escapeHtml(r.horse || '') + '</span>';
-    if (r.isEdge) horseHtml += '<span class="db-pick-pill main">E</span>';
+    if (r.isEdge)   horseHtml += '<span class="db-pick-pill main">E</span>';
+    if (r.isVolume) horseHtml += '<span class="db-pick-pill volume">V</span>';
     // Finish badge
     let finishHtml;
     if (r.finish == null) finishHtml = '<td class="num">—</td>';
@@ -11065,11 +11099,12 @@ function renderDatabaseTable(rows) {
       cell(r.score != null ? r.score.toFixed(2) : null, ' class="num"') +
       rankCell(r.crk) +
       rankCell(r.wprRank) +
-      rankCell(r.lateRank) +
       rankCell(r.wcR) +
       rankCell(r.l600R) +
       rankCell(r.pfaiR) +
       rankCell(r.trRank) +
+      rankCell(r.timeRank) +
+      rankCell(r.l400R) +
       cell(r.jrt != null ? Math.round(r.jrt) : null, ' class="num"') +
       finishHtml +
       '</tr>';
@@ -11086,7 +11121,7 @@ function renderDatabaseTable(rows) {
     h.addEventListener('click', () => {
       const col = h.dataset.sort;
       if (dbSort.col === col) dbSort.dir = dbSort.dir === 'asc' ? 'desc' : 'asc';
-      else { dbSort.col = col; dbSort.dir = (col === 'score' || col === 'wpr' || col === 'late' || col === 'tr' || col === 'fxd' || col === 'sp' || col === 'jky' || col === 'prize') ? 'desc' : 'asc'; }
+      else { dbSort.col = col; dbSort.dir = (col === 'score' || col === 'wpr' || col === 'late' || col === 'tr' || col === 'time' || col === 'fxd' || col === 'sp' || col === 'jky' || col === 'prize') ? 'desc' : 'asc'; }
       renderDatabase();
     });
   });

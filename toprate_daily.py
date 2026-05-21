@@ -939,6 +939,8 @@ def compute_model_picks(runners_df):
                     "tab_number":    qrow.get("tab_number"),
                     "barrier":       qrow.get("barrier"),
                     "tr_rank":       ctx["tr_rank"].get(qrow["run_id"]),
+                    # NEW: time_rank emitted - Edge model uses Time as voting signal
+                    "time_rank":     ctx["time_rank"].get(qrow["run_id"]),
                     "early_rank":    ctx["early_rank"].get(qrow["run_id"]),
                     "mid_rank":      ctx["mid_rank"].get(qrow["run_id"]),
                     "late_rank":     ctx["late_rank"].get(qrow["run_id"]),
