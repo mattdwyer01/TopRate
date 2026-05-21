@@ -2694,7 +2694,14 @@ body {
   box-shadow: inset 4px 0 0 var(--emerald);
 }
 .race-table tbody tr.is-pick:hover { background: #d1fae5; }
-/* Loose-only pick rows - amber treatment mirroring Main's emerald. */
+/* Volume-only pick rows - amber treatment mirroring Edge's emerald.
+   Edge takes precedence: a row picked by BOTH Edge and Volume gets the
+   .is-pick class (not .is-volume-pick) and the Edge emerald background. */
+.race-table tbody tr.is-volume-pick {
+  background: rgba(217, 119, 6, 0.08);
+  box-shadow: inset 4px 0 0 #d97706;
+}
+.race-table tbody tr.is-volume-pick:hover { background: rgba(217, 119, 6, 0.16); }
 .race-table tbody tr.muted { color: var(--ink-mute); }
 
 /* Pick badge - compact single-letter indicator AFTER the horse name for Edge picks.
@@ -2708,7 +2715,8 @@ body {
   min-width: 8px; text-align: center;
 }
 .pick-badge + .pick-badge { margin-left: 3px; }
-.pick-badge-main  { background: var(--emerald); color: #fff; }
+.pick-badge-main   { background: var(--emerald); color: #fff; }
+.pick-badge-volume { background: #d97706; color: #fff; }  /* amber for Volume model */
 
 /* Finish-position row treatment.
    Row-level background tints removed 2026-05-15 - they were visually busy
@@ -2739,6 +2747,7 @@ body {
 }
 .horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
+.is-volume-pick .horse-cell { color: #b45309; }  /* amber-deep for Volume model */
 
 .rank-cell { font-weight: 600; color: var(--ink-soft); }
 .rank-cell.r1 { color: var(--emerald-deep); font-weight: 700; }
@@ -3557,7 +3566,7 @@ body {
 .ic-mode-btn.active { background: var(--ink); color: var(--panel); }
 /* Model toggle - styled the same as mode toggle. Active button uses
    emerald so the user can tell at a glance which model the displayed
-   stats belong to. Single Edge model now; toggle kept as one button. */
+   stats belong to. Two models: Edge (emerald) and Volume (amber). */
 .ic-model-toggle {
   display: inline-flex; gap: 1px; background: var(--line);
   border-radius: var(--radius-sm); padding: 1px;
@@ -3569,7 +3578,8 @@ body {
   border-radius: 4px;
 }
 .ic-model-btn.active { background: var(--ink); color: var(--panel); }
-.ic-model-btn[data-imodel="edge"].active  { background: var(--emerald); color: #fff; }
+.ic-model-btn[data-imodel="edge"].active   { background: var(--emerald); color: #fff; }
+.ic-model-btn[data-imodel="volume"].active { background: #d97706; color: #fff; }
 /* Toggle hides entirely in "All races" mode - model filter is meaningless
    when not looking at picks at all */
 .ic-model-toggle.hidden { display: none; }
@@ -4585,13 +4595,13 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Model sub-tabs - switches which model's picks fill the rows below.
-         Badge count is filled in by JS on render. Single model now:
-         "edge" (committee of 5 voting rules, 2-of-5 agreement, F2+F4
-         post-process). Switching also drives the hero stats above. The
-         subtab UI is retained as a single button rather than removed
-         outright so the activeModels state machine continues to work. -->
+         Badge count is filled in by JS on render. Two models active:
+         "edge" (premium picks, single rule WPR+L600+Time+L400, prize>=$50k +
+         jky>=80 filters) and "volume" (high-frequency, PFAI+TR+L400, jky>=80
+         filter only). Switching also drives the hero stats above. -->
     <div class="subtabs-row" id="today-subtabs">
       <button class="subtab active" data-model="edge">Edge<span class="subtab-badge" id="today-subtab-count-edge">0</span></button>
+      <button class="subtab" data-model="volume">Volume<span class="subtab-badge" id="today-subtab-count-volume">0</span></button>
     </div>
 
     <div class="race-date-bar" id="today-date-bar">
@@ -4787,11 +4797,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <section class="section" id="sec-pnl">
     <!-- Model sub-tabs - filters all P&L stats, charts, and settled bet
          rows to the selected model. Counts updated on render to show
-         settled bets per model in current period. With only Edge model
-         active, the subtab is retained as a single button to keep the
-         state machine intact. -->
+         settled bets per model in current period. Two models: Edge (premium)
+         and Volume (high-frequency). Each has its own P&L tracking. -->
     <div class="subtabs-row" id="pnl-subtabs">
       <button class="subtab active" data-model="edge">Edge<span class="subtab-badge" id="pnl-subtab-count-edge">0</span></button>
+      <button class="subtab" data-model="volume">Volume<span class="subtab-badge" id="pnl-subtab-count-volume">0</span></button>
     </div>
 
     <!-- Top control bar: period selector + view mode toggle -->
@@ -4899,7 +4909,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
            Toggle is hidden when mode = 'all' (model filter meaningless
            when we're analysing every runner regardless of pick). -->
       <div class="ic-model-toggle" id="ic-model-toggle">
-        <button class="ic-model-btn active" data-imodel="edge" title="Edge committee picks: 2 of 5 voting rules must agree, then F2 (max 2 picks/race, book<50%) and F4 (field>=8) filters.">Edge</button>
+        <button class="ic-model-btn active" data-imodel="edge" title="Edge: premium picks. Single rule WPR+L600+Time+L400 (2 top-1, 3 top-3). Prize>=$50k + jockey rating>=80 filters.">Edge</button>
+        <button class="ic-model-btn" data-imodel="volume" title="Volume: high-frequency stream. Single rule PFAI+TR+L400 (1 top-1, 2 top-3). Jockey rating>=80 filter only.">Volume</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -5127,6 +5138,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             <select class="db-input" id="db-model">
               <option value="any">Any</option>
               <option value="edge">Edge picks</option>
+              <option value="volume">Volume picks</option>
+              <option value="any-pick">Any pick (Edge or Volume)</option>
+              <option value="both">Both Edge AND Volume</option>
               <option value="none">Not a pick</option>
             </select>
           </div>
@@ -5826,9 +5840,8 @@ function renderToday() {
   const todaysPicks = modelPicksForDate.filter(p => todayPickPassesFilters(p));
 
   // Update sub-tab badge counts to reflect picks-per-model for browsed date
-  // (pre-filter so user sees total available across models). Single model
-  // now ('edge') but kept as a loop in case more streams are added later.
-  ['edge'].forEach(m => {
+  // (pre-filter so user sees total available across models).
+  ['edge', 'volume'].forEach(m => {
     const badge = document.getElementById('today-subtab-count-' + m);
     if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'edge') === m).length;
   });
@@ -7227,8 +7240,12 @@ function renderRaceDetail(raceId) {
     return;
   }
   const racePicksLookup = MODEL_PICKS[raceId] || {};
+  // Both models tracked here. Edge is the primary; Volume is the second
+  // stream. Row classes and badges reflect whichever model(s) picked.
   const picks = racePicksLookup[PRIMARY_KEY] || [];
+  const volumePicks = racePicksLookup['volume'] || [];
   const pickIds = new Set(picks.map(p => String(p.run_id)));
+  const volumeIds = new Set(volumePicks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
   // ── PF data freshness indicator ──
@@ -7426,13 +7443,19 @@ function renderRaceDetail(raceId) {
       '</div>';
   }
 
-  // Pick count display in header stats - single Edge model only.
+  // Pick count display in header stats - shows both Edge and Volume counts.
   let picksDisplay;
-  if (picks.length === 0) {
-    picksDisplay = '<span class="v">0</span> Edge picks';
-  } else {
+  if (picks.length === 0 && volumePicks.length === 0) {
+    picksDisplay = '<span class="v">0</span> model picks';
+  } else if (volumePicks.length === 0) {
     picksDisplay = '<span class="v">' + picks.length + '</span> Edge pick' +
       (picks.length !== 1 ? 's' : '');
+  } else if (picks.length === 0) {
+    picksDisplay = '<span class="v">' + volumePicks.length + '</span> Volume pick' +
+      (volumePicks.length !== 1 ? 's' : '');
+  } else {
+    picksDisplay = '<span class="v">' + picks.length + '</span> Edge · ' +
+      '<span class="v">' + volumePicks.length + '</span> Volume';
   }
   // Race-level abandon toggle. Distinct from meeting-level (which lives on
   // the meetings grid) - this is for edge cases where one race is called
@@ -7784,6 +7807,7 @@ function renderRaceDetail(raceId) {
   sortedRunners.forEach(u => {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
+    const isVolume = volumeIds.has(String(rid));
     const trR = trRanks[rid];
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
@@ -7791,15 +7815,25 @@ function renderRaceDetail(raceId) {
     // Score-threshold flag - adds emerald row tint for adaptive selection
     const qualifies = u.cs != null && u.cs >= thresh;
 
+    // Row class: Edge takes precedence over Volume for the row tint (Edge
+    // is the primary model and gets the emerald background). Volume-only
+    // picks get the amber "is-volume-pick" tint.
     const rowClasses = [];
     if (isPick) rowClasses.push('is-pick');
+    else if (isVolume) rowClasses.push('is-volume-pick');
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Pick badge - compact letter indicator AFTER the horse name for Edge picks.
+    // Pick badge - compact letter indicator AFTER the horse name.
+    //   - E = Edge pick (emerald)
+    //   - V = Volume pick (amber)
+    //   - Both = both letters side by side, Edge first
     let pickBadge = '';
     if (isPick) {
       pickBadge += '<span class="pick-badge pick-badge-main" title="Edge model pick">E</span>';
+    }
+    if (isVolume) {
+      pickBadge += '<span class="pick-badge pick-badge-volume" title="Volume model pick">V</span>';
     }
 
     // Finish-position indicators - only when the race is resulted and we
@@ -8570,8 +8604,7 @@ function renderPnL() {
     return true;
   }
   // Set sub-tab badges to show settled count per model within current period.
-  // Single Edge model now - kept as a loop in case more streams are added later.
-  ['edge'].forEach(m => {
+  ['edge', 'volume'].forEach(m => {
     const badge = document.getElementById('pnl-subtab-count-' + m);
     if (badge) {
       badge.textContent = allSettled
@@ -9519,16 +9552,15 @@ let trackingMode = (function() {
   return 'theoretical';  // default = same as P&L's Theoretical view
 })();
 // Model selector for the 6 pick-based tracking sections. Filters the
-// underlying SETTLED list by the pick's model_id. Single Edge model now -
-// the selector UI is effectively a single button but the state machine
-// remains in place for future model additions.
-//   'edge' - picks where model_id == 'edge' (current production rule).
+// underlying SETTLED list by the pick's model_id. Two models:
+//   'edge'   - premium picks (WPR+L600+Time+L400, prize>=$50k + jky>=80)
+//   'volume' - high-frequency stream (PFAI+TR+L400, jky>=80)
 const TRACKING_MODEL_KEY = 'tr_tracking_model_v1';
 let trackingModel = (function() {
   try {
     const v = localStorage.getItem(TRACKING_MODEL_KEY);
-    // Accept only 'edge' now; legacy 'main'/'loose'/'both' fall through to default.
-    if (v === 'edge') return v;
+    // Accept 'edge' or 'volume'. Legacy 'main'/'loose'/'both' fall through to default.
+    if (v === 'edge' || v === 'volume') return v;
   } catch(e) {}
   return 'edge';
 })();
@@ -10678,7 +10710,7 @@ let dbFilters = {
   minScore: null, maxScore: null,
   minSp: null,
   minJky: 0,
-  model: 'any',     // any | edge | none
+  model: 'any',     // any | edge | volume | any-pick | both | none
   result: 'any',    // any | won | placed | lost | resulted | unresulted
   // Per-signal rank filters - each value is 'any', '1', or '3'
   sigWpr: 'any', sigLate: 'any', sigWcR: 'any',
@@ -10691,10 +10723,11 @@ try {
     if (parsed && typeof parsed === 'object') dbFilters = Object.assign(dbFilters, parsed);
   }
 } catch(e) {}
-// Migrate legacy dbFilters.model values from the Main/Loose era. Any
-// 'main', 'loose', or 'any-pick' becomes 'edge' since they all collapse
-// to the single Edge model now. 'any' and 'none' stay as-is.
-if (['main', 'loose', 'any-pick'].includes(dbFilters.model)) {
+// Migrate legacy dbFilters.model values from prior eras. Main/Loose all
+// collapse to 'edge' (Edge is the primary model and the closest analogue
+// to old Main). Valid current values: 'any', 'edge', 'volume', 'any-pick',
+// 'both', 'none'.
+if (['main', 'loose'].includes(dbFilters.model)) {
   dbFilters.model = 'edge';
 }
 function saveDbFilters() {
@@ -10731,9 +10764,10 @@ function getDatabaseRows() {
     const lateRanks = rankByField('ls', false);
     const trRanks   = rankByField('trr', false);
 
-    // Pick membership for this race - single Edge model now
+    // Pick membership for this race - both Edge and Volume tracked
     const racePicks = MODEL_PICKS[race.race_id] || {};
     const edgePickIds = new Set((racePicks[PRIMARY_KEY] || racePicks['edge'] || []).map(p => String(p.run_id)));
+    const volumePickIds = new Set((racePicks['volume'] || []).map(p => String(p.run_id)));
 
     runners.forEach(u => {
       const ridStr = String(u.rid);
@@ -10773,8 +10807,9 @@ function getDatabaseRows() {
         fxd: u.fx,
         sp: u.sp,
         finish: u.f,
-        // Pick membership (single model now)
-        isEdge: edgePickIds.has(ridStr),
+        // Pick membership (both models tracked)
+        isEdge:   edgePickIds.has(ridStr),
+        isVolume: volumePickIds.has(ridStr),
       });
     });
   });
@@ -10811,11 +10846,13 @@ function filterDatabaseRows(rows) {
     // completed races.
     if (dbFilters.minSp != null && (r.sp == null || r.sp < dbFilters.minSp)) return false;
     if (dbFilters.minJky > 0 && (r.jrt == null || r.jrt < dbFilters.minJky)) return false;
-    // Model pick filter (Edge only). Legacy 'main'/'loose'/'any-pick' values
-    // are migrated to 'edge' at load time (see dbFilters init above), so
-    // we only need to handle the canonical values here.
-    if (dbFilters.model === 'edge' && !r.isEdge) return false;
-    if (dbFilters.model === 'none' && r.isEdge) return false;
+    // Model pick filter (Edge / Volume / both / either / none).
+    // Legacy 'main'/'loose' values are migrated to 'edge' at load time.
+    if (dbFilters.model === 'edge'     && !r.isEdge) return false;
+    if (dbFilters.model === 'volume'   && !r.isVolume) return false;
+    if (dbFilters.model === 'any-pick' && !(r.isEdge || r.isVolume)) return false;
+    if (dbFilters.model === 'both'     && !(r.isEdge && r.isVolume)) return false;
+    if (dbFilters.model === 'none'     && (r.isEdge || r.isVolume)) return false;
     // Result filter
     const resulted = r.finish != null;
     const won = r.finish === 1;
