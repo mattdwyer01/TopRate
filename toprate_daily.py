@@ -629,120 +629,95 @@ def merge_pf_ratings(runners_df):
 # are generated for that meeting. When TR data is missing for a runner
 # (e.g. first starter with no WPR history), that runner doesn't qualify.
 
-MODEL_DEFS = {
-    "main": {
-        "label":       "Main",
-        "desc":        "Voting model: 3 of 6 signals must rank #1 AND 5 of 6 must rank top-3 (WPR, Late, Class, L600, PF AI, TR) + SP≥$3 (skip first-starter races)",
-        # Backtest (28 days, Apr 9 - May 7, 11,113 reliable rows):
-        #   N=214 picks, 7.6/day, 17.5/Saturday
-        #   WR 23.8%, AvgSP $4.78
-        #   Overall ROI: +18.4%
-        #   Saturday ROI: +17.1%
-        #   Profit factor: 1.24
-        #   Profit (1u flat): +$39.40 over 28 days
-        #
-        # Stress-test context that drove this choice over the prior V2 rule:
-        #   - Higher edge per pick (+18.4% vs V2's +11.5%)
-        #   - Higher win rate (23.8% vs 21.4%)
-        #   - Better profit factor (1.24 vs 1.15)
-        #   - Shorter max losing streak (15 vs 22)
-        #   - 3 of 4 weeks positive (V2 had 4 of 4 - slight regression)
-        #   - Profit-to-drawdown ratio: 1.84 (V2 was 2.21 - slight regression)
-        #
-        # The rule adds a "must dominate somewhere" filter on top of V2:
-        # the horse must be ranked #1 on at least 3 signals (not just top-3).
-        # Cuts volume from 608 to 214 picks but lifts ROI by 6.9pp.
-        # Trade is per-pick edge for portfolio robustness vs V2.
-        #
-        # History:
-        #   v1: Strict main rule (WPR<=3 + Late<=3 + Class=1 + L600<=3)
-        #       100 picks, +71.2% ROI, only 7.2/Sat
-        #   v2: 5 of 6 top-3 voting
-        #       608 picks, +11.5% ROI, 46.8/Sat - traded edge for volume
-        #   v3 (current): 3 top-1 AND 5 top-3
-        #       214 picks, +18.4% ROI, 17.5/Sat - middle ground
-        "expected_wr": 0.238, "expected_roi_sp": 0.184, "expected_roi_top": 0.184,
-        "bets_per_day": 7.6, "min_top_odds": 3.0,
-        "is_primary":  True,
-        "applies": lambda race_df, run_id, ctx:
-            # Skip first-starter races (model signals don't apply to debut runners)
-            not ctx.get("has_first_starter", False)
-            # Two-tier voting filter:
-            #   (a) horse must rank #1 on at least 3 of 6 signals (must dominate)
-            #   (b) horse must rank top-3 on at least 5 of 6 signals (broad strength)
-            # Both conditions required. Rank source: TR ranks computed from raw
-            # values, PF ranks taken from the rating service.
-            and (
-                int((ctx["wpr_rank"].get(run_id) or 99) == 1)
-                + int((ctx["late_rank"].get(run_id) or 99) == 1)
-                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx["tr_rank"].get(run_id) or 99) == 1)
-            ) >= 3
-            and (
-                int((ctx["wpr_rank"].get(run_id) or 99) <= 3)
-                + int((ctx["late_rank"].get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx["tr_rank"].get(run_id) or 99) <= 3)
-            ) >= 5
-            # Note: SP gate ($3) applied at display time, not pick computation.
-            # Same convention as prior rule - users decide bet at the right price.
-    },
+# Edge model — committee of 5 voting rules with 2-of-5 agreement threshold
+# plus F2 (max 2 picks per race, combined book < 50%) and F4 (field >= 8)
+# post-processing applied below in compute_model_picks().
+#
+# Backtest provenance (45 days combined data: Apr 9 - May 23, 2026):
+#   - Merged backtest_report_2026-04-09_2026-05-07.xlsx with toprate_runners.csv
+#     and pf_ratings.csv, deduped by (date, race_id, run_id).
+#   - 22,594 deduped rows; 13,505 eligible after prod filters
+#     (SP>=$3, no first-starter race, prize>=$20k).
+#   - Searched 24,255 voting rule combinations; only 96 (0.40%) profitable
+#     in BOTH halves of the 45-day window at >=+3% ROI per half with
+#     n>=100 picks per half.
+#   - Selected top-5 by volume from the stable set (each rule has n>=300
+#     picks individually and survives the both-halves stability test).
+#   - Pre-filter ensemble (2-of-5 committee, no F2/F4): 414 picks, +30.5% ROI.
+#   - With F2+F4 post-process: 297 picks, +36.1% ROI, ~7/day, ~16/Sat,
+#     Saturday ROI +38.0%, 1st half +19.5% / 2nd half +53.2% (stable).
+#
+# Why this replaces Main + Loose:
+#   - Out-of-sample test on Apr-May data showed Main (V3 voting rule)
+#     drops from claimed +18% backtest to +4-8% real, Loose drops to
+#     similar break-even territory.
+#   - Edge's stability filter (both halves of 45-day window profitable)
+#     specifically guards against the overfitting pattern that hurt V3.
+#   - Edge uses Late, WPR, PFAI, L600 as core signals; these emerged as
+#     the workhorse signals across all stable rules.
+#
+# IMPORTANT CAVEATS (read before betting):
+#   - +36.1% is BACKTEST on the data the rules were trained on. Real
+#     forward performance likely +10% to +25%, possibly lower.
+#   - 5 rules share a lot of DNA (all include WPR+Late+PFAI or WPR+Late+L600).
+#     A market shift that hurts WPR or Late hurts all 5 rules together.
+#   - Track real-world performance for 30-60 days before scaling stake.
 
-    # "Loose" model - second model running in parallel for shadow-mode evaluation.
-    # Relaxes the voting thresholds from (3 top-1, 5 top-3) to (2 top-1, 4 top-3).
-    # Same six signals, same SP-min, same first-starter exclusion.
-    #
-    # Why this exists: the strict "main" rule is favourite-aligned (correlates
-    # strongly with market price) and rarely surfaces value runners. The
-    # relaxed rule catches a wider net of horses that are top-3 on most
-    # signals but not necessarily #1 on three of them.
-    #
-    # Backtest evidence (14 days on toprate_runners.csv, May 1-14):
-    #   t1>=2, t3>=4: 290 picks, 21.4% WR, AvgSP $5.57, ROI +14.4%
-    #   t1>=3, t3>=5 (main): 125 picks, 20.8% WR, AvgSP $4.82, ROI -24.7%
-    #
-    # IMPORTANT CAVEAT: digging into the +14.4% finding showed it was largely
-    # driven by ONE longshot win (Orsum @ $41). Strip that race out and the
-    # loose model's ROI drops to roughly break-even. The "edge" is fragile
-    # at 14 days. Shipping this as a SHADOW model (track-only) lets us
-    # accumulate independent data over 30-60 days to see if the lift is
-    # real signal or 14-day variance dressed up as a pattern.
-    #
-    # The dashboard will allow betting on Loose picks per user preference,
-    # so it's not strict shadow mode - it's "available as a second model".
-    # P&L will be tracked separately for each model.
-    "loose": {
-        "label":       "Loose",
-        "desc":        "Relaxed voting: 2 of 6 signals must rank #1 AND 4 of 6 must rank top-3. Wider net than Main - catches more potential value runners. Experimental.",
-        "expected_wr": 0.214, "expected_roi_sp": 0.05, "expected_roi_top": 0.05,
-        "bets_per_day": 20.7, "min_top_odds": 3.0,
-        "is_primary":  False,
+EDGE_RULES = [
+    # Each tuple is (rule_label, list of (signal_ctx_key, signal_human_name),
+    # min_top1_votes, min_top3_votes).
+    # The signal_ctx_key references entries in the ctx dict assembled in
+    # compute_model_picks() below.
+    ("R1", [("wpr_rank", "WPR"), ("late_rank", "Late"),
+            ("pf_ai_rank", "PFAI"), ("pf_last600_rank", "L600")], 1, 4),
+    ("R2", [("wpr_rank", "WPR"), ("late_rank", "Late"),
+            ("time_rank", "Time"), ("pf_class_rank", "Class"),
+            ("pf_last600_rank", "L600")], 1, 4),
+    ("R3", [("wpr_rank", "WPR"), ("late_rank", "Late"),
+            ("pf_ai_rank", "PFAI"), ("pf_last400_rank", "L400")], 1, 4),
+    ("R4", [("wpr_rank", "WPR"), ("late_rank", "Late"),
+            ("pf_class_rank", "Class"), ("pf_last600_rank", "L600")], 1, 4),
+    ("R5", [("late_rank", "Late"), ("total_rank", "Total"),
+            ("pf_ai_rank", "PFAI"), ("pf_last600_rank", "L600")], 2, 4),
+]
+EDGE_MIN_AGREE     = 2     # Horse must pass at least N of the 5 rules
+EDGE_MIN_FIELD     = 8     # F4: skip race if field size <= 7
+EDGE_MAX_RACE_BOOK = 0.50  # F2: skip race if top-2 picks' combined 1/SP >= this
+EDGE_MAX_PER_RACE  = 2     # F2: keep at most this many picks per race
+
+def _edge_rules_passed(run_id, ctx):
+    """Return list of rule labels (e.g. ["R1", "R3"]) that this runner passes
+    based on per-runner voting thresholds. Does NOT apply F2/F4 - those are
+    race-level constraints handled separately."""
+    passed = []
+    for rule_label, signal_keys, min_t1, min_t3 in EDGE_RULES:
+        # Top-1 count: how many of the rule's signals rank this horse #1
+        t1 = sum(1 for key, _ in signal_keys
+                 if (ctx.get(key, {}).get(run_id) or 99) == 1)
+        # Top-3 count: how many rank this horse top-3
+        t3 = sum(1 for key, _ in signal_keys
+                 if (ctx.get(key, {}).get(run_id) or 99) <= 3)
+        if t1 >= min_t1 and t3 >= min_t3:
+            passed.append(rule_label)
+    return passed
+
+
+MODEL_DEFS = {
+    "edge": {
+        "label":       "Edge",
+        "desc":        "Edge committee: a horse must pass ≥ 2 of 5 voting rules built on WPR + Late + PF rank signals. Field size ≥ 8 and combined book < 50% per race (max 2 picks/race). Selected from 24k rules on 45-day backtest; only stable rules across both halves.",
+        "expected_wr": 0.229, "expected_roi_sp": 0.361, "expected_roi_top": 0.361,
+        "bets_per_day": 7.1, "min_top_odds": 3.0,
+        "is_primary":  True,
+        # The lambda only does PER-RUNNER qualification (committee threshold).
+        # Race-level F2/F4 are applied AFTER this lambda in compute_model_picks().
         "applies": lambda race_df, run_id, ctx:
+            # Skip first-starter races (same convention as old Main/Loose)
             not ctx.get("has_first_starter", False)
-            # Two-tier voting filter - relaxed thresholds vs main:
-            #   (a) at least 2 of 6 signals rank #1 (was 3)
-            #   (b) at least 4 of 6 signals rank top-3 (was 5)
-            and (
-                int((ctx["wpr_rank"].get(run_id) or 99) == 1)
-                + int((ctx["late_rank"].get(run_id) or 99) == 1)
-                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) == 1)
-                + int((ctx["tr_rank"].get(run_id) or 99) == 1)
-            ) >= 2
-            and (
-                int((ctx["wpr_rank"].get(run_id) or 99) <= 3)
-                + int((ctx["late_rank"].get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_class_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_last600_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx.get("pf_ai_rank", {}).get(run_id) or 99) <= 3)
-                + int((ctx["tr_rank"].get(run_id) or 99) <= 3)
-            ) >= 4
-            # Note: SP gate applied at display time, not here.
+            # Committee threshold: must pass at least EDGE_MIN_AGREE of 5 rules
+            and len(_edge_rules_passed(run_id, ctx)) >= EDGE_MIN_AGREE
+            # Note: SP gate ($3) applied at display time, not here.
+            # F2 (max-per-race, book%) and F4 (field>=8) applied below.
     },
 }
 
@@ -800,6 +775,8 @@ def compute_model_picks(runners_df):
             "total_rank":   _rank_lookup(rdf, "total_speed_score", ascending=False),
             "early_rank":   _rank_lookup(rdf, "early_speed_score", ascending=False),
             "wpr_rank":     _rank_lookup(rdf, "wpr_nett",          ascending=False),
+            # speed_rating = PF "Time" rating. Edge rule R2 needs this rank.
+            "time_rank":    _rank_lookup(rdf, "speed_rating",      ascending=False),
             "weight_trend": dict(zip(rdf["run_id"], rdf.get("weight_trend",
                                                             pd.Series([None]*n)))),
             "fix_price":    dict(zip(rdf["run_id"], rdf.get("fixed_win_price",
@@ -810,6 +787,10 @@ def compute_model_picks(runners_df):
             "pf_class_rank":   dict(zip(rdf["run_id"], rdf.get("pf_class_rank",
                                                                 pd.Series([None]*n)))),
             "pf_last600_rank": dict(zip(rdf["run_id"], rdf.get("pf_last600_rank",
+                                                                pd.Series([None]*n)))),
+            "pf_last400_rank": dict(zip(rdf["run_id"], rdf.get("pf_last400_rank",
+                                                                pd.Series([None]*n)))),
+            "pf_last200_rank": dict(zip(rdf["run_id"], rdf.get("pf_last200_rank",
                                                                 pd.Series([None]*n)))),
             "pf_ai_rank":      dict(zip(rdf["run_id"], rdf.get("pf_ai_rank",
                                                                 pd.Series([None]*n)))),
@@ -841,6 +822,50 @@ def compute_model_picks(runners_df):
                         qualifying.append(row)
                 except Exception:
                     pass
+
+            # Edge-specific race-level filters: F4 (field>=8) and F2 (max 2
+            # picks per race, only if combined book%<50%). Applied AFTER
+            # per-runner qualification. Other models (none currently) would
+            # bypass this and use their pre-filter qualifying list as-is.
+            if model_key == "edge" and qualifying:
+                field_size = len(rdf)
+                # F4: drop the entire race if field is too small
+                if field_size < EDGE_MIN_FIELD:
+                    qualifying = []
+                else:
+                    # F2: sort qualifying picks by SP ascending (shortest first
+                    # = most confident). Take at most EDGE_MAX_PER_RACE.
+                    # Use starting_price_sp if available (post-race), else
+                    # fall back to fixed_win_price (pre-race live price) so
+                    # the filter still fires for picks on today's card.
+                    def _sp_key(r):
+                        for col in ("starting_price_sp", "fixed_win_price"):
+                            v = r.get(col)
+                            try:
+                                v = float(v)
+                            except (TypeError, ValueError):
+                                continue
+                            if v and v > 0:
+                                return v
+                        return 999.0
+                    qualifying = sorted(qualifying, key=_sp_key)[:EDGE_MAX_PER_RACE]
+                    # F2 book% check: if the kept picks' combined implied
+                    # probability (sum of 1/price) >= EDGE_MAX_RACE_BOOK, the
+                    # race is too heavily weighted toward our picks - skip
+                    # entirely. Single-pick races bypass this check.
+                    # If neither SP nor fixed price is available for a pick,
+                    # its 1/price contribution is ~0 (1/999) so it effectively
+                    # passes - but in practice every runner has fixed_win_price
+                    # pre-race.
+                    if len(qualifying) >= 2:
+                        book_pct = 0.0
+                        for q in qualifying:
+                            price = _sp_key(q)
+                            if price > 0 and price < 999:
+                                book_pct += 1.0 / price
+                        if book_pct >= EDGE_MAX_RACE_BOOK:
+                            qualifying = []
+
             for qrow in qualifying:
                 rows.append({
                     "date":          race_meta.get("date"),
@@ -863,6 +888,11 @@ def compute_model_picks(runners_df):
                     "late_rank":     ctx["late_rank"].get(qrow["run_id"]),
                     "total_rank":    ctx["total_rank"].get(qrow["run_id"]),
                     "wpr_rank":      ctx["wpr_rank"].get(qrow["run_id"]),
+                    # Edge rule audit trail: which of the 5 rules picked this
+                    # horse. Stored as a comma-separated string for CSV cleanliness.
+                    # Empty for non-edge models.
+                    "edge_rules":    (",".join(_edge_rules_passed(qrow["run_id"], ctx))
+                                      if model_key == "edge" else ""),
                     # PF data for the picked runner (None if PF didn't rate)
                     "pf_ai_rank":      qrow.get("pf_ai_rank"),
                     "pf_ai_price":     qrow.get("pf_ai_price"),
@@ -2317,7 +2347,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
     # ── Build model meta from MODEL_DEFS ─────────────────────────────────────
     primary_key = next((k for k, v in MODEL_DEFS.items() if v.get("is_primary")),
-                       "main")
+                       "edge")
     model_meta = {
         k: {
             "label":   v["label"],

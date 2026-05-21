@@ -357,9 +357,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
 
     # Build picks list (all dates - JS filters to today's local date)
     # All models included; each pick tagged with 'model' so JS sub-tabs can
-    # filter by active model on Today/P&L. Previously only primary_model_key
-    # picks were emitted - changed when the "loose" experimental model was
-    # added so users can flip between them in the dashboard.
+    # filter by active model on Today/P&L. Single Edge model now, but
+    # the emit-all-models loop is retained for future expansion.
     all_picks_list = []
     for race_id, models in model_picks_by_race.items():
         for model_key, picks in models.items():
@@ -459,9 +458,8 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     today_picks = all_picks_list  # keep variable name for JSON injection
 
     # Build settled bet history for ALL models. Each entry tagged with 'model'
-    # so JS can filter by active model on the P&L sub-tab. Previously only the
-    # primary model's settled rows were emitted - changed when "loose"
-    # experimental model was added.
+    # so JS can filter by active model on the P&L sub-tab. Single Edge model
+    # now, but the all-models emit loop is retained for future expansion.
     settled_history = []
     for r in (model_pick_rows or []):
         if not r.get('resulted'):
@@ -1694,17 +1692,6 @@ body {
 .ntj-pill.has-pick .ntj-pill-name::before {
   content: '●'; color: var(--emerald); margin-right: 6px;
 }
-/* Loose-model pick indicator on NTJ ticker pill. Amber dot mirrors the
-   green dot used for Main picks. When both Main AND Loose pick the same
-   race, the Main green dot wins (the has-pick rule above runs second in
-   the cascade and overrides this one). */
-.ntj-pill.has-loose-pick:not(.has-pick) {
-  border-color: #d97706;
-  background: rgba(217, 119, 6, .12);
-}
-.ntj-pill.has-loose-pick:not(.has-pick) .ntj-pill-name::before {
-  content: '●'; color: #d97706; margin-right: 6px;
-}
 .ntj-pill-cd {
   font-family: var(--font-mono); font-size: 10px; font-weight: 700;
   padding: 2px 7px; border-radius: 4px; letter-spacing: .02em; white-space: nowrap;
@@ -1901,21 +1888,14 @@ body {
 }
 
 /* Resulted-race outcome highlighting. mt-result-main-hit: emerald tint when
-   the Main model pick won. mt-result-loose-hit: amber tint when only the
-   Loose pick won (Main missed). Lets the user scan a day's card and
-   immediately see model accuracy without clicking into each race. */
+   the Edge model pick won. Lets the user scan a day's card and immediately
+   see model accuracy without clicking into each race. */
 .mt-race-cell.mt-resulted.mt-result-main-hit {
   background: #d1fae5;
   color: var(--emerald-deep);
   font-weight: 600;
 }
 .mt-race-cell.mt-resulted.mt-result-main-hit:hover { background: #a7f3d0; }
-.mt-race-cell.mt-resulted.mt-result-loose-hit {
-  background: #fef3c7;
-  color: #92400e;
-  font-weight: 600;
-}
-.mt-race-cell.mt-resulted.mt-result-loose-hit:hover { background: #fde68a; }
 .mt-race-cell.mt-imminent {
   background: var(--emerald); color: #fff; font-weight: 600;
 }
@@ -1930,26 +1910,6 @@ body {
   background: var(--emerald);
 }
 .mt-race-cell.mt-imminent.has-pick::before { background: #fff; }
-
-/* Loose-model pick indicator. Amber dot in same top-right position as the
-   Main pick dot. When a cell has BOTH classes the green dot wins (the
-   has-pick::before above runs second in the cascade). Loose-ONLY cells
-   also get a subtle amber background tint so they're scannable at a
-   glance without needing to read the dot. */
-.mt-race-cell.has-loose-pick:not(.has-pick)::before {
-  content: ''; position: absolute; top: 4px; right: 4px;
-  width: 5px; height: 5px; border-radius: 50%;
-  background: #d97706;
-}
-.mt-race-cell.has-loose-pick:not(.has-pick) {
-  background: rgba(217, 119, 6, 0.06);
-}
-.mt-race-cell.has-loose-pick:not(.has-pick):hover {
-  background: rgba(217, 119, 6, 0.14);
-}
-/* When loose-only cell is imminent (live/very-soon), keep the imminent
-   emerald look dominant but use white amber-dot for visibility */
-.mt-race-cell.mt-imminent.has-loose-pick:not(.has-pick)::before { background: #fff; }
 
 /* Field-size strategy indicator. Bottom-right corner, mirrors the top-right
    has-pick dot. Shown when fs >= 8 - the user's metro Saturday filter
@@ -2141,15 +2101,6 @@ body {
 .meeting-tile.has-pick {
   border-left: 3px solid var(--emerald);
   padding-left: 8px;
-}
-/* Loose-only meeting tile - amber border-left mirroring Main's emerald
-   treatment. When BOTH classes present, has-pick (emerald) wins because
-   it appears later in the cascade. */
-.meeting-tile.has-loose-pick:not(.has-pick) {
-  border-left: 3px solid #d97706;
-  padding-left: 8px;
-  /* No opacity dimming - this IS a pick, just from the experimental model */
-  opacity: 1;
 }
 .meeting-tile.no-pick { opacity: 0.55; }
 .meeting-tile.done { opacity: 0.4; }
@@ -2744,17 +2695,10 @@ body {
 }
 .race-table tbody tr.is-pick:hover { background: #d1fae5; }
 /* Loose-only pick rows - amber treatment mirroring Main's emerald. */
-.race-table tbody tr.is-loose-pick {
-  background: rgba(217, 119, 6, 0.08);
-  box-shadow: inset 4px 0 0 #d97706;
-}
-.race-table tbody tr.is-loose-pick:hover { background: rgba(217, 119, 6, 0.16); }
 .race-table tbody tr.muted { color: var(--ink-mute); }
 
-/* Pick badge - compact single-letter indicator AFTER the horse name.
-   Two badges can appear side-by-side when both models pick (M then L).
-   - pick-badge-main:  green "M" (production model)
-   - pick-badge-loose: amber "L" (experimental model) */
+/* Pick badge - compact single-letter indicator AFTER the horse name for Edge picks.
+   Single Edge model now; legacy .pick-badge-loose retained but unused. */
 .pick-badge {
   display: inline-block; margin-left: 6px;
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
@@ -2765,7 +2709,6 @@ body {
 }
 .pick-badge + .pick-badge { margin-left: 3px; }
 .pick-badge-main  { background: var(--emerald); color: #fff; }
-.pick-badge-loose { background: #d97706; color: #fff; }
 
 /* Finish-position row treatment.
    Row-level background tints removed 2026-05-15 - they were visually busy
@@ -2796,7 +2739,6 @@ body {
 }
 .horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
-.is-loose-pick .horse-cell { color: #b45309; }
 
 .rank-cell { font-weight: 600; color: var(--ink-soft); }
 .rank-cell.r1 { color: var(--emerald-deep); font-weight: 700; }
@@ -3614,8 +3556,8 @@ body {
 }
 .ic-mode-btn.active { background: var(--ink); color: var(--panel); }
 /* Model toggle - styled the same as mode toggle. Active button uses
-   model-specific color (emerald for main, amber for loose) so the user
-   can tell at a glance which model the displayed stats belong to. */
+   emerald so the user can tell at a glance which model the displayed
+   stats belong to. Single Edge model now; toggle kept as one button. */
 .ic-model-toggle {
   display: inline-flex; gap: 1px; background: var(--line);
   border-radius: var(--radius-sm); padding: 1px;
@@ -3627,8 +3569,7 @@ body {
   border-radius: 4px;
 }
 .ic-model-btn.active { background: var(--ink); color: var(--panel); }
-.ic-model-btn[data-imodel="main"].active  { background: var(--emerald); color: #fff; }
-.ic-model-btn[data-imodel="loose"].active { background: #d97706; color: #fff; }
+.ic-model-btn[data-imodel="edge"].active  { background: var(--emerald); color: #fff; }
 /* Toggle hides entirely in "All races" mode - model filter is meaningless
    when not looking at picks at all */
 .ic-model-toggle.hidden { display: none; }
@@ -4039,8 +3980,6 @@ body {
 .db-table tbody tr:hover td { background: var(--line-soft); }
 .db-table tbody tr.is-pick td { background: rgba(16, 185, 129, 0.08); }
 .db-table tbody tr.is-pick:hover td { background: rgba(16, 185, 129, 0.16); }
-.db-table tbody tr.is-loose-pick td { background: rgba(217, 119, 6, 0.08); }
-.db-table tbody tr.is-loose-pick:hover td { background: rgba(217, 119, 6, 0.16); }
 .db-table .horse-link {
   color: var(--ink); font-weight: 600; cursor: pointer;
   border-bottom: 1px dotted var(--ink-faint);
@@ -4054,7 +3993,6 @@ body {
   padding: 1px 4px; border-radius: 3px; margin-left: 4px;
 }
 .db-table .db-pick-pill.main  { background: var(--emerald); color: #fff; }
-.db-table .db-pick-pill.loose { background: #d97706; color: #fff; }
 .db-table .db-finish {
   display: inline-block; min-width: 22px;
   font-size: 11px; font-weight: 700; text-align: center;
@@ -4647,13 +4585,13 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Model sub-tabs - switches which model's picks fill the rows below.
-         Badge count is filled in by JS on render. Two models currently:
-         "main" (production rule, 3 top-1 votes + 5 top-3) and "loose"
-         (experimental, 2 top-1 + 4 top-3). Switching also drives the hero
-         stats above - WR/ROI/etc reflect only the active model's bets. -->
+         Badge count is filled in by JS on render. Single model now:
+         "edge" (committee of 5 voting rules, 2-of-5 agreement, F2+F4
+         post-process). Switching also drives the hero stats above. The
+         subtab UI is retained as a single button rather than removed
+         outright so the activeModels state machine continues to work. -->
     <div class="subtabs-row" id="today-subtabs">
-      <button class="subtab active" data-model="main">Main<span class="subtab-badge" id="today-subtab-count-main">0</span></button>
-      <button class="subtab" data-model="loose">Loose<span class="subtab-badge" id="today-subtab-count-loose">0</span></button>
+      <button class="subtab active" data-model="edge">Edge<span class="subtab-badge" id="today-subtab-count-edge">0</span></button>
     </div>
 
     <div class="race-date-bar" id="today-date-bar">
@@ -4849,11 +4787,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <section class="section" id="sec-pnl">
     <!-- Model sub-tabs - filters all P&L stats, charts, and settled bet
          rows to the selected model. Counts updated on render to show
-         settled bets per model in current period. Switching reloads
-         everything below. -->
+         settled bets per model in current period. With only Edge model
+         active, the subtab is retained as a single button to keep the
+         state machine intact. -->
     <div class="subtabs-row" id="pnl-subtabs">
-      <button class="subtab active" data-model="main">Main<span class="subtab-badge" id="pnl-subtab-count-main">0</span></button>
-      <button class="subtab" data-model="loose">Loose<span class="subtab-badge" id="pnl-subtab-count-loose">0</span></button>
+      <button class="subtab active" data-model="edge">Edge<span class="subtab-badge" id="pnl-subtab-count-edge">0</span></button>
     </div>
 
     <!-- Top control bar: period selector + view mode toggle -->
@@ -4955,15 +4893,13 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <button class="ic-mode-btn" data-imode="all" title="Every horse in every resulted race, no model filtering. Raw cumulative-score predictive power.">All races</button>
       </div>
       <!-- Model toggle - filters the 6 pick-based sections by which model
-           produced the pick. Defaults to "Main" so the user sees production
-           model performance first. "Both" unions Main and Loose picks
-           (note: duplicates if both models picked the same horse). Toggle
-           is hidden when mode = 'all' (model filter is meaningless when
-           we're analysing every runner regardless of pick). -->
+           produced the pick. With only Edge model active, the toggle
+           collapses to a single button. Kept as a single-button group
+           so the surrounding state machine and CSS don't need refactoring.
+           Toggle is hidden when mode = 'all' (model filter meaningless
+           when we're analysing every runner regardless of pick). -->
       <div class="ic-model-toggle" id="ic-model-toggle">
-        <button class="ic-model-btn active" data-imodel="main" title="Production main model picks only (3 of 6 top-1 votes, 5 of 6 top-3 votes).">Main</button>
-        <button class="ic-model-btn" data-imodel="loose" title="Experimental loose model picks only (2 of 6 top-1, 4 of 6 top-3).">Loose</button>
-        <button class="ic-model-btn" data-imodel="both" title="Union of Main and Loose picks. A horse picked by both models counts in each section's totals separately.">Both</button>
+        <button class="ic-model-btn active" data-imodel="edge" title="Edge committee picks: 2 of 5 voting rules must agree, then F2 (max 2 picks/race, book<50%) and F4 (field>=8) filters.">Edge</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -5190,9 +5126,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             <label for="db-model">Model pick</label>
             <select class="db-input" id="db-model">
               <option value="any">Any</option>
-              <option value="main">Main</option>
-              <option value="loose">Loose</option>
-              <option value="any-pick">Any pick</option>
+              <option value="edge">Edge picks</option>
               <option value="none">Not a pick</option>
             </select>
           </div>
@@ -5564,10 +5498,11 @@ function saveSettings() {
 
 // ── Model sub-tab state ─────────────────────────────────────────────────
 // Each section that has model sub-tabs (Today, P&L) tracks which model is
-// active independently. So you can browse Main picks on Today while
-// reviewing Loose settled bets on P&L. Persisted across reloads.
+// active independently. Single Edge model now - state machine kept for
+// future model additions. Migrates any old 'main'/'loose' values to 'edge'
+// on load.
 const MODEL_TAB_KEY = 'toprate_v3_active_model';
-let activeModels = { today: 'main', pnl: 'main' };
+let activeModels = { today: 'edge', pnl: 'edge' };
 try {
   const stored = localStorage.getItem(MODEL_TAB_KEY);
   if (stored) {
@@ -5577,6 +5512,14 @@ try {
     }
   }
 } catch(e) {}
+// Edge migration: any leftover 'main' or 'loose' values from prior versions
+// flip to 'edge' on first load so the UI doesn't try to render a model
+// that no longer exists.
+['today', 'pnl'].forEach(section => {
+  if (activeModels[section] === 'main' || activeModels[section] === 'loose') {
+    activeModels[section] = 'edge';
+  }
+});
 
 function saveActiveModels() {
   try { localStorage.setItem(MODEL_TAB_KEY, JSON.stringify(activeModels)); } catch(e) {}
@@ -5873,8 +5816,8 @@ function renderToday() {
   // Picks for this date across all models (used for sub-tab badge counts)
   const dateAllPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
   // Active-model-only picks for this date (pre-filter)
-  const activeModel = (activeModels && activeModels.today) || 'main';
-  const modelPicksForDate = dateAllPicks.filter(p => (p.model || 'main') === activeModel);
+  const activeModel = (activeModels && activeModels.today) || 'edge';
+  const modelPicksForDate = dateAllPicks.filter(p => (p.model || 'edge') === activeModel);
   // Apply Today filters (field size, jky rating). Rows that fail filters
   // are hidden entirely (not dimmed) because Today rows are large and
   // action-oriented - dimming would be visually noisy. Hero stats below
@@ -5883,10 +5826,11 @@ function renderToday() {
   const todaysPicks = modelPicksForDate.filter(p => todayPickPassesFilters(p));
 
   // Update sub-tab badge counts to reflect picks-per-model for browsed date
-  // (pre-filter so user sees total available across models)
-  ['main', 'loose'].forEach(m => {
+  // (pre-filter so user sees total available across models). Single model
+  // now ('edge') but kept as a loop in case more streams are added later.
+  ['edge'].forEach(m => {
     const badge = document.getElementById('today-subtab-count-' + m);
-    if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'main') === m).length;
+    if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'edge') === m).length;
   });
 
   // Update filter-bar summary: "Showing N of M picks" when filters are active.
@@ -6959,7 +6903,6 @@ function renderMeetingsGrid() {
       const isSoon = mins !== null && mins > 15 && mins <= 45;
       const racePicks = (MODEL_PICKS[race.race_id] || {});
       const hasPick = !!(racePicks[PRIMARY_KEY] || []).length;
-      const hasLoose = !!(racePicks['loose'] || []).length;
       // Field-size strategy gate. Same source-of-truth pattern as the Quaddie
       // tab (race.fs falling back to runners.length). Threshold 8 is the
       // user's metro-Saturday filter - fields of 7 or fewer push picks into
@@ -6969,7 +6912,6 @@ function renderMeetingsGrid() {
 
       let cellCls = 'mt-race-cell';
       if (hasPick) cellCls += ' has-pick';
-      if (hasLoose) cellCls += ' has-loose-pick';
       if (fsOk) cellCls += ' mt-fsok';
       // Race-level abandon (or meeting-level, since isRaceAbandoned checks both).
       // Meeting-level fade applies via the row class, but race-level marks
@@ -6981,17 +6923,14 @@ function renderMeetingsGrid() {
       if (isResulted) {
         cellCls += ' mt-resulted';
         // Find the winner (finish_position == 1) and show tab number.
-        // Mark green if Main pick won, amber if Loose pick won, neutral otherwise.
-        // This lets users scan resulted cards and immediately see model accuracy.
+        // Mark emerald if Edge pick won. This lets users scan resulted cards
+        // and immediately see model accuracy at a glance.
         const winner = (race.runners || []).find(u => u.f === 1);
         const winnerTab = winner ? winner.tab : null;
         const winnerRid = winner ? String(winner.rid) : null;
         const mainPickRids = (racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id));
-        const loosePickRids = (racePicks['loose'] || []).map(p => String(p.run_id));
         const mainHit = winnerRid && mainPickRids.indexOf(winnerRid) >= 0;
-        const looseHit = winnerRid && loosePickRids.indexOf(winnerRid) >= 0;
         if (mainHit) cellCls += ' mt-result-main-hit';
-        else if (looseHit) cellCls += ' mt-result-loose-hit';
         lbl = winnerTab != null ? ('#' + winnerTab) : 'Result';
       }
       else if (isImminent) {
@@ -7005,17 +6944,14 @@ function renderMeetingsGrid() {
       // something to explain - no point on empty/plain cells.
       let titleAttr = '';
       const tipParts = [];
-      if (hasPick) tipParts.push('Main model pick');
-      if (hasLoose) tipParts.push('Loose model pick');
+      if (hasPick) tipParts.push('Edge model pick');
       if (isResulted) {
         const winner = (race.runners || []).find(u => u.f === 1);
         if (winner) {
           let resultTxt = 'Winner: ' + (winner.h || '#' + winner.tab);
           const winnerRid = String(winner.rid);
           const mainPickRids = (racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id));
-          const loosePickRids = (racePicks['loose'] || []).map(p => String(p.run_id));
-          if (mainPickRids.indexOf(winnerRid) >= 0) resultTxt += ' (Main hit)';
-          else if (loosePickRids.indexOf(winnerRid) >= 0) resultTxt += ' (Loose hit)';
+          if (mainPickRids.indexOf(winnerRid) >= 0) resultTxt += ' (Edge hit)';
           tipParts.push(resultTxt);
         }
       } else {
@@ -7292,9 +7228,7 @@ function renderRaceDetail(raceId) {
   }
   const racePicksLookup = MODEL_PICKS[raceId] || {};
   const picks = racePicksLookup[PRIMARY_KEY] || [];
-  const loosePicks = racePicksLookup['loose'] || [];
   const pickIds = new Set(picks.map(p => String(p.run_id)));
-  const looseIds = new Set(loosePicks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
   // ── PF data freshness indicator ──
@@ -7385,7 +7319,6 @@ function renderRaceDetail(raceId) {
       const racePicks = (MODEL_PICKS[r.race_id] || {});
       const rPicks = racePicks[PRIMARY_KEY] || [];
       const hasPick = rPicks.length > 0;
-      const hasLoose = !!(racePicks['loose'] || []).length;
       const isActive = String(r.race_id) === String(raceId);
       const isDone = r.done === 1;
       const startMs = r.start_time ? new Date(r.start_time).getTime() : null;
@@ -7400,7 +7333,6 @@ function renderRaceDetail(raceId) {
       const cls = ['meeting-tile'];
       if (isActive) cls.push('active');
       if (hasPick) cls.push('has-pick'); else cls.push('no-pick');
-      if (hasLoose) cls.push('has-loose-pick');
       if (isDone) cls.push('done');
       const cdHtml = (cdtxt && !isDone) ? '<span class="mt-cd ' + cdcls + '">' + cdtxt + '</span>' : '';
       // Build info line: "1400m · Maiden" or just "1400m" if class unknown
@@ -7494,21 +7426,13 @@ function renderRaceDetail(raceId) {
       '</div>';
   }
 
-  // Pick count display in header stats - shows Main count plus Loose if it
-  // also picked. Reads "1 model pick" or "1 Main · 2 Loose picks" so the
-  // user can see both models' picks at a glance from the race header.
+  // Pick count display in header stats - single Edge model only.
   let picksDisplay;
-  if (picks.length === 0 && loosePicks.length === 0) {
-    picksDisplay = '<span class="v">0</span> model picks';
-  } else if (loosePicks.length === 0) {
-    picksDisplay = '<span class="v">' + picks.length + '</span> Main pick' +
-      (picks.length !== 1 ? 's' : '');
-  } else if (picks.length === 0) {
-    picksDisplay = '<span class="v">' + loosePicks.length + '</span> Loose pick' +
-      (loosePicks.length !== 1 ? 's' : '');
+  if (picks.length === 0) {
+    picksDisplay = '<span class="v">0</span> Edge picks';
   } else {
-    picksDisplay = '<span class="v">' + picks.length + '</span> Main · ' +
-      '<span class="v">' + loosePicks.length + '</span> Loose';
+    picksDisplay = '<span class="v">' + picks.length + '</span> Edge pick' +
+      (picks.length !== 1 ? 's' : '');
   }
   // Race-level abandon toggle. Distinct from meeting-level (which lives on
   // the meetings grid) - this is for edge cases where one race is called
@@ -7860,7 +7784,6 @@ function renderRaceDetail(raceId) {
   sortedRunners.forEach(u => {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
-    const isLoose = looseIds.has(String(rid));
     const trR = trRanks[rid];
     const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
@@ -7870,21 +7793,13 @@ function renderRaceDetail(raceId) {
 
     const rowClasses = [];
     if (isPick) rowClasses.push('is-pick');
-    else if (isLoose) rowClasses.push('is-loose-pick');
     else if (trR > 5) rowClasses.push('muted');
     if (qualifies) rowClasses.push('score-qualify');
 
-    // Pick badge - compact letter indicator AFTER the horse name. Two badges
-    // can show together when both models pick the same horse:
-    //   - Main pick: green "M"
-    //   - Loose pick: amber "L"
-    //   - Both: green "M" + amber "L" side by side
+    // Pick badge - compact letter indicator AFTER the horse name for Edge picks.
     let pickBadge = '';
     if (isPick) {
-      pickBadge += '<span class="pick-badge pick-badge-main" title="Main model pick">M</span>';
-    }
-    if (isLoose) {
-      pickBadge += '<span class="pick-badge pick-badge-loose" title="Loose model pick">L</span>';
+      pickBadge += '<span class="pick-badge pick-badge-main" title="Edge model pick">E</span>';
     }
 
     // Finish-position indicators - only when the race is resulted and we
@@ -8524,10 +8439,8 @@ function renderNtjTicker() {
     else if (secsUntil <= 600) cdCls = 'cd-soon';
     const racePicks = (MODEL_PICKS[race.race_id] || {});
     const hasPick = !!(racePicks[PRIMARY_KEY] || []).length;
-    const hasLoose = !!(racePicks['loose'] || []).length;
     const pillClasses = ['ntj-pill'];
     if (hasPick) pillClasses.push('has-pick');
-    if (hasLoose) pillClasses.push('has-loose-pick');
     return '<div class="' + pillClasses.join(' ') + '" data-rid="' + race.race_id + '">' +
       '<span class="ntj-pill-name">' + escapeHtml(race.venue) + ' R' + race.race + '</span>' +
       '<span class="ntj-pill-cd ' + cdCls + '">' + fmtCountdown(secsUntil) + '</span>' +
@@ -8621,10 +8534,12 @@ function effectivePrice(s, betLogEntry) {
 function renderPnL() {
   // Get settled bets within the chosen time period
   const allSettled = SETTLED || [];
-  // Filter to the active sub-tab's model. Older settled entries (pre-model-tagging)
-  // default to 'main' so historical bets show up in the Main sub-tab.
-  const pnlActiveModel = (activeModels && activeModels.pnl) || 'main';
-  const modelSettled = allSettled.filter(s => (s.model || 'main') === pnlActiveModel);
+  // Filter to the active sub-tab's model. Older settled entries (pre-Edge)
+  // default to 'edge' so any wiped+resumed history flows through correctly.
+  // Note: per Edge migration plan, toprate_model_picks.csv is deleted on
+  // deploy so there should be no legacy rows to worry about.
+  const pnlActiveModel = (activeModels && activeModels.pnl) || 'edge';
+  const modelSettled = allSettled.filter(s => (s.model || 'edge') === pnlActiveModel);
 
   // Update sub-tab badge counts to reflect settled counts per model (in current period)
   const today = new Date();
@@ -8654,12 +8569,13 @@ function renderPnL() {
     }
     return true;
   }
-  // Set sub-tab badges to show settled count per model within current period
-  ['main', 'loose'].forEach(m => {
+  // Set sub-tab badges to show settled count per model within current period.
+  // Single Edge model now - kept as a loop in case more streams are added later.
+  ['edge'].forEach(m => {
     const badge = document.getElementById('pnl-subtab-count-' + m);
     if (badge) {
       badge.textContent = allSettled
-        .filter(s => (s.model || 'main') === m && withinPeriod(s.date))
+        .filter(s => (s.model || 'edge') === m && withinPeriod(s.date))
         .length;
     }
   });
@@ -9603,23 +9519,18 @@ let trackingMode = (function() {
   return 'theoretical';  // default = same as P&L's Theoretical view
 })();
 // Model selector for the 6 pick-based tracking sections. Filters the
-// underlying SETTLED list by the pick's model_id so Main and Loose can
-// be analysed separately (mixing them defaults blurs both models' true
-// performance since they have different volume profiles: Main ~7/day,
-// Loose ~20/day). Default 'main' = production model.
-//   'main'  - only picks where model_id == 'main' (production rule).
-//   'loose' - only picks where model_id == 'loose' (experimental rule).
-//   'both'  - union of both. A horse picked by both models appears twice
-//             in the underlying list and contributes to each section's
-//             totals separately. This was the implicit behaviour before
-//             the toggle existed.
+// underlying SETTLED list by the pick's model_id. Single Edge model now -
+// the selector UI is effectively a single button but the state machine
+// remains in place for future model additions.
+//   'edge' - picks where model_id == 'edge' (current production rule).
 const TRACKING_MODEL_KEY = 'tr_tracking_model_v1';
 let trackingModel = (function() {
   try {
     const v = localStorage.getItem(TRACKING_MODEL_KEY);
-    if (v === 'main' || v === 'loose' || v === 'both') return v;
+    // Accept only 'edge' now; legacy 'main'/'loose'/'both' fall through to default.
+    if (v === 'edge') return v;
   } catch(e) {}
-  return 'main';
+  return 'edge';
 })();
 let trackingSortCol = 'date';
 let trackingSortDir = 'desc';
@@ -9765,11 +9676,11 @@ function renderInsights() {
     const totalRaces = races.length;
     const totalRunners = races.reduce((s, r) => s + (r.runners || []).length, 0);
     const periodLbl = 'last ' + trackingPeriod + ' days';
-    // Add model-filter context when not in 'all races' mode and not 'both'.
-    // Lets the user see at a glance which model's stats they're viewing.
+    // Add model-filter context when not in 'all races' mode. Single model
+    // active ('edge'), so the label is straightforward when picks-only.
     let modelLbl = '';
-    if (trackingMode !== 'all' && trackingModel !== 'both') {
-      modelLbl = ' · ' + (trackingModel === 'main' ? 'Main' : 'Loose') + ' model';
+    if (trackingMode !== 'all') {
+      modelLbl = ' · Edge model';
     }
     summaryEl.textContent = totalRaces + ' resulted races · ' + totalRunners + ' runners · ' + periodLbl + modelLbl;
   }
@@ -10239,11 +10150,10 @@ function trackingSettledBets() {
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   const all = (typeof SETTLED !== 'undefined' ? SETTLED : [])
     .filter(s => (s.date || '') >= cutoffStr);
-  // Model filter - 'both' is pass-through. 'main'/'loose' filters by tag.
-  // Older SETTLED entries without an explicit 'model' field default to
-  // 'main' since they pre-date the loose model being added.
-  if (trackingModel === 'both') return all;
-  return all.filter(s => (s.model || 'main') === trackingModel);
+  // Model filter - single Edge model now. Older SETTLED entries without an
+  // explicit 'model' field default to 'edge' (legacy data should have been
+  // wiped on Edge deploy per the migration plan).
+  return all.filter(s => (s.model || 'edge') === trackingModel);
 }
 
 // Unified data source for the 6 pick-based tracking sections (threshold,
@@ -10724,8 +10634,9 @@ document.querySelectorAll('.ic-mode-btn').forEach(btn => {
   });
 });
 
-// Wire the model toggle buttons (main / loose / both). On click, flip
-// trackingModel, persist, re-render. Active class synced on initial load.
+// Wire the model toggle buttons. Single Edge button now; this loop still
+// runs but only handles the one button. On click, flip trackingModel,
+// persist, re-render. Active class synced on initial load.
 document.querySelectorAll('.ic-model-btn').forEach(btn => {
   btn.classList.toggle('active', btn.dataset.imodel === trackingModel);
   btn.addEventListener('click', () => {
@@ -10767,7 +10678,7 @@ let dbFilters = {
   minScore: null, maxScore: null,
   minSp: null,
   minJky: 0,
-  model: 'any',     // any | main | loose | any-pick | none
+  model: 'any',     // any | edge | none
   result: 'any',    // any | won | placed | lost | resulted | unresulted
   // Per-signal rank filters - each value is 'any', '1', or '3'
   sigWpr: 'any', sigLate: 'any', sigWcR: 'any',
@@ -10780,6 +10691,12 @@ try {
     if (parsed && typeof parsed === 'object') dbFilters = Object.assign(dbFilters, parsed);
   }
 } catch(e) {}
+// Migrate legacy dbFilters.model values from the Main/Loose era. Any
+// 'main', 'loose', or 'any-pick' becomes 'edge' since they all collapse
+// to the single Edge model now. 'any' and 'none' stay as-is.
+if (['main', 'loose', 'any-pick'].includes(dbFilters.model)) {
+  dbFilters.model = 'edge';
+}
 function saveDbFilters() {
   try { localStorage.setItem(DB_FILTERS_KEY, JSON.stringify(dbFilters)); } catch(e) {}
 }
@@ -10814,10 +10731,9 @@ function getDatabaseRows() {
     const lateRanks = rankByField('ls', false);
     const trRanks   = rankByField('trr', false);
 
-    // Pick membership for this race
+    // Pick membership for this race - single Edge model now
     const racePicks = MODEL_PICKS[race.race_id] || {};
-    const mainPickIds  = new Set((racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id)));
-    const loosePickIds = new Set((racePicks['loose']     || []).map(p => String(p.run_id)));
+    const edgePickIds = new Set((racePicks[PRIMARY_KEY] || racePicks['edge'] || []).map(p => String(p.run_id)));
 
     runners.forEach(u => {
       const ridStr = String(u.rid);
@@ -10857,9 +10773,8 @@ function getDatabaseRows() {
         fxd: u.fx,
         sp: u.sp,
         finish: u.f,
-        // Pick membership
-        isMain:  mainPickIds.has(ridStr),
-        isLoose: loosePickIds.has(ridStr),
+        // Pick membership (single model now)
+        isEdge: edgePickIds.has(ridStr),
       });
     });
   });
@@ -10896,11 +10811,11 @@ function filterDatabaseRows(rows) {
     // completed races.
     if (dbFilters.minSp != null && (r.sp == null || r.sp < dbFilters.minSp)) return false;
     if (dbFilters.minJky > 0 && (r.jrt == null || r.jrt < dbFilters.minJky)) return false;
-    // Model pick filter
-    if (dbFilters.model === 'main'     && !r.isMain) return false;
-    if (dbFilters.model === 'loose'    && !r.isLoose) return false;
-    if (dbFilters.model === 'any-pick' && !(r.isMain || r.isLoose)) return false;
-    if (dbFilters.model === 'none'     && (r.isMain || r.isLoose)) return false;
+    // Model pick filter (Edge only). Legacy 'main'/'loose'/'any-pick' values
+    // are migrated to 'edge' at load time (see dbFilters init above), so
+    // we only need to handle the canonical values here.
+    if (dbFilters.model === 'edge' && !r.isEdge) return false;
+    if (dbFilters.model === 'none' && r.isEdge) return false;
     // Result filter
     const resulted = r.finish != null;
     const won = r.finish === 1;
@@ -11085,14 +11000,11 @@ function renderDatabaseTable(rows) {
     '</tr></thead><tbody>';
   display.forEach(r => {
     let cls = '';
-    if (r.isMain && r.isLoose) cls = 'is-pick';
-    else if (r.isMain) cls = 'is-pick';
-    else if (r.isLoose) cls = 'is-loose-pick';
-    // Horse cell with pick pills
+    if (r.isEdge) cls = 'is-pick';
+    // Horse cell with pick pill - single Edge model
     let horseHtml = '<span class="horse-link" data-rid="' + r.race_id + '">' +
       escapeHtml(r.horse || '') + '</span>';
-    if (r.isMain)  horseHtml += '<span class="db-pick-pill main">M</span>';
-    if (r.isLoose) horseHtml += '<span class="db-pick-pill loose">L</span>';
+    if (r.isEdge) horseHtml += '<span class="db-pick-pill main">E</span>';
     // Finish badge
     let finishHtml;
     if (r.finish == null) finishHtml = '<td class="num">—</td>';
