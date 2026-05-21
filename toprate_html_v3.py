@@ -985,12 +985,14 @@ body {
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
 }
-/* Desktop signal chip layout: 4-column grid for the 7 voting signals.
-   Two rows (WPR/Class/L600/PFAI top, TR/Time/L400 + empty bottom). To the
-   right of this grid sits the score-votes-stack: Score chip above Votes
-   badge. This separates "why this was picked" (7 voting chips across
-   both Edge and Volume models) from "how strong is the pick" (Score +
-   Votes summary). */
+/* Desktop signal chip layout: per-active-model.
+   Edge tab: 4 chips in a row (WPR + L600 + Time + L400).
+   Volume tab: 3 chips in a row (PFAI + TR + L400).
+   Single row in both cases since we're under 5 chips total. The grid
+   auto-fits with max 4 columns; Volume's 3 chips just leave one empty
+   slot but stay aligned with Edge's layout. To the right sits the
+   score-votes-stack: Score chip + Votes badge + optional cross-model
+   "Also X" badge. */
 .pr-sigs-top .desktop-chips {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1080,6 +1082,21 @@ body {
   color: #fbbf24; font-size: 10px; font-weight: 700;
   margin-left: 2px;
 }
+
+/* Cross-model badge - "+E" or "+V" pill shown when a horse is also picked
+   by the OTHER model. Sits in the same mini-column as the Votes badge,
+   under it. Coloured to match the other model's brand colour so the
+   badge is instantly recognisable: green = also Edge, amber = also Volume. */
+.pr-sigs .sig.cross-badge {
+  font-family: var(--font-body); font-size: 10px; font-weight: 700;
+  padding: 2px 6px;
+  display: inline-flex; align-items: center;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+  border-radius: 3px;
+}
+.pr-sigs .sig.cross-badge.cross-edge   { background: var(--emerald); color: #fff; }
+.pr-sigs .sig.cross-badge.cross-volume { background: #d97706; color: #fff; }
 
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
@@ -4934,8 +4951,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
            Toggle is hidden when mode = 'all' (model filter meaningless
            when we're analysing every runner regardless of pick). -->
       <div class="ic-model-toggle" id="ic-model-toggle">
-        <button class="ic-model-btn active" data-imodel="edge" title="Edge: premium picks. Single rule WPR+L600+Time+L400 (2 top-1, 3 top-3). Prize>=$50k + jockey rating>=80 filters.">Edge</button>
-        <button class="ic-model-btn" data-imodel="volume" title="Volume: high-frequency stream. Single rule PFAI+TR+L400 (1 top-1, 2 top-3). Jockey rating>=80 filter only.">Volume</button>
+        <button class="ic-model-btn active" data-imodel="edge" title="Edge: premium picks. Single rule WPR+L600+Speed+L400 (2 top-1, 3 top-3). Prize>=$50k + jockey rating>=80 filters.">Edge</button>
+        <button class="ic-model-btn" data-imodel="volume" title="Volume: high-frequency stream. Single rule PFAI+TR+L400+L600 (1 top-1, 3 top-3). Jockey rating>=80 filter only. Stake at HALF Edge size.">Volume</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -5274,21 +5291,21 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="setting-row">
         <div>
           <div class="lbl">Bet to return</div>
-          <div class="desc">Target gross return per bet in units (stake + profit on a winner). Stake = target / price.</div>
+          <div class="desc">Target gross return per bet in units (stake + profit on a winner). Stake = target / price. <strong>Volume picks are auto-halved</strong> (lower per-pick edge + higher volume).</div>
         </div>
         <input type="number" class="setting-input" id="setting-target" value="4" min="0.5" step="0.5">
       </div>
       <div class="setting-row">
         <div>
           <div class="lbl">Min stake</div>
-          <div class="desc">Minimum stake floor in units (caps very long shots).</div>
+          <div class="desc">Minimum stake floor in units (caps very long shots). Volume picks use half this floor.</div>
         </div>
         <input type="number" class="setting-input" id="setting-min" value="0.25" min="0" step="0.05">
       </div>
       <div class="setting-row">
         <div>
           <div class="lbl">Max stake</div>
-          <div class="desc">Maximum stake ceiling in units (caps short prices).</div>
+          <div class="desc">Maximum stake ceiling in units (caps short prices). Volume picks use half this ceiling.</div>
         </div>
         <input type="number" class="setting-input" id="setting-max" value="4" min="0.5" step="0.5">
       </div>
@@ -5628,12 +5645,22 @@ document.getElementById('unit-display').textContent = '1u = $' + settings.unitDo
 // equals Nu. Profit on a winner = N - stake.
 // When the user has entered an actual oddsTaken value, they have already bet,
 // so the maxStake safety cap is removed. We still respect minStake.
+//
+// Volume picks bet at HALF stake of Edge picks (model='volume'). Volume is
+// higher-frequency + lower per-pick edge than Edge, so half-staking matches
+// the risk profile. The halving is applied AFTER the target/price math and
+// AFTER the min/max clamps - so a Volume pick that would have been 1.0u
+// becomes 0.5u, but min/max floors/ceilings are also halved proportionally
+// (a 4u max Edge → 2u max Volume; a 0.25u min Edge → 0.125u min Volume).
 function calcStake(price, opts) {
   if (!price || price <= 1) return null;
   const capExempt = opts && opts.capExempt;
-  const raw = settings.targetReturn / price;
-  const upper = capExempt ? Infinity : settings.maxStake;
-  const clamped = Math.min(upper, Math.max(settings.minStake, raw));
+  const model = (opts && opts.model) || 'edge';
+  const stakeMult = model === 'volume' ? 0.5 : 1.0;
+  const raw = (settings.targetReturn * stakeMult) / price;
+  const upper = capExempt ? Infinity : (settings.maxStake * stakeMult);
+  const lower = settings.minStake * stakeMult;
+  const clamped = Math.min(upper, Math.max(lower, raw));
   return Math.round(clamped * 100) / 100;
 }
 function fmtUnits(u) { return u == null ? '—' : u.toFixed(2) + 'u'; }
@@ -5857,6 +5884,16 @@ function renderToday() {
   // Active-model-only picks for this date (pre-filter)
   const activeModel = (activeModels && activeModels.today) || 'edge';
   const modelPicksForDate = dateAllPicks.filter(p => (p.model || 'edge') === activeModel);
+  // Cross-model overlap lookup: which (race_id, run_id) pairs are picked by
+  // the OTHER model? Used on the Volume sub-tab to show an "Also Edge" badge
+  // when both models picked the same horse - those are the high-conviction
+  // cross-model overlap picks. Same lookup on Edge sub-tab shows "Also Volume".
+  const otherModel = activeModel === 'edge' ? 'volume' : 'edge';
+  const otherModelKeys = new Set(
+    dateAllPicks
+      .filter(p => (p.model || 'edge') === otherModel)
+      .map(p => String(p.race_id) + ':' + String(p.run_id))
+  );
   // Apply Today filters (field size, jky rating). Rows that fail filters
   // are hidden entirely (not dimmed) because Today rows are large and
   // action-oriented - dimming would be visually noisy. Hero stats below
@@ -5982,7 +6019,7 @@ function renderToday() {
     // The threshold is a pre-bet filter; once you have bet, calculate.
     const isActiveBet = meetsThreshold || hasOddsTaken;
     const stake = (isActiveBet && stakePrice != null && stakePrice > 1)
-                    ? calcStake(stakePrice, { capExempt: hasOddsTaken }) : null;
+                    ? calcStake(stakePrice, { capExempt: hasOddsTaken, model: p.model }) : null;
     if (meetsThreshold) todayQualifying++;
 
     // Result state
@@ -6084,42 +6121,56 @@ function renderToday() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
-    // Voting rule transparency: show how many of the 7 signals hit top-3
-    // and how many were #1. New 7-signal set: WPR, Class, L600, PFAI, TR,
-    // Time, L400 (Late dropped, no longer used by either model).
-    // Edge rule: WPR+L600+Time+L400 (2 top-1, 3 top-3).
-    // Volume rule: PFAI+TR+L400 (1 top-1, 2 top-3).
+    // Voting rule transparency: show how many signals hit top-3 and how
+    // many were #1 across the ACTIVE MODEL'S signal set.
+    //   Edge:   WPR + L600 + Speed + L400 (2 top-1, 3 top-3 required)
+    //   Volume: PFAI + TR + L400 + L600  (1 top-1, 3 top-3 required)
     // Vote badge is the ONLY signal indicator shown on mobile.
-    const voteRanks = [p.wpr_rank, p.wcR, p.l600R, p.pfaiR, p.tr_rank, p.time_rank, p.l400R];
+    const isEdgeTab = activeModel === 'edge';
+    const voteRanks = isEdgeTab
+      ? [p.wpr_rank, p.l600R, p.time_rank, p.l400R]
+      : [p.pfaiR, p.tr_rank, p.l400R, p.l600R];
+    const voteN = voteRanks.length;
     const voteTop3 = voteRanks.filter(r => r != null && r <= 3).length;
     const voteTop1 = voteRanks.filter(r => r != null && r === 1).length;
-    const voteTooltip = voteTop3 + ' of 7 signals rank top-3, ' + voteTop1 + ' rank #1. ' +
-                    'Edge rule needs >=3 top-3 AND >=2 #1 of WPR+L600+Time+L400. ' +
-                    'Volume rule needs >=2 top-3 AND >=1 #1 of PFAI+TR+L400.';
+    const voteThreshold = isEdgeTab ? 2 : 1;  // #1 votes needed by rule
+    const voteTooltip = isEdgeTab
+      ? voteTop3 + ' of 4 Edge signals top-3, ' + voteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
+      : voteTop3 + ' of 4 Volume signals top-3, ' + voteTop1 + ' rank #1. Rule: >=1 #1 AND >=3 top-3.';
     const voteBadgeHtml = '<span class="sig vote-badge" title="' + voteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
-      '<span class="v">' + voteTop3 + '/7</span>' +
-      (voteTop1 >= 2 ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
+      '<span class="v">' + voteTop3 + '/' + voteN + '</span>' +
+      (voteTop1 >= voteThreshold ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 7 voting signals across both models.
-    // Edge uses WPR+L600+Time+L400; Volume uses PFAI+TR+L400. Class shown
-    // for context. Score is separate (mini-column right) since it's the
-    // headline confidence metric, not a voting signal.
-    const desktopChipsHtml =
-      sigPill('WPR',   p.wpr_rank) +
-      sigPill('Class', p.wcR) +
-      sigPill('L600',  p.l600R) +
-      sigPill('PFAI',  p.pfaiR) +
-      sigPill('TR',    p.tr_rank) +
-      sigPill('Time',  p.time_rank) +
-      sigPill('L400',  p.l400R);
+    // Cross-model "Also X" badge: when the same horse was also picked by the
+    // other model. Shows next to the votes badge. These are high-conviction
+    // overlap picks where both rules agreed independently.
+    const isCrossPick = otherModelKeys.has(String(p.race_id) + ':' + String(p.run_id));
+    const crossBadgeHtml = isCrossPick
+      ? (isEdgeTab
+          ? '<span class="sig cross-badge cross-volume" title="Also picked by Volume model">+V</span>'
+          : '<span class="sig cross-badge cross-edge" title="Also picked by Edge model">+E</span>')
+      : '';
+
+    // Desktop signal chips - shows only the active model's signals.
+    // Edge tab: WPR + L600 + Speed + L400 (4 Edge voting signals).
+    // Volume tab: PFAI + TR + L400 + L600 (4 Volume voting signals).
+    const desktopChipsHtml = isEdgeTab
+      ? (sigPill('WPR',  p.wpr_rank) +
+         sigPill('L600', p.l600R) +
+         sigPill('Speed', p.time_rank) +
+         sigPill('L400', p.l400R))
+      : (sigPill('PFAI', p.pfaiR) +
+         sigPill('TR',   p.tr_rank) +
+         sigPill('L400', p.l400R) +
+         sigPill('L600', p.l600R));
     // Score chip stacks above Votes badge in a dedicated mini-column
     const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + '</span>';
+      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + crossBadgeHtml + '</span>';
     // Form string row underneath: "3-1-7-2" - shown on desktop only; on
     // mobile it moves into the expand panel to keep rows tight.
     const formHtml = r.fm ?
@@ -6673,7 +6724,7 @@ function buildDetailHTML(p, r) {
     const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
     let stakeUnits = null, returnUnits = null, usedFallback = false;
     if (stakePrice && stakePrice > 1) {
-      stakeUnits = calcStake(stakePrice, { capExempt: hasOddsTaken });
+      stakeUnits = calcStake(stakePrice, { capExempt: hasOddsTaken, model: p.model });
       const dhMult = bEntry.deadHeat ? 0.5 : 1;
       returnUnits = stakeUnits != null ? stakeUnits * stakePrice * dhMult : null;
       usedFallback = !hasOddsTaken;
@@ -7245,7 +7296,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         fld('Mid speed', midHtml) +
         fld('Total speed', totalHtml) +
         fld('PF AI', pfAiHtml) +
-        fld('Time rank', pfTimeHtml) +
+        fld('PF Time rank', pfTimeHtml) +
         fld('Class rank', pfClassHtml) +
         fld('Early sect', pfEarlyHtml) +
         fld('L600 sect', pfL600Html) +
@@ -7946,8 +7997,10 @@ function renderRaceDetail(raceId) {
       pfRankCell(u.l600R, 'PF Last 600m') +
       pfRankCell(u.pfaiR, 'PF AI') +
       '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      // Time = within-race rank of speed_rating (Edge voting signal)
-      sectCell(u.spd, timeR) +
+      // Time = within-race rank of speed_rating (Edge voting signal).
+      // Rendered as rank pill (1, 2, 3...) matching Class/L600/PFAI/L400
+      // columns. Raw speed_rating value still visible in the detail panel.
+      pfRankCell(timeR, 'Speed (toprate speed rating rank)') +
       // L400 = PF Last 400m rank (Edge voting signal)
       pfRankCell(u.l400R, 'PF Last 400m') +
       // ── Supporting columns (hidden on mobile) ──
@@ -7986,7 +8039,7 @@ function renderRaceDetail(raceId) {
         th('l600R', 'L600') +
         th('pfai',  'PF AI') +
         th('tr',    'TR') +
-        th('time',  'Time') +
+        th('time',  'Speed') +
         th('l400R', 'L400') +
         // ── Supporting / context columns (hidden on mobile) ──
         th('bar', 'Bar') +
@@ -8615,6 +8668,16 @@ function renderPnL() {
   const pnlActiveModel = (activeModels && activeModels.pnl) || 'edge';
   const modelSettled = allSettled.filter(s => (s.model || 'edge') === pnlActiveModel);
 
+  // Cross-model overlap: same horse picked by both models. Built from
+  // allSettled (every model's settled bets) and keyed on (race_id, run_id).
+  // Used to show "Also Edge"/"Also Volume" badge on P&L rows.
+  const pnlOtherModel = pnlActiveModel === 'edge' ? 'volume' : 'edge';
+  const pnlOtherModelKeys = new Set(
+    allSettled
+      .filter(s => (s.model || 'edge') === pnlOtherModel)
+      .map(s => String(s.race_id) + ':' + String(s.run_id))
+  );
+
   // Update sub-tab badge counts to reflect settled counts per model (in current period)
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -8692,7 +8755,7 @@ function renderPnL() {
     // Stake source same as Today/settled-row logic
     const stakePrice = hasOddsTaken ? entry.oddsTaken : s.fxprice;
     if (!stakePrice || stakePrice <= 1) return;
-    const stake = calcStake(stakePrice, { capExempt: hasOddsTaken });
+    const stake = calcStake(stakePrice, { capExempt: hasOddsTaken, model: s.model });
     if (!stake) return;
 
     // Track vs-SP timing edge if both values are available
@@ -8798,7 +8861,7 @@ function renderPnL() {
   const cumPoints = [];
   let runningP = 0, runningS = 0;
   sortedView.forEach(s => {
-    const stake = calcStake(s.fxprice);
+    const stake = calcStake(s.fxprice, { model: s.model });
     if (!stake) return;
     const entry = log[String(s.run_id)];
     const price = effectivePrice(s, entry);
@@ -8924,7 +8987,7 @@ function renderPnL() {
     const stakePrice = hasOddsTaken ? oddsTaken : csvPrice;
     const usingFallback = !hasOddsTaken;
     const stake = (stakePrice != null && stakePrice > 1)
-                    ? calcStake(stakePrice, { capExempt: hasOddsTaken })
+                    ? calcStake(stakePrice, { capExempt: hasOddsTaken, model: s.model })
                     : null;
 
     // Settle price: oddsTaken if recorded, else SP, else fxprice. Same as P&L logic.
@@ -8980,29 +9043,45 @@ function renderPnL() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
-    // Vote count badge - shows model-rule conformance for the original pick.
-    // New 7-signal set matching Today tab: WPR, Class, L600, PFAI, TR, Time, L400.
-    const pVoteRanks = [s.wpr_rank, s.wcR, s.l600R, s.pfaiR, s.tr_rank, s.time_rank, s.l400R];
+    // Vote count badge - shows model-rule conformance for the active sub-tab.
+    //   Edge:   WPR + L600 + Speed + L400 (2 #1, 3 top-3 needed)
+    //   Volume: PFAI + TR + L400 + L600  (1 #1, 3 top-3 needed)
+    const pIsEdgeTab = pnlActiveModel === 'edge';
+    const pVoteRanks = pIsEdgeTab
+      ? [s.wpr_rank, s.l600R, s.time_rank, s.l400R]
+      : [s.pfaiR, s.tr_rank, s.l400R, s.l600R];
+    const pVoteN = pVoteRanks.length;
     const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
     const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
-    const pVoteTooltip = pVoteTop3 + ' of 7 signals rank top-3, ' + pVoteTop1 + ' rank #1.';
+    const pVoteThreshold = pIsEdgeTab ? 2 : 1;
+    const pVoteTooltip = pIsEdgeTab
+      ? pVoteTop3 + ' of 4 Edge signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
+      : pVoteTop3 + ' of 4 Volume signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=1 #1 AND >=3 top-3.';
     const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
-      '<span class="v">' + pVoteTop3 + '/7</span>' +
-      (pVoteTop1 >= 2 ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
+      '<span class="v">' + pVoteTop3 + '/' + pVoteN + '</span>' +
+      (pVoteTop1 >= pVoteThreshold ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Desktop signal chips - the 7 voting signals across both models.
-    // Matches the Today tab layout. Fields are on the settled bet (`s`),
-    // not on the runner_full record (`r`).
-    const desktopChipsHtml =
-      sigPill('WPR',   s.wpr_rank) +
-      sigPill('Class', s.wcR) +
-      sigPill('L600',  s.l600R) +
-      sigPill('PFAI',  s.pfaiR) +
-      sigPill('TR',    s.tr_rank) +
-      sigPill('Time',  s.time_rank) +
-      sigPill('L400',  s.l400R);
+    // Cross-model "Also X" badge: shown when the same horse is also settled
+    // under the other model. Same convention as Today tab.
+    const pIsCrossPick = pnlOtherModelKeys.has(String(s.race_id) + ':' + String(s.run_id));
+    const pCrossBadgeHtml = pIsCrossPick
+      ? (pIsEdgeTab
+          ? '<span class="sig cross-badge cross-volume" title="Also picked by Volume model">+V</span>'
+          : '<span class="sig cross-badge cross-edge" title="Also picked by Edge model">+E</span>')
+      : '';
+
+    // Desktop signal chips - active model's signals only.
+    const desktopChipsHtml = pIsEdgeTab
+      ? (sigPill('WPR',  s.wpr_rank) +
+         sigPill('L600', s.l600R) +
+         sigPill('Speed', s.time_rank) +
+         sigPill('L400', s.l400R))
+      : (sigPill('PFAI', s.pfaiR) +
+         sigPill('TR',   s.tr_rank) +
+         sigPill('L400', s.l400R) +
+         sigPill('L600', s.l600R));
     // Score chip stacks above Votes badge in its own mini-column - same
     // layout as Today tab. Score uses cs (cumulative score), crk (within-race
     // rank for colour tier) + csc (confidence) surfaced on the settled bet.
@@ -9010,7 +9089,7 @@ function renderPnL() {
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + '</span>';
+      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + pCrossBadgeHtml + '</span>';
     const formHtml = r.fm ?
       '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
@@ -9539,7 +9618,7 @@ function exportSettledCSV() {
   const rows = [['date','venue','race','horse','tab','fxd','sp','top','odds_taken','finish','won','placed','pl_units','comments']];
   settled.forEach(s => {
     const e = log[String(s.run_id)] || {};
-    const stake = calcStake(s.fxprice);
+    const stake = calcStake(s.fxprice, { model: s.model });
     const price = effectivePrice(s, e);
     const pl = stake ? (s.won ? stake * (price - 1) : -stake) : 0;
     rows.push([
@@ -9632,7 +9711,11 @@ const TRACKING_SIGNALS = [
   { key: 'total', label: 'Total', field: 'ts' },
   { key: 'l400',  label: 'L400',  field: 'l400R', rankField: true },
   { key: 'l200',  label: 'L200',  field: 'l200R', rankField: true },
-  { key: 'time',  label: 'Time',  field: 'tR',    rankField: true },
+  // Speed = within-race rank of TR's speed_rating (u.spd). This is the
+  // Edge model's "Speed" voting signal. Previously labelled "Time" with
+  // field=tR (PF's time rank) - that was a different signal and is not
+  // used by any model. Renamed and re-pointed for accuracy.
+  { key: 'time',  label: 'Speed', field: 'spd' },
 ];
 
 // Compute per-race within-field rank for one signal.
@@ -11082,7 +11165,7 @@ function renderDatabaseTable(rows) {
     // 7-signal voting set (matches Today/P&L/Race tabs)
     th('wpr', 'WPR') + th('wcR', 'Cls') + th('l600R', 'L600') +
     th('pfaiR', 'PFAI') + th('tr', 'TR') +
-    th('time', 'Time') + th('l400R', 'L400') +
+    th('time', 'Speed') + th('l400R', 'L400') +
     th('jky', 'Jky rt') +
     th('finish', 'Fin') +
     '</tr></thead><tbody>';

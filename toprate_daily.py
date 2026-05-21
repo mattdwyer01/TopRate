@@ -684,10 +684,28 @@ EDGE_MIN_JKY       = 80      # NEW: per-runner jockey rating filter
 #   WR 22%, AvgSP $6.31
 #   6 of 6 backtest Saturdays positive (every Sat between +12% and +37%)
 #
-# Forward expectation: Sat ROI +15-25%, very consistent Saturday-to-Saturday.
+# ── VOLUME model (high-frequency stream) ──────────────────────────────────
+# Single voting rule on PFAI + TR + L400 + L600 (V16 from rule analysis).
+# Updated from original 3-signal version after testing showed adding L600
+# with stricter top-3 threshold meaningfully improves quality at same volume.
+#
+# Tightening rationale:
+#   Original PFAI+TR+L400 (1#1+2t3): backtest Sat +5%, stress -10%
+#   Plus L600  (1#1+3t3, V16):       backtest Sat +22%, stress +7%
+#   Same Saturday volume (~28/Sat), 4x better Sat ROI, stress flips positive.
+#   L600 adds a third independent PF signal (fitness via 600m sectional)
+#   which prevents picks where PFAI+TR alone (correlated quality signals)
+#   carried the rule.
+#
+# Backtest performance (45 days, V16 rule):
+#   Saturday picks: ~29/Sat
+#   Sat ROI: +22.4% headline, +7.4% after dropping top 2 longshots
+#   Win rate: 17%, AvgSP ~$6
+#
+# Forward expectation: Sat ROI +10-20%, more consistent than V0.
 VOLUME_RULES = [
     ("V1", [("pf_ai_rank", "PFAI"), ("tr_rank", "TR"),
-            ("pf_last400_rank", "L400")], 1, 2),
+            ("pf_last400_rank", "L400"), ("pf_last600_rank", "L600")], 1, 3),
 ]
 VOLUME_MIN_AGREE     = 1
 VOLUME_MIN_FIELD     = 8
@@ -754,9 +772,9 @@ MODEL_DEFS = {
     },
     "volume": {
         "label":       "Volume",
-        "desc":        "High-frequency stream: PFAI + TR + L400 (1 of 3 rank #1, 2 of 3 rank top-3). Jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Targets 45+ Saturday picks at +27.5% backtest ROI, 6/6 backtest Saturdays positive. Mid-week ROI -10% (accepted tradeoff for volume).",
-        "expected_wr": 0.22, "expected_roi_sp": 0.18, "expected_roi_top": 0.18,
-        "bets_per_day": 13.5, "min_top_odds": 3.0,
+        "desc":        "High-frequency stream: PFAI + TR + L400 + L600 (1 of 4 rank #1, 3 of 4 rank top-3). Jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Stake at HALF size of Edge picks (Volume is higher-volume + lower per-pick edge). Backtest ~29/Sat at +22.4% Sat ROI, +7.4% stress test.",
+        "expected_wr": 0.17, "expected_roi_sp": 0.15, "expected_roi_top": 0.15,
+        "bets_per_day": 9.5, "min_top_odds": 3.0,
         "is_primary":  False,
         "applies": lambda race_df, run_id, ctx:
             not ctx.get("has_first_starter", False)
