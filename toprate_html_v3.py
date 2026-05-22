@@ -1019,9 +1019,20 @@ body {
   padding: 3px 5px; font-weight: 600; color: var(--ink-mute);
   white-space: nowrap;
 }
-.pr-sigs .sig.r1 { background: var(--emerald); color: #fff; }
-.pr-sigs .sig.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
-.pr-sigs .sig.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+/* Rank chip colours - deliberately restrained to avoid a wall of green.
+   Only rank #1 gets a bold fill (it's the signal worth catching the eye).
+   Ranks 2 and 3 stay neutral grey with a subtle weight/tone difference so
+   they're still readable as "near the top" without competing visually.
+   Anything outside top-3 is the plain muted base style above. */
+.pr-sigs .sig.r1 {
+  background: var(--emerald); color: #fff;
+}
+.pr-sigs .sig.r2 {
+  background: #eef0f2; color: var(--ink);
+}
+.pr-sigs .sig.r3 {
+  background: #f4f5f6; color: var(--ink-soft);
+}
 .pr-sigs .sig .lbl {
   font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
   font-weight: 600; opacity: 0.7;
@@ -1064,14 +1075,15 @@ body {
 }
 
 /* Edge flag - shown next to the horse name on the VOLUME sub-tab when a
-   pick also cleared the stricter Edge rule. Emerald to match Edge's brand
-   colour; sits inline right after the horse name so it reads as part of
-   the identity ("this is a Volume pick that's ALSO Edge-grade"). */
+   pick also cleared the stricter Edge rule. Deliberately NOT green - the
+   row already has green rank chips, the bet tick, and the win strip, so a
+   green flag would vanish into the noise. Indigo gives a clean high-contrast
+   "premium" marker that the eye catches immediately. */
 .pr-runner .rhorse .edge-flag {
   display: inline-block;
   font-family: var(--font-body);
   font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
-  background: var(--emerald); color: #fff;
+  background: #4f46e5; color: #fff;
   padding: 2px 6px; border-radius: 3px;
   margin-left: 7px;
   vertical-align: 2px;
@@ -2820,8 +2832,8 @@ body {
   white-space: nowrap;
 }
 .score-pill.r1 { background: var(--emerald); color: #fff; }
-.score-pill.r2 { background: var(--emerald-bg); color: var(--emerald-deep); }
-.score-pill.r3 { background: #f0fdf4; color: var(--emerald-deep); }
+.score-pill.r2 { background: #eef0f2; color: var(--ink); }
+.score-pill.r3 { background: #f4f5f6; color: var(--ink-soft); }
 .score-pill .lbl { font-size: 9px; opacity: 0.85; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* Race banner "Top 3 by score" inline indicator */
@@ -6066,9 +6078,8 @@ function renderToday() {
       const scoreDisplay = score != null ? Math.round(score * 100) : '—';
       const rankBit = rank != null ? ' (rank #' + rank + ' in this race)' : '';
       const scoreTooltip = 'Score ' + (score != null ? score.toFixed(3) : 'n/a') + rankBit +
-        '. The Score is a logistic regression probability (Path C) that combines TR rating, ' +
-        'WPR, Late, PF AI, PF Class, and PF L600. Threshold for picks is 0.50. ' +
-        'Higher = stronger pick.';
+        '. Weighted average of TR, WPR, Speed, PF AI, L600 and L400 ranks ' +
+        '(TR weighted heaviest). Threshold for picks is 0.50. Higher = stronger pick.';
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
