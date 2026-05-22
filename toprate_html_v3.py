@@ -823,7 +823,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    410px             /* signals strip - 4-col voting chips (7 signals) + Score/Votes stack */
+    380px             /* signals strip - unified 6-col chip grid (voting + Score + Votes) */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -840,7 +840,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1268px;
+  min-width: 1238px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -985,47 +985,27 @@ body {
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
 }
-/* Desktop signal chip layout: per-active-model.
-   Edge tab: 4 chips in a row (WPR + L600 + Time + L400).
-   Volume tab: 3 chips in a row (PFAI + TR + L400).
-   Single row in both cases since we're under 5 chips total. The grid
-   auto-fits with max 4 columns; Volume's 3 chips just leave one empty
-   slot but stay aligned with Edge's layout. To the right sits the
-   score-votes-stack: Score chip + Votes badge + optional cross-model
-   "Also X" badge. */
-.pr-sigs-top .desktop-chips {
+/* Unified signal chip grid. ALL chips - voting signals, Score, and Votes -
+   live in this one grid so every chip aligns to the same columns.
+   6 columns handles the widest case (Edge: WPR L600 Speed L400 Score Votes).
+   Volume uses 5 (PFAI TR L400 Score Votes) and leaves the 6th cell empty
+   but still column-aligned. Each chip is identical width via the grid;
+   no chip is special-cased. */
+.pr-sigs-top .chip-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px 5px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px 4px;
   flex: 0 0 auto;
+  width: 372px;   /* 6 columns at ~58px + 5 gaps of 4px - fits labelled chips */
 }
-.pr-sigs-top .score-votes-stack {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 3px 5px;
-  align-items: stretch;
-  flex: 0 0 auto;
-  /* Match the natural width of a voting chip in the 3-col grid above so the
-     Score and Votes pills line up visually with the WPR/Late/Class/etc chips
-     to their left. The widest voting chip content (e.g. "CLASS 1") renders
-     at roughly this width with the standard 3px/5px padding. */
-  width: 52px;
-}
-/* Stretch chips inside the stack so they have matching width, and centre
-   their content. Padding clipped to 3px (vs the default 5px) so the
-   stripped-label content fits cleanly inside the 52px stack. */
-.pr-sigs-top .score-votes-stack .sig {
+/* Every chip in the grid renders identically: centred content, uniform
+   padding. Score and Votes are NOT visually special - they sit in the
+   same grid cells as the voting chips. */
+.pr-sigs-top .chip-grid .sig {
   justify-content: center;
   padding-left: 3px; padding-right: 3px;
   gap: 3px;
-}
-/* Hide both "Score" and "Votes" labels on the stacked chips - at 52px
-   wide there isn't room for both label + value + suffix (confidence dot
-   on Score, ★ count on Votes). The column position next to the voting
-   chips already implies the meaning, and the suffixes self-label
-   (• indicator for confidence, ★N for top-1 vote count). */
-.pr-sigs-top .score-votes-stack .sig .lbl {
-  display: none;
+  min-width: 0;
 }
 .pr-form {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
@@ -1148,11 +1128,11 @@ body {
 .picks-header {
   display: grid;
   /* Column widths MUST match .pick-row exactly so the header labels line
-     up with the data cells below them. Signals column is 410px: 4-col grid
-     for the 7 voting signals (WPR/Class/L600/PFAI on row 1, TR/Time/L400
-     on row 2) plus the Score+Votes stack to the right. */
+     up with the data cells below them. Signals column is 360px: a single
+     unified 6-column chip grid (voting signals + Score + Votes, all
+     aligned to the same columns). */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 410px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 380px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -1161,7 +1141,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1268px;
+  min-width: 1238px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -1183,7 +1163,7 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ink-mute);
-  min-width: 1268px;
+  min-width: 1238px;
   box-sizing: border-box;
 }
 .picks-section-head:first-child { padding-top: 4px; }
@@ -1535,11 +1515,9 @@ body {
   .pick-row .pr-stake { display: none; }
   .cell-lbl { display: none; }
 
-  /* (Previously had an enlarged vote-badge override here when the badge
-     was the sole mobile indicator. Now that all 6 voting chips render
-     inline on mobile alongside the score-votes-stack chips, the badge
-     uses the same compact sizing as the other chips - see the
-     score-votes-stack rules further down for the unified sizing.) */
+  /* (The vote badge uses the same compact chip sizing as all other chips
+     in the unified .chip-grid - no special-casing. See the .chip-grid
+     mobile rules above.) */
 
   /* On Today (pending) rows, hide return too - shown in expand panel.
      On P&L (settled) rows, show return as the most useful at-a-glance number. */
@@ -1581,48 +1559,22 @@ body {
   .pr-runner .rhorse { font-size: 14px; }
   .pr-runner .rmeta { font-size: 11px; line-height: 1.35; }
   .pr-sigs { grid-area: sigs; }
-  /* Mobile: show all 6 voting signal chips inline alongside the Votes badge.
-     Chips wrap to a second row if needed. Form string stays in detail to
-     save vertical space, but signal ranks are useful at a glance and should
-     stay in the row (user feedback - they're scanning for #1 votes across
-     signals to gauge pick strength visually). */
+  /* Mobile: the unified chip grid becomes a wrap-flow so all chips
+     (voting + Score + Votes) wrap naturally across rows instead of being
+     locked to 6 fixed columns. They stay equal-sized and aligned within
+     the wrap. */
   .pr-sigs-top { flex-wrap: wrap; gap: 4px 5px; justify-content: flex-start; }
-  .pr-sigs-top .desktop-chips {
-    display: inline-flex; flex-wrap: wrap; gap: 4px 5px;
+  .pr-sigs-top .chip-grid {
+    display: flex; flex-wrap: wrap; gap: 4px 5px;
+    width: auto;
   }
   .pr-form.desktop-only { display: none; }
-  /* Slightly compress the signal pills on mobile so all 7 fit comfortably */
-  .pr-sigs-top .desktop-chips .sig {
+  /* Compress the chips on mobile so they fit comfortably when wrapped. */
+  .pr-sigs-top .chip-grid .sig {
     padding: 2px 6px; font-size: 10px;
   }
-  .pr-sigs-top .desktop-chips .sig .lbl { font-size: 9px; }
-  .pr-sigs-top .desktop-chips .sig .v { font-size: 11px; font-weight: 700; }
-  /* On mobile, dissolve the Score/Votes stack column so Score and Votes
-     join the same wrap-flow as the voting chips. display: contents makes
-     the wrapper invisible to the layout - the two chips become direct
-     children of pr-sigs-top and flow alongside WPR/Late/Class/etc. This
-     replaces the previous vertical-column layout which visually separated
-     Score and Votes from the voting chips. */
-  .pr-sigs-top .score-votes-stack {
-    display: contents;
-  }
-  /* Match the voting chips' compressed sizing so Score and Votes sit
-     visually consistent in the wrapped row. */
-  .pr-sigs-top .score-votes-stack .sig {
-    padding: 2px 6px; font-size: 10px;
-  }
-  .pr-sigs-top .score-votes-stack .sig .lbl {
-    display: inline; font-size: 9px;
-  }
-  .pr-sigs-top .score-votes-stack .sig .v {
-    font-size: 11px; font-weight: 700;
-  }
-  /* Vote badge keeps its enlarged presence override from earlier in this
-     media query (line ~1294) for the star + ratio. Tighten it to match
-     the other chip sizing now that it sits inline with them. */
-  .pr-sigs-top .score-votes-stack .vote-badge {
-    padding: 2px 7px;
-  }
+  .pr-sigs-top .chip-grid .sig .lbl { font-size: 9px; }
+  .pr-sigs-top .chip-grid .sig .v { font-size: 11px; font-weight: 700; }
 
   /* Bottom strip: Fxd | result | bet (or return for settled), single row */
   .pr-odds {
@@ -6152,10 +6104,13 @@ function renderToday() {
       ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
       : '';
 
-    // Desktop signal chips - shows only the active model's signals.
-    // Edge tab: WPR + L600 + Speed + L400 (4 Edge voting signals).
-    // Volume tab: PFAI + TR + L400 (3 Volume voting signals).
-    const desktopChipsHtml = isEdgeTab
+    // Signal chips - ALL chips (voting signals + Score + Votes) flow into
+    // ONE unified grid so every chip shares the same column alignment.
+    //   Edge tab:   WPR L600 Speed L400 | Score Votes  (6 chips)
+    //   Volume tab: PFAI TR L400        | Score Votes  (5 chips, 1 gap)
+    // Score and Votes keep their labels - they sit in the same grid as the
+    // voting chips so there's room, and the labels disambiguate them.
+    const votingChipsHtml = isEdgeTab
       ? (sigPill('WPR',  p.wpr_rank) +
          sigPill('L600', p.l600R) +
          sigPill('Speed', p.time_rank) +
@@ -6163,12 +6118,12 @@ function renderToday() {
       : (sigPill('PFAI', p.pfaiR) +
          sigPill('TR',   p.tr_rank) +
          sigPill('L400', p.l400R));
-    // Score chip stacks above Votes badge in a dedicated mini-column
     const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
 
     const sigsTopHtml =
-      '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + '</span>';
+      '<span class="chip-grid">' +
+        votingChipsHtml + scoreChipHtml + voteBadgeHtml +
+      '</span>';
     // Form string row underneath: "3-1-7-2" - shown on desktop only; on
     // mobile it moves into the expand panel to keep rows tight.
     const formHtml = r.fm ?
@@ -9070,8 +9025,9 @@ function renderPnL() {
       ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
       : '';
 
-    // Desktop signal chips - active model's signals only.
-    const desktopChipsHtml = pIsEdgeTab
+    // Signal chips - unified grid (same as Today tab). All chips share
+    // column alignment: voting signals + Score + Votes in one grid.
+    const votingChipsHtml = pIsEdgeTab
       ? (sigPill('WPR',  s.wpr_rank) +
          sigPill('L600', s.l600R) +
          sigPill('Speed', s.time_rank) +
@@ -9079,14 +9035,12 @@ function renderPnL() {
       : (sigPill('PFAI', s.pfaiR) +
          sigPill('TR',   s.tr_rank) +
          sigPill('L400', s.l400R));
-    // Score chip stacks above Votes badge in its own mini-column - same
-    // layout as Today tab. Score uses cs (cumulative score), crk (within-race
-    // rank for colour tier) + csc (confidence) surfaced on the settled bet.
     const scoreChipHtml = scoreSigPill(s.crk, s.cs, s.csc);
 
     const sigsTopHtml =
-      '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + '</span>';
+      '<span class="chip-grid">' +
+        votingChipsHtml + scoreChipHtml + pVoteBadgeHtml +
+      '</span>';
     const formHtml = r.fm ?
       '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
