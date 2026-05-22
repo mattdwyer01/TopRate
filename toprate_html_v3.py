@@ -823,7 +823,7 @@ body {
     52px              /* time */
     100px             /* venue + race # */
     minmax(180px, 1fr)  /* horse + meta */
-    380px             /* signals strip - unified 6-col chip grid (voting + Score + Votes) */
+    390px             /* signals strip - unified chip row (voting + Score + Votes) */
     72px              /* odds (Fxd) */
     72px              /* stake */
     72px              /* return */
@@ -840,7 +840,7 @@ body {
   min-height: 48px;
   /* Min width ensures all columns fit; horizontal scroll on .picks-scroll
      kicks in below this on narrow viewports */
-  min-width: 1238px;
+  min-width: 1248px;
 }
 .pick-row.bet-placed {
   box-shadow: inset 4px 0 0 var(--emerald);
@@ -979,33 +979,34 @@ body {
 }
 
 .pr-sigs {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 3px;
   padding-right: 12px;
+  min-width: 0;
 }
 .pr-sigs-top {
   display: flex; gap: 8px; align-items: center;
+  width: 100%;
 }
-/* Unified signal chip grid. ALL chips - voting signals, Score, and Votes -
-   live in this one grid so every chip aligns to the same columns.
-   6 columns handles the widest case (Edge: WPR L600 Speed L400 Score Votes).
-   Volume uses 5 (PFAI TR L400 Score Votes) and leaves the 6th cell empty
-   but still column-aligned. Each chip is identical width via the grid;
-   no chip is special-cased. */
+/* Signal chip strip. ALL chips - voting signals, Score, Votes - sit in one
+   flex row. Each chip sizes to ITS OWN content so nothing clips: a rank
+   chip ("WPR 1") is narrow, "SCORE 76" is wider, "VOTES 2/3 *" wider still.
+   wrap is allowed as a safety so a wide combination drops to a second line
+   rather than clipping. The signals column is sized generously below to
+   keep everything on one line in the normal case. */
 .pr-sigs-top .chip-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 3px 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
   flex: 0 0 auto;
-  width: 372px;   /* 6 columns at ~58px + 5 gaps of 4px - fits labelled chips */
+  width: 100%;
 }
-/* Every chip in the grid renders identically: centred content, uniform
-   padding. Score and Votes are NOT visually special - they sit in the
-   same grid cells as the voting chips. */
+/* Chips size to content. No forced min/max - each chip is exactly as wide
+   as its label + value needs, and never clips its content. */
 .pr-sigs-top .chip-grid .sig {
-  justify-content: center;
-  padding-left: 3px; padding-right: 3px;
-  gap: 3px;
-  min-width: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: visible;
 }
 .pr-form {
   font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
@@ -1019,19 +1020,18 @@ body {
   padding: 3px 5px; font-weight: 600; color: var(--ink-mute);
   white-space: nowrap;
 }
-/* Rank chip colours - deliberately restrained to avoid a wall of green.
-   Only rank #1 gets a bold fill (it's the signal worth catching the eye).
-   Ranks 2 and 3 stay neutral grey with a subtle weight/tone difference so
-   they're still readable as "near the top" without competing visually.
-   Anything outside top-3 is the plain muted base style above. */
+/* Rank chip colours - graduated green so a top-3 signal still reads as
+   "strong" but with a clear hierarchy instead of a flat wall of emerald.
+   r1 = bold emerald fill (the standout). r2/r3 = progressively lighter
+   green tints with dark-green text. Outside top-3 = plain muted base. */
 .pr-sigs .sig.r1 {
   background: var(--emerald); color: #fff;
 }
 .pr-sigs .sig.r2 {
-  background: #eef0f2; color: var(--ink);
+  background: #bbf7d0; color: #065f46;
 }
 .pr-sigs .sig.r3 {
-  background: #f4f5f6; color: var(--ink-soft);
+  background: #dcfce7; color: #047857;
 }
 .pr-sigs .sig .lbl {
   font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
@@ -1144,7 +1144,7 @@ body {
      unified 6-column chip grid (voting signals + Score + Votes, all
      aligned to the same columns). */
   grid-template-columns:
-    52px 100px minmax(180px, 1fr) 380px 72px 72px 72px 96px 110px 24px;
+    52px 100px minmax(180px, 1fr) 390px 72px 72px 72px 96px 110px 24px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -1153,7 +1153,7 @@ body {
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   /* Match picks-list min-width so columns align */
-  min-width: 1238px;
+  min-width: 1248px;
 }
 .picks-header > div {
   font-family: var(--font-body); font-size: 10px; font-weight: 600;
@@ -1175,7 +1175,7 @@ body {
   font-family: var(--font-body); font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ink-mute);
-  min-width: 1238px;
+  min-width: 1248px;
   box-sizing: border-box;
 }
 .picks-section-head:first-child { padding-top: 4px; }
@@ -2832,8 +2832,8 @@ body {
   white-space: nowrap;
 }
 .score-pill.r1 { background: var(--emerald); color: #fff; }
-.score-pill.r2 { background: #eef0f2; color: var(--ink); }
-.score-pill.r3 { background: #f4f5f6; color: var(--ink-soft); }
+.score-pill.r2 { background: #bbf7d0; color: #065f46; }
+.score-pill.r3 { background: #dcfce7; color: #047857; }
 .score-pill .lbl { font-size: 9px; opacity: 0.85; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* Race banner "Top 3 by score" inline indicator */
