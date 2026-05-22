@@ -342,3 +342,9 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-22,239764,Wingatui,495,NZ,NZ,OTAG,,"Out 3m from the 1900m to 1400m, Out 6m from the 1400 to 350m. Remainder True",A,True,,2026-05-21T10:12:05.197,2026-05-21T10:11:58,False
 2026-05-22,239782,Canberra Acton,1099,ACT,AUS,ACT,Synthetic,True,A,True,,2026-05-21T06:56:40.46,2026-05-21T06:56:07,False
 2026-05-22,239798,Pakenham,1134,VIC,AUS,PAKM,Turf,Out 6m Entire Circuit,A,True,,2026-05-21T12:50:09.373,2026-05-21T12:50:04,False
+2026-05-23,239818,Newcastle,103,NSW,AUS,NCLE,Turf,+5m Entire,A,True,,2026-05-22T18:29:37.703,2026-05-22T18:29:35,False
+2026-05-23,239838,Beaudesert,139,QLD,AUS,BDST,Turf,True Entire,A,True,,2026-05-22T18:26:52.3,2026-05-22T04:45:44,False
+2026-05-23,239821,Mackay,211,QLD,AUS,MKAY,Turf,True Entire Course.,A,True,,2026-05-22T14:01:31.733,2026-05-22T14:01:27,False
+2026-05-23,239825,Toowoomba,258,QLD,AUS,TWBA,Turf,+5m Entire,A,True,,2026-05-22T18:26:52.3,2026-05-22T18:26:49,False
+2026-05-23,239827,Echuca,295,VIC,AUS,ECHA,Turf,"Out 3m 1000m - 400m, True Remainder",A,True,,2026-05-22T17:06:18.507,2026-05-22T17:06:12,False
+2026-05-23,239817,Wagga Riverside,1132,NSW,AUS,WAGR,Turf,Riverside track- True,A,True,,2026-05-22T16:41:56.11,2026-05-22T16:41:50,False
