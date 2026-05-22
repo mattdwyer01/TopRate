@@ -1083,20 +1083,19 @@ body {
   margin-left: 2px;
 }
 
-/* Cross-model badge - "+E" or "+V" pill shown when a horse is also picked
-   by the OTHER model. Sits in the same mini-column as the Votes badge,
-   under it. Coloured to match the other model's brand colour so the
-   badge is instantly recognisable: green = also Edge, amber = also Volume. */
-.pr-sigs .sig.cross-badge {
-  font-family: var(--font-body); font-size: 10px; font-weight: 700;
-  padding: 2px 6px;
-  display: inline-flex; align-items: center;
-  letter-spacing: 0.02em;
-  margin-top: 2px;
-  border-radius: 3px;
+/* Edge flag - shown next to the horse name on the VOLUME sub-tab when a
+   pick also cleared the stricter Edge rule. Emerald to match Edge's brand
+   colour; sits inline right after the horse name so it reads as part of
+   the identity ("this is a Volume pick that's ALSO Edge-grade"). */
+.pr-runner .rhorse .edge-flag {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
+  background: var(--emerald); color: #fff;
+  padding: 2px 6px; border-radius: 3px;
+  margin-left: 7px;
+  vertical-align: 2px;
 }
-.pr-sigs .sig.cross-badge.cross-edge   { background: var(--emerald); color: #fff; }
-.pr-sigs .sig.cross-badge.cross-volume { background: #d97706; color: #fff; }
 
 .pr-odds {
   display: flex; align-items: center; gap: 4px; justify-content: flex-end;
@@ -4952,7 +4951,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
            when we're analysing every runner regardless of pick). -->
       <div class="ic-model-toggle" id="ic-model-toggle">
         <button class="ic-model-btn active" data-imodel="edge" title="Edge: premium picks. Single rule WPR+L600+Speed+L400 (2 top-1, 3 top-3). Prize>=$50k + jockey rating>=80 filters.">Edge</button>
-        <button class="ic-model-btn" data-imodel="volume" title="Volume: high-frequency stream. Single rule PFAI+TR+L400+L600 (1 top-1, 3 top-3). Jockey rating>=80 filter only. Stake at HALF Edge size.">Volume</button>
+        <button class="ic-model-btn" data-imodel="volume" title="Volume: high-frequency stream. Single rule PFAI+TR+L400 (1 top-1, 2 top-3). Jockey rating>=80 filter only. Stake at HALF Edge size.">Volume</button>
       </div>
       <div class="ic-info" id="insights-summary"></div>
     </div>
@@ -6124,38 +6123,38 @@ function renderToday() {
     // Voting rule transparency: show how many signals hit top-3 and how
     // many were #1 across the ACTIVE MODEL'S signal set.
     //   Edge:   WPR + L600 + Speed + L400 (2 top-1, 3 top-3 required)
-    //   Volume: PFAI + TR + L400 + L600  (1 top-1, 3 top-3 required)
+    //   Volume: PFAI + TR + L400          (1 top-1, 2 top-3 required)
     // Vote badge is the ONLY signal indicator shown on mobile.
     const isEdgeTab = activeModel === 'edge';
     const voteRanks = isEdgeTab
       ? [p.wpr_rank, p.l600R, p.time_rank, p.l400R]
-      : [p.pfaiR, p.tr_rank, p.l400R, p.l600R];
+      : [p.pfaiR, p.tr_rank, p.l400R];
     const voteN = voteRanks.length;
     const voteTop3 = voteRanks.filter(r => r != null && r <= 3).length;
     const voteTop1 = voteRanks.filter(r => r != null && r === 1).length;
     const voteThreshold = isEdgeTab ? 2 : 1;  // #1 votes needed by rule
     const voteTooltip = isEdgeTab
       ? voteTop3 + ' of 4 Edge signals top-3, ' + voteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
-      : voteTop3 + ' of 4 Volume signals top-3, ' + voteTop1 + ' rank #1. Rule: >=1 #1 AND >=3 top-3.';
+      : voteTop3 + ' of 3 Volume signals top-3, ' + voteTop1 + ' rank #1. Rule: >=1 #1 AND >=2 top-3.';
     const voteBadgeHtml = '<span class="sig vote-badge" title="' + voteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
       '<span class="v">' + voteTop3 + '/' + voteN + '</span>' +
       (voteTop1 >= voteThreshold ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
       '</span>';
 
-    // Cross-model "Also X" badge: when the same horse was also picked by the
-    // other model. Shows next to the votes badge. These are high-conviction
-    // overlap picks where both rules agreed independently.
+    // Cross-model badge: ONLY shown on the Volume sub-tab, where it flags
+    // picks that ALSO cleared the stricter Edge rule - genuinely useful
+    // signal (cross-model agreement = higher conviction). Not shown on the
+    // Edge tab: Edge picks frequently also qualify for Volume's looser rule,
+    // so a "+V" there would be near-universal noise.
     const isCrossPick = otherModelKeys.has(String(p.race_id) + ':' + String(p.run_id));
-    const crossBadgeHtml = isCrossPick
-      ? (isEdgeTab
-          ? '<span class="sig cross-badge cross-volume" title="Also picked by Volume model">+V</span>'
-          : '<span class="sig cross-badge cross-edge" title="Also picked by Edge model">+E</span>')
+    const crossBadgeHtml = (!isEdgeTab && isCrossPick)
+      ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
       : '';
 
     // Desktop signal chips - shows only the active model's signals.
     // Edge tab: WPR + L600 + Speed + L400 (4 Edge voting signals).
-    // Volume tab: PFAI + TR + L400 + L600 (4 Volume voting signals).
+    // Volume tab: PFAI + TR + L400 (3 Volume voting signals).
     const desktopChipsHtml = isEdgeTab
       ? (sigPill('WPR',  p.wpr_rank) +
          sigPill('L600', p.l600R) +
@@ -6163,14 +6162,13 @@ function renderToday() {
          sigPill('L400', p.l400R))
       : (sigPill('PFAI', p.pfaiR) +
          sigPill('TR',   p.tr_rank) +
-         sigPill('L400', p.l400R) +
-         sigPill('L600', p.l600R));
+         sigPill('L400', p.l400R));
     // Score chip stacks above Votes badge in a dedicated mini-column
     const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + crossBadgeHtml + '</span>';
+      '<span class="score-votes-stack">' + scoreChipHtml + voteBadgeHtml + '</span>';
     // Form string row underneath: "3-1-7-2" - shown on desktop only; on
     // mobile it moves into the expand panel to keep rows tight.
     const formHtml = r.fm ?
@@ -6356,7 +6354,7 @@ function renderToday() {
       '<div class="pr-runner">' +
         '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
         '<div class="rdetails">' +
-          '<div class="rhorse">' + escapeHtml(p.horse || '') + fsAndJkyChips + '</div>' +
+          '<div class="rhorse">' + escapeHtml(p.horse || '') + crossBadgeHtml + fsAndJkyChips + '</div>' +
           '<div class="rmeta">' + metaLine + '</div>' +
         '</div>' +
       '</div>' +
@@ -6700,7 +6698,6 @@ function buildDetailHTML(p, r) {
     field('Going perf',    goingPerf) +
     field('Wet form',      wetPerf) +
     field('Wt today',      r.wt != null ? r.wt + 'kg' : null) +
-    field('Wt trend',      r.wtr != null ? (r.wtr > 0 ? '+' : '') + r.wtr.toFixed(1) + 'kg' : null) +
     field('Jockey',        r.j) +
     field('Jockey rating', jockeyRatingStr) +
     field('Trainer',       r.tn) +
@@ -6780,12 +6777,15 @@ function buildDetailHTML(p, r) {
     const sigs = r.csg || {};
     const conf = r.csc;
     const sigNames = Object.keys(sigs);
-    // Map raw signal keys to display labels
+    // Map raw signal keys to display labels. These are the 6 model-aligned
+    // score signals (union of Edge + Volume). Late/Class no longer appear.
     const sigDisplayMap = {
-      'toprate_rating': 'TopRate rating',
-      'wpr_avg_last3':  'WPR avg last 3',
-      'late_speed_score': 'Late speed',
-      'jt_combo_win_pct': 'Jky/trn combo',
+      'toprate_rating':  'TR',
+      'wpr_avg_last3':   'WPR',
+      'speed_rating':    'Speed',
+      'pf_ai_rank':      'PF AI',
+      'pf_last600_rank': 'L600',
+      'pf_last400_rank': 'L400',
     };
     let sigRowsHtml = '';
     if (sigNames.length > 0) {
@@ -9045,31 +9045,29 @@ function renderPnL() {
     }
     // Vote count badge - shows model-rule conformance for the active sub-tab.
     //   Edge:   WPR + L600 + Speed + L400 (2 #1, 3 top-3 needed)
-    //   Volume: PFAI + TR + L400 + L600  (1 #1, 3 top-3 needed)
+    //   Volume: PFAI + TR + L400          (1 #1, 2 top-3 needed)
     const pIsEdgeTab = pnlActiveModel === 'edge';
     const pVoteRanks = pIsEdgeTab
       ? [s.wpr_rank, s.l600R, s.time_rank, s.l400R]
-      : [s.pfaiR, s.tr_rank, s.l400R, s.l600R];
+      : [s.pfaiR, s.tr_rank, s.l400R];
     const pVoteN = pVoteRanks.length;
     const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
     const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
     const pVoteThreshold = pIsEdgeTab ? 2 : 1;
     const pVoteTooltip = pIsEdgeTab
       ? pVoteTop3 + ' of 4 Edge signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
-      : pVoteTop3 + ' of 4 Volume signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=1 #1 AND >=3 top-3.';
+      : pVoteTop3 + ' of 3 Volume signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=1 #1 AND >=2 top-3.';
     const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
       '<span class="v">' + pVoteTop3 + '/' + pVoteN + '</span>' +
       (pVoteTop1 >= pVoteThreshold ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Cross-model "Also X" badge: shown when the same horse is also settled
-    // under the other model. Same convention as Today tab.
+    // Cross-model badge: Volume sub-tab only (flags picks that also cleared
+    // the stricter Edge rule). Not shown on Edge tab - see Today tab note.
     const pIsCrossPick = pnlOtherModelKeys.has(String(s.race_id) + ':' + String(s.run_id));
-    const pCrossBadgeHtml = pIsCrossPick
-      ? (pIsEdgeTab
-          ? '<span class="sig cross-badge cross-volume" title="Also picked by Volume model">+V</span>'
-          : '<span class="sig cross-badge cross-edge" title="Also picked by Edge model">+E</span>')
+    const pCrossBadgeHtml = (!pIsEdgeTab && pIsCrossPick)
+      ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
       : '';
 
     // Desktop signal chips - active model's signals only.
@@ -9080,8 +9078,7 @@ function renderPnL() {
          sigPill('L400', s.l400R))
       : (sigPill('PFAI', s.pfaiR) +
          sigPill('TR',   s.tr_rank) +
-         sigPill('L400', s.l400R) +
-         sigPill('L600', s.l600R));
+         sigPill('L400', s.l400R));
     // Score chip stacks above Votes badge in its own mini-column - same
     // layout as Today tab. Score uses cs (cumulative score), crk (within-race
     // rank for colour tier) + csc (confidence) surfaced on the settled bet.
@@ -9089,7 +9086,7 @@ function renderPnL() {
 
     const sigsTopHtml =
       '<span class="desktop-chips">' + desktopChipsHtml + '</span>' +
-      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + pCrossBadgeHtml + '</span>';
+      '<span class="score-votes-stack">' + scoreChipHtml + pVoteBadgeHtml + '</span>';
     const formHtml = r.fm ?
       '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
     const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
@@ -9247,7 +9244,7 @@ function renderPnL() {
         '<div class="pr-runner">' +
           '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
           '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsAndJkyChipsP + '</div>' +
+            '<div class="rhorse">' + escapeHtml(s.horse || '') + pCrossBadgeHtml + fsAndJkyChipsP + '</div>' +
             '<div class="rmeta">' + metaLine + '</div>' +
           '</div>' +
         '</div>' +

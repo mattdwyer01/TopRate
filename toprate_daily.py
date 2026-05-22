@@ -685,27 +685,19 @@ EDGE_MIN_JKY       = 80      # NEW: per-runner jockey rating filter
 #   6 of 6 backtest Saturdays positive (every Sat between +12% and +37%)
 #
 # ── VOLUME model (high-frequency stream) ──────────────────────────────────
-# Single voting rule on PFAI + TR + L400 + L600 (V16 from rule analysis).
-# Updated from original 3-signal version after testing showed adding L600
-# with stricter top-3 threshold meaningfully improves quality at same volume.
+# Single voting rule on PFAI + TR + L400. Loose voting threshold catches
+# many horses per race. Jockey rating >= 80 is the only per-runner filter;
+# no prize filter (catches all eligible $20k+ races).
 #
-# Tightening rationale:
-#   Original PFAI+TR+L400 (1#1+2t3): backtest Sat +5%, stress -10%
-#   Plus L600  (1#1+3t3, V16):       backtest Sat +22%, stress +7%
-#   Same Saturday volume (~28/Sat), 4x better Sat ROI, stress flips positive.
-#   L600 adds a third independent PF signal (fitness via 600m sectional)
-#   which prevents picks where PFAI+TR alone (correlated quality signals)
-#   carried the rule.
+# Backtest performance (45 days):
+#   Saturday picks: ~45/Sat
+#   Sat ROI: +26.6% headline, +18.5% after dropping top 2 longshots
+#   Win rate: ~20%
 #
-# Backtest performance (45 days, V16 rule):
-#   Saturday picks: ~29/Sat
-#   Sat ROI: +22.4% headline, +7.4% after dropping top 2 longshots
-#   Win rate: 17%, AvgSP ~$6
-#
-# Forward expectation: Sat ROI +10-20%, more consistent than V0.
+# Forward expectation: Sat ROI +15-25%.
 VOLUME_RULES = [
     ("V1", [("pf_ai_rank", "PFAI"), ("tr_rank", "TR"),
-            ("pf_last400_rank", "L400"), ("pf_last600_rank", "L600")], 1, 3),
+            ("pf_last400_rank", "L400")], 1, 2),
 ]
 VOLUME_MIN_AGREE     = 1
 VOLUME_MIN_FIELD     = 8
@@ -772,9 +764,9 @@ MODEL_DEFS = {
     },
     "volume": {
         "label":       "Volume",
-        "desc":        "High-frequency stream: PFAI + TR + L400 + L600 (1 of 4 rank #1, 3 of 4 rank top-3). Jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Stake at HALF size of Edge picks (Volume is higher-volume + lower per-pick edge). Backtest ~29/Sat at +22.4% Sat ROI, +7.4% stress test.",
-        "expected_wr": 0.17, "expected_roi_sp": 0.15, "expected_roi_top": 0.15,
-        "bets_per_day": 9.5, "min_top_odds": 3.0,
+        "desc":        "High-frequency stream: PFAI + TR + L400 (1 of 3 rank #1, 2 of 3 rank top-3). Jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Stake at HALF size of Edge picks (Volume is higher-volume + lower per-pick edge). Backtest ~45/Sat at +26.6% Sat ROI, +18.5% stress test.",
+        "expected_wr": 0.20, "expected_roi_sp": 0.18, "expected_roi_top": 0.18,
+        "bets_per_day": 13.5, "min_top_odds": 3.0,
         "is_primary":  False,
         "applies": lambda race_df, run_id, ctx:
             not ctx.get("has_first_starter", False)
@@ -1091,76 +1083,56 @@ def model_picks_summary(rows, today_only=True):
 # rather than as a betting signal directly. The v3 main model handles win
 # betting; Score is informational ranking shown in the dashboard.
 #
-# Active formula (Path C, version 2 - shipped 2026-05-10):
-#     Logistic regression on percentile-rank features, fit on Apr 9 - May 7
-#     backtest (28 days, 11,113 reliable rows).
+# Active formula (version 3 - simple model-aligned, shipped 2026-05-21):
+#     Plain weighted average of within-race percentile ranks. NO LogReg,
+#     NO intercept, NO sigmoid - just:
 #
-#     score = sigmoid(intercept + sum(weight_i * pct_i))
+#       score = sum(weight_i * percentile_i) / sum(weights)
 #
-#     intercept = -1.96
-#     weights:
-#         toprate_rating    pct: +2.5   (TR remains dominant signal but dampened
-#                                         2026-05-15 to reduce favourite-bias on
-#                                         quaddie leg selection - see SCORE_WEIGHTS_LOGREG)
-#         wpr_avg_last3     pct: +0.17
-#         late_speed_score  pct: +0.20
-#         pf_ai_rank        pct: +0.10  (PF AI adds small positive signal)
-#         pf_class_rank     pct: -0.09  (small negative -> class is correlated
-#                                         with TR so over-weighting hurts)
-#         pf_last600_rank   pct: -0.04
+#     Signals are exactly the union of what the Edge and Volume models use:
+#         toprate_rating   (TR)    - Volume signal
+#         wpr_avg_last3    (WPR)   - Edge signal
+#         speed_rating     (Speed) - Edge signal
+#         pf_ai_rank       (PFAI)  - Volume signal
+#         pf_last600_rank  (L600)  - Edge signal
+#         pf_last400_rank  (L400)  - Edge + Volume signal
 #
-#     pct(signal) is the within-race percentile of that signal. For
-#     "higher = better" signals (TR, WPR, Late) percentile is computed
-#     by ranking descending. For PF rank signals where lower rank = better,
-#     the PF rank is converted to percentile by ranking ascending.
+#     Weights kept simple (integers). TR weighted 4x because the signal
+#     heatmap consistently shows TR as the strongest single predictor
+#     (~34% top-1 win rate vs ~10% random). All other model signals get
+#     weight 1 - they each show positive top-1 lift but none individually
+#     near TR's strength.
 #
-# Out-of-sample validation (test on second 14 days, train on first 14):
-#     rk1 WR: 35.3% (vs 32.7% baseline = +2.6pp)
-#     rk1 ROI: -3.0% (vs -9.8% baseline = +6.8pp better)
-#     covT3:  66.0% (vs 67.6% baseline = -1.6pp slightly worse)
-#     covT5:  83.7% (vs 85.4% baseline = -1.7pp slightly worse)
+#     percentile(signal): within-race percentile, rank 1 -> 1.0, rank N -> 0.0.
+#     For PF rank signals (lower rank = better) the rank is read directly;
+#     for TR/WPR/Speed (higher value = better) the value is ranked descending.
 #
-# Net: the new Score is BETTER at picking the actual winner (rk1 WR +2.6pp)
-# at the cost of being marginally less reliable for top-3/5 ranges.
-# Since Score is shown to users to indicate "the system's #1 pick", rank-1
-# accuracy matters most. Trade is worth it.
+# Why this replaces the LogReg (Path C):
+#     The LogReg score used Late and Class - signals NOT in either the Edge
+#     or Volume voting rule - and ignored Speed and L400 which ARE in the
+#     models. The score breakdown shown to the user therefore did not
+#     explain the actual picks. Re-fitting on 45 days also showed Late's
+#     weight had decayed to near-zero. Aligning the score to the model
+#     signal set makes the breakdown bars meaningful, at a small cost in
+#     rank-1 accuracy (~31% vs ~34% LogReg) that is acceptable given the
+#     gain in interpretability and the user preference for simplicity.
 #
-# History:
-#   Path A (jt_combo + TR):   designed but jt_combo data has lookahead
-#                              leakage, so Path A is disabled (JT_COMBO_TRUST=False).
-#   Path B (TR-only proxy):   prior default formula. 32.7% rk1 WR. Replaced.
-#   Path C (LogReg PF+TR):    current default. 35.3% rk1 WR.
-#
-# DATA INTEGRITY WARNING (2026-05-08):
-# The backtest xlsx export's jt_combo fields appear to contain lookahead leakage.
-# JT_COMBO_TRUST stays False so Path A doesn't accidentally activate.
-# Once the live API integration provides clean "as at race date" jt_combo,
-# flip this flag and re-run the LogReg analysis with jt_combo as a feature.
+# Backtest (45 days): rank-1 WR 31.0%, winner-in-top-3 67.5%.
 JT_COMBO_TRUST = False
 
-# Path C: LogReg-fit weights (active default).
-# Applied via _logreg_score() to percentile-rank features.
-#
-# TR weight reduced 2.97 -> 2.5 on 2026-05-15 after quaddie backtest analysis.
-# Original 2.97 was 83% of the model's absolute weight sum, so the score was
-# effectively a sigmoid-wrapped market-favourite proxy. Quaddie leg picks
-# hit at 40% but yielded -50% on synthetic dividends because favourite-only
-# qualifier sets produced cheap dividends that couldn't cover stake on
-# inevitable losing quaddies. Dampening TR to 2.5 (combined with raising the
-# dashboard score threshold from 0.50 to 0.55) shifts qualifier sets toward
-# slightly tighter, less-favourite-aligned picks. Backtest yield over Apr 9 -
-# May 7 went from -50% to +4% under that combined config. Small change,
-# small sample (25 hits over 134 windows), but the right direction.
-# See quaddie_score_backtest.py for the analysis.
+# Simple integer weights on the 6 model-union signals.
 SCORE_WEIGHTS_LOGREG = {
-    "toprate_rating":   +2.5,
-    "wpr_avg_last3":    +0.17,
-    "late_speed_score": +0.20,
-    "pf_ai_rank":       +0.10,
-    "pf_class_rank":    -0.09,
-    "pf_last600_rank":  -0.04,
+    "toprate_rating":   4,
+    "wpr_avg_last3":    1,
+    "speed_rating":     1,
+    "pf_ai_rank":       1,
+    "pf_last600_rank":  1,
+    "pf_last400_rank":  1,
 }
-SCORE_LOGREG_INTERCEPT = -1.96
+# No intercept - simple weighted average uses the linear (Path B style)
+# normalisation: sum(weight*pct) / sum(weights). Set to None so
+# compute_cumulative_score takes the linear branch, not the sigmoid branch.
+SCORE_LOGREG_INTERCEPT = None
 
 # Path B: prior TR-only formula. Kept as fallback if PF data is missing
 # from a race (we degrade gracefully rather than scoring 0).
