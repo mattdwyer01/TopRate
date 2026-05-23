@@ -190,6 +190,8 @@ def build_wpr_lookup(cache):
 # once at the end of the run. Kept module-level (not threaded through call
 # args) so the capture is a minimal, isolated addition to the scrape path.
 _WPR_FORM_ROWS = []
+# One-time flag so the wpr_chart-runner-keys diagnostic prints only once.
+_WPR_KEYS_LOGGED = False
 
 # Fields pulled from each form entry. These are the raw inputs a WPR
 # projection model would train on (target = the `wpr` of the run itself).
@@ -204,24 +206,44 @@ _WPR_FORM_FIELDS = [
     "isBarrierTrial",
 ]
 
-def collect_wpr_form_history(wpr_chart, scrape_date):
+def collect_wpr_form_history(wpr_chart, detail, scrape_date):
     """Append every runner's raw form-history rows to the module accumulator.
 
     One output row per (runner past-run). `run_id` ties the row back to the
     runner in the current race card; `scrape_date` records when it was
-    captured (lets us detect/clean stale snapshots later). The full form
-    array is dumped UNFILTERED - no race_date cutoff - because for offline
-    modelling we want every run, and the model code applies its own
-    point-in-time discipline.
+    captured. The full form array is dumped UNFILTERED - no race_date cutoff -
+    because for offline modelling we want every run, and the model code
+    applies its own point-in-time discipline.
+
+    Horse identity: the wpr_chart runner objects do not reliably carry a
+    horse name/id, so we resolve it from the `detail` list (api_race_detail),
+    which maps runId -> horse name. The horse name is the stable key used to
+    track a horse across multiple daily scrapes and to dedup the output.
     """
+    # Build runId -> horse name from the race detail
+    name_by_rid = {}
+    for d in (detail or []):
+        rid = d.get("runId")
+        if rid is not None:
+            name_by_rid[rid] = d.get("horse")
+
+    # One-time diagnostic: dump the keys actually present on a wpr_chart
+    # runner object, so if horse identity ever needs revisiting we can see
+    # what the API provides without guessing.
+    global _WPR_KEYS_LOGGED
+    if not _WPR_KEYS_LOGGED and wpr_chart:
+        try:
+            print(f"  [wpr_chart runner keys: {sorted((wpr_chart[0] or {}).keys())}]")
+        except Exception:
+            pass
+        _WPR_KEYS_LOGGED = True
+
     for runner in (wpr_chart or []):
-        rid  = runner.get("runId")
-        hid  = runner.get("horseId")
-        hname = runner.get("horseName") or runner.get("name")
+        rid   = runner.get("runId")
+        hname = name_by_rid.get(rid)
         for f in (runner.get("form") or []):
             row = {
                 "run_id":      rid,
-                "horse_id":    hid,
                 "horse":       hname,
                 "scrape_date": scrape_date,
             }
@@ -232,25 +254,35 @@ def collect_wpr_form_history(wpr_chart, scrape_date):
 def flush_wpr_form_history():
     """Write accumulated form rows to WPR_FORM_HISTORY_CSV (append + dedup).
 
-    Dedup key is (horse_id, formNumber, date) - a horse's run is uniquely
-    identified by which horse it is and which run in its career. Re-scraping
-    the same horse on later days just refreshes the same rows rather than
-    duplicating them. keep='last' so the most recent capture wins (a past
-    run's wpr can be revised by TopRate up to ~5 days post-race)."""
+    Dedup key is (horse, formNumber, date) - a horse's run is uniquely
+    identified by the horse name, which run number in its career it was, and
+    the date it ran. Re-scraping the same horse on later days refreshes the
+    same rows rather than duplicating them. keep='last' so the most recent
+    capture wins (a past run's wpr can be revised by TopRate up to ~5 days
+    post-race). Rows with no resolved horse name are dropped - without a
+    stable identity they cannot be safely deduped or used for modelling."""
     if not _WPR_FORM_ROWS:
         print("WPR form history: nothing to write")
         return
     new_df = pd.DataFrame(_WPR_FORM_ROWS)
+    before = len(new_df)
+    new_df = new_df[new_df["horse"].notna() & (new_df["horse"].astype(str) != "")]
+    dropped = before - len(new_df)
+    if dropped:
+        print(f"WPR form history: dropped {dropped:,} rows with no horse name")
+    if new_df.empty:
+        print("WPR form history: no rows with a resolved horse name - nothing written")
+        return
     if WPR_FORM_HISTORY_CSV.exists():
         try:
-            old = pd.read_csv(WPR_FORM_HISTORY_CSV, dtype={"run_id": str, "horse_id": str})
+            old = pd.read_csv(WPR_FORM_HISTORY_CSV, dtype={"run_id": str})
             combined = pd.concat([old, new_df], ignore_index=True)
         except Exception as e:
             print(f"WPR form history: could not read existing file ({e}); starting fresh")
             combined = new_df
     else:
         combined = new_df
-    key = ["horse_id", "formNumber", "date"]
+    key = ["horse", "formNumber", "date"]
     combined = combined.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
     combined.to_csv(WPR_FORM_HISTORY_CSV, index=False)
     print(f"WPR form history: {len(new_df):,} rows captured, "
@@ -1965,8 +1997,9 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
 
             # Capture raw per-run form history for offline WPR modelling.
             # Isolated side-effect: appends to module accumulator, does not
-            # affect any downstream pipeline logic.
-            collect_wpr_form_history(wpr_chart, today_str)
+            # affect any downstream pipeline logic. `detail` is passed so the
+            # collector can resolve horse names (wpr_chart lacks them).
+            collect_wpr_form_history(wpr_chart, detail, today_str)
 
             wpr_lu    = build_wpr_lookup(cache)
             wpr_hist  = build_wpr_history_lookup(wpr_chart, race_date=today_str,
