@@ -56,6 +56,17 @@ PRICE_HISTORY_CSV = Path(__file__).parent / "toprate_price_history.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 
+# WPR form-history dump. Each daily scrape's get_race_wpr_chart response
+# carries, per runner, a `form` array of all that horse's past runs (wpr,
+# distance, going, weight, sectional margins, settling positions, etc).
+# build_wpr_history_lookup() consumes that array to compute summary signals
+# but the raw per-run rows were previously discarded. We now persist them
+# here, one row per (horse run), so a forward WPR-projection model can be
+# trained later. This file is APPEND-ONLY and deduplicated on a stable key.
+# It is not read by the daily pipeline or the dashboard - purely a data
+# capture sink for offline modelling.
+WPR_FORM_HISTORY_CSV = Path(__file__).parent / "wpr_form_history.csv"
+
 # Punting Form ratings - ingested separately by puntingform_ingest.py.
 # Joined into runners_df during the daily run by merge_pf_ratings(). When
 # the file doesn't exist or fails to load, all PF columns are None and the
@@ -172,6 +183,79 @@ def build_wpr_lookup(cache):
     for rank, (rid, _) in enumerate(ranked, 1):
         lookup[rid]["wpr_rank"] = rank
     return lookup
+
+# ── WPR form-history capture ──────────────────────────────────────────────
+# Module-level accumulator. collect_wpr_form_history() appends raw per-run
+# form rows here during the scrape; flush_wpr_form_history() writes them out
+# once at the end of the run. Kept module-level (not threaded through call
+# args) so the capture is a minimal, isolated addition to the scrape path.
+_WPR_FORM_ROWS = []
+
+# Fields pulled from each form entry. These are the raw inputs a WPR
+# projection model would train on (target = the `wpr` of the run itself).
+# Anything the API doesn't provide for a given run comes through as None.
+_WPR_FORM_FIELDS = [
+    "formNumber", "date", "distance", "going",
+    "wpr",                                    # actual post-race WPR (target)
+    "weightCarried",
+    "positionFinish", "positionSettled", "position800m", "position400m",
+    "margin800m", "margin600m", "margin400m", "margin200m", "marginFinish",
+    "raceShapeEarly", "raceShapeMid", "raceShapeLate",
+    "isBarrierTrial",
+]
+
+def collect_wpr_form_history(wpr_chart, scrape_date):
+    """Append every runner's raw form-history rows to the module accumulator.
+
+    One output row per (runner past-run). `run_id` ties the row back to the
+    runner in the current race card; `scrape_date` records when it was
+    captured (lets us detect/clean stale snapshots later). The full form
+    array is dumped UNFILTERED - no race_date cutoff - because for offline
+    modelling we want every run, and the model code applies its own
+    point-in-time discipline.
+    """
+    for runner in (wpr_chart or []):
+        rid  = runner.get("runId")
+        hid  = runner.get("horseId")
+        hname = runner.get("horseName") or runner.get("name")
+        for f in (runner.get("form") or []):
+            row = {
+                "run_id":      rid,
+                "horse_id":    hid,
+                "horse":       hname,
+                "scrape_date": scrape_date,
+            }
+            for k in _WPR_FORM_FIELDS:
+                row[k] = f.get(k)
+            _WPR_FORM_ROWS.append(row)
+
+def flush_wpr_form_history():
+    """Write accumulated form rows to WPR_FORM_HISTORY_CSV (append + dedup).
+
+    Dedup key is (horse_id, formNumber, date) - a horse's run is uniquely
+    identified by which horse it is and which run in its career. Re-scraping
+    the same horse on later days just refreshes the same rows rather than
+    duplicating them. keep='last' so the most recent capture wins (a past
+    run's wpr can be revised by TopRate up to ~5 days post-race)."""
+    if not _WPR_FORM_ROWS:
+        print("WPR form history: nothing to write")
+        return
+    new_df = pd.DataFrame(_WPR_FORM_ROWS)
+    if WPR_FORM_HISTORY_CSV.exists():
+        try:
+            old = pd.read_csv(WPR_FORM_HISTORY_CSV, dtype={"run_id": str, "horse_id": str})
+            combined = pd.concat([old, new_df], ignore_index=True)
+        except Exception as e:
+            print(f"WPR form history: could not read existing file ({e}); starting fresh")
+            combined = new_df
+    else:
+        combined = new_df
+    key = ["horse_id", "formNumber", "date"]
+    combined = combined.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
+    combined.to_csv(WPR_FORM_HISTORY_CSV, index=False)
+    print(f"WPR form history: {len(new_df):,} rows captured, "
+          f"{len(combined):,} total unique runs -> {WPR_FORM_HISTORY_CSV.name}")
+
 
 def build_wpr_history_lookup(wpr_chart, race_date=None, race_distance=None, race_going=None):
     lookup = {}
@@ -1879,6 +1963,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
             wpr_chart = api_race_wpr(jwt, rc_id) or []
             stats     = api_race_stats(jwt, rc_id) or []
 
+            # Capture raw per-run form history for offline WPR modelling.
+            # Isolated side-effect: appends to module accumulator, does not
+            # affect any downstream pipeline logic.
+            collect_wpr_form_history(wpr_chart, today_str)
+
             wpr_lu    = build_wpr_lookup(cache)
             wpr_hist  = build_wpr_history_lookup(wpr_chart, race_date=today_str,
                                                    race_distance=race_meta.get("distance"),
@@ -2600,6 +2689,12 @@ def main():
 
     print("── Step 2: Fetching today's races ──")
     runners_df = fetch_todays_races(jwt, runners_df, args.date)
+    print()
+
+    # Persist the raw WPR form-history captured during the scrape. Isolated
+    # from the rest of the pipeline - just writes its own append-only CSV.
+    print("── Step 2a: Saving WPR form history ──")
+    flush_wpr_form_history()
     print()
 
     # ── Step 2b: Merge in Punting Form ratings ──────────────────────────────
