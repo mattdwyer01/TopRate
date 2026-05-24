@@ -160,6 +160,67 @@ def api_race_cache(jwt, rc_id):    return rpc(jwt, "get_user_cache_race",   {"rc
 def api_race_results(jwt, rc_id):  return rpc(jwt, "get_race_results",      {"rc_id": rc_id})
 
 # -----------------------------------------------------------------------
+# PARALLEL FETCH
+# -----------------------------------------------------------------------
+# Each race needs 4 independent API calls (detail, cache, wpr, stats).
+# These are network-bound and independent across races, so we pre-fetch
+# them concurrently with a thread pool. The MAIN loop then processes the
+# pre-fetched responses sequentially - so all row-building, accumulator
+# writes, and ordering stay single-threaded and unchanged. Only the
+# blocking HTTP waits are parallelised, which is where the time goes.
+#
+# A 30-day backfill is ~8,000 sequential requests (~1 hour). With 8
+# workers the network waits overlap and it drops to roughly 10 minutes.
+#
+# Worker count is configurable via --workers (default 8). Set --workers 1
+# to fall back to fully sequential behaviour if the API ever rate-limits.
+DEFAULT_FETCH_WORKERS = 8
+
+def _fetch_one_race(jwt, rc_id):
+    """Fetch all 4 API responses for a single race. Returns a dict, or an
+    'error' entry if anything fails - the caller handles errors per-race
+    exactly as the old sequential code did."""
+    try:
+        return {
+            "rc_id":     rc_id,
+            "detail":    api_race_detail(jwt, rc_id) or [],
+            "cache":     api_race_cache(jwt, rc_id) or {},
+            "wpr_chart": api_race_wpr(jwt, rc_id) or [],
+            "stats":     api_race_stats(jwt, rc_id) or [],
+        }
+    except Exception as e:
+        return {"rc_id": rc_id, "error": str(e)}
+
+def prefetch_races(jwt, rc_ids, workers=DEFAULT_FETCH_WORKERS, label="races"):
+    """Concurrently fetch API responses for many races.
+
+    Returns {rc_id: {detail, cache, wpr_chart, stats}} (or {..., error}).
+    workers=1 runs fully sequential (safety fallback). Order of the input
+    list is irrelevant - the caller indexes the result dict by rc_id and
+    processes in whatever order it wants."""
+    results = {}
+    rc_ids = list(rc_ids)
+    if not rc_ids:
+        return results
+    if workers <= 1:
+        for rc_id in rc_ids:
+            results[rc_id] = _fetch_one_race(jwt, rc_id)
+        return results
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    done = 0
+    total = len(rc_ids)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_one_race, jwt, rid): rid for rid in rc_ids}
+        for fut in as_completed(futures):
+            res = fut.result()
+            results[res["rc_id"]] = res
+            done += 1
+            if done % 20 == 0 or done == total:
+                print(f"  prefetched {done}/{total} {label}")
+    return results
+
+
+# -----------------------------------------------------------------------
 # DATA BUILDERS
 # -----------------------------------------------------------------------
 def safe(v, default=None):
@@ -194,16 +255,26 @@ _WPR_FORM_ROWS = []
 _WPR_KEYS_LOGGED = False
 
 # Fields pulled from each form entry. These are the raw inputs a WPR
-# projection model would train on (target = the `wpr` of the run itself).
+# projection model trains on (target = the `wpr` of the run itself).
+# Confirmed against the live API via the structural diagnostic - the form
+# entry carries 29 fields; we capture all the modelling-relevant ones.
 # Anything the API doesn't provide for a given run comes through as None.
 _WPR_FORM_FIELDS = [
-    "formNumber", "date", "distance", "going",
+    "formNumber", "raceNumber", "date",
+    "track", "trackCode", "trackGrading",     # track identity + class proxy
+    "distance", "going",
     "wpr",                                    # actual post-race WPR (target)
     "weightCarried",
-    "positionFinish", "positionSettled", "position800m", "position400m",
+    "barrier",                                # draw on the day
+    "priceStarting",                          # SP that day (market signal)
+    # full settle-to-finish position curve
+    "positionSettled", "position800m", "position600m",
+    "position400m", "position200m", "positionFinish",
+    # sectional margins
     "margin800m", "margin600m", "margin400m", "margin200m", "marginFinish",
+    # how the race was run
     "raceShapeEarly", "raceShapeMid", "raceShapeLate",
-    "isBarrierTrial",
+    "winner", "isBarrierTrial",
 ]
 
 def collect_wpr_form_history(wpr_chart, detail, scrape_date):
@@ -215,17 +286,19 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
     because for offline modelling we want every run, and the model code
     applies its own point-in-time discipline.
 
-    Horse identity: the wpr_chart runner objects do not reliably carry a
-    horse name/id, so we resolve it from the `detail` list (api_race_detail),
-    which maps runId -> horse name. The horse name is the stable key used to
-    track a horse across multiple daily scrapes and to dedup the output.
+    Horse identity: the wpr_chart runner objects carry only runId + form.
+    Horse name AND horseId are resolved from the `detail` list (which maps
+    runId -> both). horseId is the stable dedup key - far more reliable than
+    the name (handles horses that share or change names).
     """
-    # Build runId -> horse name from the race detail
+    # Build runId -> (horse name, horseId) from the race detail
     name_by_rid = {}
+    hid_by_rid  = {}
     for d in (detail or []):
         rid = d.get("runId")
         if rid is not None:
             name_by_rid[rid] = d.get("horse")
+            hid_by_rid[rid]  = d.get("horseId")
 
     # ── One-time structural diagnostic ────────────────────────────────────
     # Dumps the full key sets of a wpr_chart runner, a form entry, and a
@@ -240,8 +313,14 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
             r0 = wpr_chart[0] or {}
             print("  ┌─ WPR FORM-HISTORY DIAGNOSTIC ─────────────────────────")
             print(f"  │ wpr_chart runner keys: {sorted(r0.keys())}")
-            # First form entry: full keys + sample values
-            form0 = (r0.get("form") or [])
+            # Find the first runner that actually HAS form entries - a
+            # first-starter has an empty form array and tells us nothing.
+            form0 = []
+            for rr in wpr_chart:
+                f = (rr or {}).get("form") or []
+                if f:
+                    form0 = f
+                    break
             if form0:
                 fe = form0[0]
                 print(f"  │ form-entry keys ({len(fe)}): {sorted(fe.keys())}")
@@ -249,9 +328,12 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
                 # carry real data vs being null
                 for k in sorted(fe.keys()):
                     v = fe.get(k)
-                    print(f"  │   form.{k} = {v!r}")
+                    vs = repr(v)
+                    if len(vs) > 120:
+                        vs = vs[:120] + "...(truncated)"
+                    print(f"  │   form.{k} = {vs}")
             else:
-                print("  │ (first runner had no form entries)")
+                print("  │ (no runner in this race had form entries)")
             # Detail object keys - where predicted settle/pace/run-style live
             if detail:
                 d0 = detail[0] or {}
@@ -271,9 +353,11 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
     for runner in (wpr_chart or []):
         rid   = runner.get("runId")
         hname = name_by_rid.get(rid)
+        hid   = hid_by_rid.get(rid)
         for f in (runner.get("form") or []):
             row = {
                 "run_id":      rid,
+                "horse_id":    hid,
                 "horse":       hname,
                 "scrape_date": scrape_date,
             }
@@ -284,36 +368,46 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
 def flush_wpr_form_history():
     """Write accumulated form rows to WPR_FORM_HISTORY_CSV (append + dedup).
 
-    Dedup key is (horse, formNumber, date) - a horse's run is uniquely
-    identified by the horse name, which run number in its career it was, and
-    the date it ran. Re-scraping the same horse on later days refreshes the
-    same rows rather than duplicating them. keep='last' so the most recent
-    capture wins (a past run's wpr can be revised by TopRate up to ~5 days
-    post-race). Rows with no resolved horse name are dropped - without a
-    stable identity they cannot be safely deduped or used for modelling."""
+    Dedup key is (dedup_key, formNumber, date) where dedup_key is horse_id
+    when available, else the horse name. A horse's run is uniquely identified
+    by which horse it is, which run number in its career it was, and the date.
+    Re-scraping the same horse on later days refreshes the same rows rather
+    than duplicating them. keep='last' so the most recent capture wins (a past
+    run's wpr can be revised by TopRate up to ~5 days post-race). Rows with
+    neither a horse_id nor a name are dropped - without a stable identity they
+    cannot be safely deduped or used for modelling."""
     if not _WPR_FORM_ROWS:
         print("WPR form history: nothing to write")
         return
     new_df = pd.DataFrame(_WPR_FORM_ROWS)
     before = len(new_df)
-    new_df = new_df[new_df["horse"].notna() & (new_df["horse"].astype(str) != "")]
+    # Keep rows that have at least one form of identity
+    has_id   = new_df["horse_id"].notna() & (new_df["horse_id"].astype(str) != "")
+    has_name = new_df["horse"].notna() & (new_df["horse"].astype(str) != "")
+    new_df = new_df[has_id | has_name]
     dropped = before - len(new_df)
     if dropped:
-        print(f"WPR form history: dropped {dropped:,} rows with no horse name")
+        print(f"WPR form history: dropped {dropped:,} rows with no horse identity")
     if new_df.empty:
-        print("WPR form history: no rows with a resolved horse name - nothing written")
+        print("WPR form history: no identifiable rows - nothing written")
         return
     if WPR_FORM_HISTORY_CSV.exists():
         try:
-            old = pd.read_csv(WPR_FORM_HISTORY_CSV, dtype={"run_id": str})
+            old = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                              dtype={"run_id": str, "horse_id": str})
             combined = pd.concat([old, new_df], ignore_index=True)
         except Exception as e:
             print(f"WPR form history: could not read existing file ({e}); starting fresh")
             combined = new_df
     else:
         combined = new_df
-    key = ["horse", "formNumber", "date"]
+    # dedup_key: horse_id where present, else fall back to the name
+    combined["_dedup"] = combined["horse_id"].astype(str)
+    blank = combined["_dedup"].isin(["", "nan", "None"])
+    combined.loc[blank, "_dedup"] = combined.loc[blank, "horse"].astype(str)
+    key = ["_dedup", "formNumber", "date"]
     combined = combined.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
+    combined = combined.drop(columns=["_dedup"])
     combined.to_csv(WPR_FORM_HISTORY_CSV, index=False)
     print(f"WPR form history: {len(new_df):,} rows captured, "
           f"{len(combined):,} total unique runs -> {WPR_FORM_HISTORY_CSV.name}")
@@ -1824,7 +1918,7 @@ def runners_to_selections(runners_df):
 # -----------------------------------------------------------------------
 # STEP 1: UPDATE RESULTS
 # -----------------------------------------------------------------------
-def update_results(jwt, runners_df):
+def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
     today = date.today()
     pending = runners_df[
         (runners_df["resulted"] != 1) &
@@ -1847,29 +1941,26 @@ def update_results(jwt, runners_df):
     five_min_ago = now - timedelta(minutes=5)
     cutoff_old = today - timedelta(days=14)  # don't keep retrying ancient races
 
+    # ── First pass: decide which races are actually eligible to fetch ──
+    # (skip future + ancient races BEFORE hitting the API). Then prefetch
+    # all eligible result-calls concurrently. This is the same skip-logic
+    # as before, just separated from the API call so the calls can run in
+    # parallel rather than one-at-a-time.
+    eligible = []
     for race_id in race_ids:
         mask = runners_df["race_id"].astype(str) == str(race_id)
         sample = runners_df[mask].iloc[0]
         race_date = pd.to_datetime(sample["date"]).date() if sample.get("date") else None
-
-        # Skip races scheduled for future dates
         if race_date and race_date > today:
             skipped_future += 1
             continue
-
-        # Skip races more than 14 days old that still aren't resulted - the API
-        # almost certainly won't give them now and we burn API calls every run.
         if race_date and race_date < cutoff_old:
             skipped_old += 1
             continue
-
-        # For races on TODAY, check if they've actually started yet.
-        # If start_time is in the future (with 5-minute buffer), skip.
         if race_date == today:
             start_time_str = sample.get("start_time")
             if start_time_str:
                 try:
-                    # start_time is HH:MM, combine with today's date
                     hh, mm = str(start_time_str).split(":")[:2]
                     race_start = datetime.combine(today, datetime.min.time()).replace(
                         hour=int(hh), minute=int(mm))
@@ -1877,11 +1968,37 @@ def update_results(jwt, runners_df):
                         skipped_future += 1
                         continue
                 except Exception:
-                    pass  # if we can't parse, fall through and call API
+                    pass
+        eligible.append(race_id)
 
+    # Concurrently fetch results for all eligible races.
+    if eligible:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        def _fetch_result(rid):
+            try:
+                return rid, (api_race_results(jwt, int(rid)) or {})
+            except Exception as e:
+                return rid, {"_error": str(e)}
+        result_by_race = {}
+        if fetch_workers <= 1:
+            for rid in eligible:
+                result_by_race[rid] = _fetch_result(rid)[1]
+        else:
+            with ThreadPoolExecutor(max_workers=fetch_workers) as pool:
+                for fut in as_completed(pool.submit(_fetch_result, rid) for rid in eligible):
+                    rid, res = fut.result()
+                    result_by_race[rid] = res
+        api_calls = len(eligible)
+    else:
+        result_by_race = {}
+
+    for race_id in eligible:
         try:
-            api_calls += 1
-            result_raw = api_race_results(jwt, int(race_id)) or {}
+            mask = runners_df["race_id"].astype(str) == str(race_id)
+            result_raw = result_by_race.get(race_id) or {}
+            if isinstance(result_raw, dict) and result_raw.get("_error"):
+                print(f"  Error fetching results for race {race_id}: {result_raw['_error']}")
+                continue
             result_runners = result_raw.get("runners", []) if isinstance(result_raw, dict) else []
             if not result_runners:
                 continue
@@ -1951,7 +2068,8 @@ def update_results(jwt, runners_df):
 # -----------------------------------------------------------------------
 # STEP 2: FETCH TODAY'S RACES (ALL RUNNERS)
 # -----------------------------------------------------------------------
-def fetch_todays_races(jwt, runners_df, target_date_str=None):
+def fetch_todays_races(jwt, runners_df, target_date_str=None,
+                       fetch_workers=DEFAULT_FETCH_WORKERS):
     today_str = target_date_str or date.today().strftime("%Y-%m-%d")
 
     # Check existing
@@ -2015,15 +2133,25 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None):
     new_rows = []
     n_optimal = 0
 
+    # Pre-fetch all races' API responses concurrently (network-bound work).
+    # The processing loop below stays sequential - it just reads from this
+    # dict instead of making blocking calls inline.
+    prefetched = prefetch_races(jwt, [r["raceId"] for r in races_today],
+                                workers=fetch_workers, label="races")
+
     for i, race_meta in enumerate(races_today, 1):
         rc_id = race_meta["raceId"]
         try:
-            detail    = api_race_detail(jwt, rc_id) or []
+            pf = prefetched.get(rc_id) or {}
+            if pf.get("error"):
+                print(f"  Error on {race_meta['venue']} R{race_meta['number']}: {pf['error']}")
+                continue
+            detail    = pf.get("detail") or []
             if not detail:
                 continue
-            cache     = api_race_cache(jwt, rc_id) or {}
-            wpr_chart = api_race_wpr(jwt, rc_id) or []
-            stats     = api_race_stats(jwt, rc_id) or []
+            cache     = pf.get("cache") or {}
+            wpr_chart = pf.get("wpr_chart") or []
+            stats     = pf.get("stats") or []
 
             # Capture raw per-run form history for offline WPR modelling.
             # Isolated side-effect: appends to module accumulator, does not
@@ -2728,6 +2856,9 @@ def main():
     parser.add_argument("--serve",      action="store_true", help="After rebuilding, serve HTML on local network for iPhone access")
     parser.add_argument("--serve-only", action="store_true", help="Skip fetch/rebuild, just start the server (use existing HTML)")
     parser.add_argument("--port",       type=int, default=8080, help="Port for --serve (default 8080)")
+    parser.add_argument("--workers",    type=int, default=DEFAULT_FETCH_WORKERS,
+                        help=f"Concurrent API fetch workers (default {DEFAULT_FETCH_WORKERS}). "
+                             f"Use --workers 1 for fully sequential if the API rate-limits.")
     args = parser.parse_args()
 
     if args.serve_only:
@@ -2746,12 +2877,13 @@ def main():
     jwt = login()
     print()
 
-    print("── Step 1: Updating results ──")
-    runners_df = update_results(jwt, runners_df)
+    print(f"── Step 1: Updating results ── (fetch workers: {args.workers})")
+    runners_df = update_results(jwt, runners_df, fetch_workers=args.workers)
     print()
 
     print("── Step 2: Fetching today's races ──")
-    runners_df = fetch_todays_races(jwt, runners_df, args.date)
+    runners_df = fetch_todays_races(jwt, runners_df, args.date,
+                                    fetch_workers=args.workers)
     print()
 
     # Persist the raw WPR form-history captured during the scrape. Isolated
