@@ -227,15 +227,45 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
         if rid is not None:
             name_by_rid[rid] = d.get("horse")
 
-    # One-time diagnostic: dump the keys actually present on a wpr_chart
-    # runner object, so if horse identity ever needs revisiting we can see
-    # what the API provides without guessing.
+    # ── One-time structural diagnostic ────────────────────────────────────
+    # Dumps the full key sets of a wpr_chart runner, a form entry, and a
+    # detail object - plus a sample of each - so we can see exactly what the
+    # API provides without guessing. This answers the open questions:
+    #   - do form entries carry track / barrier / jockey / jockeyRating?
+    #   - does the detail object carry a predicted settle / run-style / pace?
+    # Prints once per process run, then goes quiet.
     global _WPR_KEYS_LOGGED
     if not _WPR_KEYS_LOGGED and wpr_chart:
         try:
-            print(f"  [wpr_chart runner keys: {sorted((wpr_chart[0] or {}).keys())}]")
-        except Exception:
-            pass
+            r0 = wpr_chart[0] or {}
+            print("  ┌─ WPR FORM-HISTORY DIAGNOSTIC ─────────────────────────")
+            print(f"  │ wpr_chart runner keys: {sorted(r0.keys())}")
+            # First form entry: full keys + sample values
+            form0 = (r0.get("form") or [])
+            if form0:
+                fe = form0[0]
+                print(f"  │ form-entry keys ({len(fe)}): {sorted(fe.keys())}")
+                # Sample values so we see TYPES and whether jockey/track/barrier
+                # carry real data vs being null
+                for k in sorted(fe.keys()):
+                    v = fe.get(k)
+                    print(f"  │   form.{k} = {v!r}")
+            else:
+                print("  │ (first runner had no form entries)")
+            # Detail object keys - where predicted settle/pace/run-style live
+            if detail:
+                d0 = detail[0] or {}
+                print(f"  │ detail keys ({len(d0)}): {sorted(d0.keys())}")
+                for k in sorted(d0.keys()):
+                    v = d0.get(k)
+                    # Truncate long/nested values so the log stays readable
+                    vs = repr(v)
+                    if len(vs) > 120:
+                        vs = vs[:120] + "...(truncated)"
+                    print(f"  │   detail.{k} = {vs}")
+            print("  └───────────────────────────────────────────────────────")
+        except Exception as e:
+            print(f"  [diagnostic dump failed: {e}]")
         _WPR_KEYS_LOGGED = True
 
     for runner in (wpr_chart or []):
