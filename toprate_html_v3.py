@@ -4491,6 +4491,12 @@ body {
   .sc-race { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
   .sc-eff { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 5px; }
   .sc-horse { font-weight: 700; font-size: 14px; margin: 2px 0 0; }
+  .sc-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
+    font-size: 11px; min-width: 20px; height: 20px; border-radius: 5px;
+    padding: 0 5px; margin-right: 6px; vertical-align: middle;
+  }
   .sc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
   .sc-grid {
     display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 8px;
@@ -4502,6 +4508,12 @@ body {
   .sc-cell .val { font-weight: 700; font-size: 12px; }
   .sc-cell .ovl-pos { color: var(--emerald); }
   .sc-cell .ovl-neg { color: var(--rose, #b91c1c); }
+  .sc-foot { margin-top: 6px; }
+  .sc-bet {
+    font-size: 12px; font-weight: 700; border: 1.5px solid var(--line);
+    border-radius: 6px; padding: 4px 14px; background: #fff; cursor: pointer;
+  }
+  .sc-bet.yes { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-bg, rgba(4,120,87,.1)); }
   /* Detail-panel recent runs: on mobile use run-cards instead of the
      13-column table. Each card keeps the sectional comparison (horse on top
      coloured vs the race shape underneath in grey). Table hidden, cards
@@ -8417,9 +8429,10 @@ function renderWprSummary() {
   }
   // bet cell: green tick when a bet is placed, blank otherwise
   function betCell(u) {
-    return isBet(u)
-      ? '<span style="color:var(--emerald);font-weight:700">✓</span>'
-      : '';
+    const on = isBet(u);
+    return '<button class="wpr-bet-toggle sc-bet ' +
+      (on ? 'wpr-bet-yes yes' : 'wpr-bet-no') + '" data-rid="' +
+      escapeHtml(String(u.rid || '')) + '">' + (on ? 'Y' : 'N') + '</button>';
   }
   // finish-position cell: shows FP once results have landed, else '—'
   function fpCell(u) {
@@ -8535,60 +8548,109 @@ function renderWprSummary() {
   }
 
   // ── KPI strip ──────────────────────────────────────────────────────────
-  // Headline numbers across the top for the SELECTED date. Honest about
-  // pending state - profit / win rate before any bets settle show
-  // "pending" rather than $0 / 0%, so a mid-day glance is not misleading.
+  // Same format and metrics as the P&L tab (Bets, P&L, Win rate, Place rate,
+  // ROI, Win streak, Loss streak, vs SP) but scoped to TODAY'S bets only.
+  // Uses the same staking method (calcStake) and the same betLog, so the
+  // numbers reconcile with the P&L tab for the same set of bets.
   (function renderKpiStrip() {
     const strip = document.getElementById('wpr-kpi-strip');
     if (!strip) return;
-    // Walk every runner in the selected date's races, find ones with a
-    // bet placed, accumulate from betPnl().
-    let nBets = 0, staked = 0, returned = 0, nSettled = 0, nWon = 0,
-        nPending = 0, pendingStake = 0;
+    const log = getBetLog();
+    // Collect today's placed bets as the same kind of records P&L iterates,
+    // in race chronological order (so streaks read in time order).
+    const todaysBets = [];
     races.forEach(race => {
       (race.runners || []).forEach(u => {
         if (!isBet(u)) return;
-        nBets += 1;
-        const p = betPnl(u);
-        if (p.stake == null) return;
-        staked += p.stake;
-        if (p.ret == null) {
-          nPending += 1;
-          pendingStake += p.stake;
-        } else {
-          nSettled += 1;
-          returned += p.ret;
-          if (u.f === 1) nWon += 1;
-        }
+        todaysBets.push({ u: u, race: race });
       });
     });
-    const profit = returned - (staked - pendingStake);  // settled only
-    const fmtU = v => v.toFixed(2) + 'u';
-    const cells = [];
-    cells.push(['Bets', nBets > 0 ? String(nBets) : '0']);
-    cells.push(['Staked', nBets > 0 ? fmtU(staked) : '\u2014']);
-    if (nSettled > 0) {
-      const wrPct = (nWon / nSettled * 100);
-      cells.push(['Win rate',
-        nWon + '/' + nSettled + ' \u00b7 ' + wrPct.toFixed(0) + '%']);
-      cells.push(['Returned', fmtU(returned)]);
-      const profCls = profit >= 0 ? 'wpr-kpi-pos' : 'wpr-kpi-neg';
-      cells.push(['Profit',
-        '<span class="' + profCls + '">' +
-        (profit > 0 ? '+' : '') + fmtU(profit) + '</span>']);
-    } else {
-      cells.push(['Win rate', nBets > 0 ? 'pending' : '\u2014']);
-      cells.push(['Returned', nBets > 0 ? 'pending' : '\u2014']);
-      cells.push(['Profit', nBets > 0 ? 'pending' : '\u2014']);
+    todaysBets.sort((a, b) => {
+      const ak = (a.race.date || '') + (a.race.start_time || '');
+      const bk = (b.race.date || '') + (b.race.start_time || '');
+      return ak.localeCompare(bk);
+    });
+
+    let nBets = 0, totalWins = 0, totalPlaces = 0, totalStake = 0,
+        totalReturn = 0, totalProfit = 0, nSettled = 0;
+    let runningWS = 0, runningLS = 0, longestWinStreak = 0, longestLossStreak = 0;
+    let vsSpSum = 0, vsSpCount = 0;
+
+    todaysBets.forEach(({ u }) => {
+      const entry = log[String(u.rid)] || {};
+      const hasOdds = entry.oddsTaken != null && entry.oddsTaken > 1;
+      const stakePrice = hasOdds ? entry.oddsTaken : u.fx;
+      if (!stakePrice || stakePrice <= 1) return;
+      const stake = calcStake(stakePrice, { capExempt: hasOdds, model: 'edge' });
+      if (!stake) return;
+      nBets++;
+      totalStake += stake;
+      if (hasOdds && u.sp != null && u.sp > 1) {
+        vsSpSum += (entry.oddsTaken - u.sp); vsSpCount++;
+      }
+      if (u.f == null) return;   // not yet settled - counts as a bet but not in W/L
+      nSettled++;
+      const settlePrice = hasOdds ? entry.oddsTaken : (u.sp || u.fx);
+      const dhMult = entry.deadHeat ? 0.5 : 1;
+      const placed = u.f >= 1 && u.f <= 3;
+      if (placed) totalPlaces++;
+      if (u.f === 1) {
+        totalWins++;
+        const profit = stake * (settlePrice - 1) * dhMult;
+        totalReturn += stake + profit; totalProfit += profit;
+        runningWS++; runningLS = 0;
+        if (runningWS > longestWinStreak) longestWinStreak = runningWS;
+      } else {
+        totalProfit -= stake;
+        runningLS++; runningWS = 0;
+        if (runningLS > longestLossStreak) longestLossStreak = runningLS;
+      }
+    });
+    const curWinStreak = runningWS, curLossStreak = runningLS;
+    const realWR = nSettled > 0 ? totalWins / nSettled : null;
+    const realPR = nSettled > 0 ? totalPlaces / nSettled : null;
+    const realROI = totalStake > 0 && nSettled > 0
+      ? (totalReturn - totalStake) / totalStake : null;
+
+    function statBlock(lbl, val, sub, cls, tooltip) {
+      const titleAttr = tooltip ? ' title="' + tooltip + '"' : '';
+      return '<div class="pnl-stat"' + titleAttr + '>' +
+        '<div class="lbl">' + lbl + '</div>' +
+        '<div class="val ' + (cls || '') + '">' + val + '</div>' +
+        '<div class="sub">' + (sub || '') + '</div></div>';
     }
-    cells.push(['Pending',
-      nPending > 0
-        ? (nPending + ' \u00b7 ' + fmtU(pendingStake))
-        : (nBets > 0 ? '0' : '\u2014')]);
-    strip.innerHTML = cells.map(c =>
-      '<div class="wpr-kpi"><div class="wpr-kpi-lbl">' + c[0] +
-      '</div><div class="wpr-kpi-val">' + c[1] + '</div></div>'
-    ).join('');
+    const profitCls = totalProfit > 0 ? 'pos' : (totalProfit < 0 ? 'neg' : '');
+    const profitStr = nSettled > 0
+      ? (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2) + 'u' : 'pending';
+    const profitSub = nSettled > 0
+      ? (totalProfit >= 0 ? '+' : '') + fmtDollar(totalProfit) : '';
+    const wrStr = realWR != null ? (realWR * 100).toFixed(1) + '%' : '—';
+    const prStr = realPR != null ? (realPR * 100).toFixed(1) + '%' : '—';
+    const roiStr = realROI != null
+      ? ((realROI >= 0 ? '+' : '') + (realROI * 100).toFixed(1) + '%') : '—';
+    const roiCls = realROI != null && realROI > 0 ? 'pos'
+      : (realROI != null && realROI < 0 ? 'neg' : '');
+    const winStreakStr = curWinStreak > 0 ? String(curWinStreak) : '0';
+    const winStreakSub = longestWinStreak > 0 ? 'longest ' + longestWinStreak : '—';
+    const lossStreakStr = curLossStreak > 0 ? String(curLossStreak) : '0';
+    const lossStreakSub = longestLossStreak > 0 ? 'longest ' + longestLossStreak : '—';
+    const avgVsSp = vsSpCount > 0 ? vsSpSum / vsSpCount : null;
+    const vsSpStr = avgVsSp != null ? (avgVsSp >= 0 ? '+' : '') + avgVsSp.toFixed(2) : '—';
+    const vsSpSub = avgVsSp != null ? 'avg $ on ' + vsSpCount + ' bets' : 'no data';
+    const vsSpCls = avgVsSp != null && avgVsSp > 0.05 ? 'pos'
+      : (avgVsSp != null && avgVsSp < -0.05 ? 'neg' : '');
+
+    strip.className = 'pnl-stats-strip';
+    strip.innerHTML =
+      statBlock('Bets', String(nBets), nSettled + ' settled', '') +
+      statBlock('P&amp;L', profitStr, profitSub, profitCls) +
+      statBlock('Win rate', wrStr, nSettled > 0 ? totalWins + '/' + nSettled : '') +
+      statBlock('Place rate', prStr, '') +
+      statBlock('ROI', roiStr, '', roiCls) +
+      statBlock('Win streak', winStreakStr, winStreakSub, curWinStreak > 0 ? 'pos' : '') +
+      statBlock('Loss streak', lossStreakStr, lossStreakSub, curLossStreak > 0 ? 'neg' : '') +
+      statBlock('vs SP', vsSpStr, vsSpSub, vsSpCls,
+        'Average difference between odds-taken and starting price for today. Positive = you beat SP.');
   })();
 
   const overlays = [];   // list 1 rows
@@ -8676,6 +8738,12 @@ function renderWprSummary() {
       if (opts.conf >= 80) cc = 'conf-hi'; else if (opts.conf >= 60) cc = 'conf-mid';
       confChip = '<span class="rc-conf ' + cc + '">' + opts.conf + '</span>';
     }
+    // Bet Y/N toggle - same wpr-bet-toggle class + data-rid the Race tab uses,
+    // so it writes to the shared bet state and both tabs stay in sync.
+    const sIsBet = isBet(r.horse);
+    const betToggle = '<button class="wpr-bet-toggle sc-bet ' +
+      (sIsBet ? 'wpr-bet-yes yes' : 'wpr-bet-no') + '" data-rid="' +
+      escapeHtml(String(r.horse.rid || '')) + '">Bet ' + (sIsBet ? 'Y' : 'N') + '</button>';
     return '<div class="sum-card wpr-row-clickable" ' +
       'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
       'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
@@ -8683,7 +8751,9 @@ function renderWprSummary() {
         '<div class="sc-race">' + raceTime(r.race) + ' · ' + raceCell(r.race) + '</div>' +
         '<div class="sc-eff">' + r.eff.toFixed(1) + confChip + '</div>' +
       '</div>' +
-      '<div class="sc-horse">' + escapeHtml(r.horse.h || '') +
+      '<div class="sc-horse"><span class="sc-num">' +
+        (r.horse.tab != null ? r.horse.tab : '?') + '</span>' +
+        escapeHtml(r.horse.h || '') +
         ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + ' ' +
         wprJkyChip(r.horse.jrt) + '</span></div>' +
       '<div class="sc-grid">' +
@@ -8697,6 +8767,7 @@ function renderWprSummary() {
         '<div class="sc-cell"><span class="lbl">Stake</span><span class="val">' + unitCell(pnl.stake) + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Return</span><span class="val">' + unitCell(pnl.ret) + '</span></div>' +
       '</div>' +
+      '<div class="sc-foot">' + betToggle + '</div>' +
     '</div>';
   }
 
@@ -8706,7 +8777,7 @@ function renderWprSummary() {
     ov.innerHTML = '<div class="wpr-empty">No runners match the current filters and slider.</div>';
   } else {
     ov.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
       '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
       '<th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -8717,6 +8788,7 @@ function renderWprSummary() {
           'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
         '<td>' + raceTime(r.race) + '</td>' +
         '<td>' + raceCell(r.race) + '</td>' +
+        '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
         '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
         '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
         '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
@@ -8742,7 +8814,7 @@ function renderWprSummary() {
     st.innerHTML = '<div class="wpr-empty">No standouts match the current filters and slider.</div>';
   } else {
     st.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
       '<th>Confidence</th><th>WPR $</th><th>Fixed $</th>' +
       '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -8758,6 +8830,7 @@ function renderWprSummary() {
           'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
           '<td>' + raceTime(r.race) + '</td>' +
           '<td>' + raceCell(r.race) + '</td>' +
+          '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
           '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
           '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
           '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
@@ -8780,12 +8853,26 @@ function renderWprSummary() {
 
   // Wire row clicks on both lists - jump to the runner on the Race tab.
   // Event-delegate from the container so this works after every re-render
-  // without needing to reattach per row.
+  // without needing to reattach per row. Clicks on the Bet toggle are
+  // handled separately and must NOT trigger a jump.
   ['wpr-list-overlays', 'wpr-list-standouts'].forEach(id => {
     const host = document.getElementById(id);
     if (!host || host._wprJumpWired) return;
     host._wprJumpWired = true;
     host.addEventListener('click', (e) => {
+      // Bet toggle: flip the shared bet state, re-render Summary, stop here.
+      const betBtn = e.target.closest('.wpr-bet-toggle');
+      if (betBtn && host.contains(betBtn)) {
+        e.stopPropagation();
+        const rid = betBtn.dataset.rid;
+        if (rid) {
+          const cur = wprGetBet(rid);
+          if (cur && cur.bet) wprSetBet(rid, false);
+          else wprSetBet(rid, true, null);   // stake auto-computes via calcStake
+          if (typeof renderWprSummary === 'function') renderWprSummary();
+        }
+        return;
+      }
       const tr = e.target.closest('.wpr-row-clickable');
       if (!tr || !host.contains(tr)) return;
       const raceId = tr.dataset.raceId;
@@ -9528,12 +9615,6 @@ function renderRaceDetail(raceId) {
   // wprEffective() kept as a tiny wrapper for the few callers that pass
   // a runner object (rather than reading wprEff[rid]).
   function wprEffective(u) { return wprEff[u.rid]; }
-  // 1 unit in dollars - read from Settings (settings.unitDollar) so the
-  // suggested stake matches the user's actual unit size. Was hardcoded to
-  // $25, which under-sized every suggestion for users on $50/$100 units.
-  // Falls back to 25 only if the setting is missing.
-  const WPR_UNIT = (typeof settings !== 'undefined' && settings.unitDollar)
-    ? settings.unitDollar : 25;
 
   const sortedRunners = runners.slice().sort((a, b) => {
     const getter = sortGetters[raceSortState.col] || sortGetters.tr;
@@ -9665,18 +9746,17 @@ function renderRaceDetail(raceId) {
     let suggestedStake = null;
     if (wp != null && fxp != null && fxp > 0) {
       const ovl = (fxp / wp - 1) * 100;   // % the fixed price beats fair value
-      if (ovl > 0) {
-        overlayCell = '<td class="wpr-overlay-pos">+' + ovl.toFixed(0) + '%</td>';
-        // Suggested stake sized off the FIXED price (the price actually bet
-        // at), not the overlay %. Target-return staking: aim for a set
-        // profit on a win, scaled by overlay strength. profit target runs
-        // 0.5 unit (marginal overlay) up to 2 units (strong overlay);
-        // stake = target_profit / (fixed_price - 1).
-        const targetUnits = Math.min(2, 0.5 + ovl / 20);
-        const targetProfit = targetUnits * WPR_UNIT;
-        suggestedStake = Math.round(targetProfit / (fxp - 1));
-      } else {
-        overlayCell = '<td class="wpr-overlay-neg">' + ovl.toFixed(0) + '%</td>';
+      overlayCell = ovl >= 0
+        ? '<td class="wpr-overlay-pos">+' + ovl.toFixed(0) + '%</td>'
+        : '<td class="wpr-overlay-neg">' + ovl.toFixed(0) + '%</td>';
+      // Suggested stake uses the SINGLE shared staking method (calcStake),
+      // the same one the Summary and P&L tabs use, so the suggested figure
+      // and the P&L figure always agree. calcStake returns units; convert
+      // to dollars for the seed (stake input stores dollars).
+      const units = (typeof calcStake === 'function')
+        ? calcStake(fxp, { model: 'edge' }) : null;
+      if (units != null) {
+        suggestedStake = Math.round(units * (settings.unitDollar || 25));
       }
     }
 
@@ -9818,10 +9898,6 @@ function renderRaceDetail(raceId) {
       '<td class="rt-col-fxd">' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       overlayCell +
       betCell +
-      stakeCell +
-      resultCell +
-      marginCellPart +
-      returnCellPart +
       actualCellPart +
       missCellPart +
       '</tr>';
@@ -9895,7 +9971,7 @@ function renderRaceDetail(raceId) {
           '<div class="rc-price"><span class="lbl">Overlay</span><span class="val">' +
             cOvlStr + '</span></div>' +
         '</div>' +
-        '<div class="rc-foot">' + cBetBtn + cStake + cResult + '</div>' +
+        '<div class="rc-foot">' + cBetBtn + '</div>' +
       '</div>';
   });
 
@@ -9929,12 +10005,6 @@ function renderRaceDetail(raceId) {
         th('fxd', 'Fixed $') +
         th('ovl', 'Overlay') +
         '<th class="rt-col-bet" title="Mark Y to bet this horse">Bet</th>' +
-        th('stk', 'Stake') +
-        '<th class="rt-col-result" title="Finishing position - editable until official results land">Result</th>' +
-        (raceIsResulted
-          ? '<th class="rt-col-margin" title="Finishing margin in lengths">Margin</th>' : '') +
-        (raceIsResulted
-          ? '<th class="rt-col-return" title="Return on any bet placed on this runner (units)">Return</th>' : '') +
         (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
         (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
       '</tr></thead>' +
