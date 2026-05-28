@@ -53,10 +53,28 @@ jobs:
           # NOT git-add'd here. A previous version added it explicitly, which
           # errors with exit code 1 when git hits an ignored path and fails the
           # whole commit step - silently killing every price-refresh push.
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add toprate_runners.csv toprate_live.html
-            git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
-          else
+          if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
+            exit 0
           fi
+          git add toprate_runners.csv toprate_live.html
+          git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Pull-then-push with retry. The remote moves often - the daily
+          # workflow, manual pushes, and the every-5-min schedule all commit to
+          # main, so a plain push frequently hits a non-fast-forward rejection
+          # ("fetch first"). Rebase our single refresh commit on top of whatever
+          # arrived, then push. Retry a few times in case the remote moves again
+          # between pull and push. --no-edit/-X theirs keeps it non-interactive
+          # and prefers incoming data on the rare content overlap (data files are
+          # regenerated next run anyway, so losing our copy to theirs is safe).
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i) - pulling and retrying"
+            git pull --rebase -X theirs --no-edit || git rebase --abort
+            sleep 3
+          done
+          echo "Push failed after retries"
+          exit 1

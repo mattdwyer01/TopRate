@@ -115,9 +115,24 @@ jobs:
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
           [ -d wpr_models ] && git add wpr_models
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
-          else
+          if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
+            exit 0
           fi
+          git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Pull-then-push with retry. The remote moves often (5-min price
+          # refresh, manual pushes), so a plain push frequently hits a
+          # non-fast-forward rejection. Rebase our commit on top of whatever
+          # arrived and retry. -X theirs keeps it non-interactive and prefers
+          # incoming data on overlap (regenerated next run anyway).
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i) - pulling and retrying"
+            git pull --rebase -X theirs --no-edit || git rebase --abort
+            sleep 3
+          done
+          echo "Push failed after retries"
+          exit 1
