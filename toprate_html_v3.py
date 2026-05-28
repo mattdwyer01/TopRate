@@ -6286,9 +6286,18 @@ document.querySelectorAll('.tab').forEach(t => {
 // has class "active" and sec-wpr is active in the markup), so render its
 // content on load. Without this the section is active-but-empty until the
 // user clicks the tab, which read as a blank grey page on open.
-if (typeof renderWprSummary === 'function') {
-  renderWprSummary();
-}
+//
+// DEFERRED to the next tick: renderWprSummary transitively reads module
+// variables (_wprConds, etc.) that are declared with let/const FURTHER
+// DOWN this script. let/const live in the temporal dead zone until
+// execution reaches their declaration line, so calling renderWprSummary
+// inline here (before those lines run) throws "Cannot access before
+// initialization" and aborts the whole script. setTimeout(...,0) runs
+// the render after the entire script body has finished, by which point
+// every top-level declaration is initialized.
+setTimeout(function () {
+  if (typeof renderWprSummary === 'function') renderWprSummary();
+}, 0);
 
 // WPR summary controls - sliders re-render the lists live; clear button
 // wipes all manual adjustments after a confirm.
