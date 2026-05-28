@@ -2778,6 +2778,13 @@ body {
   font-weight: 700; border-radius: 4px; padding: 0 6px;
   font-size: 11px;
 }
+/* Silks - small image in the dedicated Silks column. Race table uses 24px,
+   Summary tables 22px so silks sit cleanly inside the row height without
+   pushing the row taller. */
+.rt-col-silk { width: 32px; padding: 2px 4px; text-align: center; }
+.rt-silk { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+.wst-silk { width: 28px; padding: 2px 4px; text-align: center; }
+.wst-silk-img { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
 .horse-cell { font-weight: 700; color: var(--ink); }
 .is-pick .horse-cell { color: var(--emerald-deep); }
 .is-volume-pick .horse-cell { color: #b45309; }  /* amber-deep for Volume model */
@@ -5143,7 +5150,6 @@ body {
   }
   .rc-silk {
     width: 26px; height: 26px; object-fit: contain; flex-shrink: 0;
-    margin-left: -2px;
   }
   .rc-name {
     font-weight: 700; font-size: 14px; flex: 1; min-width: 0;
@@ -8759,10 +8765,11 @@ function renderWprSummary() {
         '<div class="sc-race">' + raceTime(r.race) + ' · ' + raceCell(r.race) + '</div>' +
         '<div class="sc-eff">' + r.eff.toFixed(1) + confChip + '</div>' +
       '</div>' +
-      '<div class="sc-horse"><span class="sc-num">' +
-        (r.horse.tab != null ? r.horse.tab : '?') + '</span>' +
+      '<div class="sc-horse">' +
         (r.horse.sk ? '<img class="sc-silk" src="' + escapeHtml(r.horse.sk) +
           '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') +
+        '<span class="sc-num">' +
+        (r.horse.tab != null ? r.horse.tab : '?') + '</span>' +
         escapeHtml(r.horse.h || '') +
         ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + ' ' +
         wprJkyChip(r.horse.jrt) + '</span></div>' +
@@ -8787,7 +8794,7 @@ function renderWprSummary() {
     ov.innerHTML = '<div class="wpr-empty">No runners match the current filters and slider.</div>';
   } else {
     ov.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th></th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
       '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
       '<th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -8798,6 +8805,8 @@ function renderWprSummary() {
           'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
         '<td>' + raceTime(r.race) + '</td>' +
         '<td>' + raceCell(r.race) + '</td>' +
+        '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' + escapeHtml(r.horse.sk) +
+          '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
         '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
         '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
         '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
@@ -8824,7 +8833,7 @@ function renderWprSummary() {
     st.innerHTML = '<div class="wpr-empty">No standouts match the current filters and slider.</div>';
   } else {
     st.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th></th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
       '<th>Confidence</th><th>WPR $</th><th>Fixed $</th>' +
       '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -8840,6 +8849,8 @@ function renderWprSummary() {
           'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
           '<td>' + raceTime(r.race) + '</td>' +
           '<td>' + raceCell(r.race) + '</td>' +
+          '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' + escapeHtml(r.horse.sk) +
+            '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
           '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
           '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
           '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
@@ -9896,6 +9907,8 @@ function renderRaceDetail(raceId) {
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       scratchCell +
+      '<td class="rt-col-silk">' + (u.sk ? '<img class="rt-silk" src="' + escapeHtml(u.sk) +
+        '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell rt-col-horse">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
       '<td class="rt-col-bar">' + (u.b || '') + '</td>' +
@@ -9960,9 +9973,9 @@ function renderRaceDetail(raceId) {
     cardsHtml +=
       '<div class="' + cCardCls.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
         '<div class="rc-top">' +
-          '<div class="rc-num">' + (u.tab || '?') + '</div>' +
           (u.sk ? '<img class="rc-silk" src="' + escapeHtml(u.sk) +
             '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') +
+          '<div class="rc-num">' + (u.tab || '?') + '</div>' +
           '<div class="rc-name">' + escapeHtml(u.h || '') + pickBadge + '</div>' +
           '<div class="rc-pred"><span class="rc-pred-val">' +
             (cPred != null ? cPred.toFixed(1) : '—') + '</span>' +
@@ -10006,6 +10019,7 @@ function renderRaceDetail(raceId) {
         // No., Horse, Barrier, Speed/settle, Peak WPR, Avg WPR L3,
         // Predicted WPR, Manual adj., WPR price, Fixed price, Overlay, Stake.
         '<th class="rt-col-scr" title="Toggle manual scratch - excludes this runner from WPR price calc">Scr</th>' +
+        '<th class="rt-col-silk"></th>' +
         th('tab', 'No.') + th('horse', 'Horse') +
         th('bar', 'Bar') +
         th('settles', 'Speed') +
@@ -10172,6 +10186,40 @@ function renderRaceDetail(raceId) {
 
   // Row-click expand: clicking a row inserts a detail panel below it.
   // Collapse other expanded rows first (only one open at a time).
+  // Table row tap -> detail panel (desktop). Inserts the detail as a colspan
+  // tr immediately below the clicked row. Clicks on the bet button or stake
+  // input are ignored (they have their own handlers). This was lost in an
+  // earlier edit and is restored here.
+  document.querySelectorAll('#rd-runners-table tbody tr').forEach(tr => {
+    if (!tr.dataset.rid) return;
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.wpr-bet-toggle') ||
+          e.target.closest('.wpr-stake-input') ||
+          e.target.closest('.wpr-manual-input') ||
+          e.target.closest('.wpr-result-input')) return;
+      const rid = tr.dataset.rid;
+      const u = runners.find(x => String(x.rid) === String(rid));
+      if (!u) return;
+      const existing = document.querySelector('#rd-runners-table tbody tr.race-detail-row');
+      if (existing) {
+        const wasForThis = existing.dataset.forRid === String(rid);
+        existing.remove();
+        document.querySelectorAll('#rd-runners-table tbody tr.expanded').forEach(t => t.classList.remove('expanded'));
+        if (wasForThis) return;  // toggle off
+      }
+      tr.classList.add('expanded');
+      const colCount = document.querySelectorAll('#rd-runners-table thead th').length;
+      const detailTr = document.createElement('tr');
+      detailTr.className = 'race-detail-row';
+      detailTr.dataset.forRid = String(rid);
+      detailTr.innerHTML = '<td colspan="' + colCount + '">' +
+        buildRaceRunnerDetailHTML(u, race,
+          { mid: midRanks, total: totalRanks, paceLabel: paceLabel }) +
+      '</td>';
+      tr.parentNode.insertBefore(detailTr, tr.nextSibling);
+    });
+  });
+
   // Card tap -> detail panel (mobile). Mirrors the table-row handler above
   // but inserts the detail block after the card div. Clicks on the bet
   // button or stake input are ignored (they have their own handlers).
