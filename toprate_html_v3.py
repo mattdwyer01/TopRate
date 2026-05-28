@@ -2637,6 +2637,10 @@ body {
   font-family: var(--font-body); font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+/* Mobile runner cards: hidden on desktop (table shown). The 720px media
+   query flips these - table hidden, cards shown. Both are rendered in the
+   DOM; CSS chooses which is visible. */
+.race-cards { display: none; }
 .race-table thead th {
   background: var(--line-soft); border-bottom: 1px solid var(--line);
   text-align: left; padding: 10px 12px;
@@ -4469,10 +4473,18 @@ body {
   .acc-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
   .acc-table th, .acc-table td { padding: 4px 3px; }
   .acc-table-wrap { overflow-x: hidden; }
-  /* Summary lists - fit to width */
+  /* Summary lists - fit ALL columns to width (user wants everything visible).
+     15 columns on a phone means tiny text and fixed layout so wide cells
+     (jockey names, race labels) cannot force overflow. Text truncates with
+     ellipsis rather than wrapping into tall rows. */
   #wpr-list-overlays, #wpr-list-standouts { overflow-x: hidden; }
-  .wpr-summary-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
-  .wpr-summary-table th, .wpr-summary-table td { padding: 4px 3px; }
+  .wpr-summary-table {
+    min-width: 0; width: 100%; table-layout: fixed; font-size: 7px;
+  }
+  .wpr-summary-table th, .wpr-summary-table td {
+    padding: 3px 1px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* Detail-panel recent-runs form table: fit to screen width (no min-width
      forcing scroll). User wants the whole table visible. Tight but complete -
      shrink font/padding so all 13 columns fit a phone. */
@@ -5050,17 +5062,70 @@ body {
   /* Race tab */
   .race-table { font-size: 11px; }
   .race-table thead th, .race-table tbody td { padding: 8px 6px; }
-  /* Responsive columns by CLASS (rebuild-proof, unlike nth-child which broke
-     when the table was restructured for the WPR rebuild). Portrait shows only
-     the six essentials the user asked for: No., Horse, Speed, Pred WPR,
-     WPR $, Fixed $. Everything else is hidden so the table fits the screen
-     with NO horizontal scroll. The hidden data is still on tap (detail panel)
-     and in landscape. */
-  .race-table { width: 100%; min-width: 0; table-layout: auto; }
-  .race-table-wrap { overflow-x: hidden; }
-  .race-table thead th:not(.rt-col-tab):not(.rt-col-horse):not(.rt-col-settles):not(.rt-col-wpjp):not(.rt-col-wpjpr):not(.rt-col-fxd),
-  .race-table tbody td:not(.rt-col-tab):not(.rt-col-horse):not(.rt-col-settles):not(.wpr-pred-cell):not(.rt-col-wpjpr):not(.rt-col-fxd) {
-    display: none;
+  /* Race tab: on mobile, hide the table entirely and show the runner cards
+     (Design A). The cards fit the screen with no horizontal scroll and show
+     all the key data per runner. Desktop keeps the full table. */
+  .race-table { display: none; }
+  .race-cards { display: block; }
+  .rc {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 12px; margin-bottom: 9px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
+  }
+  .rc.is-pick { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
+  .rc.is-scratched { opacity: .5; }
+  .rc.finish-1 { border-left: 3px solid var(--emerald); }
+  .rc.finish-2, .rc.finish-3 { border-left: 3px solid var(--amber, #b45309); }
+  .rc-top { display: flex; align-items: center; gap: 9px; }
+  .rc-num {
+    background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
+    font-size: 13px; min-width: 26px; height: 26px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .rc-name {
+    font-weight: 700; font-size: 15px; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rc-pred { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .rc-pred-val { font-weight: 800; font-size: 17px; }
+  .rc-conf {
+    font-size: 10px; font-weight: 700; color: #fff; border-radius: 9px;
+    padding: 2px 7px;
+  }
+  .rc-conf.conf-hi { background: var(--emerald); }
+  .rc-conf.conf-lo { background: var(--rose, #b91c1c); }
+  .rc-conf.conf-mid { background: var(--amber, #b45309); }
+  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-mute); margin: 7px 0 0; }
+  .rc-sub b { color: var(--ink); font-weight: 600; }
+  .rc-prices {
+    display: flex; gap: 16px; margin: 9px 0 0; padding: 8px 0 0;
+    border-top: 1px solid var(--line-soft); font-size: 13px;
+  }
+  .rc-price { display: flex; flex-direction: column; gap: 1px; }
+  .rc-price .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
+  .rc-price .val { font-weight: 700; }
+  .rc-price .ovl-pos { color: var(--emerald); }
+  .rc-price .ovl-neg { color: var(--rose, #b91c1c); }
+  .rc-foot {
+    display: flex; align-items: center; gap: 12px; margin: 9px 0 0;
+    padding: 8px 0 0; border-top: 1px solid var(--line-soft);
+  }
+  .rc-bet {
+    font-size: 12px; font-weight: 700; border: 1.5px solid var(--line);
+    border-radius: 7px; padding: 5px 14px; background: #fff; cursor: pointer;
+  }
+  .rc-bet.yes { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-bg, rgba(4,120,87,.1)); }
+  .rc-stake { font-size: 12px; color: var(--ink-mute); }
+  .rc-stake b { color: var(--ink); font-weight: 600; }
+  .rc-stake-input {
+    width: 52px; font-size: 12px; padding: 3px 5px; border: 1px solid var(--line);
+    border-radius: 5px;
+  }
+  .rc-result { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
+  .rc-result b { color: var(--ink); font-weight: 700; }
+  .rc-detail {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px; margin: -3px 0 9px;
   }
   /* Tighter cell padding on mobile - 11 visible columns need compact cells
      to fit phone widths without horizontal scroll */
@@ -5134,28 +5199,12 @@ body {
   .pd-fs-warn .sub { font-size: 10px; }
 }
 
-/* Landscape phones: more horizontal room than portrait, so show additional
-   race columns (Bar, Peak WPR, Avg L3, Overlay, Bet, Result) on top of the
-   six portrait essentials. Still no horizontal scroll - the columns fit the
-   wider landscape viewport. Bounded to phone-sized landscape (max 932px) so
-   it does not affect tablets/desktop, which show the full table. The rule
-   re-displays these specific columns that the portrait rule hid. */
-@media (max-width: 932px) and (orientation: landscape) {
-  .race-table thead th.rt-col-bar,
-  .race-table tbody td.rt-col-bar,
-  .race-table thead th.rt-col-wpjpk,
-  .race-table tbody td.rt-col-wpjpk,
-  .race-table thead th.rt-col-wpja,
-  .race-table tbody td.rt-col-wpja,
-  .race-table thead th.rt-col-ovl,
-  .race-table tbody td.wpr-overlay-pos,
-  .race-table tbody td.wpr-overlay-neg,
-  .race-table thead th.rt-col-bet,
-  .race-table tbody td.wpr-bet-cell,
-  .race-table thead th.rt-col-result,
-  .race-table tbody td.wpr-result-cell {
-    display: table-cell;
-  }
+/* Landscape phones use the same runner cards as portrait (they simply render
+   wider). The earlier landscape table rule is retired - cards replace the
+   table for all mobile widths, so there is no wide table to manage. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .race-table { display: none; }
+  .race-cards { display: block; }
 }
 """
 
@@ -9356,6 +9405,7 @@ function renderRaceDetail(raceId) {
   const raceHasAnyActual = runners.some(u => u.wpja != null);
 
   let rowsHtml = '';
+  let cardsHtml = '';
   sortedRunners.forEach(u => {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
@@ -9489,7 +9539,7 @@ function renderRaceDetail(raceId) {
     if (!canBet) {
       // no rating yet - no price, no bet workflow
       betCell = '<td class="wpr-bet-cell"><span class="wpr-na">—</span></td>';
-      stakeCell = '<td class="wpr-na">—</td>';
+      stakeCell = '<td class="wpr-stake-cell wpr-na">—</td>';
     } else {
       betCell = '<td class="wpr-bet-cell">' +
         '<button class="wpr-bet-toggle ' + (isBet ? 'wpr-bet-yes' : 'wpr-bet-no') +
@@ -9622,6 +9672,78 @@ function renderRaceDetail(raceId) {
       actualCellPart +
       missCellPart +
       '</tr>';
+
+    // ── Mobile card (Design A) - rendered alongside the table; CSS shows
+    // the cards below 720px and the table above. Reuses the SAME data-rid
+    // attributes so the existing delegated handlers (bet toggle, stake
+    // input, row/card tap -> detail panel) work without new wiring. ──
+    const cPred = (eff != null) ? eff : (u.wpjp != null ? u.wpjp : null);
+    const cConf = u.wpjc;
+    let cConfCls = 'conf-lo';
+    if (cConf != null && cConf >= 80) cConfCls = 'conf-hi';
+    else if (cConf != null && cConf >= 60) cConfCls = 'conf-mid';
+    const cOvl = (wp != null && fxp != null && fxp > 0) ? (fxp / wp - 1) * 100 : null;
+    const cOvlStr = cOvl == null ? '—'
+      : '<span class="' + (cOvl >= 0 ? 'ovl-pos' : 'ovl-neg') + '">' +
+        (cOvl >= 0 ? '+' : '') + cOvl.toFixed(0) + '%</span>';
+    // bet button + stake (reuse same classes/data-rid as the table cells)
+    let cBetBtn, cStake;
+    if (eff == null) {
+      cBetBtn = '<button class="wpr-bet-toggle wpr-bet-no rc-bet" disabled>—</button>';
+      cStake = '<span class="rc-stake">Stake <b>—</b></span>';
+    } else {
+      cBetBtn = '<button class="wpr-bet-toggle rc-bet ' +
+        (isBet ? 'wpr-bet-yes yes' : 'wpr-bet-no') + '" data-rid="' +
+        escapeHtml(String(rid)) + '">Bet ' + (isBet ? 'Y' : 'N') + '</button>';
+      if (isBet) {
+        const sv = betRec.stake != null ? betRec.stake : (suggestedStake != null ? suggestedStake : '');
+        cStake = '<span class="rc-stake">Stake $<input type="text" ' +
+          'class="wpr-stake-input rc-stake-input" data-rid="' + escapeHtml(String(rid)) +
+          '" value="' + sv + '" /></span>';
+      } else {
+        cStake = '<span class="rc-stake">Stake <b>' +
+          (suggestedStake != null ? '($' + suggestedStake + ')' : '—') + '</b></span>';
+      }
+    }
+    // result / margin (resulted only)
+    let cResult = '';
+    if (u.f != null) {
+      const mgnTxt = (typeof u.mgnL === 'number') ? ' · ' + u.mgnL.toFixed(2) + 'L' : '';
+      cResult = '<span class="rc-result">Result <b>' + u.f + '</b>' + mgnTxt + '</span>';
+    }
+    const cCardCls = ['rc'];
+    if (isPick) cCardCls.push('is-pick');
+    if (isScratched) cCardCls.push('is-scratched');
+    if (u.f != null) {
+      const f = parseInt(u.f, 10);
+      if (!isNaN(f) && f > 0) cCardCls.push('finish-' + (f <= 3 ? f : 'other'));
+    }
+    cardsHtml +=
+      '<div class="' + cCardCls.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
+        '<div class="rc-top">' +
+          '<div class="rc-num">' + (u.tab || '?') + '</div>' +
+          '<div class="rc-name">' + escapeHtml(u.h || '') + pickBadge + '</div>' +
+          '<div class="rc-pred"><span class="rc-pred-val">' +
+            (cPred != null ? cPred.toFixed(1) : '—') + '</span>' +
+            (cConf != null ? '<span class="rc-conf ' + cConfCls + '">' + cConf + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="rc-sub">' +
+          '<span><b>' + settlesLabel(u.asp) + '</b></span>' +
+          '<span>Bar <b>' + (u.b || '—') + '</b></span>' +
+          '<span>Peak <b>' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</b></span>' +
+          '<span>L3 <b>' + (u.wpra != null ? u.wpra.toFixed(1) : '—') + '</b></span>' +
+        '</div>' +
+        '<div class="rc-prices">' +
+          '<div class="rc-price"><span class="lbl">WPR $</span><span class="val">' +
+            (wp != null ? '$' + wp.toFixed(2) : '—') + '</span></div>' +
+          '<div class="rc-price"><span class="lbl">Fixed $</span><span class="val">' +
+            (fxp ? '$' + fxp.toFixed(2) : '—') + '</span></div>' +
+          '<div class="rc-price"><span class="lbl">Overlay</span><span class="val">' +
+            cOvlStr + '</span></div>' +
+        '</div>' +
+        '<div class="rc-foot">' + cBetBtn + cStake + cResult + '</div>' +
+      '</div>';
   });
 
   // Header with sort indicators. Adds rt-col-{col} so responsive CSS can
@@ -9665,6 +9787,7 @@ function renderRaceDetail(raceId) {
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>' +
+    '<div class="race-cards">' + cardsHtml + '</div>' +
     (_scrN > 0
       ? '<div class="wpr-scr-footer">' +
           _scrN + ' runner' + (_scrN === 1 ? '' : 's') +
@@ -9810,34 +9933,31 @@ function renderRaceDetail(raceId) {
 
   // Row-click expand: clicking a row inserts a detail panel below it.
   // Collapse other expanded rows first (only one open at a time).
-  document.querySelectorAll('#rd-runners-table tbody tr').forEach(tr => {
-    tr.addEventListener('click', (e) => {
-      // Ignore clicks on the header
-      if (tr.tagName !== 'TR' || !tr.dataset.rid) return;
-      const rid = tr.dataset.rid;
+  // Card tap -> detail panel (mobile). Mirrors the table-row handler above
+  // but inserts the detail block after the card div. Clicks on the bet
+  // button or stake input are ignored (they have their own handlers).
+  document.querySelectorAll('.race-cards .rc').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.wpr-bet-toggle') ||
+          e.target.closest('.wpr-stake-input')) return;
+      const rid = card.dataset.rid;
+      if (!rid) return;
       const u = runners.find(x => String(x.rid) === String(rid));
       if (!u) return;
-
-      // Collapse any currently-open detail row
-      const existing = document.querySelector('#rd-runners-table tbody tr.race-detail-row');
+      const existing = document.querySelector('.race-cards .rc-detail');
       if (existing) {
         const wasForThis = existing.dataset.forRid === String(rid);
         existing.remove();
-        document.querySelectorAll('#rd-runners-table tbody tr.expanded').forEach(t => t.classList.remove('expanded'));
+        document.querySelectorAll('.race-cards .rc.expanded').forEach(c => c.classList.remove('expanded'));
         if (wasForThis) return;  // toggle off
       }
-
-      // Insert new detail row immediately after the clicked row
-      tr.classList.add('expanded');
-      const colCount = document.querySelectorAll('#rd-runners-table thead th').length;
-      const detailTr = document.createElement('tr');
-      detailTr.className = 'race-detail-row';
-      detailTr.dataset.forRid = String(rid);
-      detailTr.innerHTML = '<td colspan="' + colCount + '">' +
-        buildRaceRunnerDetailHTML(u, race,
-          { mid: midRanks, total: totalRanks, paceLabel: paceLabel }) +
-      '</td>';
-      tr.parentNode.insertBefore(detailTr, tr.nextSibling);
+      card.classList.add('expanded');
+      const detail = document.createElement('div');
+      detail.className = 'rc-detail';
+      detail.dataset.forRid = String(rid);
+      detail.innerHTML = buildRaceRunnerDetailHTML(u, race,
+        { mid: midRanks, total: totalRanks, paceLabel: paceLabel });
+      card.parentNode.insertBefore(detail, card.nextSibling);
     });
   });
 }
