@@ -37,7 +37,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests openpyxl
+          pip install pandas requests openpyxl scikit-learn joblib
 
       # ─────────────────────────────────────────────────────────
       # Step 1: Refresh Punting Form data FIRST.
@@ -90,6 +90,12 @@ jobs:
       # Step 3: Commit and push refreshed data + HTML.
       # PF CSVs are staged alongside TR CSVs so the deployed HTML and the
       # repo always agree on what data was used to build it.
+      #
+      # NOTE: toprate_price_history.csv is deliberately NOT staged here - it
+      # is gitignored (local-only price snapshots). A previous version tried
+      # to `git add` it, which errors with exit code 1 when git hits an
+      # explicitly-named ignored path, failing the whole commit step even
+      # though the rebuild succeeded. Removed.
       # ─────────────────────────────────────────────────────────
       - name: Commit and push if changed
         run: |
@@ -98,11 +104,17 @@ jobs:
           # Stage everything that the daily run might have updated
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
-          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
           [ -f toprate_live.html ] && git add toprate_live.html
           [ -f puntingform_data/pf_ratings.csv ] && git add puntingform_data/pf_ratings.csv
           [ -f puntingform_data/pf_runners.csv ] && git add puntingform_data/pf_runners.csv
           [ -f puntingform_data/pf_meetings.csv ] && git add puntingform_data/pf_meetings.csv
+          # WPR form history is append-only and accumulates each run. Actions
+          # runs are ephemeral, so it MUST be committed or every run's new
+          # rows are lost. (This was previously not staged.)
+          [ -f wpr_form_history.csv ] && git add wpr_form_history.csv
+          # WPR model artifacts - committed so toprate_daily.py can load them.
+          # Static unless retrained, but staging them is harmless if unchanged.
+          [ -d wpr_models ] && git add wpr_models
           if [[ -n "$(git status --porcelain)" ]]; then
             git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
             git push
