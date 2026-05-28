@@ -98,7 +98,6 @@ jobs:
           # Stage everything that the daily run might have updated
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
-          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
           [ -f toprate_live.html ] && git add toprate_live.html
           [ -f puntingform_data/pf_ratings.csv ] && git add puntingform_data/pf_ratings.csv
           [ -f puntingform_data/pf_runners.csv ] && git add puntingform_data/pf_runners.csv
