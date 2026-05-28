@@ -2588,8 +2588,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
     # ── Render and write ─────────────────────────────────────────────────────
     _step("Rendering HTML template and writing file...")
-    now_iso  = datetime.now().isoformat()
-    run_date = datetime.now().strftime("%d %b %Y %H:%M")
+    # run_iso MUST be timezone-aware. GitHub runners are UTC and
+    # datetime.now() returns naive UTC; a naive ISO string (no offset) is
+    # parsed by the browser's new Date() as LOCAL time, so a build "now" in
+    # UTC reads as ~10h off in Melbourne (the UTC offset) - which made the
+    # price-freshness dot show 10h-stale right after a fresh refresh. Emit
+    # an explicit UTC offset so the browser computes age correctly.
+    now_utc  = datetime.now(timezone.utc)
+    now_iso  = now_utc.isoformat()
+    run_date = now_utc.strftime("%d %b %Y %H:%M UTC")
     html = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
