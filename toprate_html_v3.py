@@ -3047,6 +3047,8 @@ body {
   text-transform: none; letter-spacing: 0; margin-left: 6px;
 }
 /* Recent-runs form table in the detail panel */
+/* Mobile run-cards hidden on desktop (table shown); mobile media query flips. */
+.rd-cards { display: none; }
 .rd-runs-table {
   width: 100%; border-collapse: collapse; margin-top: 4px;
   font-size: 11px;
@@ -4499,12 +4501,38 @@ body {
   .sc-cell .val { font-weight: 700; font-size: 13px; }
   .sc-cell .ovl-pos { color: var(--emerald); }
   .sc-cell .ovl-neg { color: var(--rose, #b91c1c); }
-  /* Detail-panel recent-runs form table: fit to screen width (no min-width
-     forcing scroll). User wants the whole table visible. Tight but complete -
-     shrink font/padding so all 13 columns fit a phone. */
-  .rd-table-scroll { overflow-x: hidden; }
-  .rd-runs-table { min-width: 0; width: 100%; table-layout: fixed; font-size: 8px; }
-  .rd-runs-table th, .rd-runs-table td { padding: 3px 2px; }
+  /* Detail-panel recent runs: on mobile use run-cards instead of the
+     13-column table. Each card keeps the sectional comparison (horse on top
+     coloured vs the race shape underneath in grey). Table hidden, cards
+     shown. */
+  .rd-table-scroll { display: none; }
+  .rd-cards { display: block; }
+  .rdc {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 10px; margin: 0 0 7px;
+  }
+  .rdc-peak { border-color: var(--emerald); }
+  .rdc-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; font-size: 12px; }
+  .rdc-date { font-weight: 700; }
+  .rdc-trk { color: var(--ink); }
+  .rdc-dist { color: var(--ink-mute); }
+  .rdc-wpr { margin-left: auto; font-weight: 800; font-size: 14px; }
+  .rdc-meta { font-size: 11px; color: var(--ink-mute); margin: 5px 0 0; }
+  .rdc-meta b { color: var(--ink); font-weight: 600; }
+  .rdc-sect { margin: 7px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line-soft); }
+  .rdc-sect-lbls { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  .rdc-sect-lbls span { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); text-align: center; }
+  .rdc-sect-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 2px; }
+  .rdc-sect-col { text-align: center; }
+  .rdc-sect-h { font-weight: 700; font-size: 13px; border-radius: 4px; padding: 2px 0; }
+  .rdc-sect-h.rd-sect-against { background: rgba(16,185,129,.13); color: #047857; }
+  .rdc-sect-h.rd-sect-with { background: rgba(220,38,38,.11); color: #b91c1c; }
+  .rdc-sect-s { font-size: 11px; color: var(--ink-mute); padding-top: 1px; }
+  .rdc-sep {
+    text-align: center; font-size: 10px; font-style: italic; color: var(--ink-mute);
+    padding: 5px 0; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .rdc-sep-peak { color: var(--emerald); }
 }
 
 /* ── Database tab ─────────────────────────────────────────────────────────
@@ -7608,11 +7636,55 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       return mainRow + shapeRow;
     }
 
+    // Mobile run-card: same data as buildRunRow but laid out as a card that
+    // fits a phone. Header line (date/track/dist/going + WPR), a result line
+    // (fin/margin/bar/class/running-line), and the sectional comparison as a
+    // 3-column block with the horse figure on top (coloured vs the race
+    // shape) and the race shape underneath in grey - preserving the whole
+    // point of the two-row design. Shown below 720px; table hidden there.
+    function buildRunCard(r) {
+      const peakTag = r.pk
+        ? '<span class="rd-run-peak" title="Career-peak WPR">peak</span>' : '';
+      const sectCol = (hv, sv, cls) =>
+        '<div class="rdc-sect-col">' +
+          '<div class="rdc-sect-h ' + cls + '">' + _fmtSect(hv) + '</div>' +
+          '<div class="rdc-sect-s">' + _fmtSect(sv) + '</div>' +
+        '</div>';
+      const pos = [r.psl, r.p8, r.p4, r.fin].some(x => x != null)
+        ? [r.psl, r.p8, r.p4, r.fin].map(x => x != null ? x : '-').join('-')
+        : '\u2014';
+      return '<div class="rdc' + (r.pk ? ' rdc-peak' : '') + '">' +
+        '<div class="rdc-head">' +
+          '<span class="rdc-date">' + escapeHtml(r.d || '') + '</span>' +
+          '<span class="rdc-trk">' + escapeHtml(r.trk || '') + '</span>' +
+          '<span class="rdc-dist">' + (r.dist != null ? r.dist + 'm' : '') + '</span>' +
+          goingChip(r.go) +
+          '<span class="rdc-wpr">' + peakTag + r.wpr.toFixed(1) + '</span>' +
+        '</div>' +
+        '<div class="rdc-meta">' +
+          'Fin <b>' + (r.fin != null ? r.fin : '\u2014') + '</b>' +
+          (r.mgn != null ? ' · ' + r.mgn.toFixed(1) + 'L' : '') +
+          ' · Bar <b>' + (r.bar != null ? r.bar : '\u2014') + '</b>' +
+          (r.cls ? ' · ' + escapeHtml(r.cls) : '') +
+          ' · ' + pos +
+        '</div>' +
+        '<div class="rdc-sect">' +
+          '<div class="rdc-sect-lbls"><span>Early</span><span>Mid</span><span>Late</span></div>' +
+          '<div class="rdc-sect-cols">' +
+            sectCol(r.ie, r.se, _sectCmpCls(r.ie, r.se)) +
+            sectCol(r.im, r.sm, _sectCmpCls(r.im, r.sm)) +
+            sectCol(r.il, r.sl, _sectCmpCls(r.il, r.sl)) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
     // Build the rows. Insert a "spell" separator row BETWEEN runs when
     // the gap is 12+ weeks (84+ days) - the conventional racing definition
     // of a spell. Smaller breaks are not flagged here; they appear in
     // the date column naturally.
     const bodyRows = [];
+    const bodyCards = [];   // mobile equivalents (run-cards + separators)
     // Days-since-last-run as a separator row at the TOP of the body,
     // styled like the spell separator so it reads as the same timeline.
     if (daysSinceLast != null) {
@@ -7622,9 +7694,12 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '&mdash; ' + daysSinceLast + ' day' +
         (daysSinceLast === 1 ? '' : 's') + ' since last run &mdash;' +
         '</td></tr>');
+      bodyCards.push('<div class="rdc-sep">' + daysSinceLast + ' day' +
+        (daysSinceLast === 1 ? '' : 's') + ' since last run</div>');
     }
     for (let i = 0; i < runs.length; i++) {
       bodyRows.push(buildRunRow(runs[i]));
+      bodyCards.push(buildRunCard(runs[i]));
       // Look at the gap BETWEEN this run and the NEXT (older) one.
       // newer-first ordering: runs[i] is more recent than runs[i+1].
       if (i + 1 < runs.length) {
@@ -7637,6 +7712,8 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
             '&mdash; spell &mdash; ' + weeks + ' weeks (' + gap + ' days) ' +
             'between runs &mdash;' +
             '</td></tr>');
+          bodyCards.push('<div class="rdc-sep rdc-sep-spell">spell &mdash; ' +
+            weeks + ' weeks (' + gap + ' days) between runs</div>');
         }
       }
     }
@@ -7659,17 +7736,22 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
           '&mdash; career peak &mdash; ' + weeks + ' weeks (' +
           gapToPeak + ' days) earlier &mdash;' +
           '</td></tr>');
+        bodyCards.push('<div class="rdc-sep rdc-sep-peak">career peak &mdash; ' +
+          weeks + ' weeks (' + gapToPeak + ' days) earlier</div>');
       } else {
         bodyRows.push(
           '<tr class="rd-spell-row rd-peak-gap-row">' +
           '<td colspan="13">' +
           '&mdash; career peak &mdash;' +
           '</td></tr>');
+        bodyCards.push('<div class="rdc-sep rdc-sep-peak">career peak</div>');
       }
       bodyRows.push(buildRunRow(u.peakRun));
+      bodyCards.push(buildRunCard(u.peakRun));
     }
 
     const rowsH = bodyRows.join('');
+    const cardsH = bodyCards.join('');
 
     runsBlock = '<div class="rd-section">' +
       '<div class="rd-section-title">Recent runs ' +
@@ -7685,6 +7767,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '<th>Early</th><th>Mid</th><th>Late</th>' +
         '<th>WPR</th>' +
         '</tr></thead><tbody>' + rowsH + '</tbody></table></div>' +
+        '<div class="rd-cards">' + cardsH + '</div>' +
       '</div>';
   }
 
@@ -9442,7 +9525,12 @@ function renderRaceDetail(raceId) {
   // wprEffective() kept as a tiny wrapper for the few callers that pass
   // a runner object (rather than reading wprEff[rid]).
   function wprEffective(u) { return wprEff[u.rid]; }
-  const WPR_UNIT = 25;   // 1 unit = $25
+  // 1 unit in dollars - read from Settings (settings.unitDollar) so the
+  // suggested stake matches the user's actual unit size. Was hardcoded to
+  // $25, which under-sized every suggestion for users on $50/$100 units.
+  // Falls back to 25 only if the setting is missing.
+  const WPR_UNIT = (typeof settings !== 'undefined' && settings.unitDollar)
+    ? settings.unitDollar : 25;
 
   const sortedRunners = runners.slice().sort((a, b) => {
     const getter = sortGetters[raceSortState.col] || sortGetters.tr;
@@ -9922,13 +10010,17 @@ function renderRaceDetail(raceId) {
       if (cur && cur.bet) {
         wprSetBet(rid, false);            // Y -> N, clears the bet
       } else {
-        // N -> Y: seed the stake from the row's suggested figure if present
-        const row = btn.closest('tr');
-        const sc = row ? row.querySelector('.wpr-stake-cell') : null;
+        // N -> Y: seed the stake from the row's (or card's) suggested figure.
+        // Works for the desktop table row AND the mobile card - the suggested
+        // stake lives in .wpr-stake-cell (table) or .rc-stake (card).
+        const container = btn.closest('tr') || btn.closest('.rc');
         let seed = null;
-        if (sc) {
-          const m = sc.textContent.match(/\$?\(?\$?(\d+)/);
-          if (m) seed = parseFloat(m[1]);
+        if (container) {
+          const sc = container.querySelector('.wpr-stake-cell, .rc-stake');
+          if (sc) {
+            const m = sc.textContent.match(/\$?\(?\$?(\d+)/);
+            if (m) seed = parseFloat(m[1]);
+          }
         }
         wprSetBet(rid, true, seed);
       }
