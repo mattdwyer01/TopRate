@@ -456,8 +456,34 @@ def flush_wpr_form_history():
     blank = combined["_dedup"].isin(["", "nan", "None"])
     combined.loc[blank, "_dedup"] = combined.loc[blank, "horse"].astype(str)
     key = ["_dedup", "formNumber", "date"]
+    # Prefer ENRICHED rows when deduping. The rich __data.json enrichment
+    # fills the per-horse sectionals (sect_i_*) and class; a plain re-scrape
+    # of the same run produces a THIN row with those columns NaN. With a
+    # naive keep="last", a later thin re-scrape would overwrite a previously
+    # enriched row and silently wipe the sectionals (the bug that blanked
+    # horse sectionals in the detail panel). Fix: sort so rows that HAVE
+    # sectional data sort AFTER thin rows within each dup group, so
+    # keep="last" keeps the enriched one. Ties (both enriched or both thin)
+    # fall back to scrape recency.
+    if "sect_i_early" in combined.columns:
+        _has_sect = combined["sect_i_early"].notna().astype(int)
+    else:
+        _has_sect = 0
+    combined["_enriched"] = _has_sect
+    # _enriched is the PRIMARY sort key so enriched rows always sort AFTER
+    # thin rows (and win keep="last"), regardless of scrape date. scrape_date
+    # is only a tiebreaker among rows with the SAME enrichment status (e.g.
+    # two enriched scrapes - keep the newer). Getting this order wrong (date
+    # first) lets a later thin re-scrape beat an older enriched row, which is
+    # exactly the bug being fixed.
+    _sort_cols = ["_enriched"]
+    if "scrape_date" in combined.columns:
+        _sort_cols = ["_enriched", "scrape_date"]
+    # stable sort ascending: thin (0) before enriched (1); within each,
+    # older scrape before newer. keep="last" then keeps enriched-and-newest.
+    combined = combined.sort_values(_sort_cols, kind="stable")
     combined = combined.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
-    combined = combined.drop(columns=["_dedup"])
+    combined = combined.drop(columns=["_dedup", "_enriched"])
     combined.to_csv(WPR_FORM_HISTORY_CSV, index=False)
     print(f"WPR form history: {len(new_df):,} rows captured, "
           f"{len(combined):,} total unique runs -> {WPR_FORM_HISTORY_CSV.name}")
