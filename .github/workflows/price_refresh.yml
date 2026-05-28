@@ -34,7 +34,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests openpyxl
+          pip install pandas requests openpyxl scikit-learn joblib
 
       - name: Refresh prices
         env:
@@ -48,8 +48,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Only commit if something actually changed - silence the noise if not
+          # Only commit if something actually changed - silence the noise if not.
+          # NOTE: toprate_price_history.csv is gitignored (local-only), so it is
+          # NOT git-add'd here. A previous version added it explicitly, which
+          # errors with exit code 1 when git hits an ignored path and fails the
+          # whole commit step - silently killing every price-refresh push.
           if [[ -n "$(git status --porcelain)" ]]; then
+            git add toprate_runners.csv toprate_live.html
             git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
             git push
           else
