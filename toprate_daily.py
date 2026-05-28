@@ -1094,14 +1094,22 @@ def compute_wpr_actual(runners_df):
         return runners_df
 
     # fill wpr_actual on resulted runners
+    # DISABLED: this used to fill wpr_actual from the form-history `wpr`
+    # column, but that is the RAW run-day WPR, not the weight-adjusted `atw`
+    # that aligns to the projection. wpr_actual is now sourced from the
+    # result feed's `atw` field in update_results() (timely, correct metric)
+    # and the historical backfill (backfill_atw.py). Filling from form-history
+    # wpr here would (a) be the wrong metric and (b) clobber the correct atw
+    # values every run. The lookup build above is retained only in case a
+    # future fallback is wanted; the fill loop is intentionally a no-op.
     filled = 0
-    for idx in runners_df[resulted_mask].index:
-        hlc = str(runners_df.at[idx, "horse"]).strip().lower()
-        d = str(runners_df.at[idx, "date"])[:10]
-        v = wpr_lookup.get((hlc, d))
-        if v is not None:
-            runners_df.at[idx, "wpr_actual"] = round(float(v), 1)
-            filled += 1
+    # for idx in runners_df[resulted_mask].index:
+    #     hlc = str(runners_df.at[idx, "horse"]).strip().lower()
+    #     d = str(runners_df.at[idx, "date"])[:10]
+    #     v = wpr_lookup.get((hlc, d))
+    #     if v is not None:
+    #         runners_df.at[idx, "wpr_actual"] = round(float(v), 1)
+    #         filled += 1
 
     # actual rank within each resulted race (1 = highest actual WPR)
     ranked_races = 0
@@ -1581,10 +1589,18 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
                 sp  = r.get("priceStarting")
                 pt  = r.get("priceTop")
                 mgn = r.get("marginFinish")
+                atw = r.get("atw")   # actual weight-adjusted WPR (the settled
+                                     # run-day rating, aligns to the projection's
+                                     # weight basis). Source of truth for
+                                     # wpr_actual - captured here the moment a
+                                     # race resolves, so the actual no longer
+                                     # waits for the horse to be re-scraped into
+                                     # form history (the lag that left recent
+                                     # runs' actuals blank).
                 if rid and pos:
                     result_map[rid] = {
                         "finish": pos, "margin": mgn,
-                        "sp": sp, "price_top": pt,
+                        "sp": sp, "price_top": pt, "atw": atw,
                     }
 
             # Update each runner in this race
@@ -1600,6 +1616,12 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
                         runners_df.loc[idx, "margin_finish"] = res["margin"]
                     runners_df.loc[idx, "starting_price_sp"] = sp
                     runners_df.loc[idx, "price_top"]         = res.get("price_top")
+                    # Actual weight-adjusted WPR straight from the result feed.
+                    # This is the timely path: filled when the race resolves,
+                    # not when the horse next races. Guarded so a missing atw
+                    # leaves any existing value alone rather than nulling it.
+                    if res.get("atw") is not None:
+                        runners_df.loc[idx, "wpr_actual"] = round(float(res["atw"]), 1)
                     runners_df.loc[idx, "won"]    = 1 if finish == 1 else 0
                     runners_df.loc[idx, "placed"] = 1 if finish <= 3 else 0
                     runners_df.loc[idx, "resulted"] = 1
@@ -2270,9 +2292,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     continue
                 _fa_g = _fa_g[_fa_g["_w"].notna()]
                 _recs = []
-                for _w, _go, _ds, _tmp, _rel in zip(
+                _fa_dates = (_fa_g["date"].astype(str).str[:10]
+                             if "date" in _fa_g.columns
+                             else [""] * len(_fa_g))
+                for _w, _go, _ds, _tmp, _rel, _dt in zip(
                         _fa_g["_w"], _fa_g["_go"], _fa_g["_ds"],
-                        _fa_g["_tmp"], _fa_g["_rel"]):
+                        _fa_g["_tmp"], _fa_g["_rel"], _fa_dates):
                     _recs.append({
                         "w": float(_w),
                         "go": _go if isinstance(_go, str) else "",
@@ -2280,6 +2305,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                         "tmp": _tmp if (_tmp is not None
                                         and _tmp == _tmp) else None,
                         "rel": float(_rel) if pd.notna(_rel) else None,
+                        "d": _dt,   # run date - lets the payload exclude the
+                                    # current race from the comparison tables,
+                                    # same as formRuns (display-only).
                     })
                 form_all_lookup[_hlc] = _recs
     except Exception as _e:
@@ -2483,9 +2511,19 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpja":  sf(row.get("wpr_actual")),
                 "wpjar": si(row.get("wpr_actual_rank")),
                 # Last 6 race runs (newest first) for the detail-panel form
-                # table. Empty list if no history matched.
-                "formRuns": form_lookup.get(
-                    str(row.get("horse", "")).strip().lower(), []),
+                # table. Empty list if no history matched. We EXCLUDE any run
+                # dated the same day as THIS race: TopRate's form feed includes
+                # the current race once it resolves, which otherwise shows the
+                # race as its own most-recent prior run ("0 days since last
+                # run"). A horse races at most once per day (AU rules), so a
+                # same-date run is always the current race, never a legitimate
+                # earlier one. The full run stays in form history for
+                # modelling; this filter is display-only.
+                "formRuns": [
+                    _fr for _fr in form_lookup.get(
+                        str(row.get("horse", "")).strip().lower(), [])
+                    if str(_fr.get("d", ""))[:10] != str(row.get("date", ""))[:10]
+                ],
                 # peakRun: a single rich record for the most recent
                 # career-peak run when it falls OUTSIDE the last 6 runs.
                 # None when the peak is already visible in formRuns.
@@ -2493,8 +2531,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     str(row.get("horse", "")).strip().lower()),
                 # formAll: compact full-history records for the detail-panel
                 # comparison tables (WPR by tempo/settling/going/distance).
-                "formAll": form_all_lookup.get(
-                    str(row.get("horse", "")).strip().lower(), []),
+                # Exclude the current race (same date) so today's run does not
+                # skew the "all races" averages - consistent with formRuns.
+                "formAll": [
+                    _fa_r for _fa_r in form_all_lookup.get(
+                        str(row.get("horse", "")).strip().lower(), [])
+                    if str(_fa_r.get("d", ""))[:10] != str(row.get("date", ""))[:10]
+                ],
                 # predicted settling band for THIS race (Leader/On-pace/
                 # Midfield/Back) - lets the settling comparison table
                 # highlight today's bucket. None if not estimable.
@@ -2757,6 +2800,11 @@ def main():
     parser.add_argument("--backfill",   type=int, default=0, help="Backfill results for last N days")
     parser.add_argument("--date",       help="Fetch races for specific date (YYYY-MM-DD)")
     parser.add_argument("--publish",    action="store_true", help="After rebuilding, push HTML to GitHub Pages")
+    parser.add_argument("--rebuild-only", action="store_true",
+                        help="Skip the API fetch/projection/results steps and "
+                             "just rebuild the HTML from the existing CSV, then "
+                             "(with --publish) push it. Fast path for HTML/CSS "
+                             "template changes that need no fresh data.")
     parser.add_argument("--serve",      action="store_true", help="After rebuilding, serve HTML on local network for iPhone access")
     parser.add_argument("--serve-only", action="store_true", help="Skip fetch/rebuild, just start the server (use existing HTML)")
     parser.add_argument("--port",       type=int, default=8080, help="Port for --serve (default 8080)")
@@ -2777,6 +2825,23 @@ def main():
     n_existing = len(runners_df)
     n_races    = runners_df["race_id"].nunique() if n_existing else 0
     print(f"Runners DB: {n_existing:,} runners across {n_races:,} races ({RUNNERS_CSV})")
+
+    # ── Fast path: rebuild HTML from the existing CSV, no API fetch ──────────
+    # For HTML/CSS template changes that need no fresh data. Skips login,
+    # results, today's-races fetch, form flush, projection, race-speed,
+    # actuals and the price snapshot - the slow ~3-4 min of a full run - and
+    # goes straight to the HTML rebuild (~3 min mostly form-history lookup)
+    # plus publish. Use: python toprate_daily.py --rebuild-only --publish
+    if args.rebuild_only:
+        print("── Rebuild-only: skipping API fetch, rebuilding HTML from existing CSV ──")
+        rebuild_html(runners_df, model_pick_rows=[])
+        if args.publish:
+            publish()
+        print(f"\n{'='*60}")
+        print("Done (rebuild-only).")
+        if args.serve:
+            serve(args.port)
+        return
 
     jwt = login()
     print()
