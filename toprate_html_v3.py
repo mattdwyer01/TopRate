@@ -4459,6 +4459,29 @@ body {
 }
 .acc-empty { color: var(--ink-mute, #888); padding: 20px; font-style: italic; }
 
+/* ── Mobile: wide data tables scroll instead of clipping ──────────────────
+   On desktop these tables are width:100% and fit fine. On a phone, 100%
+   forces them to screen width, which crams columns until content overflows
+   the cells and clips at the right edge (the "page-grey showing in rows"
+   was cells too narrow for their content, plus the table not filling the
+   scrolled area). The fix: on mobile give each table a min-width so it
+   grows to its natural width and its scroll wrapper (overflow-x:auto)
+   actually has something to scroll - swipe sideways to see all columns.
+   Row backgrounds then fill the full table width, so no grey bleed. */
+@media (max-width: 720px) {
+  /* WPR Accuracy detail table */
+  .acc-table { min-width: 760px; }
+  /* Race tab runner table (already inside .race-table-wrap) */
+  .race-table { min-width: 920px; }
+  /* Summary "Model disagrees" / "Standout ratings" tables - their list
+     containers need to become scroll wrappers too. */
+  #wpr-list-overlays, #wpr-list-standouts { overflow-x: auto; }
+  .wpr-summary-table { min-width: 860px; }
+  /* Detail-panel recent-runs form table */
+  .rd-table-scroll { overflow-x: auto; }
+  .rd-runs-table { min-width: 680px; }
+}
+
 /* ── Database tab ─────────────────────────────────────────────────────────
    Filter bar, stats strip, runners table. Filter bar can collapse to save
    space once user has set their query. Table uses horizontal scroll on all
@@ -5229,9 +5252,21 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- WPR PROJECTION SUMMARY -->
   <section class="section active" id="sec-wpr">
     <div class="wpr-summary-head">
-      <h2 class="wpr-summary-title">Summary
-        <select class="wpr-summary-date-sel" id="wpr-summary-date-sel"
-                title="Date shown"></select></h2>
+      <h2 class="wpr-summary-title">Summary</h2>
+      <div class="race-date-bar wpr-date-bar">
+        <div class="race-date-controls">
+          <button class="race-date-quick wpr-date-quick" data-wdate="yesterday">Yesterday</button>
+          <button class="race-date-quick wpr-date-quick active" data-wdate="today">Today</button>
+          <button class="race-date-quick wpr-date-quick" data-wdate="tomorrow">Tomorrow</button>
+          <input type="date" id="wpr-summary-date-input" class="race-date-input">
+        </div>
+      </div>
+      <!-- Hidden value store: the render reads this select's value. The
+           visible quick buttons / date input above write to it. Kept hidden
+           (not removed) so the existing read logic in renderWprSummary is
+           unchanged - matches the Race tab's control without a rewrite. -->
+      <select class="wpr-summary-date-sel" id="wpr-summary-date-sel"
+              style="display:none" title="Date shown"></select>
       <div class="wpr-summary-note">
         WPR-projection picks for today's runners. The projection is a form-quality
         read, not a proven betting edge - treat these lists as information.
@@ -5301,7 +5336,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="wpr-filter wpr-filter-check">
-        <label><input type="checkbox" id="wpr-f-ranked">
+        <label><input type="checkbox" id="wpr-f-ranked" checked>
           Races with ranked runners only</label>
       </div>
       <button class="wpr-filter-reset" id="wpr-f-reset">Reset</button>
@@ -5313,8 +5348,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <h3>Model disagrees with market</h3>
         <div class="wpr-slider-wrap">
           <label for="wpr-n-slider">Within
-            <span id="wpr-n-val">6</span> WPR pts of top</label>
-          <input type="range" id="wpr-n-slider" min="3" max="10" value="6" step="1">
+            <span id="wpr-n-val">4</span> WPR pts of top</label>
+          <input type="range" id="wpr-n-slider" min="3" max="10" value="4" step="1">
         </div>
       </div>
       <div class="wpr-list-desc">
@@ -5332,8 +5367,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <h3>Standout ratings</h3>
         <div class="wpr-slider-wrap">
           <label for="wpr-m-slider">Gap to 2nd
-            <span id="wpr-m-val">6</span>+ WPR pts</label>
-          <input type="range" id="wpr-m-slider" min="2" max="12" value="6" step="1">
+            <span id="wpr-m-val">2</span>+ WPR pts</label>
+          <input type="range" id="wpr-m-slider" min="2" max="12" value="2" step="1">
         </div>
       </div>
       <div class="wpr-list-desc">
@@ -6312,6 +6347,27 @@ document.querySelectorAll('.tab').forEach(t => {
 // every top-level declaration is initialized.
 setTimeout(function () {
   if (typeof renderWprSummary === 'function') renderWprSummary();
+  // Sync the date quick-button active state to whatever date the Summary
+  // resolved to on first render (the select defaults to the latest date,
+  // which may not be "today"). Keeps the highlighted button honest about
+  // what is actually shown.
+  try {
+    const sel = document.getElementById('wpr-summary-date-sel');
+    const di = document.getElementById('wpr-summary-date-input');
+    const d = sel && sel.value ? sel.value
+            : (sel && sel.options[0] ? sel.options[0].value : '');
+    if (d) {
+      if (di) di.value = d;
+      const today = isoDate(0), yest = isoDate(-1), tom = isoDate(1);
+      document.querySelectorAll('.wpr-date-quick').forEach(b => {
+        const k = b.dataset.wdate;
+        b.classList.toggle('active',
+          (k === 'today' && d === today) ||
+          (k === 'yesterday' && d === yest) ||
+          (k === 'tomorrow' && d === tom));
+      });
+    }
+  } catch (e) { /* non-fatal */ }
 }, 0);
 
 // WPR summary controls - sliders re-render the lists live; clear button
@@ -6328,6 +6384,51 @@ setTimeout(function () {
   });
   if (dS) dS.addEventListener('change', () => {
     if (typeof renderWprSummary === 'function') renderWprSummary();
+  });
+  // Summary date quick-buttons (Yesterday/Today/Tomorrow) + date input.
+  // These match the Race tab's control but use the wpr-date-quick class so
+  // they do NOT collide with the Race tab's .race-date-quick handler. They
+  // write the chosen date into the hidden wpr-summary-date-sel (the value
+  // renderWprSummary reads), adding an option if that date is not already
+  // present, then re-render.
+  function setSummaryDate(d) {
+    const sel = document.getElementById('wpr-summary-date-sel');
+    if (!sel || !d) return;
+    let found = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === d) { found = true; break; }
+    }
+    if (!found) {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      sel.appendChild(o);
+    }
+    sel.value = d;
+    // Reflect active state on the quick buttons.
+    const today = isoDate(0), yest = isoDate(-1), tom = isoDate(1);
+    document.querySelectorAll('.wpr-date-quick').forEach(b => {
+      const k = b.dataset.wdate;
+      const match = (k === 'today' && d === today) ||
+                    (k === 'yesterday' && d === yest) ||
+                    (k === 'tomorrow' && d === tom);
+      b.classList.toggle('active', match);
+    });
+    const di = document.getElementById('wpr-summary-date-input');
+    if (di) di.value = d;
+    if (typeof renderWprSummary === 'function') renderWprSummary();
+  }
+  document.querySelectorAll('.wpr-date-quick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.wdate;
+      const d = k === 'yesterday' ? isoDate(-1)
+              : k === 'tomorrow'  ? isoDate(1)
+              : isoDate(0);
+      setSummaryDate(d);
+    });
+  });
+  const wdi = document.getElementById('wpr-summary-date-input');
+  if (wdi) wdi.addEventListener('change', () => {
+    if (wdi.value) setSummaryDate(wdi.value);
   });
   // Filter bar controls (Stage 4d) - each re-renders both lists.
   const rerender = () => {
@@ -6361,7 +6462,17 @@ setTimeout(function () {
     if (re) re.value = '';
     if (pmn) pmn.value = '1';
     if (pmx) pmx.value = '100';
-    if (unr) unr.checked = false;
+    // Default to ranked-runners-only ON (user preference).
+    if (unr) unr.checked = true;
+    // Restore the two list sliders to their defaults (4 / 2) and sync labels.
+    const nS2 = document.getElementById('wpr-n-slider');
+    const mS2 = document.getElementById('wpr-m-slider');
+    const nV2 = document.getElementById('wpr-n-val');
+    const mV2 = document.getElementById('wpr-m-val');
+    if (nS2) nS2.value = '4';
+    if (mS2) mS2.value = '2';
+    if (nV2) nV2.textContent = '4';
+    if (mV2) mV2.textContent = '2';
     rerender();
   });
 })();
@@ -7506,12 +7617,12 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         'sectionals on top (green where it beat the race shape, red ' +
         'where it lost) and the race shape underneath in grey.' +
         '</span></div>' +
-      '<table class="rd-runs-table"><thead><tr>' +
+      '<div class="rd-table-scroll"><table class="rd-runs-table"><thead><tr>' +
         '<th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
         '<th>Bar</th><th>Class</th><th>Fin</th><th>Mgn</th><th>Pos</th>' +
         '<th>Early</th><th>Mid</th><th>Late</th>' +
         '<th>WPR</th>' +
-        '</tr></thead><tbody>' + rowsH + '</tbody></table>' +
+        '</tr></thead><tbody>' + rowsH + '</tbody></table></div>' +
       '</div>';
   }
 
@@ -7835,6 +7946,22 @@ function wprSetBet(rid, bet, stake) {
   if (!bet) { delete _wprBets[String(rid)]; }
   else { _wprBets[String(rid)] = { bet: true, stake: stake }; }
   _wprSaveBets();
+  // Mirror to the canonical betLog so the Summary and P&L tabs (which read
+  // betLog, not _wprBets) see the bet, and so it syncs across devices via
+  // the gist (setBetEntry triggers scheduleSyncPush). Race-tab bets used to
+  // land only in _wprBets, an isolated store - that is why they never showed
+  // on Summary/P&L. We keep _wprBets too (the Race tab's stake-input UI reads
+  // it), but betLog is now the source of truth for "placed".
+  // NOTE: betLog derives stake from price for P&L; we ALSO record the manual
+  // stake here so a future P&L change can prefer it, without changing the
+  // money math in this pass.
+  if (typeof setBetEntry === 'function') {
+    if (!bet) {
+      setBetEntry(rid, { placed: false, stake: null });
+    } else {
+      setBetEntry(rid, { placed: true, stake: (stake != null ? stake : null) });
+    }
+  }
 }
 function wprBetCount() {
   return Object.keys(_wprLoadBets()).length;
@@ -9442,6 +9569,33 @@ function renderRaceDetail(raceId) {
         ? '<td class="wpr-margin-cell">' + mgnNum.toFixed(2) + 'L</td>'
         : '<td class="wpr-na">&mdash;</td>';
     }
+    // Return cell - only on resulted races, right of Margin. Shows the
+    // return (in units) on any bet placed on this runner, computed the same
+    // way the Summary/P&L tabs do it so the tabs agree: stake from the bet
+    // record (or suggested), settle price = SP if known else fixed, return =
+    // stake * settlePrice when the horse won (finish == 1), else 0. Blank
+    // (em-dash) when no bet was placed.
+    let returnCellPart = '';
+    if (raceIsResulted) {
+      let retStr = '<span class="wpr-na">&mdash;</span>';
+      if (isBet && betRec) {
+        // betRec.stake is in dollars; convert to units via the configurable
+        // unit-dollar value (same one the KPI strip / fmtDollar use). Guard
+        // against a zero/missing unitDollar so we never divide by zero.
+        const ud = (settings && settings.unitDollar) ? settings.unitDollar : 1;
+        const stakeUnits = (betRec.stake != null)
+          ? Number(betRec.stake) / ud
+          : null;
+        const fin = (u.f != null) ? parseInt(u.f, 10) : null;
+        const settle = (u.sp && u.sp > 1) ? u.sp : (fxp && fxp > 1 ? fxp : null);
+        if (stakeUnits != null && Number.isFinite(stakeUnits) && fin != null) {
+          const ret = (fin === 1 && settle) ? stakeUnits * settle : 0;
+          const cls = ret > 0 ? 'wpr-kpi-pos' : 'wpr-kpi-neg';
+          retStr = '<span class="' + cls + '">' + ret.toFixed(2) + 'u</span>';
+        }
+      }
+      returnCellPart = '<td class="wpr-return-cell">' + retStr + '</td>';
+    }
     // Actual + Miss cells - only rendered if any runner in the race has
     // an actual WPR yet. Settles ~5 days post-race; hidden in the
     // meantime to cut em-dash clutter from pending and recently-run races.
@@ -9465,6 +9619,7 @@ function renderRaceDetail(raceId) {
       stakeCell +
       resultCell +
       marginCellPart +
+      returnCellPart +
       actualCellPart +
       missCellPart +
       '</tr>';
@@ -9501,6 +9656,8 @@ function renderRaceDetail(raceId) {
         '<th title="Finishing position - editable until official results land">Result</th>' +
         (raceIsResulted
           ? '<th title="Finishing margin in lengths">Margin</th>' : '') +
+        (raceIsResulted
+          ? '<th title="Return on any bet placed on this runner (units)">Return</th>' : '') +
         (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
         (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
       '</tr></thead>' +
