@@ -4459,27 +4459,26 @@ body {
 }
 .acc-empty { color: var(--ink-mute, #888); padding: 20px; font-style: italic; }
 
-/* ── Mobile: wide data tables scroll instead of clipping ──────────────────
-   On desktop these tables are width:100% and fit fine. On a phone, 100%
-   forces them to screen width, which crams columns until content overflows
-   the cells and clips at the right edge (the "page-grey showing in rows"
-   was cells too narrow for their content, plus the table not filling the
-   scrolled area). The fix: on mobile give each table a min-width so it
-   grows to its natural width and its scroll wrapper (overflow-x:auto)
-   actually has something to scroll - swipe sideways to see all columns.
-   Row backgrounds then fill the full table width, so no grey bleed. */
+/* ── Mobile: data tables fit the screen, no horizontal scroll ─────────────
+   User feedback: do not want to scroll sideways; want tables to fit. So on
+   phones the wide tables shrink to fit (smaller font/padding, fixed layout)
+   rather than forcing a min-width that scrolls. The Race table is handled
+   separately (class-based column hiding) in the main mobile block. */
 @media (max-width: 720px) {
-  /* WPR Accuracy detail table */
-  .acc-table { min-width: 760px; }
-  /* Race tab runner table (already inside .race-table-wrap) */
-  .race-table { min-width: 920px; }
-  /* Summary "Model disagrees" / "Standout ratings" tables - their list
-     containers need to become scroll wrappers too. */
-  #wpr-list-overlays, #wpr-list-standouts { overflow-x: auto; }
-  .wpr-summary-table { min-width: 860px; }
-  /* Detail-panel recent-runs form table */
-  .rd-table-scroll { overflow-x: auto; }
-  .rd-runs-table { min-width: 680px; }
+  /* WPR Accuracy detail table - fit to width */
+  .acc-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
+  .acc-table th, .acc-table td { padding: 4px 3px; }
+  .acc-table-wrap { overflow-x: hidden; }
+  /* Summary lists - fit to width */
+  #wpr-list-overlays, #wpr-list-standouts { overflow-x: hidden; }
+  .wpr-summary-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
+  .wpr-summary-table th, .wpr-summary-table td { padding: 4px 3px; }
+  /* Detail-panel recent-runs form table: fit to screen width (no min-width
+     forcing scroll). User wants the whole table visible. Tight but complete -
+     shrink font/padding so all 13 columns fit a phone. */
+  .rd-table-scroll { overflow-x: hidden; }
+  .rd-runs-table { min-width: 0; width: 100%; table-layout: fixed; font-size: 8px; }
+  .rd-runs-table th, .rd-runs-table td { padding: 3px 2px; }
 }
 
 /* ── Database tab ─────────────────────────────────────────────────────────
@@ -5051,40 +5050,16 @@ body {
   /* Race tab */
   .race-table { font-size: 11px; }
   .race-table thead th, .race-table tbody td { padding: 8px 6px; }
-  .race-table-wrap { overflow-x: auto; }
-  /* Hide low-priority columns on mobile so the essential ones (Tab, Horse,
-     Bar, TR$, Fxd, Score) fit without horizontal scroll. The full table is
-     still available in the detail panel by tapping the horse name on Today
-     tab, or by viewing in landscape mode (table will horizontally scroll). */
-  /* Race table mobile column structure (1-based indices after restructure):
-     1=Tab 2=Horse 3=Fxd 4=Score 5=Votes
-     6=WPR 7=Late 8=Class 9=L600 10=PF AI 11=TR
-     12=Bar 13=Style 14=Settles 15=Mid 16=Total
-     17=L400 18=Class Δ 19=Distance 20=Going(?)
-
-     On mobile we show columns 1-11 (the primary scan columns) and hide
-     everything else (Bar, Style, Settles, Mid, Total, L400, ClassΔ, Dist,
-     Going). The hidden columns are accessible by tapping a row to expand
-     the detail panel. This keeps the table readable on phones while
-     preserving all data on tap. */
-  .race-table thead th:nth-child(12), /* Bar */
-  .race-table thead th:nth-child(13), /* Style */
-  .race-table thead th:nth-child(14), /* Settles */
-  .race-table thead th:nth-child(15), /* Mid */
-  .race-table thead th:nth-child(16), /* Total */
-  .race-table thead th:nth-child(17), /* L400 */
-  .race-table thead th:nth-child(18), /* Class Δ */
-  .race-table thead th:nth-child(19), /* Distance */
-  .race-table thead th:nth-child(20), /* Going */
-  .race-table tbody td:nth-child(12),
-  .race-table tbody td:nth-child(13),
-  .race-table tbody td:nth-child(14),
-  .race-table tbody td:nth-child(15),
-  .race-table tbody td:nth-child(16),
-  .race-table tbody td:nth-child(17),
-  .race-table tbody td:nth-child(18),
-  .race-table tbody td:nth-child(19),
-  .race-table tbody td:nth-child(20) {
+  /* Responsive columns by CLASS (rebuild-proof, unlike nth-child which broke
+     when the table was restructured for the WPR rebuild). Portrait shows only
+     the six essentials the user asked for: No., Horse, Speed, Pred WPR,
+     WPR $, Fixed $. Everything else is hidden so the table fits the screen
+     with NO horizontal scroll. The hidden data is still on tap (detail panel)
+     and in landscape. */
+  .race-table { width: 100%; min-width: 0; table-layout: auto; }
+  .race-table-wrap { overflow-x: hidden; }
+  .race-table thead th:not(.rt-col-tab):not(.rt-col-horse):not(.rt-col-settles):not(.rt-col-wpjp):not(.rt-col-wpjpr):not(.rt-col-fxd),
+  .race-table tbody td:not(.rt-col-tab):not(.rt-col-horse):not(.rt-col-settles):not(.wpr-pred-cell):not(.rt-col-wpjpr):not(.rt-col-fxd) {
     display: none;
   }
   /* Tighter cell padding on mobile - 11 visible columns need compact cells
@@ -5157,6 +5132,30 @@ body {
   .pd-fs-warn { padding: 8px 10px; }
   .pd-fs-warn .text { font-size: 11px; }
   .pd-fs-warn .sub { font-size: 10px; }
+}
+
+/* Landscape phones: more horizontal room than portrait, so show additional
+   race columns (Bar, Peak WPR, Avg L3, Overlay, Bet, Result) on top of the
+   six portrait essentials. Still no horizontal scroll - the columns fit the
+   wider landscape viewport. Bounded to phone-sized landscape (max 932px) so
+   it does not affect tablets/desktop, which show the full table. The rule
+   re-displays these specific columns that the portrait rule hid. */
+@media (max-width: 932px) and (orientation: landscape) {
+  .race-table thead th.rt-col-bar,
+  .race-table tbody td.rt-col-bar,
+  .race-table thead th.rt-col-wpjpk,
+  .race-table tbody td.rt-col-wpjpk,
+  .race-table thead th.rt-col-wpja,
+  .race-table tbody td.rt-col-wpja,
+  .race-table thead th.rt-col-ovl,
+  .race-table tbody td.wpr-overlay-pos,
+  .race-table tbody td.wpr-overlay-neg,
+  .race-table thead th.rt-col-bet,
+  .race-table tbody td.wpr-bet-cell,
+  .race-table thead th.rt-col-result,
+  .race-table tbody td.wpr-result-cell {
+    display: table-cell;
+  }
 }
 """
 
@@ -9458,7 +9457,7 @@ function renderRaceDetail(raceId) {
 
     // WPR price, overlay, bet, stake
     const wp = wprPrice[rid];
-    const wprPriceCell = '<td>' + (wp != null ? '$' + wp.toFixed(2) : '—') + '</td>';
+    const wprPriceCell = '<td class="rt-col-wpjpr">' + (wp != null ? '$' + wp.toFixed(2) : '—') + '</td>';
     let overlayCell = '<td>—</td>';
     let suggestedStake = null;
     if (wp != null && fxp != null && fxp > 0) {
@@ -9604,16 +9603,16 @@ function renderRaceDetail(raceId) {
 
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       scratchCell +
-      '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
-      '<td class="horse-cell">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
-      '<td>' + (u.b || '') + '</td>' +
-      '<td>' + settlesLabel(u.asp) + '</td>' +
-      '<td>' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</td>' +
-      '<td>' + (u.wpra != null ? u.wpra.toFixed(1) : '—') + '</td>' +
+      '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
+      '<td class="horse-cell rt-col-horse">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
+      '<td class="rt-col-bar">' + (u.b || '') + '</td>' +
+      '<td class="rt-col-settles">' + settlesLabel(u.asp) + '</td>' +
+      '<td class="rt-col-wpjpk">' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</td>' +
+      '<td class="rt-col-wpja">' + (u.wpra != null ? u.wpra.toFixed(1) : '—') + '</td>' +
       predCell +
       manualCell +
       wprPriceCell +
-      '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
+      '<td class="rt-col-fxd">' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       overlayCell +
       betCell +
       stakeCell +
@@ -9625,9 +9624,12 @@ function renderRaceDetail(raceId) {
       '</tr>';
   });
 
-  // Header with sort indicators
+  // Header with sort indicators. Adds rt-col-{col} so responsive CSS can
+  // show/hide columns by name rather than nth-child position (which breaks
+  // when the table is restructured or when conditional columns like Margin/
+  // Return/Actual shift the indices).
   function th(col, label) {
-    const cls = ['sortable'];
+    const cls = ['sortable', 'rt-col-' + col];
     if (raceSortState.col === col) {
       cls.push('sort-' + raceSortState.dir);
     }
@@ -9640,24 +9642,24 @@ function renderRaceDetail(raceId) {
         // ── WPR projection columns (Option B - replaces signal columns) ──
         // No., Horse, Barrier, Speed/settle, Peak WPR, Avg WPR L3,
         // Predicted WPR, Manual adj., WPR price, Fixed price, Overlay, Stake.
-        '<th title="Toggle manual scratch - excludes this runner from WPR price calc">Scr</th>' +
+        '<th class="rt-col-scr" title="Toggle manual scratch - excludes this runner from WPR price calc">Scr</th>' +
         th('tab', 'No.') + th('horse', 'Horse') +
         th('bar', 'Bar') +
         th('settles', 'Speed') +
         th('wpjpk', 'Peak WPR') +
         th('wpja', 'Avg L3') +
         th('wpjp', 'Pred WPR') +
-        '<th title="Manual rating delta - type +4 or -3 to adjust">Manual</th>' +
+        '<th class="rt-col-manual" title="Manual rating delta - type +4 or -3 to adjust">Manual</th>' +
         th('wpjpr', 'WPR $') +
         th('fxd', 'Fixed $') +
         th('ovl', 'Overlay') +
-        '<th title="Mark Y to bet this horse">Bet</th>' +
+        '<th class="rt-col-bet" title="Mark Y to bet this horse">Bet</th>' +
         th('stk', 'Stake') +
-        '<th title="Finishing position - editable until official results land">Result</th>' +
+        '<th class="rt-col-result" title="Finishing position - editable until official results land">Result</th>' +
         (raceIsResulted
-          ? '<th title="Finishing margin in lengths">Margin</th>' : '') +
+          ? '<th class="rt-col-margin" title="Finishing margin in lengths">Margin</th>' : '') +
         (raceIsResulted
-          ? '<th title="Return on any bet placed on this runner (units)">Return</th>' : '') +
+          ? '<th class="rt-col-return" title="Return on any bet placed on this runner (units)">Return</th>' : '') +
         (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
         (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
       '</tr></thead>' +
