@@ -7522,7 +7522,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '<td rowspan="2" class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
         '<td rowspan="2">' + goingChip(r.go) + '</td>' +
         '<td rowspan="2" class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
-        '<td rowspan="2">' + escapeHtml(r.cls || '&mdash;') + '</td>' +
+        '<td rowspan="2">' + (r.cls ? escapeHtml(r.cls) : '&mdash;') + '</td>' +
         '<td rowspan="2" class="rd-num">' + (r.fin != null ? r.fin : '&mdash;') + '</td>' +
         '<td rowspan="2" class="rd-num">' + (r.mgn != null ? r.mgn.toFixed(1) : '&mdash;') + '</td>' +
         '<td rowspan="2" class="rd-pos">' + (
