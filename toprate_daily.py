@@ -1844,6 +1844,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "jockey_rating":      s.get("jockey_rating"),
                     "trainer_rating":     s.get("trainer_rating"),
                     "fixed_win_price":    d.get("fixedWinPrice"),
+                    # Silks image URL from TopRate detail feed - full URL
+                    # like https://silks.medialityracing.com.au/png/{hash}_front.png.
+                    # Pre-built (100% coverage observed), so we just store and
+                    # render directly in the dashboard.
+                    "silk_url":           d.get("silksURL"),
                     "jockey_win_pct_90d": s.get("jockey_win_pct_90d"),
                     "trainer_win_pct_365d": s.get("trainer_win_pct_365d"),
                     # Jockey/trainer combo win % - new for v3 score upgrade.
@@ -2458,6 +2463,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "jrt":  sf(row.get("jockey_rating")),
                 "trt":  sf(row.get("trainer_rating")),
                 "fx":   sf(row.get("fixed_win_price")),
+                # Silks image URL (full https URL ending in _front.png).
+                # Dashboard renders an <img> on Race + Summary cards.
+                "sk":   str(row.get("silk_url")) if row.get("silk_url") and str(row.get("silk_url")) != "nan" else None,
                 "sp":   sf(row.get("starting_price_sp")),
                 "top":  sf(row.get("price_top")),
                 "f":    si(row.get("finish_position")),

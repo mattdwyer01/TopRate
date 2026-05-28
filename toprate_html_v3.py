@@ -4497,6 +4497,10 @@ body {
     font-size: 11px; min-width: 20px; height: 20px; border-radius: 5px;
     padding: 0 5px; margin-right: 6px; vertical-align: middle;
   }
+  .sc-silk {
+    width: 22px; height: 22px; object-fit: contain;
+    vertical-align: middle; margin-right: 5px;
+  }
   .sc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
   .sc-grid {
     display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 8px;
@@ -5136,6 +5140,10 @@ body {
     background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
     font-size: 12px; min-width: 23px; height: 23px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .rc-silk {
+    width: 26px; height: 26px; object-fit: contain; flex-shrink: 0;
+    margin-left: -2px;
   }
   .rc-name {
     font-weight: 700; font-size: 14px; flex: 1; min-width: 0;
@@ -8753,6 +8761,8 @@ function renderWprSummary() {
       '</div>' +
       '<div class="sc-horse"><span class="sc-num">' +
         (r.horse.tab != null ? r.horse.tab : '?') + '</span>' +
+        (r.horse.sk ? '<img class="sc-silk" src="' + escapeHtml(r.horse.sk) +
+          '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') +
         escapeHtml(r.horse.h || '') +
         ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + ' ' +
         wprJkyChip(r.horse.jrt) + '</span></div>' +
@@ -9951,6 +9961,8 @@ function renderRaceDetail(raceId) {
       '<div class="' + cCardCls.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
         '<div class="rc-top">' +
           '<div class="rc-num">' + (u.tab || '?') + '</div>' +
+          (u.sk ? '<img class="rc-silk" src="' + escapeHtml(u.sk) +
+            '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') +
           '<div class="rc-name">' + escapeHtml(u.h || '') + pickBadge + '</div>' +
           '<div class="rc-pred"><span class="rc-pred-val">' +
             (cPred != null ? cPred.toFixed(1) : '—') + '</span>' +
