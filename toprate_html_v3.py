@@ -3348,6 +3348,7 @@ body {
 .wpr-summary-table {
   width: 100%; border-collapse: collapse; font-size: 13px;
 }
+.sum-cards { display: none; }
 .wpr-summary-table thead th {
   text-align: left; padding: 7px 8px; border-bottom: 2px solid var(--line);
   font-size: 11px; text-transform: uppercase; color: var(--ink-mute);
@@ -4473,18 +4474,31 @@ body {
   .acc-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
   .acc-table th, .acc-table td { padding: 4px 3px; }
   .acc-table-wrap { overflow-x: hidden; }
-  /* Summary lists - fit ALL columns to width (user wants everything visible).
-     15 columns on a phone means tiny text and fixed layout so wide cells
-     (jockey names, race labels) cannot force overflow. Text truncates with
-     ellipsis rather than wrapping into tall rows. */
+  /* Summary lists: on mobile use cards (same pattern as the Race tab) instead
+     of the 15-column table, which cannot fit a phone. Table hidden, cards
+     shown. */
   #wpr-list-overlays, #wpr-list-standouts { overflow-x: hidden; }
-  .wpr-summary-table {
-    min-width: 0; width: 100%; table-layout: fixed; font-size: 7px;
+  .wpr-summary-table { display: none; }
+  .sum-cards { display: block; }
+  .sum-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 12px; margin-bottom: 9px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
   }
-  .wpr-summary-table th, .wpr-summary-table td {
-    padding: 3px 1px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap;
+  .sc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .sc-race { font-size: 12px; color: var(--ink-mute); font-weight: 600; }
+  .sc-eff { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 5px; }
+  .sc-horse { font-weight: 700; font-size: 15px; margin: 4px 0 0; }
+  .sc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
+  .sc-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px 10px;
+    margin: 9px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line-soft);
   }
+  .sc-cell { display: flex; flex-direction: column; gap: 1px; }
+  .sc-cell .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
+  .sc-cell .val { font-weight: 700; font-size: 13px; }
+  .sc-cell .ovl-pos { color: var(--emerald); }
+  .sc-cell .ovl-neg { color: var(--rose, #b91c1c); }
   /* Detail-panel recent-runs form table: fit to screen width (no min-width
      forcing scroll). User wants the whole table visible. Tight but complete -
      shrink font/padding so all 13 columns fit a phone. */
@@ -8558,6 +8572,48 @@ function renderWprSummary() {
   overlays.sort((a, b) => raceTimeMs(a.race) - raceTimeMs(b.race));
   standouts.sort((a, b) => raceTimeMs(a.race) - raceTimeMs(b.race));
 
+  // Mobile summary card (Design A style). Builds one card per overlay/standout
+  // row, carrying the same data-race-id/data-rid so the existing delegated
+  // click handler (jump to runner) catches card taps too. opts: {gapLabel,
+  // gap, conf?}. Shown below 720px; the table is hidden there.
+  function sumCard(r, opts) {
+    const pnl = betPnl(r.horse);
+    const wp = r.wprPrice;
+    const fx = r.fixed;
+    const ovl = (wp != null && fx != null && wp > 0) ? (fx / wp - 1) * 100 : null;
+    const ovlStr = ovl == null ? '—'
+      : '<span class="' + (ovl >= 0 ? 'ovl-pos' : 'ovl-neg') + '">' +
+        (ovl >= 0 ? '+' : '') + ovl.toFixed(0) + '%</span>';
+    let confChip = '';
+    if (opts.conf != null) {
+      let cc = 'conf-lo';
+      if (opts.conf >= 80) cc = 'conf-hi'; else if (opts.conf >= 60) cc = 'conf-mid';
+      confChip = '<span class="rc-conf ' + cc + '">' + opts.conf + '</span>';
+    }
+    return '<div class="sum-card wpr-row-clickable" ' +
+      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+      '<div class="sc-top">' +
+        '<div class="sc-race">' + raceTime(r.race) + ' · ' + raceCell(r.race) + '</div>' +
+        '<div class="sc-eff">' + r.eff.toFixed(1) + confChip + '</div>' +
+      '</div>' +
+      '<div class="sc-horse">' + escapeHtml(r.horse.h || '') +
+        ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + ' ' +
+        wprJkyChip(r.horse.jrt) + '</span></div>' +
+      '<div class="sc-grid">' +
+        '<div class="sc-cell"><span class="lbl">' + opts.gapLabel + '</span><span class="val">' + opts.gap.toFixed(1) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Settle</span><span class="val">' + settlePos(r.horse) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Speed</span><span class="val">' + raceSpeed(r.race) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Bar</span><span class="val">' + (r.horse.b != null ? r.horse.b : '—') + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">WPR $</span><span class="val">' + (wp != null ? '$' + wp.toFixed(2) : '—') + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Fixed $</span><span class="val">' + (fx != null ? '$' + fx.toFixed(2) : '—') + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Overlay</span><span class="val">' + ovlStr + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Stake</span><span class="val">' + unitCell(pnl.stake) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Return</span><span class="val">' + unitCell(pnl.ret) + '</span></div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // ── render list 1 ──
   const ov = document.getElementById('wpr-list-overlays');
   if (!overlays.length) {
@@ -8588,7 +8644,10 @@ function renderWprSummary() {
         '<td>' + unitCell(pnl.stake) + '</td>' +
         '<td>' + unitCell(pnl.ret) + '</td>' +
         '<td>' + fpCell(r.horse) + '</td></tr>';
-      }).join('') + '</tbody></table>';
+      }).join('') + '</tbody></table>' +
+      '<div class="sum-cards">' +
+      overlays.map(r => sumCard(r, {gapLabel: 'Gap to top', gap: r.gapToTop})).join('') +
+      '</div>';
   }
 
   // ── render list 2 ──
@@ -8627,7 +8686,10 @@ function renderWprSummary() {
           '<td>' + unitCell(pnl.stake) + '</td>' +
           '<td>' + unitCell(pnl.ret) + '</td>' +
           '<td>' + fpCell(r.horse) + '</td></tr>';
-      }).join('') + '</tbody></table>';
+      }).join('') + '</tbody></table>' +
+      '<div class="sum-cards">' +
+      standouts.map(r => sumCard(r, {gapLabel: 'Gap to 2nd', gap: r.gap, conf: r.conf})).join('') +
+      '</div>';
   }
 
   // Wire row clicks on both lists - jump to the runner on the Race tab.
@@ -8638,7 +8700,7 @@ function renderWprSummary() {
     if (!host || host._wprJumpWired) return;
     host._wprJumpWired = true;
     host.addEventListener('click', (e) => {
-      const tr = e.target.closest('tr.wpr-row-clickable');
+      const tr = e.target.closest('.wpr-row-clickable');
       if (!tr || !host.contains(tr)) return;
       const raceId = tr.dataset.raceId;
       const rid = tr.dataset.rid;
