@@ -370,3 +370,6 @@ date,meeting_id,venue,track_id,state,country,abbrev,surface,rail_position,stage,
 2026-05-29,239974,Tauranga,458,NZ,NZ,BOPL,,Out 3.5m,A,True,,2026-05-28T14:43:30.557,2026-05-26T11:16:52,False
 2026-05-29,240004,Pakenham,1134,VIC,AUS,PAKM,Turf,Out 6m Entire Circuit,A,True,,2026-05-28T12:35:36.063,2026-05-28T12:35:32,False
 2026-05-29,240025,Sunshine Coast Poly,1156,QLD,AUS,SCPT,Synthetic,True,A,True,,2026-05-28T15:19:53.107,2026-05-28T15:19:50,False
+2026-05-28,239975,Gosford,107,NSW,AUS,GOSF,Turf,True,A,True,,2026-05-28T07:25:25,2026-05-28T07:12:01,False
+2026-05-28,239977,Gatton,187,QLD,AUS,GATT,Turf,True Entire Course,A,True,,2026-05-28T07:09:12.503,2026-05-28T07:09:09,False
+2026-05-28,239976,Moe,314,VIC,AUS,MOE,Turf,True Entire Circuit,A,True,,2026-05-28T14:34:00.4,2026-05-28T14:33:57,False
