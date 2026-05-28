@@ -189,8 +189,12 @@ def main():
     # Rebuild HTML so the dashboard shows fresh prices
     if not args.no_rebuild:
         try:
-            picks = td.compute_model_picks(runners_df)
-            td.rebuild_html(runners_df, model_pick_rows=picks)
+            # The Edge/Volume model rule (compute_model_picks) was removed in
+            # the WPR-only refactor. The main daily flow now rebuilds with an
+            # empty pick list; the dashboard presents WPR rankings and bet
+            # selection is manual. Match that here - calling the deleted
+            # compute_model_picks would crash the refresh.
+            td.rebuild_html(runners_df, model_pick_rows=[])
         except Exception as e:
             print(f"HTML rebuild failed: {e}")
             return 1

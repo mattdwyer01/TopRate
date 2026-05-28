@@ -619,6 +619,21 @@ body {
   font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
   font-weight: 500;
 }
+/* Price-freshness dot. Colour reflects how long since the last price
+   refresh (the HTML rebuild timestamp, RUN_ISO). The price-refresh
+   workflow runs every 5 min during racing hours, so: green = fresh
+   (under 10 min, a slot or two), amber = aging (10-30 min, several
+   missed slots), red = stale (over 30 min, refresh likely not running
+   or outside racing hours). A glance tells you whether to trust the
+   FIXED $ column. */
+.freshness-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+  background: var(--ink-mute);   /* default until JS sets state */
+}
+.freshness-dot.fresh { background: var(--emerald); }
+.freshness-dot.aging { background: #d97706; }
+.freshness-dot.stale { background: #dc2626; }
 .brand-mark {
   display: inline-block; width: 6px; height: 6px; background: var(--emerald);
   border-radius: 50%; margin-right: 8px; vertical-align: middle;
@@ -5141,7 +5156,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <header class="topbar topbar-compact">
     <div class="topbar-right">
-      <span class="run-stamp" id="header-run-stamp" title="{run_date}"><span id="header-run-rel">just now</span></span>
+      <span class="run-stamp" id="header-run-stamp" title="Prices last refreshed: {run_date}"><span class="freshness-dot" id="freshness-dot"></span>Prices: <span id="header-run-rel">just now</span></span>
       <span class="sync-pill" id="sync-pill" title="Tap to pull latest bets/odds from cloud sync">sync off</span>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
@@ -13782,6 +13797,22 @@ function updateRelativeTimes() {
   if (headerRel) headerRel.textContent = rel;
   const settingsRel = document.getElementById('last-fetched-rel');
   if (settingsRel) settingsRel.textContent = rel;
+
+  // Price-freshness dot. Minutes since the last HTML rebuild (= last price
+  // refresh). Thresholds tied to the 5-min refresh cadence: under 10 min is
+  // fresh (a slot or two), 10-30 min aging, over 30 min stale (refresh not
+  // running, or outside the workflow's racing-hours window).
+  const dot = document.getElementById('freshness-dot');
+  if (dot && typeof RUN_ISO !== 'undefined' && RUN_ISO) {
+    const ageMin = Math.max(0, (Date.now() - new Date(RUN_ISO).getTime()) / 60000);
+    let cls, note;
+    if (ageMin < 10)      { cls = 'fresh'; note = 'Prices are current'; }
+    else if (ageMin < 30) { cls = 'aging'; note = 'Prices a little stale'; }
+    else                  { cls = 'stale'; note = 'Prices stale - refresh may not be running'; }
+    dot.className = 'freshness-dot ' + cls;
+    const stamp = document.getElementById('header-run-stamp');
+    if (stamp) stamp.title = note + ' (last refresh ' + rel + ')';
+  }
 }
 updateRelativeTimes();
 setInterval(updateRelativeTimes, 60000);
