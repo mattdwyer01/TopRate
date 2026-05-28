@@ -4471,7 +4471,7 @@ body {
    phones the wide tables shrink to fit (smaller font/padding, fixed layout)
    rather than forcing a min-width that scrolls. The Race table is handled
    separately (class-based column hiding) in the main mobile block. */
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-height: 600px) and (orientation: landscape) {
   /* WPR Accuracy detail table - fit to width */
   .acc-table { min-width: 0; width: 100%; table-layout: auto; font-size: 9px; }
   .acc-table th, .acc-table td { padding: 4px 3px; }
@@ -4484,21 +4484,22 @@ body {
   .sum-cards { display: block; }
   .sum-card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 11px 12px; margin-bottom: 9px;
+    border-radius: 10px; padding: 8px 11px; margin-bottom: 6px;
     box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
   }
   .sc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .sc-race { font-size: 12px; color: var(--ink-mute); font-weight: 600; }
-  .sc-eff { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 5px; }
-  .sc-horse { font-weight: 700; font-size: 15px; margin: 4px 0 0; }
+  .sc-race { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+  .sc-eff { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 5px; }
+  .sc-horse { font-weight: 700; font-size: 14px; margin: 2px 0 0; }
   .sc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
   .sc-grid {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px 10px;
-    margin: 9px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line-soft);
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 8px;
+    margin: 7px 0 0; padding: 7px 9px; border-top: 1px solid var(--line-soft);
+    background: var(--line-soft); border-radius: 7px;
   }
-  .sc-cell { display: flex; flex-direction: column; gap: 1px; }
-  .sc-cell .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
-  .sc-cell .val { font-weight: 700; font-size: 13px; }
+  .sc-cell { display: flex; flex-direction: column; gap: 0; }
+  .sc-cell .lbl { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
+  .sc-cell .val { font-weight: 700; font-size: 12px; }
   .sc-cell .ovl-pos { color: var(--emerald); }
   .sc-cell .ovl-neg { color: var(--rose, #b91c1c); }
   /* Detail-panel recent runs: on mobile use run-cards instead of the
@@ -4509,7 +4510,7 @@ body {
   .rd-cards { display: block; }
   .rdc {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 9px 10px; margin: 0 0 7px;
+    border-radius: 9px; padding: 7px 10px; margin: 0 0 5px;
   }
   .rdc-peak { border-color: var(--emerald); }
   .rdc-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; font-size: 12px; }
@@ -4517,20 +4518,20 @@ body {
   .rdc-trk { color: var(--ink); }
   .rdc-dist { color: var(--ink-mute); }
   .rdc-wpr { margin-left: auto; font-weight: 800; font-size: 14px; }
-  .rdc-meta { font-size: 11px; color: var(--ink-mute); margin: 5px 0 0; }
+  .rdc-meta { font-size: 11px; color: var(--ink-mute); margin: 3px 0 0; }
   .rdc-meta b { color: var(--ink); font-weight: 600; }
-  .rdc-sect { margin: 7px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line-soft); }
+  .rdc-sect { margin: 5px 0 0; padding: 5px 7px; border-top: 1px solid var(--line-soft); background: var(--line-soft); border-radius: 6px; }
   .rdc-sect-lbls { display: grid; grid-template-columns: 1fr 1fr 1fr; }
   .rdc-sect-lbls span { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); text-align: center; }
-  .rdc-sect-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 2px; }
+  .rdc-sect-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 1px; }
   .rdc-sect-col { text-align: center; }
-  .rdc-sect-h { font-weight: 700; font-size: 13px; border-radius: 4px; padding: 2px 0; }
-  .rdc-sect-h.rd-sect-against { background: rgba(16,185,129,.13); color: #047857; }
-  .rdc-sect-h.rd-sect-with { background: rgba(220,38,38,.11); color: #b91c1c; }
-  .rdc-sect-s { font-size: 11px; color: var(--ink-mute); padding-top: 1px; }
+  .rdc-sect-h { font-weight: 700; font-size: 13px; border-radius: 4px; padding: 1px 0; }
+  .rdc-sect-h.rd-sect-against { background: rgba(16,185,129,.18); color: #047857; }
+  .rdc-sect-h.rd-sect-with { background: rgba(220,38,38,.15); color: #b91c1c; }
+  .rdc-sect-s { font-size: 11px; color: var(--ink-mute); padding-top: 0; }
   .rdc-sep {
     text-align: center; font-size: 10px; font-style: italic; color: var(--ink-mute);
-    padding: 5px 0; text-transform: uppercase; letter-spacing: .03em;
+    padding: 4px 0; text-transform: uppercase; letter-spacing: .03em;
   }
   .rdc-sep-peak { color: var(--emerald); }
 }
@@ -5088,7 +5089,7 @@ body {
 }
 
 /* Mobile adjustments - global */
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-height: 600px) and (orientation: landscape) {
   .topbar { padding: 12px 0; margin-bottom: 14px; }
   .brand { font-size: 17px; }
   .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -5111,7 +5112,7 @@ body {
   .race-cards { display: block; }
   .rc {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 11px 12px; margin-bottom: 9px;
+    border-radius: 10px; padding: 8px 11px; margin-bottom: 6px;
     box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
   }
   .rc.is-pick { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
@@ -5121,40 +5122,40 @@ body {
   .rc-top { display: flex; align-items: center; gap: 9px; }
   .rc-num {
     background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
-    font-size: 13px; min-width: 26px; height: 26px; border-radius: 7px;
+    font-size: 12px; min-width: 23px; height: 23px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .rc-name {
-    font-weight: 700; font-size: 15px; flex: 1; min-width: 0;
+    font-weight: 700; font-size: 14px; flex: 1; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .rc-pred { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-  .rc-pred-val { font-weight: 800; font-size: 17px; }
+  .rc-pred-val { font-weight: 800; font-size: 16px; }
   .rc-conf {
     font-size: 10px; font-weight: 700; color: #fff; border-radius: 9px;
-    padding: 2px 7px;
+    padding: 1px 7px;
   }
   .rc-conf.conf-hi { background: var(--emerald); }
   .rc-conf.conf-lo { background: var(--rose, #b91c1c); }
   .rc-conf.conf-mid { background: var(--amber, #b45309); }
-  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-mute); margin: 7px 0 0; }
+  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-mute); margin: 4px 0 0; }
   .rc-sub b { color: var(--ink); font-weight: 600; }
   .rc-prices {
-    display: flex; gap: 16px; margin: 9px 0 0; padding: 8px 0 0;
+    display: flex; gap: 16px; margin: 6px 0 0; padding: 5px 0 0;
     border-top: 1px solid var(--line-soft); font-size: 13px;
   }
-  .rc-price { display: flex; flex-direction: column; gap: 1px; }
+  .rc-price { display: flex; flex-direction: column; gap: 0; }
   .rc-price .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
   .rc-price .val { font-weight: 700; }
   .rc-price .ovl-pos { color: var(--emerald); }
   .rc-price .ovl-neg { color: var(--rose, #b91c1c); }
   .rc-foot {
-    display: flex; align-items: center; gap: 12px; margin: 9px 0 0;
-    padding: 8px 0 0; border-top: 1px solid var(--line-soft);
+    display: flex; align-items: center; gap: 12px; margin: 6px 0 0;
+    padding: 5px 0 0; border-top: 1px solid var(--line-soft);
   }
   .rc-bet {
     font-size: 12px; font-weight: 700; border: 1.5px solid var(--line);
-    border-radius: 7px; padding: 5px 14px; background: #fff; cursor: pointer;
+    border-radius: 6px; padding: 4px 12px; background: #fff; cursor: pointer;
   }
   .rc-bet.yes { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-bg, rgba(4,120,87,.1)); }
   .rc-stake { font-size: 12px; color: var(--ink-mute); }
@@ -5167,7 +5168,7 @@ body {
   .rc-result b { color: var(--ink); font-weight: 700; }
   .rc-detail {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 10px; margin: -3px 0 9px;
+    border-radius: 10px; padding: 9px; margin: -2px 0 6px;
   }
   /* Tighter cell padding on mobile - 11 visible columns need compact cells
      to fit phone widths without horizontal scroll */
@@ -5244,9 +5245,11 @@ body {
 /* Landscape phones use the same runner cards as portrait (they simply render
    wider). The earlier landscape table rule is retired - cards replace the
    table for all mobile widths, so there is no wide table to manage. */
-@media (max-height: 500px) and (orientation: landscape) {
-  .race-table { display: none; }
-  .race-cards { display: block; }
+/* Landscape phones: ensure the shell has breathing room at the screen edges
+   (was running edge-to-edge). The card blocks themselves are styled by the
+   widened mobile media queries above. */
+@media (max-height: 600px) and (orientation: landscape) {
+  .shell { padding-left: 16px; padding-right: 16px; max-width: 100%; }
 }
 """
 
