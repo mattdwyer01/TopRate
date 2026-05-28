@@ -5212,7 +5212,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   </section>
 
   <!-- WPR PROJECTION SUMMARY -->
-  <section class="section" id="sec-wpr">
+  <section class="section active" id="sec-wpr">
     <div class="wpr-summary-head">
       <h2 class="wpr-summary-title">Summary
         <select class="wpr-summary-date-sel" id="wpr-summary-date-sel"
@@ -6281,6 +6281,14 @@ document.querySelectorAll('.tab').forEach(t => {
     }
   });
 });
+
+// Initial render: the Summary tab is the default-active tab (its button
+// has class "active" and sec-wpr is active in the markup), so render its
+// content on load. Without this the section is active-but-empty until the
+// user clicks the tab, which read as a blank grey page on open.
+if (typeof renderWprSummary === 'function') {
+  renderWprSummary();
+}
 
 // WPR summary controls - sliders re-render the lists live; clear button
 // wipes all manual adjustments after a confirm.
