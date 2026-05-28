@@ -27,12 +27,14 @@ Requirements:
 
 import requests
 import pandas as pd
+import numpy as np
 import argparse
 import sys
 import time
 import math
 import json
 import os
+import warnings
 import urllib3
 from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
@@ -49,6 +51,11 @@ API_BASE  = "https://api.toprate.au"
 ANON_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNjkxNjc2MDAwLAogICJleHAiOiAxODQ5NTI4ODAwCn0.MsNV6VIGz0f4K-wgKSwv1b2cnb76x7OcvrHm8HosHT4"
 EMAIL     = os.environ.get("TOPRATE_EMAIL", "matt.dwyer.01@gmail.com")
 PASSWORD  = os.environ.get("TOPRATE_PASSWORD", "P@ssword1996")
+
+# Full Supabase session object from the last login() call. Populated by
+# login(); read by the SvelteKit __data.json cookie-pair builder. None
+# until login() has run.
+_SESSION_OBJ = None
 
 RUNNERS_CSV    = Path(__file__).parent / "toprate_runners.csv"
 SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
@@ -67,11 +74,8 @@ BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 # capture sink for offline modelling.
 WPR_FORM_HISTORY_CSV = Path(__file__).parent / "wpr_form_history.csv"
 
-# Punting Form ratings - ingested separately by puntingform_ingest.py.
-# Joined into runners_df during the daily run by merge_pf_ratings(). When
-# the file doesn't exist or fails to load, all PF columns are None and the
-# new model rule produces zero picks (since it requires PF data).
-PF_RATINGS_CSV = Path(__file__).parent / "puntingform_data" / "pf_ratings.csv"
+# Punting Form integration removed (WPR-only refactor). The PF subscription
+# is cancelled; the model now runs on WPR projection only.
 
 # 14 signals matching the backtest
 SIGNALS_HIGHER = ["wpr_nett","wpr_last1","wpr_avg_last3","wpr_dist","wpr_going",
@@ -84,7 +88,7 @@ ALL_SIGNALS    = SIGNALS_HIGHER + SIGNALS_LOWER
 RUNNER_COLS = [
     # Race info
     "date","venue","state","race","race_id","race_name","distance","prize_money",
-    "going","track_grading","rail_position","start_time",
+    "going","track_grading","rail_position","start_time","race_class",
     "race_shape_early","race_shape_mid","race_shape_late",
     "has_first_starter",
     # Runner info
@@ -111,16 +115,7 @@ RUNNER_COLS = [
     # Pre-race market (starting_price_sp and price_top filled post-race)
     "starting_price_sp","price_top",
     # Result fields
-    "finish_position","won","placed","resulted",
-    # ── Punting Form ratings ──────────────────────────────────────────────
-    # Merged in by merge_pf_ratings() each daily run. Frozen at PF's
-    # ratingsUpdated time per meeting so safe to backtest. None when PF
-    # didn't rate the meeting (model rule excludes those races).
-    "pf_ai_rank","pf_ai_price","pf_ai_score",
-    "pf_class_rank","pf_tac_class_rank",
-    "pf_time_rank","pf_early_time_rank",
-    "pf_last600_rank","pf_last400_rank","pf_last200_rank",
-    "pf_run_style","pf_class_change","pf_reliable",
+    "finish_position","margin_finish","won","placed","resulted",
 ]
 
 # -----------------------------------------------------------------------
@@ -136,6 +131,13 @@ def login():
     token = data.get("access_token")
     if not token:
         raise ValueError(f"Login failed: {data}")
+    # Stash the FULL session object (not just the token). The SvelteKit
+    # __data.json endpoint - used by the rich form-history capture - needs
+    # the sb-api-auth-token cookie pair, which is built from the whole
+    # session object. login()'s return value is left as the bare token so
+    # existing callers are untouched; the cookie builder reads this global.
+    global _SESSION_OBJ
+    _SESSION_OBJ = data
     print(f"Logged in | token expires {datetime.fromtimestamp(data.get('expires_at',0)):%H:%M:%S}")
     return token
 
@@ -253,6 +255,9 @@ def build_wpr_lookup(cache):
 _WPR_FORM_ROWS = []
 # One-time flag so the wpr_chart-runner-keys diagnostic prints only once.
 _WPR_KEYS_LOGGED = False
+# Run-page ids of today's runners, accumulated during collect_wpr_form_history.
+# Consumed once by the rich __data.json capture pass in flush_wpr_form_history.
+_WPR_RICH_RUNIDS = set()
 
 # Fields pulled from each form entry. These are the raw inputs a WPR
 # projection model trains on (target = the `wpr` of the run itself).
@@ -300,60 +305,18 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
             name_by_rid[rid] = d.get("horse")
             hid_by_rid[rid]  = d.get("horseId")
 
-    # ── One-time structural diagnostic ────────────────────────────────────
-    # Dumps the full key sets of a wpr_chart runner, a form entry, and a
-    # detail object - plus a sample of each - so we can see exactly what the
-    # API provides without guessing. This answers the open questions:
-    #   - do form entries carry track / barrier / jockey / jockeyRating?
-    #   - does the detail object carry a predicted settle / run-style / pace?
-    # Prints once per process run, then goes quiet.
-    global _WPR_KEYS_LOGGED
-    if not _WPR_KEYS_LOGGED and wpr_chart:
-        try:
-            r0 = wpr_chart[0] or {}
-            print("  ┌─ WPR FORM-HISTORY DIAGNOSTIC ─────────────────────────")
-            print(f"  │ wpr_chart runner keys: {sorted(r0.keys())}")
-            # Find the first runner that actually HAS form entries - a
-            # first-starter has an empty form array and tells us nothing.
-            form0 = []
-            for rr in wpr_chart:
-                f = (rr or {}).get("form") or []
-                if f:
-                    form0 = f
-                    break
-            if form0:
-                fe = form0[0]
-                print(f"  │ form-entry keys ({len(fe)}): {sorted(fe.keys())}")
-                # Sample values so we see TYPES and whether jockey/track/barrier
-                # carry real data vs being null
-                for k in sorted(fe.keys()):
-                    v = fe.get(k)
-                    vs = repr(v)
-                    if len(vs) > 120:
-                        vs = vs[:120] + "...(truncated)"
-                    print(f"  │   form.{k} = {vs}")
-            else:
-                print("  │ (no runner in this race had form entries)")
-            # Detail object keys - where predicted settle/pace/run-style live
-            if detail:
-                d0 = detail[0] or {}
-                print(f"  │ detail keys ({len(d0)}): {sorted(d0.keys())}")
-                for k in sorted(d0.keys()):
-                    v = d0.get(k)
-                    # Truncate long/nested values so the log stays readable
-                    vs = repr(v)
-                    if len(vs) > 120:
-                        vs = vs[:120] + "...(truncated)"
-                    print(f"  │   detail.{k} = {vs}")
-            print("  └───────────────────────────────────────────────────────")
-        except Exception as e:
-            print(f"  [diagnostic dump failed: {e}]")
-        _WPR_KEYS_LOGGED = True
+    # (one-time WPR form-history structural diagnostic removed - it had
+    #  served its purpose and was cluttering every run)
 
     for runner in (wpr_chart or []):
         rid   = runner.get("runId")
         hname = name_by_rid.get(rid)
         hid   = hid_by_rid.get(rid)
+        # Record this runner-page id for the rich __data.json capture pass
+        # (Step 2b). One id per runner; the rich fetch runs once after all
+        # races are collected, not inline here.
+        if rid is not None:
+            _WPR_RICH_RUNIDS.add(rid)
         for f in (runner.get("form") or []):
             row = {
                 "run_id":      rid,
@@ -364,6 +327,85 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
             for k in _WPR_FORM_FIELDS:
                 row[k] = f.get(k)
             _WPR_FORM_ROWS.append(row)
+
+def _enrich_form_history_rich(new_df):
+    """Fetch the rich per-runner __data.json for today's runners and merge
+    its fields (field_size, 13 sectionals, class, gear, comments, jockey,
+    trainer, campaign flags) into new_df, joined on (horse_id, date).
+
+    Full fetch: every run_id collected today. Stage 2 measured ~0.28s per
+    call, so a ~400-runner day costs ~2 minutes - acceptable serially.
+
+    Fail-safe: on any failure (import, fetch, parse) the function returns
+    new_df unchanged. The rich capture must never break the daily run -
+    same discipline as compute_wpr_projection.
+    """
+    if not _WPR_RICH_RUNIDS:
+        return new_df
+    try:
+        import toprate_json_capture as cap
+    except Exception as e:
+        print(f"  Rich capture skipped: cannot import toprate_json_capture ({e})")
+        return new_df
+
+    run_ids = sorted(_WPR_RICH_RUNIDS)
+    print(f"  Rich __data.json capture: {len(run_ids)} runner pages ...")
+
+    # (horse_id, date_str) -> dict of rich fields
+    rich = {}
+    n_ok = n_empty = n_fail = 0
+    t0 = time.time()
+    for i, rid in enumerate(run_ids, 1):
+        if i % 100 == 0:
+            print(f"    ... {i}/{len(run_ids)} ({time.time()-t0:.0f}s)")
+        try:
+            horse_id, runs = cap.fetch_runner(rid)
+        except Exception:
+            horse_id, runs = None, []
+        if horse_id == "EMPTY":
+            n_empty += 1
+            continue
+        if horse_id is None:
+            n_fail += 1
+            continue
+        n_ok += 1
+        for run in runs:
+            # date strings: __data.json gives ISO dates; the form-history
+            # date column is also ISO. Slice to 10 chars on both sides of
+            # the join so a time component never breaks the match.
+            d = str(run.get("date", ""))[:10]
+            if d:
+                rich[(str(horse_id), d)] = run.get("fields", {})
+
+    if not rich:
+        print(f"  Rich capture: no data merged "
+              f"(ok {n_ok}, empty {n_empty}, fail {n_fail})")
+        return new_df
+
+    # ensure every rich column exists on new_df
+    for col in cap.ALL_COLS:
+        if col not in new_df.columns:
+            new_df[col] = None
+
+    # fill rich columns row by row, matched on (horse_id, date)
+    filled = 0
+    for idx in new_df.index:
+        hid = str(new_df.at[idx, "horse_id"])
+        d = str(new_df.at[idx, "date"])[:10]
+        fields = rich.get((hid, d))
+        if not fields:
+            continue
+        for col in cap.ALL_COLS:
+            v = fields.get(col)
+            if v is not None:
+                new_df.at[idx, col] = v
+        filled += 1
+
+    print(f"  Rich capture: {filled:,}/{len(new_df):,} rows enriched "
+          f"(pages ok {n_ok}, empty {n_empty}, fail {n_fail}, "
+          f"{time.time()-t0:.0f}s)")
+    return new_df
+
 
 def flush_wpr_form_history():
     """Write accumulated form rows to WPR_FORM_HISTORY_CSV (append + dedup).
@@ -391,6 +433,14 @@ def flush_wpr_form_history():
     if new_df.empty:
         print("WPR form history: no identifiable rows - nothing written")
         return
+
+    # ── Rich __data.json capture (Step 2b) ──────────────────────────────
+    # Enrich new_df with field_size, sectionals, class, gear, comments etc.
+    # from the per-runner __data.json endpoint. Joined on (horse_id, date),
+    # which is unique (a horse races at most once a day). Fail-safe: any
+    # error leaves new_df with thin rows and the daily run still completes.
+    new_df = _enrich_form_history_rich(new_df)
+
     if WPR_FORM_HISTORY_CSV.exists():
         try:
             old = pd.read_csv(WPR_FORM_HISTORY_CSV,
@@ -635,27 +685,6 @@ def build_stats_lookup(race_stats):
     for runner in (race_stats or []):
         rid = runner.get("runId")
 
-        # ONE-TIME DIAGNOSTIC: log all top-level keys of the runner object so we
-        # can identify where jt_combo_win_pct lives. The backtest has fields like
-        # jt_combo_rides, jt_combo_win_pct, jt_combo_place_pct, jt_combo_pot.
-        # If we find them in the live API response we can wire them up.
-        if "_jt_combo_diag_done" not in _logged_filters:
-            _logged_filters.add("_jt_combo_diag_done")
-            top_keys = sorted(runner.keys())
-            print(f"  DIAG: get_race_stats runner top-level keys: {top_keys}")
-            # If there are any combo/jockey/trainer-related arrays we don't know about, log their domains
-            for k in top_keys:
-                v = runner.get(k)
-                if isinstance(v, list) and v and isinstance(v[0], dict):
-                    sample_keys = sorted(v[0].keys())
-                    print(f"  DIAG: '{k}' is a list of {len(v)} items; first item keys: {sample_keys}")
-                    if "domain" in v[0]:
-                        domains = [item.get("domain") for item in v[:3]]
-                        print(f"  DIAG: '{k}' first 3 domains: {domains}")
-                # Also log scalar fields that might be the combo numbers directly
-                elif isinstance(v, (int, float)) and "combo" in k.lower():
-                    print(f"  DIAG: scalar combo field found: {k} = {v}")
-
         def pick(lst, region, price, days, jumps):
             # Case-insensitive match — TopRate sometimes returns "All" vs "all"
             for s in (lst or []):
@@ -692,9 +721,6 @@ def build_stats_lookup(race_stats):
                     jt_match = arr[0] if isinstance(arr[0], dict) else {}
                 jt_combo_win_pct = jt_match.get("winPercent")
                 jt_combo_rides   = jt_match.get("rides") or jt_match.get("starts")
-                if jt_combo_win_pct is not None and "jt_combo_found" not in _logged_filters:
-                    _logged_filters.add("jt_combo_found")
-                    print(f"  DIAG: found jt_combo data in '{arr_key}'. Sample: {jt_match}")
                 break
 
         # Path B: scalar fields on the runner object directly
@@ -703,9 +729,6 @@ def build_stats_lookup(race_stats):
                       "jockeyTrainerWinPct"):
                 if runner.get(k) is not None:
                     jt_combo_win_pct = runner.get(k)
-                    if "jt_combo_scalar_found" not in _logged_filters:
-                        _logged_filters.add("jt_combo_scalar_found")
-                        print(f"  DIAG: found jt_combo scalar at '{k}' = {jt_combo_win_pct}")
                     break
 
         lookup[rid] = {
@@ -751,826 +774,342 @@ def compute_votes(runners_df):
     return sc, total
 
 
-def merge_pf_ratings(runners_df):
+# ===========================================================================
+# WPR PROJECTION  (Step 2c)
+# ---------------------------------------------------------------------------
+# Enriches the runners DataFrame with the model-only WPR projection: a
+# projected run-day WPR, a 0-100 confidence rating, a fair-value WPR price,
+# the in-race WPR rank, the horse's career peak WPR, and a one-line plain
+# text explanation.
+#
+# Runs AFTER flush_wpr_form_history() (Step 2a) so wpr_form_history.csv on
+# disk already contains every runner's full form history including the runs
+# scraped today. For each race, each runner's PRIOR form (runs strictly
+# before today) is pulled from that file and passed to wpr_projection.
+#
+# All projection logic lives in wpr_projection.py - this function only wires
+# the runners DataFrame to it. The wpr_* columns are not in RUNNER_COLS;
+# save_runners() persists them automatically as "extras".
+# ===========================================================================
+
+def compute_race_speed(runners_df, target_date_str=None):
+    """Add rs_score and rs_label columns to the runners DataFrame - an
+    AUTOMATED race-speed (early-tempo) estimate for every race today.
+
+    Runs with no manual input. For each race it calls
+    race_speed_estimate.estimate_race_speed, which aggregates the field's
+    settling estimates into a 0-1 pressure score and a Hot/Fast/Even/Slow
+    label.
+
+    HONEST LABELLING - read before relying on this. The race-speed
+    estimate is LOW CONFIDENCE. Validation found the tempo component has
+    little correlation with how races are actually run early (race tempo
+    is set on the day by jockey tactics and gate speed, which are not in
+    pre-race data). rs_score / rs_label are therefore an ESTIMATE, not a
+    verified prediction. They are surfaced for context only. Any use that
+    feeds the WPR projection must be a SMALL, gentle adjustment
+    proportionate to this modest reliability - never a large swing.
+
+    Additive and fail-safe: returns the DataFrame unchanged on any
+    failure - the estimate must never break the daily pipeline.
     """
-    Merge Punting Form ratings into runners_df.
+    try:
+        import race_speed_estimate as rse
+    except Exception as e:
+        print(f"  Race-speed estimate skipped: cannot import "
+              f"race_speed_estimate ({e})")
+        return runners_df
 
-    PF ratings are stored in puntingform_data/pf_ratings.csv (one row per
-    runner per meeting). The merge key is (date, venue_lower, race_no, horse_lower).
+    for col in ["rs_score", "rs_label"]:
+        if col not in runners_df.columns:
+            runners_df[col] = None
 
-    PF data is point-in-time clean (frozen at PF's ratingsUpdated time per
-    meeting). Used by the new unified model rule which requires PF signals.
+    if target_date_str is None:
+        target_date_str = date.today().strftime("%Y-%m-%d")
+    day_mask = runners_df["date"].astype(str).str[:10] == target_date_str
+    today = runners_df[day_mask]
+    if len(today) == 0:
+        print(f"  Race-speed estimate: no runners for {target_date_str}")
+        return runners_df
 
-    When PF data isn't available (file missing, meeting not rated, runner
-    not matched), the PF columns are filled with None. Downstream the model
-    rule excludes any runner without all required PF signals.
+    # form history for the settling estimates
+    if not WPR_FORM_HISTORY_CSV.exists():
+        print(f"  Race-speed estimate skipped: {WPR_FORM_HISTORY_CSV.name} "
+              f"not found")
+        return runners_df
+    try:
+        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                         dtype={"horse": str, "horse_id": str},
+                         low_memory=False)
+        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+        fh = fh.dropna(subset=["date"])
+        if "isBarrierTrial" in fh.columns:
+            fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+    except Exception as e:
+        print(f"  Race-speed estimate skipped: could not read form "
+              f"history ({e})")
+        return runners_df
+
+    done = 0
+    for race_id, race in today.groupby("race_id"):
+        try:
+            race_date = pd.to_datetime(race["date"].iloc[0], errors="coerce")
+            res = rse.estimate_race_speed(race, race_date, fh)
+            score = res.get("score")
+            label = res.get("label")
+            idx = runners_df["race_id"].astype(str) == str(race_id)
+            runners_df.loc[idx, "rs_score"] = (
+                round(score, 3) if score is not None else None)
+            runners_df.loc[idx, "rs_label"] = label
+            done += 1
+        except Exception as e:
+            print(f"  Race-speed estimate error on race {race_id}: {e}")
+            continue
+    print(f"  Race-speed estimate: {done} races estimated "
+          f"(low-confidence - context only)")
+    return runners_df
+
+
+def compute_wpr_projection(runners_df, target_date_str=None):
+    """Add wprp_proj, wprp_conf, wprp_price, wprp_rank, wprp_peak, wprp_desc
+    columns to the runners DataFrame.
+
+    Only processes races for target_date_str (the date just fetched). The
+    runners DataFrame is the whole accumulated database - projecting all of
+    it every run is both wasteful and grows unbounded, so the work is scoped
+    to today's races. Past runners keep whatever wprp_* values they already
+    had.
+
+    Additive and fail-safe: returns the DataFrame unchanged on any failure -
+    the projection must never break the daily pipeline.
     """
-    if not PF_RATINGS_CSV.exists():
-        print(f"  Warning: {PF_RATINGS_CSV} not found - skipping PF merge")
-        for col in ("pf_ai_rank", "pf_ai_price", "pf_ai_score",
-                    "pf_class_rank", "pf_tac_class_rank",
-                    "pf_time_rank", "pf_early_time_rank",
-                    "pf_last600_rank", "pf_last400_rank", "pf_last200_rank",
-                    "pf_run_style", "pf_class_change", "pf_reliable"):
-            if col not in runners_df.columns:
-                runners_df[col] = None
+    import time as _time
+    try:
+        import wpr_projection as wpr
+    except Exception as e:
+        print(f"  WPR projection skipped: cannot import wpr_projection ({e})")
+        return runners_df
+
+    if not WPR_FORM_HISTORY_CSV.exists():
+        print(f"  WPR projection skipped: {WPR_FORM_HISTORY_CSV.name} not found")
+        return runners_df
+
+    # ensure the target columns exist even if projection fails partway
+    for col in ["wprp_proj", "wprp_conf", "wprp_price", "wprp_rank",
+                "wprp_peak", "wprp_desc", "wprp_proj_alt", "wprp_conf_alt"]:
+        if col not in runners_df.columns:
+            runners_df[col] = None
+
+    # scope to today's races only - never project the whole history
+    if target_date_str is None:
+        target_date_str = date.today().strftime("%Y-%m-%d")
+    day_mask = runners_df["date"].astype(str).str[:10] == target_date_str
+    today = runners_df[day_mask]
+    if len(today) == 0:
+        print(f"  WPR projection: no runners for {target_date_str}, skipping")
+        return runners_df
+
+    # form history - read once, then keep only the horses running today
+    try:
+        today_horses = set(today["horse"].astype(str).str.strip().str.lower())
+        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                         dtype={"horse": str, "horse_id": str})
+        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        fh = fh[fh["horse_lc"].isin(today_horses)]   # only today's horses
+        fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+        fh["wpr"] = pd.to_numeric(fh["wpr"], errors="coerce")
+        fh = fh.dropna(subset=["date", "wpr"])
+        if "isBarrierTrial" in fh.columns:
+            fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+        fh = fh.sort_values(["horse_lc", "date"])
+        form_by_horse = dict(tuple(fh.groupby("horse_lc")))
+    except Exception as e:
+        print(f"  WPR projection skipped: could not read form history ({e})")
+        return runners_df
+
+    projected = 0
+    fallback = 0
+    races = 0
+    race_groups = list(today.groupby("race_id"))
+    n_races = len(race_groups)
+    t0 = _time.time()
+    for gi, (race_id, race) in enumerate(race_groups):
+        # progress line every 20 races so the step is never silent
+        if gi > 0 and gi % 20 == 0:
+            print(f"    ... {gi}/{n_races} races ({_time.time()-t0:.0f}s)")
+        try:
+            race_date = pd.to_datetime(race["date"].iloc[0], errors="coerce")
+        except Exception:
+            continue
+        if pd.isna(race_date):
+            continue
+
+        runners = []
+        runners_alt = []   # same field, going flipped wet<->dry
+        idx_order = []
+        for idx, r in race.iterrows():
+            horse_lc = str(r.get("horse", "")).strip().lower()
+            hist = form_by_horse.get(horse_lc)
+            prior = hist[hist["date"] < race_date] if hist is not None else None
+            going = r.get("going") or "Good 4"
+            # the model reads going only as wet vs dry (today_wet). Flip it
+            # so the dashboard can show a what-if projection for the other
+            # going state. Good/Firm = dry, Soft/Heavy = wet.
+            gl = str(going).lower()
+            is_wet = gl.startswith("soft") or gl.startswith("heavy")
+            going_alt = "Good 4" if is_wet else "Heavy 9"
+            base = {
+                "prior_runs": prior,
+                "cur_distance": r.get("distance") or 1400,
+                "cur_track": r.get("venue") or "",
+                "cur_track_grading": r.get("track_grading"),
+                # cur_race_class drives class_move / peak_at_class;
+                # cur_field_size drives the field_size feature. Both
+                # degrade gracefully to neutral in project_race if None.
+                "cur_race_class": r.get("race_class"),
+                "cur_field_size": len(race),
+            }
+            runners.append(dict(base, cur_going=going))
+            runners_alt.append(dict(base, cur_going=going_alt))
+            idx_order.append(idx)
+
+        try:
+            results = wpr.project_race(runners, race_date=race_date)
+        except Exception as e:
+            print(f"  WPR projection error on race {race_id}: {e}")
+            continue
+        # alternate-going projection - non-fatal if it fails
+        try:
+            results_alt = wpr.project_race(runners_alt, race_date=race_date)
+        except Exception:
+            results_alt = [None] * len(idx_order)
+        races += 1
+
+        for k, (idx, res) in enumerate(zip(idx_order, results)):
+            runners_df.at[idx, "wprp_peak"] = res.get("peak_wpr")
+            runners_df.at[idx, "wprp_desc"] = res.get("description")
+            if res.get("has_projection"):
+                runners_df.at[idx, "wprp_proj"] = res.get("projected_wpr")
+                runners_df.at[idx, "wprp_conf"] = res.get("confidence")
+                runners_df.at[idx, "wprp_price"] = res.get("wpr_price")
+                runners_df.at[idx, "wprp_rank"] = res.get("wpr_rank")
+                # alternate-going projection (wet if today dry, dry if wet)
+                ra = results_alt[k]
+                if ra and ra.get("has_projection"):
+                    runners_df.at[idx, "wprp_proj_alt"] = ra.get("projected_wpr")
+                    runners_df.at[idx, "wprp_conf_alt"] = ra.get("confidence")
+                projected += 1
+            else:
+                fallback += 1
+
+    print(f"  WPR projection: {projected} runners projected, "
+          f"{fallback} fallback (too few runs), across {races} races "
+          f"in {_time.time()-t0:.0f}s")
+    return runners_df
+
+
+def compute_wpr_actual(runners_df):
+    """Add wpr_actual and wpr_actual_rank to RESULTED runners.
+
+    The projected WPR (wprp_proj) is a pre-race figure. Once a race is
+    run, the runner earns an ACTUAL WPR - and that lands in
+    wpr_form_history.csv when the horse is next scraped (the rich form
+    capture writes the now-past run with its wpr). This step joins that
+    actual WPR back onto resulted runners so the dashboard can show
+    predicted vs actual, and how far the projection and ranking missed.
+
+    Join key is (horse, date) - the same key the project uses elsewhere
+    (a horse races at most once per day, so it is unique).
+
+    TIMING - read this. The actual WPR is NOT available on results day.
+    It appears 1+ days later, once the horse is re-scraped, and TopRate
+    revises a run's WPR for up to ~5 days post-race. So wpr_actual fills
+    in PROGRESSIVELY over the days after a race - a freshly-resulted race
+    will have wpr_actual blank until the form history catches up. That is
+    expected, not a fault.
+
+    Additive and fail-safe: returns the DataFrame unchanged on any error.
+    """
+    for col in ["wpr_actual", "wpr_actual_rank"]:
+        if col not in runners_df.columns:
+            runners_df[col] = None
+
+    if not WPR_FORM_HISTORY_CSV.exists():
+        print(f"  WPR actual skipped: {WPR_FORM_HISTORY_CSV.name} not found")
+        return runners_df
+
+    # only resulted runners can have an actual WPR
+    resulted_mask = runners_df.get("resulted") == 1
+    if resulted_mask.sum() == 0:
+        print("  WPR actual: no resulted runners")
         return runners_df
 
     try:
-        pf = pd.read_csv(PF_RATINGS_CSV)
+        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                         dtype={"horse": str, "horse_id": str},
+                         low_memory=False)
+        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        fh["date_s"] = fh["date"].astype(str).str[:10]
+        fh["wpr"] = pd.to_numeric(fh["wpr"], errors="coerce")
+        fh = fh.dropna(subset=["wpr"])
+        if "isBarrierTrial" in fh.columns:
+            fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+        # latest scrape wins if a (horse,date) appears more than once -
+        # WPR is revised post-race, so the most recent capture is freshest
+        if "scrape_date" in fh.columns:
+            fh = fh.sort_values("scrape_date")
+        fh = fh.drop_duplicates(subset=["horse_lc", "date_s"], keep="last")
+        # (horse_lc, date) -> actual wpr
+        wpr_lookup = {(r["horse_lc"], r["date_s"]): r["wpr"]
+                      for _, r in fh.iterrows()}
     except Exception as e:
-        print(f"  Warning: failed to load {PF_RATINGS_CSV} ({e})")
+        print(f"  WPR actual skipped: could not read form history ({e})")
         return runners_df
 
-    # Strip right-padded run style values ("bm        " -> "bm")
-    if "runStyle" in pf.columns:
-        pf["runStyle"] = pf["runStyle"].astype(str).str.strip()
+    # fill wpr_actual on resulted runners
+    filled = 0
+    for idx in runners_df[resulted_mask].index:
+        hlc = str(runners_df.at[idx, "horse"]).strip().lower()
+        d = str(runners_df.at[idx, "date"])[:10]
+        v = wpr_lookup.get((hlc, d))
+        if v is not None:
+            runners_df.at[idx, "wpr_actual"] = round(float(v), 1)
+            filled += 1
 
-    # Build join key on PF side. Venue is intentionally EXCLUDED from the
-    # key because PF and TR use different naming for secondary tracks - PF
-    # uses fully qualified names like "Randwick-Kensington" while TR
-    # collapses these to the parent track "Randwick". Other examples include
-    # Flemington side tracks, Eagle Farm vs Doomben, etc. Keying on date +
-    # race number + horse name is unique in practice (a horse runs once per
-    # day, and the combination of date+race_no+horse is effectively unique
-    # since a horse can only be in one race at one venue at a time).
-    pf["_pf_horse_lc"] = pf["runnerName"].astype(str).str.lower().str.strip()
-    pf["_join_key"] = (pf["_pf_date"].astype(str) + "|" +
-                       pf["raceNo"].astype(str) + "|" +
-                       pf["_pf_horse_lc"])
+    # actual rank within each resulted race (1 = highest actual WPR)
+    ranked_races = 0
+    for race_id, race in runners_df[resulted_mask].groupby("race_id"):
+        actuals = race["wpr_actual"].dropna()
+        if len(actuals) < 2:
+            continue
+        # rank: highest actual WPR = rank 1
+        order = actuals.sort_values(ascending=False)
+        rank_map = {i: r for r, i in enumerate(order.index, start=1)}
+        for i, rk in rank_map.items():
+            runners_df.at[i, "wpr_actual_rank"] = rk
+        ranked_races += 1
 
-    # Build join key on runners_df side
-    runners_df = runners_df.copy()
-    runners_df["_tr_horse_lc"] = runners_df["horse"].astype(str).str.lower().str.strip()
-    runners_df["_join_key"] = (runners_df["date"].astype(str) + "|" +
-                               runners_df["race"].astype(str) + "|" +
-                               runners_df["_tr_horse_lc"])
+    print(f"  WPR actual: {filled} resulted runners matched, "
+          f"{ranked_races} races ranked "
+          f"(fills in over ~5 days as the form history settles)")
+    return runners_df
+# -----------------------------------------------------------------------
+# PF ingest and the Edge/Volume model rule were removed (WPR-only refactor
+# Stage A). merge_pf_ratings, compute_model_picks, save_model_picks,
+# remove_excluded_picks_for_evaluated_races, model_picks_summary and the
+# EDGE/VOLUME rule config all deleted. Cumulative score (below) retained.
+# -----------------------------------------------------------------------
 
-    # Select PF columns we need and rename to our naming convention
-    pf_cols = {
-        "_join_key": "_join_key",
-        "pfaiRank": "pf_ai_rank",
-        "pfaiPrice": "pf_ai_price",
-        "pfaiScore": "pf_ai_score",
-        "weightClassRank": "pf_class_rank",
-        "timeAdjustedWeightClassRank": "pf_tac_class_rank",
-        "timeRank": "pf_time_rank",
-        "earlyTimeRank": "pf_early_time_rank",
-        "last600TimeRank": "pf_last600_rank",
-        "last400TimeRank": "pf_last400_rank",
-        "last200TimeRank": "pf_last200_rank",
-        "runStyle": "pf_run_style",
-        "classChange": "pf_class_change",
-        "isReliable": "pf_reliable",
-    }
-    have_cols = [c for c in pf_cols if c in pf.columns]
-    pf_subset = pf[have_cols].rename(columns={k: v for k, v in pf_cols.items() if k in have_cols})
-    # Detect collisions before dedup. Since the join key no longer includes
-    # venue, two different horses with the same name running in race 5 on
-    # the same date at different venues would collide. In practice this
-    # doesn't happen (horse names are unique in Australian racing) but log
-    # any collisions so we'd catch it if it ever did.
-    n_before_dedup = len(pf_subset)
-    pf_subset = pf_subset.drop_duplicates(subset=["_join_key"], keep="last")
-    n_collisions = n_before_dedup - len(pf_subset)
-    if n_collisions > 0:
-        print(f"  Warning: {n_collisions} duplicate PF rows on (date, race_no, horse) - "
-              f"check for cross-venue horse name collisions")
-
-    # Drop existing PF columns to avoid duplicate suffixing on re-merge
-    for col in pf_subset.columns:
-        if col != "_join_key" and col in runners_df.columns:
-            runners_df = runners_df.drop(columns=[col])
-
-    merged = runners_df.merge(pf_subset, on="_join_key", how="left")
-
-    # Cleanup join scratch columns
-    merged = merged.drop(columns=["_join_key", "_tr_horse_lc"])
-
-    n_total = len(merged)
-    n_matched = merged["pf_ai_rank"].notna().sum()
-    print(f"  PF ratings merged: {n_matched:,}/{n_total:,} runners have PF data ({n_matched/n_total*100:.1f}%)")
-    return merged
 
 
 # -----------------------------------------------------------------------
-# UNIFIED MODEL RULE - validated against 28-day backtest (Apr 9 - May 7)
+# Cumulative predictive score removed (WPR-only refactor Stage 2). The WPR
+# projection now ranks runners; a separate composite score is redundant.
+# compute_cumulative_score, _resolve_score_weights, _shrink_jt_combo and
+# the SCORE_WEIGHTS / JT_COMBO / PF_RANK_SIGNALS constants all deleted.
 # -----------------------------------------------------------------------
-# Single rule combining TopRate signals (wpr_rank, late_rank) with
-# Punting Form signals (weightClassRank, last600TimeRank). Validated
-# against full 28-day window with these results:
-#   N=120, WR=26.7%, AvgSP=$6.13, ROI=+62.1%, profit factor 1.85
-# Saturday performance: 8.8 picks/Saturday, +30.3% ROI
-#
-# Rule: wpr_rank<=3 AND late_rank<=3 AND pf_class_rank<=1
-#       AND pf_last600_rank<=3 AND fixed_win_price >= 3
-#
-# When PF data is missing for a meeting (PF didn't rate it), no picks
-# are generated for that meeting. When TR data is missing for a runner
-# (e.g. first starter with no WPR history), that runner doesn't qualify.
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Two-model setup: Edge (premium picks) + Volume (high-frequency stream).
-# Both replace the prior 5-rule "Late-committee" Edge after backtest review
-# showed it was overfit to a hot streak (H1 +7.7% vs H2 +64.4% ROI).
-#
-# Backtest dataset: 45 days, Apr 9 - May 23 2026, 22,594 deduped runners
-# (combined backtest_report + toprate_runners + pf_ratings, joined on
-# date + race_id + run_id).
-#
-# Signal set narrowed by user preference to:
-#   WPR, Class, L600, PFAI, TR, Time, L400
-# (Late, Mid, Early, Total, L200 excluded after dedicated analysis.)
-# ─────────────────────────────────────────────────────────────────────────────
-
-# ── EDGE model (premium picks) ────────────────────────────────────────────
-# Single voting rule on WPR + L600 + Time + L400, plus prize + jockey filters.
-# Highest backtest Sat ROI of any tested option: +72.2%, stress +20.8%,
-# 5/6 backtest Saturdays positive. The prize filter restricts to metro
-# Saturday + Group/Listed quality races where PF/TR data is most reliable.
-# The jockey filter culls picks where a sub-elite rider is taking the mount.
-#
-# Backtest performance (45 days):
-#   Total picks: 148, bettable (SP>=$3): 65
-#   Saturday picks: 66 across 6 Sats = 11.0/Sat
-#   Sat ROI: +72.2% headline, +20.8% after dropping top 2 longshot wins
-#   Non-Sat ROI: +6.9% (the only tested option that's profitable mid-week)
-#   WR 25%, AvgSP $8.19
-#   5 of 6 backtest Saturdays positive
-#
-# Forward expectation: Sat ROI +20-40% (backtest × 0.6 shrinkage allowance).
-EDGE_RULES = [
-    # (signal_ctx_key, min_top1, min_top3) - single rule
-    ("E1", [("wpr_rank", "WPR"), ("pf_last600_rank", "L600"),
-            ("time_rank", "Time"), ("pf_last400_rank", "L400")], 2, 3),
-]
-EDGE_MIN_AGREE     = 1       # only 1 rule in Edge currently
-EDGE_MIN_FIELD     = 8       # F4: skip race if field size <= 7
-EDGE_MAX_RACE_BOOK = 0.60    # F2: skip race if top-2 picks' combined 1/SP >= this
-EDGE_MAX_PER_RACE  = 2       # F2: keep at most this many picks per race
-EDGE_MIN_PRIZE     = 50000   # NEW: race-level prize filter ($50k metro standard)
-EDGE_MIN_JKY       = 80      # NEW: per-runner jockey rating filter
-
-# ── VOLUME model (high-frequency stream) ──────────────────────────────────
-# Single voting rule on PFAI + TR + L400. Loose voting threshold catches
-# many more horses per race. Adds jockey rating >= 80 as the only filter
-# because the prize filter would cut volume disproportionately.
-#
-# Backtest performance (45 days):
-#   Total picks: 1,267, bettable (SP>=$3): ~900
-#   Saturday picks: 272 across 6 Sats = 45.4/Sat
-#   Sat ROI: +27.5% headline, +18.5% after dropping top 2 longshot wins
-#   Non-Sat ROI: -10.0% (mid-week bleed accepted for Sat volume)
-#   WR 22%, AvgSP $6.31
-#   6 of 6 backtest Saturdays positive (every Sat between +12% and +37%)
-#
-# ── VOLUME model (high-frequency stream) ──────────────────────────────────
-# Single voting rule on PFAI + TR + L400. Loose voting threshold catches
-# many horses per race. Jockey rating >= 80 is the only per-runner filter;
-# no prize filter (catches all eligible $20k+ races).
-#
-# Backtest performance (45 days):
-#   Saturday picks: ~45/Sat
-#   Sat ROI: +26.6% headline, +18.5% after dropping top 2 longshots
-#   Win rate: ~20%
-#
-# Forward expectation: Sat ROI +15-25%.
-VOLUME_RULES = [
-    ("V1", [("pf_ai_rank", "PFAI"), ("tr_rank", "TR"),
-            ("pf_last400_rank", "L400")], 1, 2),
-]
-VOLUME_MIN_AGREE     = 1
-VOLUME_MIN_FIELD     = 8
-VOLUME_MAX_RACE_BOOK = 0.60
-VOLUME_MAX_PER_RACE  = 2
-VOLUME_MIN_PRIZE     = 20000  # no special prize filter - all eligible races
-VOLUME_MIN_JKY       = 80
-
-def _rules_passed(run_id, ctx, rules):
-    """Return list of rule labels passed by a given runner under a given rule
-    set. Generic helper used by both Edge and Volume."""
-    passed = []
-    for rule_label, signal_keys, min_t1, min_t3 in rules:
-        t1 = sum(1 for key, _ in signal_keys
-                 if (ctx.get(key, {}).get(run_id) or 99) == 1)
-        t3 = sum(1 for key, _ in signal_keys
-                 if (ctx.get(key, {}).get(run_id) or 99) <= 3)
-        if t1 >= min_t1 and t3 >= min_t3:
-            passed.append(rule_label)
-    return passed
-
-def _edge_rules_passed(run_id, ctx):
-    """Backward-compat helper for Edge specifically."""
-    return _rules_passed(run_id, ctx, EDGE_RULES)
-
-def _volume_rules_passed(run_id, ctx):
-    """Helper for Volume model."""
-    return _rules_passed(run_id, ctx, VOLUME_RULES)
-
-# Per-model config (used by compute_model_picks F2/F4 race-level filter)
-_MODEL_RACE_FILTERS = {
-    "edge": {
-        "min_field":     EDGE_MIN_FIELD,
-        "max_book":      EDGE_MAX_RACE_BOOK,
-        "max_per_race":  EDGE_MAX_PER_RACE,
-        "min_prize":     EDGE_MIN_PRIZE,
-        "min_jky":       EDGE_MIN_JKY,
-        "rules_passed":  _edge_rules_passed,
-    },
-    "volume": {
-        "min_field":     VOLUME_MIN_FIELD,
-        "max_book":      VOLUME_MAX_RACE_BOOK,
-        "max_per_race":  VOLUME_MAX_PER_RACE,
-        "min_prize":     VOLUME_MIN_PRIZE,
-        "min_jky":       VOLUME_MIN_JKY,
-        "rules_passed":  _volume_rules_passed,
-    },
-}
-
-MODEL_DEFS = {
-    "edge": {
-        "label":       "Edge",
-        "desc":        "Premium picks: WPR + L600 + Time + L400 (2 of 4 rank #1, 3 of 4 rank top-3). Prize >= $50k, jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Targets metro Sat + Group/Listed quality races. Backtest +72.2% Sat ROI / +20.8% stress.",
-        "expected_wr": 0.25, "expected_roi_sp": 0.30, "expected_roi_top": 0.30,
-        "bets_per_day": 3.5, "min_top_odds": 3.0,
-        "is_primary":  True,
-        # Lambda does per-runner qualification only.
-        # Race-level filters (F2/F4, prize, jockey) applied in compute_model_picks().
-        "applies": lambda race_df, run_id, ctx:
-            not ctx.get("has_first_starter", False)
-            and len(_edge_rules_passed(run_id, ctx)) >= EDGE_MIN_AGREE
-            # Per-runner jockey rating gate (race-level filters applied below)
-            and (ctx.get("jockey_rating", {}).get(run_id) or 0) >= EDGE_MIN_JKY
-    },
-    "volume": {
-        "label":       "Volume",
-        "desc":        "High-frequency stream: PFAI + TR + L400 (1 of 3 rank #1, 2 of 3 rank top-3). Jockey rating >= 80, field >= 8, combined book < 60%, max 2 picks/race. Stake at HALF size of Edge picks (Volume is higher-volume + lower per-pick edge). Backtest ~45/Sat at +26.6% Sat ROI, +18.5% stress test.",
-        "expected_wr": 0.20, "expected_roi_sp": 0.18, "expected_roi_top": 0.18,
-        "bets_per_day": 13.5, "min_top_odds": 3.0,
-        "is_primary":  False,
-        "applies": lambda race_df, run_id, ctx:
-            not ctx.get("has_first_starter", False)
-            and len(_volume_rules_passed(run_id, ctx)) >= VOLUME_MIN_AGREE
-            and (ctx.get("jockey_rating", {}).get(run_id) or 0) >= VOLUME_MIN_JKY
-    },
-}
-
-
-def _rank_lookup(rdf, col, ascending=False):
-    """Return {run_id: rank} computed within the given race DataFrame.
-    NaN values get rank None (not included in ranking)."""
-    out = {}
-    valid = rdf[rdf[col].notna()] if col in rdf.columns else rdf.iloc[0:0]
-    if len(valid) == 0:
-        return out
-    sorted_df = valid.sort_values(col, ascending=ascending)
-    for rank, (_, row) in enumerate(sorted_df.iterrows(), start=1):
-        out[row["run_id"]] = rank
-    return out
-
-
-def compute_model_picks(runners_df):
-    """
-    Apply v3 core models to today's runners and return per-race model picks.
-    Returns a list of dicts with one row per (race, model, qualifying horse).
-
-    The output can be saved to toprate_model_picks.csv for tracking and is
-    also injected into the HTML via inject_model_picks_into_selections.
-    """
-    rows = []
-    if runners_df is None or len(runners_df) == 0:
-        return rows
-
-    for race_id, rdf in runners_df.groupby("race_id"):
-        rdf = rdf.copy().reset_index(drop=True)
-        n = len(rdf)
-        if n == 0:
-            continue
-
-        # Prize money gate. Races below TAB_PRIZE_MIN (bush/picnic) flow
-        # through to the HTML for browsing in the Race tab, but we don't
-        # generate model or loose picks for them. Constant is defined later
-        # in the file for the load_runners() filter; we reference it via
-        # globals() to avoid an import-order issue. If prize is missing on
-        # the race row (rare), treat as below-threshold (conservative).
-        prize_val = race_meta_prize = 0
-        try:
-            prize_val = int(rdf.iloc[0].get("prize_money") or 0)
-        except (TypeError, ValueError):
-            prize_val = 0
-        if prize_val < globals().get("TAB_PRIZE_MIN", 20000):
-            continue
-
-        # Pre-compute per-race rank lookups for all anchor signals
-        ctx = {
-            "tr_rank":      _rank_lookup(rdf, "toprate_rating",    ascending=False),
-            "mid_rank":     _rank_lookup(rdf, "mid_speed_score",   ascending=False),
-            "late_rank":    _rank_lookup(rdf, "late_speed_score",  ascending=False),
-            "total_rank":   _rank_lookup(rdf, "total_speed_score", ascending=False),
-            "early_rank":   _rank_lookup(rdf, "early_speed_score", ascending=False),
-            "wpr_rank":     _rank_lookup(rdf, "wpr_nett",          ascending=False),
-            # speed_rating = PF "Time" rating. Edge rule R2 needs this rank.
-            "time_rank":    _rank_lookup(rdf, "speed_rating",      ascending=False),
-            "weight_trend": dict(zip(rdf["run_id"], rdf.get("weight_trend",
-                                                            pd.Series([None]*n)))),
-            "fix_price":    dict(zip(rdf["run_id"], rdf.get("fixed_win_price",
-                                                            pd.Series([None]*n)))),
-            # PF ratings - already ranked by PF (lower = better). We pass them
-            # through as run_id -> rank lookups so the lambda can read them
-            # alongside the TR ranks. None if PF didn't rate the runner.
-            "pf_class_rank":   dict(zip(rdf["run_id"], rdf.get("pf_class_rank",
-                                                                pd.Series([None]*n)))),
-            "pf_last600_rank": dict(zip(rdf["run_id"], rdf.get("pf_last600_rank",
-                                                                pd.Series([None]*n)))),
-            "pf_last400_rank": dict(zip(rdf["run_id"], rdf.get("pf_last400_rank",
-                                                                pd.Series([None]*n)))),
-            "pf_last200_rank": dict(zip(rdf["run_id"], rdf.get("pf_last200_rank",
-                                                                pd.Series([None]*n)))),
-            "pf_ai_rank":      dict(zip(rdf["run_id"], rdf.get("pf_ai_rank",
-                                                                pd.Series([None]*n)))),
-            # Jockey rating - used by both Edge and Volume models as a
-            # per-runner filter (>=80 required). PF supplies this on each
-            # runner; missing values treated as 0 (fails the filter).
-            "jockey_rating":   dict(zip(rdf["run_id"], rdf.get("jockey_rating",
-                                                                pd.Series([None]*n)))),
-            # PF classChange (numeric difference in weight class vs last start).
-            # Available in ctx for future rule iterations. Not currently used
-            # by the V2 voting rule but kept populated for flexibility.
-            "pf_class_change": dict(zip(rdf["run_id"], rdf.get("pf_class_change",
-                                                                pd.Series([None]*n)))),
-            # Day of week the race is on. Available for future day-specific
-            # rules. Not currently used by the V2 voting rule.
-            "dow": (pd.to_datetime(rdf.iloc[0].get("date")).day_name()
-                    if rdf.iloc[0].get("date") else ""),
-            # True if any runner in this race has no past WPR data (first/unraced).
-            # Backtest shows model picks in such races give nearly zero ROI uplift,
-            # so primary model skips them. Reference models can still apply.
-            "has_first_starter": bool(
-                rdf["runs_with_wpr"].notna().any() and (rdf["runs_with_wpr"] == 0).any()
-            ),
-        }
-
-        race_meta = rdf.iloc[0]
-
-        for model_key, model in MODEL_DEFS.items():
-            qualifying = []
-            for _, row in rdf.iterrows():
-                run_id = row["run_id"]
-                try:
-                    if model["applies"](rdf, run_id, ctx):
-                        qualifying.append(row)
-                except Exception:
-                    pass
-
-            # Race-level filters per model: prize, F4 (min field), F2 (max
-            # picks/race + book% cap). Each model has its own constants
-            # registered in _MODEL_RACE_FILTERS above. Applied AFTER per-runner
-            # qualification (the lambda).
-            cfg = _MODEL_RACE_FILTERS.get(model_key)
-            if cfg and qualifying:
-                # Race-level prize gate. Reads from any qualifying row since
-                # prize is a race attribute, not a runner attribute.
-                prize_val = 0
-                try:
-                    prize_val = int(qualifying[0].get("prize_money") or 0)
-                except (TypeError, ValueError):
-                    prize_val = 0
-                if prize_val < cfg["min_prize"]:
-                    qualifying = []
-
-                # F4: drop the entire race if field is too small
-                if qualifying and len(rdf) < cfg["min_field"]:
-                    qualifying = []
-
-                if qualifying:
-                    # F2: sort qualifying picks by SP ascending (shortest first
-                    # = most confident). Take at most max_per_race.
-                    # Use starting_price_sp if available (post-race), else
-                    # fall back to fixed_win_price (pre-race live price) so
-                    # the filter still fires for picks on today's card.
-                    def _sp_key(r):
-                        for col in ("starting_price_sp", "fixed_win_price"):
-                            v = r.get(col)
-                            try:
-                                v = float(v)
-                            except (TypeError, ValueError):
-                                continue
-                            if v and v > 0:
-                                return v
-                        return 999.0
-                    qualifying = sorted(qualifying, key=_sp_key)[:cfg["max_per_race"]]
-                    # F2 book% check: if the kept picks' combined implied
-                    # probability (sum of 1/price) >= max_book, the race is
-                    # too heavily weighted toward our picks - skip entirely.
-                    # Single-pick races bypass this check.
-                    if len(qualifying) >= 2:
-                        book_pct = 0.0
-                        for q in qualifying:
-                            price = _sp_key(q)
-                            if price > 0 and price < 999:
-                                book_pct += 1.0 / price
-                        if book_pct >= cfg["max_book"]:
-                            qualifying = []
-
-            for qrow in qualifying:
-                rows.append({
-                    "date":          race_meta.get("date"),
-                    "venue":         race_meta.get("venue"),
-                    "race":          race_meta.get("race"),
-                    "race_id":       race_id,
-                    "start_time":    race_meta.get("start_time"),
-                    "model":         model_key,
-                    "model_label":   model["label"],
-                    "model_desc":    model["desc"],
-                    "run_id":        qrow.get("run_id"),
-                    "horse":         qrow.get("horse"),
-                    "jockey":        qrow.get("jockey"),
-                    "trainer":       qrow.get("trainer"),
-                    "tab_number":    qrow.get("tab_number"),
-                    "barrier":       qrow.get("barrier"),
-                    "tr_rank":       ctx["tr_rank"].get(qrow["run_id"]),
-                    # NEW: time_rank emitted - Edge model uses Time as voting signal
-                    "time_rank":     ctx["time_rank"].get(qrow["run_id"]),
-                    "early_rank":    ctx["early_rank"].get(qrow["run_id"]),
-                    "mid_rank":      ctx["mid_rank"].get(qrow["run_id"]),
-                    "late_rank":     ctx["late_rank"].get(qrow["run_id"]),
-                    "total_rank":    ctx["total_rank"].get(qrow["run_id"]),
-                    "wpr_rank":      ctx["wpr_rank"].get(qrow["run_id"]),
-                    # Rule audit trail: which voting rules picked this horse.
-                    # For Edge: comma-separated list of Edge rule labels (e.g. "E1").
-                    # For Volume: list of Volume rule labels (e.g. "V1").
-                    # For models without a rules_passed config: empty string.
-                    "edge_rules":    (
-                        ",".join(_MODEL_RACE_FILTERS[model_key]["rules_passed"](qrow["run_id"], ctx))
-                        if model_key in _MODEL_RACE_FILTERS else ""
-                    ),
-                    # Jockey rating recorded for diagnostic purposes
-                    "jockey_rating": ctx.get("jockey_rating", {}).get(qrow["run_id"]),
-                    # PF data for the picked runner (None if PF didn't rate)
-                    "pf_ai_rank":      qrow.get("pf_ai_rank"),
-                    "pf_ai_price":     qrow.get("pf_ai_price"),
-                    "pf_ai_score":     qrow.get("pf_ai_score"),
-                    "pf_class_rank":   qrow.get("pf_class_rank"),
-                    "pf_last600_rank": qrow.get("pf_last600_rank"),
-                    "pf_last400_rank": qrow.get("pf_last400_rank"),
-                    "pf_last200_rank": qrow.get("pf_last200_rank"),
-                    "pf_run_style":    qrow.get("pf_run_style"),
-                    "pf_class_change": qrow.get("pf_class_change"),
-                    "weight_trend":  qrow.get("weight_trend"),
-                    "wins_at_dist":  qrow.get("wins_at_dist"),
-                    "fixed_win_price": qrow.get("fixed_win_price"),
-                    "starting_price_sp": qrow.get("starting_price_sp"),
-                    "price_top":     qrow.get("price_top"),
-                    "finish_position": qrow.get("finish_position"),
-                    "won":           qrow.get("won"),
-                    "placed":        qrow.get("placed"),
-                    "resulted":      qrow.get("resulted"),
-                })
-    return rows
-
-
-def save_model_picks(rows, path=None):
-    """
-    Save model picks to CSV.
-
-    NOTE: stale picks for re-evaluated races are cleared FIRST by
-    remove_excluded_picks_for_evaluated_races() in main(). So this function
-    just appends the fresh picks. There can still be duplicate (race_id,
-    run_id, model) rows if the cleanup wasn't called - dedup keeps last.
-    """
-    if not rows:
-        return None
-    if path is None:
-        path = Path(__file__).parent / "toprate_model_picks.csv"
-    new_df = pd.DataFrame(rows)
-    new_df["race_id"] = new_df["race_id"].astype(str)
-    new_df["run_id"]  = new_df["run_id"].astype(str)
-    if path.exists():
-        existing = pd.read_csv(path, dtype={"race_id": str, "run_id": str})
-        combined = pd.concat([existing, new_df], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["race_id", "run_id", "model"], keep="last")
-    else:
-        combined = new_df
-    combined.to_csv(path, index=False)
-    return path
-
-
-def remove_excluded_picks_for_evaluated_races(runners_df, path=None):
-    """
-    Drop picks from CSV for races that were evaluated this run but produced
-    no qualifying horses. Without this, a race that USED to have a pick
-    keeps that pick forever even after the rule excludes it.
-
-    Called by main() right before save_model_picks. Operates on the set
-    of race_ids in runners_df (i.e. races that were evaluated this run).
-    """
-    if path is None:
-        path = Path(__file__).parent / "toprate_model_picks.csv"
-    if not path.exists():
-        return
-    existing = pd.read_csv(path, dtype={"race_id": str, "run_id": str})
-    evaluated_race_ids = set(runners_df["race_id"].astype(str).unique())
-    # Keep picks NOT in the evaluated set (preserves history for older races
-    # that aren't being re-evaluated this run).
-    kept = existing[~existing["race_id"].isin(evaluated_race_ids)]
-    if len(kept) < len(existing):
-        kept.to_csv(path, index=False)
-        print(f"  Cleared {len(existing) - len(kept)} stale picks from races re-evaluated this run.")
-
-
-def model_picks_summary(rows, today_only=True):
-    """Summarise model picks for printing at end of daily run."""
-    if not rows:
-        return "No model picks."
-    df = pd.DataFrame(rows)
-    if today_only:
-        today_str = date.today().isoformat()
-        df = df[df["date"] == today_str]
-        if len(df) == 0:
-            return f"\nNo model picks for today ({today_str}). Picks for other dates were saved to toprate_model_picks.csv."
-    out = ["", "=" * 70, f"V3 MODEL PICKS - today's qualifying runners ({date.today().isoformat()})", "=" * 70]
-    for model_key in MODEL_DEFS:
-        sub = df[df["model"] == model_key]
-        if len(sub) == 0:
-            continue
-        m = MODEL_DEFS[model_key]
-        out.append(f"\n[{m['label']}] {m['desc']}")
-        out.append(f"  Expected: {m['expected_wr']*100:.1f}% strike rate, "
-                   f"ROI@SP {m['expected_roi_sp']*100:+.1f}%, "
-                   f"ROI@Top {m['expected_roi_top']*100:+.1f}%")
-        out.append(f"  Today: {len(sub)} qualifying runners")
-        for _, r in sub.head(15).iterrows():
-            time_str = ""
-            if r.get("start_time"):
-                try:
-                    time_str = pd.to_datetime(r["start_time"]).strftime("%H:%M")
-                except Exception:
-                    pass
-            price_str = ""
-            if pd.notna(r.get("fixed_win_price")):
-                price_str = f" @${r['fixed_win_price']:.1f}"
-            out.append(f"    {time_str:<6} {r.get('venue', '?'):<14} "
-                       f"R{r.get('race', '?')}: {r.get('horse', '?')}{price_str}")
-        if len(sub) > 15:
-            out.append(f"    ... and {len(sub)-15} more")
-    return "\n".join(out)
-
-
-# -----------------------------------------------------------------------
-# CUMULATIVE PREDICTIVE SCORE
-# -----------------------------------------------------------------------
-# Designed for use as a tipping aid (rank top horses for quaddies / exotics)
-# rather than as a betting signal directly. The v3 main model handles win
-# betting; Score is informational ranking shown in the dashboard.
-#
-# Active formula (version 3 - simple model-aligned, shipped 2026-05-21):
-#     Plain weighted average of within-race percentile ranks. NO LogReg,
-#     NO intercept, NO sigmoid - just:
-#
-#       score = sum(weight_i * percentile_i) / sum(weights)
-#
-#     Signals are exactly the union of what the Edge and Volume models use:
-#         toprate_rating   (TR)    - Volume signal
-#         wpr_avg_last3    (WPR)   - Edge signal
-#         speed_rating     (Speed) - Edge signal
-#         pf_ai_rank       (PFAI)  - Volume signal
-#         pf_last600_rank  (L600)  - Edge signal
-#         pf_last400_rank  (L400)  - Edge + Volume signal
-#
-#     Weights kept simple (integers). TR weighted 4x because the signal
-#     heatmap consistently shows TR as the strongest single predictor
-#     (~34% top-1 win rate vs ~10% random). All other model signals get
-#     weight 1 - they each show positive top-1 lift but none individually
-#     near TR's strength.
-#
-#     percentile(signal): within-race percentile, rank 1 -> 1.0, rank N -> 0.0.
-#     For PF rank signals (lower rank = better) the rank is read directly;
-#     for TR/WPR/Speed (higher value = better) the value is ranked descending.
-#
-# Why this replaces the LogReg (Path C):
-#     The LogReg score used Late and Class - signals NOT in either the Edge
-#     or Volume voting rule - and ignored Speed and L400 which ARE in the
-#     models. The score breakdown shown to the user therefore did not
-#     explain the actual picks. Re-fitting on 45 days also showed Late's
-#     weight had decayed to near-zero. Aligning the score to the model
-#     signal set makes the breakdown bars meaningful, at a small cost in
-#     rank-1 accuracy (~31% vs ~34% LogReg) that is acceptable given the
-#     gain in interpretability and the user preference for simplicity.
-#
-# Backtest (45 days): rank-1 WR 31.0%, winner-in-top-3 67.5%.
-JT_COMBO_TRUST = False
-
-# Simple integer weights on the 6 model-union signals.
-SCORE_WEIGHTS_LOGREG = {
-    "toprate_rating":   4,
-    "wpr_avg_last3":    1,
-    "speed_rating":     1,
-    "pf_ai_rank":       1,
-    "pf_last600_rank":  1,
-    "pf_last400_rank":  1,
-}
-# No intercept - simple weighted average uses the linear (Path B style)
-# normalisation: sum(weight*pct) / sum(weights). Set to None so
-# compute_cumulative_score takes the linear branch, not the sigmoid branch.
-SCORE_LOGREG_INTERCEPT = None
-
-# Path B: prior TR-only formula. Kept as fallback if PF data is missing
-# from a race (we degrade gracefully rather than scoring 0).
-SCORE_WEIGHTS_PROXY = {
-    "toprate_rating":   2.0,
-    "wpr_avg_last3":    0.5,
-    "late_speed_score": 0.3,
-}
-# Path A (jt_combo + TR): disabled pending clean data.
-SCORE_WEIGHTS_FULL = {
-    "jt_combo_win_pct": 1.0,
-    "toprate_rating":   1.2,
-}
-SCORE_PATH_A_MIN_COVERAGE = 0.5
-
-# Which signals are "lower rank = better" (PF rank signals).
-# When computing percentile for these we rank ascending instead of descending.
-PF_RANK_SIGNALS = {"pf_ai_rank", "pf_class_rank", "pf_last600_rank",
-                   "pf_last400_rank", "pf_last200_rank", "pf_time_rank"}
-
-# Backwards-compat alias (other callers may reference this directly)
-SCORE_WEIGHTS = SCORE_WEIGHTS_PROXY  # legacy callers - still uses proxy weights
-SCORE_DIRECTION = "higher"
-
-
-# Constants for jockey/trainer combo Bayesian shrinkage. Used IF Path A is ever
-# enabled and we have clean (non-leaky) data. Without shrinkage, small-sample
-# pairs (e.g. 3 wins from 5 rides = 60%) would dominate the score even when
-# their high win rate is just statistical noise.
-JT_COMBO_PRIOR_WR = 9.0       # population avg jockey strike rate
-JT_COMBO_PRIOR_STRENGTH = 30  # equivalent "rides of average evidence" for the prior
-
-
-def _shrink_jt_combo(rdf):
-    """
-    Apply Bayesian shrinkage to jt_combo_win_pct in-place on a copy of the dataframe.
-    Returns a NEW dataframe with the column adjusted. Pairs with few rides get
-    pulled toward the population mean; pairs with many rides barely change.
-    """
-    if "jt_combo_win_pct" not in rdf.columns or "jt_combo_rides" not in rdf.columns:
-        return rdf
-
-    df = rdf.copy()
-    rides = pd.to_numeric(df["jt_combo_rides"], errors="coerce")
-    wpct  = pd.to_numeric(df["jt_combo_win_pct"], errors="coerce")
-    # Shrink: posterior = (rides * raw_wr + strength * prior) / (rides + strength)
-    shrunk = (
-        (rides * wpct + JT_COMBO_PRIOR_STRENGTH * JT_COMBO_PRIOR_WR)
-        / (rides + JT_COMBO_PRIOR_STRENGTH)
-    )
-    # Where data is missing, leave as NaN
-    shrunk = shrunk.where(rides.notna() & wpct.notna(), other=None)
-    df["jt_combo_win_pct"] = shrunk
-    return df
-
-
-def _resolve_score_weights(rdf):
-    """
-    Decide which formula to use for this race.
-
-    Priority order:
-      Path A: jt_combo + TR (only if JT_COMBO_TRUST AND coverage >= 50%)
-      Path C: LogReg PF+TR (if at least one PF signal has coverage >= 50%)
-      Path B: TR-only proxy (fallback if no PF data)
-
-    Returns (weights_dict, path_letter, intercept). Intercept is None for
-    Path A/B (linear sum, no sigmoid). For Path C, the intercept is used
-    in the sigmoid wrapping.
-    """
-    # Path A only used if jt_combo trust flag is on AND coverage is sufficient.
-    if JT_COMBO_TRUST and "jt_combo_win_pct" in rdf.columns:
-        non_null = pd.to_numeric(rdf["jt_combo_win_pct"], errors="coerce").notna().sum()
-        if non_null >= len(rdf) * SCORE_PATH_A_MIN_COVERAGE:
-            return SCORE_WEIGHTS_FULL, "A", None
-
-    # Path C: prefer LogReg if any PF signal has coverage in the race.
-    # We check at least one PF signal is present for >= half the runners.
-    pf_check_cols = ["pf_ai_rank", "pf_class_rank", "pf_last600_rank"]
-    has_pf = False
-    for col in pf_check_cols:
-        if col in rdf.columns:
-            non_null = pd.to_numeric(rdf[col], errors="coerce").notna().sum()
-            if non_null >= len(rdf) * 0.5:
-                has_pf = True
-                break
-    if has_pf:
-        return SCORE_WEIGHTS_LOGREG, "C", SCORE_LOGREG_INTERCEPT
-
-    # Path B fallback (legacy proxy formula)
-    return SCORE_WEIGHTS_PROXY, "B", None
-
-
-def compute_cumulative_score(rdf):
-    """
-    For a single race DataFrame, compute a per-runner cumulative score, rank,
-    and confidence metric.
-
-    Returns: dict(run_id -> {
-        score: float in [0,1] - per-runner score, higher = better
-        rank: int 1..N - rank within race by score
-        path: 'A'|'B'|'C' - which formula was used
-        conf: float in [0,1] - signal agreement (1 = unanimous, 0 = split)
-        sigs: dict(sig_name -> percentile) - per-signal percentile breakdown
-    })
-
-    Score is normalized to [0,1] regardless of formula:
-      Path A/B: weighted percentile-rank sum, divided by total weight.
-      Path C:   sigmoid(intercept + sum(weight * pct)). Naturally in [0,1].
-
-    Confidence: low SD across signal percentiles = high agreement (1 = unanimous).
-    Horses with only 1 signal populated get conf = None.
-
-    The 'sigs' breakdown lets the detail panel show signal-by-signal so the
-    user can see exactly which signals agreed and which disagreed.
-    """
-    n = len(rdf)
-    if n == 0:
-        return {}
-    # Apply Bayesian shrinkage to jt_combo so small-sample pairs don't dominate
-    rdf = _shrink_jt_combo(rdf)
-
-    weights, path, intercept = _resolve_score_weights(rdf)
-
-    if n == 1:
-        rid = str(rdf.iloc[0].get("run_id", ""))
-        return {rid: {"score": 1.0, "rank": 1, "path": path, "conf": 1.0, "sigs": {}}}
-
-    runner_raw_scores = [0.0] * n  # positional - the linear sum before sigmoid
-    # Track per-signal percentile per runner (for confidence calc + detail panel)
-    runner_sigs = [dict() for _ in range(n)]
-
-    for sig, w in weights.items():
-        if sig not in rdf.columns:
-            continue
-        col = pd.to_numeric(rdf[sig], errors="coerce")
-        # Determine rank direction: higher = better for TR signals,
-        # lower rank = better for PF rank signals (already integer ranks).
-        ascending = sig in PF_RANK_SIGNALS
-        rk = col.rank(method="min", ascending=ascending, na_option="bottom")
-        for i in range(n):
-            r = rk.iloc[i]
-            if pd.isna(r):
-                continue
-            # Convert rank to percentile in [0, 1]: rank 1 -> 1.0, rank N -> 0.0
-            pct = (n - r) / (n - 1) if n > 1 else 1.0
-            runner_raw_scores[i] += w * pct
-            runner_sigs[i][sig] = round(pct, 3)
-
-    # Apply sigmoid wrapper for Path C (LogReg formula),
-    # else linear-sum-divided-by-total-weight for Paths A/B.
-    if path == "C" and intercept is not None:
-        # sigmoid(intercept + linear_sum). Result in [0,1] naturally.
-        import math as _math
-        runner_scores = []
-        for raw in runner_raw_scores:
-            z = intercept + raw
-            # Clamp to avoid overflow on extreme z
-            z = max(-30.0, min(30.0, z))
-            sigmoid = 1.0 / (1.0 + _math.exp(-z))
-            runner_scores.append(sigmoid)
-    else:
-        # Path A/B: linear normalisation by total weight magnitude.
-        total_w = sum(abs(v) for v in weights.values()) or 1.0
-        runner_scores = [s / total_w for s in runner_raw_scores]
-
-    # Compute ranks (1 = highest score)
-    indexed = sorted(enumerate(runner_scores), key=lambda x: -x[1])
-    ranks = [0] * n
-    for rank_pos, (idx, _) in enumerate(indexed, start=1):
-        ranks[idx] = rank_pos
-
-    # Confidence: low standard deviation across signals = high agreement.
-    # Max possible SD for 2+ values in [0,1] is 0.5 (perfectly bimodal).
-    # We invert so 1 = tight cluster (high confidence), 0 = wide spread.
-    # Horses with only 1 signal populated get conf = None (can't measure agreement).
-    MAX_SD = 0.5
-
-    out = {}
-    for i in range(n):
-        rid = str(rdf.iloc[i].get("run_id", ""))
-        sigs = runner_sigs[i]
-        if len(sigs) < 2:
-            conf = None
-        else:
-            vals = list(sigs.values())
-            mean_v = sum(vals) / len(vals)
-            var = sum((v - mean_v) ** 2 for v in vals) / len(vals)
-            sd = var ** 0.5
-            conf = max(0.0, min(1.0, 1.0 - (sd / MAX_SD)))
-            conf = round(conf, 3)
-        out[rid] = {
-            "score": round(runner_scores[i], 4),
-            "rank":  ranks[i],
-            "path":  path,
-            "conf":  conf,
-            "sigs":  sigs,
-        }
-    return out
 
 
 def compute_signal_rankings(rdf):
@@ -1634,6 +1173,7 @@ def compute_signal_rankings(rdf):
             "j": str(row.get("jockey", "")),
             "tn": str(row.get("trainer", "")) if row.get("trainer") else None,
             "f": safe_int(row.get("finish_position")),
+            "mgnL": safe_float(row.get("margin_finish")),   # finish margin in lengths
             "sp": safe_float(row.get("starting_price_sp")),
             "fx": safe_float(row.get("fixed_win_price")),
             "trp": safe_float(row.get("toprate_price")),
@@ -2003,15 +1543,23 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
             if not result_runners:
                 continue
 
-            # Build lookup: run_id -> {finish, sp, price_top}
+            # Build lookup: run_id -> {finish, margin, sp, price_top}
+            # margin is captured if present in the results feed - the form
+            # history flow already pulls 'marginFinish' from the same data
+            # shape (see RICH_COLUMNS), so the field name should be the
+            # same here. Missing field is fail-safe: stays None / NaN.
             result_map = {}
             for r in result_runners:
                 rid = str(r.get("runId", ""))
                 pos = r.get("positionFinish")
                 sp  = r.get("priceStarting")
                 pt  = r.get("priceTop")
+                mgn = r.get("marginFinish")
                 if rid and pos:
-                    result_map[rid] = {"finish": pos, "sp": sp, "price_top": pt}
+                    result_map[rid] = {
+                        "finish": pos, "margin": mgn,
+                        "sp": sp, "price_top": pt,
+                    }
 
             # Update each runner in this race
             race_rows = runners_df[mask].index
@@ -2022,6 +1570,8 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
                     finish = res["finish"]
                     sp     = res["sp"]
                     runners_df.loc[idx, "finish_position"]  = finish
+                    if res.get("margin") is not None:
+                        runners_df.loc[idx, "margin_finish"] = res["margin"]
                     runners_df.loc[idx, "starting_price_sp"] = sp
                     runners_df.loc[idx, "price_top"]         = res.get("price_top")
                     runners_df.loc[idx, "won"]    = 1 if finish == 1 else 0
@@ -2118,6 +1668,10 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "number":      race.get("number"),
                     "name":        race.get("name"),
                     "distance":    race.get("distance"),
+                    # race class string (BM64, CLS3, MAI...) for the
+                    # model's class_move feature. None if not exposed -
+                    # project_race handles None gracefully.
+                    "class":       race.get("class"),
                     "prizeMoney":  race.get("prizeMoney"),
                     "startTime":   (race.get("startTime") or race.get("scheduledTime") or
                                     race.get("raceTime") or race.get("startAt") or
@@ -2189,6 +1743,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "race_id":        str(rc_id),
                     "race_name":      race_meta["name"],
                     "distance":       race_meta["distance"],
+                    "race_class":     race_meta.get("class"),
                     "prize_money":    race_meta["prizeMoney"],
                     "going":          race_meta.get("going"),
                     "track_grading":  race_meta.get("track_grading"),
@@ -2369,7 +1924,13 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
 
     if new_rows:
         new_df = pd.DataFrame(new_rows)
-        runners_df = pd.concat([runners_df, new_df], ignore_index=True)
+        # Pandas emits a FutureWarning about dtype handling when concatenating
+        # frames that contain all-NA columns. The warning is harmless here
+        # (the result is correct); suppress just this one warning rather than
+        # altering the frames, so no columns are accidentally dropped.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            runners_df = pd.concat([runners_df, new_df], ignore_index=True)
         # Deduplicate: keep last occurrence per run_id (latest fetch wins)
         runners_df = runners_df.drop_duplicates(subset=["run_id"], keep="last").reset_index(drop=True)
         total_runners = len(new_rows)
@@ -2495,6 +2056,271 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # ── Build per-race data structure with full runner detail ────────────────
     today_str = date.today().isoformat()
 
+    # Lightweight step timing - the rebuild has several phases and the
+    # form-history step in particular can run ~60s, during which the
+    # script looks hung. These prints make progress visible. import time
+    # locally to avoid touching module-level imports.
+    import time as _time
+    _t0 = _time.time()
+    def _step(msg):
+        print(f"  [{_time.time() - _t0:5.1f}s] {msg}", flush=True)
+
+    _step("Building form-history lookup (last 6 + peak + tendency)...")
+
+    # ── Form-history lookup for the runner detail panel ──────────────────────
+    # Attach each runner's last 6 race runs (newest first) so the Race-tab
+    # detail panel can show a mini form table. Scoped to the horses running
+    # in runners_df only - never the whole 90k-row history - so the HTML
+    # payload stays small. Fail-safe: any error leaves form_lookup empty and
+    # runners simply get no formRuns.
+    form_lookup = {}
+    form_all_lookup = {}
+    _peak_run_lookup = {}
+    _tend_lookup = {}
+    try:
+        if WPR_FORM_HISTORY_CSV.exists():
+            _today_horses = set(
+                str(h).strip().lower() for h in runners_df.get("horse", []) if h)
+            # Pending horses only - formAll (the heavy full-history
+            # comparison-table data) is built for these alone, since the
+            # comparison tables matter for upcoming races, not the
+            # hundreds of old resulted ones. formRuns (cheap last-6) is
+            # still built for every horse so resulted races keep a form
+            # table.
+            if "resulted" in runners_df.columns:
+                _pending_horses = set(
+                    str(h).strip().lower() for h in
+                    runners_df[runners_df["resulted"] != 1].get("horse", [])
+                    if h)
+            else:
+                _pending_horses = _today_horses
+            _fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                              dtype={"horse": str, "horse_id": str})
+            _fh["horse_lc"] = _fh["horse"].astype(str).str.strip().str.lower()
+            _fh = _fh[_fh["horse_lc"].isin(_today_horses)]
+            _fh["wpr"] = pd.to_numeric(_fh["wpr"], errors="coerce")
+            _fh["date"] = pd.to_datetime(_fh["date"], errors="coerce")
+            _fh = _fh.dropna(subset=["date", "wpr"])
+            if "isBarrierTrial" in _fh.columns:
+                _fh = _fh[_fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+            # Dedupe: the same run can appear more than once in the form
+            # history (a race scraped on two dates - the WPR rebaseline
+            # issue). Without this the detail-panel form table shows each
+            # run twice. Keep the latest scrape of each (horse, run date).
+            _dedup_keys = ["horse_lc", "date"]
+            if "track" in _fh.columns:
+                _dedup_keys.append("track")
+            if "scrape_date" in _fh.columns:
+                _fh = _fh.sort_values("scrape_date")
+            _fh = _fh.drop_duplicates(subset=_dedup_keys, keep="last")
+            _fh = _fh.sort_values(["horse_lc", "date"])
+            # formAll derived columns - computed VECTORISED on the whole
+            # frame ONCE, before the per-horse loop. The earlier version
+            # used iterrows() over all ~90k rows, which was the rebuild
+            # slowdown. iterrows is a pandas anti-pattern; this avoids it.
+            _fa = _fh.copy()
+            _fa["_w"] = pd.to_numeric(_fa["wpr"], errors="coerce").round(1)
+            _se_col = pd.to_numeric(_fa.get("sect_i_early"), errors="coerce")
+            _il_col = pd.to_numeric(_fa.get("sect_i_l600"), errors="coerce")
+            _diff = _se_col - _il_col
+            _fa["_tmp"] = np.where(_diff >= 2, "Fast",
+                          np.where(_diff <= -2, "Slow", "Even"))
+            _fa.loc[_diff.isna(), "_tmp"] = None
+            _ps = pd.to_numeric(_fa.get("positionSettled"), errors="coerce")
+            _fs = pd.to_numeric(_fa.get("field_size"), errors="coerce")
+            _rel = (_ps / _fs).clip(upper=1.0).round(3)
+            _rel = _rel.where((_fs > 0) & (_ps > 0))
+            _fa["_rel"] = _rel
+            _fa["_ds"] = pd.to_numeric(_fa.get("distance"), errors="coerce")
+            _fa["_go"] = _fa.get("going", "").astype(str).where(
+                _fa.get("going").notna(), "")
+            # against-shape per run = horse late sectional minus race late
+            # shape. Higher = ran home stronger than the race late shape.
+            # Tendency per horse = mean over the LAST 5 runs (min 3),
+            # date-sorted. Used by the panel "step-up form-reading" flag.
+            # Honestly characterised - see FINDINGS_distance_suitability.md:
+            # mean effect is +0.65 WPR (below the 1.0 materiality threshold
+            # in the scoping doc and well inside the model's ~6 WPR error).
+            # Built as DISPLAY-ONLY context, not a predictive claim.
+            _rsl = pd.to_numeric(_fa.get("raceShapeLate"), errors="coerce")
+            _clip = _il_col.clip(-40.0, 40.0)
+            _fa["_against"] = _clip - _rsl
+            _fa_sorted = _fa.dropna(subset=["_against"]).sort_values(
+                ["horse_lc", "date"])
+            _last5 = _fa_sorted.groupby("horse_lc")["_against"].apply(
+                lambda s: s.tail(5).mean() if len(s) >= 3 else np.nan)
+            _tend_lookup = _last5.dropna().round(2).to_dict()
+            # pre-group _fa by horse so the per-horse slice below is a
+            # dict access, not a full-frame filter (the mistake that has
+            # bitten this rebuild before).
+            _fa_by_horse = dict(tuple(_fa.groupby("horse_lc")))
+            for _hlc, _g in _fh.groupby("horse_lc"):
+                _last = _g.tail(6)
+                _peak_wpr = _g["wpr"].max()
+                # Find the most recent run at peak WPR that is OUTSIDE
+                # the last-6 window. If the peak is in the last 6, leave
+                # peakRun null - the panel only needs the extra row when
+                # the peak is older. Tolerance 0.05 mirrors the pk flag.
+                _last_ids = set(_last.index.tolist())
+                _peak_rows = _g[
+                    (_g["wpr"] - _peak_wpr).abs() < 0.05]
+                _peak_outside = _peak_rows[~_peak_rows.index.isin(_last_ids)]
+                _peak_run_record = None
+                _runs = []
+                for _, _r in _last.iloc[::-1].iterrows():   # newest first
+                    _w = float(_r["wpr"])
+                    # NOTE on sectionals - two different things, both kept:
+                    #  - se/sm/sl  = raceShapeEarly/Mid/Late: the RACE-WIDE
+                    #    tempo shape (how the race was run), NOT this horse.
+                    #  - ie/im/il  = sect_i_early / sect_i_to800 / sect_i_l600:
+                    #    THIS HORSE's own early/mid/late sectional figures.
+                    # Keeping both lets the panel show the horse's run and
+                    # (future work) compare it against the race shape.
+                    def _shape(v):
+                        return round(float(v), 1) if pd.notna(v) else None
+                    _runs.append({
+                        "d":  str(_r["date"].date()),
+                        "trk": str(_r.get("track", "")) if _r.get("track") else "",
+                        "dist": int(_r["distance"]) if pd.notna(_r.get("distance")) else None,
+                        "go": str(_r.get("going", "")) if _r.get("going") else "",
+                        "fin": int(_r["positionFinish"]) if pd.notna(_r.get("positionFinish")) else None,
+                        "wpr": round(_w, 1),
+                        "se": _shape(_r.get("raceShapeEarly")),  # race shape early
+                        "sm": _shape(_r.get("raceShapeMid")),    # race shape mid
+                        "sl": _shape(_r.get("raceShapeLate")),   # race shape late
+                        "ie": _shape(_r.get("sect_i_early")),    # horse early sectional
+                        "im": _shape(_r.get("sect_i_to800")),    # horse mid sectional
+                        "il": _shape(_r.get("sect_i_l600")),     # horse late sectional
+                        "bar": int(_r["barrier"]) if pd.notna(_r.get("barrier")) else None,
+                        "mgn": _shape(_r.get("marginFinish")),   # finish margin
+                        # running line: settled -> 800m -> 400m -> finish.
+                        # gives the in-running position progression per run.
+                        "psl": int(_r["positionSettled"]) if pd.notna(_r.get("positionSettled")) else None,
+                        "p8": int(_r["position800m"]) if pd.notna(_r.get("position800m")) else None,
+                        "p4": int(_r["position400m"]) if pd.notna(_r.get("position400m")) else None,
+                        "cls": str(_r.get("race_class", "")) if _r.get("race_class")
+                               and str(_r.get("race_class")) != "nan" else "",
+                        "pk": 1 if abs(_w - _peak_wpr) < 0.05 else 0,  # peak run flag
+                    })
+                form_lookup[_hlc] = _runs
+                # peakRun: a single rich record for the most recent
+                # career-peak run that falls OUTSIDE the last-6 window.
+                # Used by the detail panel to surface the peak as a full
+                # form-table row when the visible runs do not include it.
+                if not _peak_outside.empty:
+                    _pr = _peak_outside.sort_values("date").iloc[-1]
+                    def _shape_pr(v):
+                        return round(float(v), 1) if pd.notna(v) else None
+                    _peak_run_record = {
+                        "d":  str(_pr["date"].date()),
+                        "trk": str(_pr.get("track", "")) if _pr.get("track") else "",
+                        "dist": int(_pr["distance"]) if pd.notna(_pr.get("distance")) else None,
+                        "go": str(_pr.get("going", "")) if _pr.get("going") else "",
+                        "fin": int(_pr["positionFinish"]) if pd.notna(_pr.get("positionFinish")) else None,
+                        "wpr": round(float(_pr["wpr"]), 1),
+                        "se": _shape_pr(_pr.get("raceShapeEarly")),
+                        "sm": _shape_pr(_pr.get("raceShapeMid")),
+                        "sl": _shape_pr(_pr.get("raceShapeLate")),
+                        "ie": _shape_pr(_pr.get("sect_i_early")),
+                        "im": _shape_pr(_pr.get("sect_i_to800")),
+                        "il": _shape_pr(_pr.get("sect_i_l600")),
+                        "bar": int(_pr["barrier"]) if pd.notna(_pr.get("barrier")) else None,
+                        "mgn": _shape_pr(_pr.get("marginFinish")),
+                        "psl": int(_pr["positionSettled"]) if pd.notna(_pr.get("positionSettled")) else None,
+                        "p8": int(_pr["position800m"]) if pd.notna(_pr.get("position800m")) else None,
+                        "p4": int(_pr["position400m"]) if pd.notna(_pr.get("position400m")) else None,
+                        "cls": str(_pr.get("race_class", "")) if _pr.get("race_class")
+                               and str(_pr.get("race_class")) != "nan" else "",
+                        "pk": 1,
+                    }
+                _peak_run_lookup[_hlc] = _peak_run_record
+                # formAll: a COMPACT record of EVERY run, for the
+                # detail-panel comparison tables. Built from the
+                # pre-computed _fa frame - no iterrows, just a grouped
+                # slice and a single zip. Built for all horses.
+                _fa_g = _fa_by_horse.get(_hlc)
+                if _fa_g is None:
+                    form_all_lookup[_hlc] = []
+                    continue
+                _fa_g = _fa_g[_fa_g["_w"].notna()]
+                _recs = []
+                for _w, _go, _ds, _tmp, _rel in zip(
+                        _fa_g["_w"], _fa_g["_go"], _fa_g["_ds"],
+                        _fa_g["_tmp"], _fa_g["_rel"]):
+                    _recs.append({
+                        "w": float(_w),
+                        "go": _go if isinstance(_go, str) else "",
+                        "ds": int(_ds) if pd.notna(_ds) else None,
+                        "tmp": _tmp if (_tmp is not None
+                                        and _tmp == _tmp) else None,
+                        "rel": float(_rel) if pd.notna(_rel) else None,
+                    })
+                form_all_lookup[_hlc] = _recs
+    except Exception as _e:
+        print(f"  Form-history lookup skipped: {_e}")
+        form_lookup = {}
+        form_all_lookup = {}
+        _peak_run_lookup = {}
+        _tend_lookup = {}
+
+    # Predicted settling band per runner, for the detail-panel settling
+    # comparison table. Uses settling_estimate's logic (run-style
+    # tendency + barrier nudge; validated MAE 0.207).
+    #
+    # VECTORISED: a horse's run-style tendency (mean relative settle) is
+    # a stable per-horse number. The earlier version date-filtered the
+    # horse's history per runner (~thousands of pandas ops, ~130s). Now
+    # the tendency is computed once for every horse via one groupby, and
+    # per runner it is just tendency + barrier_nudge - pure arithmetic.
+    # Runs for ALL runners (no scoping), so every race's detail panel
+    # gets its settling highlight.
+    _step("Building settling-band lookup...")
+    _settle_band_lookup = {}
+    try:
+        import settling_estimate as _se_mod
+        if WPR_FORM_HISTORY_CSV.exists():
+            _sfh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                               dtype={"horse": str}, low_memory=False)
+            _sfh["horse_lc"] = _sfh["horse"].astype(str).str.strip().str.lower()
+            if "isBarrierTrial" in _sfh.columns:
+                _sfh = _sfh[_sfh["isBarrierTrial"].fillna(0).astype(int) == 0]
+            # run-style tendency per horse, vectorised: mean of
+            # positionSettled / field_size over the horse's runs.
+            _ps = pd.to_numeric(_sfh.get("positionSettled"), errors="coerce")
+            _fs = pd.to_numeric(_sfh.get("field_size"), errors="coerce")
+            _rel = (_ps / _fs).clip(0, 1)
+            _rel = _rel.where((_ps > 0) & (_fs > 0))
+            _sfh = _sfh.assign(_rel=_rel)
+            _grp = _sfh.dropna(subset=["_rel"]).groupby("horse_lc")["_rel"]
+            _tendency = _grp.mean().to_dict()
+            _tend_n = _grp.count().to_dict()
+
+            def _band_of(rel):
+                if rel <= 0.20:
+                    return "Leader"
+                if rel <= 0.45:
+                    return "On-pace"
+                if rel <= 0.70:
+                    return "Midfield"
+                return "Back"
+
+            for _, _rr in runners_df.iterrows():
+                _hlc = str(_rr.get("horse", "")).strip().lower()
+                _rid = str(_rr.get("run_id", ""))
+                _tend = _tendency.get(_hlc)
+                if _tend is None:
+                    continue
+                _fsz = _rr.get("field_size")
+                _nudge = _se_mod.barrier_nudge(
+                    _rr.get("barrier"),
+                    int(_fsz) if pd.notna(_fsz) else None)
+                _rel_est = min(1.0, max(0.0, _tend + _nudge))
+                _settle_band_lookup[_rid] = _band_of(_rel_est)
+    except Exception as _e:
+        print(f"  Settling-band lookup skipped: {_e}")
+        _settle_band_lookup = {}
+
+    _step("Building per-race runner payload...")
     races_data = []
     for race_id, rdf in runners_df.groupby("race_id"):
         rdf = rdf.copy().reset_index(drop=True)
@@ -2503,8 +2329,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
         first = rdf.iloc[0]
 
         # Per-race cumulative score: predictive composite for quaddie/exotic use
-        # Returns dict run_id -> {score: 0..1, rank: 1..N}. See compute_cumulative_score.
-        cum_lookup = compute_cumulative_score(rdf)
+        # Cumulative score removed (Stage 2) - WPR projection ranks runners.
+        # Empty dict kept so the HTML payload code degrades gracefully until
+        # the dashboard rework (Stage 4) removes the score UI.
+        cum_lookup = {}
 
         # Build runner list with all the fields the template needs
         runners = []
@@ -2559,6 +2387,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
                 "fm":   str(row.get("form_string")) if row.get("form_string") and str(row.get("form_string")) != "nan" else None,
+                # Finish margin in lengths - distinct from "fm" above which
+                # is the form string. Keyed mgnL to avoid that collision.
+                "mgnL": sf(row.get("margin_finish")),
                 "asp":  sf(row.get("avg_settled_pos")),
                 "wpr1": sf(row.get("wpr_last1")),
                 "wpra": sf(row.get("wpr_avg_last3")),
@@ -2604,6 +2435,51 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Pace / class change
                 "rs":      str(row.get("pf_run_style")) if row.get("pf_run_style") else None,
                 "clsChg":  sf(row.get("pf_class_change")),
+                # ── WPR projection (Step 2c) ─────────────────────────────────
+                # wpj* keys deliberately distinct from existing "wprp"
+                # (wpr_peak_rank_1yr) and "w"/"wpra" to avoid collisions.
+                # None on fallback runners (under 3 prior runs).
+                "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR
+                "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
+                "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
+                "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
+                "wpjpk": sf(row.get("wprp_peak")),    # career peak WPR
+                # what-if projection for the opposite going (wet<->dry).
+                # Lets the going override show a real model number, not a guess.
+                "wpjpA": sf(row.get("wprp_proj_alt")),
+                "wpjcA": si(row.get("wprp_conf_alt")),
+                "wpjd":  str(row.get("wprp_desc")) if row.get("wprp_desc")
+                         and str(row.get("wprp_desc")) != "nan" else None,
+                # actual run-day WPR for resulted runners (Step 2e), and the
+                # actual rank within the field. None until the form history
+                # settles (~5 days post-race). Lets the dashboard show how
+                # far the projection and ranking actually missed.
+                "wpja":  sf(row.get("wpr_actual")),
+                "wpjar": si(row.get("wpr_actual_rank")),
+                # Last 6 race runs (newest first) for the detail-panel form
+                # table. Empty list if no history matched.
+                "formRuns": form_lookup.get(
+                    str(row.get("horse", "")).strip().lower(), []),
+                # peakRun: a single rich record for the most recent
+                # career-peak run when it falls OUTSIDE the last 6 runs.
+                # None when the peak is already visible in formRuns.
+                "peakRun": _peak_run_lookup.get(
+                    str(row.get("horse", "")).strip().lower()),
+                # formAll: compact full-history records for the detail-panel
+                # comparison tables (WPR by tempo/settling/going/distance).
+                "formAll": form_all_lookup.get(
+                    str(row.get("horse", "")).strip().lower(), []),
+                # predicted settling band for THIS race (Leader/On-pace/
+                # Midfield/Back) - lets the settling comparison table
+                # highlight today's bucket. None if not estimable.
+                "psBand": _settle_band_lookup.get(
+                    str(row.get("run_id", ""))),
+                # Against-shape tendency over last 5 prior runs (min 3).
+                # Display-only - the panel step-up flag derives a faint
+                # "could stretch out" hint from this. NOT a predictive
+                # claim. See FINDINGS_distance_suitability.md.
+                "asTend": _tend_lookup.get(
+                    str(row.get("horse", "")).strip().lower()),
             })
 
         # Get price drift fields (open/current) from price history if available
@@ -2678,20 +2554,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "pf_class_change": r.get("pf_class_change"),
             })
 
-    # ── Build model meta from MODEL_DEFS ─────────────────────────────────────
-    primary_key = next((k for k, v in MODEL_DEFS.items() if v.get("is_primary")),
-                       "edge")
-    model_meta = {
-        k: {
-            "label":   v["label"],
-            "desc":    v["desc"],
-            "wr":      v["expected_wr"],
-            "roi_sp":  v["expected_roi_sp"],
-            "roi_top": v["expected_roi_top"],
-            "per_day": v["bets_per_day"],
-            "min_odds": v.get("min_top_odds", 0),  # threshold applied at bet placement
-        } for k, v in MODEL_DEFS.items()
-    }
+    # ── Model meta removed (WPR-only refactor) ───────────────────────────────
+    # MODEL_DEFS and the Edge/Volume model rule were removed. model_meta is
+    # now empty and primary_key a placeholder; the HTML still accepts these
+    # args and degrades gracefully (no picks). The dashboard rework (Stage 4)
+    # removes the picks UI entirely.
+    primary_key = "edge"
+    model_meta = {}
 
     # ── Build price history map: run_id -> {o, oat, r, rat} ──────────────────
     price_hist_map = {}
@@ -2718,6 +2587,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             print(f"  Warning: could not load price history for HTML ({e})")
 
     # ── Render and write ─────────────────────────────────────────────────────
+    _step("Rendering HTML template and writing file...")
     now_iso  = datetime.now().isoformat()
     run_date = datetime.now().strftime("%d %b %Y %H:%M")
     html = render_html(
@@ -2731,6 +2601,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         primary_model_key=primary_key,
     )
     OUTPUT_HTML.write_text(html, encoding="utf-8")
+    _step("HTML write complete.")
 
     n_total   = len(races_data)
     n_done    = sum(1 for r in races_data if r["done"] == 1)
@@ -2892,12 +2763,28 @@ def main():
     flush_wpr_form_history()
     print()
 
-    # ── Step 2b: Merge in Punting Form ratings ──────────────────────────────
-    # PF data is the foundation of the new unified model rule. It's pulled
-    # by puntingform_ingest.py (separate cron) into puntingform_data/pf_ratings.csv.
-    # The merge is keyed on (date, venue, race_no, horse_name lower-cased).
-    print("── Step 2b: Merging Punting Form ratings ──")
-    runners_df = merge_pf_ratings(runners_df)
+    # ── Step 2c: WPR projection ─────────────────────────────────────────────
+    # Runs after the form-history flush so wpr_form_history.csv on disk holds
+    # every runner's full history. Adds the wprp_* columns (projected WPR,
+    # confidence, price, rank, peak, description). Additive - never breaks the
+    # pipeline; returns runners_df unchanged on any failure.
+    print("── Step 2c: WPR projection ──")
+    runners_df = compute_wpr_projection(runners_df, args.date)
+    print()
+
+    # Step 2d: automated race-speed (early-tempo) estimate. Adds rs_score
+    # and rs_label per race. Low-confidence estimate, context only -
+    # additive and fail-safe, never breaks the pipeline.
+    print("── Step 2d: Race-speed estimate ──")
+    runners_df = compute_race_speed(runners_df, args.date)
+    print()
+
+    # Step 2e: actual WPR for resulted runners. Joins the real run-day WPR
+    # from the form history onto resulted runners so the dashboard can show
+    # predicted vs actual. Fills in over ~5 days as the form history
+    # settles. Additive and fail-safe.
+    print("── Step 2e: Actual WPR for resulted runners ──")
+    runners_df = compute_wpr_actual(runners_df)
     print()
 
     save_runners(runners_df)
@@ -2908,24 +2795,11 @@ def main():
     snapshot_prices(runners_df)
     print()
 
-    # ── V3 Core Model picks (walk-forward verified filters) ──
-    print("── Step 3: Computing v3 model picks ──")
-    # First clear stale picks for races we're about to re-evaluate. Without
-    # this, a race that USED to qualify a horse keeps that pick forever even
-    # if the rule has changed (e.g. first-starter exclusion now removes it).
-    remove_excluded_picks_for_evaluated_races(runners_df)
-    # Compute picks for EVERY race in the dataframe, not just today's. This way
-    # historical data already in toprate_runners.csv (e.g. yesterday's races
-    # whose results came in overnight) get picks computed and saved too.
-    # The picks CSV dedupes on (run_id, model) so re-runs are safe.
-    model_pick_rows = compute_model_picks(runners_df)
-    saved_path = save_model_picks(model_pick_rows)
-    if saved_path:
-        n_picks = len(model_pick_rows)
-        n_horses = len({r["run_id"] for r in model_pick_rows})
-        print(f"  {n_picks} model-pick rows ({n_horses} unique horses) saved -> {saved_path.name}")
-    print(model_picks_summary(model_pick_rows))
-    print()
+    # ── Model picks removed (WPR-only refactor Stage A) ──
+    # The Edge/Volume model rule has been removed. The dashboard now
+    # presents WPR projection rankings; bet selection is manual. HTML is
+    # rebuilt with no model picks.
+    model_pick_rows = []
 
     if not args.no_html:
         print("── Step 4: Rebuilding HTML ──")

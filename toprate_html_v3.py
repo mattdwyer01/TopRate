@@ -2164,7 +2164,7 @@ body {
   font-family: var(--font-body); font-size: 12px; font-weight: 600;
   padding: 4px 8px; border: 1px solid var(--line);
   border-radius: 4px; background: var(--panel); color: var(--ink);
-  width: 100px;
+  width: 110px; cursor: pointer;
 }
 .race-context-bar .ctx-override-input:focus {
   outline: 2px solid var(--emerald); outline-offset: -1px;
@@ -2655,18 +2655,28 @@ body {
 .race-table tbody tr.race-detail-row:hover { background: var(--panel) !important; }
 .race-table tbody tr.race-detail-row > td {
   padding: 14px 18px; border-top: 2px solid var(--ink);
+  /* width:0 on a colspan cell stops the detail content from forcing the
+     parent race table wider (which was pushing columns off screen). The
+     cell still spans visually; its content is constrained below. */
+  width: 0; max-width: 0;
+}
+.rd-detail-wrap {
+  /* hard cap so nothing inside can stretch the table. The panel sizes to
+     the visible race-table width and its own tables fill that width. */
+  width: 100%; box-sizing: border-box; overflow-x: auto;
 }
 .rd-runner-detail {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 .rd-section {
-  background: var(--line-soft); border-radius: 6px; padding: 10px 12px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 4px; padding: 8px 10px;
 }
 .rd-section-title {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-mute); font-weight: 700; margin-bottom: 8px;
-  padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute); font-weight: 700; margin-bottom: 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--line);
 }
 .rd-section-body { display: flex; flex-direction: column; gap: 6px; }
 .rd-field { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
@@ -2851,6 +2861,526 @@ body {
 }
 .score-top3.no-quals { background: rgba(220,80,80,0.15); }
 .score-top3.no-quals .lbl { color: #fca5a5; opacity: 0.95; }
+
+/* ── WPR projection cells (Race tab) ─────────────────────────────────── */
+/* Actual-WPR result block (projection detail panel) - shown once a race
+   is resulted and the form history has settled. */
+.rd-wpr-actual {
+  margin: 6px 0 2px; padding: 7px 10px; border-radius: 6px;
+  font-size: 12px; line-height: 1.5;
+}
+.rd-wpr-actual-big { font-size: 16px; font-weight: 700; }
+.rd-wpr-misstxt { font-weight: 700; }
+.wpr-miss-close { background: rgba(16,185,129,0.12); color: var(--ink); }
+.wpr-miss-close .rd-wpr-actual-big { color: var(--emerald-deep, #047857); }
+.wpr-miss-mid   { background: rgba(245,158,11,0.12); color: var(--ink); }
+.wpr-miss-mid   .rd-wpr-actual-big { color: #b45309; }
+.wpr-miss-far   { background: rgba(239,68,68,0.12); color: var(--ink); }
+.wpr-miss-far   .rd-wpr-actual-big { color: #b91c1c; }
+
+/* Predicted WPR cell: effective rating, optional greyed original, conf chip */
+.race-table td.wpr-pred-cell { white-space: nowrap; }
+.race-table td.wpr-actual-cell { font-weight: 600; white-space: nowrap; }
+.race-table td.wpr-miss-cell { font-weight: 700; white-space: nowrap; }
+.race-table td.wpr-miss-cell.wpr-miss-close { color: #047857; }
+.race-table td.wpr-miss-cell.wpr-miss-mid { color: #b45309; }
+.race-table td.wpr-miss-cell.wpr-miss-far { color: #b91c1c; }
+.wpr-eff { font-weight: 600; }
+.wpr-orig {
+  margin-left: 5px; font-size: 11px; color: var(--ink-mute);
+  text-decoration: line-through; opacity: 0.7;
+}
+.wpr-na { color: var(--ink-mute); opacity: 0.6; }
+/* Confidence chip - green 80+, amber 60-79, red <60 */
+.wpr-chip {
+  display: inline-block; margin-left: 6px; padding: 1px 6px;
+  border-radius: 9px; font-size: 11px; font-weight: 600; color: #fff;
+  min-width: 22px; text-align: center;
+}
+.wpr-chip-green { background: #10b981; }
+.wpr-chip-amber { background: #d97706; }
+.wpr-chip-red   { background: #dc2626; }
+/* Manual adjustment input cell */
+.race-table td.wpr-manual-cell { padding: 4px 6px; }
+.wpr-manual-input {
+  width: 52px; padding: 3px 5px; font-size: 12px; text-align: center;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink); font-family: inherit;
+}
+.wpr-manual-input:focus {
+  outline: none; border-color: var(--emerald);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
+}
+.wpr-manual-input::placeholder { color: var(--ink-mute); opacity: 0.5; }
+/* Overlay / stake */
+.race-table td.wpr-overlay-pos { color: var(--emerald); font-weight: 600; }
+.race-table td.wpr-overlay-neg { color: var(--ink-mute); }
+.race-table td.wpr-stake { font-weight: 600; }
+/* Bet Y/N toggle */
+.race-table td.wpr-bet-cell { padding: 4px 6px; }
+.wpr-bet-toggle {
+  width: 28px; padding: 3px 0; font-size: 12px; font-weight: 700;
+  cursor: pointer; border-radius: 5px; border: 1px solid var(--line);
+  font-family: inherit;
+}
+.wpr-bet-toggle.wpr-bet-yes {
+  background: var(--emerald); color: #fff; border-color: var(--emerald);
+}
+.wpr-bet-toggle.wpr-bet-no {
+  background: var(--panel); color: var(--ink-mute);
+}
+.wpr-bet-toggle.wpr-bet-no:hover { border-color: var(--emerald); color: var(--emerald); }
+/* Gated stake cell */
+.race-table td.wpr-stake-cell { padding: 4px 6px; white-space: nowrap; }
+.wpr-stake-input {
+  width: 48px; padding: 3px 5px; font-size: 12px; text-align: center;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink); font-family: inherit;
+}
+.wpr-stake-input:focus {
+  outline: none; border-color: var(--emerald);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
+}
+.wpr-result-cell { text-align: center; }
+.wpr-result-input {
+  width: 34px; padding: 3px 4px; font-size: 12px; text-align: center;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink); font-family: inherit;
+}
+.wpr-result-input:focus {
+  outline: none; border-color: var(--emerald);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
+}
+.wpr-result-input::placeholder { color: var(--ink-mute); opacity: 0.5; }
+.wpr-result-official { font-weight: 700; color: var(--ink); }
+/* finishing margin in lengths - only shown on resulted races */
+.wpr-margin-cell {
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--ink); font-weight: 600;
+}
+/* Manual scratch toggle - per-row button, dimmed row when on,
+   field-shrink badge, thin-field tag, and the per-race clear-all
+   affordance. Visible-but-dimmed style so the user can see what they
+   scratched and undo at a glance. */
+.wpr-scr-cell { text-align: center; padding: 2px; }
+.wpr-scr-btn {
+  width: 22px; height: 22px; padding: 0; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink-mute); font-family: inherit; font-size: 14px;
+  line-height: 1; cursor: pointer;
+}
+.wpr-scr-btn:hover { border-color: var(--ink-mute); color: var(--ink); }
+.wpr-scr-btn.on {
+  background: #fee2e2; border-color: #fca5a5; color: #991b1b;
+  font-weight: 700;
+}
+.wpr-scr-btn.on:hover { background: #fecaca; }
+.race-table tr.is-scratched > td {
+  opacity: 0.42;
+  /* visible-but-faded: the row is still there so the user remembers
+     what they excluded and can un-scratch. The button cell stays at
+     full opacity so the toggle is easy to find again. */
+}
+.race-table tr.is-scratched > td.wpr-scr-cell { opacity: 1; }
+.wpr-thin-field {
+  display: inline-block; margin-left: 6px; padding: 1px 6px;
+  font-size: 11px; font-weight: 700; color: #92400e;
+  background: #fef3c7; border-radius: 3px;
+}
+.wpr-scr-footer {
+  margin-top: 10px; padding: 8px 12px; border-radius: 6px;
+  background: var(--line-soft); font-size: 12px; color: var(--ink-mute);
+  display: flex; align-items: center; gap: 12px;
+}
+.wpr-scr-clear {
+  padding: 4px 10px; font-size: 12px; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); cursor: pointer; font-family: inherit;
+}
+.wpr-scr-clear:hover { border-color: var(--ink-mute); }
+/* detail panel WPR blocks */
+.rd-wpr-proj { font-size: 14px; margin-bottom: 12px; }
+.rd-wpr-big { font-size: 22px; font-weight: 700; }
+.rd-wpr-adj { font-size: 12px; color: var(--ink-mute); }
+.rd-tempo-adj { color: #047857; font-weight: 600; }
+.rd-tempo-adj-thin { font-style: italic; }
+.rd-wpr-confline { font-size: 13px; margin-top: 4px; }
+.rd-stepup-flag {
+  display: inline-block; margin-left: 10px; padding: 2px 8px;
+  font-size: 11px; font-weight: 600; color: var(--ink-mute);
+  background: var(--line-soft); border: 1px solid var(--line);
+  border-radius: 4px; letter-spacing: 0.02em;
+}
+.rd-stepup-caveat {
+  font-weight: 400; font-style: italic; opacity: 0.75; margin-left: 3px;
+}
+.rd-wpr-fallback {
+  font-size: 13px; color: var(--ink-mute); line-height: 1.5;
+  padding: 8px 0;
+}
+.rd-wpr-why {
+  font-size: 13px; line-height: 1.6; color: var(--ink);
+  background: var(--line-soft); border-radius: 6px; padding: 10px 12px;
+  overflow-wrap: anywhere; word-break: normal; white-space: normal;
+}
+.rd-section-note {
+  font-size: 11px; font-weight: 400; color: var(--ink-mute);
+  text-transform: none; letter-spacing: 0; margin-left: 6px;
+}
+/* Recent-runs form table in the detail panel */
+.rd-runs-table {
+  width: 100%; border-collapse: collapse; margin-top: 4px;
+  font-size: 11px;
+  border: 1px solid var(--line); table-layout: auto;
+}
+.rd-runs-table thead th {
+  text-align: left; padding: 3px 6px;
+  background: var(--line-soft);
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  font-size: 10px; text-transform: uppercase; color: var(--ink-mute);
+  letter-spacing: 0.04em; white-space: nowrap; font-weight: 700;
+}
+.rd-runs-table tbody td {
+  padding: 3px 6px; border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap; line-height: 1.25;
+}
+.rd-runs-table tbody tr:hover td { background: var(--line-soft); }
+.rd-runs-table td.rd-run-wpr {
+  font-weight: 700; text-align: right; background: rgba(16,185,129,0.06);
+  /* Cap width - the inline peak chip was forcing the column wider than
+     needed. White-space wrap lets the peak chip drop under the number
+     on the narrow column. */
+  width: 48px; max-width: 60px;
+  white-space: normal;
+}
+.rd-runs-table td.rd-run-wpr .rd-run-peak {
+  display: inline-block; margin: 0 0 2px 0;
+}
+.rd-runs-table td.rd-num { text-align: right; }
+.rd-runs-table td.rd-pos {
+  text-align: center; font-variant-numeric: tabular-nums;
+  color: var(--ink-mute); letter-spacing: 0.02em;
+}
+/* going chip - coloured by track condition, TopRate-style */
+.rd-going-chip {
+  display: inline-block; padding: 0 5px; border-radius: 3px;
+  font-size: 11px; font-weight: 700;
+}
+.rd-going-good { background: #d1fae5; color: #065f46; }
+.rd-going-soft { background: #fef3c7; color: #92400e; }
+.rd-going-heavy { background: #fed7aa; color: #9a3412; }
+.rd-going-firm { background: #e0e7ff; color: #3730a3; }
+.rd-run-peak {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #fff; background: var(--emerald); border-radius: 3px;
+  padding: 1px 4px; margin: 0 6px 0 4px; font-weight: 700;
+}
+/* Spell-break separator row inside the runs table - used for the
+   spell-between-runs marker, the days-since-last-run row at the top,
+   and the career-peak gap row above the peak row. */
+.rd-runs-table .rd-spell-row td {
+  text-align: center; padding: 6px 0; font-size: 11px;
+  color: var(--ink-mute); background: var(--line-soft);
+  font-style: italic; letter-spacing: 0.04em;
+  text-transform: uppercase; font-weight: 600;
+}
+/* Days-since row at the top gets a slightly bolder text colour so it
+   reads as a primary anchor for the timeline, not an aside. */
+.rd-runs-table .rd-days-row td { color: var(--ink); }
+/* condition override controls (going / race speed) */
+.ctx-speed-inline { display: flex; align-items: center; gap: 4px; }
+.ctx-speed-btn {
+  padding: 2px 9px; font-size: 11px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: var(--panel); color: var(--ink-mute); font-family: inherit;
+}
+.ctx-speed-btn.ctx-speed-on {
+  background: var(--emerald); color: #fff; border-color: var(--emerald);
+  font-weight: 600;
+}
+.rd-cond-section { display: flex; flex-direction: column; gap: 8px; }
+.rd-cond-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rd-cond-lbl {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--ink-mute); width: 86px;
+}
+.rd-cond-btn {
+  padding: 3px 11px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink-mute); font-family: inherit;
+}
+.rd-cond-btn.rd-cond-on {
+  background: var(--emerald); color: #fff; border-color: var(--emerald);
+  font-weight: 600;
+}
+.rd-cond-note {
+  font-size: 11px; color: var(--ink-mute); font-style: italic;
+  margin-left: 4px;
+}
+/* same race-speed section */
+/* sectional figure cells - pale fill INSIDE the bordered grid, TopRate
+   style. The grid borders carry the structure, so a soft fill reads as
+   data colour rather than clutter (the earlier borderless table made
+   fills look messy - fixed by the grid). */
+.rd-runs-table td.rd-sect {
+  text-align: right; font-weight: 600;
+}
+.rd-sect-pos { color: #047857; background: rgba(16,185,129,0.13); }
+.rd-sect-neg { color: #b91c1c; background: rgba(220,38,38,0.11); }
+.rd-sect-flat { color: var(--ink-mute); }
+/* Sectional cells: one number per cell, right-aligned, monospaced.
+   Each run shows two table rows - the horse row (top) and the race-
+   shape sub-row beneath it. The horse row's cells get coloured green
+   (against the shape) or red (with the shape) when the difference is
+   1.5+ in either direction. The race-shape row is muted grey. */
+.rd-runs-table td.rd-sect {
+  text-align: right; font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+/* Horse sectional vs race shape: form-reading signal */
+.rd-sect-against { background: rgba(16,185,129,0.13); color: #047857; }
+.rd-sect-with { background: rgba(220,38,38,0.11); color: #b91c1c; }
+/* Race-shape sub-row beneath each horse row. Compact, grey,
+   read-as-reference. Smaller font and zero top padding so the pair
+   reads as one tight unit; the secondary information stays present
+   without dominating vertical space. */
+.rd-runs-table tr.rd-run-shape > td {
+  border-top: 0; border-bottom: 1px solid var(--line-soft);
+  padding-top: 0; padding-bottom: 3px;
+  font-size: 10px; line-height: 1.1;
+}
+.rd-runs-table tr.rd-run-shape .rd-sect-race {
+  color: var(--ink-mute); font-weight: 500;
+}
+/* Tighten the horse-row bottom so the pair reads as one unit. Border
+   removed too - the bottom border now lives on the shape row. */
+.rd-runs-table tr.rd-run-main > td {
+  padding-bottom: 1px; border-bottom: 0;
+}
+/* Rowspanned cells on the main row span both visual rows. Vertical
+   centre, and re-add the bottom border that we removed above. */
+.rd-runs-table tr.rd-run-main > td[rowspan] {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 3px;
+}
+.rd-speed-stat { font-size: 13px; line-height: 1.6; }
+.rd-speed-none { color: var(--ink-mute); }
+.rd-speed-table { margin-top: 4px; }
+.rd-speed-table td:first-child { font-weight: 600; }
+.rd-speed-thisrow td,
+.rd-cmp-thisrow td {
+  background: rgba(16,185,129,0.12);
+  font-weight: 700;
+}
+/* Override for comparison-table this-race: no row tint, all cells bold.
+   The this-race tint is reserved for the speed table where it works
+   in isolation; in the 4-row comparison tables we want the visual
+   weight to come from boldness across the whole row, with colour
+   reserved for the variance signal. */
+.rd-cmp-thisrow td { background: transparent; font-weight: 700; }
+/* Subtotal-style line under "All races". Plain text (not bold) so it
+   reads as the baseline reference; the bolder "This race" row above
+   is where the eye is meant to land. The divider beneath is thicker
+   (3px) and uses the dark ink colour to clearly delineate the
+   baseline rows from the derived rows below. */
+.rd-cmp-subtotal td {
+  font-weight: 400;
+  border-bottom: 3px solid var(--ink);
+}
+.rd-cmp-subtotal td:first-child { font-weight: 400; }
+/* Consistency (SD) row in italics - reinforces that SD is a
+   different kind of measure (variability, not magnitude). */
+.rd-cmp-sd td { font-style: italic; color: var(--ink-mute); }
+/* Variance row colouring - tinted only when |variance| >= 1.0 WPR.
+   Positive variance (this race avg > all-races avg) = horse runs
+   BETTER at this condition; negative = runs worse. Colour lives only
+   on the WPR-number cell (the last td), so the label and runs cells
+   stay neutral - the number is what the eye should land on. */
+.rd-cmp-var-pos td:last-child {
+  background: rgba(16,185,129,0.10);
+  color: #047857; font-weight: 700;
+}
+.rd-cmp-var-neg td:last-child {
+  background: rgba(220,38,38,0.08);
+  color: #b91c1c; font-weight: 700;
+}
+/* 2x2 grid for the four comparison tables - Race speed | Settling on
+   top, Going | Distance below. Collapses to one column when narrow. */
+.rd-cmp-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.rd-cmp-grid > .rd-section { margin: 0; }
+.rd-cmp-grid .rd-runs-table { width: 100%; }
+@media (max-width: 760px) {
+  .rd-cmp-grid { grid-template-columns: 1fr; }
+}
+.rd-speed-cap {
+  font-size: 11px; color: var(--ink-mute); line-height: 1.5;
+  margin-top: 6px;
+}
+.rd-conn-line { font-size: 12px; color: var(--ink); }
+.rd-priceline {
+  font-size: 12px; color: var(--ink); margin: 10px 0 4px;
+  padding: 7px 10px; background: var(--bg-soft, #f6f6f4); border-radius: 6px;
+}
+.rd-priceline-lbl {
+  font-weight: 700; text-transform: uppercase; font-size: 11px;
+  letter-spacing: 0.4px; color: var(--ink-mute, #777); margin-right: 6px;
+}
+.rd-connfoot {
+  font-size: 11px; color: var(--ink-mute, #888); margin-top: 8px;
+  padding-top: 6px; border-top: 1px solid var(--line, #ececec);
+}
+.rd-connfoot-note { font-style: italic; opacity: 0.8; }
+/* Race confidence chip in the race header */
+.race-conf { font-weight: 600; }
+.race-conf .lbl {
+  font-weight: 400; color: var(--ink-mute); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.03em; margin-right: 3px;
+}
+.race-conf.rc-high { color: #10b981; }
+.race-conf.rc-mid  { color: #d97706; }
+.race-conf.rc-low  { color: #dc2626; }
+/* Clear-overrides control */
+.wpr-clear-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink-mute);
+}
+.wpr-clear-btn:hover { border-color: #dc2626; color: #dc2626; }
+
+/* ── WPR summary page ────────────────────────────────────────────────── */
+.wpr-summary-head { margin-bottom: 20px; }
+.wpr-summary-title { font-size: 20px; margin: 0 0 6px 0; }
+.wpr-summary-date {
+  font-size: 14px; font-weight: 400; color: var(--ink-mute);
+  margin-left: 6px;
+}
+.wpr-summary-date-sel {
+  font-size: 13px; font-weight: 400; color: var(--ink);
+  margin-left: 10px; padding: 3px 8px;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); cursor: pointer;
+  vertical-align: middle;
+}
+.wpr-summary-date-sel:focus {
+  outline: none; border-color: var(--emerald);
+}
+/* clickable summary rows - jump to the runner on the Race tab */
+.wpr-summary-table tr.wpr-row-clickable { cursor: pointer; }
+.wpr-summary-table tr.wpr-row-clickable:hover td {
+  background: rgba(16,185,129,0.06);
+}
+/* KPI strip - headline numbers above the filter bar */
+.wpr-kpi-strip {
+  display: flex; flex-wrap: wrap; gap: 0;
+  margin: 8px 0 16px 0;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); overflow: hidden;
+}
+.wpr-kpi {
+  flex: 1 1 auto; min-width: 110px;
+  padding: 10px 16px; border-right: 1px solid var(--line);
+}
+.wpr-kpi:last-child { border-right: none; }
+.wpr-kpi-lbl {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-mute);
+  font-weight: 700; margin-bottom: 4px;
+}
+.wpr-kpi-val {
+  font-size: 16px; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.wpr-kpi-pos { color: #047857; }
+.wpr-kpi-neg { color: #b91c1c; }
+@media (max-width: 700px) {
+  .wpr-kpi { flex-basis: 50%; border-bottom: 1px solid var(--line); }
+}
+.wpr-summary-note {
+  font-size: 12px; color: var(--ink-mute); line-height: 1.5;
+  max-width: 640px; margin-bottom: 10px;
+}
+.wpr-list-block {
+  margin-bottom: 24px; border: 1px solid var(--line);
+  border-radius: 8px; padding: 14px; background: var(--panel);
+}
+.wpr-list-head {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 6px;
+}
+.wpr-list-head h3 { margin: 0; font-size: 15px; }
+.wpr-slider-wrap {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-mute);
+}
+.wpr-slider-wrap input[type=range] { width: 130px; }
+.wpr-list-desc {
+  font-size: 11px; color: var(--ink-mute); line-height: 1.5;
+  margin-bottom: 10px; max-width: 640px;
+}
+.wpr-empty {
+  font-size: 13px; color: var(--ink-mute); padding: 14px 4px;
+}
+.wpr-summary-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.wpr-summary-table thead th {
+  text-align: left; padding: 7px 8px; border-bottom: 2px solid var(--line);
+  font-size: 11px; text-transform: uppercase; color: var(--ink-mute);
+  letter-spacing: 0.03em;
+}
+.wpr-summary-table tbody td {
+  padding: 7px 8px; border-bottom: 1px solid var(--line-soft);
+}
+.wpr-summary-table tbody tr:hover { background: var(--line-soft); }
+
+/* WPR Summary filter bar (Stage 4d) */
+.wpr-filter-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px;
+  padding: 12px 14px; margin-bottom: 18px;
+  background: var(--line-soft); border-radius: 8px;
+}
+.wpr-filter { display: flex; flex-direction: column; gap: 4px; }
+.wpr-filter label {
+  font-size: 11px; text-transform: uppercase; color: var(--ink-mute);
+  letter-spacing: 0.03em;
+}
+.wpr-filter select {
+  padding: 5px 8px; font-size: 13px; border: 1px solid var(--line);
+  border-radius: 5px; background: var(--bg); color: var(--ink);
+}
+.wpr-filter-check { flex-direction: row; align-items: center; }
+.wpr-filter-check label {
+  display: flex; align-items: center; gap: 6px;
+  text-transform: none; font-size: 12px; color: var(--ink-soft);
+}
+/* Price-range filter: two sliders stacked, with the current min/max
+   echoed in the label so the user can see the band as they drag. */
+.wpr-filter-price { min-width: 160px; }
+.wpr-filter-price label {
+  text-transform: uppercase; font-size: 11px; color: var(--ink-mute);
+  letter-spacing: 0.03em;
+}
+.wpr-price-sliders {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.wpr-price-sliders input[type="range"] {
+  width: 100%; margin: 0; padding: 0;
+}
+.wpr-filter-reset {
+  padding: 5px 12px; font-size: 12px; border: 1px solid var(--line);
+  border-radius: 5px; background: var(--bg); color: var(--ink-soft);
+  cursor: pointer;
+}
+.wpr-filter-reset:hover { color: var(--ink); }
+.wpr-unranked-flag {
+  font-size: 11px; color: var(--amber); font-weight: 600;
+}
 
 /* Race table rows that qualify by score threshold get a subtle emerald accent */
 .race-table tbody tr.score-qualify {
@@ -3853,6 +4383,67 @@ body {
   border-left: 3px solid var(--ink-faint); border-radius: 3px;
 }
 
+/* ── WPR Accuracy tab ───────────────────────────────────────────────────── */
+.acc-controls {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.acc-period { display: flex; gap: 4px; }
+.acc-period-btn {
+  padding: 5px 12px; border: 1px solid var(--line, #d8d8d8);
+  background: var(--card, #fff); border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: var(--ink-mute, #666);
+}
+.acc-period-btn.active {
+  background: var(--ink, #1a1a1a); color: #fff;
+  border-color: var(--ink, #1a1a1a);
+}
+.acc-note { font-size: 11px; color: var(--ink-mute, #888); max-width: 460px; }
+.acc-headline {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.acc-stat {
+  background: var(--card, #fff); border: 1px solid var(--line, #e2e2e2);
+  border-radius: 8px; padding: 12px 16px; min-width: 110px;
+}
+.acc-stat-main { border-color: var(--ink, #1a1a1a); border-width: 2px; }
+.acc-stat-num { font-size: 24px; font-weight: 700; color: var(--ink, #1a1a1a); }
+.acc-stat-main .acc-stat-num { font-size: 30px; }
+.acc-stat-lbl { font-size: 11px; color: var(--ink-mute, #777); margin-top: 2px; }
+.acc-stat-n { margin-left: auto; }
+.acc-breakdowns {
+  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.acc-bd { flex: 1; min-width: 240px; }
+.acc-bd-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--ink-mute, #777); margin-bottom: 6px;
+}
+.acc-bd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.acc-bd-table th {
+  text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line, #e2e2e2);
+  color: var(--ink-mute, #888); font-weight: 600;
+}
+.acc-bd-table td { padding: 4px 8px; border-bottom: 1px solid var(--line, #f0f0f0); }
+.acc-mae-close { color: #047857; font-weight: 700; }
+.acc-mae-mid { color: #b45309; font-weight: 700; }
+.acc-mae-far { color: #b91c1c; font-weight: 700; }
+.acc-table-wrap { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+.acc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.acc-table th {
+  text-align: left; padding: 6px 10px; position: sticky; top: 0;
+  background: var(--card, #fff); border-bottom: 2px solid var(--line, #d8d8d8);
+}
+.acc-table td { padding: 5px 10px; border-bottom: 1px solid var(--line, #f0f0f0); }
+.acc-table .wpr-miss-close { color: #047857; font-weight: 700; }
+.acc-table .wpr-miss-mid { color: #b45309; font-weight: 700; }
+.acc-table .wpr-miss-far { color: #b91c1c; font-weight: 700; }
+.acc-table-more {
+  text-align: center; color: var(--ink-mute, #888); font-style: italic;
+  padding: 10px;
+}
+.acc-empty { color: var(--ink-mute, #888); padding: 20px; font-style: italic; }
+
 /* ── Database tab ─────────────────────────────────────────────────────────
    Filter bar, stats strip, runners table. Filter bar can collapse to save
    space once user has set their query. Table uses horizontal scroll on all
@@ -4563,127 +5154,17 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <nav class="tabs">
-    <div class="tab active" data-tab="today">Today</div>
+    <div class="tab active" data-tab="wpr">Summary</div>
     <div class="tab" data-tab="race">Race</div>
     <div class="tab" data-tab="quaddie">Quaddie</div>
     <div class="tab" data-tab="pnl">P&amp;L</div>
-    <div class="tab" data-tab="insights">Tracking</div>
-    <div class="tab" data-tab="database">Database</div>
+    <div class="tab" data-tab="accuracy">WPR Accuracy</div>
     <div class="tab" data-tab="settings">Settings</div>
   </nav>
 
-  <!-- TODAY -->
-  <section class="section active" id="sec-today">
-    <div class="hero">
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="lbl">P&amp;L</div>
-          <div class="val" id="hs-today-pnl">&mdash;</div>
-          <div class="sub" id="hs-today-pnl-units">&mdash;</div>
-        </div>
-        <div class="hero-stat">
-          <div class="lbl">Win rate</div>
-          <div class="val" id="hs-today-wr">&mdash;</div>
-          <div class="sub" id="hs-today-wr-sub">&mdash;</div>
-        </div>
-        <div class="hero-stat">
-          <div class="lbl">Place rate</div>
-          <div class="val" id="hs-today-pr">&mdash;</div>
-          <div class="sub" id="hs-today-pr-sub">&mdash;</div>
-        </div>
-        <div class="hero-stat">
-          <div class="lbl">ROI</div>
-          <div class="val" id="hs-today-roi">&mdash;</div>
-          <div class="sub" id="hs-today-roi-sub">&mdash;</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Model sub-tabs - switches which model's picks fill the rows below.
-         Badge count is filled in by JS on render. Two models active:
-         "edge" (premium picks, single rule WPR+L600+Time+L400, prize>=$50k +
-         jky>=80 filters) and "volume" (high-frequency, PFAI+TR+L400, jky>=80
-         filter only). Switching also drives the hero stats above. -->
-    <div class="subtabs-row" id="today-subtabs">
-      <button class="subtab active" data-model="edge">Edge<span class="subtab-badge" id="today-subtab-count-edge">0</span></button>
-      <button class="subtab" data-model="volume">Volume<span class="subtab-badge" id="today-subtab-count-volume">0</span></button>
-    </div>
-
-    <div class="race-date-bar" id="today-date-bar">
-      <div class="race-date-controls">
-        <button class="today-date-quick race-date-quick" data-tdate="yesterday">Yesterday</button>
-        <button class="today-date-quick race-date-quick active" data-tdate="today">Today</button>
-        <button class="today-date-quick race-date-quick" data-tdate="tomorrow">Tomorrow</button>
-        <input type="date" id="today-date-input" class="race-date-input">
-      </div>
-      <div class="race-date-info" id="today-date-info">&mdash;</div>
-    </div>
-
-    <!-- Today filters bar - field size, jockey rating. Filters narrow which
-         model picks show up in the row list below. Filtered-out rows dim
-         but stay visible/clickable so user can still inspect them. Filters
-         persist across reloads via localStorage. -->
-    <div class="race-filters-bar">
-      <div class="race-filter-group">
-        <label for="today-filter-fs">Field</label>
-        <select class="race-filter-select" id="today-filter-fs">
-          <option value="0">All</option>
-          <option value="8">8+</option>
-          <option value="10">10+</option>
-          <option value="12">12+</option>
-        </select>
-      </div>
-      <div class="race-filter-group">
-        <label for="today-filter-jky">Jky rating</label>
-        <select class="race-filter-select" id="today-filter-jky">
-          <option value="0">All</option>
-          <option value="75">75+</option>
-          <option value="80">80+</option>
-          <option value="85">85+</option>
-          <option value="90">90+</option>
-        </select>
-      </div>
-      <button class="race-filter-reset" id="today-filter-reset" type="button">Reset</button>
-      <div class="race-filter-summary" id="today-filter-summary"></div>
-    </div>
-
-    <div class="picks-scroll" id="picks-scroll">
-    <div class="picks-header" id="picks-header">
-      <div>Time</div>
-      <div>Meeting</div>
-      <div>Runner</div>
-      <div>Signals</div>
-      <div class="th-right">Fxd</div>
-      <div class="th-right">Stake</div>
-      <div class="th-right">Return</div>
-      <div>Result</div>
-      <div class="th-right">Odds taken</div>
-      <div></div>
-    </div>
-
-    <!-- Two-section list: Pending bets above, Resulted below. Both share the
-         same .picks-scroll container so column widths stay aligned and a
-         single horizontal scroll moves them together. Section heads carry
-         their per-section counts and hide-when-empty. -->
-    <div class="picks-section-head" id="pending-head" style="display:none;">
-      <span class="picks-section-label">Pending</span>
-      <span class="picks-section-count" id="pending-count">0</span>
-    </div>
-    <div class="picks-list" id="picks-list-pending">
-      <!-- populated by JS - rows without official/manual results -->
-    </div>
-
-    <div class="picks-section-head" id="resulted-head" style="display:none;">
-      <span class="picks-section-label">Resulted</span>
-      <span class="picks-section-count" id="resulted-count">0</span>
-    </div>
-    <div class="picks-list" id="picks-list-resulted">
-      <!-- populated by JS - rows with official or manual results -->
-    </div>
-    </div>
-
-  </section>
-
+  <!-- TODAY tab removed (WPR-only refactor Stage 4c). The picks board is
+       superseded by the WPR Summary tab. renderToday() is stubbed to a
+       no-op below; PICKS_TODAY / todayFilters dead code swept in 4f. -->
   <!-- RACE -->
   <section class="section" id="sec-race">
     <!-- Browser view: date picker + meetings grid -->
@@ -4727,6 +5208,125 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="track-conditions-card" id="rd-track-conditions"></div>
         <div class="pf-bias-panel" id="rd-pf-bias" style="display:none;"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- WPR PROJECTION SUMMARY -->
+  <section class="section" id="sec-wpr">
+    <div class="wpr-summary-head">
+      <h2 class="wpr-summary-title">Summary
+        <select class="wpr-summary-date-sel" id="wpr-summary-date-sel"
+                title="Date shown"></select></h2>
+      <div class="wpr-summary-note">
+        WPR-projection picks for today's runners. The projection is a form-quality
+        read, not a proven betting edge - treat these lists as information.
+        Lists recompute live off any manual adjustments made on the Race tab.
+      </div>
+    </div>
+
+    <!-- KPI header: a horizontal strip of headline numbers for the
+         selected date. Populated by renderWprSummary. Designed so the
+         glance is never misleading - pending values show "pending"
+         rather than $0 / 0%. -->
+    <div class="wpr-kpi-strip" id="wpr-kpi-strip"></div>
+
+    <!-- Filter bar (WPR-only refactor Stage 4d). Narrows both lists below. -->
+    <div class="wpr-filter-bar">
+      <div class="wpr-filter">
+        <label for="wpr-f-venue">Venue</label>
+        <select id="wpr-f-venue"><option value="">All</option></select>
+      </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-conf">Confidence</label>
+        <select id="wpr-f-conf">
+          <option value="">All</option>
+          <option value="high">High (80+)</option>
+          <option value="mod">Moderate (60-79)</option>
+          <option value="low">Low (under 60)</option>
+        </select>
+      </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-overlay">Min overlay</label>
+        <select id="wpr-f-overlay">
+          <option value="0">Any</option>
+          <option value="25">25%+</option>
+          <option value="50">50%+</option>
+          <option value="100">100%+</option>
+          <option value="200">200%+</option>
+          <option value="500">500%+</option>
+        </select>
+      </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-bet">Bet</label>
+        <select id="wpr-f-bet">
+          <option value="">All</option>
+          <option value="yes">Bet only</option>
+          <option value="no">Not bet</option>
+        </select>
+      </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-result">Result</label>
+        <select id="wpr-f-result">
+          <option value="">All</option>
+          <option value="won">Won</option>
+          <option value="placed">Placed (top 3)</option>
+          <option value="lost">Lost</option>
+          <option value="pending">Pending</option>
+        </select>
+      </div>
+      <div class="wpr-filter wpr-filter-price">
+        <label>Fixed price
+          $<span id="wpr-f-price-min-val">1</span> -
+          $<span id="wpr-f-price-max-val">100</span>+</label>
+        <div class="wpr-price-sliders">
+          <input type="range" id="wpr-f-price-min"
+                 min="1" max="100" value="1" step="1">
+          <input type="range" id="wpr-f-price-max"
+                 min="1" max="100" value="100" step="1">
+        </div>
+      </div>
+      <div class="wpr-filter wpr-filter-check">
+        <label><input type="checkbox" id="wpr-f-ranked">
+          Races with ranked runners only</label>
+      </div>
+      <button class="wpr-filter-reset" id="wpr-f-reset">Reset</button>
+    </div>
+
+    <!-- List 1: model disagrees with market -->
+    <div class="wpr-list-block">
+      <div class="wpr-list-head">
+        <h3>Model disagrees with market</h3>
+        <div class="wpr-slider-wrap">
+          <label for="wpr-n-slider">Within
+            <span id="wpr-n-val">6</span> WPR pts of top</label>
+          <input type="range" id="wpr-n-slider" min="3" max="10" value="6" step="1">
+        </div>
+      </div>
+      <div class="wpr-list-desc">
+        Runners rated close to their race's top-rated horse whose fixed price
+        is longer than the model's WPR price. Labelled "model vs market" -
+        an overlay here means the model and the market disagree, not a proven
+        value bet.
+      </div>
+      <div id="wpr-list-overlays"></div>
+    </div>
+
+    <!-- List 2: standout ratings -->
+    <div class="wpr-list-block">
+      <div class="wpr-list-head">
+        <h3>Standout ratings</h3>
+        <div class="wpr-slider-wrap">
+          <label for="wpr-m-slider">Gap to 2nd
+            <span id="wpr-m-val">6</span>+ WPR pts</label>
+          <input type="range" id="wpr-m-slider" min="2" max="12" value="6" step="1">
+        </div>
+      </div>
+      <div class="wpr-list-desc">
+        Horses that are top-rated in their race with a clear margin to the
+        next horse. A gap near 6 points is around the model's average error,
+        so lower-confidence standouts may be noise - confidence is shown.
+      </div>
+      <div id="wpr-list-standouts"></div>
     </div>
   </section>
 
@@ -5238,6 +5838,34 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   </section>
 
+  <!-- WPR ACCURACY -->
+  <!-- Master predicted-vs-actual tracking. Every resulted runner with both
+       a projection and a settled actual WPR. Headline = mean absolute miss
+       (the model's typical error), hit-rate bands, then breakdowns by
+       distance, going and track. Source: RACES, all resulted history. -->
+  <section class="section" id="sec-accuracy">
+    <div class="acc-controls">
+      <div class="acc-period">
+        <button class="acc-period-btn" data-period="all">All time</button>
+        <button class="acc-period-btn active" data-period="90">90 days</button>
+        <button class="acc-period-btn" data-period="30">30 days</button>
+      </div>
+      <div class="acc-note">
+        Predicted vs actual run-day WPR for every resulted runner. The
+        actual WPR settles ~5 days after a race, so recent runs fill in
+        progressively.
+      </div>
+    </div>
+    <div id="acc-headline" class="acc-headline"></div>
+    <div id="acc-breakdowns" class="acc-breakdowns"></div>
+    <div class="acc-table-wrap">
+      <table class="acc-table" id="acc-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- SETTINGS -->
   <section class="section" id="sec-settings">
 
@@ -5645,8 +6273,66 @@ document.querySelectorAll('.tab').forEach(t => {
     if (t.dataset.tab === 'quaddie' && typeof renderQuaddie === 'function') {
       renderQuaddie();
     }
+    if (t.dataset.tab === 'wpr' && typeof renderWprSummary === 'function') {
+      renderWprSummary();
+    }
+    if (t.dataset.tab === 'accuracy' && typeof renderWprAccuracy === 'function') {
+      renderWprAccuracy();
+    }
   });
 });
+
+// WPR summary controls - sliders re-render the lists live; clear button
+// wipes all manual adjustments after a confirm.
+(function wireWprSummaryControls() {
+  const nS = document.getElementById('wpr-n-slider');
+  const mS = document.getElementById('wpr-m-slider');
+  const dS = document.getElementById('wpr-summary-date-sel');
+  if (nS) nS.addEventListener('input', () => {
+    if (typeof renderWprSummary === 'function') renderWprSummary();
+  });
+  if (mS) mS.addEventListener('input', () => {
+    if (typeof renderWprSummary === 'function') renderWprSummary();
+  });
+  if (dS) dS.addEventListener('change', () => {
+    if (typeof renderWprSummary === 'function') renderWprSummary();
+  });
+  // Filter bar controls (Stage 4d) - each re-renders both lists.
+  const rerender = () => {
+    if (typeof renderWprSummary === 'function') renderWprSummary();
+  };
+  ['wpr-f-venue', 'wpr-f-conf', 'wpr-f-overlay', 'wpr-f-bet',
+   'wpr-f-result'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', rerender);
+  });
+  // Price-range sliders re-render on every drag for live feedback.
+  ['wpr-f-price-min', 'wpr-f-price-max'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', rerender);
+  });
+  const unr = document.getElementById('wpr-f-ranked');
+  if (unr) unr.addEventListener('change', rerender);
+  const fReset = document.getElementById('wpr-f-reset');
+  if (fReset) fReset.addEventListener('click', () => {
+    const v = document.getElementById('wpr-f-venue');
+    const c = document.getElementById('wpr-f-conf');
+    const o = document.getElementById('wpr-f-overlay');
+    const bt = document.getElementById('wpr-f-bet');
+    const re = document.getElementById('wpr-f-result');
+    const pmn = document.getElementById('wpr-f-price-min');
+    const pmx = document.getElementById('wpr-f-price-max');
+    if (v) v.value = '';
+    if (c) c.value = '';
+    if (o) o.value = '0';
+    if (bt) bt.value = '';
+    if (re) re.value = '';
+    if (pmn) pmn.value = '1';
+    if (pmx) pmx.value = '100';
+    if (unr) unr.checked = false;
+    rerender();
+  });
+})();
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function fmtTime(iso) {
@@ -5811,695 +6497,11 @@ function setTrackRating(venue, date, rating) {
 let currentTodayDate = null;
 
 function renderToday() {
-  const listPending  = document.getElementById('picks-list-pending');
-  const listResulted = document.getElementById('picks-list-resulted');
-  const headPending  = document.getElementById('pending-head');
-  const headResulted = document.getElementById('resulted-head');
-  listPending.innerHTML = '';
-  listResulted.innerHTML = '';
-  // Counters for section heads - updated as rows are appended below
-  let countPending = 0;
-  let countResulted = 0;
-  // Legacy `list` reference kept for any code below that referenced it as
-  // the empty-state placeholder. We'll render the empty state into the
-  // pending list (above resulted) so users see it in the natural reading
-  // order.
-  const list = listPending;
-
-  // Clean up stale manual results - if any official result has arrived for a
-  // run_id that has a manual entry, drop the manual one.
-  let cleanedManual = false;
-  Object.keys(manualResults).forEach(rid => {
-    const pick = (PICKS_TODAY || []).find(p => String(p.run_id) === rid);
-    if (pick && pick.runner_full && pick.runner_full.f != null) {
-      delete manualResults[rid];
-      cleanedManual = true;
-    }
-  });
-  if (cleanedManual) saveResults();
-
-  // Filter to the date being browsed (defaults to today on first render)
-  if (!currentTodayDate) currentTodayDate = isoDate(0);
-  const browseDate = currentTodayDate;
-  const localToday = isoDate(0);
-  // Picks for this date across all models (used for sub-tab badge counts)
-  const dateAllPicks = (PICKS_TODAY || []).filter(p => p.date === browseDate);
-  // Active-model-only picks for this date (pre-filter)
-  const activeModel = (activeModels && activeModels.today) || 'edge';
-  const modelPicksForDate = dateAllPicks.filter(p => (p.model || 'edge') === activeModel);
-  // Cross-model overlap lookup: which (race_id, run_id) pairs are picked by
-  // the OTHER model? Used on the Volume sub-tab to show an "Also Edge" badge
-  // when both models picked the same horse - those are the high-conviction
-  // cross-model overlap picks. Same lookup on Edge sub-tab shows "Also Volume".
-  const otherModel = activeModel === 'edge' ? 'volume' : 'edge';
-  const otherModelKeys = new Set(
-    dateAllPicks
-      .filter(p => (p.model || 'edge') === otherModel)
-      .map(p => String(p.race_id) + ':' + String(p.run_id))
-  );
-  // Apply Today filters (field size, jky rating). Rows that fail filters
-  // are hidden entirely (not dimmed) because Today rows are large and
-  // action-oriented - dimming would be visually noisy. Hero stats below
-  // recompute against the FILTERED set, so a user filtering to "Jky 85+"
-  // sees the P&L/WR for that subset specifically.
-  const todaysPicks = modelPicksForDate.filter(p => todayPickPassesFilters(p));
-
-  // Update sub-tab badge counts to reflect picks-per-model for browsed date
-  // (pre-filter so user sees total available across models).
-  ['edge', 'volume'].forEach(m => {
-    const badge = document.getElementById('today-subtab-count-' + m);
-    if (badge) badge.textContent = dateAllPicks.filter(p => (p.model || 'edge') === m).length;
-  });
-
-  // Update filter-bar summary: "Showing N of M picks" when filters are active.
-  // Empty when filters at defaults so the bar doesn't show stale info.
-  const _todayFilterSumEl = document.getElementById('today-filter-summary');
-  if (_todayFilterSumEl) {
-    const anyActive = todayFilters.minFs > 0 || todayFilters.minJky > 0;
-    if (anyActive && modelPicksForDate.length > 0) {
-      _todayFilterSumEl.textContent =
-        'Showing ' + todaysPicks.length + ' of ' + modelPicksForDate.length + ' picks';
-    } else {
-      _todayFilterSumEl.textContent = '';
-    }
-  }
-  // Sync filter control values from persisted state on re-render
-  const _todayFilterFsSel = document.getElementById('today-filter-fs');
-  if (_todayFilterFsSel && String(_todayFilterFsSel.value) !== String(todayFilters.minFs)) {
-    _todayFilterFsSel.value = String(todayFilters.minFs);
-  }
-  const _todayFilterJkySel = document.getElementById('today-filter-jky');
-  if (_todayFilterJkySel && String(_todayFilterJkySel.value) !== String(todayFilters.minJky)) {
-    _todayFilterJkySel.value = String(todayFilters.minJky);
-  }
-
-  // Update date bar UI
-  const tdInput = document.getElementById('today-date-input');
-  if (tdInput && tdInput.value !== browseDate) tdInput.value = browseDate;
-  const _tToday = isoDate(0), _tYest = isoDate(-1), _tTom = isoDate(1);
-  document.querySelectorAll('.today-date-quick').forEach(b => {
-    const k = b.dataset.tdate;
-    let d = _tToday;
-    if (k === 'yesterday') d = _tYest;
-    if (k === 'tomorrow') d = _tTom;
-    b.classList.toggle('active', d === browseDate);
-  });
-  const tdInfo = document.getElementById('today-date-info');
-  if (tdInfo) {
-    tdInfo.textContent = todaysPicks.length + (todaysPicks.length === 1 ? ' pick' : ' picks');
-  }
-
-  if (todaysPicks.length === 0) {
-    // Distinguish "actually no picks for this date" from "all picks failed filters"
-    const filtersActive = todayFilters.minFs > 0 || todayFilters.minJky > 0;
-    if (filtersActive && modelPicksForDate.length > 0) {
-      list.innerHTML = '<div class="empty-state">' +
-        '<div class="head">No picks match current filters</div>' +
-        '<div class="sub">' + modelPicksForDate.length + ' pick' +
-        (modelPicksForDate.length === 1 ? '' : 's') +
-        ' for this date are hidden by your Field/Jky filters. Click Reset to show all.</div>' +
-        '</div>';
-    } else {
-      const dates = [...new Set((PICKS_TODAY || []).map(p => p.date).filter(Boolean))];
-      let hint = '';
-      if (dates.length > 0) {
-        hint = '<div class="sub" style="margin-top:12px;">Picks available for: ' +
-          dates.slice(-3).join(', ') + '. Pick a different date above or use the Race tab to browse.</div>';
-      }
-      list.innerHTML = '<div class="empty-state"><div class="head">No picks for ' + browseDate + '</div>' +
-        '<div class="sub">The model did not find any qualifying runners on this date, or the data has not been refreshed yet.</div>' + hint + '</div>';
-    }
-    const hdrEmpty = document.getElementById('picks-header');
-    if (hdrEmpty) hdrEmpty.style.display = 'none';
-    // Hide section heads - empty state owns the visual space
-    headPending.style.display = 'none';
-    headResulted.style.display = 'none';
-    return;
-  }
-  // Show header (in case it was hidden previously)
-  const hdrShow = document.getElementById('picks-header');
-  if (hdrShow && window.matchMedia('(min-width: 721px)').matches) {
-    hdrShow.style.display = 'grid';
-  }
-
-  // Use the active model's min_odds. Fallback to primary if active has none.
-  const _activeModelMeta = MODEL_META[activeModel] || MODEL_META[PRIMARY_KEY] || {};
-  const minOdds = _activeModelMeta.min_odds || 3.0;
-
-  // Sort by start time
-  todaysPicks.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
-
-  let todayWins = 0, todayLosses = 0, todayPnL = 0, todaySettled = 0, todayQualifying = 0;
-  let todayPlaces = 0;        // 1st/2nd/3rd finishes among placed bets
-  let todayStakeTotal = 0;    // sum of stake (for ROI denominator)
-  let todayReturnTotal = 0;   // sum of (stake * settlePrice) on wins, 0 on losses (for ROI numerator)
-  // Separate counter for placed bets that have settled - this is the denominator
-  // for Win Rate and Place Rate KPIs. The user wants those rates to reflect bets
-  // they actually held, not theoretical model performance.
-  let todayPlacedSettled = 0;
-  const now = new Date();
-
-  todaysPicks.forEach((p, idx) => {
-    const r = p.runner_full || {};
-    const csvPrice = p.fxprice;  // Live API fixed odds (read-only)
-    const betEntry = getBetEntry(p.run_id);
-    const isBetPlaced = !!betEntry.placed;
-    const oddsTaken = betEntry.oddsTaken;
-
-    // Stake source of truth: oddsTaken if entered, else fall back to live fxprice
-    // (muted styling when falling back so the user sees the calc is provisional).
-    const stakePrice = (oddsTaken != null && oddsTaken > 1) ? oddsTaken : csvPrice;
-    const usingFallback = !(oddsTaken != null && oddsTaken > 1);
-    const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
-
-    // Threshold check uses the live fxprice. This is the model rule and drives
-    // the "qualifies" / "below-threshold" visual state plus the qualifying
-    // counter in the hero strip.
-    const meetsThreshold = csvPrice != null && csvPrice >= minOdds;
-    // For stake calc and settled P&L, an explicit oddsTaken entry means the
-    // user has already bet (e.g. dead-heat halving where the live fxprice now
-    // looks under threshold but they actually took a qualifying price).
-    // The threshold is a pre-bet filter; once you have bet, calculate.
-    const isActiveBet = meetsThreshold || hasOddsTaken;
-    const stake = (isActiveBet && stakePrice != null && stakePrice > 1)
-                    ? calcStake(stakePrice, { capExempt: hasOddsTaken, model: p.model }) : null;
-    if (meetsThreshold) todayQualifying++;
-
-    // Result state
-    const manRes = manualResults[String(p.run_id)];
-    const officialFinish = r.f;
-    const hasOfficial = officialFinish != null;
-    const isSettled = hasOfficial || (manRes != null);
-    const displayWon = hasOfficial ? (officialFinish === 1) : (manRes ? manRes.finish === 1 : false);
-
-    // Update settled counters
-    // For settled bets, P&L uses oddsTaken if recorded, else SP, else live fxprice.
-    // If deadHeat is flagged on a winning bet, the return is halved (profit and stake
-    // are split with the joint-winner per Aus rules).
-    // KPI accumulation rule: only bets the user has marked PLACED contribute to
-    // Win Rate / Place Rate / ROI / P&L. Picks that qualified by threshold but
-    // weren't bet stay in the row count (todaysPicks.length) but don't influence rates.
-    let cardClass = 'pending';
-    if (isSettled) {
-      todaySettled++;
-      const finishForPlace = hasOfficial ? officialFinish : (manRes ? manRes.finish : null);
-      const isPlaceFinish = finishForPlace != null && finishForPlace >= 1 && finishForPlace <= 3;
-      // Visual card class: still based on isActiveBet (so qualifying picks get
-      // settled-win/loss styling even if user didn't tick "placed")
-      if (isActiveBet && stake) {
-        if (displayWon) cardClass = 'settled-win';
-        else            cardClass = 'settled-loss';
-      } else {
-        cardClass = 'below-threshold';
-      }
-      // KPI accumulation: only count placed bets
-      if (isBetPlaced && stake) {
-        todayPlacedSettled++;
-        if (isPlaceFinish) todayPlaces++;
-        const settlePrice = hasOddsTaken ? oddsTaken : (r.sp || csvPrice);
-        if (displayWon) {
-          todayWins++;
-          const dhMult = betEntry.deadHeat ? 0.5 : 1;
-          todayPnL += stake * (settlePrice - 1) * dhMult;
-          todayReturnTotal += stake + stake * (settlePrice - 1) * dhMult;
-        } else {
-          todayLosses++;
-          todayPnL -= stake;
-        }
-        todayStakeTotal += stake;
-      }
-    } else if (!isActiveBet) {
-      cardClass = 'below-threshold';
-    } else {
-      cardClass = 'qualifies';
-    }
-
-    // Time-to-jump (mins from now)
-    let ttj = null;
-    if (p.start_time) {
-      const mins = Math.round((new Date(p.start_time) - now) / 60000);
-      if (mins >= -2 && mins <= 240) ttj = mins;
-    }
-    let ttjHtml = '';
-    if (ttj !== null) {
-      const ttjCls = ttj <= 5 ? 'imm' : (ttj <= 30 ? 'soon' : '');
-      ttjHtml = '<span class="ttj ' + ttjCls + '">' +
-        (ttj <= 0 ? 'NOW' : (ttj < 60 ? ttj + 'm' : Math.floor(ttj/60) + 'h ' + (ttj%60) + 'm')) +
-        '</span>';
-    }
-
-    // Signal pills - Score (cumulative composite) + TR / Mid / Late / Total + form string underneath
-    function sigPill(label, rank) {
-      if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
-      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
-    }
-    // The Score pill is special - shows the underlying probability score
-    // (0.00-1.00, displayed as a 2-digit percentage) plus a confidence dot
-    // indicating how tightly the signals agreed. The rank is still the
-    // colour driver (#1 in race = emerald, #2 = light emerald, etc) so the
-    // chip retains its "best in race" visual cue, but the displayed value
-    // is the absolute score - which is what the 0.50 threshold actually
-    // gates on. Showing the raw score makes it obvious why a pick clears
-    // or fails the threshold.
-    function scoreSigPill(rank, score, conf) {
-      if (score == null && rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
-      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      let confDot = '';
-      if (conf != null) {
-        // 80%+ = filled solid (high agreement), 50-80% = half (mixed), <50% = empty (split)
-        const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
-        const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '% - ' +
-          (conf >= 0.80 ? 'unanimous' : conf >= 0.50 ? 'mixed' : 'split');
-        confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
-      }
-      // Format score as 2-digit integer (0.62 -> 62). Compact for the
-      // constrained 52px chip and reads as a percentage at a glance.
-      const scoreDisplay = score != null ? Math.round(score * 100) : '—';
-      const rankBit = rank != null ? ' (rank #' + rank + ' in this race)' : '';
-      const scoreTooltip = 'Score ' + (score != null ? score.toFixed(3) : 'n/a') + rankBit +
-        '. Weighted average of TR, WPR, Speed, PF AI, L600 and L400 ranks ' +
-        '(TR weighted heaviest). Threshold for picks is 0.50. Higher = stronger pick.';
-      return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
-        '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
-    }
-    // Voting rule transparency: show how many signals hit top-3 and how
-    // many were #1 across the ACTIVE MODEL'S signal set.
-    //   Edge:   WPR + L600 + Speed + L400 (2 top-1, 3 top-3 required)
-    //   Volume: PFAI + TR + L400          (1 top-1, 2 top-3 required)
-    // Vote badge is the ONLY signal indicator shown on mobile.
-    const isEdgeTab = activeModel === 'edge';
-    const voteRanks = isEdgeTab
-      ? [p.wpr_rank, p.l600R, p.time_rank, p.l400R]
-      : [p.pfaiR, p.tr_rank, p.l400R];
-    const voteN = voteRanks.length;
-    const voteTop3 = voteRanks.filter(r => r != null && r <= 3).length;
-    const voteTop1 = voteRanks.filter(r => r != null && r === 1).length;
-    const voteThreshold = isEdgeTab ? 2 : 1;  // #1 votes needed by rule
-    const voteTooltip = isEdgeTab
-      ? voteTop3 + ' of 4 Edge signals top-3, ' + voteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
-      : voteTop3 + ' of 3 Volume signals top-3, ' + voteTop1 + ' rank #1. Rule: >=1 #1 AND >=2 top-3.';
-    const voteBadgeHtml = '<span class="sig vote-badge" title="' + voteTooltip + '">' +
-      '<span class="lbl">Votes</span>' +
-      '<span class="v">' + voteTop3 + '/' + voteN + '</span>' +
-      (voteTop1 >= voteThreshold ? '<span class="vote-star" title="' + voteTop1 + ' #1 votes">★' + voteTop1 + '</span>' : '') +
-      '</span>';
-
-    // Cross-model badge: ONLY shown on the Volume sub-tab, where it flags
-    // picks that ALSO cleared the stricter Edge rule - genuinely useful
-    // signal (cross-model agreement = higher conviction). Not shown on the
-    // Edge tab: Edge picks frequently also qualify for Volume's looser rule,
-    // so a "+V" there would be near-universal noise.
-    const isCrossPick = otherModelKeys.has(String(p.race_id) + ':' + String(p.run_id));
-    const crossBadgeHtml = (!isEdgeTab && isCrossPick)
-      ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
-      : '';
-
-    // Signal chips - ALL chips (voting signals + Score + Votes) flow into
-    // ONE unified grid so every chip shares the same column alignment.
-    //   Edge tab:   WPR L600 Speed L400 | Score Votes  (6 chips)
-    //   Volume tab: PFAI TR L400        | Score Votes  (5 chips, 1 gap)
-    // Score and Votes keep their labels - they sit in the same grid as the
-    // voting chips so there's room, and the labels disambiguate them.
-    const votingChipsHtml = isEdgeTab
-      ? (sigPill('WPR',  p.wpr_rank) +
-         sigPill('L600', p.l600R) +
-         sigPill('Speed', p.time_rank) +
-         sigPill('L400', p.l400R))
-      : (sigPill('PFAI', p.pfaiR) +
-         sigPill('TR',   p.tr_rank) +
-         sigPill('L400', p.l400R));
-    const scoreChipHtml = scoreSigPill(p.crk, p.cs, p.csc);
-
-    const sigsTopHtml =
-      '<span class="chip-grid">' +
-        votingChipsHtml + scoreChipHtml + voteBadgeHtml +
-      '</span>';
-    // Form string row underneath: "3-1-7-2" - shown on desktop only; on
-    // mobile it moves into the expand panel to keep rows tight.
-    const formHtml = r.fm ?
-      '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
-    const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
-
-    // Live fixed odds display (read-only)
-    const oddsCls = meetsThreshold ? 'qualifies' : 'below';
-    const oddsValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
-    const oddsValCls = csvPrice != null ? 'v' : 'v empty';
-    // Top Fluc (TF) - the highest bookie price during the pre-race market.
-    // Null until results sync, so show as '—' placeholder until post-race.
-    // Rendered as a small sub-line under the Fxd so users can compare what
-    // they took vs the peak available, especially for settled picks.
-    const tfPrice = p.top;
-    const tfStr = tfPrice != null ? '$' + tfPrice.toFixed(2) : '—';
-    const tfTitle = tfPrice != null
-      ? 'Top Fluc $' + tfPrice.toFixed(2) + ' - highest bookie price during pre-race market'
-      : 'Top Fluc - available after results sync';
-    const oddsHtml =
-      '<div class="pr-odds-display ' + oddsCls + '" title="Live fixed odds at last refresh">' +
-        '<div class="pr-odds-main">' +
-          (csvPrice != null ? '<span class="cur">$</span>' : '') +
-          '<span class="' + oddsValCls + '">' + oddsValStr + '</span>' +
-        '</div>' +
-        '<div class="pr-odds-tf" title="' + tfTitle + '">' +
-          '<span class="tf-lbl">TF</span>' +
-          '<span class="tf-val' + (tfPrice == null ? ' empty' : '') + '">' + tfStr + '</span>' +
-        '</div>' +
-      '</div>';
-
-    // Stake display - units (large) + dollar value (small) below
-    // Return display - same shape: units returned + dollar return below
-    // Both muted when calculated from fallback fxprice (no odds-taken yet).
-    const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
-    const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
-    let stakeHtml, returnHtml;
-    // Stake/Return only populate when the user has explicitly marked the bet as
-    // placed. A qualifying pick they didn't bet shouldn't imply a stake outlay.
-    if (isBetPlaced && stake) {
-      // Stake: how much I'm putting down
-      stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
-        '<span class="ret">' + fmtDollar(stake) + '</span>';
-
-      // Return: only show actual payout when bet has settled and won.
-      // Pre-result or losing bets show em-dash so the column doesn't imply winnings.
-      if (isSettled && displayWon) {
-        // Dead heat halves the return (joint winner).
-        const dhMult = betEntry.deadHeat ? 0.5 : 1;
-        const returnUnits = stake * stakePrice * dhMult;
-        returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
-          '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
-      } else {
-        returnHtml = '<span class="skip">&mdash;</span>';
-      }
-    } else if (!isActiveBet) {
-      stakeHtml = '<span class="skip">no bet</span>';
-      returnHtml = '<span class="skip">&mdash;</span>';
-    } else {
-      // Qualifying pick but user hasn't placed the bet
-      stakeHtml = '<span class="skip">&mdash;</span>';
-      returnHtml = '<span class="skip">&mdash;</span>';
-    }
-
-    // Result column
-    // Helper: pick a CSS class suffix for losses based on finish position so
-    // "lost as 2nd" (close miss) looks visually different from "lost as 8th".
-    function lossPosClass(fin) {
-      if (fin == null) return '';
-      if (fin === 2) return ' fin2';
-      if (fin >= 3 && fin <= 5) return ' fin345';
-      return ' fin6plus';
-    }
-    let resultHtml;
-    if (hasOfficial) {
-      const cls = displayWon ? 'win' : ('loss' + lossPosClass(officialFinish));
-      resultHtml = '<span class="res-tag ' + cls + '">' +
-        (displayWon ? 'W' : 'L') + ' · ' + officialFinish + ord(officialFinish) + '</span>';
-    } else if (manRes) {
-      const cls = displayWon ? 'win' : ('loss' + lossPosClass(manRes.finish));
-      resultHtml = '<span class="res-tag manual ' + cls + '" onclick="event.stopPropagation();">' +
-        (displayWon ? 'W' : 'L') + ' · ' + manRes.finish + ord(manRes.finish) +
-        '<span class="res-clear" data-clear-rid="' + p.run_id + '" title="Clear">×</span>' +
-        '</span>';
-    } else {
-      // Compact dropdown - takes single-control width vs 4 buttons.
-      // The "—" placeholder is the unset state; selecting any option records the result.
-      resultHtml = '<select class="res-select" data-set-rid="' + p.run_id + '" ' +
-        'onclick="event.stopPropagation();" title="Set result">' +
-        '<option value="">— set —</option>' +
-        '<option value="1">1st</option>' +
-        '<option value="2">2nd</option>' +
-        '<option value="3">3rd</option>' +
-        '<option value="0">Lost</option>' +
-        '</select>';
-    }
-
-    // Bet toggle and odds-taken
-    let betHtml = '<button class="bet-btn ' + (isBetPlaced ? 'placed' : '') +
-                  '" data-bet-rid="' + p.run_id + '" title="' +
-                  (isBetPlaced ? 'Mark as not bet' : 'Mark this bet as placed') +
-                  '" onclick="event.stopPropagation();">' +
-                  (isBetPlaced ? '✓' : '+') + '</button>';
-    if (isBetPlaced) {
-      const oddsVal = betEntry.oddsTaken != null ? betEntry.oddsTaken.toFixed(2) : '';
-      const showWarning = !betEntry.oddsTaken;
-      betHtml += '<span class="odds-input-wrap" onclick="event.stopPropagation();">' +
-                   '<span class="cur">$</span>' +
-                   '<input type="number" step="0.01" min="1" class="odds-input" ' +
-                   'data-odds-rid="' + p.run_id + '" placeholder="0.00" ' +
-                   'value="' + oddsVal + '" />' +
-                 '</span>';
-      if (showWarning) {
-        betHtml += '<span class="odds-warning" title="No odds-taken entered. Stake will use live Fxd price as fallback.">⚠</span>';
-      }
-    }
-
-    // Build the row
-    const row = document.createElement('div');
-    row.className = 'pick-row ' + cardClass + (isBetPlaced ? ' bet-placed' : '');
-    row.dataset.idx = idx;
-    row.dataset.runId = p.run_id;
-
-    // Meta line shows: distance · going · jky · trn (venue/race # now in its own column)
-    const metaParts = [];
-    if (p.distance) metaParts.push(p.distance + 'm');
-    if (p.going) metaParts.push(escapeHtml(p.going));
-    if (r.j) metaParts.push(escapeHtml(r.j));
-    if (r.tn) metaParts.push(escapeHtml(r.tn));
-    const metaLine = metaParts.join(' · ');
-
-    // Field size chip - shown next to horse name. Small fields (<=7) get
-    // a warn-style red badge to flag "manual skip" candidates. Below the
-    // small-field threshold the model tends to pick longshots (favs under
-    // the SP filter are excluded), so user wants a visual flag.
-    const fsValue = p.field_size || (r.fs || null);
-    let fsChipHtml = '';
-    if (fsValue != null) {
-      const fsWarn = fsValue <= 7;
-      const fsTip = fsWarn
-        ? 'Small field (' + fsValue + ' runners). User strategy: skip bets in fields of 7 or fewer.'
-        : fsValue + ' runners in this race';
-      fsChipHtml = '<span class="fs-chip ' + (fsWarn ? 'warn' : '') + '" title="' + fsTip + '">' +
-        'F' + fsValue + '</span>';
-    }
-
-    // Jockey rating chip - absolute rating buckets (delta dropped for simplicity).
-    // 4 bands: red <75, amber 75-79, grey 80-84, green 85+.
-    // Based on jockey_rating_analysis: rating >=85 was the +2.6% ROI bucket,
-    // 80-84 the worst at -22.9%, 75-79 mediocre at -9.6%, <75 weak.
-    // (Earlier combined Abs+Delta rule was simpler to read but the user
-    // preference is to just see the rating - no race-context maths needed
-    // since the rating itself encodes jockey quality on its own.)
-    let jkyChipHtml = '';
-    if (r.jrt != null) {
-      const myRating = Math.round(r.jrt);
-      let cls = '';
-      let lbl = '';
-      if (myRating >= 85) {
-        cls = 'good';
-        lbl = 'Elite jockey rating (85+). +2.6% ROI bucket in backtest, 29.6% WR.';
-      } else if (myRating >= 80) {
-        cls = '';  // grey neutral
-        lbl = 'Decent jockey rating (80-84). Underperforming bucket in backtest (-22.9% ROI).';
-      } else if (myRating >= 75) {
-        cls = 'warn';
-        lbl = 'Mediocre jockey rating (75-79). -9.6% ROI bucket in backtest.';
-      } else {
-        cls = 'bad';
-        lbl = 'Weak jockey rating (below 75). Worst-performing bucket in backtest.';
-      }
-      const tip = 'Jockey rating ' + myRating + '. ' + lbl;
-      jkyChipHtml = '<span class="jky-chip ' + cls + '" title="' + tip + '">Jky ' + myRating + '</span>';
-    }
-    const fsAndJkyChips = fsChipHtml + jkyChipHtml;
-
-    row.innerHTML =
-      '<div class="pr-time">' + fmtTime(p.start_time) + ttjHtml + '</div>' +
-      '<div class="pr-venue clickable" data-nav-rid="' + (p.race_id || '') + '" title="Open race detail">' +
-        '<div class="v-name">' + escapeHtml(p.venue || '') + '</div>' +
-        '<div class="v-race">R' + p.race + ' ↗</div>' +
-      '</div>' +
-      '<div class="pr-runner">' +
-        '<span class="tab-bdg">' + (p.tab || '?') + '</span>' +
-        '<div class="rdetails">' +
-          '<div class="rhorse">' + escapeHtml(p.horse || '') + crossBadgeHtml + fsAndJkyChips + '</div>' +
-          '<div class="rmeta">' + metaLine + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="pr-sigs">' + sigsHtml + '</div>' +
-      '<div class="pr-odds"><span class="cell-lbl">Fxd</span>' + oddsHtml + '</div>' +
-      '<div class="' + stakeWrapCls + '"><span class="cell-lbl">Stake</span>' + stakeHtml + '</div>' +
-      '<div class="' + returnWrapCls + '"><span class="cell-lbl">Return</span>' + returnHtml + '</div>' +
-      '<div class="pr-result"><span class="cell-lbl">Result</span>' + resultHtml + '</div>' +
-      '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
-      '<div class="pr-chev">▾</div>';
-
-    // Route row + detail to the correct section list. isSettled was computed
-    // earlier in this loop (line ~5440) from hasOfficial OR manRes.
-    const sectionList = isSettled ? listResulted : listPending;
-    if (isSettled) countResulted++; else countPending++;
-    sectionList.appendChild(row);
-
-    // Detail panel (initially hidden)
-    const detail = document.createElement('div');
-    detail.className = 'pick-detail';
-    detail.dataset.idx = idx;
-    detail.innerHTML = buildDetailHTML(p, r);
-    sectionList.appendChild(detail);
-
-    // Click row to expand/collapse (but not when clicking inputs/buttons or
-    // the clickable venue block which navigates to race detail)
-    row.addEventListener('click', e => {
-      if (e.target.closest('.odds-input, .odds-input-wrap, .pr-result button, .res-clear, .bet-btn')) return;
-      // Venue block click - navigate to race detail and stop here, don't expand
-      const navTarget = e.target.closest('.pr-venue.clickable');
-      if (navTarget) {
-        e.stopPropagation();
-        navigateToRace(navTarget.dataset.navRid);
-        return;
-      }
-      const isExpanded = row.classList.toggle('expanded');
-      detail.classList.toggle('show', isExpanded);
-    });
-  });
-
-  // Update section heads with counts. Hide a section's head when empty so
-  // we don't show "Resulted (0)" before any race has run. When BOTH are
-  // empty the larger empty-state branch above has already taken over.
-  document.getElementById('pending-count').textContent  = countPending;
-  document.getElementById('resulted-count').textContent = countResulted;
-  headPending.style.display  = countPending  > 0 ? 'flex' : 'none';
-  headResulted.style.display = countResulted > 0 ? 'flex' : 'none';
-
-  // Handlers must scope across BOTH pending and resulted lists since rows
-  // can live in either. Use the shared parent (.picks-scroll) so the
-  // existing single querySelectorAll pattern still works.
-  const picksScroll = document.getElementById('picks-scroll');
-
-  // Result chip handlers - works for both <button data-pos> (legacy) and
-  // <select> (new compact dropdown). The handler picks the right event type.
-  picksScroll.querySelectorAll('[data-set-rid]').forEach(el => {
-    const eventName = el.tagName === 'SELECT' ? 'change' : 'click';
-    el.addEventListener(eventName, e => {
-      e.stopPropagation();
-      const rid = el.dataset.setRid;
-      // For select: pos comes from el.value. For button: from data-pos.
-      const raw = el.tagName === 'SELECT' ? el.value : el.dataset.pos;
-      if (raw === '' || raw == null) return;  // empty placeholder option
-      const pos = parseInt(raw);
-      if (isNaN(pos)) return;
-      manualResults[String(rid)] = { finish: pos, ts: new Date().toISOString() };
-      saveResults();
-      renderToday();
-    });
-  });
-  picksScroll.querySelectorAll('[data-clear-rid]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      const rid = el.dataset.clearRid;
-      delete manualResults[String(rid)];
-      saveResults();
-      renderToday();
-    });
-  });
-  // Bet toggle button
-  picksScroll.querySelectorAll('[data-bet-rid]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      const rid = el.dataset.betRid;
-      const cur = isPlaced(rid);
-      setBetEntry(rid, { placed: !cur });
-      renderToday();
-      if (typeof renderPnL === 'function') renderPnL();
-    });
-  });
-  // Odds input field
-  picksScroll.querySelectorAll('[data-odds-rid]').forEach(el => {
-    el.addEventListener('input', e => {
-      const rid = el.dataset.oddsRid;
-      const v = parseFloat(e.target.value);
-      setBetEntry(rid, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
-      // Don't full re-render on every keystroke; just update the warning indicator visibility
-      const row = el.closest('.pick-row');
-      const warn = row ? row.querySelector('.odds-warning') : null;
-      if (v > 0 && warn) warn.style.display = 'none';
-    });
-    el.addEventListener('blur', e => {
-      // Re-render so the stake column picks up the new oddsTaken (or fallback)
-      // and PnL updates flow through.
-      renderToday();
-      if (typeof renderPnL === 'function') renderPnL();
-    });
-    // Stop click on input from triggering row expand
-    el.addEventListener('click', e => e.stopPropagation());
-  });
-  // Dead heat toggle (in detail panel)
-  picksScroll.querySelectorAll('[data-deadheat-rid]').forEach(el => {
-    el.addEventListener('change', e => {
-      e.stopPropagation();
-      const rid = el.dataset.deadheatRid;
-      setBetEntry(rid, { deadHeat: el.checked });
-      renderToday();
-      if (typeof renderPnL === 'function') renderPnL();
-    });
-    el.addEventListener('click', e => e.stopPropagation());
-  });
-
-  // ── Update hero strip (4 KPIs, all today-only) ─────────────────────────
-
-  // 1) Today P&L
-  const pnlEl = document.getElementById('hs-today-pnl');
-  if (todayPlacedSettled > 0 && todayStakeTotal > 0) {
-    pnlEl.textContent = (todayPnL >= 0 ? '+' : '') + todayPnL.toFixed(2) + 'u';
-    pnlEl.classList.remove('pos', 'neg');
-    if (todayPnL > 0) pnlEl.classList.add('pos');
-    else if (todayPnL < 0) pnlEl.classList.add('neg');
-    document.getElementById('hs-today-pnl-units').textContent =
-      (todayPnL >= 0 ? '+' : '') + fmtDollar(todayPnL);
-  } else {
-    pnlEl.textContent = '—';
-    pnlEl.classList.remove('pos', 'neg');
-    document.getElementById('hs-today-pnl-units').textContent =
-      todaysPicks.length + ' picks · 0 placed bets settled';
-  }
-
-  // 2) Win Rate (today, placed bets that have settled)
-  const wrEl = document.getElementById('hs-today-wr');
-  const wrSubEl = document.getElementById('hs-today-wr-sub');
-  if (todayPlacedSettled > 0) {
-    const wr = todayWins / todayPlacedSettled;
-    wrEl.textContent = (wr * 100).toFixed(1) + '%';
-    wrSubEl.textContent = todayWins + ' of ' + todayPlacedSettled + ' settled';
-  } else {
-    wrEl.textContent = '—';
-    wrSubEl.textContent = 'no placed bets settled';
-  }
-
-  // 3) Place Rate (today, placed bets that have settled - 1st/2nd/3rd)
-  const prEl = document.getElementById('hs-today-pr');
-  const prSubEl = document.getElementById('hs-today-pr-sub');
-  if (todayPlacedSettled > 0) {
-    const pr = todayPlaces / todayPlacedSettled;
-    prEl.textContent = (pr * 100).toFixed(1) + '%';
-    prSubEl.textContent = todayPlaces + ' of ' + todayPlacedSettled + ' settled';
-  } else {
-    prEl.textContent = '—';
-    prSubEl.textContent = 'no placed bets settled';
-  }
-
-  // 4) ROI (today, placed bets only)
-  const roiEl = document.getElementById('hs-today-roi');
-  const roiSubEl = document.getElementById('hs-today-roi-sub');
-  if (todayStakeTotal > 0) {
-    const roi = (todayReturnTotal - todayStakeTotal) / todayStakeTotal;
-    roiEl.textContent = (roi >= 0 ? '+' : '') + (roi * 100).toFixed(1) + '%';
-    roiEl.classList.remove('pos', 'neg');
-    if (roi > 0) roiEl.classList.add('pos');
-    else if (roi < 0) roiEl.classList.add('neg');
-    roiSubEl.textContent = 'on ' + todayStakeTotal.toFixed(2) + 'u staked';
-  } else {
-    roiEl.textContent = '—';
-    roiEl.classList.remove('pos', 'neg');
-    roiSubEl.textContent = 'no placed bets settled';
-  }
+  // No-op stub (WPR-only refactor Stage 4c). The Today picks tab was
+  // removed - its panel no longer exists in the DOM. renderToday is
+  // still called from ~30 sites across the app; this stub keeps those
+  // calls safe. The call sites and PICKS_TODAY/todayFilters dead code
+  // are swept in Stage 4f.
 }
 
 // Build the expanded detail panel for a pick
@@ -7078,7 +7080,7 @@ function showRaceDetail(raceId) {
   // race is opened. Score rank 1 = best model pick, so asc = best first.
   // Previously this defaulted to TR rating rank which is now just one of
   // several inputs to Score; Score is the headline metric.
-  raceSortState = { col: 'score', dir: 'asc' };
+  raceSortState = { col: 'wpjp', dir: 'desc' };
   renderRaceDetail(raceId);
 }
 
@@ -7101,6 +7103,29 @@ function navigateToRace(raceId) {
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
+// Jump to a specific runner: open the race (via navigateToRace), then
+// expand that runner's detail row. Used by the Summary tab so a bet/
+// horse cell click lands the user exactly where they need to be.
+// renderRaceDetail attaches row-click handlers, so we re-find the row
+// after a tick and trigger its click programmatically - cleaner than
+// duplicating the expand logic. If the row is not found (race has no
+// runners or rid mismatch), navigateToRace alone is the safe fallback.
+function navigateToRaceRunner(raceId, runId) {
+  navigateToRace(raceId);
+  if (!runId) return;
+  // renderRaceDetail runs synchronously inside showRaceDetail, but
+  // wait a frame so the DOM and listeners are settled before clicking.
+  requestAnimationFrame(() => {
+    const tr = document.querySelector(
+      '#rd-runners-table tbody tr[data-rid="' + String(runId) + '"]');
+    if (!tr) return;
+    tr.click();
+    // Bring the expanded row into view (the click may have inserted a
+    // detail row below it; both should be visible).
+    tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
 function exitRaceDetail() {
   document.getElementById('race-browser').style.display = 'block';
   document.getElementById('race-detail').style.display = 'none';
@@ -7110,7 +7135,7 @@ function exitRaceDetail() {
 // Race detail sort state - {column: name, dir: 'asc'|'desc'}
 // Default: Score asc (best model pick first). showRaceDetail() resets this
 // every time a new race is opened.
-let raceSortState = { col: 'score', dir: 'asc' };
+let raceSortState = { col: 'wpjp', dir: 'desc' };
 
 // Build a rich detail panel for a single runner inside the Race tab table.
 // Triggered by clicking a row. Shows what the columns no longer carry: jockey,
@@ -7121,158 +7146,1298 @@ let raceSortState = { col: 'score', dir: 'asc' };
 // Made these per-race ranks available because the Mid/Total columns were
 // removed from the table to declutter - the detail panel now carries them.
 function buildRaceRunnerDetailHTML(u, race, rankCtx) {
-  function fld(label, value, cls) {
-    if (value == null || value === '' || value === '—') return '';
-    return '<div class="rd-field"><span class="rd-fl">' + label + '</span>' +
-      '<span class="rd-fv ' + (cls || '') + '">' + value + '</span></div>';
-  }
+  // WPR-projection detail panel. Leads with the projection and the model's
+  // own plain-English "why", then the recent-runs evidence, a same-race-speed
+  // angle, and price. Tightened: figures shown once, in the runs table, not
+  // duplicated in a separate field list.
   function num(v, dp) {
     if (v == null) return null;
     return Number(v).toFixed(dp == null ? 1 : dp);
   }
+  const hasProj = u.wpjp != null;
 
-  // Connections section
-  const jkyHtml = u.j ? escapeHtml(u.j) +
-    (u.jrt != null ? ' <span style="color:var(--ink-mute);">(rt ' + Math.round(u.jrt) + ')</span>' : '') +
-    (u.jw != null ? ' · ' + u.jw.toFixed(0) + '% 90d' : '') : null;
-  const trnHtml = u.tn ? escapeHtml(u.tn) +
-    (u.trt != null ? ' <span style="color:var(--ink-mute);">(rt ' + Math.round(u.trt) + ')</span>' : '') +
-    (u.tw != null ? ' · ' + u.tw.toFixed(0) + '% 365d' : '') : null;
+  // ── Race conditions (going / race speed) ──
+  // Going comes from the existing race-header override (getEffectiveGoing) -
+  // there is ONE going override, in the header, not a separate one here.
+  // The WPR going what-if follows it automatically. Race speed comes from
+  // the header race-speed control (wprGetCondOverride .speed); it is
+  // display-only and filters the runs shown.
+  const effGoing = (typeof getEffectiveGoing === 'function')
+    ? getEffectiveGoing(race) : (race && race.going) || '';
+  const baseWet = race && race.going &&
+    /^(soft|heavy)/i.test(String(race.going));
+  const effWet = /^(soft|heavy)/i.test(String(effGoing));
+  const goingFlipped = effWet !== baseWet;
+  const ovr = wprGetCondOverride(race.race_id) || {};
+  const baseSpeed = wprRaceSpeedLabel(rankCtx && rankCtx.paceLabel);
+  const effSpeed = ovr.speed || baseSpeed;
 
-  // Form section
-  const wprStr = u.wpr1 != null ?
-    Math.round(u.wpr1) + (u.wpra != null ? ' · avg ' + Math.round(u.wpra) : '') +
-    (u.wprt != null ? ' · ' + (u.wprt > 0 ? '↑' : '↓') + Math.abs(u.wprt).toFixed(1) : '') : null;
-  let goingPerf = null;
-  if (race && race.going && u.gb) {
-    const gl = race.going.toLowerCase();
-    let key = null;
-    if (gl.startsWith('firm')) key = 'firm';
-    else if (gl.startsWith('good')) key = 'good';
-    else if (gl.startsWith('soft')) key = 'soft';
-    else if (gl.startsWith('heavy')) key = 'heavy';
-    if (key && u.gb[key] && u.gb[key].starts) {
-      const g = u.gb[key];
-      goingPerf = (g.wins||0) + 'W ' + Math.max(0, (g.places||0) - (g.wins||0)) + 'P from ' + g.starts + ' starts';
+  // ── Manual tempo adjustment ──
+  // When the user has MANUALLY set a race speed (ovr.speed present), the
+  // projection shifts by an amount derived from THIS horse's own record
+  // at that tempo - not an invented constant. Method:
+  //   adj = HALF of (horse's avg WPR in that tempo band - its overall avg)
+  //   - half, because the horse's form already partly reflects the
+  //     tempos it raced in, so the full delta would double-count;
+  //   - only if it has >= 3 runs in that band (else no adjustment);
+  //   - capped at +/- 3.5 WPR (the model's own error is ~6, so a bigger
+  //     tempo lever would claim more precision than the model has).
+  // tempoAdj is { val, n, thin, off } from the shared helper - same
+  // source the race model uses, so the panel diagnostic and the column
+  // never drift. null when the lever is off (no manual race speed set).
+  const _ta = _tempoAdjForRunner(u, race, effSpeed);
+  let tempoAdj = _ta.off ? null : _ta;
+
+  // ── Projection header ──
+  let projBlock;
+  if (!hasProj) {
+    projBlock = '<div class="rd-wpr-proj rd-wpr-fallback">' +
+      'No projection for this runner. ' +
+      escapeHtml(u.wpjd || 'Insufficient form history (under 3 prior runs).') +
+      '</div>';
+  } else {
+    // if the header going override flips the race wet<->dry, show the
+    // alternate-going projection (a real model run)
+    const baseProj = (goingFlipped && u.wpjpA != null) ? u.wpjpA : u.wpjp;
+    const baseConf = (goingFlipped && u.wpjcA != null) ? u.wpjcA : u.wpjc;
+    const d = wprGetOverride(u.rid);
+    // effective projection = model base + manual rating delta + tempo adj
+    const tAdj = (tempoAdj && tempoAdj.val) ? tempoAdj.val : 0;
+    const eff = baseProj + (d != null ? d : 0) + tAdj;
+    // The big WPR number, rank, and confidence are removed from this
+    // header - they duplicate the table column / chip / narrative
+    // paragraph. What remains: only the optional diagnostic notes
+    // (manual delta, tempo adjustment, going what-if). These are NOT
+    // shown anywhere else and are useful when active. If none apply,
+    // the entire block collapses to nothing.
+    let line = '';
+    if (d != null) {
+      line += '<span class="rd-wpr-adj">model ' + baseProj.toFixed(1) +
+              (d > 0 ? ' +' + d : ' ' + d) + ' your adj.</span>';
     }
-  }
-  // Wet-track form (Soft + Heavy combined). Surfaced only on Soft/Heavy
-  // days, matching the Today/P&L panel behaviour. Mirrors the analysis
-  // finding that Soft form transfers usefully to Heavy.
-  let wetPerf = null;
-  if (race && race.going && u.gb) {
-    const gl = race.going.toLowerCase();
-    if (gl.startsWith('soft') || gl.startsWith('heavy')) {
-      const soft  = u.gb.soft  || {};
-      const heavy = u.gb.heavy || {};
-      const s_starts = (soft.starts  || 0) + (heavy.starts  || 0);
-      const s_wins   = (soft.wins    || 0) + (heavy.wins    || 0);
-      const s_places = (soft.places  || 0) + (heavy.places  || 0);
-      if (s_starts > 0) {
-        wetPerf = s_wins + 'W ' + Math.max(0, s_places - s_wins) +
-                  'P from ' + s_starts + ' starts';
-      } else {
-        wetPerf = 'no wet runs';
+    if (goingFlipped) {
+      line += ' <span class="rd-wpr-adj">(' +
+              (effWet ? 'wet' : 'dry') + '-going what-if)</span>';
+    }
+    // tempo adjustment - transparent: shows the amount, the tempo, and
+    // that it comes from this horse's own record at that tempo.
+    if (tempoAdj) {
+      if (tempoAdj.thin) {
+        line += ' <span class="rd-wpr-adj rd-tempo-adj-thin">(tempo ' +
+          escapeHtml(String(effSpeed).toLowerCase()) +
+          ': not enough runs at this tempo to adjust)</span>';
+      } else if (tempoAdj.val) {
+        line += ' <span class="rd-wpr-adj rd-tempo-adj">(tempo adj ' +
+          (tempoAdj.val > 0 ? '+' : '') + tempoAdj.val.toFixed(1) +
+          ', from this horse\u2019s ' +
+          escapeHtml(String(effSpeed).toLowerCase()) + '-race record, ' +
+          tempoAdj.n + ' runs)</span>';
       }
     }
+
+    projBlock = line
+      ? '<div class="rd-wpr-proj rd-wpr-diag">' + line + '</div>'
+      : '';
   }
-  const distPerf = (u.ds && u.ds > 0) ?
-    (u.dw||0) + 'W ' + Math.max(0, (u.dp||0) - (u.dw||0)) + 'P from ' + u.ds + ' starts' : null;
 
-  // PF section - all fields when present
-  const pfReliable = u.pfaiR != null ? '<span style="color:var(--emerald-deep);font-weight:600;">✓</span>' : '';
-  const pfAiHtml = u.pfaiR != null ? '#' + u.pfaiR : null;
-  const pfClassHtml = u.wcR != null ?
-    '#' + u.wcR + (u.tacwcR != null ? ' (adj #' + u.tacwcR + ')' : '') : null;
-  const pfTimeHtml = u.tR != null ? '#' + u.tR : null;
-  const pfEarlyHtml = u.etR != null ? '#' + u.etR : null;
-  const pfL600Html  = u.l600R != null ? '#' + u.l600R : null;
-  const pfL400Html  = u.l400R != null ? '#' + u.l400R : null;
-  const pfL200Html  = u.l200R != null ? '#' + u.l200R : null;
-  const pfStyleHtml = u.rs ?
-    '<span style="text-transform:uppercase;font-weight:600;">' + escapeHtml(u.rs) + '</span>' : null;
-  const pfClsChgHtml = (u.clsChg != null && u.clsChg !== 0) ?
-    (u.clsChg > 0 ? '<span style="color:var(--emerald-deep);font-weight:700;">↑ up ' + u.clsChg + '</span>' :
-     '<span style="color:#dc2626;font-weight:700;">↓ down ' + Math.abs(u.clsChg) + '</span>') : null;
-
-  // TR signals - we keep speed rating only (TR price, Early speed removed per design)
-  const trSpd = u.spd != null ? Math.round(u.spd) : null;
-
-  // Mid/Total speed scores - moved here from the runners table to declutter
-  // the table. Shows value with rank if rankCtx provided, otherwise just value.
-  function speedScoreHtml(value, rank) {
-    if (value == null) return null;
-    const valStr = Number(value).toFixed(1);
-    if (rank != null) {
-      const rkCls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      return valStr + ' <span class="rd-rank-pill ' + rkCls + '">#' + rank + '</span>';
+  // ── Actual result vs projection ──
+  // Once the race is resulted AND the form history has settled (~5 days),
+  // u.wpja carries the actual run-day WPR. Show how far the projection and
+  // the ranking actually missed - measured, not eyeballed.
+  let actualBlock = '';
+  if (u.wpja != null) {
+    if (u.wpjp == null) {
+      // fallback runner - no projection to compare against. Show the
+      // actual WPR on its own, no "miss" (there was nothing predicted).
+      actualBlock = '<div class="rd-wpr-actual wpr-miss-close">' +
+        '<span class="rd-wpr-actual-big">' + u.wpja.toFixed(1) + '</span>' +
+        ' actual WPR &middot; no projection was made for this runner' +
+        '</div>';
+    } else {
+      const miss = u.wpja - u.wpjp;        // actual minus projected
+      const missTxt = (miss > 0 ? '+' : '') + miss.toFixed(1);
+      // colour: green if the projection was close, amber/red as it widens
+      let missCls = 'wpr-miss-close';
+      if (Math.abs(miss) >= 8) missCls = 'wpr-miss-far';
+      else if (Math.abs(miss) >= 4) missCls = 'wpr-miss-mid';
+      let rankTxt = '';
+      if (u.wpjr != null && u.wpjar != null) {
+        const rd = u.wpjar - u.wpjr;       // actual rank minus predicted rank
+        rankTxt = ' &middot; rank predicted ' + u.wpjr +
+          ', actual ' + u.wpjar +
+          (rd === 0 ? ' (exact)' :
+            ' (' + (rd > 0 ? 'finished ' + rd + ' lower' :
+                             'finished ' + (-rd) + ' higher') + ')');
+      }
+      actualBlock = '<div class="rd-wpr-actual ' + missCls + '">' +
+        '<span class="rd-wpr-actual-big">' + u.wpja.toFixed(1) + '</span>' +
+        ' actual WPR &middot; projection missed by ' +
+        '<span class="rd-wpr-misstxt">' + missTxt + '</span>' +
+        rankTxt + '</div>';
     }
-    return valStr;
   }
-  const midRank   = (rankCtx && rankCtx.mid)   ? rankCtx.mid[u.rid]   : null;
-  const totalRank = (rankCtx && rankCtx.total) ? rankCtx.total[u.rid] : null;
-  const midHtml   = speedScoreHtml(u.ms, midRank);
-  const totalHtml = speedScoreHtml(u.ts, totalRank);
 
-  // Weight
-  const wtHtml = u.wt != null ?
-    u.wt + 'kg' + (u.wtr != null ? ' · ' + (u.wtr > 0 ? '+' : '') + u.wtr.toFixed(1) + 'kg trend' : '') : null;
+  // No condition controls in the panel - going and race speed are set once
+  // at race level in the header. The panel only reflects them.
+  const condBlock = '';
 
-  // Pre/post-race prices section. Fxd is live (always populated when book is
-  // open), TF and SP are filled when results sync. Showing them together lets
-  // the user see how the market moved on this runner.
-  const fxStr  = u.fx  != null ? '$' + u.fx.toFixed(2)  : '—';
-  const tfStr  = u.top != null ? '$' + u.top.toFixed(2) : '— post-race';
-  const spStrR = u.sp  != null ? '$' + u.sp.toFixed(2)  : '— post-race';
-  const trpStr = u.trp != null ? '$' + u.trp.toFixed(2) : null;
+  // ── The "why" ──
+  const whyBlock = u.wpjd ?
+    '<div class="rd-section">' +
+      '<div class="rd-wpr-why">' + escapeHtml(u.wpjd) + '</div>' +
+    '</div>' : '';
 
-  return '<div class="rd-runner-detail">' +
-    '<div class="rd-section">' +
-      '<div class="rd-section-title">Prices</div>' +
-      '<div class="rd-section-body">' +
-        fld('Fixed', fxStr) +
-        fld('Top Fluc', tfStr) +
-        fld('SP', spStrR) +
-        fld('TR price', trpStr) +
-      '</div>' +
-    '</div>' +
-    '<div class="rd-section">' +
-      '<div class="rd-section-title">Connections</div>' +
-      '<div class="rd-section-body">' +
-        fld('Jockey', jkyHtml) +
-        fld('Trainer', trnHtml) +
-        fld('Barrier', u.b != null ? String(u.b) : null) +
-        fld('Weight', wtHtml) +
-      '</div>' +
-    '</div>' +
-    '<div class="rd-section">' +
-      '<div class="rd-section-title">Recent form</div>' +
-      '<div class="rd-section-body">' +
-        fld('Form', u.fm ? escapeHtml(u.fm) : null) +
-        fld('Recent WPR', wprStr) +
-        fld('Distance perf', distPerf) +
-        fld('Going perf', goingPerf) +
-        fld('Wet form', wetPerf) +
-      '</div>' +
-    '</div>' +
-    '<div class="rd-section">' +
-      '<div class="rd-section-title">Signals ' + pfReliable + '</div>' +
-      '<div class="rd-section-body">' +
-        fld('Speed rating', trSpd) +
-        fld('Mid speed', midHtml) +
-        fld('Total speed', totalHtml) +
-        fld('PF AI', pfAiHtml) +
-        fld('PF Time rank', pfTimeHtml) +
-        fld('Class rank', pfClassHtml) +
-        fld('Early sect', pfEarlyHtml) +
-        fld('L600 sect', pfL600Html) +
-        fld('L400 sect', pfL400Html) +
-        fld('L200 sect', pfL200Html) +
-        fld('Run style', pfStyleHtml) +
-        fld('Class change', pfClsChgHtml) +
-      '</div>' +
-    '</div>' +
+  // ── Recent runs - centrepiece table, TopRate-style dense grid ──
+  // Tight monospace grid with functional borders. Columns: Date, Track,
+  // Dist, Going (coloured chip), Bar, Class, Fin, Margin, the horse's own
+  // Early/Mid/Late sectionals (ie/im/il), then WPR. Numerics right-aligned.
+  let runsBlock = '';
+  const runs = u.formRuns || [];
+  if (runs.length) {
+    function sectCell(v) {
+      if (v == null) return '<td class="rd-sect">&mdash;</td>';
+      let cls = 'rd-sect-flat';
+      if (v >= 1.5) cls = 'rd-sect-pos';
+      else if (v <= -1.5) cls = 'rd-sect-neg';
+      return '<td class="rd-sect ' + cls + '">' +
+        (v > 0 ? '+' : '') + v.toFixed(1) + '</td>';
+    }
+    // paired cell: horse sectional alongside the race-wide shape figure.
+    // colour reflects the DIFFERENCE - horse stronger than the race shape
+    // is highlighted as against-shape running, the form-reading signal.
+    // Threshold of 1.5 matches the solo sectCell sign convention.
+    // Sectional rendering: one row per run for the horse, with a sub-row
+    // immediately beneath showing the race-wide shape for the same three
+    // checkpoints. The horse row's sectional cells get coloured green
+    // where the horse beat the race shape by 1.5+ (against the shape =
+    // stronger than the race), red where it lost by 1.5+. The race-shape
+    // sub-row is muted grey for reference. This lets the form-reader see
+    // the horse's full E/M/L pattern AND compare against the shape, with
+    // a single number per cell instead of paired in-cell labels.
+    function _fmtSect(v) {
+      if (v == null) return '\u2014';
+      return (v > 0 ? '+' : '') + v.toFixed(1);
+    }
+    function _sectCmpCls(horse, race) {
+      if (horse == null || race == null) return 'rd-sect-flat';
+      const d = horse - race;
+      if (d >= 1.5) return 'rd-sect-against';   // horse stronger than shape
+      if (d <= -1.5) return 'rd-sect-with';     // horse weaker than shape
+      return 'rd-sect-flat';
+    }
+    // going chip - colour by track condition
+    function goingChip(g) {
+      if (!g) return '&mdash;';
+      const gl = String(g).toLowerCase();
+      let cls = '';
+      if (gl.indexOf('good') === 0) cls = 'rd-going-good';
+      else if (gl.indexOf('soft') === 0) cls = 'rd-going-soft';
+      else if (gl.indexOf('heavy') === 0) cls = 'rd-going-heavy';
+      else if (gl.indexOf('firm') === 0) cls = 'rd-going-firm';
+      return '<span class="rd-going-chip ' + cls + '">' +
+        escapeHtml(g) + '</span>';
+    }
+    // ── Days-since-last-run / spell-break helpers ──
+    // Parse the run dates once. Form runs are newest-first; we measure
+    // gaps in days between adjacent runs to flag spells (12+ weeks).
+    // Days-since-last is the gap from the most recent run to today.
+    function _parseISO(s) {
+      if (!s) return null;
+      const t = Date.parse(s);
+      return isNaN(t) ? null : new Date(t);
+    }
+    function _daysBetween(a, b) {
+      if (!a || !b) return null;
+      return Math.round((a - b) / (1000 * 60 * 60 * 24));
+    }
+    const runDates = runs.map(r => _parseISO(r.d));
+    const today = new Date();
+    const daysSinceLast = (runDates[0] != null)
+      ? _daysBetween(today, runDates[0]) : null;
+
+    // Helper: build run rows for the table. Returns a string of TWO
+    // <tr> elements: the main horse row (date, conditions, sectionals
+    // coloured by horse vs race shape) and a sub-row showing the race
+    // shape (E/M/L) for that run, muted, beneath the horse cells. Used
+    // for both the last-6 runs and (when present) the peak row.
+    function buildRunRow(r) {
+      const peakTag = r.pk
+        ? '<span class="rd-run-peak" title="Career-peak WPR">peak</span>' : '';
+      const earlyCls = _sectCmpCls(r.ie, r.se);
+      const midCls   = _sectCmpCls(r.im, r.sm);
+      const lateCls  = _sectCmpCls(r.il, r.sl);
+      // Each run is rendered as TWO table rows that read as one visual
+      // unit. The left columns (date through Pos) and the WPR cell use
+      // rowspan="2" so they merge across the pair - no awkward whitespace
+      // between the horse row and the race-shape row beneath. Only the
+      // three sectional cells (Early/Mid/Late) split into two: the horse
+      // values on top (coloured), race-shape values underneath (grey).
+      const mainRow =
+        '<tr class="rd-run-main">' +
+        '<td rowspan="2">' + escapeHtml(r.d || '') + '</td>' +
+        '<td rowspan="2">' + escapeHtml(r.trk || '') + '</td>' +
+        '<td rowspan="2" class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
+        '<td rowspan="2">' + goingChip(r.go) + '</td>' +
+        '<td rowspan="2" class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
+        '<td rowspan="2">' + escapeHtml(r.cls || '&mdash;') + '</td>' +
+        '<td rowspan="2" class="rd-num">' + (r.fin != null ? r.fin : '&mdash;') + '</td>' +
+        '<td rowspan="2" class="rd-num">' + (r.mgn != null ? r.mgn.toFixed(1) : '&mdash;') + '</td>' +
+        '<td rowspan="2" class="rd-pos">' + (
+          [r.psl, r.p8, r.p4, r.fin].some(x => x != null)
+            ? [r.psl, r.p8, r.p4, r.fin]
+                .map(x => x != null ? x : '-').join('-')
+            : '&mdash;') + '</td>' +
+        '<td class="rd-sect ' + earlyCls + '">' + _fmtSect(r.ie) + '</td>' +
+        '<td class="rd-sect ' + midCls + '">' + _fmtSect(r.im) + '</td>' +
+        '<td class="rd-sect ' + lateCls + '">' + _fmtSect(r.il) + '</td>' +
+        '<td rowspan="2" class="rd-run-wpr">' + peakTag + r.wpr.toFixed(1) + '</td>' +
+        '</tr>';
+      // Sub-row: race-shape E/M/L only. The left columns and WPR cell
+      // are absent here because the main row's cells span both rows.
+      const shapeRow =
+        '<tr class="rd-run-shape">' +
+        '<td class="rd-sect rd-sect-race">' + _fmtSect(r.se) + '</td>' +
+        '<td class="rd-sect rd-sect-race">' + _fmtSect(r.sm) + '</td>' +
+        '<td class="rd-sect rd-sect-race">' + _fmtSect(r.sl) + '</td>' +
+        '</tr>';
+      return mainRow + shapeRow;
+    }
+
+    // Build the rows. Insert a "spell" separator row BETWEEN runs when
+    // the gap is 12+ weeks (84+ days) - the conventional racing definition
+    // of a spell. Smaller breaks are not flagged here; they appear in
+    // the date column naturally.
+    const bodyRows = [];
+    // Days-since-last-run as a separator row at the TOP of the body,
+    // styled like the spell separator so it reads as the same timeline.
+    if (daysSinceLast != null) {
+      bodyRows.push(
+        '<tr class="rd-spell-row rd-days-row">' +
+        '<td colspan="13">' +
+        '&mdash; ' + daysSinceLast + ' day' +
+        (daysSinceLast === 1 ? '' : 's') + ' since last run &mdash;' +
+        '</td></tr>');
+    }
+    for (let i = 0; i < runs.length; i++) {
+      bodyRows.push(buildRunRow(runs[i]));
+      // Look at the gap BETWEEN this run and the NEXT (older) one.
+      // newer-first ordering: runs[i] is more recent than runs[i+1].
+      if (i + 1 < runs.length) {
+        const gap = _daysBetween(runDates[i], runDates[i + 1]);
+        if (gap != null && gap >= 84) {
+          const weeks = Math.round(gap / 7);
+          bodyRows.push(
+            '<tr class="rd-spell-row">' +
+            '<td colspan="13">' +
+            '&mdash; spell &mdash; ' + weeks + ' weeks (' + gap + ' days) ' +
+            'between runs &mdash;' +
+            '</td></tr>');
+        }
+      }
+    }
+
+    // Peak row at the BOTTOM, when the peak is older than the last 6.
+    // Same format as the other rows (built by buildRunRow) so the user
+    // sees the peak's full form context: track, distance, going,
+    // sectionals, finishing position. Preceded by a separator row that
+    // marks the temporal gap from the visible form to the peak run.
+    if (u.peakRun) {
+      const oldest = runs.length ? runDates[runs.length - 1] : null;
+      const peakDate = _parseISO(u.peakRun.d);
+      const gapToPeak = (oldest && peakDate)
+        ? _daysBetween(oldest, peakDate) : null;
+      if (gapToPeak != null && gapToPeak > 0) {
+        const weeks = Math.round(gapToPeak / 7);
+        bodyRows.push(
+          '<tr class="rd-spell-row rd-peak-gap-row">' +
+          '<td colspan="13">' +
+          '&mdash; career peak &mdash; ' + weeks + ' weeks (' +
+          gapToPeak + ' days) earlier &mdash;' +
+          '</td></tr>');
+      } else {
+        bodyRows.push(
+          '<tr class="rd-spell-row rd-peak-gap-row">' +
+          '<td colspan="13">' +
+          '&mdash; career peak &mdash;' +
+          '</td></tr>');
+      }
+      bodyRows.push(buildRunRow(u.peakRun));
+    }
+
+    const rowsH = bodyRows.join('');
+
+    runsBlock = '<div class="rd-section">' +
+      '<div class="rd-section-title">Recent runs ' +
+        '<span class="rd-section-note">last ' + runs.length +
+        ', newest first &middot; Pos = settle/800/400/finish &middot; ' +
+        'Each run shows two rows: the horse\u2019s Early/Mid/Late ' +
+        'sectionals on top (green where it beat the race shape, red ' +
+        'where it lost) and the race shape underneath in grey.' +
+        '</span></div>' +
+      '<table class="rd-runs-table"><thead><tr>' +
+        '<th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
+        '<th>Bar</th><th>Class</th><th>Fin</th><th>Mgn</th><th>Pos</th>' +
+        '<th>Early</th><th>Mid</th><th>Late</th>' +
+        '<th>WPR</th>' +
+        '</tr></thead><tbody>' + rowsH + '</tbody></table>' +
+      '</div>';
+  }
+
+
+
+  // ── Performance comparison tables ──
+  // Four tables, all the same shape: 4 rows of summary numbers about
+  // THIS horse's full run history (u.formAll) under different conditions.
+  //   - "This race"        : runs matching today's condition
+  //   - "All races"        : the horse's complete history (baseline)
+  //   - "vs average"       : this race's avg WPR minus all-races avg
+  //   - "Consistency (SD)" : standard deviation of WPR in this race's
+  //                          bucket - a low SD means the horse runs
+  //                          there steadily; a high SD means variable.
+  // Distance bucket is +/- 10% of today's distance (not category bands).
+  let speedBlock = '';
+  const fAll = u.formAll || [];
+  if (fAll.length) {
+    function _mean(arr) {
+      return arr.reduce((s, x) => s + x, 0) / arr.length;
+    }
+    function _sd(arr, m) {
+      if (arr.length < 2) return null;
+      const mean = (m != null) ? m : _mean(arr);
+      const v = arr.reduce((s, x) => s + (x - mean) * (x - mean), 0)
+                / (arr.length - 1);
+      return Math.sqrt(v);
+    }
+    // Build a comparison table.
+    //   title       : column heading.
+    //   matchFn(r)  : returns true if run r is "this race" condition.
+    //   todayLabel  : the today bit shown in the note (e.g. "Slow",
+    //                 "2400m +/- 10%").
+    function compTable(title, todayLabel, matchFn) {
+      const allW = fAll.filter(r => r.w != null).map(r => r.w);
+      const thisW = fAll.filter(r => r.w != null && matchFn(r))
+                        .map(r => r.w);
+      const allMean = allW.length ? _mean(allW) : null;
+      const thisMean = thisW.length ? _mean(thisW) : null;
+      const variance = (thisMean != null && allMean != null)
+        ? (thisMean - allMean) : null;
+      const thisSD = _sd(thisW);
+      const fmt = (v, plusSign) => {
+        if (v == null) return '\u2014';
+        const f = v.toFixed(1);
+        return (plusSign && v > 0) ? '+' + f : f;
+      };
+      let varCls = '';
+      if (variance != null) {
+        if (variance >= 1.0)  varCls = ' rd-cmp-var-pos';
+        else if (variance <= -1.0) varCls = ' rd-cmp-var-neg';
+      }
+      const rows =
+        '<tr class="rd-cmp-thisrow"><td>This race (' +
+          escapeHtml(String(todayLabel)) + ')</td>' +
+        '<td class="rd-num">' + thisW.length + '</td>' +
+        '<td class="rd-num">' + fmt(thisMean) + '</td></tr>' +
+        '<tr class="rd-cmp-subtotal"><td>All races</td>' +
+        '<td class="rd-num">' + allW.length + '</td>' +
+        '<td class="rd-num">' + fmt(allMean) + '</td></tr>' +
+        '<tr class="' + varCls.trim() + '"><td>vs average</td>' +
+        '<td class="rd-num">&mdash;</td>' +
+        '<td class="rd-num">' + fmt(variance, true) + '</td></tr>' +
+        '<tr class="rd-cmp-sd"><td>Consistency (SD)</td>' +
+        '<td class="rd-num">&mdash;</td>' +
+        '<td class="rd-num">' + fmt(thisSD) + '</td></tr>';
+      return '<div class="rd-section">' +
+        '<div class="rd-section-title">' + title + '</div>' +
+        '<table class="rd-runs-table"><thead><tr>' +
+        '<th></th><th>Runs</th><th>WPR</th>' +
+        '</tr></thead><tbody>' + rows +
+        '</tbody></table></div>';
+    }
+
+    // 1. RACE SPEED / tempo
+    const tempoToday = effSpeed;   // Fast / Even / Slow
+    const speedTbl = compTable('Race speed',
+      String(effSpeed),
+      r => r.tmp === tempoToday);
+
+    // 2. SETTLING POSITION - today's predicted settling band
+    function settleBand(rel) {
+      if (rel == null) return null;
+      if (rel <= 0.20) return 'Leader';
+      if (rel <= 0.45) return 'On-pace';
+      if (rel <= 0.70) return 'Midfield';
+      return 'Back';
+    }
+    const settleToday = u.psBand || 'unknown';
+    const settleTbl = compTable('Settling position',
+      settleToday,
+      r => settleBand(r.rel) === settleToday);
+
+    // 3. GOING - bucket Firm/Good/Soft/Heavy
+    function goingBand(g) {
+      if (!g) return null;
+      const gl = String(g).toLowerCase();
+      if (gl.indexOf('firm') === 0) return 'Firm';
+      if (gl.indexOf('good') === 0) return 'Good';
+      if (gl.indexOf('soft') === 0) return 'Soft';
+      if (gl.indexOf('heavy') === 0) return 'Heavy';
+      return null;
+    }
+    const goingToday = goingBand(effGoing || (race && race.going));
+    const goingTbl = compTable('Going',
+      goingToday || 'unknown',
+      r => goingBand(r.go) === goingToday);
+
+    // 4. DISTANCE - +/- 10% of today's distance
+    // Label trimmed to just "1000m" - the +/- 10% band is the matcher,
+    // not a display detail. Visually cleaner than "1000m +/- 10%
+    // (900-1100m)" in the row label.
+    const todayDist = race && race.distance;
+    const distLo = (todayDist != null) ? todayDist * 0.9 : null;
+    const distHi = (todayDist != null) ? todayDist * 1.1 : null;
+    const distLabel = (todayDist != null) ? (todayDist + 'm') : 'unknown';
+    const distTbl = compTable('Distance',
+      distLabel,
+      r => (r.ds != null && distLo != null
+            && r.ds >= distLo && r.ds <= distHi));
+
+    // 2x2 grid: Race speed | Settling on top, Going | Distance below.
+    // Collapses to a single column on narrow screens (CSS handles it).
+    speedBlock = '<div class="rd-cmp-grid">' +
+      speedTbl + settleTbl + goingTbl + distTbl + '</div>';
+  }
+
+
+  // ── Price (one compact line) ──
+  // WPR $ comes from the SHARED race-model recompute so that scratches
+  // on this race shift the price the detail panel shows, matching what
+  // the race table shows. Falls back to u.wpjpr only if the recompute
+  // does not produce a price for this runner (e.g. unrated fallback).
+  const _detailRm = _wprRaceModel(race);
+  const _detailWp = _detailRm.price[u.rid];
+  const priceBits = [];
+  if (_detailWp != null) priceBits.push('WPR $' + _detailWp.toFixed(2));
+  else if (u.wpjpr != null) priceBits.push('WPR $' + u.wpjpr.toFixed(2));
+  if (u.fx != null) priceBits.push('Fixed $' + u.fx.toFixed(2));
+  if (u.trp != null) priceBits.push('TR $' + u.trp.toFixed(2));
+  priceBits.push('SP ' + (u.sp != null ? '$' + u.sp.toFixed(2) : 'post-race'));
+  const priceBlock = '<div class="rd-priceline">' +
+    '<span class="rd-priceline-lbl">Price</span> ' +
+    priceBits.join(' &nbsp;&middot;&nbsp; ') + '</div>';
+
+  // ── Connections - thin footer, fenced as NOT projection inputs ──
+  const jkyHtml = u.j ? escapeHtml(u.j) +
+    (u.jrt != null ? ' (rt ' + Math.round(u.jrt) + ')' : '') : '—';
+  const trnHtml = u.tn ? escapeHtml(u.tn) +
+    (u.trt != null ? ' (rt ' + Math.round(u.trt) + ')' : '') : '—';
+  const connBlock = '<div class="rd-connfoot">' +
+    'Jockey ' + jkyHtml + ' &nbsp;&middot;&nbsp; Trainer ' + trnHtml +
+    ' &nbsp;&middot;&nbsp; Barrier ' + (u.b != null ? u.b : '—') +
+    ' <span class="rd-connfoot-note">(not used by the projection)</span>' +
+    '</div>';
+
+  return '<div class="rd-detail-wrap">' +
+    projBlock + actualBlock + condBlock + whyBlock + runsBlock + speedBlock +
+    priceBlock + connBlock +
   '</div>';
+}
+
+// ── WPR manual-override store ─────────────────────────────────────────────
+// Manual rating adjustments are deltas the user types on the race tab. They
+// persist in browser localStorage keyed by run_id, so they survive refreshes
+// and data fetches on this device (they do not sync across devices). The
+// projection's own number is never overwritten - the delta is applied on top
+// at display time to form the "effective rating".
+const WPR_OVR_KEY = 'toprate_wpr_overrides_v1';
+let _wprOverrides = null;
+function _wprLoadOverrides() {
+  if (_wprOverrides !== null) return _wprOverrides;
+  try {
+    const raw = localStorage.getItem(WPR_OVR_KEY);
+    _wprOverrides = raw ? JSON.parse(raw) : {};
+  } catch (e) { _wprOverrides = {}; }
+  return _wprOverrides;
+}
+function _wprSaveOverrides() {
+  try { localStorage.setItem(WPR_OVR_KEY, JSON.stringify(_wprOverrides || {})); }
+  catch (e) { /* storage unavailable - overrides are session-only */ }
+}
+function wprGetOverride(rid) {
+  const o = _wprLoadOverrides();
+  const v = o[String(rid)];
+  return (typeof v === 'number' && !isNaN(v)) ? v : null;
+}
+function wprSetOverride(rid, delta) {
+  _wprLoadOverrides();
+  _wprOverrides[String(rid)] = delta;
+  _wprSaveOverrides();
+}
+function wprClearOverride(rid) {
+  _wprLoadOverrides();
+  delete _wprOverrides[String(rid)];
+  _wprSaveOverrides();
+}
+function wprClearAllOverrides() {
+  _wprOverrides = {};
+  _wprSaveOverrides();
+}
+function wprOverrideCount() {
+  return Object.keys(_wprLoadOverrides()).length;
+}
+
+// ── Manual result store ───────────────────────────────────────────────────
+// A manually-entered finishing position, to bridge the gap before official
+// results land. Keyed by run_id, persisted to localStorage. Once the
+// official finish (u.f) exists it takes over - the manual entry is just a
+// pre-official placeholder, silently superseded by the official result.
+const WPR_RESULT_KEY = 'toprate_manual_results_v1';
+let _manualResults = null;
+function _loadManualResults() {
+  if (_manualResults !== null) return _manualResults;
+  try {
+    const raw = localStorage.getItem(WPR_RESULT_KEY);
+    _manualResults = raw ? JSON.parse(raw) : {};
+  } catch (e) { _manualResults = {}; }
+  return _manualResults;
+}
+function _saveManualResults() {
+  try { localStorage.setItem(WPR_RESULT_KEY, JSON.stringify(_manualResults || {})); }
+  catch (e) { /* storage unavailable - session-only */ }
+}
+function getManualResult(rid) {
+  const o = _loadManualResults();
+  const v = o[String(rid)];
+  return (typeof v === 'number' && !isNaN(v) && v > 0) ? v : null;
+}
+function setManualResult(rid, pos) {
+  _loadManualResults();
+  if (pos == null || pos === '' || isNaN(pos) || Number(pos) <= 0) {
+    delete _manualResults[String(rid)];
+  } else {
+    _manualResults[String(rid)] = Math.round(Number(pos));
+  }
+  _saveManualResults();
+}
+
+// ── Manual scratch store ──────────────────────────────────────────────────
+// Tracks user-marked scratches per run_id. A scratched runner is excluded
+// from the field for the WPR $ softmax recompute, rank, and overlay.
+// Keyed by run_id, persisted to localStorage. Separate from official
+// scratches in the data feed - this is the user's manual judgement.
+// Shape: { [run_id]: true } - simple presence map.
+const WPR_SCRATCH_KEY = 'toprate_manual_scratches_v1';
+let _manualScratches = null;
+function _loadManualScratches() {
+  if (_manualScratches !== null) return _manualScratches;
+  try {
+    const raw = localStorage.getItem(WPR_SCRATCH_KEY);
+    _manualScratches = raw ? JSON.parse(raw) : {};
+  } catch (e) { _manualScratches = {}; }
+  return _manualScratches;
+}
+function _saveManualScratches() {
+  try { localStorage.setItem(WPR_SCRATCH_KEY, JSON.stringify(_manualScratches || {})); }
+  catch (e) { /* storage unavailable - session-only */ }
+}
+function isManualScratch(rid) {
+  if (rid == null) return false;
+  return !!_loadManualScratches()[String(rid)];
+}
+function setManualScratch(rid, on) {
+  if (rid == null) return;
+  _loadManualScratches();
+  if (on) _manualScratches[String(rid)] = true;
+  else delete _manualScratches[String(rid)];
+  _saveManualScratches();
+}
+function toggleManualScratch(rid) {
+  setManualScratch(rid, !isManualScratch(rid));
+}
+// Clear all scratches for one race's runners. Used by the per-race
+// "clear scratches" undo affordance. raceRunners is the race.runners
+// array (each carries .rid). Returns count of scratches cleared.
+function clearManualScratchesForRace(raceRunners) {
+  if (!Array.isArray(raceRunners)) return 0;
+  _loadManualScratches();
+  let n = 0;
+  raceRunners.forEach(u => {
+    const k = String(u && u.rid);
+    if (_manualScratches[k]) { delete _manualScratches[k]; n += 1; }
+  });
+  if (n > 0) _saveManualScratches();
+  return n;
+}
+// Count of scratches active for a race - used by the field-size badge
+// (e.g. "field 9 -> 7" when 2 runners are scratched).
+function countManualScratchesForRace(raceRunners) {
+  if (!Array.isArray(raceRunners)) return 0;
+  const s = _loadManualScratches();
+  return raceRunners.reduce(
+    (n, u) => n + (u && s[String(u.rid)] ? 1 : 0), 0);
+}
+
+// ── WPR bet store ─────────────────────────────────────────────────────────
+// Tracks the user's Bet Y/N decision and the stake per run_id, persisted to
+// localStorage alongside the manual overrides. Shape per run_id:
+//   { bet: true, stake: 50 }
+const WPR_BET_KEY = 'toprate_wpr_bets_v1';
+let _wprBets = null;
+function _wprLoadBets() {
+  if (_wprBets !== null) return _wprBets;
+  try {
+    const raw = localStorage.getItem(WPR_BET_KEY);
+    _wprBets = raw ? JSON.parse(raw) : {};
+  } catch (e) { _wprBets = {}; }
+  return _wprBets;
+}
+function _wprSaveBets() {
+  try { localStorage.setItem(WPR_BET_KEY, JSON.stringify(_wprBets || {})); }
+  catch (e) { /* storage unavailable - bets are session-only */ }
+}
+function wprGetBet(rid) {
+  const b = _wprLoadBets()[String(rid)];
+  return b || null;   // {bet, stake} or null
+}
+function wprSetBet(rid, bet, stake) {
+  _wprLoadBets();
+  if (!bet) { delete _wprBets[String(rid)]; }
+  else { _wprBets[String(rid)] = { bet: true, stake: stake }; }
+  _wprSaveBets();
+}
+function wprBetCount() {
+  return Object.keys(_wprLoadBets()).length;
+}
+function wprClearAllBets() {
+  _wprBets = {};
+  _wprSaveBets();
+}
+
+// ── WPR race-condition overrides (going / race speed) ─────────────────────
+// Per-race what-if state, keyed by race_id, persisted in localStorage.
+// Shape: { going: 'wet'|'dry', speed: 'Slow'|'Even'|'Fast' }.
+// Going has a real alternate projection (wpjpA); race speed is display-only.
+const WPR_COND_KEY = 'toprate_wpr_conditions_v1';
+let _wprConds = null;
+function _wprLoadConds() {
+  if (_wprConds !== null) return _wprConds;
+  try {
+    const raw = localStorage.getItem(WPR_COND_KEY);
+    _wprConds = raw ? JSON.parse(raw) : {};
+  } catch (e) { _wprConds = {}; }
+  return _wprConds;
+}
+function _wprSaveConds() {
+  try { localStorage.setItem(WPR_COND_KEY, JSON.stringify(_wprConds || {})); }
+  catch (e) { /* storage unavailable */ }
+}
+function wprGetCondOverride(raceId) {
+  return _wprLoadConds()[String(raceId)] || null;
+}
+function wprSetCondOverride(raceId, group, val) {
+  _wprLoadConds();
+  const k = String(raceId);
+  if (!_wprConds[k]) _wprConds[k] = {};
+  if (val == null) {
+    // Clearing an override (e.g. race speed back to Auto/predicted).
+    delete _wprConds[k][group];
+    if (Object.keys(_wprConds[k]).length === 0) delete _wprConds[k];
+  } else {
+    _wprConds[k][group] = val;
+  }
+  _wprSaveConds();
+}
+// Map the race's computed pace label ('Hot pace'/'Fast'/'Slow'/'Even') to a
+// race-speed bucket. Falls back to 'Even' when unknown.
+function wprRaceSpeedLabel(paceLabel) {
+  const p = String(paceLabel || '').toLowerCase();
+  if (p.indexOf('hot') >= 0 || p.indexOf('fast') >= 0) return 'Fast';
+  if (p.indexOf('slow') >= 0) return 'Slow';
+  return 'Even';
+}
+
+// ── WPR projection summary page ───────────────────────────────────────────
+// Two lists, both computed off "effective ratings" (projected WPR + any
+// manual delta), so they update whenever the user adjusts a rating on the
+// Race tab. List 1: runners close to their race's top rating whose fixed
+// price beats the model's WPR price. List 2: top-rated horses with a clear
+// margin to the 2nd-rated runner.
+// ── Shared race-model recompute ───────────────────────────────────────────
+// One place that computes effective ratings, softmax prices, and ranks for
+// a race - taking manual rating deltas AND manual scratches into account.
+// Both the Race tab and the Summary tab route through this so the math
+// cannot drift between the two. The softmax beta (0.4) matches the daily
+// script's wpr_projection.py field-relative price - see margin analysis
+// findings re calibration.
+const WPR_BETA_SHARED = 0.4;
+
+// ── Race speed + tempo adjustment (shared) ────────────────────────────────
+// The manual race-speed lever applies a per-horse WPR adjustment derived
+// from THAT horse's own record at the chosen tempo. Per the user's
+// decision, this flows into the effective rating used for the Pred WPR
+// column AND the softmax price/overlay - same treatment as the manual
+// rating delta. Guardrails keep it bounded: half-delta (the horse's form
+// already partly reflects its raced tempos), >= 3 runs at the band
+// required, capped at +/- 3.5 WPR (the model's own error is ~6, so a
+// bigger lever would claim more precision than the model has).
+
+// Effective race speed: the user's manual override if set, else the
+// settling-derived pace estimate. Self-contained so _wprRaceModel can
+// call it without the renderRaceDetail-level pace variables.
+function _raceEffSpeed(race) {
+  const ovr = (typeof wprGetCondOverride === 'function')
+    ? (wprGetCondOverride(race.race_id) || {}) : {};
+  if (ovr.speed) return ovr.speed;
+  // settling-derived estimate (mirrors renderRaceDetail)
+  const runners = (race && race.runners) ? race.runners : [];
+  let leaders = 0, onpace = 0, midfield = 0, back = 0;
+  runners.forEach(u => {
+    const pos = u.asp;
+    if (pos == null) return;
+    if (pos <= 2) leaders++;
+    else if (pos <= 4) onpace++;
+    else if (pos <= 8) midfield++;
+    else back++;
+  });
+  if (leaders >= 3) return 'Fast';            // hot pace reads as Fast band
+  if (leaders >= 2 && onpace >= 2) return 'Fast';
+  if (leaders <= 1 && (midfield + back) >= 4) return 'Slow';
+  return 'Even';
+}
+
+// Per-horse tempo adjustment. Returns { val, n, thin } where val is the
+// WPR points to add (0 when lever off or too few runs), n is the count
+// of runs at the band, thin flags an insufficient sample. Both the
+// race model (which uses .val) and the detail panel (which uses .n /
+// .thin for its diagnostic text) read this one source.
+function _tempoAdjForRunner(u, race, effSpeed) {
+  const ovr = (typeof wprGetCondOverride === 'function')
+    ? (wprGetCondOverride(race.race_id) || {}) : {};
+  // Only apply when the user has explicitly set the race speed - the
+  // lever is an opt-in manual override, not an always-on auto-nudge.
+  if (!ovr.speed) return { val: 0, n: 0, thin: false, off: true };
+  if (!Array.isArray(u.formAll) || !u.formAll.length) {
+    return { val: 0, n: 0, thin: true };
+  }
+  const allW = u.formAll.filter(r => r.w != null).map(r => r.w);
+  const bandW = u.formAll
+    .filter(r => r.tmp === effSpeed && r.w != null).map(r => r.w);
+  if (allW.length < 3 || bandW.length < 3) {
+    return { val: 0, n: bandW.length, thin: true };
+  }
+  const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+  let raw = (mean(bandW) - mean(allW)) * 0.5;   // half-delta
+  raw = Math.max(-3.5, Math.min(3.5, raw));     // cap
+  return { val: raw, n: bandW.length, thin: false };
+}
+
+function _wprRaceModel(race) {
+  // Returns the per-race model: effective ratings, softmax prices over
+  // the NON-SCRATCHED field, ranks, ordered IDs, and scratch metadata.
+  // Scratched runners are kept in `runners` (so the UI can dim/show them)
+  // but excluded from `validIds` and the softmax denominator. This means
+  // every remaining runner's WPR $ shifts when a runner is scratched -
+  // which is the whole point of a field-relative price.
+  const runners = (race && race.runners) ? race.runners : [];
+
+  // Effective rating per runner: model projection + manual rating delta
+  // + tempo adjustment (the manual race-speed lever, per-horse, opt-in).
+  // A runner without a projection has eff = null UNLESS a manual rating
+  // is set (treated as an absolute rating for fallback horses); the tempo
+  // lever does not apply to fallback horses (no formAll-derived band).
+  const effSpeed = _raceEffSpeed(race);
+  const eff = {};
+  const tempoAdjById = {};
+  runners.forEach(u => {
+    const m = wprGetOverride(u.rid);
+    if (u.wpjp == null) {
+      eff[u.rid] = (m == null) ? null : m;
+      tempoAdjById[u.rid] = 0;
+    } else {
+      const tAdj = _tempoAdjForRunner(u, race, effSpeed).val;
+      tempoAdjById[u.rid] = tAdj;
+      eff[u.rid] = u.wpjp + (m != null ? m : 0) + tAdj;
+    }
+  });
+
+  // Scratch lookup, computed once per call. Cheap.
+  const scratched = {};
+  runners.forEach(u => { scratched[u.rid] = isManualScratch(u.rid); });
+
+  // The field for pricing is non-scratched runners with a valid eff.
+  const validIds = runners
+    .filter(u => eff[u.rid] != null && !scratched[u.rid])
+    .map(u => u.rid);
+
+  const price = {};
+  if (validIds.length >= 2) {
+    const effs = validIds.map(id => eff[id]);
+    const mx = Math.max.apply(null, effs);
+    const exps = effs.map(e => Math.exp(WPR_BETA_SHARED * (e - mx)));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    validIds.forEach((id, i) => { price[id] = sum / exps[i]; });
+  }
+
+  // Order: highest eff first, scratched runners excluded.
+  const order = validIds.slice().sort((a, b) => eff[b] - eff[a]);
+
+  // Rank map (1 = top). Scratched / unrated runners get null.
+  const rank = {};
+  order.forEach((id, i) => { rank[id] = i + 1; });
+
+  // How many scratches and how many runners remain - for the field-size
+  // badge and the thin-field warning.
+  const scratchedCount = runners.reduce(
+    (n, u) => n + (scratched[u.rid] ? 1 : 0), 0);
+  const remaining = runners.length - scratchedCount;
+
+  return {
+    runners, eff, price, validIds, order, rank,
+    scratched, scratchedCount, remaining,
+    tempoAdjById, effSpeed,
+  };
+}
+
+function renderWprSummary() {
+  const N = parseInt(document.getElementById('wpr-n-slider').value, 10);
+  const M = parseInt(document.getElementById('wpr-m-slider').value, 10);
+  document.getElementById('wpr-n-val').textContent = N;
+  document.getElementById('wpr-m-val').textContent = M;
+
+  // ── Date selection ──
+  // Tab is single-date by design. The picker lets the user step back
+  // through earlier days. Populated once from all dates present in
+  // RACES (descending), default to the latest. The same control is
+  // reused across re-renders, so a chosen date sticks until changed.
+  const allRaces = (typeof RACES !== 'undefined' ? RACES : []);
+  const dateSel = document.getElementById('wpr-summary-date-sel');
+  if (dateSel && dateSel.options.length === 0) {
+    const distinct = [...new Set(
+      allRaces.map(r => String(r.date || '').slice(0, 10))
+              .filter(Boolean))].sort().reverse();
+    if (distinct.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(no dates)';
+      dateSel.appendChild(o);
+    } else {
+      distinct.forEach((d, i) => {
+        const o = document.createElement('option');
+        o.value = d;
+        o.textContent = d + (i === 0 ? ' (latest)' : '');
+        dateSel.appendChild(o);
+      });
+    }
+  }
+  const selectedDate = dateSel && dateSel.value
+    ? dateSel.value : (dateSel && dateSel.options[0] ? dateSel.options[0].value : '');
+  const races = allRaces.filter(r =>
+    String(r.date || '').slice(0, 10) === selectedDate);
+
+  // ── Populate the venue filter dropdown for the SELECTED date ──
+  // Repopulated each render now that the date can change - venues for
+  // today differ from venues for yesterday. The user's current pick is
+  // preserved if still present, else cleared to All.
+  const venueSel = document.getElementById('wpr-f-venue');
+  if (venueSel) {
+    const currentPick = venueSel.value;
+    const venues = [...new Set(races.map(r => r.venue).filter(Boolean))].sort();
+    venueSel.innerHTML = '<option value="">All</option>';
+    venues.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      venueSel.appendChild(o);
+    });
+    if (currentPick && venues.indexOf(currentPick) !== -1) {
+      venueSel.value = currentPick;
+    }
+  }
+
+  // ── Read filter state ───────────────────────────────────────────────────
+  const fVenue   = venueSel ? venueSel.value : '';
+  const fConf    = (document.getElementById('wpr-f-conf') || {}).value || '';
+  const fOverlay = parseInt((document.getElementById('wpr-f-overlay') || {}).value || '0', 10);
+  const fBet     = (document.getElementById('wpr-f-bet') || {}).value || '';
+  const fResult  = (document.getElementById('wpr-f-result') || {}).value || '';
+  const fRanked  = !!(document.getElementById('wpr-f-ranked') || {}).checked;
+  // Price-range sliders. Min is 1-100, max is 1-100 (100 = "$100+").
+  // Auto-swap if user has dragged min above max so the read is sensible.
+  let fPriceMin = parseInt(
+    (document.getElementById('wpr-f-price-min') || {}).value || '1', 10);
+  let fPriceMax = parseInt(
+    (document.getElementById('wpr-f-price-max') || {}).value || '100', 10);
+  if (fPriceMin > fPriceMax) { const t = fPriceMin; fPriceMin = fPriceMax; fPriceMax = t; }
+  // Update the visible labels (no-op if elements missing).
+  const pmnEl = document.getElementById('wpr-f-price-min-val');
+  const pmxEl = document.getElementById('wpr-f-price-max-val');
+  if (pmnEl) pmnEl.textContent = fPriceMin;
+  if (pmxEl) pmxEl.textContent = fPriceMax;
+  // "100+" means no upper cap - the slider tops out at 100 and from
+  // there the band is unbounded above.
+  const priceMaxCap = (fPriceMax >= 100) ? Infinity : fPriceMax;
+
+  // Confidence band check: 'high' 80+, 'mod' 60-79, 'low' under 60.
+  function confPasses(conf) {
+    if (!fConf) return true;
+    if (conf == null) return false;
+    if (fConf === 'high') return conf >= 80;
+    if (fConf === 'mod')  return conf >= 60 && conf < 80;
+    if (fConf === 'low')  return conf < 60;
+    return true;
+  }
+  // Result filter check: uses official finish (u.f) and whether race
+  // has resulted at all. Pending = race not yet resulted for this horse.
+  function resultPasses(u) {
+    if (!fResult) return true;
+    const hasResult = (u && u.f != null);
+    if (fResult === 'pending') return !hasResult;
+    if (!hasResult) return false;
+    if (fResult === 'won')    return u.f === 1;
+    if (fResult === 'placed') return u.f >= 1 && u.f <= 3;
+    if (fResult === 'lost')   return u.f > 3;
+    return true;
+  }
+  // Price filter check: runner's fixed price within [min, maxCap].
+  function pricePasses(u) {
+    if (fPriceMin <= 1 && priceMaxCap === Infinity) return true;
+    if (!u || u.fx == null) return false;
+    return u.fx >= fPriceMin && u.fx <= priceMaxCap;
+  }
+
+  // is a bet placed on this runner? reads the (localStorage) bet log,
+  // keyed by run_id - same source the Race and P&L tabs use.
+  function isBet(u) {
+    if (!u || u.rid == null) return false;
+    return !!(getBetLog()[String(u.rid)] || {}).placed;
+  }
+  // bet cell: green tick when a bet is placed, blank otherwise
+  function betCell(u) {
+    return isBet(u)
+      ? '<span style="color:var(--emerald);font-weight:700">✓</span>'
+      : '';
+  }
+  // finish-position cell: shows FP once results have landed, else '—'
+  function fpCell(u) {
+    return (u && u.f != null) ? String(u.f) : '—';
+  }
+  // Stake / Return for a runner, computed from the bet log exactly the way
+  // the P&L tab does it, so the two tabs always agree:
+  //   stakePrice  = oddsTaken if recorded, else fixed price
+  //   stake       = calcStake(stakePrice, ...)        [units]
+  //   settlePrice = oddsTaken if recorded, else SP, else fixed price
+  //   return      = won ? stake * settlePrice * dhMult : 0
+  // Returns { stake, ret } in units; either may be null when not yet known.
+  function betPnl(u) {
+    if (!u || u.rid == null) return { stake: null, ret: null };
+    const entry = getBetLog()[String(u.rid)];
+    if (!entry || !entry.placed) return { stake: null, ret: null };
+    const hasOdds = entry.oddsTaken != null && entry.oddsTaken > 1;
+    const stakePrice = hasOdds ? entry.oddsTaken : u.fx;
+    if (!stakePrice || stakePrice <= 1) return { stake: null, ret: null };
+    const stake = (typeof calcStake === 'function')
+      ? calcStake(stakePrice, { capExempt: hasOdds, model: 'edge' }) : null;
+    if (stake == null) return { stake: null, ret: null };
+    // Return needs a result. Before the race is run, finish is null.
+    let ret = null;
+    if (u.f != null) {
+      const dhMult = entry.deadHeat ? 0.5 : 1;
+      const settlePrice = hasOdds ? entry.oddsTaken : (u.sp || u.fx);
+      ret = (u.f === 1 && settlePrice) ? stake * settlePrice * dhMult : 0;
+    }
+    return { stake: stake, ret: ret };
+  }
+  // unit-formatted cell, '—' when null
+  function unitCell(v) {
+    return (v == null) ? '—' : v.toFixed(2) + 'u';
+  }
+
+  // count of runners in a race with no WPR projection (first-starters /
+  // too little data). The race's WPR ranking is incomplete by this many.
+  function unrankedCount(race) {
+    const rs = (race && race.runners) ? race.runners : [];
+    return rs.filter(u => u.wpjp == null).length;
+  }
+  // does a race pass the venue / ranked-only filters?
+  function racePassesFilter(race) {
+    if (fVenue && race.venue !== fVenue) return false;
+    // "ranked runners only" - exclude races that have any unranked runner
+    if (fRanked && unrankedCount(race) > 0) return false;
+    return true;
+  }
+
+  // race-level speed estimate. Mirrors the Race tab's pre-race pace logic
+  // so the two tabs agree: prefer race-shape-early (rse) when present,
+  // else fall back to counting leaders/on-pace from settled positions.
+  function raceSpeed(race) {
+    if (race.rse != null) {
+      if (race.rse > 0.15)  return 'Fast early';
+      if (race.rse < -0.15) return 'Slow early';
+      return 'Even';
+    }
+    let leaders = 0, onpace = 0, midback = 0;
+    (race.runners || []).forEach(u => {
+      const pos = u.asp;
+      if (pos == null) return;
+      if (pos <= 2) leaders++;
+      else if (pos <= 4) onpace++;
+      else midback++;
+    });
+    if (leaders >= 3) return 'Hot';
+    if (leaders >= 2 && onpace >= 2) return 'Fast';
+    if (leaders <= 1 && midback >= 4) return 'Slow';
+    return 'Even';
+  }
+  // settling position for a runner - average settled position from form,
+  // shown as a descriptive band (same zones as the Race tab pace logic)
+  function settlePos(u) {
+    if (!u || u.asp == null) return '—';
+    const p = u.asp;
+    if (p <= 2) return 'Leader';
+    if (p <= 4) return 'On-pace';
+    if (p <= 8) return 'Midfield';
+    return 'Back';
+  }
+  // race start time as HH:MM (local), '—' if missing
+  function raceTime(race) {
+    if (!race || !race.start_time) return '—';
+    const t = Date.parse(race.start_time);
+    if (isNaN(t)) return '—';
+    return new Date(t).toLocaleTimeString([],
+      { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  // shared jockey-rating chip - same 4-band logic as the Race tab rows
+  function wprJkyChip(jrt) {
+    if (jrt == null) return '';
+    const v = Math.round(jrt);
+    let cls = '', lbl = '';
+    if (v >= 85)      { cls = 'good'; lbl = 'Elite jockey rating (85+).'; }
+    else if (v >= 80) { cls = '';     lbl = 'Decent jockey rating (80-84).'; }
+    else if (v >= 75) { cls = 'warn'; lbl = 'Mediocre jockey rating (75-79).'; }
+    else              { cls = 'bad';  lbl = 'Weak jockey rating (below 75).'; }
+    return '<span class="jky-chip ' + cls + '" title="Jockey rating ' +
+      v + '. ' + lbl + '">Jky ' + v + '</span>';
+  }
+  // race cell: "Venue R3" plus field size and an unranked flag if any
+  function raceCell(race) {
+    const fs = race.fs || (race.runners || []).length || 0;
+    const ur = unrankedCount(race);
+    let s = escapeHtml(race.venue || '') + ' R' + (race.race || '?') +
+      ' <span class="wpr-list-desc" style="font-size:11px">(' + fs + ' runners';
+    if (ur > 0) s += ', <span class="wpr-unranked-flag">' + ur + ' unranked</span>';
+    s += ')</span>';
+    return s;
+  }
+
+  // ── KPI strip ──────────────────────────────────────────────────────────
+  // Headline numbers across the top for the SELECTED date. Honest about
+  // pending state - profit / win rate before any bets settle show
+  // "pending" rather than $0 / 0%, so a mid-day glance is not misleading.
+  (function renderKpiStrip() {
+    const strip = document.getElementById('wpr-kpi-strip');
+    if (!strip) return;
+    // Walk every runner in the selected date's races, find ones with a
+    // bet placed, accumulate from betPnl().
+    let nBets = 0, staked = 0, returned = 0, nSettled = 0, nWon = 0,
+        nPending = 0, pendingStake = 0;
+    races.forEach(race => {
+      (race.runners || []).forEach(u => {
+        if (!isBet(u)) return;
+        nBets += 1;
+        const p = betPnl(u);
+        if (p.stake == null) return;
+        staked += p.stake;
+        if (p.ret == null) {
+          nPending += 1;
+          pendingStake += p.stake;
+        } else {
+          nSettled += 1;
+          returned += p.ret;
+          if (u.f === 1) nWon += 1;
+        }
+      });
+    });
+    const profit = returned - (staked - pendingStake);  // settled only
+    const fmtU = v => v.toFixed(2) + 'u';
+    const cells = [];
+    cells.push(['Bets', nBets > 0 ? String(nBets) : '0']);
+    cells.push(['Staked', nBets > 0 ? fmtU(staked) : '\u2014']);
+    if (nSettled > 0) {
+      const wrPct = (nWon / nSettled * 100);
+      cells.push(['Win rate',
+        nWon + '/' + nSettled + ' \u00b7 ' + wrPct.toFixed(0) + '%']);
+      cells.push(['Returned', fmtU(returned)]);
+      const profCls = profit >= 0 ? 'wpr-kpi-pos' : 'wpr-kpi-neg';
+      cells.push(['Profit',
+        '<span class="' + profCls + '">' +
+        (profit > 0 ? '+' : '') + fmtU(profit) + '</span>']);
+    } else {
+      cells.push(['Win rate', nBets > 0 ? 'pending' : '\u2014']);
+      cells.push(['Returned', nBets > 0 ? 'pending' : '\u2014']);
+      cells.push(['Profit', nBets > 0 ? 'pending' : '\u2014']);
+    }
+    cells.push(['Pending',
+      nPending > 0
+        ? (nPending + ' \u00b7 ' + fmtU(pendingStake))
+        : (nBets > 0 ? '0' : '\u2014')]);
+    strip.innerHTML = cells.map(c =>
+      '<div class="wpr-kpi"><div class="wpr-kpi-lbl">' + c[0] +
+      '</div><div class="wpr-kpi-val">' + c[1] + '</div></div>'
+    ).join('');
+  })();
+
+  const overlays = [];   // list 1 rows
+  const standouts = [];  // list 2 rows
+
+  races.forEach(race => {
+    if (!racePassesFilter(race)) return;
+    const m = _wprRaceModel(race);
+    if (m.order.length < 2) return;
+    const topId = m.order[0];
+    const topEff = m.eff[topId];
+    const secondEff = m.eff[m.order[1]];
+
+    // List 2: is the top-rated horse clear by >= M points?
+    const gap = topEff - secondEff;
+    if (gap >= M) {
+      const u = m.runners.find(x => x.rid === topId);
+      const confOk = confPasses(u.wpjc);
+      const betOk = (fBet === '') ||
+        (fBet === 'yes' && isBet(u)) || (fBet === 'no' && !isBet(u));
+      if (confOk && betOk && resultPasses(u) && pricePasses(u)) {
+        standouts.push({
+          race: race, horse: u, eff: topEff, gap: gap,
+          conf: u.wpjc, wprPrice: m.price[topId], fixed: u.fx,
+        });
+      }
+    }
+
+    // List 1: runners within N points of the top rating, with an overlay
+    m.runners.forEach(u => {
+      // Skip scratched runners - they should never appear in Summary
+      // lists. The shared model keeps eff populated for everyone (so
+      // the dimmed-row UI can still show them), but for Summary they
+      // are out.
+      if (m.scratched[u.rid]) return;
+      const e = m.eff[u.rid];
+      if (e == null) return;
+      if (topEff - e > N) return;            // not close enough to the top
+      if (!confPasses(u.wpjc)) return;
+      if (fBet === 'yes' && !isBet(u)) return;
+      if (fBet === 'no' && isBet(u)) return;
+      if (!resultPasses(u)) return;
+      if (!pricePasses(u)) return;
+      const wp = m.price[u.rid];
+      if (wp == null || u.fx == null || u.fx <= 0) return;
+      if (u.fx > wp) {                        // fixed price longer than fair value
+        const ovPct = (u.fx / wp - 1) * 100;
+        // overlay band filter - the % column is not shown, but the
+        // overlay still drives which runners qualify for this list
+        if (fOverlay > 0 && ovPct < fOverlay) return;
+        overlays.push({
+          race: race, horse: u, eff: e,
+          gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
+          overlayPct: ovPct,
+        });
+      }
+    });
+  });
+
+  // Sort both lists chronologically by race start time. Races with no
+  // start_time sort to the end (Infinity).
+  function raceTimeMs(race) {
+    if (!race || !race.start_time) return Infinity;
+    const t = Date.parse(race.start_time);
+    return isNaN(t) ? Infinity : t;
+  }
+  overlays.sort((a, b) => raceTimeMs(a.race) - raceTimeMs(b.race));
+  standouts.sort((a, b) => raceTimeMs(a.race) - raceTimeMs(b.race));
+
+  // ── render list 1 ──
+  const ov = document.getElementById('wpr-list-overlays');
+  if (!overlays.length) {
+    ov.innerHTML = '<div class="wpr-empty">No runners match the current filters and slider.</div>';
+  } else {
+    ov.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
+      '<th>Time</th><th>Race</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
+      '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
+      '<th>Return</th><th>FP</th></tr></thead><tbody>' +
+      overlays.map(r => {
+        const pnl = betPnl(r.horse);
+        return '<tr class="wpr-row-clickable" ' +
+          'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+          'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+        '<td>' + raceTime(r.race) + '</td>' +
+        '<td>' + raceCell(r.race) + '</td>' +
+        '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
+        '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+        '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
+        '<td>' + settlePos(r.horse) + '</td>' +
+        '<td>' + raceSpeed(r.race) + '</td>' +
+        '<td>' + r.eff.toFixed(1) + '</td>' +
+        '<td>' + r.gapToTop.toFixed(1) + '</td>' +
+        '<td>$' + r.wprPrice.toFixed(2) + '</td>' +
+        '<td>$' + r.fixed.toFixed(2) + '</td>' +
+        '<td>' + betCell(r.horse) + '</td>' +
+        '<td>' + unitCell(pnl.stake) + '</td>' +
+        '<td>' + unitCell(pnl.ret) + '</td>' +
+        '<td>' + fpCell(r.horse) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  // ── render list 2 ──
+  const st = document.getElementById('wpr-list-standouts');
+  if (!standouts.length) {
+    st.innerHTML = '<div class="wpr-empty">No standouts match the current filters and slider.</div>';
+  } else {
+    st.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
+      '<th>Time</th><th>Race</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
+      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
+      '<th>Confidence</th><th>WPR $</th><th>Fixed $</th>' +
+      '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
+      standouts.map(r => {
+        let chipCls = 'wpr-chip-red';
+        if (r.conf != null && r.conf >= 80) chipCls = 'wpr-chip-green';
+        else if (r.conf != null && r.conf >= 60) chipCls = 'wpr-chip-amber';
+        const chip = '<span class="wpr-chip ' + chipCls + '">' +
+          (r.conf != null ? r.conf : '?') + '</span>';
+        const pnl = betPnl(r.horse);
+        return '<tr class="wpr-row-clickable" ' +
+          'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+          'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+          '<td>' + raceTime(r.race) + '</td>' +
+          '<td>' + raceCell(r.race) + '</td>' +
+          '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
+          '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+          '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
+          '<td>' + settlePos(r.horse) + '</td>' +
+          '<td>' + raceSpeed(r.race) + '</td>' +
+          '<td>' + r.eff.toFixed(1) + '</td>' +
+          '<td>' + r.gap.toFixed(1) + '</td>' +
+          '<td>' + chip + '</td>' +
+          '<td>' + (r.wprPrice != null ? '$' + r.wprPrice.toFixed(2) : '—') + '</td>' +
+          '<td>' + (r.fixed != null ? '$' + r.fixed.toFixed(2) : '—') + '</td>' +
+          '<td>' + betCell(r.horse) + '</td>' +
+          '<td>' + unitCell(pnl.stake) + '</td>' +
+          '<td>' + unitCell(pnl.ret) + '</td>' +
+          '<td>' + fpCell(r.horse) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  // Wire row clicks on both lists - jump to the runner on the Race tab.
+  // Event-delegate from the container so this works after every re-render
+  // without needing to reattach per row.
+  ['wpr-list-overlays', 'wpr-list-standouts'].forEach(id => {
+    const host = document.getElementById(id);
+    if (!host || host._wprJumpWired) return;
+    host._wprJumpWired = true;
+    host.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr.wpr-row-clickable');
+      if (!tr || !host.contains(tr)) return;
+      const raceId = tr.dataset.raceId;
+      const rid = tr.dataset.rid;
+      if (raceId) navigateToRaceRunner(raceId, rid);
+    });
+  });
 }
 
 function renderRaceDetail(raceId) {
@@ -7521,14 +8686,75 @@ function renderRaceDetail(raceId) {
       'id="rd-abandon-btn" title="Mark this race abandoned. Hides its picks ' +
       'from Today/Quaddie.">mark abandoned</button>';
   }
+  // ── Race confidence ──────────────────────────────────────────────────
+  // A per-race read on how much to trust this race's WPR projections.
+  // Basis: mean confidence across ALL runners, with fallback runners (no
+  // projection) counting as 0. A race where a chunk of the field can't be
+  // projected is genuinely lower-confidence, so those zeros must pull the
+  // average down rather than being excluded.
+  let raceConfHtml = '';
+  {
+    const allConfs = runners.map(u =>
+      (u.wpjp != null && u.wpjc != null) ? u.wpjc : 0);
+    if (allConfs.length >= 2) {
+      const meanConf = Math.round(
+        allConfs.reduce((a, b) => a + b, 0) / allConfs.length);
+      const nProj = runners.filter(u => u.wpjp != null).length;
+      let cls = 'rc-low', word = 'low';
+      if (meanConf >= 70) { cls = 'rc-high'; word = 'high'; }
+      else if (meanConf >= 50) { cls = 'rc-mid'; word = 'moderate'; }
+      // gap between top two effective ratings, for the tooltip note.
+      // Computed inline (this block runs before the shared wprEff map is
+      // built): delta for projected horses, absolute rating for fallbacks.
+      const effs = runners
+        .map(u => {
+          const m = wprGetOverride(u.rid);
+          if (u.wpjp == null) return (m == null) ? null : m;
+          return (m == null) ? u.wpjp : u.wpjp + m;
+        })
+        .filter(e => e != null)
+        .sort((a, b) => b - a);
+      let gapNote = '';
+      if (effs.length >= 2) {
+        const gap = effs[0] - effs[1];
+        gapNote = gap < 3
+          ? ' Field is tightly bunched - hard to separate.'
+          : ' Top horse is clear of the field.';
+      }
+      const covNote = nProj < runners.length
+        ? ' ' + (runners.length - nProj) + ' of ' + runners.length +
+          ' runners have no projection (counted as 0).'
+        : '';
+      raceConfHtml = '<div class="item race-conf ' + cls + '" ' +
+        'title="Mean WPR-projection confidence across all ' + runners.length +
+        ' runners.' + covNote + gapNote + '">' +
+        '<span class="lbl">Race conf</span> ' + meanConf + ' ' + word + '</div>';
+    }
+  }
+
+  // Field-size cell now reflects manual scratches. Shows "9 -> 7 runners"
+  // when scratches active, plain "9 runners" otherwise. Thin-field tag
+  // appears when only 3 or fewer remain (the softmax math still works
+  // but reads are not meaningful).
+  const _scrN = countManualScratchesForRace(runners);
+  const _remN = runners.length - _scrN;
+  let fieldSizeBlurb = runners.length + ' runners';
+  if (_scrN > 0) {
+    fieldSizeBlurb = runners.length + ' \u2192 ' + _remN + ' runners' +
+      (_remN < 4 ? ' <span class="wpr-thin-field" title="Field thinned ' +
+                   'by scratches - reads become unreliable below 4 runners">' +
+                   'thin field</span>' : '');
+  }
+
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
     '<div class="item">' + race.distance + 'm</div>' +
     '<div class="item">' + escapeHtml(race.going || '') + '</div>' +
     '<div class="item">$' + (race.prize/1000).toFixed(0) + 'k</div>' +
-    '<div class="item">' + runners.length + ' runners</div>' +
-    '<div class="item">' + picksDisplay + '</div>' +
-    scoreThreshHtml +
+    '<div class="item">' + fieldSizeBlurb + '</div>' +
+    raceConfHtml +
+    // Model-picks count and the score-threshold ("X above 0.55") block
+    // removed - those belong to the Edge/Volume models, not the WPR tab.
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>' +
     abandonHtml;
 
@@ -7538,23 +8764,69 @@ function renderRaceDetail(raceId) {
   ctx.push({ lbl: 'Going', v: getEffectiveGoing(race) || '—', overridden: !!getRaceTrackRating(race) });
   if (race.rail) ctx.push({ lbl: 'Rail', v: race.rail });
   ctx.push({ lbl: 'Prize', v: '$' + (race.prize / 1000).toFixed(0) + 'k' });
-  ctx.push({ lbl: 'Field', v: runners.length });
+  ctx.push({ lbl: 'Field',
+    v: (_scrN > 0)
+      ? (runners.length + ' \u2192 ' + _remN)
+      : runners.length });
   const currentOverride = getRaceTrackRating(race) || '';
+  // Going override as a dropdown of the standard ratings - removes the
+  // free-text error class ("Soft" vs "Soft 6" vs "soft6"). Blank = no
+  // override (use the official going). This control is shared: getEffectiveGoing
+  // and the Gist sync read it, so other tabs see the same override.
+  const GOING_OPTIONS = ['Firm 1', 'Firm 2', 'Good 3', 'Good 4',
+    'Soft 5', 'Soft 6', 'Soft 7', 'Heavy 8', 'Heavy 9', 'Heavy 10'];
   const overrideInput =
     '<div class="ctx-item ctx-override-inline">' +
       '<span class="ctx-lbl">Override</span>' +
-      '<input type="text" class="ctx-override-input" id="ctx-override-input" ' +
-        'placeholder="e.g. Soft 6" value="' + escapeHtml(currentOverride) + '" maxlength="20"/>' +
-      (currentOverride ? '<button class="ctx-override-clear" id="ctx-override-clear" title="Clear override">×</button>' : '') +
+      '<select class="ctx-override-input" id="ctx-override-input">' +
+        '<option value="">(official)</option>' +
+        GOING_OPTIONS.map(g =>
+          '<option value="' + g + '"' +
+          (g === currentOverride ? ' selected' : '') + '>' + g + '</option>'
+        ).join('') +
+      '</select>' +
+    '</div>';
+  // Race-speed control - sets the assumed tempo for the whole race. Used by
+  // the WPR detail panel's "same race speed" section. Display-only: it does
+  // not change the WPR projection (the model has no race-speed feature).
+  const _spdOvr = wprGetCondOverride(race.race_id) || {};
+  const _spdEff = _spdOvr.speed || wprRaceSpeedLabel(paceLabel);
+  const _spdIsAuto = !_spdOvr.speed;   // no manual override = Auto/predicted
+  const speedControl =
+    '<div class="ctx-item ctx-speed-inline">' +
+      '<span class="ctx-lbl">Race speed</span>' +
+      // Auto = revert to the model-predicted tempo (clears the override,
+      // switches the per-horse tempo lever off, reverts column + price).
+      '<button class="ctx-speed-btn' + (_spdIsAuto ? ' ctx-speed-on' : '') +
+        '" data-race="' + escapeHtml(String(race.race_id)) +
+        '" data-speed="__auto__" title="Revert to the predicted race ' +
+        'speed (' + escapeHtml(wprRaceSpeedLabel(paceLabel)) + ')">Auto</button>' +
+      ['Slow', 'Even', 'Fast'].map(s =>
+        '<button class="ctx-speed-btn' +
+        ((!_spdIsAuto && _spdEff === s) ? ' ctx-speed-on' : '') +
+        '" data-race="' + escapeHtml(String(race.race_id)) +
+        '" data-speed="' + s + '">' + s + '</button>').join('') +
     '</div>';
   document.getElementById('rd-context-bar').innerHTML =
     ctx.map(c => {
       const cls = c.overridden ? 'ctx-item ctx-overridden' : 'ctx-item';
       return '<div class="' + cls + '">' + c.lbl + '<span class="ctx-v">' + escapeHtml(String(c.v)) + '</span></div>';
-    }).join('') + overrideInput;
+    }).join('') + overrideInput + speedControl;
 
   // Wire the inline override input
   wireContextOverride(race);
+
+  // Wire the race-speed buttons - a change re-renders the race so the
+  // detail panel's same-race-speed section refreshes.
+  document.querySelectorAll('#rd-context-bar .ctx-speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.speed;
+      // "__auto__" reverts to predicted by clearing the override.
+      wprSetCondOverride(btn.dataset.race, 'speed',
+        v === '__auto__' ? null : v);
+      renderRaceDetail(race.race_id);
+    });
+  });
 
   // Wire race-level abandon toggle (rendered in rd-header-stats above).
   // Only present when meeting isn't already marked abandoned.
@@ -7815,6 +9087,45 @@ function renderRaceDetail(raceId) {
     settles: r => r.asp != null ? r.asp : 99,
     fxd:   r => r.fx || 9999,
     trp:   r => r.trp || 9999,
+    // ── WPR projection column getters ──
+    // Projected/peak/avg sort desc by default (higher = better). Getters
+    // return plain values; the desc direction puts highest first, nulls
+    // always sort last via the comparator's null handling.
+    wpjpk: r => r.wpjpk != null ? r.wpjpk : null,
+    wpja:  r => r.wpra != null ? r.wpra : null,
+    wpjp:  r => {
+      // Use the already-computed effective rating (wprEff). It correctly
+      // covers both cases: projection + delta for normal horses, and the
+      // manual absolute rating for fallback horses. Re-deriving from r.wpjp
+      // here misses fallback ratings entirely.
+      const e = wprEff[r.rid];
+      return (e == null) ? null : e;
+    },
+    wpjpr: r => {
+      // Read from the LOCAL recomputed wprPrice (scratch-aware), not the
+      // server-side r.wpjpr. Otherwise sort and display disagree when a
+      // runner is scratched.
+      const wp = wprPrice[r.rid];
+      return (wp != null) ? wp : 9999;     // cheaper price first
+    },
+    actwpr: r => r.wpja != null ? r.wpja : null,    // actual run-day WPR
+    wmiss: r => {
+      // miss magnitude (actual - projected); biggest miss first on desc
+      if (r.wpja == null || r.wpjp == null) return null;
+      return Math.abs(r.wpja - r.wpjp);
+    },
+    ovl:   r => {
+      // overlay % = fixed/wpr_price - 1; bigger overlay first.
+      // wpr_price reads from the scratch-aware local recompute.
+      const wp = wprPrice[r.rid];
+      if (wp == null || r.fx == null || r.fx <= 0) return 9999;
+      return -((r.fx / wp - 1) * 100);
+    },
+    stk:   r => {
+      const wp = wprPrice[r.rid];
+      if (wp == null || r.fx == null || r.fx <= 0) return 9999;
+      return -((r.fx / wp - 1) * 100);   // same ordering as overlay
+    },
     score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
     // Votes sort: 7-signal set (WPR, Class, L600, PFAI, TR, Time, L400).
     // Late dropped - no longer used by Edge or Volume.
@@ -7842,6 +9153,28 @@ function renderRaceDetail(raceId) {
     clsChg:  r => r.clsChg != null ? -r.clsChg : 0,  // class UP first when desc
   };
 
+  // ── WPR projection: per-race effective ratings and pricing ──────────────
+  // Each runner's effective rating = projected WPR + manual delta (if the
+  // user has entered one). The WPR price is a softmax over the field's
+  // effective ratings (beta 0.4), so it re-sums to 1.0 and one override
+  // shifts every price in the race. Overlay = fixed price > WPR price.
+  // ── WPR projection: per-race effective ratings and pricing ──
+  // Routed through the shared _wprRaceModel helper so the Race tab and
+  // Summary tab use the same math, with the same scratch-aware field.
+  // Local aliases keep the existing variable names so downstream code in
+  // this function (sort getters, row builder, etc) does not need to
+  // change name-by-name.
+  const _rm = _wprRaceModel(race);
+  const wprEff = _rm.eff;
+  const wprPrice = _rm.price;
+  const wprValidIds = _rm.validIds;
+  const wprEffRank = _rm.rank;
+  const wprScratched = _rm.scratched;
+  // wprEffective() kept as a tiny wrapper for the few callers that pass
+  // a runner object (rather than reading wprEff[rid]).
+  function wprEffective(u) { return wprEff[u.rid]; }
+  const WPR_UNIT = 25;   // 1 unit = $25
+
   const sortedRunners = runners.slice().sort((a, b) => {
     const getter = sortGetters[raceSortState.col] || sortGetters.tr;
     let aVal = getter(a), bVal = getter(b);
@@ -7854,129 +9187,254 @@ function renderRaceDetail(raceId) {
     return raceSortState.dir === 'desc' ? -cmp : cmp;
   });
 
+
+  // Per-race flags driving column visibility:
+  //   - resulted: any runner has an official finish position. Drives the
+  //     Margin column (only meaningful once results land).
+  //   - hasAnyActual: any runner has an actual WPR yet (settles ~5 days
+  //     post-race). Drives the Actual + Miss columns - they sit hidden
+  //     until they carry real data, rather than showing em-dashes.
+  const raceIsResulted = runners.some(u => u.f != null);
+  const raceHasAnyActual = runners.some(u => u.wpja != null);
+
   let rowsHtml = '';
   sortedRunners.forEach(u => {
     const rid = u.rid;
     const isPick = pickIds.has(String(rid));
     const isVolume = volumeIds.has(String(rid));
-    const trR = trRanks[rid];
-    const trClass = trR === 1 ? 'r1' : (trR === 2 ? 'r2' : (trR === 3 ? 'r3' : ''));
     const fxp = u.fx;
-    const trp = u.trp;
-    // Score-threshold flag - adds emerald row tint for adaptive selection
-    const qualifies = u.cs != null && u.cs >= thresh;
+    const isScratched = !!wprScratched[u.rid];
 
-    // Row class: Edge takes precedence over Volume for the row tint (Edge
-    // is the primary model and gets the emerald background). Volume-only
-    // picks get the amber "is-volume-pick" tint.
     const rowClasses = [];
     if (isPick) rowClasses.push('is-pick');
     else if (isVolume) rowClasses.push('is-volume-pick');
-    else if (trR > 5) rowClasses.push('muted');
-    if (qualifies) rowClasses.push('score-qualify');
+    if (isScratched) rowClasses.push('is-scratched');
 
-    // Pick badge - compact letter indicator AFTER the horse name.
-    //   - E = Edge pick (emerald)
-    //   - V = Volume pick (amber)
-    //   - Both = both letters side by side, Edge first
+    // Pick badge after the horse name (Edge / Volume models still tracked)
     let pickBadge = '';
-    if (isPick) {
-      pickBadge += '<span class="pick-badge pick-badge-main" title="Edge model pick">E</span>';
-    }
-    if (isVolume) {
-      pickBadge += '<span class="pick-badge pick-badge-volume" title="Volume model pick">V</span>';
-    }
+    if (isPick) pickBadge += '<span class="pick-badge pick-badge-main" title="Edge model pick">E</span>';
+    if (isVolume) pickBadge += '<span class="pick-badge pick-badge-volume" title="Volume model pick">V</span>';
 
-    // Finish-position indicators - only when the race is resulted and we
-    // have a finish for this runner. Adds:
-    //   1. A 'finish-N' class on the row so CSS can tint winner/placegetter rows
-    //   2. A position badge ("1st"/"2nd"/"3rd"/Nth) before the horse name
-    // u.f comes from finish_position on the runner payload (null pre-race).
+    // Finish-position handling: row class still tints by finish so
+    // resulted races read at a glance, but the visible badge next to
+    // the horse name was removed - the Result column does that job and
+    // having it in two places was visual clutter.
     let finishBadge = '';
     if (u.f != null) {
       const f = parseInt(u.f, 10);
       if (!isNaN(f) && f > 0) {
         rowClasses.push('finish-' + (f <= 3 ? f : 'other'));
-        let label = f + 'th';
-        if (f === 1) label = '1st';
-        else if (f === 2) label = '2nd';
-        else if (f === 3) label = '3rd';
-        finishBadge = '<span class="finish-badge finish-badge-' +
-          (f <= 3 ? f : 'other') + '">' + label + '</span>';
       }
     }
 
-    // Vote counts - the Votes column shows N/6 top-3 hits with a star
-    // indicator for #1-vote density. Same six signals as the model rule
-    // (WPR, Late, PF Class, PF L600, PF AI, TR).
-    // (Note: trR already declared above for muted-row check.)
-    const csR = u.crk;
-    const wprR = wprRanks[rid];
-    const midR = midRanks[rid];
-    const lateR = lateRanks[rid];
-    const totR = totalRanks[rid];
-    const timeR = timeRanks[rid];
-    // Count #1 votes (signal == 1) and top-3 votes (signal <= 3) across the
-    // 7 voting signals: WPR, Class, L600, PFAI, TR, Time, L400.
-    // Late dropped (no longer used by either Edge or Volume).
-    const _votes_top1 =
-        ((wprR  != null && wprR  === 1) ? 1 : 0) +
-        ((u.wcR != null && u.wcR === 1) ? 1 : 0) +
-        ((u.l600R != null && u.l600R === 1) ? 1 : 0) +
-        ((u.pfaiR != null && u.pfaiR === 1) ? 1 : 0) +
-        ((trR != null && trR === 1) ? 1 : 0) +
-        ((timeR != null && timeR === 1) ? 1 : 0) +
-        ((u.l400R != null && u.l400R === 1) ? 1 : 0);
-    const _votes_top3 =
-        ((wprR  != null && wprR  <= 3) ? 1 : 0) +
-        ((u.wcR != null && u.wcR <= 3) ? 1 : 0) +
-        ((u.l600R != null && u.l600R <= 3) ? 1 : 0) +
-        ((u.pfaiR != null && u.pfaiR <= 3) ? 1 : 0) +
-        ((trR != null && trR <= 3) ? 1 : 0) +
-        ((timeR != null && timeR <= 3) ? 1 : 0) +
-        ((u.l400R != null && u.l400R <= 3) ? 1 : 0);
+    // ── WPR projection cells ──
+    const hasProj = u.wpjp != null;
+    const manualVal = wprGetOverride(rid);   // delta if hasProj, else absolute
+    const eff = wprEff[rid];
 
-    // Vote count cell - shows N/7 voting signals where this horse hit top-3.
-    // Coloured by count: 6-7 = strong, 5 = mid, 4 = neutral, 0-3 = weak.
-    // Star indicator when 2+ #1 votes (Edge needs 2 #1, Volume needs 1 #1).
-    function votesCell(top3, top1) {
-      let cls = '';
-      if (top3 >= 6) cls = 'votes-strong';
-      else if (top3 === 5) cls = 'votes-mid';
-      else if (top3 === 4) cls = '';
-      else cls = 'votes-weak';
-      const star = top1 >= 2 ? '<span class="votes-star">★' + top1 + '</span>' : '';
-      const tip = top3 + ' of 7 signals top-3, ' + top1 + ' #1';
-      return '<td class="votes-cell ' + cls + '" title="' + tip + '">' +
-        '<span class="v">' + top3 + '/7</span>' + star + '</td>';
+    // Predicted WPR cell.
+    //  - Normal horse: effective rating + confidence chip; greyed model
+    //    number shown alongside when a delta has been applied.
+    //  - Fallback horse (under 3 starts): shows 0 with a 0-confidence chip.
+    //    If the user has typed an absolute rating, that rating shows in
+    //    place of the 0.
+    let predCell;
+    if (!hasProj) {
+      const zeroChip = '<span class="wpr-chip wpr-chip-red" ' +
+        'title="No projection - under 3 prior starts">0</span>';
+      if (manualVal != null) {
+        predCell = '<td class="wpr-pred-cell">' +
+          '<span class="wpr-eff">' + manualVal.toFixed(1) + '</span>' +
+          '<span class="wpr-orig" title="No model projection - your rating">0</span>' +
+          zeroChip + '</td>';
+      } else {
+        predCell = '<td class="wpr-pred-cell">' +
+          '<span class="wpr-eff wpr-na">0</span>' + zeroChip + '</td>';
+      }
+    } else {
+      const c = u.wpjc;
+      let chipCls = 'wpr-chip-red';
+      if (c != null && c >= 80) chipCls = 'wpr-chip-green';
+      else if (c != null && c >= 60) chipCls = 'wpr-chip-amber';
+      const chip = '<span class="wpr-chip ' + chipCls + '" title="Confidence ' +
+        (c != null ? c : '?') + '/100">' + (c != null ? c : '?') + '</span>';
+      // Show the effective WPR (model + manual delta + tempo lever).
+      // Show the greyed model-original alongside ONLY when the user has
+      // set a per-horse manual delta - that is a deliberate single-horse
+      // choice worth confirming ("model 75, you made it 80"). When only
+      // the race-speed tempo lever is active it adjusts the WHOLE field
+      // at once, so a strikethrough on every row is just noise - the
+      // Race-speed control's non-Auto state is the cue there.
+      const showVal = (eff != null) ? eff : u.wpjp;
+      if (manualVal != null) {
+        predCell = '<td class="wpr-pred-cell">' +
+          '<span class="wpr-eff">' + showVal.toFixed(1) + '</span>' +
+          '<span class="wpr-orig" title="Model projection before your ' +
+          'manual rating adjustment">' + u.wpjp.toFixed(1) + '</span>' +
+          chip + '</td>';
+      } else {
+        predCell = '<td class="wpr-pred-cell">' +
+          '<span class="wpr-eff">' + showVal.toFixed(1) + '</span>' + chip + '</td>';
+      }
     }
 
+    // Manual cell - editable for ALL horses now.
+    //  - Normal horse: a DELTA (e.g. +4, -3) added to the projection.
+    //  - Fallback horse: an ABSOLUTE rating (e.g. 80). data-mode tells the
+    //    input handler which way to interpret the value.
+    let manualCell;
+    const mode = hasProj ? 'delta' : 'abs';
+    let mv = '';
+    if (manualVal != null) {
+      mv = (hasProj && manualVal > 0) ? '+' + manualVal : String(manualVal);
+    }
+    const ph = hasProj ? '+/-' : 'rating';
+    const tip = hasProj ? 'Type a delta, e.g. +4 or -3'
+                        : 'No projection - type an absolute rating, e.g. 80';
+    manualCell = '<td class="wpr-manual-cell">' +
+      '<input type="text" class="wpr-manual-input" data-rid="' +
+      escapeHtml(String(rid)) + '" data-mode="' + mode + '" value="' + mv +
+      '" placeholder="' + ph + '" title="' + tip + '" />' +
+      '</td>';
+
+    // WPR price, overlay, bet, stake
+    const wp = wprPrice[rid];
+    const wprPriceCell = '<td>' + (wp != null ? '$' + wp.toFixed(2) : '—') + '</td>';
+    let overlayCell = '<td>—</td>';
+    let suggestedStake = null;
+    if (wp != null && fxp != null && fxp > 0) {
+      const ovl = (fxp / wp - 1) * 100;   // % the fixed price beats fair value
+      if (ovl > 0) {
+        overlayCell = '<td class="wpr-overlay-pos">+' + ovl.toFixed(0) + '%</td>';
+        // Suggested stake sized off the FIXED price (the price actually bet
+        // at), not the overlay %. Target-return staking: aim for a set
+        // profit on a win, scaled by overlay strength. profit target runs
+        // 0.5 unit (marginal overlay) up to 2 units (strong overlay);
+        // stake = target_profit / (fixed_price - 1).
+        const targetUnits = Math.min(2, 0.5 + ovl / 20);
+        const targetProfit = targetUnits * WPR_UNIT;
+        suggestedStake = Math.round(targetProfit / (fxp - 1));
+      } else {
+        overlayCell = '<td class="wpr-overlay-neg">' + ovl.toFixed(0) + '%</td>';
+      }
+    }
+
+    // Bet Y/N toggle + gated stake. Stake is editable only when Bet = Y;
+    // it auto-fills from the suggested stake the first time Y is set.
+    // A horse can be bet once it has an effective rating - that includes a
+    // fallback runner the user has given a manual absolute rating. An
+    // unrated fallback runner (eff == null) has no price, so no bet.
+    const betRec = wprGetBet(rid);
+    const isBet = !!(betRec && betRec.bet);
+    const canBet = eff != null;
+    let betCell, stakeCell;
+    if (!canBet) {
+      // no rating yet - no price, no bet workflow
+      betCell = '<td class="wpr-bet-cell"><span class="wpr-na">—</span></td>';
+      stakeCell = '<td class="wpr-na">—</td>';
+    } else {
+      betCell = '<td class="wpr-bet-cell">' +
+        '<button class="wpr-bet-toggle ' + (isBet ? 'wpr-bet-yes' : 'wpr-bet-no') +
+        '" data-rid="' + escapeHtml(String(rid)) + '">' +
+        (isBet ? 'Y' : 'N') + '</button></td>';
+      if (isBet) {
+        const sv = betRec.stake != null ? betRec.stake : (suggestedStake != null ? suggestedStake : '');
+        stakeCell = '<td class="wpr-stake-cell">$<input type="text" ' +
+          'class="wpr-stake-input" data-rid="' + escapeHtml(String(rid)) +
+          '" value="' + sv + '" /></td>';
+      } else {
+        stakeCell = '<td class="wpr-stake-cell wpr-na">' +
+          (suggestedStake != null ? '($' + suggestedStake + ')' : '—') + '</td>';
+      }
+    }
+
+    // ── Actual WPR + Miss cells (resulted races) ──
+    // u.wpja is the actual run-day WPR (Step 2e). Shown for resulted
+    // runners once the form history settles. Miss = actual - projected;
+    // blank when there is no projection (fallback runner) or no result.
+    let actualCell = '<td class="wpr-na">—</td>';
+    let missCell = '<td class="wpr-na">—</td>';
+    if (u.wpja != null) {
+      actualCell = '<td class="wpr-actual-cell">' + u.wpja.toFixed(1) + '</td>';
+      if (u.wpjp != null) {
+        const m = u.wpja - u.wpjp;
+        let mc = 'wpr-miss-close';
+        if (Math.abs(m) >= 8) mc = 'wpr-miss-far';
+        else if (Math.abs(m) >= 4) mc = 'wpr-miss-mid';
+        missCell = '<td class="wpr-miss-cell ' + mc + '">' +
+          (m > 0 ? '+' : '') + m.toFixed(1) + '</td>';
+      }
+    }
+
+    // ── Result cell ──
+    // Before official results land, an editable finishing-position input
+    // (manual placeholder). Once the official finish (u.f) exists it takes
+    // over - read-only, official wins, the manual entry silently superseded.
+    let resultCell;
+    const officialFin = (u.f != null && !isNaN(parseInt(u.f, 10))
+                         && parseInt(u.f, 10) > 0)
+      ? parseInt(u.f, 10) : null;
+    if (officialFin != null) {
+      resultCell = '<td class="wpr-result-cell wpr-result-official" ' +
+        'title="Official result">' + officialFin + '</td>';
+    } else {
+      const mr = getManualResult(rid);
+      resultCell = '<td class="wpr-result-cell">' +
+        '<input type="text" class="wpr-result-input" inputmode="numeric" ' +
+        'data-rid="' + escapeHtml(String(rid)) + '" ' +
+        'placeholder="–" value="' + (mr != null ? mr : '') + '" ' +
+        'title="Enter finishing position (manual, pre-official)" /></td>';
+    }
+
+    // Scratch cell - per-row toggle. Click stops propagation so it does
+    // not also expand the detail row. Icon flips by state.
+    const scratchCell = '<td class="wpr-scr-cell">' +
+      '<button class="wpr-scr-btn' + (isScratched ? ' on' : '') + '" ' +
+      'data-rid="' + escapeHtml(String(rid)) + '" ' +
+      'title="' + (isScratched ? 'Un-scratch this runner'
+                                : 'Mark this runner as scratched') + '">' +
+      (isScratched ? '\u2715' : '\u2010') + '</button></td>';
+
+    // Margin cell - only on resulted races, right of Result. Shows the
+    // finishing margin (lengths) for this runner. Header / cell hidden
+    // entirely on un-resulted races (see raceIsResulted at the top).
+    // Reads u.mgnL (finish margin in Lengths). Type-coerce defensively:
+    // a non-numeric value here would crash the WHOLE row build and leave
+    // the table stuck on the previous race's DOM - which is exactly the
+    // class of bug we just fixed by renaming away from u.fm (which is
+    // the form string, e.g. "3-1-7-2").
+    let marginCellPart = '';
+    if (raceIsResulted) {
+      const mgnNum = (u.mgnL != null) ? Number(u.mgnL) : NaN;
+      marginCellPart = (Number.isFinite(mgnNum))
+        ? '<td class="wpr-margin-cell">' + mgnNum.toFixed(2) + 'L</td>'
+        : '<td class="wpr-na">&mdash;</td>';
+    }
+    // Actual + Miss cells - only rendered if any runner in the race has
+    // an actual WPR yet. Settles ~5 days post-race; hidden in the
+    // meantime to cut em-dash clutter from pending and recently-run races.
+    const actualCellPart = raceHasAnyActual ? actualCell : '';
+    const missCellPart = raceHasAnyActual ? missCell : '';
+
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
-      // ── Primary columns (visible on mobile) ──
+      scratchCell +
       '<td><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
-      '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
-      scoreCell(u.cs, u.crk, u.csc) +
-      votesCell(_votes_top3, _votes_top1) +
-      wprCell(u.w, wprRanks[rid]) +
-      pfRankCell(u.wcR, 'PF Class') +
-      pfRankCell(u.l600R, 'PF Last 600m') +
-      pfRankCell(u.pfaiR, 'PF AI') +
-      '<td class="rank-cell ' + trClass + '">' + (trR || '—') + '</td>' +
-      // Time = within-race rank of speed_rating (Edge voting signal).
-      // Rendered as rank pill (1, 2, 3...) matching Class/L600/PFAI/L400
-      // columns. Raw speed_rating value still visible in the detail panel.
-      pfRankCell(timeR, 'Speed (toprate speed rating rank)') +
-      // L400 = PF Last 400m rank (Edge voting signal)
-      pfRankCell(u.l400R, 'PF Last 400m') +
-      // ── Supporting columns (hidden on mobile) ──
-      // Late/Mid/Total/Early moved to detail panel (no longer voting signals
-      // in Edge or Volume models). Class∆ retained.
       '<td>' + (u.b || '') + '</td>' +
       '<td>' + settlesLabel(u.asp) + '</td>' +
-      // ── Conditions / form context ──
-      distanceCell(u) +
-      (showGoing ? goingCell(u) : '') +
+      '<td>' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</td>' +
+      '<td>' + (u.wpra != null ? u.wpra.toFixed(1) : '—') + '</td>' +
+      predCell +
+      manualCell +
+      wprPriceCell +
+      '<td>' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
+      overlayCell +
+      betCell +
+      stakeCell +
+      resultCell +
+      marginCellPart +
+      actualCellPart +
+      missCellPart +
       '</tr>';
   });
 
@@ -7992,29 +9450,37 @@ function renderRaceDetail(raceId) {
   document.getElementById('rd-runners-table').innerHTML =
     '<table class="race-table">' +
       '<thead><tr>' +
-        // ── Primary scan columns (visible on mobile) ──
-        // Voting signal columns ordered Edge-first (WPR, Class, L600, PFAI,
-        // TR, Time, L400). Class shown for context; both models look at the
-        // others. Late removed - no longer used by either Edge or Volume.
-        th('tab', 'Tab') + th('horse', 'Horse') +
-        th('fxd', 'Fxd') +
-        th('score', 'Score') +
-        th('votes', 'Votes') +
-        th('wpr',   'WPR') +
-        th('wcR',   'Class') +
-        th('l600R', 'L600') +
-        th('pfai',  'PF AI') +
-        th('tr',    'TR') +
-        th('time',  'Speed') +
-        th('l400R', 'L400') +
-        // ── Supporting / context columns (hidden on mobile) ──
+        // ── WPR projection columns (Option B - replaces signal columns) ──
+        // No., Horse, Barrier, Speed/settle, Peak WPR, Avg WPR L3,
+        // Predicted WPR, Manual adj., WPR price, Fixed price, Overlay, Stake.
+        '<th title="Toggle manual scratch - excludes this runner from WPR price calc">Scr</th>' +
+        th('tab', 'No.') + th('horse', 'Horse') +
         th('bar', 'Bar') +
-        th('settles', 'Settles') +
-        // Conditions
-        (showGoing ? th('dist', 'Distance') + th('going', 'Going') : th('dist', 'Distance')) +
+        th('settles', 'Speed') +
+        th('wpjpk', 'Peak WPR') +
+        th('wpja', 'Avg L3') +
+        th('wpjp', 'Pred WPR') +
+        '<th title="Manual rating delta - type +4 or -3 to adjust">Manual</th>' +
+        th('wpjpr', 'WPR $') +
+        th('fxd', 'Fixed $') +
+        th('ovl', 'Overlay') +
+        '<th title="Mark Y to bet this horse">Bet</th>' +
+        th('stk', 'Stake') +
+        '<th title="Finishing position - editable until official results land">Result</th>' +
+        (raceIsResulted
+          ? '<th title="Finishing margin in lengths">Margin</th>' : '') +
+        (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
+        (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
-    '</table>';
+    '</table>' +
+    (_scrN > 0
+      ? '<div class="wpr-scr-footer">' +
+          _scrN + ' runner' + (_scrN === 1 ? '' : 's') +
+          ' marked scratched in this race. ' +
+          '<button class="wpr-scr-clear" id="wpr-scr-clear">' +
+          'Clear scratches</button></div>'
+      : '');
 
   // Wire sortable headers
   document.querySelectorAll('#rd-runners-table th.sortable').forEach(th => {
@@ -8036,6 +9502,120 @@ function renderRaceDetail(raceId) {
       renderRaceDetail(raceId);
     });
   });
+
+  // ── WPR manual-adjustment inputs ────────────────────────────────────────
+  // Each manual cell holds a delta. On change, save (or clear) the override
+  // for that run_id and re-render the race so every dependent price, overlay
+  // and stake recomputes off the new effective ratings.
+  document.querySelectorAll('#rd-runners-table .wpr-manual-input').forEach(inp => {
+    // typing/clicking inside the cell must not trigger the row-expand
+    inp.addEventListener('click', e => e.stopPropagation());
+    const commit = () => {
+      const rid = inp.dataset.rid;
+      const mode = inp.dataset.mode || 'delta';
+      const raw = inp.value.trim().replace('+', '');
+      if (raw === '') {
+        wprClearOverride(rid);
+      } else {
+        let v = parseFloat(raw);
+        if (isNaN(v)) {
+          inp.value = ''; wprClearOverride(rid);
+        } else {
+          // absolute mode (fallback horse): clamp to a sane WPR range so a
+          // stray entry cannot distort the field's pricing
+          if (mode === 'abs') v = Math.max(0, Math.min(120, v));
+          wprSetOverride(rid, v);
+        }
+      }
+      renderRaceDetail(raceId);
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    });
+  });
+
+  // ── WPR Bet Y/N toggles + stake inputs ──────────────────────────────────
+  // Toggling Bet to Y opens an editable stake (pre-filled from the suggested
+  // figure); toggling to N clears the bet. Both persist per run_id.
+  document.querySelectorAll('#rd-runners-table .wpr-bet-toggle').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const rid = btn.dataset.rid;
+      const cur = wprGetBet(rid);
+      if (cur && cur.bet) {
+        wprSetBet(rid, false);            // Y -> N, clears the bet
+      } else {
+        // N -> Y: seed the stake from the row's suggested figure if present
+        const row = btn.closest('tr');
+        const sc = row ? row.querySelector('.wpr-stake-cell') : null;
+        let seed = null;
+        if (sc) {
+          const m = sc.textContent.match(/\$?\(?\$?(\d+)/);
+          if (m) seed = parseFloat(m[1]);
+        }
+        wprSetBet(rid, true, seed);
+      }
+      renderRaceDetail(raceId);
+    });
+  });
+  document.querySelectorAll('#rd-runners-table .wpr-stake-input').forEach(inp => {
+    inp.addEventListener('click', e => e.stopPropagation());
+    const commit = () => {
+      const rid = inp.dataset.rid;
+      const v = parseFloat(inp.value.trim().replace('$', ''));
+      const cur = wprGetBet(rid);
+      if (cur && cur.bet) {
+        wprSetBet(rid, true, isNaN(v) ? null : v);
+      }
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    });
+  });
+
+  // Manual result inputs - save the entered finishing position. Stops
+  // click propagation so typing a result does not expand the row.
+  document.querySelectorAll('#rd-runners-table .wpr-result-input').forEach(inp => {
+    inp.addEventListener('click', e => e.stopPropagation());
+    const commit = () => {
+      setManualResult(inp.dataset.rid, inp.value.trim());
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    });
+  });
+
+  // Scratch button: toggle the manual scratch and re-render the race.
+  // stopPropagation so the row-click expand does not also fire.
+  document.querySelectorAll('#rd-runners-table .wpr-scr-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const rid = btn.dataset.rid;
+      if (!rid) return;
+      toggleManualScratch(rid);
+      // Re-render the race detail so wprPrice, ranks, badges etc all
+      // reflect the new scratch state. Also keep the Summary tab fresh
+      // for the next time the user switches tabs.
+      renderRaceDetail(race.race_id);
+      if (typeof renderWprSummary === 'function') renderWprSummary();
+    });
+  });
+
+  // Per-race "Clear scratches" - only present if any scratches active.
+  const _clearBtn = document.getElementById('wpr-scr-clear');
+  if (_clearBtn) {
+    _clearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const n = clearManualScratchesForRace(runners);
+      if (n > 0) {
+        renderRaceDetail(race.race_id);
+        if (typeof renderWprSummary === 'function') renderWprSummary();
+      }
+    });
+  }
 
   // Row-click expand: clicking a row inserts a detail panel below it.
   // Collapse other expanded rows first (only one open at a time).
@@ -8063,7 +9643,8 @@ function renderRaceDetail(raceId) {
       detailTr.className = 'race-detail-row';
       detailTr.dataset.forRid = String(rid);
       detailTr.innerHTML = '<td colspan="' + colCount + '">' +
-        buildRaceRunnerDetailHTML(u, race, { mid: midRanks, total: totalRanks }) +
+        buildRaceRunnerDetailHTML(u, race,
+          { mid: midRanks, total: totalRanks, paceLabel: paceLabel }) +
       '</td>';
       tr.parentNode.insertBefore(detailTr, tr.nextSibling);
     });
@@ -8397,21 +9978,13 @@ function goingCategoryStr(g) {
 }
 
 function wireContextOverride(race) {
-  const inp = document.getElementById('ctx-override-input');
-  if (inp) {
-    let dt = null;
-    inp.addEventListener('input', e => {
-      clearTimeout(dt);
-      dt = setTimeout(() => {
-        setRaceTrackRating(race, e.target.value.trim());
-        renderRaceDetail(race.race_id);
-      }, 600);
-    });
-  }
-  const clearBtn = document.getElementById('ctx-override-clear');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      setRaceTrackRating(race, null);
+  // Going override is now a <select>. Choosing a rating sets the override;
+  // choosing "(official)" (empty value) clears it. No separate clear button.
+  const sel = document.getElementById('ctx-override-input');
+  if (sel) {
+    sel.addEventListener('change', e => {
+      const v = e.target.value.trim();
+      setRaceTrackRating(race, v === '' ? null : v);
       renderRaceDetail(race.race_id);
     });
   }
@@ -9548,28 +11121,12 @@ function wirePnLControls() {
   // Export CSV
   const exportBtn = document.getElementById('bh-export');
   if (exportBtn) exportBtn.addEventListener('click', exportSettledCSV);
-  // Goto today link delegation (handled at body since detail rendered later)
+  // 'goto-today' action neutered (WPR-only refactor Stage 4c). The Today
+  // tab it jumped to was removed. The trigger links are dead UI swept in
+  // Stage 4f; this no-op keeps any stray click from breaking the page.
   document.body.addEventListener('click', (ev) => {
     if (ev.target.dataset && ev.target.dataset.action === 'goto-today') {
       ev.preventDefault();
-      // Switch to Today tab
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      const todayTab = document.querySelector('.tab[data-tab="today"]');
-      const todaySec = document.getElementById('sec-today');
-      if (todayTab) todayTab.classList.add('active');
-      if (todaySec) todaySec.classList.add('active');
-      renderTodayList();
-      // Scroll to the runner
-      setTimeout(() => {
-        const rows = document.querySelectorAll('.pick-row');
-        rows.forEach(r => {
-          if (r.dataset.runId === ev.target.dataset.runId) {
-            r.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            r.style.animation = 'highlight 1.5s';
-          }
-        });
-      }, 100);
     }
   });
 }
@@ -9603,6 +11160,197 @@ function exportSettledCSV() {
 }
 
 
+
+// ── WPR ACCURACY tab rendering ─────────────────────────────────────────────
+// Master predicted-vs-actual view. Walks every race in RACES, collects every
+// resulted runner that has BOTH a projection (wpjp) and a settled actual WPR
+// (wpja), and reports how far the projection missed - overall, and broken
+// down by distance band, going, and track. The headline number is the mean
+// absolute miss: the model's typical error in WPR points.
+let accPeriod = '90';   // 'all' | '90' | '30'
+
+function accCollectRows() {
+  // returns [{date, venue, dist, going, horse, pred, actual, miss,
+  //           predRank, actualRank}]
+  const rows = [];
+  const now = new Date();
+  let cutoff = null;
+  if (accPeriod !== 'all') {
+    cutoff = new Date(now.getTime() - Number(accPeriod) * 86400000);
+  }
+  (typeof RACES !== 'undefined' ? RACES : []).forEach(race => {
+    const d = race.date ? new Date(race.date) : null;
+    if (cutoff && d && d < cutoff) return;
+    (race.runners || []).forEach(u => {
+      if (u.wpja == null || u.wpjp == null) return;   // need both
+      rows.push({
+        date: race.date || '',
+        venue: race.venue || '',
+        dist: race.distance || null,
+        going: race.going || '',
+        horse: u.h || '',
+        pred: u.wpjp,
+        actual: u.wpja,
+        miss: u.wpja - u.wpjp,
+        predRank: u.wpjr,
+        actualRank: u.wpjar,
+      });
+    });
+  });
+  return rows;
+}
+
+function accStats(rows) {
+  // overall stats over a row set
+  if (!rows.length) {
+    return { n: 0, mae: null, within3: 0, within6: 0, far: 0, bias: null };
+  }
+  let absSum = 0, signSum = 0, w3 = 0, w6 = 0, far = 0;
+  rows.forEach(r => {
+    const a = Math.abs(r.miss);
+    absSum += a; signSum += r.miss;
+    if (a < 3) w3++; else if (a < 6) w6++; else if (a < 8) {} 
+    if (a >= 8) far++;
+  });
+  return {
+    n: rows.length,
+    mae: absSum / rows.length,
+    bias: signSum / rows.length,
+    within3: w3 / rows.length * 100,
+    within6: (w3 + w6) / rows.length * 100,   // cumulative: within 6
+    far: far / rows.length * 100,
+  };
+}
+
+function accBreakdown(rows, keyFn, label) {
+  // group rows by keyFn, return sorted [{group, n, mae, bias}]
+  const groups = {};
+  rows.forEach(r => {
+    const k = keyFn(r);
+    if (k == null || k === '') return;
+    (groups[k] = groups[k] || []).push(r);
+  });
+  const out = Object.keys(groups).map(k => {
+    const s = accStats(groups[k]);
+    return { group: k, n: s.n, mae: s.mae, bias: s.bias };
+  });
+  // only groups with a meaningful sample, worst MAE first
+  return out.filter(g => g.n >= 10).sort((a, b) => b.mae - a.mae);
+}
+
+function accDistBand(dist) {
+  if (dist == null) return null;
+  if (dist < 1200) return 'Sprint (<1200m)';
+  if (dist < 1600) return 'Mile (1200-1599m)';
+  if (dist < 2000) return 'Middle (1600-1999m)';
+  return 'Staying (2000m+)';
+}
+
+function renderWprAccuracy() {
+  const rows = accCollectRows();
+  const s = accStats(rows);
+
+  // ── headline ──
+  const hEl = document.getElementById('acc-headline');
+  if (!s.n) {
+    hEl.innerHTML = '<div class="acc-empty">No resulted runners with ' +
+      'both a projection and a settled actual WPR in this period. ' +
+      'Actual WPR settles ~5 days after a race.</div>';
+    document.getElementById('acc-breakdowns').innerHTML = '';
+    document.querySelector('#acc-table thead').innerHTML = '';
+    document.querySelector('#acc-table tbody').innerHTML = '';
+    return;
+  }
+  const biasTxt = (s.bias > 0 ? '+' : '') + s.bias.toFixed(2);
+  const biasWord = Math.abs(s.bias) < 0.5 ? 'no consistent direction'
+    : (s.bias > 0 ? 'projections run slightly LOW on average'
+                  : 'projections run slightly HIGH on average');
+  hEl.innerHTML =
+    '<div class="acc-stat acc-stat-main">' +
+      '<div class="acc-stat-num">' + s.mae.toFixed(1) + '</div>' +
+      '<div class="acc-stat-lbl">mean absolute miss (WPR pts)</div>' +
+    '</div>' +
+    '<div class="acc-stat">' +
+      '<div class="acc-stat-num">' + s.within3.toFixed(0) + '%</div>' +
+      '<div class="acc-stat-lbl">within 3 WPR</div></div>' +
+    '<div class="acc-stat">' +
+      '<div class="acc-stat-num">' + s.within6.toFixed(0) + '%</div>' +
+      '<div class="acc-stat-lbl">within 6 WPR</div></div>' +
+    '<div class="acc-stat">' +
+      '<div class="acc-stat-num">' + s.far.toFixed(0) + '%</div>' +
+      '<div class="acc-stat-lbl">8+ WPR off</div></div>' +
+    '<div class="acc-stat">' +
+      '<div class="acc-stat-num">' + biasTxt + '</div>' +
+      '<div class="acc-stat-lbl">mean miss (' + biasWord + ')</div></div>' +
+    '<div class="acc-stat acc-stat-n">' +
+      '<div class="acc-stat-num">' + s.n + '</div>' +
+      '<div class="acc-stat-lbl">resulted runners</div></div>';
+
+  // ── breakdowns ──
+  function bdTable(title, list) {
+    if (!list.length) return '';
+    let h = '<div class="acc-bd"><div class="acc-bd-title">' + title +
+      '</div><table class="acc-bd-table"><thead><tr>' +
+      '<th>' + title + '</th><th>n</th><th>mean miss</th>' +
+      '<th>mean abs miss</th></tr></thead><tbody>';
+    list.forEach(g => {
+      let cls = 'acc-mae-close';
+      if (g.mae >= 8) cls = 'acc-mae-far';
+      else if (g.mae >= 6) cls = 'acc-mae-mid';
+      h += '<tr><td>' + escapeHtml(String(g.group)) + '</td>' +
+        '<td>' + g.n + '</td>' +
+        '<td>' + (g.bias > 0 ? '+' : '') + g.bias.toFixed(1) + '</td>' +
+        '<td class="' + cls + '">' + g.mae.toFixed(1) + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  document.getElementById('acc-breakdowns').innerHTML =
+    bdTable('Distance', accBreakdown(rows, r => accDistBand(r.dist))) +
+    bdTable('Going', accBreakdown(rows, r => r.going)) +
+    bdTable('Track', accBreakdown(rows, r => r.venue));
+
+  // ── full table (newest first, capped for render sanity) ──
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const capped = rows.slice(0, 1000);
+  document.querySelector('#acc-table thead').innerHTML =
+    '<tr><th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
+    '<th>Horse</th><th>Pred</th><th>Actual</th><th>Miss</th>' +
+    '<th>Pred rank</th><th>Actual rank</th></tr>';
+  let body = '';
+  capped.forEach(r => {
+    const a = Math.abs(r.miss);
+    let mc = 'wpr-miss-close';
+    if (a >= 8) mc = 'wpr-miss-far'; else if (a >= 4) mc = 'wpr-miss-mid';
+    body += '<tr><td>' + escapeHtml(r.date) + '</td>' +
+      '<td>' + escapeHtml(r.venue) + '</td>' +
+      '<td>' + (r.dist || '') + '</td>' +
+      '<td>' + escapeHtml(r.going) + '</td>' +
+      '<td>' + escapeHtml(r.horse) + '</td>' +
+      '<td>' + r.pred.toFixed(1) + '</td>' +
+      '<td>' + r.actual.toFixed(1) + '</td>' +
+      '<td class="' + mc + '">' + (r.miss > 0 ? '+' : '') +
+        r.miss.toFixed(1) + '</td>' +
+      '<td>' + (r.predRank != null ? r.predRank : '-') + '</td>' +
+      '<td>' + (r.actualRank != null ? r.actualRank : '-') + '</td></tr>';
+  });
+  document.querySelector('#acc-table tbody').innerHTML = body;
+  if (rows.length > capped.length) {
+    document.querySelector('#acc-table tbody').innerHTML +=
+      '<tr><td colspan="10" class="acc-table-more">Showing newest ' +
+      capped.length + ' of ' + rows.length + ' runners.</td></tr>';
+  }
+}
+
+// period buttons
+document.querySelectorAll('.acc-period-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.acc-period-btn').forEach(
+      x => x.classList.remove('active'));
+    b.classList.add('active');
+    accPeriod = b.dataset.period;
+    renderWprAccuracy();
+  });
+});
 
 // ── TRACKING tab rendering ─────────────────────────────────────────────────
 // Three sections:
