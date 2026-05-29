@@ -14879,6 +14879,13 @@ function relativeTime(iso) {
   return d + 'd ago';
 }
 
+// Flag set by the freshness probe (declared higher up in source so the
+// updateRelativeTimes function below can safely read it - a `let` declared
+// AFTER the first call to updateRelativeTimes throws a TDZ ReferenceError
+// even via `typeof`, which would abort the rest of the script and break
+// every downstream initialiser (sync buttons, etc.).
+let _newBuildAvailable = false;
+
 function updateRelativeTimes() {
   const rel = relativeTime(RUN_ISO);
   const headerRel = document.getElementById('header-run-rel');
@@ -14889,7 +14896,7 @@ function updateRelativeTimes() {
   // If a new build has been detected, override the display to make the
   // affordance unmissable. The stamp itself is wired to reload on click
   // (see wireFreshnessStampClick).
-  if (typeof _newBuildAvailable !== 'undefined' && _newBuildAvailable) {
+  if (_newBuildAvailable) {
     if (headerRel) headerRel.textContent = 'New data - tap to refresh';
     if (settingsRel) settingsRel.textContent = rel + ' (newer available)';
     if (dot) dot.className = 'freshness-dot aging';
@@ -14923,7 +14930,6 @@ setInterval(updateRelativeTimes, 60000);
 // build is detected, set a sticky flag that the header freshness stamp
 // surfaces as "new data - tap to refresh". The page never reloads on its
 // own - user always controls when state is dropped.
-let _newBuildAvailable = false;
 
 (function setupFreshnessCheck() {
   if (typeof RUN_ISO === 'undefined' || !RUN_ISO) return;
