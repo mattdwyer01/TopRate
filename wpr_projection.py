@@ -746,6 +746,14 @@ def project_race(runners, race_date):
 
     X = _feature_frame(feat_dicts)
     proj = _PROJ.predict(X)
+    # Calibration offset: a uniform additive shift, data-derived at train time
+    # and stored in config (calib_offset). It recenters the projection onto the
+    # current WPR scale, correcting the model's measured low bias. Because it is
+    # uniform it does NOT change the WPR ranking, and the price softmax is
+    # shift-invariant, so the fair price is unchanged too - only the displayed
+    # projected WPR (and the recent-form gap in the explanation) move. Default
+    # 0.0 so a config without the key is a no-op.
+    proj = proj + float(_CFG.get("calib_offset", 0.0))
     pred_err = _CONF.predict(X[CONF_FEATURES])
     clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
     conf = np.clip(100 * (1 - (pred_err - clo) / (chi - clo)), 0, 100)
@@ -1102,12 +1110,26 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv",
     if corr > -0.1:
         print("  WARNING: confidence no longer tracks error - investigate.")
 
+    # Calibration offset: the model carries a measurable low bias (the wpr
+    # target drifts up over time, so a model fit on older runs reads low). The
+    # offset is the median held-out residual; adding it minimises absolute miss
+    # and recenters the typical projection. Uniform, so ranking/price are
+    # untouched (see project_race). Re-measured every retrain so it self-tracks
+    # the drift.
+    _resid = te["target"].values - proj.predict(te[FEATURES])
+    calib_offset = float(np.median(_resid))
+    mae_after = float(np.abs(_resid - calib_offset).mean())
+    print(f"  held-out bias: mean {_resid.mean():+.2f}, median {np.median(_resid):+.2f}")
+    print(f"  calibration offset (median residual): {calib_offset:+.2f}")
+    print(f"  held-out MAE after offset: {mae_after:.3f} (was {mae:.3f})")
+
     Path(out_dir).mkdir(exist_ok=True)
     joblib.dump(proj, Path(out_dir) / "projection.joblib")
     joblib.dump(em, Path(out_dir) / "confidence.joblib")
     json.dump({"features": FEATURES, "conf_features": CONF_FEATURES,
                "medians": med.to_dict(), "conf_lo": float(clo),
-               "conf_hi": float(chi), "beta": 0.4, "min_runs": _MIN_RUNS},
+               "conf_hi": float(chi), "beta": 0.4, "min_runs": _MIN_RUNS,
+               "calib_offset": calib_offset},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
