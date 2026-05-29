@@ -3424,6 +3424,28 @@ body {
   padding: 5px 8px; font-size: 13px; border: 1px solid var(--line);
   border-radius: 5px; background: var(--bg); color: var(--ink);
 }
+/* Multi-select pill toggles. Each pill is a button; clicking adds/removes
+   it from the active set. Empty set = no filter. Inactive pills are quiet;
+   active pills are filled with the accent colour so the active set reads
+   at a glance. Pills wrap onto multiple lines when needed (Venue can have
+   many). */
+.wpr-filter-multi { min-width: 0; }
+.wpr-pills {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  padding: 3px 0;
+}
+.wpr-pill {
+  font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg);
+  color: var(--ink-soft); cursor: pointer; white-space: nowrap;
+  line-height: 1.4;
+}
+.wpr-pill:hover { background: var(--line-soft); }
+.wpr-pill.active {
+  background: var(--ink); color: var(--panel);
+  border-color: var(--ink); font-weight: 600;
+}
+.wpr-pill.active:hover { background: var(--ink); }
 .wpr-filter-check { flex-direction: row; align-items: center; }
 .wpr-filter-check label {
   display: flex; align-items: center; gap: 6px;
@@ -5455,11 +5477,14 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
          rather than $0 / 0%. -->
     <div class="wpr-kpi-strip" id="wpr-kpi-strip"></div>
 
-    <!-- Filter bar (WPR-only refactor Stage 4d). Narrows both lists below. -->
+    <!-- Filter bar (WPR-only refactor Stage 4d). Narrows both lists below.
+         Multi-select filters use pill-toggle rows: tap a pill to add it to
+         the active set, tap again to remove. Empty set = no filter applied.
+         Compact, mobile-friendly, no popover. -->
     <div class="wpr-filter-bar">
-      <div class="wpr-filter">
-        <label for="wpr-f-venue">Venue</label>
-        <select id="wpr-f-venue"><option value="">All</option></select>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Venue</label>
+        <div class="wpr-pills" id="wpr-f-venue" data-multi="1"></div>
       </div>
       <div class="wpr-filter">
         <label for="wpr-f-conf">Confidence</label>
@@ -5489,34 +5514,41 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <option value="no">Not bet</option>
         </select>
       </div>
-      <div class="wpr-filter">
-        <label for="wpr-f-result">Result</label>
-        <select id="wpr-f-result">
-          <option value="">All</option>
-          <option value="won">Won</option>
-          <option value="placed">Placed (top 3)</option>
-          <option value="lost">Lost</option>
-          <option value="pending">Pending</option>
-        </select>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Result</label>
+        <div class="wpr-pills" id="wpr-f-result" data-multi="1">
+          <button class="wpr-pill" data-val="won">Won</button>
+          <button class="wpr-pill" data-val="placed">Placed (top 3)</button>
+          <button class="wpr-pill" data-val="lost">Lost</button>
+          <button class="wpr-pill" data-val="pending">Pending</button>
+        </div>
       </div>
-      <div class="wpr-filter">
-        <label for="wpr-f-jky">Jockey rating</label>
-        <select id="wpr-f-jky">
-          <option value="">All</option>
-          <option value="green">85+ (green)</option>
-          <option value="grey">80-84 (grey)</option>
-          <option value="amber">75-79 (amber)</option>
-          <option value="red">&lt;75 (red)</option>
-        </select>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Going</label>
+        <div class="wpr-pills" id="wpr-f-going" data-multi="1">
+          <button class="wpr-pill" data-val="firm">Firm</button>
+          <button class="wpr-pill" data-val="good">Good</button>
+          <button class="wpr-pill" data-val="soft">Soft</button>
+          <button class="wpr-pill" data-val="heavy">Heavy</button>
+          <button class="wpr-pill" data-val="synthetic">Synthetic</button>
+        </div>
       </div>
-      <div class="wpr-filter">
-        <label for="wpr-f-field">Field size</label>
-        <select id="wpr-f-field">
-          <option value="">All</option>
-          <option value="small">Small (≤7)</option>
-          <option value="mid">Mid (8-12)</option>
-          <option value="large">Large (13+)</option>
-        </select>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Jockey rating</label>
+        <div class="wpr-pills" id="wpr-f-jky" data-multi="1">
+          <button class="wpr-pill" data-val="green">85+</button>
+          <button class="wpr-pill" data-val="grey">80-84</button>
+          <button class="wpr-pill" data-val="amber">75-79</button>
+          <button class="wpr-pill" data-val="red">&lt;75</button>
+        </div>
+      </div>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Field size</label>
+        <div class="wpr-pills" id="wpr-f-field" data-multi="1">
+          <button class="wpr-pill" data-val="small">Small (≤7)</button>
+          <button class="wpr-pill" data-val="mid">Mid (8-12)</button>
+          <button class="wpr-pill" data-val="large">Large (13+)</button>
+        </div>
       </div>
       <div class="wpr-filter wpr-filter-price">
         <label>Fixed price
@@ -5660,7 +5692,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <span style="color:var(--ink-mute);">→</span>
         <input type="date" id="pnl-date-to" />
       </div>
-      <div class="pnl-view-toggle" role="group" aria-label="View mode">
+      <div class="pnl-view-toggle" role="group" aria-label="View mode" style="display:none">
         <span class="pnl-view-label">View:</span>
         <button class="pnl-view-btn active" data-view="actual"
                 title="Actual: P&L based on bets you actually placed and the odds you took. Reflects your real bankroll change.">Actual</button>
@@ -5695,9 +5727,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- Settled bets section -->
     <div class="bet-history">
       <div class="bh-header">
-        <h3>Settled bets &middot; <span id="bh-count">0</span></h3>
+        <h3>Placed bets &middot; <span id="bh-count">0</span></h3>
         <div class="bh-controls">
-          <label class="bh-filter-toggle">
+          <label class="bh-filter-toggle" style="display:none">
             <input type="checkbox" id="bh-filter-only-bet" />
             <span>Only bets I placed</span>
           </label>
@@ -6666,10 +6698,23 @@ setInterval(function () {
   const rerender = () => {
     if (typeof renderWprSummary === 'function') renderWprSummary();
   };
-  ['wpr-f-venue', 'wpr-f-conf', 'wpr-f-overlay', 'wpr-f-bet',
-   'wpr-f-result', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
+  // Single-select dropdowns - change event triggers rerender.
+  ['wpr-f-conf', 'wpr-f-overlay', 'wpr-f-bet'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', rerender);
+  });
+  // Multi-select pill containers. Delegated click: toggle .active on the
+  // clicked pill, then rerender. Reading the active set is done by the
+  // render function via getActivePills() below.
+  ['wpr-f-venue', 'wpr-f-result', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
+    const host = document.getElementById(id);
+    if (!host) return;
+    host.addEventListener('click', (e) => {
+      const pill = e.target.closest('.wpr-pill');
+      if (!pill || !host.contains(pill)) return;
+      pill.classList.toggle('active');
+      rerender();
+    });
   });
   // Price-range sliders re-render on every drag for live feedback.
   ['wpr-f-price-min', 'wpr-f-price-max'].forEach(id => {
@@ -6680,24 +6725,22 @@ setInterval(function () {
   if (unr) unr.addEventListener('change', rerender);
   const fReset = document.getElementById('wpr-f-reset');
   if (fReset) fReset.addEventListener('click', () => {
-    const v = document.getElementById('wpr-f-venue');
+    // Single-selects back to default.
     const c = document.getElementById('wpr-f-conf');
     const o = document.getElementById('wpr-f-overlay');
     const bt = document.getElementById('wpr-f-bet');
-    const re = document.getElementById('wpr-f-result');
     const pmn = document.getElementById('wpr-f-price-min');
     const pmx = document.getElementById('wpr-f-price-max');
-    if (v) v.value = '';
     if (c) c.value = '';
     if (o) o.value = '0';
     if (bt) bt.value = '';
-    if (re) re.value = '';
-    const jk = document.getElementById('wpr-f-jky');
-    const fs = document.getElementById('wpr-f-field');
-    if (jk) jk.value = '';
-    if (fs) fs.value = '';
     if (pmn) pmn.value = '1';
     if (pmx) pmx.value = '100';
+    // Multi-select pill containers - clear all active pills.
+    ['wpr-f-venue', 'wpr-f-result', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
+      const host = document.getElementById(id);
+      if (host) host.querySelectorAll('.wpr-pill.active').forEach(p => p.classList.remove('active'));
+    });
     // Default to ranked-runners-only ON (user preference).
     if (unr) unr.checked = true;
     // Restore the two list sliders to their defaults (4 / 2) and sync labels.
@@ -8492,30 +8535,52 @@ function renderWprSummary() {
   // ── Populate the venue filter dropdown for the SELECTED date ──
   // Repopulated each render now that the date can change - venues for
   // today differ from venues for yesterday. The user's current pick is
-  // preserved if still present, else cleared to All.
-  const venueSel = document.getElementById('wpr-f-venue');
-  if (venueSel) {
-    const currentPick = venueSel.value;
+  // Venue filter: dynamic pill list. Build/update pill buttons from the
+  // races we have for this date. Existing active pills are preserved across
+  // re-renders so the user's selection survives. Pills with values that
+  // are no longer present (e.g. all races scratched) are removed.
+  const venueHost = document.getElementById('wpr-f-venue');
+  if (venueHost) {
     const venues = [...new Set(races.map(r => r.venue).filter(Boolean))].sort();
-    venueSel.innerHTML = '<option value="">All</option>';
+    // Map existing pills by their data-val so we can preserve active state.
+    const existing = new Map();
+    venueHost.querySelectorAll('.wpr-pill').forEach(p => existing.set(p.dataset.val, p));
+    // Build a fresh pill row, reusing the existing pill if we have one for
+    // that venue (preserves active state and avoids DOM churn).
+    venueHost.innerHTML = '';
     venues.forEach(v => {
-      const o = document.createElement('option');
-      o.value = v; o.textContent = v;
-      venueSel.appendChild(o);
+      if (existing.has(v)) {
+        venueHost.appendChild(existing.get(v));
+      } else {
+        const b = document.createElement('button');
+        b.className = 'wpr-pill';
+        b.dataset.val = v;
+        b.textContent = v;
+        venueHost.appendChild(b);
+      }
     });
-    if (currentPick && venues.indexOf(currentPick) !== -1) {
-      venueSel.value = currentPick;
-    }
   }
 
   // ── Read filter state ───────────────────────────────────────────────────
-  const fVenue   = venueSel ? venueSel.value : '';
+  // Multi-select reads: each returns a Set of active values. Empty set
+  // means "no filter applied" - all rows pass.
+  function getActivePills(id) {
+    const host = document.getElementById(id);
+    if (!host) return new Set();
+    const out = new Set();
+    host.querySelectorAll('.wpr-pill.active').forEach(p => {
+      if (p.dataset && p.dataset.val) out.add(p.dataset.val);
+    });
+    return out;
+  }
+  const fVenue   = getActivePills('wpr-f-venue');
+  const fResult  = getActivePills('wpr-f-result');
+  const fGoing   = getActivePills('wpr-f-going');
+  const fJky     = getActivePills('wpr-f-jky');
+  const fField   = getActivePills('wpr-f-field');
   const fConf    = (document.getElementById('wpr-f-conf') || {}).value || '';
   const fOverlay = parseInt((document.getElementById('wpr-f-overlay') || {}).value || '0', 10);
   const fBet     = (document.getElementById('wpr-f-bet') || {}).value || '';
-  const fResult  = (document.getElementById('wpr-f-result') || {}).value || '';
-  const fJky     = (document.getElementById('wpr-f-jky') || {}).value || '';
-  const fField   = (document.getElementById('wpr-f-field') || {}).value || '';
   const fRanked  = !!(document.getElementById('wpr-f-ranked') || {}).checked;
   // Price-range sliders. Min is 1-100, max is 1-100 (100 = "$100+").
   // Auto-swap if user has dragged min above max so the read is sensible.
@@ -8534,6 +8599,7 @@ function renderWprSummary() {
   const priceMaxCap = (fPriceMax >= 100) ? Infinity : fPriceMax;
 
   // Confidence band check: 'high' 80+, 'mod' 60-79, 'low' under 60.
+  // (Confidence stays a single-select dropdown, not a pill.)
   function confPasses(conf) {
     if (!fConf) return true;
     if (conf == null) return false;
@@ -8542,37 +8608,55 @@ function renderWprSummary() {
     if (fConf === 'low')  return conf < 60;
     return true;
   }
-  // Result filter check: uses official finish (u.f) and whether race
-  // has resulted at all. Pending = race not yet resulted for this horse.
+  // Result filter check: multi-select. Empty set passes everything.
+  // 'pending' = no real or manual finish. The manual FP store is
+  // treated as a placeholder finish for partition purposes.
   function resultPasses(u) {
-    if (!fResult) return true;
-    const hasResult = (u && u.f != null);
-    if (fResult === 'pending') return !hasResult;
+    if (fResult.size === 0) return true;
+    const realF = (u && u.f != null) ? u.f : null;
+    const manF = (typeof getManualFp === 'function' && u) ? getManualFp(u.rid) : null;
+    const eff = realF != null ? realF : manF;
+    const hasResult = eff != null;
+    if (fResult.has('pending') && !hasResult) return true;
     if (!hasResult) return false;
-    if (fResult === 'won')    return u.f === 1;
-    if (fResult === 'placed') return u.f >= 1 && u.f <= 3;
-    if (fResult === 'lost')   return u.f > 3;
-    return true;
+    if (fResult.has('won')    && eff === 1) return true;
+    if (fResult.has('placed') && eff >= 1 && eff <= 3) return true;
+    if (fResult.has('lost')   && (eff > 3)) return true;  // UPL sentinel 99 counts as lost
+    return false;
   }
-  // Jockey rating band: green 85+, grey 80-84, amber 75-79, red <75.
+  // Going filter check: multi-select. Race-level. Matches the leading
+  // word of race.going (e.g. "Good 3" -> "good"). Synthetic tracks are
+  // sometimes tagged as "Synthetic" or "Polytrack" - both treated as synth.
+  function goingPasses(race) {
+    if (fGoing.size === 0) return true;
+    const g = String((race && race.going) || '').toLowerCase().trim();
+    if (!g) return false;
+    if (fGoing.has('firm')      && g.startsWith('firm')) return true;
+    if (fGoing.has('good')      && g.startsWith('good')) return true;
+    if (fGoing.has('soft')      && g.startsWith('soft')) return true;
+    if (fGoing.has('heavy')     && g.startsWith('heavy')) return true;
+    if (fGoing.has('synthetic') && (g.startsWith('synth') || g.startsWith('poly'))) return true;
+    return false;
+  }
+  // Jockey rating band: multi-select.
   function jkyPasses(u) {
-    if (!fJky) return true;
+    if (fJky.size === 0) return true;
     if (!u || u.jrt == null) return false;
-    if (fJky === 'green') return u.jrt >= 85;
-    if (fJky === 'grey')  return u.jrt >= 80 && u.jrt < 85;
-    if (fJky === 'amber') return u.jrt >= 75 && u.jrt < 80;
-    if (fJky === 'red')   return u.jrt < 75;
-    return true;
+    if (fJky.has('green') && u.jrt >= 85) return true;
+    if (fJky.has('grey')  && u.jrt >= 80 && u.jrt < 85) return true;
+    if (fJky.has('amber') && u.jrt >= 75 && u.jrt < 80) return true;
+    if (fJky.has('red')   && u.jrt < 75) return true;
+    return false;
   }
-  // Field size band: small ≤7, mid 8-12, large 13+. fs lives on the race.
+  // Field size band: multi-select.
   function fieldPasses(race) {
-    if (!fField) return true;
+    if (fField.size === 0) return true;
     const n = (race && race.fs) || (race && race.runners ? race.runners.length : null);
     if (n == null) return false;
-    if (fField === 'small') return n <= 7;
-    if (fField === 'mid')   return n >= 8 && n <= 12;
-    if (fField === 'large') return n >= 13;
-    return true;
+    if (fField.has('small') && n <= 7) return true;
+    if (fField.has('mid')   && n >= 8 && n <= 12) return true;
+    if (fField.has('large') && n >= 13) return true;
+    return false;
   }
   // Price filter check: runner's fixed price within [min, maxCap].
   function pricePasses(u) {
@@ -8663,7 +8747,8 @@ function renderWprSummary() {
   }
   // does a race pass the venue / ranked-only filters?
   function racePassesFilter(race) {
-    if (fVenue && race.venue !== fVenue) return false;
+    // Venue is now a multi-select Set. Empty set = no venue filter.
+    if (fVenue.size > 0 && !fVenue.has(race.venue)) return false;
     // "ranked runners only" - exclude races that have any unranked runner
     if (fRanked && unrankedCount(race) > 0) return false;
     return true;
@@ -8775,6 +8860,7 @@ function renderWprSummary() {
     races.forEach(race => {
       if (!racePassesFilter(race)) return;
       if (!fieldPasses(race)) return;
+      if (!goingPasses(race)) return;
       (race.runners || []).forEach(u => {
         if (!isBet(u)) return;
         if (!confPasses(u.wpjc)) return;
@@ -8882,6 +8968,7 @@ function renderWprSummary() {
   races.forEach(race => {
     if (!racePassesFilter(race)) return;
     if (!fieldPasses(race)) return;
+    if (!goingPasses(race)) return;
     const m = _wprRaceModel(race);
     if (m.order.length < 2) return;
     const topId = m.order[0];
@@ -11161,27 +11248,16 @@ function effectivePrice(s, betLogEntry) {
 }
 
 // ── PNL tab rendering ──────────────────────────────────────────────────────
+// REWRITTEN to iterate the bet log (your actual bets) instead of SETTLED
+// (model picks). Per user decision: shows ONLY bets you placed; bets we
+// can't fully look up in SETTLED are skipped (Option B). Model sub-tabs
+// removed entirely - P&L is now a single "my bets" view.
 function renderPnL() {
-  // Get settled bets within the chosen time period
   const allSettled = SETTLED || [];
-  // Filter to the active sub-tab's model. Older settled entries (pre-Edge)
-  // default to 'edge' so any wiped+resumed history flows through correctly.
-  // Note: per Edge migration plan, toprate_model_picks.csv is deleted on
-  // deploy so there should be no legacy rows to worry about.
-  const pnlActiveModel = (activeModels && activeModels.pnl) || 'edge';
-  const modelSettled = allSettled.filter(s => (s.model || 'edge') === pnlActiveModel);
+  // Build a SETTLED-by-run_id index for O(1) joins. Many lookups follow.
+  const settledByRid = new Map();
+  allSettled.forEach(s => { if (s.run_id != null) settledByRid.set(String(s.run_id), s); });
 
-  // Cross-model overlap: same horse picked by both models. Built from
-  // allSettled (every model's settled bets) and keyed on (race_id, run_id).
-  // Used to show "Also Edge"/"Also Volume" badge on P&L rows.
-  const pnlOtherModel = pnlActiveModel === 'edge' ? 'volume' : 'edge';
-  const pnlOtherModelKeys = new Set(
-    allSettled
-      .filter(s => (s.model || 'edge') === pnlOtherModel)
-      .map(s => String(s.race_id) + ':' + String(s.run_id))
-  );
-
-  // Update sub-tab badge counts to reflect settled counts per model (in current period)
   const today = new Date();
   today.setHours(0,0,0,0);
 
@@ -11209,29 +11285,48 @@ function renderPnL() {
     }
     return true;
   }
-  // Set sub-tab badges to show settled count per model within current period.
-  ['edge', 'volume'].forEach(m => {
-    const badge = document.getElementById('pnl-subtab-count-' + m);
-    if (badge) {
-      badge.textContent = allSettled
-        .filter(s => (s.model || 'edge') === m && withinPeriod(s.date))
-        .length;
-    }
+
+  // Get bet log - the new data source.
+  const log = getBetLog();
+
+  // Iterate bet log, join to SETTLED, skip bets we can't look up. We need
+  // the SETTLED entry for date/horse/finish/sp context. Bets on non-model-pick
+  // horses, or bets whose race hasn't settled yet, won't appear in SETTLED -
+  // those are skipped (per Option B). The bets themselves are read-only,
+  // results come from the joined SETTLED entry.
+  const betRids = Object.keys(log).filter(rid => log[rid] && log[rid].placed);
+  const settled = [];
+  betRids.forEach(rid => {
+    const s = settledByRid.get(String(rid));
+    if (!s) return;                       // no SETTLED context - skip
+    if (!withinPeriod(s.date)) return;    // outside selected period
+    settled.push(s);
   });
 
-  const settled = modelSettled.filter(s => withinPeriod(s.date));
+  // Hide the model sub-tab strip if it exists (we're not using sub-tabs
+  // any more). Set their badge counts to 0 just so nothing stale shows.
+  ['edge', 'volume'].forEach(m => {
+    const badge = document.getElementById('pnl-subtab-count-' + m);
+    if (badge) badge.textContent = '';
+  });
+  const subTabHost = document.getElementById('pnl-subtabs');
+  if (subTabHost) subTabHost.style.display = 'none';
 
-  // Get bet log to determine which bets the user actually placed
-  const log = getBetLog();
   function wasBetPlaced(s) {
     const e = log[String(s.run_id)];
     return !!(e && e.placed);
   }
 
-  // Determine which bets contribute to "actual" view
-  const actualBets = settled.filter(wasBetPlaced);
-  // For "theoretical" view, all settled bets contribute
-  const viewBets = pnlState.view === 'actual' ? actualBets : settled;
+  // Legacy compat shims so the existing stats/chart/row code (which still
+  // references these names) doesn't need to be rewritten in lockstep.
+  // viewBets = the bets in scope (= settled = my placed bets in period).
+  // actualBets = same (no model-pick vs actual distinction any more).
+  // pnlActiveModel kept defined so old code that interpolated it still parses;
+  // it's no longer used for filtering anything.
+  const actualBets = settled;
+  const viewBets = settled;
+  const pnlActiveModel = 'edge';     // legacy placeholder; not used for filtering
+  const pnlOtherModelKeys = new Set();   // empty - no cross-model badges in new view
 
   // ── Stats strip ──
   // Sort viewBets chronologically for streak calc (oldest first).
@@ -11334,16 +11429,14 @@ function renderPnL() {
 
   // Total model picks in period regardless of placement status. The
   // "Bets" stat value depends on view mode (Actual = bets placed; Theoretical
-  // = all model picks) but always shows both numbers in the tooltip so user
-  // can see the gap between picks and actual bets.
-  const totalAllPicks = settled.length;
+  // Bets stat: just the count of placed bets in the period. Tooltip is
+  // informational - we no longer compare to "all model picks" since this
+  // tab is now bet-driven, not model-driven.
   const totalPlaced = actualBets.length;
-  const betsTooltip = pnlState.view === 'actual'
-    ? 'Bets you placed: ' + totalPlaced + '. Total model picks in period: ' + totalAllPicks + '. Difference (' + (totalAllPicks - totalPlaced) + ') = picks you skipped.'
-    : 'All model picks in period: ' + totalAllPicks + '. Bets you actually placed: ' + totalPlaced + ' (' + (totalAllPicks > 0 ? Math.round(totalPlaced / totalAllPicks * 100) : 0) + '%).';
+  const betsTooltip = 'Bets you placed in this period. Bets on horses without a settled-results record (e.g. non-model picks before this rewrite) are skipped.';
 
   document.getElementById('pnl-stats-strip').innerHTML =
-    statBlock('Bets', sortedForStats.length, pnlState.view === 'actual' ? 'placed of ' + totalAllPicks : 'all picks', '', betsTooltip) +
+    statBlock('Bets', sortedForStats.length, totalPlaced + ' placed', '', betsTooltip) +
     statBlock('P&amp;L', profitStr, profitDollarSub, profitCls) +
     statBlock('Win rate', wrStr, '') +
     statBlock('Place rate', prStr, '') +
@@ -11381,8 +11474,7 @@ function renderPnL() {
   const cumSvg = document.getElementById('pnl-chart-cum');
   cumSvg.innerHTML = '';
   if (cumPoints.length === 0) {
-    cumSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">' +
-      (pnlState.view === 'actual' ? 'No bets placed yet in this period' : 'No settled picks in this period') + '</text>';
+    cumSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">No placed bets in this period</text>';
   } else {
     const W = 600, H = 200, pad = 30;
     // Y-axis lock: rather than auto-scaling to fit the data exactly (which
@@ -11460,19 +11552,17 @@ function renderPnL() {
     wrSvg.innerHTML = svgHtml;
   }
 
-  // ── Settled bets list (rich expandable cards) ──
+  // ── Placed bets list (rich expandable cards) ──
+  // settled[] is already filtered to placed bets (built from betLog earlier),
+  // so we just reverse for most-recent-first ordering.
   document.getElementById('bh-count').textContent = settled.length;
   const list = document.getElementById('bh-list');
   list.innerHTML = '';
 
-  // Apply "only bets I placed" filter if active
   let displaySettled = settled.slice().reverse();  // most recent first
-  if (pnlState.filterOnlyBet) {
-    displaySettled = displaySettled.filter(wasBetPlaced);
-  }
 
   if (displaySettled.length === 0) {
-    list.innerHTML = '<div class="bh-empty">No settled bets in this view.</div>';
+    list.innerHTML = '<div class="bh-empty">No placed bets in this period.</div>';
     return;
   }
 
@@ -11549,40 +11639,36 @@ function renderPnL() {
     // Vote count badge - shows model-rule conformance for the active sub-tab.
     //   Edge:   WPR + L600 + Speed + L400 (2 #1, 3 top-3 needed)
     //   Volume: PFAI + TR + L400          (1 #1, 2 top-3 needed)
-    const pIsEdgeTab = pnlActiveModel === 'edge';
-    const pVoteRanks = pIsEdgeTab
-      ? [s.wpr_rank, s.l600R, s.time_rank, s.l400R]
-      : [s.pfaiR, s.tr_rank, s.l400R];
-    const pVoteN = pVoteRanks.length;
+    // Generic Votes badge: count top-3 and #1 across all six signals.
+    // With model sub-tabs removed, this is just "how strong was the
+    // signal cluster on this horse" - no rule pass/fail logic.
+    const pVoteRanks = [s.wpr_rank, s.l600R, s.time_rank, s.l400R, s.pfaiR, s.tr_rank];
+    const pVoteN = pVoteRanks.filter(r2 => r2 != null).length;
     const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
     const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
-    const pVoteThreshold = pIsEdgeTab ? 2 : 1;
-    const pVoteTooltip = pIsEdgeTab
-      ? pVoteTop3 + ' of 4 Edge signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=2 #1 AND >=3 top-3.'
-      : pVoteTop3 + ' of 3 Volume signals top-3, ' + pVoteTop1 + ' rank #1. Rule: >=1 #1 AND >=2 top-3.';
+    const pVoteTooltip = pVoteTop3 + ' of ' + pVoteN + ' signals top-3, ' +
+      pVoteTop1 + ' rank #1.';
     const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
       '<span class="lbl">Votes</span>' +
       '<span class="v">' + pVoteTop3 + '/' + pVoteN + '</span>' +
-      (pVoteTop1 >= pVoteThreshold ? '<span class="vote-star">★' + pVoteTop1 + '</span>' : '') +
+      (pVoteTop1 > 0 ? '<span class="vote-star">\u2605' + pVoteTop1 + '</span>' : '') +
       '</span>';
 
-    // Cross-model badge: Volume sub-tab only (flags picks that also cleared
-    // the stricter Edge rule). Not shown on Edge tab - see Today tab note.
-    const pIsCrossPick = pnlOtherModelKeys.has(String(s.race_id) + ':' + String(s.run_id));
-    const pCrossBadgeHtml = (!pIsEdgeTab && pIsCrossPick)
-      ? '<span class="edge-flag" title="Also an Edge pick - cleared the stricter Edge rule">EDGE</span>'
-      : '';
+    // Cross-model badge removed - no model sub-tabs to be "cross" between.
+    const pCrossBadgeHtml = '';
 
     // Signal chips - unified grid (same as Today tab). All chips share
     // column alignment: voting signals + Score + Votes in one grid.
-    const votingChipsHtml = pIsEdgeTab
-      ? (sigPill('WPR',  s.wpr_rank) +
-         sigPill('L600', s.l600R) +
-         sigPill('Speed', s.time_rank) +
-         sigPill('L400', s.l400R))
-      : (sigPill('PFAI', s.pfaiR) +
-         sigPill('TR',   s.tr_rank) +
-         sigPill('L400', s.l400R));
+    // Show ALL signal chips on every bet row. With model sub-tabs gone,
+    // there's no "active model" to filter by - just show every signal we
+    // recorded so the user can see the retrospective shape of the bet.
+    const votingChipsHtml =
+      sigPill('WPR',   s.wpr_rank) +
+      sigPill('L600',  s.l600R) +
+      sigPill('Speed', s.time_rank) +
+      sigPill('L400',  s.l400R) +
+      sigPill('PFAI',  s.pfaiR) +
+      sigPill('TR',    s.tr_rank);
     const scoreChipHtml = scoreSigPill(s.crk, s.cs, s.csc);
 
     const sigsTopHtml =
