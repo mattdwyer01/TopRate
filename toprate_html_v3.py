@@ -11248,15 +11248,23 @@ function effectivePrice(s, betLogEntry) {
 }
 
 // ── PNL tab rendering ──────────────────────────────────────────────────────
-// REWRITTEN to iterate the bet log (your actual bets) instead of SETTLED
-// (model picks). Per user decision: shows ONLY bets you placed; bets we
-// can't fully look up in SETTLED are skipped (Option B). Model sub-tabs
-// removed entirely - P&L is now a single "my bets" view.
+// REWRITTEN AGAIN: model picks are gone, so the join target is RACES (which
+// holds today + recent days of race+runner data), not SETTLED (which was
+// built from the now-dead model-picks system). Each placed bet is matched
+// to a RACES runner by run_id; non-matches are skipped (bet too old for
+// the RACES window, or run_id mismatch). The synthesized 's' record has
+// the same field shape the downstream stats/chart/row code expects.
 function renderPnL() {
-  const allSettled = SETTLED || [];
-  // Build a SETTLED-by-run_id index for O(1) joins. Many lookups follow.
-  const settledByRid = new Map();
-  allSettled.forEach(s => { if (s.run_id != null) settledByRid.set(String(s.run_id), s); });
+  const allRaces = (typeof RACES !== 'undefined' ? RACES : []);
+  // Build a runner-by-rid index across every race for O(1) joins. Each
+  // entry carries the runner ref and its parent race so we can reconstruct
+  // the full bet context.
+  const runnerByRid = new Map();
+  allRaces.forEach(race => {
+    (race.runners || []).forEach(u => {
+      if (u.rid != null) runnerByRid.set(String(u.rid), { race: race, u: u });
+    });
+  });
 
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -11286,25 +11294,73 @@ function renderPnL() {
     return true;
   }
 
-  // Get bet log - the new data source.
+  // Get bet log - the data source for which run_ids count as placed bets.
   const log = getBetLog();
 
-  // Iterate bet log, join to SETTLED, skip bets we can't look up. We need
-  // the SETTLED entry for date/horse/finish/sp context. Bets on non-model-pick
-  // horses, or bets whose race hasn't settled yet, won't appear in SETTLED -
-  // those are skipped (per Option B). The bets themselves are read-only,
-  // results come from the joined SETTLED entry.
+  // Resolve each placed bet to an s-shaped record. Bets we can't find in
+  // RACES are skipped (Option B: silent skip). The s shape mirrors what
+  // the previous SETTLED entries had, so downstream code (stats, charts,
+  // row rendering) doesn't change. Rank-signal fields (wpr_rank, etc.) are
+  // null since RACES runners don't carry per-pick ranks - the signal chips
+  // on P&L rows will gracefully degrade to "—".
+  //
+  // Manual FP fallback: if a runner has no real finish u.f but the user
+  // set a manual FP on the Summary, treat that as the finish for P&L
+  // purposes (consistent with how the Summary's stake/return calc behaves).
   const betRids = Object.keys(log).filter(rid => log[rid] && log[rid].placed);
   const settled = [];
   betRids.forEach(rid => {
-    const s = settledByRid.get(String(rid));
-    if (!s) return;                       // no SETTLED context - skip
-    if (!withinPeriod(s.date)) return;    // outside selected period
-    settled.push(s);
+    const ctx = runnerByRid.get(String(rid));
+    if (!ctx) return;                            // not in RACES - skip
+    const { race, u } = ctx;
+    if (!withinPeriod(race.date)) return;        // outside period
+
+    // Effective finish: real u.f wins, else manual FP (from Summary dropdown).
+    const manF = (typeof getManualFp === 'function') ? getManualFp(u.rid) : null;
+    const effFinish = (u.f != null) ? u.f : (manF != null ? manF : null);
+    const isWin = effFinish === 1;
+
+    settled.push({
+      // Bet identity
+      run_id: u.rid,
+      race_id: race.race_id,
+      // Race context
+      date: race.date,
+      start_time: race.start_time,
+      venue: race.venue,
+      race: race.race,
+      distance: race.distance,
+      going: race.going,
+      field_size: race.fs,
+      // Runner context
+      horse: u.h,
+      tab: u.tab,
+      jockey: u.j,
+      trainer: u.tn,
+      // Prices
+      fxprice: u.fx,
+      sp: u.sp,
+      top: u.top || null,   // peak market price if recorded; null otherwise
+      // Outcome (real OR manual FP)
+      finish: effFinish,
+      won: isWin,
+      placed: effFinish != null && effFinish >= 1 && effFinish <= 3,
+      // Score signals (the WPR-based score, present on RACES runners)
+      cs:  u.cs  != null ? u.cs  : null,
+      crk: u.crk != null ? u.crk : null,
+      csc: u.csc != null ? u.csc : null,
+      // Rank signals - not in RACES, gracefully degrade to null.
+      // Signal chips will show "—" for these.
+      wpr_rank: null, tr_rank: null, time_rank: null,
+      pfaiR: null, l600R: null, l400R: null,
+      // Legacy model field - kept null so old branches don't crash.
+      model: null,
+      // Full runner ref for downstream form/silks/extra lookups
+      runner_full: u,
+    });
   });
 
-  // Hide the model sub-tab strip if it exists (we're not using sub-tabs
-  // any more). Set their badge counts to 0 just so nothing stale shows.
+  // Hide the model sub-tab strip (model sub-tabs were removed).
   ['edge', 'volume'].forEach(m => {
     const badge = document.getElementById('pnl-subtab-count-' + m);
     if (badge) badge.textContent = '';
@@ -11317,16 +11373,11 @@ function renderPnL() {
     return !!(e && e.placed);
   }
 
-  // Legacy compat shims so the existing stats/chart/row code (which still
-  // references these names) doesn't need to be rewritten in lockstep.
-  // viewBets = the bets in scope (= settled = my placed bets in period).
-  // actualBets = same (no model-pick vs actual distinction any more).
-  // pnlActiveModel kept defined so old code that interpolated it still parses;
-  // it's no longer used for filtering anything.
+  // Legacy compat shims (see prior rewrite note).
   const actualBets = settled;
   const viewBets = settled;
-  const pnlActiveModel = 'edge';     // legacy placeholder; not used for filtering
-  const pnlOtherModelKeys = new Set();   // empty - no cross-model badges in new view
+  const pnlActiveModel = 'edge';
+  const pnlOtherModelKeys = new Set();
 
   // ── Stats strip ──
   // Sort viewBets chronologically for streak calc (oldest first).
