@@ -3025,6 +3025,16 @@ body {
   font-size: 10px; text-transform: uppercase; color: var(--ink-mute);
   letter-spacing: 0.04em; white-space: nowrap; font-weight: 700;
 }
+/* Group header row (Race / Individual) spanning the two sectional triplets */
+.rd-runs-table thead th.rd-grp {
+  text-align: center; letter-spacing: 0.06em;
+}
+/* Sub-headers (Early/Mid/Late) under the group headers - tight, right-aligned
+   to line up with the numeric sectional cells below. */
+.rd-runs-table thead th.rd-sub {
+  text-align: right; padding-left: 3px; padding-right: 3px;
+  font-size: 9px;
+}
 .rd-runs-table tbody td {
   padding: 3px 6px; border-right: 1px solid var(--line-soft);
   border-bottom: 1px solid var(--line-soft);
@@ -3033,17 +3043,13 @@ body {
 .rd-runs-table tbody tr:hover td { background: var(--line-soft); }
 .rd-runs-table td.rd-run-wpr {
   font-weight: 700; text-align: right; background: rgba(16,185,129,0.06);
-  /* Position relative so the peak chip can absolutely-position into the
-     corner without pushing the row taller. Width is wide enough for the
-     WPR number; the chip floats over the cell without affecting layout. */
-  position: relative;
-  width: 48px; max-width: 60px;
+  /* peak chip renders inline before the number so it never overlaps the
+     WPR value; nowrap keeps chip + number on one line. */
+  min-width: 44px;
   white-space: nowrap;
 }
 .rd-runs-table td.rd-run-wpr .rd-run-peak {
-  position: absolute;
-  top: 2px; left: 2px;
-  margin: 0;
+  vertical-align: middle;
 }
 .rd-runs-table td.rd-num { text-align: right; }
 .rd-runs-table td.rd-pos {
@@ -3125,6 +3131,14 @@ body {
 .rd-runs-table td.rd-sect {
   text-align: right; font-weight: 600;
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  white-space: nowrap;
+  /* Tighter than the default cell padding so six sectional columns take
+     less width, leaving room for the Jockey column. */
+  padding-left: 3px; padding-right: 3px;
+}
+/* Jockey column - cap width and ellipsis long names; full name on hover. */
+.rd-runs-table td.rd-jck {
+  max-width: 96px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* Horse sectional vs race shape: form-reading signal */
@@ -7709,6 +7723,8 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '<td>' + goingChip(r.go) + '</td>' +
         '<td class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
         '<td>' + (r.cls ? escapeHtml(r.cls) : '&mdash;') + '</td>' +
+        '<td class="rd-jck" title="' + escapeHtml(r.jck || '') + '">' +
+          (r.jck ? escapeHtml(r.jck) : '&mdash;') + '</td>' +
         '<td class="rd-num">' + (r.fin != null ? r.fin : '&mdash;') + '</td>' +
         '<td class="rd-num">' + (r.mgn != null ? r.mgn.toFixed(1) : '&mdash;') + '</td>' +
         '<td class="rd-pos">' + (
@@ -7758,6 +7774,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
           (r.mgn != null ? ' · ' + r.mgn.toFixed(1) + 'L' : '') +
           ' · Bar <b>' + (r.bar != null ? r.bar : '\u2014') + '</b>' +
           (r.cls ? ' · ' + escapeHtml(r.cls) : '') +
+          (r.jck ? ' · ' + escapeHtml(r.jck) : '') +
           ' · ' + pos +
         '</div>' +
         '<div class="rdc-sect">' +
@@ -7782,7 +7799,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
     if (daysSinceLast != null) {
       bodyRows.push(
         '<tr class="rd-spell-row rd-days-row">' +
-        '<td colspan="16">' +
+        '<td colspan="17">' +
         '&mdash; ' + daysSinceLast + ' day' +
         (daysSinceLast === 1 ? '' : 's') + ' since last run &mdash;' +
         '</td></tr>');
@@ -7800,7 +7817,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
           const weeks = Math.round(gap / 7);
           bodyRows.push(
             '<tr class="rd-spell-row">' +
-            '<td colspan="16">' +
+            '<td colspan="17">' +
             '&mdash; spell &mdash; ' + weeks + ' weeks (' + gap + ' days) ' +
             'between runs &mdash;' +
             '</td></tr>');
@@ -7824,7 +7841,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         const weeks = Math.round(gapToPeak / 7);
         bodyRows.push(
           '<tr class="rd-spell-row rd-peak-gap-row">' +
-          '<td colspan="16">' +
+          '<td colspan="17">' +
           '&mdash; career peak &mdash; ' + weeks + ' weeks (' +
           gapToPeak + ' days) earlier &mdash;' +
           '</td></tr>');
@@ -7833,7 +7850,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       } else {
         bodyRows.push(
           '<tr class="rd-spell-row rd-peak-gap-row">' +
-          '<td colspan="16">' +
+          '<td colspan="17">' +
           '&mdash; career peak &mdash;' +
           '</td></tr>');
         bodyCards.push('<div class="rdc-sep rdc-sep-peak">career peak</div>');
@@ -7853,13 +7870,22 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         'sectionals on top (green where it beat the race shape, red ' +
         'where it lost) and the race shape underneath in grey.' +
         '</span></div>' +
-      '<div class="rd-table-scroll"><table class="rd-runs-table"><thead><tr>' +
-        '<th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
-        '<th>Bar</th><th>Class</th><th>Fin</th><th>Mgn</th><th>Pos</th>' +
-        '<th>E race</th><th>M race</th><th>L race</th>' +
-        '<th>E horse</th><th>M horse</th><th>L horse</th>' +
-        '<th>WPR</th>' +
-        '</tr></thead><tbody>' + rowsH + '</tbody></table></div>' +
+      '<div class="rd-table-scroll"><table class="rd-runs-table"><thead>' +
+        '<tr>' +
+          '<th rowspan="2">Date</th><th rowspan="2">Track</th>' +
+          '<th rowspan="2">Dist</th><th rowspan="2">Going</th>' +
+          '<th rowspan="2">Bar</th><th rowspan="2">Class</th>' +
+          '<th rowspan="2">Jockey</th>' +
+          '<th rowspan="2">Fin</th><th rowspan="2">Mgn</th><th rowspan="2">Pos</th>' +
+          '<th colspan="3" class="rd-grp">Race</th>' +
+          '<th colspan="3" class="rd-grp">Individual</th>' +
+          '<th rowspan="2">WPR</th>' +
+        '</tr>' +
+        '<tr>' +
+          '<th class="rd-sub">Early</th><th class="rd-sub">Mid</th><th class="rd-sub">Late</th>' +
+          '<th class="rd-sub">Early</th><th class="rd-sub">Mid</th><th class="rd-sub">Late</th>' +
+        '</tr>' +
+        '</thead><tbody>' + rowsH + '</tbody></table></div>' +
         '<div class="rd-cards">' + cardsH + '</div>' +
       '</div>';
   }

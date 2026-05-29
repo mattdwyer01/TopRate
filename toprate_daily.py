@@ -2253,6 +2253,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                         "p4": int(_r["position400m"]) if pd.notna(_r.get("position400m")) else None,
                         "cls": str(_r.get("race_class", "")) if _r.get("race_class")
                                and str(_r.get("race_class")) != "nan" else "",
+                        # Jockey name for the form-table Jockey column. Present
+                        # on rich-enriched runs; blank where form history has
+                        # no jockey captured. No per-run jockey RATING exists
+                        # in the form history (it is a current-race-only stat).
+                        "jck": (str(_r.get("jockey")).strip()
+                                if _r.get("jockey") and str(_r.get("jockey")) != "nan" else ""),
                         "pk": 1 if abs(_w - _peak_wpr) < 0.05 else 0,  # peak run flag
                     })
                 form_lookup[_hlc] = _runs
@@ -2284,6 +2290,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                         "p4": int(_pr["position400m"]) if pd.notna(_pr.get("position400m")) else None,
                         "cls": str(_pr.get("race_class", "")) if _pr.get("race_class")
                                and str(_pr.get("race_class")) != "nan" else "",
+                        "jck": (str(_pr.get("jockey")).strip()
+                                if _pr.get("jockey") and str(_pr.get("jockey")) != "nan" else ""),
                         "pk": 1,
                     }
                 _peak_run_lookup[_hlc] = _peak_run_record
