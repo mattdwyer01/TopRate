@@ -1641,7 +1641,14 @@ body {
     display: flex; align-items: center; justify-content: center;
   }
   /* Detail panel adjustments */
-  .pd-speed { grid-template-columns: repeat(2, 1fr); }
+  /* Speed/sectional cards stay 4-across on mobile (was 2x2). Tighten cell
+     padding and label/value sizes so the four pills fit on a phone width
+     without wrapping or overflowing. */
+  .pd-speed { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .pd-speed-cell { padding: 4px 6px; gap: 4px; flex-wrap: wrap; }
+  .pd-speed-cell .sp-lbl { font-size: 8px; letter-spacing: 0.03em; }
+  .pd-speed-cell .sp-val { font-size: 12px; }
+  .pd-speed-cell .sp-rk { font-size: 8px; }
   .pd-context {
     grid-template-columns: 1fr 1fr;
     gap: 10px 14px;
@@ -3190,29 +3197,18 @@ body {
 /* Horse sectional vs race shape: form-reading signal */
 .rd-sect-against { background: rgba(16,185,129,0.13); color: #047857; }
 .rd-sect-with { background: rgba(220,38,38,0.11); color: #b91c1c; }
-/* Race-shape sub-row beneath each horse row. Compact, grey,
-   read-as-reference. Smaller font and zero top padding so the pair
-   reads as one tight unit; the secondary information stays present
-   without dominating vertical space. */
-.rd-runs-table tr.rd-run-shape > td {
-  border-top: 0; border-bottom: 1px solid var(--line-soft);
-  padding-top: 0; padding-bottom: 3px;
-  font-size: 10px; line-height: 1.1;
-}
-.rd-runs-table tr.rd-run-shape .rd-sect-race {
-  color: var(--ink-mute); font-weight: 500;
-}
-/* Tighten the horse-row bottom so the pair reads as one unit. Border
-   removed too - the bottom border now lives on the shape row. */
+/* Main run row - single flat row now (no race-shape sub-row beneath).
+   The race-shape figures are inline in dedicated cells, styled via
+   .rd-sect-race for the muted grey reference. */
 .rd-runs-table tr.rd-run-main > td {
-  padding-bottom: 1px; border-bottom: 0;
-}
-/* Rowspanned cells on the main row span both visual rows. Vertical
-   centre, and re-add the bottom border that we removed above. */
-.rd-runs-table tr.rd-run-main > td[rowspan] {
-  vertical-align: middle;
   border-bottom: 1px solid var(--line-soft);
-  padding-bottom: 3px;
+  padding-top: 4px; padding-bottom: 4px;
+  vertical-align: middle;
+}
+/* Race-shape sectional cells: muted grey reference figures next to the
+   horse's own sectionals. Same row as the horse, just visually quieter. */
+.rd-runs-table .rd-sect-race {
+  color: var(--ink-mute); font-weight: 500;
 }
 .rd-speed-stat { font-size: 13px; line-height: 1.6; }
 .rd-speed-none { color: var(--ink-mute); }
@@ -5536,8 +5532,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="wpr-filter wpr-filter-multi">
         <label>Jockey rating</label>
         <div class="wpr-pills" id="wpr-f-jky" data-multi="1">
-          <button class="wpr-pill" data-val="green">85+</button>
-          <button class="wpr-pill" data-val="grey">80-84</button>
+          <button class="wpr-pill active" data-val="green">85+</button>
+          <button class="wpr-pill active" data-val="grey">80-84</button>
           <button class="wpr-pill" data-val="amber">75-79</button>
           <button class="wpr-pill" data-val="red">&lt;75</button>
         </div>
@@ -5546,8 +5542,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <label>Field size</label>
         <div class="wpr-pills" id="wpr-f-field" data-multi="1">
           <button class="wpr-pill" data-val="small">Small (≤7)</button>
-          <button class="wpr-pill" data-val="mid">Mid (8-12)</button>
-          <button class="wpr-pill" data-val="large">Large (13+)</button>
+          <button class="wpr-pill active" data-val="mid">Mid (8-12)</button>
+          <button class="wpr-pill active" data-val="large">Large (13+)</button>
         </div>
       </div>
       <div class="wpr-filter wpr-filter-price">
@@ -6736,10 +6732,27 @@ setInterval(function () {
     if (bt) bt.value = '';
     if (pmn) pmn.value = '1';
     if (pmx) pmx.value = '100';
-    // Multi-select pill containers - clear all active pills.
+    // Multi-select pill containers - clear all active pills, then restore
+    // the sane defaults. "Reset" means "back to the default filter setup",
+    // not "remove all filters" - otherwise reset would surface every junk
+    // longshot and small-field race the user doesn't normally want to see.
     ['wpr-f-venue', 'wpr-f-result', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
       const host = document.getElementById(id);
       if (host) host.querySelectorAll('.wpr-pill.active').forEach(p => p.classList.remove('active'));
+    });
+    // Default-active pills (match the initial HTML): Jky 85+ and 80-84;
+    // Field size Mid and Large. Other filters stay empty by default.
+    const defaultActive = {
+      'wpr-f-jky':   ['green', 'grey'],
+      'wpr-f-field': ['mid', 'large'],
+    };
+    Object.keys(defaultActive).forEach(id => {
+      const host = document.getElementById(id);
+      if (!host) return;
+      defaultActive[id].forEach(v => {
+        const pill = host.querySelector('.wpr-pill[data-val="' + v + '"]');
+        if (pill) pill.classList.add('active');
+      });
     });
     // Default to ranked-runners-only ON (user preference).
     if (unr) unr.checked = true;
@@ -7786,44 +7799,37 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
     function buildRunRow(r) {
       const peakTag = r.pk
         ? '<span class="rd-run-peak" title="Career-peak WPR">peak</span>' : '';
+      // Horse-cell colour band still keyed off the difference vs race shape
+      // (against-shape = stronger than race = green). The race-shape cells
+      // are always muted grey. Six cells total: race shape E/M/L then horse
+      // E/M/L. Single flat row - no more main+sub stack.
       const earlyCls = _sectCmpCls(r.ie, r.se);
       const midCls   = _sectCmpCls(r.im, r.sm);
       const lateCls  = _sectCmpCls(r.il, r.sl);
-      // Each run is rendered as TWO table rows that read as one visual
-      // unit. The left columns (date through Pos) and the WPR cell use
-      // rowspan="2" so they merge across the pair - no awkward whitespace
-      // between the horse row and the race-shape row beneath. Only the
-      // three sectional cells (Early/Mid/Late) split into two: the horse
-      // values on top (coloured), race-shape values underneath (grey).
-      const mainRow =
-        '<tr class="rd-run-main">' +
-        '<td rowspan="2">' + escapeHtml(r.d || '') + '</td>' +
-        '<td rowspan="2">' + escapeHtml(r.trk || '') + '</td>' +
-        '<td rowspan="2" class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
-        '<td rowspan="2">' + goingChip(r.go) + '</td>' +
-        '<td rowspan="2" class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
-        '<td rowspan="2">' + (r.cls ? escapeHtml(r.cls) : '&mdash;') + '</td>' +
-        '<td rowspan="2" class="rd-num">' + (r.fin != null ? r.fin : '&mdash;') + '</td>' +
-        '<td rowspan="2" class="rd-num">' + (r.mgn != null ? r.mgn.toFixed(1) : '&mdash;') + '</td>' +
-        '<td rowspan="2" class="rd-pos">' + (
+      return '<tr class="rd-run-main">' +
+        '<td>' + escapeHtml(r.d || '') + '</td>' +
+        '<td>' + escapeHtml(r.trk || '') + '</td>' +
+        '<td class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
+        '<td>' + goingChip(r.go) + '</td>' +
+        '<td class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
+        '<td>' + (r.cls ? escapeHtml(r.cls) : '&mdash;') + '</td>' +
+        '<td class="rd-num">' + (r.fin != null ? r.fin : '&mdash;') + '</td>' +
+        '<td class="rd-num">' + (r.mgn != null ? r.mgn.toFixed(1) : '&mdash;') + '</td>' +
+        '<td class="rd-pos">' + (
           [r.psl, r.p8, r.p4, r.fin].some(x => x != null)
             ? [r.psl, r.p8, r.p4, r.fin]
                 .map(x => x != null ? x : '-').join('-')
             : '&mdash;') + '</td>' +
-        '<td class="rd-sect ' + earlyCls + '">' + _fmtSect(r.ie) + '</td>' +
-        '<td class="rd-sect ' + midCls + '">' + _fmtSect(r.im) + '</td>' +
-        '<td class="rd-sect ' + lateCls + '">' + _fmtSect(r.il) + '</td>' +
-        '<td rowspan="2" class="rd-run-wpr">' + peakTag + r.wpr.toFixed(1) + '</td>' +
-        '</tr>';
-      // Sub-row: race-shape E/M/L only. The left columns and WPR cell
-      // are absent here because the main row's cells span both rows.
-      const shapeRow =
-        '<tr class="rd-run-shape">' +
+        // Race shape (grey)
         '<td class="rd-sect rd-sect-race">' + _fmtSect(r.se) + '</td>' +
         '<td class="rd-sect rd-sect-race">' + _fmtSect(r.sm) + '</td>' +
         '<td class="rd-sect rd-sect-race">' + _fmtSect(r.sl) + '</td>' +
+        // Horse (coloured by diff vs shape)
+        '<td class="rd-sect ' + earlyCls + '">' + _fmtSect(r.ie) + '</td>' +
+        '<td class="rd-sect ' + midCls + '">' + _fmtSect(r.im) + '</td>' +
+        '<td class="rd-sect ' + lateCls + '">' + _fmtSect(r.il) + '</td>' +
+        '<td class="rd-run-wpr">' + peakTag + r.wpr.toFixed(1) + '</td>' +
         '</tr>';
-      return mainRow + shapeRow;
     }
 
     // Mobile run-card: same data as buildRunRow but laid out as a card that
@@ -7880,7 +7886,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
     if (daysSinceLast != null) {
       bodyRows.push(
         '<tr class="rd-spell-row rd-days-row">' +
-        '<td colspan="13">' +
+        '<td colspan="16">' +
         '&mdash; ' + daysSinceLast + ' day' +
         (daysSinceLast === 1 ? '' : 's') + ' since last run &mdash;' +
         '</td></tr>');
@@ -7898,7 +7904,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
           const weeks = Math.round(gap / 7);
           bodyRows.push(
             '<tr class="rd-spell-row">' +
-            '<td colspan="13">' +
+            '<td colspan="16">' +
             '&mdash; spell &mdash; ' + weeks + ' weeks (' + gap + ' days) ' +
             'between runs &mdash;' +
             '</td></tr>');
@@ -7922,7 +7928,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         const weeks = Math.round(gapToPeak / 7);
         bodyRows.push(
           '<tr class="rd-spell-row rd-peak-gap-row">' +
-          '<td colspan="13">' +
+          '<td colspan="16">' +
           '&mdash; career peak &mdash; ' + weeks + ' weeks (' +
           gapToPeak + ' days) earlier &mdash;' +
           '</td></tr>');
@@ -7931,7 +7937,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       } else {
         bodyRows.push(
           '<tr class="rd-spell-row rd-peak-gap-row">' +
-          '<td colspan="13">' +
+          '<td colspan="16">' +
           '&mdash; career peak &mdash;' +
           '</td></tr>');
         bodyCards.push('<div class="rdc-sep rdc-sep-peak">career peak</div>');
@@ -7954,7 +7960,8 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       '<div class="rd-table-scroll"><table class="rd-runs-table"><thead><tr>' +
         '<th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
         '<th>Bar</th><th>Class</th><th>Fin</th><th>Mgn</th><th>Pos</th>' +
-        '<th>Early</th><th>Mid</th><th>Late</th>' +
+        '<th>E race</th><th>M race</th><th>L race</th>' +
+        '<th>E horse</th><th>M horse</th><th>L horse</th>' +
         '<th>WPR</th>' +
         '</tr></thead><tbody>' + rowsH + '</tbody></table></div>' +
         '<div class="rd-cards">' + cardsH + '</div>' +
@@ -9069,8 +9076,7 @@ function renderWprSummary() {
         '<span class="sc-num">' +
         (r.horse.tab != null ? r.horse.tab : '?') + '</span>' +
         escapeHtml(r.horse.h || '') +
-        ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + ' ' +
-        wprJkyChip(r.horse.jrt) + '</span></div>' +
+        ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + '</span></div>' +
       (r.horse.tn ? '<div class="sc-trn">Trn ' + escapeHtml(r.horse.tn) + '</div>' : '') +
       '<div class="sc-grid">' +
         '<div class="sc-cell"><span class="lbl">' + opts.gapLabel + '</span><span class="val">' + opts.gap.toFixed(1) + '</span></div>' +
@@ -9105,7 +9111,7 @@ function renderWprSummary() {
         escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
       '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
-      '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td>' + escapeHtml(r.horse.j || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
@@ -9137,7 +9143,7 @@ function renderWprSummary() {
         escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
       '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
-      '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td>' + escapeHtml(r.horse.j || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
