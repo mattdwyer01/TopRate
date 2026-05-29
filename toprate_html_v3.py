@@ -2869,10 +2869,6 @@ body {
 .race-table .jk-chip.jk-amber { background: rgba(217,119,6,.13); color: #b45309; border-color: rgba(217,119,6,.3); }
 .race-table .jk-chip.jk-red   { background: rgba(220,38,38,.13); color: #b91c1c; border-color: rgba(220,38,38,.3); }
 .wpr-eff { font-weight: 600; }
-.wpr-orig {
-  margin-left: 5px; font-size: 11px; color: var(--ink-mute);
-  text-decoration: line-through; opacity: 0.7;
-}
 .wpr-na { color: var(--ink-mute); opacity: 0.6; }
 /* Confidence chip - green 80+, amber 60-79, red <60 */
 .wpr-chip {
@@ -3033,7 +3029,7 @@ body {
    to line up with the numeric sectional cells below. */
 .rd-runs-table thead th.rd-sub {
   text-align: right; padding-left: 3px; padding-right: 3px;
-  font-size: 9px;
+  font-size: 9px; width: 44px;
 }
 .rd-runs-table tbody td {
   padding: 3px 6px; border-right: 1px solid var(--line-soft);
@@ -3042,14 +3038,10 @@ body {
 }
 .rd-runs-table tbody tr:hover td { background: var(--line-soft); }
 .rd-runs-table td.rd-run-wpr {
-  font-weight: 700; text-align: right; background: rgba(16,185,129,0.06);
-  /* peak chip renders inline before the number so it never overlaps the
-     WPR value; nowrap keeps chip + number on one line. */
-  min-width: 44px;
+  font-weight: 700; text-align: right;
+  /* Peak chip now lives in the Track cell, so WPR only holds the number. */
+  width: 34px; padding-left: 3px; padding-right: 6px;
   white-space: nowrap;
-}
-.rd-runs-table td.rd-run-wpr .rd-run-peak {
-  vertical-align: middle;
 }
 .rd-runs-table td.rd-num { text-align: right; }
 .rd-runs-table td.rd-pos {
@@ -3132,9 +3124,8 @@ body {
   text-align: right; font-weight: 600;
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
   white-space: nowrap;
-  /* Tighter than the default cell padding so six sectional columns take
-     less width, leaving room for the Jockey column. */
-  padding-left: 3px; padding-right: 3px;
+  /* Uniform width across all six sectional columns (Race + Individual). */
+  width: 44px; padding-left: 3px; padding-right: 3px;
 }
 /* Jockey column - cap width and ellipsis long names; full name on hover. */
 .rd-runs-table td.rd-jck {
@@ -7718,7 +7709,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       const lateCls  = _sectCmpCls(r.il, r.sl);
       return '<tr class="rd-run-main">' +
         '<td>' + escapeHtml(r.d || '') + '</td>' +
-        '<td>' + escapeHtml(r.trk || '') + '</td>' +
+        '<td>' + escapeHtml(r.trk || '') + peakTag + '</td>' +
         '<td class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
         '<td>' + goingChip(r.go) + '</td>' +
         '<td class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
@@ -7740,7 +7731,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '<td class="rd-sect ' + earlyCls + '">' + _fmtSect(r.ie) + '</td>' +
         '<td class="rd-sect ' + midCls + '">' + _fmtSect(r.im) + '</td>' +
         '<td class="rd-sect ' + lateCls + '">' + _fmtSect(r.il) + '</td>' +
-        '<td class="rd-run-wpr">' + peakTag + r.wpr.toFixed(1) + '</td>' +
+        '<td class="rd-run-wpr">' + r.wpr.toFixed(1) + '</td>' +
         '</tr>';
     }
 
@@ -7764,10 +7755,10 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       return '<div class="rdc' + (r.pk ? ' rdc-peak' : '') + '">' +
         '<div class="rdc-head">' +
           '<span class="rdc-date">' + escapeHtml(r.d || '') + '</span>' +
-          '<span class="rdc-trk">' + escapeHtml(r.trk || '') + '</span>' +
+          '<span class="rdc-trk">' + escapeHtml(r.trk || '') + peakTag + '</span>' +
           '<span class="rdc-dist">' + (r.dist != null ? r.dist + 'm' : '') + '</span>' +
           goingChip(r.go) +
-          '<span class="rdc-wpr">' + peakTag + r.wpr.toFixed(1) + '</span>' +
+          '<span class="rdc-wpr">' + r.wpr.toFixed(1) + '</span>' +
         '</div>' +
         '<div class="rdc-meta">' +
           'Fin <b>' + (r.fin != null ? r.fin : '\u2014') + '</b>' +
@@ -8098,32 +8089,39 @@ function wprOverrideCount() {
 // official finish (u.f) exists it takes over - the manual entry is just a
 // pre-official placeholder, silently superseded by the official result.
 const WPR_RESULT_KEY = 'toprate_manual_results_v1';
-let _manualResults = null;
-function _loadManualResults() {
-  if (_manualResults !== null) return _manualResults;
+// Manual finishing-position store (Race tab). Unified with the Summary/P&L
+// manual-FP store (MANUAL_FP_KEY) so a finishing position entered on the
+// Race tab is seen as a SETTLED bet by Summary and P&L (and their KPIs
+// update). Previously this wrote a separate WPR_RESULT_KEY that Summary/P&L
+// never read, so Race-tab results never settled there. Legacy WPR_RESULT_KEY
+// entries are migrated into MANUAL_FP_KEY once, then the old key is removed.
+let _manualResultsMigrated = false;
+function _migrateLegacyManualResults() {
+  if (_manualResultsMigrated) return;
+  _manualResultsMigrated = true;
   try {
     const raw = localStorage.getItem(WPR_RESULT_KEY);
-    _manualResults = raw ? JSON.parse(raw) : {};
-  } catch (e) { _manualResults = {}; }
-  return _manualResults;
-}
-function _saveManualResults() {
-  try { localStorage.setItem(WPR_RESULT_KEY, JSON.stringify(_manualResults || {})); }
-  catch (e) { /* storage unavailable - session-only */ }
+    if (!raw) return;
+    const legacy = JSON.parse(raw) || {};
+    const m = _getManualFpMap();
+    let changed = false;
+    Object.keys(legacy).forEach(k => {
+      const v = legacy[k];
+      // Do not clobber a value already entered via the Summary/P&L path.
+      if (m[k] == null && typeof v === 'number' && v > 0) { m[k] = v; changed = true; }
+    });
+    if (changed) _saveManualFpMap(m);
+    localStorage.removeItem(WPR_RESULT_KEY);
+  } catch (e) { /* migration is best-effort */ }
 }
 function getManualResult(rid) {
-  const o = _loadManualResults();
-  const v = o[String(rid)];
+  _migrateLegacyManualResults();
+  const v = getManualFp(rid);
   return (typeof v === 'number' && !isNaN(v) && v > 0) ? v : null;
 }
 function setManualResult(rid, pos) {
-  _loadManualResults();
-  if (pos == null || pos === '' || isNaN(pos) || Number(pos) <= 0) {
-    delete _manualResults[String(rid)];
-  } else {
-    _manualResults[String(rid)] = Math.round(Number(pos));
-  }
-  _saveManualResults();
+  _migrateLegacyManualResults();
+  setManualFp(rid, pos);
 }
 
 // ── Manual scratch store ──────────────────────────────────────────────────
@@ -8826,13 +8824,18 @@ function renderWprSummary() {
       if (hasOdds && u.sp != null && u.sp > 1) {
         vsSpSum += (entry.oddsTaken - u.sp); vsSpCount++;
       }
-      if (u.f == null) return;   // not yet settled - counts as a bet but not in W/L
+      // Effective finish: official result if present, else the user's
+      // manually recorded finishing position. This is what makes a manually
+      // settled bet count toward the W/L/ROI headings.
+      const eff = (u.f != null) ? u.f
+        : (typeof getManualFp === 'function' ? getManualFp(u.rid) : null);
+      if (eff == null) return;   // not yet settled - counts as a bet but not in W/L
       nSettled++;
       const settlePrice = hasOdds ? entry.oddsTaken : (u.sp || u.fx);
       const dhMult = entry.deadHeat ? 0.5 : 1;
-      const placed = u.f >= 1 && u.f <= 3;
+      const placed = eff >= 1 && eff <= 3;
       if (placed) totalPlaces++;
-      if (u.f === 1) {
+      if (eff === 1) {
         totalWins++;
         const profit = stake * (settlePrice - 1) * dhMult;
         totalReturn += stake + profit; totalProfit += profit;
@@ -8919,7 +8922,9 @@ function renderWprSummary() {
       }
     }
 
-    // List 1: runners within N points of the top rating, with an overlay
+    // List 1: overlays near the top rating, PLUS any runner with a bet
+    // placed on it (placed bets always show so the user can track them even
+    // when the current fixed price is no longer an overlay - prices move).
     m.runners.forEach(u => {
       // Skip scratched runners - they should never appear in Summary
       // lists. The shared model keeps eff populated for everyone (so
@@ -8928,26 +8933,29 @@ function renderWprSummary() {
       if (m.scratched[u.rid]) return;
       const e = m.eff[u.rid];
       if (e == null) return;
-      if (topEff - e > N) return;            // not close enough to the top
+      // Explicit user filters still apply to both overlays and placed bets.
       if (!confPasses(u.wpjc)) return;
       if (!jkyPasses(u)) return;
       if (fBet === 'yes' && !isBet(u)) return;
       if (fBet === 'no' && isBet(u)) return;
       if (!resultPasses(u)) return;
       if (!pricePasses(u)) return;
+      const placed = isBet(u);
       const wp = m.price[u.rid];
-      if (wp == null || u.fx == null || u.fx <= 0) return;
-      if (u.fx > wp) {                        // fixed price longer than fair value
-        const ovPct = (u.fx / wp - 1) * 100;
-        // overlay band filter - the % column is not shown, but the
-        // overlay still drives which runners qualify for this list
-        if (fOverlay > 0 && ovPct < fOverlay) return;
-        overlays.push({
-          race: race, horse: u, eff: e,
-          gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
-          overlayPct: ovPct,
-        });
-      }
+      const hasPrice = (wp != null && u.fx != null && u.fx > 0);
+      const ovPct = hasPrice ? (u.fx / wp - 1) * 100 : null;
+      // Qualifying overlay: near the top rating, fixed price longer than
+      // fair value, and clearing the overlay-band filter.
+      const isOverlay = (topEff - e <= N) && hasPrice && u.fx > wp &&
+        (fOverlay <= 0 || ovPct >= fOverlay);
+      // A placed bet bypasses the overlay gate (and the near-top gate), so
+      // it shows regardless of whether it is currently an overlay.
+      if (!isOverlay && !placed) return;
+      overlays.push({
+        race: race, horse: u, eff: e,
+        gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
+        overlayPct: ovPct,
+      });
     });
   });
 
@@ -9915,7 +9923,6 @@ function renderRaceDetail(raceId) {
       if (manualVal != null) {
         predCell = '<td class="wpr-pred-cell">' +
           '<span class="wpr-eff">' + manualVal.toFixed(1) + '</span>' +
-          '<span class="wpr-orig" title="No model projection - your rating">0</span>' +
           zeroChip + '</td>';
       } else {
         predCell = '<td class="wpr-pred-cell">' +
@@ -9928,24 +9935,12 @@ function renderRaceDetail(raceId) {
       else if (c != null && c >= 60) chipCls = 'wpr-chip-amber';
       const chip = '<span class="wpr-chip ' + chipCls + '" title="Confidence ' +
         (c != null ? c : '?') + '/100">' + (c != null ? c : '?') + '</span>';
-      // Show the effective WPR (model + manual delta + tempo lever).
-      // Show the greyed model-original alongside ONLY when the user has
-      // set a per-horse manual delta - that is a deliberate single-horse
-      // choice worth confirming ("model 75, you made it 80"). When only
-      // the race-speed tempo lever is active it adjusts the WHOLE field
-      // at once, so a strikethrough on every row is just noise - the
-      // Race-speed control's non-Auto state is the cue there.
+      // Show the effective WPR (model + manual delta + tempo lever). The
+      // model-original is no longer shown struck-through alongside it - the
+      // Manual column already records the delta the user entered.
       const showVal = (eff != null) ? eff : u.wpjp;
-      if (manualVal != null) {
-        predCell = '<td class="wpr-pred-cell">' +
-          '<span class="wpr-eff">' + showVal.toFixed(1) + '</span>' +
-          '<span class="wpr-orig" title="Model projection before your ' +
-          'manual rating adjustment">' + u.wpjp.toFixed(1) + '</span>' +
-          chip + '</td>';
-      } else {
-        predCell = '<td class="wpr-pred-cell">' +
-          '<span class="wpr-eff">' + showVal.toFixed(1) + '</span>' + chip + '</td>';
-      }
+      predCell = '<td class="wpr-pred-cell">' +
+        '<span class="wpr-eff">' + showVal.toFixed(1) + '</span>' + chip + '</td>';
     }
 
     // Manual cell - editable for ALL horses now.
