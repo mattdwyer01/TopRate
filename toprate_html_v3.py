@@ -14886,6 +14886,69 @@ function updateRelativeTimes() {
 updateRelativeTimes();
 setInterval(updateRelativeTimes, 60000);
 
+// ── Silent auto-reload on new HTML detection ────────────────────────────────
+// The bot pushes a new toprate_live.html every ~5 min during racing hours.
+// Without a reload, this tab keeps showing stale prices forever. We probe
+// the deployed HTML's Last-Modified header every 2 min; if it's newer than
+// the build we have loaded (RUN_ISO), we silently reload.
+//
+// Reload guards: if the user is mid-input (focused on any input/select)
+// the reload is deferred to the next tick. This prevents the page from
+// nuking a typed odds value or open FP dropdown.
+(function setupFreshnessAutoReload() {
+  if (typeof RUN_ISO === 'undefined' || !RUN_ISO) return;
+  // Parse our own build timestamp once.
+  const ourBuiltAt = new Date(RUN_ISO).getTime();
+  if (isNaN(ourBuiltAt)) return;
+
+  // Probe the same HTML file we're rendering from. Relative URL keeps this
+  // working on GitHub Pages or any other static host.
+  const probeUrl = window.location.pathname.split('?')[0].split('#')[0];
+
+  function userIsMidInput() {
+    const a = document.activeElement;
+    if (!a) return false;
+    const tag = (a.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return true;
+    if (a.isContentEditable) return true;
+    return false;
+  }
+
+  async function checkForNewBuild() {
+    if (document.hidden) return;          // don't probe when tab is in background
+    try {
+      // Cache-busting query param so we don't get a 304 with a stale Date.
+      // Last-Modified should still be the file's real mtime on the server.
+      const url = probeUrl + '?fresh=' + Date.now();
+      const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+      if (!r.ok) return;
+      const lm = r.headers.get('Last-Modified');
+      if (!lm) return;
+      const serverBuiltAt = new Date(lm).getTime();
+      if (isNaN(serverBuiltAt)) return;
+      // 30-second margin so clock skew between server and client doesn't
+      // trigger phantom reloads. Real bot pushes are minutes apart.
+      if (serverBuiltAt > ourBuiltAt + 30000) {
+        if (userIsMidInput()) return;     // try again next tick
+        // Silent reload. force=true via cache:reload-ish: use replace() so
+        // back-button history doesn't pile up.
+        window.location.reload();
+      }
+    } catch (e) {
+      // Network blip or CORS - silently ignore, try next interval.
+    }
+  }
+
+  // First probe in 30s (don't compete with initial render), then every 2 min.
+  setTimeout(checkForNewBuild, 30 * 1000);
+  setInterval(checkForNewBuild, 2 * 60 * 1000);
+  // Also probe when the tab becomes visible after being hidden - common
+  // mobile / background-tab pattern where the user comes back to a stale page.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkForNewBuild();
+  });
+})();
+
 // Wire up Settings: Open Actions link
 const REPO_KEY = 'toprate_v3_repo';
 let activeRepo = GITHUB_REPO;
