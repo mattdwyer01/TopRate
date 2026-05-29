@@ -116,33 +116,78 @@ def _auth_bits():
 # data[0] is the root index map, every value in any object/list is an
 # integer POINTER into that array. Everything must be resolved through it.
 
+# One-shot structural diagnostic. When a payload cannot be parsed we print
+# the shape of the response ONCE (not per-runner - that would be 1600+ lines
+# of noise) so a TopRate format change is immediately visible in the log.
+_DIAG_DONE = False
+
+
+def _diag_payload(payload):
+    global _DIAG_DONE
+    if _DIAG_DONE:
+        return
+    _DIAG_DONE = True
+    try:
+        nodes = payload.get("nodes")
+        print("  [diag] __data.json parse failed - dumping structure once:")
+        print(f"  [diag] top-level keys: {list(payload.keys())}")
+        if not isinstance(nodes, list):
+            print(f"  [diag] 'nodes' is not a list: {type(nodes).__name__}")
+            return
+        print(f"  [diag] node count: {len(nodes)}")
+        for i, n in enumerate(nodes):
+            if isinstance(n, dict) and isinstance(n.get("data"), list):
+                data = n["data"]
+                root = data[0] if data else None
+                keys = list(root.keys())[:40] if isinstance(root, dict) else root
+                print(f"  [diag] node[{i}] data[0] keys: {keys}")
+            elif isinstance(n, dict):
+                print(f"  [diag] node[{i}] dict keys (no data list): {list(n.keys())}")
+            else:
+                print(f"  [diag] node[{i}] type: {type(n).__name__}")
+    except Exception as e:
+        print(f"  [diag] diagnostic itself failed: {e}")
+
+
 def _parse_data_json(payload):
     """Return (runnerDetail dict, deref function), or None if malformed,
     or the string 'EMPTY' if runnerDetail is null (runner outside the
-    served window - not an error, do not retry)."""
+    served window - not an error, do not retry).
+
+    Newer SvelteKit responses can carry MORE than one data-bearing node
+    (e.g. a layout node before the page node). The runner page is not
+    necessarily the first one, so we search every data node for the one
+    whose root index map actually contains 'runnerDetail', rather than
+    taking the first data list and assuming it is the page."""
     nodes = payload.get("nodes")
-    if not nodes:
+    if not isinstance(nodes, list) or not nodes:
+        _diag_payload(payload)
         return None
-    data = None
+
     for n in nodes:
-        if isinstance(n, dict) and isinstance(n.get("data"), list):
-            data = n["data"]
-            break
-    if data is None:
-        return None
+        if not (isinstance(n, dict) and isinstance(n.get("data"), list)):
+            continue
+        data = n["data"]
+        if not data:
+            continue
+        root = data[0]
+        if not isinstance(root, dict) or "runnerDetail" not in root:
+            continue
 
-    def deref(p):
-        return data[p] if isinstance(p, int) else p
+        # Bind deref to THIS node's data array (each node has its own).
+        def deref(p, _data=data):
+            return _data[p] if isinstance(p, int) else p
 
-    root = data[0]
-    if not isinstance(root, dict) or "runnerDetail" not in root:
-        return None
-    rd = deref(root["runnerDetail"])
-    if rd is None:
-        return "EMPTY"
-    if not isinstance(rd, dict):
-        return None
-    return rd, deref
+        rd = deref(root["runnerDetail"])
+        if rd is None:
+            return "EMPTY"
+        if not isinstance(rd, dict):
+            return None
+        return rd, deref
+
+    # No node carried runnerDetail - structure changed (or key renamed).
+    _diag_payload(payload)
+    return None
 
 
 def extract_runs(payload):
@@ -284,9 +329,12 @@ def fetch_runner(run_id):
         if horse_id == "EMPTY":
             return "EMPTY", []
         if horse_id is None:
-            last_err = "could not parse runnerDetail/form"
-            time.sleep(2 * attempt)
-            continue
+            # Deterministic parse failure on a valid 200 JSON response:
+            # retrying the same page returns the same structure, so fail
+            # fast rather than burning retry sleeps across the whole field
+            # (that is what pushed the daily run toward the 15-min timeout).
+            print(f"  fetch_runner({run_id}) failed: could not parse runnerDetail/form")
+            return None, []
         return horse_id, runs
 
     print(f"  fetch_runner({run_id}) failed: {last_err}")
