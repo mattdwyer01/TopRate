@@ -396,16 +396,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                     'late_rank': pick.get('late_rank'),
                     'total_rank': pick.get('total_rank'),
                     'wpr_rank': pick.get('wpr_rank'),
-                    # NEW: time_rank used by Edge model
                     'time_rank': pick.get('time_rank'),
-                    'pfaiR':   pick.get('pf_ai_rank'),
-                    'pfaiPrc': pick.get('pf_ai_price'),
-                    'wcR':     pick.get('pf_class_rank'),
-                    'l600R':   pick.get('pf_last600_rank'),
-                    'l400R':   pick.get('pf_last400_rank'),
-                    'l200R':   pick.get('pf_last200_rank'),
-                    'rs':      pick.get('pf_run_style'),
-                    'clsChg':  pick.get('pf_class_change'),
                 })
     # Enrich with finish data and full per-runner context from races
     # Also compute Early and Total ranks per race (these may be missing from old picks CSVs)
@@ -519,16 +510,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
             'early_rank': r.get('early_rank'),
             'total_rank': r.get('total_rank'),
             'wpr_rank': r.get('wpr_rank'),
-            # time_rank used by Edge model. Backfilled above if CSV missing it.
             'time_rank': time_rank_val,
-            'pfaiR':   r.get('pf_ai_rank'),
-            'pfaiPrc': r.get('pf_ai_price'),
-            'wcR':     r.get('pf_class_rank'),
-            'l600R':   r.get('pf_last600_rank'),
-            'l400R':   r.get('pf_last400_rank'),
-            'l200R':   r.get('pf_last200_rank'),
-            'rs':      r.get('pf_run_style'),
-            'clsChg':  r.get('pf_class_change'),
             'cs':  runner_full.get('cs')  if runner_full else None,
             'crk': runner_full.get('crk') if runner_full else None,
             'csc': runner_full.get('csc') if runner_full else None,
@@ -1067,27 +1049,6 @@ body {
   background: linear-gradient(to right, currentColor 50%, transparent 50%);
 }
 .pr-sigs .sig .conf-dot.low { background: transparent; opacity: 0.5; }
-
-/* Vote count badge (V3 rule transparency).
-   Shows "Votes 5/6 ★3" = 5 of 6 signals top-3, 3 of which are #1.
-   Distinct from rank pills - never coloured by rank, always neutral. */
-.pr-sigs .sig.vote-badge {
-  background: #1f2937; color: #f9fafb;
-  border: 1px solid #111827;
-  padding: 2px 6px;
-  display: inline-flex; align-items: center; gap: 4px;
-}
-.pr-sigs .sig.vote-badge .lbl {
-  color: #9ca3af; font-size: 9px; letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.pr-sigs .sig.vote-badge .v {
-  color: #f9fafb; font-weight: 700; font-variant-numeric: tabular-nums;
-}
-.pr-sigs .sig.vote-badge .vote-star {
-  color: #fbbf24; font-size: 10px; font-weight: 700;
-  margin-left: 2px;
-}
 
 /* Edge flag - shown next to the horse name on the VOLUME sub-tab when a
    pick also cleared the stricter Edge rule. Deliberately NOT green - the
@@ -2204,22 +2165,6 @@ body {
   .race-context-bar .ctx-override-inline { display: none; }
 }
 
-/* PF data freshness indicator - shown above the runners table when this
-   meeting's Punting Form ratings are stale or absent. Hidden when PF data
-   is fresh (rated within 24h of race time). */
-.pf-freshness-bar {
-  display: none; /* shown via JS when relevant */
-  padding: 8px 20px; font-family: var(--font-body); font-size: 12px;
-  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: var(--line-soft); color: var(--ink-mute);
-}
-.pf-freshness-bar.warn  { background: #fef3c7; color: #92400e;
-  border-bottom: 1px solid #fde68a; font-weight: 500; }
-.pf-freshness-bar.error { background: #fee2e2; color: #991b1b;
-  border-bottom: 1px solid #fecaca; font-weight: 600; }
-.pf-freshness-bar .pf-label { font-weight: 700; margin-right: 6px; }
-
 /* Pace estimate badge inside header */
 .race-pace-est {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2840,21 +2785,6 @@ body {
 .score-cell.r2 .rk { background: var(--emerald-bg); color: var(--emerald-deep); }
 .score-cell.r3 .rk { background: #f0fdf4; color: var(--emerald-deep); }
 
-/* Votes cell on race table - shows N/6 voting signal hits at top-3 for each
-   horse. Colour-coded so users can spot strong candidates without reading
-   the number: 5-6 votes (the V3 threshold) = strong emerald; 4 = light;
-   <=2 = muted grey to fade non-contenders. */
-.votes-cell { white-space: nowrap; font-weight: 600; text-align: left; }
-.votes-cell .v { font-variant-numeric: tabular-nums; }
-.votes-cell .votes-star {
-  font-size: 10px; color: #fbbf24; font-weight: 700; margin-left: 3px;
-}
-.votes-cell.votes-strong {
-  background: rgba(16,185,129,0.10);
-}
-.votes-cell.votes-strong .v { color: var(--emerald-deep); font-weight: 700; }
-.votes-cell.votes-mid .v { color: var(--emerald-deep); }
-.votes-cell.votes-weak .v { color: var(--ink-faint); }
 /* Confidence dot in race-table score cell - filled = unanimous, hollow = split */
 .score-cell .conf-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 50%;
@@ -4770,8 +4700,6 @@ body {
   white-space: nowrap;
 }
 .db-table tbody tr:hover td { background: var(--line-soft); }
-.db-table tbody tr.is-pick td { background: rgba(16, 185, 129, 0.08); }
-.db-table tbody tr.is-pick:hover td { background: rgba(16, 185, 129, 0.16); }
 .db-table .horse-link {
   color: var(--ink); font-weight: 600; cursor: pointer;
   border-bottom: 1px dotted var(--ink-faint);
@@ -4780,12 +4708,6 @@ body {
 .db-table .rk-1 { color: var(--emerald-deep); font-weight: 700; }
 .db-table .rk-2, .db-table .rk-3 { color: var(--emerald); font-weight: 600; }
 .db-table td.num { text-align: right; }
-.db-table .db-pick-pill {
-  display: inline-block; font-size: 9px; font-weight: 700;
-  padding: 1px 4px; border-radius: 3px; margin-left: 4px;
-}
-.db-table .db-pick-pill.main   { background: var(--emerald); color: #fff; }
-.db-table .db-pick-pill.volume { background: #d97706; color: #fff; }
 .db-table .db-finish {
   display: inline-block; min-width: 22px;
   font-size: 11px; font-weight: 700; text-align: center;
@@ -5449,7 +5371,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-header-stats" id="rd-header-stats"></div>
         </div>
         <div class="race-context-bar" id="rd-context-bar"></div>
-        <div class="pf-freshness-bar" id="rd-pf-freshness"></div>
         <div class="race-table-wrap" id="rd-runners-table"></div>
         <div class="race-pace-map" id="rd-pace-map"></div>
         <div class="track-conditions-card" id="rd-track-conditions"></div>
@@ -6016,17 +5937,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             </select>
           </div>
           <div class="db-filter-group">
-            <label for="db-model">Model pick</label>
-            <select class="db-input" id="db-model">
-              <option value="any">Any</option>
-              <option value="edge">Edge picks</option>
-              <option value="volume">Volume picks</option>
-              <option value="any-pick">Any pick (Edge or Volume)</option>
-              <option value="both">Both Edge AND Volume</option>
-              <option value="none">Not a pick</option>
-            </select>
-          </div>
-          <div class="db-filter-group">
             <label for="db-result">Result</label>
             <select class="db-input" id="db-result">
               <option value="any">Any</option>
@@ -6059,30 +5969,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             </select>
           </div>
           <div class="db-signal-filter">
-            <label>Class</label>
-            <select class="db-input db-input-tiny" data-sigfilter="wcR">
-              <option value="any">Any</option>
-              <option value="1">≤ 1</option>
-              <option value="3">≤ 3</option>
-            </select>
-          </div>
-          <div class="db-signal-filter">
-            <label>L600</label>
-            <select class="db-input db-input-tiny" data-sigfilter="l600R">
-              <option value="any">Any</option>
-              <option value="1">≤ 1</option>
-              <option value="3">≤ 3</option>
-            </select>
-          </div>
-          <div class="db-signal-filter">
-            <label>PF AI</label>
-            <select class="db-input db-input-tiny" data-sigfilter="pfaiR">
-              <option value="any">Any</option>
-              <option value="1">≤ 1</option>
-              <option value="3">≤ 3</option>
-            </select>
-          </div>
-          <div class="db-signal-filter">
             <label>TR</label>
             <select class="db-input db-input-tiny" data-sigfilter="tr">
               <option value="any">Any</option>
@@ -6090,8 +5976,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
               <option value="3">≤ 3</option>
             </select>
           </div>
-          <button class="db-quick-btn" id="db-all-rank-1" type="button" title="Quick filter: set all 6 signals to ≤ 1">All #1</button>
-          <button class="db-quick-btn" id="db-all-top3" type="button" title="Quick filter: set all 6 signals to ≤ 3">All top-3</button>
+          <button class="db-quick-btn" id="db-all-rank-1" type="button" title="Quick filter: set all signals to ≤ 1">All #1</button>
+          <button class="db-quick-btn" id="db-all-top3" type="button" title="Quick filter: set all signals to ≤ 3">All top-3</button>
         </div>
 
         <div class="db-filter-row db-filter-actions">
@@ -7191,15 +7077,12 @@ function buildDetailHTML(p, r) {
     const sigs = r.csg || {};
     const conf = r.csc;
     const sigNames = Object.keys(sigs);
-    // Map raw signal keys to display labels. These are the 6 model-aligned
-    // score signals (union of Edge + Volume). Late/Class no longer appear.
+    // Map raw signal keys to display labels (model-native signals only;
+    // PF signals removed in the WPR-only refactor).
     const sigDisplayMap = {
       'toprate_rating':  'TR',
       'wpr_avg_last3':   'WPR',
       'speed_rating':    'Speed',
-      'pf_ai_rank':      'PF AI',
-      'pf_last600_rank': 'L600',
-      'pf_last400_rank': 'L400',
     };
     let sigRowsHtml = '';
     if (sigNames.length > 0) {
@@ -9306,35 +9189,6 @@ function renderRaceDetail(raceId) {
   const volumeIds = new Set(volumePicks.map(p => String(p.run_id)));
   const runners = race.runners || [];
 
-  // ── PF data freshness indicator ──
-  // Show a banner when PF didn't rate this meeting (no picks possible) or
-  // when only some runners have PF data (partial coverage).
-  (function updatePfBar() {
-    const bar = document.getElementById('rd-pf-freshness');
-    if (!bar) return;
-    const total = runners.length;
-    const withPf = runners.filter(u => u.pfaiR != null).length;
-    bar.className = 'pf-freshness-bar';
-    bar.style.display = '';
-    if (total === 0) {
-      bar.style.display = 'none';
-      return;
-    }
-    if (withPf === 0) {
-      bar.classList.add('error');
-      bar.innerHTML = '<span class="pf-label">⚠ Punting Form data missing</span>' +
-        'No PF ratings for this meeting. Model picks unavailable.';
-    } else if (withPf < total) {
-      bar.classList.add('warn');
-      bar.innerHTML = '<span class="pf-label">PF data partial</span>' +
-        withPf + ' of ' + total + ' runners rated by Punting Form. ' +
-        'Model picks may be incomplete.';
-    } else {
-      // Full coverage - hide
-      bar.style.display = 'none';
-    }
-  })();
-
   // ── Meeting jump strip - all races at this venue on this date ──
   // Filter all RACES to same venue+date, sort by race number
   const meetingRaces = RACES.filter(r =>
@@ -9815,43 +9669,6 @@ function renderRaceDetail(raceId) {
       '</td>';
   }
 
-  // PF rank cell - PF rank is already a within-race rank (1 = best). Displays
-  // just the rank number with the same colour-coding as sectCell.
-  // Used for pfaiR, wcR, l600R, l400R columns.
-  function pfRankCell(rank, label) {
-    if (rank == null) return '<td class="sect-cell">—</td>';
-    const r = Math.round(rank);
-    const rkCls = r === 1 ? 'r1' : (r === 2 ? 'r2' : (r === 3 ? 'r3' : ''));
-    return '<td class="sect-cell ' + rkCls + '" title="' + label + ' rank ' + r + '">' +
-      '<span class="v">' + r + '</span></td>';
-  }
-
-  // PF run-style cell - shows the run-style code (l/op/mf/bm etc). Coloured
-  // by category: leaders=amber, on-pace=green, mid=blue, back=pink. Mirrors
-  // the race-shape SVG zones.
-  function pfRunStyleCell(rs) {
-    if (!rs) return '<td>—</td>';
-    let color = 'var(--ink-mute)';
-    let bg = 'transparent';
-    const s = String(rs).trim().toLowerCase();
-    if (s === 'l')              { bg = '#fef3c7'; color = '#92400e'; }
-    else if (s.startsWith('op')) { bg = '#d1fae5'; color = '#064e3b'; }
-    else if (s.startsWith('mf') && !s.includes('bm')) { bg = '#dbeafe'; color = '#1e3a8a'; }
-    else if (s.includes('bm') || s === 'bm')     { bg = '#fce7f3'; color = '#831843'; }
-    else if (s === 'no data')   { return '<td style="color:var(--ink-faint);">—</td>'; }
-    return '<td><span style="background:' + bg + ';color:' + color +
-      ';padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;text-transform:uppercase;">' +
-      s + '</span></td>';
-  }
-
-  // PF class-change cell - shows the class delta as up/down arrow.
-  function pfClassChgCell(chg) {
-    if (chg == null || chg === 0) return '<td style="color:var(--ink-faint);">—</td>';
-    const arrow = chg > 0 ? '↑' : '↓';
-    const color = chg > 0 ? 'var(--emerald-deep)' : '#dc2626';
-    return '<td style="color:' + color + ';font-weight:700;">' + arrow + ' ' + Math.abs(chg) + '</td>';
-  }
-
   // Distance perf cell - format: "starts: wins | places"
   // Color: green if win rate >= 25%, amber if 10-24%, default if <10%, faint if no history
   function perfCell(starts, wins, places, dnf) {
@@ -9978,30 +9795,6 @@ function renderRaceDetail(raceId) {
       return -((r.fx / wp - 1) * 100);   // same ordering as overlay
     },
     score: r => r.crk != null ? r.crk : 99,  // sort by rank ascending (1 = best)
-    // Votes sort: 7-signal set (WPR, Class, L600, PFAI, TR, Time, L400).
-    // Late dropped - no longer used by Edge or Volume.
-    // Higher count = stronger pick; negate so default desc = highest first.
-    votes: r => {
-      const tr = (typeof trRanks !== 'undefined') ? trRanks[r.rid] : null;
-      const w = (typeof wprRanks !== 'undefined') ? wprRanks[r.rid] : null;
-      const ti = (typeof timeRanks !== 'undefined') ? timeRanks[r.rid] : null;
-      const top3 =
-        ((w != null && w <= 3) ? 1 : 0) +
-        ((r.wcR != null && r.wcR <= 3) ? 1 : 0) +
-        ((r.l600R != null && r.l600R <= 3) ? 1 : 0) +
-        ((r.pfaiR != null && r.pfaiR <= 3) ? 1 : 0) +
-        ((tr != null && tr <= 3) ? 1 : 0) +
-        ((ti != null && ti <= 3) ? 1 : 0) +
-        ((r.l400R != null && r.l400R <= 3) ? 1 : 0);
-      return -top3;  // negate so default ASC sort = lowest top3 first
-    },
-    // PF columns sort ascending (1 = best PF rank)
-    pfai:    r => r.pfaiR != null ? r.pfaiR : 99,
-    wcR:     r => r.wcR != null ? r.wcR : 99,
-    l600R:   r => r.l600R != null ? r.l600R : 99,
-    l400R:   r => r.l400R != null ? r.l400R : 99,
-    rs:      r => (r.rs || 'zz').toLowerCase(),  // sort alphabetic
-    clsChg:  r => r.clsChg != null ? -r.clsChg : 0,  // class UP first when desc
   };
 
   // ── WPR projection: per-race effective ratings and pricing ──────────────
@@ -10493,8 +10286,7 @@ function renderRaceDetail(raceId) {
         // 'time' added - it's a rank (1=best speed_rating) so ascending default.
         const ascDefault = ['tab', 'horse', 'jky', 'trn', 'bar', 'tr', 'wpr',
                             'early', 'mid', 'late', 'total', 'time', 'settles',
-                            'fxd', 'trp', 'score',
-                            'pfai', 'wcR', 'l600R', 'l400R', 'rs'];
+                            'fxd', 'trp', 'score'];
         raceSortState.dir = ascDefault.includes(col) ? 'asc' : 'desc';
       }
       renderRaceDetail(raceId);
@@ -11368,10 +11160,6 @@ function renderPnL() {
       cs:  u.cs  != null ? u.cs  : null,
       crk: u.crk != null ? u.crk : null,
       csc: u.csc != null ? u.csc : null,
-      // Rank signals - not in RACES, gracefully degrade to null.
-      // Signal chips will show "—" for these.
-      wpr_rank: null, tr_rank: null, time_rank: null,
-      pfaiR: null, l600R: null, l400R: null,
       // Legacy model field - kept null so old branches don't crash.
       model: null,
       // Full runner ref for downstream form/silks/extra lookups
@@ -11679,12 +11467,6 @@ function renderPnL() {
       (dateSub ? '<span class="ttj">' + dateSub + '</span>' : '') +
       '</div>';
 
-    // Signal pills - same structure as Today tab
-    function sigPill(label, rank) {
-      if (rank == null) return '<span class="sig"><span class="lbl">' + label + '</span><span class="v">—</span></span>';
-      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      return '<span class="sig ' + cls + '"><span class="lbl">' + label + '</span><span class="v">' + rank + '</span></span>';
-    }
     // Score pill on settled rows also gets the confidence dot (same as Today).
     // Displays the raw score (0.00-1.00 as a 2-digit percentage), keeping
     // the within-race rank only as the colour driver. Showing the absolute
@@ -11706,44 +11488,11 @@ function renderPnL() {
       return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
         '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
     }
-    // Vote count badge - shows model-rule conformance for the active sub-tab.
-    //   Edge:   WPR + L600 + Speed + L400 (2 #1, 3 top-3 needed)
-    //   Volume: PFAI + TR + L400          (1 #1, 2 top-3 needed)
-    // Generic Votes badge: count top-3 and #1 across all six signals.
-    // With model sub-tabs removed, this is just "how strong was the
-    // signal cluster on this horse" - no rule pass/fail logic.
-    const pVoteRanks = [s.wpr_rank, s.l600R, s.time_rank, s.l400R, s.pfaiR, s.tr_rank];
-    const pVoteN = pVoteRanks.filter(r2 => r2 != null).length;
-    const pVoteTop3 = pVoteRanks.filter(r2 => r2 != null && r2 <= 3).length;
-    const pVoteTop1 = pVoteRanks.filter(r2 => r2 != null && r2 === 1).length;
-    const pVoteTooltip = pVoteTop3 + ' of ' + pVoteN + ' signals top-3, ' +
-      pVoteTop1 + ' rank #1.';
-    const pVoteBadgeHtml = '<span class="sig vote-badge" title="' + pVoteTooltip + '">' +
-      '<span class="lbl">Votes</span>' +
-      '<span class="v">' + pVoteTop3 + '/' + pVoteN + '</span>' +
-      (pVoteTop1 > 0 ? '<span class="vote-star">\u2605' + pVoteTop1 + '</span>' : '') +
-      '</span>';
-
-    // Cross-model badge removed - no model sub-tabs to be "cross" between.
-    const pCrossBadgeHtml = '';
-
-    // Signal chips - unified grid (same as Today tab). All chips share
-    // column alignment: voting signals + Score + Votes in one grid.
-    // Show ALL signal chips on every bet row. With model sub-tabs gone,
-    // there's no "active model" to filter by - just show every signal we
-    // recorded so the user can see the retrospective shape of the bet.
-    const votingChipsHtml =
-      sigPill('WPR',   s.wpr_rank) +
-      sigPill('L600',  s.l600R) +
-      sigPill('Speed', s.time_rank) +
-      sigPill('L400',  s.l400R) +
-      sigPill('PFAI',  s.pfaiR) +
-      sigPill('TR',    s.tr_rank);
-    const scoreChipHtml = scoreSigPill(s.crk, s.cs, s.csc);
-
+    // Signal voting and PF pills removed in the WPR-only refactor. The
+    // settled-bet row now shows only the retained cumulative Score chip.
     const sigsTopHtml =
       '<span class="chip-grid">' +
-        votingChipsHtml + scoreChipHtml + pVoteBadgeHtml +
+        scoreSigPill(s.crk, s.cs, s.csc) +
       '</span>';
     const formHtml = r.fm ?
       '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
@@ -11902,7 +11651,7 @@ function renderPnL() {
         '<div class="pr-runner">' +
           '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
           '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(s.horse || '') + pCrossBadgeHtml + fsAndJkyChipsP + '</div>' +
+            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsAndJkyChipsP + '</div>' +
             '<div class="rmeta">' + metaLine + '</div>' +
           '</div>' +
         '</div>' +
@@ -12525,26 +12274,19 @@ let winnersFilterMax = 99;   // 99 = no maximum
 // Free-text horse/venue filter
 let winnersTextFilter = '';
 
-// The 12 signals shown on each row: Score (cumulative rank) first, then
-// the 11 individual signals (model rule signals + supporting context).
+// Tracking signals shown on each row: Score (cumulative rank) first, then
+// the model-native signals. PF signals (Class/L600/PFAI/L400/L200) removed
+// in the WPR-only refactor.
 const TRACKING_SIGNALS = [
   // Score (cumulative score rank) - leads the list since it's the headline
   // metric. Already a rank (lower = better) so rankField is true.
   { key: 'score', label: 'Score', field: 'crk', rankField: true },
   { key: 'wpr',   label: 'WPR',   field: 'w' },        // raw value, sort desc
   { key: 'late',  label: 'Late',  field: 'ls' },
-  { key: 'class', label: 'Class', field: 'wcR',  rankField: true }, // rank, sort asc
-  { key: 'l600',  label: 'L600',  field: 'l600R', rankField: true },
-  { key: 'pfai',  label: 'PFAI',  field: 'pfaiR', rankField: true },
   { key: 'tr',    label: 'TR',    field: 'trr' },
   { key: 'mid',   label: 'Mid',   field: 'ms' },
   { key: 'total', label: 'Total', field: 'ts' },
-  { key: 'l400',  label: 'L400',  field: 'l400R', rankField: true },
-  { key: 'l200',  label: 'L200',  field: 'l200R', rankField: true },
-  // Speed = within-race rank of TR's speed_rating (u.spd). This is the
-  // Edge model's "Speed" voting signal. Previously labelled "Time" with
-  // field=tR (PF's time rank) - that was a different signal and is not
-  // used by any model. Renamed and re-pointed for accuracy.
+  // Speed = within-race rank of TR's speed_rating (u.spd).
   { key: 'time',  label: 'Speed', field: 'spd' },
 ];
 
@@ -13016,11 +12758,10 @@ function renderSignalCorrelation(races) {
     return;
   }
 
-  // Only include signals that are part of the V3 voting model. Including all
-  // 11 would make the matrix unreadable on screen and most of the non-voting
-  // signals aren't decision-relevant anyway.
-  const VOTING_KEYS = ['wpr', 'late', 'class', 'l600', 'pfai', 'tr'];
-  const sigs = TRACKING_SIGNALS.filter(s => VOTING_KEYS.includes(s.key));
+  // Only include the decision-relevant model-native signals. PF signals
+  // (Class/L600/PFAI) were removed in the WPR-only refactor.
+  const CORR_SIG_KEYS = ['wpr', 'late', 'tr', 'time'];
+  const sigs = TRACKING_SIGNALS.filter(s => CORR_SIG_KEYS.includes(s.key));
 
   // For each pair (i, j) compute agreement: % of races where rank-1 horse
   // for signal i == rank-1 horse for signal j.
@@ -13664,11 +13405,10 @@ let dbFilters = {
   minScore: null, maxScore: null,
   minSp: null,
   minJky: 0,
-  model: 'any',     // any | edge | volume | any-pick | both | none
   result: 'any',    // any | won | placed | lost | resulted | unresulted
-  // Per-signal rank filters - each value is 'any', '1', or '3'
-  sigWpr: 'any', sigLate: 'any', sigWcR: 'any',
-  sigL600R: 'any', sigPfaiR: 'any', sigTr: 'any',
+  // Per-signal rank filters - each value is 'any', '1', or '3'.
+  // PF signals (Class/L600/PFAI) removed in WPR-only refactor.
+  sigWpr: 'any', sigLate: 'any', sigTr: 'any',
 };
 try {
   const raw = localStorage.getItem(DB_FILTERS_KEY);
@@ -13677,13 +13417,6 @@ try {
     if (parsed && typeof parsed === 'object') dbFilters = Object.assign(dbFilters, parsed);
   }
 } catch(e) {}
-// Migrate legacy dbFilters.model values from prior eras. Main/Loose all
-// collapse to 'edge' (Edge is the primary model and the closest analogue
-// to old Main). Valid current values: 'any', 'edge', 'volume', 'any-pick',
-// 'both', 'none'.
-if (['main', 'loose'].includes(dbFilters.model)) {
-  dbFilters.model = 'edge';
-}
 function saveDbFilters() {
   try { localStorage.setItem(DB_FILTERS_KEY, JSON.stringify(dbFilters)); } catch(e) {}
 }
@@ -13705,8 +13438,8 @@ function getDatabaseRows() {
   const rows = [];
   (RACES || []).forEach(race => {
     const runners = race.runners || [];
-    // Compute per-race ranks for the three TR-side signals (the PF ranks
-    // are already on the runner via u.wcR / u.l600R / u.pfaiR).
+    // Compute per-race ranks for the model-native signals (WPR, Late, TR,
+    // Speed). PF signals were removed in the WPR-only refactor.
     function rankByField(field, ascending) {
       const ranks = {};
       const valid = runners.filter(u => u[field] != null);
@@ -13719,11 +13452,6 @@ function getDatabaseRows() {
     const trRanks   = rankByField('trr', false);
     // NEW: time = within-race rank of speed_rating (u.spd). Edge model signal.
     const timeRanks = rankByField('spd', false);
-
-    // Pick membership for this race - both Edge and Volume tracked
-    const racePicks = MODEL_PICKS[race.race_id] || {};
-    const edgePickIds = new Set((racePicks[PRIMARY_KEY] || racePicks['edge'] || []).map(p => String(p.run_id)));
-    const volumePickIds = new Set((racePicks['volume'] || []).map(p => String(p.run_id)));
 
     runners.forEach(u => {
       const ridStr = String(u.rid);
@@ -13751,10 +13479,6 @@ function getDatabaseRows() {
         wprRank: wprRanks[ridStr],
         late: u.ls,
         lateRank: lateRanks[ridStr],
-        wcR: u.wcR,
-        l600R: u.l600R,
-        l400R: u.l400R,
-        pfaiR: u.pfaiR,
         tr: u.trr,
         trRank: trRanks[ridStr],
         // NEW: Time = within-race rank of speed_rating
@@ -13762,14 +13486,10 @@ function getDatabaseRows() {
         timeRank: timeRanks[ridStr],
         jrt: u.jrt,
         trt: u.trt,
-        runStyle: u.rs,
         // Price + result
         fxd: u.fx,
         sp: u.sp,
         finish: u.f,
-        // Pick membership (both models tracked)
-        isEdge:   edgePickIds.has(ridStr),
-        isVolume: volumePickIds.has(ridStr),
       });
     });
   });
@@ -13806,13 +13526,6 @@ function filterDatabaseRows(rows) {
     // completed races.
     if (dbFilters.minSp != null && (r.sp == null || r.sp < dbFilters.minSp)) return false;
     if (dbFilters.minJky > 0 && (r.jrt == null || r.jrt < dbFilters.minJky)) return false;
-    // Model pick filter (Edge / Volume / both / either / none).
-    // Legacy 'main'/'loose' values are migrated to 'edge' at load time.
-    if (dbFilters.model === 'edge'     && !r.isEdge) return false;
-    if (dbFilters.model === 'volume'   && !r.isVolume) return false;
-    if (dbFilters.model === 'any-pick' && !(r.isEdge || r.isVolume)) return false;
-    if (dbFilters.model === 'both'     && !(r.isEdge && r.isVolume)) return false;
-    if (dbFilters.model === 'none'     && (r.isEdge || r.isVolume)) return false;
     // Result filter
     const resulted = r.finish != null;
     const won = r.finish === 1;
@@ -13831,9 +13544,6 @@ function filterDatabaseRows(rows) {
     }
     if (!sigPass(dbFilters.sigWpr,    r.wprRank))  return false;
     if (!sigPass(dbFilters.sigLate,   r.lateRank)) return false;
-    if (!sigPass(dbFilters.sigWcR,    r.wcR))      return false;
-    if (!sigPass(dbFilters.sigL600R,  r.l600R))    return false;
-    if (!sigPass(dbFilters.sigPfaiR,  r.pfaiR))    return false;
     if (!sigPass(dbFilters.sigTr,     r.trRank))   return false;
     return true;
   });
@@ -13856,10 +13566,6 @@ function sortDatabaseRows(rows) {
     crk:     r => r.crk != null ? r.crk : 99,
     wpr:     r => r.wpr != null ? r.wpr : -9999,
     late:    r => r.late != null ? r.late : -9999,
-    wcR:     r => r.wcR != null ? r.wcR : 99,
-    l600R:   r => r.l600R != null ? r.l600R : 99,
-    l400R:   r => r.l400R != null ? r.l400R : 99,
-    pfaiR:   r => r.pfaiR != null ? r.pfaiR : 99,
     tr:      r => r.tr != null ? r.tr : -9999,
     time:    r => r.time != null ? r.time : -9999,
     fs:      r => r.fs || 0,
@@ -13992,22 +13698,14 @@ function renderDatabaseTable(rows) {
     th('fs', 'Field') + th('prize', '$') + th('distance', 'Dist') +
     th('barrier', 'Bar') + th('fxd', 'Fxd') + th('sp', 'SP') +
     th('score', 'Score') + th('crk', 'Score#') +
-    // 7-signal voting set (matches Today/P&L/Race tabs)
-    th('wpr', 'WPR') + th('wcR', 'Cls') + th('l600R', 'L600') +
-    th('pfaiR', 'PFAI') + th('tr', 'TR') +
-    th('time', 'Speed') + th('l400R', 'L400') +
+    th('wpr', 'WPR') + th('tr', 'TR') + th('time', 'Speed') +
     th('jky', 'Jky rt') +
     th('finish', 'Fin') +
     '</tr></thead><tbody>';
   display.forEach(r => {
-    let cls = '';
-    if (r.isEdge) cls = 'is-pick';
-    else if (r.isVolume) cls = 'is-volume-pick';
-    // Horse cell with pick pill(s) - both Edge and Volume can be set
+    // Horse cell
     let horseHtml = '<span class="horse-link" data-rid="' + r.race_id + '">' +
       escapeHtml(r.horse || '') + '</span>';
-    if (r.isEdge)   horseHtml += '<span class="db-pick-pill main">E</span>';
-    if (r.isVolume) horseHtml += '<span class="db-pick-pill volume">V</span>';
     // Finish badge
     let finishHtml;
     if (r.finish == null) finishHtml = '<td class="num">—</td>';
@@ -14016,7 +13714,7 @@ function renderDatabaseTable(rows) {
       const fcls = f === 1 ? 'f1' : f === 2 ? 'f2' : f === 3 ? 'f3' : 'fo';
       finishHtml = '<td class="num"><span class="db-finish ' + fcls + '">' + f + '</span></td>';
     }
-    html += '<tr class="' + cls + '">' +
+    html += '<tr>' +
       cell(r.date) +
       cell(escapeHtml(r.venue || '')) +
       cell('R' + (r.race || '—')) +
@@ -14031,12 +13729,8 @@ function renderDatabaseTable(rows) {
       cell(r.score != null ? r.score.toFixed(2) : null, ' class="num"') +
       rankCell(r.crk) +
       rankCell(r.wprRank) +
-      rankCell(r.wcR) +
-      rankCell(r.l600R) +
-      rankCell(r.pfaiR) +
       rankCell(r.trRank) +
       rankCell(r.timeRank) +
-      rankCell(r.l400R) +
       cell(r.jrt != null ? Math.round(r.jrt) : null, ' class="num"') +
       finishHtml +
       '</tr>';
@@ -14120,7 +13814,6 @@ function _wireDatabaseFilters() {
   bind('db-max-score', 'maxScore', toFloatOrNull);
   bind('db-min-sp',    'minSp',    toFloatOrNull);
   bind('db-min-jky',   'minJky',   toInt);
-  bind('db-model',     'model');
   bind('db-result',    'result');
   // Signal filters - wire each select, key derived from data-sigfilter
   document.querySelectorAll('[data-sigfilter]').forEach(sel => {
@@ -14137,7 +13830,7 @@ function _wireDatabaseFilters() {
   const allRank1 = document.getElementById('db-all-rank-1');
   if (allRank1) {
     allRank1.addEventListener('click', () => {
-      ['sigWpr','sigLate','sigWcR','sigL600R','sigPfaiR','sigTr'].forEach(k => dbFilters[k] = '1');
+      ['sigWpr','sigLate','sigTr'].forEach(k => dbFilters[k] = '1');
       saveDbFilters();
       // Update UI
       document.querySelectorAll('[data-sigfilter]').forEach(s => s.value = '1');
@@ -14147,7 +13840,7 @@ function _wireDatabaseFilters() {
   const allTop3 = document.getElementById('db-all-top3');
   if (allTop3) {
     allTop3.addEventListener('click', () => {
-      ['sigWpr','sigLate','sigWcR','sigL600R','sigPfaiR','sigTr'].forEach(k => dbFilters[k] = '3');
+      ['sigWpr','sigLate','sigTr'].forEach(k => dbFilters[k] = '3');
       saveDbFilters();
       document.querySelectorAll('[data-sigfilter]').forEach(s => s.value = '3');
       renderDatabase();
@@ -14163,16 +13856,15 @@ function _wireDatabaseFilters() {
         minDist: null, maxDist: null,
         minScore: null, maxScore: null,
         minSp: null,
-        minJky: 0, model: 'any', result: 'any',
-        sigWpr: 'any', sigLate: 'any', sigWcR: 'any',
-        sigL600R: 'any', sigPfaiR: 'any', sigTr: 'any',
+        minJky: 0, result: 'any',
+        sigWpr: 'any', sigLate: 'any', sigTr: 'any',
       };
       saveDbFilters();
       // Clear all input UI
       ['db-date-from','db-date-to','db-venue','db-horse','db-min-dist','db-max-dist','db-min-score','db-max-score','db-min-sp']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-      ['db-min-fs','db-min-prize','db-going','db-min-jky','db-model','db-result']
-        .forEach(id => { const el = document.getElementById(id); if (el) el.value = (id === 'db-going') ? '' : (id === 'db-model' || id === 'db-result') ? 'any' : '0'; });
+      ['db-min-fs','db-min-prize','db-going','db-min-jky','db-result']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = (id === 'db-going') ? '' : (id === 'db-result') ? 'any' : '0'; });
       document.querySelectorAll('[data-sigfilter]').forEach(s => s.value = 'any');
       renderDatabase();
     });
