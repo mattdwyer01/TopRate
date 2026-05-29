@@ -2671,6 +2671,11 @@ body {
 .race-table tbody tr { cursor: pointer; }
 .race-table tbody tr.expanded { background: #ede9e1; }
 .race-table tbody tr.race-detail-row { cursor: default; background: var(--panel) !important; }
+.row-flash { animation: rowFlash 1.6s ease-out; }
+@keyframes rowFlash {
+  0% { background: rgba(217, 119, 6, .28); }
+  100% { background: transparent; }
+}
 .race-table tbody tr.race-detail-row:hover { background: var(--panel) !important; }
 .race-table tbody tr.race-detail-row > td {
   padding: 14px 18px; border-top: 2px solid var(--ink);
@@ -2907,10 +2912,25 @@ body {
 /* Predicted WPR cell: effective rating, optional greyed original, conf chip */
 .race-table td.wpr-pred-cell { white-space: nowrap; }
 .race-table td.wpr-actual-cell { font-weight: 600; white-space: nowrap; }
-.race-table td.wpr-miss-cell { font-weight: 700; white-space: nowrap; }
-.race-table td.wpr-miss-cell.wpr-miss-close { color: #047857; }
-.race-table td.wpr-miss-cell.wpr-miss-mid { color: #b45309; }
-.race-table td.wpr-miss-cell.wpr-miss-far { color: #b91c1c; }
+.race-table td.wpr-miss-cell { font-weight: 400; font-style: italic; color: var(--ink-mute); white-space: nowrap; }
+/* Race column width tuning - tighten narrow columns so wider Jky/Trn fit. */
+.race-table th.rt-col-scr, .race-table td.wpr-scr-cell { width: 28px; }
+.race-table th.rt-col-bar, .race-table td.rt-col-bar { width: 36px; text-align: center; }
+.race-table th.rt-col-wpjpk, .race-table td.rt-col-wpjpk { width: 56px; }
+.race-table th.rt-col-wpja,  .race-table td.rt-col-wpja  { width: 56px; }
+.race-table th.rt-col-fp, .race-table td.rt-col-fp { width: 42px; text-align: center; font-weight: 700; }
+.race-table th.rt-col-jky, .race-table td.rt-col-jky { white-space: nowrap; }
+.race-table th.rt-col-trn, .race-table td.rt-col-trn { white-space: nowrap; }
+/* Inline jockey rating chip on Race table (matches Summary's chip styling). */
+.race-table .jk-chip {
+  display: inline-block; padding: 1px 6px; border-radius: 9px;
+  font-size: 10px; font-weight: 700; line-height: 1.5;
+  border: 1px solid transparent;
+}
+.race-table .jk-chip.jk-green { background: rgba(4,120,87,.13);  color: #047857; border-color: rgba(4,120,87,.3); }
+.race-table .jk-chip.jk-grey  { background: var(--line-soft); color: var(--ink-mute); }
+.race-table .jk-chip.jk-amber { background: rgba(217,119,6,.13); color: #b45309; border-color: rgba(217,119,6,.3); }
+.race-table .jk-chip.jk-red   { background: rgba(220,38,38,.13); color: #b91c1c; border-color: rgba(220,38,38,.3); }
 .wpr-eff { font-weight: 600; }
 .wpr-orig {
   margin-left: 5px; font-size: 11px; color: var(--ink-mute);
@@ -5459,6 +5479,25 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <option value="pending">Pending</option>
         </select>
       </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-jky">Jockey rating</label>
+        <select id="wpr-f-jky">
+          <option value="">All</option>
+          <option value="green">85+ (green)</option>
+          <option value="grey">80-84 (grey)</option>
+          <option value="amber">75-79 (amber)</option>
+          <option value="red">&lt;75 (red)</option>
+        </select>
+      </div>
+      <div class="wpr-filter">
+        <label for="wpr-f-field">Field size</label>
+        <select id="wpr-f-field">
+          <option value="">All</option>
+          <option value="small">Small (≤7)</option>
+          <option value="mid">Mid (8-12)</option>
+          <option value="large">Large (13+)</option>
+        </select>
+      </div>
       <div class="wpr-filter wpr-filter-price">
         <label>Fixed price
           $<span id="wpr-f-price-min-val">1</span> -
@@ -6608,7 +6647,7 @@ setInterval(function () {
     if (typeof renderWprSummary === 'function') renderWprSummary();
   };
   ['wpr-f-venue', 'wpr-f-conf', 'wpr-f-overlay', 'wpr-f-bet',
-   'wpr-f-result'].forEach(id => {
+   'wpr-f-result', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', rerender);
   });
@@ -6633,6 +6672,10 @@ setInterval(function () {
     if (o) o.value = '0';
     if (bt) bt.value = '';
     if (re) re.value = '';
+    const jk = document.getElementById('wpr-f-jky');
+    const fs = document.getElementById('wpr-f-field');
+    if (jk) jk.value = '';
+    if (fs) fs.value = '';
     if (pmn) pmn.value = '1';
     if (pmx) pmx.value = '100';
     // Default to ranked-runners-only ON (user preference).
@@ -7429,16 +7472,17 @@ function navigateToRace(raceId) {
 function navigateToRaceRunner(raceId, runId) {
   navigateToRace(raceId);
   if (!runId) return;
-  // renderRaceDetail runs synchronously inside showRaceDetail, but
-  // wait a frame so the DOM and listeners are settled before clicking.
+  // Scroll the row into view but do NOT auto-expand the detail panel.
+  // Coming from Summary, the user wants to see the race in context; if
+  // they want the detail, they tap the row themselves. Highlight the
+  // row briefly so it's clear which runner was the target.
   requestAnimationFrame(() => {
     const tr = document.querySelector(
       '#rd-runners-table tbody tr[data-rid="' + String(runId) + '"]');
     if (!tr) return;
-    tr.click();
-    // Bring the expanded row into view (the click may have inserted a
-    // detail row below it; both should be visible).
     tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    tr.classList.add('row-flash');
+    setTimeout(() => tr.classList.remove('row-flash'), 1800);
   });
 }
 
@@ -8450,6 +8494,8 @@ function renderWprSummary() {
   const fOverlay = parseInt((document.getElementById('wpr-f-overlay') || {}).value || '0', 10);
   const fBet     = (document.getElementById('wpr-f-bet') || {}).value || '';
   const fResult  = (document.getElementById('wpr-f-result') || {}).value || '';
+  const fJky     = (document.getElementById('wpr-f-jky') || {}).value || '';
+  const fField   = (document.getElementById('wpr-f-field') || {}).value || '';
   const fRanked  = !!(document.getElementById('wpr-f-ranked') || {}).checked;
   // Price-range sliders. Min is 1-100, max is 1-100 (100 = "$100+").
   // Auto-swap if user has dragged min above max so the read is sensible.
@@ -8486,6 +8532,26 @@ function renderWprSummary() {
     if (fResult === 'won')    return u.f === 1;
     if (fResult === 'placed') return u.f >= 1 && u.f <= 3;
     if (fResult === 'lost')   return u.f > 3;
+    return true;
+  }
+  // Jockey rating band: green 85+, grey 80-84, amber 75-79, red <75.
+  function jkyPasses(u) {
+    if (!fJky) return true;
+    if (!u || u.jrt == null) return false;
+    if (fJky === 'green') return u.jrt >= 85;
+    if (fJky === 'grey')  return u.jrt >= 80 && u.jrt < 85;
+    if (fJky === 'amber') return u.jrt >= 75 && u.jrt < 80;
+    if (fJky === 'red')   return u.jrt < 75;
+    return true;
+  }
+  // Field size band: small ≤7, mid 8-12, large 13+. fs lives on the race.
+  function fieldPasses(race) {
+    if (!fField) return true;
+    const n = (race && race.fs) || (race && race.runners ? race.runners.length : null);
+    if (n == null) return false;
+    if (fField === 'small') return n <= 7;
+    if (fField === 'mid')   return n >= 8 && n <= 12;
+    if (fField === 'large') return n >= 13;
     return true;
   }
   // Price filter check: runner's fixed price within [min, maxCap].
@@ -8675,19 +8741,30 @@ function renderWprSummary() {
 
   // ── KPI strip ──────────────────────────────────────────────────────────
   // Same format and metrics as the P&L tab (Bets, P&L, Win rate, Place rate,
-  // ROI, Win streak, Loss streak, vs SP) but scoped to TODAY'S bets only.
-  // Uses the same staking method (calcStake) and the same betLog, so the
-  // numbers reconcile with the P&L tab for the same set of bets.
+  // ROI, Win streak, Loss streak, vs SP) but scoped to TODAY'S bets only,
+  // honouring the active Summary filters (Venue, Bet, Result, price band,
+  // jockey rating, field size, ranked-runners-only). Filtered KPIs are
+  // partial views by design - tells the user "for this filter selection,
+  // here's what your bets look like".
   (function renderKpiStrip() {
     const strip = document.getElementById('wpr-kpi-strip');
     if (!strip) return;
     const log = getBetLog();
-    // Collect today's placed bets as the same kind of records P&L iterates,
-    // in race chronological order (so streaks read in time order).
+    // Collect today's placed bets that pass the active filters.
     const todaysBets = [];
     races.forEach(race => {
+      if (!racePassesFilter(race)) return;
+      if (!fieldPasses(race)) return;
       (race.runners || []).forEach(u => {
         if (!isBet(u)) return;
+        if (!confPasses(u.wpjc)) return;
+        if (!jkyPasses(u)) return;
+        if (!resultPasses(u)) return;
+        if (!pricePasses(u)) return;
+        // Bet filter: KPI strip already implies "bets" - 'yes' is the only
+        // sensible state. 'no' excludes everything (intentional - matches
+        // the user's filter choice). '' (All) shows all bets.
+        if (fBet === 'no') return;
         todaysBets.push({ u: u, race: race });
       });
     });
@@ -8784,6 +8861,7 @@ function renderWprSummary() {
 
   races.forEach(race => {
     if (!racePassesFilter(race)) return;
+    if (!fieldPasses(race)) return;
     const m = _wprRaceModel(race);
     if (m.order.length < 2) return;
     const topId = m.order[0];
@@ -8797,7 +8875,7 @@ function renderWprSummary() {
       const confOk = confPasses(u.wpjc);
       const betOk = (fBet === '') ||
         (fBet === 'yes' && isBet(u)) || (fBet === 'no' && !isBet(u));
-      if (confOk && betOk && resultPasses(u) && pricePasses(u)) {
+      if (confOk && betOk && resultPasses(u) && pricePasses(u) && jkyPasses(u)) {
         standouts.push({
           race: race, horse: u, eff: topEff, gap: gap,
           conf: u.wpjc, wprPrice: m.price[topId], fixed: u.fx,
@@ -8816,6 +8894,7 @@ function renderWprSummary() {
       if (e == null) return;
       if (topEff - e > N) return;            // not close enough to the top
       if (!confPasses(u.wpjc)) return;
+      if (!jkyPasses(u)) return;
       if (fBet === 'yes' && !isBet(u)) return;
       if (fBet === 'no' && isBet(u)) return;
       if (!resultPasses(u)) return;
@@ -9995,10 +10074,7 @@ function renderRaceDetail(raceId) {
       actualCell = '<td class="wpr-actual-cell">' + u.wpja.toFixed(1) + '</td>';
       if (u.wpjp != null) {
         const m = u.wpja - u.wpjp;
-        let mc = 'wpr-miss-close';
-        if (Math.abs(m) >= 8) mc = 'wpr-miss-far';
-        else if (Math.abs(m) >= 4) mc = 'wpr-miss-mid';
-        missCell = '<td class="wpr-miss-cell ' + mc + '">' +
+        missCell = '<td class="wpr-miss-cell">' +
           (m > 0 ? '+' : '') + m.toFixed(1) + '</td>';
       }
     }
@@ -10080,12 +10156,42 @@ function renderRaceDetail(raceId) {
     const actualCellPart = raceHasAnyActual ? actualCell : '';
     const missCellPart = raceHasAnyActual ? missCell : '';
 
+    // Jockey chip inline (same 4-band logic as Summary). Local helper so
+    // we don't need to pull the Summary-scoped wprJkyChip into Race scope.
+    const _jr = (u.jrt != null) ? Number(u.jrt) : null;
+    let jkyChip = '';
+    if (_jr != null && !isNaN(_jr)) {
+      let chipCls = 'jk-red';
+      if (_jr >= 85) chipCls = 'jk-green';
+      else if (_jr >= 80) chipCls = 'jk-grey';
+      else if (_jr >= 75) chipCls = 'jk-amber';
+      jkyChip = ' <span class="jk-chip ' + chipCls + '">Jky ' + _jr.toFixed(0) + '</span>';
+    }
+    const jkyCell = '<td class="rt-col-jky">' +
+      escapeHtml(u.j || '\u2014') + jkyChip + '</td>';
+    const trnCell = '<td class="rt-col-trn">' +
+      escapeHtml(u.tn || '\u2014') + '</td>';
+
+    // FP cell - resulted races only, shows the finish position with
+    // 1st/2nd/3rd word for top three. Slots between Bet and Actual.
+    let fpCellPart = '';
+    if (raceHasAnyActual) {
+      let fpStr = '\u2014';
+      if (u.f != null) {
+        const f = u.f;
+        fpStr = f === 1 ? '1st' : f === 2 ? '2nd' : f === 3 ? '3rd' : String(f);
+      }
+      fpCellPart = '<td class="rt-col-fp">' + fpStr + '</td>';
+    }
+
     rowsHtml += '<tr class="' + rowClasses.join(' ') + '" data-rid="' + escapeHtml(String(rid)) + '">' +
       scratchCell +
       '<td class="rt-col-silk">' + (u.sk ? '<img class="rt-silk" src="' + escapeHtml(u.sk) +
         '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell rt-col-horse">' + finishBadge + escapeHtml(u.h || '') + pickBadge + '</td>' +
+      jkyCell +
+      trnCell +
       '<td class="rt-col-bar">' + (u.b || '') + '</td>' +
       '<td class="rt-col-settles">' + settlesLabel(u.asp) + '</td>' +
       '<td class="rt-col-wpjpk">' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</td>' +
@@ -10096,6 +10202,7 @@ function renderRaceDetail(raceId) {
       '<td class="rt-col-fxd">' + (fxp ? '$' + fxp.toFixed(2) : '—') + '</td>' +
       overlayCell +
       betCell +
+      fpCellPart +
       actualCellPart +
       missCellPart +
       '</tr>';
@@ -10196,6 +10303,8 @@ function renderRaceDetail(raceId) {
         '<th class="rt-col-scr" title="Toggle manual scratch - excludes this runner from WPR price calc">Scr</th>' +
         '<th class="rt-col-silk"></th>' +
         th('tab', 'No.') + th('horse', 'Horse') +
+        '<th class="rt-col-jky">Jockey</th>' +
+        '<th class="rt-col-trn">Trainer</th>' +
         th('bar', 'Bar') +
         th('settles', 'Speed') +
         th('wpjpk', 'Peak WPR') +
@@ -10206,6 +10315,7 @@ function renderRaceDetail(raceId) {
         th('fxd', 'Fixed $') +
         th('ovl', 'Overlay') +
         '<th class="rt-col-bet" title="Mark Y to bet this horse">Bet</th>' +
+        (raceHasAnyActual ? '<th class="rt-col-fp">FP</th>' : '') +
         (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
         (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
       '</tr></thead>' +
