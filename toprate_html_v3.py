@@ -8782,17 +8782,21 @@ function renderWprSummary() {
     const strip = document.getElementById('wpr-kpi-strip');
     if (!strip) return;
     const log = getBetLog();
-    // Collect every placed bet for the selected date. Discovery filters
-    // (venue, field, going, jockey, confidence, price, result) are for
-    // finding value, not measuring your actual betting - the KPI strip is
-    // your real performance, so count all placed bets (only "Bet: no"
-    // suppresses them, and scratched runners are excluded).
+    // Collect placed bets that pass the active filters - the KPI strip
+    // reflects the same filtered set the list shows.
     const todaysBets = [];
     races.forEach(race => {
+      if (!racePassesFilter(race)) return;
+      if (!fieldPasses(race)) return;
+      if (!goingPasses(race)) return;
       (race.runners || []).forEach(u => {
         if (!isBet(u)) return;
         if (fBet === 'no') return;
         if (isManualScratch(u.rid)) return;
+        if (!confPasses(u.wpjc)) return;
+        if (!jkyPasses(u)) return;
+        if (!resultPasses(u)) return;
+        if (!pricePasses(u)) return;
         todaysBets.push({ u: u, race: race });
       });
     });
@@ -8917,64 +8921,36 @@ function renderWprSummary() {
       }
     }
 
-    // List 1: overlays near the top rating (discovery). Placed bets are
-    // added separately below so the discovery filters never hide a bet the
-    // user has already made.
+    // List 1: overlays near the top rating, PLUS placed bets. Placed bets
+    // show even when they are no longer an overlay (prices move), but every
+    // user filter above (venue, field, going, confidence, jockey, price,
+    // result, bet) still applies - a bet is hidden if it does not match the
+    // active filters, same as any other row. Only the overlay/near-top
+    // discovery gates are bypassed for a placed bet.
     m.runners.forEach(u => {
       if (m.scratched[u.rid]) return;
       const e = m.eff[u.rid];
       if (e == null) return;
-      if (topEff - e > N) return;            // not close enough to the top
       if (!confPasses(u.wpjc)) return;
       if (!jkyPasses(u)) return;
       if (fBet === 'yes' && !isBet(u)) return;
       if (fBet === 'no' && isBet(u)) return;
       if (!resultPasses(u)) return;
       if (!pricePasses(u)) return;
+      const placed = isBet(u);
       const wp = m.price[u.rid];
-      if (wp == null || u.fx == null || u.fx <= 0) return;
-      if (u.fx > wp) {                        // fixed price longer than fair value
-        const ovPct = (u.fx / wp - 1) * 100;
-        if (fOverlay > 0 && ovPct < fOverlay) return;
-        overlays.push({
-          race: race, horse: u, eff: e,
-          gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
-          overlayPct: ovPct,
-        });
-      }
-    });
-  });
-
-  // ── Always include placed bets ───────────────────────────────────────────
-  // A bet the user has already made should show in the overlays list even if
-  // the discovery filters (overlay gate, near-top, jockey rating, field size,
-  // going, confidence, price) would hide it - prices and circumstances move
-  // after a bet is struck. Only the selected date, the Result filter and the
-  // Bet filter still apply. Deduped against rows already added above.
-  if (fBet !== 'no') {
-    const seen = new Set(
-      overlays.map(r => (r.horse && r.horse.rid != null) ? String(r.horse.rid) : null)
-              .filter(x => x != null));
-    races.forEach(race => {
-      const m = _wprRaceModel(race);
-      (race.runners || []).forEach(u => {
-        if (u.rid == null) return;
-        if (seen.has(String(u.rid))) return;
-        if (!isBet(u)) return;                 // placed bets only
-        if (m.scratched[u.rid]) return;        // scratched -> bet refunded
-        if (!resultPasses(u)) return;          // respect Won/Placed/Lost/Pending
-        const e = m.eff[u.rid];
-        const wp = m.price[u.rid];
-        const topE = (m.order.length) ? m.eff[m.order[0]] : null;
-        overlays.push({
-          race: race, horse: u, eff: e,
-          gapToTop: (e != null && topE != null) ? (topE - e) : null,
-          wprPrice: wp, fixed: u.fx, overlayPct: null,
-        });
-        seen.add(String(u.rid));
+      const hasPrice = (wp != null && u.fx != null && u.fx > 0);
+      const ovPct = hasPrice ? (u.fx / wp - 1) * 100 : null;
+      const isOverlay = (topEff - e <= N) && hasPrice && u.fx > wp &&
+        (fOverlay <= 0 || ovPct >= fOverlay);
+      if (!isOverlay && !placed) return;
+      overlays.push({
+        race: race, horse: u, eff: e,
+        gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
+        overlayPct: ovPct,
       });
     });
-  }
+  });
 
   // Sort both lists chronologically by race start time. Races with no
   // start_time sort to the end (Infinity).
