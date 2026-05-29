@@ -34,44 +34,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      # toprate_daily.py imports requests, pandas and numpy only. The old
+      # openpyxl / scikit-learn / joblib deps were for the Punting Form ingest
+      # and the retired model path, both removed in the WPR-only refactor.
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests openpyxl scikit-learn joblib
+          pip install pandas numpy requests
 
       # ─────────────────────────────────────────────────────────
-      # Step 1: Refresh Punting Form data FIRST.
-      # PF data is the foundation of the V3 voting model rule (3 of 6 signals
-      # must rank #1 AND 5 of 6 must rank top-3). PF AI rank, PF Class rank,
-      # and PF L600 rank are 3 of those 6 signals.
-      #
-      # Failure here is non-fatal: the PF CSV may be stale but toprate_daily.py
-      # will still produce a working dashboard with whatever PF data exists.
-      # If we made it fatal, an expired PF API key would block the entire
-      # daily fetch which is worse than slightly-stale PF data.
-      # ─────────────────────────────────────────────────────────
-      - name: Refresh Punting Form data
-        env:
-          PUNTINGFORM_API_KEY: ${{ secrets.PUNTINGFORM_API_KEY }}
-        continue-on-error: true
-        run: |
-          if [ -f puntingform_ingest.py ]; then
-            if [ -n "$PUNTINGFORM_API_KEY" ]; then
-              if [ -n "${{ inputs.date }}" ]; then
-                python puntingform_ingest.py --date "${{ inputs.date }}"
-              else
-                python puntingform_ingest.py
-              fi
-            else
-              echo "PUNTINGFORM_API_KEY secret not configured. Skipping PF refresh."
-              echo "Add PUNTINGFORM_API_KEY in repo Settings -> Secrets and variables -> Actions."
-            fi
-          else
-            echo "puntingform_ingest.py not found in repo. Skipping PF refresh."
-          fi
-
-      # ─────────────────────────────────────────────────────────
-      # Step 2: Fetch TopRate data + rebuild HTML + publish.
+      # Step 1: Fetch TopRate data + rebuild HTML + publish.
       # The --publish flag in toprate_daily.py runs the full pipeline:
       # fetch -> rebuild HTML -> snapshot prices.
       # ─────────────────────────────────────────────────────────
@@ -87,9 +59,7 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────────────────
-      # Step 3: Commit and push refreshed data + HTML.
-      # PF CSVs are staged alongside TR CSVs so the deployed HTML and the
-      # repo always agree on what data was used to build it.
+      # Step 2: Commit and push refreshed data + HTML.
       #
       # NOTE: toprate_price_history.csv is deliberately NOT staged here - it
       # is gitignored (local-only price snapshots). A previous version tried
@@ -105,9 +75,6 @@ jobs:
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
           [ -f toprate_live.html ] && git add toprate_live.html
-          [ -f puntingform_data/pf_ratings.csv ] && git add puntingform_data/pf_ratings.csv
-          [ -f puntingform_data/pf_runners.csv ] && git add puntingform_data/pf_runners.csv
-          [ -f puntingform_data/pf_meetings.csv ] && git add puntingform_data/pf_meetings.csv
           # WPR form history is append-only and accumulates each run. Actions
           # runs are ephemeral, so it MUST be committed or every run's new
           # rows are lost. (This was previously not staged.)
