@@ -3357,6 +3357,29 @@ body {
 .wpr-summary-table {
   width: 100%; border-collapse: collapse; font-size: 13px;
 }
+/* Pending / Resulted section heading inside each Today's Picks list */
+.wpr-section-head {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--ink-mute);
+  margin: 14px 0 6px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.wpr-section-head:first-child { margin-top: 0; }
+/* Two-row-per-horse layout: bigger merged cells for silks/no/horse-name
+   span both rows; row 1 has the main data; row 2 shows jockey + secondary
+   data. Row 2 has a soft separator below so each horse block reads clearly. */
+.wpr-summary-2row .wst-silk { width: 36px; padding: 4px; text-align: center;
+  vertical-align: middle; }
+.wpr-summary-2row .wst-silk-img { width: 32px; height: 32px; object-fit: contain; }
+.wpr-summary-2row .wst-num { font-weight: 800; font-size: 15px;
+  vertical-align: middle; text-align: center; padding: 4px 6px; }
+.wpr-summary-2row .wst-name { font-weight: 700; font-size: 14px;
+  vertical-align: middle; padding: 4px 8px; }
+.wpr-summary-2row .wst-row1 > td { border-top: 1px solid var(--line); padding-top: 6px; }
+.wpr-summary-2row .wst-row2 > td { border-bottom: 1px solid var(--line);
+  padding-bottom: 6px; }
+.wpr-summary-2row .wst-row2 .wst-jky { font-size: 11px; color: var(--ink-mute);
+  font-style: italic; }
 .sum-cards { display: none; }
 .wpr-summary-table thead th {
   text-align: left; padding: 7px 8px; border-bottom: 2px solid var(--line);
@@ -5461,21 +5484,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <button class="wpr-filter-reset" id="wpr-f-reset">Reset</button>
     </div>
 
-    <!-- List 1: model disagrees with market -->
+    <!-- List 1: today's picks (overlays) -->
     <div class="wpr-list-block">
       <div class="wpr-list-head">
-        <h3>Model disagrees with market</h3>
+        <h3>Today's Picks</h3>
         <div class="wpr-slider-wrap">
           <label for="wpr-n-slider">Within
             <span id="wpr-n-val">4</span> WPR pts of top</label>
           <input type="range" id="wpr-n-slider" min="3" max="10" value="4" step="1">
         </div>
-      </div>
-      <div class="wpr-list-desc">
-        Runners rated close to their race's top-rated horse whose fixed price
-        is longer than the model's WPR price. Labelled "model vs market" -
-        an overlay here means the model and the market disagree, not a proven
-        value bet.
       </div>
       <div id="wpr-list-overlays"></div>
     </div>
@@ -6089,6 +6106,19 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <input type="number" class="setting-input" id="setting-score-thresh" value="0.40" min="0" max="1" step="0.05">
       </div>
+      <div class="setting-row">
+        <div>
+          <strong>WPR book %</strong>
+          <div class="setting-help">
+            The book the WPR prices should sum to. 100 = fair (mathematically
+            true prices). 90 = prices are ~11% longer than fair, so fewer fixed
+            prices count as overlays (tighter value threshold). Lower values
+            make overlays harder to find; higher values are more generous.
+            Default 90.
+          </div>
+        </div>
+        <input type="number" class="setting-input" id="setting-book-pct" value="90" min="50" max="120" step="1">
+      </div>
     </div>
 
     <!-- Fetch / data source -->
@@ -6248,6 +6278,11 @@ const defaultSettings = {
   targetReturn: 4,
   minStake: 0.25,
   maxStake: 4,
+  // WPR book percentage. The softmax prices sum to a 100% book (fair value);
+  // dividing each by bookPct/100 lengthens them. Default 90 means the implied
+  // book sums to 0.90, so all prices are ~11% longer than fair - fewer fixed
+  // prices show as overlays (tighter "value" threshold). Range 50-120.
+  wprBookPct: 90,
   // Score threshold for the cumulative-score-based selection (used by
   // Quaddie tab and threshold highlighting on Race/Today).
   // Path C (LogReg) scores are sigmoid-bounded in [0, 1] and tend to cluster
@@ -6373,7 +6408,7 @@ function setActiveModel(section, modelKey) {
   });
 });
 
-['setting-unit','setting-target','setting-min','setting-max','setting-score-thresh'].forEach(id => {
+['setting-unit','setting-target','setting-min','setting-max','setting-score-thresh','setting-book-pct'].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener('change', () => {
@@ -6389,6 +6424,15 @@ function setActiveModel(section, modelKey) {
       // Re-render Quaddie tab if open
       if (typeof renderQuaddie === 'function') renderQuaddie();
     }
+    if (id === 'setting-book-pct') {
+      // Clamp to a sane range. 50-120 covers fair-to-overround book targets.
+      settings.wprBookPct = Math.max(50, Math.min(120, v));
+      // WPR prices change - re-render all surfaces that show them.
+      if (typeof renderWprSummary === 'function') renderWprSummary();
+      if (typeof renderRaceDetail === 'function' && window._currentRaceId) {
+        renderRaceDetail(window._currentRaceId);
+      }
+    }
     saveSettings();
   });
 });
@@ -6398,6 +6442,7 @@ document.getElementById('setting-target').value = settings.targetReturn;
 document.getElementById('setting-min').value = settings.minStake;
 document.getElementById('setting-max').value = settings.maxStake;
 document.getElementById('setting-score-thresh').value = settings.scoreThreshold;
+document.getElementById('setting-book-pct').value = settings.wprBookPct != null ? settings.wprBookPct : 90;
 document.getElementById('unit-display').textContent = '1u = $' + settings.unitDollar;
 
 // ── Stake calculation ──────────────────────────────────────────────────────
@@ -8307,7 +8352,13 @@ function _wprRaceModel(race) {
     const mx = Math.max.apply(null, effs);
     const exps = effs.map(e => Math.exp(WPR_BETA_SHARED * (e - mx)));
     const sum = exps.reduce((a, b) => a + b, 0);
-    validIds.forEach((id, i) => { price[id] = sum / exps[i]; });
+    // Book multiplier from settings: 100 = fair (100% book sum), 90 = book sums
+    // to 0.90 = prices lengthened by ~11%, fewer overlays / tighter overlay
+    // threshold. We divide each fair price by (bookPct/100). Default 90.
+    const bookPct = (typeof settings !== 'undefined' && settings.wprBookPct != null)
+      ? Math.max(50, Math.min(120, settings.wprBookPct)) : 90;
+    const bookMul = bookPct / 100;
+    validIds.forEach((id, i) => { price[id] = (sum / exps[i]) / bookMul; });
   }
 
   // Order: highest eff first, scratched runners excluded.
@@ -8448,9 +8499,22 @@ function renderWprSummary() {
       (on ? 'wpr-bet-yes yes' : 'wpr-bet-no') + '" data-rid="' +
       escapeHtml(String(u.rid || '')) + '">' + (on ? 'Y' : 'N') + '</button>';
   }
-  // finish-position cell: shows FP once results have landed, else '—'
+  // finish-position cell: editable input. Shows real result (read-only) once
+  // the race is resulted; before then, the user can enter a manual placeholder
+  // FP that persists between renders. When a real result arrives, the manual
+  // value is overwritten (per user choice). Bound to a localStorage-backed
+  // store via getManualFp / setManualFp (defined elsewhere in this scope).
   function fpCell(u) {
-    return (u && u.f != null) ? String(u.f) : '—';
+    if (u && u.f != null) {
+      // Real result - clean up any stale manual entry, return read-only number.
+      if (typeof clearManualFp === 'function') clearManualFp(u.rid);
+      return String(u.f);
+    }
+    const cur = (typeof getManualFp === 'function') ? getManualFp(u.rid) : '';
+    return '<input type="number" class="wpr-fp-manual" data-rid="' +
+      escapeHtml(String(u && u.rid || '')) + '" min="1" max="30" step="1" ' +
+      'value="' + (cur != null ? cur : '') + '" placeholder="—" ' +
+      'style="width:38px;text-align:center;padding:2px 4px;font-size:11px;border:1px solid var(--line);border-radius:4px;">';
   }
   // Stake / Return for a runner, computed from the bet log exactly the way
   // the P&L tab does it, so the two tabs always agree:
@@ -8538,6 +8602,21 @@ function renderWprSummary() {
       { hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
+  // Time-to-jump: "Xh Ym" / "Ym" countdown to the race start. Returns '—' for
+  // races without a parseable start, 'jumped' once the start has passed.
+  function raceJumpIn(race) {
+    if (!race || !race.start_time) return '—';
+    const t = Date.parse(race.start_time);
+    if (isNaN(t)) return '—';
+    const diffMs = t - Date.now();
+    if (diffMs <= 0) return 'jumped';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return mins + 'm';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h + 'h ' + (m > 0 ? m + 'm' : '');
+  }
+
   // shared jockey-rating chip - same 4-band logic as the Race tab rows
   function wprJkyChip(jrt) {
     if (jrt == null) return '';
@@ -8554,10 +8633,11 @@ function renderWprSummary() {
   function raceCell(race) {
     const fs = race.fs || (race.runners || []).length || 0;
     const ur = unrankedCount(race);
-    let s = escapeHtml(race.venue || '') + ' R' + (race.race || '?') +
-      ' <span class="wpr-list-desc" style="font-size:11px">(' + fs + ' runners';
-    if (ur > 0) s += ', <span class="wpr-unranked-flag">' + ur + ' unranked</span>';
-    s += ')</span>';
+    let s = escapeHtml(race.venue || '') + ' R' + (race.race || '?');
+    if (ur > 0) {
+      s += ' <span class="wpr-unranked-flag" style="font-size:11px">' +
+        ur + ' unranked</span>';
+    }
     return s;
   }
 
@@ -8788,88 +8868,143 @@ function renderWprSummary() {
     '</div>';
   }
 
-  // ── render list 1 ──
+  // ─ Two-row table builders. Each horse spans TWO <tr>s: silks/no/horse-name
+  // span both via rowspan, and row 2 holds the jockey + any secondary data.
+  // Click handler keys off either tr's data-rid for the jump-to-Race action.
+  function _ovRow(r) {
+    const pnl = betPnl(r.horse);
+    const merged =
+      '<td class="wst-silk" rowspan="2">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
+        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
+      '<td class="wst-num" rowspan="2">' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
+      '<td class="wst-name" rowspan="2">' + escapeHtml(r.horse.h || '') + '</td>';
+    const row1 = '<tr class="wpr-row-clickable wst-row1" ' +
+      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+      merged +
+      '<td>' + raceJumpIn(r.race) + '</td>' +
+      '<td>' + raceCell(r.race) + '</td>' +
+      '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
+      '<td>' + settlePos(r.horse) + '</td>' +
+      '<td>' + raceSpeed(r.race) + '</td>' +
+      '<td>' + r.eff.toFixed(1) + '</td>' +
+      '<td>' + r.gapToTop.toFixed(1) + '</td>' +
+      '<td>$' + r.wprPrice.toFixed(2) + '</td>' +
+      '<td>$' + r.fixed.toFixed(2) + '</td>' +
+      '<td>' + betCell(r.horse) + '</td>' +
+      '<td>' + unitCell(pnl.stake) + '</td>' +
+      '<td>' + unitCell(pnl.ret) + '</td>' +
+      '<td>' + fpCell(r.horse) + '</td></tr>';
+    const row2 = '<tr class="wpr-row-clickable wst-row2" ' +
+      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+      '<td>' + raceTime(r.race) + '</td>' +
+      '<td colspan="3" class="wst-jky">' + escapeHtml(r.horse.j || '') + ' ' +
+        wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td colspan="9"></td></tr>';
+    return row1 + row2;
+  }
+  function _stRow(r) {
+    let chipCls = 'wpr-chip-red';
+    if (r.conf != null && r.conf >= 80) chipCls = 'wpr-chip-green';
+    else if (r.conf != null && r.conf >= 60) chipCls = 'wpr-chip-amber';
+    const chip = '<span class="wpr-chip ' + chipCls + '">' +
+      (r.conf != null ? r.conf : '?') + '</span>';
+    const pnl = betPnl(r.horse);
+    const merged =
+      '<td class="wst-silk" rowspan="2">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
+        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
+      '<td class="wst-num" rowspan="2">' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
+      '<td class="wst-name" rowspan="2">' + escapeHtml(r.horse.h || '') + '</td>';
+    const row1 = '<tr class="wpr-row-clickable wst-row1" ' +
+      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+      merged +
+      '<td>' + raceJumpIn(r.race) + '</td>' +
+      '<td>' + raceCell(r.race) + '</td>' +
+      '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
+      '<td>' + settlePos(r.horse) + '</td>' +
+      '<td>' + raceSpeed(r.race) + '</td>' +
+      '<td>' + r.eff.toFixed(1) + '</td>' +
+      '<td>' + r.gap.toFixed(1) + '</td>' +
+      '<td>' + chip + '</td>' +
+      '<td>' + (r.wprPrice != null ? '$' + r.wprPrice.toFixed(2) : '—') + '</td>' +
+      '<td>' + (r.fixed != null ? '$' + r.fixed.toFixed(2) : '—') + '</td>' +
+      '<td>' + betCell(r.horse) + '</td>' +
+      '<td>' + unitCell(pnl.stake) + '</td>' +
+      '<td>' + unitCell(pnl.ret) + '</td>' +
+      '<td>' + fpCell(r.horse) + '</td></tr>';
+    const row2 = '<tr class="wpr-row-clickable wst-row2" ' +
+      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
+      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
+      '<td>' + raceTime(r.race) + '</td>' +
+      '<td colspan="3" class="wst-jky">' + escapeHtml(r.horse.j || '') + ' ' +
+        wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td colspan="10"></td></tr>';
+    return row1 + row2;
+  }
+
+  function _ovTable(rs) {
+    return '<table class="wpr-summary-table wpr-summary-2row"><thead><tr>' +
+      '<th></th><th>No.</th><th>Horse</th>' +
+      '<th>Time</th><th>Race</th><th>Bar</th>' +
+      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
+      '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
+      '<th>Return</th><th>FP</th></tr></thead><tbody>' +
+      rs.map(_ovRow).join('') + '</tbody></table>';
+  }
+  function _stTable(rs) {
+    return '<table class="wpr-summary-table wpr-summary-2row"><thead><tr>' +
+      '<th></th><th>No.</th><th>Horse</th>' +
+      '<th>Time</th><th>Race</th><th>Bar</th>' +
+      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
+      '<th>Conf</th><th>WPR $</th><th>Fixed $</th>' +
+      '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
+      rs.map(_stRow).join('') + '</tbody></table>';
+  }
+  // Partition: resulted = real finish present. Manual FP does NOT count as
+  // resulted (it's a placeholder); only u.f from real results triggers the
+  // Resulted bucket.
+  function _isResulted(r) { return r.horse && r.horse.f != null; }
+
+  // ── render list 1: today's picks (overlays) ──
   const ov = document.getElementById('wpr-list-overlays');
   if (!overlays.length) {
     ov.innerHTML = '<div class="wpr-empty">No runners match the current filters and slider.</div>';
   } else {
-    ov.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th></th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
-      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
-      '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
-      '<th>Return</th><th>FP</th></tr></thead><tbody>' +
-      overlays.map(r => {
-        const pnl = betPnl(r.horse);
-        return '<tr class="wpr-row-clickable" ' +
-          'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
-          'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-        '<td>' + raceTime(r.race) + '</td>' +
-        '<td>' + raceCell(r.race) + '</td>' +
-        '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' + escapeHtml(r.horse.sk) +
-          '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
-        '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
-        '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
-        '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
-        '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
-        '<td>' + settlePos(r.horse) + '</td>' +
-        '<td>' + raceSpeed(r.race) + '</td>' +
-        '<td>' + r.eff.toFixed(1) + '</td>' +
-        '<td>' + r.gapToTop.toFixed(1) + '</td>' +
-        '<td>$' + r.wprPrice.toFixed(2) + '</td>' +
-        '<td>$' + r.fixed.toFixed(2) + '</td>' +
-        '<td>' + betCell(r.horse) + '</td>' +
-        '<td>' + unitCell(pnl.stake) + '</td>' +
-        '<td>' + unitCell(pnl.ret) + '</td>' +
-        '<td>' + fpCell(r.horse) + '</td></tr>';
-      }).join('') + '</tbody></table>' +
-      '<div class="sum-cards">' +
+    const pending = overlays.filter(r => !_isResulted(r));
+    const resulted = overlays.filter(_isResulted);
+    let html = '';
+    if (pending.length) {
+      html += '<div class="wpr-section-head">Pending</div>' + _ovTable(pending);
+    }
+    if (resulted.length) {
+      html += '<div class="wpr-section-head">Resulted</div>' + _ovTable(resulted);
+    }
+    html += '<div class="sum-cards">' +
       overlays.map(r => sumCard(r, {gapLabel: 'Gap to top', gap: r.gapToTop})).join('') +
       '</div>';
+    ov.innerHTML = html;
   }
 
-  // ── render list 2 ──
+  // ── render list 2: standouts ──
   const st = document.getElementById('wpr-list-standouts');
   if (!standouts.length) {
     st.innerHTML = '<div class="wpr-empty">No standouts match the current filters and slider.</div>';
   } else {
-    st.innerHTML = '<table class="wpr-summary-table"><thead><tr>' +
-      '<th>Time</th><th>Race</th><th></th><th>No.</th><th>Horse</th><th>Jockey</th><th>Bar</th>' +
-      '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
-      '<th>Confidence</th><th>WPR $</th><th>Fixed $</th>' +
-      '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
-      standouts.map(r => {
-        let chipCls = 'wpr-chip-red';
-        if (r.conf != null && r.conf >= 80) chipCls = 'wpr-chip-green';
-        else if (r.conf != null && r.conf >= 60) chipCls = 'wpr-chip-amber';
-        const chip = '<span class="wpr-chip ' + chipCls + '">' +
-          (r.conf != null ? r.conf : '?') + '</span>';
-        const pnl = betPnl(r.horse);
-        return '<tr class="wpr-row-clickable" ' +
-          'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
-          'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-          '<td>' + raceTime(r.race) + '</td>' +
-          '<td>' + raceCell(r.race) + '</td>' +
-          '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' + escapeHtml(r.horse.sk) +
-            '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
-          '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
-          '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
-          '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
-          '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
-          '<td>' + settlePos(r.horse) + '</td>' +
-          '<td>' + raceSpeed(r.race) + '</td>' +
-          '<td>' + r.eff.toFixed(1) + '</td>' +
-          '<td>' + r.gap.toFixed(1) + '</td>' +
-          '<td>' + chip + '</td>' +
-          '<td>' + (r.wprPrice != null ? '$' + r.wprPrice.toFixed(2) : '—') + '</td>' +
-          '<td>' + (r.fixed != null ? '$' + r.fixed.toFixed(2) : '—') + '</td>' +
-          '<td>' + betCell(r.horse) + '</td>' +
-          '<td>' + unitCell(pnl.stake) + '</td>' +
-          '<td>' + unitCell(pnl.ret) + '</td>' +
-          '<td>' + fpCell(r.horse) + '</td></tr>';
-      }).join('') + '</tbody></table>' +
-      '<div class="sum-cards">' +
+    const pending = standouts.filter(r => !_isResulted(r));
+    const resulted = standouts.filter(_isResulted);
+    let html = '';
+    if (pending.length) {
+      html += '<div class="wpr-section-head">Pending</div>' + _stTable(pending);
+    }
+    if (resulted.length) {
+      html += '<div class="wpr-section-head">Resulted</div>' + _stTable(resulted);
+    }
+    html += '<div class="sum-cards">' +
       standouts.map(r => sumCard(r, {gapLabel: 'Gap to 2nd', gap: r.gap, conf: r.conf})).join('') +
       '</div>';
+    st.innerHTML = html;
   }
 
   // Wire row clicks on both lists - jump to the runner on the Race tab.
@@ -8894,11 +9029,25 @@ function renderWprSummary() {
         }
         return;
       }
+      // Manual FP input click: don't trigger row jump.
+      if (e.target.closest('.wpr-fp-manual')) {
+        e.stopPropagation();
+        return;
+      }
       const tr = e.target.closest('.wpr-row-clickable');
       if (!tr || !host.contains(tr)) return;
       const raceId = tr.dataset.raceId;
       const rid = tr.dataset.rid;
       if (raceId) navigateToRaceRunner(raceId, rid);
+    });
+    // Manual FP input change - persist to the manual-FP store. No re-render
+    // needed (the input already shows the typed value); other surfaces pick
+    // up the change next time they render.
+    host.addEventListener('change', (e) => {
+      const inp = e.target.closest('.wpr-fp-manual');
+      if (!inp || !host.contains(inp)) return;
+      const rid = inp.dataset.rid;
+      if (rid) setManualFp(rid, inp.value);
     });
   });
 }
@@ -10785,6 +10934,43 @@ function setBetEntry(runId, patch) {
 }
 function isPlaced(runId) {
   return !!(getBetLog()[String(runId)] || {}).placed;
+}
+
+// Manual FP override - user can enter a placeholder finish position mid-day
+// before official results land. Persists per run_id in localStorage. When
+// real results arrive, fpCell calls clearManualFp to wipe stale entries
+// (auto-overwrite, per user decision).
+const MANUAL_FP_KEY = 'toprate_v3_manual_fp';
+function _getManualFpMap() {
+  try { return JSON.parse(localStorage.getItem(MANUAL_FP_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function _saveManualFpMap(m) {
+  try { localStorage.setItem(MANUAL_FP_KEY, JSON.stringify(m)); } catch(e) {}
+}
+function getManualFp(rid) {
+  if (rid == null) return null;
+  const m = _getManualFpMap();
+  const v = m[String(rid)];
+  return v != null ? v : null;
+}
+function setManualFp(rid, val) {
+  if (rid == null) return;
+  const m = _getManualFpMap();
+  if (val == null || val === '' || isNaN(val)) {
+    delete m[String(rid)];
+  } else {
+    m[String(rid)] = parseInt(val, 10);
+  }
+  _saveManualFpMap(m);
+}
+function clearManualFp(rid) {
+  if (rid == null) return;
+  const m = _getManualFpMap();
+  if (m.hasOwnProperty(String(rid))) {
+    delete m[String(rid)];
+    _saveManualFpMap(m);
+  }
 }
 // Returns the price to use for P&L calc on a given bet:
 //   - oddsTaken if user entered one
