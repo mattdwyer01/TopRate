@@ -8782,22 +8782,17 @@ function renderWprSummary() {
     const strip = document.getElementById('wpr-kpi-strip');
     if (!strip) return;
     const log = getBetLog();
-    // Collect today's placed bets that pass the active filters.
+    // Collect every placed bet for the selected date. Discovery filters
+    // (venue, field, going, jockey, confidence, price, result) are for
+    // finding value, not measuring your actual betting - the KPI strip is
+    // your real performance, so count all placed bets (only "Bet: no"
+    // suppresses them, and scratched runners are excluded).
     const todaysBets = [];
     races.forEach(race => {
-      if (!racePassesFilter(race)) return;
-      if (!fieldPasses(race)) return;
-      if (!goingPasses(race)) return;
       (race.runners || []).forEach(u => {
         if (!isBet(u)) return;
-        if (!confPasses(u.wpjc)) return;
-        if (!jkyPasses(u)) return;
-        if (!resultPasses(u)) return;
-        if (!pricePasses(u)) return;
-        // Bet filter: KPI strip already implies "bets" - 'yes' is the only
-        // sensible state. 'no' excludes everything (intentional - matches
-        // the user's filter choice). '' (All) shows all bets.
         if (fBet === 'no') return;
+        if (isManualScratch(u.rid)) return;
         todaysBets.push({ u: u, race: race });
       });
     });
@@ -8922,42 +8917,64 @@ function renderWprSummary() {
       }
     }
 
-    // List 1: overlays near the top rating, PLUS any runner with a bet
-    // placed on it (placed bets always show so the user can track them even
-    // when the current fixed price is no longer an overlay - prices move).
+    // List 1: overlays near the top rating (discovery). Placed bets are
+    // added separately below so the discovery filters never hide a bet the
+    // user has already made.
     m.runners.forEach(u => {
-      // Skip scratched runners - they should never appear in Summary
-      // lists. The shared model keeps eff populated for everyone (so
-      // the dimmed-row UI can still show them), but for Summary they
-      // are out.
       if (m.scratched[u.rid]) return;
       const e = m.eff[u.rid];
       if (e == null) return;
-      // Explicit user filters still apply to both overlays and placed bets.
+      if (topEff - e > N) return;            // not close enough to the top
       if (!confPasses(u.wpjc)) return;
       if (!jkyPasses(u)) return;
       if (fBet === 'yes' && !isBet(u)) return;
       if (fBet === 'no' && isBet(u)) return;
       if (!resultPasses(u)) return;
       if (!pricePasses(u)) return;
-      const placed = isBet(u);
       const wp = m.price[u.rid];
-      const hasPrice = (wp != null && u.fx != null && u.fx > 0);
-      const ovPct = hasPrice ? (u.fx / wp - 1) * 100 : null;
-      // Qualifying overlay: near the top rating, fixed price longer than
-      // fair value, and clearing the overlay-band filter.
-      const isOverlay = (topEff - e <= N) && hasPrice && u.fx > wp &&
-        (fOverlay <= 0 || ovPct >= fOverlay);
-      // A placed bet bypasses the overlay gate (and the near-top gate), so
-      // it shows regardless of whether it is currently an overlay.
-      if (!isOverlay && !placed) return;
-      overlays.push({
-        race: race, horse: u, eff: e,
-        gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
-        overlayPct: ovPct,
-      });
+      if (wp == null || u.fx == null || u.fx <= 0) return;
+      if (u.fx > wp) {                        // fixed price longer than fair value
+        const ovPct = (u.fx / wp - 1) * 100;
+        if (fOverlay > 0 && ovPct < fOverlay) return;
+        overlays.push({
+          race: race, horse: u, eff: e,
+          gapToTop: topEff - e, wprPrice: wp, fixed: u.fx,
+          overlayPct: ovPct,
+        });
+      }
     });
   });
+
+  // ── Always include placed bets ───────────────────────────────────────────
+  // A bet the user has already made should show in the overlays list even if
+  // the discovery filters (overlay gate, near-top, jockey rating, field size,
+  // going, confidence, price) would hide it - prices and circumstances move
+  // after a bet is struck. Only the selected date, the Result filter and the
+  // Bet filter still apply. Deduped against rows already added above.
+  if (fBet !== 'no') {
+    const seen = new Set(
+      overlays.map(r => (r.horse && r.horse.rid != null) ? String(r.horse.rid) : null)
+              .filter(x => x != null));
+    races.forEach(race => {
+      const m = _wprRaceModel(race);
+      (race.runners || []).forEach(u => {
+        if (u.rid == null) return;
+        if (seen.has(String(u.rid))) return;
+        if (!isBet(u)) return;                 // placed bets only
+        if (m.scratched[u.rid]) return;        // scratched -> bet refunded
+        if (!resultPasses(u)) return;          // respect Won/Placed/Lost/Pending
+        const e = m.eff[u.rid];
+        const wp = m.price[u.rid];
+        const topE = (m.order.length) ? m.eff[m.order[0]] : null;
+        overlays.push({
+          race: race, horse: u, eff: e,
+          gapToTop: (e != null && topE != null) ? (topE - e) : null,
+          wprPrice: wp, fixed: u.fx, overlayPct: null,
+        });
+        seen.add(String(u.rid));
+      });
+    });
+  }
 
   // Sort both lists chronologically by race start time. Races with no
   // start_time sort to the end (Infinity).
@@ -8998,7 +9015,7 @@ function renderWprSummary() {
       'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
       '<div class="sc-top">' +
         '<div class="sc-race">' + raceTime(r.race) + ' · ' + raceCell(r.race) + '</div>' +
-        '<div class="sc-eff">' + r.eff.toFixed(1) + confChip + '</div>' +
+        '<div class="sc-eff">' + (r.eff != null ? r.eff.toFixed(1) : '—') + confChip + '</div>' +
       '</div>' +
       '<div class="sc-horse">' +
         (r.horse.sk ? '<img class="sc-silk" src="' + escapeHtml(r.horse.sk) +
@@ -9009,7 +9026,7 @@ function renderWprSummary() {
         ' <span class="sc-jky">' + escapeHtml(r.horse.j || '') + '</span></div>' +
       (r.horse.tn ? '<div class="sc-trn">Trn ' + escapeHtml(r.horse.tn) + '</div>' : '') +
       '<div class="sc-grid">' +
-        '<div class="sc-cell"><span class="lbl">' + opts.gapLabel + '</span><span class="val">' + opts.gap.toFixed(1) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">' + opts.gapLabel + '</span><span class="val">' + (opts.gap != null ? opts.gap.toFixed(1) : '—') + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Settle</span><span class="val">' + settlePos(r.horse) + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Speed</span><span class="val">' + raceSpeed(r.race) + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Bar</span><span class="val">' + (r.horse.b != null ? r.horse.b : '—') + '</span></div>' +
@@ -9046,9 +9063,9 @@ function renderWprSummary() {
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
       '<td>' + raceSpeed(r.race) + '</td>' +
-      '<td>' + r.eff.toFixed(1) + '</td>' +
-      '<td>$' + r.wprPrice.toFixed(2) + '</td>' +
-      '<td>$' + r.fixed.toFixed(2) + '</td>' +
+      '<td>' + (r.eff != null ? r.eff.toFixed(1) : '—') + '</td>' +
+      '<td>' + (r.wprPrice != null ? '$' + r.wprPrice.toFixed(2) : '—') + '</td>' +
+      '<td>' + (r.fixed != null ? '$' + r.fixed.toFixed(2) : '—') + '</td>' +
       '<td>' + betCell(r.horse) + '</td>' +
       '<td>' + unitCell(pnl.stake) + '</td>' +
       '<td>' + unitCell(pnl.ret) + '</td>' +
