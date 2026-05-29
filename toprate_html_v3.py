@@ -3365,21 +3365,6 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .wpr-section-head:first-child { margin-top: 0; }
-/* Two-row-per-horse layout: bigger merged cells for silks/no/horse-name
-   span both rows; row 1 has the main data; row 2 shows jockey + secondary
-   data. Row 2 has a soft separator below so each horse block reads clearly. */
-.wpr-summary-2row .wst-silk { width: 36px; padding: 4px; text-align: center;
-  vertical-align: middle; }
-.wpr-summary-2row .wst-silk-img { width: 32px; height: 32px; object-fit: contain; }
-.wpr-summary-2row .wst-num { font-weight: 800; font-size: 15px;
-  vertical-align: middle; text-align: center; padding: 4px 6px; }
-.wpr-summary-2row .wst-name { font-weight: 700; font-size: 14px;
-  vertical-align: middle; padding: 4px 8px; }
-.wpr-summary-2row .wst-row1 > td { border-top: 1px solid var(--line); padding-top: 6px; }
-.wpr-summary-2row .wst-row2 > td { border-bottom: 1px solid var(--line);
-  padding-bottom: 6px; }
-.wpr-summary-2row .wst-row2 .wst-jky { font-size: 11px; color: var(--ink-mute);
-  font-style: italic; }
 .sum-cards { display: none; }
 .wpr-summary-table thead th {
   text-align: left; padding: 7px 8px; border-bottom: 2px solid var(--line);
@@ -5409,11 +5394,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
            unchanged - matches the Race tab's control without a rewrite. -->
       <select class="wpr-summary-date-sel" id="wpr-summary-date-sel"
               style="display:none" title="Date shown"></select>
-      <div class="wpr-summary-note">
-        WPR-projection picks for today's runners. The projection is a form-quality
-        read, not a proven betting edge - treat these lists as information.
-        Lists recompute live off any manual adjustments made on the Race tab.
-      </div>
     </div>
 
     <!-- KPI header: a horizontal strip of headline numbers for the
@@ -8868,22 +8848,22 @@ function renderWprSummary() {
     '</div>';
   }
 
-  // ─ Two-row table builders. Each horse spans TWO <tr>s: silks/no/horse-name
-  // span both via rowspan, and row 2 holds the jockey + any secondary data.
-  // Click handler keys off either tr's data-rid for the jump-to-Race action.
+  // Single-row builders. Each horse is one <tr>. Jockey + Trainer columns
+  // included (user request). Pending/Resulted split is handled by the caller.
   function _ovRow(r) {
     const pnl = betPnl(r.horse);
-    const merged =
-      '<td class="wst-silk" rowspan="2">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
-        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
-      '<td class="wst-num" rowspan="2">' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
-      '<td class="wst-name" rowspan="2">' + escapeHtml(r.horse.h || '') + '</td>';
-    const row1 = '<tr class="wpr-row-clickable wst-row1" ' +
+    return '<tr class="wpr-row-clickable" ' +
       'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
       'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-      merged +
       '<td>' + raceJumpIn(r.race) + '</td>' +
+      '<td>' + raceTime(r.race) + '</td>' +
       '<td>' + raceCell(r.race) + '</td>' +
+      '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
+        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
+      '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
+      '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
+      '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
       '<td>' + raceSpeed(r.race) + '</td>' +
@@ -8895,14 +8875,6 @@ function renderWprSummary() {
       '<td>' + unitCell(pnl.stake) + '</td>' +
       '<td>' + unitCell(pnl.ret) + '</td>' +
       '<td>' + fpCell(r.horse) + '</td></tr>';
-    const row2 = '<tr class="wpr-row-clickable wst-row2" ' +
-      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
-      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-      '<td>' + raceTime(r.race) + '</td>' +
-      '<td colspan="3" class="wst-jky">' + escapeHtml(r.horse.j || '') + ' ' +
-        wprJkyChip(r.horse.jrt) + '</td>' +
-      '<td colspan="9"></td></tr>';
-    return row1 + row2;
   }
   function _stRow(r) {
     let chipCls = 'wpr-chip-red';
@@ -8911,17 +8883,18 @@ function renderWprSummary() {
     const chip = '<span class="wpr-chip ' + chipCls + '">' +
       (r.conf != null ? r.conf : '?') + '</span>';
     const pnl = betPnl(r.horse);
-    const merged =
-      '<td class="wst-silk" rowspan="2">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
-        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
-      '<td class="wst-num" rowspan="2">' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
-      '<td class="wst-name" rowspan="2">' + escapeHtml(r.horse.h || '') + '</td>';
-    const row1 = '<tr class="wpr-row-clickable wst-row1" ' +
+    return '<tr class="wpr-row-clickable" ' +
       'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
       'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-      merged +
       '<td>' + raceJumpIn(r.race) + '</td>' +
+      '<td>' + raceTime(r.race) + '</td>' +
       '<td>' + raceCell(r.race) + '</td>' +
+      '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
+        escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
+      '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
+      '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
+      '<td>' + escapeHtml(r.horse.j || '') + ' ' + wprJkyChip(r.horse.jrt) + '</td>' +
+      '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
       '<td>' + raceSpeed(r.race) + '</td>' +
@@ -8934,37 +8907,28 @@ function renderWprSummary() {
       '<td>' + unitCell(pnl.stake) + '</td>' +
       '<td>' + unitCell(pnl.ret) + '</td>' +
       '<td>' + fpCell(r.horse) + '</td></tr>';
-    const row2 = '<tr class="wpr-row-clickable wst-row2" ' +
-      'data-race-id="' + escapeHtml(String(r.race.race_id)) + '" ' +
-      'data-rid="' + escapeHtml(String(r.horse.rid || '')) + '">' +
-      '<td>' + raceTime(r.race) + '</td>' +
-      '<td colspan="3" class="wst-jky">' + escapeHtml(r.horse.j || '') + ' ' +
-        wprJkyChip(r.horse.jrt) + '</td>' +
-      '<td colspan="10"></td></tr>';
-    return row1 + row2;
   }
 
   function _ovTable(rs) {
-    return '<table class="wpr-summary-table wpr-summary-2row"><thead><tr>' +
-      '<th></th><th>No.</th><th>Horse</th>' +
-      '<th>Time</th><th>Race</th><th>Bar</th>' +
+    return '<table class="wpr-summary-table"><thead><tr>' +
+      '<th>Jump in</th><th>Time</th><th>Race</th><th></th><th>No.</th>' +
+      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to top</th>' +
       '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
       '<th>Return</th><th>FP</th></tr></thead><tbody>' +
       rs.map(_ovRow).join('') + '</tbody></table>';
   }
   function _stTable(rs) {
-    return '<table class="wpr-summary-table wpr-summary-2row"><thead><tr>' +
-      '<th></th><th>No.</th><th>Horse</th>' +
-      '<th>Time</th><th>Race</th><th>Bar</th>' +
+    return '<table class="wpr-summary-table"><thead><tr>' +
+      '<th>Jump in</th><th>Time</th><th>Race</th><th></th><th>No.</th>' +
+      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
       '<th>Conf</th><th>WPR $</th><th>Fixed $</th>' +
       '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
       rs.map(_stRow).join('') + '</tbody></table>';
   }
-  // Partition: resulted = real finish present. Manual FP does NOT count as
-  // resulted (it's a placeholder); only u.f from real results triggers the
-  // Resulted bucket.
+  // Partition: resulted = real finish present. Manual FP does NOT promote
+  // a row to Resulted (it's a placeholder); only u.f from real results does.
   function _isResulted(r) { return r.horse && r.horse.f != null; }
 
   // ── render list 1: today's picks (overlays) ──
