@@ -3103,14 +3103,17 @@ body {
 .rd-runs-table tbody tr:hover td { background: var(--line-soft); }
 .rd-runs-table td.rd-run-wpr {
   font-weight: 700; text-align: right; background: rgba(16,185,129,0.06);
-  /* Cap width - the inline peak chip was forcing the column wider than
-     needed. White-space wrap lets the peak chip drop under the number
-     on the narrow column. */
+  /* Position relative so the peak chip can absolutely-position into the
+     corner without pushing the row taller. Width is wide enough for the
+     WPR number; the chip floats over the cell without affecting layout. */
+  position: relative;
   width: 48px; max-width: 60px;
-  white-space: normal;
+  white-space: nowrap;
 }
 .rd-runs-table td.rd-run-wpr .rd-run-peak {
-  display: inline-block; margin: 0 0 2px 0;
+  position: absolute;
+  top: 2px; left: 2px;
+  margin: 0;
 }
 .rd-runs-table td.rd-num { text-align: right; }
 .rd-runs-table td.rd-pos {
@@ -3251,15 +3254,23 @@ body {
   background: rgba(220,38,38,0.08);
   color: #b91c1c; font-weight: 700;
 }
-/* 2x2 grid for the four comparison tables - Race speed | Settling on
-   top, Going | Distance below. Collapses to one column when narrow. */
+/* 4-across grid for the four comparison tables - Race speed | Settling |
+   Going | Distance. Per user: 1x4 (not 2x2) so the panel takes less
+   vertical room. On narrow screens the tables share the row but with
+   reduced font/padding so they fit. */
 .rd-cmp-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
 }
-.rd-cmp-grid > .rd-section { margin: 0; }
-.rd-cmp-grid .rd-runs-table { width: 100%; }
+.rd-cmp-grid > .rd-section { margin: 0; min-width: 0; }
+.rd-cmp-grid .rd-runs-table { width: 100%; font-size: 11px; }
+.rd-cmp-grid .rd-runs-table th,
+.rd-cmp-grid .rd-runs-table td { padding: 3px 4px; }
 @media (max-width: 760px) {
-  .rd-cmp-grid { grid-template-columns: 1fr; }
+  /* Stay 4 across on mobile per user. Tighten further so it fits. */
+  .rd-cmp-grid { gap: 4px; }
+  .rd-cmp-grid .rd-runs-table { font-size: 10px; }
+  .rd-cmp-grid .rd-runs-table th,
+  .rd-cmp-grid .rd-runs-table td { padding: 2px 3px; }
 }
 .rd-speed-cap {
   font-size: 11px; color: var(--ink-mute); line-height: 1.5;
@@ -7756,9 +7767,11 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
     }
     function _sectCmpCls(horse, race) {
       if (horse == null || race == null) return 'rd-sect-flat';
-      const d = horse - race;
-      if (d >= 1.5) return 'rd-sect-against';   // horse stronger than shape
-      if (d <= -1.5) return 'rd-sect-with';     // horse weaker than shape
+      // Per-cell colour: green if horse's section figure beat the race
+      // shape (any amount faster), red if slower (any amount), neutral
+      // when exactly equal or one side missing.
+      if (horse > race) return 'rd-sect-against';   // faster than race shape
+      if (horse < race) return 'rd-sect-with';      // slower than race shape
       return 'rd-sect-flat';
     }
     // going chip - colour by track condition
@@ -9105,14 +9118,14 @@ function renderWprSummary() {
       (resulted ? '' : '<td>' + raceJumpIn(r.race) + '</td>') +
       '<td>' + raceTime(r.race) + '</td>' +
       '<td>' + raceCell(r.race) + '</td>' +
-      '<td>' + (r.race.distance != null ? r.race.distance + 'm' : '—') + '</td>' +
-      '<td>' + escapeHtml(r.race.going || '—') + '</td>' +
       '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
         escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
       '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.j || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
+      '<td>' + (r.race.distance != null ? r.race.distance + 'm' : '—') + '</td>' +
+      '<td>' + escapeHtml(r.race.going || '—') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
       '<td>' + raceSpeed(r.race) + '</td>' +
@@ -9137,14 +9150,14 @@ function renderWprSummary() {
       (resulted ? '' : '<td>' + raceJumpIn(r.race) + '</td>') +
       '<td>' + raceTime(r.race) + '</td>' +
       '<td>' + raceCell(r.race) + '</td>' +
-      '<td>' + (r.race.distance != null ? r.race.distance + 'm' : '—') + '</td>' +
-      '<td>' + escapeHtml(r.race.going || '—') + '</td>' +
       '<td class="wst-silk">' + (r.horse.sk ? '<img class="wst-silk-img" src="' +
         escapeHtml(r.horse.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '') + '</td>' +
       '<td>' + (r.horse.tab != null ? r.horse.tab : '—') + '</td>' +
       '<td>' + escapeHtml(r.horse.h || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.j || '') + '</td>' +
       '<td>' + escapeHtml(r.horse.tn || '') + '</td>' +
+      '<td>' + (r.race.distance != null ? r.race.distance + 'm' : '—') + '</td>' +
+      '<td>' + escapeHtml(r.race.going || '—') + '</td>' +
       '<td>' + (r.horse.b != null ? r.horse.b : '—') + '</td>' +
       '<td>' + settlePos(r.horse) + '</td>' +
       '<td>' + raceSpeed(r.race) + '</td>' +
@@ -9162,8 +9175,8 @@ function renderWprSummary() {
   function _ovTable(rs, resulted) {
     return '<table class="wpr-summary-table"><thead><tr>' +
       (resulted ? '' : '<th>Jump in</th>') +
-      '<th>Time</th><th>Race</th><th>Dist</th><th>Going</th><th></th><th>No.</th>' +
-      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th></th><th>No.</th>' +
+      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Dist</th><th>Going</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th>' +
       '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
       '<th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -9172,8 +9185,8 @@ function renderWprSummary() {
   function _stTable(rs, resulted) {
     return '<table class="wpr-summary-table"><thead><tr>' +
       (resulted ? '' : '<th>Jump in</th>') +
-      '<th>Time</th><th>Race</th><th>Dist</th><th>Going</th><th></th><th>No.</th>' +
-      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Bar</th>' +
+      '<th>Time</th><th>Race</th><th></th><th>No.</th>' +
+      '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Dist</th><th>Going</th><th>Bar</th>' +
       '<th>Settle</th><th>Speed</th><th>Eff WPR</th><th>Gap to 2nd</th>' +
       '<th>Conf</th><th>WPR $</th><th>Fixed $</th>' +
       '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
@@ -14869,15 +14882,28 @@ function relativeTime(iso) {
 function updateRelativeTimes() {
   const rel = relativeTime(RUN_ISO);
   const headerRel = document.getElementById('header-run-rel');
-  if (headerRel) headerRel.textContent = rel;
   const settingsRel = document.getElementById('last-fetched-rel');
+  const dot = document.getElementById('freshness-dot');
+  const stamp = document.getElementById('header-run-stamp');
+
+  // If a new build has been detected, override the display to make the
+  // affordance unmissable. The stamp itself is wired to reload on click
+  // (see wireFreshnessStampClick).
+  if (typeof _newBuildAvailable !== 'undefined' && _newBuildAvailable) {
+    if (headerRel) headerRel.textContent = 'New data - tap to refresh';
+    if (settingsRel) settingsRel.textContent = rel + ' (newer available)';
+    if (dot) dot.className = 'freshness-dot aging';
+    if (stamp) stamp.title = 'Newer prices are available - click to refresh';
+    return;
+  }
+
+  if (headerRel) headerRel.textContent = rel;
   if (settingsRel) settingsRel.textContent = rel;
 
   // Price-freshness dot. Minutes since the last HTML rebuild (= last price
   // refresh). Thresholds tied to the 5-min refresh cadence: under 10 min is
   // fresh (a slot or two), 10-30 min aging, over 30 min stale (refresh not
   // running, or outside the workflow's racing-hours window).
-  const dot = document.getElementById('freshness-dot');
   if (dot && typeof RUN_ISO !== 'undefined' && RUN_ISO) {
     const ageMin = Math.max(0, (Date.now() - new Date(RUN_ISO).getTime()) / 60000);
     let cls, note;
@@ -14885,46 +14911,31 @@ function updateRelativeTimes() {
     else if (ageMin < 30) { cls = 'aging'; note = 'Prices a little stale'; }
     else                  { cls = 'stale'; note = 'Prices stale - refresh may not be running'; }
     dot.className = 'freshness-dot ' + cls;
-    const stamp = document.getElementById('header-run-stamp');
     if (stamp) stamp.title = note + ' (last refresh ' + rel + ')';
   }
 }
 updateRelativeTimes();
 setInterval(updateRelativeTimes, 60000);
 
-// ── Silent auto-reload on new HTML detection ────────────────────────────────
+// ── New-build detection (manual reload affordance) ──────────────────────────
 // The bot pushes a new toprate_live.html every ~5 min during racing hours.
-// Without a reload, this tab keeps showing stale prices forever. We probe
-// the deployed HTML's Last-Modified header every 2 min; if it's newer than
-// the build we have loaded (RUN_ISO), we silently reload.
-//
-// Reload guards: if the user is mid-input (focused on any input/select)
-// the reload is deferred to the next tick. This prevents the page from
-// nuking a typed odds value or open FP dropdown.
-(function setupFreshnessAutoReload() {
+// We probe the file's Last-Modified header on an interval and, when a newer
+// build is detected, set a sticky flag that the header freshness stamp
+// surfaces as "new data - tap to refresh". The page never reloads on its
+// own - user always controls when state is dropped.
+let _newBuildAvailable = false;
+
+(function setupFreshnessCheck() {
   if (typeof RUN_ISO === 'undefined' || !RUN_ISO) return;
-  // Parse our own build timestamp once.
   const ourBuiltAt = new Date(RUN_ISO).getTime();
   if (isNaN(ourBuiltAt)) return;
 
-  // Probe the same HTML file we're rendering from. Relative URL keeps this
-  // working on GitHub Pages or any other static host.
   const probeUrl = window.location.pathname.split('?')[0].split('#')[0];
-
-  function userIsMidInput() {
-    const a = document.activeElement;
-    if (!a) return false;
-    const tag = (a.tagName || '').toUpperCase();
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return true;
-    if (a.isContentEditable) return true;
-    return false;
-  }
 
   async function checkForNewBuild() {
     if (document.hidden) return;          // don't probe when tab is in background
+    if (_newBuildAvailable) return;       // already flagged; no need to keep checking
     try {
-      // Cache-busting query param so we don't get a 304 with a stale Date.
-      // Last-Modified should still be the file's real mtime on the server.
       const url = probeUrl + '?fresh=' + Date.now();
       const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
       if (!r.ok) return;
@@ -14932,27 +14943,35 @@ setInterval(updateRelativeTimes, 60000);
       if (!lm) return;
       const serverBuiltAt = new Date(lm).getTime();
       if (isNaN(serverBuiltAt)) return;
-      // 30-second margin so clock skew between server and client doesn't
-      // trigger phantom reloads. Real bot pushes are minutes apart.
+      // 30-second skew margin so clock differences don't fire phantom flags.
       if (serverBuiltAt > ourBuiltAt + 30000) {
-        if (userIsMidInput()) return;     // try again next tick
-        // Silent reload. force=true via cache:reload-ish: use replace() so
-        // back-button history doesn't pile up.
-        window.location.reload();
+        _newBuildAvailable = true;
+        // Repaint the freshness stamp so the affordance shows immediately,
+        // rather than waiting for the next 60s relative-time tick.
+        if (typeof updateRelativeTimes === 'function') updateRelativeTimes();
       }
     } catch (e) {
-      // Network blip or CORS - silently ignore, try next interval.
+      // Network blip - silently ignore, try next interval.
     }
   }
 
-  // First probe in 30s (don't compete with initial render), then every 2 min.
-  setTimeout(checkForNewBuild, 30 * 1000);
-  setInterval(checkForNewBuild, 2 * 60 * 1000);
-  // Also probe when the tab becomes visible after being hidden - common
-  // mobile / background-tab pattern where the user comes back to a stale page.
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) checkForNewBuild();
+  // First probe in 60s (don't compete with initial render), then every 5 min.
+  // No visibilitychange poll - it was too aggressive. The interval catches
+  // new builds within ~5 min which matches the bot's push cadence.
+  setTimeout(checkForNewBuild, 60 * 1000);
+  setInterval(checkForNewBuild, 5 * 60 * 1000);
+})();
+
+// Make the header freshness stamp clickable when a new build is available.
+// One-shot wiring: the listener checks the flag at click time, so toggling
+// the flag in setupFreshnessCheck doesn't need to rewire anything.
+(function wireFreshnessStampClick() {
+  const stamp = document.getElementById('header-run-stamp');
+  if (!stamp) return;
+  stamp.addEventListener('click', () => {
+    if (_newBuildAvailable) window.location.reload();
   });
+  stamp.style.cursor = 'pointer';
 })();
 
 // Wire up Settings: Open Actions link
