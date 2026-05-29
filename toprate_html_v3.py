@@ -3324,6 +3324,13 @@ body {
 .wpr-summary-table {
   width: 100%; border-collapse: collapse; font-size: 13px;
 }
+/* P&L: full-width date band grouping the day's bets in the Summary-style table. */
+.pnl-table-wrap { overflow-x: auto; }
+.wpr-summary-table tr.pnl-date-row td {
+  background: var(--line-soft); color: var(--ink-mute);
+  font-weight: 700; font-size: 11px; letter-spacing: .03em;
+  padding: 6px 10px; position: sticky; top: 0;
+}
 /* Pending / Resulted section heading inside each Today's Picks list */
 .wpr-section-head {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -11504,350 +11511,188 @@ function renderPnL() {
     wrSvg.innerHTML = svgHtml;
   }
 
-  // ── Placed bets list (rich expandable cards) ──
-  // settled[] is already filtered to placed bets (built from betLog earlier),
-  // so we just reverse for most-recent-first ordering.
+  // ── Placed bets list - exact Summary-table layout ──
+  // Migrated to match the Summary tab: each bet renders as a row in the same
+  // .wpr-summary-table, with the same columns. Clicking a row opens the race.
+  // Money columns (Stake/Return) use the P&L's own authoritative math
+  // (odds-taken else bet-time fixed price), NOT the Summary's live-price calc,
+  // so historical bets stay correct.
   document.getElementById('bh-count').textContent = settled.length;
   const list = document.getElementById('bh-list');
-  list.innerHTML = '';
 
-  let displaySettled = settled.slice().reverse();  // most recent first
-
-  if (displaySettled.length === 0) {
+  if (!settled.length) {
     list.innerHTML = '<div class="bh-empty">No placed bets in this period.</div>';
     return;
   }
 
-  displaySettled.forEach((s, idx) => {
-    const csvPrice = s.fxprice;
-    const sp = s.sp;
-    const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
-    const placed = !!entry.placed;
-    const oddsTaken = entry.oddsTaken;
-    const hasOddsTaken = oddsTaken != null && oddsTaken > 1;
-    const r = s.runner_full || {};
+  // Quick race lookup for the projection / settle / speed columns.
+  const _raceById = {};
+  (typeof RACES !== 'undefined' ? RACES : []).forEach(rc => {
+    _raceById[String(rc.race_id)] = rc;
+  });
 
-    // Stake price source of truth: oddsTaken if entered, else live fxprice (muted).
-    // For settled bets, this matches Today tab logic exactly.
-    const stakePrice = hasOddsTaken ? oddsTaken : csvPrice;
-    const usingFallback = !hasOddsTaken;
-    const stake = (stakePrice != null && stakePrice > 1)
-                    ? calcStake(stakePrice, { capExempt: hasOddsTaken, model: s.model })
-                    : null;
+  // Local copies of the Summary's display helpers (identical output) so the
+  // rows are visually the same without coupling to renderWprSummary's closures.
+  function pRaceTime(race) {
+    if (!race || !race.start_time) return '—';
+    const t = Date.parse(race.start_time);
+    if (isNaN(t)) return '—';
+    return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  function pRaceSpeed(race) {
+    if (!race) return '—';
+    if (race.rse != null) {
+      if (race.rse > 0.15) return 'Fast early';
+      if (race.rse < -0.15) return 'Slow early';
+      return 'Even';
+    }
+    let leaders = 0, onpace = 0, midback = 0;
+    (race.runners || []).forEach(u => {
+      const pos = u.asp; if (pos == null) return;
+      if (pos <= 2) leaders++; else if (pos <= 4) onpace++; else midback++;
+    });
+    if (leaders >= 3) return 'Hot';
+    if (leaders >= 2 && onpace >= 2) return 'Fast';
+    if (leaders <= 1 && midback >= 4) return 'Slow';
+    return 'Even';
+  }
+  function pSettlePos(u) {
+    if (!u || u.asp == null) return '—';
+    const p = u.asp;
+    if (p <= 2) return 'Leader';
+    if (p <= 4) return 'On-pace';
+    if (p <= 8) return 'Midfield';
+    return 'Back';
+  }
+  function pUnitCell(v) { return (v == null) ? '—' : v.toFixed(2) + 'u'; }
+  function pBetCell(rid) {
+    const on = !!(log[String(rid)] || {}).placed;
+    return '<button class="wpr-bet-toggle sc-bet ' + (on ? 'wpr-bet-yes yes' : 'wpr-bet-no') +
+      '" data-rid="' + escapeHtml(String(rid)) + '">' + (on ? 'Y' : 'N') + '</button>';
+  }
+  function pFpCell(u, s) {
+    const realF = (u && u.f != null) ? u.f : null;
+    if (realF != null) {
+      if (typeof clearManualFp === 'function' && u) clearManualFp(u.rid);
+      return realF === 1 ? '1st' : realF === 2 ? '2nd' : realF === 3 ? '3rd' : String(realF);
+    }
+    const rid = (u && u.rid != null) ? u.rid : s.run_id;
+    const cur = (typeof getManualFp === 'function') ? getManualFp(rid) : null;
+    const sel = cur != null ? String(cur) : '';
+    const opt = (v, lbl) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + lbl + '</option>';
+    return '<select class="wpr-fp-manual" data-rid="' + escapeHtml(String(rid)) + '" ' +
+      'style="font-size:11px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:#fff;">' +
+      '<option value=""' + (sel === '' ? ' selected' : '') + '>—</option>' +
+      opt('1', '1st') + opt('2', '2nd') + opt('3', '3rd') + opt('99', 'UPL') + '</select>';
+  }
 
-    // Settle price: oddsTaken if recorded, else SP, else fxprice. Same as P&L logic.
-    const settlePrice = hasOddsTaken ? oddsTaken : (sp || csvPrice);
+  // Build one Summary-style row from a settled-bet record.
+  function pnlRow(s) {
+    const race = _raceById[String(s.race_id)] || null;
+    const u = race ? (race.runners || []).find(x => String(x.rid) === String(s.run_id)) : null;
+    const m = race ? _wprRaceModel(race) : null;
+    const eff = (m && u) ? m.eff[u.rid] : null;
+    const wprPrice = (m && u) ? m.price[u.rid] : null;
+    const fixed = (u && u.fx != null) ? u.fx : s.fxprice;
+
+    // P&L money math: odds-taken else bet-time fixed price.
+    const entry = log[String(s.run_id)] || {};
+    const hasOdds = entry.oddsTaken != null && entry.oddsTaken > 1;
+    const stakePrice = hasOdds ? entry.oddsTaken : s.fxprice;
+    const stake = (stakePrice && stakePrice > 1)
+      ? calcStake(stakePrice, { capExempt: hasOdds, model: s.model }) : null;
+    const settlePrice = hasOdds ? entry.oddsTaken : (s.sp || s.fxprice);
     const dhMult = entry.deadHeat ? 0.5 : 1;
-    const isPending = (s.finish == null);
-    // Actual P&L: realized only once settled. A pending bet contributes
-    // nothing (it must never read as a loss).
-    const pl = (!isPending && stake) ? (s.won ? stake * (settlePrice - 1) * dhMult : -stake) : 0;
-
-    // Card class - green win, red loss, neutral while the result is pending.
-    let cardClass = isPending ? 'settled-pending' : (s.won ? 'settled-win' : 'settled-loss');
-
-    // Date column (replaces time) - "DD MMM" + smaller "weekday"
-    let dateMain = s.date || '';
-    let dateSub = '';
-    if (s.date) {
-      const d = new Date(s.date + 'T00:00:00');
-      if (!isNaN(d.getTime())) {
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        dateMain = String(d.getDate()) + ' ' + months[d.getMonth()];
-        dateSub = weekdays[d.getDay()];
-      }
-    }
-    const dateHtml = '<div class="pr-time">' +
-      '<div class="ds-main">' + escapeHtml(dateMain) + '</div>' +
-      (dateSub ? '<span class="ttj">' + dateSub + '</span>' : '') +
-      '</div>';
-
-    // Score pill on settled rows also gets the confidence dot (same as Today).
-    // Displays the raw score (0.00-1.00 as a 2-digit percentage), keeping
-    // the within-race rank only as the colour driver. Showing the absolute
-    // score lets you eyeball how close a settled pick was to the 0.50
-    // threshold retrospectively.
-    function scoreSigPill(rank, score, conf) {
-      if (score == null && rank == null) return '<span class="sig"><span class="lbl">Score</span><span class="v">—</span></span>';
-      const cls = rank === 1 ? 'r1' : (rank === 2 ? 'r2' : (rank === 3 ? 'r3' : ''));
-      let confDot = '';
-      if (conf != null) {
-        const dotCls = conf >= 0.80 ? 'high' : (conf >= 0.50 ? 'mid' : 'low');
-        const confTitle = 'Signal confidence ' + Math.round(conf * 100) + '%';
-        confDot = '<span class="conf-dot ' + dotCls + '" title="' + confTitle + '"></span>';
-      }
-      const scoreDisplay = score != null ? Math.round(score * 100) : '—';
-      const rankBit = rank != null ? ' (rank #' + rank + ' in this race)' : '';
-      const scoreTooltip = 'Score ' + (score != null ? score.toFixed(3) : 'n/a') + rankBit +
-        '. Threshold for picks was 0.50.';
-      return '<span class="sig ' + cls + '" title="' + scoreTooltip + '">' +
-        '<span class="lbl">Score</span><span class="v">' + scoreDisplay + '</span>' + confDot + '</span>';
-    }
-    // Signal voting and PF pills removed in the WPR-only refactor. The
-    // settled-bet row now shows only the retained cumulative Score chip.
-    const sigsTopHtml =
-      '<span class="chip-grid">' +
-        scoreSigPill(s.crk, s.cs, s.csc) +
-      '</span>';
-    const formHtml = r.fm ?
-      '<div class="pr-form desktop-only" title="Last 4 finishes">' + escapeHtml(r.fm) + '</div>' : '';
-    const sigsHtml = '<div class="pr-sigs-top">' + sigsTopHtml + '</div>' + formHtml;
-
-    // Fxd display (read-only, same as Today)
-    const fxdValStr = csvPrice != null ? csvPrice.toFixed(2) : '—';
-    const fxdValCls = csvPrice != null ? 'v' : 'v empty';
-    // Top Fluc - populated post-race, useful to compare vs odds-taken on
-    // settled bets. Shows whether the user took close to peak or got beaten
-    // by the market drift.
-    const tfPrice2 = s.top;
-    const tfStr2 = tfPrice2 != null ? '$' + tfPrice2.toFixed(2) : '—';
-    const tfTitle2 = tfPrice2 != null
-      ? 'Top Fluc $' + tfPrice2.toFixed(2) + ' - highest bookie price during pre-race market'
-      : 'Top Fluc - available after results sync';
-    const oddsHtml =
-      '<div class="pr-odds-display" title="Live fixed odds at last refresh">' +
-        '<div class="pr-odds-main">' +
-          (csvPrice != null ? '<span class="cur">$</span>' : '') +
-          '<span class="' + fxdValCls + '">' + fxdValStr + '</span>' +
-        '</div>' +
-        '<div class="pr-odds-tf" title="' + tfTitle2 + '">' +
-          '<span class="tf-lbl">TF</span>' +
-          '<span class="tf-val' + (tfPrice2 == null ? ' empty' : '') + '">' + tfStr2 + '</span>' +
-        '</div>' +
-      '</div>';
-
-    // Stake display (units + dollars)
-    const stakeWrapCls = 'pr-stake' + (usingFallback ? ' muted' : '');
-    const returnWrapCls = 'pr-return' + (usingFallback ? ' muted' : '');
-    let stakeHtml, returnHtml;
-    if (stake) {
-      stakeHtml = '<span class="units">' + stake.toFixed(2) + 'u</span>' +
-        '<span class="ret">' + fmtDollar(stake) + '</span>';
-      // Return: only the actual payout on a win (stake * settlePrice, dead-heat halved).
-      // Losing bets show em-dash so the column doesn't imply winnings.
-      if (s.won) {
-        const returnUnits = stake * settlePrice * dhMult;
-        returnHtml = '<span class="units">' + returnUnits.toFixed(2) + 'u</span>' +
-          '<span class="ret">' + fmtDollar(returnUnits) + '</span>';
-      } else {
-        returnHtml = '<span class="skip">&mdash;</span>';
-      }
-    } else {
-      stakeHtml = '<span class="skip">—</span>';
-      returnHtml = '<span class="skip">—</span>';
+    let ret = null;
+    if (s.finish != null && stake != null) {
+      ret = (s.won && settlePrice) ? stake * settlePrice * dhMult : 0;
     }
 
-    // Result chip - shows finish position with W/L tag (same as Today's hasOfficial branch)
-    // Loss colouring varies by finish position - see lossPosClass helper.
-    function lossPosClass(fin) {
-      if (fin == null) return '';
-      if (fin === 2) return ' fin2';
-      if (fin >= 3 && fin <= 5) return ' fin345';
-      return ' fin6plus';
+    const horse = s.horse || (u && u.h) || '';
+    const jockey = (u && u.j) || s.jockey || '';
+    const trainer = (u && u.tn) || s.trainer || '';
+    const tab = (u && u.tab != null) ? u.tab : (s.tab != null ? s.tab : '—');
+    const silk = (u && u.sk)
+      ? '<img class="wst-silk-img" src="' + escapeHtml(u.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">'
+      : '';
+    const bar = (u && u.b != null) ? u.b : '—';
+    const venueLabel = escapeHtml(s.venue || (race && race.venue) || '') +
+      ' R' + (s.race != null ? s.race : ((race && race.race) || '?'));
+
+    return '<tr class="wpr-row-clickable" data-race-id="' + escapeHtml(String(s.race_id || '')) +
+      '" data-rid="' + escapeHtml(String(s.run_id || '')) + '">' +
+      '<td>' + pRaceTime(race) + '</td>' +
+      '<td>' + venueLabel + '</td>' +
+      '<td class="wst-silk">' + silk + '</td>' +
+      '<td>' + tab + '</td>' +
+      '<td>' + escapeHtml(horse) + '</td>' +
+      '<td>' + escapeHtml(jockey) + '</td>' +
+      '<td>' + escapeHtml(trainer) + '</td>' +
+      '<td>' + (s.distance != null ? s.distance + 'm' : '—') + '</td>' +
+      '<td>' + escapeHtml(s.going || '—') + '</td>' +
+      '<td>' + bar + '</td>' +
+      '<td>' + pSettlePos(u) + '</td>' +
+      '<td>' + pRaceSpeed(race) + '</td>' +
+      '<td>' + (eff != null ? eff.toFixed(1) : '—') + '</td>' +
+      '<td>' + (wprPrice != null ? '$' + wprPrice.toFixed(2) : '—') + '</td>' +
+      '<td>' + (fixed != null ? '$' + fixed.toFixed(2) : '—') + '</td>' +
+      '<td>' + pBetCell(s.run_id) + '</td>' +
+      '<td>' + pUnitCell(stake) + '</td>' +
+      '<td>' + pUnitCell(ret) + '</td>' +
+      '<td>' + pFpCell(u, s) + '</td></tr>';
+  }
+
+  // Group by date (newest first) with a full-width date header so the
+  // multi-day history keeps date context while each row matches the Summary.
+  const byDate = {};
+  settled.forEach(s => { (byDate[s.date || ''] = byDate[s.date || ''] || []).push(s); });
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+  const head = '<thead><tr>' +
+    '<th>Time</th><th>Race</th><th></th><th>No.</th>' +
+    '<th>Horse</th><th>Jockey</th><th>Trainer</th><th>Dist</th><th>Going</th><th>Bar</th>' +
+    '<th>Settle</th><th>Speed</th><th>Eff WPR</th>' +
+    '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
+    '<th>Return</th><th>FP</th></tr></thead>';
+  let html = '<div class="pnl-table-wrap"><table class="wpr-summary-table">' + head + '<tbody>';
+  dates.forEach(d => {
+    if (dates.length > 1) {
+      html += '<tr class="pnl-date-row"><td colspan="19">' + escapeHtml(d || 'Undated') + '</td></tr>';
     }
-    let resultHtml;
-    if (s.finish != null) {
-      const cls = s.won ? 'win' : ('loss' + lossPosClass(s.finish));
-      resultHtml = '<span class="res-tag ' + cls + '">' +
-        (s.won ? 'W' : 'L') + ' · ' + s.finish + ord(s.finish) + '</span>';
-    } else {
-      // No finish recorded yet - pending, not a loss.
-      resultHtml = '<span class="res-tag pending">Pending</span>';
-    }
-
-    // Bet toggle + odds-taken input (same shape as Today)
-    let betHtml = '<button class="bet-btn ' + (placed ? 'placed' : '') +
-                  '" data-bh-bet-rid="' + s.run_id + '" title="' +
-                  (placed ? 'Mark as not bet' : 'Mark this bet as placed') +
-                  '" onclick="event.stopPropagation();">' +
-                  (placed ? '✓' : '+') + '</button>';
-    if (placed) {
-      const oddsVal = oddsTaken != null ? oddsTaken.toFixed(2) : '';
-      const showWarning = !hasOddsTaken;
-      betHtml += '<span class="odds-input-wrap" onclick="event.stopPropagation();">' +
-                   '<span class="cur">$</span>' +
-                   '<input type="number" step="0.01" min="1" class="odds-input" ' +
-                   'data-bh-odds-rid="' + s.run_id + '" placeholder="0.00" ' +
-                   'value="' + oddsVal + '" />' +
-                 '</span>';
-      if (showWarning) {
-        betHtml += '<span class="odds-warning" title="No odds-taken entered. P&L uses live fxprice as fallback.">⚠</span>';
-      }
-      // Timing edge vs SP: shows whether you got better/worse odds than starting
-      // price. Positive number = you took an early price that drifted (good).
-      // Negative = the horse firmed and SP was shorter than your bet (bad).
-      // Only show when both oddsTaken AND SP are known.
-      if (hasOddsTaken && s.sp != null && s.sp > 1) {
-        const diff = oddsTaken - s.sp;
-        const diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(2);
-        const edgeCls = diff > 0.05 ? 'pos' : (diff < -0.05 ? 'neg' : 'neutral');
-        betHtml += '<span class="vs-sp ' + edgeCls + '" ' +
-          'title="Odds taken $' + oddsTaken.toFixed(2) + ' vs SP $' + s.sp.toFixed(2) + '. ' +
-          (diff > 0 ? 'You beat SP by $' + diff.toFixed(2) : diff < 0 ? 'SP beat your odds by $' + Math.abs(diff).toFixed(2) : 'You matched SP') +
-          '">' + diffStr + '</span>';
-      }
-    }
-
-    // Meta line: distance · going · jky · trn (matches Today tab)
-    const metaParts = [];
-    if (s.distance) metaParts.push(s.distance + 'm');
-    if (s.going) metaParts.push(escapeHtml(s.going));
-    if (r.j || s.jockey) metaParts.push(escapeHtml(r.j || s.jockey));
-    if (r.tn || s.trainer) metaParts.push(escapeHtml(r.tn || s.trainer));
-    const metaLine = metaParts.join(' · ');
-
-    // Field size chip - same as Today tab. <=7 = warn red, flag skip
-    // candidates for the user. Useful retrospectively on P&L too: shows
-    // which past picks were small-field (the segment user wants to avoid).
-    const fsValueP = s.field_size || (r.fs || null);
-    let fsChipHtmlP = '';
-    if (fsValueP != null) {
-      const fsWarn = fsValueP <= 7;
-      const fsTip = fsWarn
-        ? 'Small field (' + fsValueP + ' runners). User strategy: skip bets in fields of 7 or fewer.'
-        : fsValueP + ' runners in this race';
-      fsChipHtmlP = '<span class="fs-chip ' + (fsWarn ? 'warn' : '') + '" title="' + fsTip + '">' +
-        'F' + fsValueP + '</span>';
-    }
-
-    // Jockey rating chip - absolute rating buckets (matches Today tab).
-    // 4 bands: red <75, amber 75-79, grey 80-84, green 85+.
-    let jkyChipHtmlP = '';
-    if (r.jrt != null) {
-      const myRating = Math.round(r.jrt);
-      let cls = '';
-      let lbl = '';
-      if (myRating >= 85) {
-        cls = 'good';
-        lbl = 'Elite jockey rating (85+).';
-      } else if (myRating >= 80) {
-        cls = '';
-        lbl = 'Decent jockey rating (80-84).';
-      } else if (myRating >= 75) {
-        cls = 'warn';
-        lbl = 'Mediocre jockey rating (75-79).';
-      } else {
-        cls = 'bad';
-        lbl = 'Weak jockey rating (below 75).';
-      }
-      const tip = 'Jockey rating ' + myRating + '. ' + lbl;
-      jkyChipHtmlP = '<span class="jky-chip ' + cls + '" title="' + tip + '">Jky ' + myRating + '</span>';
-    }
-    const fsAndJkyChipsP = fsChipHtmlP + jkyChipHtmlP;
-
-    const rowHtml =
-      '<div class="pick-row is-settled ' + cardClass + (placed ? ' bet-placed' : '') +
-        '" data-row-idx="' + idx + '" data-run-id="' + s.run_id + '" data-race-id="' + (s.race_id || '') + '">' +
-        dateHtml +
-        '<div class="pr-venue clickable" data-nav-rid="' + (s.race_id || '') + '" title="Open race detail">' +
-          '<div class="v-name">' + escapeHtml(s.venue || '') + '</div>' +
-          '<div class="v-race">R' + s.race + ' ↗</div>' +
-        '</div>' +
-        '<div class="pr-runner">' +
-          '<span class="tab-bdg">' + (s.tab || '?') + '</span>' +
-          '<div class="rdetails">' +
-            '<div class="rhorse">' + escapeHtml(s.horse || '') + fsAndJkyChipsP + '</div>' +
-            '<div class="rmeta">' + metaLine + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="pr-sigs">' + sigsHtml + '</div>' +
-        '<div class="pr-odds"><span class="cell-lbl">Fxd</span>' + oddsHtml + '</div>' +
-        '<div class="' + stakeWrapCls + '"><span class="cell-lbl">Stake</span>' + stakeHtml + '</div>' +
-        '<div class="' + returnWrapCls + '"><span class="cell-lbl">Return</span>' + returnHtml + '</div>' +
-        '<div class="pr-result"><span class="cell-lbl">Result</span>' + resultHtml + '</div>' +
-        '<div class="pr-bet"><span class="cell-lbl">Bet</span>' + betHtml + '</div>' +
-        '<div class="pr-chev">▾</div>' +
-      '</div>' +
-      '<div class="bh-detail" id="bh-detail-' + idx + '"></div>';
-
-    list.insertAdjacentHTML('beforeend', rowHtml);
+    byDate[d].forEach(s => { html += pnlRow(s); });
   });
+  html += '</tbody></table></div>';
+  list.innerHTML = html;
 
-  // Wire row clicks for expand
-  list.querySelectorAll('.pick-row').forEach(row => {
-    row.addEventListener('click', (ev) => {
-      // Don't expand if clicking interactive elements
-      if (ev.target.closest('.bet-btn, .odds-input, .odds-input-wrap, input, textarea, button')) return;
-      // Venue block click - navigate to race detail and stop here, don't expand
-      const navTarget = ev.target.closest('.pr-venue.clickable');
-      if (navTarget) {
-        ev.stopPropagation();
-        navigateToRace(navTarget.dataset.navRid);
-        return;
-      }
-      const idx = row.dataset.rowIdx;
-      const detail = document.getElementById('bh-detail-' + idx);
-      if (!detail) return;
-      const isOpen = detail.classList.contains('open');
-      if (isOpen) {
-        detail.classList.remove('open');
-        row.classList.remove('expanded');
-      } else {
-        // Lazy-render detail content
-        if (!detail.innerHTML) {
-          const s = displaySettled[Number(idx)];
-          detail.innerHTML = renderBhDetail(s);
-          // Wire comment textarea
-          const ta = detail.querySelector('.bh-comments textarea');
-          if (ta) {
-            ta.addEventListener('input', (e) => {
-              setBetEntry(s.run_id, { comments: e.target.value });
-            });
-          }
-          // Wire odds-taken input in expand panel
-          const oddsInput = detail.querySelector('[data-detail-odds-rid]');
-          if (oddsInput) {
-            oddsInput.addEventListener('input', (e) => {
-              const v = parseFloat(e.target.value);
-              setBetEntry(s.run_id, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
-            });
-            oddsInput.addEventListener('blur', () => renderPnL());
-          }
-          // Wire dead heat toggle in expand panel
-          const dhToggle = detail.querySelector('[data-detail-deadheat-rid]');
-          if (dhToggle) {
-            dhToggle.addEventListener('change', (e) => {
-              setBetEntry(s.run_id, { deadHeat: e.target.checked });
-              renderPnL();
-              if (typeof renderToday === 'function') { try { renderToday(); } catch(err) {} }
-            });
-          }
-        }
-        detail.classList.add('open');
-        row.classList.add('expanded');
-      }
-    });
-  });
-
-  // Wire inline odds-taken input on the row itself
-  list.querySelectorAll('[data-bh-odds-rid]').forEach(el => {
-    el.addEventListener('input', e => {
-      const rid = el.dataset.bhOddsRid;
-      const v = parseFloat(e.target.value);
-      setBetEntry(rid, { oddsTaken: (isNaN(v) || v <= 0) ? null : v });
-    });
-    el.addEventListener('blur', () => {
+  // Delegated interactions: BET toggle + FP select write to the shared stores
+  // and re-render; clicking elsewhere on a row opens the race.
+  list.onclick = function(e) {
+    const betBtn = e.target.closest('.wpr-bet-toggle');
+    if (betBtn) {
+      e.stopPropagation();
+      const rid = betBtn.dataset.rid;
+      const cur = !!(getBetLog()[String(rid)] || {}).placed;
+      if (typeof wprSetBet === 'function') wprSetBet(rid, !cur, null);
+      else if (typeof setBetEntry === 'function') setBetEntry(rid, { placed: !cur });
       renderPnL();
       if (typeof renderToday === 'function') { try { renderToday(); } catch(err) {} }
-    });
-    el.addEventListener('click', e => e.stopPropagation());
-  });
-
-  // Wire single bet toggle
-  list.querySelectorAll('[data-bh-bet-rid]').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const rid = btn.dataset.bhBetRid;
-      const cur = isPlaced(rid);
-      setBetEntry(rid, { placed: !cur });
+      return;
+    }
+    if (e.target.closest('.wpr-fp-manual')) return;   // handled on change
+    const tr = e.target.closest('.wpr-row-clickable');
+    if (!tr) return;
+    const raceId = tr.dataset.raceId;
+    if (raceId && typeof navigateToRace === 'function') navigateToRace(raceId);
+  };
+  list.onchange = function(e) {
+    const fp = e.target.closest('.wpr-fp-manual');
+    if (!fp) return;
+    const rid = fp.dataset.rid;
+    if (rid != null && typeof setManualFp === 'function') {
+      setManualFp(rid, fp.value);
       renderPnL();
-      // Also re-render Today tab in case user marked it from there earlier
-      if (typeof renderToday === 'function') {
-        try { renderToday(); } catch(e) {}
-      }
-    });
-  });
+      if (typeof renderToday === 'function') { try { renderToday(); } catch(err) {} }
+    }
+  };
 }
 
 // Render the expanded detail panel for a settled bet (using runner_full data)
