@@ -3365,6 +3365,19 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .wpr-section-head:first-child { margin-top: 0; }
+/* Jump-in chip - urgency colour by minutes-to-jump. Red ≤5m, amber 5-20m,
+   blue 20-60m, grey >60m, dim once jumped. Visual cousin of the jockey chip. */
+.jin-chip {
+  display: inline-block; padding: 1px 7px; border-radius: 9px;
+  font-size: 11px; font-weight: 700; line-height: 1.5;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.jin-imminent { background: rgba(220,38,38,.13); color: #b91c1c; border-color: rgba(220,38,38,.3); }
+.jin-close    { background: rgba(217,119,6,.13); color: #b45309; border-color: rgba(217,119,6,.3); }
+.jin-soon     { background: rgba(37,99,235,.10); color: #1d4ed8; border-color: rgba(37,99,235,.25); }
+.jin-far      { background: var(--line-soft); color: var(--ink-mute); }
+.jin-gone     { background: transparent; color: var(--ink-mute); font-style: italic; font-weight: 500; }
+.jin-none     { color: var(--ink-mute); }
 .sum-cards { display: none; }
 .wpr-summary-table thead th {
   text-align: left; padding: 7px 8px; border-bottom: 2px solid var(--line);
@@ -6514,6 +6527,22 @@ setTimeout(function () {
   } catch (e) { /* non-fatal */ }
 }, 0);
 
+// Auto-refresh Summary every 60 seconds so the jump-in chips count down
+// without a manual reload. Only re-renders when Summary is the active tab -
+// hidden tabs don't waste cycles, and rendering doesn't disrupt the user
+// while they're on another tab.
+setInterval(function () {
+  const sec = document.getElementById('sec-wpr');
+  if (!sec || !sec.classList.contains('active')) return;
+  if (typeof renderWprSummary === 'function') {
+    // Don't blow away open dropdowns mid-selection. If the user has the
+    // FP select focused, defer the refresh by a tick.
+    const active = document.activeElement;
+    if (active && active.classList && active.classList.contains('wpr-fp-manual')) return;
+    renderWprSummary();
+  }
+}, 60 * 1000);
+
 // WPR summary controls - sliders re-render the lists live; clear button
 // wipes all manual adjustments after a confirm.
 (function wireWprSummaryControls() {
@@ -8479,22 +8508,31 @@ function renderWprSummary() {
       (on ? 'wpr-bet-yes yes' : 'wpr-bet-no') + '" data-rid="' +
       escapeHtml(String(u.rid || '')) + '">' + (on ? 'Y' : 'N') + '</button>';
   }
-  // finish-position cell: editable input. Shows real result (read-only) once
-  // the race is resulted; before then, the user can enter a manual placeholder
-  // FP that persists between renders. When a real result arrives, the manual
-  // value is overwritten (per user choice). Bound to a localStorage-backed
-  // store via getManualFp / setManualFp (defined elsewhere in this scope).
+  // finish-position cell: dropdown (1st / 2nd / 3rd / UPL). Persists via the
+  // manual-FP store. When a real result lands, the manual entry is cleared
+  // (auto-overwrite). UPL = unplaced (>3rd) and is stored as the sentinel
+  // 99 so betPnl's "won = fp === 1" check naturally returns false. Once any
+  // FP is set, the row promotes to the Resulted section.
   function fpCell(u) {
     if (u && u.f != null) {
-      // Real result - clean up any stale manual entry, return read-only number.
       if (typeof clearManualFp === 'function') clearManualFp(u.rid);
-      return String(u.f);
+      // Format real finish nicely (1st/2nd/3rd, else number).
+      const f = u.f;
+      if (f === 1) return '1st';
+      if (f === 2) return '2nd';
+      if (f === 3) return '3rd';
+      return String(f);
     }
-    const cur = (typeof getManualFp === 'function') ? getManualFp(u.rid) : '';
-    return '<input type="number" class="wpr-fp-manual" data-rid="' +
-      escapeHtml(String(u && u.rid || '')) + '" min="1" max="30" step="1" ' +
-      'value="' + (cur != null ? cur : '') + '" placeholder="—" ' +
-      'style="width:38px;text-align:center;padding:2px 4px;font-size:11px;border:1px solid var(--line);border-radius:4px;">';
+    const cur = (typeof getManualFp === 'function') ? getManualFp(u.rid) : null;
+    const sel = cur != null ? String(cur) : '';
+    const opt = (v, lbl) => '<option value="' + v + '"' +
+      (sel === v ? ' selected' : '') + '>' + lbl + '</option>';
+    return '<select class="wpr-fp-manual" data-rid="' +
+      escapeHtml(String(u && u.rid || '')) + '" ' +
+      'style="font-size:11px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:#fff;">' +
+      '<option value=""' + (sel === '' ? ' selected' : '') + '>—</option>' +
+      opt('1', '1st') + opt('2', '2nd') + opt('3', '3rd') + opt('99', 'UPL') +
+      '</select>';
   }
   // Stake / Return for a runner, computed from the bet log exactly the way
   // the P&L tab does it, so the two tabs always agree:
@@ -8513,12 +8551,16 @@ function renderWprSummary() {
     const stake = (typeof calcStake === 'function')
       ? calcStake(stakePrice, { capExempt: hasOdds, model: 'edge' }) : null;
     if (stake == null) return { stake: null, ret: null };
-    // Return needs a result. Before the race is run, finish is null.
+    // Effective finish: real result wins, otherwise the user's manual FP
+    // selection (so "1st" + bet placed -> Return populates immediately).
+    // null means truly unresolved -> Return stays null (pending).
+    let effFinish = (u.f != null) ? u.f
+      : (typeof getManualFp === 'function' ? getManualFp(u.rid) : null);
     let ret = null;
-    if (u.f != null) {
+    if (effFinish != null) {
       const dhMult = entry.deadHeat ? 0.5 : 1;
       const settlePrice = hasOdds ? entry.oddsTaken : (u.sp || u.fx);
-      ret = (u.f === 1 && settlePrice) ? stake * settlePrice * dhMult : 0;
+      ret = (effFinish === 1 && settlePrice) ? stake * settlePrice * dhMult : 0;
     }
     return { stake: stake, ret: ret };
   }
@@ -8582,19 +8624,29 @@ function renderWprSummary() {
       { hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
-  // Time-to-jump: "Xh Ym" / "Ym" countdown to the race start. Returns '—' for
-  // races without a parseable start, 'jumped' once the start has passed.
+  // Time-to-jump: returns a colored chip (red ≤5m, amber 5-20m, blue 20-60m,
+  // grey >60m, dim once jumped). Visual urgency matches the jockey chip
+  // pattern. The Summary list auto-refreshes once a minute so the chip
+  // updates without manual reload (wired via setInterval in renderWprSummary).
   function raceJumpIn(race) {
-    if (!race || !race.start_time) return '—';
+    if (!race || !race.start_time) return '<span class="jin-chip jin-none">—</span>';
     const t = Date.parse(race.start_time);
-    if (isNaN(t)) return '—';
+    if (isNaN(t)) return '<span class="jin-chip jin-none">—</span>';
     const diffMs = t - Date.now();
-    if (diffMs <= 0) return 'jumped';
+    if (diffMs <= 0) return '<span class="jin-chip jin-gone">jumped</span>';
     const mins = Math.floor(diffMs / 60000);
-    if (mins < 60) return mins + 'm';
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return h + 'h ' + (m > 0 ? m + 'm' : '');
+    let label;
+    if (mins < 60) label = mins + 'm';
+    else {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      label = h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+    }
+    let cls = 'jin-far';
+    if (mins <= 5) cls = 'jin-imminent';
+    else if (mins <= 20) cls = 'jin-close';
+    else if (mins <= 60) cls = 'jin-soon';
+    return '<span class="jin-chip ' + cls + '">' + label + '</span>';
   }
 
   // shared jockey-rating chip - same 4-band logic as the Race tab rows
@@ -8927,9 +8979,16 @@ function renderWprSummary() {
       '<th>Bet</th><th>Stake</th><th>Return</th><th>FP</th></tr></thead><tbody>' +
       rs.map(_stRow).join('') + '</tbody></table>';
   }
-  // Partition: resulted = real finish present. Manual FP does NOT promote
-  // a row to Resulted (it's a placeholder); only u.f from real results does.
-  function _isResulted(r) { return r.horse && r.horse.f != null; }
+  // Partition: row is "Resulted" once a finish is known - either a real
+  // u.f from results OR the user's manual FP placeholder. Setting a manual
+  // FP moves the row from Pending to Resulted (and Return populates from
+  // betPnl for any bet on the row).
+  function _isResulted(r) {
+    if (!r || !r.horse) return false;
+    if (r.horse.f != null) return true;
+    if (typeof getManualFp === 'function' && getManualFp(r.horse.rid) != null) return true;
+    return false;
+  }
 
   // ── render list 1: today's picks (overlays) ──
   const ov = document.getElementById('wpr-list-overlays');
@@ -9004,14 +9063,17 @@ function renderWprSummary() {
       const rid = tr.dataset.rid;
       if (raceId) navigateToRaceRunner(raceId, rid);
     });
-    // Manual FP input change - persist to the manual-FP store. No re-render
-    // needed (the input already shows the typed value); other surfaces pick
-    // up the change next time they render.
+    // Manual FP select change - persist AND re-render so the row moves
+    // to the Resulted section and Return populates from betPnl. The
+    // event fires on user selection from the dropdown.
     host.addEventListener('change', (e) => {
       const inp = e.target.closest('.wpr-fp-manual');
       if (!inp || !host.contains(inp)) return;
       const rid = inp.dataset.rid;
-      if (rid) setManualFp(rid, inp.value);
+      if (rid != null) {
+        setManualFp(rid, inp.value);
+        if (typeof renderWprSummary === 'function') renderWprSummary();
+      }
     });
   });
 }
