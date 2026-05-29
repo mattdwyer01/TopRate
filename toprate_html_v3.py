@@ -3033,7 +3033,7 @@ body {
    to line up with the numeric sectional cells below. */
 .rd-runs-table thead th.rd-sub {
   text-align: right; padding-left: 3px; padding-right: 3px;
-  font-size: 9px; width: 44px;
+  font-size: 9px;
 }
 .rd-runs-table tbody td {
   padding: 3px 6px; border-right: 1px solid var(--line-soft);
@@ -3043,9 +3043,13 @@ body {
 .rd-runs-table tbody tr:hover td { background: var(--line-soft); }
 .rd-runs-table td.rd-run-wpr {
   font-weight: 700; text-align: right; background: rgba(16,185,129,0.06);
-  /* Peak chip now lives in the Track cell, so WPR only holds the number. */
-  width: 34px; padding-left: 3px; padding-right: 6px;
+  /* peak chip renders inline before the number so it never overlaps the
+     WPR value; nowrap keeps chip + number on one line. */
+  min-width: 44px;
   white-space: nowrap;
+}
+.rd-runs-table td.rd-run-wpr .rd-run-peak {
+  vertical-align: middle;
 }
 .rd-runs-table td.rd-num { text-align: right; }
 .rd-runs-table td.rd-pos {
@@ -3128,8 +3132,9 @@ body {
   text-align: right; font-weight: 600;
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
   white-space: nowrap;
-  /* Uniform width across all six sectional columns (Race + Individual). */
-  width: 44px; padding-left: 3px; padding-right: 3px;
+  /* Tighter than the default cell padding so six sectional columns take
+     less width, leaving room for the Jockey column. */
+  padding-left: 3px; padding-right: 3px;
 }
 /* Jockey column - cap width and ellipsis long names; full name on hover. */
 .rd-runs-table td.rd-jck {
@@ -7713,7 +7718,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       const lateCls  = _sectCmpCls(r.il, r.sl);
       return '<tr class="rd-run-main">' +
         '<td>' + escapeHtml(r.d || '') + '</td>' +
-        '<td>' + escapeHtml(r.trk || '') + peakTag + '</td>' +
+        '<td>' + escapeHtml(r.trk || '') + '</td>' +
         '<td class="rd-num">' + (r.dist != null ? r.dist + 'm' : '&mdash;') + '</td>' +
         '<td>' + goingChip(r.go) + '</td>' +
         '<td class="rd-num">' + (r.bar != null ? r.bar : '&mdash;') + '</td>' +
@@ -7735,7 +7740,7 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
         '<td class="rd-sect ' + earlyCls + '">' + _fmtSect(r.ie) + '</td>' +
         '<td class="rd-sect ' + midCls + '">' + _fmtSect(r.im) + '</td>' +
         '<td class="rd-sect ' + lateCls + '">' + _fmtSect(r.il) + '</td>' +
-        '<td class="rd-run-wpr">' + r.wpr.toFixed(1) + '</td>' +
+        '<td class="rd-run-wpr">' + peakTag + r.wpr.toFixed(1) + '</td>' +
         '</tr>';
     }
 
@@ -7759,10 +7764,10 @@ function buildRaceRunnerDetailHTML(u, race, rankCtx) {
       return '<div class="rdc' + (r.pk ? ' rdc-peak' : '') + '">' +
         '<div class="rdc-head">' +
           '<span class="rdc-date">' + escapeHtml(r.d || '') + '</span>' +
-          '<span class="rdc-trk">' + escapeHtml(r.trk || '') + peakTag + '</span>' +
+          '<span class="rdc-trk">' + escapeHtml(r.trk || '') + '</span>' +
           '<span class="rdc-dist">' + (r.dist != null ? r.dist + 'm' : '') + '</span>' +
           goingChip(r.go) +
-          '<span class="rdc-wpr">' + r.wpr.toFixed(1) + '</span>' +
+          '<span class="rdc-wpr">' + peakTag + r.wpr.toFixed(1) + '</span>' +
         '</div>' +
         '<div class="rdc-meta">' +
           'Fin <b>' + (r.fin != null ? r.fin : '\u2014') + '</b>' +
