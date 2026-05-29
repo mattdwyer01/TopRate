@@ -855,6 +855,9 @@ body {
   border-left: 3px solid var(--rose); padding-left: 11px;
   opacity: 0.75;
 }
+.pick-row.settled-pending {
+  border-left: 3px solid var(--line); padding-left: 11px;
+}
 .pick-row.expanded {
   background: #fafbfc;
 }
@@ -1228,6 +1231,8 @@ body {
 }
 .pr-result .res-tag.win { background: var(--emerald-bg); color: var(--emerald-deep); }
 .pr-result .res-tag.loss { background: var(--rose-bg); color: var(--rose); }
+/* Pending - no result recorded yet. Neutral grey, never reads as a loss. */
+.pr-result .res-tag.pending { background: var(--line-soft); color: var(--ink-mute); }
 /* Loss colour gradient by finish position. 2nd is the closest miss
    (orange, not rose) - distinguishes "narrowly lost" from "blown out".
    3rd-5th gets a softer orange-pink. 6+ stays full rose for clear losses. */
@@ -4433,45 +4438,106 @@ body {
   border-color: var(--ink, #1a1a1a);
 }
 .acc-note { font-size: 11px; color: var(--ink-mute, #888); max-width: 460px; }
+
+/* ── Headline KPI strip ── */
 .acc-headline {
-  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px; margin-bottom: 20px;
 }
 .acc-stat {
   background: var(--card, #fff); border: 1px solid var(--line, #e2e2e2);
-  border-radius: 8px; padding: 12px 16px; min-width: 110px;
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column; justify-content: center;
 }
-.acc-stat-main { border-color: var(--ink, #1a1a1a); border-width: 2px; }
-.acc-stat-num { font-size: 24px; font-weight: 700; color: var(--ink, #1a1a1a); }
-.acc-stat-main .acc-stat-num { font-size: 30px; }
-.acc-stat-lbl { font-size: 11px; color: var(--ink-mute, #777); margin-top: 2px; }
-.acc-stat-n { margin-left: auto; }
+/* Headline MAE - accented so the one number that matters reads first. */
+.acc-stat-main {
+  border: 1px solid var(--emerald, #059669);
+  box-shadow: inset 3px 0 0 var(--emerald, #059669);
+}
+.acc-stat-num {
+  font-size: 26px; font-weight: 800; color: var(--ink, #1a1a1a);
+  line-height: 1.05; letter-spacing: -0.02em;
+}
+.acc-stat-main .acc-stat-num { font-size: 32px; color: var(--emerald-deep, #047857); }
+.acc-stat-lbl { font-size: 11px; color: var(--ink-mute, #777); margin-top: 5px; line-height: 1.3; }
+/* Hit-rate band accents: close is good, far-off is bad. */
+.acc-stat.good .acc-stat-num { color: var(--emerald-deep, #047857); }
+.acc-stat.warn .acc-stat-num { color: #b45309; }
+.acc-stat.bad  .acc-stat-num { color: var(--rose, #dc2626); }
+.acc-stat-n .acc-stat-num { color: var(--ink-mute, #6b7280); }
+
+/* ── Breakdown cards ── */
 .acc-breakdowns {
-  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px; margin-bottom: 20px;
 }
-.acc-bd { flex: 1; min-width: 240px; }
+.acc-bd {
+  background: var(--card, #fff); border: 1px solid var(--line, #e8e8e8);
+  border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;
+}
 .acc-bd-title {
-  font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.4px; color: var(--ink-mute, #777); margin-bottom: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ink-mute, #777);
+  padding: 12px 14px 8px; display: flex; align-items: baseline; gap: 8px;
 }
+.acc-bd-title .acc-bd-count {
+  font-size: 10px; font-weight: 600; color: var(--ink-mute, #9aa1ad);
+  letter-spacing: 0; text-transform: none;
+}
+.acc-bd-scroll { max-height: 340px; overflow-y: auto; }
 .acc-bd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .acc-bd-table th {
-  text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line, #e2e2e2);
-  color: var(--ink-mute, #888); font-weight: 600;
+  text-align: left; padding: 6px 14px; position: sticky; top: 0;
+  background: var(--panel, #fff); border-bottom: 1px solid var(--line, #e2e2e2);
+  color: var(--ink-mute, #888); font-weight: 600; font-size: 11px;
+  white-space: nowrap;
 }
-.acc-bd-table td { padding: 4px 8px; border-bottom: 1px solid var(--line, #f0f0f0); }
-.acc-mae-close { color: #047857; font-weight: 700; }
-.acc-mae-mid { color: #b45309; font-weight: 700; }
-.acc-mae-far { color: #b91c1c; font-weight: 700; }
-.acc-table-wrap { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+.acc-bd-table th.num, .acc-bd-table td.num { text-align: right; }
+.acc-bd-table td {
+  padding: 6px 14px; border-bottom: 1px solid var(--line-soft, #f1f3f8);
+}
+.acc-bd-table tr:last-child td { border-bottom: none; }
+.acc-bd-table tbody tr:hover td { background: var(--line-soft, #f7f8fb); }
+.acc-bd-bias { color: var(--ink-mute, #6b7280); font-variant-numeric: tabular-nums; }
+/* Mean-abs-miss cell: faint bar scaled to the value, sitting behind the
+   right-aligned number so worst groups read at a glance. */
+.acc-mae { position: relative; text-align: right; font-variant-numeric: tabular-nums; }
+.acc-mae .bar {
+  position: absolute; left: 0; top: 4px; bottom: 4px; border-radius: 3px; z-index: 0;
+}
+.acc-mae .v { position: relative; z-index: 1; font-weight: 700; }
+.acc-mae-close .v { color: var(--emerald-deep, #047857); }
+.acc-mae-mid   .v { color: #b45309; }
+.acc-mae-far   .v { color: var(--rose, #dc2626); }
+.acc-mae-close .bar { background: rgba(4,120,87,0.13); }
+.acc-mae-mid   .bar { background: rgba(180,83,9,0.13); }
+.acc-mae-far   .bar { background: rgba(220,38,38,0.13); }
+
+/* ── Detail table ── */
+.acc-table-wrap {
+  overflow-x: auto; max-height: 600px; overflow-y: auto;
+  border: 1px solid var(--line, #e8e8e8); border-radius: 10px;
+}
 .acc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .acc-table th {
-  text-align: left; padding: 6px 10px; position: sticky; top: 0;
-  background: var(--card, #fff); border-bottom: 2px solid var(--line, #d8d8d8);
+  text-align: left; padding: 8px 12px; position: sticky; top: 0;
+  background: var(--panel, #fff); border-bottom: 1px solid var(--line, #e2e2e2);
+  color: var(--ink-mute, #888); font-weight: 600; font-size: 11px;
+  white-space: nowrap;
 }
-.acc-table td { padding: 5px 10px; border-bottom: 1px solid var(--line, #f0f0f0); }
-.acc-table .wpr-miss-close { color: #047857; font-weight: 700; }
-.acc-table .wpr-miss-mid { color: #b45309; font-weight: 700; }
-.acc-table .wpr-miss-far { color: #b91c1c; font-weight: 700; }
+.acc-table th.num, .acc-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.acc-table td { padding: 6px 12px; border-bottom: 1px solid var(--line-soft, #f1f3f8); }
+.acc-table tbody tr:nth-child(even) td { background: rgba(0,0,0,0.012); }
+.acc-table tbody tr:hover td { background: var(--line-soft, #f7f8fb); }
+/* Miss as a coloured pill so direction + size read instantly. */
+.acc-miss-pill {
+  display: inline-block; min-width: 44px; text-align: center;
+  padding: 1px 8px; border-radius: 9px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.acc-table .wpr-miss-close { background: var(--emerald-bg, #ecfdf5); color: var(--emerald-deep, #047857); }
+.acc-table .wpr-miss-mid   { background: #fff7ed; color: #b45309; }
+.acc-table .wpr-miss-far   { background: var(--rose-bg, #fef2f2); color: var(--rose, #dc2626); }
 .acc-table-more {
   text-align: center; color: var(--ink-mute, #888); font-style: italic;
   padding: 10px;
@@ -8807,7 +8873,7 @@ function renderWprSummary() {
     });
 
     let nBets = 0, totalWins = 0, totalPlaces = 0, totalStake = 0,
-        totalReturn = 0, totalProfit = 0, nSettled = 0;
+        totalReturn = 0, totalProfit = 0, nSettled = 0, settledStake = 0;
     let runningWS = 0, runningLS = 0, longestWinStreak = 0, longestLossStreak = 0;
     let vsSpSum = 0, vsSpCount = 0;
 
@@ -8830,6 +8896,7 @@ function renderWprSummary() {
         : (typeof getManualFp === 'function' ? getManualFp(u.rid) : null);
       if (eff == null) return;   // not yet settled - counts as a bet but not in W/L
       nSettled++;
+      settledStake += stake;     // ROI denominator: settled bets only, never pending
       const settlePrice = hasOdds ? entry.oddsTaken : (u.sp || u.fx);
       const dhMult = entry.deadHeat ? 0.5 : 1;
       const placed = eff >= 1 && eff <= 3;
@@ -8849,8 +8916,8 @@ function renderWprSummary() {
     const curWinStreak = runningWS, curLossStreak = runningLS;
     const realWR = nSettled > 0 ? totalWins / nSettled : null;
     const realPR = nSettled > 0 ? totalPlaces / nSettled : null;
-    const realROI = totalStake > 0 && nSettled > 0
-      ? (totalReturn - totalStake) / totalStake : null;
+    const realROI = settledStake > 0 && nSettled > 0
+      ? totalProfit / settledStake : null;
 
     function statBlock(lbl, val, sub, cls, tooltip) {
       const titleAttr = tooltip ? ' title="' + tooltip + '"' : '';
@@ -11209,6 +11276,7 @@ function renderPnL() {
   });
 
   let totalWins = 0, totalPlaces = 0, totalStake = 0, totalReturn = 0, totalProfit = 0;
+  let nSettled = 0, settledStake = 0;
   let curWinStreak = 0, curLossStreak = 0;
   let longestWinStreak = 0, longestLossStreak = 0;
   let runningWS = 0, runningLS = 0;
@@ -11239,8 +11307,14 @@ function renderPnL() {
     const dhMult = entry.deadHeat ? 0.5 : 1;
 
     totalStake += stake;
+    // Pending bets (no finish recorded yet) count as a placed bet but must
+    // NOT be treated as wins, losses, or part of P&L/ROI. They previously
+    // fell into the loss branch below and were subtracted like losses.
+    if (s.finish == null) return;
+    nSettled++;
+    settledStake += stake;
     // Place rate denominator = bets where finish is known
-    const placeFinish = (s.finish != null) && s.finish >= 1 && s.finish <= 3;
+    const placeFinish = (s.finish >= 1) && (s.finish <= 3);
     if (placeFinish) totalPlaces++;
 
     if (s.won) {
@@ -11261,9 +11335,9 @@ function renderPnL() {
   curWinStreak = runningWS;
   curLossStreak = runningLS;
 
-  const realWR = sortedForStats.length > 0 ? totalWins / sortedForStats.length : null;
-  const realPR = sortedForStats.length > 0 ? totalPlaces / sortedForStats.length : null;
-  const realROI = totalStake > 0 ? (totalReturn - totalStake) / totalStake : null;
+  const realWR = nSettled > 0 ? totalWins / nSettled : null;
+  const realPR = nSettled > 0 ? totalPlaces / nSettled : null;
+  const realROI = settledStake > 0 ? totalProfit / settledStake : null;
   // Use the ACTIVE model's metadata for chart baselines (expected ROI/WR
   // lines). Each model has its own expected_roi_sp / expected_wr from
   // toprate_daily.py MODEL_DEFS - this way the dashed-line target adjusts
@@ -11308,7 +11382,7 @@ function renderPnL() {
   const betsTooltip = 'Bets you placed in this period. Bets on horses without a settled-results record (e.g. non-model picks before this rewrite) are skipped.';
 
   document.getElementById('pnl-stats-strip').innerHTML =
-    statBlock('Bets', sortedForStats.length, totalPlaced + ' placed', '', betsTooltip) +
+    statBlock('Bets', sortedForStats.length, nSettled + ' settled', '', betsTooltip) +
     statBlock('P&amp;L', profitStr, profitDollarSub, profitCls) +
     statBlock('Win rate', wrStr, '') +
     statBlock('Place rate', prStr, '') +
@@ -11329,6 +11403,9 @@ function renderPnL() {
   const cumPoints = [];
   let runningP = 0, runningS = 0;
   sortedView.forEach(s => {
+    // Pending bets (no finish yet) are not realized P&L - skip them so the
+    // line only moves on settled results, never treating pending as a loss.
+    if (s.finish == null) return;
     const stake = calcStake(s.fxprice, { model: s.model });
     if (!stake) return;
     const entry = log[String(s.run_id)];
@@ -11392,13 +11469,16 @@ function renderPnL() {
   const wrSvg = document.getElementById('pnl-chart-wr');
   wrSvg.innerHTML = '';
   const windowSize = 20;
-  if (sortedView.length < 3) {
+  // Settled bets only - a pending bet has no win/loss, so including it would
+  // count as a non-win and deflate the rolling rate.
+  const settledView = sortedView.filter(s => s.finish != null);
+  if (settledView.length < 3) {
     wrSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">Need at least 3 settled bets for rolling chart</text>';
   } else {
     const wrPoints = [];
-    for (let i = 0; i < sortedView.length; i++) {
+    for (let i = 0; i < settledView.length; i++) {
       const start = Math.max(0, i - windowSize + 1);
-      const slice = sortedView.slice(start, i + 1);
+      const slice = settledView.slice(start, i + 1);
       const wins = slice.filter(s => s.won).length;
       const wr = wins / slice.length;
       wrPoints.push({ idx: i, wr: wr, n: slice.length });
@@ -11458,11 +11538,13 @@ function renderPnL() {
     // Settle price: oddsTaken if recorded, else SP, else fxprice. Same as P&L logic.
     const settlePrice = hasOddsTaken ? oddsTaken : (sp || csvPrice);
     const dhMult = entry.deadHeat ? 0.5 : 1;
-    // Actual P&L for this settled bet (negative if lost, positive if won)
-    const pl = stake ? (s.won ? stake * (settlePrice - 1) * dhMult : -stake) : 0;
+    const isPending = (s.finish == null);
+    // Actual P&L: realized only once settled. A pending bet contributes
+    // nothing (it must never read as a loss).
+    const pl = (!isPending && stake) ? (s.won ? stake * (settlePrice - 1) * dhMult : -stake) : 0;
 
-    // Card class - use Today tab's existing settled-win / settled-loss visuals
-    let cardClass = s.won ? 'settled-win' : 'settled-loss';
+    // Card class - green win, red loss, neutral while the result is pending.
+    let cardClass = isPending ? 'settled-pending' : (s.won ? 'settled-win' : 'settled-loss');
 
     // Date column (replaces time) - "DD MMM" + smaller "weekday"
     let dateMain = s.date || '';
@@ -11570,8 +11652,8 @@ function renderPnL() {
       resultHtml = '<span class="res-tag ' + cls + '">' +
         (s.won ? 'W' : 'L') + ' · ' + s.finish + ord(s.finish) + '</span>';
     } else {
-      resultHtml = '<span class="res-tag ' + (s.won ? 'win' : 'loss') + '">' +
-        (s.won ? 'W' : 'L') + '</span>';
+      // No finish recorded yet - pending, not a loss.
+      resultHtml = '<span class="res-tag pending">Pending</span>';
     }
 
     // Bet toggle + odds-taken input (same shape as Today)
@@ -12153,39 +12235,46 @@ function renderWprAccuracy() {
       '<div class="acc-stat-num">' + s.mae.toFixed(1) + '</div>' +
       '<div class="acc-stat-lbl">mean absolute miss (WPR pts)</div>' +
     '</div>' +
-    '<div class="acc-stat">' +
+    '<div class="acc-stat good">' +
       '<div class="acc-stat-num">' + s.within3.toFixed(0) + '%</div>' +
       '<div class="acc-stat-lbl">within 3 WPR</div></div>' +
-    '<div class="acc-stat">' +
+    '<div class="acc-stat good">' +
       '<div class="acc-stat-num">' + s.within6.toFixed(0) + '%</div>' +
       '<div class="acc-stat-lbl">within 6 WPR</div></div>' +
-    '<div class="acc-stat">' +
+    '<div class="acc-stat bad">' +
       '<div class="acc-stat-num">' + s.far.toFixed(0) + '%</div>' +
       '<div class="acc-stat-lbl">8+ WPR off</div></div>' +
     '<div class="acc-stat">' +
       '<div class="acc-stat-num">' + biasTxt + '</div>' +
       '<div class="acc-stat-lbl">mean miss (' + biasWord + ')</div></div>' +
     '<div class="acc-stat acc-stat-n">' +
-      '<div class="acc-stat-num">' + s.n + '</div>' +
+      '<div class="acc-stat-num">' + s.n.toLocaleString() + '</div>' +
       '<div class="acc-stat-lbl">resulted runners</div></div>';
 
   // ── breakdowns ──
   function bdTable(title, list) {
     if (!list.length) return '';
+    const maxMae = Math.max.apply(null, list.map(g => g.mae)) || 1;
     let h = '<div class="acc-bd"><div class="acc-bd-title">' + title +
-      '</div><table class="acc-bd-table"><thead><tr>' +
-      '<th>' + title + '</th><th>n</th><th>mean miss</th>' +
-      '<th>mean abs miss</th></tr></thead><tbody>';
+      '<span class="acc-bd-count">' + list.length +
+      (list.length === 1 ? ' group' : ' groups') + '</span></div>' +
+      '<div class="acc-bd-scroll"><table class="acc-bd-table"><thead><tr>' +
+      '<th>' + title + '</th><th class="num">n</th><th class="num">mean miss</th>' +
+      '<th class="num">mean abs</th></tr></thead><tbody>';
     list.forEach(g => {
       let cls = 'acc-mae-close';
       if (g.mae >= 8) cls = 'acc-mae-far';
       else if (g.mae >= 6) cls = 'acc-mae-mid';
+      const barW = Math.max(4, Math.round(g.mae / maxMae * 100));
       h += '<tr><td>' + escapeHtml(String(g.group)) + '</td>' +
-        '<td>' + g.n + '</td>' +
-        '<td>' + (g.bias > 0 ? '+' : '') + g.bias.toFixed(1) + '</td>' +
-        '<td class="' + cls + '">' + g.mae.toFixed(1) + '</td></tr>';
+        '<td class="num">' + g.n + '</td>' +
+        '<td class="num acc-bd-bias">' + (g.bias > 0 ? '+' : '') +
+          g.bias.toFixed(1) + '</td>' +
+        '<td class="acc-mae ' + cls + '">' +
+          '<span class="bar" style="width:' + barW + '%"></span>' +
+          '<span class="v">' + g.mae.toFixed(1) + '</span></td></tr>';
     });
-    return h + '</tbody></table></div>';
+    return h + '</tbody></table></div></div>';
   }
   document.getElementById('acc-breakdowns').innerHTML =
     bdTable('Distance', accBreakdown(rows, r => accDistBand(r.dist))) +
@@ -12196,9 +12285,9 @@ function renderWprAccuracy() {
   rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const capped = rows.slice(0, 1000);
   document.querySelector('#acc-table thead').innerHTML =
-    '<tr><th>Date</th><th>Track</th><th>Dist</th><th>Going</th>' +
-    '<th>Horse</th><th>Pred</th><th>Actual</th><th>Miss</th>' +
-    '<th>Pred rank</th><th>Actual rank</th></tr>';
+    '<tr><th>Date</th><th>Track</th><th class="num">Dist</th><th>Going</th>' +
+    '<th>Horse</th><th class="num">Pred</th><th class="num">Actual</th><th class="num">Miss</th>' +
+    '<th class="num">Pred rank</th><th class="num">Actual rank</th></tr>';
   let body = '';
   capped.forEach(r => {
     const a = Math.abs(r.miss);
@@ -12206,15 +12295,15 @@ function renderWprAccuracy() {
     if (a >= 8) mc = 'wpr-miss-far'; else if (a >= 4) mc = 'wpr-miss-mid';
     body += '<tr><td>' + escapeHtml(r.date) + '</td>' +
       '<td>' + escapeHtml(r.venue) + '</td>' +
-      '<td>' + (r.dist || '') + '</td>' +
+      '<td class="num">' + (r.dist || '') + '</td>' +
       '<td>' + escapeHtml(r.going) + '</td>' +
       '<td>' + escapeHtml(r.horse) + '</td>' +
-      '<td>' + r.pred.toFixed(1) + '</td>' +
-      '<td>' + r.actual.toFixed(1) + '</td>' +
-      '<td class="' + mc + '">' + (r.miss > 0 ? '+' : '') +
-        r.miss.toFixed(1) + '</td>' +
-      '<td>' + (r.predRank != null ? r.predRank : '-') + '</td>' +
-      '<td>' + (r.actualRank != null ? r.actualRank : '-') + '</td></tr>';
+      '<td class="num">' + r.pred.toFixed(1) + '</td>' +
+      '<td class="num">' + r.actual.toFixed(1) + '</td>' +
+      '<td class="num"><span class="acc-miss-pill ' + mc + '">' +
+        (r.miss > 0 ? '+' : '') + r.miss.toFixed(1) + '</span></td>' +
+      '<td class="num">' + (r.predRank != null ? r.predRank : '-') + '</td>' +
+      '<td class="num">' + (r.actualRank != null ? r.actualRank : '-') + '</td></tr>';
   });
   document.querySelector('#acc-table tbody').innerHTML = body;
   if (rows.length > capped.length) {
