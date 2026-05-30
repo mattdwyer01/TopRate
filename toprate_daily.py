@@ -1503,6 +1503,12 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
         print("No pending runners to update.")
         return runners_df
 
+    # Ensure comment columns exist so result writes have a target even on a
+    # fresh CSV. Stay NaN until a result feed supplies them.
+    for col in ["comments_video", "comments_steward"]:
+        if col not in runners_df.columns:
+            runners_df[col] = np.nan
+
     race_ids = pending["race_id"].astype(str).unique()
     updated  = 0
     skipped_future = 0
@@ -1597,10 +1603,17 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
                                      # waits for the horse to be re-scraped into
                                      # form history (the lag that left recent
                                      # runs' actuals blank).
+                # Running (video) and official stewards comments. Used by the
+                # post-race adjudication to separate genuine model error from
+                # void runs (vet/eased/checked/slow-away). Captured at result
+                # time from the same feed; missing is fail-safe (stays None).
+                cvid = r.get("commentsVideo")
+                cstw = r.get("commentsSteward")
                 if rid and pos:
                     result_map[rid] = {
                         "finish": pos, "margin": mgn,
                         "sp": sp, "price_top": pt, "atw": atw,
+                        "comments_video": cvid, "comments_steward": cstw,
                     }
 
             # Update each runner in this race
@@ -1622,6 +1635,12 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
                     # leaves any existing value alone rather than nulling it.
                     if res.get("atw") is not None:
                         runners_df.loc[idx, "wpr_actual"] = round(float(res["atw"]), 1)
+                    # Comments: write when present, leave existing alone when the
+                    # feed omits them (some feeds populate stewards later).
+                    if res.get("comments_video") is not None:
+                        runners_df.loc[idx, "comments_video"] = res["comments_video"]
+                    if res.get("comments_steward") is not None:
+                        runners_df.loc[idx, "comments_steward"] = res["comments_steward"]
                     runners_df.loc[idx, "won"]    = 1 if finish == 1 else 0
                     runners_df.loc[idx, "placed"] = 1 if finish <= 3 else 0
                     runners_df.loc[idx, "resulted"] = 1
