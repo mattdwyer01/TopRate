@@ -10849,8 +10849,65 @@ function _voidMarkers(text) {
   };
 }
 
+// Short narrative explaining the model's miss, using the runner's recent-form
+// and context fields. Honest by design (mirrors describe() in wpr_projection):
+// names a driver only when the data supports one, and explicitly flags the
+// case where the horse ran beyond anything in its record (genuinely could not
+// be foreseen). Keeps it to one short clause for the post-race table.
+//   u.wpra = recent avg (last 3), u.wpjpk = career peak, u.wpjp = projection,
+//   u.asp = settle pos, u.wd/u.dn = WPR-at-distance + sample, u.clsChg = class
+//   change, u.wtr = weight trend, u.wpr1 = last-start WPR.
+function _varianceNarrative(u, proj, act, paceLate) {
+  if (u == null || proj == null || act == null) return '';
+  const recent = (u.wpra != null) ? u.wpra : null;
+  const peak = (u.wpjpk != null) ? u.wpjpk : null;
+  const gap = (recent != null) ? (proj - recent) : null;  // proj vs recent form
+
+  // UNDER-rated (ran above projection)
+  if (act > proj + 3) {
+    // Did it run beyond anything in its record? Then it could not be foreseen.
+    const ceiling = Math.max(peak != null ? peak : -Infinity,
+                             recent != null ? recent : -Infinity);
+    if (isFinite(ceiling) && act > ceiling + 2) {
+      return 'ran above its career best - no data could have predicted this';
+    }
+    // Projection sat below recent form: name why the model discounted it.
+    if (gap != null && gap <= -3) {
+      const drivers = [];
+      if (u.asp != null && u.asp >= 7) drivers.push('settles well back');
+      if (u.wd != null && recent != null && u.dn != null && u.dn >= 2 && (u.wd - recent) <= -3)
+        drivers.push('weaker at this trip');
+      if (u.clsChg != null && u.clsChg > 0) drivers.push('rising in class');
+      if (paceLate != null && paceLate < -1) drivers.push('slow-tempo race');
+      if (drivers.length)
+        return 'predicted below recent form (' + recent.toFixed(0) + ') - ' +
+               drivers.slice(0,2).join(', ') + '; ran better than that allowed';
+      return 'predicted below recent form (' + recent.toFixed(0) +
+             '); no clear driver - within normal model spread';
+    }
+    // Projection was near recent form, horse just exceeded it.
+    return 'ran above projection within normal spread';
+  }
+
+  // OVER-rated (ran below projection)
+  if (act < proj - 3) {
+    if (gap != null && gap >= 3) {
+      const drivers = [];
+      if (u.wpr1 != null && recent != null && (u.wpr1 - recent) <= -3) drivers.push('last start below form');
+      if (u.clsChg != null && u.clsChg < 0) drivers.push('dropping in class');
+      if (drivers.length)
+        return 'predicted above recent form (' + recent.toFixed(0) + ') - ' +
+               drivers.slice(0,2).join(', ') + '; did not run to it';
+      return 'predicted above recent form (' + recent.toFixed(0) +
+             '); no clear driver - within normal model spread';
+    }
+    return 'ran below projection within normal spread';
+  }
+  return '';
+}
+
 // Classify one runner's variance. Returns {verdict, cls, label, note}.
-function _classifyVariance(proj, act, cv, cs, paceLate) {
+function _classifyVariance(proj, act, cv, cs, paceLate, u) {
   if (proj == null || act == null) return { verdict: 'none', cls: '', label: '-', note: '' };
   const miss = act - (proj + _WPR_CALIB_OFFSET);
   const text = ((cv || '') + ' ' + (cs || '')).toLowerCase();
@@ -10865,18 +10922,18 @@ function _classifyVariance(proj, act, cv, cs, paceLate) {
       return { verdict: 'void', cls: 'rd-var-void', label: 'Void (weak)', note: m.weak.slice(0,2).join(', ') };
     if (paceLate != null && paceLate < -1.5 && _VOID_PACE.some(k => text.indexOf(k) >= 0))
       return { verdict: 'pace', cls: 'rd-var-pace', label: 'Pace-context', note: 'late bias ' + paceLate };
-    // Extreme underperformance with NO comment to explain it. A clean run does
-    // not miss by 20+ WPR - that is almost certainly an incident (eased, vet,
-    // fell) whose comment we do not have yet. Do not blame the model
-    // confidently; flag as unexplained so it is not mistaken for a real fault.
     const noComment = !((cv && cv.trim()) || (cs && cs.trim()));
     if (miss <= -20 && noComment)
       return { verdict: 'unexplained', cls: 'rd-var-void', label: 'Unexplained', note: 'no comment - likely incident' };
-    return { verdict: 'modelhigh', cls: 'rd-var-modelhigh', label: 'Rated too high', note: 'clean run' };
+    const nar = _varianceNarrative(u, proj, act, paceLate);
+    return { verdict: 'modelhigh', cls: 'rd-var-modelhigh', label: 'Rated too high',
+             note: nar || 'clean run' };
   }
-  const tag = (m.strong.length || m.weak.length)
-    ? 'despite ' + m.strong.concat(m.weak).slice(0,2).join(', ') : 'clean';
-  return { verdict: 'modellow', cls: 'rd-var-modellow', label: 'Rated too low', note: tag };
+  const trouble = (m.strong.length || m.weak.length)
+    ? 'despite ' + m.strong.concat(m.weak).slice(0,2).join(', ') + '; ' : '';
+  const nar = _varianceNarrative(u, proj, act, paceLate);
+  return { verdict: 'modellow', cls: 'rd-var-modellow', label: 'Rated too low',
+           note: trouble + (nar || 'clean') };
 }
 
 function buildPostRaceVariance(race) {
@@ -10888,7 +10945,7 @@ function buildPostRaceVariance(race) {
   const rows = runners.map(u => {
     const proj = (u.wpjp != null) ? u.wpjp : null;
     const act = (u.wpja != null) ? u.wpja : null;
-    const v = _classifyVariance(proj, act, u.cmtV, u.cmtS, paceLate);
+    const v = _classifyVariance(proj, act, u.cmtV, u.cmtS, paceLate, u);
     const miss = (proj != null && act != null) ? (act - (proj + _WPR_CALIB_OFFSET)) : null;
     return { u, proj, act, miss, v };
   });
