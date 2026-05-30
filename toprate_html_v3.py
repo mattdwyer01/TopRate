@@ -2221,6 +2221,45 @@ body {
   padding: 14px 20px;
 }
 
+/* TopRate-style speed map: horizontal bar per runner, leaders top. */
+.speedmap-wrap { padding-top: 4px; }
+.speedmap-head {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 10px;
+}
+.speedmap-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.speedmap-axis { font-size: 11px; color: var(--ink-mute); letter-spacing: .02em; }
+.speedmap-axis .sm-arrow { opacity: .6; }
+.speedmap-head .race-pace-est { margin-left: auto; }
+.speedmap-bars { display: flex; flex-direction: column; gap: 3px; }
+.sm-row { display: flex; align-items: center; gap: 8px; }
+.sm-zone {
+  width: 64px; flex: 0 0 64px; text-align: right;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-mute); font-weight: 600;
+}
+.sm-track { flex: 1; min-width: 0; }
+.sm-bar {
+  height: 24px; border-radius: 5px; display: flex; align-items: center;
+  padding: 0 10px; overflow: hidden; transition: width .2s ease;
+  min-width: 60px;
+}
+.sm-bar-label {
+  font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+/* Zone colours: front darker/greener, back lighter, matching the pace read. */
+.sm-bar.sm-lead   { background: #047857; }
+.sm-bar.sm-onpace { background: #059669; }
+.sm-bar.sm-mid    { background: #34d399; }
+.sm-bar.sm-mid .sm-bar-label   { color: #064e3b; }
+.sm-bar.sm-back   { background: #a7f3d0; }
+.sm-bar.sm-back .sm-bar-label  { color: #064e3b; }
+.sm-nodata {
+  margin-top: 10px; font-size: 11px; color: var(--ink-mute);
+  padding-top: 8px; border-top: 1px solid var(--line-soft);
+}
+.speedmap-empty { font-size: 12px; color: var(--ink-mute); padding: 10px 0; }
+
 /* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
 .race-shape-wrap {
   position: relative;
@@ -9812,27 +9851,14 @@ function renderRaceDetail(raceId) {
   }
 
   // ── Pace map / race shape ──
-  // Horizontal lane diagram: Leaders left → Back right. Horses positioned in
-  // their predicted zone based on avg_settled_pos. Tab numbers shown in colored
-  // cells. Unknown asp goes into a "no data" pile at the right.
-  const settled = { leaders: [], onpace: [], midfield: [], back: [], unknown: [] };
-  runners.forEach(u => {
-    const pos = u.asp;
-    if (pos == null) settled.unknown.push(u);
-    else if (pos <= 2) settled.leaders.push(u);
-    else if (pos <= 4) settled.onpace.push(u);
-    else if (pos <= 8) settled.midfield.push(u);
-    else settled.back.push(u);
-  });
-  // Within each zone, sort by asp ascending so closer-to-front horses go first
-  Object.keys(settled).forEach(k => {
-    if (k === 'unknown') return;
-    settled[k].sort((a, b) => (a.asp || 99) - (b.asp || 99));
-  });
+  // Speed map: TopRate-style continuous horizontal bars, one per runner,
+  // sorted by predicted settling position (leaders top, backmarkers bottom).
+  // Bar length encodes early speed: a front-runner gets a long bar, a
+  // backmarker a short one, so the field reads as a strung-out pack at a
+  // glance rather than four discrete buckets. Runners with no settle data go
+  // to the bottom in a "no data" group.
   document.getElementById('rd-pace-map').innerHTML =
-    '<div class="race-shape-wrap">' +
-      renderRaceShapeSVG(settled, runners.length, paceDisplay, paceClass, race, runners) +
-    '</div>';
+    renderSpeedMapBars(runners, race, paceDisplay, paceClass);
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
   // computed from historical races at same venue/going/rail
   document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
@@ -10942,6 +10968,76 @@ function buildPostRaceVariance(race) {
 // can win. The previous coloured scheme (yellow/green/blue/pink) implied
 // value judgements that don't exist. Now zones are clearly distinguishable
 // but the picks (with emerald outline) are what visually pops.
+// TopRate-style speed map: a horizontal bar per runner, sorted by predicted
+// settling position (avg_settled_pos / u.asp). Leaders sit at the top with the
+// longest bars; backmarkers at the bottom with the shortest. Bar length is a
+// linear map of settle position so the visual spread mirrors the run. Each bar
+// carries the tab number, horse name, and fixed price. Runners with no settle
+// data are listed below in a muted "no early-speed data" group.
+function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
+  const withPos = runners.filter(u => u.asp != null);
+  const noPos = runners.filter(u => u.asp == null);
+  if (!withPos.length) {
+    return '<div class="speedmap-wrap"><div class="speedmap-empty">' +
+      'No early-speed data for this race yet.</div></div>';
+  }
+  // Sort leaders (low asp) first.
+  withPos.sort((a, b) => a.asp - b.asp);
+  // Bar length: map settle position to a fraction. A leader (asp ~1) gets a
+  // near-full bar; a deep backmarker (asp ~max field) gets a short one. Clamp
+  // to the actual field so the scale fits the race.
+  const maxPos = Math.max(...withPos.map(u => u.asp), race.fs || withPos.length || 1);
+  function barPct(pos) {
+    // invert: low pos = long bar. Floor at 18% so the smallest bar still
+    // shows its label, cap at 100%.
+    const frac = 1 - (pos - 1) / Math.max(maxPos - 1, 1);
+    return Math.max(18, Math.min(100, 18 + frac * 82));
+  }
+  // Colour by zone for quick reading.
+  function zoneCls(pos) {
+    if (pos <= 2) return 'sm-lead';
+    if (pos <= 4) return 'sm-onpace';
+    if (pos <= 8) return 'sm-mid';
+    return 'sm-back';
+  }
+  function zoneLabel(pos) {
+    if (pos <= 2) return 'Lead';
+    if (pos <= 4) return 'On-pace';
+    if (pos <= 8) return 'Midfield';
+    return 'Back';
+  }
+  const rows = withPos.map(u => {
+    const pct = barPct(u.asp);
+    const price = (u.fx != null) ? '$' + u.fx.toFixed(2) : '';
+    const label = (u.tab || '?') + '. ' + escapeHtml(u.h || '') +
+      (price ? '  ' + price : '');
+    return '<div class="sm-row" data-rid="' + escapeHtml(String(u.rid)) + '">' +
+      '<div class="sm-zone">' + zoneLabel(u.asp) + '</div>' +
+      '<div class="sm-track">' +
+        '<div class="sm-bar ' + zoneCls(u.asp) + '" style="width:' + pct.toFixed(1) + '%;">' +
+          '<span class="sm-bar-label">' + label + '</span>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+  const noPosHtml = noPos.length
+    ? '<div class="sm-nodata">No early-speed data: ' +
+      noPos.map(u => (u.tab || '?') + '. ' + escapeHtml(u.h || '')).join(', ') +
+      '</div>'
+    : '';
+  return '<div class="speedmap-wrap">' +
+    '<div class="speedmap-head">' +
+      '<span class="speedmap-title">Speed map</span>' +
+      '<span class="speedmap-axis">Leaders <span class="sm-arrow">&rarr;</span> Backmarkers</span>' +
+      '<span class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</span>' +
+    '</div>' +
+    '<div class="speedmap-bars">' + rows + '</div>' +
+    noPosHtml +
+    '</div>';
+}
+
+
+// (Legacy) Race shape SVG bucket diagram - retained as a fallback; the active
+// speed map is renderSpeedMapBars above.
 function renderRaceShapeSVG(settled, totalRunners, paceDisplay, paceClass, race, runners) {
   const zones = [
     { key: 'leaders',  lbl: 'LEAD',     hint: '1-2', color: '#f3f4f6', textColor: '#374151' },
