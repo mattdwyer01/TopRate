@@ -1001,6 +1001,10 @@ def _horse_feature_rows(g):
         # exclude compromised runs from the target. Not features.
         f["comments_video"] = cur.get("comments_video")
         f["comments_steward"] = cur.get("comments_steward")
+        # Raw going string for THIS run. Analysis-only (the model uses the
+        # derived cur_surface). Carried so the retrain can exclude dirt/synth
+        # races that have no turf going rating from the target.
+        f["going"] = cur.get("going")
         out.append(f)
     return out
 
@@ -1150,6 +1154,23 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv",
             print("  void filter: no comment columns in history, skipping")
     except ImportError:
         print("  void filter: wpr_void not found, skipping")
+
+    # Surface filter: drop runs with no going rating. These are dirt / synthetic
+    # country tracks that do not get a turf going posted. The going feature is a
+    # turf concept; a blank going gets default-filled and the model would learn
+    # from these as if they were default-going turf races, which is noise. The
+    # races stay in the data (not deleted) - they are just excluded from the
+    # training target. No-op if the going column is absent.
+    if "going" in D.columns:
+        _g = D["going"].astype(str).str.strip().str.lower()
+        blank_going = D["going"].isna() | _g.isin(["", "nan", "none", "<na>"])
+        n_blank = int(blank_going.sum())
+        if n_blank:
+            D = D[~blank_going].copy()
+            print(f"  surface filter: excluded {n_blank:,} runs with no going "
+                  f"(dirt/synth, no turf rating), {len(D):,} rows remain")
+        else:
+            print("  surface filter: no blank-going runs")
 
     med = D[FEATURES].median()
     D[FEATURES] = D[FEATURES].fillna(med)
