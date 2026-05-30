@@ -2541,6 +2541,61 @@ body {
   background: var(--panel); border: 1px solid var(--line);
   border-radius: var(--radius-lg); padding: 0; overflow: hidden;
 }
+/* Race-reviewed bar - sits under the context bar. The checkbox gates betting
+   (toggles disabled until reviewed) and reporting (un-reviewed bets excluded). */
+.rd-review-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 22px; border-bottom: 1px solid var(--line);
+  background: var(--line-soft);
+}
+.rd-review-bar.is-reviewed { background: rgba(16,185,129,0.10); }
+.rd-review-checkbox {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--ink); user-select: none;
+}
+.rd-review-checkbox input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--emerald, #059669); }
+.rd-review-note { font-size: 12px; color: var(--ink-mute); }
+.rd-review-bar.is-reviewed .rd-review-note { color: var(--emerald-deep, #047857); }
+/* Pre/post race subtab navigation - only shown once a race has resulted. */
+.rd-subtab-nav {
+  display: flex; gap: 4px; padding: 8px 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+.rd-subtab-btn {
+  padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: none; border: none; color: var(--ink-mute);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.rd-subtab-btn.active { color: var(--ink); border-bottom-color: var(--emerald, #059669); }
+/* Bet toggle disabled state under the hard gate. */
+.wpr-bet-toggle:disabled, .sc-bet:disabled {
+  opacity: 0.4; cursor: not-allowed; filter: grayscale(0.6);
+}
+/* Post-race variance table. */
+.rd-variance-wrap { padding: 16px 22px; }
+.rd-variance-summary {
+  font-size: 13px; color: var(--ink-mute); margin-bottom: 12px;
+  padding: 10px 12px; background: var(--line-soft); border-radius: 8px;
+  line-height: 1.6;
+}
+.rd-variance-summary b { color: var(--ink); }
+.rd-variance-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rd-variance-table th {
+  text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute);
+}
+.rd-variance-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.rd-variance-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.rd-var-pill {
+  display: inline-block; padding: 1px 8px; border-radius: 9px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.rd-var-modellow  { background: rgba(220,38,38,0.12);  color: #b91c1c; }
+.rd-var-modelhigh { background: rgba(220,38,38,0.12);  color: #b91c1c; }
+.rd-var-void      { background: var(--line-soft);      color: var(--ink-mute); }
+.rd-var-pace      { background: rgba(37,99,235,0.10);  color: #1d4ed8; }
+.rd-var-ok        { background: rgba(16,185,129,0.12); color: #047857; }
+.rd-var-comment { font-size: 11px; color: var(--ink-mute); line-height: 1.45; max-width: 360px; }
 .race-header {
   background: linear-gradient(to bottom, #1c1917, #292524);
   color: #fafaf9; padding: 18px 22px;
@@ -5449,10 +5504,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-header-stats" id="rd-header-stats"></div>
         </div>
         <div class="race-context-bar" id="rd-context-bar"></div>
-        <div class="race-table-wrap" id="rd-runners-table"></div>
-        <div class="race-pace-map" id="rd-pace-map"></div>
-        <div class="track-conditions-card" id="rd-track-conditions"></div>
-        <div class="pf-bias-panel" id="rd-pf-bias" style="display:none;"></div>
+        <div class="rd-review-bar" id="rd-review-bar"></div>
+        <div class="rd-subtab-nav" id="rd-subtab-nav" style="display:none;"></div>
+        <div id="rd-prerace-section">
+          <div class="race-table-wrap" id="rd-runners-table"></div>
+          <div class="race-pace-map" id="rd-pace-map"></div>
+          <div class="track-conditions-card" id="rd-track-conditions"></div>
+          <div class="pf-bias-panel" id="rd-pf-bias" style="display:none;"></div>
+        </div>
+        <div id="rd-postrace-section" style="display:none;"></div>
       </div>
     </div>
   </section>
@@ -5527,6 +5587,12 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <button class="wpr-pill" data-val="placed">Placed (top 3)</button>
           <button class="wpr-pill" data-val="lost">Lost</button>
           <button class="wpr-pill" data-val="pending">Pending</button>
+        </div>
+      </div>
+      <div class="wpr-filter wpr-filter-multi">
+        <label>Reviewed</label>
+        <div class="wpr-pills" id="wpr-f-reviewed" data-multi="1">
+          <button class="wpr-pill" data-val="reviewed">Reviewed only</button>
         </div>
       </div>
       <div class="wpr-filter wpr-filter-multi">
@@ -6677,7 +6743,7 @@ setInterval(function () {
   // Multi-select pill containers. Delegated click: toggle .active on the
   // clicked pill, then rerender. Reading the active set is done by the
   // render function via getActivePills() below.
-  ['wpr-f-venue', 'wpr-f-result', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
+  ['wpr-f-venue', 'wpr-f-result', 'wpr-f-reviewed', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
     const host = document.getElementById(id);
     if (!host) return;
     host.addEventListener('click', (e) => {
@@ -6711,7 +6777,7 @@ setInterval(function () {
     // the sane defaults. "Reset" means "back to the default filter setup",
     // not "remove all filters" - otherwise reset would surface every junk
     // longshot and small-field race the user doesn't normally want to see.
-    ['wpr-f-venue', 'wpr-f-result', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
+    ['wpr-f-venue', 'wpr-f-result', 'wpr-f-reviewed', 'wpr-f-going', 'wpr-f-jky', 'wpr-f-field'].forEach(id => {
       const host = document.getElementById(id);
       if (host) host.querySelectorAll('.wpr-pill.active').forEach(p => p.classList.remove('active'));
     });
@@ -8259,6 +8325,41 @@ function countManualScratchesForRace(raceRunners) {
     (n, u) => n + (u && s[String(u.rid)] ? 1 : 0), 0);
 }
 
+// ── Race-reviewed store ─────────────────────────────────────────────────────
+// Tracks which races the user has manually reviewed. A reviewed race is:
+//   1. eligible for betting (bet toggles are HARD-disabled until reviewed)
+//   2. counted in Summary/P&L reporting (un-reviewed races' bets are excluded)
+//   3. visible in the Next-to-Jump tracker (un-reviewed are hidden)
+//   4. filterable + badged on the Summary tab
+// Keyed by race_id, persisted to localStorage, synced via Gist so a review
+// done on desktop is seen on mobile. Shape: { [race_id]: true }.
+const RACE_REVIEWED_KEY = 'toprate_race_reviewed_v1';
+let _raceReviewed = null;
+function _loadRaceReviewed() {
+  if (_raceReviewed !== null) return _raceReviewed;
+  try {
+    const raw = localStorage.getItem(RACE_REVIEWED_KEY);
+    _raceReviewed = raw ? JSON.parse(raw) : {};
+  } catch (e) { _raceReviewed = {}; }
+  return _raceReviewed;
+}
+function _saveRaceReviewed() {
+  try { localStorage.setItem(RACE_REVIEWED_KEY, JSON.stringify(_raceReviewed || {})); }
+  catch (e) { /* storage unavailable - session-only */ }
+}
+function isRaceReviewed(raceId) {
+  if (raceId == null) return false;
+  return !!_loadRaceReviewed()[String(raceId)];
+}
+function setRaceReviewed(raceId, on) {
+  if (raceId == null) return;
+  _loadRaceReviewed();
+  if (on) _raceReviewed[String(raceId)] = true;
+  else delete _raceReviewed[String(raceId)];
+  _saveRaceReviewed();
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
+}
+
 // ── WPR bet store ─────────────────────────────────────────────────────────
 // Tracks the user's Bet Y/N decision and the stake per run_id, persisted to
 // localStorage alongside the manual overrides. Shape per run_id:
@@ -8580,6 +8681,7 @@ function renderWprSummary() {
   }
   const fVenue   = getActivePills('wpr-f-venue');
   const fResult  = getActivePills('wpr-f-result');
+  const fReviewed = getActivePills('wpr-f-reviewed');
   const fGoing   = getActivePills('wpr-f-going');
   const fJky     = getActivePills('wpr-f-jky');
   const fField   = getActivePills('wpr-f-field');
@@ -8756,6 +8858,8 @@ function renderWprSummary() {
     if (fVenue.size > 0 && !fVenue.has(race.venue)) return false;
     // "ranked runners only" - exclude races that have any unranked runner
     if (fRanked && unrankedCount(race) > 0) return false;
+    // Reviewed-only filter: when active, show only reviewed races.
+    if (fReviewed.has('reviewed') && !isRaceReviewed(race.race_id)) return false;
     return true;
   }
 
@@ -8842,6 +8946,11 @@ function renderWprSummary() {
     const fs = race.fs || (race.runners || []).length || 0;
     const ur = unrankedCount(race);
     let s = escapeHtml(race.venue || '') + ' R' + (race.race || '?');
+    if (isRaceReviewed(race.race_id)) {
+      s += ' <span class="rd-review-badge" title="Race reviewed" ' +
+        'style="font-size:10px;font-weight:700;color:#047857;background:rgba(16,185,129,0.12);' +
+        'padding:1px 6px;border-radius:8px;white-space:nowrap;">REVIEWED</span>';
+    }
     if (ur > 0) {
       s += ' <span class="wpr-unranked-flag" style="font-size:11px">' +
         ur + ' unranked</span>';
@@ -8889,7 +8998,11 @@ function renderWprSummary() {
     let runningWS = 0, runningLS = 0, longestWinStreak = 0, longestLossStreak = 0;
     let vsSpSum = 0, vsSpCount = 0;
 
-    todaysBets.forEach(({ u }) => {
+    todaysBets.forEach(({ u, race }) => {
+      // Reporting gate: bets on un-reviewed races do not count toward any KPI
+      // (win rate, ROI, P&L). They remain placed but invisible to reporting
+      // until the race is reviewed. Keyed by race_id.
+      if (race && !isRaceReviewed(race.race_id)) return;
       const entry = log[String(u.rid)] || {};
       const hasOdds = entry.oddsTaken != null && entry.oddsTaken > 1;
       const stakePrice = hasOdds ? entry.oddsTaken : u.fx;
@@ -10567,6 +10680,197 @@ function renderRaceDetail(raceId) {
       card.parentNode.insertBefore(detail, card.nextSibling);
     });
   });
+
+  // ── Review bar + pre/post subtab nav (race-reviewed gate + variance) ──
+  renderRaceReviewControls(race);
+}
+
+let _rdSubtab = 'pre';
+// ── Race-reviewed controls: review bar, hard bet-gate, pre/post subtab ──
+// Renders the "Race reviewed" checkbox bar, enforces the hard gate (bet
+// toggles disabled on a pending race until reviewed), and - once the race has
+// resulted - the Pre-race/Post-race subtab navigation. Called at the end of
+// renderRaceDetail.
+function renderRaceReviewControls(race) {
+  const reviewed = isRaceReviewed(race.race_id);
+  const resulted = race.done === 1;
+
+  const bar = document.getElementById('rd-review-bar');
+  if (bar) {
+    bar.className = 'rd-review-bar' + (reviewed ? ' is-reviewed' : '');
+    const note = reviewed
+      ? 'Reviewed - betting enabled, counts in reporting.'
+      : (resulted
+          ? 'Not reviewed - bets on this race are excluded from reporting until ticked.'
+          : 'Not reviewed - betting is disabled until you tick this.');
+    bar.innerHTML =
+      '<label class="rd-review-checkbox">' +
+        '<input type="checkbox" id="rd-review-cb"' + (reviewed ? ' checked' : '') + '>' +
+        '<span>Race reviewed</span>' +
+      '</label>' +
+      '<span class="rd-review-note">' + note + '</span>';
+    const cb = document.getElementById('rd-review-cb');
+    if (cb) cb.addEventListener('change', () => {
+      setRaceReviewed(race.race_id, cb.checked);
+      renderRaceDetail(race.race_id);
+      if (typeof renderToday === 'function') { try { renderToday(); } catch(e){} }
+      if (typeof renderPnL === 'function') { try { renderPnL(); } catch(e){} }
+      if (typeof renderInsights === 'function') { try { renderInsights(); } catch(e){} }
+      if (typeof renderNtjTicker === 'function') { try { renderNtjTicker(); } catch(e){} }
+    });
+  }
+
+  // Hard gate: disable every bet toggle in the detail when pending+unreviewed.
+  const gateClosed = !reviewed && !resulted;
+  document.querySelectorAll('#rd-runners-table .wpr-bet-toggle').forEach(btn => {
+    btn.disabled = gateClosed;
+    btn.title = gateClosed ? 'Tick "Race reviewed" to enable betting' : '';
+  });
+
+  const nav = document.getElementById('rd-subtab-nav');
+  const post = document.getElementById('rd-postrace-section');
+  const pre = document.getElementById('rd-prerace-section');
+  if (!nav || !post || !pre) return;
+  if (!resulted) {
+    nav.style.display = 'none';
+    post.style.display = 'none';
+    pre.style.display = '';
+    return;
+  }
+  nav.style.display = 'flex';
+  const active = _rdSubtab || 'pre';
+  nav.innerHTML =
+    '<button class="rd-subtab-btn' + (active==='pre'?' active':'') + '" data-sub="pre">Pre-race</button>' +
+    '<button class="rd-subtab-btn' + (active==='post'?' active':'') + '" data-sub="post">Post-race review</button>';
+  nav.querySelectorAll('.rd-subtab-btn').forEach(b => {
+    b.addEventListener('click', () => { _rdSubtab = b.dataset.sub; renderRaceReviewControls(race); });
+  });
+  if (active === 'post') {
+    pre.style.display = 'none';
+    post.style.display = '';
+    post.innerHTML = buildPostRaceVariance(race);
+  } else {
+    pre.style.display = '';
+    post.style.display = 'none';
+  }
+}
+
+// ── Post-race variance review ───────────────────────────────────────────────
+// JS port of wpr_void.py - kept deliberately in sync with the Python module so
+// the dashboard's auto-reason matches the offline tools (wpr_adjudicate.py,
+// wpr_error_review.py). Same markers, same direction rule.
+const _VOID_STRONG = ['shin','vet','lame','bled','blood','broke down','fell',
+  'checked','badly hampered','eased','tailed off','severely','pulled up',
+  'lost rider','fractured'];
+const _VOID_WEAK = ['slowly away','slow out','bit slow out','hampered','held up',
+  'crowded','began awkwardly','jumped awkwardly','keen','raced flat',
+  'wide throughout','interfere','tightened','awkwardly'];
+const _VOID_PACE = ['back','mid field','midfield','fades','out of picture',
+  "couldn't get close",'no run','laboured'];
+const _VOID_WEAK_MISS = -8.0;
+
+// Calibration offset - mirrors wpr_models/config.json calib_offset. Update if
+// the retrain changes it. Used so the dashboard's variance matches how the
+// model is actually calibrated (actual vs projection + offset).
+const _WPR_CALIB_OFFSET = 2.57;
+
+function _voidMarkers(text) {
+  const t = (text || '').toLowerCase();
+  return {
+    strong: _VOID_STRONG.filter(m => t.indexOf(m) >= 0),
+    weak: _VOID_WEAK.filter(m => t.indexOf(m) >= 0),
+  };
+}
+
+// Classify one runner's variance. Returns {verdict, cls, label, note}.
+function _classifyVariance(proj, act, cv, cs, paceLate) {
+  if (proj == null || act == null) return { verdict: 'none', cls: '', label: '-', note: '' };
+  const miss = act - (proj + _WPR_CALIB_OFFSET);
+  const text = ((cv || '') + ' ' + (cs || '')).toLowerCase();
+  const m = _voidMarkers(text);
+  if (Math.abs(miss) < 5) {
+    return { verdict: 'ok', cls: 'rd-var-ok', label: 'Model OK', note: '' };
+  }
+  if (miss < 0) {
+    if (m.strong.length)
+      return { verdict: 'void', cls: 'rd-var-void', label: 'Void (excuse)', note: m.strong.slice(0,2).join(', ') };
+    if (m.weak.length && miss < _VOID_WEAK_MISS)
+      return { verdict: 'void', cls: 'rd-var-void', label: 'Void (weak)', note: m.weak.slice(0,2).join(', ') };
+    if (paceLate != null && paceLate < -1.5 && _VOID_PACE.some(k => text.indexOf(k) >= 0))
+      return { verdict: 'pace', cls: 'rd-var-pace', label: 'Pace-context', note: 'late bias ' + paceLate };
+    return { verdict: 'modelhigh', cls: 'rd-var-modelhigh', label: 'Rated too high', note: 'clean run' };
+  }
+  const tag = (m.strong.length || m.weak.length)
+    ? 'despite ' + m.strong.concat(m.weak).slice(0,2).join(', ') : 'clean';
+  return { verdict: 'modellow', cls: 'rd-var-modellow', label: 'Rated too low', note: tag };
+}
+
+function buildPostRaceVariance(race) {
+  const runners = (race.runners || []).slice();
+  const paceLate = (race.rsl != null) ? race.rsl : null;
+  // Build rows for runners that have both a projection and an actual.
+  const rows = runners.map(u => {
+    const proj = (u.wpjp != null) ? u.wpjp : null;
+    const act = (u.wpja != null) ? u.wpja : null;
+    const v = _classifyVariance(proj, act, u.cmtV, u.cmtS, paceLate);
+    const miss = (proj != null && act != null) ? (act - (proj + _WPR_CALIB_OFFSET)) : null;
+    return { u, proj, act, miss, v };
+  }).filter(r => r.proj != null && r.act != null);
+
+  if (!rows.length) {
+    return '<div class="rd-variance-wrap"><div class="rd-variance-summary">' +
+      'No runners with both a projection and an actual rating yet. The actual ' +
+      'WPR settles up to ~5 days after a race, so this fills in progressively. ' +
+      'Comments populate once captured from results.</div></div>';
+  }
+
+  // Race summary line: mean miss + MAE all vs excluding voids, plus pace.
+  const misses = rows.map(r => r.miss);
+  const voids = rows.filter(r => r.v.verdict === 'void');
+  const kept = rows.filter(r => r.v.verdict !== 'void');
+  const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0;
+  const mae = a => a.length ? a.reduce((s,x)=>s+Math.abs(x),0)/a.length : 0;
+  const keptMiss = kept.map(r => r.miss);
+  let summary = '<b>Race post-mortem.</b> ' + rows.length + ' projected runners. ';
+  summary += 'All: mean miss ' + (mean(misses)>=0?'+':'') + mean(misses).toFixed(1) +
+    ', MAE ' + mae(misses).toFixed(1) + '. ';
+  if (voids.length) {
+    summary += 'Excluding ' + voids.length + ' void run' + (voids.length>1?'s':'') +
+      ': mean miss ' + (mean(keptMiss)>=0?'+':'') + mean(keptMiss).toFixed(1) +
+      ', MAE ' + mae(keptMiss).toFixed(1) + '. ';
+  }
+  if (paceLate != null) {
+    const paceWord = paceLate < -1.5 ? 'on-pace favoured (backmarkers disadvantaged)'
+      : paceLate > 1.5 ? 'backmarkers favoured' : 'even tempo';
+    summary += 'Late pace bias ' + (paceLate>=0?'+':'') + paceLate + ' (' + paceWord + ').';
+  }
+
+  // Sort by finish, then build the table.
+  rows.sort((a,b) => ((a.u.f||99)-(b.u.f||99)));
+  const head = '<thead><tr>' +
+    '<th>Fin</th><th>Horse</th><th class="num">Proj</th><th class="num">Actual</th>' +
+    '<th class="num">Variance</th><th>Reason</th><th>Comments</th></tr></thead>';
+  const body = rows.map(r => {
+    const comment = [r.u.cmtV, r.u.cmtS].filter(Boolean).join(' / ');
+    return '<tr>' +
+      '<td class="num">' + (r.u.f != null ? r.u.f : '-') + '</td>' +
+      '<td>' + escapeHtml(r.u.h || r.u.horse || '') + '</td>' +
+      '<td class="num">' + r.proj.toFixed(1) + '</td>' +
+      '<td class="num">' + r.act.toFixed(1) + '</td>' +
+      '<td class="num">' + (r.miss>=0?'+':'') + r.miss.toFixed(1) + '</td>' +
+      '<td><span class="rd-var-pill ' + r.v.cls + '">' + r.v.label + '</span>' +
+        (r.v.note ? ' <span style="font-size:11px;color:var(--ink-mute)">' + escapeHtml(r.v.note) + '</span>' : '') + '</td>' +
+      '<td class="rd-var-comment">' + (comment ? escapeHtml(comment) : '<span style="color:var(--ink-faint)">no comment</span>') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  return '<div class="rd-variance-wrap">' +
+    '<div class="rd-variance-summary">' + summary + '</div>' +
+    '<table class="rd-variance-table">' + head + '<tbody>' + body + '</tbody></table>' +
+    '<div style="font-size:11px;color:var(--ink-mute);margin-top:10px;">' +
+    'Variance = actual minus (projection + ' + _WPR_CALIB_OFFSET.toFixed(2) + ' calibration). ' +
+    'Reasons are auto-derived from comments; a horse that ran at or above projection ' +
+    'despite trouble is treated as rated-too-low, not void.</div></div>';
 }
 
 // Race shape SVG - horizontal lane diagram showing predicted positions.
@@ -11005,6 +11309,9 @@ function renderNtjTicker() {
   const upcoming = RACES.filter(r => {
     if (r.done === 1) return false;
     if (!r.start_time) return false;
+    // Hide un-reviewed races: the tracker surfaces only races cleared for
+    // betting, so an un-reviewed race does not appear here.
+    if (!isRaceReviewed(r.race_id)) return false;
     const tm = new Date(r.start_time);
     const diff = (tm - now) / 1000;
     return diff >= -180 && diff <= 86400;  // -3min to +24h
@@ -11013,7 +11320,7 @@ function renderNtjTicker() {
     .slice(0, 6);
 
   if (upcoming.length === 0) {
-    pillsEl.innerHTML = '<div class="ntj-empty">No races jumping soon.</div>';
+    pillsEl.innerHTML = '<div class="ntj-empty">No reviewed races jumping soon.</div>';
     return;
   }
   pillsEl.innerHTML = upcoming.map(({ race, secsUntil }) => {
@@ -11300,6 +11607,9 @@ function renderPnL() {
   let vsSpSum = 0, vsSpCount = 0;
 
   sortedForStats.forEach(s => {
+    // Reporting gate: bets on un-reviewed races are excluded from all P&L
+    // stats (win/place rate, ROI, profit). Keyed by race_id.
+    if (s.race_id != null && !isRaceReviewed(s.race_id)) return;
     const entry = log[String(s.run_id)] || { placed: false, oddsTaken: null, comments: '', deadHeat: false };
     const hasOddsTaken = entry.oddsTaken != null && entry.oddsTaken > 1;
 
@@ -11416,6 +11726,8 @@ function renderPnL() {
   const cumPoints = [];
   let runningP = 0, runningS = 0;
   sortedView.forEach(s => {
+    // Reporting gate: skip bets on un-reviewed races (consistent with stats).
+    if (s.race_id != null && !isRaceReviewed(s.race_id)) return;
     // Pending bets (no finish yet) are not realized P&L - skip them so the
     // line only moves on settled results, never treating pending as a loss.
     if (s.finish == null) return;
@@ -11484,7 +11796,8 @@ function renderPnL() {
   const windowSize = 20;
   // Settled bets only - a pending bet has no win/loss, so including it would
   // count as a non-win and deflate the rolling rate.
-  const settledView = sortedView.filter(s => s.finish != null);
+  const settledView = sortedView.filter(s => s.finish != null &&
+    (s.race_id == null || isRaceReviewed(s.race_id)));
   if (settledView.length < 3) {
     wrSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">Need at least 3 settled bets for rolling chart</text>';
   } else {
@@ -14879,6 +15192,9 @@ function buildSyncPayload() {
     // Manual finishing positions (run_id -> int) entered before official
     // results land. Read fresh from storage so we sync the current map.
     manualFp: _getManualFpMap(),
+    // Race-reviewed flags (race_id -> true). Gates betting + reporting, so
+    // syncing keeps the reviewed-set consistent across devices.
+    raceReviewed: _loadRaceReviewed(),
   };
 }
 
@@ -15052,6 +15368,13 @@ async function syncPull() {
     if (payload.manualFp && typeof payload.manualFp === 'object') {
       const mergedFp = Object.assign({}, _getManualFpMap(), payload.manualFp);
       _saveManualFpMap(mergedFp);
+    }
+    // Race-reviewed flags - merge + cache reset (same pattern as scratches).
+    if (payload.raceReviewed && typeof payload.raceReviewed === 'object') {
+      const localRev = _loadRaceReviewed();
+      const mergedRev = Object.assign({}, localRev, payload.raceReviewed);
+      try { localStorage.setItem(RACE_REVIEWED_KEY, JSON.stringify(mergedRev)); } catch(e) {}
+      _raceReviewed = null;
     }
     renderToday(); renderPnL(); renderInsights();
     syncLog('Pulled ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +

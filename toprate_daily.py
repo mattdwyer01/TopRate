@@ -2545,6 +2545,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # far the projection and ranking actually missed.
                 "wpja":  sf(row.get("wpr_actual")),
                 "wpjar": si(row.get("wpr_actual_rank")),
+                # Running (video) and stewards comments for resulted runners.
+                # Drive the post-race variance subtab's auto-reason + display.
+                # None until the result feed supplies them (post-race).
+                "cmtV":  (str(row.get("comments_video"))
+                          if row.get("comments_video") is not None
+                          and str(row.get("comments_video")) not in ("", "nan") else None),
+                "cmtS":  (str(row.get("comments_steward"))
+                          if row.get("comments_steward") is not None
+                          and str(row.get("comments_steward")) not in ("", "nan") else None),
                 # Last 6 race runs (newest first) for the detail-panel form
                 # table. Empty list if no history matched. We EXCLUDE any run
                 # dated the same day as THIS race: TopRate's form feed includes
