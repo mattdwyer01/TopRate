@@ -10785,7 +10785,7 @@ const _VOID_WEAK_MISS = -8.0;
 // Calibration offset - mirrors wpr_models/config.json calib_offset. Update if
 // the retrain changes it. Used so the dashboard's variance matches how the
 // model is actually calibrated (actual vs projection + offset).
-const _WPR_CALIB_OFFSET = 2.57;
+const _WPR_CALIB_OFFSET = 2.26;
 
 function _voidMarkers(text) {
   const t = (text || '').toLowerCase();
