@@ -134,6 +134,33 @@ def main():
             vm = z.groupby("venue").size().sort_values(ascending=False).head(5)
             print("   top venues affected:", dict(vm))
 
+    # Void-aware decontamination. Once comments are captured (comments_video /
+    # comments_steward columns), exclude compromised runs and show how much
+    # the error stats improve. Uses the shared wpr_void direction rule.
+    if "comments_video" in d.columns or "comments_steward" in d.columns:
+        try:
+            from wpr_void import is_void
+            cv = d["comments_video"] if "comments_video" in d.columns else None
+            cs = d["comments_steward"] if "comments_steward" in d.columns else None
+            cv = cv if cv is not None else pd.Series([None] * len(d), index=d.index)
+            cs = cs if cs is not None else pd.Series([None] * len(d), index=d.index)
+            void = pd.Series(
+                [is_void(m, a, b)[0] for m, a, b in zip(d["resid"], cv, cs)],
+                index=d.index)
+            n_void = int(void.sum())
+            print(f"\n== void-aware decontamination ==")
+            if n_void:
+                keep = d[~void]
+                allm = d["resid"]
+                km = keep["resid"]
+                print(f"   all resulted:    n={len(d):5d} mean miss {allm.mean():+.2f} MAE {allm.abs().mean():.2f}")
+                print(f"   excluding {n_void} voids: n={len(keep):5d} mean miss {km.mean():+.2f} MAE {km.abs().mean():.2f}")
+                print("   (voids = vet/eased/checked/etc on underperformances - not model error)")
+            else:
+                print("   no void runs flagged (comments may not be captured yet)")
+        except ImportError:
+            pass
+
 
 if __name__ == "__main__":
     main()

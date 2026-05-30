@@ -997,6 +997,10 @@ def _horse_feature_rows(g):
         # race_id / race_class are analysis-only (not trained on).
         f["race_id"] = cur.get("race_id")
         f["race_class"] = cur.get("race_class")
+        # Comments for THIS run, carried so the retrain's void filter can
+        # exclude compromised runs from the target. Not features.
+        f["comments_video"] = cur.get("comments_video")
+        f["comments_steward"] = cur.get("comments_steward")
         out.append(f)
     return out
 
@@ -1042,7 +1046,8 @@ def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True,
             "margin800m", "margin600m", "margin400m", "marginFinish",
             "isBarrierTrial",
             "field_size", "raceShapeEarly", "raceShapeMid",
-            "raceShapeLate", "race_class", "race_id"] + _sect_cols
+            "raceShapeLate", "race_class", "race_id",
+            "comments_video", "comments_steward"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
     for c in ["wpr", "distance", "trackGrading", "positionSettled",
@@ -1117,6 +1122,35 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv",
     D = build_training_frame(form_history_csv, n_jobs=n_jobs).dropna(
         subset=["target", "date"]).sort_values("date")
     print(f"  {len(D):,} training rows")
+
+    # Void filter: drop runs the horse did not get a fair chance to show its
+    # true WPR (vet/bled/eased/fell/checked). Training on these teaches the
+    # model to predict a compromised run-day rating, which both adds noise and
+    # drags the target down. Comment-only test (conservative: STRONG markers
+    # only) because at training time there is no projection to apply the
+    # direction rule. Requires comment columns in the form history; if absent
+    # (older history), this is a no-op and training proceeds on all rows.
+    try:
+        from wpr_void import void_from_comment_only
+        cv = D["comments_video"] if "comments_video" in D.columns else None
+        cs = D["comments_steward"] if "comments_steward" in D.columns else None
+        if cv is not None or cs is not None:
+            cv = cv if cv is not None else [None] * len(D)
+            cs = cs if cs is not None else [None] * len(D)
+            void_mask = [void_from_comment_only(a, b)[0]
+                         for a, b in zip(cv, cs)]
+            n_void = int(sum(void_mask))
+            if n_void:
+                D = D[[not v for v in void_mask]].copy()
+                print(f"  void filter: excluded {n_void:,} compromised runs "
+                      f"(vet/eased/checked/etc), {len(D):,} rows remain")
+            else:
+                print("  void filter: no compromised runs flagged")
+        else:
+            print("  void filter: no comment columns in history, skipping")
+    except ImportError:
+        print("  void filter: wpr_void not found, skipping")
+
     med = D[FEATURES].median()
     D[FEATURES] = D[FEATURES].fillna(med)
 

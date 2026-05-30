@@ -36,12 +36,8 @@ import sys
 import json
 import pandas as pd
 import numpy as np
+from wpr_void import STRONG, WEAK, _markers
 
-STRONG = ['shin', 'vet', 'lame', 'bled', 'blood', 'broke down', 'fell',
-          'checked', 'badly hampered', 'eased', 'tailed off', 'severely']
-WEAK = ['slowly away', 'slow out', 'bit slow out', 'hampered', 'held up',
-        'crowded', 'began awkwardly', 'jumped awkwardly', 'keen', 'raced flat',
-        'wide throughout', 'interfere', 'lost', 'tightened']
 PACE_WORDS = ['back', 'mid field', 'midfield', 'fades', 'out of picture',
               "couldn't get close", 'no run', 'laboured']
 
@@ -75,8 +71,7 @@ def decode_data_json(path):
 
 
 def excuses(text):
-    t = (text or "").lower()
-    return [m for m in STRONG if m in t], [m for m in WEAK if m in t]
+    return _markers(text)
 
 
 def classify(proj, act, cv, cs, pace_late, offset):
