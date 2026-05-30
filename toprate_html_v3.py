@@ -2579,7 +2579,16 @@ body {
   line-height: 1.6;
 }
 .rd-variance-summary b { color: var(--ink); }
-.rd-variance-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rd-variance-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+/* Comment column takes the remaining width and wraps; other columns size to
+   content via nowrap so the comment is the one that flows onto extra lines,
+   growing the row height rather than forcing a horizontal scroll. */
+.rd-variance-table th, .rd-variance-table td { white-space: nowrap; }
+.rd-variance-table .rd-var-comment, .rd-variance-table .rd-var-comment-col { width: 38%; white-space: normal; word-break: break-word; }
+.rd-variance-table .rt-col-horse { white-space: normal; }
+/* The variance table wrapper should not scroll horizontally - the fixed layout
+   keeps everything within the container and wraps the comment instead. */
+.rd-variance-wrap .race-table-wrap { overflow-x: visible; }
 .rd-variance-table th {
   text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line);
   font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute);
@@ -2595,8 +2604,8 @@ body {
 .rd-var-void      { background: var(--line-soft);      color: var(--ink-mute); }
 .rd-var-pace      { background: rgba(37,99,235,0.10);  color: #1d4ed8; }
 .rd-var-ok        { background: rgba(16,185,129,0.12); color: #047857; }
-.rd-var-comment { font-size: 11px; color: var(--ink-mute); line-height: 1.45; white-space: normal; word-break: break-word; min-width: 280px; }
-.rd-var-comment-col { min-width: 280px; }
+.rd-var-comment { font-size: 11px; color: var(--ink-mute); line-height: 1.45; white-space: normal; word-break: break-word; }
+.rd-var-comment-col { }
 .race-header {
   background: linear-gradient(to bottom, #1c1917, #292524);
   color: #fafaf9; padding: 18px 22px;
@@ -10919,7 +10928,6 @@ function buildPostRaceVariance(race) {
     '<div class="race-table-wrap"><table class="race-table rd-variance-table">' +
     head + '<tbody>' + body + '</tbody></table></div>' +
     '<div style="font-size:11px;color:var(--ink-mute);margin-top:10px;">' +
-    'Variance = actual minus (projection + ' + _WPR_CALIB_OFFSET.toFixed(2) + ' calibration). ' +
     'Reasons are auto-derived from comments; a horse that ran at or above projection ' +
     'despite trouble is treated as rated-too-low, not void.</div></div>';
 }
