@@ -2178,7 +2178,7 @@ body {
   background: rgba(255,255,255,0.1); color: #fafaf9;
 }
 .race-pace-est .lbl {
-  font-size: 9px; opacity: 0.7; text-transform: uppercase;
+  font-size: 9px; opacity: 0.9; text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .race-pace-est.hot { background: rgba(239,68,68,0.2); }
@@ -2612,11 +2612,24 @@ body {
 }
 .race-header-stats {
   display: flex; gap: 24px; align-items: center;
-  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
   flex-wrap: wrap;
 }
-.race-header-stats .item { color: #a8a29e; }
-.race-header-stats .item .v { color: #fafaf9; font-weight: 700; }
+/* Brighter than the old #a8a29e so the time/distance/going/prize line is
+   easily read on the dark header. */
+.race-header-stats .item { color: #e7e5e4; }
+.race-header-stats .item .v { color: #ffffff; font-weight: 700; }
+/* Race-reviewed checkbox in the dark header. */
+.rd-review-head {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: #e7e5e4; user-select: none;
+  padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+}
+.rd-review-head:hover { border-color: rgba(255,255,255,0.4); }
+.rd-review-head input { width: 15px; height: 15px; cursor: pointer; accent-color: #10b981; }
+.rd-review-head.is-on {
+  background: rgba(16,185,129,0.20); border-color: #10b981; color: #d1fae5;
+}
 @media (max-width: 720px) {
   /* Black race banner: tighter padding, smaller fonts, allow stats to wrap
      onto own line beneath title to free horizontal space */
@@ -3286,14 +3299,14 @@ body {
 }
 .rd-connfoot-note { font-style: italic; opacity: 0.8; }
 /* Race confidence chip in the race header */
-.race-conf { font-weight: 600; }
+.race-conf { font-weight: 700; }
 .race-conf .lbl {
-  font-weight: 400; color: var(--ink-mute); font-size: 11px;
+  font-weight: 600; color: #d6d3d1; font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.03em; margin-right: 3px;
 }
-.race-conf.rc-high { color: #10b981; }
-.race-conf.rc-mid  { color: #d97706; }
-.race-conf.rc-low  { color: #dc2626; }
+.race-conf.rc-high { color: #34d399; }
+.race-conf.rc-mid  { color: #fbbf24; }
+.race-conf.rc-low  { color: #f87171; }
 /* Clear-overrides control */
 .wpr-clear-btn {
   display: inline-flex; align-items: center; gap: 5px;
@@ -6828,6 +6841,18 @@ function escapeHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Finishing-position ordinal: 1 -> 1st, 2 -> 2nd, 3 -> 3rd, 4 -> 4th, ...
+// 11/12/13 -> 11th/12th/13th. Used for the FP column across all tabs so the
+// display is consistent (1st..10th..) rather than bare numbers past 3rd.
+function fpOrdinal(n) {
+  if (n == null || isNaN(n)) return '';
+  n = parseInt(n, 10);
+  if (n === 99) return 'UPL';  // unplaced sentinel
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 // ── Abandoned meeting / race tracking ───────────────────────────────────────
 // User-managed: PF and TR don't surface abandonment until results come in
 // (often hours after the abandoned races would have run), so picks for
@@ -8793,12 +8818,7 @@ function renderWprSummary() {
   function fpCell(u) {
     if (u && u.f != null) {
       if (typeof clearManualFp === 'function') clearManualFp(u.rid);
-      // Format real finish nicely (1st/2nd/3rd, else number).
-      const f = u.f;
-      if (f === 1) return '1st';
-      if (f === 2) return '2nd';
-      if (f === 3) return '3rd';
-      return String(f);
+      return fpOrdinal(u.f);
     }
     const cur = (typeof getManualFp === 'function') ? getManualFp(u.rid) : null;
     const sel = cur != null ? String(cur) : '';
@@ -9670,6 +9690,15 @@ function renderRaceDetail(raceId) {
                    'thin field</span>' : '');
   }
 
+  // Race-reviewed control, placed in the dark header next to mark-abandoned.
+  const _rvOn = isRaceReviewed(race.race_id);
+  const reviewHeaderHtml =
+    '<label class="rd-review-head' + (_rvOn ? ' is-on' : '') + '" ' +
+    'title="Tick once you have reviewed this race. Enables betting and ' +
+    'includes it in reporting.">' +
+    '<input type="checkbox" id="rd-review-cb"' + (_rvOn ? ' checked' : '') + '>' +
+    '<span>Race reviewed</span></label>';
+
   document.getElementById('rd-header-stats').innerHTML =
     '<div class="item">' + fmtTime(race.start_time) + '</div>' +
     '<div class="item">' + race.distance + 'm</div>' +
@@ -9680,6 +9709,7 @@ function renderRaceDetail(raceId) {
     // Model-picks count and the score-threshold ("X above 0.55") block
     // removed - those belong to the Edge/Volume models, not the WPR tab.
     '<div class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</div>' +
+    reviewHeaderHtml +
     abandonHtml;
 
   // Context bar - includes inline track rating override
@@ -10308,11 +10338,10 @@ function renderRaceDetail(raceId) {
     // FP cell - resulted races only, shows the finish position with
     // 1st/2nd/3rd word for top three. Slots between Bet and Actual.
     let fpCellPart = '';
-    if (raceHasAnyActual) {
+    if (raceIsResulted) {
       let fpStr = '\u2014';
       if (u.f != null) {
-        const f = u.f;
-        fpStr = f === 1 ? '1st' : f === 2 ? '2nd' : f === 3 ? '3rd' : String(f);
+        fpStr = fpOrdinal(u.f);
       }
       fpCellPart = '<td class="rt-col-fp">' + fpStr + '</td>';
     }
@@ -10336,8 +10365,6 @@ function renderRaceDetail(raceId) {
       overlayCell +
       betCell +
       fpCellPart +
-      actualCellPart +
-      missCellPart +
       '</tr>';
 
     // ── Mobile card (Design A) - rendered alongside the table; CSS shows
@@ -10375,8 +10402,7 @@ function renderRaceDetail(raceId) {
     // result / margin (resulted only). FP formatted as 1st/2nd/3rd.
     let cResult = '';
     if (u.f != null) {
-      const f = u.f;
-      const fpStr = f === 1 ? '1st' : f === 2 ? '2nd' : f === 3 ? '3rd' : String(f);
+      const fpStr = fpOrdinal(u.f);
       const mgnTxt = (typeof u.mgnL === 'number') ? ' · ' + u.mgnL.toFixed(2) + 'L' : '';
       cResult = '<span class="rc-result">FP <b>' + fpStr + '</b>' + mgnTxt + '</span>';
     }
@@ -10464,9 +10490,7 @@ function renderRaceDetail(raceId) {
         th('fxd', 'Fixed $') +
         th('ovl', 'Overlay') +
         '<th class="rt-col-bet" title="Mark Y to bet this horse">Bet</th>' +
-        (raceHasAnyActual ? '<th class="rt-col-fp">FP</th>' : '') +
-        (raceHasAnyActual ? th('actwpr', 'Actual') : '') +
-        (raceHasAnyActual ? th('wmiss', 'Miss') : '') +
+        (raceIsResulted ? '<th class="rt-col-fp">FP</th>' : '') +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>' +
@@ -10695,30 +10719,19 @@ function renderRaceReviewControls(race) {
   const reviewed = isRaceReviewed(race.race_id);
   const resulted = race.done === 1;
 
+  // The checkbox now lives in the dark header (rendered in renderRaceDetail).
+  // Hide the old grey review bar entirely; just wire the header checkbox.
   const bar = document.getElementById('rd-review-bar');
-  if (bar) {
-    bar.className = 'rd-review-bar' + (reviewed ? ' is-reviewed' : '');
-    const note = reviewed
-      ? 'Reviewed - betting enabled, counts in reporting.'
-      : (resulted
-          ? 'Not reviewed - bets on this race are excluded from reporting until ticked.'
-          : 'Not reviewed - betting is disabled until you tick this.');
-    bar.innerHTML =
-      '<label class="rd-review-checkbox">' +
-        '<input type="checkbox" id="rd-review-cb"' + (reviewed ? ' checked' : '') + '>' +
-        '<span>Race reviewed</span>' +
-      '</label>' +
-      '<span class="rd-review-note">' + note + '</span>';
-    const cb = document.getElementById('rd-review-cb');
-    if (cb) cb.addEventListener('change', () => {
-      setRaceReviewed(race.race_id, cb.checked);
-      renderRaceDetail(race.race_id);
-      if (typeof renderToday === 'function') { try { renderToday(); } catch(e){} }
-      if (typeof renderPnL === 'function') { try { renderPnL(); } catch(e){} }
-      if (typeof renderInsights === 'function') { try { renderInsights(); } catch(e){} }
-      if (typeof renderNtjTicker === 'function') { try { renderNtjTicker(); } catch(e){} }
-    });
-  }
+  if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+  const cb = document.getElementById('rd-review-cb');
+  if (cb) cb.addEventListener('change', () => {
+    setRaceReviewed(race.race_id, cb.checked);
+    renderRaceDetail(race.race_id);
+    if (typeof renderToday === 'function') { try { renderToday(); } catch(e){} }
+    if (typeof renderWprSummary === 'function') { try { renderWprSummary(); } catch(e){} }
+    if (typeof renderPnL === 'function') { try { renderPnL(); } catch(e){} }
+    if (typeof renderNtjTicker === 'function') { try { renderNtjTicker(); } catch(e){} }
+  });
 
   // Hard gate: disable every bet toggle in the detail when pending+unreviewed.
   const gateClosed = !reviewed && !resulted;
@@ -10808,30 +10821,30 @@ function _classifyVariance(proj, act, cv, cs, paceLate) {
 function buildPostRaceVariance(race) {
   const runners = (race.runners || []).slice();
   const paceLate = (race.rsl != null) ? race.rsl : null;
-  // Build rows for runners that have both a projection and an actual.
   const rows = runners.map(u => {
     const proj = (u.wpjp != null) ? u.wpjp : null;
     const act = (u.wpja != null) ? u.wpja : null;
     const v = _classifyVariance(proj, act, u.cmtV, u.cmtS, paceLate);
     const miss = (proj != null && act != null) ? (act - (proj + _WPR_CALIB_OFFSET)) : null;
     return { u, proj, act, miss, v };
-  }).filter(r => r.proj != null && r.act != null);
+  });
+  const scored = rows.filter(r => r.proj != null && r.act != null);
 
-  if (!rows.length) {
+  if (!scored.length) {
     return '<div class="rd-variance-wrap"><div class="rd-variance-summary">' +
       'No runners with both a projection and an actual rating yet. The actual ' +
       'WPR settles up to ~5 days after a race, so this fills in progressively. ' +
       'Comments populate once captured from results.</div></div>';
   }
 
-  // Race summary line: mean miss + MAE all vs excluding voids, plus pace.
-  const misses = rows.map(r => r.miss);
-  const voids = rows.filter(r => r.v.verdict === 'void');
-  const kept = rows.filter(r => r.v.verdict !== 'void');
+  // Race summary line.
+  const misses = scored.map(r => r.miss);
+  const voids = scored.filter(r => r.v.verdict === 'void');
+  const kept = scored.filter(r => r.v.verdict !== 'void');
   const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0;
   const mae = a => a.length ? a.reduce((s,x)=>s+Math.abs(x),0)/a.length : 0;
   const keptMiss = kept.map(r => r.miss);
-  let summary = '<b>Race post-mortem.</b> ' + rows.length + ' projected runners. ';
+  let summary = '<b>Race post-mortem.</b> ' + scored.length + ' projected runners. ';
   summary += 'All: mean miss ' + (mean(misses)>=0?'+':'') + mean(misses).toFixed(1) +
     ', MAE ' + mae(misses).toFixed(1) + '. ';
   if (voids.length) {
@@ -10845,28 +10858,54 @@ function buildPostRaceVariance(race) {
     summary += 'Late pace bias ' + (paceLate>=0?'+':'') + paceLate + ' (' + paceWord + ').';
   }
 
-  // Sort by finish, then build the table.
+  // All runners shown (incl. those without proj/act), sorted by finish.
   rows.sort((a,b) => ((a.u.f||99)-(b.u.f||99)));
+
+  // Header matches the pre-race table styling (.race-table). Columns:
+  // FP, silk, No., Horse, Jockey, Trainer, WPR $, Fixed $, Pred WPR,
+  // Actual WPR, Variance, Reason, Comments.
   const head = '<thead><tr>' +
-    '<th>Fin</th><th>Horse</th><th class="num">Proj</th><th class="num">Actual</th>' +
-    '<th class="num">Variance</th><th>Reason</th><th>Comments</th></tr></thead>';
+    '<th class="rt-col-fp">FP</th>' +
+    '<th class="rt-col-silk"></th>' +
+    '<th class="rt-col-tab">No.</th>' +
+    '<th class="rt-col-horse">Horse</th>' +
+    '<th class="rt-col-jky">Jockey</th>' +
+    '<th class="rt-col-trn">Trainer</th>' +
+    '<th>WPR $</th><th>Fixed $</th>' +
+    '<th>Pred WPR</th><th>Actual</th><th>Variance</th>' +
+    '<th>Reason</th><th>Comments</th></tr></thead>';
+
   const body = rows.map(r => {
-    const comment = [r.u.cmtV, r.u.cmtS].filter(Boolean).join(' / ');
+    const u = r.u;
+    const comment = [u.cmtV, u.cmtS].filter(Boolean).join(' / ');
+    const silk = u.sk ? '<img class="rt-silk" src="' + escapeHtml(u.sk) +
+      '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '';
+    const variance = (r.miss != null) ? ((r.miss>=0?'+':'') + r.miss.toFixed(1)) : '\u2014';
+    const reason = (r.proj != null && r.act != null)
+      ? '<span class="rd-var-pill ' + r.v.cls + '">' + r.v.label + '</span>' +
+        (r.v.note ? ' <span style="font-size:11px;color:var(--ink-mute)">' + escapeHtml(r.v.note) + '</span>' : '')
+      : '\u2014';
     return '<tr>' +
-      '<td class="num">' + (r.u.f != null ? r.u.f : '-') + '</td>' +
-      '<td>' + escapeHtml(r.u.h || r.u.horse || '') + '</td>' +
-      '<td class="num">' + r.proj.toFixed(1) + '</td>' +
-      '<td class="num">' + r.act.toFixed(1) + '</td>' +
-      '<td class="num">' + (r.miss>=0?'+':'') + r.miss.toFixed(1) + '</td>' +
-      '<td><span class="rd-var-pill ' + r.v.cls + '">' + r.v.label + '</span>' +
-        (r.v.note ? ' <span style="font-size:11px;color:var(--ink-mute)">' + escapeHtml(r.v.note) + '</span>' : '') + '</td>' +
+      '<td class="rt-col-fp">' + (u.f != null ? fpOrdinal(u.f) : '\u2014') + '</td>' +
+      '<td class="rt-col-silk">' + silk + '</td>' +
+      '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
+      '<td class="horse-cell rt-col-horse">' + escapeHtml(u.h || '') + '</td>' +
+      '<td class="rt-col-jky">' + escapeHtml(u.j || '\u2014') + '</td>' +
+      '<td class="rt-col-trn">' + escapeHtml(u.tn || '\u2014') + '</td>' +
+      '<td>' + (u.wpjpr != null ? '$' + u.wpjpr.toFixed(2) : '\u2014') + '</td>' +
+      '<td>' + (u.fx != null ? '$' + u.fx.toFixed(2) : '\u2014') + '</td>' +
+      '<td>' + (r.proj != null ? r.proj.toFixed(1) : '\u2014') + '</td>' +
+      '<td>' + (r.act != null ? r.act.toFixed(1) : '\u2014') + '</td>' +
+      '<td>' + variance + '</td>' +
+      '<td>' + reason + '</td>' +
       '<td class="rd-var-comment">' + (comment ? escapeHtml(comment) : '<span style="color:var(--ink-faint)">no comment</span>') + '</td>' +
       '</tr>';
   }).join('');
 
   return '<div class="rd-variance-wrap">' +
     '<div class="rd-variance-summary">' + summary + '</div>' +
-    '<table class="rd-variance-table">' + head + '<tbody>' + body + '</tbody></table>' +
+    '<div class="race-table-wrap"><table class="race-table rd-variance-table">' +
+    head + '<tbody>' + body + '</tbody></table></div>' +
     '<div style="font-size:11px;color:var(--ink-mute);margin-top:10px;">' +
     'Variance = actual minus (projection + ' + _WPR_CALIB_OFFSET.toFixed(2) + ' calibration). ' +
     'Reasons are auto-derived from comments; a horse that ran at or above projection ' +
@@ -11893,7 +11932,7 @@ function renderPnL() {
     const realF = (u && u.f != null) ? u.f : null;
     if (realF != null) {
       if (typeof clearManualFp === 'function' && u) clearManualFp(u.rid);
-      return realF === 1 ? '1st' : realF === 2 ? '2nd' : realF === 3 ? '3rd' : String(realF);
+      return fpOrdinal(realF);
     }
     const rid = (u && u.rid != null) ? u.rid : s.run_id;
     const cur = (typeof getManualFp === 'function') ? getManualFp(rid) : null;
