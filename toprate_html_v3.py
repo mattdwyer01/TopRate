@@ -2595,7 +2595,8 @@ body {
 .rd-var-void      { background: var(--line-soft);      color: var(--ink-mute); }
 .rd-var-pace      { background: rgba(37,99,235,0.10);  color: #1d4ed8; }
 .rd-var-ok        { background: rgba(16,185,129,0.12); color: #047857; }
-.rd-var-comment { font-size: 11px; color: var(--ink-mute); line-height: 1.45; max-width: 360px; }
+.rd-var-comment { font-size: 11px; color: var(--ink-mute); line-height: 1.45; white-space: normal; word-break: break-word; min-width: 280px; }
+.rd-var-comment-col { min-width: 280px; }
 .race-header {
   background: linear-gradient(to bottom, #1c1917, #292524);
   color: #fafaf9; padding: 18px 22px;
@@ -10879,18 +10880,21 @@ function buildPostRaceVariance(race) {
     '<th class="rt-col-silk"></th>' +
     '<th class="rt-col-tab">No.</th>' +
     '<th class="rt-col-horse">Horse</th>' +
-    '<th class="rt-col-jky">Jockey</th>' +
-    '<th class="rt-col-trn">Trainer</th>' +
     '<th>WPR $</th><th>Fixed $</th>' +
     '<th>Pred WPR</th><th>Actual</th><th>Variance</th>' +
-    '<th>Reason</th><th>Comments</th></tr></thead>';
+    '<th>Reason</th><th class="rd-var-comment-col">Comments</th></tr></thead>';
 
   const body = rows.map(r => {
     const u = r.u;
     const comment = [u.cmtV, u.cmtS].filter(Boolean).join(' / ');
     const silk = u.sk ? '<img class="rt-silk" src="' + escapeHtml(u.sk) +
       '" loading="lazy" onerror="this.style.display=\'none\'" alt="">' : '';
-    const variance = (r.miss != null) ? ((r.miss>=0?'+':'') + r.miss.toFixed(1)) : '\u2014';
+    // Variance shown is the plain difference between the Actual and Pred WPR
+    // columns either side of it (actual - projection), so the row reads
+    // consistently. The void/reason classification still uses the
+    // offset-adjusted miss internally; only this displayed number is raw.
+    const vdiff = (r.proj != null && r.act != null) ? (r.act - r.proj) : null;
+    const variance = (vdiff != null) ? ((vdiff>=0?'+':'') + vdiff.toFixed(1)) : '\u2014';
     const reason = (r.proj != null && r.act != null)
       ? '<span class="rd-var-pill ' + r.v.cls + '">' + r.v.label + '</span>' +
         (r.v.note ? ' <span style="font-size:11px;color:var(--ink-mute)">' + escapeHtml(r.v.note) + '</span>' : '')
@@ -10900,8 +10904,6 @@ function buildPostRaceVariance(race) {
       '<td class="rt-col-silk">' + silk + '</td>' +
       '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell rt-col-horse">' + escapeHtml(u.h || '') + '</td>' +
-      '<td class="rt-col-jky">' + escapeHtml(u.j || '\u2014') + '</td>' +
-      '<td class="rt-col-trn">' + escapeHtml(u.tn || '\u2014') + '</td>' +
       '<td>' + (u.wpjpr != null ? '$' + u.wpjpr.toFixed(2) : '\u2014') + '</td>' +
       '<td>' + (u.fx != null ? '$' + u.fx.toFixed(2) : '\u2014') + '</td>' +
       '<td>' + (r.proj != null ? r.proj.toFixed(1) : '\u2014') + '</td>' +
