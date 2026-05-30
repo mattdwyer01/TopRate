@@ -1128,6 +1128,87 @@ def compute_wpr_actual(runners_df):
           f"{ranked_races} races ranked "
           f"(fills in over ~5 days as the form history settles)")
     return runners_df
+
+
+def fill_comments_from_history(runners_df):
+    """Self-healing comment fill for resulted runners.
+
+    Comments (and the final WPR rating) arrive up to a few days AFTER a race.
+    update_results() only captures them at finish-day, and only for races where
+    resulted != 1, so a race locked as resulted on finish-day never picks up
+    the comments that land later. This pass mirrors compute_wpr_actual's
+    pattern: every daily run, it joins comments from the form history (which
+    the rich capture keeps refreshing) onto ALL resulted runners that are still
+    missing them. So comments fill in progressively over the days post-race
+    with no manual backfill.
+
+    Only FILLS empty cells; never overwrites an existing comment. Keyed on
+    (horse_lc, date) - the same key compute_wpr_actual uses.
+    """
+    for col in ["comments_video", "comments_steward"]:
+        if col not in runners_df.columns:
+            runners_df[col] = pd.NA
+
+    resulted_mask = runners_df.get("resulted") == 1
+    if resulted_mask.sum() == 0:
+        return runners_df
+
+    try:
+        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                         dtype={"horse": str}, low_memory=False)
+        if "comments_video" not in fh.columns and "comments_steward" not in fh.columns:
+            print("  Comments: form history has no comment columns, skipping")
+            return runners_df
+        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        fh["date_s"] = fh["date"].astype(str).str[:10]
+        # latest scrape wins (comments are revised/added post-race)
+        if "scrape_date" in fh.columns:
+            fh = fh.sort_values("scrape_date")
+        fh = fh.drop_duplicates(subset=["horse_lc", "date_s"], keep="last")
+
+        def _clean(v):
+            if v is None or pd.isna(v):
+                return None
+            s = str(v).strip()
+            return s if s and s.lower() not in ("nan", "none", "<na>") else None
+
+        vmap, smap = {}, {}
+        for _, r in fh.iterrows():
+            k = (r["horse_lc"], r["date_s"])
+            cv = _clean(r.get("comments_video"))
+            cs = _clean(r.get("comments_steward"))
+            if cv is not None:
+                vmap[k] = cv
+            if cs is not None:
+                smap[k] = cs
+    except Exception as e:
+        print(f"  Comments fill skipped: could not read form history ({e})")
+        return runners_df
+
+    def _empty(val):
+        if val is None or pd.isna(val):
+            return True
+        s = str(val).strip().lower()
+        return s in ("", "nan", "none", "<na>")
+
+    nv = ns = 0
+    for idx in runners_df[resulted_mask].index:
+        hlc = str(runners_df.at[idx, "horse"]).strip().lower()
+        d = str(runners_df.at[idx, "date"])[:10]
+        if _empty(runners_df.at[idx, "comments_video"]):
+            v = vmap.get((hlc, d))
+            if v is not None:
+                runners_df.at[idx, "comments_video"] = v
+                nv += 1
+        if _empty(runners_df.at[idx, "comments_steward"]):
+            s = smap.get((hlc, d))
+            if s is not None:
+                runners_df.at[idx, "comments_steward"] = s
+                ns += 1
+
+    print(f"  Comments: filled {nv} video, {ns} steward on resulted runners "
+          f"(fills in over the days after a race as comments land)")
+    return runners_df
 # -----------------------------------------------------------------------
 # PF ingest and the Edge/Volume model rule were removed (WPR-only refactor
 # Stage A). merge_pf_ratings, compute_model_picks, save_model_picks,
@@ -2927,6 +3008,14 @@ def main():
     # settles. Additive and fail-safe.
     print("── Step 2e: Actual WPR for resulted runners ──")
     runners_df = compute_wpr_actual(runners_df)
+    print()
+
+    # Step 2f: fill comments (video + stewards) onto resulted runners from the
+    # form history. Like the actual WPR, comments land over the days after a
+    # race; this self-healing pass picks them up progressively, so no manual
+    # backfill is needed. Additive and fail-safe.
+    print("── Step 2f: Comments for resulted runners ──")
+    runners_df = fill_comments_from_history(runners_df)
     print()
 
     save_runners(runners_df)
