@@ -9861,8 +9861,13 @@ function renderRaceDetail(raceId) {
     renderSpeedMapBars(runners, race, paceDisplay, paceClass);
   // Track conditions card - weather/going/rail + how-this-track-plays commentary
   // computed from historical races at same venue/going/rail
-  document.getElementById('rd-track-conditions').innerHTML = renderTrackConditions(race);
-  wireTrackConditionsCard(race);
+  // Track bias chart removed: it ran on per-venue historical samples that are
+  // currently too small to trust (often single-digit N), presenting noise as a
+  // precise winner-zone bias. The container is left empty. renderTrackConditions
+  // is retained but no longer called, so it can be reinstated later once the
+  // venue-bias cache has accumulated enough races to be meaningful.
+  const _tcEl = document.getElementById('rd-track-conditions');
+  if (_tcEl) { _tcEl.innerHTML = ''; _tcEl.style.display = 'none'; }
 
   // PF barrier x runstyle A2E grid. Sits below the venue-bias chart. Panel
   // is hidden when there's no PF data for this venue (e.g. ingest hasn't
