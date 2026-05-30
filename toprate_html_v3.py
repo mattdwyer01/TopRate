@@ -2619,14 +2619,24 @@ body {
 }
 .rd-variance-summary b { color: var(--ink); }
 .rd-variance-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-/* Comment column takes the remaining width and wraps; other columns size to
-   content via nowrap so the comment is the one that flows onto extra lines,
-   growing the row height rather than forcing a horizontal scroll. */
-.rd-variance-table th, .rd-variance-table td { white-space: nowrap; }
-.rd-variance-table .rd-var-comment, .rd-variance-table .rd-var-comment-col { width: 38%; white-space: normal; word-break: break-word; }
-.rd-variance-table .rt-col-horse { white-space: normal; }
+/* Fixed layout needs every column sized or content overflows into its
+   neighbour (the reason note was bleeding into comments). Widths sum to 100%.
+   The narrow numeric columns nowrap; horse, reason, and comments wrap so long
+   text flows onto extra lines and grows the row instead of overlapping. */
+.rd-variance-table th, .rd-variance-table td { overflow: hidden; }
+.rd-variance-table .rt-col-fp    { width: 5%;  white-space: nowrap; }
+.rd-variance-table .rt-col-silk  { width: 4%;  white-space: nowrap; }
+.rd-variance-table .rt-col-tab   { width: 4%;  white-space: nowrap; }
+.rd-variance-table .rt-col-horse { width: 12%; white-space: normal; word-break: break-word; }
+.rd-variance-table .vc-wprp      { width: 7%;  white-space: nowrap; text-align: right; }
+.rd-variance-table .vc-fxd       { width: 7%;  white-space: nowrap; text-align: right; }
+.rd-variance-table .vc-pred      { width: 7%;  white-space: nowrap; text-align: right; }
+.rd-variance-table .vc-actual    { width: 7%;  white-space: nowrap; text-align: right; }
+.rd-variance-table .vc-var       { width: 7%;  white-space: nowrap; text-align: right; }
+.rd-variance-table .vc-reason    { width: 14%; white-space: normal; word-break: break-word; }
+.rd-variance-table .rd-var-comment, .rd-variance-table .rd-var-comment-col { width: 26%; white-space: normal; word-break: break-word; }
 /* The variance table wrapper should not scroll horizontally - the fixed layout
-   keeps everything within the container and wraps the comment instead. */
+   keeps everything within the container and wraps the long cells instead. */
 .rd-variance-wrap .race-table-wrap { overflow-x: visible; }
 .rd-variance-table th {
   text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line);
@@ -2634,6 +2644,9 @@ body {
 }
 .rd-variance-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 .rd-variance-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Reason note (the small text after the pill) goes on its own line within the
+   reason cell so it never collides with the comments column. */
+.rd-var-note { display: block; font-size: 11px; color: var(--ink-mute); margin-top: 2px; }
 .rd-var-pill {
   display: inline-block; padding: 1px 8px; border-radius: 9px;
   font-size: 11px; font-weight: 700; white-space: nowrap;
@@ -10920,9 +10933,9 @@ function buildPostRaceVariance(race) {
     '<th class="rt-col-silk"></th>' +
     '<th class="rt-col-tab">No.</th>' +
     '<th class="rt-col-horse">Horse</th>' +
-    '<th>WPR $</th><th>Fixed $</th>' +
-    '<th>Pred WPR</th><th>Actual</th><th>Variance</th>' +
-    '<th>Reason</th><th class="rd-var-comment-col">Comments</th></tr></thead>';
+    '<th class="vc-wprp">WPR $</th><th class="vc-fxd">Fixed $</th>' +
+    '<th class="vc-pred">Pred WPR</th><th class="vc-actual">Actual</th><th class="vc-var">Variance</th>' +
+    '<th class="vc-reason">Reason</th><th class="rd-var-comment-col">Comments</th></tr></thead>';
 
   const body = rows.map(r => {
     const u = r.u;
@@ -10937,19 +10950,19 @@ function buildPostRaceVariance(race) {
     const variance = (vdiff != null) ? ((vdiff>=0?'+':'') + vdiff.toFixed(1)) : '\u2014';
     const reason = (r.proj != null && r.act != null)
       ? '<span class="rd-var-pill ' + r.v.cls + '">' + r.v.label + '</span>' +
-        (r.v.note ? ' <span style="font-size:11px;color:var(--ink-mute)">' + escapeHtml(r.v.note) + '</span>' : '')
+        (r.v.note ? '<span class="rd-var-note">' + escapeHtml(r.v.note) + '</span>' : '')
       : '\u2014';
     return '<tr>' +
       '<td class="rt-col-fp">' + (u.f != null ? fpOrdinal(u.f) : '\u2014') + '</td>' +
       '<td class="rt-col-silk">' + silk + '</td>' +
       '<td class="rt-col-tab"><span class="tn-cell">' + (u.tab || '?') + '</span></td>' +
       '<td class="horse-cell rt-col-horse">' + escapeHtml(u.h || '') + '</td>' +
-      '<td>' + (u.wpjpr != null ? '$' + u.wpjpr.toFixed(2) : '\u2014') + '</td>' +
-      '<td>' + (u.fx != null ? '$' + u.fx.toFixed(2) : '\u2014') + '</td>' +
-      '<td>' + (r.proj != null ? r.proj.toFixed(1) : '\u2014') + '</td>' +
-      '<td>' + (r.act != null ? r.act.toFixed(1) : '\u2014') + '</td>' +
-      '<td>' + variance + '</td>' +
-      '<td>' + reason + '</td>' +
+      '<td class="vc-wprp">' + (u.wpjpr != null ? '$' + u.wpjpr.toFixed(2) : '\u2014') + '</td>' +
+      '<td class="vc-fxd">' + (u.fx != null ? '$' + u.fx.toFixed(2) : '\u2014') + '</td>' +
+      '<td class="vc-pred">' + (r.proj != null ? r.proj.toFixed(1) : '\u2014') + '</td>' +
+      '<td class="vc-actual">' + (r.act != null ? r.act.toFixed(1) : '\u2014') + '</td>' +
+      '<td class="vc-var">' + variance + '</td>' +
+      '<td class="vc-reason">' + reason + '</td>' +
       '<td class="rd-var-comment">' + (comment ? escapeHtml(comment) : '<span style="color:var(--ink-faint)">no comment</span>') + '</td>' +
       '</tr>';
   }).join('');
