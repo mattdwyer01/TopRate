@@ -10753,8 +10753,8 @@ function renderRaceReviewControls(race) {
   nav.style.display = 'flex';
   const active = _rdSubtab || 'pre';
   nav.innerHTML =
-    '<button class="rd-subtab-btn' + (active==='pre'?' active':'') + '" data-sub="pre">Pre-race</button>' +
-    '<button class="rd-subtab-btn' + (active==='post'?' active':'') + '" data-sub="post">Post-race review</button>';
+    '<button class="rd-subtab-btn' + (active==='pre'?' active':'') + '" data-sub="pre">Pre Race</button>' +
+    '<button class="rd-subtab-btn' + (active==='post'?' active':'') + '" data-sub="post">Post Race</button>';
   nav.querySelectorAll('.rd-subtab-btn').forEach(b => {
     b.addEventListener('click', () => { _rdSubtab = b.dataset.sub; renderRaceReviewControls(race); });
   });
@@ -10811,6 +10811,13 @@ function _classifyVariance(proj, act, cv, cs, paceLate) {
       return { verdict: 'void', cls: 'rd-var-void', label: 'Void (weak)', note: m.weak.slice(0,2).join(', ') };
     if (paceLate != null && paceLate < -1.5 && _VOID_PACE.some(k => text.indexOf(k) >= 0))
       return { verdict: 'pace', cls: 'rd-var-pace', label: 'Pace-context', note: 'late bias ' + paceLate };
+    // Extreme underperformance with NO comment to explain it. A clean run does
+    // not miss by 20+ WPR - that is almost certainly an incident (eased, vet,
+    // fell) whose comment we do not have yet. Do not blame the model
+    // confidently; flag as unexplained so it is not mistaken for a real fault.
+    const noComment = !((cv && cv.trim()) || (cs && cs.trim()));
+    if (miss <= -20 && noComment)
+      return { verdict: 'unexplained', cls: 'rd-var-void', label: 'Unexplained', note: 'no comment - likely incident' };
     return { verdict: 'modelhigh', cls: 'rd-var-modelhigh', label: 'Rated too high', note: 'clean run' };
   }
   const tag = (m.strong.length || m.weak.length)
@@ -10819,7 +10826,10 @@ function _classifyVariance(proj, act, cv, cs, paceLate) {
 }
 
 function buildPostRaceVariance(race) {
-  const runners = (race.runners || []).slice();
+  // Respect manual scratches: a runner scratched on the pre-race tab is
+  // excluded here too, so the post-race field matches what the user kept.
+  const runners = (race.runners || []).filter(u =>
+    !(typeof isManualScratch === 'function' && isManualScratch(u.rid))).slice();
   const paceLate = (race.rsl != null) ? race.rsl : null;
   const rows = runners.map(u => {
     const proj = (u.wpjp != null) ? u.wpjp : null;
@@ -10839,8 +10849,8 @@ function buildPostRaceVariance(race) {
 
   // Race summary line.
   const misses = scored.map(r => r.miss);
-  const voids = scored.filter(r => r.v.verdict === 'void');
-  const kept = scored.filter(r => r.v.verdict !== 'void');
+  const voids = scored.filter(r => r.v.verdict === 'void' || r.v.verdict === 'unexplained');
+  const kept = scored.filter(r => r.v.verdict !== 'void' && r.v.verdict !== 'unexplained');
   const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0;
   const mae = a => a.length ? a.reduce((s,x)=>s+Math.abs(x),0)/a.length : 0;
   const keptMiss = kept.map(r => r.miss);
@@ -10848,7 +10858,7 @@ function buildPostRaceVariance(race) {
   summary += 'All: mean miss ' + (mean(misses)>=0?'+':'') + mean(misses).toFixed(1) +
     ', MAE ' + mae(misses).toFixed(1) + '. ';
   if (voids.length) {
-    summary += 'Excluding ' + voids.length + ' void run' + (voids.length>1?'s':'') +
+    summary += 'Excluding ' + voids.length + ' void/unexplained run' + (voids.length>1?'s':'') +
       ': mean miss ' + (mean(keptMiss)>=0?'+':'') + mean(keptMiss).toFixed(1) +
       ', MAE ' + mae(keptMiss).toFixed(1) + '. ';
   }
