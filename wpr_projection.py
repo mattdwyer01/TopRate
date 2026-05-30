@@ -969,7 +969,40 @@ def _dedup_scrape_baseline(fh, verbose=True):
     return fh
 
 
-def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True):
+def _horse_feature_rows(g):
+    """Build the feature rows for one horse's full run history, point-in-time.
+
+    Module-level (not a closure) so it is picklable for multiprocessing. This
+    is the single inner-loop definition used by BOTH the serial and parallel
+    paths of build_training_frame, so the two produce identical output.
+
+    Emits each model feature (from build_features) plus target and date, and
+    two analysis-only columns (race_id, race_class) that train_wpr_projection
+    ignores because it selects FEATURES explicitly. They support the
+    walk-forward composition breakdowns (by meeting grade / race).
+    """
+    g = g.reset_index(drop=True)
+    out = []
+    for i in range(_MIN_RUNS, len(g)):
+        cur = g.iloc[i]
+        f = build_features(g.iloc[:i], cur["distance"], cur["going"],
+                           cur["track"], cur["trackGrading"], cur["date"],
+                           cur_race_class=cur.get("race_class"),
+                           cur_field_size=cur.get("field_size"))
+        if f is None:
+            continue
+        f["target"] = float(cur["wpr"])
+        f["date"] = cur["date"]
+        # field_size is already a model feature (emitted by build_features).
+        # race_id / race_class are analysis-only (not trained on).
+        f["race_id"] = cur.get("race_id")
+        f["race_class"] = cur.get("race_class")
+        out.append(f)
+    return out
+
+
+def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True,
+                         n_jobs=1):
     """Regenerate the full training feature frame.
 
     Calls build_features() on every (horse, run) in the history - the SAME
@@ -980,6 +1013,10 @@ def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True):
     and each horse's runs are sliced from a pre-built frame. The feature
     values are byte-identical to calling build_features() on raw slices -
     train_wpr_projection() asserts this on a sample every run.
+
+    n_jobs: 1 = serial (default, unchanged behaviour). >1 = that many worker
+    processes. -1 or 0 = all cores. The per-horse loop is embarrassingly
+    parallel, so output is identical regardless of n_jobs.
     """
     fh = pd.read_csv(form_history_csv)
     fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
@@ -1005,7 +1042,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True):
             "margin800m", "margin600m", "margin400m", "marginFinish",
             "isBarrierTrial",
             "field_size", "raceShapeEarly", "raceShapeMid",
-            "raceShapeLate", "race_class"] + _sect_cols
+            "raceShapeLate", "race_class", "race_id"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
     for c in ["wpr", "distance", "trackGrading", "positionSettled",
@@ -1015,25 +1052,28 @@ def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True):
         if c in fh.columns:
             fh[c] = pd.to_numeric(fh[c], errors="coerce")
 
-    rows = []
-    total = fh["horse_id"].nunique()
-    for j, (hid, g) in enumerate(fh.groupby("horse_id", sort=False)):
-        if verbose and j % 2000 == 0:
-            print(f"  ... {j}/{total} horses")
-        g = g.reset_index(drop=True)
-        for i in range(_MIN_RUNS, len(g)):
-            cur = g.iloc[i]
-            f = build_features(g.iloc[:i], cur["distance"], cur["going"],
-                               cur["track"], cur["trackGrading"], cur["date"],
-                               cur_race_class=cur.get("race_class"),
-                               cur_field_size=cur.get("field_size"))
-            if f is None:
-                continue
-            f["target"] = float(cur["wpr"])
-            f["date"] = cur["date"]
-            # field_size is now emitted by build_features (it is a model
-            # feature). No separate attach needed.
-            rows.append(f)
+    groups = [g for _, g in fh.groupby("horse_id", sort=False)]
+    total = len(groups)
+
+    # Parallel path: the per-horse loop is independent across horses (features
+    # are cumulative WITHIN a horse only), so it splits cleanly across cores.
+    # Output is byte-identical to the serial path - both call the same
+    # _horse_feature_rows worker. n_jobs=1 keeps the original serial behaviour.
+    if n_jobs is not None and n_jobs != 1:
+        import multiprocessing as mp
+        nproc = mp.cpu_count() if n_jobs in (-1, 0) else n_jobs
+        nproc = max(1, min(nproc, total))
+        if verbose:
+            print(f"  building features on {nproc} cores ({total:,} horses) ...")
+        with mp.Pool(nproc) as pool:
+            results = pool.map(_horse_feature_rows, groups, chunksize=64)
+        rows = [r for sub in results for r in sub]
+    else:
+        rows = []
+        for j, g in enumerate(groups):
+            if verbose and j % 2000 == 0:
+                print(f"  ... {j}/{total} horses")
+            rows.extend(_horse_feature_rows(g))
     return pd.DataFrame(rows)
 
 
@@ -1064,16 +1104,17 @@ def _verify_feature_consistency(form_history_csv, n_check=40):
 
 
 def train_wpr_projection(form_history_csv="wpr_form_history.csv",
-                         out_dir="wpr_models"):
+                         out_dir="wpr_models", n_jobs=1):
     """Re-fit projection and confidence models. Offline use only.
-    Run: python wpr_projection.py --retrain
+    Run: python wpr_projection.py --retrain [--jobs N]
+    n_jobs is passed to the feature build (the slow step); -1 = all cores.
     """
     from sklearn.ensemble import HistGradientBoostingRegressor
     from sklearn.metrics import mean_absolute_error
 
     print(f"Regenerating training frame from {form_history_csv} "
           f"(via build_features) ...")
-    D = build_training_frame(form_history_csv).dropna(
+    D = build_training_frame(form_history_csv, n_jobs=n_jobs).dropna(
         subset=["target", "date"]).sort_values("date")
     print(f"  {len(D):,} training rows")
     med = D[FEATURES].median()
@@ -1137,7 +1178,15 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv",
 if __name__ == "__main__":
     import sys
     if "--retrain" in sys.argv:
-        train_wpr_projection()
+        # Optional: --jobs N  (N worker processes; -1 = all cores).
+        n_jobs = 1
+        if "--jobs" in sys.argv:
+            try:
+                n_jobs = int(sys.argv[sys.argv.index("--jobs") + 1])
+            except (IndexError, ValueError):
+                print("  --jobs needs an integer, e.g. --jobs -1 for all cores")
+                sys.exit(1)
+        train_wpr_projection(n_jobs=n_jobs)
     else:
         _load_models()
         print(__doc__)

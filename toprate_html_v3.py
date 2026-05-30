@@ -8142,15 +8142,18 @@ function wprSetOverride(rid, delta) {
   _wprLoadOverrides();
   _wprOverrides[String(rid)] = delta;
   _wprSaveOverrides();
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function wprClearOverride(rid) {
   _wprLoadOverrides();
   delete _wprOverrides[String(rid)];
   _wprSaveOverrides();
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function wprClearAllOverrides() {
   _wprOverrides = {};
   _wprSaveOverrides();
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function wprOverrideCount() {
   return Object.keys(_wprLoadOverrides()).length;
@@ -8227,6 +8230,7 @@ function setManualScratch(rid, on) {
   if (on) _manualScratches[String(rid)] = true;
   else delete _manualScratches[String(rid)];
   _saveManualScratches();
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function toggleManualScratch(rid) {
   setManualScratch(rid, !isManualScratch(rid));
@@ -8243,6 +8247,7 @@ function clearManualScratchesForRace(raceRunners) {
     if (_manualScratches[k]) { delete _manualScratches[k]; n += 1; }
   });
   if (n > 0) _saveManualScratches();
+  if (n > 0 && typeof scheduleSyncPush === 'function') scheduleSyncPush();
   return n;
 }
 // Count of scratches active for a race - used by the field-size badge
@@ -11129,6 +11134,7 @@ function setManualFp(rid, val) {
     m[String(rid)] = parseInt(val, 10);
   }
   _saveManualFpMap(m);
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 function clearManualFp(rid) {
   if (rid == null) return;
@@ -14863,6 +14869,16 @@ function buildSyncPayload() {
     // and a user might mark Lismore on phone but want it hidden on desktop too.
     abandonedMeetings: abandonedMeetings,
     abandonedRaces: abandonedRaces,
+    // Manual WPR rating overrides (deltas keyed by run_id) - the user's
+    // hand corrections to projections. Previously device-local only, which
+    // is why desktop adjustments never reached mobile.
+    wprOverrides: _wprLoadOverrides(),
+    // Manual scratches (run_id -> true) - user-marked exclusions not yet in
+    // the data feed. Also previously device-local only.
+    manualScratches: _loadManualScratches(),
+    // Manual finishing positions (run_id -> int) entered before official
+    // results land. Read fresh from storage so we sync the current map.
+    manualFp: _getManualFpMap(),
   };
 }
 
@@ -15014,6 +15030,28 @@ async function syncPull() {
     if (payload.abandonedRaces && typeof payload.abandonedRaces === 'object') {
       abandonedRaces = Object.assign({}, abandonedRaces, payload.abandonedRaces);
       try { localStorage.setItem(ABANDONED_RACES_KEY, JSON.stringify(abandonedRaces)); } catch(e) {}
+    }
+    // WPR overrides - merge remote into local, remote wins per run_id. Reset
+    // the in-memory cache to null so the next read reloads the merged map
+    // (otherwise the stale cached object keeps showing old values).
+    if (payload.wprOverrides && typeof payload.wprOverrides === 'object') {
+      const localOvr = _wprLoadOverrides();
+      const mergedOvr = Object.assign({}, localOvr, payload.wprOverrides);
+      try { localStorage.setItem(WPR_OVR_KEY, JSON.stringify(mergedOvr)); } catch(e) {}
+      _wprOverrides = null;
+    }
+    // Manual scratches - same merge + cache-reset pattern.
+    if (payload.manualScratches && typeof payload.manualScratches === 'object') {
+      const localScr = _loadManualScratches();
+      const mergedScr = Object.assign({}, localScr, payload.manualScratches);
+      try { localStorage.setItem(WPR_SCRATCH_KEY, JSON.stringify(mergedScr)); } catch(e) {}
+      _manualScratches = null;
+    }
+    // Manual finishing positions - merge remote into local, remote wins.
+    // No in-memory cache (read fresh each call), so just write storage.
+    if (payload.manualFp && typeof payload.manualFp === 'object') {
+      const mergedFp = Object.assign({}, _getManualFpMap(), payload.manualFp);
+      _saveManualFpMap(mergedFp);
     }
     renderToday(); renderPnL(); renderInsights();
     syncLog('Pulled ' + Object.keys(payload.betLog || {}).length + ' bet log entries + ' +
