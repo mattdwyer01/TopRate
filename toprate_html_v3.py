@@ -2221,17 +2221,27 @@ body {
   padding: 14px 20px;
 }
 
-/* TopRate-style speed map: horizontal bar per runner, leaders top. */
+/* Speed map: horizontal bar per runner, ordered by barrier. */
 .speedmap-wrap { padding-top: 4px; }
 .speedmap-head {
-  display: flex; align-items: center; gap: 14px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 14px; margin-bottom: 6px;
 }
 .speedmap-title { font-size: 13px; font-weight: 700; color: var(--ink); }
 .speedmap-axis { font-size: 11px; color: var(--ink-mute); letter-spacing: .02em; }
-.speedmap-axis .sm-arrow { opacity: .6; }
 .speedmap-head .race-pace-est { margin-left: auto; }
+.speedmap-colhead {
+  display: flex; gap: 8px; margin-bottom: 4px;
+  font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint);
+}
+.speedmap-colhead .smh-barrier { width: 28px; flex: 0 0 28px; text-align: center; }
+.speedmap-colhead .smh-zone { width: 64px; flex: 0 0 64px; text-align: right; }
 .speedmap-bars { display: flex; flex-direction: column; gap: 3px; }
 .sm-row { display: flex; align-items: center; gap: 8px; }
+.sm-barrier {
+  width: 28px; flex: 0 0 28px; text-align: center;
+  font-size: 12px; font-weight: 700; color: var(--ink);
+  background: var(--line-soft); border-radius: 5px; padding: 3px 0;
+}
 .sm-zone {
   width: 64px; flex: 0 0 64px; text-align: right;
   font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
@@ -2247,17 +2257,13 @@ body {
   font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-/* Zone colours: front darker/greener, back lighter, matching the pace read. */
-.sm-bar.sm-lead   { background: #047857; }
-.sm-bar.sm-onpace { background: #059669; }
-.sm-bar.sm-mid    { background: #34d399; }
-.sm-bar.sm-mid .sm-bar-label   { color: #064e3b; }
-.sm-bar.sm-back   { background: #a7f3d0; }
-.sm-bar.sm-back .sm-bar-label  { color: #064e3b; }
-.sm-nodata {
-  margin-top: 10px; font-size: 11px; color: var(--ink-mute);
-  padding-top: 8px; border-top: 1px solid var(--line-soft);
-}
+/* Varied palette by settling zone (distinct hues, not shades of one colour):
+   Lead = deep blue, On-pace = teal, Midfield = amber, Back = rose, None = grey. */
+.sm-bar.sm-z-lead   { background: #1d4ed8; }
+.sm-bar.sm-z-onpace { background: #0d9488; }
+.sm-bar.sm-z-mid    { background: #d97706; }
+.sm-bar.sm-z-back   { background: #e11d48; }
+.sm-bar.sm-z-none   { background: #94a3b8; }
 .speedmap-empty { font-size: 12px; color: var(--ink-mute); padding: 10px 0; }
 
 /* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
@@ -11043,70 +11049,71 @@ function buildPostRaceVariance(race) {
 // can win. The previous coloured scheme (yellow/green/blue/pink) implied
 // value judgements that don't exist. Now zones are clearly distinguishable
 // but the picks (with emerald outline) are what visually pops.
-// TopRate-style speed map: a horizontal bar per runner, sorted by predicted
-// settling position (avg_settled_pos / u.asp). Leaders sit at the top with the
-// longest bars; backmarkers at the bottom with the shortest. Bar length is a
-// linear map of settle position so the visual spread mirrors the run. Each bar
-// carries the tab number, horse name, and fixed price. Runners with no settle
-// data are listed below in a muted "no early-speed data" group.
+// Speed map: one horizontal bar per runner, ordered by BARRIER down the left
+// (1 at top). Bar length encodes early speed (long = on-pace, short = back),
+// so you can read draw against speed at a glance: a wide-drawn speed horse vs
+// an inside-drawn backmarker. Bars are coloured by settling zone using a
+// varied palette (not a single green), so zone is readable independent of the
+// axis. Runners with no settle data still appear (ordered by barrier) with a
+// neutral bar.
 function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
-  const withPos = runners.filter(u => u.asp != null);
-  const noPos = runners.filter(u => u.asp == null);
-  if (!withPos.length) {
+  const list = runners.slice();
+  if (!list.length) {
     return '<div class="speedmap-wrap"><div class="speedmap-empty">' +
-      'No early-speed data for this race yet.</div></div>';
+      'No runners to map.</div></div>';
   }
-  // Sort leaders (low asp) first.
-  withPos.sort((a, b) => a.asp - b.asp);
-  // Bar length: map settle position to a fraction. A leader (asp ~1) gets a
-  // near-full bar; a deep backmarker (asp ~max field) gets a short one. Clamp
-  // to the actual field so the scale fits the race.
-  const maxPos = Math.max(...withPos.map(u => u.asp), race.fs || withPos.length || 1);
+  // Order by barrier ascending; runners with no barrier go last.
+  list.sort((a, b) => {
+    const ba = (a.b != null) ? a.b : 999;
+    const bb = (b.b != null) ? b.b : 999;
+    if (ba !== bb) return ba - bb;
+    return (a.asp != null ? a.asp : 99) - (b.asp != null ? b.asp : 99);
+  });
+  // Bar length from settling position: leader (low asp) = long bar.
+  const positions = list.filter(u => u.asp != null).map(u => u.asp);
+  const maxPos = positions.length
+    ? Math.max(...positions, race.fs || list.length || 1)
+    : (race.fs || list.length || 1);
   function barPct(pos) {
-    // invert: low pos = long bar. Floor at 18% so the smallest bar still
-    // shows its label, cap at 100%.
+    if (pos == null) return 30;  // unknown speed: neutral mid-length bar
     const frac = 1 - (pos - 1) / Math.max(maxPos - 1, 1);
     return Math.max(18, Math.min(100, 18 + frac * 82));
   }
-  // Colour by zone for quick reading.
-  function zoneCls(pos) {
-    if (pos <= 2) return 'sm-lead';
-    if (pos <= 4) return 'sm-onpace';
-    if (pos <= 8) return 'sm-mid';
-    return 'sm-back';
+  // Zone -> {class, label}. Palette is deliberately varied (blue/teal/amber/
+  // rose), not shades of one colour, so zones are distinguishable by hue.
+  function zone(pos) {
+    if (pos == null)  return { cls: 'sm-z-none',  lbl: 'No data' };
+    if (pos <= 2)     return { cls: 'sm-z-lead',  lbl: 'Lead' };
+    if (pos <= 4)     return { cls: 'sm-z-onpace',lbl: 'On-pace' };
+    if (pos <= 8)     return { cls: 'sm-z-mid',   lbl: 'Midfield' };
+    return { cls: 'sm-z-back', lbl: 'Back' };
   }
-  function zoneLabel(pos) {
-    if (pos <= 2) return 'Lead';
-    if (pos <= 4) return 'On-pace';
-    if (pos <= 8) return 'Midfield';
-    return 'Back';
-  }
-  const rows = withPos.map(u => {
+  const rows = list.map(u => {
+    const z = zone(u.asp);
     const pct = barPct(u.asp);
     const price = (u.fx != null) ? '$' + u.fx.toFixed(2) : '';
-    const label = (u.tab || '?') + '. ' + escapeHtml(u.h || '') +
+    const barLabel = (u.tab || '?') + '. ' + escapeHtml(u.h || '') +
       (price ? '  ' + price : '');
+    const barNo = (u.b != null) ? u.b : '\u2014';
     return '<div class="sm-row" data-rid="' + escapeHtml(String(u.rid)) + '">' +
-      '<div class="sm-zone">' + zoneLabel(u.asp) + '</div>' +
+      '<div class="sm-barrier" title="Barrier">' + barNo + '</div>' +
+      '<div class="sm-zone">' + z.lbl + '</div>' +
       '<div class="sm-track">' +
-        '<div class="sm-bar ' + zoneCls(u.asp) + '" style="width:' + pct.toFixed(1) + '%;">' +
-          '<span class="sm-bar-label">' + label + '</span>' +
+        '<div class="sm-bar ' + z.cls + '" style="width:' + pct.toFixed(1) + '%;">' +
+          '<span class="sm-bar-label">' + barLabel + '</span>' +
         '</div>' +
       '</div></div>';
   }).join('');
-  const noPosHtml = noPos.length
-    ? '<div class="sm-nodata">No early-speed data: ' +
-      noPos.map(u => (u.tab || '?') + '. ' + escapeHtml(u.h || '')).join(', ') +
-      '</div>'
-    : '';
   return '<div class="speedmap-wrap">' +
     '<div class="speedmap-head">' +
       '<span class="speedmap-title">Speed map</span>' +
-      '<span class="speedmap-axis">Leaders <span class="sm-arrow">&rarr;</span> Backmarkers</span>' +
+      '<span class="speedmap-axis">By barrier &middot; bar length = early speed</span>' +
       '<span class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</span>' +
     '</div>' +
+    '<div class="speedmap-colhead">' +
+      '<span class="smh-barrier">Bar</span><span class="smh-zone">Settles</span>' +
+    '</div>' +
     '<div class="speedmap-bars">' + rows + '</div>' +
-    noPosHtml +
     '</div>';
 }
 
