@@ -754,6 +754,23 @@ def project_race(runners, race_date):
     # projected WPR (and the recent-form gap in the explanation) move. Default
     # 0.0 so a config without the key is a no-op.
     proj = proj + float(_CFG.get("calib_offset", 0.0))
+
+    # Recent-form blend (handoff: measured out-of-sample, ~0.15 MAE gain at
+    # 30%). The model slightly over-shrinks toward career/context and
+    # under-weights recent runs - horses it marks well below their recent
+    # average tend to beat the projection (the Mometz case). Pulling the
+    # projection a fraction of the way back toward avg_last3 corrects this.
+    # Both quantities are on the actual-WPR scale (proj is post-offset), so the
+    # blend is a straight convex mix. Weight is config-driven (recent_blend_w),
+    # default 0.0 so a config without the key is a no-op. Only blends where
+    # avg_last3 is present (skips it for runners with no recent average).
+    _blend_w = float(_CFG.get("recent_blend_w", 0.0))
+    if _blend_w > 0 and "avg_last3" in X.columns:
+        _recent = X["avg_last3"].to_numpy(dtype=float)
+        _has_recent = ~np.isnan(_recent)
+        proj = np.asarray(proj, dtype=float)
+        proj[_has_recent] = ((1.0 - _blend_w) * proj[_has_recent]
+                             + _blend_w * _recent[_has_recent])
     pred_err = _CONF.predict(X[CONF_FEATURES])
     clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
     conf = np.clip(100 * (1 - (pred_err - clo) / (chi - clo)), 0, 100)
@@ -1219,13 +1236,47 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv",
     print(f"  calibration offset (median residual): {calib_offset:+.2f}")
     print(f"  held-out MAE after offset: {mae_after:.3f} (was {mae:.3f})")
 
+    # Recent-form blend weight search. The model slightly over-shrinks recent
+    # form; blending the post-offset projection toward avg_last3 was measured to
+    # help out-of-sample. Search candidate weights on the SAME held-out set and
+    # adopt the best ONLY if it beats no-blend by a real margin (>= 0.03 MAE),
+    # else keep 0.0. This re-verifies the gain every retrain rather than baking
+    # in a fixed weight that may not hold as the data shifts. avg_last3 is a
+    # feature, so it is column-present in te.
+    recent_blend_w = 0.0
+    if "avg_last3" in te.columns:
+        base_pred = proj.predict(te[FEATURES]) + calib_offset
+        recent = te["avg_last3"].to_numpy(dtype=float)
+        tgt = te["target"].to_numpy(dtype=float)
+        ok = ~np.isnan(recent)
+        base_mae_blend = float(np.abs(tgt[ok] - base_pred[ok]).mean())
+        best_w, best_mae = 0.0, base_mae_blend
+        # Candidates capped at 0.35: beyond that the blend starts overriding the
+        # model with a crude recent-average, which is risky to adopt off a
+        # single held-out slice even if it scores well in-sample. The proper
+        # out-of-sample test peaked near 0.30, so this range covers the real
+        # optimum without letting one slice push it to an extreme.
+        for w in [0.10, 0.15, 0.20, 0.25, 0.30, 0.35]:
+            blended = (1.0 - w) * base_pred[ok] + w * recent[ok]
+            m = float(np.abs(tgt[ok] - blended).mean())
+            if m < best_mae:
+                best_mae, best_w = m, w
+        if best_w > 0 and (base_mae_blend - best_mae) >= 0.03:
+            recent_blend_w = best_w
+            print(f"  recent-form blend: weight {best_w:.2f} adopted "
+                  f"(held-out MAE {base_mae_blend:.3f} -> {best_mae:.3f})")
+        else:
+            print(f"  recent-form blend: no weight beat no-blend by >=0.03 MAE "
+                  f"(best {best_w:.2f} gave {best_mae:.3f} vs {base_mae_blend:.3f}); keeping 0.0")
+
     Path(out_dir).mkdir(exist_ok=True)
     joblib.dump(proj, Path(out_dir) / "projection.joblib")
     joblib.dump(em, Path(out_dir) / "confidence.joblib")
     json.dump({"features": FEATURES, "conf_features": CONF_FEATURES,
                "medians": med.to_dict(), "conf_lo": float(clo),
                "conf_hi": float(chi), "beta": 0.4, "min_runs": _MIN_RUNS,
-               "calib_offset": calib_offset},
+               "calib_offset": calib_offset,
+               "recent_blend_w": recent_blend_w},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
