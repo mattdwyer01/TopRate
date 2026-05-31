@@ -6713,22 +6713,27 @@ function fmtPct(v, signed) {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
+const _ACTIVE_TAB_KEY = 'toprate_active_tab_v1';
+function _activateTab(name) {
+  const btn = document.querySelector('.tab[data-tab="' + name + '"]');
+  const sec = document.getElementById('sec-' + name);
+  if (!btn || !sec) return false;   // unknown/removed tab - caller falls back
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  sec.classList.add('active');
+  // Tab-specific render hooks
+  if (name === 'race' && typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+  if (name === 'wpr' && typeof renderWprSummary === 'function') renderWprSummary();
+  if (name === 'accuracy' && typeof renderWprAccuracy === 'function') renderWprAccuracy();
+  return true;
+}
 document.querySelectorAll('.tab').forEach(t => {
   t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('sec-' + t.dataset.tab).classList.add('active');
-    // Tab-specific render hooks
-    if (t.dataset.tab === 'race' && typeof renderMeetingsGrid === 'function') {
-      renderMeetingsGrid();
-    }
-    if (t.dataset.tab === 'wpr' && typeof renderWprSummary === 'function') {
-      renderWprSummary();
-    }
-    if (t.dataset.tab === 'accuracy' && typeof renderWprAccuracy === 'function') {
-      renderWprAccuracy();
-    }
+    _activateTab(t.dataset.tab);
+    // Remember the tab so a page refresh stays put (falls back to Race if the
+    // stored tab no longer exists, e.g. after Quaddie was removed).
+    try { localStorage.setItem(_ACTIVE_TAB_KEY, t.dataset.tab); } catch (e) {}
   });
 });
 
@@ -6746,11 +6751,18 @@ document.querySelectorAll('.tab').forEach(t => {
 // the render after the entire script body has finished, by which point
 // every top-level declaration is initialized.
 setTimeout(function () {
-  // Race is now the default-active tab, so render the meetings grid on load.
-  if (typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
-  // Still prime the Summary render so it is ready when opened (and so its
-  // date-button sync below has resolved state to read).
+  // Race is the markup default. Restore the last-used tab so a refresh stays
+  // put; prime the Summary render regardless so its date-button sync below has
+  // resolved state to read.
   if (typeof renderWprSummary === 'function') renderWprSummary();
+  let _restored = false;
+  try {
+    const saved = localStorage.getItem(_ACTIVE_TAB_KEY);
+    if (saved && saved !== 'race') _restored = _activateTab(saved);
+  } catch (e) {}
+  // If nothing restored (first visit, or saved tab gone), render the default
+  // Race grid which is active in the markup.
+  if (!_restored && typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
   // Sync the date quick-button active state to whatever date the Summary
   // resolved to on first render (the select defaults to the latest date,
   // which may not be "today"). Keeps the highlighted button honest about
