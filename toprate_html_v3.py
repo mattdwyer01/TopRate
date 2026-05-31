@@ -1725,8 +1725,14 @@ body {
   margin-left: 4px;
 }
 .race-date-info {
-  font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
 }
+.race-nontab-toggle {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
+  margin-left: 12px; user-select: none;
+}
+.race-nontab-toggle input { cursor: pointer; }
 @media (max-width: 720px) {
   .race-date-bar {
     /* Stack vertically: Yesterday/Today/Tomorrow + date input on row 1,
@@ -1824,16 +1830,16 @@ body {
 .mt-race-cell {
   padding: 12px 6px; border-left: 1px solid var(--line-soft);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 11px; color: var(--ink-soft); background: var(--panel);
+  cursor: pointer; font-size: 12px; font-weight: 600; color: var(--ink); background: var(--panel);
   transition: background 0.12s, color 0.12s; position: relative; min-height: 48px;
 }
 .mt-race-cell:hover { background: var(--line-soft); color: var(--ink); }
 .mt-race-cell .mt-time {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--ink);
 }
 .mt-race-cell.mt-empty { color: var(--ink-faint); cursor: default; background: var(--bg); }
 .mt-race-cell.mt-empty:hover { background: var(--bg); color: var(--ink-faint); }
-.mt-race-cell.mt-resulted { color: var(--ink-mute); background: var(--bg); }
+.mt-race-cell.mt-resulted { color: var(--ink-soft); background: var(--bg); font-weight: 600; }
 
 /* Abandoned styling. Whole row fades and strikes through when meeting is
    marked abandoned. Race-level abandon strikes that single cell. Hover
@@ -5561,9 +5567,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <nav class="tabs">
-    <div class="tab active" data-tab="wpr">Summary</div>
-    <div class="tab" data-tab="race">Race</div>
-    <div class="tab" data-tab="quaddie">Quaddie</div>
+    <div class="tab active" data-tab="race">Race</div>
+    <div class="tab" data-tab="wpr">Summary</div>
     <div class="tab" data-tab="pnl">P&amp;L</div>
     <div class="tab" data-tab="accuracy">WPR Accuracy</div>
     <div class="tab" data-tab="settings">Settings</div>
@@ -5573,7 +5578,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
        superseded by the WPR Summary tab. renderToday() is stubbed to a
        no-op below; PICKS_TODAY / todayFilters dead code swept in 4f. -->
   <!-- RACE -->
-  <section class="section" id="sec-race">
+  <section class="section active" id="sec-race">
     <!-- Browser view: date picker + meetings grid -->
     <div id="race-browser">
       <div class="race-date-bar">
@@ -5582,6 +5587,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <button class="race-date-quick active" data-rdate="today">Today</button>
           <button class="race-date-quick" data-rdate="tomorrow">Tomorrow</button>
           <input type="date" id="race-date-input" class="race-date-input">
+          <label class="race-nontab-toggle" title="Show bush/picnic meetings (richest race $20k or under). Off by default so the best meetings stay at the top.">
+            <input type="checkbox" id="race-nontab-cb"> Show non-TAB meetings
+          </label>
         </div>
         <div class="race-date-info" id="race-date-info">—</div>
       </div>
@@ -5623,7 +5631,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   </section>
 
   <!-- WPR PROJECTION SUMMARY -->
-  <section class="section active" id="sec-wpr">
+  <section class="section" id="sec-wpr">
     <div class="wpr-summary-head">
       <h2 class="wpr-summary-title">Summary</h2>
       <div class="race-date-bar wpr-date-bar">
@@ -5745,8 +5753,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <button class="wpr-filter-reset" id="wpr-f-reset">Reset</button>
     </div>
 
-    <!-- List 1: today's picks (overlays) -->
-    <div class="wpr-list-block">
+    <!-- List 1: today's picks (overlays) - hidden per user request; kept in
+         the DOM (display:none) so renderWprSummary's references to the slider
+         and overlays container do not break. -->
+    <div class="wpr-list-block" style="display:none;">
       <div class="wpr-list-head">
         <h3>Today's Picks</h3>
         <div class="wpr-slider-wrap">
@@ -6710,8 +6720,8 @@ document.querySelectorAll('.tab').forEach(t => {
     t.classList.add('active');
     document.getElementById('sec-' + t.dataset.tab).classList.add('active');
     // Tab-specific render hooks
-    if (t.dataset.tab === 'quaddie' && typeof renderQuaddie === 'function') {
-      renderQuaddie();
+    if (t.dataset.tab === 'race' && typeof renderMeetingsGrid === 'function') {
+      renderMeetingsGrid();
     }
     if (t.dataset.tab === 'wpr' && typeof renderWprSummary === 'function') {
       renderWprSummary();
@@ -6736,6 +6746,10 @@ document.querySelectorAll('.tab').forEach(t => {
 // the render after the entire script body has finished, by which point
 // every top-level declaration is initialized.
 setTimeout(function () {
+  // Race is now the default-active tab, so render the meetings grid on load.
+  if (typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+  // Still prime the Summary render so it is ready when opened (and so its
+  // date-button sync below has resolved state to read).
   if (typeof renderWprSummary === 'function') renderWprSummary();
   // Sync the date quick-button active state to whatever date the Summary
   // resolved to on first render (the select defaults to the latest date,
@@ -7394,6 +7408,7 @@ function ord(n) {
 // ── RACE tab rendering ──────────────────────────────────────────────────────
 // State
 let currentBrowseDate = null;     // YYYY-MM-DD being browsed
+let _showNonTabMeetings = false;  // hide bush/picnic (richest race <= $20k) by default
 let currentRaceId = null;          // race_id of the currently open detail
 
 // Filter state for the Today tab pick rows. Persisted across reloads so
@@ -7495,11 +7510,38 @@ function renderMeetingsGrid() {
     if (!byVenue[v]) byVenue[v] = [];
     byVenue[v].push(r);
   });
-  const meetings = Object.keys(byVenue).sort().map(v => ({
-    venue: v,
-    state: (byVenue[v][0] && byVenue[v][0].state) || '',
-    races: byVenue[v].sort((a, b) => (a.race || 0) - (b.race || 0)),
-  }));
+  let meetings = Object.keys(byVenue).map(v => {
+    const races = byVenue[v].sort((a, b) => (a.race || 0) - (b.race || 0));
+    const prizes = races.map(r => r.prize || 0);
+    const totalPrize = prizes.reduce((s, p) => s + p, 0);
+    const maxPrize = prizes.length ? Math.max(...prizes) : 0;
+    return {
+      venue: v,
+      state: (races[0] && races[0].state) || '',
+      races: races,
+      totalPrize: totalPrize,
+      // TAB meeting = has at least one race richer than $20k. Non-TAB are the
+      // bush/picnic meetings (richest race <= 20k), hidden by default.
+      isTab: maxPrize > 20000,
+    };
+  });
+  // Non-TAB meetings hidden unless the show-all toggle is on.
+  if (!_showNonTabMeetings) {
+    meetings = meetings.filter(m => m.isTab);
+  }
+  // Best meetings first: sort by total meeting prizemoney, descending. Ties
+  // fall back to venue name for stable ordering.
+  meetings.sort((a, b) => (b.totalPrize - a.totalPrize) || a.venue.localeCompare(b.venue));
+
+  if (meetings.length === 0) {
+    host.innerHTML = '<div class="empty-state">' +
+      '<div class="head">No TAB meetings for ' + currentBrowseDate + '</div>' +
+      '<div class="sub">Tick "Show non-TAB meetings" to include bush/picnic tracks.</div>' +
+      '</div>';
+    document.getElementById('race-date-info').textContent =
+      dateRaces.length + ' races';
+    return;
+  }
   const maxR = Math.max(...meetings.map(m =>
     Math.max(...m.races.map(r => r.race || 0))));
 
@@ -7569,16 +7611,19 @@ function renderMeetingsGrid() {
       let lbl = tm || ('R' + i);
       if (isResulted) {
         cellCls += ' mt-resulted';
-        // Find the winner (finish_position == 1) and show tab number.
-        // Mark emerald if Edge pick won. This lets users scan resulted cards
-        // and immediately see model accuracy at a glance.
+        // Show the actual finishing order: saddlecloth numbers of 1st-2nd-3rd
+        // -4th. Cell still goes green if the model's pick won, so the grid
+        // doubles as a result list and a model-accuracy scan.
+        const top4 = (race.runners || [])
+          .filter(u => u.f != null && u.f >= 1 && u.f <= 4)
+          .sort((a, b) => a.f - b.f)
+          .map(u => u.tab);
         const winner = (race.runners || []).find(u => u.f === 1);
-        const winnerTab = winner ? winner.tab : null;
         const winnerRid = winner ? String(winner.rid) : null;
         const mainPickRids = (racePicks[PRIMARY_KEY] || []).map(p => String(p.run_id));
         const mainHit = winnerRid && mainPickRids.indexOf(winnerRid) >= 0;
         if (mainHit) cellCls += ' mt-result-main-hit';
-        lbl = winnerTab != null ? ('#' + winnerTab) : 'Result';
+        lbl = top4.length ? top4.join('-') : 'Result';
       }
       else if (isImminent) {
         cellCls += ' mt-imminent';
@@ -11507,6 +11552,13 @@ if (rdInp) {
       currentBrowseDate = e.target.value;
       renderMeetingsGrid();
     }
+  });
+}
+const rdNonTab = document.getElementById('race-nontab-cb');
+if (rdNonTab) {
+  rdNonTab.addEventListener('change', e => {
+    _showNonTabMeetings = e.target.checked;
+    renderMeetingsGrid();
   });
 }
 
