@@ -10870,7 +10870,7 @@ function _varianceNarrative(u, proj, act, paceLate) {
   const gap = (recent != null) ? (proj - recent) : null;  // proj vs recent form
 
   // UNDER-rated (ran above projection)
-  if (act > proj + 3) {
+  if (act > proj + 4) {
     // Did it run beyond anything in its record? Then it could not be foreseen.
     const ceiling = Math.max(peak != null ? peak : -Infinity,
                              recent != null ? recent : -Infinity);
@@ -10896,7 +10896,7 @@ function _varianceNarrative(u, proj, act, paceLate) {
   }
 
   // OVER-rated (ran below projection)
-  if (act < proj - 3) {
+  if (act < proj - 4) {
     if (gap != null && gap >= 3) {
       const drivers = [];
       if (u.wpr1 != null && recent != null && (u.wpr1 - recent) <= -3) drivers.push('last start below form');
@@ -10916,12 +10916,16 @@ function _varianceNarrative(u, proj, act, paceLate) {
 function _classifyVariance(proj, act, cv, cs, paceLate, u) {
   if (proj == null || act == null) return { verdict: 'none', cls: '', label: '-', note: '' };
   const miss = act - (proj + _WPR_CALIB_OFFSET);
+  const variance = act - proj;   // the plain figure shown in the Variance column
   const text = ((cv || '') + ' ' + (cs || '')).toLowerCase();
   const m = _voidMarkers(text);
-  if (Math.abs(miss) < 5) {
+  // Model OK only within +/- 4 of the shown variance (actual vs projection).
+  // Beyond that the row gets a real verdict and an explanation. Gated on the
+  // plain variance so the band matches the number displayed in the table.
+  if (Math.abs(variance) <= 4) {
     return { verdict: 'ok', cls: 'rd-var-ok', label: 'Model OK', note: '' };
   }
-  if (miss < 0) {
+  if (variance < 0) {
     if (m.strong.length)
       return { verdict: 'void', cls: 'rd-var-void', label: 'Void (excuse)', note: m.strong.slice(0,2).join(', ') };
     if (m.weak.length && miss < _VOID_WEAK_MISS)
