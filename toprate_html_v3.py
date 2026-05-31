@@ -2245,31 +2245,29 @@ body {
 /* Plot holds the background zone bands (absolute) behind the bar rows. The
    bands span the track area, which starts after the 28px barrier column. */
 .speedmap-plot { position: relative; }
+/* Bands are a flex row of four EQUAL columns - guarantees equal quarter widths
+   regardless of container width, fixing the uneven/inconsistent bands. Left
+   offset matches the bar track origin (28px barrier + 8px gap). */
 .sm-bands {
   position: absolute; top: 0; bottom: 0; left: 36px; right: 0;
-  pointer-events: none; z-index: 0;
+  display: flex; pointer-events: none; z-index: 0;
 }
-/* Each zone band gets a faint tint plus a solid left separator so the four
-   regions are clearly visible behind the bars. Tints are very light so the
-   single-colour bars read cleanly on top. */
 .sm-band {
-  position: absolute; top: 0; bottom: 0;
-  border-left: 1px solid var(--line);
+  flex: 1 1 25%; border-left: 1px solid var(--line);
 }
 .sm-band-back   { border-left: none; background: rgba(100,116,139,0.05); }
 .sm-band-mid    { background: rgba(100,116,139,0.10); }
 .sm-band-onpace { background: rgba(100,116,139,0.16); }
 .sm-band-lead   { background: rgba(100,116,139,0.22); }
-/* Zone labels live in a strip ABOVE the plot, aligned to each band, so they do
-   not float over the bars. */
-.sm-band > span { display: none; }
+/* Zone label strip above the plot - also a 4-equal-column flex row so labels
+   sit at the left edge of each quarter, perfectly aligned with the bands. */
 .speedmap-zonestrip {
-  position: relative; height: 16px; margin: 0 0 2px 36px;
+  display: flex; height: 16px; margin: 0 0 2px 36px;
 }
 .sm-zlabel {
-  position: absolute; top: 0;
+  flex: 1 1 25%;
   font-size: 9px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--ink-mute); font-weight: 700;
+  color: var(--ink-mute); font-weight: 700; padding-left: 4px;
 }
 .speedmap-bars { display: flex; flex-direction: column; gap: 3px; position: relative; z-index: 1; }
 .sm-row { display: flex; align-items: center; gap: 8px; }
@@ -2284,7 +2282,7 @@ body {
 .sm-bar {
   height: 24px; border-radius: 5px; display: flex; align-items: center;
   padding: 0 10px; overflow: hidden; transition: width .2s ease;
-  min-width: 60px; background: #475569;
+  min-width: 40px; background: #475569; white-space: nowrap;
 }
 .sm-bar-label {
   font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
@@ -11100,54 +11098,32 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
     if (ba !== bb) return bb - ba;
     return (a.asp != null ? a.asp : 99) - (b.asp != null ? b.asp : 99);
   });
-  // Bar length from settling position: leader (low asp) = long bar.
-  const positions = list.filter(u => u.asp != null).map(u => u.asp);
-  const maxPos = positions.length
-    ? Math.max(...positions, race.fs || list.length || 1)
-    : (race.fs || list.length || 1);
-  // Four equal-width zones (each 25% of the track): Back | Midfield | On-pace
-  // | Lead, left to right. A bar's length places its tip WITHIN its zone's
-  // quarter, so the tip lands in the correct band and the bands stay even.
-  // Position within the quarter reflects how strongly it sits in that zone
-  // (closer to the front edge = nearer the next zone up).
-  function zoneOf(pos) {
-    if (pos == null) return 1;            // unknown -> midfield-ish
-    if (pos <= 2) return 3;               // Lead    (quarter index 3)
-    if (pos <= 4) return 2;               // On-pace
-    if (pos <= 8) return 1;               // Midfield
-    return 0;                             // Back
-  }
-  // Within-zone fraction: how far through the zone band the bar tip sits.
-  // Use settling position relative to the zone's own range so faster horses in
-  // a zone reach nearer its leading edge.
-  function withinZone(pos) {
-    if (pos == null) return 0.5;
-    if (pos <= 2) return (2 - pos) / 1.5;       // Lead: pos1 high, pos2 low
-    if (pos <= 4) return (4 - pos) / 2;         // On-pace
-    if (pos <= 8) return (8 - pos) / 4;         // Midfield
-    return Math.max(0, (14 - pos) / 6);         // Back
-  }
+  // Bar length maps the settling position into its zone's quarter, so the bar
+  // tip lands in the matching band. Zones (equal quarters): Back 0-25, Mid
+  // 25-50, On-pace 50-75, Lead 75-100. Within a zone, a faster-beginning horse
+  // reaches nearer the front (right) edge of its quarter.
   function barPct(pos) {
-    const z = zoneOf(pos);                       // 0..3
-    const f = Math.max(0, Math.min(1, withinZone(pos)));
-    // base of the zone quarter + fraction into the next quarter, with a small
-    // floor so the shortest bar still shows its label.
-    const pct = (z * 25) + f * 25;
-    return Math.max(16, Math.min(100, pct + 8));  // +8 so bars fill into the zone
+    if (pos == null) return 38;                 // unknown -> mid of Midfield
+    let base, frac;
+    if (pos <= 2)      { base = 75; frac = (2 - pos) / 1.5; }   // Lead
+    else if (pos <= 4) { base = 50; frac = (4 - pos) / 2; }     // On-pace
+    else if (pos <= 8) { base = 25; frac = (8 - pos) / 4; }     // Midfield
+    else               { base = 0;  frac = Math.max(0, (14 - pos) / 6); } // Back
+    const pct = base + Math.max(0, Math.min(1, frac)) * 25;
+    return Math.max(14, Math.min(100, pct + 10)); // +10 fills the bar into its zone
   }
-  // Equal quarters at 0/25/50/75.
-  const bMid = 25, bOn = 50, bLead = 75;
+  // Four equal zone columns, left to right: Back | Midfield | On-pace | Lead.
+  // Flexbox gives each an exact quarter; no inline widths needed.
   const bands =
-    '<div class="sm-band sm-band-lead"   style="left:75%;right:0;"></div>' +
-    '<div class="sm-band sm-band-onpace" style="left:50%;width:25%;"></div>' +
-    '<div class="sm-band sm-band-mid"    style="left:25%;width:25%;"></div>' +
-    '<div class="sm-band sm-band-back"   style="left:0;width:25%;"></div>';
-  // Zone label strip above the plot, each label at its band's left edge.
+    '<div class="sm-band sm-band-back"></div>' +
+    '<div class="sm-band sm-band-mid"></div>' +
+    '<div class="sm-band sm-band-onpace"></div>' +
+    '<div class="sm-band sm-band-lead"></div>';
   const zlabels =
-    '<span class="sm-zlabel" style="left:0;">Back</span>' +
-    '<span class="sm-zlabel" style="left:25%;">Midfield</span>' +
-    '<span class="sm-zlabel" style="left:50%;">On-pace</span>' +
-    '<span class="sm-zlabel" style="left:75%;">Lead</span>';
+    '<span class="sm-zlabel">Back</span>' +
+    '<span class="sm-zlabel">Midfield</span>' +
+    '<span class="sm-zlabel">On-pace</span>' +
+    '<span class="sm-zlabel">Lead</span>';
   const rows = list.map(u => {
     const pct = barPct(u.asp);
     const wpr = (u.wpjp != null) ? u.wpjp.toFixed(1) : '';
