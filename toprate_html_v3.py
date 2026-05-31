@@ -3511,6 +3511,7 @@ body {
 }
 /* P&L: full-width date band grouping the day's bets in the Summary-style table. */
 .pnl-table-wrap { overflow-x: auto; }
+.pnl-cards { display: none; }
 .wpr-summary-table tr.pnl-date-row td {
   background: var(--line-soft); color: var(--ink-mute);
   font-weight: 700; font-size: 11px; letter-spacing: .03em;
@@ -4792,16 +4793,50 @@ body {
      shown. */
   #wpr-list-overlays, #wpr-list-standouts { overflow-x: hidden; }
   .wpr-summary-table { display: none; }
+  /* P&L bets: proper mobile cards (matching Race/Summary), table hidden. */
+  .pnl-bets-table { display: none; }
+  .pnl-cards { display: block; }
+  .pnl-cards-date {
+    font-size: 11px; font-weight: 700; color: var(--ink-mute);
+    text-transform: uppercase; letter-spacing: .03em; margin: 10px 0 4px;
+  }
+  .pnl-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 7px 10px; margin-bottom: 5px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
+  }
+  .pnl-card.pnl-row-unreviewed { opacity: .55; }
+  .pc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .pc-race { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+  .pc-unrev { color: var(--amber, #b45309); font-weight: 700; }
+  .pc-net { font-weight: 800; font-size: 15px; }
+  .pc-net-pos { color: var(--emerald); }
+  .pc-net-neg { color: var(--rose, #b91c1c); }
+  .pc-horse { font-weight: 700; font-size: 14px; margin: 1px 0 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .pc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
+  .pc-fp {
+    font-size: 11px; font-weight: 800; color: #fff; border-radius: 9px;
+    padding: 1px 8px; margin-left: auto;
+  }
+  .pc-fp-win { background: var(--emerald); }
+  .pc-fp-place { background: var(--amber, #b45309); }
+  .pc-fp-out { background: var(--ink-mute, #888); }
+  .pc-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 6px;
+    margin: 6px 0 0; padding: 6px 8px; border-top: 1px solid var(--line-soft);
+    background: var(--line-soft); border-radius: 7px;
+  }
+  .pc-foot { margin-top: 5px; display: flex; align-items: center; gap: 12px; }
   .sum-cards { display: block; }
   .sum-card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 8px 11px; margin-bottom: 6px;
+    border-radius: 10px; padding: 7px 10px; margin-bottom: 5px;
     box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
   }
   .sc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .sc-race { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
   .sc-eff { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 5px; }
-  .sc-horse { font-weight: 700; font-size: 14px; margin: 2px 0 0; }
+  .sc-horse { font-weight: 700; font-size: 14px; margin: 1px 0 0; }
   .sc-num {
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
@@ -4814,21 +4849,26 @@ body {
   }
   .sc-jky { font-weight: 400; font-size: 11px; color: var(--ink-mute); }
   .sc-trn { font-weight: 400; font-size: 11px; color: var(--ink-mute);
-    margin: 1px 0 0; padding-left: 30px; /* line up under horse name (past silks+num) */ }
+    margin: 0 0 0; padding-left: 30px; /* line up under horse name (past silks+num) */ }
+  /* Stat grid: 4 columns (was 3) so the ~10 cells fit in ~3 rows instead of 4.
+     Tighter gaps and padding. Values stay readable; the longest ("On-pace")
+     still fits a quarter-width column on a phone. */
   .sc-grid {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px 8px;
-    margin: 7px 0 0; padding: 7px 9px; border-top: 1px solid var(--line-soft);
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 6px;
+    margin: 6px 0 0; padding: 6px 8px; border-top: 1px solid var(--line-soft);
     background: var(--line-soft); border-radius: 7px;
   }
-  .sc-cell { display: flex; flex-direction: column; gap: 0; }
-  .sc-cell .lbl { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
-  .sc-cell .val { font-weight: 700; font-size: 12px; }
+  .sc-cell { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+  .sc-cell .lbl { font-size: 8px; text-transform: uppercase; letter-spacing: .02em; color: var(--ink-mute); white-space: nowrap; }
+  .sc-cell .val { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sc-cell .ovl-pos { color: var(--emerald); }
   .sc-cell .ovl-neg { color: var(--rose, #b91c1c); }
-  .sc-foot { margin-top: 6px; }
+  .sc-foot { margin-top: 5px; display: flex; align-items: center; gap: 12px; }
+  .sc-fp { display: inline-flex; align-items: center; gap: 5px; }
+  .sc-fp-lbl { font-size: 8px; text-transform: uppercase; letter-spacing: .02em; color: var(--ink-mute); }
   .sc-bet {
     font-size: 12px; font-weight: 700; border: 1.5px solid var(--line);
-    border-radius: 6px; padding: 4px 14px; background: #fff; cursor: pointer;
+    border-radius: 6px; padding: 3px 14px; background: #fff; cursor: pointer;
   }
   .sc-bet.yes { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-bg, rgba(4,120,87,.1)); }
   /* Detail-panel recent runs: on mobile use run-cards instead of the
@@ -5433,7 +5473,7 @@ body {
   .race-cards { display: block; }
   .rc {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 8px 11px; margin-bottom: 6px;
+    border-radius: 10px; padding: 7px 10px; margin-bottom: 5px;
     box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: pointer;
   }
   .rc.is-pick { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald); }
@@ -5443,11 +5483,11 @@ body {
   .rc-top { display: flex; align-items: center; gap: 9px; }
   .rc-num {
     background: var(--navy, #1a1d24); color: #fff; font-weight: 700;
-    font-size: 12px; min-width: 23px; height: 23px; border-radius: 6px;
+    font-size: 12px; min-width: 22px; height: 22px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .rc-silk {
-    width: 26px; height: 26px; object-fit: contain; flex-shrink: 0;
+    width: 24px; height: 24px; object-fit: contain; flex-shrink: 0;
   }
   .rc-name {
     font-weight: 700; font-size: 14px; flex: 1; min-width: 0;
@@ -5462,17 +5502,16 @@ body {
   .rc-conf.conf-hi { background: var(--emerald); }
   .rc-conf.conf-lo { background: var(--rose, #b91c1c); }
   .rc-conf.conf-mid { background: var(--amber, #b45309); }
-  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-mute); margin: 4px 0 0; }
+  /* Sub-line: settle/bar/peak/L3. Kept readable but pulled tight under the
+     name with minimal top margin. */
+  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-soft); margin: 2px 0 0; }
   .rc-sub b { color: var(--ink); font-weight: 600; }
-  /* Jockey + Trainer sub-line. Smaller text, secondary colour - reads as
-     supporting info under the main stats line. Each label prefix ("Jky"/"Trn")
-     stays muted; the name itself is regular weight. */
+  /* Jockey + Trainer on the SAME visual line area as little vertical cost. */
   .rc-jt {
     display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px;
-    color: var(--ink); margin: 3px 0 0;
+    color: var(--ink-soft); margin: 2px 0 0;
   }
   .rc-jt-jky, .rc-jt-trn { display: inline-flex; align-items: center; gap: 4px; }
-  /* Inline jockey rating chip on the mobile card (same banding as desktop). */
   .rc-jt .jk-chip {
     display: inline-block; padding: 0px 5px; border-radius: 8px;
     font-size: 10px; font-weight: 700; line-height: 1.5;
@@ -5482,9 +5521,15 @@ body {
   .rc-jt .jk-chip.jk-grey  { background: var(--line-soft); color: var(--ink-mute); }
   .rc-jt .jk-chip.jk-amber { background: rgba(217,119,6,.13); color: #b45309; border-color: rgba(217,119,6,.3); }
   .rc-jt .jk-chip.jk-red   { background: rgba(220,38,38,.13); color: #b91c1c; border-color: rgba(220,38,38,.3); }
+  /* Prices + bet control share ONE row to save vertical space: WPR$/Fixed$/
+     Overlay on the left, the bet toggle pushed to the right. One top border,
+     tighter padding. */
+  .rc-pricefoot {
+    display: flex; align-items: center; gap: 14px; margin: 5px 0 0;
+    padding: 5px 0 0; border-top: 1px solid var(--line-soft); flex-wrap: wrap;
+  }
   .rc-prices {
-    display: flex; gap: 16px; margin: 6px 0 0; padding: 5px 0 0;
-    border-top: 1px solid var(--line-soft); font-size: 13px;
+    display: flex; gap: 14px; font-size: 13px;
   }
   .rc-price { display: flex; flex-direction: column; gap: 0; }
   .rc-price .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); }
@@ -5492,12 +5537,11 @@ body {
   .rc-price .ovl-pos { color: var(--emerald); }
   .rc-price .ovl-neg { color: var(--rose, #b91c1c); }
   .rc-foot {
-    display: flex; align-items: center; gap: 12px; margin: 6px 0 0;
-    padding: 5px 0 0; border-top: 1px solid var(--line-soft);
+    display: flex; align-items: center; gap: 10px; margin-left: auto;
   }
   .rc-bet {
     font-size: 12px; font-weight: 700; border: 1.5px solid var(--line);
-    border-radius: 6px; padding: 4px 12px; background: #fff; cursor: pointer;
+    border-radius: 6px; padding: 3px 12px; background: #fff; cursor: pointer;
   }
   .rc-bet.yes { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-bg, rgba(4,120,87,.1)); }
   .rc-stake { font-size: 12px; color: var(--ink-mute); }
@@ -5506,7 +5550,7 @@ body {
     width: 52px; font-size: 12px; padding: 3px 5px; border: 1px solid var(--line);
     border-radius: 5px;
   }
-  .rc-result { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
+  .rc-result { font-size: 12px; color: var(--ink-mute); }
   .rc-result b { color: var(--ink); font-weight: 700; }
   .rc-detail {
     background: var(--panel); border: 1px solid var(--line);
@@ -9523,9 +9567,10 @@ function renderWprSummary() {
         '<div class="sc-cell"><span class="lbl">Overlay</span><span class="val">' + ovlStr + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Stake</span><span class="val">' + unitCell(pnl.stake) + '</span></div>' +
         '<div class="sc-cell"><span class="lbl">Return</span><span class="val">' + unitCell(pnl.ret) + '</span></div>' +
-        '<div class="sc-cell sc-cell-fp"><span class="lbl">FP</span><span class="val">' + fpCell(r.horse) + '</span></div>' +
       '</div>' +
-      '<div class="sc-foot">' + betToggle + '</div>' +
+      '<div class="sc-foot">' + betToggle +
+        '<span class="sc-fp"><span class="sc-fp-lbl">FP</span>' + fpCell(r.horse) + '</span>' +
+      '</div>' +
     '</div>';
   }
 
@@ -10737,15 +10782,17 @@ function renderRaceDetail(raceId) {
           '<span class="rc-jt-jky">Jky ' + escapeHtml(u.j || '—') + cJkyChip + '</span>' +
           '<span class="rc-jt-trn">Trn ' + escapeHtml(u.tn || '—') + '</span>' +
         '</div>' +
-        '<div class="rc-prices">' +
-          '<div class="rc-price"><span class="lbl">WPR $</span><span class="val">' +
-            (wp != null ? '$' + wp.toFixed(2) : '—') + '</span></div>' +
-          '<div class="rc-price"><span class="lbl">Fixed $</span><span class="val">' +
-            (fxp ? '$' + fxp.toFixed(2) : '—') + '</span></div>' +
-          '<div class="rc-price"><span class="lbl">Overlay</span><span class="val">' +
-            cOvlStr + '</span></div>' +
+        '<div class="rc-pricefoot">' +
+          '<div class="rc-prices">' +
+            '<div class="rc-price"><span class="lbl">WPR $</span><span class="val">' +
+              (wp != null ? '$' + wp.toFixed(2) : '—') + '</span></div>' +
+            '<div class="rc-price"><span class="lbl">Fixed $</span><span class="val">' +
+              (fxp ? '$' + fxp.toFixed(2) : '—') + '</span></div>' +
+            '<div class="rc-price"><span class="lbl">Overlay</span><span class="val">' +
+              cOvlStr + '</span></div>' +
+          '</div>' +
+          '<div class="rc-foot">' + cBetBtn + cResult + '</div>' +
         '</div>' +
-        '<div class="rc-foot">' + cBetBtn + cResult + '</div>' +
       '</div>';
   });
 
@@ -12392,6 +12439,72 @@ function renderPnL() {
       opt('1', '1st') + opt('2', '2nd') + opt('3', '3rd') + opt('99', 'UPL') + '</select>';
   }
 
+  // Mobile card version of a settled-bet row. Same data as pnlRow, compact
+  // card layout matching the Race/Summary tabs. Result (FP) and P&L (stake/
+  // return) are the focus; prices and context fill the grid.
+  function pnlCard(s) {
+    const race = _raceById[String(s.race_id)] || null;
+    const u = race ? (race.runners || []).find(x => String(x.rid) === String(s.run_id)) : null;
+    const m = race ? _wprRaceModel(race) : null;
+    const eff = (m && u) ? m.eff[u.rid] : null;
+    const wprPrice = (m && u) ? m.price[u.rid] : null;
+    const fixed = (u && u.fx != null) ? u.fx : s.fxprice;
+    const entry = log[String(s.run_id)] || {};
+    const hasOdds = entry.oddsTaken != null && entry.oddsTaken > 1;
+    const stakePrice = hasOdds ? entry.oddsTaken : s.fxprice;
+    const stake = (stakePrice && stakePrice > 1)
+      ? calcStake(stakePrice, { capExempt: hasOdds, model: s.model }) : null;
+    const settlePrice = hasOdds ? entry.oddsTaken : (s.sp || s.fxprice);
+    const dhMult = entry.deadHeat ? 0.5 : 1;
+    let ret = null;
+    if (s.finish != null && stake != null) {
+      ret = (s.won && settlePrice) ? stake * settlePrice * dhMult : 0;
+    }
+    const horse = s.horse || (u && u.h) || '';
+    const jockey = (u && u.j) || s.jockey || '';
+    const tab = (u && u.tab != null) ? u.tab : (s.tab != null ? s.tab : '?');
+    const silk = (u && u.sk)
+      ? '<img class="sc-silk" src="' + escapeHtml(u.sk) + '" loading="lazy" onerror="this.style.display=\'none\'" alt="">'
+      : '';
+    const venueLabel = escapeHtml(s.venue || (race && race.venue) || '') +
+      ' R' + (s.race != null ? s.race : ((race && race.race) || '?'));
+    const _notReviewed = s.race_id != null && !isRaceReviewed(s.race_id);
+    let fpChip = '';
+    if (s.finish != null) {
+      const cls = s.finish === 1 ? 'pc-fp-win' : (s.finish <= 3 ? 'pc-fp-place' : 'pc-fp-out');
+      fpChip = '<span class="pc-fp ' + cls + '">' + (s.finish === 99 ? 'UPL' : fpOrdinal(s.finish)) + '</span>';
+    }
+    let netStr = '', netCls = '';
+    if (ret != null && stake != null) {
+      const net = ret - stake;
+      netStr = (net >= 0 ? '+' : '') + net.toFixed(2) + 'u';
+      netCls = net > 0 ? 'pc-net-pos' : (net < 0 ? 'pc-net-neg' : '');
+    }
+    return '<div class="pnl-card wpr-row-clickable' + (_notReviewed ? ' pnl-row-unreviewed' : '') +
+      '" data-race-id="' + escapeHtml(String(s.race_id || '')) +
+      '" data-rid="' + escapeHtml(String(s.run_id || '')) + '">' +
+      '<div class="pc-top">' +
+        '<div class="pc-race">' + pRaceTime(race) + ' · ' + venueLabel +
+          (_notReviewed ? ' <span class="pc-unrev">not reviewed</span>' : '') + '</div>' +
+        (netStr ? '<div class="pc-net ' + netCls + '">' + netStr + '</div>' : '') +
+      '</div>' +
+      '<div class="pc-horse">' + silk +
+        '<span class="sc-num">' + tab + '</span>' + escapeHtml(horse) +
+        ' <span class="pc-jky">' + escapeHtml(jockey) + '</span>' +
+        fpChip +
+      '</div>' +
+      '<div class="pc-grid">' +
+        '<div class="sc-cell"><span class="lbl">WPR $</span><span class="val">' + (wprPrice != null ? '$' + wprPrice.toFixed(2) : '—') + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Fixed $</span><span class="val">' + (fixed != null ? '$' + fixed.toFixed(2) : '—') + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Stake</span><span class="val">' + pUnitCell(stake) + '</span></div>' +
+        '<div class="sc-cell"><span class="lbl">Return</span><span class="val">' + pUnitCell(ret) + '</span></div>' +
+      '</div>' +
+      '<div class="pc-foot">' + pBetCell(s.run_id) +
+        '<span class="sc-fp"><span class="sc-fp-lbl">FP</span>' + pFpCell(u, s) + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
   // Build one Summary-style row from a settled-bet record.
   function pnlRow(s) {
     const race = _raceById[String(s.race_id)] || null;
@@ -12462,7 +12575,7 @@ function renderPnL() {
     '<th>Settle</th><th>Speed</th><th>Eff WPR</th>' +
     '<th>WPR $</th><th>Fixed $</th><th>Bet</th><th>Stake</th>' +
     '<th>Return</th><th>FP</th></tr></thead>';
-  let html = '<div class="pnl-table-wrap"><table class="wpr-summary-table">' + head + '<tbody>';
+  let html = '<div class="pnl-table-wrap"><table class="wpr-summary-table pnl-bets-table">' + head + '<tbody>';
   dates.forEach(d => {
     if (dates.length > 1) {
       html += '<tr class="pnl-date-row"><td colspan="19">' + escapeHtml(d || 'Undated') + '</td></tr>';
@@ -12470,6 +12583,15 @@ function renderPnL() {
     byDate[d].forEach(s => { html += pnlRow(s); });
   });
   html += '</tbody></table></div>';
+  // Mobile card version (shown only on narrow screens via CSS).
+  html += '<div class="pnl-cards">';
+  dates.forEach(d => {
+    if (dates.length > 1) {
+      html += '<div class="pnl-cards-date">' + escapeHtml(d || 'Undated') + '</div>';
+    }
+    byDate[d].forEach(s => { html += pnlCard(s); });
+  });
+  html += '</div>';
   list.innerHTML = html;
 
   // Delegated interactions: BET toggle + FP select write to the shared stores
