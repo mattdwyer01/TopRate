@@ -1638,6 +1638,13 @@ body {
   }
   .pd-field .fl { font-size: 9px; }
   .pd-field .fv { font-size: 12px; }
+  /* Four stat boxes (Race speed/Settling/Going/Distance): tighten the 4-row
+     comparison tables so each box is shorter. Smaller font + minimal cell
+     padding; kept fully (all four rows) per preference, just denser. */
+  .rd-cmp-grid .rd-runs-table { font-size: 10px; }
+  .rd-cmp-grid .rd-runs-table td,
+  .rd-cmp-grid .rd-runs-table th { padding: 1px 4px; line-height: 1.25; }
+  .rd-cmp-grid .rd-section-title { font-size: 9px; margin-bottom: 2px; }
 }
 
 .empty-state {
@@ -4879,28 +4886,31 @@ body {
   .rd-cards { display: block; }
   .rdc {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 9px; padding: 7px 10px; margin: 0 0 5px;
+    border-radius: 8px; padding: 5px 8px; margin: 0 0 4px;
   }
   .rdc-peak { border-color: var(--emerald); }
-  .rdc-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; font-size: 12px; }
+  .rdc-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 12px; }
   .rdc-date { font-weight: 700; }
   .rdc-trk { color: var(--ink); }
   .rdc-dist { color: var(--ink-mute); }
   .rdc-wpr { margin-left: auto; font-weight: 800; font-size: 14px; }
-  .rdc-meta { font-size: 11px; color: var(--ink-mute); margin: 3px 0 0; }
+  .rdc-meta { font-size: 11px; color: var(--ink-mute); margin: 1px 0 0; line-height: 1.3; }
   .rdc-meta b { color: var(--ink); font-weight: 600; }
-  .rdc-sect { margin: 5px 0 0; padding: 5px 7px; border-top: 1px solid var(--line-soft); background: var(--line-soft); border-radius: 6px; }
+  /* Sectional block: compact. The Early/Mid/Late horse figure + race-shape
+     reference sit in a tight 3-col grid; reduced padding and a single
+     combined label row to cut height. */
+  .rdc-sect { margin: 4px 0 0; padding: 4px 6px; border-top: 1px solid var(--line-soft); background: var(--line-soft); border-radius: 6px; }
   .rdc-sect-lbls { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-  .rdc-sect-lbls span { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-mute); text-align: center; }
-  .rdc-sect-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 1px; }
+  .rdc-sect-lbls span { font-size: 8px; text-transform: uppercase; letter-spacing: .02em; color: var(--ink-mute); text-align: center; }
+  .rdc-sect-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; margin-top: 0; }
   .rdc-sect-col { text-align: center; }
-  .rdc-sect-h { font-weight: 700; font-size: 13px; border-radius: 4px; padding: 1px 0; }
+  .rdc-sect-h { font-weight: 700; font-size: 12px; border-radius: 4px; padding: 0 0; }
   .rdc-sect-h.rd-sect-against { background: rgba(16,185,129,.18); color: #047857; }
   .rdc-sect-h.rd-sect-with { background: rgba(220,38,38,.15); color: #b91c1c; }
-  .rdc-sect-s { font-size: 11px; color: var(--ink-mute); padding-top: 0; }
+  .rdc-sect-s { font-size: 10px; color: var(--ink-mute); padding-top: 0; }
   .rdc-sep {
-    text-align: center; font-size: 10px; font-style: italic; color: var(--ink-mute);
-    padding: 4px 0; text-transform: uppercase; letter-spacing: .03em;
+    text-align: center; font-size: 9px; font-style: italic; color: var(--ink-mute);
+    padding: 2px 0; text-transform: uppercase; letter-spacing: .02em;
   }
   .rdc-sep-peak { color: var(--emerald); }
 }
@@ -5504,8 +5514,17 @@ body {
   .rc-conf.conf-mid { background: var(--amber, #b45309); }
   /* Sub-line: settle/bar/peak/L3. Kept readable but pulled tight under the
      name with minimal top margin. */
-  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-soft); margin: 2px 0 0; }
+  .rc-sub { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-soft); margin: 2px 0 0; align-items: center; }
   .rc-sub b { color: var(--ink); font-weight: 600; }
+  .rc-sub .rc-jt-jky, .rc-sub .rc-jt-trn { color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; }
+  .rc-sub .jk-chip {
+    display: inline-block; padding: 0px 5px; border-radius: 8px;
+    font-size: 10px; font-weight: 700; line-height: 1.5; border: 1px solid transparent;
+  }
+  .rc-sub .jk-chip.jk-green { background: rgba(4,120,87,.13); color: #047857; border-color: rgba(4,120,87,.3); }
+  .rc-sub .jk-chip.jk-grey  { background: var(--line-soft); color: var(--ink-mute); }
+  .rc-sub .jk-chip.jk-amber { background: rgba(217,119,6,.13); color: #b45309; border-color: rgba(217,119,6,.3); }
+  .rc-sub .jk-chip.jk-red   { background: rgba(220,38,38,.13); color: #b91c1c; border-color: rgba(220,38,38,.3); }
   /* Jockey + Trainer on the SAME visual line area as little vertical cost. */
   .rc-jt {
     display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px;
@@ -10777,10 +10796,8 @@ function renderRaceDetail(raceId) {
           '<span>Bar <b>' + (u.b || '—') + '</b></span>' +
           '<span>Peak <b>' + (u.wpjpk != null ? u.wpjpk.toFixed(1) : '—') + '</b></span>' +
           '<span>L3 <b>' + (u.wpra != null ? u.wpra.toFixed(1) : '—') + '</b></span>' +
-        '</div>' +
-        '<div class="rc-jt">' +
-          '<span class="rc-jt-jky">Jky ' + escapeHtml(u.j || '—') + cJkyChip + '</span>' +
-          '<span class="rc-jt-trn">Trn ' + escapeHtml(u.tn || '—') + '</span>' +
+          '<span class="rc-jt-jky">' + escapeHtml(u.j || '—') + cJkyChip + '</span>' +
+          '<span class="rc-jt-trn">' + escapeHtml(u.tn || '—') + '</span>' +
         '</div>' +
         '<div class="rc-pricefoot">' +
           '<div class="rc-prices">' +
