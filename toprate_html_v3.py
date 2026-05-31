@@ -1724,6 +1724,8 @@ body {
   border-radius: var(--radius-sm); padding: 6px 10px; color: var(--ink);
   margin-left: 4px;
 }
+.pnl-row-unreviewed > td { opacity: 0.5; }
+.pnl-row-unreviewed:hover > td { opacity: 0.85; }
 .race-date-info {
   font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
 }
@@ -5705,7 +5707,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="wpr-filter wpr-filter-multi">
         <label>Reviewed</label>
         <div class="wpr-pills" id="wpr-f-reviewed" data-multi="1">
-          <button class="wpr-pill" data-val="reviewed">Reviewed only</button>
+          <button class="wpr-pill active" data-val="reviewed">Reviewed only</button>
         </div>
       </div>
       <div class="wpr-filter wpr-filter-multi">
@@ -5898,7 +5900,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <svg class="pnl-chart-svg" id="pnl-chart-cum" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
         <div class="pnl-chart-legend">
           <div><span class="legend-line solid"></span>Actual</div>
-          <div><span class="legend-line dashed"></span>Expected (model)</div>
         </div>
       </div>
       <div class="pnl-chart-card">
@@ -5906,7 +5907,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <svg class="pnl-chart-svg" id="pnl-chart-wr" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
         <div class="pnl-chart-legend">
           <div><span class="legend-line solid"></span>Rolling WR</div>
-          <div><span class="legend-line dashed mute"></span>Expected WR</div>
         </div>
       </div>
     </div>
@@ -12027,10 +12027,20 @@ function renderPnL() {
   // informational - we no longer compare to "all model picks" since this
   // tab is now bet-driven, not model-driven.
   const totalPlaced = actualBets.length;
-  const betsTooltip = 'Bets you placed in this period. Bets on horses without a settled-results record (e.g. non-model picks before this rewrite) are skipped.';
+  // How many placed bets are excluded from stats because their race is not
+  // reviewed - surfaced so the KPIs do not look broken when winners are
+  // visible in the table below but not counted (option (b) reporting gate).
+  const unreviewedCount = sortedForStats.filter(s =>
+    s.race_id != null && !isRaceReviewed(s.race_id)).length;
+  const betsSub = unreviewedCount > 0
+    ? nSettled + ' settled · ' + unreviewedCount + ' excl. (not reviewed)'
+    : nSettled + ' settled';
+  const betsTooltip = unreviewedCount > 0
+    ? unreviewedCount + ' bet(s) are on races you have not marked reviewed, so they are excluded from all stats below. Tick "Race reviewed" on those races to include them.'
+    : 'Bets you placed in this period.';
 
   document.getElementById('pnl-stats-strip').innerHTML =
-    statBlock('Bets', sortedForStats.length, nSettled + ' settled', '', betsTooltip) +
+    statBlock('Bets', sortedForStats.length, betsSub, '', betsTooltip) +
     statBlock('P&amp;L', profitStr, profitDollarSub, profitCls) +
     statBlock('Win rate', wrStr, '') +
     statBlock('Place rate', prStr, '') +
@@ -12096,17 +12106,8 @@ function renderPnL() {
     const yScale = v => H - pad - ((v - minV) / range) * (H - 2*pad);
     const zeroY = yScale(0);
     let svgHtml = '<line class="axis" x1="' + pad + '" y1="' + zeroY + '" x2="' + (W-pad) + '" y2="' + zeroY + '" stroke-width="1"/>';
-    // Reference drawdown band: show the expected-floor as a thin dashed line
-    // so users have a visual anchor for "how bad would a real bad week look".
-    const floorY = yScale(expectedFloor);
-    svgHtml += '<line x1="' + pad + '" y1="' + floorY + '" x2="' + (W-pad) + '" y2="' + floorY +
-               '" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="2,4"/>';
-    svgHtml += '<text x="' + (W-pad) + '" y="' + (floorY - 4) + '" class="axis-text" text-anchor="end" style="font-size:9px;opacity:0.6;">' +
-               'planning floor</text>';
     const actualPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.cum)).join(' ');
     svgHtml += '<path class="actual" d="' + actualPath + '"/>';
-    const expPath = cumPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.expected)).join(' ');
-    svgHtml += '<path class="expected" d="' + expPath + '"/>';
     svgHtml += '<text x="4" y="' + (yScale(maxV)+4) + '" class="axis-text">' + maxV.toFixed(1) + 'u</text>';
     svgHtml += '<text x="4" y="' + (zeroY+3) + '" class="axis-text">0u</text>';
     if (minV < 0) svgHtml += '<text x="4" y="' + (yScale(minV)+4) + '" class="axis-text">' + minV.toFixed(1) + 'u</text>';
@@ -12141,13 +12142,11 @@ function renderPnL() {
     const yScale = v => H - pad - (v / maxWR) * (H - 2*pad);
     let svgHtml = '';
     // Expected WR baseline (dashed)
-    svgHtml += '<line class="wr-expected" x1="' + pad + '" y1="' + yScale(expectedWR) + '" x2="' + (W-pad) + '" y2="' + yScale(expectedWR) + '"/>';
     // Rolling WR line
     const wrPath = wrPoints.map((p, i) => (i === 0 ? 'M' : 'L') + xs[i] + ',' + yScale(p.wr)).join(' ');
     svgHtml += '<path class="wr-line" d="' + wrPath + '"/>';
     // Y axis labels
     svgHtml += '<text x="4" y="' + (yScale(maxWR)+4) + '" class="axis-text">' + (maxWR*100).toFixed(0) + '%</text>';
-    svgHtml += '<text x="4" y="' + (yScale(expectedWR)+3) + '" class="axis-text">' + (expectedWR*100).toFixed(0) + '%</text>';
     svgHtml += '<text x="4" y="' + (yScale(0)+3) + '" class="axis-text">0%</text>';
     // X axis: bet count
     svgHtml += '<text x="' + xs[0] + '" y="' + (H-8) + '" class="axis-text">Bet 1</text>';
@@ -12263,8 +12262,11 @@ function renderPnL() {
     const venueLabel = escapeHtml(s.venue || (race && race.venue) || '') +
       ' R' + (s.race != null ? s.race : ((race && race.race) || '?'));
 
-    return '<tr class="wpr-row-clickable" data-race-id="' + escapeHtml(String(s.race_id || '')) +
-      '" data-rid="' + escapeHtml(String(s.run_id || '')) + '">' +
+    const _notReviewed = s.race_id != null && !isRaceReviewed(s.race_id);
+    return '<tr class="wpr-row-clickable' + (_notReviewed ? ' pnl-row-unreviewed' : '') +
+      '" data-race-id="' + escapeHtml(String(s.race_id || '')) +
+      '" data-rid="' + escapeHtml(String(s.run_id || '')) + '"' +
+      (_notReviewed ? ' title="Race not reviewed - excluded from stats above. Tick Race reviewed to include."' : '') + '>' +
       '<td>' + pRaceTime(race) + '</td>' +
       '<td>' + venueLabel + '</td>' +
       '<td class="wst-silk">' + silk + '</td>' +
