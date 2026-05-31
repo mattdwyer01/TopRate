@@ -1638,9 +1638,10 @@ body {
   }
   .pd-field .fl { font-size: 9px; }
   .pd-field .fv { font-size: 12px; }
-  /* Four stat boxes (Race speed/Settling/Going/Distance): tighten the 4-row
-     comparison tables so each box is shorter. Smaller font + minimal cell
-     padding; kept fully (all four rows) per preference, just denser. */
+  /* Four stat boxes (Race speed/Settling/Going/Distance): 4-across is
+     unreadable on a phone (columns clip). Go 2-across so each table has room
+     for its label/runs/WPR columns. Kept fully per preference. */
+  .rd-cmp-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .rd-cmp-grid .rd-runs-table { font-size: 10px; }
   .rd-cmp-grid .rd-runs-table td,
   .rd-cmp-grid .rd-runs-table th { padding: 1px 4px; line-height: 1.25; }
@@ -4884,6 +4885,9 @@ body {
      shown. */
   .rd-table-scroll { display: none; }
   .rd-cards { display: block; }
+  /* The recent-runs explainer paragraph is a one-time learning aid; it eats a
+     whole screen on mobile and adds nothing per-race. Hide it on phones. */
+  .rd-section-note { display: none; }
   .rdc {
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 8px; padding: 5px 8px; margin: 0 0 4px;
