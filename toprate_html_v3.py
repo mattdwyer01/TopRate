@@ -12650,10 +12650,63 @@ function accCollectRows() {
         miss: u.wpja - u.wpjp,
         predRank: u.wpjr,
         actualRank: u.wpjar,
+        finish: (u.f != null ? u.f : null),   // actual finishing position
+        cmtV: u.cmtV || '',
+        cmtS: u.cmtS || '',
       });
     });
   });
   return rows;
+}
+
+function accOutcomeStats(rows) {
+  // Outcome-based accuracy (not error-based):
+  //  - rank1Win/rank1Place: of runners the model rated #1 in their race, what
+  //    % won / placed. Voided runs (eased/vet/incident) are excluded from the
+  //    denominator since they are not a fair test of the rating.
+  //  - winnerRankQ: quartiles (P25/median/P75) of the model's predicted rank
+  //    for actual race winners - how highly the model rated the horses that
+  //    actually won. Lower is better.
+  let r1n = 0, r1w = 0, r1p = 0;
+  const winnerRanks = [];
+  rows.forEach(r => {
+    const voided = (typeof _voidMarkers === 'function')
+      ? (function () {
+          const t = ((r.cmtV || '') + ' ' + (r.cmtS || '')).toLowerCase();
+          const m = _voidMarkers(t);
+          // strong markers always void; weak only on a clear underperformance
+          if (m.strong.length) return true;
+          if (m.weak.length && r.miss != null && r.miss < _VOID_WEAK_MISS) return true;
+          return false;
+        })()
+      : false;
+    // Predicted rank 1 win/place rate (exclude voids).
+    if (r.predRank === 1 && r.finish != null && !voided) {
+      r1n++;
+      if (r.finish === 1) r1w++;
+      if (r.finish >= 1 && r.finish <= 3) r1p++;
+    }
+    // Winners' predicted-rank distribution (a winner is finish == 1; include
+    // regardless of void - a void winner is rare and still a real result).
+    if (r.finish === 1 && r.predRank != null) winnerRanks.push(r.predRank);
+  });
+  function quantile(arr, q) {
+    if (!arr.length) return null;
+    const a = arr.slice().sort((x, y) => x - y);
+    const pos = (a.length - 1) * q;
+    const lo = Math.floor(pos), hi = Math.ceil(pos);
+    if (lo === hi) return a[lo];
+    return a[lo] + (a[hi] - a[lo]) * (pos - lo);
+  }
+  return {
+    rank1N: r1n,
+    rank1Win: r1n ? r1w / r1n * 100 : null,
+    rank1Place: r1n ? r1p / r1n * 100 : null,
+    winnerN: winnerRanks.length,
+    winnerRankP25: quantile(winnerRanks, 0.25),
+    winnerRankMed: quantile(winnerRanks, 0.50),
+    winnerRankP75: quantile(winnerRanks, 0.75),
+  };
 }
 
 function accStats(rows) {
@@ -12721,20 +12774,25 @@ function renderWprAccuracy() {
   const biasWord = Math.abs(s.bias) < 0.5 ? 'no consistent direction'
     : (s.bias > 0 ? 'projections run slightly LOW on average'
                   : 'projections run slightly HIGH on average');
+  const o = accOutcomeStats(rows);
+  const fmtRank = v => (v == null ? '-' : (Math.round(v * 10) / 10).toString());
+  const quartileStr = o.winnerN
+    ? fmtRank(o.winnerRankP25) + ' / ' + fmtRank(o.winnerRankMed) + ' / ' + fmtRank(o.winnerRankP75)
+    : '-';
   hEl.innerHTML =
     '<div class="acc-stat acc-stat-main">' +
       '<div class="acc-stat-num">' + s.mae.toFixed(1) + '</div>' +
       '<div class="acc-stat-lbl">mean absolute miss (WPR pts)</div>' +
     '</div>' +
     '<div class="acc-stat good">' +
-      '<div class="acc-stat-num">' + s.within3.toFixed(0) + '%</div>' +
-      '<div class="acc-stat-lbl">within 3 WPR</div></div>' +
+      '<div class="acc-stat-num">' + (o.rank1Win != null ? o.rank1Win.toFixed(0) + '%' : '-') + '</div>' +
+      '<div class="acc-stat-lbl">win % of rated #1 (n=' + o.rank1N + ')</div></div>' +
     '<div class="acc-stat good">' +
-      '<div class="acc-stat-num">' + s.within6.toFixed(0) + '%</div>' +
-      '<div class="acc-stat-lbl">within 6 WPR</div></div>' +
-    '<div class="acc-stat bad">' +
-      '<div class="acc-stat-num">' + s.far.toFixed(0) + '%</div>' +
-      '<div class="acc-stat-lbl">8+ WPR off</div></div>' +
+      '<div class="acc-stat-num">' + (o.rank1Place != null ? o.rank1Place.toFixed(0) + '%' : '-') + '</div>' +
+      '<div class="acc-stat-lbl">place % of rated #1</div></div>' +
+    '<div class="acc-stat">' +
+      '<div class="acc-stat-num">' + quartileStr + '</div>' +
+      '<div class="acc-stat-lbl">winners&#39; pred rank (P25/med/P75, lower better)</div></div>' +
     '<div class="acc-stat">' +
       '<div class="acc-stat-num">' + biasTxt + '</div>' +
       '<div class="acc-stat-lbl">mean miss (' + biasWord + ')</div></div>' +
