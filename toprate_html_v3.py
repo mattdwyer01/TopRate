@@ -2249,16 +2249,28 @@ body {
   position: absolute; top: 0; bottom: 0; left: 36px; right: 0;
   pointer-events: none; z-index: 0;
 }
+/* Each zone band gets a faint tint plus a solid left separator so the four
+   regions are clearly visible behind the bars. Tints are very light so the
+   single-colour bars read cleanly on top. */
 .sm-band {
   position: absolute; top: 0; bottom: 0;
-  border-left: 1px dotted var(--line); 
+  border-left: 1px solid var(--line);
 }
-.sm-band > span {
-  position: absolute; top: 2px; left: 6px;
+.sm-band-back   { border-left: none; background: rgba(100,116,139,0.05); }
+.sm-band-mid    { background: rgba(100,116,139,0.10); }
+.sm-band-onpace { background: rgba(100,116,139,0.16); }
+.sm-band-lead   { background: rgba(100,116,139,0.22); }
+/* Zone labels live in a strip ABOVE the plot, aligned to each band, so they do
+   not float over the bars. */
+.sm-band > span { display: none; }
+.speedmap-zonestrip {
+  position: relative; height: 16px; margin: 0 0 2px 36px;
+}
+.sm-zlabel {
+  position: absolute; top: 0;
   font-size: 9px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--ink-faint); font-weight: 600;
+  color: var(--ink-mute); font-weight: 700;
 }
-.sm-band-back { border-left: none; }
 .speedmap-bars { display: flex; flex-direction: column; gap: 3px; position: relative; z-index: 1; }
 .sm-row { display: flex; align-items: center; gap: 8px; }
 .sm-barrier {
@@ -2268,11 +2280,11 @@ body {
 }
 .sm-track { flex: 1; min-width: 0; }
 /* Single bar colour for all runners; run-style is read from the background
-   band the bar tip lands in, not from the bar colour. */
+   zone the bar tip lands in, not from the bar colour. */
 .sm-bar {
   height: 24px; border-radius: 5px; display: flex; align-items: center;
   padding: 0 10px; overflow: hidden; transition: width .2s ease;
-  min-width: 60px; background: #0d9488;
+  min-width: 60px; background: #475569;
 }
 .sm-bar-label {
   font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
@@ -11108,10 +11120,16 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
   const bOn   = barPct(4);     // >= this = On-pace
   const bMid  = barPct(8);     // >= this = Midfield, below = Back
   const bands =
-    '<div class="sm-band sm-band-lead"   style="left:' + bLead.toFixed(1) + '%;right:0;"><span>Lead</span></div>' +
-    '<div class="sm-band sm-band-onpace" style="left:' + bOn.toFixed(1) + '%;width:' + (bLead-bOn).toFixed(1) + '%;"><span>On-pace</span></div>' +
-    '<div class="sm-band sm-band-mid"    style="left:' + bMid.toFixed(1) + '%;width:' + (bOn-bMid).toFixed(1) + '%;"><span>Midfield</span></div>' +
-    '<div class="sm-band sm-band-back"   style="left:0;width:' + bMid.toFixed(1) + '%;"><span>Back</span></div>';
+    '<div class="sm-band sm-band-lead"   style="left:' + bLead.toFixed(1) + '%;right:0;"></div>' +
+    '<div class="sm-band sm-band-onpace" style="left:' + bOn.toFixed(1) + '%;width:' + (bLead-bOn).toFixed(1) + '%;"></div>' +
+    '<div class="sm-band sm-band-mid"    style="left:' + bMid.toFixed(1) + '%;width:' + (bOn-bMid).toFixed(1) + '%;"></div>' +
+    '<div class="sm-band sm-band-back"   style="left:0;width:' + bMid.toFixed(1) + '%;"></div>';
+  // Zone label strip above the plot, each label centred over its band.
+  const zlabels =
+    '<span class="sm-zlabel" style="left:0;">Back</span>' +
+    '<span class="sm-zlabel" style="left:' + bMid.toFixed(1) + '%;">Midfield</span>' +
+    '<span class="sm-zlabel" style="left:' + bOn.toFixed(1) + '%;">On-pace</span>' +
+    '<span class="sm-zlabel" style="left:' + bLead.toFixed(1) + '%;">Lead</span>';
   const rows = list.map(u => {
     const pct = barPct(u.asp);
     const wpr = (u.wpjp != null) ? u.wpjp.toFixed(1) : '';
@@ -11133,6 +11151,7 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
       '<span class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</span>' +
     '</div>' +
     '<div class="speedmap-colhead"><span class="smh-barrier">Bar</span></div>' +
+    '<div class="speedmap-zonestrip">' + zlabels + '</div>' +
     '<div class="speedmap-plot">' +
       '<div class="sm-bands">' + bands + '</div>' +
       '<div class="speedmap-bars">' + rows + '</div>' +
