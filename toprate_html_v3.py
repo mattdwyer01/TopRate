@@ -6334,6 +6334,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <button type="button" class="acc-toggle-btn" id="acc-filter-bet">Bet placed</button>
       <button type="button" class="acc-toggle-btn" id="acc-filter-reviewed">Reviewed only</button>
+      <button type="button" class="acc-toggle-btn" id="acc-filter-lowprize">Exclude &le;$20k</button>
       <button type="button" class="acc-filter-reset" id="acc-filter-reset">Reset</button>
     </div>
     <div id="acc-headline" class="acc-headline"></div>
@@ -12709,6 +12710,7 @@ const accFilters = {
   track: new Set(),    // venue strings
   betOnly: false,      // races where a bet was placed
   reviewedOnly: false, // races marked reviewed
+  excludeLowPrize: true, // exclude races with prize <= $20k (bush/picnic); ON by default
 };
 
 function accCollectRows() {
@@ -12750,6 +12752,7 @@ function accCollectRows() {
     if (accFilters.betOnly && betRaceIds && !betRaceIds.has(String(race.race_id))) return;
     if (accFilters.reviewedOnly && typeof isRaceReviewed === 'function'
         && !isRaceReviewed(race.race_id)) return;
+    if (accFilters.excludeLowPrize && (race.prize || 0) <= 20000) return;
     (race.runners || []).forEach(u => {
       if (u.wpja == null || u.wpjp == null) return;   // need both
       rows.push({
@@ -12909,6 +12912,8 @@ function accBuildFilterPanels() {
     // only races that contribute rows (have at least one resulted+projected)
     const hasRow = (race.runners || []).some(u => u.wpja != null && u.wpjp != null);
     if (!hasRow) return;
+    // respect the low-prize exclusion so bush tracks don't clutter the options
+    if (accFilters.excludeLowPrize && (race.prize || 0) <= 20000) return;
     const band = accDistBand(race.distance);
     if (band) dists.add(band);
     if (race.going) goings.add(race.going);
@@ -12941,6 +12946,8 @@ function accBuildFilterPanels() {
   if (betBtn) betBtn.classList.toggle('active', accFilters.betOnly);
   const revBtn = document.getElementById('acc-filter-reviewed');
   if (revBtn) revBtn.classList.toggle('active', accFilters.reviewedOnly);
+  const lpBtn = document.getElementById('acc-filter-lowprize');
+  if (lpBtn) lpBtn.classList.toggle('active', accFilters.excludeLowPrize);
 }
 
 function renderWprAccuracy() {
@@ -13124,11 +13131,16 @@ const _accRevBtn = document.getElementById('acc-filter-reviewed');
 if (_accRevBtn) _accRevBtn.addEventListener('click', () => {
   accFilters.reviewedOnly = !accFilters.reviewedOnly; renderWprAccuracy();
 });
-// Reset clears all accuracy filters.
+const _accLowPrizeBtn = document.getElementById('acc-filter-lowprize');
+if (_accLowPrizeBtn) _accLowPrizeBtn.addEventListener('click', () => {
+  accFilters.excludeLowPrize = !accFilters.excludeLowPrize; renderWprAccuracy();
+});
+// Reset clears all accuracy filters (low-prize exclusion returns to its ON default).
 const _accResetBtn = document.getElementById('acc-filter-reset');
 if (_accResetBtn) _accResetBtn.addEventListener('click', () => {
   accFilters.dist.clear(); accFilters.going.clear(); accFilters.track.clear();
   accFilters.betOnly = false; accFilters.reviewedOnly = false;
+  accFilters.excludeLowPrize = true;
   renderWprAccuracy();
 });
 
