@@ -4614,6 +4614,39 @@ body {
 }
 .acc-note { font-size: 11px; color: var(--ink-mute, #888); max-width: 460px; }
 
+/* ── Accuracy filter bar ── */
+.acc-filter-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 16px;
+}
+.acc-filter { position: relative; }
+.acc-filter-btn, .acc-toggle-btn, .acc-filter-reset {
+  padding: 6px 12px; border: 1px solid var(--line, #d8d8d8);
+  background: var(--card, #fff); border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: var(--ink, #1a1a1a); font-weight: 600;
+}
+.acc-filter-btn:hover, .acc-toggle-btn:hover { background: var(--line-soft, #f1f1f1); }
+.acc-filter-count { color: var(--emerald-deep, #047857); font-weight: 700; }
+.acc-toggle-btn.active {
+  background: var(--ink, #1a1a1a); color: #fff; border-color: var(--ink, #1a1a1a);
+}
+.acc-filter-reset { color: var(--ink-mute, #777); font-weight: 500; }
+.acc-filter-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+  background: var(--card, #fff); border: 1px solid var(--line, #d8d8d8);
+  border-radius: 8px; padding: 8px; min-width: 180px; max-height: 280px;
+  overflow-y: auto; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.acc-filter-panel.open { display: block; }
+.acc-filter-opt {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+  font-size: 12px; color: var(--ink, #1a1a1a); cursor: pointer; border-radius: 4px;
+  white-space: nowrap;
+}
+.acc-filter-opt:hover { background: var(--line-soft, #f1f1f1); }
+.acc-filter-opt input { cursor: pointer; }
+.acc-filter-empty { font-size: 12px; color: var(--ink-faint, #aaa); padding: 6px; }
+
 /* ── Headline KPI strip ── */
 .acc-headline {
   display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
@@ -6286,6 +6319,23 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         progressively.
       </div>
     </div>
+    <div class="acc-filter-bar" id="acc-filter-bar">
+      <div class="acc-filter" data-filter="dist">
+        <button type="button" class="acc-filter-btn" data-open="dist">Distance <span class="acc-filter-count"></span></button>
+        <div class="acc-filter-panel" id="acc-filter-dist"></div>
+      </div>
+      <div class="acc-filter" data-filter="going">
+        <button type="button" class="acc-filter-btn" data-open="going">Going <span class="acc-filter-count"></span></button>
+        <div class="acc-filter-panel" id="acc-filter-going"></div>
+      </div>
+      <div class="acc-filter" data-filter="track">
+        <button type="button" class="acc-filter-btn" data-open="track">Track <span class="acc-filter-count"></span></button>
+        <div class="acc-filter-panel" id="acc-filter-track"></div>
+      </div>
+      <button type="button" class="acc-toggle-btn" id="acc-filter-bet">Bet placed</button>
+      <button type="button" class="acc-toggle-btn" id="acc-filter-reviewed">Reviewed only</button>
+      <button type="button" class="acc-filter-reset" id="acc-filter-reset">Reset</button>
+    </div>
     <div id="acc-headline" class="acc-headline"></div>
     <div id="acc-breakdowns" class="acc-breakdowns"></div>
     <div class="acc-table-wrap">
@@ -6759,10 +6809,10 @@ document.querySelectorAll('.tab').forEach(t => {
 // the render after the entire script body has finished, by which point
 // every top-level declaration is initialized.
 setTimeout(function () {
-  // Race is the markup default. Restore the last-used tab so a refresh stays
-  // put; prime the Summary render regardless so its date-button sync below has
-  // resolved state to read.
-  if (typeof renderWprSummary === 'function') renderWprSummary();
+  // Restore the last-used tab so a refresh stays put. Each tab's render runs
+  // via _activateTab only for the tab actually shown, so we do NOT eagerly
+  // render every tab on load (that was costing a heavy Summary render on the
+  // critical path even when Race - the default - was the visible tab).
   let _restored = false;
   try {
     const saved = localStorage.getItem(_ACTIVE_TAB_KEY);
@@ -6771,6 +6821,12 @@ setTimeout(function () {
   // If nothing restored (first visit, or saved tab gone), render the default
   // Race grid which is active in the markup.
   if (!_restored && typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+  // Note: the Summary tab is NOT rendered on load unless it is the restored
+  // active tab (handled by _activateTab). This keeps the default Race load off
+  // the heavy Summary render path. The date-button highlight sync below only
+  // runs if Summary content exists (i.e. it was the active tab).
+  if (document.getElementById('wpr-summary-date-sel') &&
+      document.getElementById('wpr-summary-date-sel').options.length) {
   // Sync the date quick-button active state to whatever date the Summary
   // resolved to on first render (the select defaults to the latest date,
   // which may not be "today"). Keeps the highlighted button honest about
@@ -6792,6 +6848,7 @@ setTimeout(function () {
       });
     }
   } catch (e) { /* non-fatal */ }
+  }  // end: only sync when Summary was rendered
 }, 0);
 
 // Auto-refresh Summary every 60 seconds so the jump-in chips count down
@@ -12644,6 +12701,15 @@ function exportSettledCSV() {
 // down by distance band, going, and track. The headline number is the mean
 // absolute miss: the model's typical error in WPR points.
 let accPeriod = '90';   // 'all' | '90' | '30'
+// Accuracy filters. Multi-select sets (empty = no filter / all). Two toggles.
+// All combine with AND. Data recomputes on any change.
+const accFilters = {
+  dist: new Set(),     // distance band labels
+  going: new Set(),    // going strings
+  track: new Set(),    // venue strings
+  betOnly: false,      // races where a bet was placed
+  reviewedOnly: false, // races marked reviewed
+};
 
 function accCollectRows() {
   // returns [{date, venue, dist, going, horse, pred, actual, miss,
@@ -12654,9 +12720,36 @@ function accCollectRows() {
   if (accPeriod !== 'all') {
     cutoff = new Date(now.getTime() - Number(accPeriod) * 86400000);
   }
+  // Precompute which race_ids have a placed bet (one pass over the bet log)
+  // so the bet-only filter is cheap per race.
+  let betRaceIds = null;
+  if (accFilters.betOnly) {
+    betRaceIds = new Set();
+    try {
+      const log = (typeof getBetLog === 'function') ? getBetLog() : {};
+      const ridToRace = (typeof _raceById !== 'undefined') ? null : null;
+      // Map each placed run_id to its race via RACES.
+      const placedRunIds = new Set(Object.keys(log).filter(k => log[k] && log[k].placed));
+      (typeof RACES !== 'undefined' ? RACES : []).forEach(race => {
+        (race.runners || []).forEach(u => {
+          if (placedRunIds.has(String(u.rid))) betRaceIds.add(String(race.race_id));
+        });
+      });
+    } catch (e) { betRaceIds = new Set(); }
+  }
   (typeof RACES !== 'undefined' ? RACES : []).forEach(race => {
     const d = race.date ? new Date(race.date) : null;
     if (cutoff && d && d < cutoff) return;
+    // Race-level filters
+    if (accFilters.track.size && !accFilters.track.has(race.venue || '')) return;
+    if (accFilters.going.size && !accFilters.going.has(race.going || '')) return;
+    if (accFilters.dist.size) {
+      const band = accDistBand(race.distance);
+      if (!accFilters.dist.has(band)) return;
+    }
+    if (accFilters.betOnly && betRaceIds && !betRaceIds.has(String(race.race_id))) return;
+    if (accFilters.reviewedOnly && typeof isRaceReviewed === 'function'
+        && !isRaceReviewed(race.race_id)) return;
     (race.runners || []).forEach(u => {
       if (u.wpja == null || u.wpjp == null) return;   // need both
       rows.push({
@@ -12802,7 +12895,56 @@ function accDistBand(dist) {
   return 'Staying (2000m+)';
 }
 
+// Build the multi-select filter panels (distance/going/track) from the data
+// available in the current period, ignoring the OTHER active filters so the
+// option lists stay stable. Checked state reflects accFilters.
+function accBuildFilterPanels() {
+  const now = new Date();
+  let cutoff = null;
+  if (accPeriod !== 'all') cutoff = new Date(now.getTime() - Number(accPeriod) * 86400000);
+  const dists = new Set(), goings = new Set(), tracks = new Set();
+  (typeof RACES !== 'undefined' ? RACES : []).forEach(race => {
+    const d = race.date ? new Date(race.date) : null;
+    if (cutoff && d && d < cutoff) return;
+    // only races that contribute rows (have at least one resulted+projected)
+    const hasRow = (race.runners || []).some(u => u.wpja != null && u.wpjp != null);
+    if (!hasRow) return;
+    const band = accDistBand(race.distance);
+    if (band) dists.add(band);
+    if (race.going) goings.add(race.going);
+    if (race.venue) tracks.add(race.venue);
+  });
+  const distOrder = ['Sprint (<1200m)', 'Mile (1200-1599m)', 'Middle (1600-1999m)', 'Staying (2000m+)'];
+  function panel(elId, values, set, sortFn) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const arr = Array.from(values);
+    if (sortFn) arr.sort(sortFn); else arr.sort();
+    el.innerHTML = arr.map(v =>
+      '<label class="acc-filter-opt"><input type="checkbox" value="' + escapeHtml(v) + '"' +
+      (set.has(v) ? ' checked' : '') + '> ' + escapeHtml(v) + '</label>'
+    ).join('') || '<div class="acc-filter-empty">none</div>';
+  }
+  panel('acc-filter-dist', dists, accFilters.dist,
+        (a, b) => distOrder.indexOf(a) - distOrder.indexOf(b));
+  panel('acc-filter-going', goings, accFilters.going, null);
+  panel('acc-filter-track', tracks, accFilters.track, null);
+  // Update the count badges + toggle active states.
+  function setCount(filterKey, set) {
+    const btn = document.querySelector('.acc-filter-btn[data-open="' + filterKey + '"] .acc-filter-count');
+    if (btn) btn.textContent = set.size ? '(' + set.size + ')' : '';
+  }
+  setCount('dist', accFilters.dist);
+  setCount('going', accFilters.going);
+  setCount('track', accFilters.track);
+  const betBtn = document.getElementById('acc-filter-bet');
+  if (betBtn) betBtn.classList.toggle('active', accFilters.betOnly);
+  const revBtn = document.getElementById('acc-filter-reviewed');
+  if (revBtn) revBtn.classList.toggle('active', accFilters.reviewedOnly);
+}
+
 function renderWprAccuracy() {
+  accBuildFilterPanels();
   const rows = accCollectRows();
   const s = accStats(rows);
 
@@ -12850,17 +12992,17 @@ function renderWprAccuracy() {
     '</div>' +
     '<div class="acc-row">' +
       '<div class="acc-stat">' +
-        '<div class="acc-stat-num">' + fmtMargin(o.marginP25) + '</div>' +
-        '<div class="acc-stat-lbl">winner margin to #1: P25 (WPR pts)</div></div>' +
-      '<div class="acc-stat">' +
-        '<div class="acc-stat-num">' + fmtMargin(o.marginMed) + '</div>' +
-        '<div class="acc-stat-lbl">winner margin to #1: median</div></div>' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginMean) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: mean (WPR pts)</div></div>' +
       '<div class="acc-stat">' +
         '<div class="acc-stat-num">' + fmtMargin(o.marginP75) + '</div>' +
         '<div class="acc-stat-lbl">winner margin to #1: P75</div></div>' +
       '<div class="acc-stat">' +
-        '<div class="acc-stat-num">' + fmtMargin(o.marginMean) + '</div>' +
-        '<div class="acc-stat-lbl">winner margin to #1: mean</div></div>' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginMed) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: median</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginP25) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: P25</div></div>' +
       '<div class="acc-stat good">' +
         '<div class="acc-stat-num">' + pct(o.winnersTop3Pct) + '</div>' +
         '<div class="acc-stat-lbl">winners model rated top-3</div></div>' +
@@ -12940,6 +13082,54 @@ document.querySelectorAll('.acc-period-btn').forEach(b => {
     accPeriod = b.dataset.period;
     renderWprAccuracy();
   });
+});
+
+// Accuracy filter bar wiring.
+// Open/close the dropdown panels.
+document.querySelectorAll('.acc-filter-btn').forEach(b => {
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    const panel = b.parentElement.querySelector('.acc-filter-panel');
+    const wasOpen = panel.classList.contains('open');
+    // close all panels first
+    document.querySelectorAll('.acc-filter-panel.open').forEach(p => p.classList.remove('open'));
+    if (!wasOpen) panel.classList.add('open');
+  });
+});
+// Close panels when clicking outside.
+document.addEventListener('click', e => {
+  if (!e.target.closest('.acc-filter')) {
+    document.querySelectorAll('.acc-filter-panel.open').forEach(p => p.classList.remove('open'));
+  }
+});
+// Checkbox changes inside the panels update the matching filter set.
+[['acc-filter-dist', 'dist'], ['acc-filter-going', 'going'], ['acc-filter-track', 'track']].forEach(([elId, key]) => {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.addEventListener('change', e => {
+    const cb = e.target;
+    if (cb && cb.type === 'checkbox') {
+      if (cb.checked) accFilters[key].add(cb.value);
+      else accFilters[key].delete(cb.value);
+      renderWprAccuracy();
+    }
+  });
+});
+// Toggle buttons.
+const _accBetBtn = document.getElementById('acc-filter-bet');
+if (_accBetBtn) _accBetBtn.addEventListener('click', () => {
+  accFilters.betOnly = !accFilters.betOnly; renderWprAccuracy();
+});
+const _accRevBtn = document.getElementById('acc-filter-reviewed');
+if (_accRevBtn) _accRevBtn.addEventListener('click', () => {
+  accFilters.reviewedOnly = !accFilters.reviewedOnly; renderWprAccuracy();
+});
+// Reset clears all accuracy filters.
+const _accResetBtn = document.getElementById('acc-filter-reset');
+if (_accResetBtn) _accResetBtn.addEventListener('click', () => {
+  accFilters.dist.clear(); accFilters.going.clear(); accFilters.track.clear();
+  accFilters.betOnly = false; accFilters.reviewedOnly = false;
+  renderWprAccuracy();
 });
 
 // ── TRACKING tab rendering ─────────────────────────────────────────────────
