@@ -4616,8 +4616,16 @@ body {
 
 /* ── Headline KPI strip ── */
 .acc-headline {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 10px; margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
+}
+.acc-row {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+}
+@media (max-width: 900px) {
+  .acc-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 520px) {
+  .acc-row { grid-template-columns: repeat(2, 1fr); }
 }
 .acc-stat {
   background: var(--card, #fff); border: 1px solid var(--line, #e2e2e2);
@@ -12657,6 +12665,7 @@ function accCollectRows() {
         dist: race.distance || null,
         going: race.going || '',
         horse: u.h || '',
+        race_id: race.race_id,
         pred: u.wpjp,
         actual: u.wpja,
         miss: u.wpja - u.wpjp,
@@ -12681,26 +12690,44 @@ function accOutcomeStats(rows) {
   //    actually won. Lower is better.
   let r1n = 0, r1w = 0, r1p = 0;
   const winnerRanks = [];
+  // Per-race top predicted WPR (the #1 horse's projection) for margin calc.
+  const raceTopPred = {};
+  rows.forEach(r => {
+    if (r.race_id == null || r.pred == null) return;
+    const k = String(r.race_id);
+    if (raceTopPred[k] == null || r.pred > raceTopPred[k]) raceTopPred[k] = r.pred;
+  });
+  const winnerMargins = [];   // WPR points the winner sat below the top pick (<=0)
+  let winnersTop3 = 0, winnersTotal = 0;
+  // Field-average win rate baseline = winners / all resulted runners.
+  let allResulted = 0, allWinners = 0;
   rows.forEach(r => {
     const voided = (typeof _voidMarkers === 'function')
       ? (function () {
           const t = ((r.cmtV || '') + ' ' + (r.cmtS || '')).toLowerCase();
           const m = _voidMarkers(t);
-          // strong markers always void; weak only on a clear underperformance
           if (m.strong.length) return true;
           if (m.weak.length && r.miss != null && r.miss < _VOID_WEAK_MISS) return true;
           return false;
         })()
       : false;
-    // Predicted rank 1 win/place rate (exclude voids).
     if (r.predRank === 1 && r.finish != null && !voided) {
       r1n++;
       if (r.finish === 1) r1w++;
       if (r.finish >= 1 && r.finish <= 3) r1p++;
     }
-    // Winners' predicted-rank distribution (a winner is finish == 1; include
-    // regardless of void - a void winner is rare and still a real result).
-    if (r.finish === 1 && r.predRank != null) winnerRanks.push(r.predRank);
+    if (r.finish != null) { allResulted++; if (r.finish === 1) allWinners++; }
+    if (r.finish === 1) {
+      if (r.predRank != null) {
+        winnerRanks.push(r.predRank);
+        winnersTotal++;
+        if (r.predRank <= 3) winnersTop3++;
+      }
+      // Margin: winner pred minus race top pred (0 if winner WAS the top pick,
+      // negative if rated below it). All winners included.
+      const top = (r.race_id != null) ? raceTopPred[String(r.race_id)] : null;
+      if (top != null && r.pred != null) winnerMargins.push(r.pred - top);
+    }
   });
   function quantile(arr, q) {
     if (!arr.length) return null;
@@ -12710,14 +12737,22 @@ function accOutcomeStats(rows) {
     if (lo === hi) return a[lo];
     return a[lo] + (a[hi] - a[lo]) * (pos - lo);
   }
+  const meanMargin = winnerMargins.length
+    ? winnerMargins.reduce((s, v) => s + v, 0) / winnerMargins.length : null;
+  const fieldAvgWin = allResulted ? allWinners / allResulted * 100 : null;
   return {
     rank1N: r1n,
     rank1Win: r1n ? r1w / r1n * 100 : null,
     rank1Place: r1n ? r1p / r1n * 100 : null,
+    fieldAvgWin: fieldAvgWin,
     winnerN: winnerRanks.length,
-    winnerRankP25: quantile(winnerRanks, 0.25),
     winnerRankMed: quantile(winnerRanks, 0.50),
-    winnerRankP75: quantile(winnerRanks, 0.75),
+    winnersTop3Pct: winnersTotal ? winnersTop3 / winnersTotal * 100 : null,
+    // Margin to #1 (WPR pts behind the top pick), all winners.
+    marginP25: quantile(winnerMargins, 0.25),
+    marginMed: quantile(winnerMargins, 0.50),
+    marginP75: quantile(winnerMargins, 0.75),
+    marginMean: meanMargin,
   };
 }
 
@@ -12788,29 +12823,51 @@ function renderWprAccuracy() {
                   : 'projections run slightly HIGH on average');
   const o = accOutcomeStats(rows);
   const fmtRank = v => (v == null ? '-' : (Math.round(v * 10) / 10).toString());
-  const quartileStr = o.winnerN
-    ? fmtRank(o.winnerRankP25) + ' / ' + fmtRank(o.winnerRankMed) + ' / ' + fmtRank(o.winnerRankP75)
-    : '-';
+  const fmtMargin = v => (v == null ? '-' : (v > 0 ? '+' : '') + v.toFixed(1));
+  const pct = v => (v == null ? '-' : v.toFixed(0) + '%');
+  // Two rows of six. Row 1: error + rated-#1 outcomes. Row 2: winners' margin
+  // to the top pick (quartiles in their own boxes) + supporting detail.
   hEl.innerHTML =
-    '<div class="acc-stat acc-stat-main">' +
-      '<div class="acc-stat-num">' + s.mae.toFixed(1) + '</div>' +
-      '<div class="acc-stat-lbl">mean absolute miss (WPR pts)</div>' +
+    '<div class="acc-row">' +
+      '<div class="acc-stat acc-stat-main">' +
+        '<div class="acc-stat-num">' + s.mae.toFixed(1) + '</div>' +
+        '<div class="acc-stat-lbl">mean absolute miss (WPR pts)</div></div>' +
+      '<div class="acc-stat good">' +
+        '<div class="acc-stat-num">' + pct(o.rank1Win) + '</div>' +
+        '<div class="acc-stat-lbl">win % of rated #1 (n=' + o.rank1N + ')</div></div>' +
+      '<div class="acc-stat good">' +
+        '<div class="acc-stat-num">' + pct(o.rank1Place) + '</div>' +
+        '<div class="acc-stat-lbl">place % of rated #1</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + pct(o.fieldAvgWin) + '</div>' +
+        '<div class="acc-stat-lbl">field-average win % (baseline)</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + biasTxt + '</div>' +
+        '<div class="acc-stat-lbl">mean miss (' + biasWord + ')</div></div>' +
+      '<div class="acc-stat acc-stat-n">' +
+        '<div class="acc-stat-num">' + s.n.toLocaleString() + '</div>' +
+        '<div class="acc-stat-lbl">resulted runners</div></div>' +
     '</div>' +
-    '<div class="acc-stat good">' +
-      '<div class="acc-stat-num">' + (o.rank1Win != null ? o.rank1Win.toFixed(0) + '%' : '-') + '</div>' +
-      '<div class="acc-stat-lbl">win % of rated #1 (n=' + o.rank1N + ')</div></div>' +
-    '<div class="acc-stat good">' +
-      '<div class="acc-stat-num">' + (o.rank1Place != null ? o.rank1Place.toFixed(0) + '%' : '-') + '</div>' +
-      '<div class="acc-stat-lbl">place % of rated #1</div></div>' +
-    '<div class="acc-stat">' +
-      '<div class="acc-stat-num">' + quartileStr + '</div>' +
-      '<div class="acc-stat-lbl">winners&#39; pred rank (P25/med/P75, lower better)</div></div>' +
-    '<div class="acc-stat">' +
-      '<div class="acc-stat-num">' + biasTxt + '</div>' +
-      '<div class="acc-stat-lbl">mean miss (' + biasWord + ')</div></div>' +
-    '<div class="acc-stat acc-stat-n">' +
-      '<div class="acc-stat-num">' + s.n.toLocaleString() + '</div>' +
-      '<div class="acc-stat-lbl">resulted runners</div></div>';
+    '<div class="acc-row">' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginP25) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: P25 (WPR pts)</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginMed) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: median</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginP75) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: P75</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtMargin(o.marginMean) + '</div>' +
+        '<div class="acc-stat-lbl">winner margin to #1: mean</div></div>' +
+      '<div class="acc-stat good">' +
+        '<div class="acc-stat-num">' + pct(o.winnersTop3Pct) + '</div>' +
+        '<div class="acc-stat-lbl">winners model rated top-3</div></div>' +
+      '<div class="acc-stat">' +
+        '<div class="acc-stat-num">' + fmtRank(o.winnerRankMed) + '</div>' +
+        '<div class="acc-stat-lbl">median winner pred rank</div></div>' +
+    '</div>';
 
   // ── breakdowns ──
   function bdTable(title, list) {
