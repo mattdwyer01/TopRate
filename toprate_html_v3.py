@@ -2221,7 +2221,7 @@ body {
   padding: 14px 20px;
 }
 
-/* Speed map: horizontal bar per runner, ordered by barrier. */
+/* Speed map: horizontal bar per runner, ordered by barrier (rail at base). */
 .speedmap-wrap { padding-top: 4px; }
 .speedmap-head {
   display: flex; align-items: center; gap: 14px; margin-bottom: 6px;
@@ -2229,41 +2229,55 @@ body {
 .speedmap-title { font-size: 13px; font-weight: 700; color: var(--ink); }
 .speedmap-axis { font-size: 11px; color: var(--ink-mute); letter-spacing: .02em; }
 .speedmap-head .race-pace-est { margin-left: auto; }
+/* Pace pill made readable: solid dark fill, light text (was pale-on-pale). */
+.speedmap-head .race-pace-est {
+  background: #1e293b; color: #f1f5f9; padding: 4px 12px; border-radius: 14px;
+}
+.speedmap-head .race-pace-est .lbl { color: #94a3b8; opacity: 1; }
+.speedmap-head .race-pace-est.hot  { background: #7f1d1d; }
+.speedmap-head .race-pace-est.fast { background: #78350f; }
+.speedmap-head .race-pace-est.slow { background: #1e3a5f; }
 .speedmap-colhead {
   display: flex; gap: 8px; margin-bottom: 4px;
   font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint);
 }
 .speedmap-colhead .smh-barrier { width: 28px; flex: 0 0 28px; text-align: center; }
-.speedmap-colhead .smh-zone { width: 64px; flex: 0 0 64px; text-align: right; }
-.speedmap-bars { display: flex; flex-direction: column; gap: 3px; }
+/* Plot holds the background zone bands (absolute) behind the bar rows. The
+   bands span the track area, which starts after the 28px barrier column. */
+.speedmap-plot { position: relative; }
+.sm-bands {
+  position: absolute; top: 0; bottom: 0; left: 36px; right: 0;
+  pointer-events: none; z-index: 0;
+}
+.sm-band {
+  position: absolute; top: 0; bottom: 0;
+  border-left: 1px dotted var(--line); 
+}
+.sm-band > span {
+  position: absolute; top: 2px; left: 6px;
+  font-size: 9px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-faint); font-weight: 600;
+}
+.sm-band-back { border-left: none; }
+.speedmap-bars { display: flex; flex-direction: column; gap: 3px; position: relative; z-index: 1; }
 .sm-row { display: flex; align-items: center; gap: 8px; }
 .sm-barrier {
   width: 28px; flex: 0 0 28px; text-align: center;
   font-size: 12px; font-weight: 700; color: var(--ink);
   background: var(--line-soft); border-radius: 5px; padding: 3px 0;
 }
-.sm-zone {
-  width: 64px; flex: 0 0 64px; text-align: right;
-  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--ink-mute); font-weight: 600;
-}
 .sm-track { flex: 1; min-width: 0; }
+/* Single bar colour for all runners; run-style is read from the background
+   band the bar tip lands in, not from the bar colour. */
 .sm-bar {
   height: 24px; border-radius: 5px; display: flex; align-items: center;
   padding: 0 10px; overflow: hidden; transition: width .2s ease;
-  min-width: 60px;
+  min-width: 60px; background: #0d9488;
 }
 .sm-bar-label {
   font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-/* Varied palette by settling zone (distinct hues, not shades of one colour):
-   Lead = deep blue, On-pace = teal, Midfield = amber, Back = rose, None = grey. */
-.sm-bar.sm-z-lead   { background: #1d4ed8; }
-.sm-bar.sm-z-onpace { background: #0d9488; }
-.sm-bar.sm-z-mid    { background: #d97706; }
-.sm-bar.sm-z-back   { background: #e11d48; }
-.sm-bar.sm-z-none   { background: #94a3b8; }
 .speedmap-empty { font-size: 12px; color: var(--ink-mute); padding: 10px 0; }
 
 /* Race shape SVG - horizontal lane diagram. Sized to fill the container. */
@@ -11066,11 +11080,12 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
     return '<div class="speedmap-wrap"><div class="speedmap-empty">' +
       'No runners to map.</div></div>';
   }
-  // Order by barrier ascending; runners with no barrier go last.
+  // Order by barrier DESCENDING so the rail (barrier 1) sits at the BOTTOM of
+  // the map, wide draws at the top - reads like the track from the inside out.
   list.sort((a, b) => {
-    const ba = (a.b != null) ? a.b : 999;
-    const bb = (b.b != null) ? b.b : 999;
-    if (ba !== bb) return ba - bb;
+    const ba = (a.b != null) ? a.b : -1;
+    const bb = (b.b != null) ? b.b : -1;
+    if (ba !== bb) return bb - ba;
     return (a.asp != null ? a.asp : 99) - (b.asp != null ? b.asp : 99);
   });
   // Bar length from settling position: leader (low asp) = long bar.
@@ -11083,27 +11098,30 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
     const frac = 1 - (pos - 1) / Math.max(maxPos - 1, 1);
     return Math.max(18, Math.min(100, 18 + frac * 82));
   }
-  // Zone -> {class, label}. Palette is deliberately varied (blue/teal/amber/
-  // rose), not shades of one colour, so zones are distinguishable by hue.
-  function zone(pos) {
-    if (pos == null)  return { cls: 'sm-z-none',  lbl: 'No data' };
-    if (pos <= 2)     return { cls: 'sm-z-lead',  lbl: 'Lead' };
-    if (pos <= 4)     return { cls: 'sm-z-onpace',lbl: 'On-pace' };
-    if (pos <= 8)     return { cls: 'sm-z-mid',   lbl: 'Midfield' };
-    return { cls: 'sm-z-back', lbl: 'Back' };
-  }
+  // Background zone bands sit on the SAME length axis as the bars. A zone
+  // boundary at settle position P maps to barPct(P); a bar whose tip lands in
+  // a band is that run-style. Bands run (high speed) Lead | On-pace | Midfield
+  // | Back (low speed), left to right, separated by dotted lines.
+  // barPct is monotonic decreasing in pos, so boundaries: pos 2 -> Lead/Onpace,
+  // pos 4 -> Onpace/Mid, pos 8 -> Mid/Back. Convert to left-edges (%).
+  const bLead = barPct(2);     // >= this % = Lead
+  const bOn   = barPct(4);     // >= this = On-pace
+  const bMid  = barPct(8);     // >= this = Midfield, below = Back
+  const bands =
+    '<div class="sm-band sm-band-lead"   style="left:' + bLead.toFixed(1) + '%;right:0;"><span>Lead</span></div>' +
+    '<div class="sm-band sm-band-onpace" style="left:' + bOn.toFixed(1) + '%;width:' + (bLead-bOn).toFixed(1) + '%;"><span>On-pace</span></div>' +
+    '<div class="sm-band sm-band-mid"    style="left:' + bMid.toFixed(1) + '%;width:' + (bOn-bMid).toFixed(1) + '%;"><span>Midfield</span></div>' +
+    '<div class="sm-band sm-band-back"   style="left:0;width:' + bMid.toFixed(1) + '%;"><span>Back</span></div>';
   const rows = list.map(u => {
-    const z = zone(u.asp);
     const pct = barPct(u.asp);
-    const price = (u.fx != null) ? '$' + u.fx.toFixed(2) : '';
+    const wpr = (u.wpjp != null) ? u.wpjp.toFixed(1) : '';
     const barLabel = (u.tab || '?') + '. ' + escapeHtml(u.h || '') +
-      (price ? '  ' + price : '');
+      (wpr ? '  ' + wpr : '');
     const barNo = (u.b != null) ? u.b : '\u2014';
     return '<div class="sm-row" data-rid="' + escapeHtml(String(u.rid)) + '">' +
       '<div class="sm-barrier" title="Barrier">' + barNo + '</div>' +
-      '<div class="sm-zone">' + z.lbl + '</div>' +
       '<div class="sm-track">' +
-        '<div class="sm-bar ' + z.cls + '" style="width:' + pct.toFixed(1) + '%;">' +
+        '<div class="sm-bar" style="width:' + pct.toFixed(1) + '%;">' +
           '<span class="sm-bar-label">' + barLabel + '</span>' +
         '</div>' +
       '</div></div>';
@@ -11111,13 +11129,14 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
   return '<div class="speedmap-wrap">' +
     '<div class="speedmap-head">' +
       '<span class="speedmap-title">Speed map</span>' +
-      '<span class="speedmap-axis">By barrier &middot; bar length = early speed</span>' +
+      '<span class="speedmap-axis">Barrier (rail at base) &middot; bar = early speed &middot; label = predicted WPR</span>' +
       '<span class="race-pace-est ' + paceClass + '"><span class="lbl">Pace</span>' + paceDisplay + '</span>' +
     '</div>' +
-    '<div class="speedmap-colhead">' +
-      '<span class="smh-barrier">Bar</span><span class="smh-zone">Settles</span>' +
+    '<div class="speedmap-colhead"><span class="smh-barrier">Bar</span></div>' +
+    '<div class="speedmap-plot">' +
+      '<div class="sm-bands">' + bands + '</div>' +
+      '<div class="speedmap-bars">' + rows + '</div>' +
     '</div>' +
-    '<div class="speedmap-bars">' + rows + '</div>' +
     '</div>';
 }
 
