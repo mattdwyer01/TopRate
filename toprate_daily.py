@@ -2791,7 +2791,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     now_utc  = datetime.now(timezone.utc)
     now_iso  = now_utc.isoformat()
     run_date = now_utc.strftime("%d %b %Y %H:%M UTC")
-    html = render_html(
+    html, data_json = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
         model_meta=model_meta,
@@ -2802,7 +2802,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
         primary_model_key=primary_key,
     )
     OUTPUT_HTML.write_text(html, encoding="utf-8")
-    _step("HTML write complete.")
+    # Data payload written alongside the HTML. The page fetches this at boot
+    # instead of inlining it (keeps the JS compile cost off the load path).
+    OUTPUT_DATA = OUTPUT_HTML.parent / "toprate_data.json"
+    OUTPUT_DATA.write_text(data_json, encoding="utf-8")
+    _step("HTML + data write complete.")
 
     n_total   = len(races_data)
     n_done    = sum(1 for r in races_data if r["done"] == 1)
@@ -2875,7 +2879,7 @@ def publish():
 
     # Files we care about
     files_to_push = []
-    for f in ["toprate_live.html", "toprate_runners.csv",
+    for f in ["toprate_live.html", "toprate_data.json", "toprate_runners.csv",
               "toprate_model_picks.csv", "toprate_price_history.csv"]:
         if (script_dir / f).exists():
             files_to_push.append(f)

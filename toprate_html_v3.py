@@ -529,24 +529,38 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     # winner-zone bias chart on the race detail panel.
     pf_barrier_bias = load_pf_barrier_bias()
 
-    # JSON payloads injected into the page
+    # Data payload. Previously inlined as `const X = ...;` inside the page's
+    # one big <script>, which forced the browser to PARSE + COMPILE the entire
+    # data blob as JavaScript on every load (profiled at ~2s compile + ~2s
+    # parse, the dominant load cost). Now emitted as a separate JSON file that
+    # the page fetches and JSON.parses at boot - JSON.parse is far cheaper than
+    # JS compile, and the file is cacheable. The boot code assigns these onto
+    # the matching globals before running any render. Key names here MUST match
+    # the variable names the app code expects.
+    data_obj = {
+        "RACES": races,
+        "PICKS_TODAY": today_picks,
+        "SETTLED": settled_history,
+        "PRICE_HIST": price_hist or {},
+        "MODEL_META": model_meta,
+        "MODEL_PICKS": model_picks_by_race,
+        "ALL_PICKS_FLAT": model_pick_rows or [],
+        "PRIMARY_KEY": primary_model_key,
+        "RUN_DATE": run_date,
+        "RUN_ISO": run_iso,
+        "GITHUB_REPO": github_repo,
+        "VENUE_BIAS": venue_bias,
+        "PF_BARRIER_BIAS": pf_barrier_bias,
+    }
+    data_json = json.dumps(data_obj, separators=(',', ':'))
+
+    # Only the tiny, boot-critical constants stay inline (used before/while the
+    # data file loads). Everything heavy moved to the JSON file above.
     js_data = (
-        "const RACES = "        + json.dumps(races,                separators=(',', ':')) + ";\n"
-        "const PICKS_TODAY = "  + json.dumps(today_picks,          separators=(',', ':')) + ";\n"
-        "const SETTLED = "      + json.dumps(settled_history,      separators=(',', ':')) + ";\n"
-        "const PRICE_HIST = "   + json.dumps(price_hist or {},     separators=(',', ':')) + ";\n"
-        "const MODEL_META = "   + json.dumps(model_meta,           separators=(',', ':')) + ";\n"
-        "const MODEL_PICKS = "  + json.dumps(model_picks_by_race,  separators=(',', ':')) + ";\n"
-        "const ALL_PICKS_FLAT = " + json.dumps(model_pick_rows or [], separators=(',', ':')) + ";\n"
-        "const PRIMARY_KEY = "  + json.dumps(primary_model_key)        + ";\n"
-        "const RUN_DATE = "     + json.dumps(run_date)                 + ";\n"
-        "const RUN_ISO = "      + json.dumps(run_iso)                  + ";\n"
-        "const GITHUB_REPO = "  + json.dumps(github_repo)              + ";\n"
-        "const VENUE_BIAS = "   + json.dumps(venue_bias, separators=(',', ':')) + ";\n"
-        "const PF_BARRIER_BIAS = " + json.dumps(pf_barrier_bias, separators=(',', ':')) + ";\n"
+        "const DATA_FILE = \"toprate_data.json\";\n"
     )
 
-    return _HTML_TEMPLATE.format(
+    html = _HTML_TEMPLATE.format(
         css_tokens=CSS_TOKENS,
         css=_CSS,
         js_data=js_data,
@@ -561,6 +575,9 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         n_today=len(today_picks),
         n_settled=len(settled_history),
     )
+    # Return both the HTML shell and the data payload. The caller writes the
+    # data to toprate_data.json alongside toprate_live.html.
+    return html, data_json
 
 
 # ── CSS ─────────────────────────────────────────────────────────────────────
@@ -6566,6 +6583,27 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
 # ── JavaScript app ──────────────────────────────────────────────────────────
 _JS_APP = r"""
+// ── Data globals ────────────────────────────────────────────────────────────
+// These were previously inlined as `const X = ...;` (a multi-hundred-KB blob
+// the browser had to COMPILE as JS on every load). They are now fetched as a
+// JSON file at boot and assigned here. Declared with var (hoisted) so the
+// function declarations below that reference them compile cleanly even though
+// the values arrive asynchronously. Nothing reads them until __initDashboard
+// runs, which only fires after the fetch resolves.
+var RACES = [];
+var PICKS_TODAY = [];
+var SETTLED = [];
+var PRICE_HIST = {};
+var MODEL_META = {};
+var MODEL_PICKS = {};
+var ALL_PICKS_FLAT = [];
+var PRIMARY_KEY = '';
+var RUN_DATE = '';
+var RUN_ISO = '';
+var GITHUB_REPO = '';
+var VENUE_BIAS = {};
+var PF_BARRIER_BIAS = {};
+
 // ── Settings state ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'toprate_v3_settings';
 const defaultSettings = {
@@ -6809,7 +6847,7 @@ document.querySelectorAll('.tab').forEach(t => {
 // initialization" and aborts the whole script. setTimeout(...,0) runs
 // the render after the entire script body has finished, by which point
 // every top-level declaration is initialized.
-setTimeout(function () {
+function __initDashboard() {
   // Restore the last-used tab so a refresh stays put. Each tab's render runs
   // via _activateTab only for the tab actually shown, so we do NOT eagerly
   // render every tab on load (that was costing a heavy Summary render on the
@@ -6850,7 +6888,54 @@ setTimeout(function () {
     }
   } catch (e) { /* non-fatal */ }
   }  // end: only sync when Summary was rendered
-}, 0);
+  // Now that RUN_ISO is populated, start the new-build freshness poller.
+  if (typeof setupFreshnessCheck === 'function') setupFreshnessCheck();
+}
+
+// ── Boot: fetch the data file, assign globals, then init ────────────────────
+// The data lives in toprate_data.json (not inlined) so the browser does not
+// compile a huge JS blob on load. JSON.parse is far cheaper than JS compile.
+function __bootDashboard() {
+  const url = (typeof DATA_FILE !== 'undefined') ? DATA_FILE : 'toprate_data.json';
+  fetch(url, { cache: 'no-cache' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('data fetch ' + r.status);
+      return r.json();
+    })
+    .then(function (d) {
+      // Assign each payload key onto its global. Missing keys keep their
+      // safe default (empty array/object) so nothing crashes.
+      if (d.RACES) RACES = d.RACES;
+      if (d.PICKS_TODAY) PICKS_TODAY = d.PICKS_TODAY;
+      if (d.SETTLED) SETTLED = d.SETTLED;
+      if (d.PRICE_HIST) PRICE_HIST = d.PRICE_HIST;
+      if (d.MODEL_META) MODEL_META = d.MODEL_META;
+      if (d.MODEL_PICKS) MODEL_PICKS = d.MODEL_PICKS;
+      if (d.ALL_PICKS_FLAT) ALL_PICKS_FLAT = d.ALL_PICKS_FLAT;
+      if (d.PRIMARY_KEY != null) PRIMARY_KEY = d.PRIMARY_KEY;
+      if (d.RUN_DATE != null) RUN_DATE = d.RUN_DATE;
+      if (d.RUN_ISO != null) RUN_ISO = d.RUN_ISO;
+      if (d.GITHUB_REPO != null) GITHUB_REPO = d.GITHUB_REPO;
+      if (d.VENUE_BIAS) VENUE_BIAS = d.VENUE_BIAS;
+      if (d.PF_BARRIER_BIAS) PF_BARRIER_BIAS = d.PF_BARRIER_BIAS;
+      __initDashboard();
+    })
+    .catch(function (e) {
+      // Surface a clear error rather than a silent blank page.
+      const host = document.getElementById('race-meetings-list');
+      if (host) host.innerHTML = '<div class="empty-state"><div class="head">' +
+        'Could not load race data</div><div class="sub">' +
+        'Refresh the page. (' + (e && e.message ? e.message : 'fetch failed') + ')</div></div>';
+      console.error('Dashboard data load failed:', e);
+    });
+}
+// Kick off the boot after the current script finishes parsing (so all function
+// declarations exist) and the DOM is ready.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () { setTimeout(__bootDashboard, 0); });
+} else {
+  setTimeout(__bootDashboard, 0);
+}
 
 // Auto-refresh Summary every 60 seconds so the jump-in chips count down
 // without a manual reload. Only re-renders when Summary is the active tab -
@@ -15546,7 +15631,7 @@ setInterval(updateRelativeTimes, 60000);
 // surfaces as "new data - tap to refresh". The page never reloads on its
 // own - user always controls when state is dropped.
 
-(function setupFreshnessCheck() {
+function setupFreshnessCheck() {
   if (typeof RUN_ISO === 'undefined' || !RUN_ISO) return;
   const ourBuiltAt = new Date(RUN_ISO).getTime();
   if (isNaN(ourBuiltAt)) return;
@@ -15581,7 +15666,8 @@ setInterval(updateRelativeTimes, 60000);
   // new builds within ~5 min which matches the bot's push cadence.
   setTimeout(checkForNewBuild, 60 * 1000);
   setInterval(checkForNewBuild, 5 * 60 * 1000);
-})();
+}
+// Called by __initDashboard after RUN_ISO is populated from the data file.
 
 // Make the header freshness stamp clickable when a new build is available.
 // One-shot wiring: the listener checks the flag at click time, so toggling
