@@ -2089,7 +2089,7 @@ body {
   padding: 6px 10px; gap: 1px;
   background: var(--line-soft); border: 1px solid var(--line);
   border-radius: 6px; cursor: pointer; flex-shrink: 0;
-  transition: all .12s; width: 100px; box-sizing: border-box;
+  transition: all .12s; width: 108px; box-sizing: border-box;
   overflow: hidden;
 }
 .meeting-tile:hover { background: #ede9e1; border-color: #d6d3d1; }
@@ -2118,15 +2118,15 @@ body {
 .mt-cd.cd-imminent { background: var(--rose); color: #fff; }
 .mt-cd.cd-soon { background: #f59e0b; color: #fff; }
 .mt-time {
-  font-family: var(--font-body); font-size: 10px; font-weight: 500;
-  color: var(--ink-mute); font-variant-numeric: tabular-nums;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
+  color: var(--ink); font-variant-numeric: tabular-nums;
 }
 .mt-info {
-  font-family: var(--font-body); font-size: 9px; font-weight: 500;
-  color: var(--ink-faint); white-space: nowrap; overflow: hidden;
+  font-family: var(--font-body); font-size: 10px; font-weight: 500;
+  color: var(--ink-mute); white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; width: 100%;
 }
-.meeting-tile.active .mt-info { color: rgba(255,255,255,.55); }
+.meeting-tile.active .mt-info { color: rgba(255,255,255,.7); }
 
 /* Race context bar (between header and runners) */
 .race-context-bar {
