@@ -11105,31 +11105,49 @@ function renderSpeedMapBars(runners, race, paceDisplay, paceClass) {
   const maxPos = positions.length
     ? Math.max(...positions, race.fs || list.length || 1)
     : (race.fs || list.length || 1);
-  function barPct(pos) {
-    if (pos == null) return 30;  // unknown speed: neutral mid-length bar
-    const frac = 1 - (pos - 1) / Math.max(maxPos - 1, 1);
-    return Math.max(18, Math.min(100, 18 + frac * 82));
+  // Four equal-width zones (each 25% of the track): Back | Midfield | On-pace
+  // | Lead, left to right. A bar's length places its tip WITHIN its zone's
+  // quarter, so the tip lands in the correct band and the bands stay even.
+  // Position within the quarter reflects how strongly it sits in that zone
+  // (closer to the front edge = nearer the next zone up).
+  function zoneOf(pos) {
+    if (pos == null) return 1;            // unknown -> midfield-ish
+    if (pos <= 2) return 3;               // Lead    (quarter index 3)
+    if (pos <= 4) return 2;               // On-pace
+    if (pos <= 8) return 1;               // Midfield
+    return 0;                             // Back
   }
-  // Background zone bands sit on the SAME length axis as the bars. A zone
-  // boundary at settle position P maps to barPct(P); a bar whose tip lands in
-  // a band is that run-style. Bands run (high speed) Lead | On-pace | Midfield
-  // | Back (low speed), left to right, separated by dotted lines.
-  // barPct is monotonic decreasing in pos, so boundaries: pos 2 -> Lead/Onpace,
-  // pos 4 -> Onpace/Mid, pos 8 -> Mid/Back. Convert to left-edges (%).
-  const bLead = barPct(2);     // >= this % = Lead
-  const bOn   = barPct(4);     // >= this = On-pace
-  const bMid  = barPct(8);     // >= this = Midfield, below = Back
+  // Within-zone fraction: how far through the zone band the bar tip sits.
+  // Use settling position relative to the zone's own range so faster horses in
+  // a zone reach nearer its leading edge.
+  function withinZone(pos) {
+    if (pos == null) return 0.5;
+    if (pos <= 2) return (2 - pos) / 1.5;       // Lead: pos1 high, pos2 low
+    if (pos <= 4) return (4 - pos) / 2;         // On-pace
+    if (pos <= 8) return (8 - pos) / 4;         // Midfield
+    return Math.max(0, (14 - pos) / 6);         // Back
+  }
+  function barPct(pos) {
+    const z = zoneOf(pos);                       // 0..3
+    const f = Math.max(0, Math.min(1, withinZone(pos)));
+    // base of the zone quarter + fraction into the next quarter, with a small
+    // floor so the shortest bar still shows its label.
+    const pct = (z * 25) + f * 25;
+    return Math.max(16, Math.min(100, pct + 8));  // +8 so bars fill into the zone
+  }
+  // Equal quarters at 0/25/50/75.
+  const bMid = 25, bOn = 50, bLead = 75;
   const bands =
-    '<div class="sm-band sm-band-lead"   style="left:' + bLead.toFixed(1) + '%;right:0;"></div>' +
-    '<div class="sm-band sm-band-onpace" style="left:' + bOn.toFixed(1) + '%;width:' + (bLead-bOn).toFixed(1) + '%;"></div>' +
-    '<div class="sm-band sm-band-mid"    style="left:' + bMid.toFixed(1) + '%;width:' + (bOn-bMid).toFixed(1) + '%;"></div>' +
-    '<div class="sm-band sm-band-back"   style="left:0;width:' + bMid.toFixed(1) + '%;"></div>';
-  // Zone label strip above the plot, each label centred over its band.
+    '<div class="sm-band sm-band-lead"   style="left:75%;right:0;"></div>' +
+    '<div class="sm-band sm-band-onpace" style="left:50%;width:25%;"></div>' +
+    '<div class="sm-band sm-band-mid"    style="left:25%;width:25%;"></div>' +
+    '<div class="sm-band sm-band-back"   style="left:0;width:25%;"></div>';
+  // Zone label strip above the plot, each label at its band's left edge.
   const zlabels =
     '<span class="sm-zlabel" style="left:0;">Back</span>' +
-    '<span class="sm-zlabel" style="left:' + bMid.toFixed(1) + '%;">Midfield</span>' +
-    '<span class="sm-zlabel" style="left:' + bOn.toFixed(1) + '%;">On-pace</span>' +
-    '<span class="sm-zlabel" style="left:' + bLead.toFixed(1) + '%;">Lead</span>';
+    '<span class="sm-zlabel" style="left:25%;">Midfield</span>' +
+    '<span class="sm-zlabel" style="left:50%;">On-pace</span>' +
+    '<span class="sm-zlabel" style="left:75%;">Lead</span>';
   const rows = list.map(u => {
     const pct = barPct(u.asp);
     const wpr = (u.wpjp != null) ? u.wpjp.toFixed(1) : '';
