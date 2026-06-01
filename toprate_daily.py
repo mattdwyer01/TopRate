@@ -116,6 +116,13 @@ RUNNER_COLS = [
     "starting_price_sp","price_top",
     # Result fields
     "finish_position","margin_finish","won","placed","resulted",
+    # Settled post-race values. wpr_actual = final weight-adjusted WPR; the two
+    # comment fields are the video + stewards notes. All three land in the days
+    # AFTER a race (filled by update_results re-fetch + fill_comments_from_history),
+    # so they may be blank on race day and populate later. Declared here as
+    # first-class columns (rather than relying on the extras catch-all) so they
+    # are always present in a stable position in the CSV for offline analysis.
+    "wpr_actual","comments_video","comments_steward",
 ]
 
 # -----------------------------------------------------------------------
@@ -1357,6 +1364,12 @@ def load_runners():
     return pd.DataFrame(columns=RUNNER_COLS)
 
 def save_runners(df):
+    # Guarantee the late-settling result columns always exist, so the CSV
+    # schema is stable for offline analysis even on a run where none got
+    # filled this time (they stay blank until the values land).
+    for col in ["wpr_actual", "comments_video", "comments_steward"]:
+        if col not in df.columns:
+            df[col] = pd.NA
     cols = [c for c in RUNNER_COLS if c in df.columns]
     extras = [c for c in df.columns if c not in RUNNER_COLS]
     # Always save deduplicated
@@ -1575,20 +1588,36 @@ def runners_to_selections(runners_df):
 # -----------------------------------------------------------------------
 def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
     today = date.today()
+    # Normally we fetch only un-resulted runners. BUT the final weight-adjusted
+    # WPR (atw) and the stewards/video comments settle DAYS after a race, well
+    # after the runner is first marked resulted on finish-day. Gating purely on
+    # resulted != 1 means those late-settling values never get picked up. So we
+    # ALSO re-fetch recently-resulted runners (last 14 days) that are still
+    # missing their final WPR or comments, so they fill in as TopRate publishes
+    # them. The 14-day window keeps this cheap (we don't re-scrape old history).
+    for col in ["comments_video", "comments_steward"]:
+        if col not in runners_df.columns:
+            runners_df[col] = np.nan
+    _dts = pd.to_datetime(runners_df.get("date"), errors="coerce")
+    _recent = _dts >= (pd.Timestamp(today) - pd.Timedelta(days=14))
+    _wpr_missing = (
+        pd.to_numeric(runners_df.get("wpr_actual"), errors="coerce").isna() |
+        (pd.to_numeric(runners_df.get("wpr_actual"), errors="coerce").fillna(0) == 0)
+    )
+    def _blank(s):
+        return s.isna() | s.astype(str).str.strip().str.lower().isin(["", "nan", "none", "<na>"])
+    _cmt_missing = _blank(runners_df["comments_video"]) & _blank(runners_df["comments_steward"])
+    _resulted_incomplete = (
+        (runners_df.get("resulted") == 1) & _recent & (_wpr_missing | _cmt_missing)
+    )
     pending = runners_df[
-        (runners_df["resulted"] != 1) &
+        ((runners_df["resulted"] != 1) | _resulted_incomplete) &
         runners_df["race_id"].notna()
     ].copy()
 
     if pending.empty:
         print("No pending runners to update.")
         return runners_df
-
-    # Ensure comment columns exist so result writes have a target even on a
-    # fresh CSV. Stay NaN until a result feed supplies them.
-    for col in ["comments_video", "comments_steward"]:
-        if col not in runners_df.columns:
-            runners_df[col] = np.nan
 
     race_ids = pending["race_id"].astype(str).unique()
     updated  = 0
