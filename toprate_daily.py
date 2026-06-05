@@ -362,27 +362,42 @@ def _enrich_form_history_rich(new_df):
     rich = {}
     n_ok = n_empty = n_fail = 0
     t0 = time.time()
-    for i, rid in enumerate(run_ids, 1):
-        if i % 100 == 0:
-            print(f"    ... {i}/{len(run_ids)} ({time.time()-t0:.0f}s)")
+    # Parallel fetch. This loop used to be SEQUENTIAL (one page at a time),
+    # which on a big Saturday (1,800+ pages) took ~9 min and, once login-bounce
+    # re-auth retries were added, pushed the whole run past the 15-min Action
+    # timeout. The other fetch paths already use a thread pool; do the same
+    # here. The re-login path is lock-serialised (see _auth_bits) so concurrent
+    # workers hitting an expired token do not cause a login storm.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    _done = 0
+
+    def _one(rid):
         try:
-            horse_id, runs = cap.fetch_runner(rid)
+            return rid, cap.fetch_runner(rid)
         except Exception:
-            horse_id, runs = None, []
-        if horse_id == "EMPTY":
-            n_empty += 1
-            continue
-        if horse_id is None:
-            n_fail += 1
-            continue
-        n_ok += 1
-        for run in runs:
-            # date strings: __data.json gives ISO dates; the form-history
-            # date column is also ISO. Slice to 10 chars on both sides of
-            # the join so a time component never breaks the match.
-            d = str(run.get("date", ""))[:10]
-            if d:
-                rich[(str(horse_id), d)] = run.get("fields", {})
+            return rid, (None, [])
+
+    with ThreadPoolExecutor(max_workers=DEFAULT_FETCH_WORKERS) as pool:
+        futures = [pool.submit(_one, rid) for rid in run_ids]
+        for fut in as_completed(futures):
+            _done += 1
+            if _done % 100 == 0:
+                print(f"    ... {_done}/{len(run_ids)} ({time.time()-t0:.0f}s)")
+            rid, (horse_id, runs) = fut.result()
+            if horse_id == "EMPTY":
+                n_empty += 1
+                continue
+            if horse_id is None:
+                n_fail += 1
+                continue
+            n_ok += 1
+            for run in runs:
+                # date strings: __data.json gives ISO dates; the form-history
+                # date column is also ISO. Slice to 10 chars on both sides of
+                # the join so a time component never breaks the match.
+                d = str(run.get("date", ""))[:10]
+                if d:
+                    rich[(str(horse_id), d)] = run.get("fields", {})
 
     if not rich:
         print(f"  Rich capture: no data merged "
@@ -2608,31 +2623,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "f":    si(row.get("finish_position")),
                 "won":  si(row.get("won")),
                 "fs":   len(rdf),
-                # Cumulative score + rank within race (predictive composite for exotics)
+                # Cumulative score keys: the model was removed so these are
+                # null, but the dashboard JS still references u.cs/crk/csc in
+                # several places; emit them (null) so those reads stay safe.
                 "cs":   _cs.get("score"),
                 "crk":  _cs.get("rank"),
-                # Confidence: 1 = signals tightly clustered (unanimous), 0 = wide spread (split)
-                # None for races with only 1 signal populated (can't measure agreement)
                 "csc":  _cs.get("conf"),
-                # Per-signal percentile breakdown (for the detail panel) -
-                # dict of signal_name -> percentile in [0,1]
-                "csg":  _cs.get("sigs") or {},
-                # ── Punting Form ratings (None if PF didn't rate this runner) ─
-                # AI signals
-                "pfaiR":   sf(row.get("pf_ai_rank")),
-                "pfaiPrc": sf(row.get("pf_ai_price")),
-                "pfaiSc":  sf(row.get("pf_ai_score")),
-                # Class signals
-                "wcR":     sf(row.get("pf_class_rank")),
-                "tacwcR":  sf(row.get("pf_tac_class_rank")),
-                # Time / sectional ranks
-                "tR":      sf(row.get("pf_time_rank")),
-                "etR":     sf(row.get("pf_early_time_rank")),
-                "l600R":   sf(row.get("pf_last600_rank")),
-                "l400R":   sf(row.get("pf_last400_rank")),
-                "l200R":   sf(row.get("pf_last200_rank")),
-                # Pace / class change
-                "rs":      str(row.get("pf_run_style")) if row.get("pf_run_style") else None,
+                # Class change still carries real values (pf_class_change has
+                # historical data) and drives the post-race variance narrative
+                # driver, so it is kept even though other PF keys were dropped.
                 "clsChg":  sf(row.get("pf_class_change")),
                 # ── WPR projection (Step 2c) ─────────────────────────────────
                 # wpj* keys deliberately distinct from existing "wprp"
