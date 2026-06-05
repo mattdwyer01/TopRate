@@ -20,7 +20,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -34,14 +34,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Dependencies are pinned in requirements.txt. scikit-learn in particular
-      # is pinned EXACTLY: the WPR model is a HistGradientBoostingRegressor
-      # pickled with joblib, and sklearn moved its internal `_loss` module
-      # between versions, so an unpinned install eventually pulls a newer sklearn
-      # that cannot unpickle the committed model ("No module named '_loss'").
-      # Installing from the pinned file keeps the Action's sklearn identical to
-      # the one the model was trained under. If you bump the sklearn pin you must
-      # retrain and commit the new model in the same change.
+      # Dependencies are pinned in requirements.txt - in particular
+      # scikit-learn, because the saved WPR model (a HistGradientBoosting
+      # pickle) fails to load under a different sklearn version ("No module
+      # named '_loss'"). Installing from the pinned file keeps the Action's
+      # sklearn identical to the version the model was trained under.
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
