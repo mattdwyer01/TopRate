@@ -128,6 +128,14 @@ def _diag_payload(payload):
         return
     _DIAG_DONE = True
     try:
+        # Surface a SvelteKit application-level redirect explicitly: knowing
+        # the target tells us whether it is an auth bounce (/login) or a
+        # canonical-URL redirect (followable to real data).
+        if isinstance(payload, dict) and payload.get("type") == "redirect":
+            print("  [diag] __data.json parse failed - dumping structure once:")
+            print(f"  [diag] top-level keys: {list(payload.keys())}")
+            print(f"  [diag] REDIRECT location: {payload.get('location')!r}")
+            return
         nodes = payload.get("nodes")
         print("  [diag] __data.json parse failed - dumping structure once:")
         print(f"  [diag] top-level keys: {list(payload.keys())}")
@@ -324,6 +332,46 @@ def fetch_runner(run_id):
             last_err = "response was not JSON"
             time.sleep(2 * attempt)
             continue
+
+        # SvelteKit can return an APPLICATION-level redirect: HTTP 200 with a
+        # JSON body {"type":"redirect","location":"..."} rather than an HTTP
+        # 30x. The data lives at the location URL, so follow it (once) by
+        # re-requesting the redirected __data.json. Without this the payload
+        # has no "nodes" and the parse fails ("could not parse runnerDetail").
+        if isinstance(payload, dict) and payload.get("type") == "redirect":
+            loc = payload.get("location") or ""
+            if loc and not loc.startswith(("__redirect_followed",)):
+                # Build an absolute __data.json URL from the redirect target.
+                if loc.startswith("http"):
+                    redir = loc
+                elif loc.startswith("/"):
+                    redir = f"{WEB_BASE}{loc}"
+                else:
+                    redir = f"{WEB_BASE}/{loc}"
+                # Ensure we request the data route, not the HTML page.
+                if "__data.json" not in redir:
+                    redir = redir.rstrip("/") + "/__data.json"
+                if "x-sveltekit-invalidated" not in redir:
+                    sep = "&" if "?" in redir else "?"
+                    redir = f"{redir}{sep}x-sveltekit-invalidated=0001"
+                try:
+                    resp2 = requests.get(redir, headers=headers, cookies=cookies,
+                                         verify=VERIFY_SSL, timeout=TIMEOUT,
+                                         allow_redirects=False)
+                    if resp2.status_code == 200:
+                        payload = resp2.json()
+                    else:
+                        last_err = f"redirect target HTTP {resp2.status_code}"
+                        time.sleep(2 * attempt)
+                        continue
+                except (requests.RequestException, ValueError) as e:
+                    last_err = f"redirect follow failed: {e}"
+                    time.sleep(2 * attempt)
+                    continue
+            else:
+                # Redirect with no usable location - treat as not-served, not a
+                # hard parse failure (avoids the noisy error spam).
+                return "EMPTY", []
 
         horse_id, runs = extract_runs(payload)
         if horse_id == "EMPTY":
