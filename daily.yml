@@ -1,0 +1,110 @@
+name: TopRate Daily
+
+# Triggered manually from the dashboard's Settings tab "Fetch data" button via
+# workflow_dispatch. The optional `date` input lets the dashboard request a
+# specific date (used by the "Fetch [date]" button); empty means today.
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to fetch (YYYY-MM-DD). Leave blank for today.'
+        required: false
+        type: string
+
+# Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
+# parallel-execute (parallel pushes would race-condition the CSV commits).
+concurrency:
+  group: toprate-daily
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need write access to push CSV+HTML changes back to the repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Dependencies are pinned in requirements.txt. scikit-learn in particular
+      # is pinned EXACTLY: the WPR model is a HistGradientBoostingRegressor
+      # pickled with joblib, and sklearn moved its internal `_loss` module
+      # between versions, so an unpinned install eventually pulls a newer sklearn
+      # that cannot unpickle the committed model ("No module named '_loss'").
+      # Installing from the pinned file keeps the Action's sklearn identical to
+      # the one the model was trained under. If you bump the sklearn pin you must
+      # retrain and commit the new model in the same change.
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ─────────────────────────────────────────────────────────
+      # Step 1: Fetch TopRate data + rebuild HTML + publish.
+      # The --publish flag in toprate_daily.py runs the full pipeline:
+      # fetch -> rebuild HTML -> snapshot prices.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch TopRate data and rebuild
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python toprate_daily.py --date "${{ inputs.date }}" --publish
+          else
+            python toprate_daily.py --publish
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 2: Commit and push refreshed data + HTML.
+      #
+      # NOTE: toprate_price_history.csv is deliberately NOT staged here - it
+      # is gitignored (local-only price snapshots). A previous version tried
+      # to `git add` it, which errors with exit code 1 when git hits an
+      # explicitly-named ignored path, failing the whole commit step even
+      # though the rebuild succeeded. Removed.
+      # ─────────────────────────────────────────────────────────
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage everything that the daily run might have updated
+          [ -f toprate_runners.csv ] && git add toprate_runners.csv
+          [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
+          [ -f toprate_live.html ] && git add toprate_live.html
+          # WPR form history is append-only and accumulates each run. Actions
+          # runs are ephemeral, so it MUST be committed or every run's new
+          # rows are lost. (This was previously not staged.)
+          [ -f wpr_form_history.csv ] && git add wpr_form_history.csv
+          # WPR model artifacts - committed so toprate_daily.py can load them.
+          # Static unless retrained, but staging them is harmless if unchanged.
+          [ -d wpr_models ] && git add wpr_models
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Pull-then-push with retry. The remote moves often (5-min price
+          # refresh, manual pushes), so a plain push frequently hits a
+          # non-fast-forward rejection. Rebase our commit on top of whatever
+          # arrived and retry. -X theirs keeps it non-interactive and prefers
+          # incoming data on overlap (regenerated next run anyway).
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i) - pulling and retrying"
+            git pull --rebase -X theirs --no-edit || git rebase --abort
+            sleep 3
+          done
+          echo "Push failed after retries"
+          exit 1
