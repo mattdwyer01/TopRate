@@ -34,6 +34,7 @@ NO EM DASHES policy: hyphens only in this file.
 import base64
 import json
 import sys
+import threading
 import time
 
 import requests
@@ -93,12 +94,25 @@ def _cookie_pair(session_obj):
     }
 
 
+_LOGIN_LOCK = threading.Lock()
+
+
 def _auth_bits():
     """Return (headers, cookies) for the __data.json route, using
-    toprate_daily's login() and shared _SESSION_OBJ. Logs in if needed."""
+    toprate_daily's login() and shared _SESSION_OBJ. Logs in if needed.
+
+    Re-login is serialized with a lock: when a long run's token expires, many
+    parallel workers hit the login bounce at the same moment and would
+    otherwise all call login() simultaneously (a login storm). The lock lets
+    the first thread re-authenticate while the rest wait and then reuse the
+    freshly populated session."""
     import toprate_daily as td
     if td._SESSION_OBJ is None:
-        td.login()  # populates td._SESSION_OBJ as a side effect
+        with _LOGIN_LOCK:
+            # Re-check inside the lock: another thread may have logged in while
+            # we were waiting, in which case we skip a redundant login.
+            if td._SESSION_OBJ is None:
+                td.login()  # populates td._SESSION_OBJ as a side effect
     session = td._SESSION_OBJ
     token = session.get("access_token")
     headers = {
@@ -155,6 +169,33 @@ def _diag_payload(payload):
                 print(f"  [diag] node[{i}] type: {type(n).__name__}")
     except Exception as e:
         print(f"  [diag] diagnostic itself failed: {e}")
+
+
+def _is_login_bounce(payload):
+    """True when the __data.json is the LOGIN page rather than runnerDetail.
+    The session expired mid-run, so SvelteKit served the login route at HTTP
+    200. Signature (from the diagnostic): a data node whose root index map
+    contains 'login' and there is no runnerDetail anywhere. Detecting this lets
+    the caller re-authenticate and retry instead of treating it as a permanent
+    parse failure."""
+    if not isinstance(payload, dict):
+        return False
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+    saw_login = False
+    for n in nodes:
+        if not (isinstance(n, dict) and isinstance(n.get("data"), list)):
+            continue
+        data = n["data"]
+        root = data[0] if data else None
+        if isinstance(root, dict):
+            keys = root.keys()
+            if "runnerDetail" in keys:
+                return False  # real runner data present - not a bounce
+            if "login" in keys:
+                saw_login = True
+    return saw_login
 
 
 def _parse_data_json(payload):
@@ -372,6 +413,19 @@ def fetch_runner(run_id):
                 # Redirect with no usable location - treat as not-served, not a
                 # hard parse failure (avoids the noisy error spam).
                 return "EMPTY", []
+
+        # Login bounce: the session expired mid-run, so the route returns
+        # HTTP 200 but the page node is the LOGIN page, not runnerDetail. The
+        # diagnostic shows this as a 'login' key in a data node. This is NOT a
+        # permanent parse failure (re-auth fixes it), so force a re-login and
+        # retry rather than failing fast. Long runs (~9 min) outlive a single
+        # token, so the tail of the field hits this.
+        if _is_login_bounce(payload):
+            last_err = "login bounce (session expired) - re-authenticating"
+            import toprate_daily as td
+            td._SESSION_OBJ = None
+            time.sleep(2 * attempt)
+            continue
 
         horse_id, runs = extract_runs(payload)
         if horse_id == "EMPTY":
