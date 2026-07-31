@@ -28,11 +28,23 @@ jobs:
         with:
           # Need write access to push CSV+HTML changes back to the repo
           token: ${{ secrets.GITHUB_TOKEN }}
+          # LFS: wpr_form_history.csv is stored in Git LFS (it crossed GitHub's
+          # 100MB hard limit). Without lfs:true the checkout pulls only the tiny
+          # pointer file, and toprate_daily.py would read a 130-byte pointer
+          # instead of the real form history - breaking the whole run.
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      # Initialise Git LFS on the runner so the commit step writes LFS pointers
+      # (not raw blobs) for files matched in .gitattributes. Without this the
+      # Action would re-commit the 88MB+ CSV as a normal blob and, once it
+      # crosses 100MB again, the push would be rejected as before.
+      - name: Set up Git LFS
+        run: git lfs install
 
       # Dependencies are pinned in requirements.txt - in particular
       # scikit-learn, because the saved WPR model (a HistGradientBoosting
@@ -79,7 +91,8 @@ jobs:
           [ -f toprate_live.html ] && git add toprate_live.html
           # WPR form history is append-only and accumulates each run. Actions
           # runs are ephemeral, so it MUST be committed or every run's new
-          # rows are lost. (This was previously not staged.)
+          # rows are lost. (This was previously not staged.) Now an LFS-tracked
+          # file, so this add writes a pointer, keeping the push under 100MB.
           [ -f wpr_form_history.csv ] && git add wpr_form_history.csv
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
