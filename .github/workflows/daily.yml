@@ -28,23 +28,11 @@ jobs:
         with:
           # Need write access to push CSV+HTML changes back to the repo
           token: ${{ secrets.GITHUB_TOKEN }}
-          # LFS: wpr_form_history.csv is stored in Git LFS (it crossed GitHub's
-          # 100MB hard limit). Without lfs:true the checkout pulls only the tiny
-          # pointer file, and toprate_daily.py would read a 130-byte pointer
-          # instead of the real form history - breaking the whole run.
-          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      # Initialise Git LFS on the runner so the commit step writes LFS pointers
-      # (not raw blobs) for files matched in .gitattributes. Without this the
-      # Action would re-commit the 88MB+ CSV as a normal blob and, once it
-      # crosses 100MB again, the push would be rejected as before.
-      - name: Set up Git LFS
-        run: git lfs install
 
       # Dependencies are pinned in requirements.txt - in particular
       # scikit-learn, because the saved WPR model (a HistGradientBoosting
@@ -73,13 +61,29 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────────────────
+      # Step 1b: Preserve the accumulating WPR form history as a build
+      # artifact. It is NO LONGER committed to git (it crossed GitHub's 100MB
+      # limit and broke pushes). Uploading it here keeps each run's enriched
+      # form history downloadable for offline analysis / retraining, without
+      # bloating the repo. Retention 90 days; grab the latest run's artifact
+      # when you want the current full history.
+      - name: Upload form history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpr_form_history
+          path: wpr_form_history.csv
+          retention-days: 90
+          if-no-files-found: ignore
+
+      # ─────────────────────────────────────────────────────────
       # Step 2: Commit and push refreshed data + HTML.
       #
-      # NOTE: toprate_price_history.csv is deliberately NOT staged here - it
-      # is gitignored (local-only price snapshots). A previous version tried
-      # to `git add` it, which errors with exit code 1 when git hits an
-      # explicitly-named ignored path, failing the whole commit step even
-      # though the rebuild succeeded. Removed.
+      # NOTE: toprate_price_history.csv is deliberately NOT staged (gitignored,
+      # local-only price snapshots). wpr_form_history.csv is ALSO no longer
+      # staged - it is gitignored and preserved via the artifact above instead,
+      # because committing it repeatedly grew the repo past GitHub's 100MB hard
+      # limit and rejected every push.
       # ─────────────────────────────────────────────────────────
       - name: Commit and push if changed
         run: |
@@ -89,11 +93,6 @@ jobs:
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
           [ -f toprate_live.html ] && git add toprate_live.html
-          # WPR form history is append-only and accumulates each run. Actions
-          # runs are ephemeral, so it MUST be committed or every run's new
-          # rows are lost. (This was previously not staged.) Now an LFS-tracked
-          # file, so this add writes a pointer, keeping the push under 100MB.
-          [ -f wpr_form_history.csv ] && git add wpr_form_history.csv
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
           [ -d wpr_models ] && git add wpr_models
