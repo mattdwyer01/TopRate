@@ -537,6 +537,23 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     # JS compile, and the file is cacheable. The boot code assigns these onto
     # the matching globals before running any render. Key names here MUST match
     # the variable names the app code expects.
+    # Bound RACES to a recent window so toprate_data.json stays under GitHub's
+    # 100MB limit. RACES carried all-history (~53MB, file crossed 100MB and
+    # broke pushes). The dashboard only needs recent races: P&L reads the
+    # separate SETTLED payload, and the ratingContext lookups degrade
+    # gracefully when a race is absent. Full history stays in the CSVs.
+    import os as _os
+    from datetime import datetime as _dt, timedelta as _td
+    _win = int(_os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "45"))
+    try:
+        _cut = (_dt.now() - _td(days=_win)).strftime("%Y-%m-%d")
+        _rw = [r for r in races if str(r.get("date") or "")[:10] >= _cut]
+        if _rw:
+            races = _rw
+    except Exception as _e:
+        print(f"  RACES window skipped ({_e})")
+    print(f"  RACES payload windowed to last {_win} days: {len(races)} races")
+
     data_obj = {
         "RACES": races,
         "PICKS_TODAY": today_picks,
