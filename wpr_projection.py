@@ -1026,7 +1026,7 @@ def _horse_feature_rows(g):
     return out
 
 
-def build_training_frame(form_history_csv="wpr_form_history.csv", verbose=True,
+def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=True,
                          n_jobs=1):
     """Regenerate the full training feature frame.
 
@@ -1129,7 +1129,7 @@ def _verify_feature_consistency(form_history_csv, n_check=40):
     return mismatches  # 0 by construction - build_training_frame uses build_features
 
 
-def train_wpr_projection(form_history_csv="wpr_form_history.csv",
+def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                          out_dir="wpr_models", n_jobs=1):
     """Re-fit projection and confidence models. Offline use only.
     Run: python wpr_projection.py --retrain [--jobs N]

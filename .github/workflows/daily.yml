@@ -61,29 +61,14 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────────────────
-      # Step 1b: Preserve the accumulating WPR form history as a build
-      # artifact. It is NO LONGER committed to git (it crossed GitHub's 100MB
-      # limit and broke pushes). Uploading it here keeps each run's enriched
-      # form history downloadable for offline analysis / retraining, without
-      # bloating the repo. Retention 90 days; grab the latest run's artifact
-      # when you want the current full history.
-      - name: Upload form history artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wpr_form_history
-          path: wpr_form_history.csv
-          retention-days: 90
-          if-no-files-found: ignore
-
-      # ─────────────────────────────────────────────────────────
       # Step 2: Commit and push refreshed data + HTML.
       #
       # NOTE: toprate_price_history.csv is deliberately NOT staged (gitignored,
-      # local-only price snapshots). wpr_form_history.csv is ALSO no longer
-      # staged - it is gitignored and preserved via the artifact above instead,
-      # because committing it repeatedly grew the repo past GitHub's 100MB hard
-      # limit and rejected every push.
+      # local-only price snapshots). wpr_form_history.csv.gz IS staged: the
+      # gzipped form history (~25MB) stays under GitHub's 100MB limit and MUST
+      # be committed so it persists across the Action's ephemeral runs - the
+      # append in flush_wpr_form_history needs the prior file to accumulate.
+      # (The raw uncompressed CSV previously crossed 100MB and broke pushes.)
       # ─────────────────────────────────────────────────────────
       - name: Commit and push if changed
         run: |
@@ -93,6 +78,9 @@ jobs:
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
           [ -f toprate_live.html ] && git add toprate_live.html
+          # Gzipped WPR form history - committed so it persists and accumulates
+          # across ephemeral Action runs (append needs the prior file).
+          [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
           [ -d wpr_models ] && git add wpr_models

@@ -72,7 +72,13 @@ BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
 # trained later. This file is APPEND-ONLY and deduplicated on a stable key.
 # It is not read by the daily pipeline or the dashboard - purely a data
 # capture sink for offline modelling.
-WPR_FORM_HISTORY_CSV = Path(__file__).parent / "wpr_form_history.csv"
+# Stored gzipped. gzip keeps the committed file well under GitHub's 100MB hard
+# limit (the raw CSV crossed it): ~88MB CSV compresses to ~25MB, so it can be
+# committed to git and persist across the Action's ephemeral runs (the append
+# in flush_wpr_form_history needs the prior file present to accumulate).
+# pandas reads/writes .gz transparently from the extension, so no other code
+# change is needed - every read_csv/to_csv below inherits compression.
+WPR_FORM_HISTORY_CSV = Path(__file__).parent / "wpr_form_history.csv.gz"
 
 # Punting Form integration removed (WPR-only refactor). The PF subscription
 # is cancelled; the model now runs on WPR projection only.
@@ -152,10 +158,14 @@ def make_headers(jwt):
     return {"apikey": ANON_KEY, "Authorization": f"Bearer {jwt}",
             "Content-Type": "application/json"}
 
-def rpc(jwt, name, params=None):
+def rpc(jwt, name, params=None, timeout=30):
+    # timeout is essential: without it a single dead connection hangs the
+    # worker forever, and on a big concurrent sweep (backfill results) that
+    # silently stalls the entire run. 30s is generous for a single RPC; a
+    # genuinely slow call fails and the sweep moves on rather than freezing.
     resp = requests.post(f"{API_BASE}/rest/v1/rpc/{name}",
                          headers=make_headers(jwt), json=params or {},
-                         verify=VERIFY_SSL)
+                         verify=VERIFY_SSL, timeout=timeout)
     if resp.status_code == 401:
         raise PermissionError("JWT expired")
     resp.raise_for_status()
@@ -1601,7 +1611,12 @@ def runners_to_selections(runners_df):
 # -----------------------------------------------------------------------
 # STEP 1: UPDATE RESULTS
 # -----------------------------------------------------------------------
-def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
+def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
+                   stale_days=14):
+    # stale_days: how far back (from today) races are still eligible for
+    # result fetching and the late-settling atw/comments re-fetch. 14 keeps
+    # the daily run cheap. The --backfill N flag widens it for catch-up after
+    # time away, so weeks-old pending races are not skipped as stale forever.
     today = date.today()
     # Normally we fetch only un-resulted runners. BUT the final weight-adjusted
     # WPR (atw) and the stewards/video comments settle DAYS after a race, well
@@ -1614,7 +1629,7 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
         if col not in runners_df.columns:
             runners_df[col] = np.nan
     _dts = pd.to_datetime(runners_df.get("date"), errors="coerce")
-    _recent = _dts >= (pd.Timestamp(today) - pd.Timedelta(days=14))
+    _recent = _dts >= (pd.Timestamp(today) - pd.Timedelta(days=stale_days))
     _wpr_missing = (
         pd.to_numeric(runners_df.get("wpr_actual"), errors="coerce").isna() |
         (pd.to_numeric(runners_df.get("wpr_actual"), errors="coerce").fillna(0) == 0)
@@ -1644,7 +1659,7 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
     # We compute "now" with a 5-minute buffer (results aren't immediate)
     now = datetime.now()
     five_min_ago = now - timedelta(minutes=5)
-    cutoff_old = today - timedelta(days=14)  # don't keep retrying ancient races
+    cutoff_old = today - timedelta(days=stale_days)  # don't keep retrying ancient races
 
     # ── First pass: decide which races are actually eligible to fetch ──
     # (skip future + ancient races BEFORE hitting the API). Then prefetch
@@ -1689,10 +1704,21 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS):
             for rid in eligible:
                 result_by_race[rid] = _fetch_result(rid)[1]
         else:
+            # Progress heartbeat: on a big catch-up sweep (e.g. --backfill 45
+            # after time away) this loop can issue thousands of calls and used
+            # to print NOTHING until every one returned - indistinguishable from
+            # a hang. Emit a counter every 50 so the run is visibly alive.
+            _total = len(eligible)
+            print(f"  fetching results for {_total} eligible races "
+                  f"({fetch_workers} workers)...", flush=True)
+            _done = 0
             with ThreadPoolExecutor(max_workers=fetch_workers) as pool:
                 for fut in as_completed(pool.submit(_fetch_result, rid) for rid in eligible):
                     rid, res = fut.result()
                     result_by_race[rid] = res
+                    _done += 1
+                    if _done % 50 == 0 or _done == _total:
+                        print(f"    ... {_done}/{_total} results fetched", flush=True)
         api_calls = len(eligible)
     else:
         result_by_race = {}
@@ -3004,7 +3030,10 @@ def main():
     print()
 
     print(f"── Step 1: Updating results ── (fetch workers: {args.workers})")
-    runners_df = update_results(jwt, runners_df, fetch_workers=args.workers)
+    # --backfill N widens the results stale window (never below the 14-day
+    # default, so a small N cannot break the late-settling atw/comments fetch).
+    runners_df = update_results(jwt, runners_df, fetch_workers=args.workers,
+                                stale_days=max(14, args.backfill or 0))
     print()
 
     print("── Step 2: Fetching today's races ──")
