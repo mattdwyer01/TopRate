@@ -158,12 +158,20 @@ def _score_from_rse(predicted_rse):
     return float(min(1.0, max(0.0, s)))
 
 
-def estimate_race_speed(race_runners, race_date, fh):
-    """Estimate tempo for one race. Same signature as before so the
-    daily-run wiring is unchanged. Returns dict: score, label,
+def estimate_race_speed(race_runners, race_date, fh, pmeans=None):
+    """Estimate tempo for one race. Same signature as before so existing
+    single-race callers (estimate_one) are unchanged: pmeans defaults to
+    None, computed internally exactly as before. Callers scoring MANY
+    races for the same day should compute _prior_means(fh, day_cutoff)
+    ONCE and pass it in here - every race on a given day shares the
+    same "prior" cutoff (the date-only precision means race_date is
+    identical across the whole day), so re-deriving pmeans per race was
+    the same expensive full-history groupby repeated once per race for
+    an identical result each time. Returns dict: score, label,
     predicted_rse, field_size."""
     _load_model()
-    pmeans = _prior_means(fh, race_date)
+    if pmeans is None:
+        pmeans = _prior_means(fh, race_date)
     feat = _race_features(race_runners, pmeans)
     med = _CFG["medians"]
     row = []
