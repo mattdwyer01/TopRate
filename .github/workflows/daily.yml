@@ -53,6 +53,7 @@ jobs:
         env:
           TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           if [ -n "${{ inputs.date }}" ]; then
             python toprate_daily.py --date "${{ inputs.date }}" --publish
