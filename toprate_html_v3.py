@@ -1502,19 +1502,6 @@ body {
   font-variant-numeric: tabular-nums; font-size: 12px;
 }
 
-.empty-state {
-  background: var(--panel); border: 1px dashed var(--line);
-  border-radius: var(--radius-md); padding: 50px 20px;
-  text-align: center;
-}
-.empty-state .head {
-  font-family: var(--font-body); font-weight: 700; font-size: 16px;
-  color: var(--ink-soft); margin-bottom: 6px;
-}
-.empty-state .sub {
-  font-family: var(--font-body); font-size: 12px; color: var(--ink-mute);
-}
-
 /* Mobile: streamlined card layout. Each pick is ~4 visual rows max.
    Time/venue header, horse, signal pills, then a single bottom strip with
    Fxd price, result tag, and bet toggle. Stake and Return values move into
@@ -4739,8 +4726,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TopRate — {primary_label}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&display=swap');
 {css_tokens}
 {css}
 </style>
@@ -5023,14 +5012,14 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="pnl-charts-grid">
       <div class="pnl-chart-card">
         <h3>Cumulative units</h3>
-        <svg class="pnl-chart-svg" id="pnl-chart-cum" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <svg class="pnl-chart-svg" id="pnl-chart-cum" viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Cumulative units chart"></svg>
         <div class="pnl-chart-legend">
           <div><span class="legend-line solid"></span>Actual</div>
         </div>
       </div>
       <div class="pnl-chart-card">
         <h3>Rolling win rate <span class="hint">(last 20 bets)</span></h3>
-        <svg class="pnl-chart-svg" id="pnl-chart-wr" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <svg class="pnl-chart-svg" id="pnl-chart-wr" viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Rolling win rate chart"></svg>
         <div class="pnl-chart-legend">
           <div><span class="legend-line solid"></span>Rolling WR</div>
         </div>
@@ -11091,6 +11080,7 @@ function renderPnL() {
   cumSvg.innerHTML = '';
   if (cumPoints.length === 0) {
     cumSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">No placed bets in this period</text>';
+    cumSvg.setAttribute('aria-label', 'Cumulative units chart: no placed bets in this period.');
   } else {
     const W = 600, H = 200, pad = 30;
     // Y-axis lock: rather than auto-scaling to fit the data exactly (which
@@ -11121,6 +11111,9 @@ function renderPnL() {
     svgHtml += '<text x="' + xs[0] + '" y="' + (H-8) + '" class="axis-text">' + cumPoints[0].date + '</text>';
     if (cumPoints.length > 1) svgHtml += '<text x="' + xs[xs.length-1] + '" y="' + (H-8) + '" class="axis-text" text-anchor="end">' + cumPoints[cumPoints.length-1].date + '</text>';
     cumSvg.innerHTML = svgHtml;
+    const finalCum = cumPoints[cumPoints.length - 1].cum;
+    cumSvg.setAttribute('aria-label', 'Cumulative units chart: currently ' +
+      (finalCum >= 0 ? '+' : '') + finalCum.toFixed(2) + 'u across ' + cumPoints.length + ' settled bets.');
   }
 
   // ── Rolling win-rate chart (window=20) ──
@@ -11133,6 +11126,7 @@ function renderPnL() {
     (s.race_id == null || isRaceReviewed(s.race_id)));
   if (settledView.length < 3) {
     wrSvg.innerHTML = '<text x="300" y="100" text-anchor="middle" class="axis-text" style="font-size:12px;">Need at least 3 settled bets for rolling chart</text>';
+    wrSvg.setAttribute('aria-label', 'Rolling win rate chart: need at least 3 settled bets to show.');
   } else {
     const wrPoints = [];
     for (let i = 0; i < settledView.length; i++) {
@@ -11159,6 +11153,9 @@ function renderPnL() {
     svgHtml += '<text x="' + xs[0] + '" y="' + (H-8) + '" class="axis-text">Bet 1</text>';
     if (wrPoints.length > 1) svgHtml += '<text x="' + xs[xs.length-1] + '" y="' + (H-8) + '" class="axis-text" text-anchor="end">Bet ' + sortedView.length + '</text>';
     wrSvg.innerHTML = svgHtml;
+    const finalWR = wrPoints[wrPoints.length - 1].wr;
+    wrSvg.setAttribute('aria-label', 'Rolling win rate chart: currently ' +
+      (finalWR * 100).toFixed(0) + '% over the last ' + wrPoints[wrPoints.length - 1].n + ' bets.');
   }
 
   // ── Placed bets list - exact Summary-table layout ──
