@@ -45,9 +45,19 @@ jobs:
           pip install -r requirements.txt
 
       # ─────────────────────────────────────────────────────────
-      # Step 1: Fetch TopRate data + rebuild HTML + publish.
-      # The --publish flag in toprate_daily.py runs the full pipeline:
-      # fetch -> rebuild HTML -> snapshot prices.
+      # Step 1: Fetch TopRate data + rebuild HTML.
+      # Deliberately NOT passing --publish here: that flag makes
+      # toprate_daily.py run its own git commit/push (publish() in
+      # toprate_daily.py), meant for local/manual runs where the
+      # machine's git identity is already configured. In this Action
+      # there's no git identity set at that point, so it always failed
+      # ("Commit failed.") - harmlessly, since the separate "Commit and
+      # push if changed" step below already commits and pushes the same
+      # files with its own properly configured identity. Running both
+      # would also apply different conflict-resolution strategies on a
+      # collision (-X ours here vs -X theirs below), so only one should
+      # be active - this step's own commit/push is the one that's
+      # actually been working every run.
       # ─────────────────────────────────────────────────────────
       - name: Fetch TopRate data and rebuild
         env:
@@ -56,9 +66,9 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            python toprate_daily.py --date "${{ inputs.date }}" --publish
+            python toprate_daily.py --date "${{ inputs.date }}"
           else
-            python toprate_daily.py --publish
+            python toprate_daily.py
           fi
 
       # ─────────────────────────────────────────────────────────
