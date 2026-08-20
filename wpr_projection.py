@@ -585,9 +585,23 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         peak_at_class = peak
 
-    # second-up / third-up wpr history
+    # first-up / second-up / third-up wpr history. first_up (in FEATURES) is
+    # only a population-level binary flag - it has no way to see that THIS
+    # horse personally fires up fresh. firstup_wpr closes that gap the same
+    # way secondup_wpr/thirdup_wpr already do for their camp positions.
+    # TESTED, NOT ADOPTED (held-out comparison, this codebase's own bar):
+    # full-set MAE +0.011 (below the 0.03 adoption bar), and on the first-up
+    # subset specifically it was flat-to-slightly-worse (-0.010 MAE; on rows
+    # where the horse's own first-up history beat its recent form by 3+, bias
+    # improved marginally but MAE still landed slightly worse). The tree
+    # ensemble already recovers most of this signal through avg_last3 /
+    # career_avg / runs_this_camp interactions. Kept emitted (not in
+    # FEATURES) as a documented negative result - do not re-add without a
+    # fresh held-out test showing a real gain.
+    r1 = w[camp_run_series == 1]
     r2 = w[camp_run_series == 2]
     r3 = w[camp_run_series == 3]
+    firstup_wpr = float(r1.mean()) if len(r1) >= 1 else avg_last3
     secondup_wpr = float(r2.mean()) if len(r2) >= 1 else avg_last3
     thirdup_wpr = float(r3.mean()) if len(r3) >= 1 else avg_last3
 
@@ -647,6 +661,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "untried_wet": untried_wet,
         "class_move": class_move,
         "peak_at_class": peak_at_class,
+        "firstup_wpr": firstup_wpr,
         "secondup_wpr": secondup_wpr,
         "thirdup_wpr": thirdup_wpr,
         "pct_of_peak": ewm3 / peak if peak else 1.0,
