@@ -3045,6 +3045,21 @@ def main():
     # from the rest of the pipeline - just writes its own append-only CSV.
     print("── Step 2a: Saving WPR form history ──")
     flush_wpr_form_history()
+    # Supabase sync: push recently-scraped form rows (parallel to the gz;
+    # fail-safe). Reads the just-written history and upserts only the last few
+    # days of scrapes so the push stays small.
+    try:
+        import supabase_sync
+        import datetime as _dt
+        _fh = pd.read_csv(WPR_FORM_HISTORY_CSV, low_memory=False)
+        if "scrape_date" in _fh.columns:
+            _cut = (_dt.date.today() - _dt.timedelta(days=4)).strftime("%Y-%m-%d")
+            _recent = _fh[_fh["scrape_date"].astype(str).str[:10] >= _cut]
+        else:
+            _recent = _fh
+        supabase_sync.sync_form_history(_recent)
+    except Exception as _e:
+        print(f"  [supabase] form-history sync skipped ({_e})")
     print()
 
     # ── Step 2c: WPR projection ─────────────────────────────────────────────
@@ -3081,6 +3096,13 @@ def main():
 
     save_runners(runners_df)
     print(f"Saved -> {RUNNERS_CSV} ({len(runners_df):,} runners, {runners_df['race_id'].nunique():,} races)")
+    # Supabase sync: upsert the day's finalized runners (parallel to the CSV;
+    # fail-safe, never breaks the run).
+    try:
+        import supabase_sync
+        supabase_sync.sync_runners(runners_df)
+    except Exception as _e:
+        print(f"  [supabase] runners sync skipped ({_e})")
     
     # Snapshot prices for drift tracking
     print("  Snapshotting prices for drift tracking…")
