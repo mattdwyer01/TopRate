@@ -2288,6 +2288,27 @@ def rebuild_html(runners_df, model_pick_rows=None):
     def _step(msg):
         print(f"  [{_time.time() - _t0:5.1f}s] {msg}", flush=True)
 
+    # ── Window runners_df to the same recent range render_html() keeps ───────
+    # render_html() (toprate_html_v3.py) already discards any race older than
+    # TOPRATE_RACES_WINDOW_DAYS (default 45) from the final payload - but only
+    # AFTER this function has spent most of its runtime building the form-
+    # history lookup, settling-band lookup, and full per-race runner payload
+    # for EVERY race ever recorded (39k+ runners across 4k+ races as of
+    # 2026-08), not just the ~1k that survive the window. Pre-filter here so
+    # that work is never done in the first place. +2 day buffer so this is
+    # always a superset of whatever render_html() keeps - never narrower -
+    # so the final HTML/JSON output is unaffected, just faster to build.
+    _orig_runner_count = len(runners_df)
+    try:
+        _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "45")) + 2
+        _win_cut = (datetime.now() - timedelta(days=_win_days)).strftime("%Y-%m-%d")
+        _windowed = runners_df[runners_df["date"].astype(str).str[:10] >= _win_cut]
+        if len(_windowed) > 0:
+            runners_df = _windowed
+    except Exception as _e:
+        print(f"  runners_df windowing skipped ({_e})")
+    _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
+
     _step("Building form-history lookup (last 6 + peak + tendency)...")
 
     # ── Form-history lookup for the runner detail panel ──────────────────────
@@ -2330,11 +2351,20 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # history (a race scraped on two dates - the WPR rebaseline
             # issue). Without this the detail-panel form table shows each
             # run twice. Keep the latest scrape of each (horse, run date).
+            # kind="stable" matters here: some rows share the exact same
+            # scrape_date (a same-day re-scrape), so pandas' default
+            # quicksort can break that tie differently depending on which
+            # OTHER rows are present in the frame being sorted (e.g. after
+            # filtering to a smaller horse set) - a latent bug that made
+            # this pick a different "latest" row from one build to the
+            # next for no data reason. A stable sort always preserves the
+            # original file order for tied rows regardless of what else is
+            # in the frame, so the same duplicate wins every time.
             _dedup_keys = ["horse_lc", "date"]
             if "track" in _fh.columns:
                 _dedup_keys.append("track")
             if "scrape_date" in _fh.columns:
-                _fh = _fh.sort_values("scrape_date")
+                _fh = _fh.sort_values("scrape_date", kind="stable")
             _fh = _fh.drop_duplicates(subset=_dedup_keys, keep="last")
             _fh = _fh.sort_values(["horse_lc", "date"])
             # formAll derived columns - computed VECTORISED on the whole
@@ -3026,7 +3056,19 @@ def main():
             serve(args.port)
         return
 
+    # Per-stage wall-clock timing across the whole run, not just the HTML
+    # rebuild (which already had its own _step timer). Prints a running
+    # total plus each stage's own delta, so a slow day shows exactly which
+    # stage grew instead of only the overall "took 8 minutes".
+    _main_t0 = time.time()
+    _last_t = [_main_t0]
+    def _main_step(label):
+        now = time.time()
+        print(f"  [{now - _main_t0:6.1f}s total, +{now - _last_t[0]:5.1f}s this step] {label}", flush=True)
+        _last_t[0] = now
+
     jwt = login()
+    _main_step("Login")
     print()
 
     print(f"── Step 1: Updating results ── (fetch workers: {args.workers})")
@@ -3034,11 +3076,13 @@ def main():
     # default, so a small N cannot break the late-settling atw/comments fetch).
     runners_df = update_results(jwt, runners_df, fetch_workers=args.workers,
                                 stale_days=max(14, args.backfill or 0))
+    _main_step("Step 1: Updating results")
     print()
 
     print("── Step 2: Fetching today's races ──")
     runners_df = fetch_todays_races(jwt, runners_df, args.date,
                                     fetch_workers=args.workers)
+    _main_step("Step 2: Fetching today's races")
     print()
 
     # Persist the raw WPR form-history captured during the scrape. Isolated
@@ -3060,6 +3104,7 @@ def main():
         supabase_sync.sync_form_history(_recent)
     except Exception as _e:
         print(f"  [supabase] form-history sync skipped ({_e})")
+    _main_step("Step 2a: Saving WPR form history (+ Supabase sync)")
     print()
 
     # ── Step 2c: WPR projection ─────────────────────────────────────────────
@@ -3069,6 +3114,7 @@ def main():
     # pipeline; returns runners_df unchanged on any failure.
     print("── Step 2c: WPR projection ──")
     runners_df = compute_wpr_projection(runners_df, args.date)
+    _main_step("Step 2c: WPR projection")
     print()
 
     # Step 2d: automated race-speed (early-tempo) estimate. Adds rs_score
@@ -3076,6 +3122,7 @@ def main():
     # additive and fail-safe, never breaks the pipeline.
     print("── Step 2d: Race-speed estimate ──")
     runners_df = compute_race_speed(runners_df, args.date)
+    _main_step("Step 2d: Race-speed estimate")
     print()
 
     # Step 2e: actual WPR for resulted runners. Joins the real run-day WPR
@@ -3084,6 +3131,7 @@ def main():
     # settles. Additive and fail-safe.
     print("── Step 2e: Actual WPR for resulted runners ──")
     runners_df = compute_wpr_actual(runners_df)
+    _main_step("Step 2e: Actual WPR for resulted runners")
     print()
 
     # Step 2f: fill comments (video + stewards) onto resulted runners from the
@@ -3092,6 +3140,7 @@ def main():
     # backfill is needed. Additive and fail-safe.
     print("── Step 2f: Comments for resulted runners ──")
     runners_df = fill_comments_from_history(runners_df)
+    _main_step("Step 2f: Comments for resulted runners")
     print()
 
     save_runners(runners_df)
@@ -3103,10 +3152,12 @@ def main():
         supabase_sync.sync_runners(runners_df)
     except Exception as _e:
         print(f"  [supabase] runners sync skipped ({_e})")
-    
+    _main_step("Saved runners (+ Supabase sync)")
+
     # Snapshot prices for drift tracking
     print("  Snapshotting prices for drift tracking…")
     snapshot_prices(runners_df)
+    _main_step("Snapshotting prices")
     print()
 
     # ── Model picks removed (WPR-only refactor Stage A) ──
@@ -3118,12 +3169,14 @@ def main():
     if not args.no_html:
         print("── Step 4: Rebuilding HTML ──")
         rebuild_html(runners_df, model_pick_rows=model_pick_rows)
+        _main_step("Step 4: Rebuilding HTML")
 
     if args.publish:
         publish()
+        _main_step("Publish")
 
     print(f"\n{'='*60}")
-    print("Done.")
+    print(f"Done. Total: {time.time() - _main_t0:.1f}s")
 
     if args.serve:
         serve(args.port)
