@@ -1127,6 +1127,20 @@ body {
 .empty-state .sub {
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute);
 }
+/* Error state - a distinct variant of .empty-state for a failed fetch/sync,
+   not just an empty result. Rose accent + retry button so a broken feed
+   doesn't look like "no races today". */
+.empty-state.error {
+  background: var(--rose-bg); border: 1px solid var(--rose-line);
+}
+.empty-state.error .head { color: #991b1b; }
+.empty-state.error .sub { color: #b91c1c; font-family: var(--font-body); font-size: 12px; }
+.empty-state .retry-btn {
+  margin-top: 14px; font-family: var(--font-body); font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--rose); border: none; padding: 7px 16px;
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.empty-state .retry-btn:hover { filter: brightness(0.93); }
 
 /* Next-to-jump banner */
 .ntj-ticker {
@@ -2523,6 +2537,18 @@ body {
 .race-table th.rt-col-fp, .race-table td.rt-col-fp { width: 42px; text-align: center; font-weight: 700; }
 .race-table th.rt-col-jky, .race-table td.rt-col-jky { white-space: nowrap; }
 .race-table th.rt-col-trn, .race-table td.rt-col-trn { white-space: nowrap; }
+/* Compact column density (default). Hides the columns that inform a bet
+   but rarely decide it; still one click away via the row-detail panel.
+   "Full" removes .rt-compact and brings every column back. */
+.rt-view-toggle { margin: 0 0 10px 0; }
+.race-table.rt-compact th.rt-col-jky, .race-table.rt-compact td.rt-col-jky,
+.race-table.rt-compact th.rt-col-trn, .race-table.rt-compact td.rt-col-trn,
+.race-table.rt-compact th.rt-col-settles, .race-table.rt-compact td.rt-col-settles,
+.race-table.rt-compact th.rt-col-wpjpk, .race-table.rt-compact td.rt-col-wpjpk,
+.race-table.rt-compact th.rt-col-wpja, .race-table.rt-compact td.rt-col-wpja,
+.race-table.rt-compact th.rt-col-manual, .race-table.rt-compact td.wpr-manual-cell {
+  display: none;
+}
 /* Inline jockey rating chip on Race table (matches Summary's chip styling). */
 .race-table .jk-chip {
   display: inline-block; padding: 1px 6px; border-radius: 9px;
@@ -4951,6 +4977,7 @@ body {
      (Design A). The cards fit the screen with no horizontal scroll and show
      all the key data per runner. Desktop keeps the full table. */
   .race-table { display: none; }
+  .rt-view-toggle { display: none; }
   .race-cards { display: block; }
   .rc {
     background: var(--panel); border: 1px solid var(--line);
@@ -5135,7 +5162,7 @@ body {
 
   <header class="topbar topbar-compact">
     <div class="topbar-right">
-      <span class="run-stamp" id="header-run-stamp" title="Prices last refreshed: 20 Aug 2026 11:32 UTC"><span class="freshness-dot" id="freshness-dot"></span>Prices: <span id="header-run-rel">just now</span></span>
+      <span class="run-stamp" id="header-run-stamp" title="Prices last refreshed: 20 Aug 2026 12:28 UTC"><span class="freshness-dot" id="freshness-dot"></span>Prices: <span id="header-run-rel">just now</span></span>
       <span class="sync-pill" id="sync-pill" title="Tap to pull latest bets/odds from cloud sync">sync off</span>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
@@ -5962,7 +5989,7 @@ body {
           <div class="lbl">Last refreshed</div>
           <div class="desc" id="last-fetched-desc">
             <span id="last-fetched-rel">just now</span>
-            &middot; <span id="last-fetched-abs">20 Aug 2026 11:32 UTC</span>
+            &middot; <span id="last-fetched-abs">20 Aug 2026 12:28 UTC</span>
           </div>
         </div>
         <div></div>
@@ -6374,6 +6401,9 @@ function __initDashboard() {
   // If nothing restored (first visit, or saved tab gone), render the default
   // Race grid which is active in the markup.
   if (!_restored && typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+  // A shared/bookmarked race link (?tab=race&date=...&race=...) wins over
+  // the restored tab, so opening a shared link always lands on that race.
+  _rtApplyStateFromUrl();
   // Note: the Summary tab is NOT rendered on load unless it is the restored
   // active tab (handled by _activateTab). This keeps the default Race load off
   // the heavy Summary render path. The date-button highlight sync below only
@@ -6435,11 +6465,14 @@ function __bootDashboard() {
       __initDashboard();
     })
     .catch(function (e) {
-      // Surface a clear error rather than a silent blank page.
+      // Surface a clear error rather than a silent blank page. Distinct
+      // "error" styling (rose accent, retry button) tells this apart from
+      // the neutral "no races today" empty state.
       const host = document.getElementById('race-meetings-list');
-      if (host) host.innerHTML = '<div class="empty-state"><div class="head">' +
+      if (host) host.innerHTML = '<div class="empty-state error"><div class="head">' +
         'Could not load race data</div><div class="sub">' +
-        'Refresh the page. (' + (e && e.message ? e.message : 'fetch failed') + ')</div></div>';
+        (e && e.message ? e.message : 'fetch failed') +
+        '</div><button class="retry-btn" onclick="__bootDashboard()">Retry</button></div>';
       console.error('Dashboard data load failed:', e);
     });
 }
@@ -7088,6 +7121,61 @@ let currentBrowseDate = null;     // YYYY-MM-DD being browsed
 let _showNonTabMeetings = false;  // hide bush/picnic (richest race <= $20k) by default
 let currentRaceId = null;          // race_id of the currently open detail
 
+// ── Race URL state ───────────────────────────────────────────────────────
+// Selecting a race updates the URL (?tab=race&date=...&race=...) via
+// history.pushState (no reload), so a link can be shared/bookmarked
+// straight to a race, and the browser back/forward buttons step through
+// race selections instead of doing nothing. _rtSyncing guards the popstate
+// handler so it only ever renders from the URL, never pushes a new entry.
+let _rtSyncing = false;
+function _rtPushRaceUrl(raceId, date) {
+  if (_rtSyncing) return;
+  try {
+    const p = new URLSearchParams(window.location.search);
+    p.set('tab', 'race');
+    if (date) p.set('date', date); else p.delete('date');
+    if (raceId) p.set('race', String(raceId)); else p.delete('race');
+    history.pushState({ raceId: raceId || null, date: date || null },
+      '', window.location.pathname + '?' + p.toString());
+  } catch (e) {}
+}
+function _rtPushMeetingsUrl(date) {
+  if (_rtSyncing) return;
+  try {
+    const p = new URLSearchParams(window.location.search);
+    p.set('tab', 'race');
+    if (date) p.set('date', date); else p.delete('date');
+    p.delete('race');
+    history.pushState({ raceId: null, date: date || null },
+      '', window.location.pathname + '?' + p.toString());
+  } catch (e) {}
+}
+// Applies whatever the current URL says (deep link on load, or a
+// back/forward navigation). Render-only - never pushes a new URL.
+function _rtApplyStateFromUrl() {
+  let p;
+  try { p = new URLSearchParams(window.location.search); } catch (e) { return; }
+  if (p.get('tab') !== 'race') return;
+  _rtSyncing = true;
+  try {
+    const date = p.get('date');
+    const raceId = p.get('race');
+    if (date) currentBrowseDate = date;
+    if (raceId && RACES.some(r => String(r.race_id) === String(raceId))) {
+      _activateTab('race');
+      currentRaceId = raceId;
+      showRaceDetail(raceId);
+    } else {
+      _activateTab('race');
+      exitRaceDetail();
+      if (typeof renderMeetingsGrid === 'function') renderMeetingsGrid();
+    }
+  } finally {
+    _rtSyncing = false;
+  }
+}
+window.addEventListener('popstate', _rtApplyStateFromUrl);
+
 // Filter state for the Today tab pick rows. Persisted across reloads so
 // users don't lose their filters when refreshing.
 //   minFs   = minimum field size of the pick's race (race.fs >= minFs); 0 = no filter
@@ -7346,6 +7434,7 @@ function renderMeetingsGrid() {
     cell.addEventListener('click', () => {
       currentRaceId = cell.dataset.rid;
       showRaceDetail(currentRaceId);
+      _rtPushRaceUrl(currentRaceId, currentBrowseDate);
     });
   });
 
@@ -7411,6 +7500,7 @@ function navigateToRace(raceId) {
   if (race.date) currentBrowseDate = race.date;
   currentRaceId = raceId;
   showRaceDetail(raceId);
+  _rtPushRaceUrl(raceId, currentBrowseDate);
   // Scroll to top of the race detail since we may have scrolled deep into Today list
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -9228,6 +9318,22 @@ function renderWprSummary() {
   });
 }
 
+// ── Race table column density ───────────────────────────────────────────
+// Compact hides Jockey/Trainer/Speed/Peak WPR/Avg L3/Manual - the columns
+// that inform a decision but rarely drive one. They stay one click away
+// (the existing row-click detail panel), and Full brings them all back on
+// the table itself for a side-by-side field scan. Defaults to compact.
+const RT_COMPACT_KEY = 'toprate_race_table_compact_v1';
+function isRaceTableCompact() {
+  try {
+    const v = localStorage.getItem(RT_COMPACT_KEY);
+    return v === null ? true : v === '1';
+  } catch (e) { return true; }
+}
+function setRaceTableCompact(v) {
+  try { localStorage.setItem(RT_COMPACT_KEY, v ? '1' : '0'); } catch (e) {}
+}
+
 function renderRaceDetail(raceId) {
   const race = RACES.find(r => String(r.race_id) === String(raceId));
   if (!race) {
@@ -9337,7 +9443,9 @@ function renderRaceDetail(raceId) {
     tile.addEventListener('click', () => {
       const rid = tile.dataset.raceId;
       if (rid && rid !== String(raceId)) {
+        currentRaceId = rid;
         showRaceDetail(rid);
+        _rtPushRaceUrl(rid, currentBrowseDate);
       }
     });
   });
@@ -10276,8 +10384,13 @@ function renderRaceDetail(raceId) {
     return '<th class="' + cls.join(' ') + '" data-sort-col="' + col + '">' + label + '</th>';
   }
 
+  const _rtCompact = isRaceTableCompact();
   document.getElementById('rd-runners-table').innerHTML =
-    '<table class="race-table">' +
+    '<div class="subtabs-row rt-view-toggle">' +
+      '<button class="subtab' + (_rtCompact ? ' active' : '') + '" data-rt-compact="1">Compact</button>' +
+      '<button class="subtab' + (!_rtCompact ? ' active' : '') + '" data-rt-compact="0">Full</button>' +
+    '</div>' +
+    '<table class="race-table' + (_rtCompact ? ' rt-compact' : '') + '">' +
       '<thead><tr>' +
         // ── WPR projection columns (Option B - replaces signal columns) ──
         // No., Horse, Barrier, Speed/settle, Peak WPR, Avg WPR L3,
@@ -10309,6 +10422,14 @@ function renderRaceDetail(raceId) {
           '<button class="wpr-scr-clear" id="wpr-scr-clear">' +
           'Clear scratches</button></div>'
       : '');
+
+  // Wire Compact/Full column-density toggle
+  document.querySelectorAll('#rd-runners-table .rt-view-toggle .subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setRaceTableCompact(btn.dataset.rtCompact === '1');
+      renderRaceDetail(raceId);
+    });
+  });
 
   // Wire sortable headers
   document.querySelectorAll('#rd-runners-table th.sortable').forEach(th => {
@@ -11294,7 +11415,10 @@ if (tdInpInit) {
   });
 }
 const backBtn = document.getElementById('race-back-btn');
-if (backBtn) backBtn.addEventListener('click', exitRaceDetail);
+if (backBtn) backBtn.addEventListener('click', () => {
+  exitRaceDetail();
+  _rtPushMeetingsUrl(currentBrowseDate);
+});
 
 // ── Next-to-jump ticker ────────────────────────────────────────────────────
 function fmtCountdown(secs) {
