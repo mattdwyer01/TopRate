@@ -2701,10 +2701,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "cs":   _cs.get("score"),
                 "crk":  _cs.get("rank"),
                 "csc":  _cs.get("conf"),
-                # Class change still carries real values (pf_class_change has
-                # historical data) and drives the post-race variance narrative
-                # driver, so it is kept even though other PF keys were dropped.
-                "clsChg":  sf(row.get("pf_class_change")),
                 # ── WPR projection (Step 2c) ─────────────────────────────────
                 # wpj* keys deliberately distinct from existing "wprp"
                 # (wpr_peak_rank_1yr) and "w"/"wpra" to avoid collisions.
@@ -2797,11 +2793,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rsm":       sf(first.get("race_shape_mid")) if callable(sf) else None,
             "rsl":       sf(first.get("race_shape_late")) if callable(sf) else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
-            # PF coverage at race level: 1 if all runners in this race have
-            # PF AI rank populated (meeting was rated by PF), 0 otherwise.
-            # When 0, the new model rule produces no picks for this race.
-            "pfRel":     int(bool(rdf.get("pf_ai_rank") is not None
-                                   and rdf["pf_ai_rank"].notna().all())) if "pf_ai_rank" in rdf.columns else 0,
             "fs":        len(rdf),
             "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),
             # Cumulative score formula path used for this race ('A' or 'B').
@@ -2837,15 +2828,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "late_rank": r.get("late_rank"),
                 "total_rank": r.get("total_rank"),
                 "wpr_rank":  r.get("wpr_rank"),
-                # PF data carried through to picks for the Today tab and history
-                "pf_ai_rank":      r.get("pf_ai_rank"),
-                "pf_ai_price":     r.get("pf_ai_price"),
-                "pf_class_rank":   r.get("pf_class_rank"),
-                "pf_last600_rank": r.get("pf_last600_rank"),
-                "pf_last400_rank": r.get("pf_last400_rank"),
-                "pf_last200_rank": r.get("pf_last200_rank"),
-                "pf_run_style":    r.get("pf_run_style"),
-                "pf_class_change": r.get("pf_class_change"),
             })
 
     # ── Model meta removed (WPR-only refactor) ───────────────────────────────
