@@ -133,12 +133,69 @@ def probe(run_id):
               "rather than the runner page)")
 
 
+def _walk_json(obj, path, out, depth=0, max_depth=5):
+    """Same idea as _walk() but for plain (non-deref'd) JSON, used for the
+    get_race_detail RPC response."""
+    if depth > max_depth:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            _walk_json(v, f"{path}.{k}", out, depth + 1, max_depth)
+    elif isinstance(obj, list):
+        if len(obj) <= 3:
+            for i, v in enumerate(obj):
+                _walk_json(v, f"{path}[{i}]", out, depth + 1, max_depth)
+        else:
+            out.append((path, f"<list of {len(obj)}>"))
+    else:
+        out.append((path, obj))
+
+
+def probe_race(race_id):
+    """Check get_race_detail - the RPC behind the race's Field View table -
+    for OHR / Form Factor, which the announcement describes as shown
+    per-race (Field View, WPR Chart, Assess Screen), not per-runner."""
+    import toprate_daily as td
+    jwt = td.login()
+    data = td.api_race_detail(jwt, race_id)
+    print(f"\n{'=' * 70}")
+    print(f"get_race_detail(rc_id={race_id}) - top-level shape")
+    print("=" * 70)
+    if isinstance(data, dict):
+        print("  top-level keys:", list(data.keys()))
+    elif isinstance(data, list):
+        print(f"  top-level: list of {len(data)}")
+        if data and isinstance(data[0], dict):
+            print("  item[0] keys:", list(data[0].keys()))
+
+    print(f"\n{'=' * 70}")
+    print(f"CANDIDATE MATCHES (key name contains any of {_CANDIDATE_TERMS})")
+    print("=" * 70)
+    pairs = []
+    _walk_json(data, "race_detail", pairs, max_depth=5)
+    found = [(p, v) for p, v in pairs
+             if any(t in p.rsplit(".", 1)[-1].split("[")[0].lower()
+                    for t in _CANDIDATE_TERMS)]
+    if found:
+        for path, val in found:
+            print(f"  {path} = {val!r}")
+    else:
+        print("  (none found)")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--run-id", required=True,
-                    help="a real run_id, e.g. from toprate_runners.csv")
+    ap.add_argument("--run-id", help="a real run_id, e.g. from toprate_runners.csv")
+    ap.add_argument("--race-id",
+                    help="a real race_id - checks get_race_detail (the Field "
+                         "View RPC) instead of the runner page")
     args = ap.parse_args()
-    probe(args.run_id)
+    if not args.run_id and not args.race_id:
+        ap.error("pass --run-id and/or --race-id")
+    if args.run_id:
+        probe(args.run_id)
+    if args.race_id:
+        probe_race(args.race_id)
 
 
 if __name__ == "__main__":
