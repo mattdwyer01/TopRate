@@ -87,6 +87,42 @@ def _recency_weights(dates, ref_date=None):
     return 0.5 ** (age / float(_RECENCY_HALF_LIFE_DAYS))
 
 
+# Elite-tier training rows (actual WPR >= 80) are a small, thinning tail -
+# well under 1% of rows are 100+. An unweighted model naturally prioritises
+# fitting the dense bulk of the population, which under-resolves the top
+# end: held-out bias-by-actual-WPR-band (Aug 2026 investigation, triggered
+# by a real horse - Autumn Glow, consistently 103-107.5 - projecting at
+# 93-100) showed a clean, monotonic pattern: +0.85 at 70-80, +2.6 at 80-90,
+# +3.7 at 90-95, +4.8 at 95-100, +8.7 at 100-105. A post-hoc recalibration
+# (isotonic regression on the raw prediction) does NOT fix this - tested and
+# made it WORSE (5.376 -> 5.568 MAE, bias unchanged) because the raw
+# predictions themselves do not separate elite horses from sub-elite ones;
+# no 1-D remapping can recover information the model never resolved.
+# Upweighting rare high-target rows during training does fix it (this is
+# the standard rare-value regression technique): held-out bias-by-band
+# dropped to +2.1/+2.6/+3.7/+6.1 for the same bands, at a small aggregate
+# cost (5.371 -> 5.399 MAE - every average-tier horse gives up a sliver of
+# accuracy so the model resolves the tail). Weights beyond this were tested
+# (15x/8x/5x/2x, 30x/15x/8x/3x) and did NOT improve the tail further - this
+# is the ceiling a reweighting alone can reach; the rest is a model-capacity
+# limit (max_depth=3, num_leaves=8), not a weighting problem.
+_RARITY_BANDS = [(100.0, 8.0), (95.0, 5.0), (90.0, 3.0), (80.0, 1.5)]
+
+
+def _rarity_weights(target):
+    """Multiplier by actual target WPR, upweighting the rare high-WPR tail.
+    Multiply into the recency weight (elementwise), never replace it - both
+    corrections are needed for different reasons."""
+    t = pd.to_numeric(target, errors="coerce").to_numpy()
+    w = np.ones(len(t))
+    # Apply lowest threshold first, highest last, so a row above several
+    # thresholds ends up with the HIGHEST tier's multiplier (each later
+    # pass overwrites only the rows that also clear its own, higher bar).
+    for threshold, mult in sorted(_RARITY_BANDS):
+        w = np.where(t >= threshold, mult, w)
+    return w
+
+
 # The 53 features, in model order. This list IS the contract.
 # fresh_factor is deliberately NOT here - it was found to be a future-data
 # leak (it averaged a horse's first-up runs across its whole career,
@@ -1318,6 +1354,15 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     if _RECENCY_HALF_LIFE_DAYS:
         print(f"  recency-weighted training: {_RECENCY_HALF_LIFE_DAYS}d "
               f"half-life")
+
+    # rarity-weighted: upweight the thin high-WPR tail (see _rarity_weights
+    # docstring - fixes a real, measured elite-tier under-projection bias
+    # that a post-hoc calibration cannot). Multiplies into the recency
+    # weight rather than replacing it.
+    rw = _rarity_weights(trn["target"])
+    sw = rw if sw is None else sw * rw
+    print("  rarity-weighted training: upweighting target>=80/90/95/100 rows "
+          "(elite-tier calibration fix)")
 
     def _fit_quantile(q):
         m = lgb.LGBMRegressor(objective="quantile", alpha=q, n_estimators=350,
