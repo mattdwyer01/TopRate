@@ -122,9 +122,9 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
         ))}
       </div>
 
-      <SpeedMap race={race} runners={race.runners} />
-
       {selectedRunner && <RunnerDetailPanel runner={selectedRunner} race={race} />}
+
+      <SpeedMap race={race} runners={race.runners} />
     </div>
   )
 }
