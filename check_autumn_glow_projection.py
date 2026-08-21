@@ -61,3 +61,18 @@ for k in ['n_runs', 'first_up', 'runs_this_camp', 'days_since', 'avg_last3',
     is_nan = v is None or (isinstance(v, float) and v != v)
     flag = "  <-- MEDIAN-FILLED (raw value missing!)" if is_nan else ""
     print(f"  {k:20s} = {v!r}{flag}  (training median: {med.get(k)!r})")
+
+# Ablation: how much is the model's OWN learned first_up discount actually
+# worth for this exact feature vector? Predict twice, flipping only
+# first_up, everything else identical - isolates that one feature's effect.
+wp._load_models()
+X = wp._feature_frame([feats])
+base_pred = float(wp._PROJ.predict(X)[0]) + float(wp._CFG.get('calib_offset', 0.0))
+X_no_firstup = X.copy()
+X_no_firstup['first_up'] = 0
+no_firstup_pred = float(wp._PROJ.predict(X_no_firstup)[0]) + float(wp._CFG.get('calib_offset', 0.0))
+print(f"\nAblation - isolating the model's learned first_up effect:")
+print(f"  prediction with first_up=1 (as-is):  {base_pred:.2f}")
+print(f"  prediction with first_up=0 (all else equal): {no_firstup_pred:.2f}")
+print(f"  model's learned first-up discount for this exact horse: "
+      f"{base_pred - no_firstup_pred:+.2f}")
