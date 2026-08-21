@@ -54,8 +54,12 @@ def main():
                          "dry run)")
     args = ap.parse_args()
 
+    # The backup is gzip data but its filename doesn't end in .gz (shutil.copy
+    # just appended a suffix), so pandas' extension-based auto-detection
+    # misses it - name the compression explicitly.
     backup_path = str(td.WPR_FORM_HISTORY_CSV) + ".pre_depth_backfill"
-    old = pd.read_csv(backup_path, dtype={"horse_id": str}, low_memory=False)
+    old = pd.read_csv(backup_path, dtype={"horse_id": str}, low_memory=False,
+                      compression="gzip")
     cur = pd.read_csv(td.WPR_FORM_HISTORY_CSV, dtype={"horse_id": str},
                       low_memory=False)
     print(f"pre-backfill backup: {len(old):,} rows")
