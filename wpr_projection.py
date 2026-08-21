@@ -1026,9 +1026,12 @@ def _horse_feature_rows(g):
         f["target"] = float(cur["wpr"])
         f["date"] = cur["date"]
         # field_size is already a model feature (emitted by build_features).
-        # race_id / race_class are analysis-only (not trained on).
+        # race_id / race_class / run_id are analysis-only (not trained on).
+        # run_id lets analysis code join in external per-run signals
+        # (wpr_nett, pfm_score, etc.) from toprate_runners.csv by exact key.
         f["race_id"] = cur.get("race_id")
         f["race_class"] = cur.get("race_class")
+        f["run_id"] = cur.get("run_id")
         # Comments for THIS run, carried so the retrain's void filter can
         # exclude compromised runs from the target. Not features.
         f["comments_video"] = cur.get("comments_video")
@@ -1082,7 +1085,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
             "margin800m", "margin600m", "margin400m", "marginFinish",
             "isBarrierTrial",
             "field_size", "raceShapeEarly", "raceShapeMid",
-            "raceShapeLate", "race_class", "race_id",
+            "raceShapeLate", "race_class", "race_id", "run_id",
             "comments_video", "comments_steward"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
