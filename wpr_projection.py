@@ -6,14 +6,40 @@ confidence rating, a field-normalised WPR price, and a plain-language
 explanation of why the rating is what it is.
 
 WHAT THIS IS
-  A model-only WPR projection built from wpr_form_history.csv - the per-run
-  form history scraped daily. It predicts the run-day WPR a horse will
-  record. It does not use wpr_nett.
+  A WPR projection built from wpr_form_history.csv - the per-run form
+  history scraped daily. It predicts the run-day WPR a horse will record.
 
-  Three artifacts in wpr_models/:
-    projection.joblib  - 34-feature gradient-boosting WPR projection
-    confidence.joblib  - predicts the projection's error, turned into 0-100
-    config.json        - feature list, fill medians, price beta, min runs
+  ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
+  gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
+  BASE is the horse's own anchor (wpr_nett - TopRate's own pre-race rating -
+  falling back to ewm3/avg_last3/career_avg when wpr_nett is unrated).
+  ADJUSTMENT is a linear (Ridge) regression on 15 situational features
+  (freshness, track/surface conditions, field size, recent form shape) that
+  predicts the horse's likely DEVIATION from its own base, fit on
+  target-minus-base as the label.
+
+  WHY: a population-level gradient-boosting model, however well tuned,
+  structurally regresses rare high-WPR horses toward the dense middle of
+  the training population (held-out bias-by-actual-WPR-band was a clean,
+  monotonic +0.85 at 70-80 up to +8.7-9.1 at 100-105, confirmed
+  irreducible by more sample weight or more tree capacity - both were
+  tested and neither closed the gap). Anchoring on the horse's own current
+  base rating sidesteps that failure mode entirely: it does not predict an
+  absolute number from a shared population model, it predicts a small
+  adjustment to a number that is already correct for that horse. Measured
+  on the same held-out split: MAE 5.150 vs 5.371-5.399 for the best
+  gradient-boosting variant, and elite-tier (100-105) bias cut from +6.1-9.1
+  down to +4.7-6.1.
+
+  Four artifacts in wpr_models/:
+    projection.joblib  - {"ridge": Ridge adjustment model}
+    confidence.joblib  - {"lo": LightGBM q10, "hi": LightGBM q90} on the
+      FULL feature set, unchanged from the gradient-boosting design -
+      interval width is still the confidence signal (see project_race).
+      Kept as-is: this piece was already well-calibrated and the point
+      estimate architecture is an orthogonal concern to confidence.
+    config.json         - both feature lists (full + adjustment-only), both
+      median-fill tables, price beta, min runs, calibration offset
 
 SINGLE SOURCE OF TRUTH
   build_features() in this file is the ONE feature definition. The training
@@ -161,6 +187,63 @@ FEATURES = [
     # cur_wpr_nett docstring for the leak-check.
     "wpr_nett",
 ]
+
+# ADJ_FEATURES: the situational adjustment terms for the additive
+# architecture's Ridge model (projection = base + Ridge(ADJ_FEATURES) +
+# calib_offset). Deliberately a SUBSET of FEATURES, restricted to things
+# that change race-to-race (freshness, today's conditions, field, recent
+# form shape) rather than "how good is this horse generally" (avg_last3,
+# peak, career_avg, wpr_nett itself, etc - those already ARE the base,
+# including them here would double-count the horse's own level). Curated
+# and validated Aug 2026: tested against 12 other candidates (barrier
+# draw, weight change, blinkers/jockey/trainer change, jockey quality,
+# track/distance affinity, raw distance) - none beat the 0.03 MAE
+# adoption bar used throughout this project, so the set stays as-is.
+# dist_vs_last was in an earlier version and was REMOVED after leave-
+# one-out testing showed it was pure noise (removing it improved MAE).
+ADJ_FEATURES = [
+    "first_up", "second_up", "days_since", "runs_this_camp",
+    "dist_grad", "going_delta", "today_wet", "cur_surface", "class_move",
+    "field_size", "trend", "recent_vs_career", "std_last5", "avg_margin",
+    "consistency_ratio",
+]
+# days_since is capped before use (both training and serving) - a horse
+# out 400 days vs 800 days is not meaningfully "more first-up", and an
+# uncapped value lets one huge outlier dominate the linear fit.
+_DAYS_SINCE_CAP = 200
+
+
+def _compute_base(feat):
+    """The horse's own anchor for the additive model. wpr_nett first
+    (TopRate's own pre-race rating - empirically the best single base,
+    tested head to head against avg_last3/ewm3/career_avg/peak/a 50-50
+    blend: MAE 5.273 vs 5.5-10.6 and the least biased at the elite tier
+    among the four practical candidates). Falls back down a recency chain
+    when wpr_nett is unrated (TopRate has not rated this specific runner)."""
+    for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
+        v = feat.get(key)
+        if v is not None and not (isinstance(v, float) and v != v):
+            return float(v)
+    return None
+
+
+def _adj_feature_frame(feat_dicts, adj_med):
+    """List of feature dicts -> Ridge-ready DataFrame for ADJ_FEATURES,
+    NaN-filled with the training medians (adj_med, from config)."""
+    rows = []
+    for f in feat_dicts:
+        row = {}
+        for c in ADJ_FEATURES:
+            v = None if f is None else f.get(c)
+            if v is None or (isinstance(v, float) and np.isnan(v)):
+                v = adj_med.get(c, 0.0)
+            if c == "days_since":
+                v = min(v, _DAYS_SINCE_CAP)
+            row[c] = v
+        rows.append(row)
+    return pd.DataFrame(rows, columns=ADJ_FEATURES)
+
+
 _PROJ = None
 _CONF = None
 _CFG = None
@@ -169,14 +252,16 @@ _CFG = None
 def _load_models():
     """Load the model artifacts once. Raises if wpr_models/ is missing.
 
-    projection.joblib is the q50 (median) quantile model - THE projection.
-    confidence.joblib is a dict {"lo": q10 model, "hi": q90 model} - their
-    predicted interval width is the confidence signal (see project_race).
-    Both replaced a single mean-regression model + a separate model that
-    predicted ITS error (Aug 2026 rebuild) - one quantile architecture
-    measured better on both the point estimate and confidence calibration
-    than the old two-model design, so the old one was retired rather than
-    kept alongside it.
+    projection.joblib is a dict {"ridge": Ridge adjustment model} - the
+    additive architecture's ADJUSTMENT term (see module docstring); the
+    projection itself is base + ridge.predict(ADJ_FEATURES) + calib_offset,
+    computed in project_race(), not stored as one artifact.
+    confidence.joblib is a dict {"lo": q10 model, "hi": q90 model}, on the
+    FULL feature set - unchanged from the earlier gradient-boosting design.
+    Their predicted interval width is the confidence signal (see
+    project_race). Confidence calibration was already solid before the
+    Aug 2026 additive-architecture rebuild, so it was deliberately left
+    alone - only the point-estimate mechanism changed.
     """
     global _PROJ, _CONF, _CFG
     if _PROJ is not None:
@@ -848,33 +933,32 @@ def project_race(runners, race_date):
     ]
     fallbacks = [f is None for f in feat_dicts]
 
-    X = _feature_frame(feat_dicts)
-    proj = _PROJ.predict(X)
-    # Calibration offset: a uniform additive shift, data-derived at train time
-    # and stored in config (calib_offset). It recenters the projection onto the
-    # current WPR scale, correcting the model's measured low bias. Because it is
-    # uniform it does NOT change the WPR ranking, and the price softmax is
-    # shift-invariant, so the fair price is unchanged too - only the displayed
-    # projected WPR (and the recent-form gap in the explanation) move. Default
-    # 0.0 so a config without the key is a no-op.
-    proj = proj + float(_CFG.get("calib_offset", 0.0))
+    # Additive architecture: projection = base + Ridge(ADJ_FEATURES) +
+    # calib_offset. base is the horse's own anchor (wpr_nett, falling back
+    # down a recency chain); a fallback of None only happens if EVERY level
+    # feature is missing, which build_features() cannot produce once it has
+    # passed the _MIN_RUNS gate (career_avg always exists by then) - the
+    # 0.0 fallback below is defensive, not expected to fire in practice.
+    base_arr = np.array([_compute_base(f) if f is not None else 0.0
+                         for f in feat_dicts], dtype=float)
+    adj_med = _CFG["adj_medians"]
+    X_adj = _adj_feature_frame(feat_dicts, adj_med)
+    ridge = _PROJ["ridge"]
+    adj = ridge.predict(X_adj)
+    # Per-feature contributions (coefficient x value), for describe() to
+    # explain the projection from what ACTUALLY drove it, not a guess.
+    adj_contributions = X_adj.to_numpy() * ridge.coef_
+    # calib_offset: a uniform additive shift, data-derived at train time and
+    # stored in config. It recenters the projection onto the current WPR
+    # scale, correcting the model's measured residual bias. Uniform, so WPR
+    # ranking is untouched, and the price softmax is shift-invariant too -
+    # only the displayed projected WPR (and the recent-form gap in the
+    # explanation) move.
+    proj = base_arr + adj + float(_CFG.get("calib_offset", 0.0))
 
-    # Recent-form blend (handoff: measured out-of-sample, ~0.15 MAE gain at
-    # 30%). The model slightly over-shrinks toward career/context and
-    # under-weights recent runs - horses it marks well below their recent
-    # average tend to beat the projection (the Mometz case). Pulling the
-    # projection a fraction of the way back toward avg_last3 corrects this.
-    # Both quantities are on the actual-WPR scale (proj is post-offset), so the
-    # blend is a straight convex mix. Weight is config-driven (recent_blend_w),
-    # default 0.0 so a config without the key is a no-op. Only blends where
-    # avg_last3 is present (skips it for runners with no recent average).
-    _blend_w = float(_CFG.get("recent_blend_w", 0.0))
-    if _blend_w > 0 and "avg_last3" in X.columns:
-        _recent = X["avg_last3"].to_numpy(dtype=float)
-        _has_recent = ~np.isnan(_recent)
-        proj = np.asarray(proj, dtype=float)
-        proj[_has_recent] = ((1.0 - _blend_w) * proj[_has_recent]
-                             + _blend_w * _recent[_has_recent])
+    # Confidence still needs the FULL feature frame - the q10/q90 models are
+    # unchanged from the earlier gradient-boosting design (see _load_models).
+    X = _feature_frame(feat_dicts)
     # Confidence: q90-q10 interval width from the quantile models, mapped
     # to 0-100 the same way the old error-predicting model's output was.
     # A wider interval = the model itself is less sure = lower confidence.
@@ -931,12 +1015,58 @@ def project_race(runners, race_date):
                 "avg_l3": round(float(w.iloc[-3:].mean()), 1),
                 "description": describe(feat_dicts[i], float(proj[i]),
                                         int(round(conf[i])),
-                                        int(rank[i]) if rank[i] == rank[i] else None),
+                                        int(rank[i]) if rank[i] == rank[i] else None,
+                                        dict(zip(ADJ_FEATURES, adj_contributions[i]))),
             })
     return results
 
 
-def describe(feats, projected_wpr, confidence, wpr_rank):
+# Plain-English phrase for each ADJ_FEATURES term, keyed by (feature,
+# negative-or-positive contribution). Only features worth narrating are
+# listed - the rest (dist_grad, going_delta, runs_this_camp, std_last5,
+# avg_margin) move the number by too little per-runner to usually be worth
+# a sentence, and are left to the aggregate "reasons" ranking to surface
+# only when their contribution is unusually large for a specific horse.
+def _adj_phrase(feat, value, contribution):
+    neg = contribution < 0
+    if feat == "first_up":
+        return ("it is first-up from a layoff, and horses usually run "
+                "below their recent form fresh" if neg else
+                "it is first-up and its record fresh is a plus here")
+    if feat == "second_up":
+        return ("it is second-up, historically a slight dip" if neg else
+                "it is second-up, historically a slight plus")
+    if feat == "days_since" and value >= 90:
+        return (f"it has had a long layoff ({int(value)} days)" if neg
+                else None)
+    if feat == "field_size":
+        n = int(round(value))
+        return (f"this is a big field ({n} runners)" if neg else
+                f"this is a small field ({n} runners), which tends to help")
+    if feat == "today_wet":
+        return ("the track is rated wet today" if neg else
+                "wet conditions today are working in its favour")
+    if feat == "cur_surface" and value != 0:
+        return ("today's surface is not standard turf" if neg else None)
+    if feat == "class_move":
+        return ("it is stepping up in class" if (neg and value > 0) else
+                ("it is dropping in class" if (not neg and value < 0)
+                 else None))
+    if feat == "trend":
+        return ("its recent form is trending down" if (neg and value < 0)
+                else ("its recent form is trending up" if
+                      (not neg and value > 0) else None))
+    if feat == "recent_vs_career":
+        return ("its recent runs are below its career average" if
+                (neg and value < 0) else
+                ("its recent runs are well above its career average" if
+                 (not neg and value > 0) else None))
+    if feat == "consistency_ratio":
+        return ("its results have been inconsistent" if neg else None)
+    return None
+
+
+def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None):
     """Plain-English explanation of the projected WPR.
 
     Written to read like a person talking, not like model output. Its main
@@ -945,13 +1075,20 @@ def describe(feats, projected_wpr, confidence, wpr_rank):
     horse's recent average. A punter glancing at mid-80s recent runs and a
     79 projection should find the reason here, not have to guess.
 
+    adj_contributions: {ADJ_FEATURES name: coefficient x value}, the
+    additive model's actual per-feature contribution to THIS runner's
+    adjustment (see project_race). The "why below/above recent average"
+    reasons are picked by ranking these by |contribution| and narrating
+    the largest ones - genuinely traceable to what moved the number, not a
+    guess about what plausibly might have. Falls back to a generic message
+    when contributions are not supplied (e.g. from the fallback path with
+    no projection at all).
+
     Honest by design: it only names a cause when the feature values
     actually support one. Where the projection is just normal model
     scatter with no clear driver, it says so plainly rather than inventing
-    a reason - the model carries ~6 WPR of error in both directions and
+    a reason - the model carries ~5 WPR of error in both directions and
     pretending otherwise would mislead.
-
-    Deterministic - every clause is traceable to a feature value.
     """
     if feats is None:
         return "Not enough form history to make a projection."
@@ -963,51 +1100,38 @@ def describe(feats, projected_wpr, confidence, wpr_rank):
     # ── Explain the projection vs recent form - the key "looks odd" case ──
     avg3 = feats.get("avg_last3")
     gap = (projected_wpr - avg3) if avg3 is not None else None
-    first_up = feats.get("days_since", 0) >= 90
-    trend = feats.get("trend", 0)
-    dvl = feats.get("dist_vs_last", 0)
-    big_trip_change = abs(dvl) >= 200
 
-    if gap is not None and gap <= -3:
-        # projection notably BELOW recent form - explain why
+    if gap is not None and abs(gap) >= 3 and adj_contributions:
+        # Rank the real contributions by size and narrate the biggest ones
+        # whose direction matches the gap (a below-average gap should be
+        # explained by NEGATIVE contributions, not a positive one that
+        # happens to be small).
+        want_negative = gap < 0
+        ranked = sorted(
+            ((f, adj_contributions.get(f, 0.0)) for f in adj_contributions),
+            key=lambda t: t[1] if want_negative else -t[1])
         reasons = []
-        if first_up:
-            reasons.append("it is first-up from a layoff, and horses "
-                           "usually run below their recent form fresh")
-        if feats.get("recent_vs_career", 0) >= 3:
-            reasons.append("its recent runs are well above its career "
-                           "average, and the model expects some pull-back "
-                           "toward that career level")
-        if big_trip_change:
-            reasons.append("it is changing trip sharply ("
-                           + ("up" if dvl > 0 else "down")
-                           + f" {abs(int(dvl))}m from last start)")
+        for f, c in ranked:
+            if abs(c) < 0.3:
+                break
+            if (c < 0) != want_negative:
+                continue
+            phrase = _adj_phrase(f, feats.get(f), c)
+            if phrase:
+                reasons.append(phrase)
+            if len(reasons) == 2:
+                break
+        direction = "below" if want_negative else "above"
         if reasons:
-            sentences.append("The projection sits below its recent average "
-                             "because " + reasons[0]
+            sentences.append(f"The projection sits {direction} its recent "
+                             f"average because " + reasons[0]
                              + ("; " + reasons[1] + "."
                                 if len(reasons) > 1 else "."))
         else:
-            sentences.append("The projection is a little below its recent "
-                             "average; nothing specific is driving that "
-                             "down, so treat it as the model's normal "
-                             "spread of error.")
-    elif gap is not None and gap >= 3:
-        # projection notably ABOVE recent form
-        reasons = []
-        if feats.get("recent_vs_career", 0) <= -3:
-            reasons.append("its recent runs are below its career average, "
-                           "and the model leans on the stronger career "
-                           "record")
-        if trend >= 4:
-            reasons.append("it is trending up sharply")
-        if reasons:
-            sentences.append("The projection sits above its recent average "
-                             "because " + reasons[0] + ".")
-        else:
-            sentences.append("The projection is a little above its recent "
-                             "average; that is within the model's normal "
-                             "spread of error.")
+            sentences.append(f"The projection is a little {direction} its "
+                             f"recent average; nothing specific is driving "
+                             f"that, so treat it as the model's normal "
+                             f"spread of error.")
 
     # ── A readable note on form shape ──
     sl5 = feats.get("std_last5", 5)
@@ -1286,6 +1410,7 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     walk-forward numbers this is based on.
     """
     import lightgbm as lgb
+    from sklearn.linear_model import Ridge
     from sklearn.metrics import mean_absolute_error
 
     print(f"Regenerating training frame from {form_history_csv} "
@@ -1339,6 +1464,22 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         else:
             print("  surface filter: no blank-going runs")
 
+    # BASE for the additive architecture (see module docstring / ADJ_FEATURES
+    # comment). Computed from RAW values, BEFORE the FEATURES median-fill
+    # below - the fallback chain (wpr_nett -> ewm3 -> avg_last3 ->
+    # career_avg) only means anything before a missing wpr_nett gets
+    # silently replaced by the population median. career_avg is guaranteed
+    # present once _MIN_RUNS is met, so this should never actually fall
+    # through to NaN - the dropna is defensive.
+    D["_base"] = (D["wpr_nett"].fillna(D["ewm3"])
+                  .fillna(D["avg_last3"]).fillna(D["career_avg"]))
+    n_before_base = len(D)
+    D = D.dropna(subset=["_base"]).copy()
+    if len(D) < n_before_base:
+        print(f"  dropped {n_before_base - len(D):,} rows with no usable "
+              f"base rating (should be rare/never)")
+    D["_y"] = D["target"] - D["_base"]
+
     med = D[FEATURES].median()
     D[FEATURES] = D[FEATURES].fillna(med)
 
@@ -1347,22 +1488,28 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     cf = D[(D["date"] >= q1) & (D["date"] < q2)].copy()
     te = D[D["date"] >= q2].copy()
 
-    # recency-weighted: down-weight old rows (the wpr scale drifts). Applied
-    # to all three quantile models - the drift affects the whole target
-    # distribution, not just its mean.
-    sw = _recency_weights(trn["date"])
+    # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
+    # BOTH the confidence quantile models and the additive model's Ridge fit.
+    sw_recency = _recency_weights(trn["date"])
     if _RECENCY_HALF_LIFE_DAYS:
         print(f"  recency-weighted training: {_RECENCY_HALF_LIFE_DAYS}d "
               f"half-life")
 
     # rarity-weighted: upweight the thin high-WPR tail (see _rarity_weights
-    # docstring - fixes a real, measured elite-tier under-projection bias
-    # that a post-hoc calibration cannot). Multiplies into the recency
-    # weight rather than replacing it.
+    # docstring). This fixes a real, measured elite-tier under-projection
+    # bias for a POPULATION-LEVEL model (a post-hoc calibration cannot fix
+    # it - tested and confirmed). The additive model's Ridge fit does NOT
+    # use this: it predicts a deviation from the horse's OWN base rating,
+    # so it does not have the same "regress rare examples toward the
+    # population" failure mode rarity-weighting was built to counter (this
+    # was validated during the Aug 2026 additive-model build - the elite
+    # tier bias was already far lower without it: +4.7-6.1 vs the
+    # gradient-boosting model's +6.1-9.1). Kept ONLY for the confidence
+    # (q10/q90) models, which are otherwise unchanged from that design.
     rw = _rarity_weights(trn["target"])
-    sw = rw if sw is None else sw * rw
+    sw = rw if sw_recency is None else sw_recency * rw
     print("  rarity-weighted training: upweighting target>=80/90/95/100 rows "
-          "(elite-tier calibration fix)")
+          "(elite-tier calibration fix, confidence models only)")
 
     def _fit_quantile(q):
         m = lgb.LGBMRegressor(objective="quantile", alpha=q, n_estimators=350,
@@ -1371,12 +1518,29 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         m.fit(trn[FEATURES], trn["target"], sample_weight=sw)
         return m
 
+    # Confidence models only (q10/q90 interval width) - unchanged design.
     q_lo = _fit_quantile(0.1)
-    proj = _fit_quantile(0.5)   # the projection model
     q_hi = _fit_quantile(0.9)
 
-    cf["abs_err"] = (proj.predict(cf[FEATURES]) - cf["target"]).abs()
-    te["abs_err"] = (proj.predict(te[FEATURES]) - te["target"]).abs()
+    # The additive model's ADJUSTMENT term: Ridge regression predicting
+    # target-minus-base from the 15 situational features (recency-weighted
+    # only, see sw_recency comment above). ADJ_FEATURES cols were already
+    # median-filled by the FEATURES fillna above (ADJ_FEATURES is a subset
+    # of FEATURES); days_since still needs the cap applied here since the
+    # shared FEATURES fillna does not do that (the confidence models use
+    # the uncapped value, unchanged from before).
+    trn_adj = trn[ADJ_FEATURES].copy()
+    trn_adj["days_since"] = trn_adj["days_since"].clip(upper=_DAYS_SINCE_CAP)
+    ridge = Ridge(alpha=10.0)
+    ridge.fit(trn_adj, trn["_y"], sample_weight=sw_recency)
+
+    def _additive_predict(frame):
+        x = frame[ADJ_FEATURES].copy()
+        x["days_since"] = x["days_since"].clip(upper=_DAYS_SINCE_CAP)
+        return frame["_base"].to_numpy() + ridge.predict(x)
+
+    cf["abs_err"] = (_additive_predict(cf) - cf["target"]).abs()
+    te["abs_err"] = (_additive_predict(te) - te["target"]).abs()
 
     cf_interval = q_hi.predict(cf[FEATURES]) - q_lo.predict(cf[FEATURES])
     clo, chi = np.quantile(cf_interval, [0.05, 0.95])
@@ -1388,54 +1552,29 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     if _conf_corr < 0.1:
         print("  WARNING: confidence barely tracks error - investigate.")
 
-    mae = mean_absolute_error(te["target"], proj.predict(te[FEATURES]))
+    te_pred = _additive_predict(te)
+    mae = mean_absolute_error(te["target"], te_pred)
     print(f"  held-out projection MAE: {mae:.3f}")
 
-    # Calibration offset: the model carries a measurable low bias (the wpr
-    # target drifts up over time, so a model fit on older runs reads low). The
-    # offset is the median held-out residual; adding it minimises absolute miss
-    # and recenters the typical projection. Uniform, so ranking/price are
-    # untouched (see project_race). Re-measured every retrain so it self-tracks
-    # the drift.
-    _resid = te["target"].values - proj.predict(te[FEATURES])
+    # Calibration offset: the model carries a measurable residual bias. The
+    # offset is the median held-out residual; adding it minimises absolute
+    # miss and recenters the typical projection. Uniform, so ranking/price
+    # are untouched (see project_race). Re-measured every retrain so it
+    # self-tracks any drift.
+    _resid = te["target"].values - te_pred
     calib_offset = float(np.median(_resid))
     mae_after = float(np.abs(_resid - calib_offset).mean())
     print(f"  held-out bias: mean {_resid.mean():+.2f}, median {np.median(_resid):+.2f}")
     print(f"  calibration offset (median residual): {calib_offset:+.2f}")
     print(f"  held-out MAE after offset: {mae_after:.3f} (was {mae:.3f})")
 
-    # Recent-form blend weight search. The model slightly over-shrinks recent
-    # form; blending the post-offset projection toward avg_last3 was measured to
-    # help out-of-sample. Search candidate weights on the SAME held-out set and
-    # adopt the best ONLY if it beats no-blend by a real margin (>= 0.03 MAE),
-    # else keep 0.0. This re-verifies the gain every retrain rather than baking
-    # in a fixed weight that may not hold as the data shifts. avg_last3 is a
-    # feature, so it is column-present in te.
-    recent_blend_w = 0.0
-    if "avg_last3" in te.columns:
-        base_pred = proj.predict(te[FEATURES]) + calib_offset
-        recent = te["avg_last3"].to_numpy(dtype=float)
-        tgt = te["target"].to_numpy(dtype=float)
-        ok = ~np.isnan(recent)
-        base_mae_blend = float(np.abs(tgt[ok] - base_pred[ok]).mean())
-        best_w, best_mae = 0.0, base_mae_blend
-        # Candidates capped at 0.35: beyond that the blend starts overriding the
-        # model with a crude recent-average, which is risky to adopt off a
-        # single held-out slice even if it scores well in-sample. The proper
-        # out-of-sample test peaked near 0.30, so this range covers the real
-        # optimum without letting one slice push it to an extreme.
-        for w in [0.10, 0.15, 0.20, 0.25, 0.30, 0.35]:
-            blended = (1.0 - w) * base_pred[ok] + w * recent[ok]
-            m = float(np.abs(tgt[ok] - blended).mean())
-            if m < best_mae:
-                best_mae, best_w = m, w
-        if best_w > 0 and (base_mae_blend - best_mae) >= 0.03:
-            recent_blend_w = best_w
-            print(f"  recent-form blend: weight {best_w:.2f} adopted "
-                  f"(held-out MAE {base_mae_blend:.3f} -> {best_mae:.3f})")
-        else:
-            print(f"  recent-form blend: no weight beat no-blend by >=0.03 MAE "
-                  f"(best {best_w:.2f} gave {best_mae:.3f} vs {base_mae_blend:.3f}); keeping 0.0")
+    # Recent-form blend: REMOVED in the additive-architecture rebuild. It
+    # existed to correct the gradient-boosting model's over-shrinkage toward
+    # career/context by pulling back toward avg_last3. The additive model's
+    # BASE already anchors on the horse's own current level (wpr_nett, which
+    # already tracks recent competitive form), so this correction no longer
+    # applies - re-blending toward avg_last3 on top of a base that is
+    # already recent-form-anchored would double-count it.
 
     # beta (the price softmax parameter) is calibrated separately by
     # calibrate_price_beta.py against real resulted-race outcomes - it is
@@ -1453,14 +1592,19 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     print(f"  beta carried forward from existing config: {beta} "
           f"(re-run calibrate_price_beta.py --write to re-derive it)")
 
+    # adj_medians: ADJ_FEATURES is a subset of FEATURES, so its medians are
+    # already in `med` (computed on the full pre-split D, same convention
+    # as the FULL feature medians below).
+    adj_med = med[ADJ_FEATURES]
+
     Path(out_dir).mkdir(exist_ok=True)
-    joblib.dump(proj, Path(out_dir) / "projection.joblib")
+    joblib.dump({"ridge": ridge}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
-    json.dump({"features": FEATURES,
-               "medians": med.to_dict(), "conf_lo": float(clo),
-               "conf_hi": float(chi), "beta": beta, "min_runs": _MIN_RUNS,
-               "calib_offset": calib_offset,
-               "recent_blend_w": recent_blend_w},
+    json.dump({"features": FEATURES, "adj_features": ADJ_FEATURES,
+               "medians": med.to_dict(), "adj_medians": adj_med.to_dict(),
+               "conf_lo": float(clo), "conf_hi": float(chi),
+               "beta": beta, "min_runs": _MIN_RUNS,
+               "calib_offset": calib_offset},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
