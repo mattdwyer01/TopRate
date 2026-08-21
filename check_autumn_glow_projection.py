@@ -25,6 +25,8 @@ form = pd.read_csv('wpr_form_history.csv.gz', dtype={'horse_id': str}, low_memor
 ag_form = form[form['horse'] == 'Autumn Glow'].copy()
 print(f"\n{len(ag_form)} form-history rows loaded for Autumn Glow")
 
+print(f"\nRaw wpr_nett from toprate_runners.csv for this row: {row.get('wpr_nett')!r}")
+
 runner = {
     'prior_runs': ag_form,
     'cur_distance': row['distance'],
@@ -43,3 +45,19 @@ print(f"  projected_wpr:  {r['projected_wpr']}")
 print(f"  confidence:     {r['confidence']}")
 print(f"  peak_wpr:       {r.get('peak_wpr')}")
 print(f"  avg_l3:         {r.get('avg_l3')}")
+
+# Full feature vector actually fed to the model, so we can see exactly what
+# got median-filled vs what came from her real history.
+feats = wp.build_features(ag_form, row['distance'], row['going'], row['venue'],
+                          row['track_grading'], row['date'],
+                          cur_race_class=row['race_class'],
+                          cur_wpr_nett=row.get('wpr_nett'))
+med = wp._CFG['medians'] if wp._CFG else {}
+print(f"\nRaw build_features() output (before any median-fill):")
+for k in ['n_runs', 'first_up', 'runs_this_camp', 'days_since', 'avg_last3',
+          'avg_last5', 'peak', 'career_avg', 'recent_vs_career', 'wpr_nett',
+          'trend', 'ewm3']:
+    v = feats.get(k) if feats else None
+    is_nan = v is None or (isinstance(v, float) and v != v)
+    flag = "  <-- MEDIAN-FILLED (raw value missing!)" if is_nan else ""
+    print(f"  {k:20s} = {v!r}{flag}  (training median: {med.get(k)!r})")
