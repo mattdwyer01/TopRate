@@ -76,3 +76,25 @@ print(f"  prediction with first_up=1 (as-is):  {base_pred:.2f}")
 print(f"  prediction with first_up=0 (all else equal): {no_firstup_pred:.2f}")
 print(f"  model's learned first-up discount for this exact horse: "
       f"{base_pred - no_firstup_pred:+.2f}")
+
+# first_up is DERIVED from days_since (days_since >= 90), so a tree model
+# likely split on days_since directly rather than the redundant flag - the
+# ablation above isolating first_up alone proves nothing on its own. Zero
+# out the whole freshness cluster together (days_since, runs_this_camp,
+# first_up, second_up, trend) to isolate the TOTAL "just spelled" effect.
+X_fresh = X.copy()
+for col, val in [('days_since', 21), ('runs_this_camp', 4), ('first_up', 0),
+                 ('second_up', 0), ('trend', 0.0)]:
+    if col in X_fresh.columns:
+        X_fresh[col] = val
+fresh_pred = float(wp._PROJ.predict(X_fresh)[0]) + float(wp._CFG.get('calib_offset', 0.0))
+print(f"\n  prediction if treated as mid-campaign instead of first-up-off-a-spell: "
+      f"{fresh_pred:.2f}")
+print(f"  total 'just spelled' discount: {base_pred - fresh_pred:+.2f}")
+
+# Feature importances - what is the model actually weighting most heavily?
+print(f"\nTop 15 model feature importances (LightGBM gain):")
+imp = sorted(zip(wp.FEATURES, wp._PROJ.feature_importances_),
+            key=lambda t: -t[1])[:15]
+for name, val in imp:
+    print(f"  {name:20s} {val}")
