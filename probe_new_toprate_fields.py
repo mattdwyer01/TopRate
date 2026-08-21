@@ -159,6 +159,17 @@ def probe(run_id):
         print(f"  {k:30s} = {vr}")
 
     form = deref(rd.get("form"))
+    if isinstance(form, list):
+        print(f"\nform array length (total past runs the API returns): {len(form)}")
+        dates_seen = sorted({str(deref(f).get("date")) for f in form
+                             if isinstance(deref(f), dict)})
+        print(f"dates covered: {dates_seen[0]} .. {dates_seen[-1]}"
+              if dates_seen else "no dates found")
+        for f in form:
+            fd = deref(f)
+            if isinstance(fd, dict):
+                print(f"  {deref(fd.get('date'))}  {deref(fd.get('track'))}  "
+                      f"wpr={deref(fd.get('wpr'))}")
     if isinstance(form, list) and form:
         print("\n" + "=" * 70)
         print("First form-run entry - all keys")

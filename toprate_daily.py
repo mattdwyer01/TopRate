@@ -310,6 +310,10 @@ _WPR_KEYS_LOGGED = False
 # Run-page ids of today's runners, accumulated during collect_wpr_form_history.
 # Consumed once by the rich __data.json capture pass in flush_wpr_form_history.
 _WPR_RICH_RUNIDS = set()
+# run_id -> horse name, so the rich capture pass can name brand-new rows it
+# creates for runs the thin feed never surfaced (it only has horse_id from
+# the rich fetch itself, not the name).
+_WPR_NAME_BY_RID = {}
 
 # Fields pulled from each form entry. These are the raw inputs a WPR
 # projection model trains on (target = the `wpr` of the run itself).
@@ -369,6 +373,8 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
         # races are collected, not inline here.
         if rid is not None:
             _WPR_RICH_RUNIDS.add(rid)
+            if hname:
+                _WPR_NAME_BY_RID[rid] = hname
         for f in (runner.get("form") or []):
             row = {
                 "run_id":      rid,
@@ -383,7 +389,19 @@ def collect_wpr_form_history(wpr_chart, detail, scrape_date):
 def _enrich_form_history_rich(new_df):
     """Fetch the rich per-runner __data.json for today's runners and merge
     its fields (field_size, 13 sectionals, class, gear, comments, jockey,
-    trainer, campaign flags) into new_df, joined on (horse_id, date).
+    trainer, campaign flags, and now the core per-run fields too - wpr,
+    distance, track, position/margin curve etc, see cap.CORE_COLS) into
+    new_df, joined on (horse_id, date).
+
+    The rich endpoint's own 'form' array is frequently DEEPER than what the
+    thin get_race_wpr_chart feed returned for the same horse (confirmed via
+    probe: one horse's rich fetch returned 25 past runs vs 8 captured from
+    the thin feed). Previously this function only ever filled columns on
+    rows that already existed in new_df, so that deeper history was fetched,
+    discarded, and never made it into wpr_form_history.csv.gz. It now also
+    SYNTHESISES new rows for (horse_id, date) pairs the rich fetch has but
+    the thin feed's new_df does not, using cap.CORE_COLS for the core race/
+    result fields the thin feed would otherwise have supplied.
 
     Full fetch: every run_id collected today. Stage 2 measured ~0.28s per
     call, so a ~400-runner day costs ~2 minutes - acceptable serially.
@@ -403,7 +421,7 @@ def _enrich_form_history_rich(new_df):
     run_ids = sorted(_WPR_RICH_RUNIDS)
     print(f"  Rich __data.json capture: {len(run_ids)} runner pages ...")
 
-    # (horse_id, date_str) -> dict of rich fields
+    # (horse_id, date_str) -> (run_id the fetch was made under, dict of rich fields)
     rich = {}
     n_ok = n_empty = n_fail = 0
     t0 = time.time()
@@ -442,7 +460,7 @@ def _enrich_form_history_rich(new_df):
                 # the join so a time component never breaks the match.
                 d = str(run.get("date", ""))[:10]
                 if d:
-                    rich[(str(horse_id), d)] = run.get("fields", {})
+                    rich[(str(horse_id), d)] = (rid, run.get("fields", {}))
 
     if not rich:
         print(f"  Rich capture: no data merged "
@@ -456,19 +474,44 @@ def _enrich_form_history_rich(new_df):
 
     # fill rich columns row by row, matched on (horse_id, date)
     filled = 0
+    existing_keys = set()
     for idx in new_df.index:
         hid = str(new_df.at[idx, "horse_id"])
         d = str(new_df.at[idx, "date"])[:10]
-        fields = rich.get((hid, d))
-        if not fields:
+        existing_keys.add((hid, d))
+        entry = rich.get((hid, d))
+        if not entry:
             continue
+        _, fields = entry
         for col in cap.ALL_COLS:
             v = fields.get(col)
             if v is not None:
                 new_df.at[idx, col] = v
         filled += 1
 
-    print(f"  Rich capture: {filled:,}/{len(new_df):,} rows enriched "
+    # Create brand-new rows for (horse_id, date) pairs the rich fetch has
+    # but the thin feed's new_df does not - the deeper-history case.
+    scrape_date_val = new_df["scrape_date"].iloc[0]
+    new_rows = []
+    for (hid, d), (rid, fields) in rich.items():
+        if (hid, d) in existing_keys:
+            continue
+        row = {
+            "run_id": rid,
+            "horse_id": hid,
+            "horse": _WPR_NAME_BY_RID.get(rid),
+            "scrape_date": scrape_date_val,
+            "date": d,
+        }
+        for col in cap.ALL_COLS:
+            row[col] = fields.get(col)
+        new_rows.append(row)
+
+    if new_rows:
+        new_df = pd.concat([new_df, pd.DataFrame(new_rows)], ignore_index=True)
+
+    print(f"  Rich capture: {filled:,} existing rows enriched, "
+          f"{len(new_rows):,} new rows added from deeper history "
           f"(pages ok {n_ok}, empty {n_empty}, fail {n_fail}, "
           f"{time.time()-t0:.0f}s)")
     return new_df
@@ -1077,6 +1120,7 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 # degrade gracefully to neutral in project_race if None.
                 "cur_race_class": r.get("race_class"),
                 "cur_field_size": len(race),
+                "cur_wpr_nett": r.get("wpr_nett"),
             }
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))

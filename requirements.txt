@@ -1,20 +1,24 @@
 # TopRate backend dependencies.
 #
-# scikit-learn is PINNED EXACTLY and deliberately. The WPR projection model is
-# a HistGradientBoostingRegressor saved with joblib. sklearn moved its internal
-# `_loss` module between versions, so a model pickled under one version fails to
-# load under another with "No module named '_loss'". Pin sklearn here and
-# install from this file in BOTH your local env and the GitHub Action so the
-# training environment and the serving environment are identical and the saved
-# model always loads.
+# scikit-learn and lightgbm are PINNED EXACTLY and deliberately. race_speed_
+# model.joblib is a scikit-learn linear model; the WPR projection/confidence
+# models (wpr_models/*.joblib, Aug 2026 rebuild) are LightGBM quantile
+# models. Both libraries can break loading a pickle saved under a different
+# version (sklearn's internal `_loss` module moved between versions and
+# broke this exact way before; LightGBM's Booster format carries the same
+# risk across major versions). Pin both here and install from this file in
+# BOTH your local env and the GitHub Action so the training environment and
+# the serving environment are identical and the saved models always load.
 #
-# IF YOU UPGRADE sklearn: you MUST retrain in the same commit, then bump the pin
+# IF YOU UPGRADE either: you MUST retrain in the same commit, then bump the pin
 #   python wpr_projection.py --retrain --jobs -1
 #
 # The other packages use >= floors (not exact pins) since they don't affect
-# model loading; only sklearn does. If you want fully reproducible installs,
-# replace the >= with == and your actual installed versions (pip freeze).
+# model loading; only sklearn/lightgbm do. If you want fully reproducible
+# installs, replace the >= with == and your actual installed versions
+# (pip freeze).
 scikit-learn==1.8.0
+lightgbm==4.7.0
 joblib>=1.3
 numpy>=1.26
 pandas>=2.0
