@@ -2463,8 +2463,13 @@ body {
   box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
 }
 .wpr-manual-input::placeholder { color: var(--ink-mute); opacity: 0.5; }
-/* Overlay / stake */
-.race-table td.wpr-overlay-pos { color: var(--emerald); font-weight: 600; }
+/* Overlay / stake. Deliberately NOT styled green-for-positive: a backtest
+   (Aug 2026) found overlay% is anti-correlated with results - the bigger
+   the overlay, the worse the actual win rate/ROI, across beta settings,
+   a held-out date split, and every confidence tier. It stays visible as
+   information (how the model's price compares to market), not as a
+   buy signal. See calibrate_price_beta.py / margin_analysis.py. */
+.race-table td.wpr-overlay-pos { color: var(--ink); font-weight: 600; }
 .race-table td.wpr-overlay-neg { color: var(--ink-mute); }
 .race-table td.wpr-stake { font-weight: 600; }
 /* Bet Y/N toggle */
@@ -4176,7 +4181,7 @@ body {
 
   <header class="topbar topbar-compact">
     <div class="topbar-right">
-      <span class="run-stamp" id="header-run-stamp" title="Prices last refreshed: 20 Aug 2026 23:17 UTC"><span class="freshness-dot" id="freshness-dot"></span>Prices: <span id="header-run-rel">just now</span></span>
+      <span class="run-stamp" id="header-run-stamp" title="Prices last refreshed: 21 Aug 2026 00:28 UTC"><span class="freshness-dot" id="freshness-dot"></span>Prices: <span id="header-run-rel">just now</span></span>
       <span class="sync-pill" id="sync-pill" title="Tap to pull latest bets/odds from cloud sync">sync off</span>
       <span class="unit-control" id="unit-display">1u = $100</span>
     </div>
@@ -4297,7 +4302,7 @@ body {
         </select>
       </div>
       <div class="wpr-filter">
-        <label for="wpr-f-overlay">Min overlay</label>
+        <label for="wpr-f-overlay" title="Backtested Aug 2026: higher overlay correlated with WORSE results, not better, across price settings and confidence tiers. Filtering here narrows the list, it is not a value signal.">Min overlay</label>
         <select id="wpr-f-overlay">
           <option value="0">Any</option>
           <option value="25">25%+</option>
@@ -4618,7 +4623,7 @@ body {
           <div class="lbl">Last refreshed</div>
           <div class="desc" id="last-fetched-desc">
             <span id="last-fetched-rel">just now</span>
-            &middot; <span id="last-fetched-abs">20 Aug 2026 23:17 UTC</span>
+            &middot; <span id="last-fetched-abs">21 Aug 2026 00:28 UTC</span>
           </div>
         </div>
         <div></div>

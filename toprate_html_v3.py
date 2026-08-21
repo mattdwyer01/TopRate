@@ -3011,8 +3011,13 @@ body {
   box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
 }
 .wpr-manual-input::placeholder { color: var(--ink-mute); opacity: 0.5; }
-/* Overlay / stake */
-.race-table td.wpr-overlay-pos { color: var(--emerald); font-weight: 600; }
+/* Overlay / stake. Deliberately NOT styled green-for-positive: a backtest
+   (Aug 2026) found overlay% is anti-correlated with results - the bigger
+   the overlay, the worse the actual win rate/ROI, across beta settings,
+   a held-out date split, and every confidence tier. It stays visible as
+   information (how the model's price compares to market), not as a
+   buy signal. See calibrate_price_beta.py / margin_analysis.py. */
+.race-table td.wpr-overlay-pos { color: var(--ink); font-weight: 600; }
 .race-table td.wpr-overlay-neg { color: var(--ink-mute); }
 .race-table td.wpr-stake { font-weight: 600; }
 /* Bet Y/N toggle */
@@ -4860,7 +4865,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </select>
       </div>
       <div class="wpr-filter">
-        <label for="wpr-f-overlay">Min overlay</label>
+        <label for="wpr-f-overlay" title="Backtested Aug 2026: higher overlay correlated with WORSE results, not better, across price settings and confidence tiers. Filtering here narrows the list, it is not a value signal.">Min overlay</label>
         <select id="wpr-f-overlay">
           <option value="0">Any</option>
           <option value="25">25%+</option>
