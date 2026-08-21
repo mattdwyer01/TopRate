@@ -44,7 +44,7 @@ import sys
 import toprate_json_capture as cap
 
 
-_CANDIDATE_TERMS = ("ohr", "handicap", "formfactor", "form_factor",
+_CANDIDATE_TERMS = ("ohr", "handicap", "formfactor", "form_factor", "pfm",
                     "official", "nomination", "weight")
 
 
@@ -151,12 +151,28 @@ def _walk_json(obj, path, out, depth=0, max_depth=5):
         out.append((path, obj))
 
 
+def _dump_item(item, label):
+    print(f"\n{label} - full key/value dump")
+    if isinstance(item, dict):
+        for k in sorted(item.keys()):
+            v = item[k]
+            vr = repr(v)
+            if len(vr) > 100:
+                vr = vr[:97] + "..."
+            print(f"  {k:22s} = {vr}")
+    else:
+        print(f"  (not a dict: {type(item).__name__}) {item!r}"[:300])
+
+
 def probe_race(race_id):
-    """Check get_race_detail - the RPC behind the race's Field View table -
-    for OHR / Form Factor, which the announcement describes as shown
-    per-race (Field View, WPR Chart, Assess Screen), not per-runner."""
+    """Check get_race_detail (Field View), plus get_race_stats/
+    get_race_cache/get_race_wpr_chart - already called by the daily
+    pipeline for other purposes, so cheap to check here too - for OHR /
+    Form Factor, which the announcement describes as shown per-race
+    (Field View, WPR Chart, Assess Screen), not per-runner."""
     import toprate_daily as td
     jwt = td.login()
+
     data = td.api_race_detail(jwt, race_id)
     print(f"\n{'=' * 70}")
     print(f"get_race_detail(rc_id={race_id}) - top-level shape")
@@ -165,8 +181,8 @@ def probe_race(race_id):
         print("  top-level keys:", list(data.keys()))
     elif isinstance(data, list):
         print(f"  top-level: list of {len(data)}")
-        if data and isinstance(data[0], dict):
-            print("  item[0] keys:", list(data[0].keys()))
+        if data:
+            _dump_item(data[0], "item[0]")
 
     print(f"\n{'=' * 70}")
     print(f"CANDIDATE MATCHES (key name contains any of {_CANDIDATE_TERMS})")
@@ -181,6 +197,36 @@ def probe_race(race_id):
             print(f"  {path} = {val!r}")
     else:
         print("  (none found)")
+
+    for rpc_name, rpc_fn in (
+        ("get_race_stats", td.api_race_stats),
+        ("get_race_cache (get_user_cache_race)", td.api_race_cache),
+        ("get_race_wpr_chart", td.api_race_wpr),
+    ):
+        try:
+            rdata = rpc_fn(jwt, race_id)
+        except Exception as e:
+            print(f"\n{rpc_name}: request failed ({e})")
+            continue
+        print(f"\n{'=' * 70}")
+        print(f"{rpc_name}(rc_id={race_id}) - shape + candidate matches")
+        print("=" * 70)
+        if isinstance(rdata, dict):
+            print("  top-level keys:", list(rdata.keys()))
+        elif isinstance(rdata, list):
+            print(f"  top-level: list of {len(rdata)}")
+            if rdata:
+                _dump_item(rdata[0], "item[0]")
+        rpairs = []
+        _walk_json(rdata, rpc_name, rpairs, max_depth=5)
+        rfound = [(p, v) for p, v in rpairs
+                  if any(t in p.rsplit(".", 1)[-1].split("[")[0].lower()
+                         for t in _CANDIDATE_TERMS)]
+        if rfound:
+            for path, val in rfound:
+                print(f"  MATCH: {path} = {val!r}")
+        else:
+            print("  (no candidate matches)")
 
 
 def main():
