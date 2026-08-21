@@ -131,6 +131,8 @@ create table if not exists toprate_runners (
   toprate_rating        double precision,
   toprate_price         double precision,
   speed_rating          double precision,
+  pfm_score             double precision,
+  pfm_score_rank        double precision,
   fixed_win_price       double precision,
   jockey_win_pct_90d    double precision,
   trainer_win_pct_365d  double precision,

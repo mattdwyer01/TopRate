@@ -126,6 +126,14 @@ RUNNER_COLS = [
     "avg_settled_pos","avg_800m_pos","avg_400m_pos","early_speed_score",
     "mid_speed_score","late_speed_score","total_speed_score",
     "toprate_rating","toprate_price","speed_rating",
+    # Form Factor Rank/Score - TopRate's new (23 Jun 2026 upgrade) model,
+    # explicitly computed WITHOUT betting market information as an input
+    # (per their announcement), so it is a genuinely independent pre-race
+    # signal rather than another market-derived number. Confirmed present
+    # in get_race_detail as pfmScore/pfmScoreRank (probed 21 Aug 2026);
+    # not yet used by anything - captured here to start accumulating
+    # history before testing it as a WPR feature.
+    "pfm_score","pfm_score_rank",
     "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # TopRate's own jockey and trainer rating numbers (separate from win % strike rates)
     "jockey_rating","trainer_rating",
@@ -2051,6 +2059,9 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "toprate_rating":     d.get("topRateRating"),
                     "toprate_price":      d.get("topRatePrice"),
                     "speed_rating":       d.get("speed"),
+                    # Form Factor Rank/Score - see RUNNER_COLS comment.
+                    "pfm_score":          d.get("pfmScore"),
+                    "pfm_score_rank":     d.get("pfmScoreRank"),
                     # Pull jockey/trainer ratings from race_stats lookup
                     # (sit on runner level inside get_race_stats[], NOT on runner detail d)
                     "jockey_rating":      s.get("jockey_rating"),
