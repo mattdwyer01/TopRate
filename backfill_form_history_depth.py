@@ -79,6 +79,19 @@ def main():
     name_by_rid = (df.dropna(subset=["horse"])
                      .drop_duplicates("run_id")
                      .set_index("run_id")["horse"].to_dict())
+    # Each horse's OWN latest existing scrape_date - new rows must join that
+    # same baseline group, not get stamped with today's date. wpr is a
+    # rebased rating (see wpr_projection._dedup_scrape_baseline): training
+    # keeps ONLY a horse's single most-recent scrape_date and drops the
+    # rest. Stamping every backfilled row with "today" would make it look
+    # like a newer, separate scrape than the horse's real baseline, so that
+    # dedup step would keep only the tiny newly-added set and drop all of
+    # the horse's properly-captured existing rows - the opposite of the
+    # point of this script.
+    latest_scrape_by_hid = (df.dropna(subset=["horse_id", "scrape_date"])
+                               .groupby(df["horse_id"].astype(str))["scrape_date"]
+                               .max().to_dict())
+    today_str = pd.Timestamp.now().normalize().strftime("%Y-%m-%d")
 
     print("Logging in ...")
     td.login()
@@ -134,7 +147,7 @@ def main():
             "run_id": rid,
             "horse_id": hid,
             "horse": name_by_rid.get(rid),
-            "scrape_date": pd.Timestamp.now().normalize().strftime("%Y-%m-%d"),
+            "scrape_date": latest_scrape_by_hid.get(hid, today_str),
             "date": d,
         }
         for col in cap.ALL_COLS:
