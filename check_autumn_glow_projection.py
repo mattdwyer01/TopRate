@@ -27,6 +27,10 @@ print(f"\n{len(ag_form)} form-history rows loaded for Autumn Glow")
 
 print(f"\nRaw wpr_nett from toprate_runners.csv for this row: {row.get('wpr_nett')!r}")
 
+real_field_size = len(runners[runners['race_id'] == row['race_id']])
+print(f"Real field size for this race (count of runners on race_id "
+      f"{row['race_id']}): {real_field_size}")
+
 runner = {
     'prior_runs': ag_form,
     'cur_distance': row['distance'],
@@ -34,7 +38,7 @@ runner = {
     'cur_track': row['venue'],
     'cur_track_grading': row['track_grading'],
     'cur_race_class': row['race_class'],
-    'cur_field_size': None,
+    'cur_field_size': real_field_size,
     'cur_wpr_nett': row.get('wpr_nett'),
 }
 results = wp.project_race([runner], row['date'])
@@ -51,12 +55,13 @@ print(f"  avg_l3:         {r.get('avg_l3')}")
 feats = wp.build_features(ag_form, row['distance'], row['going'], row['venue'],
                           row['track_grading'], row['date'],
                           cur_race_class=row['race_class'],
+                          cur_field_size=real_field_size,
                           cur_wpr_nett=row.get('wpr_nett'))
 med = wp._CFG['medians'] if wp._CFG else {}
 print(f"\nRaw build_features() output (before any median-fill):")
 for k in ['n_runs', 'first_up', 'runs_this_camp', 'days_since', 'avg_last3',
           'avg_last5', 'peak', 'career_avg', 'recent_vs_career', 'wpr_nett',
-          'trend', 'ewm3']:
+          'trend', 'ewm3', 'field_size']:
     v = feats.get(k) if feats else None
     is_nan = v is None or (isinstance(v, float) and v != v)
     flag = "  <-- MEDIAN-FILLED (raw value missing!)" if is_nan else ""
