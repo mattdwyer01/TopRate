@@ -30,3 +30,9 @@ supabase_key.txt
 supabase_key.txt
 toprate_credentials.txt
 catboost_info/
+
+# Frontend build tooling (frontend/) - node_modules and the raw Vite build
+# output are not tracked; only the built toprate_live.html at repo root is
+# (same artifact-tracking convention as everything else in this repo).
+frontend/node_modules/
+frontend/dist/

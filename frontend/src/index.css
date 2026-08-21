@@ -1,0 +1,57 @@
+/* Fonts - same choice as the current dashboard (Outfit for display/body,
+   IBM Plex Mono for tabular/numeric contexts like odds and WPR figures).
+   Must precede the Tailwind import - @import rules have to come before any
+   other CSS rule (aside from @charset/@layer). */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+/* Design tokens, ported from toprate_html_v3.py CSS_TOKENS (L139-178).
+   Tailwind v4's CSS-first @theme maps these straight into utility classes:
+   bg-panel, text-ink, border-line, text-emerald, rounded-md, etc. Kept the
+   same values as the current dashboard as a starting point - this file is
+   the one place to retune the palette without touching component code. */
+@theme {
+  --color-bg: #f4f6f9;
+  --color-panel: #ffffff;
+  --color-line: #e8eaf0;
+  --color-line-soft: #f1f3f8;
+  --color-ink: #0f1729;
+  --color-ink-soft: #374151;
+  --color-ink-mute: #6b7280;
+  --color-ink-faint: #9ca3af;
+
+  --color-emerald: #059669;
+  --color-emerald-bg: #ecfdf5;
+  --color-emerald-line: #a7f3d0;
+  --color-emerald-deep: #047857;
+
+  --color-rose: #dc2626;
+  --color-rose-bg: #fef2f2;
+  --color-rose-line: #fecaca;
+
+  --color-amber: #d97706;
+  --color-amber-bg: #fffbeb;
+  --color-amber-line: #fde68a;
+
+  --color-slate: #475569;
+  --color-slate-bg: #f1f5f9;
+
+  --color-indigo: #4338ca;
+  --color-indigo-bg: #eef2ff;
+
+  --shadow-1: 0 1px 2px rgba(28, 25, 23, .04);
+  --shadow-2: 0 4px 12px rgba(28, 25, 23, .06);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: "Outfit", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
