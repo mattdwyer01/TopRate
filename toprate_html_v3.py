@@ -40,16 +40,6 @@ from datetime import datetime
 # plus total race count.
 VENUE_HISTORY_FILE = Path(__file__).parent / "toprate_venue_history.json.gz"
 
-# PF barrier x runstyle A2E bias data. Written by puntingform_ingest.py
-# (the speedmaps endpoint). Each meeting yields 4 rows: barrier bands
-# 1-3, 4-7, 8+ and a Totals row, with A2E figures for Forward / Midfield /
-# Back run styles. We surface this on the race detail panel as a 4x3
-# grid alongside the existing winner-zone bias chart.
-PF_BARRIER_BIAS_FILE = (
-    Path(__file__).parent / "puntingform_data" / "pf_barrier_bias.csv"
-)
-
-
 def _going_category(going):
     """Bucket a going string into Firm/Good/Soft/Heavy/Synthetic."""
     if not going:
@@ -141,109 +131,6 @@ def load_venue_bias_lookup():
         "byVenue":          by_venue,
         "totalRaces":       len(races),
     }
-
-
-def load_pf_barrier_bias():
-    """
-    Load PF barrier x runstyle bias from pf_barrier_bias.csv (written by
-    puntingform_ingest.py via the User/Speedmaps endpoint).
-
-    PF re-derives these lifetime A2E figures nightly. Each meeting we've
-    ingested has 4 rows (1-3, 4-7, 8+, Totals). When the same venue appears
-    on multiple dates we keep the MOST RECENT row per band so the lookup
-    reflects PF's current view, not stale snapshots.
-
-    Returns:
-        {
-          'byVenue': {
-            'Moe': {
-              'railPosition': '3-7',
-              'antiClockwise': True,
-              'asOf': '2026-05-12',
-              'bands': [
-                {'band':'1-3',    'forward':0.80, 'midfield':0.98, 'back':0.66},
-                {'band':'4-7',    'forward':0.91, 'midfield':1.14, 'back':1.02},
-                {'band':'8+',     'forward':0.86, 'midfield':1.10, 'back':1.19},
-                {'band':'Totals', 'forward':0.86, 'midfield':1.08, 'back':0.97},
-              ],
-            },
-            ...
-          }
-        }
-
-    Returns empty {byVenue: {}} if file doesn't exist (graceful fallback so
-    the panel just shows "no PF data yet" until ingest runs).
-    """
-    if not PF_BARRIER_BIAS_FILE.exists():
-        return {"byVenue": {}}
-
-    # Most-recent date per (venue, band) wins. We sort by date asc and
-    # overwrite as we go - last write is freshest.
-    by_venue = {}
-    try:
-        with PF_BARRIER_BIAS_FILE.open("r", newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-    except (OSError, csv.Error) as e:
-        print(f"  ! pf_barrier_bias load failed ({e})")
-        return {"byVenue": {}}
-
-    # Sort by date ascending so later rows clobber earlier ones below
-    rows.sort(key=lambda r: r.get("_pf_date") or "")
-
-    # Float coercion - some empty A2E cells exist for low-sample bands
-    def _f(v):
-        if v is None or v == "":
-            return None
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return None
-
-    def _b(v):
-        # CSV stores booleans as "True"/"False" strings
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            return v.strip().lower() == "true"
-        return None
-
-    for row in rows:
-        venue = (row.get("_pf_venue") or "").strip()
-        band = (row.get("barrier_band") or "").strip()
-        if not venue or not band:
-            continue
-        v_entry = by_venue.setdefault(venue, {
-            "railPosition":  None,
-            "antiClockwise": None,
-            "asOf":          None,
-            "bands":         {},
-        })
-        # Meeting-level metadata - update with latest seen (sort guarantees freshness)
-        v_entry["railPosition"]  = row.get("rail_position") or v_entry["railPosition"]
-        v_entry["antiClockwise"] = _b(row.get("anti_clockwise"))
-        v_entry["asOf"]          = row.get("_pf_date") or v_entry["asOf"]
-        v_entry["bands"][band] = {
-            "band":     band,
-            "forward":  _f(row.get("a2e_forward")),
-            "midfield": _f(row.get("a2e_midfield")),
-            "back":     _f(row.get("a2e_back")),
-        }
-
-    # Flatten bands dict to ordered list (1-3, 4-7, 8+, Totals)
-    band_order = ["1-3", "4-7", "8+", "Totals"]
-    for venue, entry in by_venue.items():
-        ordered = []
-        bands_dict = entry["bands"]
-        for b in band_order:
-            if b in bands_dict:
-                ordered.append(bands_dict[b])
-        # Any unrecognised bands appended after, sorted
-        extras = sorted(k for k in bands_dict if k not in band_order)
-        for b in extras:
-            ordered.append(bands_dict[b])
-        entry["bands"] = ordered
-
-    return {"byVenue": by_venue}
 
 
 # ── Aesthetic tokens ────────────────────────────────────────────────────────
@@ -524,10 +411,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     # lookup is empty and the JS commentary falls back to "insufficient
     # sample" gracefully.
     venue_bias = load_venue_bias_lookup()
-    # PF barrier x runstyle A2E bias - meeting-level data from the PF
-    # speedmaps endpoint. Renders as a 4x3 grid next to the existing
-    # winner-zone bias chart on the race detail panel.
-    pf_barrier_bias = load_pf_barrier_bias()
 
     # Data payload. Previously inlined as `const X = ...;` inside the page's
     # one big <script>, which forced the browser to PARSE + COMPILE the entire
@@ -567,7 +450,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         "RUN_ISO": run_iso,
         "GITHUB_REPO": github_repo,
         "VENUE_BIAS": venue_bias,
-        "PF_BARRIER_BIAS": pf_barrier_bias,
     }
     data_json = json.dumps(data_obj, separators=(',', ':'))
 
@@ -2450,98 +2332,6 @@ body {
   font-style: italic; margin-top: 12px;
 }
 
-/* PF barrier x runstyle A2E grid. Shows performance vs market expectations
-   by barrier band (1-3, 4-7, 8+, Totals) for each run style (Forward,
-   Midfield, Back). A2E = Actual To Expected; 1.00 is neutral, <0.95 is
-   below expectation (red), >1.15 is above (green). PF's own thresholds. */
-.pf-bias-panel {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: var(--radius-md); padding: 14px 18px;
-  margin-top: 12px;
-}
-.pf-bias-title {
-  font-family: var(--font-display); font-size: 13px; font-weight: 700;
-  color: var(--ink); margin-bottom: 4px;
-  display: flex; justify-content: space-between; align-items: baseline;
-  gap: 12px;
-}
-.pf-bias-meta {
-  font-family: var(--font-body); font-size: 11px; font-weight: 500;
-  color: var(--ink-mute);
-}
-.pf-bias-blurb {
-  font-family: var(--font-body); font-size: 11px; color: var(--ink-mute);
-  margin-bottom: 10px; line-height: 1.4;
-}
-.pf-bias-grid {
-  display: grid;
-  /* Barrier label + 3 run-style cells. Cells share width via 1fr. */
-  grid-template-columns: 78px repeat(3, 1fr);
-  gap: 4px;
-  font-family: var(--font-mono);
-}
-.pf-bias-cell {
-  padding: 7px 6px; text-align: center;
-  font-size: 12px; font-weight: 600;
-  border-radius: 4px; background: var(--line-soft);
-  color: var(--ink);
-}
-/* Header row - styled distinctly from data cells */
-.pf-bias-cell.pf-bias-h {
-  background: transparent; color: var(--ink-mute);
-  font-family: var(--font-body); font-size: 10px;
-  font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.05em; padding: 4px 6px;
-}
-/* Barrier label column on each data row */
-.pf-bias-cell.pf-bias-band {
-  background: transparent; color: var(--ink-soft);
-  font-family: var(--font-body); font-size: 11px;
-  font-weight: 600; text-align: left;
-  padding-left: 4px;
-}
-.pf-bias-cell.pf-bias-band.pf-bias-totals {
-  border-top: 1px solid var(--line); padding-top: 9px; margin-top: 2px;
-  color: var(--ink);
-}
-/* Totals row gets a top divider on data cells too */
-.pf-bias-cell.pf-bias-totals {
-  border-top: 1px solid var(--line); padding-top: 9px; margin-top: 2px;
-}
-/* A2E colour gates - PF's own thresholds */
-.pf-bias-cell.pf-bias-good {
-  background: var(--emerald-bg); color: var(--emerald-deep);
-}
-.pf-bias-cell.pf-bias-bad {
-  background: var(--rose-bg); color: var(--rose);
-}
-.pf-bias-cell.pf-bias-empty {
-  background: transparent; color: var(--ink-faint);
-}
-
-/* A2E legend - shown once below the grid */
-.pf-bias-legend {
-  display: flex; gap: 14px; margin-top: 10px;
-  font-family: var(--font-body); font-size: 10px; color: var(--ink-mute);
-  align-items: center; flex-wrap: wrap;
-}
-.pf-bias-legend .swatch {
-  display: inline-block; width: 10px; height: 10px;
-  border-radius: 2px; margin-right: 4px; vertical-align: middle;
-}
-.pf-bias-legend .sw-good { background: var(--emerald-bg); border: 1px solid var(--emerald-line); }
-.pf-bias-legend .sw-bad  { background: var(--rose-bg);    border: 1px solid var(--rose-line); }
-
-/* Mobile */
-@media (max-width: 720px) {
-  .pf-bias-panel { padding: 12px 14px; }
-  .pf-bias-grid { grid-template-columns: 62px repeat(3, 1fr); gap: 3px; }
-  .pf-bias-cell { padding: 6px 4px; font-size: 11px; }
-  .pf-bias-cell.pf-bias-h { font-size: 9px; }
-  .pf-bias-cell.pf-bias-band { font-size: 10px; }
-  .pf-bias-title { font-size: 12px; }
-}
-
 /* Mobile */
 @media (max-width: 720px) {
   .track-conditions-card { padding: 12px 14px; }
@@ -3011,8 +2801,13 @@ body {
   box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
 }
 .wpr-manual-input::placeholder { color: var(--ink-mute); opacity: 0.5; }
-/* Overlay / stake */
-.race-table td.wpr-overlay-pos { color: var(--emerald); font-weight: 600; }
+/* Overlay / stake. Deliberately NOT styled green-for-positive: a backtest
+   (Aug 2026) found overlay% is anti-correlated with results - the bigger
+   the overlay, the worse the actual win rate/ROI, across beta settings,
+   a held-out date split, and every confidence tier. It stays visible as
+   information (how the model's price compares to market), not as a
+   buy signal. See calibrate_price_beta.py / margin_analysis.py. */
+.race-table td.wpr-overlay-pos { color: var(--ink); font-weight: 600; }
 .race-table td.wpr-overlay-neg { color: var(--ink-mute); }
 .race-table td.wpr-stake { font-weight: 600; }
 /* Bet Y/N toggle */
@@ -4808,7 +4603,6 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="race-table-wrap" id="rd-runners-table"></div>
           <div class="race-pace-map" id="rd-pace-map"></div>
           <div class="track-conditions-card" id="rd-track-conditions"></div>
-          <div class="pf-bias-panel" id="rd-pf-bias" style="display:none;"></div>
         </div>
         <div id="rd-postrace-section" style="display:none;"></div>
       </div>
@@ -4860,7 +4654,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         </select>
       </div>
       <div class="wpr-filter">
-        <label for="wpr-f-overlay">Min overlay</label>
+        <label for="wpr-f-overlay" title="Backtested Aug 2026: higher overlay correlated with WORSE results, not better, across price settings and confidence tiers. Filtering here narrows the list, it is not a value signal.">Min overlay</label>
         <select id="wpr-f-overlay">
           <option value="0">Any</option>
           <option value="25">25%+</option>
@@ -5147,13 +4941,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <div class="lbl">Threshold</div>
           <div class="desc">
-            Minimum cumulative score for a horse to be highlighted as a qualifier on the Race tab.
-            Higher = stricter, fewer picks. The score is a logistic-regression
-            blend of TR rating, WPR, Late speed, PF AI, PF Class, and PF L600
-            signals (Path C). Path C scores are sigmoid-bounded in [0, 1] and
-            tend to cluster near the middle of the range; a threshold around
-            0.40-0.50 matches what 0.70 used to mean for the legacy formula.
-            The main betting model rule does not use this threshold.
+            Inactive: the cumulative score this fed was deleted in the
+            WPR-only refactor. This control is a leftover and currently
+            never highlights anything on the Race tab.
           </div>
         </div>
         <input type="number" class="setting-input" id="setting-score-thresh" value="0.40" min="0" max="1" step="0.05">
@@ -5342,7 +5132,6 @@ var RUN_DATE = '';
 var RUN_ISO = '';
 var GITHUB_REPO = '';
 var VENUE_BIAS = {};
-var PF_BARRIER_BIAS = {};
 
 // ── Settings state ──────────────────────────────────────────────────────────
 const STORAGE_KEY = 'toprate_v3_settings';
@@ -5657,7 +5446,6 @@ function __bootDashboard() {
       if (d.RUN_ISO != null) RUN_ISO = d.RUN_ISO;
       if (d.GITHUB_REPO != null) GITHUB_REPO = d.GITHUB_REPO;
       if (d.VENUE_BIAS) VENUE_BIAS = d.VENUE_BIAS;
-      if (d.PF_BARRIER_BIAS) PF_BARRIER_BIAS = d.PF_BARRIER_BIAS;
       __initDashboard();
     })
     .catch(function (e) {
@@ -5866,7 +5654,7 @@ function fpOrdinal(n) {
 }
 
 // ── Abandoned meeting / race tracking ───────────────────────────────────────
-// User-managed: PF and TR don't surface abandonment until results come in
+// User-managed: TopRate doesn't surface abandonment until results come in
 // (often hours after the abandoned races would have run), so picks for
 // abandoned races stay visible as "pending" until the user manually marks
 // them. Two granularities:
@@ -6403,7 +6191,7 @@ function saveTodayFilters() {
 // and we look up jrt via the race's runner list.
 function todayPickPassesFilters(pick) {
   // Abandoned meetings/races: hide the pick from Today entirely. This is
-  // the manual override for the PF/TR blind spot - abandonment data
+  // the manual override for the TopRate blind spot - abandonment data
   // doesn't reach the API until results come in (often hours late), so
   // the user marks it themselves and we honour that immediately. Resulted
   // picks with a finish position are not filtered here - they live in
@@ -6737,7 +6525,7 @@ let raceSortState = { col: 'wpjp', dir: 'desc' };
 
 // Build a rich detail panel for a single runner inside the Race tab table.
 // Triggered by clicking a row. Shows what the columns no longer carry: jockey,
-// trainer, their ratings/strike rates, distance/going history, full PF context.
+// trainer, their ratings/strike rates, distance/going history.
 // Build the expanded runner-detail row HTML. Shown when user clicks a row.
 // rankCtx (optional): { mid: {rid: rank}, total: {rid: rank} } so the
 // detail panel can show Mid/Total speed score ranks inline with their values.
@@ -8937,21 +8725,6 @@ function renderRaceDetail(raceId) {
   const _tcEl = document.getElementById('rd-track-conditions');
   if (_tcEl) { _tcEl.innerHTML = ''; _tcEl.style.display = 'none'; }
 
-  // PF barrier x runstyle A2E grid. Sits below the venue-bias chart. Panel
-  // is hidden when there's no PF data for this venue (e.g. ingest hasn't
-  // run yet, or the meeting isn't in pf_barrier_bias.csv) - no orphan title.
-  const pfBiasEl = document.getElementById('rd-pf-bias');
-  if (pfBiasEl) {
-    const pfBiasHtml = renderPfBarrierBias(race);
-    if (pfBiasHtml) {
-      pfBiasEl.innerHTML = pfBiasHtml;
-      pfBiasEl.style.display = '';
-    } else {
-      pfBiasEl.innerHTML = '';
-      pfBiasEl.style.display = 'none';
-    }
-  }
-
   // ── Compute ranks ──
   function computeRanks(runners, getter) {
     const valid = runners.filter(r => getter(r) != null);
@@ -8966,10 +8739,8 @@ function renderRaceDetail(raceId) {
   const midRanks   = computeRanks(runners, r => r.ms);
   const lateRanks  = computeRanks(runners, r => r.ls);
   const totalRanks = computeRanks(runners, r => r.ts);
-  // NEW: timeRanks - within-race rank of speed_rating (u.spd). This is the
-  // "Time" voting signal used by the Edge model. Not to be confused with
-  // u.tR which is PF's pre-computed time rank (a different signal from
-  // PF's API, currently unused by either model).
+  // timeRanks - within-race rank of speed_rating (u.spd). This was the
+  // "Time" voting signal used by the (now-removed) Edge model.
   const timeRanks  = computeRanks(runners, r => r.spd);
 
   // Going category
@@ -10415,80 +10186,6 @@ function renderTrackConditions(race) {
       '<div class="tc-dualbars">' + barRows + '</div>' +
       footerNote +
     '</div>';
-}
-
-// PF barrier x runstyle A2E grid. Reads PF_BARRIER_BIAS injected from
-// pf_barrier_bias.csv (written by puntingform_ingest.py speedmaps step).
-// A2E values colour-coded using PF's own thresholds: <0.95 red, >1.15 green,
-// in between is neutral. Empty cells (low sample, PF returns null) render
-// as a faint em-dash.
-//
-// Returns empty string when there's no PF data for this venue - caller
-// hides the panel in that case so it doesn't render an empty box.
-function renderPfBarrierBias(race) {
-  const venue = race.venue || '';
-  const bias = (typeof PF_BARRIER_BIAS !== 'undefined') ? PF_BARRIER_BIAS : { byVenue: {} };
-  const entry = bias.byVenue ? bias.byVenue[venue] : null;
-  if (!entry || !entry.bands || !entry.bands.length) return '';
-
-  // Format a single A2E cell - empty -> em-dash, value -> 2dp with colour gate
-  function cell(value, isTotalsRow) {
-    let cls = 'pf-bias-cell';
-    let txt;
-    if (value == null) {
-      cls += ' pf-bias-empty';
-      txt = '—';
-    } else {
-      txt = value.toFixed(2);
-      // PF's own thresholds for colouring (see their docs: A2E <0.95 below
-      // expectation, >1.15 above expectation, in between is neutral).
-      if (value < 0.95) cls += ' pf-bias-bad';
-      else if (value > 1.15) cls += ' pf-bias-good';
-    }
-    if (isTotalsRow) cls += ' pf-bias-totals';
-    return '<div class="' + cls + '">' + txt + '</div>';
-  }
-
-  // Header row
-  const headerCells =
-    '<div class="pf-bias-cell pf-bias-h">Barrier</div>' +
-    '<div class="pf-bias-cell pf-bias-h">Forward</div>' +
-    '<div class="pf-bias-cell pf-bias-h">Midfield</div>' +
-    '<div class="pf-bias-cell pf-bias-h">Back</div>';
-
-  // Data rows - one per barrier band. The Totals row is visually separated.
-  const bandRows = entry.bands.map(b => {
-    const isTotals = b.band === 'Totals';
-    let lblCls = 'pf-bias-cell pf-bias-band';
-    if (isTotals) lblCls += ' pf-bias-totals';
-    return '<div class="' + lblCls + '">' + escapeHtml(b.band) + '</div>' +
-           cell(b.forward,  isTotals) +
-           cell(b.midfield, isTotals) +
-           cell(b.back,     isTotals);
-  }).join('');
-
-  // Meta line: rail position + track direction + freshness date
-  const metaParts = [];
-  if (entry.railPosition) metaParts.push('Rail ' + escapeHtml(entry.railPosition));
-  if (entry.antiClockwise === true)  metaParts.push('anti-clockwise');
-  if (entry.antiClockwise === false) metaParts.push('clockwise');
-  if (entry.asOf) metaParts.push('as of ' + escapeHtml(entry.asOf));
-  const metaLine = metaParts.length
-    ? '<span class="pf-bias-meta">' + metaParts.join(' · ') + '</span>'
-    : '';
-
-  return '<div class="pf-bias-title">' +
-           '<span>PF Barrier × Run Style</span>' + metaLine +
-         '</div>' +
-         '<div class="pf-bias-blurb">' +
-           'Actual to Expected (A2E) vs market price - PF lifetime data. ' +
-           '1.00 is neutral; values below 0.95 underperform, above 1.15 outperform.' +
-         '</div>' +
-         '<div class="pf-bias-grid">' + headerCells + bandRows + '</div>' +
-         '<div class="pf-bias-legend">' +
-           '<span><span class="swatch sw-bad"></span>Below 0.95 (underperform)</span>' +
-           '<span><span class="swatch sw-good"></span>Above 1.15 (outperform)</span>' +
-         '</div>';
 }
 
 // Normalize rail strings the same way the Python loader does so the
@@ -12512,7 +12209,7 @@ function buildSyncPayload() {
     // playing softer than official" judgments to mobile
     trackRatings: trackRatings,
     // Abandoned meetings/races - hides picks once user marks abandonment.
-    // Crucial for sync because PF/TR don't surface abandonment until results,
+    // Crucial for sync because TopRate doesn't surface abandonment until results,
     // and a user might mark Lismore on phone but want it hidden on desktop too.
     abandonedMeetings: abandonedMeetings,
     abandonedRaces: abandonedRaces,

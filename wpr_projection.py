@@ -119,20 +119,29 @@ FEATURES = [
     # field_size lets it correct the bias gradient. Biggest single feature
     # gain measured in the Stage 0 work.
     "field_size",
+    # --- wpr_nett (Aug 2026 feature search: KEEP, held-out MAE 5.75 -> 5.14,
+    # by far the largest single gain ever measured for this model) ---
+    # TopRate's own automated pre-race base rating. See build_features'
+    # cur_wpr_nett docstring for the leak-check.
+    "wpr_nett",
 ]
-CONF_FEATURES = [
-    "n_runs", "track_n", "distband_n", "days_since", "std_last5",
-    "std_career", "first_up", "runs_this_camp", "recent_vs_career",
-    "dist_vs_last",
-]
-
 _PROJ = None
 _CONF = None
 _CFG = None
 
 
 def _load_models():
-    """Load the three model artifacts once. Raises if wpr_models/ is missing."""
+    """Load the model artifacts once. Raises if wpr_models/ is missing.
+
+    projection.joblib is the q50 (median) quantile model - THE projection.
+    confidence.joblib is a dict {"lo": q10 model, "hi": q90 model} - their
+    predicted interval width is the confidence signal (see project_race).
+    Both replaced a single mean-regression model + a separate model that
+    predicted ITS error (Aug 2026 rebuild) - one quantile architecture
+    measured better on both the point estimate and confidence calibration
+    than the old two-model design, so the old one was retired rather than
+    kept alongside it.
+    """
     global _PROJ, _CONF, _CFG
     if _PROJ is not None:
         return
@@ -283,7 +292,7 @@ def _safe_slope(x, y):
 
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
-                   cur_field_size=None):
+                   cur_field_size=None, cur_wpr_nett=None):
     """Build the feature dict for one horse.
 
     prior_runs: DataFrame of the horse's PAST runs only, any order. Needs
@@ -299,6 +308,14 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
       over-projects large ones (a bias gradient: -1.8 WPR at <=7 runners,
       +0.4 at 14+); field_size lets the model correct it. Defaults to None
       (filled with the training median at serving if absent).
+    cur_wpr_nett: TopRate's own automated pre-race base rating for this
+      run (Base + Adj from get_user_cache_race, captured at the SAME
+      pre-race fetch as everything else - not a leak, verified against a
+      held-out split where it improved MAE even MORE on genuinely
+      pre-race-fetched rows than on backfilled ones). By far the single
+      largest accuracy gain found in the Aug 2026 feature search (held-out
+      MAE 5.75 -> 5.14). Defaults to None (filled with the training
+      median at serving if absent, e.g. a race TopRate has not rated).
     race_date: date of the race being projected (required - used for
       days_since; pass the real race date, never a guess).
 
@@ -420,11 +437,24 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     rd = pd.to_datetime(race_date)
     days_since = int((rd - dates.iloc[-1]).days)
 
-    # campaign position - runs since the last spell (gap > 60 days).
-    # counts prior runs only; the run being projected is NOT counted.
+    # campaign position of the run being projected - runs since the last
+    # spell (gap > 60 days), counting the gap from the last prior run to
+    # TODAY as a possible spell too. Bug fix (Aug 2026): this previously
+    # only looked at gaps WITHIN the prior-runs history (dates.diff()),
+    # never days_since itself - so a horse whose CURRENT spell was longer
+    # than any spell in its recorded history kept whatever campaign
+    # position it was on before the layoff, and was never correctly
+    # flagged first_up/second_up. Found via the Autumn Glow case: 8 prior
+    # runs with a 105-day gap partway through (runs_this_camp=4 as of its
+    # last run), then a 133-day spell before the race being projected -
+    # the old code still said runs_this_camp=4 (mid-campaign) for what is
+    # actually a fresh first-up run.
     gaps = dates.diff().dt.days
     spell_idx = gaps[gaps > _SPELL_GAP_DAYS].index
-    runs_this_camp = n - (spell_idx.max() if len(spell_idx) else 0)
+    if days_since > _SPELL_GAP_DAYS:
+        runs_this_camp = 1
+    else:
+        runs_this_camp = (n - (spell_idx.max() if len(spell_idx) else 0)) + 1
 
     dist_grad = _safe_slope(dist.values, wv) * 100
 
@@ -585,9 +615,23 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         peak_at_class = peak
 
-    # second-up / third-up wpr history
+    # first-up / second-up / third-up wpr history. first_up (in FEATURES) is
+    # only a population-level binary flag - it has no way to see that THIS
+    # horse personally fires up fresh. firstup_wpr closes that gap the same
+    # way secondup_wpr/thirdup_wpr already do for their camp positions.
+    # TESTED, NOT ADOPTED (held-out comparison, this codebase's own bar):
+    # full-set MAE +0.011 (below the 0.03 adoption bar), and on the first-up
+    # subset specifically it was flat-to-slightly-worse (-0.010 MAE; on rows
+    # where the horse's own first-up history beat its recent form by 3+, bias
+    # improved marginally but MAE still landed slightly worse). The tree
+    # ensemble already recovers most of this signal through avg_last3 /
+    # career_avg / runs_this_camp interactions. Kept emitted (not in
+    # FEATURES) as a documented negative result - do not re-add without a
+    # fresh held-out test showing a real gain.
+    r1 = w[camp_run_series == 1]
     r2 = w[camp_run_series == 2]
     r3 = w[camp_run_series == 3]
+    firstup_wpr = float(r1.mean()) if len(r1) >= 1 else avg_last3
     secondup_wpr = float(r2.mean()) if len(r2) >= 1 else avg_last3
     thirdup_wpr = float(r3.mean()) if len(r3) >= 1 else avg_last3
 
@@ -647,6 +691,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "untried_wet": untried_wet,
         "class_move": class_move,
         "peak_at_class": peak_at_class,
+        "firstup_wpr": firstup_wpr,
         "secondup_wpr": secondup_wpr,
         "thirdup_wpr": thirdup_wpr,
         "pct_of_peak": ewm3 / peak if peak else 1.0,
@@ -673,6 +718,13 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "is_small_field": 1 if (cur_field_size is not None
                                 and str(cur_field_size) not in ("nan", "")
                                 and float(cur_field_size) <= 7) else 0,
+        # wpr_nett - TopRate's own pre-race base rating for this run. In
+        # FEATURES: the single biggest accuracy gain found in the Aug 2026
+        # search. NaN-filled with the training median if absent (e.g. a
+        # race TopRate has not rated).
+        "wpr_nett": float(cur_wpr_nett)
+            if cur_wpr_nett is not None and str(cur_wpr_nett) not in ("nan", "")
+            else np.nan,
     }
     # merge the 13 prior-runs sectional averages (candidate set a) -
     # emitted, not yet in FEATURES, tested via compare_feature_sets.
@@ -739,7 +791,8 @@ def project_race(runners, race_date):
         build_features(r.get("prior_runs"), r["cur_distance"], r["cur_going"],
                        r["cur_track"], r.get("cur_track_grading"), race_date,
                        cur_race_class=r.get("cur_race_class"),
-                       cur_field_size=r.get("cur_field_size"))
+                       cur_field_size=r.get("cur_field_size"),
+                       cur_wpr_nett=r.get("cur_wpr_nett"))
         for r in runners
     ]
     fallbacks = [f is None for f in feat_dicts]
@@ -771,9 +824,15 @@ def project_race(runners, race_date):
         proj = np.asarray(proj, dtype=float)
         proj[_has_recent] = ((1.0 - _blend_w) * proj[_has_recent]
                              + _blend_w * _recent[_has_recent])
-    pred_err = _CONF.predict(X[CONF_FEATURES])
+    # Confidence: q90-q10 interval width from the quantile models, mapped
+    # to 0-100 the same way the old error-predicting model's output was.
+    # A wider interval = the model itself is less sure = lower confidence.
+    # Measured better-calibrated than the old two-stage design (held-out
+    # corr with actual error 0.289 vs 0.233, Aug 2026 rebuild) as well as
+    # simpler (one architecture instead of two bolted-together models).
+    interval_width = _CONF["hi"].predict(X) - _CONF["lo"].predict(X)
     clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
-    conf = np.clip(100 * (1 - (pred_err - clo) / (chi - clo)), 0, 100)
+    conf = np.clip(100 * (1 - (interval_width - clo) / (chi - clo)), 0, 100)
 
     valid = np.array([not fb for fb in fallbacks])
     price = np.full(len(runners), np.nan)
@@ -1005,15 +1064,19 @@ def _horse_feature_rows(g):
         f = build_features(g.iloc[:i], cur["distance"], cur["going"],
                            cur["track"], cur["trackGrading"], cur["date"],
                            cur_race_class=cur.get("race_class"),
-                           cur_field_size=cur.get("field_size"))
+                           cur_field_size=cur.get("field_size"),
+                           cur_wpr_nett=cur.get("wpr_nett"))
         if f is None:
             continue
         f["target"] = float(cur["wpr"])
         f["date"] = cur["date"]
         # field_size is already a model feature (emitted by build_features).
-        # race_id / race_class are analysis-only (not trained on).
+        # race_id / race_class / run_id are analysis-only (not trained on).
+        # run_id lets analysis code join in external per-run signals
+        # (wpr_nett, pfm_score, etc.) from toprate_runners.csv by exact key.
         f["race_id"] = cur.get("race_id")
         f["race_class"] = cur.get("race_class")
+        f["run_id"] = cur.get("run_id")
         # Comments for THIS run, carried so the retrain's void filter can
         # exclude compromised runs from the target. Not features.
         f["comments_video"] = cur.get("comments_video")
@@ -1045,6 +1108,28 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     """
     fh = pd.read_csv(form_history_csv)
     fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+    # wpr_nett (TopRate's own pre-race base rating) is not captured in the
+    # form-history scrape - it only exists in toprate_runners.csv, keyed by
+    # run_id, from the pre-race fetch. Merge it in here so _horse_feature_rows
+    # can read cur["wpr_nett"] the same way it reads cur["distance"] etc.
+    # Left join: a run with no matching runners.csv row (or no wpr_nett
+    # captured for it) just gets NaN, filled with the training median same
+    # as every other feature.
+    if "run_id" in fh.columns:
+        _runners_csv = _DIR / "toprate_runners.csv"
+        if _runners_csv.exists():
+            _tr = pd.read_csv(_runners_csv, dtype={"run_id": str},
+                              usecols=lambda c: c in ("run_id", "wpr_nett"),
+                              low_memory=False)
+            _tr["run_id"] = _tr["run_id"].astype(str)
+            _tr = _tr.drop_duplicates(subset="run_id", keep="last")
+            fh["run_id"] = fh["run_id"].astype(str)
+            fh = fh.merge(_tr, on="run_id", how="left")
+            if verbose:
+                print(f"  wpr_nett merged: {fh['wpr_nett'].notna().sum():,} "
+                      f"/ {len(fh):,} rows")
+        elif verbose:
+            print(f"  wpr_nett merge skipped: {_runners_csv.name} not found")
     # Collapse multi-scrape baselines BEFORE the keep-filter strips
     # scrape_date / formNumber. Must precede sort and feature build - a
     # mixed-baseline history corrupts every wpr-derived feature.
@@ -1067,14 +1152,15 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
             "margin800m", "margin600m", "margin400m", "marginFinish",
             "isBarrierTrial",
             "field_size", "raceShapeEarly", "raceShapeMid",
-            "raceShapeLate", "race_class", "race_id",
+            "raceShapeLate", "race_class", "race_id", "run_id", "wpr_nett",
             "comments_video", "comments_steward"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
     for c in ["wpr", "distance", "trackGrading", "positionSettled",
               "position800m", "position600m", "margin800m", "margin600m",
               "margin400m", "marginFinish", "isBarrierTrial", "field_size",
-              "raceShapeEarly", "raceShapeMid", "raceShapeLate"] + _sect_cols:
+              "raceShapeEarly", "raceShapeMid", "raceShapeLate",
+              "wpr_nett"] + _sect_cols:
         if c in fh.columns:
             fh[c] = pd.to_numeric(fh[c], errors="coerce")
 
@@ -1131,11 +1217,24 @@ def _verify_feature_consistency(form_history_csv, n_check=40):
 
 def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                          out_dir="wpr_models", n_jobs=1):
-    """Re-fit projection and confidence models. Offline use only.
-    Run: python wpr_projection.py --retrain [--jobs N]
+    """Re-fit the projection (q50) and confidence (q10/q90 interval) models.
+    Offline use only. Run: python wpr_projection.py --retrain [--jobs N]
     n_jobs is passed to the feature build (the slow step); -1 = all cores.
+
+    Quantile architecture (Aug 2026 rebuild): one LightGBM model per
+    quantile (0.1, 0.5, 0.9), all on the same FEATURES. q50 is the
+    projection - it replaced a separately-tuned HistGradientBoosting mean
+    regressor because a walk-forward comparison showed LOWER held-out MAE
+    from the quantile objective's median (more robust to this target's
+    noise than squared-error loss). q90-q10 (the interval width) is the
+    confidence signal - it replaced a second model that predicted the
+    first model's error, because the interval width correlated MORE
+    strongly with actual error on held-out data (+0.289 vs +0.233) than
+    that bolted-on error model did, from one simpler architecture instead
+    of two. See wpr_projection.py's module docstring / CLAUDE.md for the
+    walk-forward numbers this is based on.
     """
-    from sklearn.ensemble import HistGradientBoostingRegressor
+    import lightgbm as lgb
     from sklearn.metrics import mean_absolute_error
 
     print(f"Regenerating training frame from {form_history_csv} "
@@ -1197,31 +1296,40 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     cf = D[(D["date"] >= q1) & (D["date"] < q2)].copy()
     te = D[D["date"] >= q2].copy()
 
-    proj = HistGradientBoostingRegressor(max_iter=350, max_depth=3,
-                                         learning_rate=0.04, random_state=42)
-    # recency-weighted: down-weight old rows (the wpr scale drifts). The
-    # confidence model below is left unweighted - it predicts error
-    # magnitude, not the drifting target.
+    # recency-weighted: down-weight old rows (the wpr scale drifts). Applied
+    # to all three quantile models - the drift affects the whole target
+    # distribution, not just its mean.
     sw = _recency_weights(trn["date"])
-    proj.fit(trn[FEATURES], trn["target"], sample_weight=sw)
     if _RECENCY_HALF_LIFE_DAYS:
         print(f"  recency-weighted training: {_RECENCY_HALF_LIFE_DAYS}d "
               f"half-life")
+
+    def _fit_quantile(q):
+        m = lgb.LGBMRegressor(objective="quantile", alpha=q, n_estimators=350,
+                              max_depth=3, learning_rate=0.04, num_leaves=8,
+                              random_state=42, verbosity=-1)
+        m.fit(trn[FEATURES], trn["target"], sample_weight=sw)
+        return m
+
+    q_lo = _fit_quantile(0.1)
+    proj = _fit_quantile(0.5)   # the projection model
+    q_hi = _fit_quantile(0.9)
+
     cf["abs_err"] = (proj.predict(cf[FEATURES]) - cf["target"]).abs()
     te["abs_err"] = (proj.predict(te[FEATURES]) - te["target"]).abs()
 
-    em = HistGradientBoostingRegressor(max_iter=250, max_depth=3,
-                                       learning_rate=0.05, random_state=42)
-    em.fit(cf[CONF_FEATURES], cf["abs_err"])
-    clo, chi = np.quantile(em.predict(cf[CONF_FEATURES]), [0.05, 0.95])
+    cf_interval = q_hi.predict(cf[FEATURES]) - q_lo.predict(cf[FEATURES])
+    clo, chi = np.quantile(cf_interval, [0.05, 0.95])
+    _conf_corr = np.corrcoef(
+        q_hi.predict(te[FEATURES]) - q_lo.predict(te[FEATURES]),
+        te["abs_err"])[0, 1]
+    print(f"  confidence (interval width) corr with actual error, held-out: "
+          f"{_conf_corr:+.3f}")
+    if _conf_corr < 0.1:
+        print("  WARNING: confidence barely tracks error - investigate.")
 
     mae = mean_absolute_error(te["target"], proj.predict(te[FEATURES]))
-    te["conf"] = np.clip(100 * (1 - (em.predict(te[CONF_FEATURES]) - clo) / (chi - clo)), 0, 100)
-    corr = np.corrcoef(te["conf"], te["abs_err"])[0, 1]
     print(f"  held-out projection MAE: {mae:.3f}")
-    print(f"  confidence corr with error: {corr:+.3f}")
-    if corr > -0.1:
-        print("  WARNING: confidence no longer tracks error - investigate.")
 
     # Calibration offset: the model carries a measurable low bias (the wpr
     # target drifts up over time, so a model fit on older runs reads low). The
@@ -1269,12 +1377,28 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             print(f"  recent-form blend: no weight beat no-blend by >=0.03 MAE "
                   f"(best {best_w:.2f} gave {best_mae:.3f} vs {base_mae_blend:.3f}); keeping 0.0")
 
+    # beta (the price softmax parameter) is calibrated separately by
+    # calibrate_price_beta.py against real resulted-race outcomes - it is
+    # NOT re-derived here (this function has no win/loss data, only WPR
+    # values). Carry the existing config's beta forward so a retrain does
+    # not silently reset it back to the 0.4 default; only a config.json
+    # that has never been calibrated falls back to 0.4.
+    _existing_cfg_path = Path(out_dir) / "config.json"
+    beta = 0.4
+    if _existing_cfg_path.exists():
+        try:
+            beta = json.load(open(_existing_cfg_path)).get("beta", 0.4)
+        except Exception:
+            pass
+    print(f"  beta carried forward from existing config: {beta} "
+          f"(re-run calibrate_price_beta.py --write to re-derive it)")
+
     Path(out_dir).mkdir(exist_ok=True)
     joblib.dump(proj, Path(out_dir) / "projection.joblib")
-    joblib.dump(em, Path(out_dir) / "confidence.joblib")
-    json.dump({"features": FEATURES, "conf_features": CONF_FEATURES,
+    joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
+    json.dump({"features": FEATURES,
                "medians": med.to_dict(), "conf_lo": float(clo),
-               "conf_hi": float(chi), "beta": 0.4, "min_runs": _MIN_RUNS,
+               "conf_hi": float(chi), "beta": beta, "min_runs": _MIN_RUNS,
                "calib_offset": calib_offset,
                "recent_blend_w": recent_blend_w},
               open(Path(out_dir) / "config.json", "w"), indent=1)

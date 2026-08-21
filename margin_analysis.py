@@ -19,6 +19,15 @@ CAVEATS up front (these are real):
     is approximate by construction.
   - Sample size on this dataset is small. Direction is informative,
     exact numbers will move on a larger sample.
+  - margin_finish's own sign convention is not "0 for the winner, positive
+    for the beaten" - the winner's row commonly carries a NEGATIVE value
+    (their winning margin, sign-inverted). Both parts below anchor every
+    runner's margin to their own race's winner (see behind_winner) instead
+    of trusting the raw column's sign. A prior version of this script
+    filtered out margin_finish < 0, which silently deleted most winning
+    rows and made the top-pick win rate look like ~0.3% instead of the
+    real ~25-27%. Fixed; kept here as a warning against re-adding that
+    filter.
 
 Descriptive only. No model or dashboard change is made by this script.
 
@@ -97,11 +106,37 @@ def main():
         df[resulted_col] = pd.to_numeric(df[resulted_col], errors="coerce")
         df = df[df[resulted_col] == 1]
 
+    # 99 / 99.9 is a null/DNF sentinel in this data, not a real 90+ length
+    # margin (confirmed: only a handful of rows, all exactly at that value).
+    df = df[df[margin_col] < 90]
+
     df = df.dropna(subset=[rank_col, proj_col, finish_col,
                             margin_col, "race_id"])
     df = df[df[finish_col] > 0]
     df = df[df[rank_col] > 0]
-    df = df[df[margin_col] >= 0]   # negative margins are usually data errors
+
+    # margin_col is NOT "0 for the winner, positive for the beaten" - the
+    # winner's own row commonly carries a NEGATIVE value (their winning
+    # margin, sign-inverted), which the old `>= 0` filter here dropped,
+    # silently deleting most winning rows before Part A even counted wins
+    # (this was the bug: it made top-pick win rate look like ~0.3% when the
+    # real number is ~25%). Fix: anchor every runner's margin to their OWN
+    # race's winner. Subtracting the winner's raw value per race gives a
+    # clean "lengths behind the winner" column (0 for the winner, >=0 for
+    # everyone else) regardless of whatever sign convention the raw column
+    # uses on any given row.
+    winner_raw = (df[df[finish_col] == 1]
+                  .drop_duplicates(subset="race_id")
+                  .set_index("race_id")[margin_col])
+    df["_winner_raw"] = df["race_id"].map(winner_raw)
+    df = df.dropna(subset=["_winner_raw"])
+    df["behind_winner"] = df[margin_col] - df["_winner_raw"]
+    # small negative residuals are measurement noise (photo finishes /
+    # timing rounding) - clip to 0. Meaningfully negative means a runner is
+    # recorded as literally ahead of the winner, a genuine data problem for
+    # that specific race - drop only those rows.
+    df = df[df["behind_winner"] > -0.5]
+    df["behind_winner"] = df["behind_winner"].clip(lower=0.0)
 
     print(f"Usable runner-rows: {len(df):,}")
     print(f"Races available: {df['race_id'].nunique():,}")
@@ -129,13 +164,15 @@ def main():
         if len(top) != 1:
             continue
         top_finish = int(top[finish_col].iloc[0])
-        top_margin = float(top[margin_col].iloc[0])
         if top_finish == 1:
             top_pick_wins += 1
-            top_pick_margins_when_won.append(top_margin)
+            # winning margin = the closest chaser's gap behind the winner
+            others = g.loc[g[finish_col] != 1, "behind_winner"]
+            if len(others):
+                top_pick_margins_when_won.append(float(others.min()))
         else:
             top_pick_losses += 1
-            top_pick_margins_when_loss.append(top_margin)
+            top_pick_margins_when_loss.append(float(top["behind_winner"].iloc[0]))
 
     print("=" * 64)
     print("A) TOP-PICK MARGIN DISTRIBUTIONS")
@@ -175,7 +212,7 @@ def main():
         if len(g) < 4:
             continue
         # use all runners with both a projection and a margin
-        vals = g[[proj_col, margin_col]].dropna().to_numpy()
+        vals = g[[proj_col, "behind_winner"]].dropna().to_numpy()
         n = len(vals)
         if n < 4:
             continue

@@ -28,3 +28,5 @@ pf_api.key
 wpr_form_history.csv
 supabase_key.txt
 supabase_key.txt
+toprate_credentials.txt
+catboost_info/
