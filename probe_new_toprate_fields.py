@@ -67,6 +67,66 @@ def _walk(obj, deref, path, out, depth=0, max_depth=4):
         out.append((path, val))
 
 
+def probe_page(page_path):
+    """Generic SvelteKit __data.json prober for any page (not just the
+    runner page, which requires a 'runnerDetail' root key). page_path is
+    the URL path after the domain, e.g. 'races/1757148/assess' - this is
+    where OHR is confirmed to be visible (the Assess Screen)."""
+    page_path = page_path.strip("/")
+    url = f"{cap.WEB_BASE}/{page_path}/__data.json?x-sveltekit-invalidated=0001"
+    headers, cookies = cap._auth_bits()
+    resp = __import__("requests").get(
+        url, headers=headers, cookies=cookies,
+        verify=cap.VERIFY_SSL, timeout=cap.TIMEOUT, allow_redirects=False)
+    print(f"HTTP {resp.status_code} for {url}")
+    if resp.status_code in (301, 302, 303, 307, 308):
+        print(f"Redirected to: {resp.headers.get('location')}")
+        print("(likely an auth bounce - check TOPRATE_EMAIL/TOPRATE_PASSWORD)")
+        return
+    payload = resp.json()
+    if isinstance(payload, dict) and payload.get("type") == "redirect":
+        print(f"App-level redirect to: {payload.get('location')!r}")
+        return
+    nodes = payload.get("nodes") if isinstance(payload, dict) else None
+    if not isinstance(nodes, list):
+        print("No 'nodes' list in payload. Top-level keys:",
+              list(payload.keys()) if isinstance(payload, dict) else type(payload))
+        return
+
+    print(f"\n{'=' * 70}\n{len(nodes)} data node(s)\n{'=' * 70}")
+    all_pairs = []
+    for i, n in enumerate(nodes):
+        if not (isinstance(n, dict) and isinstance(n.get("data"), list)):
+            print(f"node[{i}]: no data list (type {type(n).__name__})")
+            continue
+        data = n["data"]
+        if not data:
+            print(f"node[{i}]: empty data array")
+            continue
+        root = data[0]
+
+        def deref(p, _data=data):
+            return _data[p] if isinstance(p, int) else p
+
+        if isinstance(root, dict):
+            print(f"node[{i}] root keys: {list(root.keys())}")
+            _walk(root, deref, f"node[{i}]", all_pairs, max_depth=4)
+        else:
+            print(f"node[{i}] root: {root!r}"[:200])
+
+    print(f"\n{'=' * 70}")
+    print(f"CANDIDATE MATCHES (key name contains any of {_CANDIDATE_TERMS})")
+    print("=" * 70)
+    found = [(p, v) for p, v in all_pairs
+             if any(t in p.rsplit(".", 1)[-1].split("[")[0].lower()
+                    for t in _CANDIDATE_TERMS)]
+    if found:
+        for path, val in found:
+            print(f"  {path} = {val!r}")
+    else:
+        print("  (none found)")
+
+
 def probe(run_id):
     url = (f"{cap.WEB_BASE}/runners/{run_id}/__data.json"
            f"?x-sveltekit-invalidated=0001")
@@ -235,13 +295,19 @@ def main():
     ap.add_argument("--race-id",
                     help="a real race_id - checks get_race_detail (the Field "
                          "View RPC) instead of the runner page")
+    ap.add_argument("--page",
+                    help="a page path to probe generically via its "
+                         "__data.json, e.g. 'races/1757148/assess' (the "
+                         "Assess Screen, where OHR is visible)")
     args = ap.parse_args()
-    if not args.run_id and not args.race_id:
-        ap.error("pass --run-id and/or --race-id")
+    if not args.run_id and not args.race_id and not args.page:
+        ap.error("pass --run-id, --race-id, and/or --page")
     if args.run_id:
         probe(args.run_id)
     if args.race_id:
         probe_race(args.race_id)
+    if args.page:
+        probe_page(args.page)
 
 
 if __name__ == "__main__":
