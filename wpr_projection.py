@@ -1093,8 +1093,15 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     if feats is None:
         return "Not enough form history to make a projection."
 
+    def _ordinal(n):
+        if 10 <= n % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
+
     rank_txt = "top-rated in the race" if wpr_rank == 1 else (
-        f"rated {wpr_rank} in the race" if wpr_rank else "unranked")
+        f"rated {_ordinal(wpr_rank)} in the race" if wpr_rank else "unranked")
     sentences = [f"Projected {projected_wpr:.1f}, {rank_txt}."]
 
     # ── Explain the projection vs recent form - the key "looks odd" case ──
@@ -1145,10 +1152,11 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     nr = feats.get("n_runs", 0)
     sc = feats.get("std_career", 5)
     if confidence >= 80:
-        sentences.append(f"Confidence is high - {nr} runs to go on and a "
-                         f"steady profile.")
+        sentences.append(f"Confidence is high - {nr} runs of career form "
+                         f"and a steady profile.")
     elif confidence >= 60:
-        sentences.append(f"Confidence is moderate, with {nr} runs to go on.")
+        sentences.append(f"Confidence is moderate - {nr} runs of career "
+                         f"form to work with.")
     else:
         if sc >= 9:
             why = "its career form is erratic"
