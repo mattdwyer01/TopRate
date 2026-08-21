@@ -131,7 +131,7 @@
  },
  "conf_lo": 4.333879006362336,
  "conf_hi": 8.290814384455405,
- "beta": 0.4,
+ "beta": 0.15,
  "min_runs": 3,
  "calib_offset": 2.178537881135398,
  "recent_blend_w": 0.0
