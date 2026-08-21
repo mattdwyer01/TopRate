@@ -74,7 +74,35 @@ EXTRA_COLS = [
     "comments_steward", "comments_video", "time_last600m",
     "jockey", "trainer", "is_jumpout",
 ]
-ALL_COLS = SECT_COLS + EXTRA_COLS
+
+# Core per-run columns that the THIN feed (get_race_wpr_chart) already
+# supplies for TODAY's runners (see toprate_daily._WPR_FORM_FIELDS - keep
+# these two lists in sync, same raw API key names). The rich __data.json
+# 'form' array carries these same fields for EVERY past run it returns, not
+# just the ones the thin feed happened to include, so extracting them here
+# lets the rich fetch backfill core columns on existing (thin) rows AND
+# supply everything needed to create brand-new rows for runs the thin feed
+# never surfaced at all (see toprate_daily._enrich_form_history_rich). Only
+# "date" is left out - that is handled separately (it is the join key).
+CORE_COLS = [
+    "formNumber", "raceNumber",
+    "track", "trackCode", "trackGrading",
+    "distance", "going",
+    "wpr", "weightCarried", "barrier", "priceStarting",
+    "positionSettled", "position800m", "position600m",
+    "position400m", "position200m", "positionFinish",
+    "margin800m", "margin600m", "margin400m", "margin200m", "marginFinish",
+    "raceShapeEarly", "raceShapeMid", "raceShapeLate",
+    "winner", "isBarrierTrial",
+]
+ALL_COLS = SECT_COLS + EXTRA_COLS + CORE_COLS
+
+
+def _scalar(v):
+    """Keep only JSON-scalar values (str/int/float/bool); anything else
+    (an undereferenced pointer, a nested dict/list) becomes None rather than
+    being written into the CSV as garbage."""
+    return v if isinstance(v, (str, int, float, bool)) else None
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +349,13 @@ def extract_runs(payload):
 
         jo = deref(fe.get("isJumpout"))
         figs["is_jumpout"] = bool(jo) if isinstance(jo, bool) else None
+
+        # Core per-run fields (see CORE_COLS above) - same raw key names as
+        # the thin feed uses, so these merge straight into the same columns.
+        # A key genuinely absent from the rich feed (positionSettled, per
+        # inspection) just comes through as None like everything else here.
+        for k in CORE_COLS:
+            figs[k] = _scalar(deref(fe.get(k)))
 
         out.append({"date": str(run_date), "fields": figs})
     return horse_id, out

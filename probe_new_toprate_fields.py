@@ -168,7 +168,8 @@ def probe(run_id):
         for f in form:
             fd = deref(f)
             if isinstance(fd, dict):
-                print(f"  {fd.get('date')}  {fd.get('track')}  wpr={fd.get('wpr')}")
+                print(f"  {deref(fd.get('date'))}  {deref(fd.get('track'))}  "
+                      f"wpr={deref(fd.get('wpr'))}")
     if isinstance(form, list) and form:
         print("\n" + "=" * 70)
         print("First form-run entry - all keys")
