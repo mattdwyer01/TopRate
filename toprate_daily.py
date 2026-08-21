@@ -1077,6 +1077,7 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 # degrade gracefully to neutral in project_race if None.
                 "cur_race_class": r.get("race_class"),
                 "cur_field_size": len(race),
+                "cur_wpr_nett": r.get("wpr_nett"),
             }
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))
