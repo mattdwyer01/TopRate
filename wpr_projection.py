@@ -322,6 +322,21 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     Returns the feature dict, or None if fewer than _MIN_RUNS prior runs.
     """
     p = prior_runs
+    if p is not None:
+        # Barrier trials (and any other unrated row) carry no wpr - they are
+        # not a "prior run" in the modelling sense and must not stand in for
+        # one. Until the Aug 2026 capture-depth fix, isBarrierTrial was
+        # always False in the captured history (trials simply weren't being
+        # captured as rows at all), so nothing downstream ever needed to
+        # filter them out. Now
+        # that trials ARE captured with real dates, an unfiltered trial row
+        # can become dates.iloc[-1] below - corrupting days_since/first_up
+        # for exactly the freshening-up-for-a-comeback horses this feature
+        # exists to catch (confirmed live: a horse's most recent captured
+        # row was a trial 22 days out, so first_up read False instead of
+        # True for a horse off a 130+ day spell). Drop unrated rows before
+        # any date-based reasoning runs.
+        p = p[pd.to_numeric(p["wpr"], errors="coerce").notna()]
     if p is None or len(p) < _MIN_RUNS:
         return None
 
