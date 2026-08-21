@@ -58,6 +58,10 @@ jobs:
             exit 0
           fi
           git add toprate_runners.csv toprate_live.html
+          # The dashboard's data payload - without this the live site's data
+          # only actually updates via a manual deploy.bat run. Confirmed NOT
+          # gitignored (unlike toprate_price_history.csv above), safe to add.
+          [ -f toprate_data.json ] && git add toprate_data.json
           git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry. The remote moves often - the daily
           # workflow, manual pushes, and the every-5-min schedule all commit to

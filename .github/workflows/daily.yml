@@ -89,6 +89,11 @@ jobs:
           [ -f toprate_runners.csv ] && git add toprate_runners.csv
           [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
           [ -f toprate_live.html ] && git add toprate_live.html
+          # The dashboard's data payload - without this the automated runs
+          # regenerate it locally but never publish it, so the live site's
+          # data only actually updates on a manual `deploy.bat` run (which
+          # goes through toprate_daily.py's publish() and does include it).
+          [ -f toprate_data.json ] && git add toprate_data.json
           # Gzipped WPR form history - committed so it persists and accumulates
           # across ephemeral Action runs (append needs the prior file).
           [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz
