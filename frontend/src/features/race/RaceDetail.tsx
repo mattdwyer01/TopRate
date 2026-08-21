@@ -89,8 +89,6 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
         </div>
       </div>
 
-      <SpeedMap race={race} runners={race.runners} />
-
       <div className="flex items-center justify-between">
         <div className="flex gap-1">
           <Pill active={compact} onClick={() => setCompact(true)}>Compact</Pill>
@@ -123,6 +121,8 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
           />
         ))}
       </div>
+
+      <SpeedMap race={race} runners={race.runners} />
 
       {selectedRunner && <RunnerDetailPanel runner={selectedRunner} race={race} />}
     </div>
