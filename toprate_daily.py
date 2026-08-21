@@ -50,8 +50,28 @@ VERIFY_SSL = False
 # -----------------------------------------------------------------------
 API_BASE  = "https://api.toprate.au"
 ANON_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNjkxNjc2MDAwLAogICJleHAiOiAxODQ5NTI4ODAwCn0.MsNV6VIGz0f4K-wgKSwv1b2cnb76x7OcvrHm8HosHT4"
-EMAIL     = os.environ.get("TOPRATE_EMAIL", "matt.dwyer.01@gmail.com")
-PASSWORD  = os.environ.get("TOPRATE_PASSWORD", "P@ssword1996")
+# No hardcoded fallback - previously defaulted to a real plaintext
+# password, which meant it sat in every commit that touched this file.
+# Locally, set TOPRATE_EMAIL/TOPRATE_PASSWORD as env vars, or create a
+# gitignored toprate_credentials.txt (email on line 1, password on line 2)
+# - see _load_toprate_credentials(). The GitHub Action already sets both
+# as repo secrets, so it needs no local file.
+_CREDENTIALS_FILE = Path(__file__).parent / "toprate_credentials.txt"
+
+
+def _load_toprate_credentials():
+    email = os.environ.get("TOPRATE_EMAIL", "").strip()
+    password = os.environ.get("TOPRATE_PASSWORD", "").strip()
+    if email and password:
+        return email, password
+    if _CREDENTIALS_FILE.exists():
+        lines = _CREDENTIALS_FILE.read_text().splitlines()
+        if len(lines) >= 2 and lines[0].strip() and lines[1].strip():
+            return lines[0].strip(), lines[1].strip()
+    return None, None
+
+
+EMAIL, PASSWORD = _load_toprate_credentials()
 
 # Full Supabase session object from the last login() call. Populated by
 # login(); read by the SvelteKit __data.json cookie-pair builder. None
@@ -136,6 +156,12 @@ RUNNER_COLS = [
 # AUTH
 # -----------------------------------------------------------------------
 def login():
+    if not EMAIL or not PASSWORD:
+        raise RuntimeError(
+            "TopRate credentials not found. Set TOPRATE_EMAIL and "
+            "TOPRATE_PASSWORD env vars, or create toprate_credentials.txt "
+            "(gitignored, repo root) with the email on line 1 and the "
+            "password on line 2.")
     resp = requests.post(
         f"{API_BASE}/auth/v1/token?grant_type=password",
         headers={"apikey": ANON_KEY, "Content-Type": "application/json"},
