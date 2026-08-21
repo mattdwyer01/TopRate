@@ -437,11 +437,24 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     rd = pd.to_datetime(race_date)
     days_since = int((rd - dates.iloc[-1]).days)
 
-    # campaign position - runs since the last spell (gap > 60 days).
-    # counts prior runs only; the run being projected is NOT counted.
+    # campaign position of the run being projected - runs since the last
+    # spell (gap > 60 days), counting the gap from the last prior run to
+    # TODAY as a possible spell too. Bug fix (Aug 2026): this previously
+    # only looked at gaps WITHIN the prior-runs history (dates.diff()),
+    # never days_since itself - so a horse whose CURRENT spell was longer
+    # than any spell in its recorded history kept whatever campaign
+    # position it was on before the layoff, and was never correctly
+    # flagged first_up/second_up. Found via the Autumn Glow case: 8 prior
+    # runs with a 105-day gap partway through (runs_this_camp=4 as of its
+    # last run), then a 133-day spell before the race being projected -
+    # the old code still said runs_this_camp=4 (mid-campaign) for what is
+    # actually a fresh first-up run.
     gaps = dates.diff().dt.days
     spell_idx = gaps[gaps > _SPELL_GAP_DAYS].index
-    runs_this_camp = n - (spell_idx.max() if len(spell_idx) else 0)
+    if days_since > _SPELL_GAP_DAYS:
+        runs_this_camp = 1
+    else:
+        runs_this_camp = (n - (spell_idx.max() if len(spell_idx) else 0)) + 1
 
     dist_grad = _safe_slope(dist.values, wv) * 100
 
