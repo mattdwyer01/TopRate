@@ -14,7 +14,9 @@ function fmtSigned(v: number): string {
 // What's actually driving this runner's adjustment, feature by feature -
 // not just the two biggest reasons describe() narrates (it only speaks up
 // when the total is >=3 WPR), the full picture, including small nudges.
-// Values sum to `adjustment` exactly, shown at the bottom for transparency.
+// Values sum to `adjustment` exactly. Wrapping pills rather than one row
+// per feature - a compact strip instead of a tall list, since there can be
+// up to 15 of these.
 export function AdjustmentBreakdown({ breakdown, adjustment }: AdjustmentBreakdownProps) {
   const baseline = breakdown[BASELINE_KEY] ?? 0
   const rows = Object.entries(breakdown)
@@ -32,26 +34,27 @@ export function AdjustmentBreakdown({ breakdown, adjustment }: AdjustmentBreakdo
 
   return (
     <div>
-      <div className="mb-1 text-sm font-semibold text-ink">What's driving the adjustment</div>
-      <div className="flex flex-col divide-y divide-line-soft rounded-lg border border-line">
-        {rows.map(([key, v]) => (
-          <div key={key} className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-sm">
-            <span className="text-ink-soft">{ADJUSTMENT_LABELS[key] ?? key}</span>
-            <span className={`font-mono font-medium ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
-              {fmtSigned(v)}
-            </span>
-          </div>
-        ))}
-        <div className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs text-ink-faint">
-          <span>Model baseline &amp; calibration (not specific to this horse)</span>
-          <span className="font-mono">{fmtSigned(baseline)}</span>
-        </div>
-        <div className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-sm font-semibold">
-          <span className="text-ink">Total adjustment</span>
-          <span className={`font-mono ${adjustment > 0 ? 'text-emerald-deep' : adjustment < 0 ? 'text-rose' : 'text-ink-mute'}`}>
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="text-sm font-semibold text-ink">What's driving the adjustment</span>
+        <span className="text-xs text-ink-faint">
+          plus baseline &amp; calibration {fmtSigned(baseline)} = total{' '}
+          <span className={adjustment > 0 ? 'text-emerald-deep' : adjustment < 0 ? 'text-rose' : 'text-ink-mute'}>
             {fmtSigned(adjustment)}
           </span>
-        </div>
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {rows.map(([key, v]) => (
+          <span
+            key={key}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+              v > 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'
+            }`}
+          >
+            {ADJUSTMENT_LABELS[key] ?? key}
+            <span className="font-mono font-semibold">{fmtSigned(v)}</span>
+          </span>
+        ))}
       </div>
     </div>
   )
