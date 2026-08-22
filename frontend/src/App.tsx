@@ -4,6 +4,7 @@ import { useUrlState } from './routing/useUrlState'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
 import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
+import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { RaceDetail } from './features/race/RaceDetail'
 
 function App() {
@@ -29,8 +30,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-bg text-ink">
-      <header className="sticky top-0 z-10 border-b border-line bg-panel px-4 py-3">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+      <header className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
           <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
           {state.status === 'ready' && (
             <FreshnessDot
@@ -39,6 +40,14 @@ function App() {
             />
           )}
         </div>
+        {state.status === 'ready' && (
+          <div className="mx-auto w-full max-w-6xl">
+            <NextToJumpTicker
+              races={state.data.races}
+              onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
+            />
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-4">
