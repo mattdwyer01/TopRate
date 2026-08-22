@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
@@ -82,6 +82,9 @@ export function RunnerDetailModal({
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
+  const [scrolled, setScrolled] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -91,6 +94,15 @@ export function RunnerDetailModal({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, onPrev, onNext])
+
+  // Reset scroll position (and the mini-header state riding on it) when
+  // navigating to a different runner - the scrollable panel element
+  // persists across prev/next, so without this a scrolled-down view would
+  // carry over to the next horse.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+    setScrolled(false)
+  }, [runner.runId])
 
   const priceBits: string[] = []
   const effectivePrice = effective?.effectivePrice ?? runner.wprPrice
@@ -108,8 +120,10 @@ export function RunnerDetailModal({
       onClick={onClose}
     >
       <div
+        ref={scrollRef}
         className="flex max-h-full w-full max-w-6xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
         onClick={(e) => e.stopPropagation()}
+        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 120)}
       >
         <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-line bg-panel px-3 py-2.5">
           {runner.silkUrl ? (
@@ -121,9 +135,19 @@ export function RunnerDetailModal({
             <div className="truncate text-base font-semibold text-ink">
               {runner.tabNumber}. {runner.horse}
             </div>
-            <div className="truncate text-xs text-ink-faint">
-              {runner.jockey} / {runner.trainer}
-            </div>
+            {scrolled ? (
+              <div className="flex items-center gap-2 truncate text-xs">
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                <span className="text-ink-faint">effective WPR</span>
+                {effectivePrice != null && (
+                  <span className="font-mono text-ink-mute">{fmtPrice(effectivePrice)}</span>
+                )}
+              </div>
+            ) : (
+              <div className="truncate text-xs text-ink-faint">
+                {runner.jockey} / {runner.trainer}
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <button
@@ -222,6 +246,31 @@ export function RunnerDetailModal({
                 </button>
               )}
             </label>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <div className="rounded-lg border border-line bg-panel p-2">
+                <div className="text-xs text-ink-faint">Base</div>
+                <div className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</div>
+              </div>
+              <div className="rounded-lg border border-line bg-panel p-2">
+                <div className="text-xs text-ink-faint">Adjustment</div>
+                <div className="font-mono font-semibold text-ink">
+                  {runner.wprAdjustment != null
+                    ? `${runner.wprAdjustment > 0 ? '+' : ''}${runner.wprAdjustment.toFixed(1)}`
+                    : '—'}
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-panel p-2">
+                <div className="text-xs text-ink-faint">Model projection</div>
+                <div className="font-mono font-semibold text-ink">{fmtWpr(runner.projectedWpr)}</div>
+              </div>
+              <div className="rounded-lg border border-line bg-panel p-2">
+                <div className="text-xs text-ink-faint">Confidence</div>
+                <div className="font-mono font-semibold text-ink">
+                  {runner.projectionConfidence != null ? `${runner.projectionConfidence}%` : '—'}
+                </div>
+              </div>
+            </div>
           </div>
 
           <ActualVsProjected runner={runner} />
@@ -229,31 +278,6 @@ export function RunnerDetailModal({
           {runner.projectionDescription && runner.projectedWpr != null && (
             <div className="rounded-lg bg-bg p-2.5 text-sm text-ink-soft">{runner.projectionDescription}</div>
           )}
-
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <div className="rounded-lg border border-line p-2">
-              <div className="text-xs text-ink-faint">Base</div>
-              <div className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</div>
-            </div>
-            <div className="rounded-lg border border-line p-2">
-              <div className="text-xs text-ink-faint">Adjustment</div>
-              <div className="font-mono font-semibold text-ink">
-                {runner.wprAdjustment != null
-                  ? `${runner.wprAdjustment > 0 ? '+' : ''}${runner.wprAdjustment.toFixed(1)}`
-                  : '—'}
-              </div>
-            </div>
-            <div className="rounded-lg border border-line p-2">
-              <div className="text-xs text-ink-faint">Model projection</div>
-              <div className="font-mono font-semibold text-ink">{fmtWpr(runner.projectedWpr)}</div>
-            </div>
-            <div className="rounded-lg border border-line p-2">
-              <div className="text-xs text-ink-faint">Confidence</div>
-              <div className="font-mono font-semibold text-ink">
-                {runner.projectionConfidence != null ? `${runner.projectionConfidence}%` : '—'}
-              </div>
-            </div>
-          </div>
 
           <div className="flex flex-wrap gap-3">
             <div className="min-w-[280px] flex-1">

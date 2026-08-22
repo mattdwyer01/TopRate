@@ -50,7 +50,7 @@ function runningLine(r: FormRun): string {
 
 function RunRow({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
-    <tr className={isPeak ? 'bg-amber/10' : undefined}>
+    <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
       <td className="px-2 py-1 whitespace-nowrap">{run.date ?? ''}</td>
       <td className="px-2 py-1 whitespace-nowrap">
         {run.track}

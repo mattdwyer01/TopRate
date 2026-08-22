@@ -1,5 +1,6 @@
 import type { Race, Runner } from '../../types/domain'
 import { computeCareerStats } from '../../lib/careerStats'
+import { Sparkline } from '../../components/Sparkline'
 
 interface CareerStatsProps {
   runner: Runner
@@ -36,13 +37,14 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2">
       <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
-      <table className="w-full max-w-sm text-xs">
+      <table className="w-full max-w-md text-xs">
         <thead>
           <tr className="text-ink-faint">
             <th className="text-left font-normal" />
             <th className="text-right font-normal">Peak</th>
             <th className="text-right font-normal">Avg</th>
             <th className="text-right font-normal">vs Base</th>
+            <th className="pl-2 text-right font-normal">Trend</th>
           </tr>
         </thead>
         <tbody className="[&_td]:py-0 [&_td]:leading-5">
@@ -54,6 +56,9 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
               <td className="text-right font-mono">{fmt(row.peak)}</td>
               <td className="text-right font-mono">{fmt(row.avg)}</td>
               <td className={`text-right font-mono ${vsBaseClass(row.vsBase)}`}>{fmtSigned(row.vsBase)}</td>
+              <td className="py-0.5 pl-2 text-right">
+                <Sparkline values={row.trend} />
+              </td>
             </tr>
           ))}
         </tbody>
