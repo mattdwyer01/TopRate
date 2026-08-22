@@ -1,11 +1,11 @@
-/* Fonts. Inter for body/display - a dense, numbers-heavy dashboard needs a
-   plain, highly-legible UI face over a distinctive one (Outfit's geometric
-   letterforms read worse at the small sizes most of this app runs at).
-   IBM Plex Mono stays for tabular/numeric contexts (odds, WPR figures) - it
-   was never the readability complaint. Must precede the Tailwind import -
-   @import rules have to come before any other CSS rule (aside from
-   @charset/@layer). */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+/* Fonts. Outfit for body/display (back to the original choice - the
+   readability complaint was about the numeric tables, not this). JetBrains
+   Mono for tabular/numeric contexts (odds, WPR figures) instead of IBM Plex
+   Mono - built specifically for at-a-glance digit/data legibility (distinct
+   0/O, 1/l/I), which is what a table full of prices and ratings needs. Must
+   precede the Tailwind import - @import rules have to come before any other
+   CSS rule (aside from @charset/@layer). */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /* Design tokens, ported from toprate_html_v3.py CSS_TOKENS (L139-178).
@@ -48,8 +48,8 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: "Outfit", sans-serif;
 }
 
 body {
