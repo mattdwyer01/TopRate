@@ -86,7 +86,11 @@ export interface Runner {
   fieldSize: number
 
   // WPR projection (the additive base+adjustment model - see wpr_projection.py)
+  // baseWpr + wprAdjustment == projectedWpr (both null when there's no
+  // projection at all - insufficient form history).
   projectedWpr: number | null
+  baseWpr: number | null
+  wprAdjustment: number | null
   projectionConfidence: number | null
   wprPrice: number | null
   wprRank: number | null
@@ -145,4 +149,7 @@ export interface DashboardData {
   runDate: string
   runIso: string
   githubRepo: string
+  // Softmax beta behind wprPrice - lets the UI replicate the exact price
+  // formula when a manual rating override changes the field's ratings.
+  priceBeta: number | null
 }

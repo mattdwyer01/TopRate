@@ -1,11 +1,19 @@
 import type { Runner } from '../../types/domain'
-import { fmtInt, fmtPct, fmtPrice, fmtWpr, overlayPct } from '../../lib/format'
+import type { EffectiveRunner } from '../../lib/raceModel'
+import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 
 interface RunnerRowProps {
   runner: Runner
   compact: boolean
   selected: boolean
+  effective?: EffectiveRunner
   onClick: () => void
+}
+
+function fmtAdj(v: number | null): string {
+  if (v == null) return '—'
+  const f = v.toFixed(1)
+  return v > 0 ? `+${f}` : f
 }
 
 // A single responsive row - NOT a separate desktop-table/mobile-card pair
@@ -13,20 +21,22 @@ interface RunnerRowProps {
 // consolidation the rebuild plan calls for). The grid's column template
 // itself changes at the sm breakpoint via Tailwind classes, so the same
 // DOM/children just reflow rather than existing twice.
-export function RunnerRow({ runner, compact, selected, onClick }: RunnerRowProps) {
-  const overlay = overlayPct(runner.fixedWinPrice, runner.wprPrice)
+export function RunnerRow({ runner, compact, selected, effective, onClick }: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
+  const displayProj = effective?.effectiveProjectedWpr ?? runner.projectedWpr
+  const displayPrice = effective?.effectivePrice ?? runner.wprPrice
+  const overridden = effective?.hasOverride ?? false
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`grid w-full grid-cols-[28px_1fr_repeat(3,56px)] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[28px_36px_1fr_48px_48px_56px_56px_60px_56px_56px_56px_48px] ${rowPadding} ${
+      className={`grid w-full grid-cols-[40px_1fr_60px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] ${rowPadding} ${
         selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
       {runner.silkUrl ? (
-        <img src={runner.silkUrl} alt="" className="h-5 w-5 rounded-sm object-contain" />
+        <img src={runner.silkUrl} alt="" className="h-9 w-9 rounded-sm object-contain" />
       ) : (
         <span />
       )}
@@ -46,16 +56,32 @@ export function RunnerRow({ runner, compact, selected, onClick }: RunnerRowProps
         {fmtInt(runner.barrier)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.avgSettledPos)}
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.peakWpr)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.wprAvgLast3)}
       </span>
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+        {fmtWpr(runner.baseWpr)}
+      </span>
+      <span
+        className={`hidden text-right font-mono sm:inline ${
+          runner.wprAdjustment != null && runner.wprAdjustment > 0
+            ? 'text-emerald-deep'
+            : runner.wprAdjustment != null && runner.wprAdjustment < 0
+              ? 'text-rose'
+              : 'text-ink-mute'
+        }`}
+      >
+        {fmtAdj(runner.wprAdjustment)}
+      </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
-        {fmtWpr(runner.projectedWpr)}
+        {fmtWpr(displayProj)}
+        {overridden && (
+          <span className="ml-0.5 text-amber" title="Manually adjusted">
+            *
+          </span>
+        )}
         {runner.projectionConfidence !== null && !compact && (
           <span className="ml-1 text-xs font-normal text-ink-faint">
             {fmtInt(runner.projectionConfidence)}%
@@ -63,16 +89,10 @@ export function RunnerRow({ runner, compact, selected, onClick }: RunnerRowProps
         )}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtPrice(runner.wprPrice)}
+        {fmtPrice(displayPrice)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtPrice(runner.fixedWinPrice)}
-      </span>
-      <span
-        className="hidden text-right font-mono text-ink-mute sm:inline"
-        title="Overlay% is shown as information only - a past backtest on this project found it is not predictive on its own, so it is not styled as a buy signal."
-      >
-        {fmtPct(overlay)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}

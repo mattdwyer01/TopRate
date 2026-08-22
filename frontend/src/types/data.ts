@@ -85,6 +85,8 @@ export interface RawRunner {
   won: 0 | 1 | null
   fs: number
   wpjp: number | null
+  wpjb: number | null
+  wpjadj: number | null
   wpjc: number | null
   wpjpr: number | null
   wpjr: number | null
@@ -152,4 +154,7 @@ export interface RawDashboardPayload {
   RUN_ISO: string
   GITHUB_REPO: string
   VENUE_BIAS: RawVenueBias
+  // Softmax beta behind wpjpr (WPR $) - lets the frontend replicate the
+  // exact price formula for a manual-override recompute (see lib/raceModel.ts).
+  PRICE_BETA: number | null
 }

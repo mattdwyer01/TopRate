@@ -2,15 +2,18 @@ import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
+import { useWprOverrides } from '../../lib/wprOverrides'
+import { computeEffectiveRace } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
-import { RunnerDetailPanel } from './RunnerDetailPanel'
+import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { formatCountdown } from '../../lib/countdown'
 
 interface RaceDetailProps {
   race: Race
   allRaces: Race[]
+  priceBeta: number | null
   onBack: () => void
   onSelectRace: (raceId: string, date: string) => void
 }
@@ -19,27 +22,34 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'tab', label: '#' },
   { key: 'horse', label: 'Horse', showCompact: true },
   { key: 'barrier', label: 'Bar' },
-  { key: 'settle', label: 'Settle' },
   { key: 'peakWpr', label: 'Peak' },
   { key: 'avgLast3', label: 'L3' },
+  { key: 'baseWpr', label: 'Base' },
+  { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
   { key: 'wprPrice', label: 'WPR $' },
   { key: 'fixedPrice', label: 'Fixed $' },
-  { key: 'overlay', label: 'Overlay' },
   { key: 'finish', label: 'FP' },
 ]
 
-export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailProps) {
+export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const { deltas, bases, setDelta, setBase } = useWprOverrides()
+
+  const effectiveByRunId = useMemo(
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta),
+    [race.runners, deltas, bases, priceBeta],
+  )
 
   const sortedRunners = useMemo(
-    () => sortRunners(race.runners, sortKey, sortDir),
-    [race.runners, sortKey, sortDir],
+    () => sortRunners(race.runners, sortKey, sortDir, effectiveByRunId),
+    [race.runners, sortKey, sortDir, effectiveByRunId],
   )
-  const selectedRunner = sortedRunners.find((r) => r.runId === selectedRunId) ?? null
+  const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
+  const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
   const meetingRaces = useMemo(
     () =>
@@ -56,6 +66,12 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
       setSortKey(key)
       setSortDir(DEFAULT_DIRECTION[key])
     }
+  }
+
+  function step(delta: number) {
+    if (selectedIndex < 0) return
+    const next = (selectedIndex + delta + sortedRunners.length) % sortedRunners.length
+    setSelectedRunId(sortedRunners[next].runId)
   }
 
   return (
@@ -97,7 +113,7 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-        <div className="hidden min-w-full grid-cols-[28px_36px_1fr_48px_48px_56px_56px_60px_56px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => (
             <button
@@ -117,14 +133,28 @@ export function RaceDetail({ race, allRaces, onBack, onSelectRace }: RaceDetailP
             runner={runner}
             compact={compact}
             selected={runner.runId === selectedRunId}
+            effective={effectiveByRunId[runner.runId]}
             onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
           />
         ))}
       </div>
 
-      {selectedRunner && <RunnerDetailPanel runner={selectedRunner} race={race} />}
-
       <SpeedMap race={race} runners={race.runners} />
+
+      {selectedRunner && (
+        <RunnerDetailModal
+          runner={selectedRunner}
+          race={race}
+          effective={effectiveByRunId[selectedRunner.runId]}
+          deltaValue={deltas[selectedRunner.runId] ?? null}
+          baseValue={bases[selectedRunner.runId] ?? null}
+          onSetDelta={(v) => setDelta(selectedRunner.runId, v)}
+          onSetBase={(v) => setBase(selectedRunner.runId, v)}
+          onClose={() => setSelectedRunId(null)}
+          onPrev={() => step(-1)}
+          onNext={() => step(1)}
+        />
+      )}
     </div>
   )
 }

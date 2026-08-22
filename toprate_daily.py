@@ -1052,7 +1052,8 @@ def compute_wpr_projection(runners_df, target_date_str=None):
 
     # ensure the target columns exist even if projection fails partway
     for col in ["wprp_proj", "wprp_conf", "wprp_price", "wprp_rank",
-                "wprp_peak", "wprp_desc", "wprp_proj_alt", "wprp_conf_alt"]:
+                "wprp_peak", "wprp_desc", "wprp_proj_alt", "wprp_conf_alt",
+                "wprp_base", "wprp_adj"]:
         if col not in runners_df.columns:
             runners_df[col] = None
 
@@ -1150,6 +1151,8 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 runners_df.at[idx, "wprp_conf"] = res.get("confidence")
                 runners_df.at[idx, "wprp_price"] = res.get("wpr_price")
                 runners_df.at[idx, "wprp_rank"] = res.get("wpr_rank")
+                runners_df.at[idx, "wprp_base"] = res.get("base_wpr")
+                runners_df.at[idx, "wprp_adj"] = res.get("adjustment")
                 # alternate-going projection (wet if today dry, dry if wet)
                 ra = results_alt[k]
                 if ra and ra.get("has_projection"):
@@ -2793,6 +2796,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # (wpr_peak_rank_1yr) and "w"/"wpra" to avoid collisions.
                 # None on fallback runners (under 3 prior runs).
                 "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR
+                "wpjb":  sf(row.get("wprp_base")),    # base WPR (pre-adjustment)
+                "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
@@ -2970,6 +2975,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # rebuild toprate_live.html deliberately, by running `npm run build` in
     # frontend/ and committing the result. render_html() is still called
     # for its data_json half - that payload is the real per-run output.
+    try:
+        import wpr_projection as wpr
+        price_beta = wpr.get_price_beta()
+    except Exception as e:
+        print(f"  Could not read price beta ({e}); dashboard override "
+              f"recompute will fall back to its own default.")
+        price_beta = None
+
     html, data_json = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
@@ -2979,6 +2992,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         run_iso=now_iso,
         model_pick_rows=model_pick_rows or [],
         primary_model_key=primary_key,
+        price_beta=price_beta,
     )
     del html
     # Data payload the frontend fetches at boot instead of inlining it

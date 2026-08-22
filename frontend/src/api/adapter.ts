@@ -109,6 +109,8 @@ function toRunner(r: RawRunner): Runner {
     fieldSize: r.fs,
 
     projectedWpr: r.wpjp,
+    baseWpr: r.wpjb,
+    wprAdjustment: r.wpjadj,
     projectionConfidence: r.wpjc,
     wprPrice: r.wpjpr,
     wprRank: r.wpjr,
@@ -185,5 +187,6 @@ export function adaptDashboardPayload(
     runDate: raw.RUN_DATE,
     runIso: raw.RUN_ISO,
     githubRepo: raw.GITHUB_REPO,
+    priceBeta: raw.PRICE_BETA,
   }
 }

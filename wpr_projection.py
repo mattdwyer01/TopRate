@@ -904,6 +904,19 @@ def _feature_frame(feat_dicts):
     return pd.DataFrame(rows, columns=FEATURES)
 
 
+def get_price_beta():
+    """The softmax beta used to turn projected WPR into wpr_price.
+
+    Exposed so the dashboard can replicate the exact same price formula
+    client-side when a user enters a manual rating override - otherwise a
+    manual adjustment could only change the ONE runner's own displayed
+    number, not the whole field's softmax-derived prices, which is what
+    the real price model actually does (see project_race below).
+    """
+    _load_models()
+    return _CFG.get("beta", 0.4)
+
+
 # ---------------------------------------------------------------------------
 # project_race - the main entry point
 # ---------------------------------------------------------------------------
@@ -1005,9 +1018,17 @@ def project_race(runners, race_date):
             })
         else:
             w = pd.to_numeric(pr["wpr"], errors="coerce")
+            # base_wpr + adjustment reproduce projected_wpr exactly (adjustment
+            # folds in calib_offset, the uniform shift, so it's the ONE number
+            # a UI needs to show "why the projection differs from the base
+            # rating" without also having to know about calib_offset).
+            base_wpr = float(base_arr[i])
+            adjustment = float(proj[i]) - base_wpr
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
+                "base_wpr": round(base_wpr, 1),
+                "adjustment": round(adjustment, 1),
                 "confidence": int(round(conf[i])),
                 "wpr_price": round(float(price[i]), 2) if price[i] == price[i] else None,
                 "wpr_rank": int(rank[i]) if rank[i] == rank[i] else None,
