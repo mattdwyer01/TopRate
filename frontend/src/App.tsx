@@ -10,6 +10,13 @@ import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { SettingsModal } from './components/SettingsModal'
 import { RaceDetail } from './features/race/RaceDetail'
+import { ReviewTab } from './features/review/ReviewTab'
+
+type TopTab = 'race' | 'review'
+
+function readTopTab(): TopTab {
+  return new URLSearchParams(window.location.search).get('tab') === 'review' ? 'review' : 'race'
+}
 
 function App() {
   const { state, retry } = useDashboardData()
@@ -17,6 +24,34 @@ function App() {
   const { betaOverride, setBetaOverride } = useBetaOverride()
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [topTab, setTopTabState] = useState<TopTab>(() => readTopTab())
+
+  // Keep topTab in sync with back/forward navigation - separate from
+  // useUrlState's own popstate handling (that hook only tracks the Race
+  // tab's date/race params), so both listeners just re-derive independently.
+  useEffect(() => {
+    function onPopState() {
+      setTopTabState(readTopTab())
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  function switchTab(tab: TopTab) {
+    setTopTabState(tab)
+    if (tab === 'review') {
+      if (window.location.search !== '?tab=review') {
+        window.history.pushState(null, '', '?tab=review')
+      }
+    } else {
+      pushUrlState({ date: urlState.date, raceId: urlState.raceId })
+    }
+  }
+
+  function goToRace(raceId: string, date: string) {
+    setTopTabState('race')
+    pushUrlState({ date, raceId })
+  }
 
   const tickerRaces = useMemo(() => {
     if (state.status !== 'ready') return []
@@ -46,7 +81,31 @@ function App() {
     <div className="min-h-screen bg-bg text-ink">
       <header className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
-          <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
+            <nav className="flex rounded-md border border-line bg-bg p-0.5">
+              <button
+                type="button"
+                onClick={() => switchTab('race')}
+                className={
+                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (topTab === 'race' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Race
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTab('review')}
+                className={
+                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (topTab === 'review' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Review
+              </button>
+            </nav>
+          </div>
           <div className="flex items-center gap-3">
             {state.status === 'ready' && (
               <FreshnessDot
@@ -72,11 +131,11 @@ function App() {
             </div>
           </div>
         </div>
-        {state.status === 'ready' && (
+        {state.status === 'ready' && topTab === 'race' && (
           <div className="mx-auto w-full max-w-6xl">
             <NextToJumpTicker
               races={tickerRaces}
-              onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
+              onSelectRace={goToRace}
             />
           </div>
         )}
@@ -89,20 +148,23 @@ function App() {
         {state.status === 'error' && (
           <ErrorState message={state.message} onRetry={retry} />
         )}
-        {state.status === 'ready' &&
+        {state.status === 'ready' && topTab === 'review' && (
+          <ReviewTab races={state.data.races} onSelectRace={goToRace} />
+        )}
+        {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
             <RaceDetail
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
               priceBeta={betaOverride ?? state.data.priceBeta}
               onBack={() => pushUrlState({ date: urlState.date, raceId: null })}
-              onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
+              onSelectRace={goToRace}
             />
           ) : (
             <MeetingsGrid
               races={state.data.races}
               initialDate={urlState.date}
-              onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
+              onSelectRace={goToRace}
               showBush={showBush}
               onShowBushChange={setShowBush}
             />
