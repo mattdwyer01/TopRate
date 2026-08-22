@@ -1,5 +1,5 @@
 import type { Runner } from '../types/domain'
-import { overlayPct } from './format'
+import type { EffectiveRunner } from './raceModel'
 
 export type SortKey =
   | 'tab'
@@ -7,13 +7,13 @@ export type SortKey =
   | 'jockey'
   | 'trainer'
   | 'barrier'
-  | 'settle'
   | 'peakWpr'
   | 'avgLast3'
+  | 'baseWpr'
+  | 'adjustment'
   | 'projectedWpr'
   | 'wprPrice'
   | 'fixedPrice'
-  | 'overlay'
   | 'finish'
 
 export type SortDirection = 'asc' | 'desc'
@@ -29,17 +29,21 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   jockey: 'asc',
   trainer: 'asc',
   barrier: 'asc',
-  settle: 'asc',
   peakWpr: 'desc',
   avgLast3: 'desc',
+  baseWpr: 'desc',
+  adjustment: 'desc',
   projectedWpr: 'desc',
   wprPrice: 'asc',
   fixedPrice: 'asc',
-  overlay: 'desc',
   finish: 'asc',
 }
 
-function sortValue(runner: Runner, key: SortKey): number | string {
+// effective: this runner's override-aware projected WPR / price, when a
+// manual adjustment is active (see lib/raceModel.ts). Falls back to the
+// raw model figures when there's no override, so sorting always reflects
+// what the table actually displays.
+function sortValue(runner: Runner, key: SortKey, effective?: EffectiveRunner): number | string {
   switch (key) {
     case 'tab':
       return runner.tabNumber
@@ -51,20 +55,20 @@ function sortValue(runner: Runner, key: SortKey): number | string {
       return runner.trainer.toLowerCase()
     case 'barrier':
       return runner.barrier ?? Infinity
-    case 'settle':
-      return runner.avgSettledPos ?? Infinity
     case 'peakWpr':
       return runner.peakWpr ?? -Infinity
     case 'avgLast3':
       return runner.wprAvgLast3 ?? -Infinity
+    case 'baseWpr':
+      return runner.baseWpr ?? -Infinity
+    case 'adjustment':
+      return runner.wprAdjustment ?? -Infinity
     case 'projectedWpr':
-      return runner.projectedWpr ?? -Infinity
+      return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
     case 'wprPrice':
-      return runner.wprPrice ?? Infinity
+      return effective?.effectivePrice ?? runner.wprPrice ?? Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
-    case 'overlay':
-      return overlayPct(runner.fixedWinPrice, runner.wprPrice) ?? -Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
   }
@@ -74,10 +78,11 @@ export function sortRunners(
   runners: Runner[],
   key: SortKey,
   direction: SortDirection,
+  effectiveByRunId?: Record<string, EffectiveRunner>,
 ): Runner[] {
   const sorted = [...runners].sort((a, b) => {
-    const av = sortValue(a, key)
-    const bv = sortValue(b, key)
+    const av = sortValue(a, key, effectiveByRunId?.[a.runId])
+    const bv = sortValue(b, key, effectiveByRunId?.[b.runId])
     if (av < bv) return -1
     if (av > bv) return 1
     return 0

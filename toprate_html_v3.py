@@ -193,7 +193,7 @@ def _safe(v, default=None):
 
 def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 run_date, run_iso, model_pick_rows, primary_model_key='main',
-                github_repo='mattdwyer01/TopRate'):
+                github_repo='mattdwyer01/TopRate', price_beta=None):
     """
     Render the full v3 HTML dashboard.
 
@@ -450,6 +450,9 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         "RUN_ISO": run_iso,
         "GITHUB_REPO": github_repo,
         "VENUE_BIAS": venue_bias,
+        # Softmax beta behind wpjpr (WPR $) - lets the dashboard replicate
+        # the exact price formula for a live manual-override recompute.
+        "PRICE_BETA": price_beta,
     }
     data_json = json.dumps(data_obj, separators=(',', ':'))
 

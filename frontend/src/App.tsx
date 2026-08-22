@@ -62,6 +62,7 @@ function App() {
             <RaceDetail
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
+              priceBeta={state.data.priceBeta}
               onBack={() => pushUrlState({ date: urlState.date, raceId: null })}
               onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
             />
