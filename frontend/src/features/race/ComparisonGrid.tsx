@@ -1,5 +1,5 @@
 import type { FormHistoryEntry, Race, Runner } from '../../types/domain'
-import { estimatePace, goingBand, settleBand } from '../../lib/pace'
+import { estimatePace, settleBand } from '../../lib/pace'
 
 interface ComparisonGridProps {
   runner: Runner
@@ -107,23 +107,24 @@ function CompTable({ title, todayLabel, history, matches }: CompTableProps) {
   )
 }
 
-// 2x2 grid: how this horse's WPR compares under today's race speed,
-// settling band, going, and distance vs. its full history under other
-// conditions - ported from the old dashboard's four compTable() calls.
+// How this horse's WPR compares under today's race speed and settling
+// position vs. its full history under other conditions - ported from the
+// old dashboard's compTable() calls, trimmed to just these two. Going and
+// Distance used to have their own tiles here too, but they sliced the
+// exact same condition (same ±10%-distance/going-band definitions) already
+// shown in CareerStats above, just against career average instead of base
+// rating - duplicate information, dropped in favour of owning it there.
 export function ComparisonGrid({ runner, race, allRunners }: ComparisonGridProps) {
   const history = runner.formHistory
   if (!history.length) return null
 
   const pace = estimatePace(race, allRunners)
   const settleToday = runner.predictedSettlingBand || 'unknown'
-  const goingToday = goingBand(race.going)
-  const distLo = race.distance * 0.9
-  const distHi = race.distance * 1.1
 
   return (
     <div>
-      <div className="mb-1 text-sm font-semibold text-ink">How conditions suit this horse</div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-1 text-sm font-semibold text-ink">How today's shape suits this horse</div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CompTable
           title="Race speed"
           todayLabel={pace.tempoBucket}
@@ -135,18 +136,6 @@ export function ComparisonGrid({ runner, race, allRunners }: ComparisonGridProps
           todayLabel={settleToday}
           history={history}
           matches={(r) => settleBand(r.relativeSettlePosition) === settleToday}
-        />
-        <CompTable
-          title="Going"
-          todayLabel={goingToday || 'unknown'}
-          history={history}
-          matches={(r) => goingBand(r.going) === goingToday}
-        />
-        <CompTable
-          title="Distance"
-          todayLabel={`${race.distance}m`}
-          history={history}
-          matches={(r) => r.distance >= distLo && r.distance <= distHi}
         />
       </div>
     </div>
