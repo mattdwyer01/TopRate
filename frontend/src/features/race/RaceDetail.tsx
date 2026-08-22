@@ -139,6 +139,41 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
+        {/* Mobile header: mirrors RunnerRow's mobile grid-cols exactly
+            (silk/horse/proj/wprPrice/fixedPrice) so labels land above the
+            right column - the desktop header below covers every column but
+            is hidden below sm since most of them aren't shown there. */}
+        <div className="grid grid-cols-[40px_1fr_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
+          <span />
+          <button
+            type="button"
+            onClick={() => onSort('horse')}
+            className={`text-left transition-colors hover:text-ink ${sortKey === 'horse' ? 'text-emerald-deep' : ''}`}
+          >
+            Horse
+          </button>
+          <button
+            type="button"
+            onClick={() => onSort('projectedWpr')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'projectedWpr' ? 'text-emerald-deep' : ''}`}
+          >
+            Proj
+          </button>
+          <button
+            type="button"
+            onClick={() => onSort('wprPrice')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'wprPrice' ? 'text-emerald-deep' : ''}`}
+          >
+            WPR $
+          </button>
+          <button
+            type="button"
+            onClick={() => onSort('fixedPrice')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'fixedPrice' ? 'text-emerald-deep' : ''}`}
+          >
+            Fixed $
+          </button>
+        </div>
         <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
