@@ -30,12 +30,13 @@ function vsBaseClass(v: number | null, runs: number): string {
   return 'text-ink-mute'
 }
 
-// Career/condition WPR summary shown up top in the runner detail - peak,
-// average and median across career plus a handful of conditions relevant to
-// today's race, each read against the model's own base rating (is this
-// horse being asked to do something above or below what it normally does).
-// Distinct from ComparisonGrid further down, which asks a narrower question
-// (does today's specific pace/settle/going/distance suit it).
+// Career/condition WPR summary shown up top in the runner detail - peak and
+// 75th-percentile WPR across career plus a handful of conditions relevant
+// to today's race (including first/second-up history when today is itself
+// a first/second-up run), each read against the model's own base rating
+// (is this horse being asked to do something above or below its upper
+// range of form). Distinct from ComparisonGrid further down, which asks a
+// narrower question (does today's specific pace/settle suit it).
 export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
   const rows = computeCareerStats(runner, race)
@@ -48,7 +49,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
           <tr className="text-ink-faint">
             <th className="text-left font-normal" />
             <th className="text-right font-normal">Peak</th>
-            <th className="text-right font-normal">Avg</th>
+            <th className="text-right font-normal">P75</th>
             <th className="text-right font-normal">vs Base</th>
             <th className="pl-2 text-right font-normal">Trend</th>
           </tr>
@@ -60,7 +61,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                 {row.label} <span className="text-ink-faint">&middot; {row.runs}</span>
               </td>
               <td className="text-right font-mono">{fmt(row.peak)}</td>
-              <td className="text-right font-mono">{fmt(row.avg)}</td>
+              <td className="text-right font-mono">{fmt(row.p75)}</td>
               <td className={`text-right font-mono ${vsBaseClass(row.vsBase, row.runs)}`}>{fmtSigned(row.vsBase)}</td>
               <td className="py-0.5 pl-2 text-right">
                 <Sparkline values={row.trend} />
