@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
@@ -85,6 +86,9 @@ export function RunnerDetailModal({
   const [scrolled, setScrolled] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  useBodyScrollLock()
+  useFocusTrap(scrollRef)
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -121,7 +125,11 @@ export function RunnerDetailModal({
     >
       <div
         ref={scrollRef}
-        className="flex max-h-full w-full max-w-6xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${runner.horse} detail`}
+        tabIndex={-1}
+        className="flex max-h-full w-full max-w-6xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)] outline-none"
         onClick={(e) => e.stopPropagation()}
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 120)}
       >

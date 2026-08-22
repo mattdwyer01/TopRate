@@ -8,6 +8,7 @@ import {
   todayIso,
 } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
+import { useScrollShadow } from '../../lib/useScrollShadow'
 
 interface MeetingsGridProps {
   races: Race[]
@@ -53,6 +54,7 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
     [maxRaceNumber],
   )
   const now = Date.now()
+  const { ref: scrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,58 +83,63 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
       {visibleMeetings.length === 0 ? (
         <EmptyState message={`No races on ${date}.`} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                <th className="sticky left-0 z-20 min-w-[10rem] border-r border-line bg-bg px-3 py-2 text-left">
-                  Meeting
-                </th>
-                {raceNumbers.map((n) => (
-                  <th key={n} className="min-w-[3.25rem] px-1.5 py-2 text-center font-mono">
-                    R{n}
+        <div className="relative">
+          <div ref={scrollRef} className="overflow-x-auto rounded-lg border border-line bg-panel">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
+                  <th className="sticky left-0 z-20 min-w-[10rem] border-r border-line bg-bg px-3 py-2 text-left">
+                    Meeting
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleMeetings.map((meeting) => (
-                <tr
-                  key={`${meeting.date}-${meeting.venue}`}
-                  className="border-b border-line-soft last:border-b-0"
-                >
-                  <td className="sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
-                    <div className="font-semibold text-ink">{meeting.venue}</div>
-                    <div className="text-xs text-ink-mute">{meeting.state}</div>
-                  </td>
-                  {raceNumbers.map((n) => {
-                    const race = meeting.races.find((r) => r.raceNumber === n)
-                    if (!race) return <td key={n} className="px-1.5 py-2" />
-                    const soon =
-                      !race.allResulted &&
-                      new Date(race.startTime).getTime() - now <= SOON_THRESHOLD_MS
-                    return (
-                      <td key={n} className="px-1.5 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => onSelectRace(race.raceId, race.date)}
-                          className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${
-                            race.allResulted
-                              ? 'border-line-soft bg-bg text-ink-faint hover:border-line'
-                              : soon
-                                ? 'border-emerald-line bg-emerald-bg font-semibold text-emerald-deep hover:opacity-80'
-                                : 'border-line-soft bg-bg text-ink hover:border-emerald-line hover:bg-emerald-bg'
-                          }`}
-                        >
-                          {formatTimeOfDay(race.startTime)}
-                        </button>
-                      </td>
-                    )
-                  })}
+                  {raceNumbers.map((n) => (
+                    <th key={n} className="min-w-[3.25rem] px-1.5 py-2 text-center font-mono">
+                      R{n}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleMeetings.map((meeting) => (
+                  <tr
+                    key={`${meeting.date}-${meeting.venue}`}
+                    className="border-b border-line-soft last:border-b-0"
+                  >
+                    <td className="sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
+                      <div className="font-semibold text-ink">{meeting.venue}</div>
+                      <div className="text-xs text-ink-mute">{meeting.state}</div>
+                    </td>
+                    {raceNumbers.map((n) => {
+                      const race = meeting.races.find((r) => r.raceNumber === n)
+                      if (!race) return <td key={n} className="px-1.5 py-2" />
+                      const soon =
+                        !race.allResulted &&
+                        new Date(race.startTime).getTime() - now <= SOON_THRESHOLD_MS
+                      return (
+                        <td key={n} className="px-1.5 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => onSelectRace(race.raceId, race.date)}
+                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${
+                              race.allResulted
+                                ? 'border-line-soft bg-bg text-ink-faint hover:border-line'
+                                : soon
+                                  ? 'border-emerald-line bg-emerald-bg font-semibold text-emerald-deep hover:opacity-80'
+                                  : 'border-line-soft bg-bg text-ink hover:border-emerald-line hover:bg-emerald-bg'
+                            }`}
+                          >
+                            {formatTimeOfDay(race.startTime)}
+                          </button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {canScrollRight && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-panel to-transparent" />
+          )}
         </div>
       )}
     </div>

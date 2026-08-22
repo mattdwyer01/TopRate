@@ -64,3 +64,15 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
+
+/* font-mono is used app-wide for tabular/numeric contexts (prices, WPR
+   figures, dates) but is no longer a true monospace family (see the Fonts
+   comment above) - Outfit's digits are proportional, so a right-aligned
+   column of numbers can drift out of vertical alignment depending on which
+   digits appear. tabular-nums forces every digit to the same width,
+   restoring column alignment without needing a monospace font. Declared
+   here (outside @layer) so it wins over Tailwind's own .font-mono utility
+   at equal specificity. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}

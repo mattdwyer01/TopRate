@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Race } from '../types/domain'
 import { formatSecondsCountdown } from '../lib/countdown'
 import { useTickerCollapsed } from '../lib/ticker'
+import { useScrollShadow } from '../lib/useScrollShadow'
 
 interface NextToJumpTickerProps {
   races: Race[]
@@ -31,6 +32,7 @@ function countdownTone(secsUntil: number): string {
 export function NextToJumpTicker({ races, onSelectRace }: NextToJumpTickerProps) {
   const { collapsed, setCollapsed } = useTickerCollapsed()
   const [now, setNow] = useState(() => Date.now())
+  const { ref: pillsRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
@@ -63,22 +65,27 @@ export function NextToJumpTicker({ races, onSelectRace }: NextToJumpTickerProps)
         (upcoming.length === 0 ? (
           <div className="font-mono text-xs italic text-white/40">Nothing jumping soon.</div>
         ) : (
-          <div className="flex flex-1 gap-2 overflow-x-auto">
-            {upcoming.map(({ race, secsUntil }) => (
-              <button
-                key={race.raceId}
-                type="button"
-                onClick={() => onSelectRace(race.raceId, race.date)}
-                className="flex shrink-0 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs transition-colors hover:border-white/25 hover:bg-white/10"
-              >
-                <span className="whitespace-nowrap font-medium text-white">
-                  {race.venue} R{race.raceNumber}
-                </span>
-                <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[10px] ${countdownTone(secsUntil)}`}>
-                  {formatSecondsCountdown(secsUntil)}
-                </span>
-              </button>
-            ))}
+          <div className="relative min-w-0 flex-1">
+            <div ref={pillsRef} className="flex gap-2 overflow-x-auto">
+              {upcoming.map(({ race, secsUntil }) => (
+                <button
+                  key={race.raceId}
+                  type="button"
+                  onClick={() => onSelectRace(race.raceId, race.date)}
+                  className="flex shrink-0 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs transition-colors hover:border-white/25 hover:bg-white/10"
+                >
+                  <span className="whitespace-nowrap font-medium text-white">
+                    {race.venue} R{race.raceNumber}
+                  </span>
+                  <span className={`whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[10px] ${countdownTone(secsUntil)}`}>
+                    {formatSecondsCountdown(secsUntil)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {canScrollRight && (
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-ink to-transparent" />
+            )}
           </div>
         ))}
     </div>
