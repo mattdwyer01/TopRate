@@ -7,6 +7,8 @@ export interface CareerStatRow {
   peak: number | null
   avg: number | null
   vsBase: number | null
+  // WPR values in chronological order (oldest first) for a trend sparkline.
+  trend: number[]
 }
 
 // Same campaign/spell definition as the backend model (wpr_projection.py
@@ -21,7 +23,11 @@ function mean(values: number[]): number | null {
 }
 
 function buildRow(label: string, entries: FormHistoryEntry[], baseWpr: number | null): CareerStatRow {
-  const wprs = entries.filter((e) => e.wpr != null).map((e) => e.wpr as number)
+  const dated = entries
+    .filter((e) => e.wpr != null && e.date)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const wprs = dated.map((e) => e.wpr as number)
   const avg = mean(wprs)
   return {
     label,
@@ -29,6 +35,7 @@ function buildRow(label: string, entries: FormHistoryEntry[], baseWpr: number | 
     peak: wprs.length ? Math.max(...wprs) : null,
     avg,
     vsBase: avg != null && baseWpr != null ? avg - baseWpr : null,
+    trend: wprs,
   }
 }
 
@@ -55,10 +62,10 @@ function thisPrepEntries(history: FormHistoryEntry[], raceDate: string): FormHis
   return campaign
 }
 
-// Peak/average/median WPR across career and several conditions relevant to
-// today's race, each with how that slice compares to the model's own base
-// rating - a quick "is this a career-best ask, or within its normal range"
-// read, distinct from ComparisonGrid's condition-suitability tables below it.
+// Peak/average WPR across career and several conditions relevant to today's
+// race, each with how that slice compares to the model's own base rating -
+// a quick "is this a career-best ask, or within its normal range" read,
+// distinct from ComparisonGrid's condition-suitability tables below it.
 export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] {
   const history = runner.formHistory
   const baseWpr = runner.baseWpr
