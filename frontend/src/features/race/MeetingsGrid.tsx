@@ -13,6 +13,8 @@ interface MeetingsGridProps {
   races: Race[]
   onSelectRace: (raceId: string, date: string) => void
   initialDate?: string | null
+  showBush: boolean
+  onShowBushChange: (value: boolean) => void
 }
 
 const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
@@ -24,13 +26,16 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 // A race within this many minutes of jumping gets the "soon" highlight.
 const SOON_THRESHOLD_MS = 15 * 60_000
 
-export function MeetingsGrid({ races, onSelectRace, initialDate }: MeetingsGridProps) {
+export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onShowBushChange }: MeetingsGridProps) {
   const [date, setDate] = useState(() => initialDate ?? todayIso())
-  const [showBush, setShowBush] = useState(false)
 
   const meetings = useMemo(() => groupIntoMeetings(races, date), [races, date])
+  // Total bush meetings for the day, independent of the current toggle
+  // state - counting the filtered/unfiltered diff instead made the toggle
+  // button (and its "Hide" label) disappear the instant showBush flipped
+  // true, since at that point nothing was being filtered out.
+  const bushCount = useMemo(() => meetings.filter(isBushMeeting).length, [meetings])
   const visibleMeetings = showBush ? meetings : meetings.filter((m) => !isBushMeeting(m))
-  const hiddenCount = meetings.length - visibleMeetings.length
 
   // Columns run R1..the highest race number anywhere in view, so every
   // meeting's races line up under the same column regardless of how many
@@ -66,9 +71,9 @@ export function MeetingsGrid({ races, onSelectRace, initialDate }: MeetingsGridP
           onChange={(e) => setDate(e.target.value)}
           className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
         />
-        {hiddenCount > 0 && (
-          <Pill active={showBush} onClick={() => setShowBush((v) => !v)}>
-            {showBush ? 'Hide' : 'Show'} {hiddenCount} bush meeting{hiddenCount === 1 ? '' : 's'}
+        {bushCount > 0 && (
+          <Pill active={showBush} onClick={() => onShowBushChange(!showBush)}>
+            {showBush ? 'Hide' : 'Show'} {bushCount} bush meeting{bushCount === 1 ? '' : 's'}
           </Pill>
         )}
       </div>
