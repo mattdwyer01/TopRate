@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBodyScrollLock, useFocusTrap } from '../lib/modalA11y'
 
 interface SettingsModalProps {
   serverBeta: number | null
@@ -20,6 +21,10 @@ const STEP = 0.01
 export function SettingsModal({ serverBeta, betaOverride, onSetBetaOverride, onClose }: SettingsModalProps) {
   const effectiveBeta = betaOverride ?? serverBeta ?? 0.4
   const [draft, setDraft] = useState(effectiveBeta)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useBodyScrollLock()
+  useFocusTrap(panelRef)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -38,7 +43,12 @@ export function SettingsModal({ serverBeta, betaOverride, onSetBetaOverride, onC
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/60 p-3 sm:items-center sm:p-6" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-lg bg-panel shadow-[var(--shadow-2)]"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        tabIndex={-1}
+        className="w-full max-w-md rounded-lg bg-panel shadow-[var(--shadow-2)] outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
