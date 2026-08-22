@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import type { FormRun } from '../../types/domain'
 
 interface RecentRunsTableProps {
@@ -105,33 +104,64 @@ function SeparatorRow({ label }: { label: string }) {
   )
 }
 
-// Centrepiece evidence table for a runner: last 6 runs newest-first, each
-// showing the race-wide sectional shape alongside the horse's own sectionals
-// (coloured by whether the horse beat the shape), plus spell/days-since
-// separators and the career-peak run appended at the bottom when it falls
-// outside the visible window.
-export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
-  if (!runs.length) return null
+function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium text-ink">
+          {run.date ?? ''} &middot; {run.track}
+          {isPeak && (
+            <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
+              peak
+            </span>
+          )}
+        </div>
+        <div className="truncate text-[11px] text-ink-faint">
+          {run.distance}m &middot; {run.going || '—'} &middot; Fin {run.finishPosition ?? '—'}
+          {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''}
+        </div>
+      </div>
+      <div className="shrink-0 font-mono text-sm font-semibold text-ink">
+        {run.wpr != null ? run.wpr.toFixed(1) : '—'}
+      </div>
+    </div>
+  )
+}
 
+function MobileSeparator({ label }: { label: string }) {
+  return <div className="px-2 py-1 text-center text-xs text-ink-faint">&mdash; {label} &mdash;</div>
+}
+
+type Entry =
+  | { kind: 'separator'; key: string; label: string }
+  | { kind: 'run'; key: string; run: FormRun; isPeak: boolean }
+
+// Shared between the desktop table and the mobile card list below - same
+// days-since/spell-gap/career-peak logic, just rendered two different ways,
+// so the two layouts can't silently drift apart.
+function buildEntries(runs: FormRun[], peakRun: FormRun | null): Entry[] {
   const runDates = runs.map((r) => parseISO(r.date))
   const daysSinceLast = daysBetween(new Date(), runDates[0] ?? null)
 
-  const rows: ReactNode[] = []
+  const entries: Entry[] = []
   if (daysSinceLast != null) {
-    rows.push(
-      <SeparatorRow
-        key="days-since"
-        label={`${daysSinceLast} day${daysSinceLast === 1 ? '' : 's'} since last run`}
-      />,
-    )
+    entries.push({
+      kind: 'separator',
+      key: 'days-since',
+      label: `${daysSinceLast} day${daysSinceLast === 1 ? '' : 's'} since last run`,
+    })
   }
   runs.forEach((run, i) => {
-    rows.push(<RunRow key={`run-${i}`} run={run} isPeak={run.isPeakRun} />)
+    entries.push({ kind: 'run', key: `run-${i}`, run, isPeak: run.isPeakRun })
     if (i + 1 < runs.length) {
       const gap = daysBetween(runDates[i], runDates[i + 1])
       if (gap != null && gap >= 84) {
         const weeks = Math.round(gap / 7)
-        rows.push(<SeparatorRow key={`spell-${i}`} label={`spell — ${weeks} weeks (${gap} days) between runs`} />)
+        entries.push({
+          kind: 'separator',
+          key: `spell-${i}`,
+          label: `spell — ${weeks} weeks (${gap} days) between runs`,
+        })
       }
     }
   })
@@ -144,20 +174,38 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
       gapToPeak != null && gapToPeak > 0
         ? `career peak — ${Math.round(gapToPeak / 7)} weeks (${gapToPeak} days) earlier`
         : 'career peak'
-    rows.push(<SeparatorRow key="peak-sep" label={label} />)
-    rows.push(<RunRow key="peak-run" run={peakRun} isPeak />)
+    entries.push({ kind: 'separator', key: 'peak-sep', label })
+    entries.push({ kind: 'run', key: 'peak-run', run: peakRun, isPeak: true })
   }
+
+  return entries
+}
+
+// Centrepiece evidence table for a runner: last 6 runs newest-first, each
+// showing the race-wide sectional shape alongside the horse's own sectionals
+// (coloured by whether the horse beat the shape), plus spell/days-since
+// separators and the career-peak run appended at the bottom when it falls
+// outside the visible window. The full table is desktop-only (17 columns
+// doesn't work below sm) - mobile gets a simplified stacked card list with
+// just the headline fields, sharing the same entry list so neither layout
+// can silently drift from the other.
+export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
+  if (!runs.length) return null
+
+  const entries = buildEntries(runs, peakRun)
 
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">Recent runs</span>
-        <span className="text-xs text-ink-faint">
+        <span className="hidden text-xs text-ink-faint sm:inline">
           last {runs.length}, newest first &middot; Pos = settle/800/400/finish &middot; green/red
           sectionals = horse vs race shape
         </span>
+        <span className="text-xs text-ink-faint sm:hidden">last {runs.length}, newest first</span>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-line">
+
+      <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
         <table className="w-full min-w-[860px] border-collapse text-xs">
           <thead>
             <tr className="border-b border-line bg-bg text-ink-mute">
@@ -184,8 +232,26 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
               <th className="px-2 py-0.5 text-right font-normal">Late</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line-soft">{rows}</tbody>
+          <tbody className="divide-y divide-line-soft">
+            {entries.map((e) =>
+              e.kind === 'separator' ? (
+                <SeparatorRow key={e.key} label={e.label} />
+              ) : (
+                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} />
+              ),
+            )}
+          </tbody>
         </table>
+      </div>
+
+      <div className="divide-y divide-line-soft rounded-lg border border-line sm:hidden">
+        {entries.map((e) =>
+          e.kind === 'separator' ? (
+            <MobileSeparator key={e.key} label={e.label} />
+          ) : (
+            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} />
+          ),
+        )}
       </div>
     </div>
   )

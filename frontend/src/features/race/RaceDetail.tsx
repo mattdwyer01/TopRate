@@ -105,10 +105,36 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1">
           <Pill active={compact} onClick={() => setCompact(true)}>Compact</Pill>
           <Pill active={!compact} onClick={() => setCompact(false)}>Full</Pill>
+        </div>
+        {/* The full column-header row (with its own sort buttons) is desktop-
+            only (hidden below sm - see the grid below), so mobile needs its
+            own way to change sort - otherwise it's stuck on whatever was
+            last set, with no visible way to change it. */}
+        <div className="flex items-center gap-1.5 sm:hidden">
+          <select
+            value={sortKey}
+            onChange={(e) => onSort(e.target.value as SortKey)}
+            aria-label="Sort by"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
+          >
+            {COLUMN_LABELS.map((col) => (
+              <option key={col.key} value={col.key}>
+                Sort: {col.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+          >
+            {sortDir === 'asc' ? '↑' : '↓'}
+          </button>
         </div>
       </div>
 
