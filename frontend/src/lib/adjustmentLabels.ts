@@ -15,7 +15,7 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   field_size: 'Field size',
   trend: 'Recent form trend',
   recent_vs_career: 'Recent vs career average',
-  std_last5: 'Recent form consistency',
+  std_last5: 'Recent form volatility',
   avg_margin: 'Average finishing margin',
   consistency_ratio: 'Results consistency',
 }
