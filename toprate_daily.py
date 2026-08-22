@@ -1053,7 +1053,7 @@ def compute_wpr_projection(runners_df, target_date_str=None):
     # ensure the target columns exist even if projection fails partway
     for col in ["wprp_proj", "wprp_conf", "wprp_price", "wprp_rank",
                 "wprp_peak", "wprp_desc", "wprp_proj_alt", "wprp_conf_alt",
-                "wprp_base", "wprp_adj"]:
+                "wprp_base", "wprp_adj", "wprp_contrib"]:
         if col not in runners_df.columns:
             runners_df[col] = None
 
@@ -1153,6 +1153,9 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 runners_df.at[idx, "wprp_rank"] = res.get("wpr_rank")
                 runners_df.at[idx, "wprp_base"] = res.get("base_wpr")
                 runners_df.at[idx, "wprp_adj"] = res.get("adjustment")
+                contrib = res.get("adjustment_contributions")
+                runners_df.at[idx, "wprp_contrib"] = (
+                    json.dumps(contrib) if contrib is not None else None)
                 # alternate-going projection (wet if today dry, dry if wet)
                 ra = results_alt[k]
                 if ra and ra.get("has_projection"):
@@ -2731,6 +2734,17 @@ def rebuild_html(runners_df, model_pick_rows=None):
             else:
                 gb_parsed = {}
 
+            # Parse the WPR adjustment per-feature breakdown (also stored
+            # as a JSON string in CSV, same convention as going_breakdown).
+            contrib = row.get("wprp_contrib")
+            if isinstance(contrib, str) and contrib.strip() and contrib != "nan":
+                try: contrib_parsed = json.loads(contrib)
+                except: contrib_parsed = None
+            elif isinstance(contrib, dict):
+                contrib_parsed = contrib
+            else:
+                contrib_parsed = None
+
             # Cumulative predictive score + rank within race (for quaddie/exotic aid)
             _cs = cum_lookup.get(str(row.get("run_id", "")), {})
 
@@ -2798,6 +2812,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR
                 "wpjb":  sf(row.get("wprp_base")),    # base WPR (pre-adjustment)
                 "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)
+                "wpjcb": contrib_parsed,              # adjustment breakdown by feature
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race

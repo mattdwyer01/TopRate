@@ -123,7 +123,7 @@ export function ComparisonGrid({ runner, race, allRunners }: ComparisonGridProps
   return (
     <div>
       <div className="mb-1 text-sm font-semibold text-ink">How conditions suit this horse</div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <CompTable
           title="Race speed"
           todayLabel={pace.tempoBucket}

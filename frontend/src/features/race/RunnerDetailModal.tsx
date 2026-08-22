@@ -4,6 +4,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
+import { AdjustmentBreakdown } from './AdjustmentBreakdown'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -106,7 +107,7 @@ export function RunnerDetailModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-full w-full max-w-3xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
+        className="flex max-h-full w-full max-w-5xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5">
@@ -245,6 +246,10 @@ export function RunnerDetailModal({
               </div>
             </div>
           </div>
+
+          {runner.adjustmentBreakdown && runner.wprAdjustment != null && (
+            <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} adjustment={runner.wprAdjustment} />
+          )}
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 

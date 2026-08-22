@@ -111,6 +111,7 @@ function toRunner(r: RawRunner): Runner {
     projectedWpr: r.wpjp,
     baseWpr: r.wpjb,
     wprAdjustment: r.wpjadj,
+    adjustmentBreakdown: r.wpjcb,
     projectionConfidence: r.wpjc,
     wprPrice: r.wpjpr,
     wprRank: r.wpjr,

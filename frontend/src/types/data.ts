@@ -87,6 +87,7 @@ export interface RawRunner {
   wpjp: number | null
   wpjb: number | null
   wpjadj: number | null
+  wpjcb: Record<string, number> | null
   wpjc: number | null
   wpjpr: number | null
   wpjr: number | null
