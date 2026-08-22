@@ -379,11 +379,20 @@ def _going_band(going):
 # n / (n + K): 0 at n=0, 0.25 at n=K, approaches 1 as n grows.
 _OWN_DELTA_SHRINK_K = 3.0
 
+# Cap on each individual term's contribution, applied after shrinkage. With
+# enough matching history (large n) a term passes shrink almost unshrunk,
+# and real data has produced swings up to +/-45 (own_trend) - a lot of a
+# single dimension for one term to move the projection. 15 sits above the
+# 99th percentile of every term except own_trend (whose p99 is ~19), so
+# this only trims the genuine long tail, not typical values.
+_OWN_DELTA_CAP = 15.0
+
 
 def _shrink(delta, n):
     if n <= 0:
         return 0.0
-    return float(delta) * n / (n + _OWN_DELTA_SHRINK_K)
+    shrunk = float(delta) * n / (n + _OWN_DELTA_SHRINK_K)
+    return max(-_OWN_DELTA_CAP, min(_OWN_DELTA_CAP, shrunk))
 
 
 # Class ladder (handoff 3A.1b). The old class_move / peak_at_class were
