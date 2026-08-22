@@ -876,6 +876,21 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # failed a population-level test (Aug 2026 feature search) and would
     # be sparse to the point of near-always-zero here too (a horse rarely
     # repeats the same barrier band often enough to have real history).
+    #
+    # TESTED, NOT ADOPTED (Aug 2026): own_track (mirrors own_going exactly,
+    # matching on p["track"] == cur_track), own_jockey and own_trainer
+    # (upgrade/downgrade bucketing using each connection's CURRENT
+    # jockey_rating/trainer_rating from toprate_runners.csv applied
+    # retroactively to past rides, since no per-run historical rating is
+    # captured - see the reverted _own_person_delta/_load_person_ratings).
+    # All three had good coverage (own_track fired on 62% of held-out
+    # runners, own_jockey 97%, own_trainer 48% - not a sparsity problem)
+    # but each measurably WORSENED held-out MAE on its own (+0.10, +0.12,
+    # +0.10 respectively vs the 6-term baseline, ~+0.36 combined,
+    # roughly additive) with no offsetting legibility gain (the system was
+    # already fully transparent without them). Reverted cleanly; worth
+    # revisiting only with a real per-run historical rating source for
+    # jockey/trainer, or a less noisy own_track methodology.
     dist_lo, dist_hi = float(cur_distance) * 0.9, float(cur_distance) * 1.1
     dist_match = (dist >= dist_lo) & (dist <= dist_hi)
     n_dist = int(dist_match.sum())
