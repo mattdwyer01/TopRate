@@ -4,6 +4,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
+import { CareerStats } from './CareerStats'
 import { AdjustmentBreakdown } from './AdjustmentBreakdown'
 
 interface RunnerDetailModalProps {
@@ -215,6 +216,8 @@ export function RunnerDetailModal({
               )}
             </label>
           </div>
+
+          <CareerStats runner={runner} race={race} />
 
           <ActualVsProjected runner={runner} />
 
