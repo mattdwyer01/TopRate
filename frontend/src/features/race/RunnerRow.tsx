@@ -31,7 +31,7 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
     <button
       type="button"
       onClick={onClick}
-      className={`grid w-full grid-cols-[40px_1fr_60px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] ${rowPadding} ${
+      className={`grid w-full grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] ${rowPadding} ${
         selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -91,7 +91,7 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
       <span className="text-right font-mono text-ink-mute">
         {fmtPrice(displayPrice)}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+      <span className="text-right font-mono text-ink-mute">
         {fmtPrice(runner.fixedWinPrice)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
