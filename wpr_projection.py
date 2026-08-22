@@ -1093,8 +1093,15 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     if feats is None:
         return "Not enough form history to make a projection."
 
+    def _ordinal(n):
+        if 10 <= n % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
+
     rank_txt = "top-rated in the race" if wpr_rank == 1 else (
-        f"rated {wpr_rank} in the race" if wpr_rank else "unranked")
+        f"rated {_ordinal(wpr_rank)} in the race" if wpr_rank else "unranked")
     sentences = [f"Projected {projected_wpr:.1f}, {rank_txt}."]
 
     # ── Explain the projection vs recent form - the key "looks odd" case ──
@@ -1123,39 +1130,39 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
                 break
         direction = "below" if want_negative else "above"
         if reasons:
-            sentences.append(f"The projection sits {direction} its recent "
-                             f"average because " + reasons[0]
-                             + ("; " + reasons[1] + "."
+            sentences.append(f"That's {direction} its recent average because "
+                             + reasons[0]
+                             + (", and " + reasons[1] + "."
                                 if len(reasons) > 1 else "."))
         else:
-            sentences.append(f"The projection is a little {direction} its "
-                             f"recent average; nothing specific is driving "
-                             f"that, so treat it as the model's normal "
-                             f"spread of error.")
+            sentences.append(f"That's a touch {direction} its recent "
+                             f"average, but nothing in particular explains "
+                             f"it - just normal model noise.")
 
     # ── A readable note on form shape ──
     sl5 = feats.get("std_last5", 5)
     if sl5 <= 3:
-        sentences.append("Its recent figures are very consistent.")
+        sentences.append("It's been running to a consistent level lately.")
     elif sl5 >= 9:
-        sentences.append("Its recent figures are up and down, which makes "
-                         "any single projection less reliable.")
+        sentences.append("Its form has been up and down lately, so this "
+                         "one's less certain than usual.")
 
     # ── Confidence, in plain words ──
     nr = feats.get("n_runs", 0)
     sc = feats.get("std_career", 5)
     if confidence >= 80:
-        sentences.append(f"Confidence is high - {nr} runs to go on and a "
-                         f"steady profile.")
+        sentences.append(f"Confidence is high - {nr} runs of steady career "
+                         f"form behind it.")
     elif confidence >= 60:
-        sentences.append(f"Confidence is moderate, with {nr} runs to go on.")
+        sentences.append(f"Confidence is moderate - {nr} runs of career "
+                         f"form to go on.")
     else:
         if sc >= 9:
-            why = "its career form is erratic"
+            why = "its career form has been all over the place"
         elif nr <= 6:
-            why = "it has only a short form history"
+            why = "it doesn't have much form to go on yet"
         else:
-            why = "its recent form is unsettled"
+            why = "its recent form has been patchy"
         sentences.append(f"Confidence is low because {why}.")
 
     return " ".join(sentences)

@@ -13,7 +13,11 @@ What it does:
 Files maintained:
   toprate_runners.csv    — full database, one row per runner per race
   toprate_selections.csv — one row per race (top selection + vote count), used by HTML
-  toprate_live.html      — rebuilt each run
+  toprate_data.json      — dashboard data payload, refreshed each run
+  toprate_live.html      — the dashboard itself (frontend/ React+Vite build).
+                            NOT rebuilt by this script - it's a static
+                            artifact, rebuilt deliberately via
+                            `npm run build` in frontend/ and committed.
 
 Usage:
     python toprate_daily.py                  # standard daily run
@@ -2406,14 +2410,16 @@ def rebuild_html(runners_df, model_pick_rows=None):
         print(f"  runners_df windowing skipped ({_e})")
     _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
 
-    _step("Building form-history lookup (last 6 + peak + tendency)...")
+    _FORM_RUNS_SHOWN = 10  # rows kept per horse for the detail-panel form table
+
+    _step(f"Building form-history lookup (last {_FORM_RUNS_SHOWN} + peak + tendency)...")
 
     # ── Form-history lookup for the runner detail panel ──────────────────────
-    # Attach each runner's last 6 race runs (newest first) so the Race-tab
-    # detail panel can show a mini form table. Scoped to the horses running
-    # in runners_df only - never the whole 90k-row history - so the HTML
-    # payload stays small. Fail-safe: any error leaves form_lookup empty and
-    # runners simply get no formRuns.
+    # Attach each runner's last _FORM_RUNS_SHOWN race runs (newest first) so
+    # the Race-tab detail panel can show a mini form table. Scoped to the
+    # horses running in runners_df only - never the whole 90k-row history -
+    # so the HTML payload stays small. Fail-safe: any error leaves
+    # form_lookup empty and runners simply get no formRuns.
     form_lookup = {}
     form_all_lookup = {}
     _peak_run_lookup = {}
@@ -2425,7 +2431,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # Pending horses only - formAll (the heavy full-history
             # comparison-table data) is built for these alone, since the
             # comparison tables matter for upcoming races, not the
-            # hundreds of old resulted ones. formRuns (cheap last-6) is
+            # hundreds of old resulted ones. formRuns (cheap last-N) is
             # still built for every horse so resulted races keep a form
             # table.
             if "resulted" in runners_df.columns:
@@ -2505,12 +2511,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # bitten this rebuild before).
             _fa_by_horse = dict(tuple(_fa.groupby("horse_lc")))
             for _hlc, _g in _fh.groupby("horse_lc"):
-                _last = _g.tail(6)
+                _last = _g.tail(_FORM_RUNS_SHOWN)
                 _peak_wpr = _g["wpr"].max()
                 # Find the most recent run at peak WPR that is OUTSIDE
-                # the last-6 window. If the peak is in the last 6, leave
-                # peakRun null - the panel only needs the extra row when
-                # the peak is older. Tolerance 0.05 mirrors the pk flag.
+                # the visible-runs window. If the peak is already visible,
+                # leave peakRun null - the panel only needs the extra row
+                # when the peak is older. Tolerance 0.05 mirrors the pk flag.
                 _last_ids = set(_last.index.tolist())
                 _peak_rows = _g[
                     (_g["wpr"] - _peak_wpr).abs() < 0.05]
@@ -2560,7 +2566,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     })
                 form_lookup[_hlc] = _runs
                 # peakRun: a single rich record for the most recent
-                # career-peak run that falls OUTSIDE the last-6 window.
+                # career-peak run that falls OUTSIDE the visible-runs window.
                 # Used by the detail panel to surface the peak as a full
                 # form-table row when the visible runs do not include it.
                 if not _peak_outside.empty:
@@ -2827,7 +2833,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     if str(_fr.get("d", ""))[:10] != str(row.get("date", ""))[:10]
                 ],
                 # peakRun: a single rich record for the most recent
-                # career-peak run when it falls OUTSIDE the last 6 runs.
+                # career-peak run when it falls OUTSIDE the visible runs.
                 # None when the peak is already visible in formRuns.
                 "peakRun": _peak_run_lookup.get(
                     str(row.get("horse", "")).strip().lower()),
@@ -2954,6 +2960,16 @@ def rebuild_html(runners_df, model_pick_rows=None):
     now_utc  = datetime.now(timezone.utc)
     now_iso  = now_utc.isoformat()
     run_date = now_utc.strftime("%d %b %Y %H:%M UTC")
+    # render_html()'s `html` return value (the old toprate_html_v3.py-
+    # templated page) is intentionally UNUSED from here on. The live
+    # dashboard is now the frontend/ React+Vite build, committed at
+    # toprate_live.html as a static artifact that doesn't change per data
+    # refresh (it fetches toprate_data.json at runtime) - so this function,
+    # called by both the daily run and the every-5-minutes price refresh,
+    # must not keep overwriting it with the old generator's output. Only
+    # rebuild toprate_live.html deliberately, by running `npm run build` in
+    # frontend/ and committing the result. render_html() is still called
+    # for its data_json half - that payload is the real per-run output.
     html, data_json = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
@@ -2964,19 +2980,19 @@ def rebuild_html(runners_df, model_pick_rows=None):
         model_pick_rows=model_pick_rows or [],
         primary_model_key=primary_key,
     )
-    OUTPUT_HTML.write_text(html, encoding="utf-8")
-    # Data payload written alongside the HTML. The page fetches this at boot
-    # instead of inlining it (keeps the JS compile cost off the load path).
+    del html
+    # Data payload the frontend fetches at boot instead of inlining it
+    # (keeps the JS compile cost off the load path).
     OUTPUT_DATA = OUTPUT_HTML.parent / "toprate_data.json"
     OUTPUT_DATA.write_text(data_json, encoding="utf-8")
-    _step("HTML + data write complete.")
+    _step("Data write complete.")
 
     n_total   = len(races_data)
     n_done    = sum(1 for r in races_data if r["done"] == 1)
     n_pending = n_total - n_done
     n_picks   = sum(len(picks_by_model.get(primary_key, []))
                     for picks_by_model in model_picks_by_race.values())
-    print(f"HTML rebuilt -> {OUTPUT_HTML}")
+    print(f"Data refreshed -> {OUTPUT_DATA}")
     print(f"  {n_total} races ({n_done} resulted, {n_pending} pending)")
     print(f"  {n_picks} primary model picks across all races")
 
