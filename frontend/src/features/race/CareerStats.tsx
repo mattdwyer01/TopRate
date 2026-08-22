@@ -34,27 +34,25 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
   const rows = computeCareerStats(runner, race)
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
-      <div className="mb-1 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
-      <table className="w-full min-w-[420px] text-xs">
+    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2">
+      <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
+      <table className="w-full max-w-sm text-xs">
         <thead>
           <tr className="text-ink-faint">
             <th className="text-left font-normal" />
-            <th className="text-right font-normal">Runs</th>
             <th className="text-right font-normal">Peak</th>
             <th className="text-right font-normal">Avg</th>
-            <th className="text-right font-normal">Median</th>
             <th className="text-right font-normal">vs Base</th>
           </tr>
         </thead>
-        <tbody className="[&_td]:py-0.5">
+        <tbody className="[&_td]:py-0 [&_td]:leading-5">
           {rows.map((row) => (
             <tr key={row.label} className={row.runs === 0 ? 'text-ink-faint italic' : 'text-ink'}>
-              <td className="whitespace-nowrap">{row.label}</td>
-              <td className="text-right font-mono">{row.runs}</td>
+              <td className="whitespace-nowrap">
+                {row.label} <span className="text-ink-faint">&middot; {row.runs}</span>
+              </td>
               <td className="text-right font-mono">{fmt(row.peak)}</td>
               <td className="text-right font-mono">{fmt(row.avg)}</td>
-              <td className="text-right font-mono">{fmt(row.median)}</td>
               <td className={`text-right font-mono ${vsBaseClass(row.vsBase)}`}>{fmtSigned(row.vsBase)}</td>
             </tr>
           ))}
