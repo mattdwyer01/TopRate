@@ -1,15 +1,19 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useUrlState } from './routing/useUrlState'
+import { useBetaOverride } from './lib/priceBetaOverride'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
 import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
+import { SettingsModal } from './components/SettingsModal'
 import { RaceDetail } from './features/race/RaceDetail'
 
 function App() {
   const { state, retry } = useDashboardData()
   const { urlState, pushUrlState } = useUrlState()
+  const { betaOverride, setBetaOverride } = useBetaOverride()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Boot-time deep-link handling: if the URL already names a race (a shared
   // link or a page reload mid-session), that wins over the default meetings
@@ -33,12 +37,22 @@ function App() {
       <header className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
           <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
-          {state.status === 'ready' && (
-            <FreshnessDot
-              level={freshnessLevel(state.data.runIso)}
-              runDate={state.data.runDate}
-            />
-          )}
+          <div className="flex items-center gap-3">
+            {state.status === 'ready' && (
+              <FreshnessDot
+                level={freshnessLevel(state.data.runIso)}
+                runDate={state.data.runDate}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Settings"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+            >
+              ⚙
+            </button>
+          </div>
         </div>
         {state.status === 'ready' && (
           <div className="mx-auto w-full max-w-6xl">
@@ -62,7 +76,7 @@ function App() {
             <RaceDetail
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
-              priceBeta={state.data.priceBeta}
+              priceBeta={betaOverride ?? state.data.priceBeta}
               onBack={() => pushUrlState({ date: urlState.date, raceId: null })}
               onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
             />
@@ -74,6 +88,15 @@ function App() {
             />
           ))}
       </main>
+
+      {settingsOpen && (
+        <SettingsModal
+          serverBeta={state.status === 'ready' ? state.data.priceBeta : null}
+          betaOverride={betaOverride}
+          onSetBetaOverride={setBetaOverride}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   )
 }
