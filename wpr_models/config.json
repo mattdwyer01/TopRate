@@ -59,22 +59,13 @@
   "field_size",
   "wpr_nett"
  ],
- "adj_features": [
-  "first_up",
-  "second_up",
-  "days_since",
-  "runs_this_camp",
-  "dist_grad",
-  "going_delta",
-  "today_wet",
-  "cur_surface",
-  "class_move",
-  "field_size",
-  "trend",
-  "recent_vs_career",
-  "std_last5",
-  "avg_margin",
-  "consistency_ratio"
+ "adj_terms": [
+  "own_distance",
+  "own_going",
+  "own_first_up",
+  "own_second_up",
+  "own_trend",
+  "own_long_spell"
  ],
  "medians": {
   "avg_last3": 74.43333333333334,
@@ -136,26 +127,9 @@
   "field_size": 10.0,
   "wpr_nett": 75.3
  },
- "adj_medians": {
-  "first_up": 0.0,
-  "second_up": 0.0,
-  "days_since": 18.0,
-  "runs_this_camp": 4.0,
-  "dist_grad": 0.2693332852539442,
-  "going_delta": 0.0,
-  "today_wet": 0.0,
-  "cur_surface": 0.0,
-  "class_move": 0.0,
-  "field_size": 10.0,
-  "trend": 0.3500000000000085,
-  "recent_vs_career": 0.0,
-  "std_last5": 5.135464925398674,
-  "avg_margin": 3.37225,
-  "consistency_ratio": 0.7804888279179102
- },
  "conf_lo": 9.447451052967518,
  "conf_hi": 25.432466085787567,
  "beta": 0.4,
  "min_runs": 3,
- "calib_offset": 1.0453310263329527
+ "calib_offset": -0.6102547993870786
 }

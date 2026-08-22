@@ -11,35 +11,45 @@ WHAT THIS IS
 
   ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
   gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
-  BASE is the horse's own anchor (wpr_nett - TopRate's own pre-race rating -
-  falling back to ewm3/avg_last3/career_avg when wpr_nett is unrated).
-  ADJUSTMENT is a linear (Ridge) regression on 15 situational features
-  (freshness, track/surface conditions, field size, recent form shape) that
-  predicts the horse's likely DEVIATION from its own base, fit on
-  target-minus-base as the label.
+  BASE is the horse's own anchor (a 50/50 blend of wpr_nett - TopRate's own
+  pre-race rating - and ewm3, falling back down a recency chain when
+  either is unrated; see _compute_base for why the blend and not wpr_nett
+  alone). ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
+  for something simpler and more transparent than a fitted regression) is
+  sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
+  this condition" deltas (distance, going, first/second-up, lightly-raced
+  trend, long-spell history), each computed purely from THAT horse's own
+  prior runs and shrunk by sample size (see build_features' SIMPLE
+  ADJUSTMENT MODEL block, _shrink()). No fitting, no population-level
+  coefficients - what a UI shows in the breakdown IS the whole adjustment.
+  This replaced an earlier Ridge regression on 15 population-level
+  situational features (freshness, track/surface conditions, field size,
+  recent form shape, MAE 5.150 held-out) - preserved in git history along
+  with the numbers, for anyone revisiting the trade-off this simpler
+  design makes (see ADJ_TERMS for what that trade-off costs structurally).
 
-  WHY: a population-level gradient-boosting model, however well tuned,
-  structurally regresses rare high-WPR horses toward the dense middle of
-  the training population (held-out bias-by-actual-WPR-band was a clean,
-  monotonic +0.85 at 70-80 up to +8.7-9.1 at 100-105, confirmed
-  irreducible by more sample weight or more tree capacity - both were
-  tested and neither closed the gap). Anchoring on the horse's own current
-  base rating sidesteps that failure mode entirely: it does not predict an
-  absolute number from a shared population model, it predicts a small
-  adjustment to a number that is already correct for that horse. Measured
-  on the same held-out split: MAE 5.150 vs 5.371-5.399 for the best
-  gradient-boosting variant, and elite-tier (100-105) bias cut from +6.1-9.1
-  down to +4.7-6.1.
+  WHY THE ADDITIVE SPLIT (BASE + ADJUSTMENT) AT ALL: a population-level
+  gradient-boosting model, however well tuned, structurally regresses rare
+  high-WPR horses toward the dense middle of the training population
+  (held-out bias-by-actual-WPR-band was a clean, monotonic +0.85 at 70-80
+  up to +8.7-9.1 at 100-105, confirmed irreducible by more sample weight or
+  more tree capacity - both were tested and neither closed the gap).
+  Anchoring on the horse's own current base rating sidesteps that failure
+  mode entirely: it does not predict an absolute number from a shared
+  population model, it predicts a small adjustment to a number that is
+  already correct for that horse.
 
-  Four artifacts in wpr_models/:
-    projection.joblib  - {"ridge": Ridge adjustment model}
+  Three artifacts in wpr_models/:
+    projection.joblib  - vestigial empty dict (used to hold the fitted
+      Ridge adjustment model; ADJ_TERMS needs no artifact, it's computed
+      directly in build_features every time). Kept as an empty file so
+      this directory's shape doesn't need to change.
     confidence.joblib  - {"lo": LightGBM q10, "hi": LightGBM q90} on the
-      FULL feature set, unchanged from the gradient-boosting design -
+      FULL feature set, unaffected by either adjustment rebuild above -
       interval width is still the confidence signal (see project_race).
-      Kept as-is: this piece was already well-calibrated and the point
-      estimate architecture is an orthogonal concern to confidence.
-    config.json         - both feature lists (full + adjustment-only), both
-      median-fill tables, price beta, min runs, calibration offset
+    config.json         - the full feature list + median-fill table (for
+      the confidence models), ADJ_TERMS names, price beta, min runs,
+      calibration offset
 
 SINGLE SOURCE OF TRUTH
   build_features() in this file is the ONE feature definition. The training
@@ -188,40 +198,28 @@ FEATURES = [
     "wpr_nett",
 ]
 
-# ADJ_FEATURES: the situational adjustment terms for the additive
-# architecture's Ridge model (projection = base + Ridge(ADJ_FEATURES) +
-# calib_offset). Deliberately a SUBSET of FEATURES, restricted to things
-# that change race-to-race (freshness, today's conditions, field, recent
-# form shape) rather than "how good is this horse generally" (avg_last3,
-# peak, career_avg, wpr_nett itself, etc - those already ARE the base,
-# including them here would double-count the horse's own level). Curated
-# and validated Aug 2026: tested against 12 other candidates (barrier
-# draw, weight change, blinkers/jockey/trainer change, jockey quality,
-# track/distance affinity, raw distance) - none beat the 0.03 MAE
-# adoption bar used throughout this project, so the set stays as-is.
-# dist_vs_last was in an earlier version and was REMOVED after leave-
-# one-out testing showed it was pure noise (removing it improved MAE).
-# going_delta_today (interaction with today's wetness) and
-# first_up_personal/second_up_personal (this horse's own historical
-# deviation in that camp position) were tried Aug 2026 - held-out MAE
-# +0.0035 (worse, nowhere near the 0.03 adoption bar), and WORSE
-# specifically on the second-up subset (+0.021) where personalisation was
-# meant to help most. Same conclusion as the already-documented firstup_wpr
-# negative result above, just via a different route (a Ridge-specific
-# interaction formulation rather than a flat tree-model feature) - do not
-# re-add either without a fresh held-out test showing a real gain.
-ADJ_FEATURES = [
-    "first_up", "second_up", "days_since", "runs_this_camp",
-    "dist_grad", "going_delta", "today_wet", "cur_surface", "class_move",
-    "field_size", "trend", "recent_vs_career", "std_last5", "avg_margin",
-    "consistency_ratio",
+# ADJ_TERMS: the adjustment, in full. Replaced the earlier Ridge-on-
+# ADJ_FEATURES design (Aug 2026, population-level coefficients fit across
+# every horse) at the user's explicit request for something simpler and
+# more transparent - adjustment = sum(ADJ_TERMS), each term a shrunk +/-
+# vs THIS horse's own career average computed from ITS OWN history only
+# (see the SIMPLE ADJUSTMENT MODEL block in build_features and _shrink()
+# above). No fitting, no coefficients - what you see in the breakdown IS
+# the whole adjustment, by construction.
+#
+# This gives up whatever real signal the old population-level terms were
+# carrying that a per-horse lookup structurally can't represent (today_wet,
+# cur_surface, field_size - the same value for every runner in a race, so
+# there's no "this horse's own history" version of them) for something the
+# user can read and trust at a glance. The old Ridge design, its measured
+# numbers, and prior negative results (barrier, going_delta as a flat
+# effect, first/second_up as Ridge interaction terms) are preserved in git
+# history and in this file's earlier revisions - worth revisiting if this
+# simpler design's own numbers disappoint enough to reconsider the trade.
+ADJ_TERMS = [
+    "own_distance", "own_going", "own_first_up", "own_second_up",
+    "own_trend", "own_long_spell",
 ]
-# days_since is capped before use (both training and serving) - a horse
-# out 400 days vs 800 days is not meaningfully "more first-up", and an
-# uncapped value lets one huge outlier dominate the linear fit.
-_DAYS_SINCE_CAP = 200
-
-
 def _compute_base(feat):
     """The horse's own anchor for the additive model. A 50/50 blend of
     wpr_nett (TopRate's own pre-race rating) and ewm3 (this horse's own
@@ -254,21 +252,14 @@ def _compute_base(feat):
     return None
 
 
-def _adj_feature_frame(feat_dicts, adj_med):
-    """List of feature dicts -> Ridge-ready DataFrame for ADJ_FEATURES,
-    NaN-filled with the training medians (adj_med, from config)."""
-    rows = []
-    for f in feat_dicts:
-        row = {}
-        for c in ADJ_FEATURES:
-            v = None if f is None else f.get(c)
-            if v is None or (isinstance(v, float) and np.isnan(v)):
-                v = adj_med.get(c, 0.0)
-            if c == "days_since":
-                v = min(v, _DAYS_SINCE_CAP)
-            row[c] = v
-        rows.append(row)
-    return pd.DataFrame(rows, columns=ADJ_FEATURES)
+def _adj_term_frame(feat_dicts):
+    """List of feature dicts -> DataFrame of ADJ_TERMS (already computed
+    per-horse in build_features, 0.0 when a term doesn't apply/has no own
+    history - no median-filling needed, unlike the old Ridge design,
+    since 0.0 already IS the correct "no signal" value here)."""
+    rows = [{c: (0.0 if f is None else f.get(c, 0.0)) for c in ADJ_TERMS}
+            for f in feat_dicts]
+    return pd.DataFrame(rows, columns=ADJ_TERMS)
 
 
 _PROJ = None
@@ -279,16 +270,15 @@ _CFG = None
 def _load_models():
     """Load the model artifacts once. Raises if wpr_models/ is missing.
 
-    projection.joblib is a dict {"ridge": Ridge adjustment model} - the
-    additive architecture's ADJUSTMENT term (see module docstring); the
-    projection itself is base + ridge.predict(ADJ_FEATURES) + calib_offset,
-    computed in project_race(), not stored as one artifact.
+    projection.joblib is now a vestigial empty dict - the ADJUSTMENT term
+    used to be a fitted Ridge model here, replaced by the ADJ_TERMS sum
+    (see module docstring / project_race). Kept as an empty artifact
+    rather than removing the file so wpr_models/'s three-file shape (and
+    this function's existence check) doesn't need to change.
     confidence.joblib is a dict {"lo": q10 model, "hi": q90 model}, on the
-    FULL feature set - unchanged from the earlier gradient-boosting design.
-    Their predicted interval width is the confidence signal (see
-    project_race). Confidence calibration was already solid before the
-    Aug 2026 additive-architecture rebuild, so it was deliberately left
-    alone - only the point-estimate mechanism changed.
+    FULL feature set - unaffected by the ADJUSTMENT rework above (a
+    separate architecture entirely). Their predicted interval width is
+    the confidence signal (see project_race).
     """
     global _PROJ, _CONF, _CFG
     if _PROJ is not None:
@@ -360,6 +350,40 @@ _SURFACE_MAP = {"synthetic": 1, "dirt": 2, "sand": 3}
 def _going_surface(going):
     g = str(going).strip().lower()
     return _SURFACE_MAP.get(g, 0)
+
+
+# Firm/Good/Soft/Heavy band from the going STRING - matches the frontend's
+# lib/pace.ts goingBand() exactly (same 4 buckets, same startswith rule) so
+# a horse's own-condition delta here means the same thing as what the
+# runner detail modal already shows for career/condition stats.
+def _going_band(going):
+    g = str(going).strip().lower()
+    if g.startswith("firm"):
+        return "Firm"
+    if g.startswith("good"):
+        return "Good"
+    if g.startswith("soft"):
+        return "Soft"
+    if g.startswith("heavy"):
+        return "Heavy"
+    return None
+
+
+# Shrinkage for the own-history adjustment deltas below: a delta computed
+# from 1-2 of a horse's own runs is mostly noise dressed up as a personal
+# signal - the same small-sample trap CareerStats' vsBase colouring and
+# ComparisonGrid's MIN_RUNS_TO_COMPARE guard against on the frontend, just
+# applied here as a continuous discount instead of an on/off threshold so
+# a horse with, say, 2 matching runs still gets a (heavily discounted)
+# personalised nudge rather than either the full raw delta or nothing.
+# n / (n + K): 0 at n=0, 0.25 at n=K, approaches 1 as n grows.
+_OWN_DELTA_SHRINK_K = 3.0
+
+
+def _shrink(delta, n):
+    if n <= 0:
+        return 0.0
+    return float(delta) * n / (n + _OWN_DELTA_SHRINK_K)
 
 
 # Class ladder (handoff 3A.1b). The old class_move / peak_at_class were
@@ -798,6 +822,69 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     secondup_wpr = float(r2.mean()) if len(r2) >= 1 else avg_last3
     thirdup_wpr = float(r3.mean()) if len(r3) >= 1 else avg_last3
 
+    # -----------------------------------------------------------------
+    # SIMPLE ADJUSTMENT MODEL (replaces the Ridge fit on ADJ_FEATURES,
+    # see project_race/train_wpr_projection). Per user request: a fully
+    # transparent adjustment = sum of "+/- vs this horse's own career
+    # average, at this condition, using only ITS OWN history" deltas,
+    # instead of population-level coefficients fit across every horse
+    # (the "doesn't pass the pub test" complaint - a blanket wet-track or
+    # first-up penalty applied identically to every runner regardless of
+    # whether THAT horse personally goes better or worse in it). Each
+    # delta is shrunk by _shrink() so a horse with only 1-2 matching runs
+    # gets a heavily discounted nudge rather than a full-strength one from
+    # noise. Zero (no adjustment) when a horse has no own history at that
+    # condition, or the condition doesn't apply today (e.g. own_first_up
+    # is 0 unless today actually IS this horse's first-up run).
+    #
+    # Scope note: settling position, early speed/pace, barrier and
+    # combinations of the above were part of the original request but are
+    # deferred - the first three need race-WIDE context (predicted pace/
+    # settle depend on the whole field, not just this horse) which is a
+    # separate, bigger change than a per-horse lookup; barrier already
+    # failed a population-level test (Aug 2026 feature search) and would
+    # be sparse to the point of near-always-zero here too (a horse rarely
+    # repeats the same barrier band often enough to have real history).
+    dist_lo, dist_hi = float(cur_distance) * 0.9, float(cur_distance) * 1.1
+    dist_match = (dist >= dist_lo) & (dist <= dist_hi)
+    n_dist = int(dist_match.sum())
+    own_distance = _shrink(float(w[dist_match].mean() - career_avg), n_dist) \
+        if n_dist >= 1 else 0.0
+
+    going_band_hist = p["going"].apply(_going_band)
+    cur_going_band = _going_band(cur_going)
+    going_match = going_band_hist == cur_going_band
+    n_going = int(going_match.sum())
+    own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
+        if (cur_going_band is not None and n_going >= 1) else 0.0
+
+    own_first_up = _shrink(float(r1.mean() - career_avg), len(r1)) \
+        if (runs_this_camp == 1 and len(r1) >= 1) else 0.0
+    own_second_up = _shrink(float(r2.mean() - career_avg), len(r2)) \
+        if (runs_this_camp == 2 and len(r2) >= 1) else 0.0
+
+    # Lightly-raced trend: for a horse still early in its career (few
+    # starts), is it improving? Second half of its runs so far vs the
+    # first half - deliberately gated to lightly-raced horses only
+    # (a well-established horse's "trend" is already captured by
+    # avg_last3/career_avg without needing this).
+    _LIGHTLY_RACED_MAX = 6
+    if 4 <= n <= _LIGHTLY_RACED_MAX:
+        half = n // 2
+        own_trend = _shrink(float(w.iloc[-half:].mean() - w.iloc[:half].mean()), n)
+    else:
+        own_trend = 0.0
+
+    # Long-spell decline: does THIS horse specifically run below its own
+    # level after a genuinely long layoff (180+ days - well beyond the
+    # standard 60-day first-up threshold, which already has its own term
+    # above)? Only applies when today's own layoff is itself that long.
+    _LONG_SPELL_DAYS = 180
+    long_spell_mask = (gaps >= _LONG_SPELL_DAYS).fillna(False)
+    n_long_spell = int(long_spell_mask.sum())
+    own_long_spell = _shrink(float(w[long_spell_mask].mean() - career_avg), n_long_spell) \
+        if (days_since >= _LONG_SPELL_DAYS and n_long_spell >= 1) else 0.0
+
     feat = {
         "avg_last3": avg_last3,
         "avg_last5": avg_last5,
@@ -818,6 +905,16 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "days_since": days_since,
         "first_up": 1 if runs_this_camp == 1 else 0,
         "second_up": 1 if runs_this_camp == 2 else 0,
+        # ADJ_TERMS (see the SIMPLE ADJUSTMENT MODEL block above) - the
+        # ENTIRE adjustment now, summed directly in project_race. No
+        # regression, no coefficients: each is a shrunk +/- vs this
+        # horse's own career average, computed from its own history only.
+        "own_distance": own_distance,
+        "own_going": own_going,
+        "own_first_up": own_first_up,
+        "own_second_up": own_second_up,
+        "own_trend": own_trend,
+        "own_long_spell": own_long_spell,
         "cur_distance": float(cur_distance),
         "dist_grad": dist_grad,
         "dist_vs_last": float(cur_distance) - float(dist.iloc[-1]),
@@ -973,21 +1070,18 @@ def project_race(runners, race_date):
     ]
     fallbacks = [f is None for f in feat_dicts]
 
-    # Additive architecture: projection = base + Ridge(ADJ_FEATURES) +
-    # calib_offset. base is the horse's own anchor (wpr_nett, falling back
-    # down a recency chain); a fallback of None only happens if EVERY level
-    # feature is missing, which build_features() cannot produce once it has
-    # passed the _MIN_RUNS gate (career_avg always exists by then) - the
-    # 0.0 fallback below is defensive, not expected to fire in practice.
+    # Additive architecture: projection = base + sum(ADJ_TERMS) +
+    # calib_offset. base is the horse's own anchor (wpr_nett/ewm3 blend,
+    # falling back down a recency chain); a fallback of None only happens
+    # if EVERY level feature is missing, which build_features() cannot
+    # produce once it has passed the _MIN_RUNS gate (career_avg always
+    # exists by then) - the 0.0 fallback below is defensive, not expected
+    # to fire in practice.
     base_arr = np.array([_compute_base(f) if f is not None else 0.0
                          for f in feat_dicts], dtype=float)
-    adj_med = _CFG["adj_medians"]
-    X_adj = _adj_feature_frame(feat_dicts, adj_med)
-    ridge = _PROJ["ridge"]
-    adj = ridge.predict(X_adj)
-    # Per-feature contributions (coefficient x value), for describe() to
-    # explain the projection from what ACTUALLY drove it, not a guess.
-    adj_contributions = X_adj.to_numpy() * ridge.coef_
+    X_adj = _adj_term_frame(feat_dicts)
+    adj_contributions = X_adj.to_numpy()
+    adj = adj_contributions.sum(axis=1)
     # calib_offset: a uniform additive shift, data-derived at train time and
     # stored in config. It recenters the projection onto the current WPR
     # scale, correcting the model's measured residual bias. Uniform, so WPR
@@ -1051,16 +1145,14 @@ def project_race(runners, race_date):
             # rating" without also having to know about calib_offset).
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
-            contributions = dict(zip(ADJ_FEATURES, adj_contributions[i]))
-            # The Ridge model's intercept plus calib_offset are both uniform
-            # terms (same for every runner, not tied to anything about THIS
-            # horse or race) - without one, the per-feature contributions
-            # silently don't sum to `adjustment` (describe() only ever used
-            # them for ranking/relative comparison so this never showed up
-            # before now). Folded into one "baseline" line so a UI showing
-            # the full breakdown reconciles exactly.
-            contributions["baseline"] = (float(ridge.intercept_)
-                                         + float(_CFG.get("calib_offset", 0.0)))
+            contributions = dict(zip(ADJ_TERMS, adj_contributions[i]))
+            # calib_offset is a uniform term (same for every runner, not
+            # tied to anything about THIS horse or race) - without it, the
+            # per-term contributions don't sum to `adjustment`. Folded into
+            # a "baseline" line so a UI showing the full breakdown
+            # reconciles exactly (and can still filter it out as
+            # non-differentiating, same as before).
+            contributions["baseline"] = float(_CFG.get("calib_offset", 0.0))
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
@@ -1085,48 +1177,33 @@ def project_race(runners, race_date):
     return results
 
 
-# Plain-English phrase for each ADJ_FEATURES term, keyed by (feature,
-# negative-or-positive contribution). Only features worth narrating are
-# listed - the rest (dist_grad, going_delta, runs_this_camp, std_last5,
-# avg_margin) move the number by too little per-runner to usually be worth
-# a sentence, and are left to the aggregate "reasons" ranking to surface
-# only when their contribution is unusually large for a specific horse.
+# Plain-English phrase for each ADJ_TERMS term, keyed by (feature,
+# negative-or-positive contribution).
 def _adj_phrase(feat, value, contribution):
+    """Plain-English phrase for one ADJ_TERMS contribution. value and
+    contribution are the same number now (each term IS its own
+    contribution, no coefficient to multiply through) - kept as two
+    params for call-site compatibility with describe() below."""
     neg = contribution < 0
-    if feat == "first_up":
-        return ("it is first-up from a layoff, and horses usually run "
-                "below their recent form fresh" if neg else
-                "it is first-up and its record fresh is a plus here")
-    if feat == "second_up":
-        return ("it is second-up, historically a slight dip" if neg else
-                "it is second-up, historically a slight plus")
-    if feat == "days_since" and value >= 90:
-        return (f"it has had a long layoff ({int(value)} days)" if neg
-                else None)
-    if feat == "field_size":
-        n = int(round(value))
-        return (f"this is a big field ({n} runners)" if neg else
-                f"this is a small field ({n} runners), which tends to help")
-    if feat == "today_wet":
-        return ("the track is rated wet today" if neg else
-                "wet conditions today are working in its favour")
-    if feat == "cur_surface" and value != 0:
-        return ("today's surface is not standard turf" if neg else None)
-    if feat == "class_move":
-        return ("it is stepping up in class" if (neg and value > 0) else
-                ("it is dropping in class" if (not neg and value < 0)
-                 else None))
-    if feat == "trend":
-        return ("its recent form is trending down" if (neg and value < 0)
-                else ("its recent form is trending up" if
-                      (not neg and value > 0) else None))
-    if feat == "recent_vs_career":
-        return ("its recent runs are below its career average" if
-                (neg and value < 0) else
-                ("its recent runs are well above its career average" if
-                 (not neg and value > 0) else None))
-    if feat == "consistency_ratio":
-        return ("its results have been inconsistent" if neg else None)
+    if feat == "own_distance":
+        return ("it has run below its own level at this trip before" if neg
+                else "it has run above its own level at this trip before")
+    if feat == "own_going":
+        return ("it has run below its own level in this going before" if neg
+                else "it has run above its own level in this going before")
+    if feat == "own_first_up":
+        return ("it has run below its own level first-up before" if neg
+                else "it has run above its own level first-up before")
+    if feat == "own_second_up":
+        return ("it has run below its own level second-up before" if neg
+                else "it has run above its own level second-up before")
+    if feat == "own_trend":
+        return ("its form has dipped across its short career so far" if neg
+                else "it's a lightly raced horse improving with each run")
+    if feat == "own_long_spell":
+        return ("it has run below its own level after long layoffs before"
+                if neg else
+                "it has run above its own level after long layoffs before")
     return None
 
 
@@ -1139,8 +1216,8 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     horse's recent average. A punter glancing at mid-80s recent runs and a
     79 projection should find the reason here, not have to guess.
 
-    adj_contributions: {ADJ_FEATURES name: coefficient x value}, the
-    additive model's actual per-feature contribution to THIS runner's
+    adj_contributions: {ADJ_TERMS name: contribution}, the additive
+    model's actual per-term contribution to THIS runner's
     adjustment (see project_race). The "why below/above recent average"
     reasons are picked by ranking these by |contribution| and narrating
     the largest ones - genuinely traceable to what moved the number, not a
@@ -1481,7 +1558,6 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     walk-forward numbers this is based on.
     """
     import lightgbm as lgb
-    from sklearn.linear_model import Ridge
     from sklearn.metrics import mean_absolute_error
 
     print(f"Regenerating training frame from {form_history_csv} "
@@ -1562,7 +1638,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     te = D[D["date"] >= q2].copy()
 
     # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
-    # BOTH the confidence quantile models and the additive model's Ridge fit.
+    # the confidence quantile models (ADJ_TERMS themselves have no fitting
+    # step to weight - see below).
     sw_recency = _recency_weights(trn["date"])
     if _RECENCY_HALF_LIFE_DAYS:
         print(f"  recency-weighted training: {_RECENCY_HALF_LIFE_DAYS}d "
@@ -1571,14 +1648,12 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # rarity-weighted: upweight the thin high-WPR tail (see _rarity_weights
     # docstring). This fixes a real, measured elite-tier under-projection
     # bias for a POPULATION-LEVEL model (a post-hoc calibration cannot fix
-    # it - tested and confirmed). The additive model's Ridge fit does NOT
-    # use this: it predicts a deviation from the horse's OWN base rating,
-    # so it does not have the same "regress rare examples toward the
-    # population" failure mode rarity-weighting was built to counter (this
-    # was validated during the Aug 2026 additive-model build - the elite
-    # tier bias was already far lower without it: +4.7-6.1 vs the
-    # gradient-boosting model's +6.1-9.1). Kept ONLY for the confidence
-    # (q10/q90) models, which are otherwise unchanged from that design.
+    # it - tested and confirmed). The ADJ_TERMS sum does NOT need this: it's
+    # a per-horse lookup against that horse's own history, not a fitted
+    # population model, so it does not have the "regress rare examples
+    # toward the population" failure mode rarity-weighting was built to
+    # counter. Kept ONLY for the confidence (q10/q90) models, which are
+    # otherwise unchanged from the Aug 2026 additive-architecture design.
     rw = _rarity_weights(trn["target"])
     sw = rw if sw_recency is None else sw_recency * rw
     print("  rarity-weighted training: upweighting target>=80/90/95/100 rows "
@@ -1595,22 +1670,13 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     q_lo = _fit_quantile(0.1)
     q_hi = _fit_quantile(0.9)
 
-    # The additive model's ADJUSTMENT term: Ridge regression predicting
-    # target-minus-base from the 15 situational features (recency-weighted
-    # only, see sw_recency comment above). ADJ_FEATURES cols were already
-    # median-filled by the FEATURES fillna above (ADJ_FEATURES is a subset
-    # of FEATURES); days_since still needs the cap applied here since the
-    # shared FEATURES fillna does not do that (the confidence models use
-    # the uncapped value, unchanged from before).
-    trn_adj = trn[ADJ_FEATURES].copy()
-    trn_adj["days_since"] = trn_adj["days_since"].clip(upper=_DAYS_SINCE_CAP)
-    ridge = Ridge(alpha=10.0)
-    ridge.fit(trn_adj, trn["_y"], sample_weight=sw_recency)
-
+    # The additive model's ADJUSTMENT term: sum(ADJ_TERMS) - each already a
+    # complete, shrunk, per-horse +/- computed in build_features (see the
+    # SIMPLE ADJUSTMENT MODEL block there / ADJ_TERMS above). No fitting -
+    # this is where a Ridge regression used to be, before the rebuild to a
+    # fully transparent, per-horse-history design.
     def _additive_predict(frame):
-        x = frame[ADJ_FEATURES].copy()
-        x["days_since"] = x["days_since"].clip(upper=_DAYS_SINCE_CAP)
-        return frame["_base"].to_numpy() + ridge.predict(x)
+        return frame["_base"].to_numpy() + frame[ADJ_TERMS].to_numpy().sum(axis=1)
 
     cf["abs_err"] = (_additive_predict(cf) - cf["target"]).abs()
     te["abs_err"] = (_additive_predict(te) - te["target"]).abs()
@@ -1665,16 +1731,14 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     print(f"  beta carried forward from existing config: {beta} "
           f"(re-run calibrate_price_beta.py --write to re-derive it)")
 
-    # adj_medians: ADJ_FEATURES is a subset of FEATURES, so its medians are
-    # already in `med` (computed on the full pre-split D, same convention
-    # as the FULL feature medians below).
-    adj_med = med[ADJ_FEATURES]
-
     Path(out_dir).mkdir(exist_ok=True)
-    joblib.dump({"ridge": ridge}, Path(out_dir) / "projection.joblib")
+    # projection.joblib is now vestigial (no more Ridge model to store) -
+    # kept as an empty artifact so _load_models()'s file-existence check
+    # and wpr_models/'s three-file shape don't need to change.
+    joblib.dump({}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
-    json.dump({"features": FEATURES, "adj_features": ADJ_FEATURES,
-               "medians": med.to_dict(), "adj_medians": adj_med.to_dict(),
+    json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
+               "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
                "beta": beta, "min_runs": _MIN_RUNS,
                "calib_offset": calib_offset},

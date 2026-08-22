@@ -6,16 +6,12 @@ interface AdjustmentBreakdownProps {
 
 const MIN_SHOWN = 0.05
 
-// field_size, baseline, today_wet and cur_surface are all the same for
-// every horse in a given race - a race-wide constant, a global model
-// constant, and two features derived purely from today's going/track
-// grading (see _going_is_wet/_going_surface in wpr_projection.py), with no
-// horse-specific input at all. They shift every runner's WPR by the same
-// amount, which the price/rank softmax is invariant to (see
-// wpr_projection.py project_race). They don't distinguish this horse from
-// the others in its own race, so they're excluded here as noise rather
-// than a real "driver".
-const NON_DIFFERENTIATING = new Set(['field_size', 'baseline', 'today_wet', 'cur_surface'])
+// baseline is the global calibration offset (wpr_projection.py's
+// calib_offset) - the same for every horse in every race, not a
+// horse-specific driver. Every other ADJ_TERMS key is this horse's own
+// history vs its own career average, so it's excluded here as noise
+// rather than a real "driver".
+const NON_DIFFERENTIATING = new Set(['baseline'])
 
 function fmtSigned(v: number): string {
   return `${v > 0 ? '+' : ''}${v.toFixed(2)}`
