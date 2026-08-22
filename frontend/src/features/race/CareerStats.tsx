@@ -17,8 +17,14 @@ function fmtSigned(v: number | null): string {
   return v > 0 ? `+${f}` : f
 }
 
-function vsBaseClass(v: number | null): string {
-  if (v == null) return 'text-ink-mute'
+// Same threshold and reasoning as ComparisonGrid's MIN_RUNS_TO_COMPARE -
+// below this many runs, "vs Base" is 1-2 data points dressed up as a
+// confident read. Below the threshold the figure still shows, just without
+// the colour that implies a reliable signal.
+const MIN_RUNS_TO_COLOR = 3
+
+function vsBaseClass(v: number | null, runs: number): string {
+  if (v == null || runs < MIN_RUNS_TO_COLOR) return 'text-ink-mute'
   if (v >= 1) return 'text-emerald-deep font-medium'
   if (v <= -1) return 'text-rose font-medium'
   return 'text-ink-mute'
@@ -55,7 +61,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
               </td>
               <td className="text-right font-mono">{fmt(row.peak)}</td>
               <td className="text-right font-mono">{fmt(row.avg)}</td>
-              <td className={`text-right font-mono ${vsBaseClass(row.vsBase)}`}>{fmtSigned(row.vsBase)}</td>
+              <td className={`text-right font-mono ${vsBaseClass(row.vsBase, row.runs)}`}>{fmtSigned(row.vsBase)}</td>
               <td className="py-0.5 pl-2 text-right">
                 <Sparkline values={row.trend} />
               </td>

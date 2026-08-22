@@ -54,14 +54,22 @@ function App() {
                 runDate={state.data.runDate}
               />
             )}
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Settings"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-            >
-              ⚙
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                aria-label={betaOverride != null ? 'Settings (custom price sharpness active)' : 'Settings'}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+              >
+                ⚙
+              </button>
+              {betaOverride != null && (
+                <span
+                  className="pointer-events-none absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber ring-2 ring-panel"
+                  title="Custom WPR $ price sharpness active"
+                />
+              )}
+            </div>
           </div>
         </div>
         {state.status === 'ready' && (
@@ -76,7 +84,7 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-4">
         {state.status === 'loading' && (
-          <EmptyState message="Loading today's races..." />
+          <EmptyState message="Loading today's races..." progress={state.progress} />
         )}
         {state.status === 'error' && (
           <ErrorState message={state.message} onRetry={retry} />
