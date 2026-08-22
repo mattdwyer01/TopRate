@@ -6,7 +6,6 @@ export interface CareerStatRow {
   runs: number
   peak: number | null
   avg: number | null
-  median: number | null
   vsBase: number | null
 }
 
@@ -21,13 +20,6 @@ function mean(values: number[]): number | null {
   return values.length ? values.reduce((s, v) => s + v, 0) / values.length : null
 }
 
-function median(values: number[]): number | null {
-  if (!values.length) return null
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
-}
-
 function buildRow(label: string, entries: FormHistoryEntry[], baseWpr: number | null): CareerStatRow {
   const wprs = entries.filter((e) => e.wpr != null).map((e) => e.wpr as number)
   const avg = mean(wprs)
@@ -36,7 +28,6 @@ function buildRow(label: string, entries: FormHistoryEntry[], baseWpr: number | 
     runs: wprs.length,
     peak: wprs.length ? Math.max(...wprs) : null,
     avg,
-    median: median(wprs),
     vsBase: avg != null && baseWpr != null ? avg - baseWpr : null,
   }
 }
@@ -81,10 +72,10 @@ export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] 
 
   return [
     buildRow('Career', history, baseWpr),
-    buildRow(`This distance (${race.distance}m)`, history.filter((e) => e.distance >= distLo && e.distance <= distHi), baseWpr),
-    buildRow(`This going (${goingToday ?? race.going})`, history.filter((e) => goingBand(e.going) === goingToday), baseWpr),
+    buildRow(`${race.distance}m`, history.filter((e) => e.distance >= distLo && e.distance <= distHi), baseWpr),
+    buildRow(goingToday ?? race.going, history.filter((e) => goingBand(e.going) === goingToday), baseWpr),
     buildRow('This prep', thisPrepEntries(history, race.date), baseWpr),
     buildRow('This year', history.filter((e) => new Date(e.date).getFullYear() === yearToday), baseWpr),
-    buildRow('Last 6 months', history.filter((e) => new Date(e.date).getTime() >= sixMonthsAgoMs), baseWpr),
+    buildRow('Last 6mo', history.filter((e) => new Date(e.date).getTime() >= sixMonthsAgoMs), baseWpr),
   ]
 }
