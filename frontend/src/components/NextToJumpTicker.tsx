@@ -18,9 +18,8 @@ const WINDOW_FUTURE_SECS = 86_400 // look ahead 24h
 const MAX_PILLS = 6
 
 function countdownTone(secsUntil: number): string {
-  if (secsUntil <= 0) return 'bg-amber text-ink font-semibold'
   if (secsUntil <= 120) return 'bg-rose text-white font-semibold'
-  if (secsUntil <= 600) return 'bg-amber/80 text-ink font-semibold'
+  if (secsUntil <= 600) return 'bg-gold text-ink font-semibold'
   return 'bg-white/15 text-white/85'
 }
 

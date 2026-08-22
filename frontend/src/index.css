@@ -36,6 +36,12 @@
   --color-amber-bg: #fffbeb;
   --color-amber-line: #fde68a;
 
+  /* Gold, for the ticker's "soon" tier only - amber (#d97706) reads fine as
+     text/accents on light panels but goes muddy at low opacity over the
+     ticker's dark navy bg. This is a brighter, more saturated yellow tuned
+     for full-opacity use on a dark background. */
+  --color-gold: #fbbf24;
+
   --color-slate: #475569;
   --color-slate-bg: #f1f5f9;
 
