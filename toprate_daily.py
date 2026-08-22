@@ -13,7 +13,11 @@ What it does:
 Files maintained:
   toprate_runners.csv    — full database, one row per runner per race
   toprate_selections.csv — one row per race (top selection + vote count), used by HTML
-  toprate_live.html      — rebuilt each run
+  toprate_data.json      — dashboard data payload, refreshed each run
+  toprate_live.html      — the dashboard itself (frontend/ React+Vite build).
+                            NOT rebuilt by this script - it's a static
+                            artifact, rebuilt deliberately via
+                            `npm run build` in frontend/ and committed.
 
 Usage:
     python toprate_daily.py                  # standard daily run
@@ -2956,6 +2960,16 @@ def rebuild_html(runners_df, model_pick_rows=None):
     now_utc  = datetime.now(timezone.utc)
     now_iso  = now_utc.isoformat()
     run_date = now_utc.strftime("%d %b %Y %H:%M UTC")
+    # render_html()'s `html` return value (the old toprate_html_v3.py-
+    # templated page) is intentionally UNUSED from here on. The live
+    # dashboard is now the frontend/ React+Vite build, committed at
+    # toprate_live.html as a static artifact that doesn't change per data
+    # refresh (it fetches toprate_data.json at runtime) - so this function,
+    # called by both the daily run and the every-5-minutes price refresh,
+    # must not keep overwriting it with the old generator's output. Only
+    # rebuild toprate_live.html deliberately, by running `npm run build` in
+    # frontend/ and committing the result. render_html() is still called
+    # for its data_json half - that payload is the real per-run output.
     html, data_json = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
@@ -2966,19 +2980,19 @@ def rebuild_html(runners_df, model_pick_rows=None):
         model_pick_rows=model_pick_rows or [],
         primary_model_key=primary_key,
     )
-    OUTPUT_HTML.write_text(html, encoding="utf-8")
-    # Data payload written alongside the HTML. The page fetches this at boot
-    # instead of inlining it (keeps the JS compile cost off the load path).
+    del html
+    # Data payload the frontend fetches at boot instead of inlining it
+    # (keeps the JS compile cost off the load path).
     OUTPUT_DATA = OUTPUT_HTML.parent / "toprate_data.json"
     OUTPUT_DATA.write_text(data_json, encoding="utf-8")
-    _step("HTML + data write complete.")
+    _step("Data write complete.")
 
     n_total   = len(races_data)
     n_done    = sum(1 for r in races_data if r["done"] == 1)
     n_pending = n_total - n_done
     n_picks   = sum(len(picks_by_model.get(primary_key, []))
                     for picks_by_model in model_picks_by_race.values())
-    print(f"HTML rebuilt -> {OUTPUT_HTML}")
+    print(f"Data refreshed -> {OUTPUT_DATA}")
     print(f"  {n_total} races ({n_done} resulted, {n_pending} pending)")
     print(f"  {n_picks} primary model picks across all races")
 
