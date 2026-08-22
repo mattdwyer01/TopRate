@@ -382,10 +382,18 @@ _OWN_DELTA_SHRINK_K = 3.0
 # Cap on each individual term's contribution, applied after shrinkage. With
 # enough matching history (large n) a term passes shrink almost unshrunk,
 # and real data has produced swings up to +/-45 (own_trend) - a lot of a
-# single dimension for one term to move the projection. 15 sits above the
-# 99th percentile of every term except own_trend (whose p99 is ~19), so
-# this only trims the genuine long tail, not typical values.
-_OWN_DELTA_CAP = 15.0
+# single dimension for one term to move the projection.
+_OWN_DELTA_CAP = 3.0
+
+# Cap on the SUM of all ADJ_TERMS for one runner, applied in
+# _cap_adj_sum() below. A horse could hit the per-term cap on several
+# terms at once (e.g. a lightly-raced horse that's both improving fast AND
+# first-up), stacking to a much bigger swing than any one term alone
+# should justify. When the raw sum exceeds this, every nonzero term for
+# that runner is scaled down by the same factor so they still sum to
+# exactly +/-_OWN_DELTA_TOTAL_CAP - proportions between terms are
+# preserved, so the breakdown panel still adds up to the total shown.
+_OWN_DELTA_TOTAL_CAP = 6.0
 
 
 def _shrink(delta, n):
@@ -393,6 +401,20 @@ def _shrink(delta, n):
         return 0.0
     shrunk = float(delta) * n / (n + _OWN_DELTA_SHRINK_K)
     return max(-_OWN_DELTA_CAP, min(_OWN_DELTA_CAP, shrunk))
+
+
+def _cap_adj_sum(term_values):
+    """term_values: (n_rows, n_terms) array of already per-term-capped
+    ADJ_TERMS values. Rescales any row whose absolute sum exceeds
+    _OWN_DELTA_TOTAL_CAP so it sums to exactly that cap, preserving each
+    term's relative share. Rows within the cap are returned unchanged."""
+    term_values = np.asarray(term_values, dtype=float)
+    row_sum = term_values.sum(axis=1)
+    scale = np.ones(len(row_sum))
+    over = np.abs(row_sum) > _OWN_DELTA_TOTAL_CAP
+    nonzero_over = over & (row_sum != 0)
+    scale[nonzero_over] = _OWN_DELTA_TOTAL_CAP / np.abs(row_sum[nonzero_over])
+    return term_values * scale[:, None]
 
 
 # Class ladder (handoff 3A.1b). The old class_move / peak_at_class were
@@ -1089,7 +1111,7 @@ def project_race(runners, race_date):
     base_arr = np.array([_compute_base(f) if f is not None else 0.0
                          for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
-    adj_contributions = X_adj.to_numpy()
+    adj_contributions = _cap_adj_sum(X_adj.to_numpy())
     adj = adj_contributions.sum(axis=1)
     # calib_offset: a uniform additive shift, data-derived at train time and
     # stored in config. It recenters the projection onto the current WPR
@@ -1685,7 +1707,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # this is where a Ridge regression used to be, before the rebuild to a
     # fully transparent, per-horse-history design.
     def _additive_predict(frame):
-        return frame["_base"].to_numpy() + frame[ADJ_TERMS].to_numpy().sum(axis=1)
+        return frame["_base"].to_numpy() + _cap_adj_sum(
+            frame[ADJ_TERMS].to_numpy()).sum(axis=1)
 
     cf["abs_err"] = (_additive_predict(cf) - cf["target"]).abs()
     te["abs_err"] = (_additive_predict(te) - te["target"]).abs()
