@@ -30,6 +30,13 @@ interface CompTableProps {
   matches: (r: FormHistoryEntry) => boolean
 }
 
+// Below this many runs at today's condition, "vs average" and "Consistency
+// (SD)" read as precise when they're really 1-2 data points - the same
+// small-sample trap that got the old per-venue track-bias chart pulled.
+// Matches the >=3 threshold already used for the against-shape tendency
+// figure elsewhere in the pipeline (toprate_daily.py's _last5 groupby).
+const MIN_RUNS_TO_COMPARE = 3
+
 // One comparison table: how this horse's WPR compares between runs matching
 // today's condition (race speed / settling band / going / distance) and its
 // full history - a "does this condition suit it" read, not a projection input.
@@ -40,6 +47,7 @@ function CompTable({ title, todayLabel, history, matches }: CompTableProps) {
   const thisMean = thisWpr.length ? mean(thisWpr) : null
   const variance = thisMean != null && allMean != null ? thisMean - allMean : null
   const thisSd = thisWpr.length ? stddev(thisWpr, thisMean as number) : null
+  const enoughRuns = thisWpr.length >= MIN_RUNS_TO_COMPARE
 
   const varClass =
     variance != null
@@ -72,16 +80,27 @@ function CompTable({ title, todayLabel, history, matches }: CompTableProps) {
             <td className="text-right font-mono">{allWpr.length}</td>
             <td className="text-right font-mono">{fmt(allMean)}</td>
           </tr>
-          <tr className={varClass}>
-            <td>vs average</td>
-            <td className="text-right font-mono">—</td>
-            <td className="text-right font-mono">{fmt(variance, true)}</td>
-          </tr>
-          <tr className="text-ink-mute">
-            <td>Consistency (SD)</td>
-            <td className="text-right font-mono">—</td>
-            <td className="text-right font-mono">{fmt(thisSd)}</td>
-          </tr>
+          {enoughRuns ? (
+            <>
+              <tr className={varClass}>
+                <td>vs average</td>
+                <td className="text-right font-mono">—</td>
+                <td className="text-right font-mono">{fmt(variance, true)}</td>
+              </tr>
+              <tr className="text-ink-mute">
+                <td>Consistency (SD)</td>
+                <td className="text-right font-mono">—</td>
+                <td className="text-right font-mono">{fmt(thisSd)}</td>
+              </tr>
+            </>
+          ) : (
+            <tr className="text-ink-faint italic">
+              <td colSpan={3} className="pt-0.5">
+                Only {thisWpr.length} run{thisWpr.length === 1 ? '' : 's'} at this condition - too few to
+                compare reliably.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
