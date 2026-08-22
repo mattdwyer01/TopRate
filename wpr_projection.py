@@ -1024,11 +1024,27 @@ def project_race(runners, race_date):
             # rating" without also having to know about calib_offset).
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
+            contributions = dict(zip(ADJ_FEATURES, adj_contributions[i]))
+            # The Ridge model's intercept plus calib_offset are both uniform
+            # terms (same for every runner, not tied to anything about THIS
+            # horse or race) - without one, the per-feature contributions
+            # silently don't sum to `adjustment` (describe() only ever used
+            # them for ranking/relative comparison so this never showed up
+            # before now). Folded into one "baseline" line so a UI showing
+            # the full breakdown reconciles exactly.
+            contributions["baseline"] = (float(ridge.intercept_)
+                                         + float(_CFG.get("calib_offset", 0.0)))
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
                 "base_wpr": round(base_wpr, 1),
                 "adjustment": round(adjustment, 1),
+                # Per-feature breakdown of `adjustment` - sums to it exactly
+                # (including the "baseline" line above). Useful even when
+                # the total adjustment is too small for describe()'s own
+                # >=3 WPR narration threshold to say anything.
+                "adjustment_contributions": {k: round(float(v), 2)
+                                             for k, v in contributions.items()},
                 "confidence": int(round(conf[i])),
                 "wpr_price": round(float(price[i]), 2) if price[i] == price[i] else None,
                 "wpr_rank": int(rank[i]) if rank[i] == rank[i] else None,
@@ -1037,7 +1053,7 @@ def project_race(runners, race_date):
                 "description": describe(feat_dicts[i], float(proj[i]),
                                         int(round(conf[i])),
                                         int(rank[i]) if rank[i] == rank[i] else None,
-                                        dict(zip(ADJ_FEATURES, adj_contributions[i]))),
+                                        contributions),
             })
     return results
 

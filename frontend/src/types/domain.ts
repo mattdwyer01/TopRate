@@ -91,6 +91,10 @@ export interface Runner {
   projectedWpr: number | null
   baseWpr: number | null
   wprAdjustment: number | null
+  // What drove wprAdjustment, by feature - values sum to wprAdjustment
+  // exactly (includes a "baseline" entry for the model's uniform terms).
+  // Null when there's no projection.
+  adjustmentBreakdown: Record<string, number> | null
   projectionConfidence: number | null
   wprPrice: number | null
   wprRank: number | null
