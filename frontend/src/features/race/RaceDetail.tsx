@@ -115,17 +115,20 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
-          {COLUMN_LABELS.map((col) => (
-            <button
-              key={col.key}
-              type="button"
-              onClick={() => onSort(col.key)}
-              className={`text-right transition-colors hover:text-ink ${col.key === 'horse' ? 'text-left' : ''} ${sortKey === col.key ? 'text-emerald-deep' : ''}`}
-            >
-              {col.label}
-              {sortKey === col.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
-            </button>
-          ))}
+          {COLUMN_LABELS.map((col) => {
+            const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
+            return (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => onSort(col.key)}
+                className={`${align} transition-colors hover:text-ink ${sortKey === col.key ? 'text-emerald-deep' : ''}`}
+              >
+                {col.label}
+                {sortKey === col.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+              </button>
+            )
+          })}
         </div>
         {sortedRunners.map((runner) => (
           <RunnerRow
