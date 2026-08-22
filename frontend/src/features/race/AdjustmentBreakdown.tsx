@@ -1,48 +1,45 @@
-import { ADJUSTMENT_LABELS, BASELINE_KEY } from '../../lib/adjustmentLabels'
+import { ADJUSTMENT_LABELS } from '../../lib/adjustmentLabels'
 
 interface AdjustmentBreakdownProps {
   breakdown: Record<string, number>
-  adjustment: number
 }
 
 const MIN_SHOWN = 0.05
+
+// field_size and baseline are the same for every horse in a given race (a
+// race-wide constant, and a global model constant respectively) - they
+// shift every runner's WPR by the same amount, which the price/rank
+// softmax is invariant to (see wpr_projection.py project_race). They don't
+// distinguish this horse from the others in its own race, so they're
+// excluded here as noise rather than a real "driver".
+const NON_DIFFERENTIATING = new Set(['field_size', 'baseline'])
 
 function fmtSigned(v: number): string {
   return `${v > 0 ? '+' : ''}${v.toFixed(2)}`
 }
 
-// What's actually driving this runner's adjustment, feature by feature -
-// not just the two biggest reasons describe() narrates (it only speaks up
-// when the total is >=3 WPR), the full picture, including small nudges.
-// Values sum to `adjustment` exactly. Wrapping pills rather than one row
-// per feature - a compact strip instead of a tall list, since there can be
-// up to 15 of these.
-export function AdjustmentBreakdown({ breakdown, adjustment }: AdjustmentBreakdownProps) {
-  const baseline = breakdown[BASELINE_KEY] ?? 0
+// What's actually driving this runner's adjustment RELATIVE TO OTHER
+// RUNNERS IN THE SAME RACE - not just the two biggest reasons describe()
+// narrates (it only speaks up when the total is >=3 WPR), the full
+// picture, including small nudges. Wrapping pills rather than one row per
+// feature - a compact strip instead of a tall list, since there can be up
+// to 15 of these.
+export function AdjustmentBreakdown({ breakdown }: AdjustmentBreakdownProps) {
   const rows = Object.entries(breakdown)
-    .filter(([key, v]) => key !== BASELINE_KEY && Math.abs(v) >= MIN_SHOWN)
+    .filter(([key, v]) => !NON_DIFFERENTIATING.has(key) && Math.abs(v) >= MIN_SHOWN)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
 
   if (rows.length === 0) {
     return (
       <div className="text-sm text-ink-mute">
-        Nothing in this horse's situation moved the rating - the adjustment is essentially the model's baseline
-        calibration ({fmtSigned(baseline)}).
+        Nothing about this horse's own situation moved the rating relative to the rest of the field.
       </div>
     )
   }
 
   return (
     <div>
-      <div className="mb-1 flex items-baseline justify-between">
-        <span className="text-sm font-semibold text-ink">What's driving the adjustment</span>
-        <span className="text-xs text-ink-faint">
-          plus baseline &amp; calibration {fmtSigned(baseline)} = total{' '}
-          <span className={adjustment > 0 ? 'text-emerald-deep' : adjustment < 0 ? 'text-rose' : 'text-ink-mute'}>
-            {fmtSigned(adjustment)}
-          </span>
-        </span>
-      </div>
+      <div className="mb-1 text-sm font-semibold text-ink">What's driving the adjustment</div>
       <div className="flex flex-wrap gap-1.5">
         {rows.map(([key, v]) => (
           <span

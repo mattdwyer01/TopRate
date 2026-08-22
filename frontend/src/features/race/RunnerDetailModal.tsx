@@ -247,9 +247,7 @@ export function RunnerDetailModal({
             </div>
           </div>
 
-          {runner.adjustmentBreakdown && runner.wprAdjustment != null && (
-            <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} adjustment={runner.wprAdjustment} />
-          )}
+          {runner.adjustmentBreakdown && <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} />}
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 
