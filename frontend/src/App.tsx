@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
+import { useShowBushMeetings } from './lib/bushMeetings'
+import { bushMeetingKeys, meetingKey } from './lib/meetings'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
 import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
@@ -13,7 +15,15 @@ function App() {
   const { state, retry } = useDashboardData()
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
+  const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const tickerRaces = useMemo(() => {
+    if (state.status !== 'ready') return []
+    if (showBush) return state.data.races
+    const bushKeys = bushMeetingKeys(state.data.races)
+    return state.data.races.filter((r) => !bushKeys.has(meetingKey(r)))
+  }, [state, showBush])
 
   // Boot-time deep-link handling: if the URL already names a race (a shared
   // link or a page reload mid-session), that wins over the default meetings
@@ -57,7 +67,7 @@ function App() {
         {state.status === 'ready' && (
           <div className="mx-auto w-full max-w-6xl">
             <NextToJumpTicker
-              races={state.data.races}
+              races={tickerRaces}
               onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
             />
           </div>
@@ -85,6 +95,8 @@ function App() {
               races={state.data.races}
               initialDate={urlState.date}
               onSelectRace={(raceId, date) => pushUrlState({ date, raceId })}
+              showBush={showBush}
+              onShowBushChange={setShowBush}
             />
           ))}
       </main>
