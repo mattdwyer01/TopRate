@@ -108,18 +108,15 @@ export function RunnerDetailModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-full w-full max-w-5xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
+        className="flex max-h-full w-full max-w-6xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5">
-          <button
-            type="button"
-            onClick={onPrev}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-            aria-label="Previous runner"
-          >
-            ‹
-          </button>
+        <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-line bg-panel px-3 py-2.5">
+          {runner.silkUrl ? (
+            <img src={runner.silkUrl} alt="" className="h-10 w-10 shrink-0 rounded-sm object-contain" />
+          ) : (
+            <div className="h-10 w-10 shrink-0 rounded-sm bg-bg" />
+          )}
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-semibold text-ink">
               {runner.tabNumber}. {runner.horse}
@@ -128,22 +125,32 @@ export function RunnerDetailModal({
               {runner.jockey} / {runner.trainer}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onNext}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-            aria-label="Next runner"
-          >
-            ›
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-            aria-label="Close"
-          >
-            ✕
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onPrev}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+              aria-label="Previous runner"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+              aria-label="Next runner"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-1 flex h-8 w-8 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 p-3">
@@ -217,8 +224,6 @@ export function RunnerDetailModal({
             </label>
           </div>
 
-          <CareerStats runner={runner} race={race} />
-
           <ActualVsProjected runner={runner} />
 
           {runner.projectionDescription && runner.projectedWpr != null && (
@@ -250,7 +255,16 @@ export function RunnerDetailModal({
             </div>
           </div>
 
-          {runner.adjustmentBreakdown && <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} />}
+          <div className="flex flex-wrap gap-3">
+            <div className="min-w-[280px] flex-1">
+              <CareerStats runner={runner} race={race} />
+            </div>
+            {runner.adjustmentBreakdown && (
+              <div className="min-w-[280px] flex-1">
+                <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} />
+              </div>
+            )}
+          </div>
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 

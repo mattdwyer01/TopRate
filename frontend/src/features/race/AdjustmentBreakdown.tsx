@@ -33,19 +33,19 @@ export function AdjustmentBreakdown({ breakdown }: AdjustmentBreakdownProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="text-sm text-ink-mute">
+      <div className="rounded-lg border border-line bg-panel p-2 text-sm text-ink-mute">
         Nothing about this horse's own situation moved the rating relative to the rest of the field.
       </div>
     )
   }
 
   return (
-    <div>
-      <div className="mb-1 text-sm font-semibold text-ink">What's driving the adjustment</div>
-      <table className="w-full max-w-xs text-xs">
-        <tbody className="[&_td]:py-0.5">
+    <div className="rounded-lg border border-line bg-panel p-2">
+      <div className="mb-0.5 text-xs font-semibold text-ink">What's driving the adjustment</div>
+      <table className="w-full text-xs">
+        <tbody className="[&_td]:py-0 [&_td]:leading-5">
           {rows.map(([key, v]) => (
-            <tr key={key} className="border-b border-line-soft last:border-b-0">
+            <tr key={key}>
               <td className="text-ink-soft">{ADJUSTMENT_LABELS[key] ?? key}</td>
               <td className={`text-right font-mono font-semibold ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
                 {fmtSigned(v)}
