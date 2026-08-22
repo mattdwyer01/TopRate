@@ -89,10 +89,10 @@ export function SpeedMap({ race, runners }: SpeedMapProps) {
               </span>
               <div className="relative h-5 flex-1">
                 <div
-                  className="flex h-full items-center rounded-sm bg-emerald-bg px-1.5"
+                  className="flex h-full items-center rounded-sm bg-slate px-1.5"
                   style={{ width: `${pct.toFixed(1)}%` }}
                 >
-                  <span className="truncate whitespace-nowrap text-xs font-medium text-emerald-deep">
+                  <span className="truncate whitespace-nowrap text-xs font-medium text-white">
                     {u.tabNumber}. {u.horse}
                     {u.projectedWpr != null ? `  ${u.projectedWpr.toFixed(1)}` : ''}
                   </span>
