@@ -19,6 +19,16 @@ export class DashboardDataError extends Error {}
 // parsing). Falls back to a plain response.json() when streaming isn't
 // available (missing Content-Length, or a browser without
 // ReadableStream.getReader on Response bodies).
+//
+// Two things this deliberately avoids, both of which made an earlier
+// version of this function slower than the plain response.json() it
+// replaced: decoding+string-concatenating on every chunk (bytes are
+// collected raw and decoded ONCE at the end instead - a 90MB file can
+// arrive in a four-figure number of chunks, and repeated decode+concat
+// added real overhead across all of them), and calling onProgress on every
+// chunk (network chunks arrive far more often than the percentage actually
+// changes, and each call is a React state update/re-render - throttled to
+// fire only when the rounded percentage moves).
 export async function fetchDashboardData(onProgress?: (pct: number) => void): Promise<DashboardData> {
   let response: Response
   try {
@@ -39,18 +49,27 @@ export async function fetchDashboardData(onProgress?: (pct: number) => void): Pr
     const total = Number(response.headers.get('content-length') ?? 0)
     if (onProgress && total > 0 && response.body) {
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let text = ''
+      const chunks: Uint8Array[] = []
       let received = 0
+      let lastPct = -1
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        text += decoder.decode(value, { stream: true })
+        chunks.push(value)
         received += value.length
-        onProgress(Math.min(99, Math.round((received / total) * 100)))
+        const pct = Math.min(99, Math.round((received / total) * 100))
+        if (pct !== lastPct) {
+          lastPct = pct
+          onProgress(pct)
+        }
       }
-      text += decoder.decode()
-      raw = JSON.parse(text)
+      const merged = new Uint8Array(received)
+      let offset = 0
+      for (const chunk of chunks) {
+        merged.set(chunk, offset)
+        offset += chunk.length
+      }
+      raw = JSON.parse(new TextDecoder().decode(merged))
       onProgress(100)
     } else {
       raw = await response.json()
