@@ -2254,6 +2254,25 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
 
     if new_rows:
         new_df = pd.DataFrame(new_rows)
+        # Freeze wpr_nett at its FIRST capture per run_id, before the
+        # keep-last dedup below. wpr_nett is meant to be the horse's
+        # PRE-RACE rating - but TopRate revises a horse's own rating for
+        # up to ~5 days post-race (see compute_wpr_actual), and this
+        # function's own re-fetch path (the `--date` override above removes
+        # still-pending rows and re-fetches them) can otherwise re-capture
+        # wpr_nett for a run_id AFTER its race has already happened,
+        # silently replacing the true pre-race value with a post-race-
+        # informed one - a leak into anything trained on wpr_nett. Every
+        # OTHER column still wants keep-last (results/comments/actual WPR
+        # are meant to fill in progressively), so this is scoped to
+        # wpr_nett specifically rather than changing the dedup strategy
+        # wholesale.
+        if "wpr_nett" in runners_df.columns and "run_id" in runners_df.columns:
+            _frozen = runners_df.set_index("run_id")["wpr_nett"].dropna()
+            if len(_frozen):
+                _mask = new_df["run_id"].isin(_frozen.index)
+                if _mask.any():
+                    new_df.loc[_mask, "wpr_nett"] = new_df.loc[_mask, "run_id"].map(_frozen)
         # Pandas emits a FutureWarning about dtype handling when concatenating
         # frames that contain all-NA columns. The warning is harmless here
         # (the result is correct); suppress just this one warning rather than
@@ -2261,7 +2280,9 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
             runners_df = pd.concat([runners_df, new_df], ignore_index=True)
-        # Deduplicate: keep last occurrence per run_id (latest fetch wins)
+        # Deduplicate: keep last occurrence per run_id (latest fetch wins) -
+        # wpr_nett itself is already frozen above, so this only lets other
+        # (progressively-filled) columns take the newer row's values.
         runners_df = runners_df.drop_duplicates(subset=["run_id"], keep="last").reset_index(drop=True)
         total_runners = len(new_rows)
         total_races   = len(set(r["race_id"] for r in new_rows))

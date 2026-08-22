@@ -201,6 +201,15 @@ FEATURES = [
 # adoption bar used throughout this project, so the set stays as-is.
 # dist_vs_last was in an earlier version and was REMOVED after leave-
 # one-out testing showed it was pure noise (removing it improved MAE).
+# going_delta_today (interaction with today's wetness) and
+# first_up_personal/second_up_personal (this horse's own historical
+# deviation in that camp position) were tried Aug 2026 - held-out MAE
+# +0.0035 (worse, nowhere near the 0.03 adoption bar), and WORSE
+# specifically on the second-up subset (+0.021) where personalisation was
+# meant to help most. Same conclusion as the already-documented firstup_wpr
+# negative result above, just via a different route (a Ridge-specific
+# interaction formulation rather than a flat tree-model feature) - do not
+# re-add either without a fresh held-out test showing a real gain.
 ADJ_FEATURES = [
     "first_up", "second_up", "days_since", "runs_this_camp",
     "dist_grad", "going_delta", "today_wet", "cur_surface", "class_move",
@@ -214,12 +223,30 @@ _DAYS_SINCE_CAP = 200
 
 
 def _compute_base(feat):
-    """The horse's own anchor for the additive model. wpr_nett first
-    (TopRate's own pre-race rating - empirically the best single base,
-    tested head to head against avg_last3/ewm3/career_avg/peak/a 50-50
-    blend: MAE 5.273 vs 5.5-10.6 and the least biased at the elite tier
-    among the four practical candidates). Falls back down a recency chain
-    when wpr_nett is unrated (TopRate has not rated this specific runner)."""
+    """The horse's own anchor for the additive model. A 50/50 blend of
+    wpr_nett (TopRate's own pre-race rating) and ewm3 (this horse's own
+    recency-weighted recent-form average) when both are available - a
+    deliberate hedge against wpr_nett's external-dependency risk (this
+    pipeline has no visibility into TopRate's own calculation, and TopRate
+    revises a horse's rating for up to ~5 days post-race - see
+    toprate_daily.py's wpr_nett-freeze-on-first-capture fix, which closes
+    the leak vector where a re-fetch could pick up a post-race-informed
+    value, but doesn't guarantee TopRate's own number was clean to begin
+    with). Re-tested head to head on current data: wpr_nett alone MAE
+    5.743 (elite-tier >=90 bias +3.95), this blend MAE 5.981 (bias +5.42),
+    ewm3/avg_last3/career_avg/peak alone all MAE 6.6-7.1 (bias +6.6-7.0).
+    The blend gives up ~0.24 MAE for materially less reliance on a single
+    unauditable source - worth it over wpr_nett alone; going further to
+    ewm3/avg_last3/career_avg alone was not (see wpr_projection docstring
+    on the elite-tier regression failure mode this base exists to avoid).
+    Falls back to whichever half is available, then down the recency chain,
+    when one or both are unrated."""
+    nett = feat.get("wpr_nett")
+    ewm3 = feat.get("ewm3")
+    nett_ok = nett is not None and not (isinstance(nett, float) and nett != nett)
+    ewm3_ok = ewm3 is not None and not (isinstance(ewm3, float) and ewm3 != ewm3)
+    if nett_ok and ewm3_ok:
+        return 0.5 * float(nett) + 0.5 * float(ewm3)
     for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
         v = feat.get(key)
         if v is not None and not (isinstance(v, float) and v != v):
@@ -1508,15 +1535,17 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         else:
             print("  surface filter: no blank-going runs")
 
-    # BASE for the additive architecture (see module docstring / ADJ_FEATURES
-    # comment). Computed from RAW values, BEFORE the FEATURES median-fill
-    # below - the fallback chain (wpr_nett -> ewm3 -> avg_last3 ->
-    # career_avg) only means anything before a missing wpr_nett gets
+    # BASE for the additive architecture - must match _compute_base()
+    # exactly (a 50/50 wpr_nett/ewm3 blend when both are present, else
+    # whichever half is available, else avg_last3/career_avg). Computed
+    # from RAW values, BEFORE the FEATURES median-fill below - the
+    # fallback chain only means anything before a missing value gets
     # silently replaced by the population median. career_avg is guaranteed
     # present once _MIN_RUNS is met, so this should never actually fall
     # through to NaN - the dropna is defensive.
-    D["_base"] = (D["wpr_nett"].fillna(D["ewm3"])
-                  .fillna(D["avg_last3"]).fillna(D["career_avg"]))
+    _both = D["wpr_nett"].notna() & D["ewm3"].notna()
+    D["_base"] = np.where(_both, 0.5 * D["wpr_nett"] + 0.5 * D["ewm3"], D["wpr_nett"].fillna(D["ewm3"]))
+    D["_base"] = pd.Series(D["_base"], index=D.index).fillna(D["avg_last3"]).fillna(D["career_avg"])
     n_before_base = len(D)
     D = D.dropna(subset=["_base"]).copy()
     if len(D) < n_before_base:
