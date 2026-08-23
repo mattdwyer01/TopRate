@@ -94,8 +94,16 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
       <span className="text-right font-mono text-ink-mute">
         {fmtPrice(runner.fixedWinPrice)}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
+      <span className="hidden text-right sm:inline">
+        {runner.finishPosition === 1 ? (
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono font-semibold text-amber">
+            1
+          </span>
+        ) : (
+          <span className="font-mono text-ink-mute">
+            {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
+          </span>
+        )}
       </span>
     </button>
   )
