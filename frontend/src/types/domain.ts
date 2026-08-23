@@ -78,6 +78,12 @@ export interface Runner {
   trainerRating: number | null
 
   fixedWinPrice: number | null
+  // The fixed price at first capture today (the ~9am AEST daily fetch),
+  // frozen server-side and never touched by the 5-min price refresh - see
+  // toprate_daily.py's open_price freeze block. null for a runner whose
+  // price wasn't yet captured this raceday (rare - only a very late
+  // scratch-in or a data gap).
+  openFixedPrice: number | null
   silkUrl: string | null
   startingPrice: number | null
   postRaceTopPrice: number | null
