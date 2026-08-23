@@ -3,10 +3,22 @@ name: TopRate price refresh
 # Runs every 5 minutes during typical AU racing hours (10am - 10pm AEST = 00:00 - 12:00 UTC).
 # Outside this window the workflow doesn't fire, saving ~17,000 free-tier minutes/month.
 # Adjust the cron if you regularly bet outside these hours (e.g. WA evenings or NZ races).
+#
+# NOTE (Aug 2026): checked real run history via the GitHub API - this was firing
+# every 20-55 min in practice, not every 5, despite the */5 cron below. GitHub's
+# own docs warn that scheduled workflows can be delayed "during periods of high
+# load", and every-5-min crons landing on round clock boundaries (:00, :05, :10...)
+# are exactly when that contention peaks, since huge numbers of other repos' cron
+# jobs are also aligned to those same boundaries. Offset to :02, :07, :12... below -
+# a one-line, no-new-credentials mitigation to try first. If actual cadence (check
+# via the Actions tab / API) is still far from 5 min after this, the real fix is an
+# external trigger calling workflow_dispatch (already enabled below) instead of
+# relying on GitHub's own `schedule` event, which isn't a code change worth making
+# speculatively before confirming the offset alone didn't help.
 on:
   schedule:
-    - cron: '*/5 0-12 * * *'   # every 5 min, hours 0-12 UTC = 10am-10pm AEST
-  workflow_dispatch:           # allow manual trigger from GitHub UI
+    - cron: '2-59/5 0-12 * * *'   # every 5 min offset from :02, hours 0-12 UTC = 10am-10pm AEST
+  workflow_dispatch:               # allow manual trigger from GitHub UI
 
 # Avoid concurrent runs - if a refresh is still going when the next one fires,
 # skip rather than queue. Skipped runs are fine since the next slot is 5 min away.
