@@ -39,18 +39,26 @@ function vsBaseClass(v: number | null, runs: number): string {
 // narrower question (does today's specific pace/settle suit it).
 export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
-  const rows = computeCareerStats(runner, race)
+  // Rows with zero matching runs (e.g. "This prep" for a first-up horse)
+  // show nothing but dashes - the em-dash IS the information, so drop the
+  // row rather than spend a full line saying "no data" (a first-up horse's
+  // empty prep is already obvious from the recent-runs table's spell marker).
+  const rows = computeCareerStats(runner, race).filter((row) => row.runs > 0)
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2">
       <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
+      <p className="mb-1 text-[11px] text-ink-faint">
+        P75 vs what it's rated to run today - a different read from "What's driving the adjustment" below, which
+        compares this horse's own history to its career average, not today's rating.
+      </p>
       <table className="w-full max-w-md text-xs">
         <thead>
           <tr className="text-ink-faint">
             <th className="text-left font-normal" />
             <th className="text-right font-normal">Peak</th>
             <th className="text-right font-normal">P75</th>
-            <th className="text-right font-normal">vs Base</th>
+            <th className="text-right font-normal">vs Today</th>
             <th className="pl-2 text-right font-normal">Trend</th>
           </tr>
         </thead>
