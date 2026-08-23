@@ -9,6 +9,7 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   onClick: () => void
+  onToggleScratch: () => void
 }
 
 function fmtAdj(v: number | null): string {
@@ -22,10 +23,16 @@ function fmtAdj(v: number | null): string {
 // consolidation the rebuild plan calls for). The grid's column template
 // itself changes at the sm breakpoint via Tailwind classes, so the same
 // DOM/children just reflow rather than existing twice.
-export function RunnerRow({ runner, compact, selected, effective, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, compact, selected, effective, onClick, onToggleScratch }: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
-  const displayProj = effective?.effectiveProjectedWpr ?? runner.projectedWpr
-  const displayPrice = effective?.effectivePrice ?? runner.wprPrice
+  const scratched = effective?.scratched ?? false
+  // Scratched: force both to null rather than falling back to the model's
+  // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
+  // live rating any more, it shouldn't look like it's still rated just
+  // because effective.effectiveProjectedWpr is explicitly null (which ??
+  // would otherwise treat the same as "no override, use the raw value").
+  const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  const displayPrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
   const overridden = effective?.hasOverride ?? false
   // Miss vs the RAW model projection (not the manually-overridden displayProj)
   // - this is a read on the MODEL's accuracy, same convention as the Review
@@ -38,11 +45,23 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
 
   return (
-    <button
-      type="button"
+    // A div, not a button - a real scratch-toggle <button> needs to nest
+    // inside this row (invalid HTML and unpredictable click behaviour
+    // inside a native <button>), so this is role=button + keyboard handling
+    // instead, to keep the same click-anywhere-to-open-modal behaviour and
+    // accessibility a real button gave for free.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`grid w-full grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] ${rowPadding} ${
-        selected ? 'bg-emerald-bg' : 'hover:bg-bg'
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] ${rowPadding} ${
+        scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
       {runner.silkUrl ? (
@@ -53,7 +72,7 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
       <span className="hidden font-mono text-ink-mute sm:inline">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1">
-          <span className="truncate font-medium text-ink">
+          <span className={`truncate font-medium text-ink ${scratched ? 'line-through' : ''}`}>
             <span className="font-mono text-ink-mute sm:hidden">{runner.tabNumber}. </span>
             {runner.horse}
           </span>
@@ -67,6 +86,26 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
               1
             </span>
           )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleScratch()
+            }}
+            title={scratched ? 'Un-scratch this runner' : 'Mark this runner as scratched'}
+            // Always visible, not hover-only - on a phone (exactly where a
+            // late scratch is likely to be entered, at the track with no
+            // hover state at all) a hover-revealed button is invisible and
+            // undiscoverable. Quiet (faint border, muted text) until
+            // scratched, so it doesn't compete with the horse name at rest.
+            className={`flex-none rounded border px-1 text-[10px] font-semibold transition-colors ${
+              scratched
+                ? 'border-rose-line bg-rose-bg text-rose'
+                : 'border-line-soft text-ink-faint hover:border-line hover:text-ink-mute'
+            }`}
+          >
+            SCR
+          </button>
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
@@ -98,7 +137,7 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
         {fmtAdj(runner.wprAdjustment)}
       </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
-        {fmtWpr(displayProj)}
+        {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(displayProj)}
         {overridden && (
           <span className="ml-0.5 text-amber" title="Manually adjusted">
             *
@@ -121,11 +160,11 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
         {miss != null ? fmtAdj(miss) : ''}
       </span>
       <span className="text-right font-mono text-ink-mute">
-        {fmtPrice(displayPrice)}
+        {scratched ? 'SCR' : fmtPrice(displayPrice)}
       </span>
       <span className="text-right font-mono text-ink-mute">
-        {fmtPrice(runner.fixedWinPrice)}
-        {showMove && (
+        {scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}
+        {!scratched && showMove && (
           <span
             className={priceMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}
             title={`Opened ${fmtPrice(runner.openFixedPrice)} - ${priceMove.direction} ${priceMove.pctChange.toFixed(0)}%`}
@@ -145,6 +184,6 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
           </span>
         )}
       </span>
-    </button>
+    </div>
   )
 }

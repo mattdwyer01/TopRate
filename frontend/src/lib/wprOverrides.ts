@@ -13,7 +13,36 @@ const DELTA_KEY = 'toprate_wpr_overrides_v1'
 // top), so it joins the race's price/rank recompute like any rated runner.
 const BASE_KEY = 'toprate_manual_base_v1'
 
+// Manual late-scratching flags, keyed by run_id, persisted the same way as
+// deltas/bases (this device only). The data source's own scratch signal
+// (isScratched, seen in the raw API payload) isn't captured into
+// toprate_data.json today, and even if it were, a late scratch needs to be
+// reflected the moment it happens, not on the next pipeline run - this is
+// the fast, local, reversible path for that. A scratched runner is excluded
+// from computeEffectiveRace's field-relative price/rank softmax entirely
+// (as if it weren't in the race), so the rest of the field's rated prices
+// correctly reset around the smaller field.
+const SCRATCHED_KEY = 'toprate_scratched_v1'
+
 type OverrideMap = Record<string, number>
+
+function readScratchedSet(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(SCRATCHED_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function writeScratchedSet(set: Set<string>) {
+  try {
+    window.localStorage.setItem(SCRATCHED_KEY, JSON.stringify([...set]))
+  } catch {
+    // localStorage can throw in private-browsing/storage-full states -
+    // the in-memory value still works for the rest of the session.
+  }
+}
 
 function readMap(key: string): OverrideMap {
   try {
@@ -36,6 +65,7 @@ function writeMap(key: string, map: OverrideMap) {
 export function useWprOverrides() {
   const [deltas, setDeltasState] = useState<OverrideMap>(() => readMap(DELTA_KEY))
   const [bases, setBasesState] = useState<OverrideMap>(() => readMap(BASE_KEY))
+  const [scratched, setScratchedState] = useState<Set<string>>(() => readScratchedSet())
 
   const setDelta = useCallback((runId: string, value: number | null) => {
     setDeltasState((prev) => {
@@ -57,5 +87,15 @@ export function useWprOverrides() {
     })
   }, [])
 
-  return { deltas, bases, setDelta, setBase }
+  const setScratched = useCallback((runId: string, value: boolean) => {
+    setScratchedState((prev) => {
+      const next = new Set(prev)
+      if (value) next.add(runId)
+      else next.delete(runId)
+      writeScratchedSet(next)
+      return next
+    })
+  }, [])
+
+  return { deltas, bases, scratched, setDelta, setBase, setScratched }
 }

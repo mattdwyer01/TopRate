@@ -39,17 +39,26 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  const { deltas, bases, setDelta, setBase } = useWprOverrides()
+  const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
 
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta),
-    [race.runners, deltas, bases, priceBeta],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, scratched),
+    [race.runners, deltas, bases, priceBeta, scratched],
   )
+  // scratched is a global (all-races) set - count only this race's runners
+  // in it for the header, rather than the whole set's size.
+  const scratchedInRace = race.runners.filter((r) => scratched.has(r.runId)).length
 
-  const sortedRunners = useMemo(
-    () => sortRunners(race.runners, sortKey, sortDir, effectiveByRunId),
-    [race.runners, sortKey, sortDir, effectiveByRunId],
-  )
+  // Scratched runners sort to the bottom regardless of the chosen sort key -
+  // they're out of the race, cluttering the top of a Proj-sorted list with
+  // a horse that can no longer win is worse than losing strict sort order
+  // for the (rare, temporary) scratched few.
+  const sortedRunners = useMemo(() => {
+    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId)
+    const active = sorted.filter((r) => !scratched.has(r.runId))
+    const scratchedRunners = sorted.filter((r) => scratched.has(r.runId))
+    return [...active, ...scratchedRunners]
+  }, [race.runners, sortKey, sortDir, effectiveByRunId, scratched])
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
@@ -106,7 +115,12 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-mute">
           <span>{race.distance}m</span>
           <span>{race.going}</span>
-          <span>{race.fieldSize} runners</span>
+          <span>
+            {race.fieldSize} runners
+            {scratchedInRace > 0 && (
+              <span className="text-rose"> ({scratchedInRace} scratched)</span>
+            )}
+          </span>
           {race.hasFirstStarter && <span className="text-amber">First starter in field</span>}
         </div>
       </div>
@@ -205,11 +219,14 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
             selected={runner.runId === selectedRunId}
             effective={effectiveByRunId[runner.runId]}
             onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
+            onToggleScratch={() => setScratched(runner.runId, !scratched.has(runner.runId))}
           />
         ))}
       </div>
 
-      <SpeedMap race={race} runners={race.runners} />
+      {/* Scratched runners are excluded, not just visually - the speed map
+          plots who's actually going to run, not the original field. */}
+      <SpeedMap race={race} runners={race.runners.filter((r) => !scratched.has(r.runId))} />
 
       {selectedRunner && (
         <RunnerDetailModal
@@ -220,6 +237,7 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
           baseValue={bases[selectedRunner.runId] ?? null}
           onSetDelta={(v) => setDelta(selectedRunner.runId, v)}
           onSetBase={(v) => setBase(selectedRunner.runId, v)}
+          onToggleScratch={() => setScratched(selectedRunner.runId, !scratched.has(selectedRunner.runId))}
           onClose={() => setSelectedRunId(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}

@@ -17,6 +17,7 @@ interface RunnerDetailModalProps {
   baseValue: number | null
   onSetDelta: (v: number | null) => void
   onSetBase: (v: number | null) => void
+  onToggleScratch: () => void
   onClose: () => void
   onPrev: () => void
   onNext: () => void
@@ -80,10 +81,12 @@ export function RunnerDetailModal({
   baseValue,
   onSetDelta,
   onSetBase,
+  onToggleScratch,
   onClose,
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
+  const scratched = effective?.scratched ?? false
   const [scrolled, setScrolled] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -109,8 +112,12 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
+  // Scratched: force both to null rather than falling back to the model's
+  // raw (pre-scratch) values - same reasoning as RunnerRow's displayProj/
+  // displayPrice (effective.effectiveProjectedWpr is explicitly null once
+  // scratched, and ?? would otherwise treat that the same as "no override").
+  const effectivePrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
   const priceBitsBefore: string[] = []
-  const effectivePrice = effective?.effectivePrice ?? runner.wprPrice
   if (effectivePrice != null) priceBitsBefore.push(`WPR ${fmtPrice(effectivePrice)}`)
   const priceBitsAfter: string[] = []
   if (runner.topratePrice != null) priceBitsAfter.push(`TR ${fmtPrice(runner.topratePrice)}`)
@@ -119,7 +126,7 @@ export function RunnerDetailModal({
   // arrays above) so the raceday move vs open_price can be colour-coded.
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
 
-  const effectiveWpr = effective?.effectiveProjectedWpr ?? runner.projectedWpr
+  const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const hasOverride = effective?.hasOverride ?? false
 
   return (
@@ -144,7 +151,7 @@ export function RunnerDetailModal({
             <div className="h-10 w-10 shrink-0 rounded-sm bg-bg" />
           )}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold text-ink">
+            <div className={`truncate text-base font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
               {runner.tabNumber}. {runner.horse}
             </div>
             {scrolled ? (
@@ -162,6 +169,17 @@ export function RunnerDetailModal({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onToggleScratch}
+              className={`rounded-md border px-2 text-xs font-semibold transition-colors ${
+                scratched
+                  ? 'border-rose-line bg-rose-bg text-rose'
+                  : 'border-line text-ink-mute hover:bg-bg hover:text-ink'
+              }`}
+            >
+              {scratched ? 'Scratched' : 'Scratch'}
+            </button>
             <button
               type="button"
               onClick={onPrev}
@@ -199,8 +217,14 @@ export function RunnerDetailModal({
 
           <div className="rounded-lg bg-bg p-2.5">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-              <span className="text-xs text-ink-mute">effective WPR</span>
+              {scratched ? (
+                <span className="font-mono text-2xl font-bold text-rose">SCR</span>
+              ) : (
+                <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+              )}
+              <span className="text-xs text-ink-mute">
+                {scratched ? 'scratched - out of the field pricing' : 'effective WPR'}
+              </span>
               {hasOverride && (
                 <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
                   manually adjusted
