@@ -43,8 +43,8 @@ function vsCareerAvgClass(v: number | null, runs: number): string {
 // the model's applied adjustment) side by side; folding the applied
 // adjustment into the matching row removes the duplicate table and lets a
 // reader compare "how it's actually run there" against "how much that
-// counted" in one glance. Distinct from ComparisonGrid further down, which
-// asks a narrower question (does today's specific pace/settle suit it).
+// counted" in one glance. Sits beside ComparisonGrid (see RunnerDetailModal),
+// which asks a narrower question (does today's specific pace/settle suit it).
 export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
   // Rows with zero matching runs (e.g. "This prep" for a first-up horse)
@@ -65,35 +65,23 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
     : []
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-3 sm:p-4">
-      <div className="mb-0.5 text-xs font-semibold text-ink sm:text-sm">WPR by career &amp; condition</div>
-      <p className="mb-2 text-[11px] text-ink-faint sm:text-xs">
+    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
+      <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
+      <p className="mb-1.5 text-[11px] text-ink-faint">
         Avg vs its own career average, and (where it feeds the rating) the shrunk adjustment actually applied.
       </p>
-      {/* table-fixed + explicit column widths so this stretches to fill the
-          card on wide screens instead of shrink-wrapping to a fixed max-width
-          and leaving a dead gap beside it (that gap used to hold the separate
-          adjustment-breakdown table, now folded into the Adj column below). */}
-      <table className="w-full table-fixed text-xs sm:text-sm">
-        <colgroup>
-          <col className="w-[30%]" />
-          <col className="w-[14%]" />
-          <col className="w-[14%]" />
-          <col className="w-[16%]" />
-          <col className="w-[12%]" />
-          <col />
-        </colgroup>
+      <table className="w-full max-w-md text-xs">
         <thead>
           <tr className="border-b border-line-soft text-ink-faint">
-            <th className="pb-1.5 text-left font-normal" />
-            <th className="pb-1.5 text-right font-normal">Peak</th>
-            <th className="pb-1.5 text-right font-normal">Avg</th>
-            <th className="pb-1.5 pl-2 text-right font-normal">vs Career</th>
-            <th className="pb-1.5 pl-2 text-right font-normal">Adj</th>
-            <th className="pb-1.5 pl-3 text-right font-normal">Trend</th>
+            <th className="pb-1 text-left font-normal" />
+            <th className="pb-1 text-right font-normal">Peak</th>
+            <th className="pb-1 text-right font-normal">Avg</th>
+            <th className="pb-1 text-right font-normal">vs Career</th>
+            <th className="pb-1 pl-2 text-right font-normal">Adj</th>
+            <th className="pb-1 pl-2 text-right font-normal">Trend</th>
           </tr>
         </thead>
-        <tbody className="[&_td]:py-1.5 [&_td]:leading-5">
+        <tbody className="[&_td]:py-0.5 [&_td]:leading-5">
           {rows.map((row) => {
             const adjV = row.adjKey ? breakdown?.[row.adjKey] : undefined
             const isCareer = row.label === 'Career'
@@ -109,7 +97,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                 </td>
                 <td className="text-right font-mono">{fmt(row.peak)}</td>
                 <td className="text-right font-mono">{fmt(row.avg)}</td>
-                <td className={`pl-2 text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
+                <td className={`text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
                   {fmtSigned(row.vsCareerAvg)}
                 </td>
                 <td className="pl-2 text-right font-mono">
@@ -119,8 +107,8 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                     <span className="text-ink-faint">—</span>
                   )}
                 </td>
-                <td className="pl-3 text-right">
-                  <Sparkline values={row.trend} width={72} height={20} />
+                <td className="py-0.5 pl-2 text-right">
+                  <Sparkline values={row.trend} />
                 </td>
               </tr>
             )

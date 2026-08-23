@@ -322,11 +322,22 @@ export function RunnerDetailModal({
             )}
           </div>
 
-          <CareerStats runner={runner} race={race} />
+          {/* CareerStats keeps a natural (not stretched) table width, so
+              ComparisonGrid rides alongside it on wide screens instead of
+              leaving the rest of the row empty - both are "how has this
+              horse gone under condition X" reads, just at different
+              granularity, so grouping them ahead of the play-by-play
+              Recent runs table also reads better top-to-bottom. */}
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="min-w-[280px] flex-1">
+              <CareerStats runner={runner} race={race} />
+            </div>
+            <div className="min-w-[280px] flex-[1.4]">
+              <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+            </div>
+          </div>
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
-
-          <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
 
           <div className="text-sm text-ink-soft">
             <span className="mr-1.5 font-semibold text-ink">Price</span>
