@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 
 interface RunnerRowProps {
   runner: Runner
@@ -33,6 +34,8 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
     runner.actualWpr != null && runner.projectedWpr != null
       ? runner.actualWpr - runner.projectedWpr
       : null
+  const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
+  const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
 
   return (
     <button
@@ -122,6 +125,14 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
       </span>
       <span className="text-right font-mono text-ink-mute">
         {fmtPrice(runner.fixedWinPrice)}
+        {showMove && (
+          <span
+            className={priceMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}
+            title={`Opened ${fmtPrice(runner.openFixedPrice)} - ${priceMove.direction} ${priceMove.pctChange.toFixed(0)}%`}
+          >
+            {priceMove.direction === 'firmed' ? ' ▼' : ' ▲'}
+          </span>
+        )}
       </span>
       <span className="hidden text-right sm:inline">
         {runner.finishPosition === 1 ? (

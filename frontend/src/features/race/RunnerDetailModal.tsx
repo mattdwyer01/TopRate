@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
@@ -108,12 +109,15 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
-  const priceBits: string[] = []
+  const priceBitsBefore: string[] = []
   const effectivePrice = effective?.effectivePrice ?? runner.wprPrice
-  if (effectivePrice != null) priceBits.push(`WPR ${fmtPrice(effectivePrice)}`)
-  if (runner.fixedWinPrice != null) priceBits.push(`Fixed ${fmtPrice(runner.fixedWinPrice)}`)
-  if (runner.topratePrice != null) priceBits.push(`TR ${fmtPrice(runner.topratePrice)}`)
-  priceBits.push(runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race')
+  if (effectivePrice != null) priceBitsBefore.push(`WPR ${fmtPrice(effectivePrice)}`)
+  const priceBitsAfter: string[] = []
+  if (runner.topratePrice != null) priceBitsAfter.push(`TR ${fmtPrice(runner.topratePrice)}`)
+  priceBitsAfter.push(runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race')
+  // Fixed price gets its own bit below (not folded into the plain-text
+  // arrays above) so the raceday move vs open_price can be colour-coded.
+  const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
 
   const effectiveWpr = effective?.effectiveProjectedWpr ?? runner.projectedWpr
   const hasOverride = effective?.hasOverride ?? false
@@ -304,7 +308,21 @@ export function RunnerDetailModal({
 
           <div className="text-sm text-ink-soft">
             <span className="mr-1.5 font-semibold text-ink">Price</span>
-            {priceBits.join('  ·  ')}
+            {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
+            {runner.fixedWinPrice != null && (
+              <>
+                Fixed {fmtPrice(runner.fixedWinPrice)}
+                {fixedMove && (
+                  <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                    {' '}
+                    ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
+                    {fmtPrice(runner.openFixedPrice)} at open)
+                  </span>
+                )}
+                {'  ·  '}
+              </>
+            )}
+            {priceBitsAfter.join('  ·  ')}
           </div>
 
           <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">

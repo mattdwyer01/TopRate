@@ -138,7 +138,7 @@ RUNNER_COLS = [
     # not yet used by anything - captured here to start accumulating
     # history before testing it as a WPR feature.
     "pfm_score","pfm_score_rank",
-    "fixed_win_price","jockey_win_pct_90d","trainer_win_pct_365d",
+    "fixed_win_price","open_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # TopRate's own jockey and trainer rating numbers (separate from win % strike rates)
     "jockey_rating","trainer_rating",
     # Jockey/trainer combo - strongest single predictor in backtest. May be None
@@ -2122,6 +2122,14 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "jockey_rating":      s.get("jockey_rating"),
                     "trainer_rating":     s.get("trainer_rating"),
                     "fixed_win_price":    d.get("fixedWinPrice"),
+                    # Raceday reference price - frozen at first capture (see
+                    # the merge logic below, same pattern as wpr_nett). This
+                    # daily fetch runs at 9am AEST, so on a normal day this
+                    # IS the "9am price"; the 5-min price refresh (a
+                    # separate script) only ever touches fixed_win_price,
+                    # never this column, so it stays put as the reference
+                    # point for the rest of the day.
+                    "open_price":         d.get("fixedWinPrice"),
                     # Silks image URL from TopRate detail feed - full URL
                     # like https://silks.medialityracing.com.au/png/{hash}_front.png.
                     # Pre-built (100% coverage observed), so we just store and
@@ -2274,6 +2282,16 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                 _mask = new_df["run_id"].isin(_frozen.index)
                 if _mask.any():
                     new_df.loc[_mask, "wpr_nett"] = new_df.loc[_mask, "run_id"].map(_frozen)
+        # Same freeze, same reason, for open_price (see its own comment above
+        # in the per-runner dict) - a same-day re-fetch (the --date override
+        # path) must not silently push the reference price forward to
+        # whatever it happens to be at re-fetch time.
+        if "open_price" in runners_df.columns and "run_id" in runners_df.columns:
+            _frozen_op = runners_df.set_index("run_id")["open_price"].dropna()
+            if len(_frozen_op):
+                _mask_op = new_df["run_id"].isin(_frozen_op.index)
+                if _mask_op.any():
+                    new_df.loc[_mask_op, "open_price"] = new_df.loc[_mask_op, "run_id"].map(_frozen_op)
         # Pandas emits a FutureWarning about dtype handling when concatenating
         # frames that contain all-NA columns. The warning is harmless here
         # (the result is correct); suppress just this one warning rather than
@@ -2813,6 +2831,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "jrt":  sf(row.get("jockey_rating")),
                 "trt":  sf(row.get("trainer_rating")),
                 "fx":   sf(row.get("fixed_win_price")),
+                # Fixed price at first capture (the daily 9am AEST fetch),
+                # frozen and never overwritten by the 5-min price refresh -
+                # see the open_price freeze block near the daily fetch's
+                # runner-dict merge. Lets the dashboard show how far today's
+                # live "fx" has moved from this morning's price.
+                "op":   sf(row.get("open_price")),
                 # Silks image URL (full https URL ending in _front.png).
                 # Dashboard renders an <img> on Race + Summary cards.
                 "sk":   str(row.get("silk_url")) if row.get("silk_url") and str(row.get("silk_url")) != "nan" else None,

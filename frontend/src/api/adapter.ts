@@ -101,6 +101,7 @@ function toRunner(r: RawRunner): Runner {
     trainerRating: r.trt,
 
     fixedWinPrice: r.fx,
+    openFixedPrice: r.op,
     silkUrl: r.sk,
     startingPrice: r.sp,
     postRaceTopPrice: r.top,
