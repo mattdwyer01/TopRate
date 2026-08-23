@@ -7,7 +7,6 @@ import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
-import { AdjustmentBreakdown } from './AdjustmentBreakdown'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -23,13 +22,17 @@ interface RunnerDetailModalProps {
   onNext: () => void
 }
 
+// Content only (no card chrome) - rendered as a divided sub-row inside the
+// main summary card rather than its own bordered box, so a resulted runner
+// doesn't stack 3 separate boxes before the reader even reaches the
+// career/condition table.
 function ActualVsProjected({ runner }: { runner: Runner }) {
   if (runner.actualWpr == null) return null
 
   if (runner.projectedWpr == null) {
     return (
-      <div className="rounded-lg border border-line bg-panel p-2.5 text-sm">
-        <span className="font-mono text-lg font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
+      <div className="text-sm">
+        <span className="font-mono text-base font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
         <span className="ml-2 text-ink-mute">actual WPR &middot; no projection was made for this runner</span>
       </div>
     )
@@ -46,8 +49,8 @@ function ActualVsProjected({ runner }: { runner: Runner }) {
   }
 
   return (
-    <div className="rounded-lg border border-line bg-panel p-2.5 text-sm">
-      <span className="font-mono text-lg font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
+    <div className="text-sm">
+      <span className="font-mono text-base font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
       <span className="ml-2 text-ink-mute">
         actual WPR &middot; projection missed by{' '}
         <span className={`font-mono font-medium ${missClass}`}>
@@ -309,24 +312,17 @@ export function RunnerDetailModal({
                 </span>
               )}
             </div>
-          </div>
-
-          <ActualVsProjected runner={runner} />
-
-          {runner.projectionDescription && runner.projectedWpr != null && (
-            <div className="rounded-lg bg-bg p-2.5 text-sm text-ink-soft">{runner.projectionDescription}</div>
-          )}
-
-          <div className="flex flex-wrap gap-3">
-            <div className="min-w-[280px] flex-1">
-              <CareerStats runner={runner} race={race} />
-            </div>
-            {runner.adjustmentBreakdown && (
-              <div className="min-w-[280px] flex-1">
-                <AdjustmentBreakdown breakdown={runner.adjustmentBreakdown} />
+            {(runner.actualWpr != null || (runner.projectionDescription && runner.projectedWpr != null)) && (
+              <div className="mt-2 space-y-1 border-t border-line-soft pt-2">
+                <ActualVsProjected runner={runner} />
+                {runner.projectionDescription && runner.projectedWpr != null && (
+                  <p className="text-sm text-ink-soft">{runner.projectionDescription}</p>
+                )}
               </div>
             )}
           </div>
+
+          <CareerStats runner={runner} race={race} />
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 

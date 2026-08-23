@@ -9,6 +9,11 @@ export interface CareerStatRow {
   vsCareerAvg: number | null
   // WPR values in chronological order (oldest first) for a trend sparkline.
   trend: number[]
+  // The wpr_projection.py ADJ_TERMS key this row's condition maps to, if
+  // any (e.g. the distance row -> own_distance) - lets the UI show the
+  // shrunk/capped adjustment actually applied alongside the raw vsCareerAvg
+  // delta, in the same row, instead of a separate table.
+  adjKey?: string
 }
 
 // Same campaign/spell definition as the backend model (wpr_projection.py
@@ -36,7 +41,12 @@ function mean(values: number[]): number | null {
 // own_going adjustment terms, just unshrunk and over a broader set of
 // descriptive conditions than the 6 that actually feed the projection. See
 // AdjustmentBreakdown for the shrunk/capped version of the subset they share.
-function buildRow(label: string, entries: FormHistoryEntry[], careerAvg: number | null): CareerStatRow {
+function buildRow(
+  label: string,
+  entries: FormHistoryEntry[],
+  careerAvg: number | null,
+  adjKey?: string,
+): CareerStatRow {
   const { wprs } = sortedWprs(entries)
   const avg = mean(wprs)
   return {
@@ -46,6 +56,7 @@ function buildRow(label: string, entries: FormHistoryEntry[], careerAvg: number 
     avg,
     vsCareerAvg: avg != null && careerAvg != null ? avg - careerAvg : null,
     trend: wprs,
+    adjKey,
   }
 }
 
@@ -126,8 +137,18 @@ export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] 
   // mostly repeating the row above it rather than adding a read.
   const rows = [
     buildRow('Career', history, careerAvg),
-    buildRow(`${race.distance}m`, history.filter((e) => e.distance >= distLo && e.distance <= distHi), careerAvg),
-    buildRow(goingToday ?? race.going, history.filter((e) => goingBand(e.going) === goingToday), careerAvg),
+    buildRow(
+      `${race.distance}m`,
+      history.filter((e) => e.distance >= distLo && e.distance <= distHi),
+      careerAvg,
+      'own_distance',
+    ),
+    buildRow(
+      goingToday ?? race.going,
+      history.filter((e) => goingBand(e.going) === goingToday),
+      careerAvg,
+      'own_going',
+    ),
     buildRow('This prep', thisPrepEntries(history, race.date), careerAvg),
     buildRow('Last 6mo', history.filter((e) => new Date(e.date).getTime() >= sixMonthsAgoMs), careerAvg),
   ]
@@ -135,7 +156,8 @@ export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] 
   const status = todayCampaignStatus(history, race.date)
   if (status != null) {
     const label = status === 'first-up' ? 'First-up' : 'Second-up'
-    rows.push(buildRow(label, campaignHistoryEntries(history, status), careerAvg))
+    const adjKey = status === 'first-up' ? 'own_first_up' : 'own_second_up'
+    rows.push(buildRow(label, campaignHistoryEntries(history, status), careerAvg, adjKey))
   }
 
   return rows

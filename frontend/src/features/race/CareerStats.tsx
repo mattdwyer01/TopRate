@@ -1,11 +1,14 @@
 import type { Race, Runner } from '../../types/domain'
 import { computeCareerStats } from '../../lib/careerStats'
+import { ADJUSTMENT_LABELS } from '../../lib/adjustmentLabels'
 import { Sparkline } from '../../components/Sparkline'
 
 interface CareerStatsProps {
   runner: Runner
   race: Race
 }
+
+const MIN_ADJ_SHOWN = 0.05
 
 function fmt(v: number | null): string {
   return v == null ? '—' : v.toFixed(1)
@@ -33,12 +36,15 @@ function vsCareerAvgClass(v: number | null, runs: number): string {
 // Career/condition WPR summary shown up top in the runner detail - peak and
 // average-vs-career-average across career plus a handful of conditions
 // relevant to today's race (including first/second-up history when today
-// is itself a first/second-up run). The vs-career-avg read is the same
-// calculation as the backend's own_distance/own_going adjustment terms
-// (see AdjustmentBreakdown), just unshrunk and over more conditions than
-// the 6 that actually feed the projection. Distinct from ComparisonGrid
-// further down, which asks a narrower question (does today's specific
-// pace/settle suit it).
+// is itself a first/second-up run), plus - inline, in an "Adj" column - the
+// shrunk/capped version of that same delta for whichever rows actually feed
+// the projection (own_distance/own_going/own_first_up/own_second_up). This
+// used to be two separate tables (this one unshrunk, a second one showing
+// the model's applied adjustment) side by side; folding the applied
+// adjustment into the matching row removes the duplicate table and lets a
+// reader compare "how it's actually run there" against "how much that
+// counted" in one glance. Distinct from ComparisonGrid further down, which
+// asks a narrower question (does today's specific pace/settle suit it).
 export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
   // Rows with zero matching runs (e.g. "This prep" for a first-up horse)
@@ -47,40 +53,79 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
   // empty prep is already obvious from the recent-runs table's spell marker).
   const rows = computeCareerStats(runner, race).filter((row) => row.runs > 0)
 
+  const breakdown = runner.adjustmentBreakdown
+  const shownAdjKeys = new Set(rows.map((r) => r.adjKey).filter(Boolean))
+  // own_trend/own_long_spell have no matching career-stat row (there's no
+  // "trend" or "long spell" condition to bucket runs by) - surface them as
+  // a compact footer instead of leaving them unexplained.
+  const otherAdj = breakdown
+    ? Object.entries(breakdown).filter(
+        ([key, v]) => key !== 'baseline' && !shownAdjKeys.has(key) && Math.abs(v) >= MIN_ADJ_SHOWN,
+      )
+    : []
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2">
+    <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
       <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
-      <p className="mb-1 text-[11px] text-ink-faint">
-        Avg vs career average - the same read as "What's driving the adjustment" below, over more conditions.
+      <p className="mb-1.5 text-[11px] text-ink-faint">
+        Avg vs its own career average, and (where it feeds the rating) the shrunk adjustment actually applied.
       </p>
       <table className="w-full max-w-md text-xs">
         <thead>
-          <tr className="text-ink-faint">
-            <th className="text-left font-normal" />
-            <th className="text-right font-normal">Peak</th>
-            <th className="text-right font-normal">Avg</th>
-            <th className="text-right font-normal">vs Career</th>
-            <th className="pl-2 text-right font-normal">Trend</th>
+          <tr className="border-b border-line-soft text-ink-faint">
+            <th className="pb-1 text-left font-normal" />
+            <th className="pb-1 text-right font-normal">Peak</th>
+            <th className="pb-1 text-right font-normal">Avg</th>
+            <th className="pb-1 text-right font-normal">vs Career</th>
+            <th className="pb-1 pl-2 text-right font-normal">Adj</th>
+            <th className="pb-1 pl-2 text-right font-normal">Trend</th>
           </tr>
         </thead>
-        <tbody className="[&_td]:py-0 [&_td]:leading-5">
-          {rows.map((row) => (
-            <tr key={row.label} className={row.runs === 0 ? 'text-ink-faint italic' : 'text-ink'}>
-              <td className="whitespace-nowrap">
-                {row.label} <span className="text-ink-faint">&middot; {row.runs}</span>
-              </td>
-              <td className="text-right font-mono">{fmt(row.peak)}</td>
-              <td className="text-right font-mono">{fmt(row.avg)}</td>
-              <td className={`text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
-                {fmtSigned(row.vsCareerAvg)}
-              </td>
-              <td className="py-0.5 pl-2 text-right">
-                <Sparkline values={row.trend} />
-              </td>
-            </tr>
-          ))}
+        <tbody className="[&_td]:py-0.5 [&_td]:leading-5">
+          {rows.map((row) => {
+            const adjV = row.adjKey ? breakdown?.[row.adjKey] : undefined
+            const isCareer = row.label === 'Career'
+            return (
+              <tr
+                key={row.label}
+                className={`border-b border-line-soft/60 last:border-0 ${
+                  isCareer ? 'font-medium text-ink' : 'text-ink'
+                }`}
+              >
+                <td className="whitespace-nowrap">
+                  {row.label} <span className="font-normal text-ink-faint">&middot; {row.runs}</span>
+                </td>
+                <td className="text-right font-mono">{fmt(row.peak)}</td>
+                <td className="text-right font-mono">{fmt(row.avg)}</td>
+                <td className={`text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
+                  {fmtSigned(row.vsCareerAvg)}
+                </td>
+                <td className="pl-2 text-right font-mono">
+                  {adjV != null && Math.abs(adjV) >= MIN_ADJ_SHOWN ? (
+                    <span className={adjV > 0 ? 'text-emerald-deep' : 'text-rose'}>{fmtSigned(adjV)}</span>
+                  ) : (
+                    <span className="text-ink-faint">—</span>
+                  )}
+                </td>
+                <td className="py-0.5 pl-2 text-right">
+                  <Sparkline values={row.trend} />
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
+      {otherAdj.length > 0 && (
+        <p className="mt-1.5 text-[11px] text-ink-faint">
+          Also factored:{' '}
+          {otherAdj
+            .map(
+              ([key, v]) =>
+                `${ADJUSTMENT_LABELS[key] ?? key} ${v > 0 ? '+' : ''}${v.toFixed(2)}`,
+            )
+            .join(' · ')}
+        </p>
+      )}
     </div>
   )
 }
