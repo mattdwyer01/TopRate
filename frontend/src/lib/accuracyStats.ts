@@ -312,3 +312,38 @@ export function computeRankStats(rows: AccuracyRow[]): RankStats {
     spearman: corrByRace.length ? corrByRace.reduce((a, b) => a + b, 0) / corrByRace.length : null,
   }
 }
+
+export interface WinnerRankStats {
+  winnerN: number
+  meanWinnerRankError: number | null // mean(predictedRank - 1) across actual winners
+  rankWinCorrelation: number | null // point-biserial correlation of predicted rank vs won,
+  // across every runner (not just winners), sign-flipped so positive = a
+  // better (lower-numbered) predicted rank actually associates with winning
+}
+
+/** computeRankStats answers "did the model order this race correctly,
+ * overall". This answers the narrower, arguably more decision-relevant
+ * question: specifically how far off was the model's rank for the horse
+ * that actually won (mean, not the median already shown elsewhere), and -
+ * across every runner, winners and losers alike - does a better predicted
+ * rank actually associate with winning at all. Point-biserial correlation
+ * is just Pearson's formula applied to one continuous (rank) and one
+ * binary (won) variable - no separate formula needed. */
+export function computeWinnerRankStats(rows: AccuracyRow[]): WinnerRankStats {
+  const winnerErrors: number[] = []
+  const ranksForCorr: number[] = []
+  const winsForCorr: number[] = []
+  for (const r of rows) {
+    if (r.predictedRank == null) continue
+    if (r.won) winnerErrors.push(r.predictedRank - 1)
+    ranksForCorr.push(-r.predictedRank)
+    winsForCorr.push(r.won ? 1 : 0)
+  }
+  return {
+    winnerN: winnerErrors.length,
+    meanWinnerRankError: winnerErrors.length
+      ? winnerErrors.reduce((a, b) => a + b, 0) / winnerErrors.length
+      : null,
+    rankWinCorrelation: pearson(ranksForCorr, winsForCorr),
+  }
+}

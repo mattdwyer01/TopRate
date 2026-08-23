@@ -7,6 +7,7 @@ import {
   computeCalibrationBins,
   computeOutcomeStats,
   computeRankStats,
+  computeWinnerRankStats,
   distanceBand,
   type AccuracyRow,
   type Period,
@@ -66,6 +67,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   const stats = useMemo(() => computeAccuracyStats(rows), [rows])
   const outcome = useMemo(() => computeOutcomeStats(rows), [rows])
   const rankStats = useMemo(() => computeRankStats(rows), [rows])
+  const winnerRankStats = useMemo(() => computeWinnerRankStats(rows), [rows])
   const calibration = useMemo(() => computeCalibrationBins(rows), [rows])
   const distBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => distanceBand(r.distance)),
@@ -163,7 +165,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               horse predicted 95 that runs 95 but finishes 3rd wasn't a bad prediction on its own; the race went
               to rivals the model under-rated. That's a rank miss, not a point miss.
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <StatTile
                 label="Rank error"
                 value={rankStats.rankMae != null ? rankStats.rankMae.toFixed(2) : '-'}
@@ -180,8 +182,17 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 value={outcome.winnerMedianRank != null ? outcome.winnerMedianRank.toFixed(1) : '-'}
                 sublabel={`n=${outcome.winnerN} winners`}
               />
+              <StatTile
+                label="Winner rank error"
+                value={
+                  winnerRankStats.meanWinnerRankError != null
+                    ? winnerRankStats.meanWinnerRankError.toFixed(2)
+                    : '-'
+                }
+                sublabel={`mean, positions above 1st (n=${winnerRankStats.winnerN})`}
+              />
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <StatTile
                 label="Top pick wins"
                 value={fmtPct(outcome.topPickWinPct)}
@@ -196,6 +207,16 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 label="Top pick places"
                 value={fmtPct(outcome.topPickPlacePct)}
                 sublabel={`n=${outcome.topPickN}`}
+              />
+              <StatTile
+                label="Rank-win correlation"
+                value={
+                  winnerRankStats.rankWinCorrelation != null
+                    ? winnerRankStats.rankWinCorrelation.toFixed(2)
+                    : '-'
+                }
+                sublabel="better rank -> more likely to win"
+                tone="positive"
               />
               <StatTile
                 label="Winner in top 3"
