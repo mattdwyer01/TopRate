@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import {
+  buildHeadlineSummary,
   collectAccuracyRows,
   computeAccuracyStats,
   computeBreakdown,
   computeCalibrationBins,
+  computeMarginStats,
   computeOutcomeStats,
   computeRankStats,
   computeWinnerRankStats,
   distanceBand,
+  splitVoided,
   type AccuracyRow,
   type Period,
 } from '../../lib/accuracyStats'
@@ -23,10 +26,10 @@ interface ReviewTabProps {
   onSelectRace: (raceId: string, date: string) => void
 }
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: 'all', label: 'All time' },
+const PERIODS: { value: Period; label: string; sentence: string }[] = [
+  { value: '30', label: 'Last 30 days', sentence: 'Over the last 30 days' },
+  { value: '90', label: 'Last 90 days', sentence: 'Over the last 90 days' },
+  { value: 'all', label: 'All time', sentence: 'Across all time' },
 ]
 
 const MAX_DETAIL_ROWS = 100
@@ -56,18 +59,28 @@ function matchesGroupFilter(r: AccuracyRow, filter: GroupFilter): boolean {
 export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   const [period, setPeriod] = useState<Period>('90')
   const [excludeBush, setExcludeBush] = useState(true)
+  const [excludeVoid, setExcludeVoid] = useState(true)
   const [sortBy, setSortBy] = useState<'miss' | 'date'>('date')
   const [groupFilter, setGroupFilter] = useState<GroupFilter>(null)
   const { ref: tableScrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () => collectAccuracyRows(races, { period, excludeBush }),
     [races, period, excludeBush]
   )
+  // A compromised run (vet, checked, eased, fell, etc - per video/steward
+  // comments) isn't a fair test of the model in either direction, so it's
+  // excluded from every stat below by default - matching what the
+  // retrain's own training-target filter already does (see lib/wprVoid.ts).
+  // Kept, not discarded: the toggle below can bring them back into view.
+  const { clean, voided } = useMemo(() => splitVoided(allRows), [allRows])
+  const rows = excludeVoid ? clean : allRows
+
   const stats = useMemo(() => computeAccuracyStats(rows), [rows])
   const outcome = useMemo(() => computeOutcomeStats(rows), [rows])
   const rankStats = useMemo(() => computeRankStats(rows), [rows])
   const winnerRankStats = useMemo(() => computeWinnerRankStats(rows), [rows])
+  const marginStats = useMemo(() => computeMarginStats(rows), [rows])
   const calibration = useMemo(() => computeCalibrationBins(rows), [rows])
   const distBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => distanceBand(r.distance)),
@@ -80,6 +93,12 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   const goingBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => goingBand(r.going) ?? ''),
     [rows]
+  )
+
+  const periodSentence = PERIODS.find((p) => p.value === period)?.sentence ?? 'Overall'
+  const headline = useMemo(
+    () => buildHeadlineSummary(periodSentence, outcome, rankStats, marginStats, voided.length, allRows.length),
+    [periodSentence, outcome, rankStats, marginStats, voided.length, allRows.length]
   )
 
   const filteredRows = useMemo(
@@ -124,6 +143,15 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           />
           Exclude bush/picnic tracks
         </label>
+        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+          <input
+            type="checkbox"
+            checked={excludeVoid}
+            onChange={(e) => setExcludeVoid(e.target.checked)}
+            className="accent-emerald"
+          />
+          Exclude compromised runs (vet/checked/eased/etc)
+        </label>
       </div>
 
       {stats.n === 0 ? (
@@ -132,6 +160,16 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
         </div>
       ) : (
         <>
+          {headline.length > 0 && (
+            <div className="rounded-lg border border-emerald-line bg-emerald-bg p-3 text-sm text-ink">
+              <div className="flex flex-col gap-1">
+                {headline.map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <h2 className="text-sm font-semibold text-ink">Point accuracy</h2>
             <p className="mb-2 text-xs text-ink-faint">
@@ -226,6 +264,34 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             </div>
           </div>
 
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Margin accuracy</h2>
+            <p className="mb-2 text-xs text-ink-faint">
+              A horse predicted 5 WPR points behind the top pick, whose actual result also lands about 5 points
+              behind the top pick's actual result, had its SPACING to the field leader correctly predicted - a
+              third dimension beyond "was the order right" and "was each number close".
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <StatTile
+                label="Margin error"
+                value={marginStats.mae != null ? marginStats.mae.toFixed(1) : '-'}
+                sublabel={`WPR pts off, vs top pick (n=${marginStats.n})`}
+              />
+              <StatTile
+                label="Margin bias"
+                value={fmtSigned(marginStats.bias, 1)}
+                sublabel={
+                  marginStats.bias != null && Math.abs(marginStats.bias) >= 1
+                    ? marginStats.bias > 0
+                      ? 'gaps run wider than predicted'
+                      : 'gaps run narrower than predicted'
+                    : 'roughly unbiased'
+                }
+                tone={marginStats.bias != null && Math.abs(marginStats.bias) >= 1 ? 'negative' : 'default'}
+              />
+            </div>
+          </div>
+
           {(distBreakdown.length > 0 || goingBreakdown.length > 0) && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {distBreakdown.length > 0 && (
@@ -287,7 +353,12 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             </div>
             <p className="mb-2 text-xs text-ink-faint">
               Miss = actual minus predicted WPR: positive (green) means the horse ran better than projected,
-              negative (red) means it ran worse.
+              negative (red) means it ran worse.{' '}
+              {excludeVoid && voided.length > 0
+                ? `Compromised runs (${voided.length}) are hidden - see the toggle above.`
+                : voided.length > 0
+                  ? 'Rows flagged ⚠ were compromised (vet/checked/eased/etc) - still shown, but not a fair test.'
+                  : ''}
             </p>
             <div className="relative">
               <div ref={tableScrollRef} className="overflow-x-auto rounded-lg border border-line bg-panel">
@@ -313,7 +384,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                       >
                         <td className="whitespace-nowrap px-3 py-1.5 text-ink-mute">{r.date}</td>
                         <td className="whitespace-nowrap px-3 py-1.5">{r.venue}</td>
-                        <td className="px-3 py-1.5 font-medium">{r.horse}</td>
+                        <td className="px-3 py-1.5 font-medium">
+                          {r.horse}
+                          {r.voided && (
+                            <span className="ml-1 cursor-help text-amber" title={`Compromised: ${r.voidReason}`}>
+                              &#9888;
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono">{fmtWpr(r.predicted)}</td>
                         <td className="px-3 py-1.5 text-right font-mono">{fmtWpr(r.actual)}</td>
                         <td
