@@ -5,6 +5,7 @@ export interface EffectiveRunner {
   effectivePrice: number | null
   effectiveRank: number | null
   hasOverride: boolean
+  scratched: boolean
 }
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
@@ -29,6 +30,7 @@ export function computeEffectiveRace(
   deltas: Record<string, number>,
   bases: Record<string, number>,
   priceBeta: number | null,
+  scratched: Set<string> = new Set(),
 ): Record<string, EffectiveRunner> {
   const beta = priceBeta ?? DEFAULT_BETA
 
@@ -36,14 +38,19 @@ export function computeEffectiveRace(
     const modelBase = r.projectedWpr ?? (r.runId in bases ? bases[r.runId] : null)
     const delta = deltas[r.runId] ?? 0
     const hasOverride = deltas[r.runId] != null || (r.projectedWpr == null && r.runId in bases)
+    const isScratched = scratched.has(r.runId)
     return {
       runId: r.runId,
-      wpr: modelBase != null ? modelBase + delta : null,
+      // A scratched runner has no wpr for softmax purposes - excluded from
+      // the field entirely (not just zeroed out), so the rest of the field
+      // renormalizes as if it were never entered.
+      wpr: !isScratched && modelBase != null ? modelBase + delta : null,
       hasOverride,
+      scratched: isScratched,
     }
   })
 
-  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean }[]
+  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean }[]
 
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
@@ -66,6 +73,7 @@ export function computeEffectiveRace(
       effectivePrice: r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
+      scratched: r.scratched,
     }
   }
   return result
