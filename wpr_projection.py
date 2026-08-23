@@ -934,6 +934,12 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # already fully transparent without them). Reverted cleanly; worth
     # revisiting only with a real per-run historical rating source for
     # jockey/trainer, or a less noisy own_track methodology.
+    # TESTED, NOT ADOPTED (Aug 2026): using MEDIAN instead of mean for the
+    # matching-condition value below, on the theory that with typically
+    # only 1-5 matching runs, a single freak result could swing a mean hard
+    # and the median would be more robust to it. Held-out MAE 6.333 (mean)
+    # -> 6.368 (median): a real, if small, REGRESSION, not an improvement -
+    # the hypothesis didn't hold on real data. Reverted cleanly.
     dist_lo, dist_hi = float(cur_distance) * 0.9, float(cur_distance) * 1.1
     dist_match = (dist >= dist_lo) & (dist <= dist_hi)
     n_dist = int(dist_match.sum())
