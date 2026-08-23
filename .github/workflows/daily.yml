@@ -4,15 +4,28 @@ name: TopRate Daily
 # workflow_dispatch. The optional `date` input lets the dashboard request a
 # specific date (used by the "Fetch [date]" button); empty means today.
 #
-# Also runs automatically twice a day via `schedule` (cron is UTC-only; AEST =
-# UTC+10, same fixed-offset convention as price_refresh.yml - drifts an hour
-# during AEDT, adjust if that matters to you). Scheduled runs get no `date`
-# input, so they always target today - no separate command needed for the
-# two purposes below, since main() always runs "Step 1: Updating results"
-# before "Step 2: Fetching today's races" (see toprate_daily.py):
-#   09:00 AEST (23:00 UTC) - mainly Step 2: pulls today's fresh race card.
-#   23:00 AEST (13:00 UTC) - mainly Step 1: collects today's race results
-#     (Step 2 harmlessly no-ops - today's card is already fetched by then).
+# Also runs automatically via `schedule` (cron is UTC-only; AEST = UTC+10,
+# same fixed-offset convention as price_refresh.yml - drifts an hour during
+# AEDT, adjust if that matters to you):
+#   09:00 AEST (23:00 UTC) - fetch today's races.
+#   09:10/09:20/09:30 AEST - pre-fetch tomorrow / the day after / three days
+#     out (fields are usually already declared that far ahead). Offset 10
+#     min apart per-slot so a slow run doesn't queue the next one behind it
+#     (concurrency below serialises rather than parallelises same-workflow
+#     runs) - and each is its own full daily fetch (Step 1 results-check +
+#     Step 2 field fetch), not a lightweight variant, so give each room.
+#   23:00 AEST (13:00 UTC) - collect today's race results (mainly Step 1;
+#     Step 2 harmlessly no-ops - today's card is already fetched by then).
+#
+# IMPORTANT: every morning slot below explicitly passes --date (including
+# the "today" one, which used to run bare/no-date). fetch_todays_races()
+# SKIPS entirely when called bare (target_date_str=None) and rows for that
+# date already exist - which, once pre-fetching 1-3 days ahead is routine,
+# is true for EVERY day by the time it actually arrives (it was pre-fetched
+# days earlier). Passing --date explicitly instead takes the "re-fetch,
+# removing stale pending rows first" branch every time, so today's field
+# still gets a genuine refresh (scratches, barrier/going changes, prize
+# money) on race day itself, not just whatever was captured days out.
 on:
   workflow_dispatch:
     inputs:
@@ -21,8 +34,11 @@ on:
         required: false
         type: string
   schedule:
-    - cron: '0 23 * * *'   # 9:00am AEST - fetch today's races
-    - cron: '0 13 * * *'   # 11:00pm AEST - collect today's results
+    - cron: '0 23 * * *'    # 9:00am AEST - fetch today's races
+    - cron: '10 23 * * *'   # 9:10am AEST - pre-fetch tomorrow's races
+    - cron: '20 23 * * *'   # 9:20am AEST - pre-fetch the day after tomorrow's races
+    - cron: '30 23 * * *'   # 9:30am AEST - pre-fetch three days out's races
+    - cron: '0 13 * * *'    # 11:00pm AEST - collect today's results
 
 # Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
 # parallel-execute (parallel pushes would race-condition the CSV commits).
@@ -81,7 +97,25 @@ jobs:
           if [ -n "${{ inputs.date }}" ]; then
             python toprate_daily.py --date "${{ inputs.date }}"
           else
-            python toprate_daily.py
+            # Map this run's exact schedule string to a day offset (see the
+            # `on.schedule` comment above for why "today" gets --date too,
+            # not just the pre-fetch slots). The 11pm results-collection
+            # cron isn't in this map - it falls through to the bare call,
+            # unchanged, since it isn't a date-targeted fetch at all.
+            case "${{ github.event.schedule }}" in
+              "0 23 * * *")  OFFSET=0 ;;
+              "10 23 * * *") OFFSET=1 ;;
+              "20 23 * * *") OFFSET=2 ;;
+              "30 23 * * *") OFFSET=3 ;;
+              *)             OFFSET="" ;;
+            esac
+            if [ -n "$OFFSET" ]; then
+              TARGET_DATE=$(python3 -c "from datetime import date, timedelta; print((date.today()+timedelta(days=$OFFSET)).isoformat())")
+              echo "Schedule '${{ github.event.schedule }}' -> offset +$OFFSET day(s) -> $TARGET_DATE"
+              python toprate_daily.py --date "$TARGET_DATE"
+            else
+              python toprate_daily.py
+            fi
           fi
 
       # ─────────────────────────────────────────────────────────
