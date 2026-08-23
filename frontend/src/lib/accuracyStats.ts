@@ -186,3 +186,49 @@ export function computeBreakdown(rows: AccuracyRow[], keyFn: (r: AccuracyRow) =>
   out.sort((a, b) => b.mae - a.mae)
   return out
 }
+
+export interface CalibrationCell {
+  predLo: number
+  actualLo: number
+  count: number
+}
+
+export interface CalibrationBins {
+  binSize: number
+  min: number
+  max: number
+  cells: CalibrationCell[]
+  maxCount: number
+}
+
+/** Bins predicted x actual into a 2D grid for a density-shaded scatter -
+ * with thousands of runners, one dot per row would just be an overplotted
+ * smear. Both axes share one domain (predicted and actual are the same WPR
+ * scale) so the y=x "perfect projection" reference line is meaningful. */
+export function computeCalibrationBins(rows: AccuracyRow[], binSize = 5): CalibrationBins {
+  if (rows.length === 0) return { binSize, min: 0, max: 100, cells: [], maxCount: 0 }
+  let min = Infinity
+  let max = -Infinity
+  for (const r of rows) {
+    min = Math.min(min, r.predicted, r.actual)
+    max = Math.max(max, r.predicted, r.actual)
+  }
+  min = Math.floor(min / binSize) * binSize
+  max = Math.ceil(max / binSize) * binSize
+
+  const counts = new Map<string, number>()
+  for (const r of rows) {
+    const predBin = Math.floor((r.predicted - min) / binSize) * binSize + min
+    const actualBin = Math.floor((r.actual - min) / binSize) * binSize + min
+    const key = `${predBin}|${actualBin}`
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const cells: CalibrationCell[] = []
+  let maxCount = 0
+  for (const [key, count] of counts) {
+    const [predLo, actualLo] = key.split('|').map(Number)
+    cells.push({ predLo, actualLo, count })
+    if (count > maxCount) maxCount = count
+  }
+  return { binSize, min, max, cells, maxCount }
+}
