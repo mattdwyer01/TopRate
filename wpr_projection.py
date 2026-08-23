@@ -11,13 +11,14 @@ WHAT THIS IS
 
   ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
   gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
-  BASE is the horse's own anchor, and (per explicit request, Aug 2026)
-  has NO wpr_nett in it at all any more - purely this horse's own recent
-  form: ewm5 once it has more than 3 career starts (else ewm3), falling
-  back down ewm3/ewm5/avg_last3/career_avg when the preferred one is
-  unrated; see _compute_base for the exact order and the real held-out
-  cost of dropping wpr_nett (previously the single largest accuracy gain
-  found in this model's history - see git history for that number).
+  BASE is the horse's own anchor: a 50/50 blend of wpr_nett (TopRate's own
+  pre-race rating) and ewm3 (this horse's own recency-weighted average of
+  its last ~3 runs) when both are available, falling back to whichever
+  half is available, then avg_last3/career_avg; see _compute_base for the
+  exact order. (A brief Aug 2026 period removed wpr_nett from base
+  entirely for zero dependence on TopRate's own unaudited rating - reverted
+  at the user's explicit instruction after it cost a real, measured ~0.56
+  held-out MAE; see git history for both sets of numbers.)
   ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
   for something simpler and more transparent than a fitted regression) is
   sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
@@ -200,14 +201,12 @@ FEATURES = [
     # field_size lets it correct the bias gradient. Biggest single feature
     # gain measured in the Stage 0 work.
     "field_size",
-    # --- wpr_nett: TopRate's own automated pre-race base rating. NOTE
-    # (Aug 2026): removed from BASE entirely per explicit request (see
-    # _compute_base) - the "held-out MAE 5.75 -> 5.14" gain historically
-    # cited here was from wpr_nett driving the projected VALUE, which no
-    # longer happens. Kept here ONLY as an input to the confidence (q10/
-    # q90 interval width) models - a separate architecture, unaffected by
-    # the base change. See build_features' cur_wpr_nett docstring for the
-    # leak-check, still relevant to this narrower role.
+    # --- wpr_nett: TopRate's own automated pre-race base rating. Feeds
+    # BASE directly again (see _compute_base - a 50/50 blend with ewm3,
+    # re-adopted Aug 2026 after a brief period without it), and is also
+    # an input to the confidence (q10/q90 interval width) models, a
+    # separate architecture. See build_features' cur_wpr_nett docstring
+    # for the leak-check (frozen at first capture per run_id).
     "wpr_nett",
 ]
 
@@ -234,28 +233,27 @@ ADJ_TERMS = [
     "own_trend", "own_long_spell",
 ]
 def _compute_base(feat):
-    """The horse's own anchor for the additive model. Per explicit request
-    (Aug 2026), wpr_nett (TopRate's own pre-race rating) is REMOVED from
-    base entirely - no blend, not even as a fallback. Base is now purely
-    this horse's OWN history: ewm5 (recency-weighted average of its last
-    ~5 runs) once it has more than 3 career starts, else ewm3 (last ~3) -
-    a horse with only a handful of runs doesn't have 5 to meaningfully
-    span, so ewm3's shorter window suits it better; a more established
-    horse gets the smoother, longer-span read. Falls back down
-    ewm3/ewm5/avg_last3/career_avg (whichever wins the n_runs>3 check
-    tried first, then the rest of the chain) when the preferred one is
-    unrated. See module docstring / git history for the prior wpr_nett-
-    blended design and its real held-out numbers - this trades a real,
-    measured amount of point accuracy for zero dependence on TopRate's
-    own unaudited pre-race rating."""
+    """The horse's own anchor for the additive model. Re-adopted (Aug 2026,
+    explicit request) as a 50/50 blend of wpr_nett (TopRate's own pre-race
+    rating) and ewm3 (this horse's own recency-weighted average of its last
+    ~3 runs) when both are available - the same blend shipped previously
+    (see git history, commit "Base rating: 50/50 wpr_nett/ewm3 blend"),
+    after a brief period (Aug 2026) with wpr_nett removed entirely that
+    cost a real, measured ~0.56 held-out MAE (5.769 -> 6.333) for zero
+    dependence on TopRate's own unaudited rating - reverted here at the
+    user's explicit instruction. Falls back to whichever half is available,
+    then down ewm3/avg_last3/career_avg, when one or both are unrated.
+    Note this uses ewm3 specifically, not the ewm5-once->3-starts switch
+    that briefly replaced it - that switch was introduced alongside the
+    wpr_nett removal and is reverted together with it here."""
     def _ok(v):
         return v is not None and not (isinstance(v, float) and v != v)
 
-    n_runs = feat.get("n_runs")
-    use_ewm5 = n_runs is not None and n_runs > 3
-    order = ("ewm5", "ewm3", "avg_last3", "career_avg") if use_ewm5 \
-        else ("ewm3", "ewm5", "avg_last3", "career_avg")
-    for key in order:
+    nett = feat.get("wpr_nett")
+    ewm3 = feat.get("ewm3")
+    if _ok(nett) and _ok(ewm3):
+        return 0.5 * float(nett) + 0.5 * float(ewm3)
+    for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
             return float(v)
@@ -377,6 +375,29 @@ def _going_band(going):
     if g.startswith("heavy"):
         return "Heavy"
     return None
+
+
+# Relative barrier band for own-history matching: barrier / field_size,
+# not the raw stall number, so barrier 8 in an 18-horse field (mid) and
+# barrier 8 in a 9-horse field (wide) are correctly treated as different
+# draws. A flat population-level barrier feature already failed a test
+# (Aug 2026 feature search) - this is a different question (does THIS
+# horse personally go better or worse from a given relative draw), tried
+# per the same reasoning as own_going/own_distance.
+def _barrier_band(barrier, field_size):
+    try:
+        b = float(barrier)
+        fs = float(field_size)
+    except (TypeError, ValueError):
+        return None
+    if b != b or fs != fs or fs <= 0:
+        return None
+    rel = b / fs
+    if rel <= 1 / 3:
+        return "Inside"
+    if rel <= 2 / 3:
+        return "Mid"
+    return "Wide"
 
 
 # Shrinkage for the own-history adjustment deltas below: a delta computed
@@ -505,17 +526,22 @@ def _safe_slope(x, y):
 
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
-                   cur_field_size=None, cur_wpr_nett=None):
+                   cur_field_size=None, cur_wpr_nett=None, cur_barrier=None):
     """Build the feature dict for one horse.
 
     prior_runs: DataFrame of the horse's PAST runs only, any order. Needs
       columns: date, wpr, distance, going, track, trackGrading,
       positionSettled, position800m, position600m, marginFinish,
-      isBarrierTrial. race_class is used if present (for class_move).
+      isBarrierTrial, barrier, field_size. race_class is used if present
+      (for class_move).
     cur_*: conditions of the race being projected.
     cur_race_class: the projected race's class string (BM64, CLS3, OPEN
       ...). Defaults to None - callers that do not pass it get a neutral
       class_move and is_jumps 0 (backward compatible).
+    cur_barrier: this runner's barrier (stall number) for the race being
+      projected. Combined with cur_field_size to bucket a RELATIVE draw
+      (Inside/Mid/Wide, see _barrier_band) for own_barrier. Defaults to
+      None - own_barrier is then 0.0 (no signal, not a leak risk).
     cur_field_size: number of runners in the projected race. Pre-race
       known, leak-free. The model under-projects small fields and slightly
       over-projects large ones (a bias gradient: -1.8 WPR at <=7 runners,
@@ -892,6 +918,8 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     r1 = w[camp_run_series == 1]
     r2 = w[camp_run_series == 2]
     r3 = w[camp_run_series == 3]
+    r4 = w[camp_run_series == 4]
+    r5 = w[camp_run_series == 5]
     firstup_wpr = float(r1.mean()) if len(r1) >= 1 else avg_last3
     secondup_wpr = float(r2.mean()) if len(r2) >= 1 else avg_last3
     thirdup_wpr = float(r3.mean()) if len(r3) >= 1 else avg_last3
@@ -957,6 +985,40 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         if (runs_this_camp == 1 and len(r1) >= 1) else 0.0
     own_second_up = _shrink(float(r2.mean() - career_avg), len(r2)) \
         if (runs_this_camp == 2 and len(r2) >= 1) else 0.0
+    # CANDIDATE (Aug 2026, being tested): third/fourth/fifth-up, same
+    # pattern as own_first_up/own_second_up above - only counted when
+    # today actually IS that camp position for this horse. Expect thinner
+    # coverage the further out (fewer horses race deep into a campaign
+    # AND have enough matching history), so treat these as decreasingly
+    # likely to clear the adoption bar - test each on its own held-out MAE
+    # before adding to ADJ_TERMS, do not assume the first/second-up result
+    # generalises.
+    own_third_up = _shrink(float(r3.mean() - career_avg), len(r3)) \
+        if (runs_this_camp == 3 and len(r3) >= 1) else 0.0
+    own_fourth_up = _shrink(float(r4.mean() - career_avg), len(r4)) \
+        if (runs_this_camp == 4 and len(r4) >= 1) else 0.0
+    own_fifth_up = _shrink(float(r5.mean() - career_avg), len(r5)) \
+        if (runs_this_camp == 5 and len(r5) >= 1) else 0.0
+
+    # CANDIDATE (Aug 2026, being tested): own_barrier, same shape as
+    # own_going/own_distance but matched on RELATIVE barrier band (see
+    # _barrier_band) instead of going/distance. A flat population-level
+    # barrier feature already failed a test (Aug 2026 feature search); this
+    # asks a different question (does THIS horse personally draw better or
+    # worse from a given relative position), same reasoning as the other
+    # own_* terms. 0.0 (no signal) when cur_barrier/cur_field_size are
+    # missing or there's no matching-band history.
+    cur_barrier_band = _barrier_band(cur_barrier, cur_field_size)
+    if cur_barrier_band is not None and "barrier" in p.columns and "field_size" in p.columns:
+        barrier_band_hist = [
+            _barrier_band(bv, fv) for bv, fv in zip(p["barrier"], p["field_size"])
+        ]
+        barrier_match = pd.Series(barrier_band_hist, index=p.index) == cur_barrier_band
+        n_barrier = int(barrier_match.sum())
+        own_barrier = _shrink(float(w[barrier_match].mean() - career_avg), n_barrier) \
+            if n_barrier >= 1 else 0.0
+    else:
+        own_barrier = 0.0
 
     # Lightly-raced trend: for a horse still early in its career (few
     # starts), is it improving? Second half of its runs so far vs the
@@ -1010,6 +1072,12 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_second_up": own_second_up,
         "own_trend": own_trend,
         "own_long_spell": own_long_spell,
+        # CANDIDATE terms (Aug 2026, not in ADJ_TERMS yet - being tested
+        # individually for real held-out MAE gain before adoption).
+        "own_third_up": own_third_up,
+        "own_fourth_up": own_fourth_up,
+        "own_fifth_up": own_fifth_up,
+        "own_barrier": own_barrier,
         "cur_distance": float(cur_distance),
         "dist_grad": dist_grad,
         "dist_vs_last": float(cur_distance) - float(dist.iloc[-1]),
@@ -1160,7 +1228,8 @@ def project_race(runners, race_date):
                        r["cur_track"], r.get("cur_track_grading"), race_date,
                        cur_race_class=r.get("cur_race_class"),
                        cur_field_size=r.get("cur_field_size"),
-                       cur_wpr_nett=r.get("cur_wpr_nett"))
+                       cur_wpr_nett=r.get("cur_wpr_nett"),
+                       cur_barrier=r.get("cur_barrier"))
         for r in runners
     ]
     fallbacks = [f is None for f in feat_dicts]
@@ -1483,7 +1552,8 @@ def _horse_feature_rows(g):
                            cur["track"], cur["trackGrading"], cur["date"],
                            cur_race_class=cur.get("race_class"),
                            cur_field_size=cur.get("field_size"),
-                           cur_wpr_nett=cur.get("wpr_nett"))
+                           cur_wpr_nett=cur.get("wpr_nett"),
+                           cur_barrier=cur.get("barrier"))
         if f is None:
             continue
         f["target"] = float(cur["wpr"])
@@ -1707,17 +1777,16 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             print("  surface filter: no blank-going runs")
 
     # BASE for the additive architecture - must match _compute_base()
-    # exactly (no wpr_nett at all - ewm5 once a horse has more than 3
-    # career starts, else ewm3, then down the rest of the chain). Computed
+    # exactly (a 50/50 wpr_nett/ewm3 blend when both are present, else
+    # whichever half is available, else avg_last3/career_avg). Computed
     # from RAW values, BEFORE the FEATURES median-fill below - the
     # fallback chain only means anything before a missing value gets
     # silently replaced by the population median. career_avg is guaranteed
     # present once _MIN_RUNS is met, so this should never actually fall
     # through to NaN - the dropna is defensive.
-    _use_ewm5 = D["n_runs"] > 3
-    _primary = pd.Series(np.where(_use_ewm5, D["ewm5"], D["ewm3"]), index=D.index)
-    _secondary = pd.Series(np.where(_use_ewm5, D["ewm3"], D["ewm5"]), index=D.index)
-    D["_base"] = _primary.fillna(_secondary).fillna(D["avg_last3"]).fillna(D["career_avg"])
+    _both = D["wpr_nett"].notna() & D["ewm3"].notna()
+    D["_base"] = np.where(_both, 0.5 * D["wpr_nett"] + 0.5 * D["ewm3"], D["wpr_nett"].fillna(D["ewm3"]))
+    D["_base"] = pd.Series(D["_base"], index=D.index).fillna(D["avg_last3"]).fillna(D["career_avg"])
     n_before_base = len(D)
     D = D.dropna(subset=["_base"]).copy()
     if len(D) < n_before_base:
