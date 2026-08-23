@@ -7,6 +7,7 @@ import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
+import { ResultVsProjection } from './ResultVsProjection'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -20,53 +21,6 @@ interface RunnerDetailModalProps {
   onClose: () => void
   onPrev: () => void
   onNext: () => void
-}
-
-// Content only (no card chrome) - rendered as a divided sub-row inside the
-// main summary card rather than its own bordered box, so a resulted runner
-// doesn't stack 3 separate boxes before the reader even reaches the
-// career/condition table.
-function ActualVsProjected({ runner }: { runner: Runner }) {
-  if (runner.actualWpr == null) return null
-
-  if (runner.projectedWpr == null) {
-    return (
-      <div className="text-sm">
-        <span className="font-mono text-base font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
-        <span className="ml-2 text-ink-mute">actual WPR &middot; no projection was made for this runner</span>
-      </div>
-    )
-  }
-
-  const miss = runner.actualWpr - runner.projectedWpr
-  const missAbs = Math.abs(miss)
-  const missClass = missAbs >= 8 ? 'text-rose' : missAbs >= 4 ? 'text-amber' : 'text-emerald-deep'
-
-  let rankText = ''
-  if (runner.wprRank != null && runner.actualWprRank != null) {
-    const rd = runner.actualWprRank - runner.wprRank
-    rankText = rd === 0 ? ' (exact)' : rd > 0 ? ` (finished ${rd} lower)` : ` (finished ${-rd} higher)`
-  }
-
-  return (
-    <div className="text-sm">
-      <span className="font-mono text-base font-semibold text-ink">{runner.actualWpr.toFixed(1)}</span>
-      <span className="ml-2 text-ink-mute">
-        actual WPR &middot; projection missed by{' '}
-        <span className={`font-mono font-medium ${missClass}`}>
-          {miss > 0 ? '+' : ''}
-          {miss.toFixed(1)}
-        </span>
-        {runner.wprRank != null && runner.actualWprRank != null && (
-          <>
-            {' '}
-            &middot; rank predicted {runner.wprRank}, actual {runner.actualWprRank}
-            {rankText}
-          </>
-        )}
-      </span>
-    </div>
-  )
 }
 
 // Full-screen overlay for a runner's projection detail. Replaces the old
@@ -312,28 +266,31 @@ export function RunnerDetailModal({
                 </span>
               )}
             </div>
-            {(runner.actualWpr != null || (runner.projectionDescription && runner.projectedWpr != null)) && (
-              <div className="mt-2 space-y-1 border-t border-line-soft pt-2">
-                <ActualVsProjected runner={runner} />
-                {runner.projectionDescription && runner.projectedWpr != null && (
-                  <p className="text-sm text-ink-soft">{runner.projectionDescription}</p>
-                )}
-              </div>
+            {runner.projectionDescription && runner.projectedWpr != null && (
+              <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">
+                {runner.projectionDescription}
+              </p>
             )}
           </div>
 
-          {/* CareerStats keeps a natural (not stretched) table width, so
-              ComparisonGrid rides alongside it on wide screens instead of
-              leaving the rest of the row empty - both are "how has this
-              horse gone under condition X" reads, just at different
-              granularity, so grouping them ahead of the play-by-play
-              Recent runs table also reads better top-to-bottom. */}
+          {/* CareerStats keeps a natural (not stretched) table width, so a
+              second panel rides alongside it on wide screens instead of
+              leaving the rest of the row empty. Once the runner has actually
+              raced, "how did the projection do" (ResultVsProjection) is the
+              more useful question than the pre-race "does today's shape suit
+              it" one (ComparisonGrid) - swap rather than stack both, and
+              fold the old inline actual-vs-projected summary line into it so
+              that comparison isn't shown twice. */}
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
             <div className="min-w-[280px] flex-[1.4]">
-              <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+              {runner.actualWpr != null ? (
+                <ResultVsProjection runner={runner} />
+              ) : (
+                <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+              )}
             </div>
           </div>
 
