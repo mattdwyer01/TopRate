@@ -5,8 +5,8 @@ export interface CareerStatRow {
   label: string
   runs: number
   peak: number | null
-  p75: number | null
-  vsBase: number | null
+  avg: number | null
+  vsCareerAvg: number | null
   // WPR values in chronological order (oldest first) for a trend sparkline.
   trend: number[]
 }
@@ -18,22 +18,6 @@ export interface CareerStatRow {
 const SPELL_GAP_DAYS = 60
 const MS_PER_DAY = 86_400_000
 
-// Linear-interpolation percentile (numpy's default method) - degrades
-// gracefully to a single value at n=1, unlike "2nd best run" which is
-// undefined below n=2. Preferred over a plain average: a mean gets dragged
-// down by early-prep or bad-luck runs, understating what the horse has
-// actually shown it can do in a condition: a robust read on its upper
-// range of form rather than everything it's ever done blended together.
-function percentile(sortedAsc: number[], p: number): number | null {
-  if (!sortedAsc.length) return null
-  if (sortedAsc.length === 1) return sortedAsc[0]
-  const idx = (p / 100) * (sortedAsc.length - 1)
-  const lo = Math.floor(idx)
-  const hi = Math.ceil(idx)
-  if (lo === hi) return sortedAsc[lo]
-  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo)
-}
-
 function sortedWprs(entries: FormHistoryEntry[]): { dated: FormHistoryEntry[]; wprs: number[] } {
   const dated = entries
     .filter((e) => e.wpr != null && e.date)
@@ -42,16 +26,25 @@ function sortedWprs(entries: FormHistoryEntry[]): { dated: FormHistoryEntry[]; w
   return { dated, wprs: dated.map((e) => e.wpr as number) }
 }
 
-function buildRow(label: string, entries: FormHistoryEntry[], baseWpr: number | null): CareerStatRow {
+function mean(values: number[]): number | null {
+  return values.length ? values.reduce((s, v) => s + v, 0) / values.length : null
+}
+
+// vsCareerAvg = avg(this condition's runs) - avg(every run) - the same
+// quantity (and the same reasoning: does this horse personally run better
+// or worse here, using only its own history) as the backend's own_distance/
+// own_going adjustment terms, just unshrunk and over a broader set of
+// descriptive conditions than the 6 that actually feed the projection. See
+// AdjustmentBreakdown for the shrunk/capped version of the subset they share.
+function buildRow(label: string, entries: FormHistoryEntry[], careerAvg: number | null): CareerStatRow {
   const { wprs } = sortedWprs(entries)
-  const sorted = [...wprs].sort((a, b) => a - b)
-  const p75 = percentile(sorted, 75)
+  const avg = mean(wprs)
   return {
     label,
     runs: wprs.length,
     peak: wprs.length ? Math.max(...wprs) : null,
-    p75,
-    vsBase: p75 != null && baseWpr != null ? p75 - baseWpr : null,
+    avg,
+    vsCareerAvg: avg != null && careerAvg != null ? avg - careerAvg : null,
     trend: wprs,
   }
 }
@@ -107,36 +100,42 @@ function campaignHistoryEntries(history: FormHistoryEntry[], status: 'first-up' 
   return result
 }
 
-// Peak/upper-range WPR across career and several conditions relevant to
-// today's race, each with how that slice compares to the model's own base
-// rating - a quick "is this a career-best ask, or within its normal range"
-// read, distinct from ComparisonGrid's condition-suitability tables below
-// it. First-up/second-up only appears when it actually applies to today's
+// Peak WPR and average-vs-career-average across career and several
+// conditions relevant to today's race - "does this horse personally run
+// better or worse here", the same question (and the same underlying
+// calculation) as the backend's own_distance/own_going adjustment terms,
+// just unshrunk and over more conditions than the 6 that actually feed the
+// projection (see AdjustmentBreakdown for that shrunk/capped subset).
+// Distinct from ComparisonGrid's condition-suitability tables below it,
+// which ask a narrower question about today's specific pace/settle shape.
+// First-up/second-up only appears when it actually applies to today's
 // race - showing it for every other runner would just be noise.
 export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] {
   const history = runner.formHistory
-  const baseWpr = runner.baseWpr
+  const careerAvg = mean(sortedWprs(history).wprs)
   const distLo = race.distance * 0.9
   const distHi = race.distance * 1.1
   const goingToday = goingBand(race.going)
-  const yearToday = new Date(race.date).getFullYear()
   const sixMonthsAgo = new Date(race.date)
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
   const sixMonthsAgoMs = sixMonthsAgo.getTime()
 
+  // "This year" (calendar-year cutoff) was dropped - on most of the
+  // calendar it's near-identical to "Last 6mo" (a rolling window, and a
+  // more meaningful boundary than an arbitrary Jan 1 reset), so it was
+  // mostly repeating the row above it rather than adding a read.
   const rows = [
-    buildRow('Career', history, baseWpr),
-    buildRow(`${race.distance}m`, history.filter((e) => e.distance >= distLo && e.distance <= distHi), baseWpr),
-    buildRow(goingToday ?? race.going, history.filter((e) => goingBand(e.going) === goingToday), baseWpr),
-    buildRow('This prep', thisPrepEntries(history, race.date), baseWpr),
-    buildRow('This year', history.filter((e) => new Date(e.date).getFullYear() === yearToday), baseWpr),
-    buildRow('Last 6mo', history.filter((e) => new Date(e.date).getTime() >= sixMonthsAgoMs), baseWpr),
+    buildRow('Career', history, careerAvg),
+    buildRow(`${race.distance}m`, history.filter((e) => e.distance >= distLo && e.distance <= distHi), careerAvg),
+    buildRow(goingToday ?? race.going, history.filter((e) => goingBand(e.going) === goingToday), careerAvg),
+    buildRow('This prep', thisPrepEntries(history, race.date), careerAvg),
+    buildRow('Last 6mo', history.filter((e) => new Date(e.date).getTime() >= sixMonthsAgoMs), careerAvg),
   ]
 
   const status = todayCampaignStatus(history, race.date)
   if (status != null) {
     const label = status === 'first-up' ? 'First-up' : 'Second-up'
-    rows.push(buildRow(label, campaignHistoryEntries(history, status), baseWpr))
+    rows.push(buildRow(label, campaignHistoryEntries(history, status), careerAvg))
   }
 
   return rows

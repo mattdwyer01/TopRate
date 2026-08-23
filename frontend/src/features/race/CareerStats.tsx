@@ -18,12 +18,12 @@ function fmtSigned(v: number | null): string {
 }
 
 // Same threshold and reasoning as ComparisonGrid's MIN_RUNS_TO_COMPARE -
-// below this many runs, "vs Base" is 1-2 data points dressed up as a
+// below this many runs, "vs Career" is 1-2 data points dressed up as a
 // confident read. Below the threshold the figure still shows, just without
 // the colour that implies a reliable signal.
 const MIN_RUNS_TO_COLOR = 3
 
-function vsBaseClass(v: number | null, runs: number): string {
+function vsCareerAvgClass(v: number | null, runs: number): string {
   if (v == null || runs < MIN_RUNS_TO_COLOR) return 'text-ink-mute'
   if (v >= 1) return 'text-emerald-deep font-medium'
   if (v <= -1) return 'text-rose font-medium'
@@ -31,12 +31,14 @@ function vsBaseClass(v: number | null, runs: number): string {
 }
 
 // Career/condition WPR summary shown up top in the runner detail - peak and
-// 75th-percentile WPR across career plus a handful of conditions relevant
-// to today's race (including first/second-up history when today is itself
-// a first/second-up run), each read against the model's own base rating
-// (is this horse being asked to do something above or below its upper
-// range of form). Distinct from ComparisonGrid further down, which asks a
-// narrower question (does today's specific pace/settle suit it).
+// average-vs-career-average across career plus a handful of conditions
+// relevant to today's race (including first/second-up history when today
+// is itself a first/second-up run). The vs-career-avg read is the same
+// calculation as the backend's own_distance/own_going adjustment terms
+// (see AdjustmentBreakdown), just unshrunk and over more conditions than
+// the 6 that actually feed the projection. Distinct from ComparisonGrid
+// further down, which asks a narrower question (does today's specific
+// pace/settle suit it).
 export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
   // Rows with zero matching runs (e.g. "This prep" for a first-up horse)
@@ -49,16 +51,15 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2">
       <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
       <p className="mb-1 text-[11px] text-ink-faint">
-        P75 vs what it's rated to run today - a different read from "What's driving the adjustment" below, which
-        compares this horse's own history to its career average, not today's rating.
+        Avg vs career average - the same read as "What's driving the adjustment" below, over more conditions.
       </p>
       <table className="w-full max-w-md text-xs">
         <thead>
           <tr className="text-ink-faint">
             <th className="text-left font-normal" />
             <th className="text-right font-normal">Peak</th>
-            <th className="text-right font-normal">P75</th>
-            <th className="text-right font-normal">vs Today</th>
+            <th className="text-right font-normal">Avg</th>
+            <th className="text-right font-normal">vs Career</th>
             <th className="pl-2 text-right font-normal">Trend</th>
           </tr>
         </thead>
@@ -69,8 +70,10 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                 {row.label} <span className="text-ink-faint">&middot; {row.runs}</span>
               </td>
               <td className="text-right font-mono">{fmt(row.peak)}</td>
-              <td className="text-right font-mono">{fmt(row.p75)}</td>
-              <td className={`text-right font-mono ${vsBaseClass(row.vsBase, row.runs)}`}>{fmtSigned(row.vsBase)}</td>
+              <td className="text-right font-mono">{fmt(row.avg)}</td>
+              <td className={`text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
+                {fmtSigned(row.vsCareerAvg)}
+              </td>
               <td className="py-0.5 pl-2 text-right">
                 <Sparkline values={row.trend} />
               </td>

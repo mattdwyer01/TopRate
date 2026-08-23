@@ -104,11 +104,16 @@ function SeparatorRow({ label }: { label: string }) {
   )
 }
 
+// Fuller than the original single-line mobile card: adds barrier/class,
+// jockey, the settle/800/400/finish running line, and the same three
+// colour-coded individual sectionals the desktop table shows (against-shape
+// running is one of the more useful reads in this whole panel - it was
+// dropped from mobile entirely before, not just condensed).
 function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
-    <div className={`flex items-center justify-between gap-2 px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
-      <div className="min-w-0">
-        <div className="truncate text-xs font-medium text-ink">
+    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
           {isPeak && (
             <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
@@ -116,13 +121,31 @@ function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
             </span>
           )}
         </div>
-        <div className="truncate text-[11px] text-ink-faint">
-          {run.distance}m &middot; {run.going || '—'} &middot; Fin {run.finishPosition ?? '—'}
-          {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''}
+        <div className="shrink-0 font-mono text-sm font-semibold text-ink">
+          {run.wpr != null ? run.wpr.toFixed(1) : '—'}
         </div>
       </div>
-      <div className="shrink-0 font-mono text-sm font-semibold text-ink">
-        {run.wpr != null ? run.wpr.toFixed(1) : '—'}
+      <div className="truncate text-[11px] text-ink-faint">
+        {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'} &middot; {run.raceClass ?? '—'}
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
+        <span className="min-w-0 truncate">{run.jockey ?? '—'}</span>
+        <span className="shrink-0 font-mono">
+          Fin {run.finishPosition ?? '—'}
+          {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-2 text-[11px]">
+        <span className="text-ink-faint">Sect</span>
+        <span className={`font-mono ${sectClass(run.sectionalEarly, run.raceShapeEarly)}`}>
+          {fmtSect(run.sectionalEarly)}
+        </span>
+        <span className={`font-mono ${sectClass(run.sectionalTo800, run.raceShapeMid)}`}>
+          {fmtSect(run.sectionalTo800)}
+        </span>
+        <span className={`font-mono ${sectClass(run.sectionalLate600, run.raceShapeLate)}`}>
+          {fmtSect(run.sectionalLate600)}
+        </span>
       </div>
     </div>
   )
@@ -202,7 +225,11 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
           last {runs.length}, newest first &middot; Pos = settle/800/400/finish &middot; green/red
           sectionals = horse vs race shape
         </span>
-        <span className="text-xs text-ink-faint sm:hidden">last {runs.length}, newest first</span>
+        <span className="text-right text-[11px] text-ink-faint sm:hidden">
+          last {runs.length}, newest first
+          <br />
+          Pos = settle/800/400/fin &middot; Sect = horse vs shape
+        </span>
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">

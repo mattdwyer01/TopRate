@@ -26,7 +26,17 @@ export function Sparkline({ values, width = 44, height = 16 }: SparklineProps) {
   const colorClass = trendingUp ? 'text-emerald-deep' : 'text-rose'
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={colorClass}>
+    // Tailwind's base reset makes svg display:block, so a `text-right` on a
+    // containing <td> has no effect (text-align only steers inline content) -
+    // this SVG just sat flush-left in its cell regardless, visibly adrift
+    // from a right-aligned "Trend" header above it. block + ml-auto pushes
+    // a block-level box with its own fixed width to the right explicitly.
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={`block ml-auto ${colorClass}`}
+    >
       <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
