@@ -138,7 +138,9 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
             </table>
           </div>
           {canScrollRight && (
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-panel to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end rounded-r-lg bg-gradient-to-l from-panel via-panel/80 to-transparent pr-1">
+              <span className="text-ink-faint">&rsaquo;</span>
+            </div>
           )}
         </div>
       )}

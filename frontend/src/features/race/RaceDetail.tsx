@@ -27,6 +27,8 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
+  { key: 'actualWpr', label: 'Actual' },
+  { key: 'miss', label: 'Miss' },
   { key: 'wprPrice', label: 'WPR $' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
@@ -93,9 +95,13 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
           <h2 className="text-lg font-semibold text-ink">
             {race.venue} R{race.raceNumber} &middot; {race.raceName}
           </h2>
-          <span className="font-mono text-sm text-ink-mute">
-            {race.allResulted ? 'Resulted' : formatCountdown(race.startTime)}
-          </span>
+          {race.allResulted ? (
+            <span className="rounded-full border border-emerald-line bg-emerald-bg px-2 py-0.5 font-mono text-xs font-semibold text-emerald-deep">
+              Resulted
+            </span>
+          ) : (
+            <span className="font-mono text-sm text-ink-mute">{formatCountdown(race.startTime)}</span>
+          )}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-mute">
           <span>{race.distance}m</span>
@@ -174,7 +180,7 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
             Fixed $
           </button>
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

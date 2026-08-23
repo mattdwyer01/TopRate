@@ -26,12 +26,19 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
   const displayProj = effective?.effectiveProjectedWpr ?? runner.projectedWpr
   const displayPrice = effective?.effectivePrice ?? runner.wprPrice
   const overridden = effective?.hasOverride ?? false
+  // Miss vs the RAW model projection (not the manually-overridden displayProj)
+  // - this is a read on the MODEL's accuracy, same convention as the Review
+  // tab and the runner detail modal, not on a one-off manual what-if.
+  const miss =
+    runner.actualWpr != null && runner.projectedWpr != null
+      ? runner.actualWpr - runner.projectedWpr
+      : null
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`grid w-full grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px] ${rowPadding} ${
+      className={`grid w-full grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] ${rowPadding} ${
         selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -42,9 +49,21 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
       )}
       <span className="hidden font-mono text-ink-mute sm:inline">{runner.tabNumber}</span>
       <span className="min-w-0">
-        <span className="block truncate font-medium text-ink">
-          <span className="font-mono text-ink-mute sm:hidden">{runner.tabNumber}. </span>
-          {runner.horse}
+        <span className="flex items-center gap-1">
+          <span className="truncate font-medium text-ink">
+            <span className="font-mono text-ink-mute sm:hidden">{runner.tabNumber}. </span>
+            {runner.horse}
+          </span>
+          {/* FP is desktop-only (see the dedicated column below) - mobile
+              hides that column for space, so the win needs its own inline
+              marker or a mobile reader can no longer tell who won at all.
+              Outside the truncating span above so a long name can never
+              clip it away. */}
+          {runner.finishPosition === 1 && (
+            <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono text-[10px] font-semibold text-amber sm:hidden">
+              1
+            </span>
+          )}
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
@@ -87,6 +106,16 @@ export function RunnerRow({ runner, compact, selected, effective, onClick }: Run
             {fmtInt(runner.projectionConfidence)}%
           </span>
         )}
+      </span>
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+        {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}
+      </span>
+      <span
+        className={`hidden text-right font-mono sm:inline ${
+          miss == null ? '' : miss > 0 ? 'text-emerald-deep' : miss < 0 ? 'text-rose' : 'text-ink-mute'
+        }`}
+      >
+        {miss != null ? fmtAdj(miss) : ''}
       </span>
       <span className="text-right font-mono text-ink-mute">
         {fmtPrice(displayPrice)}
