@@ -361,9 +361,16 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                   : ''}
             </p>
             <div className="relative">
-              <div ref={tableScrollRef} className="overflow-x-auto rounded-lg border border-line bg-panel">
+              {/* max-h + overflow-y bounds this to one scrollable panel instead of
+                  a 100-row page-length table (this section alone used to push the
+                  tab past 5000px tall) - the sticky header keeps column labels in
+                  view while scrolling through the rows. */}
+              <div
+                ref={tableScrollRef}
+                className="max-h-[560px] overflow-x-auto overflow-y-auto rounded-lg border border-line bg-panel"
+              >
                 <table className="min-w-[640px] w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-panel">
                     <tr className="border-b border-line text-left text-xs text-ink-mute">
                       <th className="px-3 py-2 font-medium">Date</th>
                       <th className="px-3 py-2 font-medium">Track</th>
