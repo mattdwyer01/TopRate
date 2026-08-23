@@ -1,5 +1,6 @@
 import type { Race } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
+import { isVoid } from './wprVoid'
 
 // Predicted-vs-actual accuracy, ported from toprate_html_v3.py's WPR
 // Accuracy tab (renderAccuracyTab / accCollectRows / accStats /
@@ -34,6 +35,13 @@ export interface AccuracyRow {
   actualRank: number | null
   finishPosition: number | null
   won: boolean
+  // Was this run compromised (vet/checked/eased/fell/etc), per video and
+  // steward comments? Only ever flags UNDERperformances (see lib/wprVoid.ts's
+  // direction rule) - a trouble comment on a run that beat its projection
+  // anyway isn't an excuse, so it stays counted. Not a fair test of the
+  // model either way - see collectAccuracyRows' excludeVoid filter.
+  voided: boolean
+  voidReason: string
 }
 
 export type Period = 'all' | '90' | '30'
@@ -58,6 +66,8 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
     for (const r of race.runners) {
       if (r.projectedWpr == null || r.actualWpr == null) continue
+      const miss = r.actualWpr - r.projectedWpr
+      const voidResult = isVoid(miss, r.commentsVideo, r.commentsSteward)
       rows.push({
         raceId: race.raceId,
         date: race.date,
@@ -67,15 +77,29 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         horse: r.horse,
         predicted: r.projectedWpr,
         actual: r.actualWpr,
-        miss: r.actualWpr - r.projectedWpr,
+        miss,
         predictedRank: r.wprRank,
         actualRank: r.actualWprRank,
         finishPosition: r.finishPosition,
         won: r.won,
+        voided: voidResult.isVoid,
+        voidReason: voidResult.reason,
       })
     }
   }
   return rows
+}
+
+/** Splits rows into {clean, voided} - clean is what the headline stats
+ * should be computed from by default (matches train_wpr_projection()'s own
+ * void filter on the training target: a compromised run isn't a fair test
+ * of the model either way). voided is kept, not discarded, so the caller
+ * can still show the count/list for transparency. */
+export function splitVoided(rows: AccuracyRow[]): { clean: AccuracyRow[]; voided: AccuracyRow[] } {
+  const clean: AccuracyRow[] = []
+  const voided: AccuracyRow[] = []
+  for (const r of rows) (r.voided ? voided : clean).push(r)
+  return { clean, voided }
 }
 
 export interface AccuracyStats {
@@ -346,4 +370,97 @@ export function computeWinnerRankStats(rows: AccuracyRow[]): WinnerRankStats {
       : null,
     rankWinCorrelation: pearson(ranksForCorr, winsForCorr),
   }
+}
+
+export interface MarginStats {
+  n: number
+  mae: number | null // mean |actual margin - predicted margin| to the top predicted pick
+  bias: number | null // mean signed (actual margin - predicted margin)
+}
+
+/** Per request: not just "was each horse's own number close" or "did the
+ * order come out right", but "was the GAP we predicted between a horse and
+ * the top-rated horse the gap that actually showed up". For every runner,
+ * predicted margin = (top predicted pick's predicted WPR) - (this horse's
+ * predicted WPR) - always >=0, since the top pick IS the highest predicted.
+ * Actual margin = (top predicted pick's ACTUAL WPR) - (this horse's actual
+ * WPR) - can be any sign (the top pick can run below a horse it was
+ * predicted to beat). A horse predicted 5 points behind the top pick whose
+ * actual gap also lands near 5 is a well-predicted margin, even if neither
+ * horse's own point miss was exactly zero - the SPACING held up, which is
+ * what actually separates a good multi and a bad one. Compared against the
+ * top pick's ACTUAL result specifically (not the top actual-WPR horse),
+ * since the question is whether the model's implied gap to its own top
+ * selection held up, not who really ran best that day. */
+export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
+  const byRace = new Map<string, AccuracyRow[]>()
+  for (const r of rows) {
+    const existing = byRace.get(r.raceId)
+    if (existing) existing.push(r)
+    else byRace.set(r.raceId, [r])
+  }
+  const absMisses: number[] = []
+  const signedMisses: number[] = []
+  for (const raceRows of byRace.values()) {
+    if (raceRows.length < 2) continue
+    const top = raceRows.reduce((a, b) => (b.predicted > a.predicted ? b : a))
+    for (const r of raceRows) {
+      if (r === top) continue
+      const predMargin = top.predicted - r.predicted
+      const actualMargin = top.actual - r.actual
+      const miss = actualMargin - predMargin
+      absMisses.push(Math.abs(miss))
+      signedMisses.push(miss)
+    }
+  }
+  return {
+    n: absMisses.length,
+    mae: absMisses.length ? absMisses.reduce((a, b) => a + b, 0) / absMisses.length : null,
+    bias: signedMisses.length ? signedMisses.reduce((a, b) => a + b, 0) / signedMisses.length : null,
+  }
+}
+
+/** A short, factual plain-English readout of the numbers below it - built
+ * because a page of a dozen stat tiles doesn't, by itself, tell you what
+ * to conclude. Every clause states a real computed number; nothing here
+ * is a judgment call the reader has to make on their own. */
+export function buildHeadlineSummary(
+  periodLabel: string,
+  outcome: OutcomeStats,
+  rankStats: RankStats,
+  marginStats: MarginStats,
+  voidedCount: number,
+  totalCount: number
+): string[] {
+  const lines: string[] = []
+  if (outcome.topPickWinPct != null && outcome.fieldAvgWinPct != null) {
+    lines.push(
+      `${periodLabel}, the model's top pick won ${outcome.topPickWinPct.toFixed(1)}% of races ` +
+        `(field average ${outcome.fieldAvgWinPct.toFixed(1)}%)` +
+        (rankStats.spearman != null
+          ? ` and ordered the field with a ${rankStats.spearman.toFixed(2)} rank correlation ` +
+            `(1.0 = perfect order, 0 = random).`
+          : '.')
+    )
+  }
+  if (marginStats.mae != null) {
+    const skew =
+      marginStats.bias != null && Math.abs(marginStats.bias) >= 1
+        ? marginStats.bias > 0
+          ? ' - gaps tended to run WIDER than predicted (the top pick underperformed relative to the field)'
+          : ' - gaps tended to run NARROWER than predicted (the top pick outperformed the field)'
+        : ''
+    lines.push(
+      `The predicted WPR gap between each horse and the top pick was off by ` +
+        `${marginStats.mae.toFixed(1)} points on average${skew}.`
+    )
+  }
+  if (voidedCount > 0 && totalCount > 0) {
+    lines.push(
+      `${voidedCount.toLocaleString()} of ${totalCount.toLocaleString()} runs ` +
+        `(${((voidedCount / totalCount) * 100).toFixed(1)}%) were excluded below as compromised by an ` +
+        `incident (vet, checked, eased, etc, per video/steward comments) - not a fair test of the model either way.`
+    )
+  }
+  return lines
 }
