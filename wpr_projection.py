@@ -94,6 +94,11 @@ import numpy as np
 import pandas as pd
 import joblib
 
+try:
+    from wpr_void import void_from_comment_only as _void_from_comment_only
+except ImportError:
+    _void_from_comment_only = None
+
 _DIR = Path(__file__).parent
 _MODEL_DIR = _DIR / "wpr_models"
 _SPELL_GAP_DAYS = 60   # a gap longer than this starts a new campaign
@@ -545,6 +550,39 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
 
     p = p.sort_values("date").reset_index(drop=True)
     w = pd.to_numeric(p["wpr"], errors="coerce")
+
+    # Void-aware base (per user request): a prior run flagged void (vet/
+    # checked/eased/fell/etc, per video+steward comments) is not valid
+    # evidence of this horse's true WPR (see wpr_void.py's own docstring) -
+    # exclude it from every "how good is this horse" computation below.
+    # avg_last3/ewm3/career_avg/peak/std/best3/trend AND the own_* ADJ_TERMS
+    # deltas are all pure functions of w, so masking it once here covers all
+    # of them without touching p/dist/settle - campaign-sequence features
+    # (first-up/second-up/days_since, which read p/dates directly, not w)
+    # are completely unaffected; only the WPR VALUE at a void position is
+    # discounted, not the row itself. void_from_comment_only, not is_void:
+    # there is no historical projection to compare a prior run's miss
+    # against, so only the conservative STRONG-marker-only test applies -
+    # same test the training target's own void filter already uses (see
+    # train_wpr_projection), same markers, same conservatism.
+    if _void_from_comment_only is not None:
+        cv_hist = p.get("comments_video")
+        cs_hist = p.get("comments_steward")
+        if cv_hist is not None or cs_hist is not None:
+            if cv_hist is None:
+                cv_hist = pd.Series([None] * len(p), index=p.index)
+            if cs_hist is None:
+                cs_hist = pd.Series([None] * len(p), index=p.index)
+            void_mask = pd.Series(
+                [_void_from_comment_only(a, b)[0] for a, b in zip(cv_hist, cs_hist)],
+                index=p.index)
+            w_excl = w.mask(void_mask)
+            # Safety fallback: never let exclusion wipe out ALL history (every
+            # downstream feature would go NaN) - if every prior run happens
+            # to be flagged, fall back to the raw values rather than nothing.
+            if w_excl.notna().sum() >= 1:
+                w = w_excl
+
     wv = w.values
     dates = pd.to_datetime(p["date"])
     n = len(p)
