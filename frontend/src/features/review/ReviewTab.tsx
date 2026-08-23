@@ -6,6 +6,7 @@ import {
   computeBreakdown,
   computeCalibrationBins,
   computeOutcomeStats,
+  computeRankStats,
   distanceBand,
   type AccuracyRow,
   type Period,
@@ -64,6 +65,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   )
   const stats = useMemo(() => computeAccuracyStats(rows), [rows])
   const outcome = useMemo(() => computeOutcomeStats(rows), [rows])
+  const rankStats = useMemo(() => computeRankStats(rows), [rows])
   const calibration = useMemo(() => computeCalibrationBins(rows), [rows])
   const distBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => distanceBand(r.distance)),
@@ -129,7 +131,11 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
       ) : (
         <>
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-ink">Projection accuracy</h2>
+            <h2 className="text-sm font-semibold text-ink">Point accuracy</h2>
+            <p className="mb-2 text-xs text-ink-faint">
+              Each horse's own predicted WPR vs its own actual WPR, in isolation - not whether it beat the
+              others in its race. See rank accuracy below for that.
+            </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               <StatTile label="Runners" value={String(stats.n)} />
               <StatTile
@@ -151,8 +157,31 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           <PredictedVsActualChart bins={calibration} />
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-ink">Outcomes</h2>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <h2 className="text-sm font-semibold text-ink">Rank accuracy</h2>
+            <p className="mb-2 text-xs text-ink-faint">
+              Did the model order THIS race correctly - not just whether each horse's own number was close. A
+              horse predicted 95 that runs 95 but finishes 3rd wasn't a bad prediction on its own; the race went
+              to rivals the model under-rated. That's a rank miss, not a point miss.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <StatTile
+                label="Rank error"
+                value={rankStats.rankMae != null ? rankStats.rankMae.toFixed(2) : '-'}
+                sublabel={`positions off, avg/race (n=${rankStats.races})`}
+              />
+              <StatTile
+                label="Rank correlation"
+                value={rankStats.spearman != null ? rankStats.spearman.toFixed(2) : '-'}
+                sublabel="1.0 = perfect order, 0 = random"
+                tone="positive"
+              />
+              <StatTile
+                label="Winner's median rank"
+                value={outcome.winnerMedianRank != null ? outcome.winnerMedianRank.toFixed(1) : '-'}
+                sublabel={`n=${outcome.winnerN} winners`}
+              />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile
                 label="Top pick wins"
                 value={fmtPct(outcome.topPickWinPct)}
@@ -167,11 +196,6 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 label="Top pick places"
                 value={fmtPct(outcome.topPickPlacePct)}
                 sublabel={`n=${outcome.topPickN}`}
-              />
-              <StatTile
-                label="Winner's median rank"
-                value={outcome.winnerMedianRank != null ? outcome.winnerMedianRank.toFixed(1) : '-'}
-                sublabel={`n=${outcome.winnerN} winners`}
               />
               <StatTile
                 label="Winner in top 3"

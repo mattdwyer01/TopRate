@@ -10,6 +10,15 @@ import { BUSH_TRACK_THRESHOLD } from './meetings'
 // track-level breakdown (many small groups, less essential for a v1), and
 // multi-select going/distance filters (the period + bush-exclude toggle
 // cover the main use case here).
+//
+// Two genuinely different questions, both answered here, neither a
+// substitute for the other: computeAccuracyStats measures each runner's
+// OWN point miss (predicted WPR vs its own actual WPR) in isolation.
+// computeRankStats measures whether the model ordered the FIELD correctly
+// against actual finishing order - a horse predicted 95 that runs 95 (a
+// ~zero point miss) but finishes 3rd was not itself a bad prediction; the
+// race went to rivals the model under-rated. Point accuracy can't see
+// that, only rank accuracy can - see computeRankStats' own comment.
 
 export interface AccuracyRow {
   raceId: string
@@ -231,4 +240,75 @@ export function computeCalibrationBins(rows: AccuracyRow[], binSize = 5): Calibr
     if (count > maxCount) maxCount = count
   }
   return { binSize, min, max, cells, maxCount }
+}
+
+const MIN_FIELD_FOR_RANK = 4
+
+// Rank (1 = best), ties get the MIN rank (matches pandas' method='min',
+// used by rank_vs_finish_analysis.py, which this mirrors). Ascending sort:
+// caller passes -predicted (or finishPosition as-is) so "best" sorts first.
+function rankAscending(values: number[]): number[] {
+  const sorted = [...values].sort((a, b) => a - b)
+  return values.map((v) => sorted.indexOf(v) + 1)
+}
+
+function pearson(xs: number[], ys: number[]): number | null {
+  const n = xs.length
+  if (n < 2) return null
+  const mx = xs.reduce((a, b) => a + b, 0) / n
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  let num = 0
+  let dx2 = 0
+  let dy2 = 0
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx
+    const dy = ys[i] - my
+    num += dx * dy
+    dx2 += dx * dx
+    dy2 += dy * dy
+  }
+  if (dx2 === 0 || dy2 === 0) return null
+  return num / Math.sqrt(dx2 * dy2)
+}
+
+export interface RankStats {
+  races: number
+  rankMae: number | null // mean |predicted rank - finish rank| within a race
+  spearman: number | null // rank correlation, per race, averaged (-1..1)
+}
+
+/** How well the model orders runners WITHIN each race, as distinct from
+ * how close any one runner's own WPR number lands (computeAccuracyStats).
+ * A horse predicted 95 (rank 1) that runs 95 (near-zero point miss) but
+ * finishes 3rd was NOT a bad prediction on its own - the race was lost to
+ * rivals the model under-rated. Point MAE can't see that; only ranking the
+ * field and comparing to actual finishing order can. Re-ranks the stored
+ * predictedRank WITHIN each race (rather than trusting the raw field,
+ * which was computed pre-race against the full field and may have gaps
+ * once scratched/unresulted runners are excluded here) - mirrors
+ * rank_vs_finish_analysis.py's own accCollectRows/g_ranked approach. */
+export function computeRankStats(rows: AccuracyRow[]): RankStats {
+  const byRace = new Map<string, AccuracyRow[]>()
+  for (const r of rows) {
+    if (r.predictedRank == null || r.finishPosition == null) continue
+    const existing = byRace.get(r.raceId)
+    if (existing) existing.push(r)
+    else byRace.set(r.raceId, [r])
+  }
+  const maeByRace: number[] = []
+  const corrByRace: number[] = []
+  for (const raceRows of byRace.values()) {
+    if (raceRows.length < MIN_FIELD_FOR_RANK) continue
+    const predRank = rankAscending(raceRows.map((r) => r.predictedRank as number))
+    const finishRank = rankAscending(raceRows.map((r) => r.finishPosition as number))
+    const diffs = predRank.map((p, i) => Math.abs(p - finishRank[i]))
+    maeByRace.push(diffs.reduce((a, b) => a + b, 0) / diffs.length)
+    const r = pearson(predRank, finishRank)
+    if (r != null) corrByRace.push(r)
+  }
+  return {
+    races: maeByRace.length,
+    rankMae: maeByRace.length ? maeByRace.reduce((a, b) => a + b, 0) / maeByRace.length : null,
+    spearman: corrByRace.length ? corrByRace.reduce((a, b) => a + b, 0) / corrByRace.length : null,
+  }
 }
