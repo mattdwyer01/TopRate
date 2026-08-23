@@ -11,10 +11,14 @@ WHAT THIS IS
 
   ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
   gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
-  BASE is the horse's own anchor (a 50/50 blend of wpr_nett - TopRate's own
-  pre-race rating - and ewm3, falling back down a recency chain when
-  either is unrated; see _compute_base for why the blend and not wpr_nett
-  alone). ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
+  BASE is the horse's own anchor, and (per explicit request, Aug 2026)
+  has NO wpr_nett in it at all any more - purely this horse's own recent
+  form: ewm5 once it has more than 3 career starts (else ewm3), falling
+  back down ewm3/ewm5/avg_last3/career_avg when the preferred one is
+  unrated; see _compute_base for the exact order and the real held-out
+  cost of dropping wpr_nett (previously the single largest accuracy gain
+  found in this model's history - see git history for that number).
+  ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
   for something simpler and more transparent than a fitted regression) is
   sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
   this condition" deltas (distance, going, first/second-up, lightly-raced
@@ -196,10 +200,14 @@ FEATURES = [
     # field_size lets it correct the bias gradient. Biggest single feature
     # gain measured in the Stage 0 work.
     "field_size",
-    # --- wpr_nett (Aug 2026 feature search: KEEP, held-out MAE 5.75 -> 5.14,
-    # by far the largest single gain ever measured for this model) ---
-    # TopRate's own automated pre-race base rating. See build_features'
-    # cur_wpr_nett docstring for the leak-check.
+    # --- wpr_nett: TopRate's own automated pre-race base rating. NOTE
+    # (Aug 2026): removed from BASE entirely per explicit request (see
+    # _compute_base) - the "held-out MAE 5.75 -> 5.14" gain historically
+    # cited here was from wpr_nett driving the projected VALUE, which no
+    # longer happens. Kept here ONLY as an input to the confidence (q10/
+    # q90 interval width) models - a separate architecture, unaffected by
+    # the base change. See build_features' cur_wpr_nett docstring for the
+    # leak-check, still relevant to this narrower role.
     "wpr_nett",
 ]
 
@@ -226,33 +234,30 @@ ADJ_TERMS = [
     "own_trend", "own_long_spell",
 ]
 def _compute_base(feat):
-    """The horse's own anchor for the additive model. A 50/50 blend of
-    wpr_nett (TopRate's own pre-race rating) and ewm3 (this horse's own
-    recency-weighted recent-form average) when both are available - a
-    deliberate hedge against wpr_nett's external-dependency risk (this
-    pipeline has no visibility into TopRate's own calculation, and TopRate
-    revises a horse's rating for up to ~5 days post-race - see
-    toprate_daily.py's wpr_nett-freeze-on-first-capture fix, which closes
-    the leak vector where a re-fetch could pick up a post-race-informed
-    value, but doesn't guarantee TopRate's own number was clean to begin
-    with). Re-tested head to head on current data: wpr_nett alone MAE
-    5.743 (elite-tier >=90 bias +3.95), this blend MAE 5.981 (bias +5.42),
-    ewm3/avg_last3/career_avg/peak alone all MAE 6.6-7.1 (bias +6.6-7.0).
-    The blend gives up ~0.24 MAE for materially less reliance on a single
-    unauditable source - worth it over wpr_nett alone; going further to
-    ewm3/avg_last3/career_avg alone was not (see wpr_projection docstring
-    on the elite-tier regression failure mode this base exists to avoid).
-    Falls back to whichever half is available, then down the recency chain,
-    when one or both are unrated."""
-    nett = feat.get("wpr_nett")
-    ewm3 = feat.get("ewm3")
-    nett_ok = nett is not None and not (isinstance(nett, float) and nett != nett)
-    ewm3_ok = ewm3 is not None and not (isinstance(ewm3, float) and ewm3 != ewm3)
-    if nett_ok and ewm3_ok:
-        return 0.5 * float(nett) + 0.5 * float(ewm3)
-    for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
+    """The horse's own anchor for the additive model. Per explicit request
+    (Aug 2026), wpr_nett (TopRate's own pre-race rating) is REMOVED from
+    base entirely - no blend, not even as a fallback. Base is now purely
+    this horse's OWN history: ewm5 (recency-weighted average of its last
+    ~5 runs) once it has more than 3 career starts, else ewm3 (last ~3) -
+    a horse with only a handful of runs doesn't have 5 to meaningfully
+    span, so ewm3's shorter window suits it better; a more established
+    horse gets the smoother, longer-span read. Falls back down
+    ewm3/ewm5/avg_last3/career_avg (whichever wins the n_runs>3 check
+    tried first, then the rest of the chain) when the preferred one is
+    unrated. See module docstring / git history for the prior wpr_nett-
+    blended design and its real held-out numbers - this trades a real,
+    measured amount of point accuracy for zero dependence on TopRate's
+    own unaudited pre-race rating."""
+    def _ok(v):
+        return v is not None and not (isinstance(v, float) and v != v)
+
+    n_runs = feat.get("n_runs")
+    use_ewm5 = n_runs is not None and n_runs > 3
+    order = ("ewm5", "ewm3", "avg_last3", "career_avg") if use_ewm5 \
+        else ("ewm3", "ewm5", "avg_last3", "career_avg")
+    for key in order:
         v = feat.get(key)
-        if v is not None and not (isinstance(v, float) and v != v):
+        if _ok(v):
             return float(v)
     return None
 
@@ -1155,12 +1160,12 @@ def project_race(runners, race_date):
     fallbacks = [f is None for f in feat_dicts]
 
     # Additive architecture: projection = base + sum(ADJ_TERMS) +
-    # calib_offset. base is the horse's own anchor (wpr_nett/ewm3 blend,
-    # falling back down a recency chain); a fallback of None only happens
-    # if EVERY level feature is missing, which build_features() cannot
-    # produce once it has passed the _MIN_RUNS gate (career_avg always
-    # exists by then) - the 0.0 fallback below is defensive, not expected
-    # to fire in practice.
+    # calib_offset. base is the horse's own anchor (ewm5/ewm3, falling
+    # back down a recency chain - see _compute_base); a fallback of None
+    # only happens if EVERY level feature is missing, which
+    # build_features() cannot produce once it has passed the _MIN_RUNS
+    # gate (career_avg always exists by then) - the 0.0 fallback below is
+    # defensive, not expected to fire in practice.
     base_arr = np.array([_compute_base(f) if f is not None else 0.0
                          for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
@@ -1696,16 +1701,17 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             print("  surface filter: no blank-going runs")
 
     # BASE for the additive architecture - must match _compute_base()
-    # exactly (a 50/50 wpr_nett/ewm3 blend when both are present, else
-    # whichever half is available, else avg_last3/career_avg). Computed
+    # exactly (no wpr_nett at all - ewm5 once a horse has more than 3
+    # career starts, else ewm3, then down the rest of the chain). Computed
     # from RAW values, BEFORE the FEATURES median-fill below - the
     # fallback chain only means anything before a missing value gets
     # silently replaced by the population median. career_avg is guaranteed
     # present once _MIN_RUNS is met, so this should never actually fall
     # through to NaN - the dropna is defensive.
-    _both = D["wpr_nett"].notna() & D["ewm3"].notna()
-    D["_base"] = np.where(_both, 0.5 * D["wpr_nett"] + 0.5 * D["ewm3"], D["wpr_nett"].fillna(D["ewm3"]))
-    D["_base"] = pd.Series(D["_base"], index=D.index).fillna(D["avg_last3"]).fillna(D["career_avg"])
+    _use_ewm5 = D["n_runs"] > 3
+    _primary = pd.Series(np.where(_use_ewm5, D["ewm5"], D["ewm3"]), index=D.index)
+    _secondary = pd.Series(np.where(_use_ewm5, D["ewm3"], D["ewm5"]), index=D.index)
+    D["_base"] = _primary.fillna(_secondary).fillna(D["avg_last3"]).fillna(D["career_avg"])
     n_before_base = len(D)
     D = D.dropna(subset=["_base"]).copy()
     if len(D) < n_before_base:
@@ -1795,10 +1801,10 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # Recent-form blend: REMOVED in the additive-architecture rebuild. It
     # existed to correct the gradient-boosting model's over-shrinkage toward
     # career/context by pulling back toward avg_last3. The additive model's
-    # BASE already anchors on the horse's own current level (wpr_nett, which
-    # already tracks recent competitive form), so this correction no longer
-    # applies - re-blending toward avg_last3 on top of a base that is
-    # already recent-form-anchored would double-count it.
+    # BASE already anchors on the horse's own current level (ewm3/ewm5,
+    # which already tracks recent competitive form directly), so this
+    # correction no longer applies - re-blending toward avg_last3 on top of
+    # a base that is already recent-form-anchored would double-count it.
 
     # beta (the price softmax parameter) is calibrated separately by
     # calibrate_price_beta.py against real resulted-race outcomes - it is
