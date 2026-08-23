@@ -915,11 +915,25 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # career_avg / runs_this_camp interactions. Kept emitted (not in
     # FEATURES) as a documented negative result - do not re-add without a
     # fresh held-out test showing a real gain.
-    r1 = w[camp_run_series == 1]
-    r2 = w[camp_run_series == 2]
-    r3 = w[camp_run_series == 3]
-    r4 = w[camp_run_series == 4]
-    r5 = w[camp_run_series == 5]
+    # Debut-campaign exclusion (Aug 2026 fix): spell_id==0 is the horse's
+    # very first spell - its literal debut, not a genuine return from a
+    # spell. camp_run_series==1 is trivially true for it (position 1 of
+    # the first group), but that isn't what "first-up" means in racing
+    # usage (back from a spell), and conflating debut form with genuine
+    # first-up-from-a-spell form was silently corrupting own_first_up (and
+    # every other camp-position match here) for any horse whose sample
+    # happened to include its debut. Confirmed on real data (Cross Tasman,
+    # Aug 2026): own_first_up was -2.02 (averaging a modest 81.7 debut
+    # together with a genuine 93.0 first-up return) instead of the correct
+    # +0.15ish from the return run alone. Matches lib/careerStats.ts's own
+    # "First-up" row definition, which already excluded debuts for the
+    # same reason - this fix brings the backend in line with it.
+    _non_debut = spell_id != spell_id.iloc[0]
+    r1 = w[(camp_run_series == 1) & _non_debut]
+    r2 = w[(camp_run_series == 2) & _non_debut]
+    r3 = w[(camp_run_series == 3) & _non_debut]
+    r4 = w[(camp_run_series == 4) & _non_debut]
+    r5 = w[(camp_run_series == 5) & _non_debut]
     firstup_wpr = float(r1.mean()) if len(r1) >= 1 else avg_last3
     secondup_wpr = float(r2.mean()) if len(r2) >= 1 else avg_last3
     thirdup_wpr = float(r3.mean()) if len(r3) >= 1 else avg_last3
