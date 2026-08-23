@@ -283,29 +283,31 @@ export function RunnerDetailModal({
               )}
             </label>
 
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <div className="rounded-lg border border-line bg-panel p-2">
-                <div className="text-xs text-ink-faint">Base</div>
-                <div className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</div>
-              </div>
-              <div className="rounded-lg border border-line bg-panel p-2">
-                <div className="text-xs text-ink-faint">Adjustment</div>
-                <div className="font-mono font-semibold text-ink">
-                  {runner.wprAdjustment != null
-                    ? `${runner.wprAdjustment > 0 ? '+' : ''}${runner.wprAdjustment.toFixed(1)}`
-                    : '—'}
-                </div>
-              </div>
-              <div className="rounded-lg border border-line bg-panel p-2">
-                <div className="text-xs text-ink-faint">Model projection</div>
-                <div className="font-mono font-semibold text-ink">{fmtWpr(runner.projectedWpr)}</div>
-              </div>
-              <div className="rounded-lg border border-line bg-panel p-2">
-                <div className="text-xs text-ink-faint">Confidence</div>
-                <div className="font-mono font-semibold text-ink">
-                  {runner.projectionConfidence != null ? `${runner.projectionConfidence}%` : '—'}
-                </div>
-              </div>
+            {/* One line instead of 4 boxed tiles - Base+Adjustment=Model
+                projection is simple arithmetic that doesn't need a box each,
+                and "Model projection" duplicated the big headline number
+                above whenever there's no manual override (the common case;
+                the hasOverride block above already surfaces the model's own
+                number separately for the case where it doesn't). */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-mute">
+              <span>
+                <span className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</span> base
+              </span>
+              {runner.wprAdjustment != null && (
+                <span>
+                  <span className="font-mono font-semibold text-ink">
+                    {runner.wprAdjustment > 0 ? '+' : ''}
+                    {runner.wprAdjustment.toFixed(1)}
+                  </span>{' '}
+                  adjustment
+                </span>
+              )}
+              {runner.projectionConfidence != null && (
+                <span>
+                  <span className="font-mono font-semibold text-ink">{runner.projectionConfidence}%</span>{' '}
+                  confidence
+                </span>
+              )}
             </div>
           </div>
 
