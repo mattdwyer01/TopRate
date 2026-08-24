@@ -84,6 +84,12 @@ export interface Runner {
   // price wasn't yet captured this raceday (rare - only a very late
   // scratch-in or a data gap).
   openFixedPrice: number | null
+  // Intraday fixed-price snapshots, oldest first (from toprate_price_history.csv
+  // via toprate_daily.py's rebuild_html) - minutesSinceOpen is relative to
+  // this runner's own first snapshot, not a fixed clock time. Empty when
+  // there's no snapshot history yet (a very recent capture, or a payload
+  // from before this field existed).
+  priceSeries: { minutesSinceOpen: number; price: number }[]
   silkUrl: string | null
   startingPrice: number | null
   postRaceTopPrice: number | null

@@ -142,6 +142,10 @@ export interface RawPriceHistEntry {
   r: number | null // result price
   rat: string | null // result-at timestamp
   n: number | null // number of price points sampled
+  // Intraday snapshot series: [minutes-since-open, price][], consecutive
+  // equal prices collapsed to their endpoints. Empty/absent on older
+  // payloads that predate this field.
+  s?: [number, number][]
 }
 
 export interface RawVenueBias {

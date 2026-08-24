@@ -61,19 +61,23 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Only commit if something actually changed - silence the noise if not.
-          # NOTE: toprate_price_history.csv is gitignored (local-only), so it is
-          # NOT git-add'd here. A previous version added it explicitly, which
-          # errors with exit code 1 when git hits an ignored path and fails the
-          # whole commit step - silently killing every price-refresh push.
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
             exit 0
           fi
           git add toprate_runners.csv toprate_live.html
           # The dashboard's data payload - without this the live site's data
-          # only actually updates via a manual deploy.bat run. Confirmed NOT
-          # gitignored (unlike toprate_price_history.csv above), safe to add.
+          # only actually updates via a manual deploy.bat run.
           [ -f toprate_data.json ] && git add toprate_data.json
+          # Price snapshot log (Aug 2026: now committed, previously
+          # deliberately excluded - see git history if resurrecting that
+          # choice; the old exclusion meant it could never accumulate
+          # across the Action's ephemeral runs, so the intraday price-trend
+          # feature had no real data source in production). A prior attempt
+          # at this git-add broke the whole commit step because the path
+          # was still gitignored at the time (git add on an ignored path
+          # exits 1) - it no longer is (see .gitignore), so this is safe.
+          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
           git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry. The remote moves often - the daily
           # workflow, manual pushes, and the every-5-min schedule all commit to

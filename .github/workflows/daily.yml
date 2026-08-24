@@ -121,8 +121,11 @@ jobs:
       # ─────────────────────────────────────────────────────────
       # Step 2: Commit and push refreshed data + HTML.
       #
-      # NOTE: toprate_price_history.csv is deliberately NOT staged (gitignored,
-      # local-only price snapshots). wpr_form_history.csv.gz IS staged: the
+      # toprate_price_history.csv IS staged (Aug 2026, explicit user
+      # request - was previously deliberately excluded as local-only, but
+      # that meant it could never actually accumulate across the Action's
+      # ephemeral runs, so the intraday price-trend feature had no real
+      # data source in production). wpr_form_history.csv.gz IS staged: the
       # gzipped form history (~25MB) stays under GitHub's 100MB limit and MUST
       # be committed so it persists across the Action's ephemeral runs - the
       # append in flush_wpr_form_history needs the prior file to accumulate.
@@ -144,6 +147,10 @@ jobs:
           # Gzipped WPR form history - committed so it persists and accumulates
           # across ephemeral Action runs (append needs the prior file).
           [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz
+          # Price snapshot log - same accumulate-across-runs reasoning as
+          # wpr_form_history.csv.gz above. snapshot_prices() already caps it
+          # to a rolling 7 days, bounding its size.
+          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
           [ -d wpr_models ] && git add wpr_models

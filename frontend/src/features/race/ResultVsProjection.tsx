@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import { fmtPrice } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
+import { PriceTrend } from './PriceTrend'
 
 function fmt(v: number | null): string {
   return v == null ? '—' : v.toFixed(1)
@@ -94,22 +95,25 @@ export function ResultVsProjection({ runner, priceBitsBefore, priceBitsAfter, fi
         </div>
       )}
 
-      <div className="mt-2 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
-        <span className="mr-1 font-medium text-ink">Price</span>
-        {priceBitsBefore.length > 0 && `${priceBitsBefore.join(' · ')} · `}
-        {runner.fixedWinPrice != null && (
-          <>
-            Fixed {fmtPrice(runner.fixedWinPrice)}
-            {fixedMove && (
-              <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                {' '}
-                ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)} at open)
-              </span>
-            )}
-            {' · '}
-          </>
-        )}
-        {priceBitsAfter.join(' · ')}
+      <div className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
+        <span className="min-w-0 flex-1">
+          <span className="mr-1 font-medium text-ink">Price</span>
+          {priceBitsBefore.length > 0 && `${priceBitsBefore.join(' · ')} · `}
+          {runner.fixedWinPrice != null && (
+            <>
+              Fixed {fmtPrice(runner.fixedWinPrice)}
+              {fixedMove && (
+                <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                  {' '}
+                  ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)} at open)
+                </span>
+              )}
+              {' · '}
+            </>
+          )}
+          {priceBitsAfter.join(' · ')}
+        </span>
+        <PriceTrend runner={runner} />
       </div>
     </div>
   )

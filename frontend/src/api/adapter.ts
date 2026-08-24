@@ -63,7 +63,8 @@ function toGoingBreakdown(
   }))
 }
 
-function toRunner(r: RawRunner): Runner {
+function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | undefined): Runner {
+  const series = priceHist?.[r.rid]?.s ?? []
   return {
     runId: r.rid,
     horse: r.h,
@@ -102,6 +103,7 @@ function toRunner(r: RawRunner): Runner {
 
     fixedWinPrice: r.fx,
     openFixedPrice: r.op,
+    priceSeries: series.map(([mins, price]) => ({ minutesSinceOpen: mins, price })),
     silkUrl: r.sk,
     startingPrice: r.sp,
     postRaceTopPrice: r.top,
@@ -135,7 +137,7 @@ function toRunner(r: RawRunner): Runner {
   }
 }
 
-function toRace(r: RawRace): Race {
+function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] | undefined): Race {
   return {
     raceId: r.race_id,
     date: r.date,
@@ -157,7 +159,7 @@ function toRace(r: RawRace): Race {
     hasFirstStarter: r.hfs === 1,
     fieldSize: r.fs,
     allResulted: r.done === 1,
-    runners: r.runners.map(toRunner),
+    runners: r.runners.map((rr) => toRunner(rr, priceHist)),
   }
 }
 
@@ -186,7 +188,7 @@ export function adaptDashboardPayload(
     priceHistory[runId] = toPriceHistoryEntry(entry)
   }
   return {
-    races: raw.RACES.map(toRace),
+    races: raw.RACES.map((r) => toRace(r, raw.PRICE_HIST)),
     priceHistory,
     runDate: raw.RUN_DATE,
     runIso: raw.RUN_ISO,
