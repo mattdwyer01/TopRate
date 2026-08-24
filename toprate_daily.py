@@ -1346,6 +1346,79 @@ def fill_comments_from_history(runners_df):
     print(f"  Comments: filled {nv} video, {ns} steward on resulted runners "
           f"(fills in over the days after a race as comments land)")
     return runners_df
+
+
+def compute_miss_explanations(runners_df):
+    """Explain MATERIAL misses (|actual WPR - projected WPR| >= 4) on
+    resulted runners, once both wpr_actual and comments are available.
+
+    Uses wpr_miss.explain_miss() - see that module for the full logic
+    (ran-above-its-own-ceiling check first for understatement, then
+    comment-based reasoning via wpr_void's classifier, then an untried-trip
+    check, then a big pre-race price move, then "no clear explanation" for
+    the user to note manually). Re-run every day like
+    compute_wpr_actual/fill_comments_from_history above, since its inputs
+    (wpr_actual, comments) fill in progressively over the ~5 days after a
+    race - a miss unexplained today may become explainable once the real
+    comments land.
+
+    Additive and fail-safe: any error leaves the columns as-is.
+    """
+    for col in ["wprp_miss_category", "wprp_miss_reason"]:
+        if col not in runners_df.columns:
+            runners_df[col] = None
+
+    resulted_mask = runners_df.get("resulted") == 1
+    if resulted_mask.sum() == 0:
+        return runners_df
+
+    try:
+        from wpr_miss import explain_miss
+    except ImportError:
+        print("  Miss explanations skipped: wpr_miss not found")
+        return runners_df
+
+    n_material = n_explained = 0
+    for idx in runners_df[resulted_mask].index:
+        proj = pd.to_numeric(runners_df.at[idx, "wprp_proj"], errors="coerce") \
+            if "wprp_proj" in runners_df.columns else None
+        actual = pd.to_numeric(runners_df.at[idx, "wpr_actual"], errors="coerce") \
+            if "wpr_actual" in runners_df.columns else None
+        if pd.isna(proj) or pd.isna(actual):
+            continue
+        close_price = runners_df.at[idx, "starting_price_sp"] \
+            if "starting_price_sp" in runners_df.columns else None
+        if pd.isna(close_price):
+            close_price = runners_df.at[idx, "price_top"] \
+                if "price_top" in runners_df.columns else None
+        category, reason = explain_miss(
+            actual=actual,
+            proj=proj,
+            comment_video=runners_df.at[idx, "comments_video"]
+                if "comments_video" in runners_df.columns else None,
+            comment_steward=runners_df.at[idx, "comments_steward"]
+                if "comments_steward" in runners_df.columns else None,
+            starts_at_dist=runners_df.at[idx, "starts_at_dist"]
+                if "starts_at_dist" in runners_df.columns else None,
+            open_price=runners_df.at[idx, "open_price"]
+                if "open_price" in runners_df.columns else None,
+            close_price=close_price,
+            peak_wpr=runners_df.at[idx, "wprp_peak"]
+                if "wprp_peak" in runners_df.columns else None,
+            avg_last3=runners_df.at[idx, "wpr_avg_last3"]
+                if "wpr_avg_last3" in runners_df.columns else None,
+        )
+        if category is not None:
+            n_material += 1
+            runners_df.at[idx, "wprp_miss_category"] = category
+            runners_df.at[idx, "wprp_miss_reason"] = reason
+            if category != "unexplained":
+                n_explained += 1
+
+    print(f"  Miss explanations: {n_material} material misses (|miss|>=4), "
+          f"{n_explained} explained by comments/untried-trip/price, "
+          f"{n_material - n_explained} unexplained (flagged for manual review)")
+    return runners_df
 # -----------------------------------------------------------------------
 # PF ingest and the Edge/Volume model rule were removed (WPR-only refactor
 # Stage A). merge_pf_ratings, compute_model_picks, save_model_picks,
@@ -2891,6 +2964,18 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "cmtS":  (str(row.get("comments_steward"))
                           if row.get("comments_steward") is not None
                           and str(row.get("comments_steward")) not in ("", "nan") else None),
+                # Auto-generated explanation for a MATERIAL miss (|actual -
+                # projected| >= 4 WPR, see wpr_miss.py's explain_miss()).
+                # None when the miss isn't material, or the result hasn't
+                # settled yet. wpjmc is one of comment/ceiling/untried/price/
+                # unexplained; the frontend offers a manual-note fallback
+                # when wpjmc is "unexplained" (nothing in the data explains it).
+                "wpjmc": (str(row.get("wprp_miss_category"))
+                          if row.get("wprp_miss_category") is not None
+                          and str(row.get("wprp_miss_category")) not in ("", "nan") else None),
+                "wpjmr": (str(row.get("wprp_miss_reason"))
+                          if row.get("wprp_miss_reason") is not None
+                          and str(row.get("wprp_miss_reason")) not in ("", "nan") else None),
                 # Last 6 race runs (newest first) for the detail-panel form
                 # table. Empty list if no history matched. We EXCLUDE any run
                 # dated the same day as THIS race: TopRate's form feed includes
@@ -3379,6 +3464,14 @@ def main():
     print("── Step 2f: Comments for resulted runners ──")
     runners_df = fill_comments_from_history(runners_df)
     _main_step("Step 2f: Comments for resulted runners")
+    print()
+
+    # Step 2g: explain material misses (|actual - projected| >= 4 WPR) using
+    # the comments/untried-trip/price signals just filled in above. Must run
+    # after both 2e (wpr_actual) and 2f (comments) since it needs both.
+    print("── Step 2g: Explain material misses ──")
+    runners_df = compute_miss_explanations(runners_df)
+    _main_step("Step 2g: Explain material misses")
     print()
 
     save_runners(runners_df)
