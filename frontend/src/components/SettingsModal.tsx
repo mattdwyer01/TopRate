@@ -15,6 +15,7 @@ interface SettingsModalProps {
   betaOverride: number | null
   onSetBetaOverride: (v: number | null) => void
   onClose: () => void
+  onOpenMethodology: () => void
 }
 
 const MIN_BETA = 0.05
@@ -31,7 +32,13 @@ const IDLE: Status = { kind: 'idle', text: '' }
 // Client-side settings: WPR $ price sharpness, triggering a fresh data
 // fetch, and cross-device sync. All per-device (localStorage), reachable
 // from the header gear icon rather than a full settings page/route.
-export function SettingsModal({ serverBeta, betaOverride, onSetBetaOverride, onClose }: SettingsModalProps) {
+export function SettingsModal({
+  serverBeta,
+  betaOverride,
+  onSetBetaOverride,
+  onClose,
+  onOpenMethodology,
+}: SettingsModalProps) {
   const effectiveBeta = betaOverride ?? serverBeta ?? 0.4
   const [draft, setDraft] = useState(effectiveBeta)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -187,6 +194,21 @@ export function SettingsModal({ serverBeta, betaOverride, onSetBetaOverride, onC
                 how they're converted to a price.
               </p>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2 p-4">
+            <span className="text-sm font-semibold text-ink">How WPR is calculated</span>
+            <p className="text-xs text-ink-mute">
+              The full base + adjustment methodology, each term explained, and a worked example using a real
+              runner's real numbers.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenMethodology}
+              className="self-start text-sm font-medium text-emerald-deep underline hover:text-emerald"
+            >
+              Read the methodology &rarr;
+            </button>
           </div>
 
           <div className="flex flex-col gap-3 p-4">
