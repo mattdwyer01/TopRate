@@ -1006,14 +1006,19 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         if (runs_this_camp == 1 and len(r1) >= 1) else 0.0
     own_second_up = _shrink(float(r2.mean() - career_avg), len(r2)) \
         if (runs_this_camp == 2 and len(r2) >= 1) else 0.0
-    # CANDIDATE (Aug 2026, being tested): third/fourth/fifth-up, same
-    # pattern as own_first_up/own_second_up above - only counted when
-    # today actually IS that camp position for this horse. Expect thinner
-    # coverage the further out (fewer horses race deep into a campaign
-    # AND have enough matching history), so treat these as decreasingly
-    # likely to clear the adoption bar - test each on its own held-out MAE
-    # before adding to ADJ_TERMS, do not assume the first/second-up result
-    # generalises.
+    # TESTED, NOT ADOPTED (Aug 2026): third/fourth/fifth-up, same pattern
+    # as own_first_up/own_second_up above - only counted when today
+    # actually IS that camp position for this horse. Coverage was thin as
+    # expected (9.4% / 7.1% / 5.0% of held-out rows respectively), and
+    # unlike first-up/second-up, none of the three cleared the adoption
+    # bar - each individually made held-out MAE WORSE vs the 6-term
+    # baseline (5.9149): +0.0175 / +0.0144 / +0.0106. The first-up/
+    # second-up result does not generalise to deeper campaign positions -
+    # by 3rd-up+ a horse's recent form (already captured by ewm3/
+    # avg_last3) is apparently a better read than its own history at that
+    # specific camp position. Not added to ADJ_TERMS. Still emitted below
+    # (harmless, informative features) even though they aren't part of
+    # the projection.
     own_third_up = _shrink(float(r3.mean() - career_avg), len(r3)) \
         if (runs_this_camp == 3 and len(r3) >= 1) else 0.0
     own_fourth_up = _shrink(float(r4.mean() - career_avg), len(r4)) \

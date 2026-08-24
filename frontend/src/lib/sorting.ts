@@ -1,5 +1,6 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
+import { spellPosition } from './spellPosition'
 
 export type SortKey =
   | 'tab'
@@ -8,7 +9,7 @@ export type SortKey =
   | 'trainer'
   | 'barrier'
   | 'peakWpr'
-  | 'avgLast3'
+  | 'daysSince'
   | 'baseWpr'
   | 'adjustment'
   | 'projectedWpr'
@@ -31,7 +32,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   trainer: 'asc',
   barrier: 'asc',
   peakWpr: 'desc',
-  avgLast3: 'desc',
+  daysSince: 'asc',
   baseWpr: 'desc',
   adjustment: 'desc',
   projectedWpr: 'desc',
@@ -45,7 +46,12 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
 // manual adjustment is active (see lib/raceModel.ts). Falls back to the
 // raw model figures when there's no override, so sorting always reflects
 // what the table actually displays.
-function sortValue(runner: Runner, key: SortKey, effective?: EffectiveRunner): number | string {
+function sortValue(
+  runner: Runner,
+  key: SortKey,
+  effective?: EffectiveRunner,
+  raceDate?: string,
+): number | string {
   switch (key) {
     case 'tab':
       return runner.tabNumber
@@ -59,8 +65,8 @@ function sortValue(runner: Runner, key: SortKey, effective?: EffectiveRunner): n
       return runner.barrier ?? Infinity
     case 'peakWpr':
       return runner.peakWpr ?? -Infinity
-    case 'avgLast3':
-      return runner.wprAvgLast3 ?? -Infinity
+    case 'daysSince':
+      return spellPosition(runner.formHistory, raceDate ?? null).daysSince ?? Infinity
     case 'baseWpr':
       return runner.baseWpr ?? -Infinity
     case 'adjustment':
@@ -83,10 +89,11 @@ export function sortRunners(
   key: SortKey,
   direction: SortDirection,
   effectiveByRunId?: Record<string, EffectiveRunner>,
+  raceDate?: string,
 ): Runner[] {
   const sorted = [...runners].sort((a, b) => {
-    const av = sortValue(a, key, effectiveByRunId?.[a.runId])
-    const bv = sortValue(b, key, effectiveByRunId?.[b.runId])
+    const av = sortValue(a, key, effectiveByRunId?.[a.runId], raceDate)
+    const bv = sortValue(b, key, effectiveByRunId?.[b.runId], raceDate)
     if (av < bv) return -1
     if (av > bv) return 1
     return 0
