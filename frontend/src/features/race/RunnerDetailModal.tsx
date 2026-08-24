@@ -304,9 +304,13 @@ export function RunnerDetailModal({
               gets its own column (not stacked in a shared one) so the Price
               chart doesn't need to be wide - a resulted runner gets Result
               vs projection sitting to its right instead of below it.
-              PriceMovementChart is the ONE place a runner's price
-              information lives (folds in WPR $/TR $/SP too) - no more
-              separate Price line further down, pre-race or post-race.
+              ResultVsProjection is now always rendered (not conditional on
+              having a result) - it shows its own empty/placeholder state
+              pre-race, so this row's layout doesn't reflow once a race
+              results (user feedback: pre-race and post-race should look
+              the same). PriceMovementChart is the ONE place a runner's
+              price information lives (folds in WPR $/TR $/SP too) - no
+              more separate Price line further down, pre-race or post-race.
               ComparisonGrid always lives under Recent runs now (moved
               there per feedback), not paired up here, so its position
               doesn't move around depending on whether the race has
@@ -325,11 +329,9 @@ export function RunnerDetailModal({
                 />
               </div>
             )}
-            {runner.actualWpr != null && (
-              <div className="min-w-[220px] flex-1">
-                <ResultVsProjection runner={runner} />
-              </div>
-            )}
+            <div className="min-w-[220px] flex-1">
+              <ResultVsProjection runner={runner} />
+            </div>
           </div>
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />

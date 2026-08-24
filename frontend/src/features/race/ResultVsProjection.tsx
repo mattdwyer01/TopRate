@@ -23,20 +23,20 @@ interface ResultVsProjectionProps {
   runner: Runner
 }
 
-// Shown beside CareerStats once a runner has actually raced - takes over
-// that slot from ComparisonGrid, since "does today's shape suit it" (a
-// pre-race question) stops being the interesting one once today already
-// happened and "how far off was the projection, and what actually
-// happened" is. Rebuilt (Aug 2026, second pass) to keep the WPR
+// Shown beside CareerStats regardless of whether the runner has raced yet
+// (always rendered now, not conditionally - see RunnerDetailModal) so the
+// layout doesn't reflow between pre-race and post-race: same card, same
+// slot, just an empty Actual side and a placeholder note until there's a
+// real result to show. Rebuilt (Aug 2026, second pass) to keep the WPR
 // predicted-vs-actual comparison and the race RESULT (finish position,
 // margin) visually separate - they're different kinds of fact (a rating
 // vs a placing) that a WPR-rank number and a finish-position number
 // happening to coincide (e.g. both landing on "8") made read as one
-// repeated figure in the previous layout.
+// repeated figure in an earlier layout.
 export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
-  if (runner.actualWpr == null) return null
+  const hasResult = runner.actualWpr != null
 
-  const miss = runner.projectedWpr != null ? runner.actualWpr - runner.projectedWpr : null
+  const miss = hasResult && runner.projectedWpr != null ? runner.actualWpr! - runner.projectedWpr : null
   const missAbs = miss != null ? Math.abs(miss) : null
   const missClass =
     missAbs == null ? 'text-ink-mute' : missAbs >= 8 ? 'text-rose' : missAbs >= 4 ? 'text-amber' : 'text-emerald-deep'
@@ -58,35 +58,45 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
         </div>
         <div>
           <div className="text-[11px] text-ink-faint">Actual</div>
-          <div className="font-mono text-lg font-semibold text-ink">{fmt(runner.actualWpr)}</div>
-          <div className="text-xs text-ink-mute">WPR rank {runner.actualWprRank ?? '—'}</div>
+          <div className={`font-mono text-lg font-semibold ${hasResult ? 'text-ink' : 'text-ink-faint'}`}>
+            {hasResult ? fmt(runner.actualWpr) : '—'}
+          </div>
+          <div className="text-xs text-ink-mute">
+            {hasResult ? `WPR rank ${runner.actualWprRank ?? '—'}` : 'not run yet'}
+          </div>
         </div>
       </div>
 
-      {miss != null && (
-        <div className="mt-2 flex items-baseline gap-1.5 border-t border-line-soft pt-1.5 text-xs">
-          <span className="text-ink-mute">Missed by</span>
-          <span className={`font-mono font-semibold ${missClass}`}>
-            {miss > 0 ? '+' : ''}
-            {miss.toFixed(1)}
-          </span>
-          {rankText && <span className="text-ink-mute">&middot; WPR rank {rankText} than predicted</span>}
-        </div>
-      )}
-
-      {runner.finishPosition != null && (
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
-          <span
-            className={`rounded-full px-1.5 py-0.5 font-mono font-semibold ${
-              runner.won ? 'bg-amber-bg text-amber' : 'bg-bg text-ink-mute'
-            }`}
-          >
-            {runner.won ? 'WON' : ordinal(runner.finishPosition)}
-          </span>
-          {runner.marginFinish != null && !runner.won && (
-            <span className="text-ink-mute">beaten {runner.marginFinish.toFixed(1)}L</span>
+      {hasResult ? (
+        <>
+          {miss != null && (
+            <div className="mt-2 flex items-baseline gap-1.5 border-t border-line-soft pt-1.5 text-xs">
+              <span className="text-ink-mute">Missed by</span>
+              <span className={`font-mono font-semibold ${missClass}`}>
+                {miss > 0 ? '+' : ''}
+                {miss.toFixed(1)}
+              </span>
+              {rankText && <span className="text-ink-mute">&middot; WPR rank {rankText} than predicted</span>}
+            </div>
           )}
-        </div>
+
+          {runner.finishPosition != null && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+              <span
+                className={`rounded-full px-1.5 py-0.5 font-mono font-semibold ${
+                  runner.won ? 'bg-amber-bg text-amber' : 'bg-bg text-ink-mute'
+                }`}
+              >
+                {runner.won ? 'WON' : ordinal(runner.finishPosition)}
+              </span>
+              {runner.marginFinish != null && !runner.won && (
+                <span className="text-ink-mute">beaten {runner.marginFinish.toFixed(1)}L</span>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mt-2 border-t border-line-soft pt-1.5 text-xs text-ink-faint">Check back after the race.</div>
       )}
     </div>
   )
