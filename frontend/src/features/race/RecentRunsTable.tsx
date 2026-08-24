@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
+import type { TempoBucket } from '../../lib/pace'
 
 interface RecentRunsTableProps {
   runs: FormRun[]
@@ -40,6 +41,19 @@ function buildCampByDate(formHistory: FormHistoryEntry[]): Map<string, CampLabel
     n = prevDate == null || gap == null || gap > _SPELL_GAP_DAYS ? 1 : n + 1
     if (entry.date) map.set(entry.date, campLabelForN(n))
     prevDate = d
+  }
+  return map
+}
+
+// Maps each past run's date to the early-race tempo of THAT race (already
+// classified backend-side - see FormHistoryEntry.tempo, the same field
+// ComparisonGrid's "Race speed" tile compares today's tempo against). No
+// gap logic needed here, unlike campaign position - each run's own tempo
+// is a fixed fact about that race, not something derived from neighbours.
+function buildTempoByDate(formHistory: FormHistoryEntry[]): Map<string, TempoBucket> {
+  const map = new Map<string, TempoBucket>()
+  for (const entry of formHistory) {
+    if (entry.date && entry.tempo) map.set(entry.date, entry.tempo)
   }
   return map
 }
@@ -283,9 +297,11 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
   const [filterCamp, setFilterCamp] = useState<CampLabel | null>(null)
+  const [filterSpeed, setFilterSpeed] = useState<TempoBucket | null>(null)
 
   const campByDate = useMemo(() => buildCampByDate(formHistory), [formHistory])
-  const anyFilterActive = filterDistance || filterGoing || filterCamp != null
+  const tempoByDate = useMemo(() => buildTempoByDate(formHistory), [formHistory])
+  const anyFilterActive = filterDistance || filterGoing || filterCamp != null || filterSpeed != null
   const raceBand = goingBand(raceGoing)
   const distLo = raceDistance * 0.9
   const distHi = raceDistance * 1.1
@@ -299,6 +315,7 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
     if (filterDistance && (run.distance < distLo || run.distance > distHi)) return true
     if (filterGoing && goingBand(run.going) !== raceBand) return true
     if (filterCamp && (run.date ? campByDate.get(run.date) : undefined) !== filterCamp) return true
+    if (filterSpeed && (run.date ? tempoByDate.get(run.date) : undefined) !== filterSpeed) return true
     return false
   }
 
@@ -334,6 +351,15 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
             {label}
           </FilterButton>
         ))}
+        {(['Fast', 'Even', 'Slow'] as const).map((label) => (
+          <FilterButton
+            key={label}
+            active={filterSpeed === label}
+            onClick={() => setFilterSpeed((v) => (v === label ? null : label))}
+          >
+            {label} early
+          </FilterButton>
+        ))}
         {anyFilterActive && (
           <button
             type="button"
@@ -341,6 +367,7 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
               setFilterDistance(false)
               setFilterGoing(false)
               setFilterCamp(null)
+              setFilterSpeed(null)
             }}
             className="text-[11px] text-ink-faint underline hover:text-ink"
           >
