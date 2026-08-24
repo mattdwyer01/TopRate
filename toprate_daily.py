@@ -2945,6 +2945,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rse":       sf(first.get("race_shape_early")) if callable(sf) else None,
             "rsm":       sf(first.get("race_shape_mid")) if callable(sf) else None,
             "rsl":       sf(first.get("race_shape_late")) if callable(sf) else None,
+            # Automated pre-race tempo estimate (compute_race_speed() ->
+            # race_speed_estimate.py's trained model) - a 0-1 pressure
+            # score and Hot/Fast/Even/Slow label. LOW CONFIDENCE (held-out
+            # correlation with actual raceShapeEarly ~+0.24) - the frontend
+            # should treat this as context, not a firm prediction, and
+            # prefer rse/rsm/rsl above once the race has actually run.
+            "rs_score":  sf(first.get("rs_score")) if callable(sf) else None,
+            "rs_label":  str(first.get("rs_label")) if first.get("rs_label") and str(first.get("rs_label")) != "nan" else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
             "fs":        len(rdf),
             "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),

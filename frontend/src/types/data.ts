@@ -123,6 +123,13 @@ export interface RawRace {
   rse: number | null
   rsm: number | null
   rsl: number | null
+  // Automated pre-race tempo estimate (race_speed_estimate.py's trained
+  // model) - a 0-1 pressure score and Hot/Fast/Even/Slow label. LOW
+  // CONFIDENCE (held-out correlation with actual rse ~+0.24) - context
+  // only. rse/rsm/rsl above are the real, post-race measurement and take
+  // priority once the race has actually run.
+  rs_score: number | null
+  rs_label: string | null
   hfs: 0 | 1
   fs: number
   done: 0 | 1

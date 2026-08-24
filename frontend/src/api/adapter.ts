@@ -152,6 +152,8 @@ function toRace(r: RawRace): Race {
     raceShapeEarly: r.rse,
     raceShapeMid: r.rsm,
     raceShapeLate: r.rsl,
+    paceEstimateScore: r.rs_score,
+    paceEstimateLabel: r.rs_label,
     hasFirstStarter: r.hfs === 1,
     fieldSize: r.fs,
     allResulted: r.done === 1,

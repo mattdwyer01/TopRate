@@ -59,8 +59,7 @@ WHAT THIS IS
       FULL feature set, unaffected by either adjustment rebuild above -
       interval width is still the confidence signal (see project_race).
     config.json         - the full feature list + median-fill table (for
-      the confidence models), ADJ_TERMS names, price beta, min runs,
-      calibration offset
+      the confidence models), ADJ_TERMS names, price beta, min runs
 
 SINGLE SOURCE OF TRUTH
   build_features() in this file is the ONE feature definition. The training

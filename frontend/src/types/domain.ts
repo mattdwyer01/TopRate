@@ -139,6 +139,13 @@ export interface Race {
   raceShapeEarly: number | null
   raceShapeMid: number | null
   raceShapeLate: number | null
+  // Automated pre-race tempo estimate (race_speed_estimate.py) - a 0-1
+  // pressure score and Hot/Fast/Even/Slow label. LOW CONFIDENCE (held-out
+  // correlation with actual raceShapeEarly ~+0.24) - context only.
+  // raceShapeEarly/Mid/Late above are the real measurement and take
+  // priority once the race has actually run - see lib/pace.ts.
+  paceEstimateScore: number | null
+  paceEstimateLabel: string | null
   hasFirstStarter: boolean
   fieldSize: number
   allResulted: boolean
