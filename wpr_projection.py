@@ -354,6 +354,23 @@ def _going_is_wet(track_grading):
     return 1 if tg >= 5 else 0
 
 
+# Wet/Dry split for own_wet/own_dry (user-specified boundary, Aug 2026) -
+# a different cut to _going_is_wet's tg>=5 above (left untouched; it feeds
+# today_wet/going_delta, already-tested existing features). Wet = Soft 6
+# and above (tg>=6), Dry = Soft 5 and firmer (tg<=5) - the boundary
+# horsemen actually talk about, not the same as own_going's Firm/Good/
+# Soft/Heavy string band (which lumps every Soft grading together and
+# never separates soft5 from soft6).
+def _wet_dry_band(track_grading):
+    try:
+        tg = float(track_grading)
+    except (TypeError, ValueError):
+        return None
+    if tg != tg:
+        return None
+    return "Wet" if tg >= 6 else "Dry"
+
+
 # Surface type from the going string. trackGrading cannot distinguish a
 # grading-3 synthetic from a grading-3 good turf, so surface is its own
 # signal. 0 turf, 1 synthetic, 2 dirt, 3 sand.
@@ -1002,6 +1019,36 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
         if (cur_going_band is not None and n_going >= 1) else 0.0
 
+    # CANDIDATE (Aug 2026, user request): own_distance using an EXACT
+    # distance match instead of the +/-10% band own_distance uses above -
+    # testing whether precision helps or the band's extra sample size
+    # wins out. Not yet in ADJ_TERMS - being tested for real held-out MAE
+    # before adoption.
+    dist_exact_match = dist == float(cur_distance)
+    n_dist_exact = int(dist_exact_match.sum())
+    own_distance_exact = _shrink(float(w[dist_exact_match].mean() - career_avg), n_dist_exact) \
+        if n_dist_exact >= 1 else 0.0
+
+    # CANDIDATE (Aug 2026, user request): own_wet/own_dry - does THIS
+    # horse personally run above or below its own level at wet (Soft 6+)
+    # vs dry (Soft 5 or firmer) tracks specifically, using the
+    # _wet_dry_band boundary (see its docstring - a tighter, differently-
+    # placed cut than own_going's Firm/Good/Soft/Heavy band, which lumps
+    # every Soft grading together). Mutually exclusive per race, same
+    # pattern as own_first_up/own_second_up: only the one matching today's
+    # actual going fires. Not yet in ADJ_TERMS - being tested for real
+    # held-out MAE before adoption.
+    wetdry_hist = tg_hist.apply(_wet_dry_band)
+    cur_wetdry = _wet_dry_band(cur_track_grading)
+    wet6_match = wetdry_hist == "Wet"
+    dry5_match = wetdry_hist == "Dry"
+    n_wet6 = int(wet6_match.sum())
+    n_dry5 = int(dry5_match.sum())
+    own_wet = _shrink(float(w[wet6_match].mean() - career_avg), n_wet6) \
+        if (cur_wetdry == "Wet" and n_wet6 >= 1) else 0.0
+    own_dry = _shrink(float(w[dry5_match].mean() - career_avg), n_dry5) \
+        if (cur_wetdry == "Dry" and n_dry5 >= 1) else 0.0
+
     own_first_up = _shrink(float(r1.mean() - career_avg), len(r1)) \
         if (runs_this_camp == 1 and len(r1) >= 1) else 0.0
     own_second_up = _shrink(float(r2.mean() - career_avg), len(r2)) \
@@ -1133,6 +1180,12 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_fourth_up": own_fourth_up,
         "own_fifth_up": own_fifth_up,
         "own_barrier": own_barrier,
+        "own_distance_exact": own_distance_exact,
+        "dist_exact_match_n": n_dist_exact,
+        "own_wet": own_wet,
+        "own_dry": own_dry,
+        "wet_match_n": n_wet6,
+        "dry_match_n": n_dry5,
         "cur_distance": float(cur_distance),
         "dist_grad": dist_grad,
         "dist_vs_last": float(cur_distance) - float(dist.iloc[-1]),
