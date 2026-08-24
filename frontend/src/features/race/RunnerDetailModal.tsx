@@ -78,7 +78,6 @@ export function RunnerDetailModal({
   const priceBitsBefore: string[] = []
   if (effectivePrice != null) priceBitsBefore.push(`WPR ${fmtPrice(effectivePrice)}`)
   const priceBitsAfter: string[] = []
-  if (runner.topratePrice != null) priceBitsAfter.push(`TR ${fmtPrice(runner.topratePrice)}`)
   priceBitsAfter.push(runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race')
   // Fixed price gets its own bit below (not folded into the plain-text
   // arrays above) so the raceday move vs open_price can be colour-coded.
@@ -182,20 +181,61 @@ export function RunnerDetailModal({
           )}
 
           <div className="rounded-lg bg-bg p-2.5">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              {scratched ? (
-                <span className="font-mono text-2xl font-bold text-rose">SCR</span>
-              ) : (
-                <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-              )}
-              <span className="text-xs text-ink-mute">
-                {scratched ? 'scratched - out of the field pricing' : 'effective WPR'}
-              </span>
-              {hasOverride && (
-                <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
-                  manually adjusted
+            {/* Your adjustment (always-editable) plus $WPR/rank sit to the
+                right of the headline number on the same row - previously
+                each was its own line below, costing vertical space this
+                row has spare width for. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                {scratched ? (
+                  <span className="font-mono text-2xl font-bold text-rose">SCR</span>
+                ) : (
+                  <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                )}
+                <span className="text-xs text-ink-mute">
+                  {scratched ? 'scratched - out of the field pricing' : 'effective WPR'}
                 </span>
-              )}
+                {hasOverride && (
+                  <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
+                    manually adjusted
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  Your adjustment
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={deltaValue ?? ''}
+                    onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
+                    placeholder="0.0"
+                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+                  />
+                  {(deltaValue != null || baseValue != null) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSetDelta(null)
+                        onSetBase(null)
+                      }}
+                      className="text-xs text-ink-mute underline hover:text-ink"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </label>
+                {effectivePrice != null && (
+                  <span className="text-xs text-ink-mute">
+                    <span className="font-mono font-semibold text-ink">{fmtPrice(effectivePrice)}</span> WPR
+                  </span>
+                )}
+                {runner.wprRank != null && (
+                  <span className="text-xs text-ink-mute">
+                    rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
+                  </span>
+                )}
+              </div>
             </div>
             {hasOverride && (
               <div className="mt-1 text-xs text-ink-mute">
@@ -224,30 +264,6 @@ export function RunnerDetailModal({
                 <span className="text-xs text-ink-faint">no model projection - enter your own to rate this horse</span>
               </label>
             )}
-
-            <label className="mt-2 flex items-center gap-2 text-sm text-ink-soft">
-              Your adjustment
-              <input
-                type="number"
-                step="0.1"
-                value={deltaValue ?? ''}
-                onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
-                placeholder="0.0"
-                className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-              />
-              {(deltaValue != null || baseValue != null) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSetDelta(null)
-                    onSetBase(null)
-                  }}
-                  className="text-xs text-ink-mute underline hover:text-ink"
-                >
-                  Clear
-                </button>
-              )}
-            </label>
 
             {/* One line instead of 4 boxed tiles - Base+Adjustment=Model
                 projection is simple arithmetic that doesn't need a box each,
