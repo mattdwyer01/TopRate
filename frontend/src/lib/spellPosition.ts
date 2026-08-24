@@ -24,9 +24,11 @@ export interface SpellInfo {
 }
 
 // Which run of the current campaign today's race is, and days since the
-// horse's last run. formHistory is the horse's FULL career (oldest-first,
-// unlike the capped-at-10 recentRuns), so the campaign count here is exact,
-// not a lower bound - it walks back from the most recent prior run counting
+// horse's last run. formHistory is the horse's full career, oldest-first
+// (recentRuns is also full history now, but newest-first and richer per
+// row - this uses formHistory since that's what's cheap to pass around
+// for a simple date walk). Campaign count here is exact, not a lower
+// bound - it walks back from the most recent prior run counting
 // consecutive gaps under SPELL_GAP_DAYS, the same walk build_features()
 // does server-side over the same underlying data.
 export function spellPosition(formHistory: FormHistoryEntry[], raceDate: string | null): SpellInfo {

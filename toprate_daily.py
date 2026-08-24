@@ -2436,7 +2436,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
     # ── Window runners_df to the same recent range render_html() keeps ───────
     # render_html() (toprate_html_v3.py) already discards any race older than
-    # TOPRATE_RACES_WINDOW_DAYS (default 45) from the final payload - but only
+    # TOPRATE_RACES_WINDOW_DAYS (default 10) from the final payload - but only
     # AFTER this function has spent most of its runtime building the form-
     # history lookup, settling-band lookup, and full per-race runner payload
     # for EVERY race ever recorded (39k+ runners across 4k+ races as of
@@ -2446,7 +2446,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # so the final HTML/JSON output is unaffected, just faster to build.
     _orig_runner_count = len(runners_df)
     try:
-        _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "45")) + 2
+        _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "10")) + 2
         _win_cut = (datetime.now() - timedelta(days=_win_days)).strftime("%Y-%m-%d")
         _windowed = runners_df[runners_df["date"].astype(str).str[:10] >= _win_cut]
         if len(_windowed) > 0:
@@ -2455,16 +2455,20 @@ def rebuild_html(runners_df, model_pick_rows=None):
         print(f"  runners_df windowing skipped ({_e})")
     _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
 
-    _FORM_RUNS_SHOWN = 10  # rows kept per horse for the detail-panel form table
-
-    _step(f"Building form-history lookup (last {_FORM_RUNS_SHOWN} + peak + tendency)...")
+    _step("Building form-history lookup (full history + peak + tendency)...")
 
     # ── Form-history lookup for the runner detail panel ──────────────────────
-    # Attach each runner's last _FORM_RUNS_SHOWN race runs (newest first) so
-    # the Race-tab detail panel can show a mini form table. Scoped to the
+    # Attach each runner's FULL prior race history (newest first, user
+    # request Aug 2026 - was capped at the last 10). Made possible by
+    # TOPRATE_RACES_WINDOW_DAYS dropping 45 -> 10 (also user-requested, same
+    # change) - that shrinks the number of horses in runners_df enough to
+    # afford full per-horse history within GitHub's 100MB push limit; see
+    # the size testing in git history before assuming this is free to widen
+    # again without re-checking toprate_data.json's size. Scoped to the
     # horses running in runners_df only - never the whole 90k-row history -
-    # so the HTML payload stays small. Fail-safe: any error leaves
-    # form_lookup empty and runners simply get no formRuns.
+    # so the HTML payload stays bounded to currently-racing horses.
+    # Fail-safe: any error leaves form_lookup empty and runners simply get
+    # no formRuns.
     form_lookup = {}
     form_all_lookup = {}
     _peak_run_lookup = {}
@@ -2556,12 +2560,16 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # bitten this rebuild before).
             _fa_by_horse = dict(tuple(_fa.groupby("horse_lc")))
             for _hlc, _g in _fh.groupby("horse_lc"):
-                _last = _g.tail(_FORM_RUNS_SHOWN)
+                _last = _g  # full history, not just the last N (see comment above)
                 _peak_wpr = _g["wpr"].max()
                 # Find the most recent run at peak WPR that is OUTSIDE
                 # the visible-runs window. If the peak is already visible,
                 # leave peakRun null - the panel only needs the extra row
                 # when the peak is older. Tolerance 0.05 mirrors the pk flag.
+                # Now that _last is the full history, the peak is always
+                # inside it, so _peak_outside is always empty and peakRun
+                # is always null - harmless, kept as-is rather than ripped
+                # out (a future re-cap of _last would need it working again).
                 _last_ids = set(_last.index.tolist())
                 _peak_rows = _g[
                     (_g["wpr"] - _peak_wpr).abs() < 0.05]

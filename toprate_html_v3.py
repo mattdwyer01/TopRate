@@ -427,7 +427,7 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     # gracefully when a race is absent. Full history stays in the CSVs.
     import os as _os
     from datetime import datetime as _dt, timedelta as _td
-    _win = int(_os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "45"))
+    _win = int(_os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "10"))
     try:
         _cut = (_dt.now() - _td(days=_win)).strftime("%Y-%m-%d")
         _rw = [r for r in races if str(r.get("date") or "")[:10] >= _cut]
