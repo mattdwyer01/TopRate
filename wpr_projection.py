@@ -1021,14 +1021,28 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_fifth_up = _shrink(float(r5.mean() - career_avg), len(r5)) \
         if (runs_this_camp == 5 and len(r5) >= 1) else 0.0
 
-    # CANDIDATE (Aug 2026, being tested): own_barrier, same shape as
+    # TESTED, NOT ADOPTED (Aug 2026): own_barrier, same shape as
     # own_going/own_distance but matched on RELATIVE barrier band (see
-    # _barrier_band) instead of going/distance. A flat population-level
-    # barrier feature already failed a test (Aug 2026 feature search); this
-    # asks a different question (does THIS horse personally draw better or
-    # worse from a given relative position), same reasoning as the other
-    # own_* terms. 0.0 (no signal) when cur_barrier/cur_field_size are
-    # missing or there's no matching-band history.
+    # _barrier_band) instead of going/distance - does THIS horse personally
+    # draw better or worse from a given relative position, same reasoning
+    # as the other own_* terms. NOT sparse (94.7% of held-out runners had a
+    # matching-band history, similar coverage to own_going) - but held-out
+    # MAE got measurably WORSE with it in the additive sum: 5.9149 -> 6.0241
+    # (+0.109), confirming the earlier flat population-level barrier
+    # feature's rejection (Aug 2026 feature search) generalises to the
+    # own-history framing too. Not added to ADJ_TERMS. Still emitted below
+    # (0.0 when cur_barrier/cur_field_size are missing or there's no
+    # matching-band history) since it's a harmless, informative feature
+    # even though it isn't part of the projection.
+    #
+    # An earlier version of this backtest (before the fix below) found
+    # own_barrier ALWAYS 0.0 on every held-out row and a spurious "no
+    # change" MAE - build_training_frame()'s keep-columns list never
+    # actually carried "barrier" through from the raw form-history CSV
+    # (only field_size was kept), so p["barrier"] never existed at training
+    # time even though it works fine at serving time via project_race's
+    # cur_barrier. Fixed by adding "barrier" to that keep list; the real
+    # result above is from the corrected training frame.
     cur_barrier_band = _barrier_band(cur_barrier, cur_field_size)
     if cur_barrier_band is not None and "barrier" in p.columns and "field_size" in p.columns:
         barrier_band_hist = [
