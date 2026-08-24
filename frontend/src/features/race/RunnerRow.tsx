@@ -34,13 +34,6 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
   const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const displayPrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
   const overridden = effective?.hasOverride ?? false
-  // Miss vs the RAW model projection (not the manually-overridden displayProj)
-  // - this is a read on the MODEL's accuracy, same convention as the Review
-  // tab and the runner detail modal, not on a one-off manual what-if.
-  const miss =
-    runner.actualWpr != null && runner.projectedWpr != null
-      ? runner.actualWpr - runner.projectedWpr
-      : null
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
 
@@ -60,7 +53,7 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
           onClick()
         }
       }}
-      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] ${rowPadding} ${
+      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px_52px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -149,16 +142,6 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
           </span>
         )}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}
-      </span>
-      <span
-        className={`hidden text-right font-mono sm:inline ${
-          miss == null ? '' : miss > 0 ? 'text-emerald-deep' : miss < 0 ? 'text-rose' : 'text-ink-mute'
-        }`}
-      >
-        {miss != null ? fmtAdj(miss) : ''}
-      </span>
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtPrice(displayPrice)}
       </span>
@@ -183,6 +166,9 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
             {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
           </span>
         )}
+      </span>
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+        {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}
       </span>
     </div>
   )

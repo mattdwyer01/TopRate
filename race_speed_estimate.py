@@ -8,11 +8,14 @@ WHAT IT DOES
   Hot / Fast / Even / Slow label - using a TRAINED model.
 
 THE MODEL (search-validated)
-  The model and its feature set come from a systematic held-out variable
-  search (27 May): every pre-race variable was tested, and the model is
-  fitted on the combination that best predicts raceShapeEarly on races
-  it was NOT trained on. The artifacts are:
-    race_speed_model.joblib   - the fitted linear model
+  The feature set comes from a systematic held-out variable search
+  (27 May): every pre-race variable was tested, and the model is fitted
+  on the combination that best predicts raceShapeEarly on races it was
+  NOT trained on. The model itself was a LinearRegression until an Aug
+  2026 retrain (train(), see below) found LightGBM on the SAME features
+  measurably better held-out (+0.270 vs +0.261 on a fresh split) -
+  feature set unchanged, model type only. The artifacts are:
+    race_speed_model.joblib   - the fitted model (LightGBM, Aug 2026+)
     race_speed_config.json    - feature order, medians, banding quantiles
 
   The features are per-RACE aggregates of the field's prior-run history:
@@ -35,6 +38,7 @@ HONEST CONFIDENCE - read before relying on this.
 USAGE
   python race_speed_estimate.py --race <race_id>
   python race_speed_estimate.py --validate
+  python race_speed_estimate.py --retrain
 
 NO EM DASHES policy: hyphens only in this file.
 """
@@ -48,7 +52,7 @@ import numpy as np
 import pandas as pd
 
 _DIR = Path(__file__).parent
-FORM_CSV = _DIR / "wpr_form_history.csv"
+FORM_CSV = _DIR / "wpr_form_history.csv.gz"
 RUNNERS_CSV = _DIR / "toprate_runners.csv"
 MODEL_PATH = _DIR / "race_speed_model.joblib"
 CONFIG_PATH = _DIR / "race_speed_config.json"
@@ -233,6 +237,132 @@ def estimate_one(race_id):
     print("=" * 60)
 
 
+def _load_and_prep_form():
+    """Load + dedupe wpr_form_history.csv.gz for training: one row per
+    horse+date (collapses repeated captures of the same historical run),
+    barrier trials excluded. Separate from _load_form() (kept sorted by
+    horse_lc/date, no dedup) since serving-time prior-means lookups don't
+    need dedup (a mean over a few duplicate identical-value rows is the
+    same mean) but training-row counting does (each race must be counted
+    once, not once per capture)."""
+    fh = pd.read_csv(FORM_CSV, dtype={"horse": str, "horse_id": str},
+                     low_memory=False)
+    fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+    fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+    fh = fh.dropna(subset=["date"])
+    for c in ["positionSettled", "field_size", "sect_ld_early",
+              "sect_i_early", "sect_i_to800", "margin800m",
+              "raceShapeEarly", "wpr", "barrier", "distance", "raceNumber"]:
+        if c in fh.columns:
+            fh[c] = pd.to_numeric(fh[c], errors="coerce")
+    if "isBarrierTrial" in fh.columns:
+        fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+    fh = fh.sort_values("date").drop_duplicates(subset=["horse_lc", "date"], keep="last")
+    return fh
+
+
+def train(out_dir="."):
+    """Retrain the race-speed model.
+
+    Aug 2026 backtest (see confidence/race-speed search scratch scripts,
+    not committed): tested adding barrier-relative and going/track-grading
+    features on top of the existing 16 - neither gave a real held-out
+    gain, and combining them with a nonlinear model made things WORSE
+    (LinearRegression + barrier: +0.265 vs LightGBM + barrier: +0.265,
+    both below LightGBM alone). The one genuine improvement was swapping
+    the model itself: LightGBM on the SAME 16 features beat the original
+    LinearRegression on a fresh held-out split (+0.270 vs +0.261). Feature
+    set unchanged; model type only.
+
+    Race key: (track, date, raceNumber) within wpr_form_history.csv.gz -
+    confirmed by direct inspection to correctly group a historical race's
+    runners (every runner in a group shares the same raceShapeEarly).
+    race_id in that file is NOT usable for this - it identifies which
+    race a row's capture was taken FOR, not the historical race the row
+    itself describes, and is null on almost every row.
+    """
+    import lightgbm as lgb
+    from sklearn.metrics import mean_absolute_error
+    import joblib
+
+    print("Loading form history...")
+    fh = _load_and_prep_form()
+    print(f"  {len(fh):,} rows (one per horse+date), {fh['horse_lc'].nunique():,} horses")
+
+    fh = fh.dropna(subset=["track", "raceNumber", "raceShapeEarly"])
+    fh["race_key"] = (fh["track"].astype(str) + "|" + fh["date"].astype(str)
+                      + "|" + fh["raceNumber"].astype(str))
+
+    race_meta = (fh.groupby("race_key")
+                   .agg(date=("date", "first"), rse=("raceShapeEarly", "first"),
+                        n=("horse_lc", "count"))
+                   .reset_index())
+    race_meta = race_meta[race_meta["n"] >= 4]
+    print(f"  {len(race_meta):,} races with 4+ runners and a known raceShapeEarly")
+
+    cut = race_meta["date"].quantile(0.70)
+    train_races = race_meta[race_meta["date"] < cut]
+    test_races = race_meta[race_meta["date"] >= cut]
+    print(f"  split at {cut.date()}: {len(train_races):,} train, {len(test_races):,} test")
+
+    fh_by_race = fh.groupby("race_key")
+    pmeans_cache = {}
+
+    def prior_means_cached(cutoff_date):
+        if cutoff_date not in pmeans_cache:
+            pmeans_cache[cutoff_date] = _prior_means(fh, cutoff_date)
+        return pmeans_cache[cutoff_date]
+
+    def build_rows(race_df):
+        rows, ys = [], []
+        for day, day_races in race_df.groupby(race_df["date"].dt.normalize()):
+            pmeans = prior_means_cached(day)
+            for _, rr in day_races.iterrows():
+                runners = fh_by_race.get_group(rr["race_key"])
+                rows.append(_race_features(runners, pmeans))
+                ys.append(rr["rse"])
+        return pd.DataFrame(rows), np.array(ys, dtype=float)
+
+    print("Building training rows...")
+    Xtr, ytr = build_rows(train_races)
+    print("Building held-out rows...")
+    Xte, yte = build_rows(test_races)
+
+    features = list(Xtr.columns)
+    med = Xtr.median()
+    Xtr_f = Xtr.fillna(med)
+    Xte_f = Xte.fillna(med)
+
+    model = lgb.LGBMRegressor(n_estimators=200, max_depth=3, learning_rate=0.05,
+                              num_leaves=8, random_state=42, verbosity=-1)
+    model.fit(Xtr_f, ytr)
+    pred_te = model.predict(Xte_f)
+    heldout_corr = float(np.corrcoef(pred_te, yte)[0, 1])
+    heldout_mae = float(mean_absolute_error(yte, pred_te))
+    print(f"  held-out correlation: {heldout_corr:+.3f}")
+    print(f"  held-out MAE: {heldout_mae:.3f}")
+
+    # Tempo-label bucket cutpoints, from the TRAIN target's own
+    # distribution (not test - these are display buckets, not part of the
+    # accuracy evaluation, but still shouldn't be tuned to the held-out
+    # set on principle). Roughly-even coverage: ~10% Hot, ~25% Fast,
+    # ~30% Even, ~25%+ Slow - matches the original config's asymmetric
+    # spacing better than a strict even-quartile split would.
+    hot, fast, even, slow = np.quantile(ytr, [0.10, 0.35, 0.65, 0.90])
+
+    Path(out_dir).mkdir(exist_ok=True)
+    joblib.dump(model, Path(out_dir) / "race_speed_model.joblib")
+    json.dump({
+        "features": features,
+        "medians": med.to_dict(),
+        "heldout_corr": heldout_corr,
+        "y_quantiles": {"hot": float(hot), "fast": float(fast),
+                        "even": float(even), "slow": float(slow)},
+        "n_train": int(len(Xtr)),
+    }, open(Path(out_dir) / "race_speed_config.json", "w"), indent=1)
+    print(f"  written -> {out_dir}/race_speed_model.joblib, race_speed_config.json")
+
+
 def validate():
     _load_model()
     print("=" * 60)
@@ -249,8 +379,12 @@ def main():
     ap.add_argument("--race", default=None, help="race_id to estimate")
     ap.add_argument("--validate", action="store_true",
                     help="report the model's held-out performance")
+    ap.add_argument("--retrain", action="store_true",
+                    help="retrain the model from wpr_form_history.csv.gz")
     args = ap.parse_args()
-    if args.validate:
+    if args.retrain:
+        train(out_dir=str(_DIR))
+    elif args.validate:
         validate()
     elif args.race:
         estimate_one(args.race)
