@@ -1700,6 +1700,14 @@ def _horse_feature_rows(g):
         # derived cur_surface). Carried so the retrain can exclude dirt/synth
         # races that have no turf going rating from the target.
         f["going"] = cur.get("going")
+        # Track name and raw barrier number for THIS run. Analysis-only (not
+        # model features - own_barrier already captures the per-horse
+        # signal). Carried for the track x distance-conditioned barrier
+        # analysis (Aug 2026, being tested) - does barrier draw matter more
+        # at some tracks/distances than others, a population-level question
+        # a per-horse own_barrier lookup can't answer.
+        f["track"] = cur.get("track")
+        f["barrier"] = cur.get("barrier")
         out.append(f)
     return out
 
