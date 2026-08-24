@@ -300,8 +300,11 @@ export function RunnerDetailModal({
 
           {/* ResultVsProjection and/or PriceMovementChart ride alongside
               CareerStats (fills the space that would otherwise sit blank
-              beside CareerStats's natural, not-stretched table width).
-              PriceMovementChart is now the ONE place a runner's price
+              beside CareerStats's natural, not-stretched table width). Each
+              gets its own column (not stacked in a shared one) so the Price
+              chart doesn't need to be wide - a resulted runner gets Result
+              vs projection sitting to its right instead of below it.
+              PriceMovementChart is the ONE place a runner's price
               information lives (folds in WPR $/TR $/SP too) - no more
               separate Price line further down, pre-race or post-race.
               ComparisonGrid always lives under Recent runs now (moved
@@ -312,17 +315,19 @@ export function RunnerDetailModal({
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
-            {(runner.actualWpr != null || hasPriceInfo) && (
-              <div className="flex min-w-[280px] flex-[1.4] flex-col gap-3">
-                {runner.actualWpr != null && <ResultVsProjection runner={runner} />}
-                {hasPriceInfo && (
-                  <PriceMovementChart
-                    runner={runner}
-                    priceBitsBefore={priceBitsBefore}
-                    priceBitsAfter={priceBitsAfter}
-                    fixedMove={fixedMove}
-                  />
-                )}
+            {hasPriceInfo && (
+              <div className="min-w-[220px] flex-1">
+                <PriceMovementChart
+                  runner={runner}
+                  priceBitsBefore={priceBitsBefore}
+                  priceBitsAfter={priceBitsAfter}
+                  fixedMove={fixedMove}
+                />
+              </div>
+            )}
+            {runner.actualWpr != null && (
+              <div className="min-w-[220px] flex-1">
+                <ResultVsProjection runner={runner} />
               </div>
             )}
           </div>
