@@ -8,11 +8,44 @@ export interface PaceEstimate {
   fromShape: boolean
 }
 
-// Prefers the race-wide early-sectional shape (raceShapeEarly) when known -
-// a real measurement. Falls back to a settle-position-derived estimate
-// (how many runners are predicted to lead/sit on-pace) when the shape figure
-// isn't available yet (e.g. sectional data hasn't settled for this race).
+// Three-way source priority:
+//  1. raceShapeEarly - the real, post-race measurement. Always preferred
+//     once the race has actually run.
+//  2. paceEstimateScore/Label - race_speed_estimate.py's TRAINED model
+//     (early-speed sectionals, settle position, barrier, margin at 800m,
+//     aggregated per race), held-out correlation with actual
+//     raceShapeEarly ~+0.24. Real signal, modest reliability - labelled
+//     "predicted", never presented as a measurement.
+//  3. A crude on-the-fly leader-count heuristic (how many runners' own
+//     average settle position looks front-running), only reached when
+//     the trained model's estimate genuinely isn't available for this
+//     race (e.g. a data gap) - last resort, not the primary estimate.
 export function estimatePace(race: Race, runners: Runner[]): PaceEstimate {
+  if (race.raceShapeEarly != null) {
+    let display: string
+    let tempoBucket: TempoBucket
+    if (race.raceShapeEarly > 0.15) {
+      tempoBucket = 'Fast'
+      display = 'Fast early'
+    } else if (race.raceShapeEarly < -0.15) {
+      tempoBucket = 'Slow'
+      display = 'Slow early'
+    } else {
+      tempoBucket = 'Even'
+      display = 'Even pace'
+    }
+    return { display, tempoBucket, fromShape: true }
+  }
+
+  if (race.paceEstimateLabel) {
+    // Model labels are Hot/Fast/Even/Slow (4-way); Hot folds into the
+    // Fast bucket for matching purposes (same as a real Fast-early shape
+    // would), but keeps its own word in the display text.
+    const tempoBucket: TempoBucket =
+      race.paceEstimateLabel === 'Slow' ? 'Slow' : race.paceEstimateLabel === 'Even' ? 'Even' : 'Fast'
+    return { display: `${race.paceEstimateLabel} (predicted)`, tempoBucket, fromShape: false }
+  }
+
   let leaders = 0
   let onPace = 0
   let midOrBack = 0
@@ -35,22 +68,6 @@ export function estimatePace(race: Race, runners: Runner[]): PaceEstimate {
     tempoBucket = 'Slow'
     label = 'Slow'
   }
-
-  if (race.raceShapeEarly != null) {
-    let display: string
-    if (race.raceShapeEarly > 0.15) {
-      tempoBucket = 'Fast'
-      display = 'Fast early'
-    } else if (race.raceShapeEarly < -0.15) {
-      tempoBucket = 'Slow'
-      display = 'Slow early'
-    } else {
-      tempoBucket = 'Even'
-      display = 'Even pace'
-    }
-    return { display, tempoBucket, fromShape: true }
-  }
-
   return { display: `${label} (est)`, tempoBucket, fromShape: false }
 }
 
