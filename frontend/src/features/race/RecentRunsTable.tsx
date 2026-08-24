@@ -100,13 +100,9 @@ function runningLine(r: FormRun): string {
   return parts.map((p) => (p != null ? p : '-')).join('-')
 }
 
-function RunRow({ run, isPeak, dim }: { run: FormRun; isPeak: boolean; dim: boolean }) {
+function RunRow({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
-    <tr
-      className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'} ${
-        dim ? 'opacity-35 grayscale' : ''
-      }`}
-    >
+    <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
       <td className="px-2 py-1 whitespace-nowrap">{run.date ?? ''}</td>
       <td className="px-2 py-1 whitespace-nowrap">
         {run.track}
@@ -166,9 +162,9 @@ function SeparatorRow({ label }: { label: string }) {
 // colour-coded individual sectionals the desktop table shows (against-shape
 // running is one of the more useful reads in this whole panel - it was
 // dropped from mobile entirely before, not just condensed).
-function MobileRunCard({ run, isPeak, dim }: { run: FormRun; isPeak: boolean; dim: boolean }) {
+function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
-    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''} ${dim ? 'opacity-35 grayscale' : ''}`}>
+    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
@@ -319,6 +315,15 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
     return false
   }
 
+  // Filters hide non-matching runs entirely rather than dimming them.
+  // Separator rows (days-since/spell-gap labels) are dropped along with
+  // them while a filter is active - their "since last run"/"between runs"
+  // framing assumes an unbroken sequence, which no longer holds once rows
+  // in between have been removed.
+  const visibleEntries = anyFilterActive
+    ? entries.filter((e) => e.kind === 'run' && !isDimmed(e.run))
+    : entries
+
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between">
@@ -404,24 +409,34 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
-            {entries.map((e) =>
+            {visibleEntries.map((e) =>
               e.kind === 'separator' ? (
                 <SeparatorRow key={e.key} label={e.label} />
               ) : (
-                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} dim={isDimmed(e.run)} />
+                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} />
               ),
             )}
           </tbody>
         </table>
+        {anyFilterActive && visibleEntries.length === 0 && (
+          <div className="px-2 py-3 text-center text-xs text-ink-faint">
+            No runs match the selected filters.
+          </div>
+        )}
       </div>
 
       <div className="divide-y divide-line-soft rounded-lg border border-line sm:hidden">
-        {entries.map((e) =>
+        {visibleEntries.map((e) =>
           e.kind === 'separator' ? (
             <MobileSeparator key={e.key} label={e.label} />
           ) : (
-            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} dim={isDimmed(e.run)} />
+            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} />
           ),
+        )}
+        {anyFilterActive && visibleEntries.length === 0 && (
+          <div className="px-2 py-3 text-center text-xs text-ink-faint">
+            No runs match the selected filters.
+          </div>
         )}
       </div>
     </div>
