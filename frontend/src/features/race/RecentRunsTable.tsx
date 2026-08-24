@@ -167,10 +167,13 @@ function SeparatorRow({ label }: { label: string }) {
 // jockey, the settle/800/400/finish running line, and the same three
 // colour-coded individual sectionals the desktop table shows (against-shape
 // running is one of the more useful reads in this whole panel - it was
-// dropped from mobile entirely before, not just condensed).
+// dropped from mobile entirely before, not just condensed). 3 lines, not 4
+// (user feedback, Aug 2026: 10 runs' worth of 4-line cards was too much
+// scroll) - Sect rides on the same line as distance/going/bar/class rather
+// than getting its own, same information, less height.
 function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
-    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
+    <div className={`px-2 py-1 ${isPeak ? 'bg-amber/10' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
@@ -184,26 +187,22 @@ function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
           {run.wpr != null ? run.wpr.toFixed(1) : '—'}
         </div>
       </div>
-      <div className="truncate text-[11px] text-ink-faint">
-        {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'} &middot; {run.raceClass ?? '—'}
+      <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
+        <span className="min-w-0 truncate">
+          {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'} &middot; {run.raceClass ?? '—'}
+        </span>
+        <span className="flex shrink-0 items-center gap-1 font-mono">
+          <span>Sect</span>
+          <span className={sectClass(run.sectionalEarly, run.raceShapeEarly)}>{fmtSect(run.sectionalEarly)}</span>
+          <span className={sectClass(run.sectionalTo800, run.raceShapeMid)}>{fmtSect(run.sectionalTo800)}</span>
+          <span className={sectClass(run.sectionalLate600, run.raceShapeLate)}>{fmtSect(run.sectionalLate600)}</span>
+        </span>
       </div>
       <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
         <span className="min-w-0 truncate">{run.jockey ?? '—'}</span>
         <span className="shrink-0 font-mono">
           Fin {run.finishPosition ?? '—'}
           {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
-        </span>
-      </div>
-      <div className="mt-0.5 flex items-center gap-2 text-[11px]">
-        <span className="text-ink-faint">Sect</span>
-        <span className={`font-mono ${sectClass(run.sectionalEarly, run.raceShapeEarly)}`}>
-          {fmtSect(run.sectionalEarly)}
-        </span>
-        <span className={`font-mono ${sectClass(run.sectionalTo800, run.raceShapeMid)}`}>
-          {fmtSect(run.sectionalTo800)}
-        </span>
-        <span className={`font-mono ${sectClass(run.sectionalLate600, run.raceShapeLate)}`}>
-          {fmtSect(run.sectionalLate600)}
         </span>
       </div>
     </div>
