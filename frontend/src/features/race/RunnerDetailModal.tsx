@@ -299,11 +299,17 @@ export function RunnerDetailModal({
           </div>
 
           {/* ResultVsProjection and/or PriceMovementChart ride alongside
-              CareerStats (fills the space that would otherwise sit blank
-              beside CareerStats's natural, not-stretched table width). Each
-              gets its own column (not stacked in a shared one) so the Price
-              chart doesn't need to be wide - a resulted runner gets Result
-              vs projection sitting to its right instead of below it.
+              CareerStats from the sm breakpoint up (fills the space that
+              would otherwise sit blank beside CareerStats's natural,
+              not-stretched table width). Below sm (every phone - even a
+              430px-wide one has only ~380px left here after modal/card
+              padding), all three go full-width and stack: CareerStats's
+              own 6-column table needs ~300px+ to show Peak/Avg/vs Career/
+              Adj/Trend without squeezing, which just doesn't fit next to
+              Price/Result on a phone however thin those two are shrunk -
+              full-width stacking is what actually delivers "no scrolling,
+              fully readable" on mobile (user feedback, Aug 2026) rather
+              than a still-cramped side-by-side compromise.
               ResultVsProjection is now always rendered (not conditional on
               having a result) - it shows its own empty/placeholder state
               pre-race, so this row's layout doesn't reflow once a race
@@ -316,11 +322,11 @@ export function RunnerDetailModal({
               doesn't move around depending on whether the race has
               resulted. */}
           <div className="flex flex-wrap items-start gap-3">
-            <div className="min-w-[280px] flex-1">
+            <div className="w-full sm:min-w-[320px] sm:w-auto sm:flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
             {hasPriceInfo && (
-              <div className="min-w-[220px] flex-1">
+              <div className="w-full sm:min-w-[220px] sm:w-auto sm:flex-1">
                 <PriceMovementChart
                   runner={runner}
                   priceBitsBefore={priceBitsBefore}
@@ -329,7 +335,7 @@ export function RunnerDetailModal({
                 />
               </div>
             )}
-            <div className="min-w-[220px] flex-1">
+            <div className="w-full sm:min-w-[220px] sm:w-auto sm:flex-1">
               <ResultVsProjection runner={runner} />
             </div>
           </div>
