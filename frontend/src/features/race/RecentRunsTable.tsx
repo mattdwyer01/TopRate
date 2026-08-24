@@ -167,42 +167,48 @@ function SeparatorRow({ label }: { label: string }) {
 // jockey, the settle/800/400/finish running line, and the same three
 // colour-coded individual sectionals the desktop table shows (against-shape
 // running is one of the more useful reads in this whole panel - it was
-// dropped from mobile entirely before, not just condensed). 3 lines, not 4
-// (user feedback, Aug 2026: 10 runs' worth of 4-line cards was too much
-// scroll) - Sect rides on the same line as distance/going/bar/class rather
-// than getting its own, same information, less height.
+// dropped from mobile entirely before, not just condensed). 2 lines, not 4
+// (user feedback, Aug 2026: 10 runs' worth of multi-line cards was too much
+// scroll, and each line had unused space in the middle since it only ever
+// filled its two ends) - jockey moves up onto the header line (between
+// date/track and WPR), Sect moves onto the condition line (after Fin/
+// running-line), so both lines actually use their middle space instead of
+// leaving it blank. Same information as before, just repacked - nothing
+// dropped. The condition line's left segment is the one that truncates
+// under real width pressure (least critical of the two lines' contents to
+// lose a character or two of, vs a WPR figure or a sectional).
 function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
   return (
     <div className={`px-2 py-1 ${isPeak ? 'bg-amber/10' : ''}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-xs font-medium text-ink">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
           {isPeak && (
             <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
               peak
             </span>
           )}
-        </div>
-        <div className="shrink-0 font-mono text-sm font-semibold text-ink">
+        </span>
+        <span className="min-w-0 max-w-[38%] shrink truncate text-[11px] text-ink-faint">
+          {run.jockey ?? '—'}
+        </span>
+        <span className="shrink-0 font-mono text-sm font-semibold text-ink">
           {run.wpr != null ? run.wpr.toFixed(1) : '—'}
-        </div>
+        </span>
       </div>
-      <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
-        <span className="min-w-0 truncate">
+      <div className="flex items-center gap-2 text-[11px] text-ink-faint">
+        <span className="min-w-0 flex-1 truncate">
           {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'} &middot; {run.raceClass ?? '—'}
+        </span>
+        <span className="shrink-0 font-mono">
+          Fin {run.finishPosition ?? '—'}
+          {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
         </span>
         <span className="flex shrink-0 items-center gap-1 font-mono">
           <span>Sect</span>
           <span className={sectClass(run.sectionalEarly, run.raceShapeEarly)}>{fmtSect(run.sectionalEarly)}</span>
           <span className={sectClass(run.sectionalTo800, run.raceShapeMid)}>{fmtSect(run.sectionalTo800)}</span>
           <span className={sectClass(run.sectionalLate600, run.raceShapeLate)}>{fmtSect(run.sectionalLate600)}</span>
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
-        <span className="min-w-0 truncate">{run.jockey ?? '—'}</span>
-        <span className="shrink-0 font-mono">
-          Fin {run.finishPosition ?? '—'}
-          {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
         </span>
       </div>
     </div>
