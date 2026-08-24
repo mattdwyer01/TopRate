@@ -80,6 +80,17 @@ create index if not exists idx_wfh_date     on wpr_form_history (date);
 create index if not exists idx_wfh_horse_id on wpr_form_history (horse_id);
 create index if not exists idx_wfh_race_id  on wpr_form_history (race_id);
 
+-- The dashboard's full-history fetch (lib/supabaseFormHistory.ts) filters on
+-- horse=ilike.<name> (no stable horse_id in the JSON payload to key on
+-- instead - see that file). A plain btree index on `horse` doesn't help an
+-- ILIKE query (case-insensitive, and Postgres can't use a plain index for
+-- that without citext), so once the table grew past ~400k rows this started
+-- hitting the statement timeout as a sequential scan (Postgres error 57014,
+-- found Aug 2026 debugging "only shows last 10 runs"). A trigram GIN index
+-- is the standard fix for ILIKE lookups regardless of row count.
+create extension if not exists pg_trgm;
+create index if not exists idx_wfh_horse_trgm on wpr_form_history using gin (horse gin_trgm_ops);
+
 
 -- ============================================================
 -- Table: toprate_runners
