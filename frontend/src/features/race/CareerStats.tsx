@@ -70,7 +70,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
       <p className="mb-1.5 text-[11px] text-ink-faint">
         Avg vs its own career average, and (where it feeds the rating) the shrunk adjustment actually applied.
       </p>
-      <table className="w-full min-w-[420px] text-xs">
+      <table className="w-full min-w-[300px] text-xs">
         <thead>
           <tr className="border-b border-line-soft text-ink-faint">
             <th className="pb-1 text-left font-normal" />
