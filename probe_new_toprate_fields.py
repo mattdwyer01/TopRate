@@ -67,6 +67,46 @@ def _walk(obj, deref, path, out, depth=0, max_depth=4):
         out.append((path, val))
 
 
+def _probe_list_field(key, val, deref, max_scan=40):
+    """_walk() only descends into lists of length <=3 (to keep general
+    output readable) - a per-runner list like raceFields has one entry per
+    horse, so it was NEVER actually looked inside, and any OHR/Form Factor
+    living there would silently show up as "(none found)". This dumps
+    EVERY key of the first entry (so you can see the shape), then scans up
+    to max_scan entries for candidate-term matches specifically."""
+    lst = deref(val)
+    if not isinstance(lst, list) or not lst:
+        return
+    print(f"\n{'=' * 70}")
+    print(f"{key}: list of {len(lst)} - first entry, all keys")
+    print("=" * 70)
+    first = deref(lst[0])
+    if isinstance(first, dict):
+        for k in sorted(first.keys()):
+            v = deref(first[k])
+            vr = repr(v)
+            if len(vr) > 100:
+                vr = vr[:97] + "..."
+            print(f"  {k:24s} = {vr}")
+    else:
+        print(f"  (entry is not a dict: {type(first).__name__}) {first!r}"[:300])
+
+    print(f"\n{key}: candidate matches across all {min(len(lst), max_scan)} entries scanned")
+    found = []
+    for i, item in enumerate(lst[:max_scan]):
+        d = deref(item)
+        if not isinstance(d, dict):
+            continue
+        for k, v in d.items():
+            if any(t in k.lower() for t in _CANDIDATE_TERMS):
+                found.append((i, k, deref(v)))
+    if found:
+        for i, k, v in found:
+            print(f"  [{i}].{k} = {v!r}")
+    else:
+        print("  (none found)")
+
+
 def probe_page(page_path):
     """Generic SvelteKit __data.json prober for any page (not just the
     runner page, which requires a 'runnerDetail' root key). page_path is
@@ -111,6 +151,14 @@ def probe_page(page_path):
         if isinstance(root, dict):
             print(f"node[{i}] root keys: {list(root.keys())}")
             _walk(root, deref, f"node[{i}]", all_pairs, max_depth=4)
+            # Any top-level value that's a list of more than 3 items (e.g.
+            # raceFields, one entry per runner) never got walked above -
+            # dump it specifically so per-runner fields like OHR/Form
+            # Factor aren't silently missed.
+            for k, v in root.items():
+                dv = deref(v)
+                if isinstance(dv, list) and len(dv) > 3:
+                    _probe_list_field(f"node[{i}].{k}", v, deref)
         else:
             print(f"node[{i}] root: {root!r}"[:200])
 
