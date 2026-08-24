@@ -1,4 +1,5 @@
 import type { Runner } from '../../types/domain'
+import { useMissNotes } from '../../lib/missNotes'
 
 function fmt(v: number | null): string {
   return v == null ? '—' : v.toFixed(1)
@@ -35,6 +36,7 @@ interface ResultVsProjectionProps {
 // repeated figure in an earlier layout.
 export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
   const hasResult = runner.actualWpr != null
+  const { notes, setNote } = useMissNotes()
 
   const miss = hasResult && runner.projectedWpr != null ? runner.actualWpr! - runner.projectedWpr : null
   const missAbs = miss != null ? Math.abs(miss) : null
@@ -92,6 +94,28 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
               {runner.marginFinish != null && !runner.won && (
                 <span className="text-ink-mute">beaten {runner.marginFinish.toFixed(1)}L</span>
               )}
+            </div>
+          )}
+
+          {runner.missReason && (
+            <div className="mt-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
+              {runner.missReason}
+            </div>
+          )}
+
+          {runner.missCategory === 'unexplained' && (
+            <div className="mt-1.5">
+              <label className="mb-0.5 block text-[11px] text-ink-faint" htmlFor={`miss-note-${runner.runId}`}>
+                Your note (why it might have missed)
+              </label>
+              <textarea
+                id={`miss-note-${runner.runId}`}
+                className="w-full rounded-md border border-line bg-bg px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:border-emerald-line focus:outline-none"
+                rows={2}
+                placeholder="e.g. track bias, gear change, personal read on the run..."
+                defaultValue={notes[runner.runId] ?? ''}
+                onBlur={(e) => setNote(runner.runId, e.target.value)}
+              />
             </div>
           )}
         </>

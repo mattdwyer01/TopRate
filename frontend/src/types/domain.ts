@@ -122,6 +122,14 @@ export interface Runner {
   commentsVideo: string | null
   commentsSteward: string | null
 
+  // Auto-generated explanation for a MATERIAL miss (|actual - projected|
+  // >= 4 WPR - see wpr_miss.py's explain_miss()). null when the miss isn't
+  // material or the result hasn't settled yet. missCategory is one of
+  // 'comment' | 'ceiling' | 'untried' | 'price' | 'unexplained' - the
+  // frontend offers a manual-note fallback specifically for 'unexplained'.
+  missCategory: string | null
+  missReason: string | null
+
   recentRuns: FormRun[]
   peakRun: FormRun | null
   formHistory: FormHistoryEntry[]

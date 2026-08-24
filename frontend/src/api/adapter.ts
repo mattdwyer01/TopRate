@@ -129,6 +129,9 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     commentsVideo: r.cmtV,
     commentsSteward: r.cmtS,
 
+    missCategory: r.wpjmc,
+    missReason: r.wpjmr,
+
     recentRuns: (r.formRuns ?? []).map(toFormRun),
     peakRun: r.peakRun ? toFormRun(r.peakRun) : null,
     formHistory: (r.formAll ?? []).map(toFormHistoryEntry),

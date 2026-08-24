@@ -100,6 +100,8 @@ export interface RawRunner {
   wpjar: number | null
   cmtV: string | null
   cmtS: string | null
+  wpjmc: string | null
+  wpjmr: string | null
   formRuns: RawFormRun[] | null
   peakRun: RawFormRun | null
   formAll: RawFormAllEntry[] | null
