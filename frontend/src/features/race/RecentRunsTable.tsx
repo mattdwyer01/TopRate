@@ -1,8 +1,47 @@
-import type { FormRun } from '../../types/domain'
+import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import type { FormHistoryEntry, FormRun } from '../../types/domain'
+import { goingBand } from '../../lib/pace'
 
 interface RecentRunsTableProps {
   runs: FormRun[]
   peakRun: FormRun | null
+  formHistory: FormHistoryEntry[]
+  raceDistance: number
+  raceGoing: string
+}
+
+// Same campaign-reset gap the backend's own_first_up/own_second_up ADJ_TERMS
+// and lib/spellPosition.ts use, so "FU"/"2U" here means the same thing they
+// do everywhere else in the app.
+const _SPELL_GAP_DAYS = 60
+
+type CampLabel = 'FU' | '2U' | '3U' | '4U+'
+
+function campLabelForN(n: number): CampLabel {
+  if (n <= 1) return 'FU'
+  if (n === 2) return '2U'
+  if (n === 3) return '3U'
+  return '4U+'
+}
+
+// Maps each past run's date to its campaign position (FU/2U/3U/4U+), built
+// from the horse's FULL form history (ascending) rather than just the
+// visible last-6 window - the oldest visible run in the table might sit
+// mid-campaign with its actual campaign start further back than the table
+// shows, so only the full history gives an exact answer.
+function buildCampByDate(formHistory: FormHistoryEntry[]): Map<string, CampLabel> {
+  const map = new Map<string, CampLabel>()
+  let prevDate: Date | null = null
+  let n = 0
+  for (const entry of formHistory) {
+    const d = parseISO(entry.date)
+    const gap = daysBetween(d, prevDate)
+    n = prevDate == null || gap == null || gap > _SPELL_GAP_DAYS ? 1 : n + 1
+    if (entry.date) map.set(entry.date, campLabelForN(n))
+    prevDate = d
+  }
+  return map
 }
 
 function fmtSect(v: number | null): string {
@@ -47,9 +86,13 @@ function runningLine(r: FormRun): string {
   return parts.map((p) => (p != null ? p : '-')).join('-')
 }
 
-function RunRow({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
+function RunRow({ run, isPeak, dim }: { run: FormRun; isPeak: boolean; dim: boolean }) {
   return (
-    <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
+    <tr
+      className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'} ${
+        dim ? 'opacity-35 grayscale' : ''
+      }`}
+    >
       <td className="px-2 py-1 whitespace-nowrap">{run.date ?? ''}</td>
       <td className="px-2 py-1 whitespace-nowrap">
         {run.track}
@@ -109,9 +152,9 @@ function SeparatorRow({ label }: { label: string }) {
 // colour-coded individual sectionals the desktop table shows (against-shape
 // running is one of the more useful reads in this whole panel - it was
 // dropped from mobile entirely before, not just condensed).
-function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
+function MobileRunCard({ run, isPeak, dim }: { run: FormRun; isPeak: boolean; dim: boolean }) {
   return (
-    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''}`}>
+    <div className={`px-2 py-1.5 ${isPeak ? 'bg-amber/10' : ''} ${dim ? 'opacity-35 grayscale' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
@@ -153,6 +196,30 @@ function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
 
 function MobileSeparator({ label }: { label: string }) {
   return <div className="px-2 py-1 text-center text-xs text-ink-faint">&mdash; {label} &mdash;</div>
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+        active
+          ? 'border-emerald-deep bg-emerald-bg text-emerald-deep'
+          : 'border-line text-ink-mute hover:border-line-soft hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 type Entry =
@@ -212,10 +279,28 @@ function buildEntries(runs: FormRun[], peakRun: FormRun | null): Entry[] {
 // doesn't work below sm) - mobile gets a simplified stacked card list with
 // just the headline fields, sharing the same entry list so neither layout
 // can silently drift from the other.
-export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
+export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, raceGoing }: RecentRunsTableProps) {
+  const [filterDistance, setFilterDistance] = useState(false)
+  const [filterGoing, setFilterGoing] = useState(false)
+  const [filterCamp, setFilterCamp] = useState<CampLabel | null>(null)
+
+  const campByDate = useMemo(() => buildCampByDate(formHistory), [formHistory])
+  const anyFilterActive = filterDistance || filterGoing || filterCamp != null
+  const raceBand = goingBand(raceGoing)
+  const distLo = raceDistance * 0.9
+  const distHi = raceDistance * 1.1
+
   if (!runs.length) return null
 
   const entries = buildEntries(runs, peakRun)
+
+  function isDimmed(run: FormRun): boolean {
+    if (!anyFilterActive) return false
+    if (filterDistance && (run.distance < distLo || run.distance > distHi)) return true
+    if (filterGoing && goingBand(run.going) !== raceBand) return true
+    if (filterCamp && (run.date ? campByDate.get(run.date) : undefined) !== filterCamp) return true
+    return false
+  }
 
   return (
     <div>
@@ -230,6 +315,38 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
           <br />
           Pos = settle/800/400/fin &middot; Sect = horse vs shape
         </span>
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-ink-faint">Filter:</span>
+        <FilterButton active={filterDistance} onClick={() => setFilterDistance((v) => !v)}>
+          Dist &plusmn;10%
+        </FilterButton>
+        <FilterButton active={filterGoing} onClick={() => setFilterGoing((v) => !v)}>
+          Going
+        </FilterButton>
+        {(['FU', '2U', '3U', '4U+'] as const).map((label) => (
+          <FilterButton
+            key={label}
+            active={filterCamp === label}
+            onClick={() => setFilterCamp((v) => (v === label ? null : label))}
+          >
+            {label}
+          </FilterButton>
+        ))}
+        {anyFilterActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilterDistance(false)
+              setFilterGoing(false)
+              setFilterCamp(null)
+            }}
+            className="text-[11px] text-ink-faint underline hover:text-ink"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
@@ -264,7 +381,7 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
               e.kind === 'separator' ? (
                 <SeparatorRow key={e.key} label={e.label} />
               ) : (
-                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} />
+                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} dim={isDimmed(e.run)} />
               ),
             )}
           </tbody>
@@ -276,7 +393,7 @@ export function RecentRunsTable({ runs, peakRun }: RecentRunsTableProps) {
           e.kind === 'separator' ? (
             <MobileSeparator key={e.key} label={e.label} />
           ) : (
-            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} />
+            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} dim={isDimmed(e.run)} />
           ),
         )}
       </div>
