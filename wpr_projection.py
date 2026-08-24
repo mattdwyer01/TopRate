@@ -1743,57 +1743,60 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     career_avg = feats.get("career_avg")
 
     # ── What it's rated from ──
-    # Only said when it's actually informative - the common case (both
-    # wpr_nett and ewm3 available, most runners) used to open EVERY
-    # description with a fixed sentence naming the blend; true for nearly
-    # every runner, so it said nothing about THIS one. First tried rotating
-    # through several phrasings of that same sentence for variety (Aug
-    # 2026), but that traded one problem for another - varied wording still
-    # forced to say the same non-fact each time. Simpler fix: say nothing
-    # in the common case, and only speak up when something about the base
-    # is actually worth flagging - data missing (rare, and relevant to how
-    # much to trust the number) or runs excluded from it (also rare, and
-    # tells the reader the raw form record undersells this horse). wpr_nett
-    # and ewm3 spelled out in plain terms (TopRate's own rating; its last
-    # three runs) rather than the more jargon-y "pre-race figure"/
-    # "recent-form average" this replaced.
-    has_nett = feats.get("wpr_nett") is not None and feats.get("wpr_nett") == feats.get("wpr_nett")
-    has_ewm3 = feats.get("ewm3") is not None
+    # Always one short, concrete sentence stating the blended base itself
+    # (user request, Aug 2026, replacing the earlier design that stayed
+    # silent in the common case - see git history for that reasoning).
+    # base_val matches _compute_base(feats) exactly (single source of
+    # truth, same number the "base" figure shown elsewhere in the UI
+    # uses) so this sentence and that figure can never disagree. Void-
+    # excluded runs (interference/vet) fold into the same sentence as a
+    # short trailing clause instead of a separate one - the "why" (which
+    # runs, why) is secondary to the number itself.
+    base_val = _compute_base(feats)
+    nett = feats.get("wpr_nett")
+    ewm3 = feats.get("ewm3")
+    has_nett = nett is not None and nett == nett
+    has_ewm3 = ewm3 is not None
     n_void = feats.get("n_void_excluded", 0)
-    void_txt = None
-    if n_void >= 1:
-        void_txt = (f"Set aside {n_void} run{'s' if n_void != 1 else ''} discounted for "
-                     f"interference or a vet issue when rating it.")
-    if not (has_nett and has_ewm3):
-        if has_nett:
-            sentences.append("Rated from TopRate's own number for it only - no recent-form average yet.")
+    void_bit = f"; {n_void} run{'s' if n_void != 1 else ''} set aside" if n_void >= 1 else ""
+    if base_val is not None:
+        if has_nett and has_ewm3:
+            sentences.append(f"Base {base_val:.1f} (TopRate {nett:.1f}, form {ewm3:.1f}{void_bit}).")
+        elif has_nett:
+            sentences.append(f"Base {base_val:.1f} (TopRate's rating only{void_bit}).")
         elif has_ewm3:
-            sentences.append("Rated from its recent form only - no TopRate number for it yet.")
+            sentences.append(f"Base {base_val:.1f} (recent form only{void_bit}).")
         else:
-            sentences.append("Rated from its career figures only.")
-    if void_txt:
-        sentences.append(void_txt)
+            sentences.append(f"Base {base_val:.1f} (career average only{void_bit}).")
 
     # ── Campaign context: first-up/second-up record, or how deep in the prep ──
     days_since = feats.get("days_since")
     an_days = _a_or_an(days_since) if days_since is not None else "a"
+    # _ok: not None AND not NaN - n>=1 alone doesn't guarantee a usable
+    # mean here. If a run's WPR was void-masked (see the void-aware base
+    # block above), a match count of 1 landing entirely on that masked
+    # run means avg is NaN (float, not None) even though n>=1. Found via
+    # real-data testing (Aug 2026): printed literal "nan" in the
+    # description text for exactly this case.
+    def _ok(v):
+        return v is not None and v == v
+
     if feats.get("first_up") == 1:
         n_r, avg_r = feats.get("first_up_record_n", 0), feats.get("first_up_record_avg")
-        if n_r >= 1 and avg_r is not None and career_avg is not None:
-            sentences.append(f"First-up off {an_days} {days_since}-day break, and it races "
-                             f"{_vs(avg_r - career_avg)} its career average first-up "
-                             f"({avg_r:.1f} avg from {n_r} run{'s' if n_r != 1 else ''}).")
+        if n_r >= 1 and _ok(avg_r) and career_avg is not None:
+            sentences.append(f"First-up off {an_days} {days_since}-day break, "
+                             f"{_vs(avg_r - career_avg)} its 1st-up average "
+                             f"({avg_r:.1f} from {n_r}).")
         else:
-            sentences.append(f"First-up off {an_days} {days_since}-day break, with no first-up "
-                             f"runs on record to judge it by.")
+            sentences.append(f"First-up off {an_days} {days_since}-day break - "
+                             f"no 1st-up runs on record.")
     elif feats.get("second_up") == 1:
         n_r, avg_r = feats.get("second_up_record_n", 0), feats.get("second_up_record_avg")
-        if n_r >= 1 and avg_r is not None and career_avg is not None:
-            sentences.append(f"Second-up today, and it races {_vs(avg_r - career_avg)} "
-                             f"its career average second-up "
-                             f"({avg_r:.1f} avg from {n_r} run{'s' if n_r != 1 else ''}).")
+        if n_r >= 1 and _ok(avg_r) and career_avg is not None:
+            sentences.append(f"Second-up today, {_vs(avg_r - career_avg)} "
+                             f"its 2nd-up average ({avg_r:.1f} from {n_r}).")
         else:
-            sentences.append("Second-up today, with no second-up runs on record to judge it by.")
+            sentences.append("Second-up today - no 2nd-up runs on record.")
     else:
         runs_camp = feats.get("runs_this_camp")
         if runs_camp is not None and runs_camp >= 3:
@@ -1804,16 +1807,23 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     dn, davg = feats.get("dist_match_n", 0), feats.get("dist_match_avg")
     gn, gavg = feats.get("going_match_n", 0), feats.get("going_match_avg")
     trip_bits = []
-    if dn >= 1 and davg is not None and career_avg is not None and cur_dist is not None:
-        trip_bits.append(f"It races {_vs(davg - career_avg)} its career average at "
-                         f"{cur_dist:.0f}m ({davg:.1f} avg from {dn} run{'s' if dn != 1 else ''})")
-    elif cur_dist is not None:
-        trip_bits.append(f"It's untried at {cur_dist:.0f}m")
-    if gn >= 1 and gavg is not None and career_avg is not None:
-        trip_bits.append(f"{_vs(gavg - career_avg)} its average in this going "
-                         f"({gavg:.1f} avg from {gn} run{'s' if gn != 1 else ''})")
+    if dn >= 1 and _ok(davg) and career_avg is not None and cur_dist is not None:
+        trip_bits.append(f"Races {_vs(davg - career_avg)} its {cur_dist:.0f}m average "
+                         f"({davg:.1f} from {dn})")
+    elif dn == 0 and cur_dist is not None:
+        trip_bits.append(f"Untried at {cur_dist:.0f}m")
+    # dn >= 1 but davg unusable (void-masked): say nothing rather than
+    # falsely claim "untried" - it HAS run there, there's just no
+    # reliable average to state.
+    if gn >= 1 and _ok(gavg) and career_avg is not None:
+        trip_bits.append(f"{_vs(gavg - career_avg)} its going average ({gavg:.1f} from {gn})")
     if trip_bits:
-        sentences.append(" and ".join(trip_bits) + ".")
+        # Capitalise explicitly rather than relying on the distance bit
+        # (which supplies the leading "Races") always being first - the
+        # going bit alone (distance bit skipped, see the void-masked note
+        # above) would otherwise start the sentence lowercase.
+        bit_text = " and ".join(trip_bits) + "."
+        sentences.append(bit_text[0].upper() + bit_text[1:])
 
     # ── Anything else driving a real gap from recent form, not already covered above ──
     avg3 = feats.get("avg_last3")
@@ -1848,28 +1858,27 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     # ── Form consistency ──
     sl5 = feats.get("std_last5", 5)
     if sl5 <= 3:
-        sentences.append("It's been racing to a consistent level lately.")
+        sentences.append("Consistent form lately.")
     elif sl5 >= 9:
-        sentences.append("Its form has been up and down lately, so this one's less "
-                         "certain than usual.")
+        sentences.append("Form's been up and down lately - less certain than usual.")
 
     # ── The number, and how much to trust it ──
-    rank_txt = "top-rated in the race" if wpr_rank == 1 else (
-        f"rated {_ordinal(wpr_rank)} in the race" if wpr_rank else "unranked")
+    rank_txt = "top-rated" if wpr_rank == 1 else (
+        f"rated {_ordinal(wpr_rank)}" if wpr_rank else "unranked")
     nr = feats.get("n_runs", 0)
     sc = feats.get("std_career", 5)
     if confidence >= 80:
-        conf_txt = f"confidence is high on {nr} runs of settled career form"
+        conf_txt = f"high confidence ({nr} runs)"
     elif confidence >= 60:
-        conf_txt = f"confidence is moderate on {nr} runs of career form"
+        conf_txt = f"moderate confidence ({nr} runs)"
     else:
         if sc >= 9:
-            why = "its career form has been all over the place"
+            why = "career form's been all over the place"
         elif nr <= 6:
-            why = "it doesn't have much form to go on yet"
+            why = "not much form to go on yet"
         else:
-            why = "its recent form has been patchy"
-        conf_txt = f"confidence is low because {why}"
+            why = "recent form's been patchy"
+        conf_txt = f"low confidence - {why}"
     sentences.append(f"Projected {projected_wpr:.1f}, {rank_txt}; {conf_txt}.")
 
     return " ".join(sentences)

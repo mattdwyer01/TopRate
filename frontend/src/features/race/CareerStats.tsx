@@ -70,13 +70,13 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
       <p className="mb-1.5 text-[11px] text-ink-faint">
         Avg vs its own career average, and (where it feeds the rating) the shrunk adjustment actually applied.
       </p>
-      <table className="w-full max-w-md text-xs">
+      <table className="w-full min-w-[420px] text-xs">
         <thead>
           <tr className="border-b border-line-soft text-ink-faint">
             <th className="pb-1 text-left font-normal" />
-            <th className="pb-1 text-right font-normal">Peak</th>
-            <th className="pb-1 text-right font-normal">Avg</th>
-            <th className="pb-1 text-right font-normal">vs Career</th>
+            <th className="pb-1 pl-2 text-right font-normal">Peak</th>
+            <th className="pb-1 pl-2 text-right font-normal">Avg</th>
+            <th className="pb-1 pl-2 text-right font-normal">vs Career</th>
             <th className="pb-1 pl-2 text-right font-normal">Adj</th>
             <th className="pb-1 pl-2 text-right font-normal">Trend</th>
           </tr>
@@ -95,9 +95,9 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                 <td className="whitespace-nowrap">
                   {row.label} <span className="font-normal text-ink-faint">&middot; {row.runs}</span>
                 </td>
-                <td className="text-right font-mono">{fmt(row.peak)}</td>
-                <td className="text-right font-mono">{fmt(row.avg)}</td>
-                <td className={`text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
+                <td className="pl-2 text-right font-mono">{fmt(row.peak)}</td>
+                <td className="pl-2 text-right font-mono">{fmt(row.avg)}</td>
+                <td className={`pl-2 text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
                   {fmtSigned(row.vsCareerAvg)}
                 </td>
                 <td className="pl-2 text-right font-mono">
