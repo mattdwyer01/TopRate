@@ -122,23 +122,31 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
           being specific to this horse - both were previously either buried
           in a plain-text footer or dropped entirely, so the Adj column never
           visibly added up to the adjustment total shown above. Listing what's
-          left plus a Total row that reconciles exactly closes that gap. */}
+          left plus a Total row that reconciles exactly closes that gap.
+          Extra <tbody>s of the SAME <table> as the main rows above (not a
+          separate table) so the Total row's value lands in the exact same
+          Adj column - a second table with its own width/columns could only
+          ever approximate that alignment, not guarantee it. */}
       {breakdown && runner.wprAdjustment != null && (
-        <table className="mt-1.5 w-full max-w-xs border-t border-line-soft pt-1 text-xs">
+        <table className="w-full max-w-md text-xs">
           <tbody className="[&_td]:py-0.5">
-            {otherAdj.map(([key, v]) => (
-              <tr key={key} className="text-ink-faint">
-                <td className="pt-1">{ADJUSTMENT_LABELS[key] ?? key}</td>
-                <td className={`pt-1 text-right font-mono ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
+            {otherAdj.map(([key, v], i) => (
+              <tr key={key} className={`text-ink-faint ${i === 0 ? 'border-t border-line-soft' : ''}`}>
+                <td colSpan={4} className="pt-1">
+                  {ADJUSTMENT_LABELS[key] ?? key}
+                </td>
+                <td className={`pt-1 pl-2 text-right font-mono ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
                   {fmtSigned(v)}
                 </td>
               </tr>
             ))}
             {breakdown.baseline != null && Math.abs(breakdown.baseline) >= MIN_ADJ_SHOWN && (
-              <tr className="text-ink-faint">
-                <td className={otherAdj.length === 0 ? 'pt-1' : ''}>Calibration (every runner)</td>
+              <tr className={`text-ink-faint ${otherAdj.length === 0 ? 'border-t border-line-soft' : ''}`}>
+                <td colSpan={4} className="pt-1">
+                  Calibration (every runner)
+                </td>
                 <td
-                  className={`text-right font-mono ${otherAdj.length === 0 ? 'pt-1' : ''} ${
+                  className={`pt-1 pl-2 text-right font-mono ${
                     breakdown.baseline > 0 ? 'text-emerald-deep' : 'text-rose'
                   }`}
                 >
@@ -147,8 +155,10 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
               </tr>
             )}
             <tr className="border-t border-line-soft font-semibold text-ink">
-              <td className="pt-1">Total adjustment</td>
-              <td className="pt-1 text-right font-mono">{fmtSigned(runner.wprAdjustment)}</td>
+              <td colSpan={4} className="pt-1">
+                Total adjustment
+              </td>
+              <td className="pt-1 pl-2 text-right font-mono">{fmtSigned(runner.wprAdjustment)}</td>
             </tr>
           </tbody>
         </table>
