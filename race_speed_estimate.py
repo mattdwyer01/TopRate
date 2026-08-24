@@ -142,21 +142,43 @@ def _race_features(race_runners, pmeans):
 def _tempo_label(predicted_rse):
     """Band predicted raceShapeEarly into a tempo label. LOWER rse =
     faster early pace = Hot (rse correlates +0.86 with the leader's early
-    sectional; fast sectionals are negative)."""
+    sectional; fast sectionals are negative).
+
+    BUG FIX (Aug 2026, found while building the own_pace ADJ_TERM
+    candidate): the four comparisons below used to check q["slow"] FIRST
+    (the LARGEST of the four thresholds, the 90th percentile), so
+    `predicted_rse <= q["slow"]` was true for the vast majority of real
+    values and every race got labelled "Hot" regardless of its actual
+    predicted shape - confirmed on real data (a 10-day, 419-race sample
+    came back 100% "Hot", nowhere near train()'s own documented ~10%
+    target coverage for that bucket). The four y_quantiles are built in
+    strictly ascending order (hot=10th percentile < fast=35th <
+    even=65th < slow=90th, see train()) so the comparisons must run in
+    that same ascending order to correctly bucket by percentile - hot
+    (bottom 10%) checked first, slow (the everything-else case) last.
+    """
     q = _CFG["y_quantiles"]
-    if predicted_rse <= q["slow"]:
+    if predicted_rse <= q["hot"]:
         return "Hot"
-    if predicted_rse <= q["even"]:
-        return "Fast"
     if predicted_rse <= q["fast"]:
+        return "Fast"
+    if predicted_rse <= q["even"]:
         return "Even"
     return "Slow"
 
 
 def _score_from_rse(predicted_rse):
-    """Map predicted raceShapeEarly to a 0-1 score, 1 = hottest."""
+    """Map predicted raceShapeEarly to a 0-1 score, 1 = hottest.
+
+    BUG FIX (Aug 2026, same discovery as _tempo_label above): lo/hi were
+    swapped (lo=slow, hi=hot), which inverted the whole scale - the
+    hottest possible rse (q["hot"]) scored 0 and the slowest (q["slow"])
+    scored 1, backwards from the "1 = hottest" the function promises.
+    lo must be the LOW-rse end (hot) so a hot race's rse lands near lo
+    and maps to a score near 1.
+    """
     q = _CFG["y_quantiles"]
-    lo, hi = q["slow"], q["hot"]
+    lo, hi = q["hot"], q["slow"]
     if hi == lo:
         return 0.5
     s = 1.0 - (predicted_rse - lo) / (hi - lo)

@@ -398,6 +398,34 @@ def _settle_band(rel):
     return "Back"
 
 
+# own_pace ingredient: how did THIS horse's own early sectional shape
+# compare to its own late sectional in a given prior run - Fast/Even/Slow.
+# Exact same formula as toprate_daily.py's _tmp (the field the frontend's
+# FormHistoryEntry.tempo carries) so a run banded "Fast" here means the
+# same thing it already means everywhere else in the app - not a new,
+# fourth definition of tempo. This describes how the HORSE raced within
+# whatever shape its race had, which is a different (related but not
+# identical) question to race_speed_estimate.py's race-WIDE early-tempo
+# prediction used as cur_race_speed_label below - own_pace asks whether
+# this horse personally goes well when ITS OWN sectional profile has
+# looked like today's predicted race shape, using the model's own
+# leak-safe pre-race prediction for today (never the actual post-race
+# shape, which the model cannot know before the race is run).
+def _own_tempo_band(early, l600):
+    try:
+        e, l = float(early), float(l600)
+    except (TypeError, ValueError):
+        return None
+    if e != e or l != l:
+        return None
+    diff = e - l
+    if diff >= 2:
+        return "Fast"
+    if diff <= -2:
+        return "Slow"
+    return "Even"
+
+
 # Surface type from the going string. trackGrading cannot distinguish a
 # grading-3 synthetic from a grading-3 good turf, so surface is its own
 # signal. 0 turf, 1 synthetic, 2 dirt, 3 sand.
@@ -622,7 +650,8 @@ def _safe_slope(x, y):
 
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
-                   cur_field_size=None, cur_wpr_nett=None, cur_barrier=None):
+                   cur_field_size=None, cur_wpr_nett=None, cur_barrier=None,
+                   cur_race_speed_label=None):
     """Build the feature dict for one horse.
 
     prior_runs: DataFrame of the horse's PAST runs only, any order. Needs
@@ -634,6 +663,11 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     cur_race_class: the projected race's class string (BM64, CLS3, OPEN
       ...). Defaults to None - callers that do not pass it get a neutral
       class_move and is_jumps 0 (backward compatible).
+    cur_race_speed_label: today's PREDICTED race-wide early tempo (Hot/
+      Fast/Even/Slow, from race_speed_estimate.py's trained model - the
+      SAME leak-safe pre-race estimate the dashboard already shows,
+      never the actual post-race shape). Feeds own_pace (see
+      _own_tempo_band). Defaults to None - own_pace is then 0.0.
     cur_barrier: this runner's barrier (stall number) for the race being
       projected. Combined with cur_field_size to bucket a RELATIVE draw
       (Inside/Mid/Wide, see _barrier_band) for own_barrier. Defaults to
@@ -742,11 +776,23 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # own run_style tendency, computed from PRIOR runs only above, plus a
     # small nudge from today's barrier) - leak-safe and pre-race-knowable
     # at both train and serve time, unlike a race-wide tempo estimate
-    # (see own_pace scoping notes - that one needs actual race-level
-    # aggregation and is not attempted here).
+    # (own_pace, below, needs one - it gets it from
+    # race_speed_estimate.py's own trained, leak-safe model instead of a
+    # per-horse formula like this one).
     _rel_settle_full = pd.Series(np.nan, index=p.index)
     _rel_settle_full.loc[valid_st] = (settle[valid_st] / pfs[valid_st]).clip(0, 1)
     settle_band_hist = _rel_settle_full.apply(_settle_band)
+
+    # own_pace ingredients: this horse's own tempo band (Fast/Even/Slow, see
+    # _own_tempo_band) for each PRIOR run - purely descriptive of a run
+    # that's already happened, no leak risk. Matched against
+    # cur_race_speed_label (today's PRE-race predicted race-wide shape)
+    # further below, once career_avg is available.
+    own_tempo_hist = None
+    if "sect_i_early" in p.columns and "sect_i_l600" in p.columns:
+        own_tempo_hist = pd.Series(
+            [_own_tempo_band(e, l) for e, l in zip(p["sect_i_early"], p["sect_i_l600"])],
+            index=p.index)
     cur_settle_band = None
     if len(rel_settle) >= 1 and _settle_barrier_nudge is not None:
         _nudge = _settle_barrier_nudge(cur_barrier, cur_field_size)
@@ -1247,6 +1293,32 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         own_barrier = 0.0
 
+    # CANDIDATE (Aug 2026, user request - picking "race speed / shape"
+    # projection back up after it was previously scoped as too big):
+    # own_pace - does THIS horse personally run above or below its own
+    # level when the race's early tempo looks like today's PREDICTED
+    # shape? cur_race_speed_label is Hot/Fast/Even/Slow, race_speed_
+    # estimate.py's own trained model output for TODAY's race (leak-safe:
+    # that model itself only ever uses prior-run aggregates, computed
+    # fresh at each historical point in time when this is backtested -
+    # never the actual post-race shape, which the model cannot know
+    # before the race is run). Hot folds into Fast for matching (see
+    # own_tempo_hist above) since a single horse's own sectionals only
+    # ever produce a three-way Fast/Even/Slow reading, same convention
+    # the frontend's lib/pace.ts already uses. Solves the "field-level
+    # aggregation" blocker that shelved this candidate before: the
+    # aggregation happens once, inside race_speed_estimate.py's own
+    # model, BEFORE build_features ever sees this horse - not something
+    # build_features has to compute itself from a full race's runners.
+    _cur_pace_band = "Fast" if cur_race_speed_label == "Hot" else cur_race_speed_label
+    if _cur_pace_band is not None and own_tempo_hist is not None:
+        pace_match = own_tempo_hist == _cur_pace_band
+        n_pace = int(pace_match.sum())
+        own_pace = _shrink(float(w[pace_match].mean() - career_avg), n_pace) \
+            if n_pace >= 1 else 0.0
+    else:
+        n_pace, own_pace = 0, 0.0
+
     # TESTED, NOT ADOPTED (Aug 2026, user request): "all settle, mixed with
     # distance and/or barrier" - joint own-history conditioning combining
     # settle band and/or barrier band with distance, same "combination"
@@ -1392,6 +1464,8 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "distance_barrier_match_n": n_distance_barrier,
         "own_settle_distance_barrier": own_settle_distance_barrier,
         "settle_distance_barrier_match_n": n_settle_distance_barrier,
+        "own_pace": own_pace,
+        "pace_match_n": n_pace,
         "own_wet": own_wet,
         "own_dry": own_dry,
         "wet_match_n": n_wet6,
@@ -1547,7 +1621,8 @@ def project_race(runners, race_date):
                        cur_race_class=r.get("cur_race_class"),
                        cur_field_size=r.get("cur_field_size"),
                        cur_wpr_nett=r.get("cur_wpr_nett"),
-                       cur_barrier=r.get("cur_barrier"))
+                       cur_barrier=r.get("cur_barrier"),
+                       cur_race_speed_label=r.get("cur_race_speed_label"))
         for r in runners
     ]
     fallbacks = [f is None for f in feat_dicts]
@@ -1953,12 +2028,18 @@ def _dedup_scrape_baseline(fh, verbose=True):
     return fh
 
 
-def _horse_feature_rows(g):
+def _horse_feature_rows(g, race_speed_labels=None):
     """Build the feature rows for one horse's full run history, point-in-time.
 
     Module-level (not a closure) so it is picklable for multiprocessing. This
     is the single inner-loop definition used by BOTH the serial and parallel
     paths of build_training_frame, so the two produce identical output.
+
+    race_speed_labels: optional {run_id: Hot/Fast/Even/Slow} lookup of each
+    historical race's LEAK-SAFE predicted tempo (race_speed_estimate.py's
+    own model, run with a prior-only cutoff - see the own_pace backtest
+    script, not committed). None (the default) leaves own_pace at 0.0 for
+    every row - existing callers (the real retrain) are unaffected.
 
     Emits each model feature (from build_features) plus target and date, and
     two analysis-only columns (race_id, race_class) that train_wpr_projection
@@ -1969,12 +2050,14 @@ def _horse_feature_rows(g):
     out = []
     for i in range(_MIN_RUNS, len(g)):
         cur = g.iloc[i]
+        _label = race_speed_labels.get(cur.get("run_id")) if race_speed_labels else None
         f = build_features(g.iloc[:i], cur["distance"], cur["going"],
                            cur["track"], cur["trackGrading"], cur["date"],
                            cur_race_class=cur.get("race_class"),
                            cur_field_size=cur.get("field_size"),
                            cur_wpr_nett=cur.get("wpr_nett"),
-                           cur_barrier=cur.get("barrier"))
+                           cur_barrier=cur.get("barrier"),
+                           cur_race_speed_label=_label)
         if f is None:
             continue
         f["target"] = float(cur["wpr"])
@@ -2007,7 +2090,7 @@ def _horse_feature_rows(g):
 
 
 def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=True,
-                         n_jobs=1):
+                         n_jobs=1, race_speed_labels=None):
     """Regenerate the full training feature frame.
 
     Calls build_features() on every (horse, run) in the history - the SAME
@@ -2018,6 +2101,10 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     and each horse's runs are sliced from a pre-built frame. The feature
     values are byte-identical to calling build_features() on raw slices -
     train_wpr_projection() asserts this on a sample every run.
+
+    race_speed_labels: optional {run_id: Hot/Fast/Even/Slow} lookup, passed
+    straight through to _horse_feature_rows - see its docstring. None (the
+    default) leaves own_pace at 0.0 for every row.
 
     n_jobs: 1 = serial (default, unchanged behaviour). >1 = that many worker
     processes. -1 or 0 = all cores. The per-horse loop is embarrassingly
@@ -2096,19 +2183,21 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     # _horse_feature_rows worker. n_jobs=1 keeps the original serial behaviour.
     if n_jobs is not None and n_jobs != 1:
         import multiprocessing as mp
+        from functools import partial
         nproc = mp.cpu_count() if n_jobs in (-1, 0) else n_jobs
         nproc = max(1, min(nproc, total))
         if verbose:
             print(f"  building features on {nproc} cores ({total:,} horses) ...")
+        worker = partial(_horse_feature_rows, race_speed_labels=race_speed_labels)
         with mp.Pool(nproc) as pool:
-            results = pool.map(_horse_feature_rows, groups, chunksize=64)
+            results = pool.map(worker, groups, chunksize=64)
         rows = [r for sub in results for r in sub]
     else:
         rows = []
         for j, g in enumerate(groups):
             if verbose and j % 2000 == 0:
                 print(f"  ... {j}/{total} horses")
-            rows.extend(_horse_feature_rows(g))
+            rows.extend(_horse_feature_rows(g, race_speed_labels=race_speed_labels))
     return pd.DataFrame(rows)
 
 
