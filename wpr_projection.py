@@ -10,7 +10,13 @@ WHAT THIS IS
   history scraped daily. It predicts the run-day WPR a horse will record.
 
   ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
-  gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
+  gradient-boosting model): projection = BASE + ADJUSTMENT. (A uniform
+  calib_offset term used to be added here too - a data-derived shift that
+  recentered projections onto the current WPR scale and measurably improved
+  held-out MAE (5.836 -> 5.775). Removed at the user's explicit instruction
+  (Aug 2026): it read as an unexplained constant fudge applied to every
+  runner, which cost trust in the model even though it was a real, measured
+  correction. See git history for the numbers if this is ever revisited.)
   BASE is the horse's own anchor: a 50/50 blend of wpr_nett (TopRate's own
   pre-race rating) and ewm3 (this horse's own recency-weighted average of
   its last ~3 runs) when both are available, falling back to whichever
@@ -1248,8 +1254,8 @@ def project_race(runners, race_date):
     ]
     fallbacks = [f is None for f in feat_dicts]
 
-    # Additive architecture: projection = base + sum(ADJ_TERMS) +
-    # calib_offset. base is the horse's own anchor (ewm5/ewm3, falling
+    # Additive architecture: projection = base + sum(ADJ_TERMS). base is
+    # the horse's own anchor (ewm5/ewm3, falling
     # back down a recency chain - see _compute_base); a fallback of None
     # only happens if EVERY level feature is missing, which
     # build_features() cannot produce once it has passed the _MIN_RUNS
@@ -1260,13 +1266,7 @@ def project_race(runners, race_date):
     X_adj = _adj_term_frame(feat_dicts)
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
     adj = adj_contributions.sum(axis=1)
-    # calib_offset: a uniform additive shift, data-derived at train time and
-    # stored in config. It recenters the projection onto the current WPR
-    # scale, correcting the model's measured residual bias. Uniform, so WPR
-    # ranking is untouched, and the price softmax is shift-invariant too -
-    # only the displayed projected WPR (and the recent-form gap in the
-    # explanation) move.
-    proj = base_arr + adj + float(_CFG.get("calib_offset", 0.0))
+    proj = base_arr + adj
 
     # Confidence still needs the FULL feature frame - the q10/q90 models are
     # unchanged from the earlier gradient-boosting design (see _load_models).
@@ -1317,29 +1317,19 @@ def project_race(runners, race_date):
             })
         else:
             w = pd.to_numeric(pr["wpr"], errors="coerce")
-            # base_wpr + adjustment reproduce projected_wpr exactly (adjustment
-            # folds in calib_offset, the uniform shift, so it's the ONE number
-            # a UI needs to show "why the projection differs from the base
-            # rating" without also having to know about calib_offset).
+            # base_wpr + adjustment reproduce projected_wpr exactly.
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
             contributions = dict(zip(ADJ_TERMS, adj_contributions[i]))
-            # calib_offset is a uniform term (same for every runner, not
-            # tied to anything about THIS horse or race) - without it, the
-            # per-term contributions don't sum to `adjustment`. Folded into
-            # a "baseline" line so a UI showing the full breakdown
-            # reconciles exactly (and can still filter it out as
-            # non-differentiating, same as before).
-            contributions["baseline"] = float(_CFG.get("calib_offset", 0.0))
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
                 "base_wpr": round(base_wpr, 1),
                 "adjustment": round(adjustment, 1),
-                # Per-feature breakdown of `adjustment` - sums to it exactly
-                # (including the "baseline" line above). Useful even when
-                # the total adjustment is too small for describe()'s own
-                # >=3 WPR narration threshold to say anything.
+                # Per-feature breakdown of `adjustment` - sums to it exactly.
+                # Useful even when the total adjustment is too small for
+                # describe()'s own >=3 WPR narration threshold to say
+                # anything.
                 "adjustment_contributions": {k: round(float(v), 2)
                                              for k, v in contributions.items()},
                 "confidence": int(round(conf[i])),
@@ -1875,17 +1865,19 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     mae = mean_absolute_error(te["target"], te_pred)
     print(f"  held-out projection MAE: {mae:.3f}")
 
-    # Calibration offset: the model carries a measurable residual bias. The
-    # offset is the median held-out residual; adding it minimises absolute
-    # miss and recenters the typical projection. Uniform, so ranking/price
-    # are untouched (see project_race). Re-measured every retrain so it
-    # self-tracks any drift.
+    # Calibration offset (a uniform additive shift = the median held-out
+    # residual, recentering the typical projection) used to be applied here
+    # - removed at the user's explicit instruction (Aug 2026): it read as an
+    # unexplained constant fudge applied to every runner. Left as a
+    # diagnostic-only print (not applied, not saved to config) so the
+    # residual bias this would have corrected stays visible across retrains.
     _resid = te["target"].values - te_pred
-    calib_offset = float(np.median(_resid))
-    mae_after = float(np.abs(_resid - calib_offset).mean())
-    print(f"  held-out bias: mean {_resid.mean():+.2f}, median {np.median(_resid):+.2f}")
-    print(f"  calibration offset (median residual): {calib_offset:+.2f}")
-    print(f"  held-out MAE after offset: {mae_after:.3f} (was {mae:.3f})")
+    _would_be_offset = float(np.median(_resid))
+    _mae_if_calibrated = float(np.abs(_resid - _would_be_offset).mean())
+    print(f"  held-out bias (uncorrected): mean {_resid.mean():+.2f}, "
+          f"median {np.median(_resid):+.2f}")
+    print(f"  MAE if calibration were applied: {_mae_if_calibrated:.3f} "
+          f"(vs {mae:.3f} uncalibrated) - NOT applied, diagnostic only")
 
     # Recent-form blend: REMOVED in the additive-architecture rebuild. It
     # existed to correct the gradient-boosting model's over-shrinkage toward
@@ -1920,8 +1912,7 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
-               "beta": beta, "min_runs": _MIN_RUNS,
-               "calib_offset": calib_offset},
+               "beta": beta, "min_runs": _MIN_RUNS},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
