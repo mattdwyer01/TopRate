@@ -27,10 +27,9 @@ function campLabelForN(n: number): CampLabel {
 }
 
 // Maps each past run's date to its campaign position (FU/2U/3U/4U+), built
-// from the horse's FULL form history (ascending) rather than just the
-// visible last-6 window - the oldest visible run in the table might sit
-// mid-campaign with its actual campaign start further back than the table
-// shows, so only the full history gives an exact answer.
+// from the horse's full form history (ascending). `runs` below is full
+// history too (not capped), but formHistory pairs with buildTempoByDate
+// below - both walk the same ascending list once, by date.
 function buildCampByDate(formHistory: FormHistoryEntry[]): Map<string, CampLabel> {
   const map = new Map<string, CampLabel>()
   let prevDate: Date | null = null
@@ -281,11 +280,13 @@ function buildEntries(runs: FormRun[], peakRun: FormRun | null): Entry[] {
   return entries
 }
 
-// Centrepiece evidence table for a runner: last 6 runs newest-first, each
-// showing the race-wide sectional shape alongside the horse's own sectionals
-// (coloured by whether the horse beat the shape), plus spell/days-since
-// separators and the career-peak run appended at the bottom when it falls
-// outside the visible window. The full table is desktop-only (17 columns
+// Centrepiece evidence table for a runner: full career history newest-
+// first, each showing the race-wide sectional shape alongside the horse's
+// own sectionals (coloured by whether the horse beat the shape), plus
+// spell/days-since separators. peakRun/the "career peak" separator are
+// vestigial now that the full history is always shown (the peak is
+// always already in it) - kept rather than ripped out in case the runs
+// list is ever re-capped. The full table is desktop-only (17 columns
 // doesn't work below sm) - mobile gets a simplified stacked card list with
 // just the headline fields, sharing the same entry list so neither layout
 // can silently drift from the other.
