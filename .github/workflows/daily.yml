@@ -4,20 +4,33 @@ name: TopRate Daily
 # workflow_dispatch. The optional `date` input lets the dashboard request a
 # specific date (used by the "Fetch [date]" button); empty means today.
 #
-# Also runs automatically via `schedule` (cron is UTC-only; AEST = UTC+10,
-# same fixed-offset convention as price_refresh.yml - drifts an hour during
-# AEDT, adjust if that matters to you):
-#   09:00 AEST (23:00 UTC) - fetch today's races.
-#   09:30 AEST (23:30 UTC) - pre-fetch tomorrow's races.
-#   12:00 AEST (02:00 UTC) - pre-fetch the day after tomorrow's races.
-#   12:30 AEST (02:30 UTC) - pre-fetch three days out's races (fields are
-#     usually already declared that far ahead). Spread across the morning/
-#     midday rather than clustered within one 30-min window - each slot is
-#     its own full daily fetch (Step 1 results-check + Step 2 field fetch),
-#     not a lightweight variant, so give each room (concurrency below still
-#     serialises rather than parallelises same-workflow runs regardless).
-#   23:00 AEST (13:00 UTC) - collect today's race results (mainly Step 1;
-#     Step 2 harmlessly no-ops - today's card is already fetched by then).
+# Also runs automatically via `schedule`, DST-aware (Aug 2026 - was a fixed
+# AEST=UTC+10 offset that silently drifted an hour wrong for the ~5 months/
+# year Melbourne runs AEDT=UTC+11; now tracks real Melbourne local time
+# year-round). The intended local-time schedule is:
+#   09:00 - fetch today's races.
+#   09:30 - pre-fetch tomorrow's races.
+#   11:30 - re-fetch today's races (catches late scratches/price moves the
+#     9:00 run missed).
+#   12:00 - pre-fetch the day after tomorrow's races.
+#   12:30 - pre-fetch three days out's races (fields are usually already
+#     declared that far ahead).
+#   23:00 - collect today's race results (mainly Step 1; Step 2 harmlessly
+#     no-ops - today's card is already fetched by then).
+#
+# GitHub Actions cron is UTC-only with no DST awareness at all, so each
+# local-time slot above gets TWO schedule entries below - one at the UTC
+# instant it falls on during AEST (UTC+10), one during AEDT (UTC+11) -
+# and resolve_daily_target.py (called from the "Fetch TopRate data and
+# rebuild" step) figures out from the ACTUAL current Australia/Melbourne
+# clock (via Python's zoneinfo, which knows the real DST transition dates)
+# which slot, if any, this firing corresponds to. Both entries fire every
+# day regardless of season; the one landing an hour off from any real
+# target local time just no-ops (resolves to "skip", the job exits before
+# doing any work) - the actual fetch always runs from the correct one. A
+# ±15 min tolerance around each target absorbs normal GitHub Actions
+# scheduling jitter without risking a false match on an adjacent 30-min-
+# spaced slot (09:00/09:30, 12:00/12:30).
 #
 # IMPORTANT: every morning slot below explicitly passes --date (including
 # the "today" one, which used to run bare/no-date). fetch_todays_races()
@@ -36,11 +49,21 @@ on:
         required: false
         type: string
   schedule:
-    - cron: '0 23 * * *'    # 9:00am AEST - fetch today's races
-    - cron: '30 23 * * *'   # 9:30am AEST - pre-fetch tomorrow's races
-    - cron: '0 2 * * *'     # 12:00pm AEST - pre-fetch the day after tomorrow's races
-    - cron: '30 2 * * *'    # 12:30pm AEST - pre-fetch three days out's races
-    - cron: '0 13 * * *'    # 11:00pm AEST - collect today's results
+    # Each local-time target below fires from whichever of its two entries
+    # is currently correct for the season - see the DST note above. The
+    # 11:30-AEST / 12:30-AEDT pair coincide at the same UTC instant (30 1),
+    # so that one line covers both.
+    - cron: '0 23 * * *'    # 9:00am AEST candidate
+    - cron: '0 22 * * *'    # 9:00am AEDT candidate
+    - cron: '30 23 * * *'   # 9:30am AEST candidate
+    - cron: '30 22 * * *'   # 9:30am AEDT candidate
+    - cron: '30 1 * * *'    # 11:30am AEST candidate / 12:30pm AEDT candidate
+    - cron: '30 0 * * *'    # 11:30am AEDT candidate
+    - cron: '0 2 * * *'     # 12:00pm AEST candidate
+    - cron: '0 1 * * *'     # 12:00pm AEDT candidate
+    - cron: '30 2 * * *'    # 12:30pm AEST candidate
+    - cron: '0 13 * * *'    # 11:00pm AEST candidate - collect today's results
+    - cron: '0 12 * * *'    # 11:00pm AEDT candidate - collect today's results
 
 # Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
 # parallel-execute (parallel pushes would race-condition the CSV commits).
@@ -99,25 +122,26 @@ jobs:
           if [ -n "${{ inputs.date }}" ]; then
             python toprate_daily.py --date "${{ inputs.date }}"
           else
-            # Map this run's exact schedule string to a day offset (see the
-            # `on.schedule` comment above for why "today" gets --date too,
-            # not just the pre-fetch slots). The 11pm results-collection
-            # cron isn't in this map - it falls through to the bare call,
-            # unchanged, since it isn't a date-targeted fetch at all.
-            case "${{ github.event.schedule }}" in
-              "0 23 * * *")  OFFSET=0 ;;
-              "30 23 * * *") OFFSET=1 ;;
-              "0 2 * * *")   OFFSET=2 ;;
-              "30 2 * * *")  OFFSET=3 ;;
-              *)             OFFSET="" ;;
+            # Resolve target from the ACTUAL current Melbourne local time,
+            # not the raw UTC cron string - see the DST note in the
+            # `on.schedule` comment above and resolve_daily_target.py's own
+            # docstring. Every schedule entry runs this same check; each
+            # day exactly one AEST/AEDT candidate per slot lands inside its
+            # tolerance window and does real work, the rest resolve to
+            # "skip" and the job exits doing nothing.
+            RESOLVED=$(python3 resolve_daily_target.py)
+            echo "Melbourne local time now: $(TZ=Australia/Melbourne date) -> $RESOLVED"
+            case "$RESOLVED" in
+              date:*)
+                python toprate_daily.py --date "${RESOLVED#date:}"
+                ;;
+              bare)
+                python toprate_daily.py
+                ;;
+              *)
+                echo "No scheduled slot matches current Melbourne time (the other season's DST candidate for some slot) - skipping."
+                ;;
             esac
-            if [ -n "$OFFSET" ]; then
-              TARGET_DATE=$(python3 -c "from datetime import date, timedelta; print((date.today()+timedelta(days=$OFFSET)).isoformat())")
-              echo "Schedule '${{ github.event.schedule }}' -> offset +$OFFSET day(s) -> $TARGET_DATE"
-              python toprate_daily.py --date "$TARGET_DATE"
-            else
-              python toprate_daily.py
-            fi
           fi
 
       # ─────────────────────────────────────────────────────────
