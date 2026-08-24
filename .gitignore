@@ -22,8 +22,7 @@ fix_gitignore.py
 fix_workflow.py
 toprate_interactive.htmlpf_api.key 
 pf_api2.txt 
-toprate_cookies.txt 
-toprate_price_history.csv 
+toprate_cookies.txt
 pf_api.key
 wpr_form_history.csv
 supabase_key.txt

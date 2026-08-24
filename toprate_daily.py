@@ -2424,7 +2424,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
         return
 
     # ── Build per-race data structure with full runner detail ────────────────
-    today_str = date.today().isoformat()
 
     # Lightweight step timing - the rebuild has several phases and the
     # form-history step in particular can run ~60s, during which the
@@ -2999,7 +2998,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
     primary_key = "edge"
     model_meta = {}
 
-    # ── Build price history map: run_id -> {o, oat, r, rat} ──────────────────
+    # ── Build price history map: run_id -> {o, oat, r, rat, n, s} ────────────
+    # s: the full intraday snapshot series (fixed_win_price only, one point
+    # per pipeline run - roughly every 5-30 min depending on schedule
+    # reliability, see price_refresh.yml), as [minutes-since-open, price]
+    # pairs so the dashboard can render a real movement trend rather than
+    # just an open-vs-current comparison. No date filter (used to be
+    # today-only) - PRICE_HISTORY_CSV itself is already capped to 7 days
+    # by snapshot_prices(), which is bound enough; a runner captured by the
+    # multi-day pre-fetch can now show its trend too, not just today's races.
     price_hist_map = {}
     if PRICE_HISTORY_CSV.exists():
         try:
@@ -3007,18 +3014,32 @@ def rebuild_html(runners_df, model_pick_rows=None):
             ph = ph[ph["fixed_win_price"].notna() & (ph["fixed_win_price"] > 0)].copy()
             ph["snapshot_time"] = pd.to_datetime(ph["snapshot_time"], errors="coerce", utc=True)
             ph = ph.dropna(subset=["snapshot_time"])
-            ph["local_date"] = ph["snapshot_time"].dt.tz_convert("Australia/Melbourne").dt.strftime("%Y-%m-%d")
-            today_ph = ph[ph["local_date"] == today_str]
-            for run_id, grp in today_ph.groupby("run_id"):
+            for run_id, grp in ph.groupby("run_id"):
                 grp = grp.sort_values("snapshot_time")
                 first_p = grp.iloc[0]
                 last_p  = grp.iloc[-1]
+                t0 = first_p["snapshot_time"]
+                # Collapse consecutive equal prices (a flat run between real
+                # moves) down to just the endpoints - a sparkline only needs
+                # the points where the line actually bends.
+                series = []
+                prev_price = None
+                times = grp["snapshot_time"].tolist()
+                prices = grp["fixed_win_price"].tolist()
+                for i, (t, p) in enumerate(zip(times, prices)):
+                    p = round(float(p), 2)
+                    is_last = i == len(prices) - 1
+                    if p != prev_price or is_last:
+                        mins = int(round((t - t0).total_seconds() / 60))
+                        series.append([mins, p])
+                        prev_price = p
                 price_hist_map[run_id] = {
                     "o":   float(first_p["fixed_win_price"]),
                     "oat": first_p["snapshot_time"].isoformat(),
                     "r":   float(last_p["fixed_win_price"]),
                     "rat": last_p["snapshot_time"].isoformat(),
                     "n":   int(len(grp)),
+                    "s":   series,
                 }
         except Exception as e:
             print(f"  Warning: could not load price history for HTML ({e})")

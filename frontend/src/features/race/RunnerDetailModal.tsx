@@ -8,6 +8,7 @@ import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
+import { PriceTrend } from './PriceTrend'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -307,23 +308,26 @@ export function RunnerDetailModal({
           <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
 
           {runner.actualWpr == null && (
-            <div className="text-sm text-ink-soft">
-              <span className="mr-1.5 font-semibold text-ink">Price</span>
-              {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
-              {runner.fixedWinPrice != null && (
-                <>
-                  Fixed {fmtPrice(runner.fixedWinPrice)}
-                  {fixedMove && (
-                    <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                      {' '}
-                      ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
-                      {fmtPrice(runner.openFixedPrice)} at open)
-                    </span>
-                  )}
-                  {'  ·  '}
-                </>
-              )}
-              {priceBitsAfter.join('  ·  ')}
+            <div className="flex items-center gap-1.5 text-sm text-ink-soft">
+              <span className="min-w-0 flex-1">
+                <span className="mr-1.5 font-semibold text-ink">Price</span>
+                {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
+                {runner.fixedWinPrice != null && (
+                  <>
+                    Fixed {fmtPrice(runner.fixedWinPrice)}
+                    {fixedMove && (
+                      <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                        {' '}
+                        ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
+                        {fmtPrice(runner.openFixedPrice)} at open)
+                      </span>
+                    )}
+                    {'  ·  '}
+                  </>
+                )}
+                {priceBitsAfter.join('  ·  ')}
+              </span>
+              <PriceTrend runner={runner} />
             </div>
           )}
 
