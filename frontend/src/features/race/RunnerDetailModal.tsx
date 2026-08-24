@@ -273,43 +273,38 @@ export function RunnerDetailModal({
             )}
           </div>
 
-          {/* CareerStats keeps a natural (not stretched) table width, so a
-              second panel rides alongside it on wide screens instead of
-              leaving the rest of the row empty. Before a result exists,
-              that's ComparisonGrid (does today's shape suit it - there's
-              nothing else to show yet). Once the runner has actually
-              raced, ResultVsProjection takes that slot instead (how did
-              the projection do), and ComparisonGrid moves to its own row
-              below rather than disappearing - "does today's shape suit
-              it" is still a legitimate read after the fact (it's why the
-              model expected what it expected), not just a pre-race one. */}
+          {/* ResultVsProjection rides alongside CareerStats once there's a
+              result to show (fills the space that would otherwise sit
+              blank beside CareerStats's natural, not-stretched table
+              width). Pre-race there's nothing to pair it with yet, so
+              CareerStats just stands alone - ComparisonGrid always lives
+              under Recent runs now (moved there per feedback), not paired
+              up here, so its position doesn't move around depending on
+              whether the race has resulted. */}
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
-            <div className="min-w-[280px] flex-[1.4]">
-              {runner.actualWpr != null ? (
-                // Price folds in here for a resulted runner - "what the
-                // market actually paid" pairs naturally with "what actually
-                // happened", and it fills out this card's height (shorter
-                // than CareerStats otherwise) instead of leaving it blank.
+            {runner.actualWpr != null && (
+              <div className="min-w-[280px] flex-[1.4]">
+                {/* Price folds in here for a resulted runner - "what the
+                    market actually paid" pairs naturally with "what
+                    actually happened", and it fills out this card's
+                    height (shorter than CareerStats otherwise) instead of
+                    leaving it blank. */}
                 <ResultVsProjection
                   runner={runner}
                   priceBitsBefore={priceBitsBefore}
                   priceBitsAfter={priceBitsAfter}
                   fixedMove={fixedMove}
                 />
-              ) : (
-                <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {runner.actualWpr != null && (
-            <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
-          )}
-
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
+
+          <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
 
           {runner.actualWpr == null && (
             <div className="text-sm text-ink-soft">
