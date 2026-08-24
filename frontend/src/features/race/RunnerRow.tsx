@@ -2,9 +2,11 @@ import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
+import { spellPosition } from '../../lib/spellPosition'
 
 interface RunnerRowProps {
   runner: Runner
+  raceDate: string
   compact: boolean
   selected: boolean
   effective?: EffectiveRunner
@@ -30,9 +32,18 @@ function ratingSuffix(v: number | null): string {
 // consolidation the rebuild plan calls for). The grid's column template
 // itself changes at the sm breakpoint via Tailwind classes, so the same
 // DOM/children just reflow rather than existing twice.
-export function RunnerRow({ runner, compact, selected, effective, onClick, onToggleScratch }: RunnerRowProps) {
+export function RunnerRow({
+  runner,
+  raceDate,
+  compact,
+  selected,
+  effective,
+  onClick,
+  onToggleScratch,
+}: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
   const scratched = effective?.scratched ?? false
+  const spell = spellPosition(runner.formHistory, raceDate)
   // Scratched: force both to null rather than falling back to the model's
   // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
   // live rating any more, it shouldn't look like it's still rated just
@@ -121,8 +132,13 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.peakWpr)}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.wprAvgLast3)}
+      <span
+        className={`hidden text-right font-mono sm:inline ${
+          spell.label === 'FU' ? 'font-semibold text-amber' : 'text-ink-mute'
+        }`}
+        title={spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined}
+      >
+        {spell.label}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.baseWpr)}

@@ -23,7 +23,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'horse', label: 'Horse', showCompact: true },
   { key: 'barrier', label: 'Bar' },
   { key: 'peakWpr', label: 'Peak' },
-  { key: 'avgLast3', label: 'L3' },
+  { key: 'daysSince', label: 'Since' },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
@@ -53,11 +53,11 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
   // a horse that can no longer win is worse than losing strict sort order
   // for the (rare, temporary) scratched few.
   const sortedRunners = useMemo(() => {
-    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId)
+    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
     const active = sorted.filter((r) => !scratched.has(r.runId))
     const scratchedRunners = sorted.filter((r) => scratched.has(r.runId))
     return [...active, ...scratchedRunners]
-  }, [race.runners, sortKey, sortDir, effectiveByRunId, scratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, scratched])
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
@@ -214,6 +214,7 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
           <RunnerRow
             key={runner.runId}
             runner={runner}
+            raceDate={race.date}
             compact={compact}
             selected={runner.runId === selectedRunId}
             effective={effectiveByRunId[runner.runId]}
