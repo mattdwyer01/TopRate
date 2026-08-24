@@ -8,6 +8,7 @@ import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
+import { PriceMovementTable } from './PriceMovementTable'
 import { PriceTrend } from './PriceTrend'
 
 interface RunnerDetailModalProps {
@@ -274,31 +275,29 @@ export function RunnerDetailModal({
             )}
           </div>
 
-          {/* ResultVsProjection rides alongside CareerStats once there's a
-              result to show (fills the space that would otherwise sit
-              blank beside CareerStats's natural, not-stretched table
-              width). Pre-race there's nothing to pair it with yet, so
-              CareerStats just stands alone - ComparisonGrid always lives
-              under Recent runs now (moved there per feedback), not paired
-              up here, so its position doesn't move around depending on
-              whether the race has resulted. */}
+          {/* ResultVsProjection and/or PriceMovementTable ride alongside
+              CareerStats (fills the space that would otherwise sit blank
+              beside CareerStats's natural, not-stretched table width).
+              Pre-race with no snapshot history yet, CareerStats just
+              stands alone - ComparisonGrid always lives under Recent runs
+              now (moved there per feedback), not paired up here, so its
+              position doesn't move around depending on whether the race
+              has resulted. */}
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
-            {runner.actualWpr != null && (
-              <div className="min-w-[280px] flex-[1.4]">
-                {/* Price folds in here for a resulted runner - "what the
-                    market actually paid" pairs naturally with "what
-                    actually happened", and it fills out this card's
-                    height (shorter than CareerStats otherwise) instead of
-                    leaving it blank. */}
-                <ResultVsProjection
-                  runner={runner}
-                  priceBitsBefore={priceBitsBefore}
-                  priceBitsAfter={priceBitsAfter}
-                  fixedMove={fixedMove}
-                />
+            {(runner.actualWpr != null || runner.priceSeries.length >= 2) && (
+              <div className="flex min-w-[280px] flex-[1.4] flex-col gap-3">
+                {runner.actualWpr != null && (
+                  <ResultVsProjection
+                    runner={runner}
+                    priceBitsBefore={priceBitsBefore}
+                    priceBitsAfter={priceBitsAfter}
+                    fixedMove={fixedMove}
+                  />
+                )}
+                <PriceMovementTable runner={runner} />
               </div>
             )}
           </div>
