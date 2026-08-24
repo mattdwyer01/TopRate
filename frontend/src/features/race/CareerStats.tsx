@@ -115,16 +115,43 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
           })}
         </tbody>
       </table>
-      {otherAdj.length > 0 && (
-        <p className="mt-1.5 text-[11px] text-ink-faint">
-          Also factored:{' '}
-          {otherAdj
-            .map(
-              ([key, v]) =>
-                `${ADJUSTMENT_LABELS[key] ?? key} ${v > 0 ? '+' : ''}${v.toFixed(2)}`,
-            )
-            .join(' · ')}
-        </p>
+      {/* Reconciliation: the Adj column above only covers whichever ADJ_TERMS
+          matched a career/condition row (distance/going/first-up/second-up).
+          own_trend/own_long_spell have no matching row, and the calibration
+          offset (baseline) applies uniformly to every runner rather than
+          being specific to this horse - both were previously either buried
+          in a plain-text footer or dropped entirely, so the Adj column never
+          visibly added up to the adjustment total shown above. Listing what's
+          left plus a Total row that reconciles exactly closes that gap. */}
+      {breakdown && runner.wprAdjustment != null && (
+        <table className="mt-1.5 w-full max-w-xs border-t border-line-soft pt-1 text-xs">
+          <tbody className="[&_td]:py-0.5">
+            {otherAdj.map(([key, v]) => (
+              <tr key={key} className="text-ink-faint">
+                <td className="pt-1">{ADJUSTMENT_LABELS[key] ?? key}</td>
+                <td className={`pt-1 text-right font-mono ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
+                  {fmtSigned(v)}
+                </td>
+              </tr>
+            ))}
+            {breakdown.baseline != null && Math.abs(breakdown.baseline) >= MIN_ADJ_SHOWN && (
+              <tr className="text-ink-faint">
+                <td className={otherAdj.length === 0 ? 'pt-1' : ''}>Calibration (every runner)</td>
+                <td
+                  className={`text-right font-mono ${otherAdj.length === 0 ? 'pt-1' : ''} ${
+                    breakdown.baseline > 0 ? 'text-emerald-deep' : 'text-rose'
+                  }`}
+                >
+                  {fmtSigned(breakdown.baseline)}
+                </td>
+              </tr>
+            )}
+            <tr className="border-t border-line-soft font-semibold text-ink">
+              <td className="pt-1">Total adjustment</td>
+              <td className="pt-1 text-right font-mono">{fmtSigned(runner.wprAdjustment)}</td>
+            </tr>
+          </tbody>
+        </table>
       )}
     </div>
   )
