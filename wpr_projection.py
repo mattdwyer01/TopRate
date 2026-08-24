@@ -1119,6 +1119,31 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
         if (cur_going_band is not None and n_going >= 1) else 0.0
 
+    # CANDIDATE (Aug 2026, user request): own_track_distance - does THIS
+    # horse personally run above/below its own level at THIS EXACT track
+    # AND THIS EXACT distance together (joint match), as distinct from
+    # own_distance (adopted) and own_track (tested, rejected: +0.10 MAE
+    # alone, see the own_track/own_jockey/own_trainer note above). Joint
+    # conditioning is a narrower, sparser match than either dimension
+    # alone - testing whether the extra precision beats the smaller
+    # sample, same trade-off own_distance's exact-vs-band test already
+    # explored in one dimension.
+    track_dist_match = (p["track"] == cur_track) & (dist == float(cur_distance))
+    n_track_dist = int(track_dist_match.sum())
+    own_track_distance = _shrink(float(w[track_dist_match].mean() - career_avg), n_track_dist) \
+        if n_track_dist >= 1 else 0.0
+
+    # CANDIDATE (Aug 2026, user request): own_recent_trend - "is this horse
+    # trending up or down lately" for EVERY horse, not just the
+    # lightly-raced-only own_trend below (gated to n in [4,6]). avg_last3
+    # vs career_avg, shrunk by full run count n - the shrunk, ADJ_TERM-
+    # shaped version of the raw recent_vs_career feature already emitted
+    # below (unshrunk, feeds the confidence model, not the projection
+    # sum). BASE already blends in ewm3 (a recency-weighted average over
+    # the horse's whole history), so this may just double-count signal
+    # already baked into BASE - testing to find out rather than assuming.
+    own_recent_trend = _shrink(float(avg_last3 - career_avg), n)
+
     # CANDIDATE (Aug 2026, user request): own_settle - does THIS horse
     # personally run above or below its own level when it settles in a
     # given position band (Leader/On-pace/Midfield/Back)? Same own_going/
@@ -1286,6 +1311,9 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_settle": own_settle,
         "settle_match_n": n_settle,
         "cur_settle_band": cur_settle_band,
+        "own_track_distance": own_track_distance,
+        "track_dist_match_n": n_track_dist,
+        "own_recent_trend": own_recent_trend,
         "own_wet": own_wet,
         "own_dry": own_dry,
         "wet_match_n": n_wet6,
