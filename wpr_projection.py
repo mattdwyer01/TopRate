@@ -10,7 +10,13 @@ WHAT THIS IS
   history scraped daily. It predicts the run-day WPR a horse will record.
 
   ADDITIVE ARCHITECTURE (Aug 2026 rebuild #2, replacing the pure
-  gradient-boosting model): projection = BASE + ADJUSTMENT + calib_offset.
+  gradient-boosting model): projection = BASE + ADJUSTMENT. (A uniform
+  calib_offset term used to be added here too - a data-derived shift that
+  recentered projections onto the current WPR scale and measurably improved
+  held-out MAE (5.836 -> 5.775). Removed at the user's explicit instruction
+  (Aug 2026): it read as an unexplained constant fudge applied to every
+  runner, which cost trust in the model even though it was a real, measured
+  correction. See git history for the numbers if this is ever revisited.)
   BASE is the horse's own anchor: a 50/50 blend of wpr_nett (TopRate's own
   pre-race rating) and ewm3 (this horse's own recency-weighted average of
   its last ~3 runs) when both are available, falling back to whichever
@@ -596,6 +602,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # against, so only the conservative STRONG-marker-only test applies -
     # same test the training target's own void filter already uses (see
     # train_wpr_projection), same markers, same conservatism.
+    n_void_excluded = 0
     if _void_from_comment_only is not None:
         cv_hist = p.get("comments_video")
         cs_hist = p.get("comments_steward")
@@ -613,6 +620,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
             # to be flagged, fall back to the raw values rather than nothing.
             if w_excl.notna().sum() >= 1:
                 w = w_excl
+                n_void_excluded = int(void_mask.sum())
 
     wv = w.values
     dates = pd.to_datetime(p["date"])
@@ -1086,6 +1094,21 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_second_up": own_second_up,
         "own_trend": own_trend,
         "own_long_spell": own_long_spell,
+        # Raw (unshrunk) record behind own_distance/own_going/own_first_up/
+        # own_second_up above, and how many prior runs were discounted for
+        # a comment-flagged issue (vet/checked/eased/etc) - for describe()'s
+        # plain-language explanation, not used in the projection math itself
+        # (that's what the shrunk own_* deltas above are for).
+        "n_void_excluded": n_void_excluded,
+        "dist_match_n": n_dist,
+        "dist_match_avg": float(w[dist_match].mean()) if n_dist >= 1 else None,
+        "going_match_n": n_going,
+        "going_match_avg": float(w[going_match].mean())
+            if (cur_going_band is not None and n_going >= 1) else None,
+        "first_up_record_n": len(r1),
+        "first_up_record_avg": float(r1.mean()) if len(r1) >= 1 else None,
+        "second_up_record_n": len(r2),
+        "second_up_record_avg": float(r2.mean()) if len(r2) >= 1 else None,
         # CANDIDATE terms (Aug 2026, not in ADJ_TERMS yet - being tested
         # individually for real held-out MAE gain before adoption).
         "own_third_up": own_third_up,
@@ -1248,8 +1271,8 @@ def project_race(runners, race_date):
     ]
     fallbacks = [f is None for f in feat_dicts]
 
-    # Additive architecture: projection = base + sum(ADJ_TERMS) +
-    # calib_offset. base is the horse's own anchor (ewm5/ewm3, falling
+    # Additive architecture: projection = base + sum(ADJ_TERMS). base is
+    # the horse's own anchor (ewm5/ewm3, falling
     # back down a recency chain - see _compute_base); a fallback of None
     # only happens if EVERY level feature is missing, which
     # build_features() cannot produce once it has passed the _MIN_RUNS
@@ -1260,13 +1283,7 @@ def project_race(runners, race_date):
     X_adj = _adj_term_frame(feat_dicts)
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
     adj = adj_contributions.sum(axis=1)
-    # calib_offset: a uniform additive shift, data-derived at train time and
-    # stored in config. It recenters the projection onto the current WPR
-    # scale, correcting the model's measured residual bias. Uniform, so WPR
-    # ranking is untouched, and the price softmax is shift-invariant too -
-    # only the displayed projected WPR (and the recent-form gap in the
-    # explanation) move.
-    proj = base_arr + adj + float(_CFG.get("calib_offset", 0.0))
+    proj = base_arr + adj
 
     # Confidence still needs the FULL feature frame - the q10/q90 models are
     # unchanged from the earlier gradient-boosting design (see _load_models).
@@ -1317,29 +1334,19 @@ def project_race(runners, race_date):
             })
         else:
             w = pd.to_numeric(pr["wpr"], errors="coerce")
-            # base_wpr + adjustment reproduce projected_wpr exactly (adjustment
-            # folds in calib_offset, the uniform shift, so it's the ONE number
-            # a UI needs to show "why the projection differs from the base
-            # rating" without also having to know about calib_offset).
+            # base_wpr + adjustment reproduce projected_wpr exactly.
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
             contributions = dict(zip(ADJ_TERMS, adj_contributions[i]))
-            # calib_offset is a uniform term (same for every runner, not
-            # tied to anything about THIS horse or race) - without it, the
-            # per-term contributions don't sum to `adjustment`. Folded into
-            # a "baseline" line so a UI showing the full breakdown
-            # reconciles exactly (and can still filter it out as
-            # non-differentiating, same as before).
-            contributions["baseline"] = float(_CFG.get("calib_offset", 0.0))
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
                 "base_wpr": round(base_wpr, 1),
                 "adjustment": round(adjustment, 1),
-                # Per-feature breakdown of `adjustment` - sums to it exactly
-                # (including the "baseline" line above). Useful even when
-                # the total adjustment is too small for describe()'s own
-                # >=3 WPR narration threshold to say anything.
+                # Per-feature breakdown of `adjustment` - sums to it exactly.
+                # Useful even when the total adjustment is too small for
+                # describe()'s own >=3 WPR narration threshold to say
+                # anything.
                 "adjustment_contributions": {k: round(float(v), 2)
                                              for k, v in contributions.items()},
                 "confidence": int(round(conf[i])),
@@ -1386,28 +1393,30 @@ def _adj_phrase(feat, value, contribution):
 
 
 def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None):
-    """Plain-English explanation of the projected WPR.
+    """A formguide-style read of the projection, built from our own data.
 
-    Written to read like a person talking, not like model output. Its main
-    job - beyond describing - is to EXPLAIN the things that look odd to the
-    eye: most importantly, why a projection can sit below (or above) the
-    horse's recent average. A punter glancing at mid-80s recent runs and a
-    79 projection should find the reason here, not have to guess.
+    Reads like a pre-race form comment, not a model printout: what the
+    base rating is built from (and what was set aside from it), where the
+    horse sits in its current campaign (first-up/second-up record, or how
+    deep into the prep it is), how it goes at this trip and in this going,
+    then the number itself and how much to trust it - a few short, plain
+    sentences in sequence rather than a list of disconnected observations
+    (user request, Aug 2026, replacing the earlier "Projected X... That's
+    above average because... Confidence is..." template).
 
     adj_contributions: {ADJ_TERMS name: contribution}, the additive
-    model's actual per-term contribution to THIS runner's
-    adjustment (see project_race). The "why below/above recent average"
-    reasons are picked by ranking these by |contribution| and narrating
-    the largest ones - genuinely traceable to what moved the number, not a
-    guess about what plausibly might have. Falls back to a generic message
-    when contributions are not supplied (e.g. from the fallback path with
-    no projection at all).
+    model's actual per-term contribution to THIS runner's adjustment (see
+    project_race). own_distance/own_going/own_first_up/own_second_up are
+    already narrated above with real numbers (matched-run averages, not
+    just a direction), so only own_trend/own_long_spell (no natural
+    trip/going/prep sentence of their own) fall back to the older
+    phrase-based explanation, reached for only when the projection sits
+    a real distance from recent form.
 
-    Honest by design: it only names a cause when the feature values
-    actually support one. Where the projection is just normal model
-    scatter with no clear driver, it says so plainly rather than inventing
-    a reason - the model carries ~5 WPR of error in both directions and
-    pretending otherwise would mislead.
+    Honest by design, same as before: a clause only appears when the
+    sample size behind it actually supports saying something - no clause
+    is ever invented to fill space, and an unexplained gap says so
+    plainly rather than guessing.
     """
     if feats is None:
         return "Not enough form history to make a projection."
@@ -1419,62 +1428,137 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
             suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
         return f"{n}{suffix}"
 
-    rank_txt = "top-rated in the race" if wpr_rank == 1 else (
-        f"rated {_ordinal(wpr_rank)} in the race" if wpr_rank else "unranked")
-    sentences = [f"Projected {projected_wpr:.1f}, {rank_txt}."]
+    def _a_or_an(n):
+        # "a 90-day break" vs "an 84-day break" - good enough for the day-
+        # count ranges this actually sees (a spell is rarely in the
+        # thousands), not a general-purpose English number-to-words rule.
+        s = str(n)
+        return "an" if s.startswith(("8", "11", "18")) else "a"
 
-    # ── Explain the projection vs recent form - the key "looks odd" case ──
+    def _vs(delta):
+        """Plain-English comparator for a WPR delta, thresholds matching
+        the frontend's own vsCareerAvg colour cutoffs (+/-1) so the text
+        and the numbers next to it never disagree."""
+        if delta is None:
+            return None
+        if delta >= 3:
+            return "well above"
+        if delta >= 1:
+            return "above"
+        if delta <= -3:
+            return "well below"
+        if delta <= -1:
+            return "below"
+        return "around"
+
+    sentences = []
+    career_avg = feats.get("career_avg")
+
+    # ── What it's rated from ──
+    has_nett = feats.get("wpr_nett") is not None and feats.get("wpr_nett") == feats.get("wpr_nett")
+    has_ewm3 = feats.get("ewm3") is not None
+    if has_nett and has_ewm3:
+        base_txt = "Rated from a blend of TopRate's own pre-race figure and its recent-form average"
+    elif has_nett:
+        base_txt = "Rated from TopRate's own pre-race figure"
+    elif has_ewm3:
+        base_txt = "Rated from its recent-form average"
+    else:
+        base_txt = "Rated from its career figures"
+    n_void = feats.get("n_void_excluded", 0)
+    if n_void >= 1:
+        base_txt += (f", setting aside {n_void} run{'s' if n_void != 1 else ''} "
+                     f"discounted for interference or a vet issue")
+    sentences.append(base_txt + ".")
+
+    # ── Campaign context: first-up/second-up record, or how deep in the prep ──
+    days_since = feats.get("days_since")
+    an_days = _a_or_an(days_since) if days_since is not None else "a"
+    if feats.get("first_up") == 1:
+        n_r, avg_r = feats.get("first_up_record_n", 0), feats.get("first_up_record_avg")
+        if n_r >= 1 and avg_r is not None and career_avg is not None:
+            sentences.append(f"First-up off {an_days} {days_since}-day break, and it races "
+                             f"{_vs(avg_r - career_avg)} its career average first-up "
+                             f"({avg_r:.1f} avg from {n_r} run{'s' if n_r != 1 else ''}).")
+        else:
+            sentences.append(f"First-up off {an_days} {days_since}-day break, with no first-up "
+                             f"runs on record to judge it by.")
+    elif feats.get("second_up") == 1:
+        n_r, avg_r = feats.get("second_up_record_n", 0), feats.get("second_up_record_avg")
+        if n_r >= 1 and avg_r is not None and career_avg is not None:
+            sentences.append(f"Second-up today, and it races {_vs(avg_r - career_avg)} "
+                             f"its career average second-up "
+                             f"({avg_r:.1f} avg from {n_r} run{'s' if n_r != 1 else ''}).")
+        else:
+            sentences.append("Second-up today, with no second-up runs on record to judge it by.")
+    else:
+        runs_camp = feats.get("runs_this_camp")
+        if runs_camp is not None and runs_camp >= 3:
+            sentences.append(f"{_ordinal(runs_camp)}-up this campaign.")
+
+    # ── Trip and going record ──
+    cur_dist = feats.get("cur_distance")
+    dn, davg = feats.get("dist_match_n", 0), feats.get("dist_match_avg")
+    gn, gavg = feats.get("going_match_n", 0), feats.get("going_match_avg")
+    trip_bits = []
+    if dn >= 1 and davg is not None and career_avg is not None and cur_dist is not None:
+        trip_bits.append(f"It races {_vs(davg - career_avg)} its career average at "
+                         f"{cur_dist:.0f}m ({davg:.1f} avg from {dn} run{'s' if dn != 1 else ''})")
+    elif cur_dist is not None:
+        trip_bits.append(f"It's untried at {cur_dist:.0f}m")
+    if gn >= 1 and gavg is not None and career_avg is not None:
+        trip_bits.append(f"{_vs(gavg - career_avg)} its average in this going "
+                         f"({gavg:.1f} avg from {gn} run{'s' if gn != 1 else ''})")
+    if trip_bits:
+        sentences.append(" and ".join(trip_bits) + ".")
+
+    # ── Anything else driving a real gap from recent form, not already covered above ──
     avg3 = feats.get("avg_last3")
     gap = (projected_wpr - avg3) if avg3 is not None else None
-
     if gap is not None and abs(gap) >= 3 and adj_contributions:
-        # Rank the real contributions by size and narrate the biggest ones
-        # whose direction matches the gap (a below-average gap should be
-        # explained by NEGATIVE contributions, not a positive one that
-        # happens to be small).
+        _covered = {"own_distance", "own_going", "own_first_up", "own_second_up"}
         want_negative = gap < 0
         ranked = sorted(
-            ((f, adj_contributions.get(f, 0.0)) for f in adj_contributions),
+            ((f, v) for f, v in adj_contributions.items() if f not in _covered),
             key=lambda t: t[1] if want_negative else -t[1])
-        reasons = []
+        reason = None
         for f, c in ranked:
-            if abs(c) < 0.3:
+            if abs(c) < 0.5:
                 break
             if (c < 0) != want_negative:
                 continue
-            phrase = _adj_phrase(f, feats.get(f), c)
-            if phrase:
-                reasons.append(phrase)
-            if len(reasons) == 2:
+            reason = _adj_phrase(f, feats.get(f), c)
+            if reason:
                 break
-        direction = "below" if want_negative else "above"
-        if reasons:
-            sentences.append(f"That's {direction} its recent average because "
-                             + reasons[0]
-                             + (", and " + reasons[1] + "."
-                                if len(reasons) > 1 else "."))
-        else:
-            sentences.append(f"That's a touch {direction} its recent "
-                             f"average, but nothing in particular explains "
-                             f"it - just normal model noise.")
+        if reason:
+            direction = "below" if want_negative else "above"
+            sentences.append(f"That's {direction} its recent average because {reason}.")
+        elif not trip_bits:
+            # Only claim "just noise" when nothing above already gave a
+            # real explanation - a gap driven by own_distance/own_going is
+            # already explained in the trip/going sentence even though
+            # this fallback would otherwise fire.
+            direction = "below" if want_negative else "above"
+            sentences.append(f"That's a touch {direction} its recent average, but nothing "
+                             f"in particular explains it - just normal model noise.")
 
-    # ── A readable note on form shape ──
+    # ── Form consistency ──
     sl5 = feats.get("std_last5", 5)
     if sl5 <= 3:
-        sentences.append("It's been running to a consistent level lately.")
+        sentences.append("It's been racing to a consistent level lately.")
     elif sl5 >= 9:
-        sentences.append("Its form has been up and down lately, so this "
-                         "one's less certain than usual.")
+        sentences.append("Its form has been up and down lately, so this one's less "
+                         "certain than usual.")
 
-    # ── Confidence, in plain words ──
+    # ── The number, and how much to trust it ──
+    rank_txt = "top-rated in the race" if wpr_rank == 1 else (
+        f"rated {_ordinal(wpr_rank)} in the race" if wpr_rank else "unranked")
     nr = feats.get("n_runs", 0)
     sc = feats.get("std_career", 5)
     if confidence >= 80:
-        sentences.append(f"Confidence is high - {nr} runs of steady career "
-                         f"form behind it.")
+        conf_txt = f"confidence is high on {nr} runs of settled career form"
     elif confidence >= 60:
-        sentences.append(f"Confidence is moderate - {nr} runs of career "
-                         f"form to go on.")
+        conf_txt = f"confidence is moderate on {nr} runs of career form"
     else:
         if sc >= 9:
             why = "its career form has been all over the place"
@@ -1482,7 +1566,8 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
             why = "it doesn't have much form to go on yet"
         else:
             why = "its recent form has been patchy"
-        sentences.append(f"Confidence is low because {why}.")
+        conf_txt = f"confidence is low because {why}"
+    sentences.append(f"Projected {projected_wpr:.1f}, {rank_txt}; {conf_txt}.")
 
     return " ".join(sentences)
 
@@ -1875,17 +1960,19 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     mae = mean_absolute_error(te["target"], te_pred)
     print(f"  held-out projection MAE: {mae:.3f}")
 
-    # Calibration offset: the model carries a measurable residual bias. The
-    # offset is the median held-out residual; adding it minimises absolute
-    # miss and recenters the typical projection. Uniform, so ranking/price
-    # are untouched (see project_race). Re-measured every retrain so it
-    # self-tracks any drift.
+    # Calibration offset (a uniform additive shift = the median held-out
+    # residual, recentering the typical projection) used to be applied here
+    # - removed at the user's explicit instruction (Aug 2026): it read as an
+    # unexplained constant fudge applied to every runner. Left as a
+    # diagnostic-only print (not applied, not saved to config) so the
+    # residual bias this would have corrected stays visible across retrains.
     _resid = te["target"].values - te_pred
-    calib_offset = float(np.median(_resid))
-    mae_after = float(np.abs(_resid - calib_offset).mean())
-    print(f"  held-out bias: mean {_resid.mean():+.2f}, median {np.median(_resid):+.2f}")
-    print(f"  calibration offset (median residual): {calib_offset:+.2f}")
-    print(f"  held-out MAE after offset: {mae_after:.3f} (was {mae:.3f})")
+    _would_be_offset = float(np.median(_resid))
+    _mae_if_calibrated = float(np.abs(_resid - _would_be_offset).mean())
+    print(f"  held-out bias (uncorrected): mean {_resid.mean():+.2f}, "
+          f"median {np.median(_resid):+.2f}")
+    print(f"  MAE if calibration were applied: {_mae_if_calibrated:.3f} "
+          f"(vs {mae:.3f} uncalibrated) - NOT applied, diagnostic only")
 
     # Recent-form blend: REMOVED in the additive-architecture rebuild. It
     # existed to correct the gradient-boosting model's over-shrinkage toward
@@ -1920,8 +2007,7 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
-               "beta": beta, "min_runs": _MIN_RUNS,
-               "calib_offset": calib_offset},
+               "beta": beta, "min_runs": _MIN_RUNS},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
