@@ -287,7 +287,16 @@ export function RunnerDetailModal({
             </div>
             <div className="min-w-[280px] flex-[1.4]">
               {runner.actualWpr != null ? (
-                <ResultVsProjection runner={runner} />
+                // Price folds in here for a resulted runner - "what the
+                // market actually paid" pairs naturally with "what actually
+                // happened", and it fills out this card's height (shorter
+                // than CareerStats otherwise) instead of leaving it blank.
+                <ResultVsProjection
+                  runner={runner}
+                  priceBitsBefore={priceBitsBefore}
+                  priceBitsAfter={priceBitsAfter}
+                  fixedMove={fixedMove}
+                />
               ) : (
                 <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
               )}
@@ -296,31 +305,33 @@ export function RunnerDetailModal({
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 
-          <div className="text-sm text-ink-soft">
-            <span className="mr-1.5 font-semibold text-ink">Price</span>
-            {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
-            {runner.fixedWinPrice != null && (
-              <>
-                Fixed {fmtPrice(runner.fixedWinPrice)}
-                {fixedMove && (
-                  <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                    {' '}
-                    ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
-                    {fmtPrice(runner.openFixedPrice)} at open)
-                  </span>
-                )}
-                {'  ·  '}
-              </>
-            )}
-            {priceBitsAfter.join('  ·  ')}
-          </div>
+          {runner.actualWpr == null && (
+            <div className="text-sm text-ink-soft">
+              <span className="mr-1.5 font-semibold text-ink">Price</span>
+              {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
+              {runner.fixedWinPrice != null && (
+                <>
+                  Fixed {fmtPrice(runner.fixedWinPrice)}
+                  {fixedMove && (
+                    <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                      {' '}
+                      ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
+                      {fmtPrice(runner.openFixedPrice)} at open)
+                    </span>
+                  )}
+                  {'  ·  '}
+                </>
+              )}
+              {priceBitsAfter.join('  ·  ')}
+            </div>
+          )}
 
+          {/* Jockey/trainer names are already in the header subtitle - only
+              their ratings and barrier are new information here. */}
           <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">
-            Jockey {runner.jockey || '—'}
-            {runner.jockeyRating != null ? ` (rt ${Math.round(runner.jockeyRating)})` : ''}
+            Jockey rating {runner.jockeyRating != null ? Math.round(runner.jockeyRating) : '—'}
             {'  ·  '}
-            Trainer {runner.trainer || '—'}
-            {runner.trainerRating != null ? ` (rt ${Math.round(runner.trainerRating)})` : ''}
+            Trainer rating {runner.trainerRating != null ? Math.round(runner.trainerRating) : '—'}
             {'  ·  '}
             Barrier {runner.barrier ?? '—'}
             <span className="ml-1.5 italic">(not used by the projection)</span>

@@ -1,4 +1,6 @@
 import type { Runner } from '../../types/domain'
+import { fmtPrice } from '../../lib/format'
+import type { PriceMove } from '../../lib/priceMove'
 
 function fmt(v: number | null): string {
   return v == null ? '—' : v.toFixed(1)
@@ -21,6 +23,9 @@ function ordinal(n: number): string {
 
 interface ResultVsProjectionProps {
   runner: Runner
+  priceBitsBefore: string[]
+  priceBitsAfter: string[]
+  fixedMove: PriceMove | null
 }
 
 // Shown beside CareerStats once a runner has actually raced - takes over
@@ -30,7 +35,10 @@ interface ResultVsProjectionProps {
 // happened" is. Two side-by-side stat blocks rather than a dense table -
 // reads as a real "predicted vs actual" comparison at a glance, and fills
 // the width naturally instead of stretching a table with lots of columns.
-export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
+// Also carries the Price line (moved here from the modal footer for a
+// resulted runner) - "what the market actually paid" pairs naturally with
+// "what actually happened", and fills out the card's height too.
+export function ResultVsProjection({ runner, priceBitsBefore, priceBitsAfter, fixedMove }: ResultVsProjectionProps) {
   if (runner.actualWpr == null) return null
 
   const miss = runner.projectedWpr != null ? runner.actualWpr - runner.projectedWpr : null
@@ -82,6 +90,23 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
           {rankText && <>{miss != null ? ' · ' : ''}rank {rankText}</>}
         </div>
       )}
+      <div className="mt-2 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
+        <span className="mr-1 font-medium text-ink">Price</span>
+        {priceBitsBefore.length > 0 && `${priceBitsBefore.join(' · ')} · `}
+        {runner.fixedWinPrice != null && (
+          <>
+            Fixed {fmtPrice(runner.fixedWinPrice)}
+            {fixedMove && (
+              <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                {' '}
+                ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)} at open)
+              </span>
+            )}
+            {' · '}
+          </>
+        )}
+        {priceBitsAfter.join(' · ')}
+      </div>
     </div>
   )
 }
