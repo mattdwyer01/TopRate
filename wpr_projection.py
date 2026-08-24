@@ -1144,12 +1144,17 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # already baked into BASE - testing to find out rather than assuming.
     own_recent_trend = _shrink(float(avg_last3 - career_avg), n)
 
-    # CANDIDATE (Aug 2026, user request): own_settle - does THIS horse
-    # personally run above or below its own level when it settles in a
-    # given position band (Leader/On-pace/Midfield/Back)? Same own_going/
-    # own_distance pattern - see settle_band_hist/cur_settle_band above
-    # for how "today's predicted band" is derived leak-safe. Not yet in
-    # ADJ_TERMS - being tested for real held-out MAE before adoption.
+    # TESTED, NOT ADOPTED (Aug 2026, user request): own_settle - does THIS
+    # horse personally run above or below its own level when it settles in
+    # a given position band (Leader/On-pace/Midfield/Back)? Same own_going/
+    # own_distance pattern - see settle_band_hist/cur_settle_band above for
+    # how "today's predicted band" is derived leak-safe. Good coverage
+    # (93.7% of held-out rows had a matching-band own history) but held-out
+    # MAE got measurably WORSE: 5.9049 (7-term baseline) -> 6.0231
+    # (+0.1182), the same conclusion as every other narrow own-history
+    # split tried this session (own_barrier, own_wet/own_dry). Not added
+    # to ADJ_TERMS. Still emitted below (harmless, informative) even
+    # though it isn't part of the projection.
     settle_match = settle_band_hist == cur_settle_band
     n_settle = int(settle_match.sum())
     own_settle = _shrink(float(w[settle_match].mean() - career_avg), n_settle) \
