@@ -1053,8 +1053,14 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # and the median would be more robust to it. Held-out MAE 6.333 (mean)
     # -> 6.368 (median): a real, if small, REGRESSION, not an improvement -
     # the hypothesis didn't hold on real data. Reverted cleanly.
-    dist_lo, dist_hi = float(cur_distance) * 0.9, float(cur_distance) * 1.1
-    dist_match = (dist >= dist_lo) & (dist <= dist_hi)
+    # EXACT distance match (Aug 2026, user request - replaces the +/-10%
+    # band this used before). Tested head-to-head against the band: exact
+    # match held-out MAE 5.9049 vs the band's 5.9149 (-0.0100, a real
+    # improvement) despite firing on fewer runners (21,552/32,101 held-out
+    # rows matched exactly vs 28,118/32,101 within the band) - precision
+    # outweighs the sample-size loss here. Replaces the band entirely,
+    # no accuracy reason to keep both.
+    dist_match = dist == float(cur_distance)
     n_dist = int(dist_match.sum())
     own_distance = _shrink(float(w[dist_match].mean() - career_avg), n_dist) \
         if n_dist >= 1 else 0.0
@@ -1066,25 +1072,17 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
         if (cur_going_band is not None and n_going >= 1) else 0.0
 
-    # CANDIDATE (Aug 2026, user request): own_distance using an EXACT
-    # distance match instead of the +/-10% band own_distance uses above -
-    # testing whether precision helps or the band's extra sample size
-    # wins out. Not yet in ADJ_TERMS - being tested for real held-out MAE
-    # before adoption.
-    dist_exact_match = dist == float(cur_distance)
-    n_dist_exact = int(dist_exact_match.sum())
-    own_distance_exact = _shrink(float(w[dist_exact_match].mean() - career_avg), n_dist_exact) \
-        if n_dist_exact >= 1 else 0.0
-
-    # CANDIDATE (Aug 2026, user request): own_wet/own_dry - does THIS
-    # horse personally run above or below its own level at wet (Soft 6+)
-    # vs dry (Soft 5 or firmer) tracks specifically, using the
+    # TESTED, NOT ADOPTED (Aug 2026, user request): own_wet/own_dry - does
+    # THIS horse personally run above or below its own level at wet (Soft
+    # 6+) vs dry (Soft 5 or firmer) tracks specifically, using the
     # _wet_dry_band boundary (see its docstring - a tighter, differently-
     # placed cut than own_going's Firm/Good/Soft/Heavy band, which lumps
     # every Soft grading together). Mutually exclusive per race, same
     # pattern as own_first_up/own_second_up: only the one matching today's
-    # actual going fires. Not yet in ADJ_TERMS - being tested for real
-    # held-out MAE before adoption.
+    # actual going fires. Held-out MAE with both added: 6.0284 vs the
+    # 6-term baseline's 5.9149 (+0.1134, clearly WORSE) - not added to
+    # ADJ_TERMS. Still emitted below (harmless, informative) even though
+    # they aren't part of the projection.
     wetdry_hist = tg_hist.apply(_wet_dry_band)
     cur_wetdry = _wet_dry_band(cur_track_grading)
     wet6_match = wetdry_hist == "Wet"
@@ -1227,8 +1225,6 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_fourth_up": own_fourth_up,
         "own_fifth_up": own_fifth_up,
         "own_barrier": own_barrier,
-        "own_distance_exact": own_distance_exact,
-        "dist_exact_match_n": n_dist_exact,
         "own_wet": own_wet,
         "own_dry": own_dry,
         "wet_match_n": n_wet6,
