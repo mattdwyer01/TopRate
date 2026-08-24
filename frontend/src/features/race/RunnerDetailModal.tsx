@@ -334,7 +334,13 @@ export function RunnerDetailModal({
             </div>
           </div>
 
-          <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
+          <RecentRunsTable
+            runs={runner.recentRuns}
+            peakRun={runner.peakRun}
+            formHistory={runner.formHistory}
+            raceDistance={race.distance}
+            raceGoing={race.going}
+          />
 
           <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
 
