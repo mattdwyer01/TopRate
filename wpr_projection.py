@@ -1247,17 +1247,27 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         own_barrier = 0.0
 
-    # CANDIDATE (Aug 2026, user request): "all settle, mixed with distance
-    # and/or barrier" - joint own-history conditioning combining settle
-    # band and/or barrier band with distance, same "combination" question
-    # as own_track_distance above but for the two OTHER rejected single-
-    # dimension terms (own_settle: +0.1182 worse alone; own_barrier:
-    # +0.109 worse alone) instead of own_track. Tests whether pairing a
-    # working dimension (own_distance, adopted, -0.0100) with a failing
-    # one, or two failing ones together, changes the outcome, rather than
-    # assuming the own_track_distance result (+0.1216 worse) generalises.
-    # All four default to 0.0 whenever barrier isn't computable (same
-    # guard as own_barrier above) or settle band isn't known today.
+    # TESTED, NOT ADOPTED (Aug 2026, user request): "all settle, mixed with
+    # distance and/or barrier" - joint own-history conditioning combining
+    # settle band and/or barrier band with distance, same "combination"
+    # question as own_track_distance above but for the two OTHER rejected
+    # single-dimension terms (own_settle: +0.1182 worse alone; own_barrier:
+    # +0.109 worse alone) instead of own_track. All four WORSE, and worse
+    # than any of their standalone components - pairing a working dimension
+    # (own_distance, adopted, -0.0100) with a failing one does not rescue
+    # it, and stacking failing dimensions compounds the damage:
+    #   own_settle_distance:          5.9049 -> 6.0466 (+0.1417)
+    #   own_settle_barrier:           5.9049 -> 6.0312 (+0.1262)
+    #   own_distance_barrier:         5.9049 -> 6.0551 (+0.1502)
+    #   own_settle_distance_barrier:  5.9049 -> 5.9792 (+0.0743)
+    #   all four together:            5.9049 -> 6.3503 (+0.4454)
+    # Confirms the own_track_distance finding generalises: joint
+    # conditioning's narrower, sparser match never beats the accuracy lost
+    # to sample size, for any pairing tried this session. Not added to
+    # ADJ_TERMS. Still emitted below (harmless, informative) even though
+    # they aren't part of the projection. All four default to 0.0 whenever
+    # barrier isn't computable (same guard as own_barrier above) or settle
+    # band isn't known today.
     _has_barrier_hist = cur_barrier_band is not None and "barrier" in p.columns and "field_size" in p.columns
     barrier_hist_series = pd.Series(barrier_band_hist, index=p.index) if _has_barrier_hist else None
 
