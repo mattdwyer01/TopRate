@@ -1247,6 +1247,54 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         own_barrier = 0.0
 
+    # CANDIDATE (Aug 2026, user request): "all settle, mixed with distance
+    # and/or barrier" - joint own-history conditioning combining settle
+    # band and/or barrier band with distance, same "combination" question
+    # as own_track_distance above but for the two OTHER rejected single-
+    # dimension terms (own_settle: +0.1182 worse alone; own_barrier:
+    # +0.109 worse alone) instead of own_track. Tests whether pairing a
+    # working dimension (own_distance, adopted, -0.0100) with a failing
+    # one, or two failing ones together, changes the outcome, rather than
+    # assuming the own_track_distance result (+0.1216 worse) generalises.
+    # All four default to 0.0 whenever barrier isn't computable (same
+    # guard as own_barrier above) or settle band isn't known today.
+    _has_barrier_hist = cur_barrier_band is not None and "barrier" in p.columns and "field_size" in p.columns
+    barrier_hist_series = pd.Series(barrier_band_hist, index=p.index) if _has_barrier_hist else None
+
+    if cur_settle_band is not None:
+        sd_match = (settle_band_hist == cur_settle_band) & (dist == float(cur_distance))
+        n_settle_distance = int(sd_match.sum())
+        own_settle_distance = _shrink(float(w[sd_match].mean() - career_avg), n_settle_distance) \
+            if n_settle_distance >= 1 else 0.0
+    else:
+        n_settle_distance, own_settle_distance = 0, 0.0
+
+    if cur_settle_band is not None and _has_barrier_hist:
+        sb_match = (settle_band_hist == cur_settle_band) & (barrier_hist_series == cur_barrier_band)
+        n_settle_barrier = int(sb_match.sum())
+        own_settle_barrier = _shrink(float(w[sb_match].mean() - career_avg), n_settle_barrier) \
+            if n_settle_barrier >= 1 else 0.0
+    else:
+        n_settle_barrier, own_settle_barrier = 0, 0.0
+
+    if _has_barrier_hist:
+        db_match = (dist == float(cur_distance)) & (barrier_hist_series == cur_barrier_band)
+        n_distance_barrier = int(db_match.sum())
+        own_distance_barrier = _shrink(float(w[db_match].mean() - career_avg), n_distance_barrier) \
+            if n_distance_barrier >= 1 else 0.0
+    else:
+        n_distance_barrier, own_distance_barrier = 0, 0.0
+
+    if cur_settle_band is not None and _has_barrier_hist:
+        sdb_match = (settle_band_hist == cur_settle_band) & (dist == float(cur_distance)) \
+            & (barrier_hist_series == cur_barrier_band)
+        n_settle_distance_barrier = int(sdb_match.sum())
+        own_settle_distance_barrier = _shrink(
+            float(w[sdb_match].mean() - career_avg), n_settle_distance_barrier) \
+            if n_settle_distance_barrier >= 1 else 0.0
+    else:
+        n_settle_distance_barrier, own_settle_distance_barrier = 0, 0.0
+
     # Lightly-raced trend: for a horse still early in its career (few
     # starts), is it improving? Second half of its runs so far vs the
     # first half - deliberately gated to lightly-raced horses only
@@ -1326,6 +1374,14 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_track_distance": own_track_distance,
         "track_dist_match_n": n_track_dist,
         "own_recent_trend": own_recent_trend,
+        "own_settle_distance": own_settle_distance,
+        "settle_distance_match_n": n_settle_distance,
+        "own_settle_barrier": own_settle_barrier,
+        "settle_barrier_match_n": n_settle_barrier,
+        "own_distance_barrier": own_distance_barrier,
+        "distance_barrier_match_n": n_distance_barrier,
+        "own_settle_distance_barrier": own_settle_distance_barrier,
+        "settle_distance_barrier_match_n": n_settle_distance_barrier,
         "own_wet": own_wet,
         "own_dry": own_dry,
         "wet_match_n": n_wet6,
