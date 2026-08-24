@@ -303,13 +303,19 @@ export function RunnerDetailModal({
               would otherwise sit blank beside CareerStats's natural,
               not-stretched table width). Below sm (every phone - even a
               430px-wide one has only ~380px left here after modal/card
-              padding), all three go full-width and stack: CareerStats's
-              own 6-column table needs ~300px+ to show Peak/Avg/vs Career/
-              Adj/Trend without squeezing, which just doesn't fit next to
-              Price/Result on a phone however thin those two are shrunk -
-              full-width stacking is what actually delivers "no scrolling,
-              fully readable" on mobile (user feedback, Aug 2026) rather
-              than a still-cramped side-by-side compromise.
+              padding), CareerStats goes full-width on its own row:
+              its 6-column table needs ~300px+ to show Peak/Avg/vs Career/
+              Adj/Trend without squeezing, which doesn't fit next to
+              Price/Result on a phone however thin those two are shrunk.
+              Price and Result, in contrast, have no such width floor
+              (a price figure, a slider, a predicted/actual pair - all
+              shrink cleanly), so they share ONE row 50/50 on mobile
+              instead of each also going full-width and stacking - full
+              stacking for all three burned too much vertical scroll
+              (user feedback, Aug 2026) for two cards that don't need it.
+              The `sm:contents` wrapper drops its own box at sm and up so
+              its children rejoin CareerStats in a single flex row, same
+              as before.
               ResultVsProjection is now always rendered (not conditional on
               having a result) - it shows its own empty/placeholder state
               pre-race, so this row's layout doesn't reflow once a race
@@ -325,18 +331,20 @@ export function RunnerDetailModal({
             <div className="w-full sm:min-w-[320px] sm:w-auto sm:flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
-            {hasPriceInfo && (
-              <div className="w-full sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <PriceMovementChart
-                  runner={runner}
-                  priceBitsBefore={priceBitsBefore}
-                  priceBitsAfter={priceBitsAfter}
-                  fixedMove={fixedMove}
-                />
+            <div className="flex w-full gap-3 sm:contents">
+              {hasPriceInfo && (
+                <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
+                  <PriceMovementChart
+                    runner={runner}
+                    priceBitsBefore={priceBitsBefore}
+                    priceBitsAfter={priceBitsAfter}
+                    fixedMove={fixedMove}
+                  />
+                </div>
+              )}
+              <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
+                <ResultVsProjection runner={runner} />
               </div>
-            )}
-            <div className="w-full sm:min-w-[220px] sm:w-auto sm:flex-1">
-              <ResultVsProjection runner={runner} />
             </div>
           </div>
 
