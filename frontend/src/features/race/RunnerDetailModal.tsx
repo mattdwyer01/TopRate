@@ -275,12 +275,14 @@ export function RunnerDetailModal({
 
           {/* CareerStats keeps a natural (not stretched) table width, so a
               second panel rides alongside it on wide screens instead of
-              leaving the rest of the row empty. Once the runner has actually
-              raced, "how did the projection do" (ResultVsProjection) is the
-              more useful question than the pre-race "does today's shape suit
-              it" one (ComparisonGrid) - swap rather than stack both, and
-              fold the old inline actual-vs-projected summary line into it so
-              that comparison isn't shown twice. */}
+              leaving the rest of the row empty. Before a result exists,
+              that's ComparisonGrid (does today's shape suit it - there's
+              nothing else to show yet). Once the runner has actually
+              raced, ResultVsProjection takes that slot instead (how did
+              the projection do), and ComparisonGrid moves to its own row
+              below rather than disappearing - "does today's shape suit
+              it" is still a legitimate read after the fact (it's why the
+              model expected what it expected), not just a pre-race one. */}
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
@@ -302,6 +304,10 @@ export function RunnerDetailModal({
               )}
             </div>
           </div>
+
+          {runner.actualWpr != null && (
+            <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+          )}
 
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 
