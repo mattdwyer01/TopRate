@@ -1725,6 +1725,12 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     # columns build_features reads - keep only these, pre-convert numerics once
     # field_size: target-race context, pre-race known, used for the
     #   walk-forward by-field-size breakdown.
+    # barrier: this run's stall number, paired with field_size for the
+    #   own_barrier candidate (relative barrier band, see _barrier_band).
+    #   Was missing from this keep list until Aug 2026 - own_barrier
+    #   silently evaluated to 0.0 on every training/backtest row (p["barrier"]
+    #   never existed) even though it works correctly at serving time via
+    #   project_race's cur_barrier. Any backtest run before this fix is invalid.
     # sect_* (13) and raceShape*: prior-run data carried through for the
     #   sectionals candidate (a) and raceShape candidate (c). build_features
     #   does not read them YET - carried here so the candidate work has them.
@@ -1736,7 +1742,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     keep = ["horse_id", "date", "wpr", "distance", "going", "track",
             "trackGrading", "positionSettled", "position800m", "position600m",
             "margin800m", "margin600m", "margin400m", "marginFinish",
-            "isBarrierTrial",
+            "isBarrierTrial", "barrier",
             "field_size", "raceShapeEarly", "raceShapeMid",
             "raceShapeLate", "race_class", "race_id", "run_id", "wpr_nett",
             "comments_video", "comments_steward"] + _sect_cols
@@ -1744,8 +1750,8 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     fh = fh[keep].copy()
     for c in ["wpr", "distance", "trackGrading", "positionSettled",
               "position800m", "position600m", "margin800m", "margin600m",
-              "margin400m", "marginFinish", "isBarrierTrial", "field_size",
-              "raceShapeEarly", "raceShapeMid", "raceShapeLate",
+              "margin400m", "marginFinish", "isBarrierTrial", "barrier",
+              "field_size", "raceShapeEarly", "raceShapeMid", "raceShapeLate",
               "wpr_nett"] + _sect_cols:
         if c in fh.columns:
             fh[c] = pd.to_numeric(fh[c], errors="coerce")
