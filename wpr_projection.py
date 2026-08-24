@@ -235,7 +235,7 @@ FEATURES = [
 # simpler design's own numbers disappoint enough to reconsider the trade.
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
-    "own_trend", "own_long_spell",
+    "own_trend", "own_long_spell", "track_barrier",
 ]
 def _compute_base(feat):
     """The horse's own anchor for the additive model. Re-adopted (Aug 2026,
@@ -420,6 +420,53 @@ def _barrier_band(barrier, field_size):
     if rel <= 2 / 3:
         return "Mid"
     return "Wide"
+
+
+# track_barrier: the one ADJ_TERMS entry that is NOT a per-horse own-history
+# lookup - every other term above/below needs no fitting at all (each is
+# just "this horse's own past runs at this condition"). This one is
+# population-level: does barrier draw matter more at SOME tracks/distances
+# than others, aggregated across every horse that has raced there. Tested
+# Aug 2026 (user request) as a shrunk (track, 200m distance band) ->
+# per-barrier-band residual-WPR lookup, residual = target - career_avg
+# (quality-normalised, so it isn't just re-learning "this is a good/bad
+# horse"), shrunk toward the pooled global mean for that barrier band with
+# strength _TRACK_BARRIER_K, then centered per (track, dist_band) group so
+# it can never become a flat track-quality bias (a wide-draw specialist
+# track should shift Inside down and Wide up, not just shift everything
+# up). Robustness-tested across K=30-1200 before adoption: held-out MAE
+# improved at every K from 75 up (best -0.0094 at K=300), only K=30 (barely
+# shrunk) was worse - see git history for the full sweep. The lookup itself
+# is FIT in train_wpr_projection() (population statistics need a training
+# pass, unlike every other term here) and shipped in config.json; this
+# constant and the two helpers below are shared between that fit and the
+# live per-runner lookup in project_race() so the two can never drift.
+_TRACK_BARRIER_K = 300.0
+
+
+def _dist_band(distance):
+    """200m distance band, e.g. 1200-1399m -> 1200. None if unusable."""
+    try:
+        d = float(distance)
+    except (TypeError, ValueError):
+        return None
+    if d != d:
+        return None
+    return int(d // 200 * 200)
+
+
+def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lookup):
+    """Live per-runner lookup against the FITTED track_barrier table (see
+    above). 0.0 (no adjustment) for any track/distance-band combo not seen
+    in training - same "unseen -> 0" contract the robustness backtest was
+    actually validated under, not a fallback to some other average."""
+    if not cur_track or lookup is None:
+        return 0.0
+    db = _dist_band(cur_distance)
+    band = _barrier_band(cur_barrier, cur_field_size)
+    if db is None or band is None:
+        return 0.0
+    return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
 
 
 # Shrinkage for the own-history adjustment deltas below: a delta computed
@@ -1342,6 +1389,18 @@ def project_race(runners, race_date):
     ]
     fallbacks = [f is None for f in feat_dicts]
 
+    # track_barrier: the one ADJ_TERMS entry not computed inside
+    # build_features (see its docstring above _TRACK_BARRIER_K) - it needs
+    # the FITTED population lookup from config.json, which only exists
+    # after _load_models() above, so it is injected here rather than
+    # threaded through build_features's own-history-only signature.
+    _tb_lookup = _CFG.get("track_barrier_lookup")
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["track_barrier"] = _track_barrier_term(
+                r.get("cur_track"), r.get("cur_distance"),
+                r.get("cur_barrier"), r.get("cur_field_size"), _tb_lookup)
+
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
     # the horse's own anchor (ewm5/ewm3, falling
     # back down a recency chain - see _compute_base); a fallback of None
@@ -1460,6 +1519,11 @@ def _adj_phrase(feat, value, contribution):
         return ("it has run below its own level after long layoffs before"
                 if neg else
                 "it has run above its own level after long layoffs before")
+    if feat == "track_barrier":
+        return ("its barrier draw tends to go worse than average at this "
+                 "track and trip" if neg else
+                 "its barrier draw tends to go better than average at this "
+                 "track and trip")
     return None
 
 
@@ -2001,6 +2065,49 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     cf = D[(D["date"] >= q1) & (D["date"] < q2)].copy()
     te = D[D["date"] >= q2].copy()
 
+    # track_barrier: fit the population lookup on trn only (see its
+    # docstring near _TRACK_BARRIER_K above) - the one ADJ_TERMS entry that
+    # needs an actual training pass, unlike every other term here, which is
+    # a pure per-horse own-history lookup needing no fitting. cur_distance/
+    # field_size are FEATURES columns (already median-filled above, never
+    # NaN here); only barrier can be missing, handled by _barrier_band
+    # returning None and the dropna below dropping it.
+    print("  fitting track_barrier lookup (population, trn only)...")
+    _tb_resid = trn["target"] - trn["career_avg"]
+    _tb_band = [_barrier_band(b, f) for b, f in zip(trn["barrier"], trn["field_size"])]
+    _tb_dist_band = (trn["cur_distance"] // 200 * 200).astype(int)
+    _tb_frame = pd.DataFrame({
+        "track": trn["track"], "dist_band": _tb_dist_band,
+        "band": _tb_band, "residual": _tb_resid,
+    }).dropna(subset=["track", "band", "residual"])
+    _tb_global = _tb_frame.groupby("band")["residual"].mean().to_dict()
+    track_barrier_lookup = {}
+    for (trk, db), g in _tb_frame.groupby(["track", "dist_band"]):
+        stats = g.groupby("band")["residual"].agg(["mean", "count"])
+        shrunk = {}
+        for b in ["Inside", "Mid", "Wide"]:
+            if b in stats.index:
+                n, m = stats.loc[b, "count"], stats.loc[b, "mean"]
+                shrunk[b] = (n * m + _TRACK_BARRIER_K * _tb_global.get(b, 0.0)) / (n + _TRACK_BARRIER_K)
+            else:
+                shrunk[b] = _tb_global.get(b, 0.0)
+        center = float(np.mean(list(shrunk.values())))
+        track_barrier_lookup[f"{trk}|{int(db)}"] = {
+            b: float(max(-_OWN_DELTA_CAP, min(_OWN_DELTA_CAP, shrunk[b] - center))) for b in shrunk
+        }
+    print(f"  track_barrier: {len(track_barrier_lookup):,} (track, dist-band) combos")
+
+    # Applied to cf/te (not trn, which is never scored) so the held-out MAE
+    # printed further down actually reflects this term - project_race()
+    # injects it at serve time from this SAME lookup, saved to config.json
+    # below.
+    for _frame in (cf, te):
+        _frame["track_barrier"] = [
+            _track_barrier_term(trk, dist, bar, fs, track_barrier_lookup)
+            for trk, dist, bar, fs in zip(_frame["track"], _frame["cur_distance"],
+                                          _frame["barrier"], _frame["field_size"])
+        ]
+
     # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
     # the confidence quantile models (ADJ_TERMS themselves have no fitting
     # step to weight - see below).
@@ -2035,10 +2142,11 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     q_hi = _fit_quantile(0.9)
 
     # The additive model's ADJUSTMENT term: sum(ADJ_TERMS) - each already a
-    # complete, shrunk, per-horse +/- computed in build_features (see the
-    # SIMPLE ADJUSTMENT MODEL block there / ADJ_TERMS above). No fitting -
-    # this is where a Ridge regression used to be, before the rebuild to a
-    # fully transparent, per-horse-history design.
+    # complete, shrunk +/- (per-horse from build_features, or track_barrier
+    # from the population fit just above - see ADJ_TERMS/SIMPLE ADJUSTMENT
+    # MODEL). No further fitting here - this is where a Ridge regression
+    # used to be, before the rebuild to a transparent, mostly-per-horse-
+    # history design.
     def _additive_predict(frame):
         return frame["_base"].to_numpy() + _cap_adj_sum(
             frame[ADJ_TERMS].to_numpy()).sum(axis=1)
@@ -2107,7 +2215,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
-               "beta": beta, "min_runs": _MIN_RUNS},
+               "beta": beta, "min_runs": _MIN_RUNS,
+               "track_barrier_lookup": track_barrier_lookup},
               open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
