@@ -23,8 +23,9 @@ THE MODEL (search-validated)
   estimates, etc. (full list in race_speed_config.json).
 
 HONEST CONFIDENCE - read before relying on this.
-  Held-out correlation with actual raceShapeEarly is +0.24 (R2 ~5.6%).
-  That is a REAL signal - it survived held-out evaluation, it is not
+  Held-out correlation with actual raceShapeEarly is +0.27 (R2 ~7.3%),
+  re-measured on retrain - see config.json's heldout_corr for the current
+  number. That is a REAL signal - it survived held-out evaluation, it is not
   overfitting - but it is MODEST. Race tempo is substantially decided on
   the day (jockey tactics, gate speed) and cannot be read fully from
   pre-race data. So the Hot/Fast/Even/Slow label is a LOW-CONFIDENCE
@@ -233,7 +234,7 @@ def estimate_one(race_id):
     print(f"  tempo label   : {res['label']}")
     print(f"  score (0-1)   : {res['score']}  (1 = hottest)")
     print(f"  predicted rse : {res['predicted_rse']}")
-    print(f"  (low-confidence estimate - held-out corr ~0.24)")
+    print(f"  (low-confidence estimate - held-out corr ~{_CFG['heldout_corr']:+.2f})")
     print("=" * 60)
 
 
