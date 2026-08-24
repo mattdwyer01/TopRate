@@ -69,6 +69,30 @@ n = len(df)
 print(f"  {n_raw:,} rows -> {n:,} after dedup on (run_id, date), "
       f"{len(df.columns)} columns", flush=True)
 
+# Integer/bigint columns in the Postgres schema. pandas has no nullable-int
+# dtype by default, so a column with even one missing value anywhere in the
+# 444k rows gets read as float64 for the WHOLE column - a real barrier of 1
+# becomes numpy.float64(1.0). json.dumps can't serialise a numpy float, so
+# the `default=str` fallback below stringifies it to "1.0" - which Postgres
+# then rejects for an integer column ("1.0" is not valid integer syntax,
+# it wants "1"). Cast these explicitly to Python int (or None) so they
+# serialise as plain JSON numbers instead.
+INT_COLS = ["run_id", "horse_id", "formnumber", "racenumber", "distance", "barrier"]
+
+
+def _to_int_or_none(v):
+    if v is None or (isinstance(v, float) and v != v):  # NaN
+        return None
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+for col in INT_COLS:
+    if col in df.columns:
+        df[col] = df[col].apply(_to_int_or_none)
+
 # pandas NaN -> None so it becomes SQL NULL in JSON
 df = df.astype(object).where(pd.notnull(df), None)
 
