@@ -9,6 +9,7 @@ import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { SettingsModal } from './components/SettingsModal'
+import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
 
@@ -24,6 +25,7 @@ function App() {
   const { betaOverride, setBetaOverride } = useBetaOverride()
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [methodologyOpen, setMethodologyOpen] = useState(false)
   const [topTab, setTopTabState] = useState<TopTab>(() => readTopTab())
 
   // Keep topTab in sync with back/forward navigation - separate from
@@ -177,8 +179,14 @@ function App() {
           betaOverride={betaOverride}
           onSetBetaOverride={setBetaOverride}
           onClose={() => setSettingsOpen(false)}
+          onOpenMethodology={() => {
+            setSettingsOpen(false)
+            setMethodologyOpen(true)
+          }}
         />
       )}
+
+      {methodologyOpen && <HowWprWorksModal onClose={() => setMethodologyOpen(false)} />}
     </div>
   )
 }
