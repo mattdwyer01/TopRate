@@ -1,7 +1,4 @@
 import type { Runner } from '../../types/domain'
-import { fmtPrice } from '../../lib/format'
-import type { PriceMove } from '../../lib/priceMove'
-import { PriceTrend } from './PriceTrend'
 
 function fmt(v: number | null): string {
   return v == null ? '—' : v.toFixed(1)
@@ -24,9 +21,6 @@ function ordinal(n: number): string {
 
 interface ResultVsProjectionProps {
   runner: Runner
-  priceBitsBefore: string[]
-  priceBitsAfter: string[]
-  fixedMove: PriceMove | null
 }
 
 // Shown beside CareerStats once a runner has actually raced - takes over
@@ -39,7 +33,7 @@ interface ResultVsProjectionProps {
 // vs a placing) that a WPR-rank number and a finish-position number
 // happening to coincide (e.g. both landing on "8") made read as one
 // repeated figure in the previous layout.
-export function ResultVsProjection({ runner, priceBitsBefore, priceBitsAfter, fixedMove }: ResultVsProjectionProps) {
+export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
   if (runner.actualWpr == null) return null
 
   const miss = runner.projectedWpr != null ? runner.actualWpr - runner.projectedWpr : null
@@ -94,27 +88,6 @@ export function ResultVsProjection({ runner, priceBitsBefore, priceBitsAfter, fi
           )}
         </div>
       )}
-
-      <div className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
-        <span className="min-w-0 flex-1">
-          <span className="mr-1 font-medium text-ink">Price</span>
-          {priceBitsBefore.length > 0 && `${priceBitsBefore.join(' · ')} · `}
-          {runner.fixedWinPrice != null && (
-            <>
-              Fixed {fmtPrice(runner.fixedWinPrice)}
-              {fixedMove && (
-                <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                  {' '}
-                  ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)} at open)
-                </span>
-              )}
-              {' · '}
-            </>
-          )}
-          {priceBitsAfter.join(' · ')}
-        </span>
-        <PriceTrend runner={runner} />
-      </div>
     </div>
   )
 }

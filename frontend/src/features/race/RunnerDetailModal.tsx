@@ -8,8 +8,7 @@ import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
-import { PriceMovementTable } from './PriceMovementTable'
-import { PriceTrend } from './PriceTrend'
+import { PriceMovementChart } from './PriceMovementChart'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -87,6 +86,12 @@ export function RunnerDetailModal({
 
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const hasOverride = effective?.hasOverride ?? false
+  const hasPriceInfo =
+    runner.priceSeries.length >= 2 ||
+    runner.fixedWinPrice != null ||
+    effectivePrice != null ||
+    runner.topratePrice != null ||
+    runner.startingPrice != null
 
   return (
     <div
@@ -277,29 +282,31 @@ export function RunnerDetailModal({
             )}
           </div>
 
-          {/* ResultVsProjection and/or PriceMovementTable ride alongside
+          {/* ResultVsProjection and/or PriceMovementChart ride alongside
               CareerStats (fills the space that would otherwise sit blank
               beside CareerStats's natural, not-stretched table width).
-              Pre-race with no snapshot history yet, CareerStats just
-              stands alone - ComparisonGrid always lives under Recent runs
-              now (moved there per feedback), not paired up here, so its
-              position doesn't move around depending on whether the race
-              has resulted. */}
+              PriceMovementChart is now the ONE place a runner's price
+              information lives (folds in WPR $/TR $/SP too) - no more
+              separate Price line further down, pre-race or post-race.
+              ComparisonGrid always lives under Recent runs now (moved
+              there per feedback), not paired up here, so its position
+              doesn't move around depending on whether the race has
+              resulted. */}
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[280px] flex-1">
               <CareerStats runner={runner} race={race} />
             </div>
-            {(runner.actualWpr != null || runner.priceSeries.length >= 2) && (
+            {(runner.actualWpr != null || hasPriceInfo) && (
               <div className="flex min-w-[280px] flex-[1.4] flex-col gap-3">
-                {runner.actualWpr != null && (
-                  <ResultVsProjection
+                {runner.actualWpr != null && <ResultVsProjection runner={runner} />}
+                {hasPriceInfo && (
+                  <PriceMovementChart
                     runner={runner}
                     priceBitsBefore={priceBitsBefore}
                     priceBitsAfter={priceBitsAfter}
                     fixedMove={fixedMove}
                   />
                 )}
-                <PriceMovementTable runner={runner} />
               </div>
             )}
           </div>
@@ -307,30 +314,6 @@ export function RunnerDetailModal({
           <RecentRunsTable runs={runner.recentRuns} peakRun={runner.peakRun} />
 
           <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
-
-          {runner.actualWpr == null && (
-            <div className="flex items-center gap-1.5 text-sm text-ink-soft">
-              <span className="min-w-0 flex-1">
-                <span className="mr-1.5 font-semibold text-ink">Price</span>
-                {priceBitsBefore.length > 0 && `${priceBitsBefore.join('  ·  ')}  ·  `}
-                {runner.fixedWinPrice != null && (
-                  <>
-                    Fixed {fmtPrice(runner.fixedWinPrice)}
-                    {fixedMove && (
-                      <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                        {' '}
-                        ({fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from{' '}
-                        {fmtPrice(runner.openFixedPrice)} at open)
-                      </span>
-                    )}
-                    {'  ·  '}
-                  </>
-                )}
-                {priceBitsAfter.join('  ·  ')}
-              </span>
-              <PriceTrend runner={runner} />
-            </div>
-          )}
 
           {/* Jockey/trainer names and their ratings are already in the
               header subtitle - only barrier is new information here. */}
