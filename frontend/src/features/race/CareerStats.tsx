@@ -66,10 +66,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
-      <div className="mb-0.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
-      <p className="mb-1.5 text-[11px] text-ink-faint">
-        Avg vs its own career average, and (where it feeds the rating) the shrunk adjustment actually applied.
-      </p>
+      <div className="mb-1.5 text-xs font-semibold text-ink">WPR by career &amp; condition</div>
       <table className="w-full min-w-[300px] text-xs">
         <thead>
           <tr className="border-b border-line-soft text-ink-faint">
