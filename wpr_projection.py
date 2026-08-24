@@ -109,6 +109,14 @@ try:
 except ImportError:
     _void_from_comment_only = None
 
+try:
+    # Reuse settling_estimate.py's barrier_nudge exactly rather than a
+    # second copy that could drift - see own_settle below (build_features)
+    # for why the SAME today's-predicted-settle-band formula matters here.
+    from settling_estimate import barrier_nudge as _settle_barrier_nudge
+except ImportError:
+    _settle_barrier_nudge = None
+
 _DIR = Path(__file__).parent
 _MODEL_DIR = _DIR / "wpr_models"
 _SPELL_GAP_DAYS = 60   # a gap longer than this starts a new campaign
@@ -369,6 +377,25 @@ def _wet_dry_band(track_grading):
     if tg != tg:
         return None
     return "Wet" if tg >= 6 else "Dry"
+
+
+# Band for own_settle (see build_features). Same thresholds as
+# settling_estimate.py's _band and toprate_daily.py's settling-band
+# lookup (_band_of) - three small local copies of the same simple
+# banding rule already exist across the codebase (this file, the
+# settling estimate script, the frontend's lib/pace.ts settleBand), so
+# a fourth here matches existing precedent rather than adding a new
+# cross-module dependency for six lines of arithmetic.
+def _settle_band(rel):
+    if rel is None or rel != rel:  # NaN
+        return None
+    if rel <= 0.20:
+        return "Leader"
+    if rel <= 0.45:
+        return "On-pace"
+    if rel <= 0.70:
+        return "Midfield"
+    return "Back"
 
 
 # Surface type from the going string. trackGrading cannot distinguish a
@@ -706,6 +733,26 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     else:
         run_style = 0.5   # neutral when no usable settle history
         run_style_std = 0.0
+
+    # own_settle ingredients (own_distance/own_going pattern - see the
+    # ADJ_TERMS computation further below where career_avg is available).
+    # settle_band_hist bands each PAST run by its own ACTUAL settle
+    # (already happened, no prediction needed); cur_settle_band predicts
+    # TODAY's band the same way settling_estimate.py does (this horse's
+    # own run_style tendency, computed from PRIOR runs only above, plus a
+    # small nudge from today's barrier) - leak-safe and pre-race-knowable
+    # at both train and serve time, unlike a race-wide tempo estimate
+    # (see own_pace scoping notes - that one needs actual race-level
+    # aggregation and is not attempted here).
+    _rel_settle_full = pd.Series(np.nan, index=p.index)
+    _rel_settle_full.loc[valid_st] = (settle[valid_st] / pfs[valid_st]).clip(0, 1)
+    settle_band_hist = _rel_settle_full.apply(_settle_band)
+    cur_settle_band = None
+    if len(rel_settle) >= 1 and _settle_barrier_nudge is not None:
+        _nudge = _settle_barrier_nudge(cur_barrier, cur_field_size)
+        _rel_est = min(1.0, max(0.0, run_style + _nudge))
+        cur_settle_band = _settle_band(_rel_est)
+
     # per-horse WPR split: on-pace runs (front third) vs off-pace (back
     # third). "Does this horse run better leading or coming from behind."
     w_all = pd.to_numeric(p["wpr"], errors="coerce")
@@ -1072,6 +1119,17 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
         if (cur_going_band is not None and n_going >= 1) else 0.0
 
+    # CANDIDATE (Aug 2026, user request): own_settle - does THIS horse
+    # personally run above or below its own level when it settles in a
+    # given position band (Leader/On-pace/Midfield/Back)? Same own_going/
+    # own_distance pattern - see settle_band_hist/cur_settle_band above
+    # for how "today's predicted band" is derived leak-safe. Not yet in
+    # ADJ_TERMS - being tested for real held-out MAE before adoption.
+    settle_match = settle_band_hist == cur_settle_band
+    n_settle = int(settle_match.sum())
+    own_settle = _shrink(float(w[settle_match].mean() - career_avg), n_settle) \
+        if (cur_settle_band is not None and n_settle >= 1) else 0.0
+
     # TESTED, NOT ADOPTED (Aug 2026, user request): own_wet/own_dry - does
     # THIS horse personally run above or below its own level at wet (Soft
     # 6+) vs dry (Soft 5 or firmer) tracks specifically, using the
@@ -1225,6 +1283,9 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_fourth_up": own_fourth_up,
         "own_fifth_up": own_fifth_up,
         "own_barrier": own_barrier,
+        "own_settle": own_settle,
+        "settle_match_n": n_settle,
+        "cur_settle_band": cur_settle_band,
         "own_wet": own_wet,
         "own_dry": own_dry,
         "wet_match_n": n_wet6,
