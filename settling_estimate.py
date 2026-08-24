@@ -50,7 +50,7 @@ from pathlib import Path
 
 import pandas as pd
 
-FORM_CSV = Path(__file__).parent / "wpr_form_history.csv"
+FORM_CSV = Path(__file__).parent / "wpr_form_history.csv.gz"
 RUNNERS_CSV = Path(__file__).parent / "toprate_runners.csv"
 
 # barrier_nudge: how much today's draw shifts the settling estimate.
