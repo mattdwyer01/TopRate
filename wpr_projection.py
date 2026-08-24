@@ -1119,29 +1119,36 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_going = _shrink(float(w[going_match].mean() - career_avg), n_going) \
         if (cur_going_band is not None and n_going >= 1) else 0.0
 
-    # CANDIDATE (Aug 2026, user request): own_track_distance - does THIS
-    # horse personally run above/below its own level at THIS EXACT track
-    # AND THIS EXACT distance together (joint match), as distinct from
-    # own_distance (adopted) and own_track (tested, rejected: +0.10 MAE
-    # alone, see the own_track/own_jockey/own_trainer note above). Joint
-    # conditioning is a narrower, sparser match than either dimension
-    # alone - testing whether the extra precision beats the smaller
-    # sample, same trade-off own_distance's exact-vs-band test already
-    # explored in one dimension.
+    # TESTED, NOT ADOPTED (Aug 2026, user request): own_track_distance -
+    # does THIS horse personally run above/below its own level at THIS
+    # EXACT track AND THIS EXACT distance together (joint match), as
+    # distinct from own_distance (adopted) and own_track (tested,
+    # rejected: +0.10 MAE alone, see the own_track/own_jockey/own_trainer
+    # note above). 34.2% held-out coverage (sparser than either dimension
+    # alone, as expected). Held-out MAE 5.9049 -> 6.0265 (+0.1216 worse) -
+    # the extra precision of joint conditioning does not beat the smaller
+    # sample; same conclusion as own_track alone and every other narrow
+    # own-history split tried this session. Not added to ADJ_TERMS. Still
+    # emitted below (harmless, informative) even though it isn't part of
+    # the projection.
     track_dist_match = (p["track"] == cur_track) & (dist == float(cur_distance))
     n_track_dist = int(track_dist_match.sum())
     own_track_distance = _shrink(float(w[track_dist_match].mean() - career_avg), n_track_dist) \
         if n_track_dist >= 1 else 0.0
 
-    # CANDIDATE (Aug 2026, user request): own_recent_trend - "is this horse
-    # trending up or down lately" for EVERY horse, not just the
+    # TESTED, NOT ADOPTED (Aug 2026, user request): own_recent_trend - "is
+    # this horse trending up or down lately" for EVERY horse, not just the
     # lightly-raced-only own_trend below (gated to n in [4,6]). avg_last3
     # vs career_avg, shrunk by full run count n - the shrunk, ADJ_TERM-
     # shaped version of the raw recent_vs_career feature already emitted
     # below (unshrunk, feeds the confidence model, not the projection
-    # sum). BASE already blends in ewm3 (a recency-weighted average over
-    # the horse's whole history), so this may just double-count signal
-    # already baked into BASE - testing to find out rather than assuming.
+    # sum). Held-out MAE 5.9049 -> 6.4394 (+0.5344 worse) - by far the
+    # worst result of any candidate tried this session, confirming the
+    # suspicion in the note above: BASE already blends in ewm3 (a
+    # recency-weighted average over the horse's whole history), so this
+    # doesn't add trend signal, it double-counts what BASE already has
+    # and then some. Not added to ADJ_TERMS. Still emitted below (harmless,
+    # informative) even though it isn't part of the projection.
     own_recent_trend = _shrink(float(avg_last3 - career_avg), n)
 
     # TESTED, NOT ADOPTED (Aug 2026, user request): own_settle - does THIS
