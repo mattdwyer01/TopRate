@@ -18,6 +18,13 @@ function fmtAdj(v: number | null): string {
   return v > 0 ? `+${f}` : f
 }
 
+// Connections' own rating, shown inline after their name rather than
+// buried at the bottom of the runner detail - omitted entirely (not "(—)")
+// when absent so a name without a rating doesn't grow an empty parenthetical.
+function ratingSuffix(v: number | null): string {
+  return v == null ? '' : ` (${Math.round(v)})`
+}
+
 // A single responsive row - NOT a separate desktop-table/mobile-card pair
 // (the current dashboard dual-renders every data grid; this is the
 // consolidation the rebuild plan calls for). The grid's column template
@@ -102,7 +109,9 @@ export function RunnerRow({ runner, compact, selected, effective, onClick, onTog
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
-            {runner.jockey} / {runner.trainer}
+            {runner.jockey}
+            {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
+            {ratingSuffix(runner.trainerRating)}
           </span>
         )}
       </span>

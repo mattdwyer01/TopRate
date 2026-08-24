@@ -123,7 +123,9 @@ export function RunnerDetailModal({
               </div>
             ) : (
               <div className="truncate text-xs text-ink-faint">
-                {runner.jockey} / {runner.trainer}
+                {runner.jockey}
+                {runner.jockeyRating != null ? ` (${Math.round(runner.jockeyRating)})` : ''} / {runner.trainer}
+                {runner.trainerRating != null ? ` (${Math.round(runner.trainerRating)})` : ''}
               </div>
             )}
           </div>
@@ -330,13 +332,9 @@ export function RunnerDetailModal({
             </div>
           )}
 
-          {/* Jockey/trainer names are already in the header subtitle - only
-              their ratings and barrier are new information here. */}
+          {/* Jockey/trainer names and their ratings are already in the
+              header subtitle - only barrier is new information here. */}
           <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">
-            Jockey rating {runner.jockeyRating != null ? Math.round(runner.jockeyRating) : '—'}
-            {'  ·  '}
-            Trainer rating {runner.trainerRating != null ? Math.round(runner.trainerRating) : '—'}
-            {'  ·  '}
             Barrier {runner.barrier ?? '—'}
             <span className="ml-1.5 italic">(not used by the projection)</span>
           </div>
