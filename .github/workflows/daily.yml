@@ -8,12 +8,14 @@ name: TopRate Daily
 # same fixed-offset convention as price_refresh.yml - drifts an hour during
 # AEDT, adjust if that matters to you):
 #   09:00 AEST (23:00 UTC) - fetch today's races.
-#   09:10/09:20/09:30 AEST - pre-fetch tomorrow / the day after / three days
-#     out (fields are usually already declared that far ahead). Offset 10
-#     min apart per-slot so a slow run doesn't queue the next one behind it
-#     (concurrency below serialises rather than parallelises same-workflow
-#     runs) - and each is its own full daily fetch (Step 1 results-check +
-#     Step 2 field fetch), not a lightweight variant, so give each room.
+#   09:30 AEST (23:30 UTC) - pre-fetch tomorrow's races.
+#   12:00 AEST (02:00 UTC) - pre-fetch the day after tomorrow's races.
+#   12:30 AEST (02:30 UTC) - pre-fetch three days out's races (fields are
+#     usually already declared that far ahead). Spread across the morning/
+#     midday rather than clustered within one 30-min window - each slot is
+#     its own full daily fetch (Step 1 results-check + Step 2 field fetch),
+#     not a lightweight variant, so give each room (concurrency below still
+#     serialises rather than parallelises same-workflow runs regardless).
 #   23:00 AEST (13:00 UTC) - collect today's race results (mainly Step 1;
 #     Step 2 harmlessly no-ops - today's card is already fetched by then).
 #
@@ -35,9 +37,9 @@ on:
         type: string
   schedule:
     - cron: '0 23 * * *'    # 9:00am AEST - fetch today's races
-    - cron: '10 23 * * *'   # 9:10am AEST - pre-fetch tomorrow's races
-    - cron: '20 23 * * *'   # 9:20am AEST - pre-fetch the day after tomorrow's races
-    - cron: '30 23 * * *'   # 9:30am AEST - pre-fetch three days out's races
+    - cron: '30 23 * * *'   # 9:30am AEST - pre-fetch tomorrow's races
+    - cron: '0 2 * * *'     # 12:00pm AEST - pre-fetch the day after tomorrow's races
+    - cron: '30 2 * * *'    # 12:30pm AEST - pre-fetch three days out's races
     - cron: '0 13 * * *'    # 11:00pm AEST - collect today's results
 
 # Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
@@ -104,9 +106,9 @@ jobs:
             # unchanged, since it isn't a date-targeted fetch at all.
             case "${{ github.event.schedule }}" in
               "0 23 * * *")  OFFSET=0 ;;
-              "10 23 * * *") OFFSET=1 ;;
-              "20 23 * * *") OFFSET=2 ;;
-              "30 23 * * *") OFFSET=3 ;;
+              "30 23 * * *") OFFSET=1 ;;
+              "0 2 * * *")   OFFSET=2 ;;
+              "30 2 * * *")  OFFSET=3 ;;
               *)             OFFSET="" ;;
             esac
             if [ -n "$OFFSET" ]; then
