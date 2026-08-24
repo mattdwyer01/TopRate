@@ -114,21 +114,22 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
             )
           })}
         </tbody>
-      </table>
-      {/* Reconciliation: the Adj column above only covers whichever ADJ_TERMS
-          matched a career/condition row (distance/going/first-up/second-up).
-          own_trend/own_long_spell have no matching row, and the calibration
-          offset (baseline) applies uniformly to every runner rather than
-          being specific to this horse - both were previously either buried
-          in a plain-text footer or dropped entirely, so the Adj column never
-          visibly added up to the adjustment total shown above. Listing what's
-          left plus a Total row that reconciles exactly closes that gap.
-          Extra <tbody>s of the SAME <table> as the main rows above (not a
-          separate table) so the Total row's value lands in the exact same
-          Adj column - a second table with its own width/columns could only
-          ever approximate that alignment, not guarantee it. */}
-      {breakdown && runner.wprAdjustment != null && (
-        <table className="w-full max-w-md text-xs">
+        {/* Reconciliation: the Adj column above only covers whichever
+            ADJ_TERMS matched a career/condition row (distance/going/
+            first-up/second-up). own_trend/own_long_spell have no matching
+            row, and the calibration offset (baseline) applies uniformly to
+            every runner rather than being specific to this horse - both
+            were previously either buried in a plain-text footer or dropped
+            entirely, so the Adj column never visibly added up to the
+            adjustment total shown above. Listing what's left plus a Total
+            row that reconciles exactly closes that gap. A second <tbody>
+            of THIS SAME <table> (not a separate table below it) - a
+            separate table with its own auto-computed column widths only
+            ever approximated the main table's Adj column position; a
+            colSpan cell within the same table can't establish a competing
+            width for the (non-spanned) Adj column, so this guarantees the
+            Total row's value lands in the exact same column. */}
+        {breakdown && runner.wprAdjustment != null && (
           <tbody className="[&_td]:py-0.5">
             {otherAdj.map(([key, v], i) => (
               <tr key={key} className={`text-ink-faint ${i === 0 ? 'border-t border-line-soft' : ''}`}>
@@ -161,8 +162,8 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
               <td className="pt-1 pl-2 text-right font-mono">{fmtSigned(runner.wprAdjustment)}</td>
             </tr>
           </tbody>
-        </table>
-      )}
+        )}
+      </table>
     </div>
   )
 }

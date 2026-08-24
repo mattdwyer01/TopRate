@@ -1456,12 +1456,33 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     # ── What it's rated from ──
     has_nett = feats.get("wpr_nett") is not None and feats.get("wpr_nett") == feats.get("wpr_nett")
     has_ewm3 = feats.get("ewm3") is not None
+    # Deterministic per-horse variety - every description used to open with
+    # the exact same sentence (user feedback, Aug 2026). Seeded from stats
+    # already in feats (no new field needs threading through describe()'s
+    # callers), all-numeric so it's stable across repeat calls for the same
+    # horse regardless of Python's string-hash randomisation. wpr_nett and
+    # ewm3 spelled out in plain terms (TopRate's own rating; its last three
+    # runs) rather than the more jargon-y "pre-race figure"/"recent-form
+    # average" this replaced.
+    _seed = hash((round(feats.get("career_avg") or 0, 1), feats.get("n_runs") or 0,
+                  feats.get("days_since") or 0, round(projected_wpr, 1)))
     if has_nett and has_ewm3:
-        base_txt = "Rated from a blend of TopRate's own pre-race figure and its recent-form average"
+        base_txt = [
+            "Its rating blends TopRate's own number for it with how it's gone over its last three runs",
+            "This is built from TopRate's own rating for it plus its form over the last three starts",
+            "Rated from a mix of TopRate's own figure for it and its recent form (last three runs)",
+            "TopRate's own number for it and its last three runs are combined to get this rating",
+        ][_seed % 4]
     elif has_nett:
-        base_txt = "Rated from TopRate's own pre-race figure"
+        base_txt = [
+            "Rated from TopRate's own number for it",
+            "This is built from TopRate's own rating for it",
+        ][_seed % 2]
     elif has_ewm3:
-        base_txt = "Rated from its recent-form average"
+        base_txt = [
+            "Rated from how it's gone over its last three runs",
+            "This is built from its recent form (last three runs)",
+        ][_seed % 2]
     else:
         base_txt = "Rated from its career figures"
     n_void = feats.get("n_void_excluded", 0)
