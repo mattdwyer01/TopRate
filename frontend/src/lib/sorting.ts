@@ -16,7 +16,6 @@ export type SortKey =
   | 'fixedPrice'
   | 'finish'
   | 'actualWpr'
-  | 'miss'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -40,7 +39,6 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   fixedPrice: 'asc',
   finish: 'asc',
   actualWpr: 'desc',
-  miss: 'desc',
 }
 
 // effective: this runner's override-aware projected WPR / price, when a
@@ -77,10 +75,6 @@ function sortValue(runner: Runner, key: SortKey, effective?: EffectiveRunner): n
       return runner.finishPosition ?? Infinity
     case 'actualWpr':
       return runner.actualWpr ?? -Infinity
-    case 'miss':
-      return runner.actualWpr != null && runner.projectedWpr != null
-        ? runner.actualWpr - runner.projectedWpr
-        : -Infinity
   }
 }
 

@@ -27,11 +27,10 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
-  { key: 'actualWpr', label: 'Actual' },
-  { key: 'miss', label: 'Miss' },
   { key: 'wprPrice', label: 'WPR $' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
+  { key: 'actualWpr', label: 'Actual' },
 ]
 
 export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: RaceDetailProps) {
@@ -194,7 +193,7 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
             Fixed $
           </button>
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_52px_52px_56px_56px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
