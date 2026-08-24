@@ -1,10 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
 import type { TempoBucket } from '../../lib/pace'
+import { fetchFullFormHistory } from '../../lib/supabaseFormHistory'
 
 interface RecentRunsTableProps {
+  horseName: string
+  // Static, embedded fallback (capped at the last 10 - see toprate_daily.py)
+  // shown instantly and replaced once the live Supabase fetch below
+  // resolves with the horse's complete history. Kept as props (not fetched
+  // from scratch every time) so there's always something to show even if
+  // the live fetch fails or the anon key isn't configured yet.
   runs: FormRun[]
   peakRun: FormRun | null
   formHistory: FormHistoryEntry[]
@@ -290,11 +297,57 @@ function buildEntries(runs: FormRun[], peakRun: FormRun | null): Entry[] {
 // doesn't work below sm) - mobile gets a simplified stacked card list with
 // just the headline fields, sharing the same entry list so neither layout
 // can silently drift from the other.
-export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, raceGoing }: RecentRunsTableProps) {
+export function RecentRunsTable({
+  horseName,
+  runs: staticRuns,
+  peakRun: staticPeakRun,
+  formHistory: staticFormHistory,
+  raceDistance,
+  raceGoing,
+}: RecentRunsTableProps) {
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
   const [filterCamp, setFilterCamp] = useState<CampLabel | null>(null)
   const [filterSpeed, setFilterSpeed] = useState<TempoBucket | null>(null)
+
+  // Static props paint instantly (from the JSON payload, capped at the last
+  // 10 - see toprate_daily.py); this fetches the horse's COMPLETE history
+  // live from Supabase and swaps it in once it resolves. Falls back to the
+  // static data if the fetch fails, returns nothing, or the anon key isn't
+  // configured yet (fetchFullFormHistory resolves to null in that last
+  // case - "unavailable", not "still loading", so the status has to
+  // distinguish the two rather than inferring "not live yet" as "loading").
+  const [live, setLive] = useState<{ runs: FormRun[]; formHistory: FormHistoryEntry[] } | null>(null)
+  const [liveStatus, setLiveStatus] = useState<'loading' | 'live' | 'unavailable'>('loading')
+
+  useEffect(() => {
+    setLive(null)
+    setLiveStatus('loading')
+    const controller = new AbortController()
+    fetchFullFormHistory(horseName, controller.signal)
+      .then((result) => {
+        if (result && result.runs.length > 0) {
+          setLive(result)
+          setLiveStatus('live')
+        } else {
+          setLiveStatus('unavailable')
+        }
+      })
+      .catch((err) => {
+        if ((err as Error)?.name !== 'AbortError') {
+          console.warn('Full form history fetch failed, showing recent runs only:', err)
+          setLiveStatus('unavailable')
+        }
+      })
+    return () => controller.abort()
+  }, [horseName])
+
+  const runs = live?.runs ?? staticRuns
+  const formHistory = live?.formHistory ?? staticFormHistory
+  // Once live data is in, it already contains everything staticPeakRun
+  // pointed at separately (full history, not just the last 10) - drop the
+  // separate peak-run row so it isn't shown twice.
+  const peakRun = live ? null : staticPeakRun
 
   const campByDate = useMemo(() => buildCampByDate(formHistory), [formHistory])
   const tempoByDate = useMemo(() => buildTempoByDate(formHistory), [formHistory])
@@ -325,16 +378,19 @@ export function RecentRunsTable({ runs, peakRun, formHistory, raceDistance, race
     ? entries.filter((e) => e.kind === 'run' && !isDimmed(e.run))
     : entries
 
+  const countWord = live ? 'all' : 'last'
+  const loadingNote = liveStatus === 'loading' ? ' (loading full history…)' : ''
+
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">Recent runs</span>
         <span className="hidden text-xs text-ink-faint sm:inline">
-          last {runs.length}, newest first &middot; Pos = settle/800/400/finish &middot; green/red
-          sectionals = horse vs race shape
+          {countWord} {runs.length}, newest first{loadingNote} &middot; Pos = settle/800/400/finish
+          &middot; green/red sectionals = horse vs race shape
         </span>
         <span className="text-right text-[11px] text-ink-faint sm:hidden">
-          last {runs.length}, newest first
+          {countWord} {runs.length}, newest first{loadingNote}
           <br />
           Pos = settle/800/400/fin &middot; Sect = horse vs shape
         </span>

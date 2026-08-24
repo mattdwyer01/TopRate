@@ -180,3 +180,33 @@ create table if not exists toprate_runners (
 create index if not exists idx_tr_date    on toprate_runners (date);
 create index if not exists idx_tr_race_id on toprate_runners (race_id);
 create index if not exists idx_tr_resulted on toprate_runners (resulted);
+
+-- ============================================================
+-- Public read access to wpr_form_history (Aug 2026, user request).
+--
+-- The dashboard frontend (frontend/src/lib/supabaseFormHistory.ts) queries
+-- this table DIRECTLY from the browser using Supabase's public anon key -
+-- so a horse's full career history can be shown in the Recent Runs table
+-- without embedding it in toprate_data.json (which has to stay under
+-- GitHub's 100MB push limit - see git history for the size testing that
+-- ruled out embedding full history there once the race window was widened
+-- back to 30 days).
+--
+-- The anon key is meant to be public (it's baked into the built
+-- toprate_live.html); everything else that keeps this table safe is this
+-- RLS policy. It only grants SELECT (read), only to the anon role, only on
+-- this one table - the anon key can still do nothing else (no INSERT/
+-- UPDATE/DELETE anywhere, no access to toprate_runners, which is left
+-- locked down since it isn't queried client-side). Writes still only ever
+-- happen server-side via supabase_sync.py's service_role key, which
+-- bypasses RLS entirely and must never be exposed client-side.
+--
+-- Idempotent - safe to run again if RLS/the policy already exist.
+alter table wpr_form_history enable row level security;
+
+drop policy if exists "Public read access" on wpr_form_history;
+create policy "Public read access"
+  on wpr_form_history
+  for select
+  to anon
+  using (true);

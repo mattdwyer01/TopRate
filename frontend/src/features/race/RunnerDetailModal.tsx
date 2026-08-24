@@ -335,6 +335,7 @@ export function RunnerDetailModal({
           </div>
 
           <RecentRunsTable
+            horseName={runner.horse}
             runs={runner.recentRuns}
             peakRun={runner.peakRun}
             formHistory={runner.formHistory}
