@@ -10,7 +10,8 @@ const SUPABASE_URL = 'https://lvhgcduztkwkibrrkyqp.supabase.co'
 // not by keeping this key secret; that is how Supabase's anon key is
 // designed to work. NEVER put the service_role key here - that one bypasses
 // RLS entirely and must stay server-side only (see supabase_sync.py).
-const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__'
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2aGdjZHV6dGt3a2licnJreXFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTQwNTAsImV4cCI6MjEwMjc5MDA1MH0.bpWM-tgwhP7C6sqgwe87A6jVBmUJlamjPeFCZl7FQDc'
 
 const FIELDS = [
   'date', 'track', 'distance', 'going', 'positionfinish', 'wpr',
