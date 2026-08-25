@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { Race } from '../../types/domain'
 import {
   buildHeadlineSummary,
@@ -57,6 +57,17 @@ function matchesGroupFilter(r: AccuracyRow, filter: GroupFilter): boolean {
 // projection line up with what actually happened, across every resulted
 // race. Ported from toprate_html_v3.py's WPR Accuracy tab, scoped to what
 // this rebuild already has (see lib/accuracyStats.ts for what's deferred).
+//
+// Redesigned (Aug 2026, user feedback: "not sure what to do with it") from
+// a flat wall of ~15 equal-weight stat tiles into one clear verdict (top
+// pick win rate vs a random runner - the single number that actually
+// answers "should I trust the model's picks right now") with the rest of
+// the analysis - the exact same numbers as before, nothing removed - folded
+// into three named, collapsible sections a bettor opens only when they want
+// to go deeper. Diagnostics defaults open (it's the real substance); the
+// breakdown tables and the individual-runner table default closed - both
+// are audit/curiosity tools, not something you need to look at to get the
+// tab's answer.
 export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   const [period, setPeriod] = useState<Period>('90')
   const [excludeBush, setExcludeBush] = useState(true)
@@ -100,10 +111,18 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   // from cluttering the table with noisy single-digit-n rows.
   const venueBreakdown = useMemo(() => computeBreakdown(rows, (r) => r.venue), [rows])
 
+  // The hero number: how much better than a coin-flip-against-the-field is
+  // the model's top pick, in a single multiplier a non-statistician reads
+  // instantly. null when there isn't a sane field average to divide by.
+  const winMultiplier =
+    outcome.topPickWinPct != null && outcome.fieldAvgWinPct != null && outcome.fieldAvgWinPct > 0
+      ? outcome.topPickWinPct / outcome.fieldAvgWinPct
+      : null
+
   const periodSentence = PERIODS.find((p) => p.value === period)?.sentence ?? 'Overall'
   const headline = useMemo(
-    () => buildHeadlineSummary(periodSentence, outcome, rankStats, marginStats, voided.length, allRows.length),
-    [periodSentence, outcome, rankStats, marginStats, voided.length, allRows.length]
+    () => buildHeadlineSummary(periodSentence, rankStats, marginStats, voided.length, allRows.length),
+    [periodSentence, rankStats, marginStats, voided.length, allRows.length]
   )
 
   const filteredRows = useMemo(
@@ -165,182 +184,207 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
         </div>
       ) : (
         <>
-          {headline.length > 0 && (
-            <div className="rounded-lg border border-emerald-line bg-emerald-bg p-3 text-sm text-ink">
-              <div className="flex flex-col gap-1">
+          <div className="rounded-lg border border-emerald-line bg-emerald-bg p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-emerald-deep">
+                  Top pick win rate
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-4xl font-bold text-ink">{fmtPct(outcome.topPickWinPct)}</span>
+                  {winMultiplier != null && (
+                    <span className="text-sm font-medium text-emerald-deep">
+                      {winMultiplier.toFixed(1)}&times; a random runner
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-ink-mute sm:text-right">
+                <p>
+                  vs {fmtPct(outcome.fieldAvgWinPct)} field average &middot; n={outcome.topPickN} rated-#1 picks
+                </p>
+                <p>
+                  Typical miss: {fmtWpr(stats.mae)} WPR pts
+                  {stats.bias != null && Math.abs(stats.bias) >= 1
+                    ? `, ${stats.bias > 0 ? 'under' : 'over'}-projects on average`
+                    : ', roughly unbiased'}
+                </p>
+              </div>
+            </div>
+            {headline.length > 0 && (
+              <div className="mt-3 flex flex-col gap-1 border-t border-emerald-line pt-3 text-sm text-ink">
                 {headline.map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div>
-            <h2 className="text-sm font-semibold text-ink">Point accuracy</h2>
-            <p className="mb-2 text-xs text-ink-faint">
-              Each horse's own predicted WPR vs its own actual WPR, in isolation - not whether it beat the
-              others in its race. See rank accuracy below for that.
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              <StatTile label="Runners" value={String(stats.n)} />
-              <StatTile
-                label="Mean abs. error"
-                value={fmtWpr(stats.mae)}
-                sublabel="typical miss, WPR pts"
-              />
-              <StatTile
-                label="Bias"
-                value={fmtSigned(stats.bias)}
-                sublabel={stats.bias != null && stats.bias > 0 ? 'under-projects' : 'over-projects'}
-                tone={stats.bias != null && Math.abs(stats.bias) >= 1 ? 'negative' : 'default'}
-              />
-              <StatTile label="Within 3 pts" value={fmtPct(stats.within3Pct)} tone="positive" />
-              <StatTile label="Within 6 pts" value={fmtPct(stats.within6Pct)} tone="positive" />
-            </div>
+            )}
           </div>
 
-          <PredictedVsActualChart bins={calibration} />
+          <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - the substance behind the headline number" defaultOpen>
+            <div className="flex flex-col gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Point accuracy</h3>
+                <p className="mb-2 text-xs text-ink-faint">
+                  Each horse's own predicted WPR vs its own actual WPR, in isolation - not whether it beat the
+                  others in its race. See rank accuracy below for that.
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <StatTile label="Runners" value={String(stats.n)} />
+                  <StatTile
+                    label="Mean abs. error"
+                    value={fmtWpr(stats.mae)}
+                    sublabel="typical miss, WPR pts"
+                  />
+                  <StatTile
+                    label="Bias"
+                    value={fmtSigned(stats.bias)}
+                    sublabel={stats.bias != null && stats.bias > 0 ? 'under-projects' : 'over-projects'}
+                    tone={stats.bias != null && Math.abs(stats.bias) >= 1 ? 'negative' : 'default'}
+                  />
+                  <StatTile label="Within 3 pts" value={fmtPct(stats.within3Pct)} tone="positive" />
+                  <StatTile label="Within 6 pts" value={fmtPct(stats.within6Pct)} tone="positive" />
+                </div>
+              </div>
 
-          <div>
-            <h2 className="text-sm font-semibold text-ink">Rank accuracy</h2>
-            <p className="mb-2 text-xs text-ink-faint">
-              Did the model order THIS race correctly - not just whether each horse's own number was close. A
-              horse predicted 95 that runs 95 but finishes 3rd wasn't a bad prediction on its own; the race went
-              to rivals the model under-rated. That's a rank miss, not a point miss.
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatTile
-                label="Rank error"
-                value={rankStats.rankMae != null ? rankStats.rankMae.toFixed(2) : '-'}
-                sublabel={`positions off, avg/race (n=${rankStats.races})`}
-              />
-              <StatTile
-                label="Rank correlation"
-                value={rankStats.spearman != null ? rankStats.spearman.toFixed(2) : '-'}
-                sublabel="1.0 = perfect order, 0 = random"
-                tone="positive"
-              />
-              <StatTile
-                label="Winner's median rank"
-                value={outcome.winnerMedianRank != null ? outcome.winnerMedianRank.toFixed(1) : '-'}
-                sublabel={`n=${outcome.winnerN} winners`}
-              />
-              <StatTile
-                label="Winner rank error"
-                value={
-                  winnerRankStats.meanWinnerRankError != null
-                    ? winnerRankStats.meanWinnerRankError.toFixed(2)
-                    : '-'
-                }
-                sublabel={`mean, positions above 1st (n=${winnerRankStats.winnerN})`}
-              />
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatTile
-                label="Top pick wins"
-                value={fmtPct(outcome.topPickWinPct)}
-                sublabel={
-                  outcome.fieldAvgWinPct != null
-                    ? `field avg ${fmtPct(outcome.fieldAvgWinPct)} (n=${outcome.topPickN})`
-                    : `n=${outcome.topPickN}`
-                }
-                tone="positive"
-              />
-              <StatTile
-                label="Top pick places"
-                value={fmtPct(outcome.topPickPlacePct)}
-                sublabel={`n=${outcome.topPickN}`}
-              />
-              <StatTile
-                label="Rank-win correlation"
-                value={
-                  winnerRankStats.rankWinCorrelation != null
-                    ? winnerRankStats.rankWinCorrelation.toFixed(2)
-                    : '-'
-                }
-                sublabel="better rank -> more likely to win"
-                tone="positive"
-              />
-              <StatTile
-                label="Winner in top 3"
-                value={fmtPct(outcome.winnerTop3Pct)}
-                sublabel="predicted rank <=3"
-              />
-            </div>
-          </div>
+              <PredictedVsActualChart bins={calibration} />
 
-          <div>
-            <h2 className="text-sm font-semibold text-ink">Margin accuracy</h2>
-            <p className="mb-2 text-xs text-ink-faint">
-              A horse predicted 5 WPR points behind the top pick, whose actual result also lands about 5 points
-              behind the top pick's actual result, had its SPACING to the field leader correctly predicted - a
-              third dimension beyond "was the order right" and "was each number close".
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatTile
-                label="Margin error"
-                value={marginStats.mae != null ? marginStats.mae.toFixed(1) : '-'}
-                sublabel={`WPR pts off, vs top pick (n=${marginStats.n})`}
-              />
-              <StatTile
-                label="Margin bias"
-                value={fmtSigned(marginStats.bias, 1)}
-                sublabel={
-                  marginStats.bias != null && Math.abs(marginStats.bias) >= 1
-                    ? marginStats.bias > 0
-                      ? 'gaps run wider than predicted'
-                      : 'gaps run narrower than predicted'
-                    : 'roughly unbiased'
-                }
-                tone={marginStats.bias != null && Math.abs(marginStats.bias) >= 1 ? 'negative' : 'default'}
-              />
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Rank accuracy</h3>
+                <p className="mb-2 text-xs text-ink-faint">
+                  Did the model order THIS race correctly - not just whether each horse's own number was close. A
+                  horse predicted 95 that runs 95 but finishes 3rd wasn't a bad prediction on its own; the race
+                  went to rivals the model under-rated. That's a rank miss, not a point miss.
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <StatTile
+                    label="Rank error"
+                    value={rankStats.rankMae != null ? rankStats.rankMae.toFixed(2) : '-'}
+                    sublabel={`positions off, avg/race (n=${rankStats.races})`}
+                  />
+                  <StatTile
+                    label="Rank correlation"
+                    value={rankStats.spearman != null ? rankStats.spearman.toFixed(2) : '-'}
+                    sublabel="1.0 = perfect order, 0 = random"
+                    tone="positive"
+                  />
+                  <StatTile
+                    label="Winner's median rank"
+                    value={outcome.winnerMedianRank != null ? outcome.winnerMedianRank.toFixed(1) : '-'}
+                    sublabel={`n=${outcome.winnerN} winners`}
+                  />
+                  <StatTile
+                    label="Winner rank error"
+                    value={
+                      winnerRankStats.meanWinnerRankError != null
+                        ? winnerRankStats.meanWinnerRankError.toFixed(2)
+                        : '-'
+                    }
+                    sublabel={`mean, positions above 1st (n=${winnerRankStats.winnerN})`}
+                  />
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-2">
+                  <StatTile
+                    label="Rank-win correlation"
+                    value={
+                      winnerRankStats.rankWinCorrelation != null
+                        ? winnerRankStats.rankWinCorrelation.toFixed(2)
+                        : '-'
+                    }
+                    sublabel="better rank -> more likely to win"
+                    tone="positive"
+                  />
+                  <StatTile
+                    label="Winner in top 3"
+                    value={fmtPct(outcome.winnerTop3Pct)}
+                    sublabel="predicted rank <=3"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Margin accuracy</h3>
+                <p className="mb-2 text-xs text-ink-faint">
+                  A horse predicted 5 WPR points behind the top pick, whose actual result also lands about 5
+                  points behind the top pick's actual result, had its SPACING to the field leader correctly
+                  predicted - a third dimension beyond "was the order right" and "was each number close".
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <StatTile
+                    label="Margin error"
+                    value={marginStats.mae != null ? marginStats.mae.toFixed(1) : '-'}
+                    sublabel={`WPR pts off, vs top pick (n=${marginStats.n})`}
+                  />
+                  <StatTile
+                    label="Margin bias"
+                    value={fmtSigned(marginStats.bias, 1)}
+                    sublabel={
+                      marginStats.bias != null && Math.abs(marginStats.bias) >= 1
+                        ? marginStats.bias > 0
+                          ? 'gaps run wider than predicted'
+                          : 'gaps run narrower than predicted'
+                        : 'roughly unbiased'
+                    }
+                    tone={marginStats.bias != null && Math.abs(marginStats.bias) >= 1 ? 'negative' : 'default'}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          </Disclosure>
 
           {(distBreakdown.length > 0 || goingBreakdown.length > 0 || venueBreakdown.length > 0) && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {distBreakdown.length > 0 && (
-                <BreakdownTable
-                  title="By distance"
-                  rows={distBreakdown}
-                  activeValue={groupFilter?.kind === 'distance' ? groupFilter.value : null}
-                  onSelect={(value) => toggleFilter('distance', value)}
-                />
-              )}
-              {goingBreakdown.length > 0 && (
-                <BreakdownTable
-                  title="By going"
-                  rows={goingBreakdown}
-                  activeValue={groupFilter?.kind === 'going' ? groupFilter.value : null}
-                  onSelect={(value) => toggleFilter('going', value)}
-                />
-              )}
-              {venueBreakdown.length > 0 && (
-                <BreakdownTable
-                  title="By venue"
-                  rows={venueBreakdown}
-                  activeValue={groupFilter?.kind === 'venue' ? groupFilter.value : null}
-                  onSelect={(value) => toggleFilter('venue', value)}
-                />
-              )}
-            </div>
+            <Disclosure
+              title="Where the model struggles"
+              subtitle="A high MAE or big bias in a group below means be more skeptical of top picks from there"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {distBreakdown.length > 0 && (
+                  <BreakdownTable
+                    title="By distance"
+                    rows={distBreakdown}
+                    activeValue={groupFilter?.kind === 'distance' ? groupFilter.value : null}
+                    onSelect={(value) => toggleFilter('distance', value)}
+                  />
+                )}
+                {goingBreakdown.length > 0 && (
+                  <BreakdownTable
+                    title="By going"
+                    rows={goingBreakdown}
+                    activeValue={groupFilter?.kind === 'going' ? groupFilter.value : null}
+                    onSelect={(value) => toggleFilter('going', value)}
+                  />
+                )}
+                {venueBreakdown.length > 0 && (
+                  <BreakdownTable
+                    title="By venue"
+                    rows={venueBreakdown}
+                    activeValue={groupFilter?.kind === 'venue' ? groupFilter.value : null}
+                    onSelect={(value) => toggleFilter('venue', value)}
+                  />
+                )}
+              </div>
+            </Disclosure>
           )}
 
-          <div>
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-ink">
-                Runner detail
-                {filteredRows.length > MAX_DETAIL_ROWS ? ` (worst ${MAX_DETAIL_ROWS} of ${filteredRows.length})` : ''}
-                {groupFilter && (
-                  <button
-                    type="button"
-                    onClick={() => setGroupFilter(null)}
-                    className="ml-2 rounded-full bg-emerald-bg px-2 py-0.5 text-xs font-medium text-emerald-deep hover:opacity-80"
-                  >
-                    {groupFilter.value} &times;
-                  </button>
-                )}
-              </h2>
+          <Disclosure
+            title="Explore individual results"
+            subtitle={
+              `${filteredRows.length.toLocaleString()} runners in this window` +
+              (groupFilter ? ` - filtered to ${groupFilter.value}` : '') +
+              ' - click a row to jump to that runner'
+            }
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              {groupFilter ? (
+                <button
+                  type="button"
+                  onClick={() => setGroupFilter(null)}
+                  className="rounded-full bg-emerald-bg px-2 py-0.5 text-xs font-medium text-emerald-deep hover:opacity-80"
+                >
+                  {groupFilter.value} &times;
+                </button>
+              ) : (
+                <span />
+              )}
               <div className="flex rounded-md border border-line bg-panel p-0.5">
                 <button
                   type="button"
@@ -372,6 +416,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 : voided.length > 0
                   ? 'Rows flagged ⚠ were compromised (vet/checked/eased/etc) - still shown, but not a fair test.'
                   : ''}
+              {filteredRows.length > MAX_DETAIL_ROWS ? ` Showing the worst ${MAX_DETAIL_ROWS}.` : ''}
             </p>
             <div className="relative">
               {/* max-h + overflow-y bounds this to one scrollable panel instead of
@@ -435,9 +480,48 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-panel to-transparent" />
               )}
             </div>
-          </div>
+          </Disclosure>
         </>
       )}
+    </div>
+  )
+}
+
+// A named, collapsible section - the mechanism behind splitting the tab
+// into "the answer" (hero card, always visible) and "the depth" (this),
+// opened only on request instead of dumped on the page at equal weight.
+function Disclosure({
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="rounded-lg border border-line bg-panel">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <div>
+          <div className="text-sm font-semibold text-ink">{title}</div>
+          {subtitle && <div className="text-xs text-ink-faint">{subtitle}</div>}
+        </div>
+        <span
+          aria-hidden="true"
+          className={'shrink-0 text-ink-mute transition-transform ' + (open ? 'rotate-180' : '')}
+        >
+          &#9662;
+        </span>
+      </button>
+      {open && <div className="border-t border-line p-4">{children}</div>}
     </div>
   )
 }

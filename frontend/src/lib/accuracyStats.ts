@@ -429,21 +429,16 @@ export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
  * is a judgment call the reader has to make on their own. */
 export function buildHeadlineSummary(
   periodLabel: string,
-  outcome: OutcomeStats,
   rankStats: RankStats,
   marginStats: MarginStats,
   voidedCount: number,
   totalCount: number
 ): string[] {
   const lines: string[] = []
-  if (outcome.topPickWinPct != null && outcome.fieldAvgWinPct != null) {
+  if (rankStats.spearman != null) {
     lines.push(
-      `${periodLabel}, the model's top pick won ${outcome.topPickWinPct.toFixed(1)}% of races ` +
-        `(field average ${outcome.fieldAvgWinPct.toFixed(1)}%)` +
-        (rankStats.spearman != null
-          ? ` and ordered the field with a ${rankStats.spearman.toFixed(2)} rank correlation ` +
-            `(1.0 = perfect order, 0 = random).`
-          : '.')
+      `${periodLabel}, the model ordered the field with a ${rankStats.spearman.toFixed(2)} rank correlation ` +
+        `(1.0 = perfect order, 0 = random).`
     )
   }
   if (marginStats.mae != null) {
