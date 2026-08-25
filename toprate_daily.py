@@ -1852,7 +1852,20 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
         if race_date and race_date > today:
             skipped_future += 1
             continue
-        if race_date and race_date < cutoff_old:
+        # The stale-days cutoff exists to bound the cheap "recently resulted,
+        # still refining wpr_actual/comments" re-check above - NOT to give up
+        # permanently on a race that was never resulted at all (a transient
+        # API failure, timing miss, etc. on its first attempt). Before this
+        # fix, any never-resulted race falling outside the cutoff was
+        # silently skipped on every subsequent run FOREVER, since nothing
+        # else ever re-attempts it - found via the dashboard's Watchlist tab
+        # showing month-old races stuck unresulted (Aug 2026). So the cutoff
+        # only applies when every runner in this race already has a result;
+        # a race with any never-resulted runner is always retried,
+        # regardless of age (one cheap API call/day at worst, for the rare
+        # case it turns out to have been abandoned and truly never resolves).
+        never_resulted = bool((runners_df.loc[mask, "resulted"] != 1).any())
+        if not never_resulted and race_date and race_date < cutoff_old:
             skipped_old += 1
             continue
         if race_date == today:
