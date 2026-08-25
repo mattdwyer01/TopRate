@@ -7,10 +7,11 @@ import { isVoid } from './wprVoid'
 // accOutcomeStats) - the core "how good are the projections, really"
 // question, using only what the new frontend already has in DashboardData.
 // Deferred vs the old tab: bet-only/reviewed-only filters (no bet log or
-// race-review feature exists yet in this rebuild - Phase 2), the
-// track-level breakdown (many small groups, less essential for a v1), and
-// multi-select going/distance filters (the period + bush-exclude toggle
-// cover the main use case here).
+// race-review feature exists yet in this rebuild - Phase 2) and multi-select
+// going/distance filters (the period + bush-exclude toggle cover the main
+// use case here). The track-level breakdown WAS deferred originally but is
+// now built (see ReviewTab's "By venue" table) - MIN_BREAKDOWN_N keeps it
+// from splintering into dozens of single-digit-n rows.
 //
 // Two genuinely different questions, both answered here, neither a
 // substitute for the other: computeAccuracyStats measures each runner's
@@ -23,6 +24,7 @@ import { isVoid } from './wprVoid'
 
 export interface AccuracyRow {
   raceId: string
+  runId: string
   date: string
   venue: string
   distance: number
@@ -70,6 +72,7 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
       const voidResult = isVoid(miss, r.commentsVideo, r.commentsSteward)
       rows.push({
         raceId: race.raceId,
+        runId: r.runId,
         date: race.date,
         venue: race.venue,
         distance: race.distance,

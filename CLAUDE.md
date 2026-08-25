@@ -36,10 +36,16 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   its data-JSON half (the payload the new frontend fetches); its HTML-string
   return value is discarded. Do not build new dashboard features here.
 - `wpr_projection.py` — the WPR projection model: an additive model
-  (`base + Ridge(ADJ_FEATURES)`), where `base` is TopRate's own rating
-  (`wpr_nett`, falling back through recent-form averages). `build_training_frame()`,
-  `project_race()`, `train_wpr_projection()`, `describe()` (the plain-English
-  projection explanation shown in the dashboard's runner detail panel).
+  (`base + sum(ADJ_TERMS)`), where `base` is a 50/50 blend of TopRate's own
+  rating (`wpr_nett`) and recency-weighted recent form (`ewm3`), falling back
+  through recent-form averages. Both base and the summed adjustment go
+  through their own separately-fitted calibration slopes (`_compute_base()`/
+  `_calibrate_base()`, `_CALIB_ADJ_SLOPE`) before being added - the base
+  slope is itself piecewise (bottom 10%/middle 70%/top 20% of raw base each
+  fit separately, since a single global slope under/over-shrinks the tails).
+  `build_training_frame()`, `project_race()`, `train_wpr_projection()`,
+  `describe()` (the plain-English projection explanation shown in the
+  dashboard's runner detail panel).
 - `toprate_json_capture.py` — rich per-runner form capture (SvelteKit __data.json).
 - `supabase_sync.py` — pushes runners + form history to Supabase each run.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
@@ -113,11 +119,17 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   complexity without a fundamentally new data source. The unexplored lever is
   bet selection, not prediction accuracy.
 - The dashboard frontend rebuild (Python-templated HTML → React/Vite, see File
-  map) is in progress, phased. Phase 1 (foundation + the Race tab: meetings
-  grid, race detail, runner detail panel, speed map) is live. NOT yet
-  rebuilt: Summary tab, P&L tab, bet log, Settings tab, cross-device sync,
-  WPR Accuracy tab - those still only exist in `toprate_html_v3.py` and are
-  not reachable from the new frontend yet.
+  map) is in progress, phased, and further along than "Phase 1" implies -
+  most of what's genuinely useful without bet tracking is already live:
+  Race tab (meetings grid, race detail, runner detail modal, speed map,
+  horse/jockey/trainer search via the header search icon or `/`), Review tab
+  (predicted-vs-actual accuracy: point/rank/margin stats, calibration chart,
+  breakdowns by distance/going/venue, cross-linked to the runner it's
+  about), Settings modal (WPR $ price sharpness override, workflow_dispatch
+  "Fetch data" buttons, cross-device sync of overrides/preferences via a
+  private GitHub Gist - see `lib/githubSync.ts`). Deliberately NOT built,
+  per explicit user decision: a P&L/bet-tracking tab - there's no bet log,
+  and one wasn't wanted without real bet tracking behind it.
 
 ## What to be careful about
 

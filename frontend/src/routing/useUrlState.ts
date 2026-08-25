@@ -15,14 +15,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export interface RaceUrlState {
   date: string | null
   raceId: string | null
+  // Deep-links straight to a runner's detail panel within the race (set by
+  // search and Review-tab cross-linking). Only ever consumed as RaceDetail's
+  // initial selection, not kept in sync while the modal is open/closed -
+  // see App.tsx's key={race.raceId} on RaceDetail for why that's enough.
+  runId: string | null
 }
 
 function readFromLocation(): RaceUrlState {
   const params = new URLSearchParams(window.location.search)
-  if (params.get('tab') !== 'race') return { date: null, raceId: null }
+  if (params.get('tab') !== 'race') return { date: null, raceId: null, runId: null }
   return {
     date: params.get('date'),
     raceId: params.get('race'),
+    runId: params.get('run'),
   }
 }
 
@@ -31,6 +37,7 @@ function buildSearch(state: RaceUrlState): string {
   params.set('tab', 'race')
   if (state.date) params.set('date', state.date)
   if (state.raceId) params.set('race', state.raceId)
+  if (state.runId) params.set('run', state.runId)
   return `?${params.toString()}`
 }
 

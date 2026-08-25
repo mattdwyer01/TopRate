@@ -19,6 +19,10 @@ interface RaceDetailProps {
   setDelta: (runId: string, value: number | null) => void
   setBase: (runId: string, value: number | null) => void
   setScratched: (runId: string, value: boolean) => void
+  // A runner to pre-select on mount (search, Review-tab cross-linking).
+  // Only read once - App.tsx keys RaceDetail on race.raceId, so a fresh
+  // deep link always remounts rather than needing a sync effect here.
+  initialRunId?: string | null
   onBack: () => void
   onSelectRace: (raceId: string, date: string) => void
 }
@@ -53,13 +57,14 @@ export function RaceDetail({
   setDelta,
   setBase,
   setScratched,
+  initialRunId,
   onBack,
   onSelectRace,
 }: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
 
   const effectiveByRunId = useMemo(
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, scratched),
