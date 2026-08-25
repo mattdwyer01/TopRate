@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
-import { useWatchlistThresholds } from './lib/watchlistSettings'
 import { useWprOverrides } from './lib/wprOverrides'
 import { useShowBushMeetings } from './lib/bushMeetings'
 import { bushMeetingKeys, meetingKey } from './lib/meetings'
@@ -14,24 +13,17 @@ import { SettingsModal } from './components/SettingsModal'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { WatchlistTab } from './features/watchlist/WatchlistTab'
 
-type TopTab = 'race' | 'review' | 'watchlist'
+type TopTab = 'race' | 'review'
 
 function readTopTab(): TopTab {
-  const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'watchlist' ? t : 'race'
+  return new URLSearchParams(window.location.search).get('tab') === 'review' ? 'review' : 'race'
 }
 
 function App() {
   const { state, retry } = useDashboardData()
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
-  const { thresholds: watchlistThresholds, setThresholds: setWatchlistThresholds } = useWatchlistThresholds()
-  // Lifted up from RaceDetail so the Watchlist tab (which needs `bases` to
-  // rescue a race with a manually-rated first starter) sees the same live
-  // state, not a second independent localStorage read that only catches up
-  // on reload.
   const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -51,10 +43,9 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'watchlist') {
-      const search = `?tab=${tab}`
-      if (window.location.search !== search) {
-        window.history.pushState(null, '', search)
+    if (tab === 'review') {
+      if (window.location.search !== '?tab=review') {
+        window.history.pushState(null, '', '?tab=review')
       }
     } else {
       pushUrlState({ date: urlState.date, raceId: urlState.raceId })
@@ -117,16 +108,6 @@ function App() {
               >
                 Review
               </button>
-              <button
-                type="button"
-                onClick={() => switchTab('watchlist')}
-                className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
-                  (topTab === 'watchlist' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Watchlist
-              </button>
             </nav>
           </div>
           <div className="flex items-center gap-3">
@@ -174,14 +155,6 @@ function App() {
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
-        {state.status === 'ready' && topTab === 'watchlist' && (
-          <WatchlistTab
-            races={state.data.races}
-            thresholds={watchlistThresholds}
-            bases={bases}
-            onSelectRace={goToRace}
-          />
-        )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
             <RaceDetail
@@ -213,8 +186,6 @@ function App() {
           serverBeta={state.status === 'ready' ? state.data.priceBeta : null}
           betaOverride={betaOverride}
           onSetBetaOverride={setBetaOverride}
-          watchlistThresholds={watchlistThresholds}
-          onSetWatchlistThresholds={setWatchlistThresholds}
           onClose={() => setSettingsOpen(false)}
           onOpenMethodology={() => {
             setSettingsOpen(false)
