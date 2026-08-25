@@ -71,7 +71,7 @@ export function RunnerRow({
           onClick()
         }
       }}
-      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px_52px] ${rowPadding} ${
+      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_44px_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -126,19 +126,16 @@ export function RunnerRow({
           </span>
         )}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtInt(runner.barrier)}
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.peakWpr)}
-      </span>
       <span
-        className={`hidden text-right font-mono sm:inline ${
+        className={`text-right font-mono ${
           spell.label === 'FU' ? 'font-semibold text-amber' : 'text-ink-mute'
         }`}
         title={spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined}
       >
         {spell.label}
+      </span>
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+        {fmtWpr(runner.peakWpr)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.baseWpr)}
