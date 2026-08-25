@@ -17,12 +17,15 @@ const FIELD_ORDER: Record<SearchResult['matchedField'], number> = { horse: 0, jo
 /** Case-insensitive substring search across every runner in every loaded
  * race (the payload's ~45-day window - see CLAUDE.md), checked against
  * horse first, then jockey, then trainer. A horse-name match always ranks
- * above a jockey/trainer match for the same query; within a field, most
- * recent race first, so a name search on someone still racing surfaces
- * their latest run at the top. */
+ * above a jockey/trainer match for the same query. Within a field: races
+ * today-or-earlier sort most-recent-first (so a name search on someone
+ * still racing surfaces their latest run, not a same-named future
+ * acceptance that happens to sort later as a raw date string), THEN future
+ * races sort soonest-first (so "when's it next racing" also works). */
 export function searchRunners(races: Race[], query: string, limit = 40): SearchResult[] {
   const q = query.trim().toLowerCase()
   if (q.length < 2) return []
+  const todayStr = new Date().toISOString().slice(0, 10)
   const out: SearchResult[] = []
   for (const race of races) {
     for (const r of race.runners) {
@@ -50,7 +53,10 @@ export function searchRunners(races: Race[], query: string, limit = 40): SearchR
   out.sort((a, b) => {
     const fieldDiff = FIELD_ORDER[a.matchedField] - FIELD_ORDER[b.matchedField]
     if (fieldDiff !== 0) return fieldDiff
-    return b.date.localeCompare(a.date)
+    const aFuture = a.date > todayStr
+    const bFuture = b.date > todayStr
+    if (aFuture !== bFuture) return aFuture ? 1 : -1
+    return aFuture ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)
   })
   return out.slice(0, limit)
 }

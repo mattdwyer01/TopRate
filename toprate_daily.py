@@ -1917,6 +1917,9 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
     for race_id in eligible:
         try:
             mask = runners_df["race_id"].astype(str) == str(race_id)
+            _sample = runners_df[mask].iloc[0] if mask.any() else None
+            race_date = pd.to_datetime(_sample["date"]).date() \
+                if _sample is not None and _sample.get("date") else None
             result_raw = result_by_race.get(race_id) or {}
             if isinstance(result_raw, dict) and result_raw.get("_error"):
                 print(f"  Error fetching results for race {race_id}: {result_raw['_error']}")
@@ -1937,14 +1940,10 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
                 sp  = r.get("priceStarting")
                 pt  = r.get("priceTop")
                 mgn = r.get("marginFinish")
-                atw = r.get("atw")   # actual weight-adjusted WPR (the settled
-                                     # run-day rating, aligns to the projection's
-                                     # weight basis). Source of truth for
-                                     # wpr_actual - captured here the moment a
-                                     # race resolves, so the actual no longer
-                                     # waits for the horse to be re-scraped into
-                                     # form history (the lag that left recent
-                                     # runs' actuals blank).
+                atw = r.get("atw")   # actual weight-adjusted WPR, aligns to the
+                                     # projection's weight basis - but NOT
+                                     # trustworthy on race day (see the
+                                     # race_date < today gate below).
                 # Running (video) and official stewards comments. Used by the
                 # post-race adjudication to separate genuine model error from
                 # void runs (vet/eased/checked/slow-away). Captured at result
@@ -1971,11 +1970,20 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
                         runners_df.loc[idx, "margin_finish"] = res["margin"]
                     runners_df.loc[idx, "starting_price_sp"] = sp
                     runners_df.loc[idx, "price_top"]         = res.get("price_top")
-                    # Actual weight-adjusted WPR straight from the result feed.
-                    # This is the timely path: filled when the race resolves,
-                    # not when the horse next races. Guarded so a missing atw
-                    # leaves any existing value alone rather than nulling it.
-                    if res.get("atw") is not None:
+                    # Actual weight-adjusted WPR straight from the result feed -
+                    # but ONLY once the race is at least a day old. On race day
+                    # itself, atw is not yet the run's revised rating; the feed
+                    # returns the horse's prior known WPR unchanged (confirmed
+                    # live, Aug 2026: a horse's same-day atw exactly matched its
+                    # PRE-race peak, not its actual run - a same-day gap winner
+                    # showed as "actual 75.1" straight off its last run 2 weeks
+                    # earlier). Writing that in immediately is worse than
+                    # leaving it blank: once wpr_actual is non-null, the
+                    # "still missing" re-check below no longer re-fetches it,
+                    # so the wrong value would never get corrected. Guarded so
+                    # a missing atw leaves any existing value alone rather than
+                    # nulling it.
+                    if race_date is not None and race_date < today and res.get("atw") is not None:
                         runners_df.loc[idx, "wpr_actual"] = round(float(res["atw"]), 1)
                     # Comments: write when present, leave existing alone when the
                     # feed omits them (some feeds populate stewards later).

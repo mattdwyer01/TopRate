@@ -35,10 +35,23 @@ interface ResultVsProjectionProps {
 // happening to coincide (e.g. both landing on "8") made read as one
 // repeated figure in an earlier layout.
 export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
-  const hasResult = runner.actualWpr != null
+  // Two independent facts, not one: the race RESULT (finish position, won)
+  // is known the moment the race resolves, but the settled actual WPR
+  // (actualWpr) can lag a day or more behind that - TopRate revises it
+  // after the fact, and the pipeline now deliberately waits for that
+  // revision rather than writing a same-day placeholder (see
+  // update_results()'s race_date < today gate, Aug 2026 - the previous
+  // version wrote whatever the feed returned immediately, which turned out
+  // to be the horse's PRIOR rating, not this run's, on race day itself).
+  // Gating the whole card on actualWpr alone would show "not run yet" for
+  // a horse that demonstrably won - hasRun and hasActual are checked
+  // separately so the WON badge appears as soon as it's true, independent
+  // of whether the WPR comparison is ready yet.
+  const hasRun = runner.finishPosition != null
+  const hasActual = runner.actualWpr != null
   const { notes, setNote } = useMissNotes()
 
-  const miss = hasResult && runner.projectedWpr != null ? runner.actualWpr! - runner.projectedWpr : null
+  const miss = hasActual && runner.projectedWpr != null ? runner.actualWpr! - runner.projectedWpr : null
   const missAbs = miss != null ? Math.abs(miss) : null
   const missClass =
     missAbs == null ? 'text-ink-mute' : missAbs >= 8 ? 'text-rose' : missAbs >= 4 ? 'text-amber' : 'text-emerald-deep'
@@ -60,40 +73,40 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
         </div>
         <div>
           <div className="text-[11px] text-ink-faint">Actual</div>
-          <div className={`font-mono text-lg font-semibold ${hasResult ? 'text-ink' : 'text-ink-faint'}`}>
-            {hasResult ? fmt(runner.actualWpr) : '—'}
+          <div className={`font-mono text-lg font-semibold ${hasActual ? 'text-ink' : 'text-ink-faint'}`}>
+            {hasActual ? fmt(runner.actualWpr) : '—'}
           </div>
           <div className="text-xs text-ink-mute">
-            {hasResult ? `WPR rank ${runner.actualWprRank ?? '—'}` : 'not run yet'}
+            {hasActual ? `WPR rank ${runner.actualWprRank ?? '—'}` : hasRun ? 'settling' : 'not run yet'}
           </div>
         </div>
       </div>
 
-      {hasResult ? (
+      {hasRun && (
+        <div className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-1.5 text-xs">
+          <span
+            className={`rounded-full px-1.5 py-0.5 font-mono font-semibold ${
+              runner.won ? 'bg-amber-bg text-amber' : 'bg-bg text-ink-mute'
+            }`}
+          >
+            {runner.won ? 'WON' : ordinal(runner.finishPosition!)}
+          </span>
+          {runner.marginFinish != null && !runner.won && (
+            <span className="text-ink-mute">beaten {runner.marginFinish.toFixed(1)}L</span>
+          )}
+        </div>
+      )}
+
+      {hasActual ? (
         <>
           {miss != null && (
-            <div className="mt-2 flex items-baseline gap-1.5 border-t border-line-soft pt-1.5 text-xs">
+            <div className="mt-1.5 flex items-baseline gap-1.5 text-xs">
               <span className="text-ink-mute">Missed by</span>
               <span className={`font-mono font-semibold ${missClass}`}>
                 {miss > 0 ? '+' : ''}
                 {miss.toFixed(1)}
               </span>
               {rankText && <span className="text-ink-mute">&middot; WPR rank {rankText} than predicted</span>}
-            </div>
-          )}
-
-          {runner.finishPosition != null && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs">
-              <span
-                className={`rounded-full px-1.5 py-0.5 font-mono font-semibold ${
-                  runner.won ? 'bg-amber-bg text-amber' : 'bg-bg text-ink-mute'
-                }`}
-              >
-                {runner.won ? 'WON' : ordinal(runner.finishPosition)}
-              </span>
-              {runner.marginFinish != null && !runner.won && (
-                <span className="text-ink-mute">beaten {runner.marginFinish.toFixed(1)}L</span>
-              )}
             </div>
           )}
 
@@ -119,6 +132,10 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
             </div>
           )}
         </>
+      ) : hasRun ? (
+        <div className="mt-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-faint">
+          Actual WPR still settling - usually lands within a day or two.
+        </div>
       ) : (
         <div className="mt-2 border-t border-line-soft pt-1.5 text-xs text-ink-faint">Check back after the race.</div>
       )}
