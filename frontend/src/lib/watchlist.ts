@@ -1,4 +1,5 @@
 import type { Race, Runner } from '../types/domain'
+import { bushMeetingKeys, meetingKey } from './meetings'
 
 // The pattern from the Aug 2026 "back the top-rated runner" backtesting
 // session that held up under a chronological split-half check (both halves
@@ -21,26 +22,69 @@ export interface WatchlistEntry {
   gap: number
 }
 
-export function computeWatchlist(races: Race[], minGap: number, minPrice: number): WatchlistEntry[] {
+// A runner's rating for Watchlist purposes: the model's own projection, or
+// (when the model couldn't project the runner at all - typically a first
+// starter) a manually-entered base rating from the runner detail panel, if
+// one has been set. null means genuinely unrated - no model projection and
+// no manual entry either.
+function effectiveWpr(runner: Runner, bases: Record<string, number>): number | null {
+  if (runner.projectedWpr != null) return runner.projectedWpr
+  return runner.runId in bases ? bases[runner.runId] : null
+}
+
+export function computeWatchlist(
+  races: Race[],
+  minGap: number,
+  minPrice: number,
+  bases: Record<string, number> = {},
+): WatchlistEntry[] {
   const entries: WatchlistEntry[] = []
+  const bushKeys = bushMeetingKeys(races)
   for (const race of races) {
-    if (race.hasFirstStarter) continue
-    const rank1 = race.runners.find((r) => r.wprRank === 1)
-    const rank2 = race.runners.find((r) => r.wprRank === 2)
-    if (!rank1 || !rank2 || rank1.projectedWpr == null || rank2.projectedWpr == null) continue
-    const gap = rank1.projectedWpr - rank2.projectedWpr
+    // Same bush/picnic-meeting definition as the rest of the app (top race
+    // at that meeting <= $20k) - the backtest behind this rule was run on
+    // real toprate.au data, which skews city/provincial; bush meetings are
+    // both a thin, untested slice of that backtest and, practically, the
+    // races a user is least likely to actually bet.
+    if (bushKeys.has(meetingKey(race))) continue
+    const rated = race.runners.map((r) => ({ runner: r, wpr: effectiveWpr(r, bases) }))
+    // A race with even one genuinely unrated runner (no model projection,
+    // no manual base entered) is excluded - this is what "no first starter"
+    // meant historically, but stated in terms of what actually matters
+    // (does every runner have SOME rating), not the has_first_starter flag
+    // itself, so a manually-entered base for that one first starter can
+    // rescue the whole race back into eligibility.
+    if (rated.some((x) => x.wpr == null)) continue
+    const sorted = [...rated].sort((a, b) => (b.wpr as number) - (a.wpr as number))
+    const rank1 = sorted[0]
+    const rank2 = sorted[1]
+    if (!rank1 || !rank2) continue
+    const gap = (rank1.wpr as number) - (rank2.wpr as number)
     if (gap < minGap) continue
-    if (rank1.fixedWinPrice == null || rank1.fixedWinPrice < minPrice) continue
-    entries.push({ race, runner: rank1, gap })
+    // The price threshold is always the real market price (untouched by
+    // rating overrides), not a model-implied one.
+    if (rank1.runner.fixedWinPrice == null || rank1.runner.fixedWinPrice < minPrice) continue
+    entries.push({ race, runner: rank1.runner, gap })
   }
   return entries
 }
 
-// A flagged runner with no finishPosition never actually raced with a known
-// outcome (scratched, or the race hasn't run yet) - excluded from the track
-// record's tally rather than counted as a loss.
+export type WatchlistStatus = 'pending' | 'settled' | 'void'
+
+// The race itself (allResulted), not just this runner's finishPosition,
+// decides pending vs. settled - a SCRATCHED runner never gets a
+// finishPosition even after the race has long since been run, so gating on
+// finishPosition alone left old scratches stuck showing PENDING forever.
+// 'void' (race resulted, but this runner never got a finish - scratched, or
+// a data gap) is excluded from both the pending list and the tally, same as
+// the historical backtest excluded scratches (it required a non-null `won`).
+export function watchlistStatus(entry: WatchlistEntry): WatchlistStatus {
+  if (!entry.race.allResulted) return 'pending'
+  return entry.runner.finishPosition != null ? 'settled' : 'void'
+}
+
 export function hasKnownOutcome(entry: WatchlistEntry): boolean {
-  return entry.runner.finishPosition != null
+  return watchlistStatus(entry) === 'settled'
 }
 
 export interface WatchlistTally {
