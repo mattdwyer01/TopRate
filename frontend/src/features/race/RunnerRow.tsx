@@ -152,17 +152,26 @@ export function RunnerRow({
         {fmtAdj(runner.wprAdjustment)}
       </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
-        {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(displayProj)}
-        {overridden && (
-          <span className="ml-0.5 text-amber" title="Manually adjusted">
-            *
+        {/* sm:contents on mobile-only stack: confidence sits under the WPR
+            figure (not inline after it) to keep this column narrow on
+            small screens - at sm+ the wrapper disappears (display:contents)
+            so the two lines rejoin the parent's inline flow exactly as
+            before, unstacked. */}
+        <span className="flex flex-col items-end gap-0.5 sm:contents">
+          <span>
+            {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(displayProj)}
+            {overridden && (
+              <span className="ml-0.5 text-amber" title="Manually adjusted">
+                *
+              </span>
+            )}
           </span>
-        )}
-        {runner.projectionConfidence !== null && !compact && (
-          <span className="ml-1 text-xs font-normal text-ink-faint">
-            {fmtInt(runner.projectionConfidence)}%
-          </span>
-        )}
+          {runner.projectionConfidence !== null && !compact && (
+            <span className="text-[10px] font-normal leading-none text-ink-faint sm:ml-1 sm:text-xs">
+              {fmtInt(runner.projectionConfidence)}%
+            </span>
+          )}
+        </span>
       </span>
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtPrice(displayPrice)}

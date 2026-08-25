@@ -18,13 +18,19 @@ Why this and not full daily run:
 
 What gets updated:
 - fixed_win_price (in CSV)
+- results for any races update_results() finds resolved (also calls
+  api_race_results per un-resulted race - see toprate_daily.py). Note:
+  api.toprate.au itself doesn't resolve a race's result until its WHOLE
+  MEETING has finished, so this doesn't get individual mid-meeting races
+  any faster than toprate.au itself has them - it only shortens the gap
+  between "toprate.au has the result" and "the dashboard shows it" from
+  up to ~9hr (previously only checked at the once-daily run) down to ~5min.
 - price history snapshot (in toprate_price_history.csv)
-- HTML rebuild (so the dashboard shows fresh prices)
+- HTML rebuild (so the dashboard shows fresh prices/results)
 
 What doesn't get updated:
 - New races added to schedule (use full daily run for that)
-- Race results (still come via the daily run + manual entry)
-- Anything other than fixed_win_price
+- Anything other than fixed_win_price / results
 
 Usage:
   python toprate_price_refresh.py [--lookahead 2.0] [--dry-run]
@@ -143,24 +149,41 @@ def main():
     )
     print(f"Loaded {len(runners_df)} runners from CSV")
 
+    # Login once, used for both results and price calls below
+    jwt = td.login()
+
+    # ── Results ──
+    # Results used to come ONLY from the once-daily full run (toprate_daily.py's
+    # main(), scheduled slots roughly 9am/9:30/11:30/12/12:30 and an 11pm sweep -
+    # see daily.yml) - so a race that finished at, say, 2pm sat unresulted on the
+    # dashboard for up to ~9 hours even though nothing else was blocking it.
+    # update_results() is already per-race (fetches get_race_results for each
+    # un-resulted race individually, gated only on that race's own start_time +
+    # 5 min buffer, not on the whole meeting finishing - see toprate_daily.py) so
+    # there's no reason it can't run here too. stale_days=2 keeps it cheap: it
+    # still catches yesterday's late-settling atw/comments, but skips sweeping
+    # every historical never-resulted row (e.g. an old abandoned meeting) on
+    # every single 5-minute tick.
+    resulted_before = int((runners_df.get("resulted") == 1).sum())
+    runners_df = td.update_results(jwt, runners_df, fetch_workers=4, stale_days=2)
+    resulted_after = int((runners_df.get("resulted") == 1).sum())
+    results_changed = resulted_after > resulted_before
+    if results_changed:
+        print(f"Results: {resulted_after - resulted_before} newly resulted runners")
+
+    # ── Prices ──
     # Find races to refresh
     upcoming = find_upcoming_races(runners_df, args.lookahead)
-    if not upcoming:
-        print("No upcoming races in window - nothing to do")
-        return 0
-    print(f"Refreshing {len(upcoming)} races: {upcoming[:5]}{'...' if len(upcoming) > 5 else ''}")
-
-    # Login and refresh each race
-    jwt = td.login()
     all_updates = {}  # run_id -> new_fxp
-    for race_id in upcoming:
-        updates = refresh_race_prices(jwt, race_id)
-        all_updates.update(updates)
-
-    if not all_updates:
-        print("No price updates found")
-        return 0
-    print(f"Got {len(all_updates)} price updates")
+    if not upcoming:
+        print("No upcoming races in price-lookahead window")
+    else:
+        print(f"Refreshing {len(upcoming)} races: {upcoming[:5]}{'...' if len(upcoming) > 5 else ''}")
+        for race_id in upcoming:
+            updates = refresh_race_prices(jwt, race_id)
+            all_updates.update(updates)
+        if not all_updates:
+            print("No price updates found")
 
     # Apply updates to runners_df
     n_changed = 0
@@ -173,7 +196,12 @@ def main():
             n_changed += 1
         runners_df.loc[mask, "fixed_win_price"] = new_price
 
-    print(f"Changed {n_changed} prices ({len(all_updates) - n_changed} unchanged)")
+    if n_changed or all_updates:
+        print(f"Changed {n_changed} prices ({len(all_updates) - n_changed} unchanged)")
+
+    if not results_changed and not n_changed:
+        print("Nothing changed - skipping write/rebuild")
+        return 0
 
     if args.dry_run:
         print("DRY RUN - not writing")
