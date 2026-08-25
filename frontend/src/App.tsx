@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
+import { useWatchlistThresholds } from './lib/watchlistSettings'
 import { useShowBushMeetings } from './lib/bushMeetings'
 import { bushMeetingKeys, meetingKey } from './lib/meetings'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
@@ -25,6 +26,7 @@ function App() {
   const { state, retry } = useDashboardData()
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
+  const { thresholds: watchlistThresholds, setThresholds: setWatchlistThresholds } = useWatchlistThresholds()
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodologyOpen, setMethodologyOpen] = useState(false)
@@ -167,7 +169,7 @@ function App() {
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'watchlist' && (
-          <WatchlistTab races={state.data.races} onSelectRace={goToRace} />
+          <WatchlistTab races={state.data.races} thresholds={watchlistThresholds} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
@@ -194,6 +196,8 @@ function App() {
           serverBeta={state.status === 'ready' ? state.data.priceBeta : null}
           betaOverride={betaOverride}
           onSetBetaOverride={setBetaOverride}
+          watchlistThresholds={watchlistThresholds}
+          onSetWatchlistThresholds={setWatchlistThresholds}
           onClose={() => setSettingsOpen(false)}
           onOpenMethodology={() => {
             setSettingsOpen(false)
