@@ -9,14 +9,11 @@ import {
   readSyncConfig,
   writeSyncConfig,
 } from '../lib/githubSync'
-import { DEFAULT_THRESHOLDS, type WatchlistThresholds } from '../lib/watchlistSettings'
 
 interface SettingsModalProps {
   serverBeta: number | null
   betaOverride: number | null
   onSetBetaOverride: (v: number | null) => void
-  watchlistThresholds: WatchlistThresholds
-  onSetWatchlistThresholds: (v: WatchlistThresholds) => void
   onClose: () => void
   onOpenMethodology: () => void
 }
@@ -39,8 +36,6 @@ export function SettingsModal({
   serverBeta,
   betaOverride,
   onSetBetaOverride,
-  watchlistThresholds,
-  onSetWatchlistThresholds,
   onClose,
   onOpenMethodology,
 }: SettingsModalProps) {
@@ -214,62 +209,6 @@ export function SettingsModal({
             >
               Read the methodology &rarr;
             </button>
-          </div>
-
-          <div className="flex flex-col gap-3 p-4">
-            <div>
-              <span className="text-sm font-semibold text-ink">Watchlist thresholds</span>
-              <p className="mt-1 text-xs text-ink-mute">
-                Minimum WPR gap to the #2-ranked runner, and minimum fixed price, for a runner to appear on the
-                Watchlist tab. Backtested defaults ({DEFAULT_THRESHOLDS.minGap.toFixed(1)} gap / $
-                {DEFAULT_THRESHOLDS.minPrice.toFixed(2)} price) - this is still a thin, paper-tracked pattern, not
-                a proven edge, so tune these as more live results come in.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                Min WPR gap
-                <input
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={watchlistThresholds.minGap}
-                  onChange={(e) =>
-                    onSetWatchlistThresholds({
-                      ...watchlistThresholds,
-                      minGap: Number(e.target.value),
-                    })
-                  }
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                Min price
-                <input
-                  type="number"
-                  min={1}
-                  step={0.5}
-                  value={watchlistThresholds.minPrice}
-                  onChange={(e) =>
-                    onSetWatchlistThresholds({
-                      ...watchlistThresholds,
-                      minPrice: Number(e.target.value),
-                    })
-                  }
-                  className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-                />
-              </label>
-              {(watchlistThresholds.minGap !== DEFAULT_THRESHOLDS.minGap ||
-                watchlistThresholds.minPrice !== DEFAULT_THRESHOLDS.minPrice) && (
-                <button
-                  type="button"
-                  onClick={() => onSetWatchlistThresholds(DEFAULT_THRESHOLDS)}
-                  className="text-xs text-ink-mute underline hover:text-ink"
-                >
-                  Reset to default
-                </button>
-              )}
-            </div>
           </div>
 
           <div className="flex flex-col gap-3 p-4">
