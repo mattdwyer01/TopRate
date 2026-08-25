@@ -287,6 +287,43 @@ _CALIB_INTERCEPT = 8.090
 _CALIB_BASE_SLOPE = 0.8807
 _CALIB_ADJ_SLOPE = 0.1791
 
+# Base calibration is piecewise, not one global slope (Aug 2026, found while
+# investigating a user-flagged case - a horse with strong, consistent recent
+# form projected well below its actual result). A single slope fit across
+# the whole population is a compromise: split by raw base value (the 50/50
+# nett/ewm3 blend, pre-calibration) into low/mid/high segments on real
+# outcomes (H1 fit, H2 held-out, both directions checked) showed the true
+# slope is NOT constant - low raw-base horses need heavier shrinkage
+# (~0.60-0.63, noisier/less reliable form) while high raw-base horses need
+# almost none (~0.95-1.01, an established level is real, not noise). The
+# single blended slope (0.8807) under-shrinks the bottom 10% and
+# over-shrinks the top 20%, which is exactly the "strong horse projected
+# too low" failure mode. A 3-segment piecewise fit (bottom 10% / middle 70%
+# / top 20%, breakpoints and slopes fit on the full void-excluded resulted
+# set) cut held-out MAE 0.64% overall (t=7.605) versus the single slope,
+# and fixed the top-decile bias from +0.70 (understating) to -0.20 (near
+# zero) without moving the middle segment at all (kept at the original
+# _CALIB_INTERCEPT/_CALIB_BASE_SLOPE there by construction). The middle
+# segment is deliberately left as the original single-slope fit rather than
+# re-derived, so only the tails (where the real problem was) change.
+_CALIB_LOW_BREAK = 61.10   # raw base <= this: low-segment slope
+_CALIB_HIGH_BREAK = 81.65  # raw base > this: high-segment slope
+_CALIB_LOW_INTERCEPT = 24.420
+_CALIB_LOW_SLOPE = 0.6017
+_CALIB_HIGH_INTERCEPT = -0.840
+_CALIB_HIGH_SLOPE = 0.9891
+
+
+def _calibrate_base(raw):
+    """raw base (pre-calibration 50/50 nett/ewm3 blend, or a single-source
+    fallback) -> calibrated base. See the piecewise-calibration note above
+    _CALIB_LOW_BREAK for why this isn't one slope."""
+    if raw <= _CALIB_LOW_BREAK:
+        return _CALIB_LOW_INTERCEPT + _CALIB_LOW_SLOPE * raw
+    if raw > _CALIB_HIGH_BREAK:
+        return _CALIB_HIGH_INTERCEPT + _CALIB_HIGH_SLOPE * raw
+    return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * raw
+
 
 def _compute_base(feat):
     """The horse's own anchor for the additive model. Re-adopted (Aug 2026,
@@ -312,11 +349,11 @@ def _compute_base(feat):
     ewm3 = feat.get("ewm3")
     if _ok(nett) and _ok(ewm3):
         raw = 0.5 * float(nett) + 0.5 * float(ewm3)
-        return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * raw
+        return _calibrate_base(raw)
     for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
-            return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * float(v)
+            return _calibrate_base(float(v))
     return None
 
 
