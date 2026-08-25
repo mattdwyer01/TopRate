@@ -8,13 +8,13 @@ import {
   computeWatchlist,
   hasKnownOutcome,
   tallyWatchlist,
-  WATCHLIST_MIN_GAP,
-  WATCHLIST_MIN_ODDS,
   type WatchlistEntry,
 } from '../../lib/watchlist'
+import type { WatchlistThresholds } from '../../lib/watchlistSettings'
 
 interface WatchlistTabProps {
   races: Race[]
+  thresholds: WatchlistThresholds
   onSelectRace: (raceId: string, date: string) => void
 }
 
@@ -42,6 +42,12 @@ function ordinal(n: number): string {
   }
 }
 
+function formatRaceDate(date: string): string {
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return date
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+}
+
 function EntryRow({ entry, onSelectRace }: { entry: WatchlistEntry; onSelectRace: (raceId: string, date: string) => void }) {
   const { race, runner, gap } = entry
   const settled = hasKnownOutcome(entry)
@@ -60,7 +66,9 @@ function EntryRow({ entry, onSelectRace }: { entry: WatchlistEntry; onSelectRace
           </span>
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-faint">
-          <span>{formatTimeOfDay(race.startTime)}</span>
+          <span>
+            {formatRaceDate(race.date)} {formatTimeOfDay(race.startTime)}
+          </span>
           <span>gap +{fmtWpr(gap)}</span>
           <span>{fmtPrice(runner.fixedWinPrice)}</span>
         </div>
@@ -88,20 +96,23 @@ function EntryRow({ entry, onSelectRace }: { entry: WatchlistEntry; onSelectRace
 
 // Paper-tracking view for the one "back the top-rated runner" pattern from
 // the Aug 2026 backtesting session that survived a chronological split-half
-// check (see lib/watchlist.ts). Not a proven edge on n=74 historical bets -
-// this exists to accumulate real, live, out-of-sample results before any
-// staking decision, not to recommend bets.
-export function WatchlistTab({ races, onSelectRace }: WatchlistTabProps) {
-  const entries = useMemo(() => computeWatchlist(races), [races])
+// check (see lib/watchlist.ts). Not a proven edge - this exists to
+// accumulate real, live, out-of-sample results before any staking decision,
+// not to recommend bets. Thresholds are user-editable in Settings.
+export function WatchlistTab({ races, thresholds, onSelectRace }: WatchlistTabProps) {
+  const entries = useMemo(
+    () => computeWatchlist(races, thresholds.minGap, thresholds.minPrice),
+    [races, thresholds],
+  )
+  // Upcoming: soonest-to-jump first. Settled: most recently run first. Both
+  // orderings are by the race's actual date+time (startTime is a full
+  // timestamp, not just a time-of-day), not just insertion order.
   const upcoming = useMemo(
     () => entries.filter((e) => !hasKnownOutcome(e)).sort((a, b) => a.race.startTime.localeCompare(b.race.startTime)),
     [entries],
   )
   const settled = useMemo(
-    () =>
-      entries
-        .filter(hasKnownOutcome)
-        .sort((a, b) => b.race.date.localeCompare(a.race.date) || b.race.startTime.localeCompare(a.race.startTime)),
+    () => entries.filter(hasKnownOutcome).sort((a, b) => b.race.startTime.localeCompare(a.race.startTime)),
     [entries],
   )
   const tally = useMemo(() => tallyWatchlist(entries), [entries])
@@ -111,11 +122,11 @@ export function WatchlistTab({ races, onSelectRace }: WatchlistTabProps) {
       <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
         <h2 className="text-sm font-semibold text-ink">Watchlist</h2>
         <p className="mt-1 text-xs text-ink-mute">
-          Flags the #1 WPR-ranked runner when it leads #2 by {WATCHLIST_MIN_GAP}+ WPR points, the market still
-          has it at ${WATCHLIST_MIN_ODDS}+ fixed, and the race is provincial/midweek-city grade (not a feature
-          race or a bush track). This pattern held up in a chronological split-half backtest, but the sample
-          behind it is still thin (n=74 historically) - this is paper-tracking to build real evidence before
-          any staking decision, not a bet recommendation.
+          Flags the #1 WPR-ranked runner when it leads #2 by {thresholds.minGap.toFixed(1)}+ WPR points, the
+          market still has it at ${thresholds.minPrice.toFixed(2)}+ fixed, and there's no first starter anywhere
+          in the field. This pattern held up in a chronological split-half backtest, but the sample behind it is
+          still thin - this is paper-tracking to build real evidence before any staking decision, not a bet
+          recommendation. Thresholds are editable in Settings.
         </p>
       </div>
 
