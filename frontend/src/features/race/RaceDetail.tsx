@@ -18,12 +18,17 @@ interface RaceDetailProps {
   onSelectRace: (raceId: string, date: string) => void
 }
 
+// RTS ("runs this spell" - the spellPosition label: FU/2U/3U/.../nU) sits
+// right after Horse and is always visible (mobile included, not just
+// desktop's Full density) - user request, Aug 2026. Bar(rier) dropped
+// entirely per the same request. Order here drives both header rows'
+// column order below and RunnerRow's matching grid-template order - keep
+// all three in sync if this ever changes again.
 const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = [
   { key: 'tab', label: '#' },
   { key: 'horse', label: 'Horse', showCompact: true },
-  { key: 'barrier', label: 'Bar' },
+  { key: 'daysSince', label: 'RTS', showCompact: true },
   { key: 'peakWpr', label: 'Peak' },
-  { key: 'daysSince', label: 'Since' },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
@@ -159,10 +164,10 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: mirrors RunnerRow's mobile grid-cols exactly
-            (silk/horse/proj/wprPrice/fixedPrice) so labels land above the
-            right column - the desktop header below covers every column but
-            is hidden below sm since most of them aren't shown there. */}
-        <div className="grid grid-cols-[40px_1fr_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
+            (silk/horse/RTS/proj/wprPrice/fixedPrice) so labels land above
+            the right column - the desktop header below covers every column
+            but is hidden below sm since most of them aren't shown there. */}
+        <div className="grid grid-cols-[40px_1fr_44px_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
           <span />
           <button
             type="button"
@@ -170,6 +175,13 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
             className={`text-left transition-colors hover:text-ink ${sortKey === 'horse' ? 'text-emerald-deep' : ''}`}
           >
             Horse
+          </button>
+          <button
+            type="button"
+            onClick={() => onSort('daysSince')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'daysSince' ? 'text-emerald-deep' : ''}`}
+          >
+            RTS
           </button>
           <button
             type="button"
@@ -193,7 +205,7 @@ export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: 
             Fixed $
           </button>
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_48px_56px_56px_56px_56px_60px_56px_56px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
