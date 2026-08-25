@@ -8,6 +8,7 @@ import {
   computeWatchlist,
   hasKnownOutcome,
   tallyWatchlist,
+  watchlistStatus,
   type WatchlistEntry,
 } from '../../lib/watchlist'
 import type { WatchlistThresholds } from '../../lib/watchlistSettings'
@@ -15,6 +16,7 @@ import type { WatchlistThresholds } from '../../lib/watchlistSettings'
 interface WatchlistTabProps {
   races: Race[]
   thresholds: WatchlistThresholds
+  bases: Record<string, number>
   onSelectRace: (raceId: string, date: string) => void
 }
 
@@ -99,16 +101,19 @@ function EntryRow({ entry, onSelectRace }: { entry: WatchlistEntry; onSelectRace
 // check (see lib/watchlist.ts). Not a proven edge - this exists to
 // accumulate real, live, out-of-sample results before any staking decision,
 // not to recommend bets. Thresholds are user-editable in Settings.
-export function WatchlistTab({ races, thresholds, onSelectRace }: WatchlistTabProps) {
+export function WatchlistTab({ races, thresholds, bases, onSelectRace }: WatchlistTabProps) {
   const entries = useMemo(
-    () => computeWatchlist(races, thresholds.minGap, thresholds.minPrice),
-    [races, thresholds],
+    () => computeWatchlist(races, thresholds.minGap, thresholds.minPrice, bases),
+    [races, thresholds, bases],
   )
   // Upcoming: soonest-to-jump first. Settled: most recently run first. Both
   // orderings are by the race's actual date+time (startTime is a full
   // timestamp, not just a time-of-day), not just insertion order.
   const upcoming = useMemo(
-    () => entries.filter((e) => !hasKnownOutcome(e)).sort((a, b) => a.race.startTime.localeCompare(b.race.startTime)),
+    () =>
+      entries
+        .filter((e) => watchlistStatus(e) === 'pending')
+        .sort((a, b) => a.race.startTime.localeCompare(b.race.startTime)),
     [entries],
   )
   const settled = useMemo(
@@ -123,10 +128,11 @@ export function WatchlistTab({ races, thresholds, onSelectRace }: WatchlistTabPr
         <h2 className="text-sm font-semibold text-ink">Watchlist</h2>
         <p className="mt-1 text-xs text-ink-mute">
           Flags the #1 WPR-ranked runner when it leads #2 by {thresholds.minGap.toFixed(1)}+ WPR points, the
-          market still has it at ${thresholds.minPrice.toFixed(2)}+ fixed, and there's no first starter anywhere
-          in the field. This pattern held up in a chronological split-half backtest, but the sample behind it is
-          still thin - this is paper-tracking to build real evidence before any staking decision, not a bet
-          recommendation. Thresholds are editable in Settings.
+          market still has it at ${thresholds.minPrice.toFixed(2)}+ fixed, and every runner in the field has a
+          rating (model-projected, or manually entered on an otherwise-unrated first starter). This pattern held
+          up in a chronological split-half backtest, but the sample behind it is still thin - this is
+          paper-tracking to build real evidence before any staking decision, not a bet recommendation. Thresholds
+          are editable in Settings.
         </p>
       </div>
 

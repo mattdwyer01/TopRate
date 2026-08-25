@@ -3,6 +3,7 @@ import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
 import { useWatchlistThresholds } from './lib/watchlistSettings'
+import { useWprOverrides } from './lib/wprOverrides'
 import { useShowBushMeetings } from './lib/bushMeetings'
 import { bushMeetingKeys, meetingKey } from './lib/meetings'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
@@ -27,6 +28,11 @@ function App() {
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
   const { thresholds: watchlistThresholds, setThresholds: setWatchlistThresholds } = useWatchlistThresholds()
+  // Lifted up from RaceDetail so the Watchlist tab (which needs `bases` to
+  // rescue a race with a manually-rated first starter) sees the same live
+  // state, not a second independent localStorage read that only catches up
+  // on reload.
+  const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodologyOpen, setMethodologyOpen] = useState(false)
@@ -169,7 +175,12 @@ function App() {
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'watchlist' && (
-          <WatchlistTab races={state.data.races} thresholds={watchlistThresholds} onSelectRace={goToRace} />
+          <WatchlistTab
+            races={state.data.races}
+            thresholds={watchlistThresholds}
+            bases={bases}
+            onSelectRace={goToRace}
+          />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
@@ -177,6 +188,12 @@ function App() {
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
               priceBeta={betaOverride ?? state.data.priceBeta}
+              deltas={deltas}
+              bases={bases}
+              scratched={scratched}
+              setDelta={setDelta}
+              setBase={setBase}
+              setScratched={setScratched}
               onBack={() => pushUrlState({ date: urlState.date, raceId: null })}
               onSelectRace={goToRace}
             />

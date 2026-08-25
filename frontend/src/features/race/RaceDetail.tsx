@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
-import { useWprOverrides } from '../../lib/wprOverrides'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
@@ -14,6 +13,12 @@ interface RaceDetailProps {
   race: Race
   allRaces: Race[]
   priceBeta: number | null
+  deltas: Record<string, number>
+  bases: Record<string, number>
+  scratched: Set<string>
+  setDelta: (runId: string, value: number | null) => void
+  setBase: (runId: string, value: number | null) => void
+  setScratched: (runId: string, value: boolean) => void
   onBack: () => void
   onSelectRace: (raceId: string, date: string) => void
 }
@@ -38,12 +43,23 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'actualWpr', label: 'Actual' },
 ]
 
-export function RaceDetail({ race, allRaces, priceBeta, onBack, onSelectRace }: RaceDetailProps) {
+export function RaceDetail({
+  race,
+  allRaces,
+  priceBeta,
+  deltas,
+  bases,
+  scratched,
+  setDelta,
+  setBase,
+  setScratched,
+  onBack,
+  onSelectRace,
+}: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
 
   const effectiveByRunId = useMemo(
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, scratched),
