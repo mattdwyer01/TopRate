@@ -249,52 +249,46 @@ ADJ_TERMS = [
 # Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
 # post-race wpr_actual (~37k clean, void-excluded runs, once the
 # update_results() backlog fix landed ~20k fresh results) found raw
-# projections systematically too extreme - a global linear fit of
-# actual = a + b*projected gave b=0.8355, not 1.0, held in every segment
-# checked, and cut held-out MAE by ~2%. CONFIDENCE-WEIGHTED refinement on
-# top of that: fitting actual = a + b*projected + c*(projected*conf_frac)
-# on the first half only found the needed shrinkage itself varies with the
-# model's own confidence score - low-confidence projections (thin recent
-# form) need MORE pulling toward the mean, high-confidence ones need less -
-# which is exactly the classic empirical-Bayes shrinkage story (less
-# evidence = regress harder toward the prior). Evaluated purely out-of-
-# sample on the second half: cut held-out MAE by 2.50% vs raw (a further
-# 0.38% over the flat global version), and bias (mean signed error) also
-# came down further (-0.069 -> -0.021).
+# projections systematically too extreme. Two versions were tried, both fit
+# on the first half of the data and evaluated purely out-of-sample on the
+# second before being trusted:
+#   1. A single blended slope on the whole projection (actual = a +
+#      b*projected, b=0.8355) - cut held-out MAE ~2%.
+#   2. DECOMPOSED base vs adjustment (this one, shipped): fitting
+#      actual = a + b_base*base + b_adj*adjustment separately found the
+#      adjustment term explains real outcomes MUCH more weakly than the
+#      base (b_adj=0.1791 vs b_base=0.8807) - a raw adjustment of, say,
+#      +3 should really only move the projection by about +0.54. Blending
+#      base and adjustment into one slope (version 1) mostly corrected the
+#      base, since base values dwarf adjustment values in magnitude, and
+#      barely touched the real problem. Decomposing cut held-out MAE
+#      4.88% - more than double version 1's gain. An asymmetric version
+#      (separate slopes for positive vs negative adjustments) was also
+#      tested and did NOT help further (4.86%, a wash) - the earlier-
+#      looking pos/neg asymmetry was mostly base characteristics
+#      correlating with adjustment sign, not a real direction effect, so
+#      the fix is a uniform adjustment shrink, not an asymmetric cap.
 #
 # Applied here (not as a separate post-processing step) so it's the single
 # source of truth every caller of _compute_base()/project_race() shares -
 # describe()'s narration recomputes base_val independently and must match
 # the base_wpr shown elsewhere in the UI exactly (see its own docstring).
 # The intercept is folded entirely into the base (the anchor); the
-# confidence-dependent slope is applied to the base here AND to the
-# adjustment total in project_race() - together they reproduce
-# a + slope(conf)*(base+adj) = a + slope(conf)*raw_projected exactly, so
-# base_wpr + adjustment == projected_wpr still holds (an invariant the
-# frontend relies on - see types/domain.ts). conf is on project_race()'s
-# 0-100 scale; _compute_base()/describe() take it as an optional 0-100
-# value and default to conf=0 (the most conservative/most-shrunk slope)
-# when no confidence is available yet, rather than silently using the raw,
-# unshrunk projection.
+# adjustment slope is applied to the adjustment total in project_race() -
+# together they reproduce a + b_base*base + b_adj*adj = the fitted
+# calibration exactly, so base_wpr + adjustment == projected_wpr still
+# holds (an invariant the frontend relies on - see types/domain.ts).
 #
 # Deliberately NOT applied inside build_training_frame()'s own independent
 # reimplementation of this same base formula (see "_base" there) - that
 # path fits/evaluates the RAW model against real targets; calibration is a
 # serving-time correction on top of it, not part of what gets trained.
-_CALIB_INTERCEPT = 17.007
-_CALIB_SLOPE_AT_CONF0 = 0.7194
-_CALIB_SLOPE_PER_CONF = 0.0590   # added to the slope per unit of conf/100
+_CALIB_INTERCEPT = 8.090
+_CALIB_BASE_SLOPE = 0.8807
+_CALIB_ADJ_SLOPE = 0.1791
 
 
-def _calib_slope(conf):
-    """Confidence-dependent calibration slope - see the block comment above
-    _CALIB_INTERCEPT. conf is on the 0-100 scale project_race() already
-    uses; None/out-of-range values clamp to the safe end (most shrinkage)."""
-    conf_frac = 0.0 if conf is None else max(0.0, min(100.0, float(conf))) / 100.0
-    return _CALIB_SLOPE_AT_CONF0 + _CALIB_SLOPE_PER_CONF * conf_frac
-
-
-def _compute_base(feat, conf=None):
+def _compute_base(feat):
     """The horse's own anchor for the additive model. Re-adopted (Aug 2026,
     explicit request) as a 50/50 blend of wpr_nett (TopRate's own pre-race
     rating) and ewm3 (this horse's own recency-weighted average of its last
@@ -309,23 +303,20 @@ def _compute_base(feat, conf=None):
     that briefly replaced it - that switch was introduced alongside the
     wpr_nett removal and is reverted together with it here.
 
-    Returns the CALIBRATED base (see _calib_slope/_CALIB_INTERCEPT above) -
-    every caller wants the calibrated anchor, not the raw blend. conf
-    (0-100) picks how much shrinkage to apply; omit only when truly
-    unavailable (defaults to the most-shrunk end, never the raw value)."""
+    Returns the CALIBRATED base (see _CALIB_BASE_SLOPE/_CALIB_INTERCEPT
+    above) - every caller wants the calibrated anchor, not the raw blend."""
     def _ok(v):
         return v is not None and not (isinstance(v, float) and v != v)
 
-    slope = _calib_slope(conf)
     nett = feat.get("wpr_nett")
     ewm3 = feat.get("ewm3")
     if _ok(nett) and _ok(ewm3):
         raw = 0.5 * float(nett) + 0.5 * float(ewm3)
-        return _CALIB_INTERCEPT + slope * raw
+        return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * raw
     for key in ("wpr_nett", "ewm3", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
-            return _CALIB_INTERCEPT + slope * float(v)
+            return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * float(v)
     return None
 
 
@@ -1696,22 +1687,6 @@ def project_race(runners, race_date):
                 r.get("cur_barrier"), r.get("cur_field_size"), _tb_lookup)
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
-    # q10/q90 models are unchanged from the earlier gradient-boosting
-    # design, see _load_models) because the calibration slope below is
-    # confidence-dependent (see _calib_slope/_CALIB_INTERCEPT above
-    # _compute_base) - base/adjustment can't be calibrated until conf[i]
-    # is known for each runner.
-    # Confidence: q90-q10 interval width from the quantile models, mapped
-    # to 0-100 the same way the old error-predicting model's output was.
-    # A wider interval = the model itself is less sure = lower confidence.
-    # Measured better-calibrated than the old two-stage design (held-out
-    # corr with actual error 0.289 vs 0.233, Aug 2026 rebuild) as well as
-    # simpler (one architecture instead of two bolted-together models).
-    X = _feature_frame(feat_dicts)
-    interval_width = _CONF["hi"].predict(X) - _CONF["lo"].predict(X)
-    clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
-    conf = np.clip(100 * (1 - (interval_width - clo) / (chi - clo)), 0, 100)
-
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
     # the horse's own anchor (ewm5/ewm3, falling
     # back down a recency chain - see _compute_base); a fallback of None
@@ -1719,20 +1694,32 @@ def project_race(runners, race_date):
     # build_features() cannot produce once it has passed the _MIN_RUNS
     # gate (career_avg always exists by then) - the 0.0 fallback below is
     # defensive, not expected to fire in practice.
-    base_arr = np.array([_compute_base(f, conf[i]) if f is not None else 0.0
-                         for i, f in enumerate(feat_dicts)], dtype=float)
+    base_arr = np.array([_compute_base(f) if f is not None else 0.0
+                         for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
-    # Confidence-weighted calibration slope (see _calib_slope above
-    # _compute_base) applied per-runner here, matching the same per-runner
-    # slope already folded into base_arr via _compute_base - together they
-    # reproduce the full a + slope(conf)*raw_projected calibration while
-    # keeping base_wpr + adjustment == projected_wpr exactly (per-feature
+    # Calibration slope (see _CALIB_ADJ_SLOPE/_CALIB_INTERCEPT above
+    # _compute_base) applied to the adjustment here - the intercept and
+    # base slope are already folded into base_arr via _compute_base,
+    # together reproducing the fitted decomposed calibration exactly while
+    # keeping base_wpr + adjustment == projected_wpr (per-feature
     # contributions scaled too, so they still sum to the scaled adjustment).
-    slope_arr = np.array([_calib_slope(c) for c in conf])
-    adj_contributions = adj_contributions * slope_arr[:, None]
+    adj_contributions = adj_contributions * _CALIB_ADJ_SLOPE
     adj = adj_contributions.sum(axis=1)
     proj = base_arr + adj
+
+    # Confidence still needs the FULL feature frame - the q10/q90 models are
+    # unchanged from the earlier gradient-boosting design (see _load_models).
+    X = _feature_frame(feat_dicts)
+    # Confidence: q90-q10 interval width from the quantile models, mapped
+    # to 0-100 the same way the old error-predicting model's output was.
+    # A wider interval = the model itself is less sure = lower confidence.
+    # Measured better-calibrated than the old two-stage design (held-out
+    # corr with actual error 0.289 vs 0.233, Aug 2026 rebuild) as well as
+    # simpler (one architecture instead of two bolted-together models).
+    interval_width = _CONF["hi"].predict(X) - _CONF["lo"].predict(X)
+    clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
+    conf = np.clip(100 * (1 - (interval_width - clo) / (chi - clo)), 0, 100)
 
     valid = np.array([not fb for fb in fallbacks])
     price = np.full(len(runners), np.nan)
@@ -1899,14 +1886,13 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     # Always one short, concrete sentence stating the blended base itself
     # (user request, Aug 2026, replacing the earlier design that stayed
     # silent in the common case - see git history for that reasoning).
-    # base_val matches _compute_base(feats, confidence) exactly (single
-    # source of truth, same number the "base" figure shown elsewhere in the
-    # UI uses - confidence must be passed through so the confidence-
-    # weighted calibration slope agrees) so this sentence and that figure
-    # can never disagree. Void-excluded runs (interference/vet) fold into
-    # the same sentence as a short trailing clause instead of a separate
-    # one - the "why" (which runs, why) is secondary to the number itself.
-    base_val = _compute_base(feats, confidence)
+    # base_val matches _compute_base(feats) exactly (single source of
+    # truth, same number the "base" figure shown elsewhere in the UI
+    # uses) so this sentence and that figure can never disagree. Void-
+    # excluded runs (interference/vet) fold into the same sentence as a
+    # short trailing clause instead of a separate one - the "why" (which
+    # runs, why) is secondary to the number itself.
+    base_val = _compute_base(feats)
     nett = feats.get("wpr_nett")
     ewm3 = feats.get("ewm3")
     has_nett = nett is not None and nett == nett
