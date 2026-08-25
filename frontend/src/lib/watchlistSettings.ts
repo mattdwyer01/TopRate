@@ -11,12 +11,14 @@ export interface WatchlistThresholds {
   minPrice: number
 }
 
-// gap>=2.0 & price>=4.0 (Aug 2026 default): the split-half backtest actually
-// found price>=4.0 slightly negative at this gap (-1.2% ROI held-out) - the
-// lowest price that tested cleanly positive at gap>=2.0 was ~$4.50-5.00. Set
-// to $4.00 anyway per explicit user choice, to watch it play out live rather
-// than assume the backtest's verdict holds going forward. Adjust in Settings.
-export const DEFAULT_THRESHOLDS: WatchlistThresholds = { minGap: 2.0, minPrice: 4.0 }
+// gap>=2.0 & price>=5.0 (Aug 2026 default, revised after the update_results()
+// backlog fix landed ~20k fresh results): re-tested against that much larger,
+// less-biased dataset and both gap>=2.0/price>=4.0 (-13.9% ROI held-out) and
+// this combo (-9.2%) came back negative in both chronological halves - this
+// is the explicit user choice anyway, not a value the backtest actually
+// endorses. Only gap>=4.0/price>=8.0 (and close neighbours) held up cleanly
+// positive across every re-test in that session. Adjust in Settings.
+export const DEFAULT_THRESHOLDS: WatchlistThresholds = { minGap: 2.0, minPrice: 5.0 }
 
 function readStored(): WatchlistThresholds {
   try {
