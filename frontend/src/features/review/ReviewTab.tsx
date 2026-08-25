@@ -23,7 +23,7 @@ import { useScrollShadow } from '../../lib/useScrollShadow'
 
 interface ReviewTabProps {
   races: Race[]
-  onSelectRace: (raceId: string, date: string) => void
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
 const PERIODS: { value: Period; label: string; sentence: string }[] = [
@@ -34,7 +34,7 @@ const PERIODS: { value: Period; label: string; sentence: string }[] = [
 
 const MAX_DETAIL_ROWS = 100
 
-type GroupFilter = { kind: 'distance' | 'going'; value: string } | null
+type GroupFilter = { kind: 'distance' | 'going' | 'venue'; value: string } | null
 
 function fmtSigned(v: number | null, digits = 1): string {
   if (v == null || Number.isNaN(v)) return '-'
@@ -49,6 +49,7 @@ function fmtPct(v: number | null): string {
 function matchesGroupFilter(r: AccuracyRow, filter: GroupFilter): boolean {
   if (!filter) return true
   if (filter.kind === 'distance') return distanceBand(r.distance) === filter.value
+  if (filter.kind === 'venue') return r.venue === filter.value
   return goingBand(r.going) === filter.value
 }
 
@@ -94,6 +95,10 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
     () => computeBreakdown(rows, (r) => goingBand(r.going) ?? ''),
     [rows]
   )
+  // "By venue" - is the model any good AT THIS TRACK specifically. Same
+  // MIN_BREAKDOWN_N=10 floor as distance/going keeps one-off country tracks
+  // from cluttering the table with noisy single-digit-n rows.
+  const venueBreakdown = useMemo(() => computeBreakdown(rows, (r) => r.venue), [rows])
 
   const periodSentence = PERIODS.find((p) => p.value === period)?.sentence ?? 'Overall'
   const headline = useMemo(
@@ -112,7 +117,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
     return sorted.slice(0, MAX_DETAIL_ROWS)
   }, [filteredRows, sortBy])
 
-  function toggleFilter(kind: 'distance' | 'going', value: string) {
+  function toggleFilter(kind: 'distance' | 'going' | 'venue', value: string) {
     setGroupFilter((prev) => (prev && prev.kind === kind && prev.value === value ? null : { kind, value }))
   }
 
@@ -292,7 +297,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             </div>
           </div>
 
-          {(distBreakdown.length > 0 || goingBreakdown.length > 0) && (
+          {(distBreakdown.length > 0 || goingBreakdown.length > 0 || venueBreakdown.length > 0) && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {distBreakdown.length > 0 && (
                 <BreakdownTable
@@ -308,6 +313,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                   rows={goingBreakdown}
                   activeValue={groupFilter?.kind === 'going' ? groupFilter.value : null}
                   onSelect={(value) => toggleFilter('going', value)}
+                />
+              )}
+              {venueBreakdown.length > 0 && (
+                <BreakdownTable
+                  title="By venue"
+                  rows={venueBreakdown}
+                  activeValue={groupFilter?.kind === 'venue' ? groupFilter.value : null}
+                  onSelect={(value) => toggleFilter('venue', value)}
                 />
               )}
             </div>
@@ -386,7 +399,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                     {detailRows.map((r, i) => (
                       <tr
                         key={`${r.raceId}-${r.horse}-${i}`}
-                        onClick={() => onSelectRace(r.raceId, r.date)}
+                        onClick={() => onSelectRace(r.raceId, r.date, r.runId)}
                         className="cursor-pointer hover:bg-bg"
                       >
                         <td className="whitespace-nowrap px-3 py-1.5 text-ink-mute">{r.date}</td>
@@ -443,33 +456,35 @@ function BreakdownTable({
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-panel">
       <div className="border-b border-line px-3 py-2 text-xs font-semibold text-ink">{title}</div>
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-ink-mute">
-            <th className="px-3 py-1.5 font-medium">Group</th>
-            <th className="px-3 py-1.5 text-right font-medium">n</th>
-            <th className="px-3 py-1.5 text-right font-medium">MAE</th>
-            <th className="px-3 py-1.5 text-right font-medium">Bias</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line-soft">
-          {rows.map((r) => (
-            <tr
-              key={r.group}
-              onClick={() => onSelect(r.group)}
-              className={
-                'cursor-pointer transition-colors hover:bg-bg ' +
-                (activeValue === r.group ? 'bg-emerald-bg' : '')
-              }
-            >
-              <td className="px-3 py-1 text-ink">{r.group}</td>
-              <td className="px-3 py-1 text-right text-ink-mute">{r.n}</td>
-              <td className="px-3 py-1 text-right font-mono">{r.mae.toFixed(1)}</td>
-              <td className="px-3 py-1 text-right font-mono">{fmtSigned(r.bias)}</td>
+      <div className="max-h-64 overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-panel">
+            <tr className="text-left text-ink-mute">
+              <th className="px-3 py-1.5 font-medium">Group</th>
+              <th className="px-3 py-1.5 text-right font-medium">n</th>
+              <th className="px-3 py-1.5 text-right font-medium">MAE</th>
+              <th className="px-3 py-1.5 text-right font-medium">Bias</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-line-soft">
+            {rows.map((r) => (
+              <tr
+                key={r.group}
+                onClick={() => onSelect(r.group)}
+                className={
+                  'cursor-pointer transition-colors hover:bg-bg ' +
+                  (activeValue === r.group ? 'bg-emerald-bg' : '')
+                }
+              >
+                <td className="px-3 py-1 text-ink">{r.group}</td>
+                <td className="px-3 py-1 text-right text-ink-mute">{r.n}</td>
+                <td className="px-3 py-1 text-right font-mono">{r.mae.toFixed(1)}</td>
+                <td className="px-3 py-1 text-right font-mono">{fmtSigned(r.bias)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

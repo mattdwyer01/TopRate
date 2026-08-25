@@ -15,6 +15,20 @@ import type {
   Runner,
 } from '../types/domain'
 
+// Some runners (jockey not yet declared for a future acceptance, mostly)
+// carry the raw payload's jockey/trainer field as the literal string "nan"
+// rather than a real null - a pandas NaN that got stringified somewhere in
+// the pipeline's JSON build rather than nulled. Found via the runner search
+// feature, which renders these names directly in a compact list where a
+// literal "nan" stood out immediately. Cleaned here at the adapter boundary
+// (its whole job is turning the raw payload's rough edges into clean
+// domain data) rather than chasing it into the Python payload builder.
+function cleanName(v: string | null | undefined): string {
+  if (v == null) return ''
+  const trimmed = v.trim()
+  return trimmed.toLowerCase() === 'nan' ? '' : trimmed
+}
+
 function toFormRun(r: RawFormRun): FormRun {
   return {
     track: r.trk,
@@ -68,8 +82,8 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
   return {
     runId: r.rid,
     horse: r.h,
-    jockey: r.j,
-    trainer: r.tn,
+    jockey: cleanName(r.j),
+    trainer: cleanName(r.tn),
     tabNumber: r.tab ?? r.t,
     barrier: r.b,
 

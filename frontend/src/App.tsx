@@ -11,6 +11,7 @@ import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { SettingsModal } from './components/SettingsModal'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
+import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
 
@@ -28,6 +29,7 @@ function App() {
   const { showBush, setShowBush } = useShowBushMeetings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodologyOpen, setMethodologyOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [topTab, setTopTabState] = useState<TopTab>(() => readTopTab())
 
   // Keep topTab in sync with back/forward navigation - separate from
@@ -41,6 +43,20 @@ function App() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
+  // "/" opens search, matching the common convention (GitHub, etc) - guarded
+  // against firing while the user is already typing in some other field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== '/') return
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      e.preventDefault()
+      setSearchOpen(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
     if (tab === 'review') {
@@ -48,13 +64,13 @@ function App() {
         window.history.pushState(null, '', '?tab=review')
       }
     } else {
-      pushUrlState({ date: urlState.date, raceId: urlState.raceId })
+      pushUrlState({ date: urlState.date, raceId: urlState.raceId, runId: null })
     }
   }
 
-  function goToRace(raceId: string, date: string) {
+  function goToRace(raceId: string, date: string, runId?: string) {
     setTopTabState('race')
-    pushUrlState({ date, raceId })
+    pushUrlState({ date, raceId, runId: runId ?? null })
   }
 
   const tickerRaces = useMemo(() => {
@@ -75,7 +91,7 @@ function App() {
     if (!raceExists) {
       // Stale/invalid link - fall back to the meetings view rather than
       // getting stuck on a race that no longer resolves.
-      pushUrlState({ date: urlState.date, raceId: null })
+      pushUrlState({ date: urlState.date, raceId: null, runId: null })
     }
     // Only needs to run once data becomes ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,6 +133,15 @@ function App() {
                 runDate={state.data.runDate}
               />
             )}
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search horse, jockey, or trainer"
+              title="Search (/)"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+            >
+              🔍
+            </button>
             <div className="relative">
               <button
                 type="button"
@@ -158,6 +183,7 @@ function App() {
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
             <RaceDetail
+              key={urlState.raceId}
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
               priceBeta={betaOverride ?? state.data.priceBeta}
@@ -167,7 +193,8 @@ function App() {
               setDelta={setDelta}
               setBase={setBase}
               setScratched={setScratched}
-              onBack={() => pushUrlState({ date: urlState.date, raceId: null })}
+              initialRunId={urlState.runId}
+              onBack={() => pushUrlState({ date: urlState.date, raceId: null, runId: null })}
               onSelectRace={goToRace}
             />
           ) : (
@@ -195,6 +222,14 @@ function App() {
       )}
 
       {methodologyOpen && <HowWprWorksModal onClose={() => setMethodologyOpen(false)} />}
+
+      {searchOpen && state.status === 'ready' && (
+        <GlobalSearch
+          races={state.data.races}
+          onSelectRunner={(raceId, date, runId) => goToRace(raceId, date, runId)}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
     </div>
   )
 }
