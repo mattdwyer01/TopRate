@@ -12,11 +12,13 @@ import { SettingsModal } from './components/SettingsModal'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
+import { WatchlistTab } from './features/watchlist/WatchlistTab'
 
-type TopTab = 'race' | 'review'
+type TopTab = 'race' | 'review' | 'watchlist'
 
 function readTopTab(): TopTab {
-  return new URLSearchParams(window.location.search).get('tab') === 'review' ? 'review' : 'race'
+  const t = new URLSearchParams(window.location.search).get('tab')
+  return t === 'review' || t === 'watchlist' ? t : 'race'
 }
 
 function App() {
@@ -41,9 +43,10 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review') {
-      if (window.location.search !== '?tab=review') {
-        window.history.pushState(null, '', '?tab=review')
+    if (tab === 'review' || tab === 'watchlist') {
+      const search = `?tab=${tab}`
+      if (window.location.search !== search) {
+        window.history.pushState(null, '', search)
       }
     } else {
       pushUrlState({ date: urlState.date, raceId: urlState.raceId })
@@ -106,6 +109,16 @@ function App() {
               >
                 Review
               </button>
+              <button
+                type="button"
+                onClick={() => switchTab('watchlist')}
+                className={
+                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (topTab === 'watchlist' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Watchlist
+              </button>
             </nav>
           </div>
           <div className="flex items-center gap-3">
@@ -152,6 +165,9 @@ function App() {
         )}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
+        )}
+        {state.status === 'ready' && topTab === 'watchlist' && (
+          <WatchlistTab races={state.data.races} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
