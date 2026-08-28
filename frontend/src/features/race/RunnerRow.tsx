@@ -97,26 +97,41 @@ export function RunnerRow({
               1
             </span>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleScratch()
-            }}
-            title={scratched ? 'Un-scratch this runner' : 'Mark this runner as scratched'}
-            // Always visible, not hover-only - on a phone (exactly where a
-            // late scratch is likely to be entered, at the track with no
-            // hover state at all) a hover-revealed button is invisible and
-            // undiscoverable. Quiet (faint border, muted text) until
-            // scratched, so it doesn't compete with the horse name at rest.
-            className={`flex-none rounded border px-1 text-[10px] font-semibold transition-colors ${
-              scratched
-                ? 'border-rose-line bg-rose-bg text-rose'
-                : 'border-line-soft text-ink-faint hover:border-line hover:text-ink-mute'
-            }`}
-          >
-            SCR
-          </button>
+          {runner.dataScratched ? (
+            // A real, data-confirmed scratch (see toprate_price_refresh.py) -
+            // not a toggle, since there's nothing to un-scratch here (the
+            // effective state can't be undone by clicking - see RaceDetail's
+            // effectiveScratched). Solid fill (same treatment as the "about
+            // to jump" ticker state) so it reads as a fact, distinct from
+            // the quiet manual what-if toggle below.
+            <span
+              title="Scratched (confirmed by TopRate)"
+              className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white"
+            >
+              SCR
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleScratch()
+              }}
+              title={scratched ? 'Un-scratch this runner' : 'Mark this runner as scratched'}
+              // Always visible, not hover-only - on a phone (exactly where a
+              // late scratch is likely to be entered, at the track with no
+              // hover state at all) a hover-revealed button is invisible and
+              // undiscoverable. Quiet (faint border, muted text) until
+              // scratched, so it doesn't compete with the horse name at rest.
+              className={`flex-none rounded border px-1 text-[10px] font-semibold transition-colors ${
+                scratched
+                  ? 'border-rose-line bg-rose-bg text-rose'
+                  : 'border-line-soft text-ink-faint hover:border-line hover:text-ink-mute'
+              }`}
+            >
+              SCR
+            </button>
+          )}
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">

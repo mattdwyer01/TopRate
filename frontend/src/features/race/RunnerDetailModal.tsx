@@ -134,17 +134,29 @@ export function RunnerDetailModal({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={onToggleScratch}
-              className={`rounded-md border px-2 text-xs font-semibold transition-colors ${
-                scratched
-                  ? 'border-rose-line bg-rose-bg text-rose'
-                  : 'border-line text-ink-mute hover:bg-bg hover:text-ink'
-              }`}
-            >
-              {scratched ? 'Scratched' : 'Scratch'}
-            </button>
+            {runner.dataScratched ? (
+              // Real, data-confirmed scratch - not a toggle (nothing to
+              // undo here, see RaceDetail's effectiveScratched), solid fill
+              // so it reads as a fact rather than the manual what-if toggle.
+              <span
+                title="Scratched (confirmed by TopRate)"
+                className="rounded-md bg-rose px-2 py-1 text-xs font-semibold text-white"
+              >
+                Scratched
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onToggleScratch}
+                className={`rounded-md border px-2 text-xs font-semibold transition-colors ${
+                  scratched
+                    ? 'border-rose-line bg-rose-bg text-rose'
+                    : 'border-line text-ink-mute hover:bg-bg hover:text-ink'
+                }`}
+              >
+                {scratched ? 'Scratched' : 'Scratch'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onPrev}
@@ -193,7 +205,11 @@ export function RunnerDetailModal({
                   <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
                 )}
                 <span className="text-xs text-ink-mute">
-                  {scratched ? 'scratched - out of the field pricing' : 'effective WPR'}
+                  {scratched
+                    ? runner.dataScratched
+                      ? 'confirmed scratched - out of the field pricing'
+                      : 'manually scratched - out of the field pricing'
+                    : 'effective WPR'}
                 </span>
                 {hasOverride && (
                   <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
