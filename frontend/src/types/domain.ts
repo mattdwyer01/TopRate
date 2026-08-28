@@ -96,6 +96,11 @@ export interface Runner {
   finishPosition: number | null
   won: boolean
   fieldSize: number
+  // Real, data-driven late scratch (see RawRunner.scr) - distinct from the
+  // manual, this-device-only scratch toggle in wprOverrides.ts. The two are
+  // merged into one effective scratched flag where the model is applied
+  // (see RaceDetail.tsx's scratchedSet).
+  dataScratched: boolean
 
   // WPR projection (the additive base+adjustment model - see wpr_projection.py)
   // baseWpr + wprAdjustment == projectedWpr (both null when there's no

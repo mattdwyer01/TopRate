@@ -85,6 +85,10 @@ export interface RawRunner {
   f: number | null
   won: 0 | 1 | null
   fs: number
+  // Real, data-driven late scratch (toprate_price_refresh.py rechecking
+  // isScratched every ~5 min) - distinct from the manual, this-device-only
+  // scratch toggle in wprOverrides.ts. Absent/0 on older cached payloads.
+  scr?: 0 | 1
   wpjp: number | null
   wpjb: number | null
   wpjadj: number | null
