@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
+import { useShowScratched } from '../../lib/scratchedVisibility'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
@@ -62,6 +63,7 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
+  const { showScratched, setShowScratched } = useShowScratched()
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
@@ -96,9 +98,10 @@ export function RaceDetail({
   const sortedRunners = useMemo(() => {
     const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
     const active = sorted.filter((r) => !effectiveScratched.has(r.runId))
+    if (!showScratched) return active
     const scratchedRunners = sorted.filter((r) => effectiveScratched.has(r.runId))
     return [...active, ...scratchedRunners]
-  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
@@ -166,9 +169,14 @@ export function RaceDetail({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           <Pill active={compact} onClick={() => setCompact(true)}>Compact</Pill>
           <Pill active={!compact} onClick={() => setCompact(false)}>Full</Pill>
+          {scratchedInRace > 0 && (
+            <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>
+              {showScratched ? 'Hide scratched' : 'Show scratched'}
+            </Pill>
+          )}
         </div>
         {/* The full column-header row (with its own sort buttons) is desktop-
             only (hidden below sm - see the grid below), so mobile needs its
