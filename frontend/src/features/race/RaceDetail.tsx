@@ -66,13 +66,28 @@ export function RaceDetail({
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
 
+  // scratched (prop) is the manual, this-device-only toggle set - merge in
+  // each runner's real data-driven scratch (see toprate_price_refresh.py)
+  // so a late scratch the pipeline actually detected takes effect here too,
+  // not just ones a person happened to click. Toggling in the UI still only
+  // ever writes to the manual set (setScratched) - a data-confirmed scratch
+  // isn't something a click should be able to undo.
+  const effectiveScratched = useMemo(() => {
+    const merged = new Set(scratched)
+    for (const r of race.runners) {
+      if (r.dataScratched) merged.add(r.runId)
+    }
+    return merged
+  }, [race.runners, scratched])
+
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, scratched),
-    [race.runners, deltas, bases, priceBeta, scratched],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
+    [race.runners, deltas, bases, priceBeta, effectiveScratched],
   )
-  // scratched is a global (all-races) set - count only this race's runners
-  // in it for the header, rather than the whole set's size.
-  const scratchedInRace = race.runners.filter((r) => scratched.has(r.runId)).length
+  // effectiveScratched still carries the manual set's OTHER-race run_ids
+  // (it's a global set with this race's data-scratches merged in) - count
+  // only this race's runners against it, not the set's raw size.
+  const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
 
   // Scratched runners sort to the bottom regardless of the chosen sort key -
   // they're out of the race, cluttering the top of a Proj-sorted list with
@@ -80,10 +95,10 @@ export function RaceDetail({
   // for the (rare, temporary) scratched few.
   const sortedRunners = useMemo(() => {
     const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
-    const active = sorted.filter((r) => !scratched.has(r.runId))
-    const scratchedRunners = sorted.filter((r) => scratched.has(r.runId))
+    const active = sorted.filter((r) => !effectiveScratched.has(r.runId))
+    const scratchedRunners = sorted.filter((r) => effectiveScratched.has(r.runId))
     return [...active, ...scratchedRunners]
-  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, scratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched])
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
@@ -259,7 +274,7 @@ export function RaceDetail({
 
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
-      <SpeedMap race={race} runners={race.runners.filter((r) => !scratched.has(r.runId))} />
+      <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
 
       {selectedRunner && (
         <RunnerDetailModal

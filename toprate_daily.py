@@ -155,6 +155,9 @@ RUNNER_COLS = [
     "starting_price_sp","price_top",
     # Result fields
     "finish_position","margin_finish","won","placed","resulted",
+    # Late scratch, set by toprate_price_refresh.py after first capture (the
+    # isScratched check above only ever runs once, at capture time)
+    "scratched",
     # Settled post-race values. wpr_actual = final weight-adjusted WPR; the two
     # comment fields are the video + stewards notes. All three land in the days
     # AFTER a race (filled by update_results re-fetch + fill_comments_from_history),
@@ -2173,6 +2176,13 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "has_first_starter": has_fs,
                     # Runner
                     "run_id":         str(rid),
+                    # 0 by construction - a runner already isScratched at
+                    # first capture is skipped above (`continue`) and never
+                    # reaches this dict. Later scratches are picked up by
+                    # toprate_price_refresh.py's refresh_race_prices(), the
+                    # only ongoing recheck of isScratched (this initial
+                    # capture only ever runs once per runner).
+                    "scratched":      0,
                     "tab_number":     d.get("tabNumber"),
                     "barrier":        d.get("barrier"),
                     "horse":          d.get("horse"),
@@ -2844,6 +2854,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
         if len(rdf) == 0:
             continue
         first = rdf.iloc[0]
+        # Active (non-scratched) field size - a scratched runner stays in
+        # rdf (its row is kept for history) but shouldn't count toward the
+        # field the dashboard displays.
+        _active_field_size = int((rdf.get("scratched").fillna(0).astype(int) != 1).sum()
+                                  if "scratched" in rdf.columns else len(rdf))
 
         # Per-race cumulative score: predictive composite for quaddie/exotic use
         # Cumulative score removed (Stage 2) - WPR projection ranks runners.
@@ -2945,7 +2960,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "top":  sf(row.get("price_top")),
                 "f":    si(row.get("finish_position")),
                 "won":  si(row.get("won")),
-                "fs":   len(rdf),
+                "fs":   _active_field_size,
+                # Late scratch (see toprate_price_refresh.py) - distinct from
+                # the manual, this-device-only scratch toggle the frontend
+                # already has; this is the real data-driven signal.
+                "scr":  1 if int(row.get("scratched") or 0) == 1 else 0,
                 # Cumulative score keys: the model was removed so these are
                 # null, but the dashboard JS still references u.cs/crk/csc in
                 # several places; emit them (null) so those reads stay safe.

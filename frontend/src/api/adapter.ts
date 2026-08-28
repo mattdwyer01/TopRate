@@ -124,6 +124,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     finishPosition: r.f,
     won: r.won === 1,
     fieldSize: r.fs,
+    dataScratched: r.scr === 1,
 
     projectedWpr: r.wpjp,
     baseWpr: r.wpjb,

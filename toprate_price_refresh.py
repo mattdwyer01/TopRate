@@ -102,28 +102,43 @@ def find_upcoming_races(runners_df, lookahead_hours=2.0):
 
 def refresh_race_prices(jwt, race_id):
     """
-    Re-fetch race detail for one race and return a dict of run_id -> fixed_win_price.
-    Returns {} on any error so the caller can skip gracefully.
+    Re-fetch race detail for one race. Returns (price_updates, scratched_ids):
+    price_updates is run_id -> fixed_win_price for still-running runners;
+    scratched_ids is the set of run_ids the source now reports isScratched.
+
+    This is the pipeline's only ONGOING scratch check - toprate_daily.py's
+    own isScratched filter only ever runs once, at a runner's first capture
+    (days before the race, typically). A runner accepted then scratched
+    later just kept looking like a normal live runner through every
+    subsequent daily fetch until this - refresh_race_prices already
+    re-fetches race detail for every upcoming race every 5 min, so it's the
+    natural place to catch a late scratch too.
+
+    Returns ({}, set()) on any error so the caller can skip gracefully.
     """
     try:
         detail = td.api_race_detail(jwt, race_id) or []
     except Exception as e:
         print(f"  Race {race_id}: fetch failed ({e})")
-        return {}
-    out = {}
+        return {}, set()
+    price_updates = {}
+    scratched_ids = set()
     for d in detail:
-        if d.get("isScratched"):
-            continue
         rid = d.get("runId")
+        if rid is None:
+            continue
+        if d.get("isScratched"):
+            scratched_ids.add(str(rid))
+            continue
         fxp = d.get("fixedWinPrice")
-        if rid is not None and fxp is not None:
+        if fxp is not None:
             try:
                 fxp_f = float(fxp)
                 if fxp_f > 1:
-                    out[str(rid)] = fxp_f
+                    price_updates[str(rid)] = fxp_f
             except (TypeError, ValueError):
                 continue
-    return out
+    return price_updates, scratched_ids
 
 
 def main():
@@ -148,6 +163,8 @@ def main():
         dtype={"run_id": str, "race_id": str},
     )
     print(f"Loaded {len(runners_df)} runners from CSV")
+    if "scratched" not in runners_df.columns:
+        runners_df["scratched"] = 0
 
     # Login once, used for both results and price calls below
     jwt = td.login()
@@ -175,14 +192,16 @@ def main():
     # Find races to refresh
     upcoming = find_upcoming_races(runners_df, args.lookahead)
     all_updates = {}  # run_id -> new_fxp
+    all_scratched = set()
     if not upcoming:
         print("No upcoming races in price-lookahead window")
     else:
         print(f"Refreshing {len(upcoming)} races: {upcoming[:5]}{'...' if len(upcoming) > 5 else ''}")
         for race_id in upcoming:
-            updates = refresh_race_prices(jwt, race_id)
+            updates, scratched_ids = refresh_race_prices(jwt, race_id)
             all_updates.update(updates)
-        if not all_updates:
+            all_scratched.update(scratched_ids)
+        if not all_updates and not all_scratched:
             print("No price updates found")
 
     # Apply updates to runners_df
@@ -199,7 +218,21 @@ def main():
     if n_changed or all_updates:
         print(f"Changed {n_changed} prices ({len(all_updates) - n_changed} unchanged)")
 
-    if not results_changed and not n_changed:
+    # Apply newly-detected scratchings - the pipeline's only ongoing recheck
+    # of isScratched (toprate_daily.py's own check only runs once, at first
+    # capture - see refresh_race_prices()'s docstring).
+    n_scratched = 0
+    if all_scratched:
+        already = set(runners_df.loc[runners_df["scratched"].fillna(0).astype(int) == 1, "run_id"])
+        newly = all_scratched - already
+        if newly:
+            mask = runners_df["run_id"].isin(newly)
+            runners_df.loc[mask, "scratched"] = 1
+            n_scratched = int(mask.sum())
+            preview = sorted(newly)[:5]
+            print(f"Newly scratched: {n_scratched} runner(s) ({preview}{'...' if len(newly) > 5 else ''})")
+
+    if not results_changed and not n_changed and not n_scratched:
         print("Nothing changed - skipping write/rebuild")
         return 0
 
