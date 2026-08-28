@@ -9,6 +9,7 @@ import {
   readSyncConfig,
   writeSyncConfig,
 } from '../lib/githubSync'
+import { todayIso } from '../lib/meetings'
 
 interface SettingsModalProps {
   serverBeta: number | null
@@ -21,10 +22,6 @@ interface SettingsModalProps {
 const MIN_BETA = 0.05
 const MAX_BETA = 0.6
 const STEP = 0.01
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 type Status = { kind: 'idle' | 'busy' | 'ok' | 'err'; text: string }
 const IDLE: Status = { kind: 'idle', text: '' }

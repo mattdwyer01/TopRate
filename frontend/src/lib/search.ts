@@ -1,4 +1,5 @@
 import type { Race } from '../types/domain'
+import { todayIso } from './meetings'
 
 export interface SearchResult {
   raceId: string
@@ -25,7 +26,7 @@ const FIELD_ORDER: Record<SearchResult['matchedField'], number> = { horse: 0, jo
 export function searchRunners(races: Race[], query: string, limit = 40): SearchResult[] {
   const q = query.trim().toLowerCase()
   if (q.length < 2) return []
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = todayIso()
   const out: SearchResult[] = []
   for (const race of races) {
     for (const r of race.runners) {
