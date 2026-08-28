@@ -17,17 +17,19 @@ WHAT THIS IS
   (Aug 2026): it read as an unexplained constant fudge applied to every
   runner, which cost trust in the model even though it was a real, measured
   correction. See git history for the numbers if this is ever revisited.)
-  BASE is the horse's own anchor: an 80/20-weighted blend of wpr_nett
-  (TopRate's own pre-race rating) and ewm3 (this horse's own recency-
-  weighted average of its last ~3 runs) when both are available, falling
-  back to whichever half is available, then avg_last3/career_avg; see
-  _compute_base for the exact order. The blend weight was a flat 50/50
-  until Aug 2026 - re-examined at user request ("it doesn't need to be one
-  formula"), found the ratio itself had drifted with real data (wpr_nett
-  steadily getting more predictive over the past ~18 months) rather than
-  needing to vary by race condition (first-up, spell length, own
-  consistency were all tested and didn't hold up independently of that
-  drift) - see _BASE_BLEND_ALPHA's docstring for the numbers. (A brief Aug
+  BASE is the horse's own anchor: an _BASE_BLEND_ALPHA-weighted blend of
+  wpr_nett (TopRate's own pre-race rating) and ewm3 (this horse's own
+  recency-weighted average of its last ~3 runs) when both are available,
+  falling back to whichever half is available, then avg_last3/career_avg;
+  see _compute_base for the exact order. The blend weight was a flat 50/50
+  until Aug 2026, when it was shifted to a data-derived 0.80 after finding
+  the ratio itself had drifted with real data (wpr_nett steadily getting
+  more predictive over the past ~18 months) rather than needing to vary by
+  race condition (first-up, spell length, own consistency were all tested
+  and didn't hold up independently of that drift) - then reverted back to a
+  flat 50/50 shortly after at the user's explicit instruction, despite the
+  0.80 shift's documented improvement - see _BASE_BLEND_ALPHA's docstring
+  for both the drift analysis and the reversion rationale. (A brief Aug
   2026 period removed wpr_nett from base entirely for zero dependence on
   TopRate's own unaudited rating - reverted at the user's explicit
   instruction after it cost a real, measured ~0.56 held-out MAE; see git
@@ -222,8 +224,9 @@ FEATURES = [
     # gain measured in the Stage 0 work.
     "field_size",
     # --- wpr_nett: TopRate's own automated pre-race base rating. Feeds
-    # BASE directly again (see _compute_base - an 80/20-weighted blend with
-    # ewm3, re-adopted Aug 2026 after a brief period without it), and is also
+    # BASE directly again (see _compute_base - a _BASE_BLEND_ALPHA-weighted
+    # blend with ewm3, re-adopted Aug 2026 after a brief period without it),
+    # and is also
     # an input to the confidence (q10/q90 interval width) models, a
     # separate architecture. See build_features' cur_wpr_nett docstring
     # for the leak-check (frozen at first capture per run_id).
@@ -290,43 +293,35 @@ ADJ_TERMS = [
 # reimplementation of this same base formula (see "_base" there) - that
 # path fits/evaluates the RAW model against real targets; calibration is a
 # serving-time correction on top of it, not part of what gets trained.
-_CALIB_INTERCEPT = 3.886
-_CALIB_BASE_SLOPE = 0.9263
+# _CALIB_INTERCEPT/_CALIB_BASE_SLOPE are the MID-segment base calibration -
+# re-fit together with _BASE_BLEND_ALPHA and the low/high segments below
+# (see that block's docstring). _CALIB_ADJ_SLOPE is independent of the base
+# blend entirely (calibrates the ADJUSTMENT sum, not the base anchor) and
+# is untouched by the alpha revert.
+_CALIB_INTERCEPT = 2.084
+_CALIB_BASE_SLOPE = 0.9544
 _CALIB_ADJ_SLOPE = 0.1791
 
-# The blend weight itself is not fixed at 50/50 (Aug 2026, re-examined at
-# user request: "it doesn't need to be one formula"). Rebuilding the full
-# feature history (build_training_frame) and checking the in-sample-optimal
-# blend weight quarter by quarter found a real, steady drift: 0.25 (2025 Q1)
-# climbing smoothly to 1.00 (2026 Q3) - wpr_nett has been getting steadily
-# MORE predictive of actual outcomes relative to this horse's own
-# recency-weighted form (ewm3) over the past ~18 months, not a stable
-# constant. Tried conditioning the blend on RACE features instead (first-up,
-# runs-to-date, days-since-last-run, own consistency) on the hypothesis that
-# ewm3 is less trustworthy for, say, a horse returning from a long spell -
-# every one of those showed the SAME uniform time-drift and no consistent,
-# both-halves-validated within-condition difference once the drift was
-# accounted for (e.g. first-up vs not moved in lockstep with the overall
-# drift, not independently of it) - TESTED, NOT ADOPTED, see git history.
-# The time-drift itself, however, DID hold up under real forward-only
-# validation, checked two ways: (1) rebuilt-feature-history target (wpr),
-# alpha fit on a 60-day window and tested on the FOLLOWING 60 days, real
-# improvement both directions; (2) production target (wpr_actual/atw) from
-# toprate_runners.csv, split in half chronologically, independently landed
-# on the SAME optimal alpha (0.80) in BOTH halves. Comparing the FULL
-# pipeline (blend + re-fit piecewise calibration below) old (alpha=0.50) vs
-# new (alpha=0.80) on that same half-split: real, significant held-out MAE
-# improvement both directions (t=5.32 and t=3.14). Adopted 0.80 - not the
-# more aggressive value the still-climbing trend might suggest today, since
-# only 0.70-0.85 is actually validated by a genuine forward holdout; chasing
-# the boundary value from the single newest (smallest, noisiest) slice would
-# repeat the exact overfitting trap this file's own per-term search
-# (_CALIB_ADJ_SLOPE's neighbourhood) already got burned by once. Because
-# this is real drift and not a one-off correction, it is WORTH RE-CHECKING
-# every couple of months - re-run the same quarter-by-quarter alpha search
-# (see git history for the analysis script) rather than assuming 0.80 stays
-# right indefinitely.
-_BASE_BLEND_ALPHA = 0.80
+# The blend weight was raised to 0.80 in Aug 2026 after finding a real,
+# validated time-drift in how predictive wpr_nett is relative to ewm3 (see
+# git history, commit "Shift base blend from a flat 50/50 to a data-derived
+# 80/20" for the full analysis: quarter-by-quarter optimal alpha climbing
+# 0.25->1.00 over ~18 months, held up under two independent forward-only
+# validations, real held-out MAE improvement both directions when 0.80 was
+# compared against 0.50 on a chronological half-split). Reverted back to a
+# flat 50/50 at the user's explicit instruction (Aug 2026), despite that
+# documented improvement - re-checked at the time of reverting: refitting
+# the SAME validation on current data confirmed 50/50 still trails 0.80 in
+# the H1-fit/H2-validate direction (calibrated MAE 5.706 vs the raw
+# uncalibrated blend's 5.714 - barely better than doing nothing) and is
+# outright worse than uncalibrated in the H2-fit/H1-validate direction
+# (6.283 vs 5.868) - the older data (H1) behaves differently enough from
+# recent data that a calibration fit on it doesn't generalise well, which
+# is consistent with the original alpha-drift finding, not a contradiction
+# of it. This is a deliberate override of that evidence, not a finding that
+# 50/50 is actually better - if revisiting this, the alpha-drift analysis
+# above still applies.
+_BASE_BLEND_ALPHA = 0.50
 
 # Base calibration is piecewise, not one global slope (Aug 2026, found while
 # investigating a user-flagged case - a horse with strong, consistent recent
@@ -343,13 +338,16 @@ _BASE_BLEND_ALPHA = 0.80
 # middle segment's own shape. Re-derived together with _BASE_BLEND_ALPHA
 # above (changing the blend changes the raw base's whole distribution, so
 # the breakpoints/slopes below are NOT independent of that choice - re-fit
-# both together, never one without the other).
-_CALIB_LOW_BREAK = 62.56   # raw base <= this: low-segment slope
-_CALIB_HIGH_BREAK = 82.01  # raw base > this: high-segment slope
-_CALIB_LOW_INTERCEPT = 14.949
-_CALIB_LOW_SLOPE = 0.7383
-_CALIB_HIGH_INTERCEPT = -0.483
-_CALIB_HIGH_SLOPE = 0.9836
+# both together, never one without the other). Re-fit for the Aug 2026
+# 0.80->0.50 revert using the same methodology (full-data fit, p10/p80
+# breakpoints of THIS alpha's own raw-base distribution, not the old
+# breakpoint values, since the distribution itself shifts with alpha).
+_CALIB_LOW_BREAK = 64.25   # raw base <= this: low-segment slope
+_CALIB_HIGH_BREAK = 81.96  # raw base > this: high-segment slope
+_CALIB_LOW_INTERCEPT = -0.950
+_CALIB_LOW_SLOPE = 0.9968
+_CALIB_HIGH_INTERCEPT = 1.076
+_CALIB_HIGH_SLOPE = 0.9679
 
 
 def _calibrate_base(raw):
@@ -367,11 +365,12 @@ def _compute_base(feat):
     """The horse's own anchor for the additive model: an
     _BASE_BLEND_ALPHA-weighted blend of wpr_nett (TopRate's own pre-race
     rating) and ewm3 (this horse's own recency-weighted average of its last
-    ~3 runs) when both are available. Was a flat 50/50 blend (see git
-    history, commit "Base rating: 50/50 wpr_nett/ewm3 blend") until Aug
-    2026, when re-examining "is this the right formula" found the 50/50
-    split itself was stale - see _BASE_BLEND_ALPHA's docstring for the full
-    real-data drift analysis behind the new weight. wpr_nett is never
+    ~3 runs) when both are available. Was shifted from a flat 50/50 to a
+    data-derived 0.80 in Aug 2026 after finding a real, validated time-drift
+    (see _BASE_BLEND_ALPHA's docstring), then reverted back to a flat 50/50
+    shortly after at the user's explicit instruction, despite that
+    documented improvement - see _BASE_BLEND_ALPHA's docstring for the
+    reversion rationale. wpr_nett is never
     dropped from base entirely - a brief Aug 2026 period that removed it
     cost a real, measured ~0.56 held-out MAE (5.769 -> 6.333) for zero
     dependence on TopRate's own unaudited rating, reverted at the user's
