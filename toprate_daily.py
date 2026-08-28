@@ -1104,6 +1104,15 @@ def compute_wpr_projection(runners_df, target_date_str=None):
         if pd.isna(race_date):
             continue
 
+        # Active (non-scratched) field size for the model's field_size
+        # feature - a scratched runner shouldn't inflate it for the rest
+        # of the field's projections (see toprate_daily.py's scratch
+        # tracking; a scratched runner still gets iterated below and a
+        # projection computed, matching prior behaviour, just not counted
+        # here).
+        active_field_size = int((race.get("scratched", pd.Series([0] * len(race), index=race.index))
+                                  .fillna(0).astype(int) != 1).sum())
+
         runners = []
         runners_alt = []   # same field, going flipped wet<->dry
         idx_order = []
@@ -1127,7 +1136,7 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 # cur_field_size drives the field_size feature. Both
                 # degrade gracefully to neutral in project_race if None.
                 "cur_race_class": r.get("race_class"),
-                "cur_field_size": len(race),
+                "cur_field_size": active_field_size,
                 "cur_wpr_nett": r.get("wpr_nett"),
                 "cur_barrier": r.get("barrier"),
             }
@@ -2148,8 +2157,6 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
 
             race_runners = []
             for d in detail:
-                if d.get("isScratched"):
-                    continue
                 rid = d.get("runId")
                 w   = wpr_lu.get(rid, {})
                 h   = wpr_hist.get(rid, {})
@@ -2176,13 +2183,20 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "has_first_starter": has_fs,
                     # Runner
                     "run_id":         str(rid),
-                    # 0 by construction - a runner already isScratched at
-                    # first capture is skipped above (`continue`) and never
-                    # reaches this dict. Later scratches are picked up by
-                    # toprate_price_refresh.py's refresh_race_prices(), the
-                    # only ongoing recheck of isScratched (this initial
-                    # capture only ever runs once per runner).
-                    "scratched":      0,
+                    # Reflects isScratched at capture time - NOT skipped
+                    # (a prior version of this loop used `continue` to drop
+                    # a scratched runner from the field entirely, which
+                    # meant a runner scratched before this race's very
+                    # first capture never appeared at all, and - worse -
+                    # every re-fetch of "today's races" (the Settings
+                    # "Fetch today" button, and the normal 9am/11:30am AEST
+                    # scheduled slots - see fetch_todays_races()'s
+                    # remove-pending-then-refetch branch) silently wiped
+                    # out any scratch price_refresh.py had already detected,
+                    # since that re-fetch deletes and rebuilds the row from
+                    # scratch). toprate_price_refresh.py's refresh_race_prices()
+                    # still does the ONGOING recheck between daily fetches.
+                    "scratched":      1 if d.get("isScratched") else 0,
                     "tab_number":     d.get("tabNumber"),
                     "barrier":        d.get("barrier"),
                     "horse":          d.get("horse"),
@@ -3090,7 +3104,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rs_score":  sf(first.get("rs_score")) if callable(sf) else None,
             "rs_label":  str(first.get("rs_label")) if first.get("rs_label") and str(first.get("rs_label")) != "nan" else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
-            "fs":        len(rdf),
+            "fs":        _active_field_size,
             "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),
             # Cumulative score formula path used for this race ('A' or 'B').
             # 'A' = jt_combo + tr (better, 44% rk-1 WR). 'B' = tr + wpr3 + late (33% rk-1 WR).
