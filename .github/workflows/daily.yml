@@ -121,6 +121,17 @@ jobs:
         run: |
           if [ -n "${{ inputs.date }}" ]; then
             python toprate_daily.py --date "${{ inputs.date }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual dispatch with no date (e.g. the dashboard's "Fetch
+            # today" button) - always do real work for today's Melbourne
+            # date right now. The time-window heuristic below is only for
+            # the `schedule` event figuring out which of its many daily
+            # UTC firings it actually is; a human clicking a button isn't
+            # one of those firings and shouldn't be silently skipped just
+            # because the click didn't land in one of five 30-min windows.
+            TODAY=$(TZ=Australia/Melbourne date +%Y-%m-%d)
+            echo "Manual dispatch, no date given - fetching today's Melbourne date: $TODAY"
+            python toprate_daily.py --date "$TODAY"
           else
             # Resolve target from the ACTUAL current Melbourne local time,
             # not the raw UTC cron string - see the DST note in the

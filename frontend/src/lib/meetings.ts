@@ -68,8 +68,26 @@ export function bushMeetingKeys(races: Race[]): Set<string> {
   return bush
 }
 
+// "Today" for this dashboard always means the current date in Melbourne
+// (the backend's own race-day boundary - see resolve_daily_target.py,
+// which resolves the daily fetch's target date from real Australia/
+// Melbourne local time). Deliberately NOT `new Date().toISOString()`:
+// that converts the VIEWER's local clock to UTC, which disagrees with
+// Melbourne for the ~10-11 hours/day UTC lags behind AEST/AEDT (race
+// morning) - the "Today" button would show yesterday's meetings for a
+// chunk of every morning, and worse for a viewer outside Australia.
 export function todayIso(offsetDays = 0): string {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
+  const melbourneToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Melbourne',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+  if (offsetDays === 0) return melbourneToday
+  // Anchor the offset arithmetic in UTC on the already-correct Melbourne
+  // date string, rather than re-interpreting it in local time (which would
+  // reintroduce the same timezone mismatch this function exists to avoid).
+  const d = new Date(`${melbourneToday}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + offsetDays)
   return d.toISOString().slice(0, 10)
 }
