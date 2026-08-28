@@ -1,35 +1,28 @@
 name: TopRate price refresh
 
-# Runs every 5 minutes during typical AU racing hours (10am - 10pm AEST = 00:00 - 12:00 UTC).
-# Outside this window the workflow doesn't fire, saving ~17,000 free-tier minutes/month.
-# Adjust the cron if you regularly bet outside these hours (e.g. WA evenings or NZ races).
+# Triggered every 15 min during typical AU racing hours (10am - 10pm AEST)
+# by an EXTERNAL cron-job.org schedule calling this workflow's
+# workflow_dispatch endpoint directly - see HISTORY below for why. Adjust
+# the cron-job.org schedule (not anything here) if you regularly bet
+# outside these hours (e.g. WA evenings or NZ races).
 #
-# NOTE (Aug 2026): checked real run history via the GitHub API - this was firing
-# every 20-55 min in practice, not every 5, despite the */5 cron below. GitHub's
-# own docs warn that scheduled workflows can be delayed "during periods of high
-# load", and every-5-min crons landing on round clock boundaries (:00, :05, :10...)
-# are exactly when that contention peaks, since huge numbers of other repos' cron
-# jobs are also aligned to those same boundaries. Offset to :02, :07, :12... below -
-# a one-line, no-new-credentials mitigation to try first.
-#
-# UPDATE (Aug 2026): the offset alone did not help - confirmed via run history a
-# TOTAL outage, not just delay: zero runs fired for ~19 hours straight (last run
-# 2026-08-27T07:48Z, next one only after a manual workflow_dispatch the next day
-# at 02:43Z), despite the workflow being enabled the whole time. Added a second,
-# independently-offset schedule below (:04 instead of :02) so two unrelated cron
-# entries would both have to be starved at once for a multi-hour gap to recur -
-# still GitHub's same underlying scheduler, so not a guarantee, just redundancy.
-# A session-side hourly watchdog (external to GitHub Actions entirely) now also
-# force-triggers workflow_dispatch if data looks stale, as the real backstop for
-# the case both schedules go quiet together.
+# HISTORY (Aug 2026): originally ran on GitHub's own `schedule` event
+# (every 5 min via cron, hours 0-12 UTC = 10am-10pm AEST). That proved
+# unreliable well beyond normal scheduling jitter - confirmed via real run
+# history a ~19-hour TOTAL outage (zero fires despite the workflow being
+# enabled throughout), even after trying a clock-boundary offset and then a
+# second independently-offset cron as redundancy. Replaced entirely with an
+# external trigger on infrastructure independent of GitHub Actions' own
+# scheduler - the actual fix the old `schedule` mitigations were reaching
+# for. No `schedule` trigger here any more; if cron-job.org itself ever
+# goes down, the fallback is a manual trigger from the Actions tab (or the
+# dashboard's own workflow_dispatch calls) until it's restored.
 on:
-  schedule:
-    - cron: '2-59/5 0-12 * * *'   # every 5 min offset from :02, hours 0-12 UTC = 10am-10pm AEST
-    - cron: '4-59/5 0-12 * * *'   # redundant second schedule, offset from :04
-  workflow_dispatch:               # allow manual trigger from GitHub UI
+  workflow_dispatch:   # cron-job.org's real trigger; also allows manual runs
 
 # Avoid concurrent runs - if a refresh is still going when the next one fires,
-# skip rather than queue. Skipped runs are fine since the next slot is 5 min away.
+# skip rather than queue. Skipped runs are fine since the next trigger is
+# only ~15 min away (cron-job.org's schedule, not a GitHub Actions cron).
 concurrency:
   group: price-refresh
   cancel-in-progress: false
@@ -88,8 +81,9 @@ jobs:
           [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
           git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry. The remote moves often - the daily
-          # workflow, manual pushes, and the every-5-min schedule all commit to
-          # main, so a plain push frequently hits a non-fast-forward rejection
+          # workflow, manual pushes, and this workflow's own every-15-min
+          # cron-job.org trigger all commit to main, so a plain push
+          # frequently hits a non-fast-forward rejection
           # ("fetch first"). Rebase our single refresh commit on top of whatever
           # arrived, then push. Retry a few times in case the remote moves again
           # between pull and push. --no-edit/-X theirs keeps it non-interactive
