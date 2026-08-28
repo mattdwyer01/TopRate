@@ -2963,8 +2963,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "fs":   _active_field_size,
                 # Late scratch (see toprate_price_refresh.py) - distinct from
                 # the manual, this-device-only scratch toggle the frontend
-                # already has; this is the real data-driven signal.
-                "scr":  1 if int(row.get("scratched") or 0) == 1 else 0,
+                # already has; this is the real data-driven signal. si()
+                # (not `row.get(...) or 0`) because a NaN is truthy in
+                # Python - `NaN or 0` evaluates to NaN, not 0, and int(NaN)
+                # raises. Every row captured before this column existed
+                # reads back from CSV as float NaN, not None.
+                "scr":  1 if si(row.get("scratched")) == 1 else 0,
                 # Cumulative score keys: the model was removed so these are
                 # null, but the dashboard JS still references u.cs/crk/csc in
                 # several places; emit them (null) so those reads stay safe.
