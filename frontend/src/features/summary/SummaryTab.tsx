@@ -28,6 +28,10 @@ interface MarginRow {
   margin: number
   wprPrice: number | null
   fixedPrice: number | null
+  // A first starter, or any active runner with no base rating (wprNett) to
+  // anchor the projection on, makes the projection less reliable - flagged
+  // rather than excluded, since these races still sort by the same margin.
+  unreliable: boolean
 }
 
 const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
@@ -43,7 +47,7 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 // per-race badge (see git history for the badge version this replaced).
 export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   const [date, setDate] = useState(() => todayIso())
-  const [minMargin, setMinMargin] = useState(0)
+  const [minMargin, setMinMargin] = useState(3)
   const [mode, setMode] = useState<SummaryMode>('margins')
 
   const rows = useMemo<MarginRow[]>(() => {
@@ -56,6 +60,8 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
         .filter((r) => !r.dataScratched && r.projectedWpr != null && r.wprRank != null)
         .sort((a, b) => a.wprRank! - b.wprRank!)
       if (ranked.length < 2 || ranked[0].wprRank !== 1 || ranked[1].wprRank !== 2) continue
+      const unreliable =
+        race.hasFirstStarter || race.runners.some((r) => !r.dataScratched && r.wprNett == null)
       out.push({
         raceId: race.raceId,
         date: race.date,
@@ -70,6 +76,7 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
         margin: ranked[0].projectedWpr! - ranked[1].projectedWpr!,
         wprPrice: ranked[0].wprPrice,
         fixedPrice: ranked[0].fixedWinPrice,
+        unreliable,
       })
     }
     return out.sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -151,8 +158,16 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
                   className="cursor-pointer border-b border-line-soft transition-colors last:border-b-0 hover:bg-bg"
                 >
                   <td className="px-3 py-2">
-                    <div className="font-medium text-ink">
+                    <div className="flex items-center gap-1.5 font-medium text-ink">
                       {r.venue} R{r.raceNumber}
+                      {r.unreliable && (
+                        <span
+                          title="Race includes a first starter or a runner with no base rating - projection less reliable"
+                          className="text-amber"
+                        >
+                          ⚠
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-ink-mute">
                       {r.allResulted ? 'Resulted' : formatTimeOfDay(r.startTime)}
