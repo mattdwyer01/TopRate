@@ -4,6 +4,9 @@ import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
+import { QuaddieHelper } from './QuaddieHelper'
+
+type SummaryMode = 'margins' | 'quaddie'
 
 interface SummaryTabProps {
   races: Race[]
@@ -41,6 +44,7 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   const [date, setDate] = useState(() => todayIso())
   const [minMargin, setMinMargin] = useState(0)
+  const [mode, setMode] = useState<SummaryMode>('margins')
 
   const rows = useMemo<MarginRow[]>(() => {
     const bushKeys = showBush ? null : bushMeetingKeys(races)
@@ -75,6 +79,15 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex rounded-md border border-line bg-bg p-0.5" style={{ width: 'fit-content' }}>
+        <Pill active={mode === 'margins'} onClick={() => setMode('margins')}>
+          Margins
+        </Pill>
+        <Pill active={mode === 'quaddie'} onClick={() => setMode('quaddie')}>
+          Quaddie legs
+        </Pill>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         {DATE_QUICK_BUTTONS.map((btn) => {
           const btnDate = todayIso(btn.offset)
@@ -90,20 +103,26 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
           onChange={(e) => setDate(e.target.value)}
           className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
         />
-        <label className="ml-2 flex items-center gap-1.5 text-sm text-ink-mute">
-          Min margin to 2nd
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            value={minMargin}
-            onChange={(e) => setMinMargin(Math.max(0, Number(e.target.value) || 0))}
-            className="w-16 rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
-          />
-        </label>
+        {mode === 'margins' && (
+          <label className="ml-2 flex items-center gap-1.5 text-sm text-ink-mute">
+            Min margin to 2nd
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={minMargin}
+              onChange={(e) => setMinMargin(Math.max(0, Number(e.target.value) || 0))}
+              className="w-16 rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
+            />
+          </label>
+        )}
       </div>
 
-      {filtered.length === 0 ? (
+      {mode === 'quaddie' && (
+        <QuaddieHelper races={races} date={date} showBush={showBush} onSelectRace={onSelectRace} />
+      )}
+
+      {mode === 'margins' && (filtered.length === 0 ? (
         <EmptyState
           message={
             rows.length === 0
@@ -157,7 +176,7 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
     </div>
   )
 }
