@@ -31,15 +31,28 @@ interface Leg {
   tier: Tier | null
 }
 
-// Backtest (Aug 2026, ~5,000 resulted races): the top pick alone wins only
-// ~35.9% of "standout" races (gap >= 3.5) and ~19.0% of "tight" ones
-// (gap < 1.0) - covering 2-3 runners even on a strong leg meaningfully
-// lifts the leg's hit rate (top2 standout ~49.2%, top3 ~60.0%; top4 tight
-// ~63.5%). "clear" sits between the two and hasn't been separately
-// backtested - 3 is an interpolated default, not a measured figure.
+// Backtest (toprate_runners.csv, 4,669 resulted races, non-scratched
+// runners ranked by projected WPR): cumulative probability the actual
+// winner is among the top N picks, by tier - i.e. the leg's hit rate if
+// you cover that many runners. Index 0 = top1, index i = top(i+1).
+const COVERAGE_TABLE: Record<Tier, number[]> = {
+  standout: [0.4118, 0.5667, 0.6882, 0.7912, 0.852, 0.9, 0.9441, 0.9706], // n=1020
+  clear: [0.2542, 0.437, 0.591, 0.6945, 0.7803, 0.8451, 0.8923, 0.9338], // n=2144
+  tight: [0.2047, 0.3887, 0.5395, 0.6698, 0.7767, 0.8346, 0.8831, 0.9256], // n=1505
+}
+
+function probabilityFor(tier: Tier | null, cover: number): number | null {
+  if (tier == null) return null
+  const table = COVERAGE_TABLE[tier]
+  return table[Math.min(cover, table.length) - 1]
+}
+
+// Defaults chosen as the smallest cover count that clears a ~60% leg hit
+// rate (see COVERAGE_TABLE) - a single top pick, even in a standout race,
+// misses more often than it hits (~41%), so no tier defaults to 1.
 const TIER_INFO: Record<Tier, { label: string; defaultCover: number; className: string }> = {
-  standout: { label: 'Standout', defaultCover: 2, className: 'border-emerald-line bg-emerald-bg text-emerald-deep' },
-  clear: { label: 'Clear', defaultCover: 3, className: 'border-amber-line bg-amber-bg text-amber' },
+  standout: { label: 'Standout', defaultCover: 3, className: 'border-emerald-line bg-emerald-bg text-emerald-deep' },
+  clear: { label: 'Clear', defaultCover: 4, className: 'border-amber-line bg-amber-bg text-amber' },
   tight: { label: 'Tight', defaultCover: 4, className: 'border-line text-ink-mute' },
 }
 
@@ -123,6 +136,13 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
 
   const includedLegs = legs.filter(isIncluded)
   const combinations = includedLegs.length > 0 ? includedLegs.reduce((acc, leg) => acc * coverFor(leg), 1) : 0
+  // Product of each leg's own hit rate - assumes leg outcomes are
+  // independent, which is a simplification (they share the same day's
+  // track/weather) but a reasonable estimate for an overall quaddie read.
+  const legProbabilities = includedLegs.map((leg) => probabilityFor(leg.tier, coverFor(leg)))
+  const combinedProbability = legProbabilities.every((p) => p != null)
+    ? legProbabilities.reduce((acc, p) => acc * (p as number), 1)
+    : null
 
   if (meetings.length === 0) {
     return <EmptyState message={`No meetings on ${date}.`} />
@@ -156,6 +176,7 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
           const included = isIncluded(leg)
           const cover = coverFor(leg)
           const tierInfo = leg.tier ? TIER_INFO[leg.tier] : null
+          const probability = probabilityFor(leg.tier, cover)
           return (
             <div
               key={leg.raceId}
@@ -186,18 +207,28 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
                 )}
                 {leg.picks.length === 0 && <span className="text-xs text-ink-mute">No projection</span>}
                 {includable && (
-                  <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-mute">
-                    Cover top
-                    <input
-                      type="number"
-                      min={1}
-                      max={leg.picks.length}
-                      value={cover}
-                      disabled={!included}
-                      onChange={(e) => setCover(leg.raceId, Number(e.target.value) || 1, leg.picks.length)}
-                      className="w-12 rounded-md border border-line bg-bg px-1.5 py-0.5 text-xs font-mono disabled:opacity-50"
-                    />
-                  </label>
+                  <div className="ml-auto flex items-center gap-3">
+                    {included && probability != null && (
+                      <span
+                        title="Backtested probability the actual winner is among the covered runners"
+                        className="font-mono text-xs font-semibold text-emerald-deep"
+                      >
+                        {(probability * 100).toFixed(1)}% to land
+                      </span>
+                    )}
+                    <label className="flex items-center gap-1.5 text-xs text-ink-mute">
+                      Cover top
+                      <input
+                        type="number"
+                        min={1}
+                        max={leg.picks.length}
+                        value={cover}
+                        disabled={!included}
+                        onChange={(e) => setCover(leg.raceId, Number(e.target.value) || 1, leg.picks.length)}
+                        className="w-12 rounded-md border border-line bg-bg px-1.5 py-0.5 text-xs font-mono disabled:opacity-50"
+                      />
+                    </label>
+                  </div>
                 )}
               </div>
               {included && leg.picks.length > 0 && (
@@ -219,12 +250,22 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
         {includedLegs.length === 0 ? (
           <span className="text-ink-mute">Tick at least one leg to see the combination count.</span>
         ) : (
-          <span>
-            <span className="font-mono font-semibold text-emerald-deep">{combinations}</span>{' '}
-            <span className="text-ink-mute">
-              combination{combinations === 1 ? '' : 's'} across {includedLegs.length} leg{includedLegs.length === 1 ? '' : 's'}
+          <div className="flex flex-col gap-1">
+            <span>
+              <span className="font-mono font-semibold text-emerald-deep">{combinations}</span>{' '}
+              <span className="text-ink-mute">
+                combination{combinations === 1 ? '' : 's'} across {includedLegs.length} leg{includedLegs.length === 1 ? '' : 's'}
+              </span>
             </span>
-          </span>
+            {combinedProbability != null && (
+              <span>
+                <span className="font-mono font-semibold text-emerald-deep">{(combinedProbability * 100).toFixed(1)}%</span>{' '}
+                <span className="text-ink-mute">
+                  estimated chance of landing all {includedLegs.length} legs (assumes legs are independent)
+                </span>
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
