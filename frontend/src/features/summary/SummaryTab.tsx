@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
-import { todayIso } from '../../lib/meetings'
+import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 
 interface SummaryTabProps {
   races: Race[]
+  showBush: boolean
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
@@ -34,17 +35,19 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 
 // Backtest (Aug 2026, ~5,000 resulted races): the model's top pick's win
 // rate scales with its projected-WPR gap over the 2nd pick - ~18% under a
-// 0.5 gap, up to ~42% at 6.0+. This tab surfaces that gap directly, sorted
-// biggest-first, with a threshold filter, rather than folding it into a
+// 0.5 gap, up to ~42% at 6.0+. This tab surfaces that gap directly (in race
+// order, with a min-margin threshold filter) rather than folding it into a
 // per-race badge (see git history for the badge version this replaced).
-export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
+export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   const [date, setDate] = useState(() => todayIso())
   const [minMargin, setMinMargin] = useState(0)
 
   const rows = useMemo<MarginRow[]>(() => {
+    const bushKeys = showBush ? null : bushMeetingKeys(races)
     const out: MarginRow[] = []
     for (const race of races) {
       if (race.date !== date) continue
+      if (bushKeys && bushKeys.has(meetingKey(race))) continue
       const ranked = race.runners
         .filter((r) => !r.dataScratched && r.projectedWpr != null && r.wprRank != null)
         .sort((a, b) => a.wprRank! - b.wprRank!)
@@ -65,8 +68,8 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
         fixedPrice: ranked[0].fixedWinPrice,
       })
     }
-    return out.sort((a, b) => b.margin - a.margin)
-  }, [races, date])
+    return out.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  }, [races, date, showBush])
 
   const filtered = useMemo(() => rows.filter((r) => r.margin >= minMargin), [rows, minMargin])
 
