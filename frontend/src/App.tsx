@@ -109,6 +109,16 @@ function App() {
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
               <button
                 type="button"
+                onClick={() => switchTab('summary')}
+                className={
+                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (topTab === 'summary' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Summary
+              </button>
+              <button
+                type="button"
                 onClick={() => switchTab('race')}
                 className={
                   'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
@@ -126,16 +136,6 @@ function App() {
                 }
               >
                 Review
-              </button>
-              <button
-                type="button"
-                onClick={() => switchTab('summary')}
-                className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
-                  (topTab === 'summary' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Summary
               </button>
             </nav>
           </div>
