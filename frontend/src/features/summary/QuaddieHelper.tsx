@@ -17,6 +17,11 @@ interface LegPick {
   horse: string
   projectedWpr: number
   wprPrice: number | null
+  // This runner's share of the leg's win probability, normalized so the
+  // leg's picks sum to 1 - derived from wprPrice (1/price), not looked up
+  // from a tier bucket, so it works for any subset the user builds by
+  // hand, not just a contiguous top-N.
+  probability: number
 }
 
 type Tier = 'standout' | 'clear' | 'tight'
@@ -31,29 +36,10 @@ interface Leg {
   tier: Tier | null
 }
 
-// Backtest (toprate_runners.csv, 4,669 resulted races, non-scratched
-// runners ranked by projected WPR): cumulative probability the actual
-// winner is among the top N picks, by tier - i.e. the leg's hit rate if
-// you cover that many runners. Index 0 = top1, index i = top(i+1).
-const COVERAGE_TABLE: Record<Tier, number[]> = {
-  standout: [0.4118, 0.5667, 0.6882, 0.7912, 0.852, 0.9, 0.9441, 0.9706], // n=1020
-  clear: [0.2542, 0.437, 0.591, 0.6945, 0.7803, 0.8451, 0.8923, 0.9338], // n=2144
-  tight: [0.2047, 0.3887, 0.5395, 0.6698, 0.7767, 0.8346, 0.8831, 0.9256], // n=1505
-}
-
-function probabilityFor(tier: Tier | null, cover: number): number | null {
-  if (tier == null) return null
-  const table = COVERAGE_TABLE[tier]
-  return table[Math.min(cover, table.length) - 1]
-}
-
-// Defaults chosen as the smallest cover count that clears a ~60% leg hit
-// rate (see COVERAGE_TABLE) - a single top pick, even in a standout race,
-// misses more often than it hits (~41%), so no tier defaults to 1.
-const TIER_INFO: Record<Tier, { label: string; defaultCover: number; className: string }> = {
-  standout: { label: 'Standout', defaultCover: 3, className: 'border-emerald-line bg-emerald-bg text-emerald-deep' },
-  clear: { label: 'Clear', defaultCover: 4, className: 'border-amber-line bg-amber-bg text-amber' },
-  tight: { label: 'Tight', defaultCover: 4, className: 'border-line text-ink-mute' },
+const TIER_INFO: Record<Tier, { label: string; className: string }> = {
+  standout: { label: 'Standout', className: 'border-emerald-line bg-emerald-bg text-emerald-deep' },
+  clear: { label: 'Clear', className: 'border-amber-line bg-amber-bg text-amber' },
+  tight: { label: 'Tight', className: 'border-line text-ink-mute' },
 }
 
 function tierFor(margin: number | null): Tier | null {
@@ -61,6 +47,20 @@ function tierFor(margin: number | null): Tier | null {
   if (margin >= 3.5) return 'standout'
   if (margin >= 1.0) return 'clear'
   return 'tight'
+}
+
+// The smallest prefix (by descending win probability) whose cumulative
+// probability reaches the target - i.e. "how many, and which, runners do
+// I need to cover to have roughly a targetPct% chance of landing this leg."
+function defaultSelection(leg: Leg, targetFraction: number): Set<string> {
+  const ids = new Set<string>()
+  let cumulative = 0
+  for (const pick of leg.picks) {
+    ids.add(pick.runId)
+    cumulative += pick.probability
+    if (cumulative >= targetFraction) break
+  }
+  return ids
 }
 
 export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHelperProps) {
@@ -72,6 +72,8 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
   const [venueChoice, setVenueChoice] = useState<string | null>(null)
   const activeVenue = venueChoice && meetings.some((m) => m.venue === venueChoice) ? venueChoice : (meetings[0]?.venue ?? null)
 
+  const [targetPct, setTargetPct] = useState(70)
+
   const legs = useMemo<Leg[]>(() => {
     const meeting = meetings.find((m) => m.venue === activeVenue)
     if (!meeting) return []
@@ -79,12 +81,15 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
       const ranked = race.runners
         .filter((r) => !r.dataScratched && r.projectedWpr != null)
         .sort((a, b) => b.projectedWpr! - a.projectedWpr!)
-      const picks: LegPick[] = ranked.map((r) => ({
+      const weights = ranked.map((r) => (r.wprPrice != null && r.wprPrice > 0 ? 1 / r.wprPrice : 0))
+      const totalWeight = weights.reduce((a, b) => a + b, 0)
+      const picks: LegPick[] = ranked.map((r, i) => ({
         runId: r.runId,
         tabNumber: r.tabNumber,
         horse: r.horse,
         projectedWpr: r.projectedWpr!,
         wprPrice: r.wprPrice,
+        probability: totalWeight > 0 ? weights[i] / totalWeight : 0,
       }))
       const margin = picks.length >= 2 ? picks[0].projectedWpr - picks[1].projectedWpr : null
       return {
@@ -99,13 +104,17 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
     })
   }, [meetings, activeVenue])
 
-  // Keyed by raceId, so a venue switch just stops applying (stale keys for
-  // the old venue's races never match the new venue's leg IDs) rather than
-  // needing an explicit reset. Starts empty - a real quaddie is a handful
-  // of nominated legs (check the TAB card), not every race at the meeting,
-  // so the user opts individual races in rather than opting the rest out.
+  // Which races are quaddie legs at all - keyed by raceId, so a venue
+  // switch just stops applying (stale keys for the old venue's races never
+  // match the new venue's leg IDs) rather than needing an explicit reset.
+  // Starts empty - a real quaddie is a handful of nominated legs (check
+  // the TAB card), not every race at the meeting.
   const [selectedLegs, setSelectedLegs] = useState<Set<string>>(() => new Set())
-  const [coverOverrides, setCoverOverrides] = useState<Record<string, number>>({})
+  // Per-runner overrides on top of each leg's target-probability default -
+  // keyed by runId (globally unique), true = forced in, false = forced
+  // out. Untouched runners keep following the live target-probability
+  // default, so changing the target still moves them.
+  const [runnerOverrides, setRunnerOverrides] = useState<Record<string, boolean>>({})
 
   function toggleLeg(raceId: string) {
     setSelectedLegs((prev) => {
@@ -116,14 +125,8 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
     })
   }
 
-  function setCover(raceId: string, count: number, max: number) {
-    setCoverOverrides((prev) => ({ ...prev, [raceId]: Math.max(1, Math.min(count, max)) }))
-  }
-
-  function coverFor(leg: Leg): number {
-    const fallback = leg.tier ? TIER_INFO[leg.tier].defaultCover : 1
-    const override = coverOverrides[leg.raceId]
-    return Math.max(1, Math.min(override ?? fallback, leg.picks.length))
+  function toggleRunner(runId: string, currentlySelected: boolean) {
+    setRunnerOverrides((prev) => ({ ...prev, [runId]: !currentlySelected }))
   }
 
   function isIncludable(leg: Leg): boolean {
@@ -134,15 +137,30 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
     return isIncludable(leg) && selectedLegs.has(leg.raceId)
   }
 
+  function selectedRunnersFor(leg: Leg): Set<string> {
+    const base = defaultSelection(leg, targetPct / 100)
+    const result = new Set<string>()
+    for (const pick of leg.picks) {
+      const selected = runnerOverrides[pick.runId] ?? base.has(pick.runId)
+      if (selected) result.add(pick.runId)
+    }
+    return result
+  }
+
+  function probabilityFor(leg: Leg, selected: Set<string>): number {
+    return leg.picks.filter((p) => selected.has(p.runId)).reduce((acc, p) => acc + p.probability, 0)
+  }
+
   const includedLegs = legs.filter(isIncluded)
-  const combinations = includedLegs.length > 0 ? includedLegs.reduce((acc, leg) => acc * coverFor(leg), 1) : 0
+  const legSelections = includedLegs.map((leg) => ({ leg, selected: selectedRunnersFor(leg) }))
+  const combinations = legSelections.length > 0 ? legSelections.reduce((acc, { selected }) => acc * Math.max(1, selected.size), 1) : 0
   // Product of each leg's own hit rate - assumes leg outcomes are
   // independent, which is a simplification (they share the same day's
   // track/weather) but a reasonable estimate for an overall quaddie read.
-  const legProbabilities = includedLegs.map((leg) => probabilityFor(leg.tier, coverFor(leg)))
-  const combinedProbability = legProbabilities.every((p) => p != null)
-    ? legProbabilities.reduce((acc, p) => acc * (p as number), 1)
-    : null
+  const combinedProbability =
+    legSelections.length > 0
+      ? legSelections.reduce((acc, { leg, selected }) => acc * probabilityFor(leg, selected), 1)
+      : null
 
   if (meetings.length === 0) {
     return <EmptyState message={`No meetings on ${date}.`} />
@@ -165,8 +183,19 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-1.5 text-sm text-ink-mute">
+          Target win % per leg
+          <input
+            type="number"
+            min={1}
+            max={99}
+            value={targetPct}
+            onChange={(e) => setTargetPct(Math.min(99, Math.max(1, Number(e.target.value) || 1)))}
+            className="w-14 rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
+          />
+        </label>
         <p className="text-xs text-ink-mute">
-          Tick the races that make up your quaddie legs (check your TAB card for the exact races), then adjust how many runners to cover per leg.
+          Tick the races that make up your quaddie legs (check your TAB card for the exact races). Runners are pre-selected up to the target, then use +/- to build your own coverage per leg.
         </p>
       </div>
 
@@ -174,9 +203,9 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
         {legs.map((leg) => {
           const includable = isIncludable(leg)
           const included = isIncluded(leg)
-          const cover = coverFor(leg)
+          const selected = included ? selectedRunnersFor(leg) : new Set<string>()
+          const probability = included ? probabilityFor(leg, selected) : null
           const tierInfo = leg.tier ? TIER_INFO[leg.tier] : null
-          const probability = probabilityFor(leg.tier, cover)
           return (
             <div
               key={leg.raceId}
@@ -206,39 +235,41 @@ export function QuaddieHelper({ races, date, showBush, onSelectRace }: QuaddieHe
                   </span>
                 )}
                 {leg.picks.length === 0 && <span className="text-xs text-ink-mute">No projection</span>}
-                {includable && (
-                  <div className="ml-auto flex items-center gap-3">
-                    {included && probability != null && (
-                      <span
-                        title="Backtested probability the actual winner is among the covered runners"
-                        className="font-mono text-xs font-semibold text-emerald-deep"
-                      >
-                        {(probability * 100).toFixed(1)}% to land
-                      </span>
-                    )}
-                    <label className="flex items-center gap-1.5 text-xs text-ink-mute">
-                      Cover top
-                      <input
-                        type="number"
-                        min={1}
-                        max={leg.picks.length}
-                        value={cover}
-                        disabled={!included}
-                        onChange={(e) => setCover(leg.raceId, Number(e.target.value) || 1, leg.picks.length)}
-                        className="w-12 rounded-md border border-line bg-bg px-1.5 py-0.5 text-xs font-mono disabled:opacity-50"
-                      />
-                    </label>
-                  </div>
+                {included && probability != null && (
+                  <span
+                    title="Sum of the selected runners' implied win probability (from WPR $)"
+                    className="ml-auto font-mono text-xs font-semibold text-emerald-deep"
+                  >
+                    {(probability * 100).toFixed(1)}% to land
+                  </span>
                 )}
               </div>
               {included && leg.picks.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-6 text-sm">
-                  {leg.picks.slice(0, cover).map((p) => (
-                    <span key={p.runId} className="text-ink-mute">
-                      <span className="font-mono text-ink">{p.tabNumber}.</span> {p.horse}
-                      {p.wprPrice != null && <span className="font-mono"> ${p.wprPrice.toFixed(2)}</span>}
-                    </span>
-                  ))}
+                <div className="mt-2 flex flex-col gap-0.5 pl-6">
+                  {leg.picks.map((p) => {
+                    const isSelected = selected.has(p.runId)
+                    return (
+                      <div key={p.runId} className="flex items-center gap-2 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => toggleRunner(p.runId, isSelected)}
+                          title={isSelected ? 'Remove from coverage' : 'Add to coverage'}
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] leading-none transition-colors ${
+                            isSelected
+                              ? 'border-emerald bg-emerald text-white hover:opacity-80'
+                              : 'border-line text-ink-mute hover:border-emerald hover:text-emerald'
+                          }`}
+                        >
+                          {isSelected ? '−' : '+'}
+                        </button>
+                        <span className={`font-mono ${isSelected ? 'text-ink' : 'text-ink-mute'}`}>{p.tabNumber}.</span>
+                        <span className={isSelected ? 'text-ink' : 'text-ink-mute'}>{p.horse}</span>
+                        <span className="ml-auto font-mono text-xs text-ink-mute">
+                          {(p.probability * 100).toFixed(1)}%{p.wprPrice != null && ` · $${p.wprPrice.toFixed(2)}`}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
