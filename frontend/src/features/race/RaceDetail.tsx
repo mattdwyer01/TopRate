@@ -9,6 +9,7 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { formatCountdown } from '../../lib/countdown'
+import { computeRaceConfidence } from '../../lib/predictionConfidence'
 
 interface RaceDetailProps {
   race: Race
@@ -85,6 +86,14 @@ export function RaceDetail({
   const effectiveByRunId = useMemo(
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
     [race.runners, deltas, bases, priceBeta, effectiveScratched],
+  )
+
+  // How clearly separated the model's top pick is from the 2nd pick -
+  // computed from the active field only, a scratched leader shouldn't set
+  // the read for a race it's no longer in.
+  const raceConfidence = useMemo(
+    () => computeRaceConfidence(race.runners.filter((r) => !effectiveScratched.has(r.runId))),
+    [race.runners, effectiveScratched],
   )
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
@@ -166,6 +175,22 @@ export function RaceDetail({
           </span>
           {race.hasFirstStarter && <span className="text-amber">First starter in field</span>}
         </div>
+        {raceConfidence && (
+          <div className="mt-1.5">
+            <span
+              title={`Projected WPR gap to 2nd pick: ${raceConfidence.gap.toFixed(1)}`}
+              className={`rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                raceConfidence.tier === 'standout'
+                  ? 'border-emerald-line bg-emerald-bg text-emerald-deep'
+                  : raceConfidence.tier === 'clear'
+                    ? 'border-amber-line bg-amber-bg text-amber'
+                    : 'border-line text-ink-mute'
+              }`}
+            >
+              {raceConfidence.label}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
