@@ -15,6 +15,43 @@ interface StrategyBetsProps {
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
+// 1 unit = $50, matching the dashboard-wide staking convention.
+const UNIT_VALUE_DOLLARS = 50
+
+interface StakingResult {
+  profitUnits: number
+  roi: number
+}
+
+// Proportional stakes are normalized so total units staked matches flat
+// staking's total (one unit per bet) - keeps the two $ P&L figures on the
+// same total-risk basis for a fair side-by-side comparison.
+function computeStaking(rows: StrategyRow[]): { flat: StakingResult; proportional: StakingResult } | null {
+  const priced = rows.filter((r) => (r.startingPrice ?? r.fixedPrice) != null)
+  if (priced.length === 0) return null
+  const avgPrice = priced.reduce((sum, r) => sum + (r.startingPrice ?? r.fixedPrice)!, 0) / priced.length
+
+  let flatProfit = 0
+  let propProfit = 0
+  let propStakeTotal = 0
+  for (const r of priced) {
+    const price = (r.startingPrice ?? r.fixedPrice)!
+    const propStake = price / avgPrice
+    propStakeTotal += propStake
+    if (r.won) {
+      flatProfit += price - 1
+      propProfit += propStake * (price - 1)
+    } else {
+      flatProfit -= 1
+      propProfit -= propStake
+    }
+  }
+  return {
+    flat: { profitUnits: flatProfit, roi: (flatProfit / priced.length) * 100 },
+    proportional: { profitUnits: propProfit, roi: (propProfit / propStakeTotal) * 100 },
+  }
+}
+
 interface StrategyRow {
   raceId: string
   runId: string
@@ -95,6 +132,7 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
   const info = TIER_INFO[tier]
   const dayResulted = rows.length > 0 && rows.every((r) => r.allResulted)
   const wins = rows.filter((r) => r.won).length
+  const staking = dayResulted ? computeStaking(rows) : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -121,6 +159,25 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
               {rows.length} qualifying bet{rows.length === 1 ? '' : 's'},{' '}
               <span className="font-mono font-semibold text-emerald-deep">{wins}</span> winner{wins === 1 ? '' : 's'} (
               {((wins / rows.length) * 100).toFixed(1)}% strike)
+            </div>
+          )}
+          {staking && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              {(
+                [
+                  ['Flat staking', staking.flat],
+                  ['Proportional staking (by price)', staking.proportional],
+                ] as const
+              ).map(([label, s]) => (
+                <div key={label}>
+                  <span className="text-ink-mute">{label}: </span>
+                  <span className={`font-mono font-semibold ${s.profitUnits >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>
+                    {s.profitUnits >= 0 ? '+' : ''}${(s.profitUnits * UNIT_VALUE_DOLLARS).toFixed(0)} (
+                    {s.roi >= 0 ? '+' : ''}
+                    {s.roi.toFixed(1)}%)
+                  </span>
+                </div>
+              ))}
             </div>
           )}
           {/* Cards, not a table - this row has too much per-runner detail
