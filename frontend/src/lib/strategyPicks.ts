@@ -17,7 +17,10 @@ export interface StrategyPick {
   takenAt: string
 }
 
-function readStored(): Record<string, StrategyPick> {
+// Exported for lib/githubSync.ts - cross-device sync needs to read/write
+// this same storage to merge picks made on another device, rather than
+// going through the hook (which only runs inside a mounted component).
+export function readStoredPicks(): Record<string, StrategyPick> {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return {}
@@ -28,7 +31,7 @@ function readStored(): Record<string, StrategyPick> {
   }
 }
 
-function writeStored(picks: Record<string, StrategyPick>) {
+export function writeStoredPicks(picks: Record<string, StrategyPick>) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(picks))
   } catch {
@@ -38,7 +41,7 @@ function writeStored(picks: Record<string, StrategyPick>) {
 }
 
 export function useStrategyPicks() {
-  const [picks, setPicks] = useState<Record<string, StrategyPick>>(() => readStored())
+  const [picks, setPicks] = useState<Record<string, StrategyPick>>(() => readStoredPicks())
 
   const toggleTaken = useCallback((runId: string, raceId: string, date: string, tier: StrategyTier) => {
     setPicks((prev) => {
@@ -48,7 +51,7 @@ export function useStrategyPicks() {
       } else {
         next[runId] = { runId, raceId, date, tier, takenAt: new Date().toISOString() }
       }
-      writeStored(next)
+      writeStoredPicks(next)
       return next
     })
   }, [])

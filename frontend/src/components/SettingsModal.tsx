@@ -282,8 +282,8 @@ export function SettingsModal({
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Cross-device sync</span>
             <p className="text-xs text-ink-mute">
-              Syncs manual WPR overrides and view preferences between devices via a private Gist. Create one on
-              your first device, then paste the same Gist ID on the others.
+              Syncs manual WPR overrides, view preferences, and tracked Strategy picks between devices via a
+              private Gist. Create one on your first device, then paste the same Gist ID on the others.
             </p>
             <label className="flex items-center gap-2 text-xs text-ink-soft">
               Gist ID

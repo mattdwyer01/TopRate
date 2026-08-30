@@ -12,6 +12,8 @@
 // work. Stored in localStorage on this device only - never sent anywhere
 // but api.github.com, never bundled into the built file.
 
+import { readStoredPicks, writeStoredPicks, type StrategyPick } from './strategyPicks'
+
 const CONFIG_KEY = 'toprate_gh_sync_v1'
 const GIST_FILENAME = 'toprate_sync.json'
 const DEFAULT_REPO = 'mattdwyer01/TopRate'
@@ -118,6 +120,11 @@ interface SyncPayload {
   density: string | null
   betaOverride: string | null
   showBush: string | null
+  // Unlike the fields above (single-value preferences - whichever device
+  // synced last simply wins), this is an additive log: losing a pick made
+  // on another device would mean losing real tracked-bet history, so it's
+  // always merged rather than overwritten on both pull and push.
+  strategyPicks: Record<string, StrategyPick>
 }
 
 function readLocal(key: string): string | null {
@@ -146,6 +153,7 @@ export function buildSyncPayload(): SyncPayload {
     density: readLocal(DENSITY_KEY),
     betaOverride: readLocal(BETA_KEY),
     showBush: readLocal(BUSH_KEY),
+    strategyPicks: readStoredPicks(),
   }
 }
 
@@ -159,6 +167,10 @@ export function applySyncPayload(payload: Partial<SyncPayload>) {
     if (payload.density != null) window.localStorage.setItem(DENSITY_KEY, payload.density)
     if (payload.betaOverride != null) window.localStorage.setItem(BETA_KEY, payload.betaOverride)
     if (payload.showBush != null) window.localStorage.setItem(BUSH_KEY, payload.showBush)
+    // Merged, not overwritten - see the SyncPayload.strategyPicks comment.
+    if (payload.strategyPicks) {
+      writeStoredPicks({ ...readStoredPicks(), ...payload.strategyPicks })
+    }
   } catch {
     // Best-effort - a partial apply still leaves the device usable.
   }
@@ -198,6 +210,20 @@ export async function pullFromGist(pat: string, gistId: string): Promise<SyncPay
 
 export async function pushToGist(pat: string, gistId: string): Promise<void> {
   if (!pat || !gistId) throw new Error('Need both a token and a Gist ID')
+  // Strategy picks are additive (see SyncPayload.strategyPicks) - merge in
+  // whatever's already in the Gist before overwriting it, so a push from
+  // this device can never drop a pick tracked on another device since
+  // this one's last pull. Also folds the merge back into this device's
+  // own storage, so it doesn't regress on its own next pull.
+  try {
+    const remote = await pullFromGist(pat, gistId)
+    if (remote.strategyPicks) {
+      writeStoredPicks({ ...remote.strategyPicks, ...readStoredPicks() })
+    }
+  } catch {
+    // No Gist content yet (first push) or a transient fetch failure -
+    // fall through and push this device's own state as-is.
+  }
   await gistRequest('PATCH', `/gists/${gistId}`, pat, {
     files: { [GIST_FILENAME]: { content: JSON.stringify(buildSyncPayload(), null, 2) } },
   })
