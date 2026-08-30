@@ -1979,7 +1979,23 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
                     sp     = res["sp"]
                     runners_df.loc[idx, "finish_position"]  = finish
                     if res.get("margin") is not None:
-                        runners_df.loc[idx, "margin_finish"] = res["margin"]
+                        mgn_val = res["margin"]
+                        # Defensive: the results feed returned a POSITIVE
+                        # marginFinish for the actual race winner for a
+                        # window of races in mid-May 2026 (confirmed ~312
+                        # winners, every other month consistent) - by
+                        # convention the winner's margin_finish is the
+                        # (negative) winning margin, never a positive
+                        # "lengths behind" value. Normalize rather than
+                        # trust the feed blindly, so a repeat of that
+                        # provider glitch can't silently corrupt
+                        # margin-based analysis again.
+                        try:
+                            if int(finish) == 1 and float(mgn_val) > 0:
+                                mgn_val = -float(mgn_val)
+                        except (TypeError, ValueError):
+                            pass
+                        runners_df.loc[idx, "margin_finish"] = mgn_val
                     runners_df.loc[idx, "starting_price_sp"] = sp
                     runners_df.loc[idx, "price_top"]         = res.get("price_top")
                     # Actual weight-adjusted WPR straight from the result feed -
