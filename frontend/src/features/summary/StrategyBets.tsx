@@ -48,7 +48,7 @@ const TIER_INFO: Record<StrategyTier, { label: string; blurb: string }> = {
   },
   closers: {
     label: 'Closers',
-    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on). Backtested 325 bets: 40.0% strike, +51.6% ROI - walk-forward validated both directions.',
+    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on) and a quiet recent form line (<40% top-3 finishes lately). Backtested 124 bets: 37.9% strike, +66.0% ROI.',
   },
 }
 
