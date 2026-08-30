@@ -14,8 +14,15 @@ import type { Runner } from '../types/domain'
 // intuitively, a horse that hasn't been placing lately wins about as often
 // within this pool but at a bigger price, since the market discounts the
 // visible form line more than the underlying signal warrants.
+// Closers: High volume plus a backmarker running style (avgSettledPos>6) -
+// n=325, strike 40.0%, ROI +51.6%, walk-forward validated both directions
+// (threshold 6 was independently optimal on each half of the sample).
+// Within this qualifying pool, horses that settle back and run on
+// outperform on-pace types, plausibly because the visible-form-reading
+// public undervalues a closer's finishing effort relative to an on-pace
+// runner that "looked" competitive throughout.
 
-export type StrategyTier = 'high-volume' | 'low-volume'
+export type StrategyTier = 'high-volume' | 'low-volume' | 'closers'
 
 // Parses a form string like "3-1-7-2" (most recent first) into individual
 // results. 'x' (unplaced/no data) and '?' (unknown) are dropped rather than
@@ -57,6 +64,13 @@ export function qualifiesLowVolume(runner: Runner): boolean {
   return rate != null && rate < 0.4
 }
 
+export function qualifiesClosers(runner: Runner): boolean {
+  if (!qualifiesHighVolume(runner)) return false
+  return runner.avgSettledPos != null && runner.avgSettledPos > 6
+}
+
 export function qualifiesForTier(runner: Runner, tier: StrategyTier): boolean {
-  return tier === 'high-volume' ? qualifiesHighVolume(runner) : qualifiesLowVolume(runner)
+  if (tier === 'high-volume') return qualifiesHighVolume(runner)
+  if (tier === 'low-volume') return qualifiesLowVolume(runner)
+  return qualifiesClosers(runner)
 }
