@@ -28,6 +28,7 @@ export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
     const byTier: Record<StrategyTier, TierStats> = {
       'high-volume': emptyStats(),
       'low-volume': emptyStats(),
+      closers: emptyStats(),
     }
     const pickList = Object.values(picks)
     if (pickList.length === 0) return byTier
@@ -62,21 +63,22 @@ export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
     return byTier
   }, [races, picks])
 
-  const totalTaken = stats['high-volume'].taken + stats['low-volume'].taken
+  const totalTaken = stats['high-volume'].taken + stats['low-volume'].taken + stats.closers.taken
   if (totalTaken === 0) return null
 
   return (
     <div className="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm">
       <div className="mb-1.5 text-xs font-medium text-ink-mute">Your tracked bets (forward performance, not backtest)</div>
       <div className="flex flex-wrap gap-x-8 gap-y-2">
-        {(['high-volume', 'low-volume'] as StrategyTier[]).map((tier) => {
+        {(['high-volume', 'low-volume', 'closers'] as StrategyTier[]).map((tier) => {
           const s = stats[tier]
           if (s.taken === 0) return null
           const strike = s.resulted > 0 ? (s.wins / s.resulted) * 100 : null
           const roi = s.resulted > 0 ? (s.profit / s.resulted) * 100 : null
+          const label = tier === 'high-volume' ? 'High volume' : tier === 'low-volume' ? 'Low volume' : 'Closers'
           return (
             <div key={tier}>
-              <div className="text-xs text-ink-mute">{tier === 'high-volume' ? 'High volume' : 'Low volume'}</div>
+              <div className="text-xs text-ink-mute">{label}</div>
               <div className="font-mono text-ink">
                 {s.taken} taken{s.pending > 0 ? ` (${s.pending} pending)` : ''}
                 {s.resulted > 0 && (

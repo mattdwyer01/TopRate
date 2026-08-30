@@ -46,6 +46,10 @@ const TIER_INFO: Record<StrategyTier, { label: string; blurb: string }> = {
     label: 'Low volume',
     blurb: 'The above, plus a quiet recent form line (<40% top-3 finishes lately). Backtested 347 bets: 37.5% strike, +53.2% ROI - fewer bets, stronger edge.',
   },
+  closers: {
+    label: 'Closers',
+    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on). Backtested 325 bets: 40.0% strike, +51.6% ROI - walk-forward validated both directions.',
+  },
 }
 
 function buildRows(races: Race[], date: string, showBush: boolean, tier: StrategyTier): StrategyRow[] {
@@ -101,6 +105,9 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
         </Pill>
         <Pill active={tier === 'low-volume'} onClick={() => setTier('low-volume')}>
           Low volume
+        </Pill>
+        <Pill active={tier === 'closers'} onClick={() => setTier('closers')}>
+          Closers
         </Pill>
       </div>
       <p className="text-xs text-ink-mute">{info.blurb}</p>
