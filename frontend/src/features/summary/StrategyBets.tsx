@@ -5,6 +5,8 @@ import { EmptyState } from '../../components/EmptyState'
 import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { qualifiesForTier, recentTop3Rate, type StrategyTier } from '../../lib/jtComboStrategy'
+import { useStrategyPicks } from '../../lib/strategyPicks'
+import { StrategyScoreboard } from './StrategyScoreboard'
 
 interface StrategyBetsProps {
   races: Race[]
@@ -82,6 +84,7 @@ function buildRows(races: Race[], date: string, showBush: boolean, tier: Strateg
 
 export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBetsProps) {
   const [tier, setTier] = useState<StrategyTier>('high-volume')
+  const { picks, toggleTaken } = useStrategyPicks()
 
   const rows = useMemo(() => buildRows(races, date, showBush, tier), [races, date, showBush, tier])
 
@@ -91,6 +94,7 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
 
   return (
     <div className="flex flex-col gap-4">
+      <StrategyScoreboard races={races} picks={picks} />
       <div className="flex flex-wrap items-center gap-2">
         <Pill active={tier === 'high-volume'} onClick={() => setTier('high-volume')}>
           High volume
@@ -123,6 +127,7 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
               const top3 = recentTop3Rate(r.formString)
               const priceLabel = dayResulted ? 'SP' : 'Fixed'
               const priceValue = dayResulted ? r.startingPrice : r.fixedPrice
+              const taken = Boolean(picks[r.runId])
               return (
                 <div
                   key={r.runId}
@@ -137,14 +142,31 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
                   }}
                   className={`cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-bg ${
                     r.won ? 'border-emerald-line bg-emerald-bg/40' : 'border-line bg-panel'
-                  }`}
+                  } ${taken ? 'ring-1 ring-emerald' : ''}`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <span className="font-medium text-ink">
                       {r.venue} R{r.raceNumber}
                     </span>
-                    <span className="text-xs text-ink-mute">
-                      {r.allResulted ? (r.won ? 'Won' : 'Resulted') : formatTimeOfDay(r.startTime)}
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-ink-mute">
+                        {r.allResulted ? (r.won ? 'Won' : 'Resulted') : formatTimeOfDay(r.startTime)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleTaken(r.runId, r.raceId, date, tier)
+                        }}
+                        title={taken ? 'Remove from your tracked bets' : 'Mark as taken - track it in your forward performance'}
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                          taken
+                            ? 'border-emerald bg-emerald text-white'
+                            : 'border-line text-ink-mute hover:border-emerald hover:text-emerald'
+                        }`}
+                      >
+                        {taken ? '✓ Taken' : 'Track'}
+                      </button>
                     </span>
                   </div>
                   <div className="mt-1 text-ink">
