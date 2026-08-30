@@ -49,7 +49,7 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   const [date, setDate] = useState(() => todayIso())
   const [minMargin, setMinMargin] = useState(3)
-  const [mode, setMode] = useState<SummaryMode>('margins')
+  const [mode, setMode] = useState<SummaryMode>('strategy')
 
   const rows = useMemo<MarginRow[]>(() => {
     const bushKeys = showBush ? null : bushMeetingKeys(races)
@@ -88,14 +88,14 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex rounded-md border border-line bg-bg p-0.5" style={{ width: 'fit-content' }}>
+        <Pill active={mode === 'strategy'} onClick={() => setMode('strategy')}>
+          Strategy
+        </Pill>
         <Pill active={mode === 'margins'} onClick={() => setMode('margins')}>
           Margins
         </Pill>
         <Pill active={mode === 'quaddie'} onClick={() => setMode('quaddie')}>
           Quaddie legs
-        </Pill>
-        <Pill active={mode === 'strategy'} onClick={() => setMode('strategy')}>
-          Strategy
         </Pill>
       </div>
 
