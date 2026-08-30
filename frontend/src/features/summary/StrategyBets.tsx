@@ -112,71 +112,69 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
               {((wins / rows.length) * 100).toFixed(1)}% strike)
             </div>
           )}
-          <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                  <th className="px-3 py-2 text-left">Race</th>
-                  <th className="px-3 py-2 text-left">Runner</th>
-                  <th className="px-3 py-2 text-left">Jockey / Trainer</th>
-                  <th className="px-3 py-2 text-right">Combo</th>
-                  <th className="px-3 py-2 text-right">Form</th>
-                  <th className="px-3 py-2 text-right">WPR $</th>
-                  <th className="px-3 py-2 text-right">{dayResulted ? 'SP' : 'Fixed $'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const top3 = recentTop3Rate(r.formString)
-                  return (
-                    <tr
-                      key={r.runId}
-                      onClick={() => onSelectRace(r.raceId, date, r.runId)}
-                      className={`cursor-pointer border-b border-line-soft transition-colors last:border-b-0 hover:bg-bg ${
-                        r.won ? 'bg-emerald-bg/40' : ''
-                      }`}
-                    >
-                      <td className="px-3 py-2">
-                        <div className="font-medium text-ink">
-                          {r.venue} R{r.raceNumber}
-                        </div>
-                        <div className="text-xs text-ink-mute">
-                          {r.allResulted ? (r.won ? 'Won' : 'Resulted') : formatTimeOfDay(r.startTime)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-ink">
-                        <span className="font-mono text-ink-mute">{r.tabNumber}.</span> {r.horse}
-                        <div className="text-xs text-ink-mute">WPR rank {r.wprRank} · field {r.fieldSize}</div>
-                      </td>
-                      <td className="px-3 py-2 text-ink-mute">
-                        <div>{r.jockey}</div>
-                        <div className="text-xs">{r.trainer}</div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                        {r.jtComboWinPct.toFixed(0)}%
-                        <div className="text-xs">{r.jtComboRides} rides</div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                        {r.formString ?? '—'}
-                        {top3 != null && <div className="text-xs">{(top3 * 100).toFixed(0)}% top-3</div>}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                        {r.wprPrice != null ? `$${r.wprPrice.toFixed(2)}` : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                        {dayResulted
-                          ? r.startingPrice != null
-                            ? `$${r.startingPrice.toFixed(2)}`
-                            : '—'
-                          : r.fixedPrice != null
-                            ? `$${r.fixedPrice.toFixed(2)}`
-                            : '—'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          {/* Cards, not a table - this row has too much per-runner detail
+              (jockey+trainer, combo%+rides, form string+top-3%) to fit a
+              table's fixed columns without wrapping into unreadably tall
+              cells on a narrow screen. A card reflows naturally at any
+              width instead of needing horizontal scroll to reach the
+              price columns. */}
+          <div className="flex flex-col gap-2">
+            {rows.map((r) => {
+              const top3 = recentTop3Rate(r.formString)
+              const priceLabel = dayResulted ? 'SP' : 'Fixed'
+              const priceValue = dayResulted ? r.startingPrice : r.fixedPrice
+              return (
+                <div
+                  key={r.runId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectRace(r.raceId, date, r.runId)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelectRace(r.raceId, date, r.runId)
+                    }
+                  }}
+                  className={`cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-bg ${
+                    r.won ? 'border-emerald-line bg-emerald-bg/40' : 'border-line bg-panel'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-medium text-ink">
+                      {r.venue} R{r.raceNumber}
+                    </span>
+                    <span className="text-xs text-ink-mute">
+                      {r.allResulted ? (r.won ? 'Won' : 'Resulted') : formatTimeOfDay(r.startTime)}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-ink">
+                    <span className="font-mono text-ink-mute">{r.tabNumber}.</span>{' '}
+                    <span className="font-medium">{r.horse}</span>{' '}
+                    <span className="text-xs text-ink-mute">
+                      WPR rank {r.wprRank} · field {r.fieldSize}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-ink-mute">
+                    {r.jockey} / {r.trainer}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    <span className="font-mono text-ink-mute">
+                      Combo {r.jtComboWinPct.toFixed(0)}% ({r.jtComboRides} rides)
+                    </span>
+                    <span className="font-mono text-ink-mute">
+                      Form {r.formString ?? '—'}
+                      {top3 != null && ` (${(top3 * 100).toFixed(0)}% top-3)`}
+                    </span>
+                    <span className="ml-auto font-mono font-semibold text-ink">
+                      WPR {r.wprPrice != null ? `$${r.wprPrice.toFixed(2)}` : '—'}
+                    </span>
+                    <span className="font-mono text-ink-mute">
+                      {priceLabel} {priceValue != null ? `$${priceValue.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </>
       )}
