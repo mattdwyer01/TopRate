@@ -8,6 +8,9 @@ interface StrategyScoreboardProps {
   picks: Record<string, StrategyPick>
 }
 
+// 1 unit = $50, matching the dashboard-wide staking convention.
+const UNIT_VALUE_DOLLARS = 50
+
 interface TierStats {
   taken: number
   pending: number
@@ -81,8 +84,7 @@ export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
                     {' · '}
                     {s.wins}/{s.resulted} won ({strike!.toFixed(1)}%){' · '}
                     <span className={roi! >= 0 ? 'font-semibold text-emerald-deep' : 'font-semibold text-rose'}>
-                      {s.profit >= 0 ? '+' : ''}
-                      {s.profit.toFixed(2)}u ({roi! >= 0 ? '+' : ''}
+                      {s.profit >= 0 ? '+' : ''}${(s.profit * UNIT_VALUE_DOLLARS).toFixed(0)} ({roi! >= 0 ? '+' : ''}
                       {roi!.toFixed(1)}%)
                     </span>
                   </>

@@ -4,10 +4,9 @@ import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { QuaddieHelper } from './QuaddieHelper'
 import { StrategyBets } from './StrategyBets'
 
-type SummaryMode = 'margins' | 'quaddie' | 'strategy'
+type SummaryMode = 'margins' | 'strategy'
 
 interface SummaryTabProps {
   races: Race[]
@@ -94,9 +93,6 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
         <Pill active={mode === 'margins'} onClick={() => setMode('margins')}>
           Margins
         </Pill>
-        <Pill active={mode === 'quaddie'} onClick={() => setMode('quaddie')}>
-          Quaddie legs
-        </Pill>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -128,10 +124,6 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
           </label>
         )}
       </div>
-
-      {mode === 'quaddie' && (
-        <QuaddieHelper races={races} date={date} showBush={showBush} onSelectRace={onSelectRace} />
-      )}
 
       {mode === 'strategy' && (
         <StrategyBets races={races} date={date} showBush={showBush} onSelectRace={onSelectRace} />
