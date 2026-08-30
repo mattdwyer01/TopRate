@@ -75,6 +75,8 @@ export interface RawRunner {
   wt: number | null
   jw: number | null
   tw: number | null
+  jcp: number | null
+  jcr: number | null
   jrt: number | null
   trt: number | null
   fx: number | null

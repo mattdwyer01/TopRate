@@ -74,6 +74,8 @@ export interface Runner {
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null
+  jtComboWinPct: number | null
+  jtComboRides: number | null
   jockeyRating: number | null
   trainerRating: number | null
 

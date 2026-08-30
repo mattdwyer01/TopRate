@@ -2957,6 +2957,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
+                # Jockey/trainer combination win% and ride count together -
+                # the strongest single backtested signal found for the
+                # Summary tab's Strategy view (see jt_combo strategy work).
+                "jcp":  sf(row.get("jt_combo_win_pct")),
+                "jcr":  si(row.get("jt_combo_rides")),
                 # TopRate's own jockey/trainer ratings (separate from strike rates)
                 "jrt":  sf(row.get("jockey_rating")),
                 "trt":  sf(row.get("trainer_rating")),
