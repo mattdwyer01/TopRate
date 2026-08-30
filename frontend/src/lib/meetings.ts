@@ -69,9 +69,9 @@ export function bushMeetingKeys(races: Race[]): Set<string> {
 }
 
 // "Today" for this dashboard always means the current date in Melbourne
-// (the backend's own race-day boundary - see resolve_daily_target.py,
-// which resolves the daily fetch's target date from real Australia/
-// Melbourne local time). Deliberately NOT `new Date().toISOString()`:
+// (the backend's own race-day boundary - the daily fetch workflow resolves
+// its target date from the real Australia/Melbourne local time too, see
+// .github/workflows/daily.yml). Deliberately NOT `new Date().toISOString()`:
 // that converts the VIEWER's local clock to UTC, which disagrees with
 // Melbourne for the ~10-11 hours/day UTC lags behind AEST/AEDT (race
 // morning) - the "Today" button would show yesterday's meetings for a
