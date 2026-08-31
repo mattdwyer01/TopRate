@@ -93,7 +93,11 @@ def run():
     tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
     tr = tr.drop_duplicates(subset="run_id", keep="last")
 
-    full = full.merge(tr[["run_id", "race_id", "won"]], on="run_id", how="inner")
+    # full already carries its own race_id (build_training_frame's
+    # _horse_feature_rows retains it) - merging tr's race_id too would
+    # collide into race_id_x/race_id_y and silently break every
+    # groupby("race_id") below, so only "won" is pulled in here.
+    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
     # track_barrier isn't produced by build_training_frame (needs an actual
     # fitted lookup, unlike every other ADJ_TERMS entry - see
     # wpr_own_pace_backtest.add_track_barrier) so it's excluded here and

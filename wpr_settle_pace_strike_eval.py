@@ -117,7 +117,11 @@ def run(since):
     tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
     tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
     tr = tr.drop_duplicates(subset="run_id", keep="last")
-    full = full.merge(tr[["run_id", "race_id", "won"]], on="run_id", how="inner")
+    # full already carries its own race_id (build_training_frame's
+    # _horse_feature_rows retains it) - merging tr's race_id too would
+    # collide into race_id_x/race_id_y and silently break every
+    # groupby("race_id") below, so only "won" is pulled in here.
+    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
 
     full = add_base(full)
     non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
