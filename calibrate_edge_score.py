@@ -110,9 +110,17 @@ def _load_resulted():
 def _score(data, mean, std):
     """The exact scoring formula compute_edge_scores uses in production:
     per-feature z-score against a fixed mean/std, skip-and-average over
-    whichever features are present (see module docstring)."""
+    whichever features are present - EXCEPT a missing wprp_proj forces the
+    whole score to 0.0 regardless of other signals (a deliberate user
+    decision, Aug 2026, made after seeing this costs strike/ROI/AUC/logloss
+    relative to skip-and-average - see module docstring's WHY THIS SHAPE
+    section and wpr_projection.compute_edge_scores' _score for the numbers
+    and rationale). Keep this in sync with that function - this script's
+    validation is meaningless if it tests a different rule than production
+    actually runs."""
     z = (data[FEATURES] - mean) / std.replace(0, np.nan)
-    return z.mean(axis=1, skipna=True)
+    score = z.mean(axis=1, skipna=True)
+    return score.where(data["wprp_proj"].notna(), 0.0)
 
 
 def walk_forward_validate(d, burn_in_weeks=BURN_IN_WEEKS, min_train=300):
@@ -168,6 +176,7 @@ def calibrate(write=False):
     print(f"  mean weekly AUC={np.mean(auc_list):.4f}  logloss={np.mean(ll_list):.4f}")
 
     print("\n  edge-vs-market overlay (pooled across all walk-forward weeks):")
+    significant_negative, significant_positive, tested = [], [], []
     for thr in [0.0, 0.05, 0.08, 0.10, 0.13, 0.15, 0.20]:
         sub = edge_bets[edge_bets["edge"] >= thr]
         if len(sub) < 20:
@@ -175,22 +184,76 @@ def calibrate(write=False):
         p = np.where(sub["won"] == 1, sub["sp"] - 1, -1.0)
         se_o = p.std(ddof=1) / np.sqrt(len(p))
         t_o = p.mean() / se_o if se_o > 0 else float("nan")
+        flag = ""
+        if abs(t_o) >= 1.96:
+            flag = "  ** SIGNIFICANT **"
+            (significant_negative if t_o < 0 else significant_positive).append(thr)
+        tested.append(thr)
         print(f"    edge>={thr:.2f}: n={len(sub):5d}  strike={sub['won'].mean()*100:5.2f}%  "
-              f"ROI={p.sum()/len(sub)*100:+6.2f}%  t={t_o:+.2f}")
-    print("\n  NEITHER the ranking's ROI nor any overlay threshold reached |t|>=1.96 in the "
-          "Aug 2026 audit - do not report this as a proven profit source even if a later "
-          "run shows a bigger point estimate. The AUC/strike-rate improvement over WPR "
-          "alone is the well-supported claim; the ROI number is not.")
+              f"ROI={p.sum()/len(sub)*100:+6.2f}%  t={t_o:+.2f}{flag}")
+
+    print()
+    if abs(t) >= 1.96:
+        print(f"  ** The ranking's own top-1 ROI IS statistically significant (t={t:+.2f}) - "
+              f"{'a real edge' if t > 0 else 'a confirmed LOSS, do not deploy this as a top-pick strategy'}.")
+    else:
+        print(f"  The ranking's top-1 ROI is not statistically significant (t={t:+.2f}).")
+    if significant_negative:
+        print(f"  ** WARNING: edge>={min(significant_negative):.2f} and up shown SIGNIFICANTLY "
+              f"NEGATIVE at: {', '.join(f'{x:.2f}' for x in significant_negative)} - these are "
+              f"CONFIRMED LOSING thresholds in this audit, not merely unproven. Do not present "
+              f"them as viable in the UI.")
+    if significant_positive:
+        print(f"  ** {', '.join(f'{x:.2f}' for x in significant_positive)} showed significantly "
+              f"POSITIVE ROI - still verify this isn't multiple-comparisons luck (7 thresholds "
+              f"tested) before trusting it.")
+    if not significant_negative and not significant_positive:
+        print("  No threshold reached |t|>=1.96 either direction - indistinguishable from "
+              "break-even, not proven profitable. Do not report bigger point estimates from a "
+              "later run as proof without re-checking significance.")
 
     # Final production mean/std: computed on ALL resulted data now that the
     # walk-forward above has validated the approach generalizes.
     full_mean = d[FEATURES].mean()
     full_std = d[FEATURES].std()
 
+    overlay_results = []
+    for thr in [0.0, 0.05, 0.08, 0.10, 0.13, 0.15, 0.20]:
+        sub = edge_bets[edge_bets["edge"] >= thr]
+        if len(sub) < 20:
+            continue
+        p = np.where(sub["won"] == 1, sub["sp"] - 1, -1.0)
+        se_o = p.std(ddof=1) / np.sqrt(len(p))
+        t_o = p.mean() / se_o if se_o > 0 else float("nan")
+        overlay_results.append({
+            "threshold": thr, "n": len(sub), "strike_pct": round(sub["won"].mean() * 100, 2),
+            "roi_pct": round(p.sum() / len(sub) * 100, 2), "t_stat": round(float(t_o), 2),
+            "significant": bool(abs(t_o) >= 1.96),
+        })
+
     if write:
         if not CONFIG_PATH.exists():
             print(f"\n{CONFIG_PATH} not found, cannot write.")
             return
+        if significant_negative:
+            note = (f"Unweighted z-score average (NOT a fitted model) - deliberately excludes "
+                     f"jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). "
+                     f"A missing wprp_proj forces score=0 (user decision, costs some accuracy - "
+                     f"see wpr_projection.compute_edge_scores' _score). WARNING: edge>="
+                     f"{min(significant_negative):.2f} and up ({', '.join(f'{x:.2f}' for x in significant_negative)}) "
+                     f"showed SIGNIFICANTLY NEGATIVE ROI in the walk-forward audit (see "
+                     f"overlay_validation below) - these are CONFIRMED LOSING thresholds under "
+                     f"this scoring rule, not merely unproven. Do not surface them as a viable "
+                     f"tier in the UI; re-run this script if the scoring rule ever changes back.")
+        else:
+            note = ("Unweighted z-score average (NOT a fitted model) - deliberately excludes "
+                     "jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). "
+                     "A missing wprp_proj forces score=0 (user decision, costs some accuracy - "
+                     "see wpr_projection.compute_edge_scores' _score). The AUC/strike-rate "
+                     "improvement over WPR alone is walk-forward validated and robust; no "
+                     "overlay threshold reached statistical significance in this run (see "
+                     "overlay_validation below) - treat edge as an experimental signal to "
+                     "track forward, not a proven bet-selection filter.")
         cfg = json.load(open(CONFIG_PATH))
         cfg["edge_score"] = {
             "method": "unweighted_zscore_average",
@@ -207,15 +270,8 @@ def calibrate(write=False):
                 "top1_t_stat": round(float(t), 2),
                 "mean_weekly_auc": round(float(np.mean(auc_list)), 4),
             },
-            "note": ("Unweighted z-score average (NOT a fitted model) - deliberately "
-                     "excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py "
-                     "SIGNALS comment). Missing features are skipped, not imputed - see "
-                     "this script's module docstring. The AUC/strike-rate improvement "
-                     "over WPR alone is walk-forward validated and robust; NO overlay "
-                     "threshold reached statistical significance in the Aug 2026 audit "
-                     "(see walk_forward_validation above and calibrate_edge_score.py's "
-                     "docstring) - treat edge as an experimental signal to track "
-                     "forward, not a proven bet-selection filter."),
+            "overlay_validation": overlay_results,
+            "note": note,
         }
         json.dump(cfg, open(CONFIG_PATH, "w"), indent=1)
         print(f"\nwrote edge_score ({len(FEATURES)} features, unweighted average, "

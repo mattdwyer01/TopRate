@@ -72,26 +72,30 @@ interface OverlayRow {
   won: boolean
 }
 
-// Experimental, not proven. A single fixed-split holdout once showed
-// +11-17% ROI around this threshold; a proper walk-forward check (model
-// refit daily on strictly-prior data, 30 days, Aug 2026) came back
-// +1.5% ROI on 1,097 bets with a 95% confidence interval of roughly -19%
-// to +22% - statistically indistinguishable from break-even, and real
-// single days in that test lost 60-100% of stakes. Treat every number in
-// this tab as "worth tracking forward", not "expected to make money".
+// Experimental, not proven - and 8%/10% thresholds were REMOVED entirely
+// (not just de-emphasized) after a fuller walk-forward audit (14 weekly
+// refits across the whole history, Aug 2026, using the current force-
+// zero-if-no-wprp_proj scoring) found them SIGNIFICANTLY NEGATIVE
+// (t=-2.05 and t=-2.65 - a confirmed loss, not just noise). 13/15/20%
+// are not proven positive either (none reached |t|>=1.96) but at least
+// aren't disproven - don't read the highest as "best" or "safest", the
+// same audit found the top band noisier, not cleanly better. Numbers
+// below are frozen from that run; wpr_models/config.json's
+// edge_score.overlay_validation carries whatever calibrate_edge_score.py
+// last found - re-check it before trusting these blurbs long-term.
 const TIER_INFO: Record<EdgeTier, { label: string; blurb: string }> = {
-  'edge-8': {
-    label: '8%+ edge',
-    blurb:
-      "Model win probability exceeds the market's implied probability by ≥8 points. A walk-forward check (30 daily refits, unseen-at-the-time data) came back statistically indistinguishable from break-even (ROI 95% CI roughly -19% to +22%) - this is not a proven edge, and single days can lose big (one test day: 32 bets, 3 winners, -69% to -83% ROI). Tracked here to accumulate real forward evidence, not because it's expected to profit.",
-  },
-  'edge-10': {
-    label: '10%+ edge',
-    blurb: 'The same unproven signal, tighter cut - fewer, higher-edge qualifiers. Not shown to be any more reliable than 8%+ (see Scoreboard above for real forward performance at each cut, which is the only evidence worth trusting here).',
-  },
   'edge-13': {
     label: '13%+ edge',
-    blurb: "Tightest cut. Caution: a very large edge can also mean the model is confidently wrong (e.g. imputed inputs for a lightly-raced runner) rather than a stronger signal - don't read 'higher edge' as 'safer bet'.",
+    blurb:
+      "Model win probability exceeds the market's implied probability by ≥13 points. Walk-forward (14 weekly refits, Aug 2026): n=938, ROI -12.2%, t=-1.32 - not significant, but leaning negative, not positive. Tracked here to accumulate real forward evidence, not because it's expected to profit. (8%/10% thresholds were removed after the same audit found them a CONFIRMED loss, not just unproven.)",
+  },
+  'edge-15': {
+    label: '15%+ edge',
+    blurb: 'Tighter cut: n=582, ROI -14.3%, t=-1.59 - also not significant, also leaning negative. Not shown to be any more reliable than 13%+ (see Scoreboard above for real forward performance at each cut, which is the only evidence worth trusting here).',
+  },
+  'edge-20': {
+    label: '20%+ edge',
+    blurb: "Tightest cut: n=244, ROI +13.5%, t=+0.82 - the only band with a positive point estimate, but still far from significant on a small sample. Caution: a very large edge can also mean the model is confidently wrong (e.g. a lightly-raced runner scored mostly on partial signals) rather than a stronger signal - don't read 'higher edge' as 'safer bet'.",
   },
 }
 
@@ -132,7 +136,7 @@ function buildRows(races: Race[], date: string, showBush: boolean, tier: EdgeTie
 // the validated blend/edge score (wpr_projection.compute_edge_scores) finds
 // the market underpricing them, at an adjustable sensitivity.
 export function EdgeOverlays({ races, date, showBush, onSelectRace }: EdgeOverlaysProps) {
-  const [tier, setTier] = useState<EdgeTier>('edge-8')
+  const [tier, setTier] = useState<EdgeTier>('edge-13')
   const { picks, toggleTaken } = useStrategyPicks()
 
   const rows = useMemo(() => buildRows(races, date, showBush, tier), [races, date, showBush, tier])
@@ -146,14 +150,14 @@ export function EdgeOverlays({ races, date, showBush, onSelectRace }: EdgeOverla
     <div className="flex flex-col gap-4">
       <EdgeScoreboard races={races} picks={picks} />
       <div className="flex flex-wrap items-center gap-2">
-        <Pill active={tier === 'edge-8'} onClick={() => setTier('edge-8')}>
-          8%+ edge
-        </Pill>
-        <Pill active={tier === 'edge-10'} onClick={() => setTier('edge-10')}>
-          10%+ edge
-        </Pill>
         <Pill active={tier === 'edge-13'} onClick={() => setTier('edge-13')}>
           13%+ edge
+        </Pill>
+        <Pill active={tier === 'edge-15'} onClick={() => setTier('edge-15')}>
+          15%+ edge
+        </Pill>
+        <Pill active={tier === 'edge-20'} onClick={() => setTier('edge-20')}>
+          20%+ edge
         </Pill>
       </div>
       <p className="text-xs text-ink-mute">{info.blurb}</p>

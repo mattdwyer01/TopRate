@@ -9,6 +9,7 @@ import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { PriceMovementChart } from './PriceMovementChart'
+import { EDGE_BADGE_THRESHOLD } from '../../lib/edgeOverlay'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -121,7 +122,7 @@ export function RunnerDetailModal({
               <div className="flex items-center gap-2 truncate text-xs">
                 <span className="font-mono font-bold text-emerald-deep">{fmtPrice(runner.blendPrice)}</span>
                 <span className="text-ink-faint">Model $</span>
-                {runner.edgeScore != null && runner.edgeScore >= 0.08 && (
+                {runner.edgeScore != null && runner.edgeScore >= EDGE_BADGE_THRESHOLD && (
                   <span className="rounded bg-emerald px-1 font-mono text-[10px] font-semibold text-white">
                     +{(runner.edgeScore * 100).toFixed(0)}% EDGE
                   </span>
@@ -251,22 +252,24 @@ export function RunnerDetailModal({
             {runner.edgeScore != null && (
               <div
                 className={`mt-2 flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${
-                  runner.edgeScore >= 0.08
+                  runner.edgeScore >= EDGE_BADGE_THRESHOLD
                     ? 'border-emerald-line bg-emerald-bg/40 text-ink'
                     : 'border-line-soft text-ink-mute'
                 }`}
               >
                 <span
-                  className={`font-mono font-semibold ${runner.edgeScore >= 0.08 ? 'text-emerald-deep' : 'text-ink'}`}
+                  className={`font-mono font-semibold ${runner.edgeScore >= EDGE_BADGE_THRESHOLD ? 'text-emerald-deep' : 'text-ink'}`}
                 >
                   {runner.edgeScore >= 0 ? '+' : ''}
                   {(runner.edgeScore * 100).toFixed(1)}% edge
                 </span>
                 <span>
                   ({(runner.edgeModelProb! * 100).toFixed(0)}% model vs {(runner.edgeMarketProb! * 100).toFixed(0)}%
-                  market implied win chance){runner.edgeScore >= 0.08 ? ' - crosses the 8%+ overlay cutoff' : ''}. An
-                  experimental signal - a walk-forward check (30 daily refits, Aug 2026) came back statistically
-                  indistinguishable from break-even (ROI 95% CI roughly -19% to +22%), not proven profitable.
+                  market implied win chance)
+                  {runner.edgeScore >= EDGE_BADGE_THRESHOLD ? ' - crosses the 13%+ overlay cutoff' : ''}. An
+                  experimental signal - a walk-forward audit (14 weekly refits, Aug 2026) found 8%/10% thresholds
+                  CONFIRMED significantly negative (not just unproven); 13%+ isn't proven positive either, just not
+                  disproven. See the Overlays tab for current numbers.
                 </span>
               </div>
             )}

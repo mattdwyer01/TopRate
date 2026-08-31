@@ -3,6 +3,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { spellPosition } from '../../lib/spellPosition'
+import { EDGE_BADGE_THRESHOLD } from '../../lib/edgeOverlay'
 
 interface RunnerRowProps {
   runner: Runner
@@ -145,14 +146,15 @@ export function RunnerRow({
               NO WPR
             </span>
           )}
-          {/* Edge score: only surfaces once it clears the margin a single
-              70/30 holdout showed ROI at (see calibrate_edge_score.py) - but
-              a proper walk-forward check (30 daily refits, Aug 2026) came
-              back statistically indistinguishable from break-even (95% CI
-              on ROI roughly -19% to +22%). Experimental, not a proven edge -
-              see the runner detail panel. Still a bet-selection flag only,
-              not shown for every priced runner. */}
-          {!scratched && runner.edgeScore != null && runner.edgeScore >= 0.08 && (
+          {/* Edge score: threshold is EDGE_BADGE_THRESHOLD (0.13), NOT the
+              old 0.08 - a full walk-forward audit (14 weekly refits, Aug
+              2026) found 8%/10% CONFIRMED significantly negative (t=-2.05,
+              t=-2.65), not just unproven, once the blend started forcing
+              score=0 for a missing wprp_proj. 13%+ isn't proven positive
+              either, just not disproven - see edgeOverlay.ts and the
+              runner detail panel. Still a bet-selection flag only, not
+              shown for every priced runner. */}
+          {!scratched && runner.edgeScore != null && runner.edgeScore >= EDGE_BADGE_THRESHOLD && (
             <span
               title={`Model ${(runner.edgeModelProb! * 100).toFixed(0)}% vs market ${(runner.edgeMarketProb! * 100).toFixed(0)}% implied win chance - experimental signal, not proven profitable (see runner detail)`}
               className="flex-none rounded bg-emerald px-1 text-[10px] font-semibold text-white"

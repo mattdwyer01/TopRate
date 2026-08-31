@@ -9658,11 +9658,69 @@
   "walk_forward_validation": {
    "n_weekly_refits": 14,
    "burn_in_weeks": 5,
-   "top1_strike_pct": 27.25,
-   "top1_roi_pct": -0.02,
-   "top1_t_stat": -0.0,
-   "mean_weekly_auc": 0.6817
+   "top1_strike_pct": 26.64,
+   "top1_roi_pct": -1.87,
+   "top1_t_stat": -0.51,
+   "mean_weekly_auc": 0.6701
   },
-  "note": "Unweighted z-score average (NOT a fitted model) - deliberately excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). Missing features are skipped, not imputed - see this script's module docstring. The AUC/strike-rate improvement over WPR alone is walk-forward validated and robust; NO overlay threshold reached statistical significance in the Aug 2026 audit (see walk_forward_validation above and calibrate_edge_score.py's docstring) - treat edge as an experimental signal to track forward, not a proven bet-selection filter."
+  "overlay_validation": [
+   {
+    "threshold": 0.0,
+    "n": 21870,
+    "strike_pct": 6.17,
+    "roi_pct": -29.19,
+    "t_stat": -10.34,
+    "significant": true
+   },
+   {
+    "threshold": 0.05,
+    "n": 7118,
+    "strike_pct": 7.53,
+    "roi_pct": -23.79,
+    "t_stat": -4.86,
+    "significant": true
+   },
+   {
+    "threshold": 0.08,
+    "n": 3169,
+    "strike_pct": 10.03,
+    "roi_pct": -14.25,
+    "t_stat": -2.05,
+    "significant": true
+   },
+   {
+    "threshold": 0.1,
+    "n": 1931,
+    "strike_pct": 12.01,
+    "roi_pct": -18.51,
+    "t_stat": -2.65,
+    "significant": true
+   },
+   {
+    "threshold": 0.13,
+    "n": 938,
+    "strike_pct": 15.57,
+    "roi_pct": -12.2,
+    "t_stat": -1.32,
+    "significant": false
+   },
+   {
+    "threshold": 0.15,
+    "n": 582,
+    "strike_pct": 18.38,
+    "roi_pct": -14.34,
+    "t_stat": -1.59,
+    "significant": false
+   },
+   {
+    "threshold": 0.2,
+    "n": 244,
+    "strike_pct": 23.77,
+    "roi_pct": 13.52,
+    "t_stat": 0.82,
+    "significant": false
+   }
+  ],
+  "note": "Unweighted z-score average (NOT a fitted model) - deliberately excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). A missing wprp_proj forces score=0 (user decision, costs some accuracy - see wpr_projection.compute_edge_scores' _score). WARNING: edge>=0.00 and up (0.00, 0.05, 0.08, 0.10) showed SIGNIFICANTLY NEGATIVE ROI in the walk-forward audit (see overlay_validation below) - these are CONFIRMED LOSING thresholds under this scoring rule, not merely unproven. Do not surface them as a viable tier in the UI; re-run this script if the scoring rule ever changes back."
  }
 }

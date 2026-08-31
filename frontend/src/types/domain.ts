@@ -131,11 +131,13 @@ export interface Runner {
   // Edge score: blendProb (over just the priced subset) minus the
   // market's own implied probability. A SEPARATE bet-selection filter on
   // top of blendRank above - "is this runner underpriced", not "is this
-  // runner the best in the race". A held-out backtest (Aug 2026) found
-  // positive ROI only once edgeScore clears roughly 0.08-0.10 (8-10
-  // points), not at edgeScore>=0. All null when there's no usable market
-  // price yet or the field has fewer than 2 priced runners. See
-  // calibrate_edge_score.py for the full validation.
+  // runner the best in the race". A full walk-forward audit (Aug 2026)
+  // found 8%/10% thresholds CONFIRMED significantly negative (not just
+  // unproven) - see lib/edgeOverlay.ts's EDGE_BADGE_THRESHOLD (13%) for
+  // the current floor, and wpr_models/config.json's
+  // edge_score.overlay_validation for the numbers. All null when there's
+  // no usable market price yet or the field has fewer than 2 priced
+  // runners. See calibrate_edge_score.py for the full validation.
   edgeScore: number | null
   edgeModelProb: number | null
   edgeMarketProb: number | null

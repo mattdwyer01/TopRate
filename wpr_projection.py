@@ -1748,12 +1748,11 @@ def compute_edge_scores(runners):
     Returns a list of result dicts (same order):
       blend_prob, blend_rank, blend_price - the primary ranking. Softmax
         of the blend score over the WHOLE field (no market price needed -
-        same convention as project_race's wpr_price), so this is always
-        available whenever at least one feature is (unlike model_prob/edge
-        below). blend_rank is 1 for the field's best price (lowest
-        blend_price / highest blend_prob), matching wpr_rank's convention.
-        blend_price capped at 999 like wpr_price. All three are None for a
-        runner with no usable feature at all.
+        same convention as project_race's wpr_price). A missing wprp_proj
+        forces the score to neutral (0.0) rather than leaving the runner
+        unscored (see _score below) - practically, every runner with a
+        valid config gets a blend_prob/rank/price. All three are None only
+        in the defensive fallback case of an empty runners list.
       has_edge, model_prob, market_prob, edge (model_prob - market_prob,
         in probability points - multiply by 100 for percentage points).
         model_prob/market_prob are renormalised over just the runners with
@@ -1790,6 +1789,16 @@ def compute_edge_scores(runners):
     signal worth tracking forward, not a validated source of profit - see
     calibrate_edge_score.py's docstring for the full numbers.
 
+    NOTE: the numbers above were walked forward under skip-and-average
+    scoring (a runner missing wprp_proj scored from whatever else it had).
+    Production _score below instead forces a missing wprp_proj to 0.0, a
+    later explicit user decision made AFTER seeing that this measurably
+    costs every metric (strike 27.25%->26.64%, ROI -0.02%->-1.87%, AUC
+    0.6817->0.6701) - so the numbers above are not exactly what production
+    currently does, they are the closest validated reference point. If
+    re-validating, walk forward with the SAME force-zero rule production
+    uses, not skip-and-average.
+
     Deliberately excludes jt_combo_win_pct - see toprate_daily.py's
     SIGNALS comment for why (confirmed leak of the runner's own result on
     low-ride-count combos). Mean/std come from calibrate_edge_score.py,
@@ -1811,6 +1820,20 @@ def compute_edge_scores(runners):
     stds = cfg["stds"]
 
     def _score(r):
+        # A missing wprp_proj forces the WHOLE score to neutral (0.0),
+        # regardless of how strong the other signals (trainer/jockey form,
+        # pfm_score) are - a deliberate user decision (Aug 2026), not the
+        # better-performing option. Walk-forward tested against
+        # skip-and-average (score the runner from whatever signals it DOES
+        # have): forcing 0 measurably cost every metric (strike 27.25% ->
+        # 26.64%, ROI -0.02% -> -1.87%, AUC 0.6817 -> 0.6701, logloss
+        # 0.3032 -> 0.3051) and changed the top pick in 12.4% of races, 98.5%
+        # of which were exactly this case (a no-wprp_proj runner winning on
+        # strong trailing form under skip-and-average). Kept anyway per
+        # explicit instruction - see calibrate_edge_score.py's docstring.
+        wpr_v = r.get("wprp_proj")
+        if wpr_v is None or wpr_v != wpr_v:
+            return 0.0
         zs = []
         for f in feats:
             v = r.get(f)
@@ -1818,7 +1841,7 @@ def compute_edge_scores(runners):
             if v is None or v != v or not std:
                 continue
             zs.append((float(v) - means.get(f, 0.0)) / std)
-        return float(np.mean(zs)) if zs else float("nan")
+        return float(np.mean(zs)) if zs else 0.0
 
     score = np.array([_score(r) for r in runners], dtype=float)
     have_score = np.isfinite(score)
@@ -1826,10 +1849,12 @@ def compute_edge_scores(runners):
     if not have_score.any():
         return results
 
-    # Primary ranking: softmax over runners that have a score - a runner
-    # missing every feature gets no blend_prob/rank/price at all rather
-    # than being silently averaged in as "typical". Mirrors project_race's
-    # own wpr_price softmax so the two "fair price" numbers behave alike.
+    # Primary ranking: softmax over runners that have a score. _score now
+    # always returns a float (0.0 for a missing wprp_proj, per the user's
+    # explicit instruction - see _score above), so have_score is true for
+    # every real runner in practice; this guard is defensive only (an
+    # empty runners list). Mirrors project_race's own wpr_price softmax so
+    # the two "fair price" numbers behave alike.
     s_v = score[have_score]
     e_full = np.exp(s_v - s_v.max())
     blend_prob_v = e_full / e_full.sum()

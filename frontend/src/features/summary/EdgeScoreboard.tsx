@@ -30,9 +30,9 @@ function emptyStats(): TierStats {
 export function EdgeScoreboard({ races, picks }: EdgeScoreboardProps) {
   const stats = useMemo(() => {
     const byTier: Record<EdgeTier, TierStats> = {
-      'edge-8': emptyStats(),
-      'edge-10': emptyStats(),
       'edge-13': emptyStats(),
+      'edge-15': emptyStats(),
+      'edge-20': emptyStats(),
     }
     const pickList = Object.values(picks)
     if (pickList.length === 0) return byTier
@@ -68,16 +68,16 @@ export function EdgeScoreboard({ races, picks }: EdgeScoreboardProps) {
     return byTier
   }, [races, picks])
 
-  const totalTaken = stats['edge-8'].taken + stats['edge-10'].taken + stats['edge-13'].taken
+  const totalTaken = stats['edge-13'].taken + stats['edge-15'].taken + stats['edge-20'].taken
   if (totalTaken === 0) return null
 
-  const TIER_LABEL: Record<EdgeTier, string> = { 'edge-8': '8%+ edge', 'edge-10': '10%+ edge', 'edge-13': '13%+ edge' }
+  const TIER_LABEL: Record<EdgeTier, string> = { 'edge-13': '13%+ edge', 'edge-15': '15%+ edge', 'edge-20': '20%+ edge' }
 
   return (
     <div className="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm">
       <div className="mb-1.5 text-xs font-medium text-ink-mute">Your tracked bets (forward performance, not backtest)</div>
       <div className="flex flex-wrap gap-x-8 gap-y-2">
-        {(['edge-8', 'edge-10', 'edge-13'] as EdgeTier[]).map((tier) => {
+        {(['edge-13', 'edge-15', 'edge-20'] as EdgeTier[]).map((tier) => {
           const s = stats[tier]
           if (s.taken === 0) return null
           const strike = s.resulted > 0 ? (s.wins / s.resulted) * 100 : null
