@@ -9630,30 +9630,24 @@
   }
  },
  "edge_score": {
+  "method": "unweighted_zscore_average",
   "features": [
    "wprp_proj",
-   "speed_rating",
-   "pfm_score",
-   "pf_ai_score",
    "trainer_win_pct_365d",
-   "jockey_win_pct_90d"
+   "jockey_win_pct_90d",
+   "pfm_score"
   ],
-  "coef": [
-   0.008391377775410915,
-   0.004598359216729792,
-   0.013761797795374103,
-   0.019518610619708728,
-   0.0629849055757669,
-   0.05272821742109492
-  ],
-  "intercept": -5.987952405740072,
-  "medians": {
-   "wprp_proj": 72.8,
-   "speed_rating": 69.0,
-   "pfm_score": 28.0,
-   "pf_ai_score": 54.0,
-   "trainer_win_pct_365d": 11.1,
-   "jockey_win_pct_90d": 10.1
+  "means": {
+   "wprp_proj": 72.31694528379818,
+   "trainer_win_pct_365d": 10.91478951109707,
+   "jockey_win_pct_90d": 10.63155926636725,
+   "pfm_score": 38.89221660151759
+  },
+  "stds": {
+   "wprp_proj": 9.543626602119343,
+   "trainer_win_pct_365d": 5.302272085170057,
+   "jockey_win_pct_90d": 5.52153154024526,
+   "pfm_score": 31.107589823813314
   },
   "trained_on_races": 5299,
   "trained_on_runners": 50680,
@@ -9661,6 +9655,14 @@
    "2026-04-26",
    "2026-08-30"
   ],
-  "note": "Logistic regression; deliberately excludes jt_combo_win_pct (confirmed leak - see toprate_daily.py SIGNALS comment). Held-out AUC/overlay validation is in this script's own output/git history, not in this config. Use edge (model_prob - market_prob) as a bet-selection filter, not a top-pick ranking replacement - see calibrate_edge_score.py docstring."
+  "walk_forward_validation": {
+   "n_weekly_refits": 14,
+   "burn_in_weeks": 5,
+   "top1_strike_pct": 27.25,
+   "top1_roi_pct": -0.02,
+   "top1_t_stat": -0.0,
+   "mean_weekly_auc": 0.6817
+  },
+  "note": "Unweighted z-score average (NOT a fitted model) - deliberately excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). Missing features are skipped, not imputed - see this script's module docstring. The AUC/strike-rate improvement over WPR alone is walk-forward validated and robust; NO overlay threshold reached statistical significance in the Aug 2026 audit (see walk_forward_validation above and calibrate_edge_score.py's docstring) - treat edge as an experimental signal to track forward, not a proven bet-selection filter."
  }
 }

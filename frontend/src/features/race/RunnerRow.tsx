@@ -129,6 +129,22 @@ export function RunnerRow({
               SCR
             </button>
           )}
+          {/* No WPR projection (insufficient own history) and no manual
+              override set yet - flagged clearly, not just buried in the
+              collapsed "WPR rating detail" section, because Model $ above
+              is still computed from whatever OTHER signals the runner has
+              (trainer/jockey form, pfm_score) even without wprp_proj - it
+              is easy to mistake for a complete estimate otherwise. Opens
+              the runner detail (which auto-expands the WPR section) to
+              enter one. */}
+          {!scratched && runner.projectedWpr == null && effective?.effectiveProjectedWpr == null && (
+            <span
+              title="No WPR projection for this runner - Model $ is based on partial signals only. Open to enter a manual WPR rating."
+              className="flex-none rounded border border-amber-line bg-amber-bg px-1 text-[10px] font-semibold text-amber"
+            >
+              NO WPR
+            </span>
+          )}
           {/* Edge score: only surfaces once it clears the margin a single
               70/30 holdout showed ROI at (see calibrate_edge_score.py) - but
               a proper walk-forward check (30 daily refits, Aug 2026) came

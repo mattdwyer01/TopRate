@@ -192,6 +192,13 @@ export function RunnerDetailModal({
               No model estimate for this runner. Insufficient form/speed/rating history to blend a probability.
             </div>
           )}
+          {runner.blendProb != null && runner.projectedWpr == null && !scratched && effective?.effectiveProjectedWpr == null && (
+            <div className="rounded-lg border border-amber-line bg-amber-bg p-2.5 text-sm text-amber">
+              No WPR projection for this runner (insufficient own history) - the {fmtPrice(runner.blendPrice)} Model $
+              below is based only on its other signals (trainer/jockey form, pfm_score). Enter a manual WPR rating in
+              "WPR rating detail" below for a more complete estimate.
+            </div>
+          )}
 
           {/* PRIMARY: the blend score (Model $ / win probability / rank) -
               promoted here Aug 2026 after a held-out backtest found it beats
@@ -270,8 +277,11 @@ export function RunnerDetailModal({
               Collapsed by default via <details> - a manual override here
               only ever adjusts WPR, it does NOT recompute Model $ above
               (which blends several other signals too), so this section is
-              explicitly scoped as "WPR" throughout to avoid implying it does. */}
-          <details className="rounded-lg border border-line-soft bg-panel">
+              explicitly scoped as "WPR" throughout to avoid implying it does.
+              Auto-expanded (not collapsed) when there's no projection at
+              all, so the Base WPR entry field the amber banner above
+              points at is immediately visible, not one more click away. */}
+          <details className="rounded-lg border border-line-soft bg-panel" open={runner.projectedWpr == null}>
             <summary className="cursor-pointer select-none px-2.5 py-2 text-sm font-medium text-ink-mute hover:text-ink">
               WPR rating detail{hasOverride ? ' (manually adjusted)' : ''}
             </summary>

@@ -1720,69 +1720,83 @@ def get_price_beta():
     return _CFG.get("beta", 0.4)
 
 
-EDGE_FEATURES = ["wprp_proj", "speed_rating", "pfm_score", "pf_ai_score",
-                  "trainer_win_pct_365d", "jockey_win_pct_90d"]
+EDGE_FEATURES = ["wprp_proj", "trainer_win_pct_365d", "jockey_win_pct_90d", "pfm_score"]
 
 
 def compute_edge_scores(runners):
-    """Blend WPR projection + speed/form-provider scores + trailing
-    jockey/trainer form into a per-race win-probability estimate: the
-    PRIMARY ranking model for the Race tab (promoted Aug 2026 - see below),
-    plus a bet-selection comparison against the market's own implied
-    probability.
+    """Blend WPR projection + trailing jockey/trainer form + a
+    form-provider score (pfm_score) into a per-race win-probability
+    estimate: the PRIMARY ranking model for the Race tab (promoted Aug
+    2026 - see below), plus a bet-selection comparison against the
+    market's own implied probability.
 
     runners: list of dicts, one per horse in the SAME race, each carrying
-      whatever of EDGE_FEATURES is available (missing/NaN values are
-      imputed with that feature's training median) plus "market_price"
-      (the price to compare against - fixed_win_price pre-race,
-      starting_price_sp/price_top once resulted).
+      whatever of EDGE_FEATURES is available plus "market_price" (the
+      price to compare against - fixed_win_price pre-race, starting_price_sp/
+      price_top once resulted).
+
+    HOW THE SCORE IS COMPUTED: an unweighted average of z-scores (NOT a
+    fitted model - see calibrate_edge_score.py's docstring for why a plain
+    average beat a fitted logistic regression walked forward). Each
+    feature is z-scored against its training mean/std; a runner missing a
+    feature has it SKIPPED, not imputed - the score is the mean of
+    whichever z-scores it actually has. A runner missing every feature
+    gets no score at all (blend_prob/rank/price all None), same as a WPR
+    projection with insufficient history - it does NOT get silently
+    treated as "average".
 
     Returns a list of result dicts (same order):
       blend_prob, blend_rank, blend_price - the primary ranking. Softmax
-        of the blended logit over the WHOLE field (no market price
-        needed - same convention as project_race's wpr_price), so this is
-        always available whenever the underlying signals are (unlike
-        model_prob/edge below). blend_rank is 1 for the field's best price
-        (lowest blend_price / highest blend_prob), matching wpr_rank's
-        convention. blend_price capped at 999 like wpr_price.
+        of the blend score over the WHOLE field (no market price needed -
+        same convention as project_race's wpr_price), so this is always
+        available whenever at least one feature is (unlike model_prob/edge
+        below). blend_rank is 1 for the field's best price (lowest
+        blend_price / highest blend_prob), matching wpr_rank's convention.
+        blend_price capped at 999 like wpr_price. All three are None for a
+        runner with no usable feature at all.
       has_edge, model_prob, market_prob, edge (model_prob - market_prob,
         in probability points - multiply by 100 for percentage points).
         model_prob/market_prob are renormalised over just the runners with
-        a usable market_price, so they are directly comparable to each
-        other (this is why they can differ slightly from blend_prob, which
-        normalises over the whole field). has_edge is False (other keys
-        None) for a runner with no usable market_price, or for every
-        runner if fewer than 2 in the race have one.
+        BOTH a score and a usable market_price, so they are directly
+        comparable to each other (this is why they can differ slightly
+        from blend_prob, which normalises over the whole scored field).
+        has_edge is False (other keys None) for a runner with no usable
+        market_price or score, or for every runner if fewer than 2 in the
+        race qualify.
     All keys are None (blend_* included) if the edge_score calibration
     hasn't been fitted yet (see calibrate_edge_score.py --write).
 
-    WHY THIS IS THE PRIMARY RANKING (not wprp_proj/wpr_rank): an Aug 2026
-    audit backtested top-1-pick strike rate and ROI on a genuine held-out
-    date range (last 30% of dates, unseen during fitting) and found this
-    blend beats ranking by wpr_rank or wprp_rank alone on BOTH metrics
-    (holdout: blend 29.2% strike / -11.7% ROI vs wpr_rank 24.7% / -19.9%
-    vs wprp_rank 25.2% / -14.4%) - trainer/jockey trailing form and the
-    speed/form-provider scores carry real incremental signal WPR alone
-    isn't capturing. It still does not beat the market favourite's raw
-    strike rate (33.5%) - the market has information this model doesn't
-    (late scratches, drift, insider money) - but its ROI is competitive
-    with backing favourites (-11.7% vs -14.3%) despite the lower strike
-    rate, because it isn't just picking the shortest price.
+    WHY THIS IS THE PRIMARY RANKING (not wprp_proj/wpr_rank), AND WHY THESE
+    4 FEATURES: an Aug 2026 audit walked a model forward weekly (refit on
+    strictly-prior data each time, not a single train/test split) across
+    the full history and found this blend's ranking beats wpr_nett/
+    wprp_proj alone on both AUC (~0.68 vs ~0.58) and top-1 strike rate
+    (~27% vs ~23-25%) consistently across every burn-in window tested.
+    Feature ablation showed trainer/jockey trailing form does almost all
+    of that work; speed_rating and pf_ai_score added nothing and were
+    dropped. pfm_score is a genuine mixed case (added AUC, but its
+    presence/absence swung the ROI point estimate in a way neither
+    version's ROI is significant enough to read as real) - kept in on the
+    AUC evidence; see calibrate_edge_score.py's docstring for the full
+    reasoning. It still does not beat the market favourite's raw strike
+    rate (~34%) - the market has information this model doesn't (late
+    scratches, drift, insider money).
 
     Separately, has_edge/model_prob/market_prob/edge is a bet-SELECTION
-    filter on top of the ranking above: backing every edge>=0 runner does
-    NOT show a profit (the ranking being better on average doesn't mean
-    every runner it likes is underpriced) - what held up out-of-sample was
-    backing the OVERLAY where edge clears roughly 0.08-0.10 (8-10 points).
-    See calibrate_edge_score.py's docstring for the full backtest.
+    filter on top of the ranking above - and the SAME walk-forward audit
+    found NO overlay threshold reached statistical significance (max
+    |t|=1.24 at edge>=0.20, n=362; low thresholds like edge>=0 were
+    significantly NEGATIVE, t=-9.94). Treat edge as an experimental
+    signal worth tracking forward, not a validated source of profit - see
+    calibrate_edge_score.py's docstring for the full numbers.
 
     Deliberately excludes jt_combo_win_pct - see toprate_daily.py's
     SIGNALS comment for why (confirmed leak of the runner's own result on
-    low-ride-count combos). Coefficients come from calibrate_edge_score.py,
-    a logistic regression fitted offline on resulted races and stored in
-    wpr_models/config.json under "edge_score" - never hand-edit that
-    block, rerun the script (quarterly, or once a season's worth of new
-    resulted races has accumulated).
+    low-ride-count combos). Mean/std come from calibrate_edge_score.py,
+    computed offline on resulted races and stored in wpr_models/config.json
+    under "edge_score" - never hand-edit that block, rerun the script
+    (quarterly, or once a season's worth of new resulted races has
+    accumulated).
     """
     _load_models()
     empty = {"blend_prob": None, "blend_rank": None, "blend_price": None,
@@ -1793,41 +1807,53 @@ def compute_edge_scores(runners):
         return [dict(empty) for _ in runners]
 
     feats = cfg["features"]
-    coef = np.array(cfg["coef"], dtype=float)
-    intercept = float(cfg["intercept"])
-    med = cfg["medians"]
+    means = cfg["means"]
+    stds = cfg["stds"]
 
-    def _val(r, f):
-        v = r.get(f)
-        return float(v) if v is not None and v == v else med.get(f, 0.0)
+    def _score(r):
+        zs = []
+        for f in feats:
+            v = r.get(f)
+            std = stds.get(f, 0.0)
+            if v is None or v != v or not std:
+                continue
+            zs.append((float(v) - means.get(f, 0.0)) / std)
+        return float(np.mean(zs)) if zs else float("nan")
 
-    X = np.array([[_val(r, f) for f in feats] for r in runners], dtype=float)
-    logit = intercept + X @ coef
-
+    score = np.array([_score(r) for r in runners], dtype=float)
+    have_score = np.isfinite(score)
     results = [dict(empty) for _ in runners]
+    if not have_score.any():
+        return results
 
-    # Primary ranking: softmax over the WHOLE field, no market price
-    # required - mirrors project_race's own wpr_price softmax so the two
-    # "fair price" numbers behave the same way in the UI.
-    e_full = np.exp(logit - logit.max())
-    blend_prob = e_full / e_full.sum()
-    blend_rank = (-blend_prob).argsort().argsort() + 1
-    blend_price = np.minimum(1.0 / blend_prob, 999.0)
+    # Primary ranking: softmax over runners that have a score - a runner
+    # missing every feature gets no blend_prob/rank/price at all rather
+    # than being silently averaged in as "typical". Mirrors project_race's
+    # own wpr_price softmax so the two "fair price" numbers behave alike.
+    s_v = score[have_score]
+    e_full = np.exp(s_v - s_v.max())
+    blend_prob_v = e_full / e_full.sum()
+    blend_rank_v = (-blend_prob_v).argsort().argsort() + 1
+    blend_price_v = np.minimum(1.0 / blend_prob_v, 999.0)
+    vi = 0
     for i in range(n):
-        results[i]["blend_prob"] = round(float(blend_prob[i]), 4)
-        results[i]["blend_rank"] = int(blend_rank[i])
-        results[i]["blend_price"] = round(float(blend_price[i]), 2)
+        if have_score[i]:
+            results[i]["blend_prob"] = round(float(blend_prob_v[vi]), 4)
+            results[i]["blend_rank"] = int(blend_rank_v[vi])
+            results[i]["blend_price"] = round(float(blend_price_v[vi]), 2)
+            vi += 1
 
     prices = np.array([r.get("market_price") for r in runners], dtype=float)
-    valid = np.isfinite(prices) & (prices > 1.0)
+    valid = have_score & np.isfinite(prices) & (prices > 1.0)
     if valid.sum() < 2:
         return results
 
-    # Normalise model_prob over the SAME priced subset as market_prob (not
-    # the whole field) so the two are directly comparable - an unpriced
-    # (e.g. late-scratched) runner shouldn't dilute either side.
-    logit_v = logit[valid]
-    e_v = np.exp(logit_v - logit_v.max())
+    # Normalise model_prob over the SAME priced-and-scored subset as
+    # market_prob (not the whole field) so the two are directly comparable -
+    # an unpriced (e.g. late-scratched) or unscored runner shouldn't dilute
+    # either side.
+    s_valid = score[valid]
+    e_v = np.exp(s_valid - s_valid.max())
     model_prob_v = e_v / e_v.sum()
     inv_v = 1.0 / prices[valid]
     market_prob_v = inv_v / inv_v.sum()
