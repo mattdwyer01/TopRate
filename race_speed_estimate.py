@@ -140,48 +140,71 @@ def _race_features(race_runners, pmeans):
 
 
 def _tempo_label(predicted_rse):
-    """Band predicted raceShapeEarly into a tempo label. LOWER rse =
-    faster early pace = Hot (rse correlates +0.86 with the leader's early
-    sectional; fast sectionals are negative).
+    """Band predicted raceShapeEarly into a tempo label. HIGHER rse =
+    faster early pace = Hot. raceShapeEarly's sign convention (confirmed
+    against the Pace Bias doc and directly replicated on 476,719 real
+    rows this session - see chat) is: POSITIVE = faster than standard,
+    NEGATIVE = slower. A fast, hot-tempo race therefore has a HIGH
+    (positive) raceShapeEarly, not a low one.
 
-    BUG FIX (Aug 2026, found while building the own_pace ADJ_TERM
-    candidate): the four comparisons below used to check q["slow"] FIRST
-    (the LARGEST of the four thresholds, the 90th percentile), so
-    `predicted_rse <= q["slow"]` was true for the vast majority of real
-    values and every race got labelled "Hot" regardless of its actual
-    predicted shape - confirmed on real data (a 10-day, 419-race sample
-    came back 100% "Hot", nowhere near train()'s own documented ~10%
-    target coverage for that bucket). The four y_quantiles are built in
-    strictly ascending order (hot=10th percentile < fast=35th <
-    even=65th < slow=90th, see train()) so the comparisons must run in
-    that same ascending order to correctly bucket by percentile - hot
-    (bottom 10%) checked first, slow (the everything-else case) last.
+    BUG FIX (Aug 2026 v1, found while building the own_pace ADJ_TERM
+    candidate): the four comparisons used to check q["slow"] FIRST (the
+    LARGEST threshold), so almost every race was labelled "Hot"
+    regardless of its actual predicted shape - confirmed on real data
+    (100% "Hot" on a 419-race sample). Fixed by checking thresholds in
+    ascending order.
+
+    BUG FIX (Aug 2026 v2, found while investigating why own_pace/
+    settle_pace both failed their held-out backtests): v1's fix corrected
+    the CHECK ORDER but kept the underlying assumption that LOW rse means
+    Hot - backwards. Verified directly: current live rs_label values,
+    checked against ACTUAL measured raceShapeEarly across every month
+    May-Aug 2026, showed "Hot" races averaging raceShapeEarly around -3
+    to -8 (i.e. actually SLOW) and "Slow" races averaging around +1 (i.e.
+    actually FAST) - a clean, persistent, monotonic inversion the v1 fix
+    never touched. The y_quantiles in config.json (hot=10th percentile,
+    slow=90th percentile of the raw distribution) are themselves fine -
+    only which STRING gets returned for which quantile band was
+    backwards. Fixed by mirroring which label each branch returns (no
+    change to the quantile values or comparison operators needed).
     """
     q = _CFG["y_quantiles"]
     if predicted_rse <= q["hot"]:
-        return "Hot"
+        return "Slow"
     if predicted_rse <= q["fast"]:
-        return "Fast"
-    if predicted_rse <= q["even"]:
         return "Even"
-    return "Slow"
+    if predicted_rse <= q["even"]:
+        return "Fast"
+    return "Hot"
 
 
 def _score_from_rse(predicted_rse):
-    """Map predicted raceShapeEarly to a 0-1 score, 1 = hottest.
+    """Map predicted raceShapeEarly to a 0-1 score, 1 = hottest (HIGH
+    raceShapeEarly - see _tempo_label's docstring for the sign
+    convention).
 
-    BUG FIX (Aug 2026, same discovery as _tempo_label above): lo/hi were
-    swapped (lo=slow, hi=hot), which inverted the whole scale - the
-    hottest possible rse (q["hot"]) scored 0 and the slowest (q["slow"])
-    scored 1, backwards from the "1 = hottest" the function promises.
-    lo must be the LOW-rse end (hot) so a hot race's rse lands near lo
-    and maps to a score near 1.
+    BUG FIX (Aug 2026 v1): lo/hi were swapped, inverting the scale.
+
+    BUG FIX (Aug 2026 v2, same discovery as _tempo_label's v2 fix): v1's
+    lo/hi swap fix was itself built on the same backwards assumption (low
+    rse = hot) that _tempo_label's v1 fix carried. q["hot"] and
+    q["slow"] are already numerically correct as computed by train()
+    (hot = the 10th percentile, i.e. the LOW end of the raw distribution;
+    slow = the 90th percentile, the HIGH end) - that part was never
+    broken. The bug was applying "1.0 -" on top of a lo/hi assignment
+    that, without the inversion, already maps low rse -> score near 0
+    and high rse -> score near 1 correctly. Fix: keep lo=q["hot"] (the
+    low end), hi=q["slow"] (the high end) exactly as originally assigned,
+    just drop the erroneous "1.0 -" (a first attempt at this fix
+    swapped the key assignment INSTEAD of dropping the inversion, which
+    cancels out and silently reproduces the original bug - caught by
+    testing concrete values across the full range before shipping this).
     """
     q = _CFG["y_quantiles"]
     lo, hi = q["hot"], q["slow"]
     if hi == lo:
         return 0.5
-    s = 1.0 - (predicted_rse - lo) / (hi - lo)
+    s = (predicted_rse - lo) / (hi - lo)
     return float(min(1.0, max(0.0, s)))
 
 
