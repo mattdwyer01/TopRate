@@ -2,12 +2,21 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import { spellPosition } from './spellPosition'
 
-// Aug 2026 redesign: dropped the WPR-points sort keys (peakWpr/baseWpr/
-// adjustment/projectedWpr/wprPrice/actualWpr) along with the columns they
-// drove - the blend score is the primary ranking now (see RaceDetail.tsx's
-// COLUMN_LABELS comment). The WPR breakdown still exists, just not as a
-// sortable column any more - see RunnerDetailModal's "WPR rating detail".
-export type SortKey = 'tab' | 'horse' | 'jockey' | 'trainer' | 'barrier' | 'daysSince' | 'blendPrice' | 'fixedPrice' | 'finish'
+export type SortKey =
+  | 'tab'
+  | 'horse'
+  | 'jockey'
+  | 'trainer'
+  | 'barrier'
+  | 'peakWpr'
+  | 'daysSince'
+  | 'baseWpr'
+  | 'adjustment'
+  | 'projectedWpr'
+  | 'wprPrice'
+  | 'fixedPrice'
+  | 'finish'
+  | 'actualWpr'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -22,10 +31,15 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   jockey: 'asc',
   trainer: 'asc',
   barrier: 'asc',
+  peakWpr: 'desc',
   daysSince: 'asc',
-  blendPrice: 'asc',
+  baseWpr: 'desc',
+  adjustment: 'desc',
+  projectedWpr: 'desc',
+  wprPrice: 'asc',
   fixedPrice: 'asc',
   finish: 'asc',
+  actualWpr: 'desc',
 }
 
 // effective: this runner's override-aware projected WPR / price, when a
@@ -35,7 +49,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
 function sortValue(
   runner: Runner,
   key: SortKey,
-  _effective?: EffectiveRunner,
+  effective?: EffectiveRunner,
   raceDate?: string,
 ): number | string {
   switch (key) {
@@ -49,18 +63,24 @@ function sortValue(
       return runner.trainer.toLowerCase()
     case 'barrier':
       return runner.barrier ?? Infinity
+    case 'peakWpr':
+      return runner.peakWpr ?? -Infinity
     case 'daysSince':
       return spellPosition(runner.formHistory, raceDate ?? null).daysSince ?? Infinity
-    case 'blendPrice':
-      // Not override-aware - the manual what-if slider adjusts this
-      // horse's WPR only, and blendPrice is a blend of several other
-      // signals too (speed/form-provider ratings, trailing jockey/trainer
-      // form) that a WPR-only override can't meaningfully recompute.
-      return runner.blendPrice ?? Infinity
+    case 'baseWpr':
+      return runner.baseWpr ?? -Infinity
+    case 'adjustment':
+      return runner.wprAdjustment ?? -Infinity
+    case 'projectedWpr':
+      return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
+    case 'wprPrice':
+      return effective?.effectivePrice ?? runner.wprPrice ?? Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
+    case 'actualWpr':
+      return runner.actualWpr ?? -Infinity
   }
 }
 

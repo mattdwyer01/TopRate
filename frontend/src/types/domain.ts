@@ -118,29 +118,6 @@ export interface Runner {
   wprPrice: number | null
   wprRank: number | null
   peakWpr: number | null
-  // Blend score: the PRIMARY ranking (promoted Aug 2026 from wprPrice/
-  // wprRank - a blend of wprp_proj + speed/form-provider ratings +
-  // trailing jockey/trainer form). A held-out backtest found this beats
-  // ranking by WPR alone on both top-1 strike rate and ROI (see
-  // wpr_projection.compute_edge_scores for the numbers). Needs no market
-  // price, same as wprPrice/wprRank - blendRank is 1 for the field's best
-  // (lowest blendPrice / highest blendProb).
-  blendProb: number | null
-  blendRank: number | null
-  blendPrice: number | null
-  // Edge score: blendProb (over just the priced subset) minus the
-  // market's own implied probability. A SEPARATE bet-selection filter on
-  // top of blendRank above - "is this runner underpriced", not "is this
-  // runner the best in the race". A full walk-forward audit (Aug 2026)
-  // found 8%/10% thresholds CONFIRMED significantly negative (not just
-  // unproven) - see lib/edgeOverlay.ts's EDGE_BADGE_THRESHOLD (13%) for
-  // the current floor, and wpr_models/config.json's
-  // edge_score.overlay_validation for the numbers. All null when there's
-  // no usable market price yet or the field has fewer than 2 priced
-  // runners. See calibrate_edge_score.py for the full validation.
-  edgeScore: number | null
-  edgeModelProb: number | null
-  edgeMarketProb: number | null
   projectedWprAltGoing: number | null
   projectionConfidenceAltGoing: number | null
   projectionDescription: string | null

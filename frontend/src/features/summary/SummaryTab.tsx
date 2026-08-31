@@ -4,9 +4,9 @@ import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { EdgeOverlays } from './EdgeOverlays'
+import { StrategyBets } from './StrategyBets'
 
-type SummaryMode = 'margins' | 'overlays'
+type SummaryMode = 'margins' | 'strategy'
 
 interface SummaryTabProps {
   races: Race[]
@@ -48,7 +48,7 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   const [date, setDate] = useState(() => todayIso())
   const [minMargin, setMinMargin] = useState(3)
-  const [mode, setMode] = useState<SummaryMode>('overlays')
+  const [mode, setMode] = useState<SummaryMode>('strategy')
 
   const rows = useMemo<MarginRow[]>(() => {
     const bushKeys = showBush ? null : bushMeetingKeys(races)
@@ -87,8 +87,8 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex rounded-md border border-line bg-bg p-0.5" style={{ width: 'fit-content' }}>
-        <Pill active={mode === 'overlays'} onClick={() => setMode('overlays')}>
-          Overlays
+        <Pill active={mode === 'strategy'} onClick={() => setMode('strategy')}>
+          Strategy
         </Pill>
         <Pill active={mode === 'margins'} onClick={() => setMode('margins')}>
           Margins
@@ -125,8 +125,8 @@ export function SummaryTab({ races, showBush, onSelectRace }: SummaryTabProps) {
         )}
       </div>
 
-      {mode === 'overlays' && (
-        <EdgeOverlays races={races} date={date} showBush={showBush} onSelectRace={onSelectRace} />
+      {mode === 'strategy' && (
+        <StrategyBets races={races} date={date} showBush={showBush} onSelectRace={onSelectRace} />
       )}
 
       {mode === 'margins' && (filtered.length === 0 ? (

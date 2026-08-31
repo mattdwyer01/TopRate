@@ -99,19 +99,6 @@ export interface RawRunner {
   wpjpr: number | null
   wpjr: number | null
   wpjpk: number | null
-  // Blend score: the PRIMARY ranking (promoted Aug 2026 from wpr_rank/
-  // wprp_rank - see wpr_projection.compute_edge_scores for the held-out
-  // backtest). Needs no market price, same as wpjpr/wpjr.
-  wpjbp: number | null
-  wpjbr: number | null
-  wpjbpr: number | null
-  // Edge score: model win-prob minus market implied win-prob (a
-  // bet-selection filter on top of the blend ranking above, not a ranking
-  // itself). All null when no usable market price is available yet (too
-  // early pre-race) or the field has fewer than 2 priced runners.
-  wpje: number | null
-  wpjep: number | null
-  wpjem: number | null
   wpjpA: number | null
   wpjcA: number | null
   wpjd: string | null
