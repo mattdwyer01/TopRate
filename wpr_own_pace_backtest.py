@@ -99,6 +99,44 @@ def add_base(D):
     return D.dropna(subset=["_base"])
 
 
+def add_track_barrier(fit, frames):
+    """Replicates train_wpr_projection's track_barrier fit+apply exactly
+    (wpr_projection.py lines 2644-2678) - the one ADJ_TERMS entry that needs
+    an actual fitted lookup (population residual by track/dist-band/barrier-
+    band) rather than a pure per-horse history lookup. Fits on `fit` only,
+    applies the resulting lookup to every frame in `frames` (which may
+    include `fit` itself, matching how every other held_out_mae() call here
+    reports an in-sample number for context alongside the real held-out one)."""
+    tb_resid = fit["target"] - fit["career_avg"]
+    tb_band = [wpr._barrier_band(b, f) for b, f in zip(fit["barrier"], fit["field_size"])]
+    tb_dist_band = (fit["cur_distance"] // 200 * 200).astype(int)
+    tb_frame = pd.DataFrame({
+        "track": fit["track"], "dist_band": tb_dist_band,
+        "band": tb_band, "residual": tb_resid,
+    }).dropna(subset=["track", "band", "residual"])
+    tb_global = tb_frame.groupby("band")["residual"].mean().to_dict()
+    lookup = {}
+    for (trk, db), g in tb_frame.groupby(["track", "dist_band"]):
+        stats = g.groupby("band")["residual"].agg(["mean", "count"])
+        shrunk = {}
+        for b in ["Inside", "Mid", "Wide"]:
+            if b in stats.index:
+                n, m = stats.loc[b, "count"], stats.loc[b, "mean"]
+                shrunk[b] = (n * m + wpr._TRACK_BARRIER_K * tb_global.get(b, 0.0)) / (n + wpr._TRACK_BARRIER_K)
+            else:
+                shrunk[b] = tb_global.get(b, 0.0)
+        center = float(np.mean(list(shrunk.values())))
+        lookup[f"{trk}|{int(db)}"] = {
+            b: float(max(-wpr._OWN_DELTA_CAP, min(wpr._OWN_DELTA_CAP, shrunk[b] - center))) for b in shrunk
+        }
+    for frame in frames:
+        frame["track_barrier"] = [
+            wpr._track_barrier_term(trk, dist, bar, fs, lookup)
+            for trk, dist, bar, fs in zip(frame["track"], frame["cur_distance"],
+                                          frame["barrier"], frame["field_size"])
+        ]
+
+
 def held_out_mae(cf, te, adj_terms):
     def predict(frame):
         return frame["_base"].to_numpy() + wpr._cap_adj_sum(
@@ -121,13 +159,29 @@ def run(since):
     full = add_base(full)
     full["date"] = pd.to_datetime(full["date"])
     scoped = full[full["date"] >= pd.Timestamp(since)].copy()
-    scoped = scoped.dropna(subset=["target", "_base"] + wpr.ADJ_TERMS + ["own_pace"])
+    # track_barrier isn't produced by build_training_frame (unlike every
+    # other ADJ_TERMS entry, it needs an actual fitted lookup - see
+    # add_track_barrier) so it's excluded from this dropna and fitted/applied
+    # separately, once per chronological direction below, on exactly the
+    # columns it needs (barrier/field_size/career_avg/track/cur_distance).
+    non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
+    scoped = scoped.dropna(subset=["target", "_base"] + non_tb_terms + ["own_pace",
+                            "barrier", "field_size", "career_avg", "track", "cur_distance"])
     print(f"\nScoped rows for comparison: {len(scoped):,} "
           f"(own_pace non-zero on {(scoped['own_pace'] != 0).mean()*100:.1f}%)")
 
     mid = scoped["date"].quantile(0.5)
     h1, h2 = scoped[scoped["date"] < mid], scoped[scoped["date"] >= mid]
     print(f"H1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
+
+    # track_barrier must be fit on whichever half is playing "fit" in each
+    # direction and applied to both halves of that direction - a lookup fit
+    # on H2 must never leak into the H1-fit/H2-validate direction or vice
+    # versa, so each direction gets its own copies.
+    h1_d1, h2_d1 = h1.copy(), h2.copy()
+    add_track_barrier(h1_d1, [h1_d1, h2_d1])
+    h1_d2, h2_d2 = h1.copy(), h2.copy()
+    add_track_barrier(h2_d2, [h1_d2, h2_d2])
 
     baseline_terms = list(wpr.ADJ_TERMS)
     candidate_terms = baseline_terms + ["own_pace"]
@@ -137,21 +191,21 @@ def run(since):
     # a regression - so "H1-fit" is really just reporting H1's own MAE for
     # context; H2 is the real held-out number, matching this file's own
     # convention (e.g. the exact-distance-match test earlier in the file).
-    print(f"  baseline (7 terms):        H1 MAE={held_out_mae(h1, h1, baseline_terms):.4f}  "
-          f"H2 (held-out) MAE={held_out_mae(h1, h2, baseline_terms):.4f}")
-    print(f"  +own_pace (8 terms):       H1 MAE={held_out_mae(h1, h1, candidate_terms):.4f}  "
-          f"H2 (held-out) MAE={held_out_mae(h1, h2, candidate_terms):.4f}")
+    print(f"  baseline (7 terms):        H1 MAE={held_out_mae(h1_d1, h1_d1, baseline_terms):.4f}  "
+          f"H2 (held-out) MAE={held_out_mae(h1_d1, h2_d1, baseline_terms):.4f}")
+    print(f"  +own_pace (8 terms):       H1 MAE={held_out_mae(h1_d1, h1_d1, candidate_terms):.4f}  "
+          f"H2 (held-out) MAE={held_out_mae(h1_d1, h2_d1, candidate_terms):.4f}")
 
     print("\n=== H2-fit/H1-validate direction ===")
-    print(f"  baseline (7 terms):        H2 MAE={held_out_mae(h2, h2, baseline_terms):.4f}  "
-          f"H1 (held-out) MAE={held_out_mae(h2, h1, baseline_terms):.4f}")
-    print(f"  +own_pace (8 terms):       H2 MAE={held_out_mae(h2, h2, candidate_terms):.4f}  "
-          f"H1 (held-out) MAE={held_out_mae(h2, h1, candidate_terms):.4f}")
+    print(f"  baseline (7 terms):        H2 MAE={held_out_mae(h2_d2, h2_d2, baseline_terms):.4f}  "
+          f"H1 (held-out) MAE={held_out_mae(h2_d2, h1_d2, baseline_terms):.4f}")
+    print(f"  +own_pace (8 terms):       H2 MAE={held_out_mae(h2_d2, h2_d2, candidate_terms):.4f}  "
+          f"H1 (held-out) MAE={held_out_mae(h2_d2, h1_d2, candidate_terms):.4f}")
 
-    b_h2 = held_out_mae(h1, h2, baseline_terms)
-    c_h2 = held_out_mae(h1, h2, candidate_terms)
-    b_h1 = held_out_mae(h2, h1, baseline_terms)
-    c_h1 = held_out_mae(h2, h1, candidate_terms)
+    b_h2 = held_out_mae(h1_d1, h2_d1, baseline_terms)
+    c_h2 = held_out_mae(h1_d1, h2_d1, candidate_terms)
+    b_h1 = held_out_mae(h2_d2, h1_d2, baseline_terms)
+    c_h1 = held_out_mae(h2_d2, h1_d2, candidate_terms)
     print(f"\nHeld-out MAE change: direction 1 {b_h2:.4f} -> {c_h2:.4f} "
           f"({'better' if c_h2 < b_h2 else 'worse'}), "
           f"direction 2 {b_h1:.4f} -> {c_h1:.4f} ({'better' if c_h1 < b_h1 else 'worse'})")
