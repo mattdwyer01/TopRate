@@ -388,13 +388,26 @@ def train(out_dir="."):
     print(f"  held-out correlation: {heldout_corr:+.3f}")
     print(f"  held-out MAE: {heldout_mae:.3f}")
 
-    # Tempo-label bucket cutpoints, from the TRAIN target's own
-    # distribution (not test - these are display buckets, not part of the
-    # accuracy evaluation, but still shouldn't be tuned to the held-out
-    # set on principle). Roughly-even coverage: ~10% Hot, ~25% Fast,
-    # ~30% Even, ~25%+ Slow - matches the original config's asymmetric
-    # spacing better than a strict even-quartile split would.
-    hot, fast, even, slow = np.quantile(ytr, [0.10, 0.35, 0.65, 0.90])
+    # Tempo-label bucket cutpoints. BUG FIX (Aug 2026, found while
+    # investigating a skewed live label distribution - 826/1024 August
+    # 2026 races landing in "Fast", only 1 "Slow", far from the intended
+    # ~10/25/30/25% split): these used to be computed from the TRAIN
+    # TARGET's own distribution (ytr - actual raceShapeEarly), then
+    # applied to bucket the MODEL'S PREDICTIONS. That's a mismatch - with
+    # only +0.277 held-out correlation (R^2 ~7.7%), the model's
+    # predictions are far less variable than the real outcomes they're
+    # trying to predict (regression to the mean, as any weak model's
+    # predictions must be), so predicted values rarely reach the
+    # threshold levels computed from the much wider actual-value spread -
+    # confirmed directly: predicted_rse on a 1,024-race August sample had
+    # a 25th-75th percentile range of just -0.37 to +0.47, while the
+    # actual-value quantiles used as thresholds spanned -4.2 to +4.1.
+    # Fix: compute the thresholds from the model's OWN predictions on the
+    # training set (pred_tr), so the buckets are calibrated to the
+    # distribution the model actually produces, not the wider
+    # distribution of reality it can only weakly approximate.
+    pred_tr = model.predict(Xtr_f)
+    hot, fast, even, slow = np.quantile(pred_tr, [0.10, 0.35, 0.65, 0.90])
 
     Path(out_dir).mkdir(exist_ok=True)
     joblib.dump(model, Path(out_dir) / "race_speed_model.joblib")
