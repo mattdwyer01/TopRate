@@ -52,10 +52,9 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import add_base, add_track_barrier
+from wpr_own_pace_backtest import add_base, add_track_barrier, merge_won_by_horse_date
 
 FORM_CSV = "wpr_form_history.csv.gz"
-RUNNERS_CSV = "toprate_runners.csv"
 PACE_BINS = [-999, -7, -5, -3, -1, 1, 3, 5, 7, 999]
 _SHRINK_K = 3.0  # matches wpr._OWN_DELTA_SHRINK_K
 
@@ -71,7 +70,7 @@ def load_raw_form():
     fh = fh[(fh["isBarrierTrial"] != True) & (fh["is_jumpout"] != True)].copy()
     fh["sect_i_l600"] = pd.to_numeric(fh["sect_i_l600"], errors="coerce")
     fh["raceShapeEarly"] = pd.to_numeric(fh["raceShapeEarly"], errors="coerce")
-    fh = fh.dropna(subset=["date", "horse_id", "run_id"]).sort_values(
+    fh = fh.dropna(subset=["date", "horse_id"]).sort_values(
         ["horse_id", "date"]).reset_index(drop=True)
     return fh
 
@@ -96,15 +95,23 @@ def build_closing_merit(fh, baseline):
     d["expected"] = d["bucket"].map(baseline.to_dict()).astype(float)
     d["residual"] = d["sect_i_l600"].astype(float) - d["expected"]
 
+    # Keyed by (horse_id, date), NOT run_id: run_id is not a per-row race
+    # key in the raw form history (see merge_won_by_horse_date's docstring
+    # for the full bug writeup) - every row in a horse's WHOLE scraped
+    # form table shares the run_id of whatever race it was being scraped
+    # FOR, so keying this dict by run_id would silently collapse many
+    # distinct historical rows for the same horse onto one shared key,
+    # each overwriting the last. date is unique within a horse's own
+    # chronological sequence, so (horse_id, date) is a safe, correct key.
     out = {}
-    for _, g in d.groupby("horse_id", sort=False):
+    for hid, g in d.groupby("horse_id", sort=False):
         resid = g["residual"].to_numpy()
-        run_ids = g["run_id"].to_numpy()
+        dates = g["date"].to_numpy()
         for i in range(len(g)):
             prior = resid[max(0, i - 3):i]
             prior = prior[~np.isnan(prior)]
             if len(prior):
-                out[run_ids[i]] = _shrink(float(prior.mean()), len(prior))
+                out[(hid, dates[i])] = _shrink(float(prior.mean()), len(prior))
     return out
 
 
@@ -123,7 +130,6 @@ def proj_of(frame, extra_terms):
 def run():
     print("Loading and prepping raw form history...")
     fh = load_raw_form()
-    fh["run_id"] = fh["run_id"].astype(str)
     print(f"  {len(fh):,} rows after dedup/trial-exclusion, "
           f"{fh['sect_i_l600'].notna().mean()*100:.1f}% have sect_i_l600, "
           f"{fh['raceShapeEarly'].notna().mean()*100:.1f}% have raceShapeEarly")
@@ -141,23 +147,16 @@ def run():
     print(baseline_d2)
     merit_d2 = build_closing_merit(fh, baseline_d2)
 
-    print(f"\nclosing_merit coverage: direction1={len(merit_d1):,} run_ids, "
-          f"direction2={len(merit_d2):,} run_ids (of {fh['run_id'].nunique():,} total)")
+    print(f"\nclosing_merit coverage: direction1={len(merit_d1):,} (horse_id,date) keys, "
+          f"direction2={len(merit_d2):,} keys (of {len(fh):,} rows)")
 
     print("\nRebuilding training frame (no race_speed_labels needed)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
-    full["run_id"] = full["run_id"].astype(str)
 
-    print("\nMerging race result (won) from toprate_runners.csv by run_id...")
-    tr = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str}, low_memory=False,
-                      usecols=["run_id", "won", "resulted", "scratched"])
-    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
-    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
-    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
-    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won"])
-    tr = tr.drop_duplicates(subset="run_id", keep="last")
-    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
+    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date) - "
+          "NOT run_id, which is not a per-row race key (see merge_won_by_horse_date)...")
+    full = merge_won_by_horse_date(full)
 
     full = add_base(full)
     non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
@@ -168,15 +167,19 @@ def run():
     h1, h2 = full[full["date"] < mid].copy(), full[full["date"] >= mid].copy()
     print(f"\nH1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
 
+    def _lookup(frame, merit_dict):
+        keys = pd.Series(list(zip(frame["horse_id"], frame["date"])), index=frame.index)
+        return keys.map(merit_dict).fillna(0.0)
+
     h1_d1, h2_d1 = h1.copy(), h2.copy()
     add_track_barrier(h1_d1, [h1_d1, h2_d1])
-    h1_d1["closing_merit"] = h1_d1["run_id"].map(merit_d1).fillna(0.0)
-    h2_d1["closing_merit"] = h2_d1["run_id"].map(merit_d1).fillna(0.0)
+    h1_d1["closing_merit"] = _lookup(h1_d1, merit_d1)
+    h2_d1["closing_merit"] = _lookup(h2_d1, merit_d1)
 
     h1_d2, h2_d2 = h1.copy(), h2.copy()
     add_track_barrier(h2_d2, [h1_d2, h2_d2])
-    h1_d2["closing_merit"] = h1_d2["run_id"].map(merit_d2).fillna(0.0)
-    h2_d2["closing_merit"] = h2_d2["run_id"].map(merit_d2).fillna(0.0)
+    h1_d2["closing_merit"] = _lookup(h1_d2, merit_d2)
+    h2_d2["closing_merit"] = _lookup(h2_d2, merit_d2)
 
     cov = (h1_d1["closing_merit"] != 0.0).mean() * 100
     print(f"closing_merit non-zero on {cov:.1f}% of scoped rows")

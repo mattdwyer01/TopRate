@@ -2370,12 +2370,30 @@ def _horse_feature_rows(g, race_speed_labels=None):
         f["target"] = float(cur["wpr"])
         f["date"] = cur["date"]
         # field_size is already a model feature (emitted by build_features).
-        # race_id / race_class / run_id are analysis-only (not trained on).
-        # run_id lets analysis code join in external per-run signals
-        # (wpr_nett, pfm_score, etc.) from toprate_runners.csv by exact key.
+        # race_id / race_class / run_id / horse_id are analysis-only (not
+        # trained on).
+        # CAUTION (found Aug 2026 while building a strike-rate backtest):
+        # run_id here is NOT a per-historical-row race key - every row in
+        # a scraped horse's WHOLE form table gets stamped with whatever
+        # run_id it was being scraped FOR at that scrape time, not the
+        # run_id of each individual past run. Verified: of form-history
+        # rows that inner-join to toprate_runners.csv via run_id, 96.6%
+        # have a date that does NOT match that run_id's actual race date
+        # in toprate_runners.csv - i.e. run_id-keyed joins silently
+        # attach the WRONG race's data to most historical rows (a horse's
+        # 2017 run getting labelled with its 2026 race's outcome/wpr_nett).
+        # wpr_nett's own merge above (this function, ~40 lines up) uses
+        # this same run_id key - the practical damage there looks limited
+        # (wpr_nett rarely drifts much per horse - median observed
+        # within-horse range 0.0 across the full history) but it is not
+        # nothing, and analysis code needing an EXACT per-row race match
+        # (e.g. "did this row's race actually get won") MUST join by
+        # (horse_id via the mapping to horse name, date) instead - see
+        # wpr_own_pace_backtest.merge_won_by_horse_date.
         f["race_id"] = cur.get("race_id")
         f["race_class"] = cur.get("race_class")
         f["run_id"] = cur.get("run_id")
+        f["horse_id"] = cur.get("horse_id")
         # Comments for THIS run, carried so the retrain's void filter can
         # exclude compromised runs from the target. Not features.
         f["comments_video"] = cur.get("comments_video")

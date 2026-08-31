@@ -85,6 +85,54 @@ def build_race_speed_labels(since):
     return run_id_to_label
 
 
+def merge_won_by_horse_date(D, form_csv=FORM_CSV, runners_csv="toprate_runners.csv"):
+    """Merges the "won" outcome (and race_id, for grouping) from
+    toprate_runners.csv onto a build_training_frame() dataframe, joining
+    by (horse name, date) - NOT by run_id. Requires D to have a
+    "horse_id" column (build_training_frame retains this as an
+    analysis-only field - see wpr_projection.py's _horse_feature_rows).
+
+    CRITICAL BUG THIS FIXES: build_training_frame's own "run_id" column
+    is NOT a per-historical-row race identifier. Every row in a scraped
+    horse's form table (its entire multi-year history, one scrape) gets
+    stamped with the SAME run_id - whatever race that horse was actually
+    being scraped FOR at that time - not the run_id of each individual
+    past run. Verified directly: of the rows that inner-join successfully
+    to toprate_runners.csv via run_id, 96.6% have a form-history date that
+    does NOT match the runners.csv date for that same run_id - i.e. the
+    "won" outcome attached is for a completely different race than the
+    one the row is describing (a horse's 2017 run getting labelled with
+    its 2026 race's result). This silently corrupted every strike-rate
+    test in this session that merged "won" via run_id (closing_merit,
+    settle_pace, the alpha strike-rate sweep, alpha80's calibration fit) -
+    MAE-based results were unaffected (target never depended on run_id),
+    only anything needing "did this row's race actually get won".
+
+    toprate_runners.csv has no horse_id, only horse NAME - horse_id ->
+    name comes from the raw form history (which has both). (horse, date)
+    is not a perfect key either (824/55,528 toprate_runners.csv rows
+    collide - same-name horses running the same day at different tracks)
+    - those ambiguous pairs are dropped rather than risk a wrong match,
+    same conservative principle as this fix itself."""
+    name_map = pd.read_csv(form_csv, usecols=["horse_id", "horse"], low_memory=False)
+    name_map = name_map.dropna().drop_duplicates(subset="horse_id", keep="last")
+    name_map = name_map.set_index("horse_id")["horse"]
+
+    tr = pd.read_csv(runners_csv, dtype={"race_id": str}, low_memory=False,
+                      usecols=["horse", "date", "race_id", "won", "resulted", "scratched"])
+    tr["date"] = pd.to_datetime(tr["date"], errors="coerce")
+    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
+    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
+    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
+    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id", "date"])
+    tr = tr.drop_duplicates(subset=["horse", "date"], keep=False)  # drop ambiguous same-day name clashes
+
+    D = D.copy()
+    D["date"] = pd.to_datetime(D["date"])
+    D["horse"] = D["horse_id"].map(name_map)
+    return D.merge(tr[["horse", "date", "race_id", "won"]], on=["horse", "date"], how="inner")
+
+
 def add_base(D):
     """Replicates train_wpr_projection's _base computation exactly (must
     match _compute_base()) - build_training_frame() doesn't compute this
