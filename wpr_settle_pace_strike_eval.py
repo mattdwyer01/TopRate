@@ -57,10 +57,10 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import build_race_speed_labels, add_base, add_track_barrier
+from wpr_own_pace_backtest import (build_race_speed_labels, add_base, add_track_barrier,
+                                    merge_won_by_horse_date)
 
 FORM_CSV = "wpr_form_history.csv.gz"
-RUNNERS_CSV = "toprate_runners.csv"
 SETTLE_PACE_K = 50.0
 
 
@@ -106,22 +106,17 @@ def run(since):
           "cur_settle_band is already free from build_features)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, race_speed_labels=labels, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
-    full["run_id"] = full["run_id"].astype(str)
-    full["pace_label"] = full["run_id"].map(labels)
+    # labels (and _horse_feature_rows' own internal own_pace lookup) are
+    # keyed by race_id, NOT run_id (fixed Aug 2026 - see
+    # build_race_speed_labels' docstring) - race_id is a reliable per-race
+    # key, run_id is not.
+    full["pace_label"] = full["race_id"].map(labels)
 
-    print("\nMerging race result (won/race_id) from toprate_runners.csv by run_id...")
-    tr = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str, "race_id": str}, low_memory=False,
-                      usecols=["run_id", "race_id", "won", "resulted", "scratched"])
-    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
-    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
-    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
-    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
-    tr = tr.drop_duplicates(subset="run_id", keep="last")
-    # full already carries its own race_id (build_training_frame's
-    # _horse_feature_rows retains it) - merging tr's race_id too would
-    # collide into race_id_x/race_id_y and silently break every
-    # groupby("race_id") below, so only "won" is pulled in here.
-    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
+    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date) - "
+          "NOT run_id, which is not a per-row race key (see merge_won_by_horse_date; a "
+          "prior version of this script used run_id and was silently wrong on 96.6% of "
+          "matched rows)...")
+    full = merge_won_by_horse_date(full)
 
     full = add_base(full)
     non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]

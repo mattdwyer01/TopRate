@@ -2342,22 +2342,27 @@ def _horse_feature_rows(g, race_speed_labels=None):
     is the single inner-loop definition used by BOTH the serial and parallel
     paths of build_training_frame, so the two produce identical output.
 
-    race_speed_labels: optional {run_id: Hot/Fast/Even/Slow} lookup of each
+    race_speed_labels: optional {race_id: Hot/Fast/Even/Slow} lookup of each
     historical race's LEAK-SAFE predicted tempo (race_speed_estimate.py's
     own model, run with a prior-only cutoff - see the own_pace backtest
-    script, not committed). None (the default) leaves own_pace at 0.0 for
-    every row - existing callers (the real retrain) are unaffected.
+    script, not committed). Keyed by race_id, NOT run_id (fixed Aug 2026 -
+    run_id is not a reliable per-row race key in the raw form history, see
+    wpr_own_pace_backtest.merge_won_by_horse_date's docstring for the full
+    writeup; race_id has no such problem). None (the default) leaves
+    own_pace at 0.0 for every row - existing callers (the real retrain)
+    are unaffected.
 
     Emits each model feature (from build_features) plus target and date, and
-    two analysis-only columns (race_id, race_class) that train_wpr_projection
-    ignores because it selects FEATURES explicitly. They support the
-    walk-forward composition breakdowns (by meeting grade / race).
+    three analysis-only columns (race_id, race_class, horse_id) that
+    train_wpr_projection ignores because it selects FEATURES explicitly.
+    They support the walk-forward composition breakdowns (by meeting grade
+    / race) and correct-by-construction joins back to external per-row data.
     """
     g = g.reset_index(drop=True)
     out = []
     for i in range(_MIN_RUNS, len(g)):
         cur = g.iloc[i]
-        _label = race_speed_labels.get(cur.get("run_id")) if race_speed_labels else None
+        _label = race_speed_labels.get(cur.get("race_id")) if race_speed_labels else None
         f = build_features(g.iloc[:i], cur["distance"], cur["going"],
                            cur["track"], cur["trackGrading"], cur["date"],
                            cur_race_class=cur.get("race_class"),

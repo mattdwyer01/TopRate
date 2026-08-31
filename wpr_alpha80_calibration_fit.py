@@ -30,7 +30,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import add_track_barrier
+from wpr_own_pace_backtest import add_track_barrier, merge_won_by_horse_date
 
 FORM_CSV = "wpr_form_history.csv.gz"
 NEW_ALPHA = 0.80
@@ -132,20 +132,11 @@ def run():
             D = D[~blank_going].copy()
             print(f"  surface filter: excluded {n_blank:,} blank-going runs, {len(D):,} remain")
 
-    D["run_id"] = D["run_id"].astype(str)
-    print("\nMerging race result (won/race_id) from toprate_runners.csv by run_id...")
-    tr = pd.read_csv("toprate_runners.csv", dtype={"run_id": str, "race_id": str}, low_memory=False,
-                      usecols=["run_id", "race_id", "won", "resulted", "scratched"])
-    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
-    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
-    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
-    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
-    tr = tr.drop_duplicates(subset="run_id", keep="last")
-    # D already carries its own race_id (build_training_frame's
-    # _horse_feature_rows retains it) - merging tr's race_id too would
-    # collide into race_id_x/race_id_y (see the same bug already hit and
-    # fixed in wpr_alpha_strike_eval.py / wpr_settle_pace_strike_eval.py).
-    D_res = D.merge(tr[["run_id", "won"]], on="run_id", how="inner")
+    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date) - "
+          "NOT run_id, which is not a per-row race key (see merge_won_by_horse_date; a "
+          "prior version of this script used run_id and was silently wrong on 96.6% of "
+          "matched rows)...")
+    D_res = merge_won_by_horse_date(D)
 
     non_tb = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
     D = D.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + non_tb)

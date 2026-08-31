@@ -51,10 +51,9 @@ import numpy as np
 import pandas as pd
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import add_track_barrier
+from wpr_own_pace_backtest import add_track_barrier, merge_won_by_horse_date
 
 FORM_CSV = "wpr_form_history.csv.gz"
-RUNNERS_CSV = "toprate_runners.csv"
 ALPHA_GRID = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
 
 
@@ -82,22 +81,11 @@ def run():
     print("Building training frame (no race_speed_labels needed for this test)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
-    full["run_id"] = full["run_id"].astype(str)
-
-    print("\nMerging race result (won/race_id) from toprate_runners.csv by run_id...")
-    tr = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str, "race_id": str}, low_memory=False,
-                      usecols=["run_id", "race_id", "won", "resulted", "scratched"])
-    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
-    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
-    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
-    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
-    tr = tr.drop_duplicates(subset="run_id", keep="last")
-
-    # full already carries its own race_id (build_training_frame's
-    # _horse_feature_rows retains it) - merging tr's race_id too would
-    # collide into race_id_x/race_id_y and silently break every
-    # groupby("race_id") below, so only "won" is pulled in here.
-    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
+    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date) - "
+          "NOT run_id, which is not a per-row race key (see merge_won_by_horse_date; a "
+          "prior version of this script used run_id and was silently wrong on 96.6% of "
+          "matched rows)...")
+    full = merge_won_by_horse_date(full)
     # track_barrier isn't produced by build_training_frame (needs an actual
     # fitted lookup, unlike every other ADJ_TERMS entry - see
     # wpr_own_pace_backtest.add_track_barrier) so it's excluded here and

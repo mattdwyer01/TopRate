@@ -53,7 +53,21 @@ FORM_CSV = "wpr_form_history.csv.gz"
 
 def build_race_speed_labels(since):
     """Leak-safe Hot/Fast/Even/Slow label for every race on/after `since`,
-    keyed by run_id (every runner in a race shares that race's label)."""
+    keyed by race_id (every runner in a race shares that race's label).
+
+    CAUTION, fixed Aug 2026: this used to key by run_id, re-applying it to
+    every runner in the race. run_id is NOT a reliable per-runner key in
+    the raw form history - every row in a scraped horse's WHOLE form table
+    gets stamped with whatever race it was being scraped FOR, not the
+    run_id of each individual past run (see merge_won_by_horse_date's
+    docstring for the full writeup) - so a run_id-keyed dict could
+    silently apply ONE race's label to a horse's OTHER, unrelated
+    historical rows that happened to share that same contaminated run_id.
+    race_id has no such problem (verified: groups of it correctly contain
+    many distinct horses on one date, a real race), and a pace label is a
+    race-wide value anyway (every runner in it shares one label), so
+    keying by race_id is both simpler and correct - no per-runner
+    iteration needed."""
     fh = rse._load_and_prep_form()  # adds horse_lc, dedupes, drops barrier trials
     rse._load_model()
 
@@ -62,7 +76,7 @@ def build_race_speed_labels(since):
     print(f"Building leak-safe race-speed labels for {len(dates)} race days "
           f"({scoped['race_id'].nunique():,} races) since {since}...")
 
-    run_id_to_label = {}
+    race_id_to_label = {}
     for i, d in enumerate(dates):
         if i % 20 == 0:
             print(f"  ... {i}/{len(dates)} days")
@@ -73,16 +87,9 @@ def build_race_speed_labels(since):
                 res = rse.estimate_race_speed(race_runners, pd.Timestamp(d), fh, pmeans)
             except Exception:
                 continue
-            for run_id in race_runners["run_id"]:
-                # build_training_frame casts fh["run_id"] to str before
-                # _horse_feature_rows ever sees it (to merge wpr_nett in from
-                # toprate_runners.csv - see its "fh['run_id'] = ...astype(str)"
-                # line) but race_speed_estimate's loader leaves run_id as
-                # int64. Keying this dict by int silently failed every
-                # lookup (own_pace was 0.0 on 100% of rows) until this str().
-                run_id_to_label[str(run_id)] = res["label"]
-    print(f"  labelled {len(run_id_to_label):,} runner-rows")
-    return run_id_to_label
+            race_id_to_label[race_id] = res["label"]
+    print(f"  labelled {len(race_id_to_label):,} races")
+    return race_id_to_label
 
 
 def merge_won_by_horse_date(D, form_csv=FORM_CSV, runners_csv="toprate_runners.csv"):
@@ -130,6 +137,13 @@ def merge_won_by_horse_date(D, form_csv=FORM_CSV, runners_csv="toprate_runners.c
     D = D.copy()
     D["date"] = pd.to_datetime(D["date"])
     D["horse"] = D["horse_id"].map(name_map)
+    # D's own "race_id" (if present - build_training_frame retains one from
+    # the raw form history) is stamped via the same contaminated scrape-time
+    # mechanism as run_id, not a reliable per-row key - drop it so the
+    # correct one from toprate_runners.csv is what survives the merge,
+    # rather than colliding into race_id_x/race_id_y.
+    if "race_id" in D.columns:
+        D = D.drop(columns=["race_id"])
     return D.merge(tr[["horse", "date", "race_id", "won"]], on=["horse", "date"], how="inner")
 
 

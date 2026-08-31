@@ -38,10 +38,9 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import add_base, add_track_barrier
+from wpr_own_pace_backtest import add_base, add_track_barrier, merge_won_by_horse_date
 
 FORM_CSV = "wpr_form_history.csv.gz"
-RUNNERS_CSV = "toprate_runners.csv"
 _SHRINK_K = 3.0
 
 
@@ -66,11 +65,19 @@ def _bucket(raw):
 
 
 def load_gear_buckets():
-    fh = pd.read_csv(FORM_CSV, usecols=["run_id", "gear_changes"], low_memory=False)
-    fh["run_id"] = fh["run_id"].astype(str)
+    # Keyed by (horse_id, date), NOT run_id: run_id is not a per-row race
+    # key in the raw form history (see merge_won_by_horse_date's docstring
+    # for the full writeup) - a horse's WHOLE scraped form table shares
+    # one run_id, so keying by it would collapse gear_changes from many
+    # distinct historical rows onto one shared key, each overwriting the
+    # last (gear_changes is genuinely per-row, unlike a category lookup).
+    fh = pd.read_csv(FORM_CSV, usecols=["horse_id", "date", "gear_changes"], low_memory=False)
+    fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+    fh = fh.dropna(subset=["horse_id", "date"])
     fh["gear_bucket"] = fh["gear_changes"].apply(_bucket)
     print(fh["gear_bucket"].value_counts())
-    return fh.set_index("run_id")["gear_bucket"].to_dict()
+    keys = list(zip(fh["horse_id"], fh["date"]))
+    return dict(zip(keys, fh["gear_bucket"]))
 
 
 def fit_gear_lookup(fit_rows):
@@ -101,24 +108,18 @@ def proj_of(frame, extra_terms):
 
 
 def run():
-    print("Loading gear_changes per run_id...")
+    print("Loading gear_changes per (horse_id, date)...")
     gear_map = load_gear_buckets()
 
     print("\nRebuilding training frame (no race_speed_labels needed)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
-    full["run_id"] = full["run_id"].astype(str)
-    full["gear_bucket"] = full["run_id"].map(gear_map)
+    keys = pd.Series(list(zip(full["horse_id"], full["date"])), index=full.index)
+    full["gear_bucket"] = keys.map(gear_map)
 
-    print("\nMerging race result (won) from toprate_runners.csv by run_id...")
-    tr = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str}, low_memory=False,
-                      usecols=["run_id", "won", "resulted", "scratched"])
-    tr["resulted"] = pd.to_numeric(tr["resulted"], errors="coerce")
-    tr["scratched"] = pd.to_numeric(tr["scratched"], errors="coerce")
-    tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
-    tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won"])
-    tr = tr.drop_duplicates(subset="run_id", keep="last")
-    full = full.merge(tr[["run_id", "won"]], on="run_id", how="inner")
+    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date) - "
+          "NOT run_id, which is not a per-row race key (see merge_won_by_horse_date)...")
+    full = merge_won_by_horse_date(full)
 
     full = add_base(full)
     non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
