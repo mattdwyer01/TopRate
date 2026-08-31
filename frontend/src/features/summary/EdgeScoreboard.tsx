@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import type { StrategyPick } from '../../lib/strategyPicks'
-import type { StrategyTier } from '../../lib/jtComboStrategy'
+import type { EdgeTier } from '../../lib/edgeOverlay'
 
-interface StrategyScoreboardProps {
+interface EdgeScoreboardProps {
   races: Race[]
   picks: Record<string, StrategyPick>
 }
@@ -23,12 +23,16 @@ function emptyStats(): TierStats {
   return { taken: 0, pending: 0, resulted: 0, wins: 0, profit: 0 }
 }
 
-export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
+// Real forward performance of picks actually taken, by edge-tier - this is
+// what should be trusted over any hardcoded backtest claim (see
+// edgeOverlay.ts's file header on why a backtested number alone burned this
+// exact tab once already). Replaces StrategyScoreboard.tsx.
+export function EdgeScoreboard({ races, picks }: EdgeScoreboardProps) {
   const stats = useMemo(() => {
-    const byTier: Record<StrategyTier, TierStats> = {
-      'high-volume': emptyStats(),
-      'low-volume': emptyStats(),
-      closers: emptyStats(),
+    const byTier: Record<EdgeTier, TierStats> = {
+      'edge-8': emptyStats(),
+      'edge-10': emptyStats(),
+      'edge-13': emptyStats(),
     }
     const pickList = Object.values(picks)
     if (pickList.length === 0) return byTier
@@ -44,6 +48,7 @@ export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
 
     for (const pick of pickList) {
       const s = byTier[pick.tier]
+      if (!s) continue // stale pick from before the tier enum changed - skip rather than crash
       s.taken += 1
       const race = raceById.get(pick.raceId)
       const runner = runnerById.get(pick.runId)
@@ -63,22 +68,23 @@ export function StrategyScoreboard({ races, picks }: StrategyScoreboardProps) {
     return byTier
   }, [races, picks])
 
-  const totalTaken = stats['high-volume'].taken + stats['low-volume'].taken + stats.closers.taken
+  const totalTaken = stats['edge-8'].taken + stats['edge-10'].taken + stats['edge-13'].taken
   if (totalTaken === 0) return null
+
+  const TIER_LABEL: Record<EdgeTier, string> = { 'edge-8': '8%+ edge', 'edge-10': '10%+ edge', 'edge-13': '13%+ edge' }
 
   return (
     <div className="rounded-lg border border-line bg-panel px-3 py-2.5 text-sm">
       <div className="mb-1.5 text-xs font-medium text-ink-mute">Your tracked bets (forward performance, not backtest)</div>
       <div className="flex flex-wrap gap-x-8 gap-y-2">
-        {(['high-volume', 'low-volume', 'closers'] as StrategyTier[]).map((tier) => {
+        {(['edge-8', 'edge-10', 'edge-13'] as EdgeTier[]).map((tier) => {
           const s = stats[tier]
           if (s.taken === 0) return null
           const strike = s.resulted > 0 ? (s.wins / s.resulted) * 100 : null
           const roi = s.resulted > 0 ? (s.profit / s.resulted) * 100 : null
-          const label = tier === 'high-volume' ? 'High volume' : tier === 'low-volume' ? 'Low volume' : 'Closers'
           return (
             <div key={tier}>
-              <div className="text-xs text-ink-mute">{label}</div>
+              <div className="text-xs text-ink-mute">{TIER_LABEL[tier]}</div>
               <div className="font-mono text-ink">
                 {s.taken} taken{s.pending > 0 ? ` (${s.pending} pending)` : ''}
                 {s.resulted > 0 && (

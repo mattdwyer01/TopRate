@@ -34,23 +34,21 @@ interface RaceDetailProps {
 // entirely per the same request. Order here drives both header rows'
 // column order below and RunnerRow's matching grid-template order - keep
 // all three in sync if this ever changes again.
+//
+// Aug 2026 redesign: dropped Peak/Base/Adj/Proj/Actual entirely - the WPR
+// points breakdown they showed is no longer the primary ranking (see
+// wpr_projection.compute_edge_scores) and doesn't earn a column of its own
+// any more. It's still there for the curious, moved into
+// RunnerDetailModal's "WPR rating detail" section, along with the manual
+// override controls (which only ever adjusted WPR, so they stay paired
+// with it). Model $ (blendPrice) is the one primary figure now.
 const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = [
   { key: 'tab', label: '#' },
   { key: 'horse', label: 'Horse', showCompact: true },
   { key: 'daysSince', label: 'RTS', showCompact: true },
-  { key: 'peakWpr', label: 'Peak' },
-  { key: 'baseWpr', label: 'Base' },
-  { key: 'adjustment', label: 'Adj' },
-  { key: 'projectedWpr', label: 'Proj', showCompact: true },
-  // Model $ (blendPrice) - the PRIMARY ranking/price as of Aug 2026,
-  // promoted from wprPrice/wpr_rank after a held-out backtest found it
-  // beats WPR-alone ranking on both strike rate and ROI (see
-  // wpr_projection.compute_edge_scores). Proj/Peak/Base/Adj stay WPR-only
-  // (unchanged) - this is the one column/default-sort that switched.
   { key: 'blendPrice', label: 'Model $', showCompact: true },
-  { key: 'fixedPrice', label: 'Fixed $' },
-  { key: 'finish', label: 'FP' },
-  { key: 'actualWpr', label: 'Actual' },
+  { key: 'fixedPrice', label: 'Fixed $', showCompact: true },
+  { key: 'finish', label: 'FP', showCompact: true },
 ]
 
 export function RaceDetail({
@@ -215,10 +213,10 @@ export function RaceDetail({
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: mirrors RunnerRow's mobile grid-cols exactly
-            (silk/horse/RTS/proj/blendPrice/fixedPrice) so labels land above
-            the right column - the desktop header below covers every column
-            but is hidden below sm since most of them aren't shown there. */}
-        <div className="grid grid-cols-[40px_1fr_44px_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
+            (silk/horse/RTS/Model $/Fixed $/FP) so labels land above the
+            right column - the desktop header below covers every column but
+            is hidden below sm since most of them aren't shown there. */}
+        <div className="grid grid-cols-[40px_1fr_44px_64px_60px_44px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
           <span />
           <button
             type="button"
@@ -236,13 +234,6 @@ export function RaceDetail({
           </button>
           <button
             type="button"
-            onClick={() => onSort('projectedWpr')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'projectedWpr' ? 'text-emerald-deep' : ''}`}
-          >
-            Proj
-          </button>
-          <button
-            type="button"
             onClick={() => onSort('blendPrice')}
             className={`text-right transition-colors hover:text-ink ${sortKey === 'blendPrice' ? 'text-emerald-deep' : ''}`}
           >
@@ -255,8 +246,15 @@ export function RaceDetail({
           >
             Fixed $
           </button>
+          <button
+            type="button"
+            onClick={() => onSort('finish')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'finish' ? 'text-emerald-deep' : ''}`}
+          >
+            FP
+          </button>
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_64px_60px_48px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

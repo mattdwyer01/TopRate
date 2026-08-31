@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
+import { Pill } from '../../components/Pill'
 import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { qualifiesForTier, recentTop3Rate, type StrategyTier } from '../../lib/jtComboStrategy'
+import { qualifiesForEdgeTier, type EdgeTier } from '../../lib/edgeOverlay'
 import { useStrategyPicks } from '../../lib/strategyPicks'
-import { StrategyScoreboard } from './StrategyScoreboard'
+import { EdgeScoreboard } from './EdgeScoreboard'
 
-interface StrategyBetsProps {
+interface EdgeOverlaysProps {
   races: Race[]
   date: string
   showBush: boolean
@@ -26,7 +26,7 @@ interface StakingResult {
 // Proportional stakes are normalized so total units staked matches flat
 // staking's total (one unit per bet) - keeps the two $ P&L figures on the
 // same total-risk basis for a fair side-by-side comparison.
-function computeStaking(rows: StrategyRow[]): { flat: StakingResult; proportional: StakingResult } | null {
+function computeStaking(rows: OverlayRow[]): { flat: StakingResult; proportional: StakingResult } | null {
   const priced = rows.filter((r) => (r.startingPrice ?? r.fixedPrice) != null)
   if (priced.length === 0) return null
   const avgPrice = priced.reduce((sum, r) => sum + (r.startingPrice ?? r.fixedPrice)!, 0) / priced.length
@@ -52,7 +52,7 @@ function computeStaking(rows: StrategyRow[]): { flat: StakingResult; proportiona
   }
 }
 
-interface StrategyRow {
+interface OverlayRow {
   raceId: string
   runId: string
   venue: string
@@ -63,40 +63,39 @@ interface StrategyRow {
   tabNumber: number
   jockey: string
   trainer: string
-  jtComboWinPct: number
-  jtComboRides: number
-  wprRank: number
-  fieldSize: number
-  formString: string | null
-  wprPrice: number | null
+  edgeScore: number
+  edgeModelProb: number
+  edgeMarketProb: number
+  blendPrice: number | null
   fixedPrice: number | null
   startingPrice: number | null
   won: boolean
 }
 
-const TIER_INFO: Record<StrategyTier, { label: string; blurb: string }> = {
-  'high-volume': {
-    label: 'High volume',
-    blurb: 'WPR rank ≤3, jockey/trainer combo ≥25% (5+ rides together), field ≤10. The backtested strike rate/ROI this tier used to cite here was produced by the jt_combo leak (see notice above) and has been removed rather than repeated.',
+const TIER_INFO: Record<EdgeTier, { label: string; blurb: string }> = {
+  'edge-8': {
+    label: '8%+ edge',
+    blurb:
+      "Model win probability exceeds the market's implied probability by ≥8 points. A held-out backtest (calibrate_edge_score.py, unseen dates) found this roughly where ROI turns positive - not where it's already been proven best, so treat this as the floor, not a guarantee.",
   },
-  'low-volume': {
-    label: 'Low volume',
-    blurb: 'The above, plus a quiet recent form line (<40% top-3 finishes lately). Same leak as High volume - backtested numbers removed.',
+  'edge-10': {
+    label: '10%+ edge',
+    blurb: 'The same signal, tighter cut - fewer, higher-edge qualifiers. Not confirmed stronger than 8%+ (see Scoreboard above for real forward performance at each cut).',
   },
-  closers: {
-    label: 'Closers',
-    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on) and a quiet recent form line (<40% top-3 finishes lately). Same leak as High volume - backtested numbers removed.',
+  'edge-13': {
+    label: '13%+ edge',
+    blurb: "Tightest cut. Caution: the held-out backtest found this band noisier, not cleanly better, than 8-13% - a very large edge can also mean the model is confidently wrong (e.g. imputed inputs for a lightly-raced runner), so don't read 'higher edge' as 'safer bet'.",
   },
 }
 
-function buildRows(races: Race[], date: string, showBush: boolean, tier: StrategyTier): StrategyRow[] {
+function buildRows(races: Race[], date: string, showBush: boolean, tier: EdgeTier): OverlayRow[] {
   const bushKeys = showBush ? null : bushMeetingKeys(races)
-  const out: StrategyRow[] = []
+  const out: OverlayRow[] = []
   for (const race of races) {
     if (race.date !== date) continue
     if (bushKeys && bushKeys.has(meetingKey(race))) continue
     for (const r of race.runners as Runner[]) {
-      if (!qualifiesForTier(r, tier)) continue
+      if (!qualifiesForEdgeTier(r, tier)) continue
       out.push({
         raceId: race.raceId,
         runId: r.runId,
@@ -108,23 +107,25 @@ function buildRows(races: Race[], date: string, showBush: boolean, tier: Strateg
         tabNumber: r.tabNumber,
         jockey: r.jockey,
         trainer: r.trainer,
-        jtComboWinPct: r.jtComboWinPct!,
-        jtComboRides: r.jtComboRides!,
-        wprRank: r.wprRank!,
-        fieldSize: r.fieldSize,
-        formString: r.formString,
-        wprPrice: r.wprPrice,
+        edgeScore: r.edgeScore!,
+        edgeModelProb: r.edgeModelProb!,
+        edgeMarketProb: r.edgeMarketProb!,
+        blendPrice: r.blendPrice,
         fixedPrice: r.fixedWinPrice,
         startingPrice: r.startingPrice,
         won: r.won,
       })
     }
   }
-  return out.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  return out.sort((a, b) => b.edgeScore - a.edgeScore)
 }
 
-export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBetsProps) {
-  const [tier, setTier] = useState<StrategyTier>('high-volume')
+// Replaces StrategyBets.tsx (Aug 2026) - that tab's qualifiers were gated
+// on the leaky jtComboWinPct (see edgeOverlay.ts). This lists runners where
+// the validated blend/edge score (wpr_projection.compute_edge_scores) finds
+// the market underpricing them, at an adjustable sensitivity.
+export function EdgeOverlays({ races, date, showBush, onSelectRace }: EdgeOverlaysProps) {
+  const [tier, setTier] = useState<EdgeTier>('edge-8')
   const { picks, toggleTaken } = useStrategyPicks()
 
   const rows = useMemo(() => buildRows(races, date, showBush, tier), [races, date, showBush, tier])
@@ -136,28 +137,22 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-ink">
-        <span className="font-medium">Paused:</span> these tiers were gated on the jockey/trainer combo win% stat,
-        which an Aug 2026 audit found leaks each race's own result (it reads ~100%/~0% for low-ride combos exactly
-        matching whether that runner just won or lost, not a real pre-race trailing window). No new qualifiers will
-        show until this is replaced by a validated signal. Your previously tracked picks below are unaffected.
-      </div>
-      <StrategyScoreboard races={races} picks={picks} />
+      <EdgeScoreboard races={races} picks={picks} />
       <div className="flex flex-wrap items-center gap-2">
-        <Pill active={tier === 'high-volume'} onClick={() => setTier('high-volume')}>
-          High volume
+        <Pill active={tier === 'edge-8'} onClick={() => setTier('edge-8')}>
+          8%+ edge
         </Pill>
-        <Pill active={tier === 'low-volume'} onClick={() => setTier('low-volume')}>
-          Low volume
+        <Pill active={tier === 'edge-10'} onClick={() => setTier('edge-10')}>
+          10%+ edge
         </Pill>
-        <Pill active={tier === 'closers'} onClick={() => setTier('closers')}>
-          Closers
+        <Pill active={tier === 'edge-13'} onClick={() => setTier('edge-13')}>
+          13%+ edge
         </Pill>
       </div>
       <p className="text-xs text-ink-mute">{info.blurb}</p>
 
       {rows.length === 0 ? (
-        <EmptyState message={`No ${info.label.toLowerCase()} qualifiers on ${date}.`} />
+        <EmptyState message={`No ${info.label} qualifiers on ${date}.`} />
       ) : (
         <>
           {dayResulted && (
@@ -186,15 +181,11 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
               ))}
             </div>
           )}
-          {/* Cards, not a table - this row has too much per-runner detail
-              (jockey+trainer, combo%+rides, form string+top-3%) to fit a
-              table's fixed columns without wrapping into unreadably tall
-              cells on a narrow screen. A card reflows naturally at any
-              width instead of needing horizontal scroll to reach the
-              price columns. */}
+          {/* Cards, not a table - too much per-runner detail (jockey+trainer,
+              model/market probability, edge) to fit a table's fixed columns
+              without wrapping into unreadably tall cells on a narrow screen. */}
           <div className="flex flex-col gap-2">
             {rows.map((r) => {
-              const top3 = recentTop3Rate(r.formString)
               const priceLabel = dayResulted ? 'SP' : 'Fixed'
               const priceValue = dayResulted ? r.startingPrice : r.fixedPrice
               const taken = Boolean(picks[r.runId])
@@ -241,24 +232,20 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
                   </div>
                   <div className="mt-1 text-ink">
                     <span className="font-mono text-ink-mute">{r.tabNumber}.</span>{' '}
-                    <span className="font-medium">{r.horse}</span>{' '}
-                    <span className="text-xs text-ink-mute">
-                      WPR rank {r.wprRank} · field {r.fieldSize}
-                    </span>
+                    <span className="font-medium">{r.horse}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-ink-mute">
                     {r.jockey} / {r.trainer}
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                    <span className="font-mono text-ink-mute">
-                      Combo {r.jtComboWinPct.toFixed(0)}% ({r.jtComboRides} rides)
+                    <span className="font-mono font-semibold text-emerald-deep">
+                      +{(r.edgeScore * 100).toFixed(1)}% edge
                     </span>
                     <span className="font-mono text-ink-mute">
-                      Form {r.formString ?? '—'}
-                      {top3 != null && ` (${(top3 * 100).toFixed(0)}% top-3)`}
+                      {(r.edgeModelProb * 100).toFixed(0)}% model vs {(r.edgeMarketProb * 100).toFixed(0)}% market
                     </span>
                     <span className="ml-auto font-mono font-semibold text-ink">
-                      WPR {r.wprPrice != null ? `$${r.wprPrice.toFixed(2)}` : '—'}
+                      Model {r.blendPrice != null ? `$${r.blendPrice.toFixed(2)}` : '—'}
                     </span>
                     <span className="font-mono text-ink-mute">
                       {priceLabel} {priceValue != null ? `$${priceValue.toFixed(2)}` : '—'}
