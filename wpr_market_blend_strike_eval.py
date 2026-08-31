@@ -123,10 +123,10 @@ def run():
     print(f"\nPure model (w=0.0): H1={pure_model[1]:.2f}%, H2={pure_model[2]:.2f}%")
     print(f"Pure market (w=1.0): H1={pure_mkt[1]:.2f}%, H2={pure_mkt[2]:.2f}%")
     print(f"Best weight on H1: {best_h1[0]:.1f} ({best_h1[1]:.2f}%)")
-    print(f"Best weight on H2: {best_h2[0]:.1f} ({best_h2[1]:.2f}%)")
+    print(f"Best weight on H2: {best_h2[0]:.1f} ({best_h2[2]:.2f}%)")
 
     intermediate_wins = (0.0 < best_h1[0] < 1.0) and (0.0 < best_h2[0] < 1.0) and \
-        (best_h1[1] > pure_mkt[1]) and (best_h2[1] > pure_mkt[2])
+        (best_h1[1] > pure_mkt[1]) and (best_h2[2] > pure_mkt[2])
     if intermediate_wins:
         print("\nAn INTERMEDIATE blend weight beats pure market on BOTH halves - the model "
               "carries real complementary information beyond what the market already prices "

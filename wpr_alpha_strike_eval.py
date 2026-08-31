@@ -140,7 +140,7 @@ def run():
     best_h2 = max(results, key=lambda r: r[2])
     print(f"\nCurrent production alpha=0.50: H1={cur[1]:.2f}%, H2={cur[2]:.2f}%")
     print(f"Best alpha on H1: {best_h1[0]:.2f} ({best_h1[1]:.2f}%)")
-    print(f"Best alpha on H2: {best_h2[0]:.2f} ({best_h2[1]:.2f}%)")
+    print(f"Best alpha on H2: {best_h2[0]:.2f} ({best_h2[2]:.2f}%)")
     if best_h1[0] == best_h2[0] and best_h1[0] != 0.50:
         print(f"\nSame alpha ({best_h1[0]:.2f}) wins on BOTH halves independently - a real, "
               f"consistent signal by this project's own standard, worth a full recalibrated "

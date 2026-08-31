@@ -105,7 +105,7 @@ def run():
     print(f"\nPure wprp_proj (w=0.0): H1={pure_model[1]:.2f}%, H2={pure_model[2]:.2f}%")
     print(f"Pure pfm_score (w=1.0): H1={pure_pfm[1]:.2f}%, H2={pure_pfm[2]:.2f}%")
     print(f"Best weight on H1: {best_h1[0]:.1f} ({best_h1[1]:.2f}%)")
-    print(f"Best weight on H2: {best_h2[0]:.1f} ({best_h2[1]:.2f}%)")
+    print(f"Best weight on H2: {best_h2[0]:.1f} ({best_h2[2]:.2f}%)")
 
     beats_both = (0.0 < best_h1[0] < 1.0) and (0.0 < best_h2[0] < 1.0) and \
         (best_h1[1] > max(pure_model[1], pure_pfm[1])) and \
