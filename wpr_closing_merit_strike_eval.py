@@ -90,8 +90,11 @@ def build_closing_merit(fh, baseline):
     (up to 3) runs' residuals - the leak-safe, point-in-time feature."""
     d = fh.copy()
     d["bucket"] = pd.cut(d["raceShapeEarly"], bins=PACE_BINS)
-    d["expected"] = d["bucket"].map(baseline)
-    d["residual"] = d["sect_i_l600"] - d["expected"]
+    # .map() against a dict (not the Series directly) avoids pandas
+    # propagating the bucket column's category dtype onto "expected",
+    # which otherwise blocks the float subtraction below.
+    d["expected"] = d["bucket"].map(baseline.to_dict()).astype(float)
+    d["residual"] = d["sect_i_l600"].astype(float) - d["expected"]
 
     out = {}
     for _, g in d.groupby("horse_id", sort=False):
