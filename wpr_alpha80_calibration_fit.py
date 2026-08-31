@@ -128,7 +128,11 @@ def run():
     tr["won"] = pd.to_numeric(tr["won"], errors="coerce")
     tr = tr[(tr["resulted"] == 1) & (tr["scratched"] != 1)].dropna(subset=["won", "race_id"])
     tr = tr.drop_duplicates(subset="run_id", keep="last")
-    D_res = D.merge(tr[["run_id", "race_id", "won"]], on="run_id", how="inner")
+    # D already carries its own race_id (build_training_frame's
+    # _horse_feature_rows retains it) - merging tr's race_id too would
+    # collide into race_id_x/race_id_y (see the same bug already hit and
+    # fixed in wpr_alpha_strike_eval.py / wpr_settle_pace_strike_eval.py).
+    D_res = D.merge(tr[["run_id", "won"]], on="run_id", how="inner")
 
     non_tb = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
     D = D.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + non_tb)
