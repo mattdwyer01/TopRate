@@ -111,7 +111,7 @@ def run(since):
 
     print("\nRebuilding training frame with own_pace populated (this reuses "
           "wpr_projection.py's own build_training_frame, may take a while)...")
-    full = wpr.build_training_frame(FORM_CSV, verbose=True, race_speed_labels=labels)
+    full = wpr.build_training_frame(FORM_CSV, verbose=True, race_speed_labels=labels, n_jobs=-1)
 
     # Only rows where own_pace could actually be non-zero (i.e. this run's
     # date is in the labelled window) are informative for this comparison -
