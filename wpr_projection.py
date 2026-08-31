@@ -1720,6 +1720,130 @@ def get_price_beta():
     return _CFG.get("beta", 0.4)
 
 
+EDGE_FEATURES = ["wprp_proj", "speed_rating", "pfm_score", "pf_ai_score",
+                  "trainer_win_pct_365d", "jockey_win_pct_90d"]
+
+
+def compute_edge_scores(runners):
+    """Blend WPR projection + speed/form-provider scores + trailing
+    jockey/trainer form into a per-race win-probability estimate: the
+    PRIMARY ranking model for the Race tab (promoted Aug 2026 - see below),
+    plus a bet-selection comparison against the market's own implied
+    probability.
+
+    runners: list of dicts, one per horse in the SAME race, each carrying
+      whatever of EDGE_FEATURES is available (missing/NaN values are
+      imputed with that feature's training median) plus "market_price"
+      (the price to compare against - fixed_win_price pre-race,
+      starting_price_sp/price_top once resulted).
+
+    Returns a list of result dicts (same order):
+      blend_prob, blend_rank, blend_price - the primary ranking. Softmax
+        of the blended logit over the WHOLE field (no market price
+        needed - same convention as project_race's wpr_price), so this is
+        always available whenever the underlying signals are (unlike
+        model_prob/edge below). blend_rank is 1 for the field's best price
+        (lowest blend_price / highest blend_prob), matching wpr_rank's
+        convention. blend_price capped at 999 like wpr_price.
+      has_edge, model_prob, market_prob, edge (model_prob - market_prob,
+        in probability points - multiply by 100 for percentage points).
+        model_prob/market_prob are renormalised over just the runners with
+        a usable market_price, so they are directly comparable to each
+        other (this is why they can differ slightly from blend_prob, which
+        normalises over the whole field). has_edge is False (other keys
+        None) for a runner with no usable market_price, or for every
+        runner if fewer than 2 in the race have one.
+    All keys are None (blend_* included) if the edge_score calibration
+    hasn't been fitted yet (see calibrate_edge_score.py --write).
+
+    WHY THIS IS THE PRIMARY RANKING (not wprp_proj/wpr_rank): an Aug 2026
+    audit backtested top-1-pick strike rate and ROI on a genuine held-out
+    date range (last 30% of dates, unseen during fitting) and found this
+    blend beats ranking by wpr_rank or wprp_rank alone on BOTH metrics
+    (holdout: blend 29.2% strike / -11.7% ROI vs wpr_rank 24.7% / -19.9%
+    vs wprp_rank 25.2% / -14.4%) - trainer/jockey trailing form and the
+    speed/form-provider scores carry real incremental signal WPR alone
+    isn't capturing. It still does not beat the market favourite's raw
+    strike rate (33.5%) - the market has information this model doesn't
+    (late scratches, drift, insider money) - but its ROI is competitive
+    with backing favourites (-11.7% vs -14.3%) despite the lower strike
+    rate, because it isn't just picking the shortest price.
+
+    Separately, has_edge/model_prob/market_prob/edge is a bet-SELECTION
+    filter on top of the ranking above: backing every edge>=0 runner does
+    NOT show a profit (the ranking being better on average doesn't mean
+    every runner it likes is underpriced) - what held up out-of-sample was
+    backing the OVERLAY where edge clears roughly 0.08-0.10 (8-10 points).
+    See calibrate_edge_score.py's docstring for the full backtest.
+
+    Deliberately excludes jt_combo_win_pct - see toprate_daily.py's
+    SIGNALS comment for why (confirmed leak of the runner's own result on
+    low-ride-count combos). Coefficients come from calibrate_edge_score.py,
+    a logistic regression fitted offline on resulted races and stored in
+    wpr_models/config.json under "edge_score" - never hand-edit that
+    block, rerun the script (quarterly, or once a season's worth of new
+    resulted races has accumulated).
+    """
+    _load_models()
+    empty = {"blend_prob": None, "blend_rank": None, "blend_price": None,
+             "has_edge": False, "model_prob": None, "market_prob": None, "edge": None}
+    n = len(runners)
+    cfg = _CFG.get("edge_score")
+    if not cfg or n < 1:
+        return [dict(empty) for _ in runners]
+
+    feats = cfg["features"]
+    coef = np.array(cfg["coef"], dtype=float)
+    intercept = float(cfg["intercept"])
+    med = cfg["medians"]
+
+    def _val(r, f):
+        v = r.get(f)
+        return float(v) if v is not None and v == v else med.get(f, 0.0)
+
+    X = np.array([[_val(r, f) for f in feats] for r in runners], dtype=float)
+    logit = intercept + X @ coef
+
+    results = [dict(empty) for _ in runners]
+
+    # Primary ranking: softmax over the WHOLE field, no market price
+    # required - mirrors project_race's own wpr_price softmax so the two
+    # "fair price" numbers behave the same way in the UI.
+    e_full = np.exp(logit - logit.max())
+    blend_prob = e_full / e_full.sum()
+    blend_rank = (-blend_prob).argsort().argsort() + 1
+    blend_price = np.minimum(1.0 / blend_prob, 999.0)
+    for i in range(n):
+        results[i]["blend_prob"] = round(float(blend_prob[i]), 4)
+        results[i]["blend_rank"] = int(blend_rank[i])
+        results[i]["blend_price"] = round(float(blend_price[i]), 2)
+
+    prices = np.array([r.get("market_price") for r in runners], dtype=float)
+    valid = np.isfinite(prices) & (prices > 1.0)
+    if valid.sum() < 2:
+        return results
+
+    # Normalise model_prob over the SAME priced subset as market_prob (not
+    # the whole field) so the two are directly comparable - an unpriced
+    # (e.g. late-scratched) runner shouldn't dilute either side.
+    logit_v = logit[valid]
+    e_v = np.exp(logit_v - logit_v.max())
+    model_prob_v = e_v / e_v.sum()
+    inv_v = 1.0 / prices[valid]
+    market_prob_v = inv_v / inv_v.sum()
+
+    vi = 0
+    for i in range(n):
+        if valid[i]:
+            mp, kp = float(model_prob_v[vi]), float(market_prob_v[vi])
+            results[i]["has_edge"] = True
+            results[i]["model_prob"] = round(mp, 4)
+            results[i]["market_prob"] = round(kp, 4)
+            results[i]["edge"] = round(mp - kp, 4)
+            vi += 1
+    return results
+
+
 # ---------------------------------------------------------------------------
 # project_race - the main entry point
 # ---------------------------------------------------------------------------

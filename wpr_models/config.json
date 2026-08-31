@@ -9628,5 +9628,39 @@
    "Mid": 0.07808771409667276,
    "Wide": -0.48161923581839805
   }
+ },
+ "edge_score": {
+  "features": [
+   "wprp_proj",
+   "speed_rating",
+   "pfm_score",
+   "pf_ai_score",
+   "trainer_win_pct_365d",
+   "jockey_win_pct_90d"
+  ],
+  "coef": [
+   0.008391377775410915,
+   0.004598359216729792,
+   0.013761797795374103,
+   0.019518610619708728,
+   0.0629849055757669,
+   0.05272821742109492
+  ],
+  "intercept": -5.987952405740072,
+  "medians": {
+   "wprp_proj": 72.8,
+   "speed_rating": 69.0,
+   "pfm_score": 28.0,
+   "pf_ai_score": 54.0,
+   "trainer_win_pct_365d": 11.1,
+   "jockey_win_pct_90d": 10.1
+  },
+  "trained_on_races": 5299,
+  "trained_on_runners": 50680,
+  "date_range": [
+   "2026-04-26",
+   "2026-08-30"
+  ],
+  "note": "Logistic regression; deliberately excludes jt_combo_win_pct (confirmed leak - see toprate_daily.py SIGNALS comment). Held-out AUC/overlay validation is in this script's own output/git history, not in this config. Use edge (model_prob - market_prob) as a bet-selection filter, not a top-pick ranking replacement - see calibrate_edge_score.py docstring."
  }
 }

@@ -1,19 +1,25 @@
 import { useCallback, useState } from 'react'
-import type { StrategyTier } from './jtComboStrategy'
+import type { EdgeTier } from './edgeOverlay'
 
-// Tracks which Strategy-tab qualifiers the user actually took, so the tab
+// Tracks which Edge Overlays qualifiers the user actually took, so the tab
 // can show real forward performance instead of only the historical
 // backtest. Persisted per-device (same pattern as useShowBushMeetings) -
 // not yet synced across devices via the GitHub Gist mechanism, since a
 // bet log needs additive merging on pull rather than the overwrite the
 // existing sync does for simple preferences.
-const STORAGE_KEY = 'toprate_strategy_picks_v1'
+//
+// Storage key bumped (was toprate_strategy_picks_v1) when the underlying
+// signal changed from the leaky jtComboWinPct tiers to edge overlays (Aug
+// 2026) - old entries used a different tier enum ('high-volume' etc.) that
+// would silently mis-group under EdgeScoreboard's edge-tier buckets, so
+// this starts fresh rather than risk mixing the two.
+const STORAGE_KEY = 'toprate_edge_picks_v1'
 
 export interface StrategyPick {
   runId: string
   raceId: string
   date: string
-  tier: StrategyTier
+  tier: EdgeTier
   takenAt: string
 }
 
@@ -43,7 +49,7 @@ export function writeStoredPicks(picks: Record<string, StrategyPick>) {
 export function useStrategyPicks() {
   const [picks, setPicks] = useState<Record<string, StrategyPick>>(() => readStoredPicks())
 
-  const toggleTaken = useCallback((runId: string, raceId: string, date: string, tier: StrategyTier) => {
+  const toggleTaken = useCallback((runId: string, raceId: string, date: string, tier: EdgeTier) => {
     setPicks((prev) => {
       const next = { ...prev }
       if (next[runId]) {

@@ -1,6 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtInt, fmtPrice } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { spellPosition } from '../../lib/spellPosition'
 
@@ -12,12 +12,6 @@ interface RunnerRowProps {
   effective?: EffectiveRunner
   onClick: () => void
   onToggleScratch: () => void
-}
-
-function fmtAdj(v: number | null): string {
-  if (v == null) return '—'
-  const f = v.toFixed(1)
-  return v > 0 ? `+${f}` : f
 }
 
 // Connections' own rating, shown inline after their name rather than
@@ -32,6 +26,13 @@ function ratingSuffix(v: number | null): string {
 // consolidation the rebuild plan calls for). The grid's column template
 // itself changes at the sm breakpoint via Tailwind classes, so the same
 // DOM/children just reflow rather than existing twice.
+//
+// Aug 2026 redesign: the WPR-points breakdown (Peak/Base/Adj/Proj) and the
+// post-race Actual WPR column were dropped from this row - the blend score
+// (Model $) is the primary ranking now (see RaceDetail.tsx's COLUMN_LABELS
+// comment), and WPR points on their own no longer earn a column here. The
+// WPR breakdown and the manual override controls both still exist, moved
+// into RunnerDetailModal's "WPR rating detail" section.
 export function RunnerRow({
   runner,
   raceDate,
@@ -44,13 +45,9 @@ export function RunnerRow({
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
   const scratched = effective?.scratched ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
-  // Scratched: force both to null rather than falling back to the model's
-  // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
-  // live rating any more, it shouldn't look like it's still rated just
-  // because effective.effectiveProjectedWpr is explicitly null (which ??
-  // would otherwise treat the same as "no override, use the raw value").
-  const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const displayPrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
+  // Scratched: no live price any more, regardless of the model's raw
+  // (pre-scratch) blendPrice - matches the SCR text this cell renders below.
+  const displayPrice = scratched ? null : runner.blendPrice
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
@@ -71,7 +68,7 @@ export function RunnerRow({
           onClick()
         }
       }}
-      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_44px_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] ${rowPadding} ${
+      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_44px_64px_60px_44px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_56px_64px_60px_48px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -132,6 +129,29 @@ export function RunnerRow({
               SCR
             </button>
           )}
+          {/* Edge score: only surfaces once it clears the margin a held-out
+              backtest actually showed ROI at (see calibrate_edge_score.py) -
+              a bet-selection flag, not shown for every priced runner. */}
+          {!scratched && runner.edgeScore != null && runner.edgeScore >= 0.08 && (
+            <span
+              title={`Model ${(runner.edgeModelProb! * 100).toFixed(0)}% vs market ${(runner.edgeMarketProb! * 100).toFixed(0)}% implied win chance`}
+              className="flex-none rounded bg-emerald px-1 text-[10px] font-semibold text-white"
+            >
+              +{(runner.edgeScore * 100).toFixed(0)}% EDGE
+            </span>
+          )}
+          {/* Manual WPR override no longer changes Model $ (it blends other
+              signals too) - a quiet marker so the row doesn't look silently
+              wrong to someone who set one, full explanation lives in the
+              modal's WPR rating detail section. */}
+          {overridden && (
+            <span
+              title="You've set a manual WPR override for this runner - see its detail for why Model $ doesn't move with it"
+              className="flex-none text-amber"
+            >
+              ✎
+            </span>
+          )}
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
@@ -149,47 +169,8 @@ export function RunnerRow({
       >
         {spell.label}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.peakWpr)}
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.baseWpr)}
-      </span>
-      <span
-        className={`hidden text-right font-mono sm:inline ${
-          runner.wprAdjustment != null && runner.wprAdjustment > 0
-            ? 'text-emerald-deep'
-            : runner.wprAdjustment != null && runner.wprAdjustment < 0
-              ? 'text-rose'
-              : 'text-ink-mute'
-        }`}
-      >
-        {fmtAdj(runner.wprAdjustment)}
-      </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
-        {/* sm:contents on mobile-only stack: confidence sits under the WPR
-            figure (not inline after it) to keep this column narrow on
-            small screens - at sm+ the wrapper disappears (display:contents)
-            so the two lines rejoin the parent's inline flow exactly as
-            before, unstacked. */}
-        <span className="flex flex-col items-end gap-0.5 sm:contents">
-          <span>
-            {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(displayProj)}
-            {overridden && (
-              <span className="ml-0.5 text-amber" title="Manually adjusted">
-                *
-              </span>
-            )}
-          </span>
-          {runner.projectionConfidence !== null && !compact && (
-            <span className="text-[10px] font-normal leading-none text-ink-faint sm:ml-1 sm:text-xs">
-              {fmtInt(runner.projectionConfidence)}%
-            </span>
-          )}
-        </span>
-      </span>
-      <span className="text-right font-mono text-ink-mute">
-        {scratched ? 'SCR' : fmtPrice(displayPrice)}
+        {scratched ? <span className="text-ink-faint">SCR</span> : fmtPrice(displayPrice)}
       </span>
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}
@@ -202,7 +183,7 @@ export function RunnerRow({
           </span>
         )}
       </span>
-      <span className="hidden text-right sm:inline">
+      <span className="text-right">
         {runner.finishPosition === 1 ? (
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono font-semibold text-amber">
             1
@@ -212,9 +193,6 @@ export function RunnerRow({
             {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
           </span>
         )}
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}
       </span>
     </div>
   )

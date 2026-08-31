@@ -119,10 +119,12 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-                <span className="text-ink-faint">effective WPR</span>
-                {effectivePrice != null && (
-                  <span className="font-mono text-ink-mute">{fmtPrice(effectivePrice)}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtPrice(runner.blendPrice)}</span>
+                <span className="text-ink-faint">Model $</span>
+                {runner.edgeScore != null && runner.edgeScore >= 0.08 && (
+                  <span className="rounded bg-emerald px-1 font-mono text-[10px] font-semibold text-white">
+                    +{(runner.edgeScore * 100).toFixed(0)}% EDGE
+                  </span>
                 )}
               </div>
             ) : (
@@ -185,134 +187,201 @@ export function RunnerDetailModal({
         </div>
 
         <div className="flex flex-col gap-3 p-3">
-          {runner.projectedWpr == null && (
+          {runner.blendProb == null && (
             <div className="rounded-lg border border-amber-line bg-amber-bg p-2.5 text-sm text-amber">
-              No projection for this runner.{' '}
-              {runner.projectionDescription || 'Insufficient form history (under 3 prior runs).'}
+              No model estimate for this runner. Insufficient form/speed/rating history to blend a probability.
             </div>
           )}
 
+          {/* PRIMARY: the blend score (Model $ / win probability / rank) -
+              promoted here Aug 2026 after a held-out backtest found it beats
+              WPR-alone ranking on both strike rate and ROI (see
+              wpr_projection.compute_edge_scores). The WPR-points breakdown
+              this used to lead with (base/adjustment/projection, plus the
+              manual override controls) moved to "WPR rating detail" below -
+              still there, just no longer the headline. */}
           <div className="rounded-lg bg-bg p-2.5">
-            {/* Your adjustment (always-editable) plus $WPR/rank sit to the
-                right of the headline number on the same row - previously
-                each was its own line below, costing vertical space this
-                row has spare width for. */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 {scratched ? (
                   <span className="font-mono text-2xl font-bold text-rose">SCR</span>
                 ) : (
-                  <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                  <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtPrice(runner.blendPrice)}</span>
                 )}
                 <span className="text-xs text-ink-mute">
                   {scratched
                     ? runner.dataScratched
                       ? 'confirmed scratched - out of the field pricing'
                       : 'manually scratched - out of the field pricing'
-                    : 'effective WPR'}
+                    : 'Model $'}
                 </span>
-                {hasOverride && (
-                  <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
-                    manually adjusted
+                {!scratched && runner.blendProb != null && (
+                  <span className="text-xs text-ink-mute">
+                    <span className="font-mono font-semibold text-ink">{(runner.blendProb * 100).toFixed(0)}%</span>{' '}
+                    win chance
+                  </span>
+                )}
+                {!scratched && runner.blendRank != null && (
+                  <span className="text-xs text-ink-mute">
+                    rank <span className="font-mono font-semibold text-ink">{runner.blendRank}</span>
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <label className="flex items-center gap-2 text-sm text-ink-soft">
-                  Your adjustment
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-mute">
+                {runner.fixedWinPrice != null && (
+                  <span>
+                    <span className="font-mono font-semibold text-ink">{fmtPrice(runner.fixedWinPrice)}</span> fixed
+                  </span>
+                )}
+                <span>
+                  <span className="font-mono font-semibold text-ink">
+                    {runner.startingPrice != null ? fmtPrice(runner.startingPrice) : '—'}
+                  </span>{' '}
+                  SP
+                </span>
+              </div>
+            </div>
+            {runner.edgeScore != null && (
+              <div
+                className={`mt-2 flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${
+                  runner.edgeScore >= 0.08
+                    ? 'border-emerald-line bg-emerald-bg/40 text-ink'
+                    : 'border-line-soft text-ink-mute'
+                }`}
+              >
+                <span
+                  className={`font-mono font-semibold ${runner.edgeScore >= 0.08 ? 'text-emerald-deep' : 'text-ink'}`}
+                >
+                  {runner.edgeScore >= 0 ? '+' : ''}
+                  {(runner.edgeScore * 100).toFixed(1)}% edge
+                </span>
+                <span>
+                  ({(runner.edgeModelProb! * 100).toFixed(0)}% model vs {(runner.edgeMarketProb! * 100).toFixed(0)}%
+                  market implied win chance){runner.edgeScore >= 0.08 ? ' - clears the validated overlay threshold' : ''}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* SECONDARY: the WPR-only rating (projection/base/adjustment,
+              confidence, description) and the manual override controls.
+              Collapsed by default via <details> - a manual override here
+              only ever adjusts WPR, it does NOT recompute Model $ above
+              (which blends several other signals too), so this section is
+              explicitly scoped as "WPR" throughout to avoid implying it does. */}
+          <details className="rounded-lg border border-line-soft bg-panel">
+            <summary className="cursor-pointer select-none px-2.5 py-2 text-sm font-medium text-ink-mute hover:text-ink">
+              WPR rating detail{hasOverride ? ' (manually adjusted)' : ''}
+            </summary>
+            <div className="border-t border-line-soft p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-mono text-lg font-bold text-ink">{fmtWpr(effectiveWpr)}</span>
+                  <span className="text-xs text-ink-mute">effective WPR</span>
+                  {hasOverride && (
+                    <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
+                      manually adjusted
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex items-center gap-2 text-sm text-ink-soft">
+                    Your adjustment
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={deltaValue ?? ''}
+                      onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
+                      placeholder="0.0"
+                      className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+                    />
+                    {(deltaValue != null || baseValue != null) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSetDelta(null)
+                          onSetBase(null)
+                        }}
+                        className="text-xs text-ink-mute underline hover:text-ink"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </label>
+                  {effectivePrice != null && (
+                    <span className="text-xs text-ink-mute">
+                      <span className="font-mono font-semibold text-ink">{fmtPrice(effectivePrice)}</span> WPR $
+                    </span>
+                  )}
+                  {runner.wprRank != null && (
+                    <span className="text-xs text-ink-mute">
+                      WPR rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              {hasOverride && (
+                <div className="mt-1 text-xs text-ink-mute">
+                  model {fmtWpr(runner.projectedWpr ?? baseValue)}
+                  {deltaValue != null && deltaValue !== 0 && (
+                    <>
+                      {' '}
+                      {deltaValue > 0 ? '+' : ''}
+                      {deltaValue.toFixed(1)} your adjustment
+                    </>
+                  )}
+                  {' - note this only feeds the WPR figures on this line, not Model $ above'}
+                </div>
+              )}
+
+              {runner.projectedWpr == null && (
+                <label className="mt-2 flex items-center gap-2 text-sm text-ink-soft">
+                  Base WPR
                   <input
                     type="number"
                     step="0.1"
-                    value={deltaValue ?? ''}
-                    onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder="0.0"
-                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+                    value={baseValue ?? ''}
+                    onChange={(e) => onSetBase(e.target.value === '' ? null : Number(e.target.value))}
+                    placeholder="e.g. 72.0"
+                    className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
                   />
-                  {(deltaValue != null || baseValue != null) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSetDelta(null)
-                        onSetBase(null)
-                      }}
-                      className="text-xs text-ink-mute underline hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  )}
+                  <span className="text-xs text-ink-faint">no model projection - enter your own to rate this horse</span>
                 </label>
-                {effectivePrice != null && (
-                  <span className="text-xs text-ink-mute">
-                    <span className="font-mono font-semibold text-ink">{fmtPrice(effectivePrice)}</span> WPR
+              )}
+
+              {/* One line instead of 4 boxed tiles - Base+Adjustment=Model
+                  projection is simple arithmetic that doesn't need a box each,
+                  and "Model projection" duplicated the big headline number
+                  above whenever there's no manual override (the common case;
+                  the hasOverride block above already surfaces the model's own
+                  number separately for the case where it doesn't). */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-mute">
+                <span>
+                  <span className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</span> base
+                </span>
+                {runner.wprAdjustment != null && (
+                  <span>
+                    <span className="font-mono font-semibold text-ink">
+                      {runner.wprAdjustment > 0 ? '+' : ''}
+                      {runner.wprAdjustment.toFixed(1)}
+                    </span>{' '}
+                    adjustment
                   </span>
                 )}
-                {runner.wprRank != null && (
-                  <span className="text-xs text-ink-mute">
-                    rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
+                {runner.projectionConfidence != null && (
+                  <span>
+                    <span className="font-mono font-semibold text-ink">{runner.projectionConfidence}%</span>{' '}
+                    confidence
                   </span>
                 )}
               </div>
-            </div>
-            {hasOverride && (
-              <div className="mt-1 text-xs text-ink-mute">
-                model {fmtWpr(runner.projectedWpr ?? baseValue)}
-                {deltaValue != null && deltaValue !== 0 && (
-                  <>
-                    {' '}
-                    {deltaValue > 0 ? '+' : ''}
-                    {deltaValue.toFixed(1)} your adjustment
-                  </>
-                )}
-              </div>
-            )}
-
-            {runner.projectedWpr == null && (
-              <label className="mt-2 flex items-center gap-2 text-sm text-ink-soft">
-                Base WPR
-                <input
-                  type="number"
-                  step="0.1"
-                  value={baseValue ?? ''}
-                  onChange={(e) => onSetBase(e.target.value === '' ? null : Number(e.target.value))}
-                  placeholder="e.g. 72.0"
-                  className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-                />
-                <span className="text-xs text-ink-faint">no model projection - enter your own to rate this horse</span>
-              </label>
-            )}
-
-            {/* One line instead of 4 boxed tiles - Base+Adjustment=Model
-                projection is simple arithmetic that doesn't need a box each,
-                and "Model projection" duplicated the big headline number
-                above whenever there's no manual override (the common case;
-                the hasOverride block above already surfaces the model's own
-                number separately for the case where it doesn't). */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-mute">
-              <span>
-                <span className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</span> base
-              </span>
-              {runner.wprAdjustment != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">
-                    {runner.wprAdjustment > 0 ? '+' : ''}
-                    {runner.wprAdjustment.toFixed(1)}
-                  </span>{' '}
-                  adjustment
-                </span>
-              )}
-              {runner.projectionConfidence != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">{runner.projectionConfidence}%</span>{' '}
-                  confidence
-                </span>
+              {runner.projectionDescription && runner.projectedWpr != null && (
+                <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">
+                  {runner.projectionDescription}
+                </p>
               )}
             </div>
-            {runner.projectionDescription && runner.projectedWpr != null && (
-              <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">
-                {runner.projectionDescription}
-              </p>
-            )}
-          </div>
+          </details>
 
           {/* ResultVsProjection and/or PriceMovementChart ride alongside
               CareerStats from the sm breakpoint up (fills the space that

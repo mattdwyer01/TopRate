@@ -141,10 +141,13 @@ RUNNER_COLS = [
     "fixed_win_price","open_price","jockey_win_pct_90d","trainer_win_pct_365d",
     # TopRate's own jockey and trainer rating numbers (separate from win % strike rates)
     "jockey_rating","trainer_rating",
-    # Jockey/trainer combo - strongest single predictor in backtest. May be None
-    # if live API doesn't expose it; the cumulative score formula falls back when
-    # missing. Once populated, switch SCORE_WEIGHTS to use jt_combo_win_pct for
-    # the Path A upgrade (44% rk-1 WR vs 33% with proxy formula).
+    # Jockey/trainer combo win%. DO NOT use as a predictive signal or wire into
+    # SCORE_WEIGHTS/the edge score - confirmed data leak (Aug 2026 backtest):
+    # on jt_combo_rides==1 rows, winPercent is ~100 when the horse won and ~0
+    # when it lost, i.e. the provider's combo stat reflects TODAY's own result,
+    # not a pre-race trailing window. A naive backtest on this field shows an
+    # impossible +60-140% ROI purely because of this leak. Kept only for
+    # display/reference; never feed it into a model or ranking.
     "jt_combo_win_pct","jt_combo_rides",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
@@ -1181,6 +1184,95 @@ def compute_wpr_projection(runners_df, target_date_str=None):
     print(f"  WPR projection: {projected} runners projected, "
           f"{fallback} fallback (too few runs), across {races} races "
           f"in {_time.time()-t0:.0f}s")
+    return runners_df
+
+
+def compute_edge_score(runners_df, target_date_str=None):
+    """Add wprp_blend_prob/wprp_blend_rank/wprp_blend_price (the PRIMARY
+    ranking - see below) and wprp_edge/wprp_edge_prob/wprp_edge_mkt_prob
+    (a bet-selection filter on top of it) columns: a blend of wprp_proj +
+    speed_rating + pfm_score + pf_ai_score + trailing jockey/trainer form
+    (see wpr_projection.compute_edge_scores for the full rationale and
+    calibrate_edge_score.py for how the weights were fit).
+
+    wprp_blend_rank/wprp_blend_price are the PRIMARY ranking as of Aug
+    2026 (promoted from wpr_rank/wprp_rank) - a held-out backtest found
+    this blend beats ranking by WPR alone on both top-1 strike rate and
+    ROI. They need no market price (softmax over the whole field, same
+    convention as wpr_price) so they're available whenever the underlying
+    signals are, same as wpr_rank/wprp_rank.
+
+    wprp_edge/wprp_edge_prob/wprp_edge_mkt_prob stay a SEPARATE
+    bet-selection filter: a large positive wprp_edge means the blend
+    thinks the market is underpricing that runner specifically, which is
+    a different question from "is this the best horse in the race" -
+    needs a usable market price, so it's null pre-price and for fields
+    with fewer than 2 priced runners.
+
+    Same scoping discipline as compute_wpr_projection: only today's races,
+    additive and fail-safe (returns runners_df unchanged on any failure).
+    Must run after compute_wpr_projection (needs wprp_proj).
+    """
+    try:
+        import wpr_projection as wpr
+    except Exception as e:
+        print(f"  Edge score skipped: cannot import wpr_projection ({e})")
+        return runners_df
+
+    for col in ["wprp_blend_prob", "wprp_blend_rank", "wprp_blend_price",
+                "wprp_edge", "wprp_edge_prob", "wprp_edge_mkt_prob"]:
+        if col not in runners_df.columns:
+            runners_df[col] = None
+
+    if target_date_str is None:
+        target_date_str = date.today().strftime("%Y-%m-%d")
+    day_mask = runners_df["date"].astype(str).str[:10] == target_date_str
+    today = runners_df[day_mask]
+    if len(today) == 0:
+        print(f"  Edge score: no runners for {target_date_str}, skipping")
+        return runners_df
+
+    scored = 0
+    for race_id, race in today.groupby("race_id"):
+        # Scratched runners are excluded from the blend's softmax
+        # population - a scratched horse isn't part of "the field that's
+        # actually racing", so it shouldn't dilute everyone else's
+        # blend_prob/blend_price (a bug the older wpr_price inherited from
+        # including them; not repeated here since this is now the primary
+        # ranking column). They still get no blend_rank/blend_price at all
+        # (left None below) - the row already shows "SCR" for them
+        # regardless of the underlying value, see RunnerRow.tsx.
+        active = race[race["scratched"] != 1]
+        if len(active) == 0:
+            continue
+        # Pre-race price if we have it, else the post-race settled price -
+        # whichever is available lets this run both live (fixed_win_price)
+        # and retrospectively for backtesting (starting_price_sp/price_top).
+        market_price = (active["fixed_win_price"]
+                        .combine_first(active["starting_price_sp"])
+                        .combine_first(active["price_top"]))
+        runners = []
+        for idx, r in active.iterrows():
+            row = {f: r.get(f) for f in wpr.EDGE_FEATURES}
+            row["market_price"] = market_price.get(idx)
+            runners.append(row)
+        try:
+            results = wpr.compute_edge_scores(runners)
+        except Exception as e:
+            print(f"  Edge score error on race {race_id}: {e}")
+            continue
+        for idx, res in zip(active.index, results):
+            if res.get("blend_prob") is not None:
+                runners_df.at[idx, "wprp_blend_prob"] = res.get("blend_prob")
+                runners_df.at[idx, "wprp_blend_rank"] = res.get("blend_rank")
+                runners_df.at[idx, "wprp_blend_price"] = res.get("blend_price")
+                scored += 1
+            if res.get("has_edge"):
+                runners_df.at[idx, "wprp_edge"] = res.get("edge")
+                runners_df.at[idx, "wprp_edge_prob"] = res.get("model_prob")
+                runners_df.at[idx, "wprp_edge_mkt_prob"] = res.get("market_prob")
+
+    print(f"  Edge score: {scored} runners scored for {target_date_str}")
     return runners_df
 
 
@@ -2973,9 +3065,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
-                # Jockey/trainer combination win% and ride count together -
-                # the strongest single backtested signal found for the
-                # Summary tab's Strategy view (see jt_combo strategy work).
+                # Jockey/trainer combination win% and ride count together.
+                # DO NOT use for scoring/strategy - confirmed data leak, see
+                # this field's definition comment above in SIGNALS. Kept for
+                # display/reference only; the frontend's Strategy tiers that
+                # used to gate on this are hard-disabled (jtComboStrategy.ts).
                 "jcp":  sf(row.get("jt_combo_win_pct")),
                 "jcr":  si(row.get("jt_combo_rides")),
                 # TopRate's own jockey/trainer ratings (separate from strike rates)
@@ -3022,6 +3116,25 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
                 "wpjpk": sf(row.get("wprp_peak")),    # career peak WPR
+                # Blend score (Step 2c2): the PRIMARY ranking as of Aug
+                # 2026 (promoted from wpr_rank/wprp_rank - a held-out
+                # backtest found it beats WPR-alone ranking on both top-1
+                # strike rate and ROI, see wpr_projection.compute_edge_scores).
+                # Needs no market price, same as wpjpr/wpjr.
+                "wpjbp": sf(row.get("wprp_blend_prob")),   # blend win probability
+                "wpjbr": si(row.get("wprp_blend_rank")),   # blend rank within race
+                "wpjbpr": sf(row.get("wprp_blend_price")), # blend fair price
+                # Edge score: blend win prob vs market implied win prob,
+                # a bet-SELECTION filter on top of the blend ranking above
+                # (not the same question as "which horse is best" - see
+                # wpr_projection.compute_edge_scores). wpje is model_prob -
+                # market_prob (0.08-0.10+ is where the held-out backtest
+                # showed a real edge). None when there's no usable market
+                # price (e.g. too early pre-race) or fewer than 2 priced
+                # runners in the field.
+                "wpje":  sf(row.get("wprp_edge")),
+                "wpjep": sf(row.get("wprp_edge_prob")),
+                "wpjem": sf(row.get("wprp_edge_mkt_prob")),
                 # what-if projection for the opposite going (wet<->dry).
                 # Lets the going override show a real model number, not a guess.
                 "wpjpA": sf(row.get("wprp_proj_alt")),
@@ -3517,6 +3630,15 @@ def main():
     print("── Step 2c: WPR projection ──")
     runners_df = compute_wpr_projection(runners_df, args.date)
     _main_step("Step 2c: WPR projection")
+    print()
+
+    # Step 2c2: edge score - a bet-selection blend (WPR projection + speed/
+    # form-provider ratings + trailing jockey/trainer form) compared against
+    # the market's own implied probability. Must run after Step 2c (needs
+    # wprp_proj). Additive and fail-safe, see compute_edge_score.
+    print("── Step 2c2: Edge score ──")
+    runners_df = compute_edge_score(runners_df, args.date)
+    _main_step("Step 2c2: Edge score")
     print()
 
     # Step 2d: automated race-speed (early-tempo) estimate. Adds rs_score
