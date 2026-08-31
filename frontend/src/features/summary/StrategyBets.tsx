@@ -77,15 +77,15 @@ interface StrategyRow {
 const TIER_INFO: Record<StrategyTier, { label: string; blurb: string }> = {
   'high-volume': {
     label: 'High volume',
-    blurb: 'WPR rank ≤3, jockey/trainer combo ≥25% (5+ rides together), field ≤10. Backtested 1,220 bets: 37.9% strike, +30.1% ROI.',
+    blurb: 'WPR rank ≤3, jockey/trainer combo ≥25% (5+ rides together), field ≤10. The backtested strike rate/ROI this tier used to cite here was produced by the jt_combo leak (see notice above) and has been removed rather than repeated.',
   },
   'low-volume': {
     label: 'Low volume',
-    blurb: 'The above, plus a quiet recent form line (<40% top-3 finishes lately). Backtested 347 bets: 37.5% strike, +53.2% ROI - fewer bets, stronger edge.',
+    blurb: 'The above, plus a quiet recent form line (<40% top-3 finishes lately). Same leak as High volume - backtested numbers removed.',
   },
   closers: {
     label: 'Closers',
-    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on) and a quiet recent form line (<40% top-3 finishes lately). Backtested 124 bets: 37.9% strike, +66.0% ROI.',
+    blurb: 'The High volume rule, plus a backmarker running style (settles back and runs on) and a quiet recent form line (<40% top-3 finishes lately). Same leak as High volume - backtested numbers removed.',
   },
 }
 
@@ -136,6 +136,12 @@ export function StrategyBets({ races, date, showBush, onSelectRace }: StrategyBe
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-ink">
+        <span className="font-medium">Paused:</span> these tiers were gated on the jockey/trainer combo win% stat,
+        which an Aug 2026 audit found leaks each race's own result (it reads ~100%/~0% for low-ride combos exactly
+        matching whether that runner just won or lost, not a real pre-race trailing window). No new qualifiers will
+        show until this is replaced by a validated signal. Your previously tracked picks below are unaffected.
+      </div>
       <StrategyScoreboard races={races} picks={picks} />
       <div className="flex flex-wrap items-center gap-2">
         <Pill active={tier === 'high-volume'} onClick={() => setTier('high-volume')}>

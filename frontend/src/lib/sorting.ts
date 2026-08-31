@@ -14,6 +14,7 @@ export type SortKey =
   | 'adjustment'
   | 'projectedWpr'
   | 'wprPrice'
+  | 'blendPrice'
   | 'fixedPrice'
   | 'finish'
   | 'actualWpr'
@@ -37,6 +38,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   adjustment: 'desc',
   projectedWpr: 'desc',
   wprPrice: 'asc',
+  blendPrice: 'asc',
   fixedPrice: 'asc',
   finish: 'asc',
   actualWpr: 'desc',
@@ -75,6 +77,12 @@ function sortValue(
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
     case 'wprPrice':
       return effective?.effectivePrice ?? runner.wprPrice ?? Infinity
+    case 'blendPrice':
+      // Not override-aware - the manual what-if slider adjusts this
+      // horse's WPR only, and blendPrice is a blend of several other
+      // signals too (speed/form-provider ratings, trailing jockey/trainer
+      // form) that a WPR-only override can't meaningfully recompute.
+      return runner.blendPrice ?? Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
     case 'finish':

@@ -1,31 +1,17 @@
 import type { Runner } from '../types/domain'
 
-// Backtested (toprate_runners.csv, Apr-Aug 2026, ~50k runners): a runner's
-// jockey/trainer combination win% is the one factor that survived a broad
-// search for a profitable, high-volume betting signal (see git history for
-// the full investigation) - walk-forward validated in both chronological
-// directions, not outlier-driven, and broad-based across dozens of
-// trainers rather than a handful.
-//
-// High volume: WPR rank<=3, combo>=25% (min 5 rides together), field<=10 -
-// n=1,220 backtested bets, strike 37.9%, ROI +30.1%.
-// Low volume: the above, plus a quiet recent form line (see
-// recentTop3Rate below) - n=347, strike 37.5%, ROI +53.2%. Counter-
-// intuitively, a horse that hasn't been placing lately wins about as often
-// within this pool but at a bigger price, since the market discounts the
-// visible form line more than the underlying signal warrants.
-// Closers: High volume plus a backmarker running style (avgSettledPos>6)
-// AND a quiet recent form line (see recentTop3Rate below) - n=124, strike
-// 37.9%, ROI +66.0%, robust across all 4 chronological quarters. The
-// backmarker condition alone was walk-forward validated both directions
-// (threshold 6 was independently optimal on each half of the sample);
-// stacking the quiet-form condition on top (already independently
-// validated for Low volume) concentrates the edge further rather than
-// diluting it. Within this qualifying pool, horses that settle back and
-// run on outperform on-pace types, plausibly because the visible-form-
-// reading public undervalues a closer's finishing effort relative to an
-// on-pace runner that "looked" competitive throughout - and undervalues
-// it even more when the horse's recent placings don't reflect it either.
+// DISABLED (Aug 2026 audit) - jtComboWinPct (jt_combo_win_pct) was found to
+// leak the runner's own race result: on combos with only 1-2 recorded rides
+// together (most of them - see toprate_daily.py's SIGNALS comment), the
+// provider's stat reads ~100% when the horse won and ~0% when it lost,
+// i.e. it is not a pre-race trailing window, it reflects today's own
+// outcome. Every backtest number this file used to cite (37.9% strike /
+// +30.1% ROI etc.) was produced by that leak, not a real edge - see
+// jt_combo_win_pct's definition comment in toprate_daily.py for the
+// evidence. All three tiers below are hard-disabled (qualifiesHighVolume
+// always returns false) until this is replaced by a signal that doesn't
+// depend on jt_combo_win_pct. See wpr_projection.py's compute_edge_score
+// for the properly-validated (held-out, non-leaky) replacement.
 
 export type StrategyTier = 'high-volume' | 'low-volume' | 'closers'
 
@@ -50,17 +36,9 @@ export function recentTop3Rate(formString: string | null): number | null {
   return digits.filter((n) => n <= 3).length / digits.length
 }
 
-export function qualifiesHighVolume(runner: Runner): boolean {
-  return (
-    !runner.dataScratched &&
-    runner.wprRank != null &&
-    runner.wprRank <= 3 &&
-    runner.jtComboWinPct != null &&
-    runner.jtComboWinPct >= 25 &&
-    runner.jtComboRides != null &&
-    runner.jtComboRides >= 5 &&
-    runner.fieldSize <= 10
-  )
+export function qualifiesHighVolume(_runner: Runner): boolean {
+  // Hard-disabled - see file header. Was gated on the leaky jtComboWinPct.
+  return false
 }
 
 export function qualifiesLowVolume(runner: Runner): boolean {

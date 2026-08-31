@@ -42,7 +42,12 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
-  { key: 'wprPrice', label: 'WPR $' },
+  // Model $ (blendPrice) - the PRIMARY ranking/price as of Aug 2026,
+  // promoted from wprPrice/wpr_rank after a held-out backtest found it
+  // beats WPR-alone ranking on both strike rate and ROI (see
+  // wpr_projection.compute_edge_scores). Proj/Peak/Base/Adj stay WPR-only
+  // (unchanged) - this is the one column/default-sort that switched.
+  { key: 'blendPrice', label: 'Model $', showCompact: true },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
   { key: 'actualWpr', label: 'Actual' },
@@ -64,8 +69,10 @@ export function RaceDetail({
 }: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
   const { showScratched, setShowScratched } = useShowScratched()
-  const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
-  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
+  // Default sort is the blend score (Model $), the primary ranking as of
+  // Aug 2026 - see COLUMN_LABELS above for why.
+  const [sortKey, setSortKey] = useState<SortKey>('blendPrice')
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.blendPrice)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
@@ -208,7 +215,7 @@ export function RaceDetail({
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: mirrors RunnerRow's mobile grid-cols exactly
-            (silk/horse/RTS/proj/wprPrice/fixedPrice) so labels land above
+            (silk/horse/RTS/proj/blendPrice/fixedPrice) so labels land above
             the right column - the desktop header below covers every column
             but is hidden below sm since most of them aren't shown there. */}
         <div className="grid grid-cols-[40px_1fr_44px_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
@@ -236,10 +243,10 @@ export function RaceDetail({
           </button>
           <button
             type="button"
-            onClick={() => onSort('wprPrice')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'wprPrice' ? 'text-emerald-deep' : ''}`}
+            onClick={() => onSort('blendPrice')}
+            className={`text-right transition-colors hover:text-ink ${sortKey === 'blendPrice' ? 'text-emerald-deep' : ''}`}
           >
-            WPR $
+            Model $
           </button>
           <button
             type="button"

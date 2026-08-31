@@ -50,7 +50,12 @@ export function RunnerRow({
   // because effective.effectiveProjectedWpr is explicitly null (which ??
   // would otherwise treat the same as "no override, use the raw value").
   const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const displayPrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
+  // Model $ (blendPrice) is the PRIMARY ranking/price as of Aug 2026 (see
+  // RaceDetail.tsx's COLUMN_LABELS comment) - not override-aware, since the
+  // manual what-if slider only adjusts this horse's WPR and blendPrice
+  // blends in several other signals too. Proj above stays WPR-only and
+  // fully override-aware.
+  const displayPrice = scratched ? null : runner.blendPrice
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
@@ -95,6 +100,17 @@ export function RunnerRow({
           {runner.finishPosition === 1 && (
             <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono text-[10px] font-semibold text-amber sm:hidden">
               1
+            </span>
+          )}
+          {/* Edge score: only surfaces once it clears the margin a held-out
+              backtest actually showed ROI at (see calibrate_edge_score.py) -
+              a bet-selection flag, not shown for every priced runner. */}
+          {!scratched && runner.edgeScore != null && runner.edgeScore >= 0.08 && (
+            <span
+              title={`Model ${(runner.edgeModelProb! * 100).toFixed(0)}% vs market ${(runner.edgeMarketProb! * 100).toFixed(0)}% implied win chance`}
+              className="flex-none rounded bg-emerald px-1 text-[10px] font-semibold text-white"
+            >
+              +{(runner.edgeScore * 100).toFixed(0)}% EDGE
             </span>
           )}
           {runner.dataScratched ? (

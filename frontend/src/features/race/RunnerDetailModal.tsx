@@ -312,6 +312,21 @@ export function RunnerDetailModal({
                 {runner.projectionDescription}
               </p>
             )}
+            {runner.edgeScore != null && (
+              <p className="mt-2 border-t border-line-soft pt-2 text-xs text-ink-mute">
+                Edge score:{' '}
+                <span
+                  className={`font-mono font-semibold ${runner.edgeScore >= 0.08 ? 'text-emerald-deep' : 'text-ink'}`}
+                >
+                  {runner.edgeScore >= 0 ? '+' : ''}
+                  {(runner.edgeScore * 100).toFixed(1)}%
+                </span>{' '}
+                ({(runner.edgeModelProb! * 100).toFixed(0)}% model vs {(runner.edgeMarketProb! * 100).toFixed(0)}%
+                market implied win chance). A blend of WPR + speed/form-provider ratings + trailing jockey/trainer
+                form - a bet-selection signal, not a ranking; a backtest found a real edge only at roughly +8% or
+                higher, not at any positive value.
+              </p>
+            )}
           </div>
 
           {/* ResultVsProjection and/or PriceMovementChart ride alongside
