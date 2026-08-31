@@ -74,7 +74,13 @@ def build_race_speed_labels(since):
             except Exception:
                 continue
             for run_id in race_runners["run_id"]:
-                run_id_to_label[run_id] = res["label"]
+                # build_training_frame casts fh["run_id"] to str before
+                # _horse_feature_rows ever sees it (to merge wpr_nett in from
+                # toprate_runners.csv - see its "fh['run_id'] = ...astype(str)"
+                # line) but race_speed_estimate's loader leaves run_id as
+                # int64. Keying this dict by int silently failed every
+                # lookup (own_pace was 0.0 on 100% of rows) until this str().
+                run_id_to_label[str(run_id)] = res["label"]
     print(f"  labelled {len(run_id_to_label):,} runner-rows")
     return run_id_to_label
 
