@@ -35,6 +35,19 @@ from wpr_own_pace_backtest import add_track_barrier
 FORM_CSV = "wpr_form_history.csv.gz"
 NEW_ALPHA = 0.80
 
+# The form history spans 2016-2026 but is heavily back-loaded (2025 Q2
+# onward is ~68% of all rows). A naive 50/50 chronological split lands
+# around Oct 2025, putting a 9-YEAR mash-up of old data into "H1" -
+# including 2025 Q1, where the documented alpha-drift analysis (git
+# history, commit 5fa1966) found the actual OPTIMAL alpha was only 0.25.
+# Testing whether a single fixed alpha=0.80 generalizes across that known
+# drift answers the wrong question (of course a single alpha doesn't fit
+# both eras - that IS the drift). SINCE_CUTOFF restricts both halves to
+# the recent, post-drift-settling era the 0.70-0.85 validated range
+# actually concerns, matching how the original analysis avoided this trap
+# (60-day rolling windows, or toprate_runners.csv's own recent-only data).
+SINCE_CUTOFF = "2025-10-01"
+
 # Current production constants (for the head-to-head comparison).
 PROD_ALPHA = wpr._BASE_BLEND_ALPHA
 PROD_LOW_BREAK = wpr._CALIB_LOW_BREAK
@@ -138,6 +151,15 @@ def run():
     D = D.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + non_tb)
     D_res = D_res.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + non_tb +
                           ["barrier", "field_size", "track", "cur_distance"])
+
+    if SINCE_CUTOFF:
+        n_before_d, n_before_dres = len(D), len(D_res)
+        D = D[D["date"] >= pd.Timestamp(SINCE_CUTOFF)].copy()
+        D_res = D_res[D_res["date"] >= pd.Timestamp(SINCE_CUTOFF)].copy()
+        print(f"  recency cutoff >= {SINCE_CUTOFF}: MAE rows {n_before_d:,} -> {len(D):,}, "
+              f"strike-rate rows {n_before_dres:,} -> {len(D_res):,} (avoids mixing in the "
+              f"pre-drift era - see SINCE_CUTOFF comment)")
+
     print(f"  {len(D):,} rows usable for MAE calibration fit, "
           f"{len(D_res):,} rows usable for strike-rate validation ({D_res['race_id'].nunique():,} races)")
 
