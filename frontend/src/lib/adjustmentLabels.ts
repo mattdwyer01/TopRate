@@ -13,4 +13,6 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   own_second_up: 'Second-up vs its own average',
   own_trend: 'Improving/declining trend',
   own_long_spell: 'After a long spell vs its own average',
+  track_barrier: 'Barrier draw at this track and trip',
+  closing_merit: 'Closing sectionals vs race pace',
 }
