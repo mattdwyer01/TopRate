@@ -257,7 +257,9 @@ export function RunnerDetailModal({
                 </span>
                 <span>
                   ({(runner.edgeModelProb! * 100).toFixed(0)}% model vs {(runner.edgeMarketProb! * 100).toFixed(0)}%
-                  market implied win chance){runner.edgeScore >= 0.08 ? ' - clears the validated overlay threshold' : ''}
+                  market implied win chance){runner.edgeScore >= 0.08 ? ' - crosses the 8%+ overlay cutoff' : ''}. An
+                  experimental signal - a walk-forward check (30 daily refits, Aug 2026) came back statistically
+                  indistinguishable from break-even (ROI 95% CI roughly -19% to +22%), not proven profitable.
                 </span>
               </div>
             )}

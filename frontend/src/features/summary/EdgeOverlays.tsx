@@ -72,19 +72,26 @@ interface OverlayRow {
   won: boolean
 }
 
+// Experimental, not proven. A single fixed-split holdout once showed
+// +11-17% ROI around this threshold; a proper walk-forward check (model
+// refit daily on strictly-prior data, 30 days, Aug 2026) came back
+// +1.5% ROI on 1,097 bets with a 95% confidence interval of roughly -19%
+// to +22% - statistically indistinguishable from break-even, and real
+// single days in that test lost 60-100% of stakes. Treat every number in
+// this tab as "worth tracking forward", not "expected to make money".
 const TIER_INFO: Record<EdgeTier, { label: string; blurb: string }> = {
   'edge-8': {
     label: '8%+ edge',
     blurb:
-      "Model win probability exceeds the market's implied probability by ≥8 points. A held-out backtest (calibrate_edge_score.py, unseen dates) found this roughly where ROI turns positive - not where it's already been proven best, so treat this as the floor, not a guarantee.",
+      "Model win probability exceeds the market's implied probability by ≥8 points. A walk-forward check (30 daily refits, unseen-at-the-time data) came back statistically indistinguishable from break-even (ROI 95% CI roughly -19% to +22%) - this is not a proven edge, and single days can lose big (one test day: 32 bets, 3 winners, -69% to -83% ROI). Tracked here to accumulate real forward evidence, not because it's expected to profit.",
   },
   'edge-10': {
     label: '10%+ edge',
-    blurb: 'The same signal, tighter cut - fewer, higher-edge qualifiers. Not confirmed stronger than 8%+ (see Scoreboard above for real forward performance at each cut).',
+    blurb: 'The same unproven signal, tighter cut - fewer, higher-edge qualifiers. Not shown to be any more reliable than 8%+ (see Scoreboard above for real forward performance at each cut, which is the only evidence worth trusting here).',
   },
   'edge-13': {
     label: '13%+ edge',
-    blurb: "Tightest cut. Caution: the held-out backtest found this band noisier, not cleanly better, than 8-13% - a very large edge can also mean the model is confidently wrong (e.g. imputed inputs for a lightly-raced runner), so don't read 'higher edge' as 'safer bet'.",
+    blurb: "Tightest cut. Caution: a very large edge can also mean the model is confidently wrong (e.g. imputed inputs for a lightly-raced runner) rather than a stronger signal - don't read 'higher edge' as 'safer bet'.",
   },
 }
 

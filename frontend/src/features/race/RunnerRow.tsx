@@ -129,12 +129,16 @@ export function RunnerRow({
               SCR
             </button>
           )}
-          {/* Edge score: only surfaces once it clears the margin a held-out
-              backtest actually showed ROI at (see calibrate_edge_score.py) -
-              a bet-selection flag, not shown for every priced runner. */}
+          {/* Edge score: only surfaces once it clears the margin a single
+              70/30 holdout showed ROI at (see calibrate_edge_score.py) - but
+              a proper walk-forward check (30 daily refits, Aug 2026) came
+              back statistically indistinguishable from break-even (95% CI
+              on ROI roughly -19% to +22%). Experimental, not a proven edge -
+              see the runner detail panel. Still a bet-selection flag only,
+              not shown for every priced runner. */}
           {!scratched && runner.edgeScore != null && runner.edgeScore >= 0.08 && (
             <span
-              title={`Model ${(runner.edgeModelProb! * 100).toFixed(0)}% vs market ${(runner.edgeMarketProb! * 100).toFixed(0)}% implied win chance`}
+              title={`Model ${(runner.edgeModelProb! * 100).toFixed(0)}% vs market ${(runner.edgeMarketProb! * 100).toFixed(0)}% implied win chance - experimental signal, not proven profitable (see runner detail)`}
               className="flex-none rounded bg-emerald px-1 text-[10px] font-semibold text-white"
             >
               +{(runner.edgeScore * 100).toFixed(0)}% EDGE
