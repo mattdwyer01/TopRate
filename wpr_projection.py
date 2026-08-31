@@ -2919,21 +2919,33 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # correction no longer applies - re-blending toward avg_last3 on top of
     # a base that is already recent-form-anchored would double-count it.
 
-    # beta (the price softmax parameter) is calibrated separately by
-    # calibrate_price_beta.py against real resulted-race outcomes - it is
-    # NOT re-derived here (this function has no win/loss data, only WPR
-    # values). Carry the existing config's beta forward so a retrain does
-    # not silently reset it back to the 0.4 default; only a config.json
-    # that has never been calibrated falls back to 0.4.
+    # beta (the price softmax parameter, calibrate_price_beta.py) and
+    # edge_score (the primary-ranking blend calibration, calibrate_edge_
+    # score.py) are both calibrated by SEPARATE scripts against real
+    # win/loss outcomes - this function has no win/loss data, only WPR
+    # values, so it must never re-derive or drop them. BUG FIX (Aug 2026,
+    # found right after shipping closing_merit): this used to write a
+    # brand-new dict from scratch, carrying forward ONLY "beta" by name -
+    # every other externally-calibrated key (edge_score being the one
+    # that actually mattered - it silently disappeared from config.json
+    # for as long as it took to notice, breaking compute_edge_scores'
+    # PRIMARY ranking, see git history for the exact commit range) was
+    # wiped on every retrain. Fixed by loading the whole existing config
+    # and updating it in place, so ANY key this function does not own
+    # (present or future) survives a retrain automatically.
     _existing_cfg_path = Path(out_dir) / "config.json"
-    beta = 0.4
+    existing_cfg = {}
     if _existing_cfg_path.exists():
         try:
-            beta = json.load(open(_existing_cfg_path)).get("beta", 0.4)
+            existing_cfg = json.load(open(_existing_cfg_path))
         except Exception:
             pass
+    beta = existing_cfg.get("beta", 0.4)
     print(f"  beta carried forward from existing config: {beta} "
           f"(re-run calibrate_price_beta.py --write to re-derive it)")
+    if "edge_score" in existing_cfg:
+        print("  edge_score calibration carried forward unchanged "
+              "(re-run calibrate_edge_score.py --write to re-derive it)")
 
     Path(out_dir).mkdir(exist_ok=True)
     # projection.joblib is now vestigial (no more Ridge model to store) -
@@ -2941,13 +2953,14 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # and wpr_models/'s three-file shape don't need to change.
     joblib.dump({}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
-    json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
+    new_cfg = dict(existing_cfg)
+    new_cfg.update({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
                "beta": beta, "min_runs": _MIN_RUNS,
                "track_barrier_lookup": track_barrier_lookup,
-               "pace_baseline_lookup": pace_baseline_lookup},
-              open(Path(out_dir) / "config.json", "w"), indent=1)
+               "pace_baseline_lookup": pace_baseline_lookup})
+    json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
 
