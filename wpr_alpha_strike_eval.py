@@ -51,6 +51,7 @@ import numpy as np
 import pandas as pd
 
 import wpr_projection as wpr
+from wpr_own_pace_backtest import add_track_barrier
 
 FORM_CSV = "wpr_form_history.csv.gz"
 RUNNERS_CSV = "toprate_runners.csv"
@@ -93,12 +94,28 @@ def run():
     tr = tr.drop_duplicates(subset="run_id", keep="last")
 
     full = full.merge(tr[["run_id", "race_id", "won"]], on="run_id", how="inner")
-    full = full.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + wpr.ADJ_TERMS)
+    # track_barrier isn't produced by build_training_frame (needs an actual
+    # fitted lookup, unlike every other ADJ_TERMS entry - see
+    # wpr_own_pace_backtest.add_track_barrier) so it's excluded here and
+    # fitted per half below, on the columns it needs.
+    non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
+    full = full.dropna(subset=["wpr_nett", "avg_last3", "career_avg"] + non_tb_terms +
+                        ["barrier", "field_size", "track", "cur_distance"])
     print(f"Rows with a known race result and enough history for a base: {len(full):,} "
           f"({full['race_id'].nunique():,} races)")
 
     mid = full["date"].quantile(0.5)
     h1, h2 = full[full["date"] < mid].copy(), full[full["date"] >= mid].copy()
+    # track_barrier is alpha-independent (fit from target - career_avg, no
+    # base blend involved) so it only needs fitting once per half, not once
+    # per alpha candidate below. Fit on each half's own data and apply to
+    # itself - each half here is an independent "what would strike rate
+    # look like" snapshot, not a fit/validate pair (that's what H1-vs-H2
+    # AGREEMENT further down is for), so this in-sample fit is fine.
+    add_track_barrier(h1, [h1])
+    add_track_barrier(h2, [h2])
+    h1 = h1.dropna(subset=["track_barrier"])
+    h2 = h2.dropna(subset=["track_barrier"])
     print(f"H1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})\n")
 
     print("Nothing is 'fit' per alpha - it's a fixed blend weight, not a regression - so both "
