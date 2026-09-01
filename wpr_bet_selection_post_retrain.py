@@ -149,6 +149,25 @@ def walk_forward_bets(d, features, burn_in_weeks=BURN_IN_WEEKS, min_train=MIN_TR
     return pd.concat(bets, ignore_index=True)
 
 
+def wpr_price_bets(d, beta, burn_in_weeks=BURN_IN_WEEKS):
+    """WPR price ALONE as the model side of edge - no blend, no z-score
+    fitting at all (nothing to fit: wprp_proj is already the final,
+    calibrated model output). Restricted to the same test weeks as the
+    blend variants (burn_in_weeks skipped) purely so the comparison is
+    apples-to-apples on identical rows, not because this variant needs a
+    burn-in period itself."""
+    weeks = sorted(d["date"].dt.to_period("W").unique())
+    test_weeks = set(weeks[burn_in_weeks:])
+    d = d[d["date"].dt.to_period("W").isin(test_weeks)].copy()
+    d = d.dropna(subset=["wprp_proj"])
+    e = np.exp(beta * (d["wprp_proj"] - d.groupby("race_id")["wprp_proj"].transform("max")))
+    p = e / d.groupby("race_id")["wprp_proj"].transform(
+        lambda s: np.exp(beta * (s - s.max())).sum())
+    d["p_mkt_norm"] = (1.0 / d["sp"]) / d.groupby("race_id")["sp"].transform(lambda s: (1.0 / s).sum())
+    d["edge"] = p - d["p_mkt_norm"]
+    return d[["won", "sp", "edge", "used_sp_fallback"]]
+
+
 def report(sub, label):
     if len(sub) < 20:
         print(f"    {label}: n={len(sub)} (too small, skipped)")
@@ -161,9 +180,8 @@ def report(sub, label):
           f"ROI={profit.sum()/len(sub)*100:+6.2f}%  t={t:+.2f}{flag}")
 
 
-def run_variant(d, features, label):
-    print(f"\n{'='*70}\nVariant {label}: edge features = {features}\n{'='*70}")
-    bets = walk_forward_bets(d, features)
+def report_bets(bets, label):
+    print(f"\n{'='*70}\nVariant {label}\n{'='*70}")
     fallback_pct = bets["used_sp_fallback"].mean() * 100
     print(f"total scored bets: {len(bets):,}  (fixed_win_price fallback to SP for {fallback_pct:.1f}%)\n")
 
@@ -178,6 +196,10 @@ def run_variant(d, features, label):
             report(base[base["sp"] <= cap], f"edge>={thr:.2f}, price<={cap:.0f}")
 
 
+def run_variant(d, features, label):
+    report_bets(walk_forward_bets(d, features), f"{label}: edge features = {features}")
+
+
 def run():
     d = build_new_proj_frame()
     print(f"\nresulted races: {d['race_id'].nunique():,}  runners: {len(d):,}  "
@@ -187,6 +209,9 @@ def run():
                 "A (unchanged features, double-counts trainer/jockey)")
     run_variant(d, ["wprp_proj", "pfm_score"],
                 "B (trainer/jockey dropped, avoids double-counting)")
+
+    beta = json.load(open(CONFIG_PATH)).get("beta", 0.4)
+    report_bets(wpr_price_bets(d, beta), f"C (WPR price alone, no blend - beta={beta})")
 
     print("\nSame multiple-comparisons caveat as the earlier bet-selection scripts: treat any")
     print("row here as a hypothesis for a future walk-forward period, not a result to ship.")
