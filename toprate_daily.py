@@ -123,7 +123,7 @@ RUNNER_COLS = [
     "race_shape_early","race_shape_mid","race_shape_late",
     "has_first_starter",
     # Runner info
-    "run_id","tab_number","barrier","horse","jockey","trainer","runs_with_wpr",
+    "run_id","horse_id","tab_number","barrier","horse","jockey","trainer","runs_with_wpr",
     # This runner's gear changes for TODAY's race (JSON list string, same
     # format as wpr_form_history.csv.gz's own per-run gear_changes column -
     # see apply_gear_changes_today), None if none announced/unavailable.
@@ -2372,6 +2372,13 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "tab_number":     d.get("tabNumber"),
                     "barrier":        d.get("barrier"),
                     "horse":          d.get("horse"),
+                    # Stable per-horse id, same field already used to key
+                    # wpr_form_history (see collect_wpr_form_history) - was
+                    # being fetched every run but only ever kept for the
+                    # form-history table, not this one, so cross-table joins
+                    # had to go through horse name (apostrophes, "(NZ)"
+                    # suffixes, etc). No extra API call - already in `d`.
+                    "horse_id":       d.get("horseId"),
                     "jockey":         d.get("jockey"),
                     "trainer":        d.get("trainer"),
                     "runs_with_wpr":  h.get("runs_with_wpr"),
