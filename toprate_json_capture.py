@@ -268,22 +268,43 @@ def _parse_data_json(payload):
 
 
 def extract_runs(payload):
-    """From a parsed __data.json payload return (horse_id, runs) where
-    runs is a list of {date, fields} - fields being the SECT_COLS +
-    EXTRA_COLS dict for that form run.
-    Returns (None, []) on a malformed payload (caller may retry),
-    ('EMPTY', []) when runnerDetail is null (do NOT retry)."""
+    """From a parsed __data.json payload return (horse_id, runs,
+    gear_changes_today) where runs is a list of {date, fields} - fields
+    being the SECT_COLS + EXTRA_COLS dict for that form run.
+
+    gear_changes_today (Aug 2026 addition - see gear_change ADJ_TERM):
+    this runner's gear changes for the CURRENT/upcoming race, a JSON
+    list string (same format as the per-run "gear_changes" field inside
+    each past form entry below) or None if there are none/unavailable.
+    Lives at the TOP LEVEL of the runner object (rd["gearChanges"]),
+    NOT inside the "form" array - the "form" array holds only ALREADY-
+    RUN races (each entry requires a real sectionalRating dict, which an
+    upcoming race can't have), so this top-level field is the only place
+    a horse's gear for its NEXT start actually appears on this same
+    already-fetched runner page. Confirmed against a real page capture
+    (see chat): a runner's "Ear Muffs Off Again, Tongue Tie Off First
+    Time" badge for its next start came through as rd["gearChanges"] ->
+    ["Ear Muffs Off Again", "Tongue Tie Off First Time"], sibling to
+    "form", not inside it.
+
+    Returns (None, [], None) on a malformed payload (caller may retry),
+    ('EMPTY', [], None) when runnerDetail is null (do NOT retry)."""
     parsed = _parse_data_json(payload)
     if parsed == "EMPTY":
-        return "EMPTY", []
+        return "EMPTY", [], None
     if parsed is None:
-        return None, []
+        return None, [], None
     rd, deref = parsed
 
     horse_id = deref(rd.get("horseId"))
+
+    gc_today = deref(rd.get("gearChanges"))
+    gear_changes_today = (json.dumps([deref(x) for x in gc_today])
+                          if isinstance(gc_today, list) else None)
+
     form = deref(rd.get("form"))
     if not isinstance(form, list):
-        return horse_id, []
+        return horse_id, [], gear_changes_today
 
     # weightHandicap: the weight basis this scrape's wpr figures are
     # adjusted to. One value per scrape, written to every form row.
@@ -358,7 +379,7 @@ def extract_runs(payload):
             figs[k] = _scalar(deref(fe.get(k)))
 
         out.append({"date": str(run_date), "fields": figs})
-    return horse_id, out
+    return horse_id, out, gear_changes_today
 
 
 # ---------------------------------------------------------------------------
@@ -366,8 +387,10 @@ def extract_runs(payload):
 # ---------------------------------------------------------------------------
 def fetch_runner(run_id):
     """Fetch and parse one runner-page __data.json.
-    Returns (horse_id, runs) on success, ('EMPTY', []) when the runner is
-    not served, or (None, []) on a hard failure."""
+    Returns (horse_id, runs, gear_changes_today) on success (see
+    extract_runs' docstring for gear_changes_today), ('EMPTY', [], None)
+    when the runner is not served, or (None, [], None) on a hard
+    failure."""
     url = (f"{WEB_BASE}/runners/{run_id}/__data.json"
            f"?x-sveltekit-invalidated=0001")
     last_err = None
@@ -396,7 +419,7 @@ def fetch_runner(run_id):
             time.sleep(2 * attempt)
             continue
         if resp.status_code == 404:
-            return None, []
+            return None, [], None
         if resp.status_code != 200:
             last_err = f"HTTP {resp.status_code}"
             time.sleep(2 * attempt)
@@ -447,7 +470,7 @@ def fetch_runner(run_id):
             else:
                 # Redirect with no usable location - treat as not-served, not a
                 # hard parse failure (avoids the noisy error spam).
-                return "EMPTY", []
+                return "EMPTY", [], None
 
         # Login bounce: the session expired mid-run, so the route returns
         # HTTP 200 but the page node is the LOGIN page, not runnerDetail. The
@@ -462,20 +485,20 @@ def fetch_runner(run_id):
             time.sleep(2 * attempt)
             continue
 
-        horse_id, runs = extract_runs(payload)
+        horse_id, runs, gear_changes_today = extract_runs(payload)
         if horse_id == "EMPTY":
-            return "EMPTY", []
+            return "EMPTY", [], None
         if horse_id is None:
             # Deterministic parse failure on a valid 200 JSON response:
             # retrying the same page returns the same structure, so fail
             # fast rather than burning retry sleeps across the whole field
             # (that is what pushed the daily run toward the 15-min timeout).
             print(f"  fetch_runner({run_id}) failed: could not parse runnerDetail/form")
-            return None, []
-        return horse_id, runs
+            return None, [], None
+        return horse_id, runs, gear_changes_today
 
     print(f"  fetch_runner({run_id}) failed: {last_err}")
-    return None, []
+    return None, [], None
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +512,7 @@ if __name__ == "__main__":
         sys.exit("Usage: python toprate_json_capture.py <run_id>")
     rid = sys.argv[1]
     print(f"Fetching runner page {rid} ...")
-    horse_id, runs = fetch_runner(rid)
+    horse_id, runs, gear_changes_today = fetch_runner(rid)
     if horse_id == "EMPTY":
         print("Result: EMPTY - runnerDetail null (runner not served).")
         sys.exit(0)
@@ -497,6 +520,7 @@ if __name__ == "__main__":
         print("Result: hard failure - see message above.")
         sys.exit(1)
     print(f"horse_id = {horse_id}")
+    print(f"gear_changes_today = {gear_changes_today}")
     print(f"{len(runs)} form runs parsed:\n")
     for r in runs:
         f = r["fields"]

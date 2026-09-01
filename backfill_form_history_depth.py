@@ -100,7 +100,7 @@ def main():
         try:
             return rid, cap.fetch_runner(rid)
         except Exception:
-            return rid, (None, [])
+            return rid, (None, [], None)
 
     rich = {}
     n_ok = n_empty = n_fail = 0
@@ -115,7 +115,7 @@ def main():
                 print(f"  ... {done}/{len(candidates)} ({time.time()-t0:.0f}s, "
                       f"{len(rich):,} run keys collected so far, "
                       f"ok {n_ok}, empty {n_empty}, fail {n_fail})")
-            rid, (horse_id, runs) = fut.result()
+            rid, (horse_id, runs, _gear_today) = fut.result()
             if horse_id == "EMPTY":
                 n_empty += 1
             elif horse_id is None:

@@ -44,6 +44,20 @@ FORM_CSV = "wpr_form_history.csv.gz"
 _SHRINK_K = 3.0
 
 
+def add_closing_merit(apply_frames, cutoff_date):
+    """Mirrors add_track_barrier's pattern for the OTHER population+own-
+    history hybrid ADJ_TERM already in production (see wpr_projection.
+    _fit_pace_baseline/_closing_merit_term) - needed here since the
+    current 8-term baseline includes closing_merit and this frame must
+    match production's proj_of() exactly (same helper as
+    wpr_sectional_merit_strike_eval.py's own copy)."""
+    lookup = wpr._fit_pace_baseline(FORM_CSV, cutoff_date)
+    for frame in apply_frames:
+        frame["closing_merit"] = [
+            wpr._closing_merit_term(pairs, lookup) for pairs in frame["closing_pairs"]
+        ]
+
+
 def _shrink(delta, n):
     return delta * n / (n + _SHRINK_K)
 
@@ -122,7 +136,7 @@ def run():
     full = merge_won_by_horse_date(full)
 
     full = add_base(full)
-    non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
+    non_tb_terms = [t for t in wpr.ADJ_TERMS if t not in ("track_barrier", "closing_merit")]
     full = full.dropna(subset=["target", "_base", "career_avg"] + non_tb_terms +
                         ["barrier", "field_size", "track", "cur_distance", "gear_bucket"])
     print(f"\nScoped rows: {len(full):,}")
@@ -134,6 +148,7 @@ def run():
 
     h1_d1, h2_d1 = h1.copy(), h2.copy()
     add_track_barrier(h1_d1, [h1_d1, h2_d1])
+    add_closing_merit([h1_d1, h2_d1], h1["date"].max())
     lookup1 = fit_gear_lookup(h1_d1)
     print(f"\ngear lookup (fit on H1): {lookup1}")
     h1_d1["gear_change"] = h1_d1["gear_bucket"].map(lookup1).fillna(0.0)
@@ -141,6 +156,7 @@ def run():
 
     h1_d2, h2_d2 = h1.copy(), h2.copy()
     add_track_barrier(h2_d2, [h1_d2, h2_d2])
+    add_closing_merit([h1_d2, h2_d2], h2["date"].max())
     lookup2 = fit_gear_lookup(h2_d2)
     print(f"gear lookup (fit on H2): {lookup2}")
     h1_d2["gear_change"] = h1_d2["gear_bucket"].map(lookup2).fillna(0.0)

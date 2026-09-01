@@ -15,4 +15,5 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   own_long_spell: 'After a long spell vs its own average',
   track_barrier: 'Barrier draw at this track and trip',
   closing_merit: 'Closing sectionals vs race pace',
+  gear_change: 'Gear change today',
 }
