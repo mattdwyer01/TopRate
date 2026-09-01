@@ -133,6 +133,44 @@ def report_edge(bets, edge_col, label):
             report(base[base["sp"] <= cap], f"edge>={thr:.2f}, price<={cap:.0f}")
 
 
+PRICE_BUCKETS = [1.0, 3.0, 5.0, 8.0, 15.0, 26.0, 1e9]
+PRICE_BUCKET_LABELS = ["<3", "3-5", "5-8", "8-15", "15-26", ">26"]
+
+
+def favourite_bias_diagnostic(pooled):
+    """Are the edge-based strategies finding real signal, or just harvesting
+    the market's own favourite-longshot bias (favourites structurally
+    underbet, so ANY strategy that ends up mostly backing short-priced
+    runners looks profitable regardless of the model)? Checks this
+    directly: compares each edge variant's ROI WITHIN a price bucket
+    against that SAME bucket's own unconditional baseline (backing every
+    runner in that price range, no model at all). If the edge-filtered
+    ROI is close to its bucket's baseline, the filter isn't adding
+    anything beyond "pick a shorter price" - if it's clearly higher, that's
+    real incremental selection skill on top of whatever price-bucket bias
+    exists."""
+    print(f"\n{'='*70}\nFAVOURITE-LONGSHOT BIAS DIAGNOSTIC\n{'='*70}")
+
+    fav_idx = pooled.groupby("race_id")["sp"].idxmin()
+    favs = pooled.loc[fav_idx]
+    print("\n--- Baseline: back EVERY favourite (shortest price in the race), no model at all ---")
+    report(favs, "every favourite")
+
+    pooled = pooled.copy()
+    pooled["bucket"] = pd.cut(pooled["sp"], bins=PRICE_BUCKETS, labels=PRICE_BUCKET_LABELS, right=False)
+
+    print("\n--- Baseline: back EVERY runner in each price bucket, no model/edge filter at all ---")
+    for b in PRICE_BUCKET_LABELS:
+        report(pooled[pooled["bucket"] == b], f"bucket ${b} (unconditional, n=all)")
+
+    for edge_col, name in [("edge_a", "A"), ("edge_b", "B"), ("edge_wpr", "WPR-alone")]:
+        print(f"\n--- {name}: edge>=0.10-selected bets, BY price bucket "
+              f"(compare each row to that bucket's unconditional baseline above) ---")
+        sub = pooled[pooled[edge_col] >= 0.10]
+        for b in PRICE_BUCKET_LABELS:
+            report(sub[sub["bucket"] == b], f"{name} edge>=0.10, bucket ${b}")
+
+
 def run():
     print("Rebuilding training frame...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
@@ -177,6 +215,8 @@ def run():
     report_edge(pooled, "edge_a", "Variant A (unchanged features, double-counts trainer/jockey) - LEAK-FREE")
     report_edge(pooled, "edge_b", "Variant B (trainer/jockey dropped from blend) - LEAK-FREE")
     report_edge(pooled, "edge_wpr", "Variant WPR (WPR price alone, beta refit per direction) - LEAK-FREE")
+
+    favourite_bias_diagnostic(pooled)
 
     print("\nSame multiple-comparisons caveat as the earlier bet-selection scripts: treat any")
     print("row here as a hypothesis for a future walk-forward period, not a result to ship.")
