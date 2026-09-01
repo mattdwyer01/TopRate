@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeEffectiveRace } from '../../lib/raceModel'
+import { computeEffectiveRace, type EdgeScoreConfig } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -14,6 +14,8 @@ interface RaceDetailProps {
   race: Race
   allRaces: Race[]
   priceBeta: number | null
+  edgeScoreConfig: EdgeScoreConfig | null
+  sharpnessScale: number
   deltas: Record<string, number>
   bases: Record<string, number>
   scratched: Set<string>
@@ -52,6 +54,8 @@ export function RaceDetail({
   race,
   allRaces,
   priceBeta,
+  edgeScoreConfig,
+  sharpnessScale,
   deltas,
   bases,
   scratched,
@@ -83,8 +87,8 @@ export function RaceDetail({
   }, [race.runners, scratched])
 
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
-    [race.runners, deltas, bases, priceBeta, effectiveScratched],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, edgeScoreConfig, sharpnessScale, effectiveScratched),
+    [race.runners, deltas, bases, priceBeta, edgeScoreConfig, sharpnessScale, effectiveScratched],
   )
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count

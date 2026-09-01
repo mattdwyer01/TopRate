@@ -736,6 +736,49 @@ def _fit_pace_baseline(form_history_csv, cutoff_date):
     return {k: float(v) for k, v in d.groupby("bucket")["sect"].mean().items()}
 
 
+# gear_change: a third population-only ADJ_TERM (Aug 2026, strike-rate
+# validation - see wpr_gear_change_strike_eval.py), testing racing lore that
+# first-time gear (blinkers especially) sharpens a horse's focus. Pure
+# population lookup, same structure as track_barrier: gear changes are
+# mostly a rare, one-off event per horse, so there is no meaningful "own
+# history in this gear" to match against. Bucket is a fact announced
+# pre-race in the formguide (no leak); the fitted shrunk mean residual
+# (target - career_avg) per bucket is fit in train_wpr_projection() on trn
+# only and shipped in config.json as gear_change_lookup, applied post-hoc
+# by _gear_change_term below (same two-stage pattern as track_barrier/
+# closing_merit) both at serve time (project_race) and at
+# train_wpr_projection()'s own cf/te scoring step.
+_GEAR_CHANGE_K = 3.0
+
+
+def _gear_change_bucket(raw):
+    """Bucket a gear_changes JSON-list string into "blinkers_first_time"
+    (racing lore specifically calls this one out), "other_first_time_gear"
+    (any other first-time gear change), or "no_change" (baseline, also the
+    fallback for missing/unparseable input)."""
+    if not isinstance(raw, str):
+        return "no_change"
+    try:
+        items = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return "no_change"
+    if not items:
+        return "no_change"
+    if any("Blinkers First Time" in i for i in items):
+        return "blinkers_first_time"
+    if any("First Time" in i for i in items):
+        return "other_first_time_gear"
+    return "no_change"
+
+
+def _gear_change_term(bucket, lookup):
+    """Live lookup against the FITTED gear_change table (see above). 0.0
+    (no adjustment) if the bucket or lookup is unavailable."""
+    if not lookup:
+        return 0.0
+    return float(lookup.get(bucket, 0.0))
+
+
 # Shrinkage for the own-history adjustment deltas below: a delta computed
 # from 1-2 of a horse's own runs is mostly noise dressed up as a personal
 # signal - the same small-sample trap CareerStats' vsBase colouring and
@@ -1834,6 +1877,31 @@ def get_price_beta():
 EDGE_FEATURES = ["wprp_proj", "trainer_win_pct_365d", "jockey_win_pct_90d", "pfm_score"]
 
 
+def get_edge_score_config():
+    """The edge_score blend's features/means/stds/beta, exposed so the
+    dashboard can replicate compute_edge_scores' exact formula client-side
+    for a manual rating override (see get_price_beta's docstring above for
+    why this matters - wpjpr/wpjr, the dashboard's "WPR $"/rank, are the
+    BLEND price/rank as of Sep 2026 (see compute_edge_scores), not the
+    plain projection, so a manual override needs this full config, not
+    just a single beta).
+
+    Returns None if the edge_score calibration hasn't been fitted yet
+    (see calibrate_edge_score.py --write) - the dashboard falls back to
+    not recomputing on override in that case.
+    """
+    _load_models()
+    cfg = _CFG.get("edge_score")
+    if not cfg:
+        return None
+    return {
+        "features": cfg["features"],
+        "means": cfg["means"],
+        "stds": cfg["stds"],
+        "beta": cfg.get("blend_beta", 1.0),
+    }
+
+
 def compute_edge_scores(runners):
     """Blend WPR projection + trailing jockey/trainer form + a
     form-provider score (pfm_score) into a per-race win-probability
@@ -1929,6 +1997,15 @@ def compute_edge_scores(runners):
     feats = cfg["features"]
     means = cfg["means"]
     stds = cfg["stds"]
+    # blend_beta: softmax sharpness for THIS score, calibrated separately
+    # from wpr_price's own beta (see calibrate_blend_price_beta.py) -
+    # grid search + Brier score + held-out validation against real
+    # outcomes landed on 1.0 (i.e. no scaling), a genuine U-shaped optimum
+    # (both train and held-out Brier get worse in either direction from
+    # it), not just "we never calibrated it so it stayed at the default".
+    # Falls back to 1.0 (the prior always-implicit behaviour) if the
+    # calibration script hasn't been run yet.
+    blend_beta = cfg.get("blend_beta", 1.0)
 
     def _score(r):
         # A missing wprp_proj forces the WHOLE score to neutral (0.0),
@@ -1964,10 +2041,13 @@ def compute_edge_scores(runners):
     # always returns a float (0.0 for a missing wprp_proj, per the user's
     # explicit instruction - see _score above), so have_score is true for
     # every real runner in practice; this guard is defensive only (an
-    # empty runners list). Mirrors project_race's own wpr_price softmax so
-    # the two "fair price" numbers behave alike.
+    # empty runners list). blend_beta (see above) is this score's OWN
+    # calibrated sharpness - deliberately separate from project_race's
+    # wpr_price beta, since the two scores have different scales (a WPR
+    # gap vs a z-score gap) and calibrated to very different values
+    # (0.15-0.20 for wpr_price, 1.0 for this blend).
     s_v = score[have_score]
-    e_full = np.exp(s_v - s_v.max())
+    e_full = np.exp(blend_beta * (s_v - s_v.max()))
     blend_prob_v = e_full / e_full.sum()
     blend_rank_v = (-blend_prob_v).argsort().argsort() + 1
     blend_price_v = np.minimum(1.0 / blend_prob_v, 999.0)
@@ -1989,7 +2069,7 @@ def compute_edge_scores(runners):
     # an unpriced (e.g. late-scratched) or unscored runner shouldn't dilute
     # either side.
     s_valid = score[valid]
-    e_v = np.exp(s_valid - s_valid.max())
+    e_v = np.exp(blend_beta * (s_valid - s_valid.max()))
     model_prob_v = e_v / e_v.sum()
     inv_v = 1.0 / prices[valid]
     market_prob_v = inv_v / inv_v.sum()
@@ -2057,6 +2137,15 @@ def project_race(runners, race_date):
     for f in feat_dicts:
         if f is not None:
             f["closing_merit"] = _closing_merit_term(f.get("closing_pairs"), _pb_lookup)
+
+    # gear_change: pure population lookup, same injection pattern as
+    # track_barrier above - it needs the fitted table from config.json,
+    # unrelated to prior_runs so it cannot be computed inside build_features.
+    _gc_lookup = _CFG.get("gear_change_lookup")
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["gear_change"] = _gear_change_term(
+                _gear_change_bucket(r.get("cur_gear_changes")), _gc_lookup)
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
@@ -2194,6 +2283,11 @@ def _adj_phrase(feat, value, contribution):
                  "pace of those races would suggest" if neg else
                  "its recent closing sectionals have been stronger than the "
                  "pace of those races would suggest")
+    if feat == "gear_change":
+        return ("horses wearing this gear change tend to run below "
+                 "expectations" if neg else
+                 "horses wearing this gear change for the first time tend "
+                 "to run above expectations")
     return None
 
 
@@ -2540,6 +2634,10 @@ def _horse_feature_rows(g, race_speed_labels=None):
         # a per-horse own_barrier lookup can't answer.
         f["track"] = cur.get("track")
         f["barrier"] = cur.get("barrier")
+        # Raw gear_changes JSON-list string for THIS run. Analysis-only (not
+        # a model feature - gear_change is a population-fitted ADJ_TERM,
+        # see _gear_change_bucket/_gear_change_term above).
+        f["gear_changes"] = cur.get("gear_changes")
         out.append(f)
     return out
 
@@ -2618,7 +2716,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
             "isBarrierTrial", "barrier",
             "field_size", "raceShapeEarly", "raceShapeMid",
             "raceShapeLate", "race_class", "race_id", "run_id", "wpr_nett",
-            "comments_video", "comments_steward"] + _sect_cols
+            "comments_video", "comments_steward", "gear_changes"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
     for c in ["wpr", "distance", "trackGrading", "positionSettled",
@@ -2825,6 +2923,26 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                                           _frame["barrier"], _frame["field_size"])
         ]
 
+    # gear_change: pure population lookup fit on trn only, same shrunk-
+    # residual-vs-career_avg convention as track_barrier above (see
+    # _gear_change_bucket/_gear_change_term docstrings).
+    print("  fitting gear_change lookup (population, trn only)...")
+    _gc_resid = trn["target"] - trn["career_avg"]
+    _gc_bucket = trn["gear_changes"].apply(_gear_change_bucket)
+    _gc_frame = pd.DataFrame({"bucket": _gc_bucket, "residual": _gc_resid}).dropna(subset=["residual"])
+    _gc_global = float(_gc_frame["residual"].mean())
+    gear_change_lookup = {}
+    for bucket, g in _gc_frame.groupby("bucket"):
+        n, m = len(g), float(g["residual"].mean())
+        shrunk = (n * m + _GEAR_CHANGE_K * _gc_global) / (n + _GEAR_CHANGE_K)
+        gear_change_lookup[bucket] = float(shrunk - _gc_global)
+    print(f"  gear_change: {len(gear_change_lookup):,} buckets {gear_change_lookup}")
+    for _frame in (cf, te):
+        _frame["gear_change"] = [
+            _gear_change_term(b, gear_change_lookup)
+            for b in _frame["gear_changes"].apply(_gear_change_bucket)
+        ]
+
     # closing_merit: population half fit on trn's date cutoff (q1), same
     # leak-safe convention as track_barrier above - see _fit_pace_baseline
     # and _closing_merit_term's docstrings for the full two-stage design.
@@ -2959,7 +3077,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                "conf_lo": float(clo), "conf_hi": float(chi),
                "beta": beta, "min_runs": _MIN_RUNS,
                "track_barrier_lookup": track_barrier_lookup,
-               "pace_baseline_lookup": pace_baseline_lookup})
+               "pace_baseline_lookup": pace_baseline_lookup,
+               "gear_change_lookup": gear_change_lookup})
     json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 

@@ -74,6 +74,9 @@ export interface Runner {
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null
+  // Form-provider score - one of the edge_score blend's 4 inputs (see
+  // DashboardData.edgeScoreConfig and lib/raceModel.ts's override recompute).
+  pfmScore: number | null
   jtComboWinPct: number | null
   jtComboRides: number | null
   jockeyRating: number | null
@@ -189,5 +192,18 @@ export interface DashboardData {
   githubRepo: string
   // Softmax beta behind wprPrice - lets the UI replicate the exact price
   // formula when a manual rating override changes the field's ratings.
+  // Superseded by edgeScoreConfig below now that wprPrice is the blend
+  // price (Sep 2026); kept for any code path still keying off the plain
+  // projection formula.
   priceBeta: number | null
+  // The edge_score blend's features/means/stds/beta - lets the UI
+  // replicate compute_edge_scores' exact formula for a manual-override
+  // recompute of wprPrice/wprRank (the blend price/rank). null if the
+  // edge_score calibration hasn't been fitted server-side.
+  edgeScoreConfig: {
+    features: string[]
+    means: Record<string, number>
+    stds: Record<string, number>
+    beta: number
+  } | null
 }
