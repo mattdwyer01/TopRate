@@ -254,6 +254,7 @@ FEATURES = [
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
     "own_trend", "own_long_spell", "track_barrier", "closing_merit",
+    "trainer_merit", "jockey_merit",
 ]
 
 # Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
@@ -646,6 +647,95 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lo
     if db is None or band is None:
         return 0.0
     return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
+
+
+# trainer_merit/jockey_merit: two more population-level ADJ_TERMS (Sep 2026,
+# strike-rate validated - see wpr_trainer_jockey_adj_strike_eval.py),
+# deliberately an adjustment to WPR itself rather than a separate blended
+# ranking (an earlier attempt to fold trainer/jockey trailing form into a
+# SEPARATE blend score, replacing wpr_price wholesale, was reverted -
+# "doesn't pass the pub test": a disconnected second ranking system is
+# confusing even when it measures better, whereas an ADJ_TERM keeps WPR as
+# the one number, nudged the same transparent way track_barrier/
+# closing_merit already do). Same shrunk-population-residual structure as
+# track_barrier, just bucketed by DECILE of trainer_win_pct_365d/
+# jockey_win_pct_90d (data-dependent quantile edges, fit at train time)
+# instead of a fixed Inside/Mid/Wide band. Both cleared the strike-rate bar
+# in both held-out chronological-split directions individually, and
+# combined cleared it by MORE than either alone (+1.1 to +1.4 points, vs
+# +0.3-0.7 for either alone) - complementary, not redundant, signal. MAE
+# got slightly worse in all three variants, the same accepted tradeoff
+# track_barrier/closing_merit were adopted under.
+_TJ_MERIT_K = 300.0
+_TJ_MERIT_BUCKETS = 10
+
+
+def _merit_bucket(value, edges):
+    """Bucket a raw win-pct value into one of the fitted decile buckets
+    (see _fit_merit_lookup) using the SAME edges the lookup was fit
+    against. None if value or edges is missing/unusable."""
+    if value is None or value != value or not edges:
+        return None
+    return int(np.digitize([float(value)], edges[1:-1])[0])
+
+
+def _merit_term(bucket, lookup):
+    """Live lookup against the FITTED trainer_merit/jockey_merit table
+    (see above). 0.0 (no adjustment) for any bucket not seen in
+    training - same "unseen -> 0" contract track_barrier uses."""
+    if bucket is None or not lookup:
+        return 0.0
+    return float(lookup.get(str(bucket), 0.0))
+
+
+def _fit_merit_lookup(fit_rows, col):
+    """Population mean residual (target - career_avg) per decile bucket
+    of col, shrunk toward the global mean with strength _TJ_MERIT_K, fit
+    on fit_rows only. Returns (edges, lookup dict keyed by str(bucket) -
+    JSON needs string keys)."""
+    d = fit_rows.dropna(subset=[col, "target", "career_avg"])
+    edges = np.unique(np.quantile(d[col], np.linspace(0, 1, _TJ_MERIT_BUCKETS + 1)))
+    resid = d["target"] - d["career_avg"]
+    global_mean = resid.mean()
+    bucket = np.digitize(d[col], edges[1:-1])
+    lookup = {}
+    for b in range(len(edges) - 1):
+        m = resid[bucket == b]
+        if len(m):
+            n = len(m)
+            shrunk = (n * m.mean() + _TJ_MERIT_K * global_mean) / (n + _TJ_MERIT_K)
+            lookup[str(b)] = float(shrunk - global_mean)
+    return edges.tolist(), lookup
+
+
+def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="toprate_runners.csv"):
+    """trainer_win_pct_365d/jockey_win_pct_90d are NOT part of the per-run
+    career archive (form_history_csv) at all - confirmed, that file only
+    has the jockey/trainer NAME strings, not their trailing win-rate
+    stats. They are only ever captured in runners_csv (toprate_runners.csv)
+    at daily-fetch time, one row per (race, runner) as it was originally
+    scraped as "today's races". Joins by (horse name, date), NOT run_id
+    (not a reliable per-historical-row key - every row in a scraped
+    horse's whole form table shares one run_id, see
+    wpr_own_pace_backtest.merge_won_by_horse_date's docstring for the full
+    writeup this mirrors) and not horse_id (runners_csv has no horse_id
+    column, only the name - form_history_csv has both, hence the name_map
+    step below).
+
+    Returns (name_map: horse_id -> horse name, lookup: {(horse, date_str):
+    (trainer_win_pct_365d, jockey_win_pct_90d)})."""
+    name_map = pd.read_csv(form_history_csv, usecols=["horse_id", "horse"], low_memory=False)
+    name_map = name_map.dropna().drop_duplicates(subset="horse_id", keep="last")
+    name_map = name_map.set_index("horse_id")["horse"]
+
+    tr = pd.read_csv(runners_csv, low_memory=False,
+                     usecols=["horse", "date", "trainer_win_pct_365d", "jockey_win_pct_90d"])
+    tr["date"] = pd.to_datetime(tr["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    tr = tr.dropna(subset=["date"])
+    tr = tr.drop_duplicates(subset=["horse", "date"], keep=False)  # drop ambiguous same-day name clashes
+    lookup = {(row.horse, row.date): (row.trainer_win_pct_365d, row.jockey_win_pct_90d)
+             for row in tr.itertuples()}
+    return name_map, lookup
 
 
 # closing_merit: a second population+own-history hybrid ADJ_TERM (Aug 2026,
@@ -2110,6 +2200,20 @@ def project_race(runners, race_date):
             f["gear_change"] = _gear_change_term(
                 _gear_change_bucket(r.get("cur_gear_changes")), _gc_lookup)
 
+    # trainer_merit/jockey_merit: pure population lookups, same injection
+    # pattern as track_barrier/gear_change above - today's actual booking,
+    # unrelated to prior_runs so cannot be computed inside build_features.
+    _tm_edges = _CFG.get("trainer_merit_edges")
+    _tm_lookup = _CFG.get("trainer_merit_lookup")
+    _jm_edges = _CFG.get("jockey_merit_edges")
+    _jm_lookup = _CFG.get("jockey_merit_lookup")
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["trainer_merit"] = _merit_term(
+                _merit_bucket(r.get("cur_trainer_win_pct_365d"), _tm_edges), _tm_lookup)
+            f["jockey_merit"] = _merit_term(
+                _merit_bucket(r.get("cur_jockey_win_pct_90d"), _jm_edges), _jm_lookup)
+
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
     # the horse's own anchor (ewm5/ewm3, falling
@@ -2246,6 +2350,16 @@ def _adj_phrase(feat, value, contribution):
                  "pace of those races would suggest" if neg else
                  "its recent closing sectionals have been stronger than the "
                  "pace of those races would suggest")
+    if feat == "trainer_merit":
+        return ("this trainer's runners tend to underperform their rating "
+                 "lately" if neg else
+                 "this trainer's runners have been running above their "
+                 "rating lately")
+    if feat == "jockey_merit":
+        return ("this jockey's mounts tend to underperform their rating "
+                 "lately" if neg else
+                 "this jockey's mounts have been running above their "
+                 "rating lately")
     if feat == "gear_change":
         return ("horses wearing this gear change tend to run below "
                  "expectations" if neg else
@@ -2771,6 +2885,22 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         subset=["target", "date"]).sort_values("date")
     print(f"  {len(D):,} training rows")
 
+    # trainer_win_pct_365d/jockey_win_pct_90d ingredients (trainer_merit/
+    # jockey_merit ADJ_TERMS) - NOT part of build_training_frame's own
+    # per-run career archive (confirmed, form_history_csv only has the
+    # jockey/trainer NAME strings) - merged in separately by (horse, date),
+    # same join wpr_trainer_jockey_adj_strike_eval.py validated this with.
+    print("  merging trainer/jockey trailing win-rate from toprate_runners.csv "
+          "by (horse, date)...")
+    _name_map, _tj_lookup = _load_trainer_jockey_by_horse_date(form_history_csv)
+    _tj_dates = D["date"].dt.strftime("%Y-%m-%d")
+    _tj_names = D["horse_id"].map(_name_map)
+    _tj_vals = [_tj_lookup.get((n, d), (np.nan, np.nan)) for n, d in zip(_tj_names, _tj_dates)]
+    D["trainer_win_pct_365d"] = [t for t, j in _tj_vals]
+    D["jockey_win_pct_90d"] = [j for t, j in _tj_vals]
+    print(f"  trainer_win_pct_365d coverage: {D['trainer_win_pct_365d'].notna().mean()*100:.1f}%  "
+          f"jockey_win_pct_90d coverage: {D['jockey_win_pct_90d'].notna().mean()*100:.1f}%")
+
     # Void filter: drop runs the horse did not get a fair chance to show its
     # true WPR (vet/bled/eased/fell/checked). Training on these teaches the
     # model to predict a compromised run-day rating, which both adds noise and
@@ -2884,6 +3014,25 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             _track_barrier_term(trk, dist, bar, fs, track_barrier_lookup)
             for trk, dist, bar, fs in zip(_frame["track"], _frame["cur_distance"],
                                           _frame["barrier"], _frame["field_size"])
+        ]
+
+    # trainer_merit/jockey_merit: pure population decile-bucketed lookups,
+    # fit on trn only, same shrunk-residual-vs-career_avg convention as
+    # track_barrier above (see _fit_merit_lookup/_merit_term docstrings).
+    print("  fitting trainer_merit lookup (population, trn only)...")
+    trainer_merit_edges, trainer_merit_lookup = _fit_merit_lookup(trn, "trainer_win_pct_365d")
+    print(f"  trainer_merit: {len(trainer_merit_lookup):,} deciles {trainer_merit_lookup}")
+    print("  fitting jockey_merit lookup (population, trn only)...")
+    jockey_merit_edges, jockey_merit_lookup = _fit_merit_lookup(trn, "jockey_win_pct_90d")
+    print(f"  jockey_merit: {len(jockey_merit_lookup):,} deciles {jockey_merit_lookup}")
+    for _frame in (cf, te):
+        _frame["trainer_merit"] = [
+            _merit_term(_merit_bucket(v, trainer_merit_edges), trainer_merit_lookup)
+            for v in _frame["trainer_win_pct_365d"]
+        ]
+        _frame["jockey_merit"] = [
+            _merit_term(_merit_bucket(v, jockey_merit_edges), jockey_merit_lookup)
+            for v in _frame["jockey_win_pct_90d"]
         ]
 
     # gear_change: pure population lookup fit on trn only, same shrunk-
@@ -3041,7 +3190,11 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                "beta": beta, "min_runs": _MIN_RUNS,
                "track_barrier_lookup": track_barrier_lookup,
                "pace_baseline_lookup": pace_baseline_lookup,
-               "gear_change_lookup": gear_change_lookup})
+               "gear_change_lookup": gear_change_lookup,
+               "trainer_merit_edges": trainer_merit_edges,
+               "trainer_merit_lookup": trainer_merit_lookup,
+               "jockey_merit_edges": jockey_merit_edges,
+               "jockey_merit_lookup": jockey_merit_lookup})
     json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 

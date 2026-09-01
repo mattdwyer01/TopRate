@@ -16,4 +16,6 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   track_barrier: 'Barrier draw at this track and trip',
   closing_merit: 'Closing sectionals vs race pace',
   gear_change: 'Gear change today',
+  trainer_merit: "Trainer's recent strike rate",
+  jockey_merit: "Jockey's recent strike rate",
 }

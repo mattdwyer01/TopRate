@@ -1197,6 +1197,8 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 "cur_wpr_nett": r.get("wpr_nett"),
                 "cur_barrier": r.get("barrier"),
                 "cur_gear_changes": r.get("gear_changes"),
+                "cur_trainer_win_pct_365d": r.get("trainer_win_pct_365d"),
+                "cur_jockey_win_pct_90d": r.get("jockey_win_pct_90d"),
             }
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))
