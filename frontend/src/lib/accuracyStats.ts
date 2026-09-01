@@ -37,6 +37,13 @@ export interface AccuracyRow {
   actualRank: number | null
   finishPosition: number | null
   won: boolean
+  // The model's own softmax-derived $ price for this runner, and the
+  // market's own settled price (starting price, falling back to the
+  // post-race top fluctuation when SP itself is missing) - both null
+  // until price/result data is available. Used by computeStrikeRates'
+  // "rated under $10" / "rated shorter than market" pools.
+  wprPrice: number | null
+  marketPrice: number | null
   // Was this run compromised (vet/checked/eased/fell/etc), per video and
   // steward comments? Only ever flags UNDERperformances (see lib/wprVoid.ts's
   // direction rule) - a trouble comment on a run that beat its projection
@@ -85,6 +92,8 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         actualRank: r.actualWprRank,
         finishPosition: r.finishPosition,
         won: r.won,
+        wprPrice: r.wprPrice,
+        marketPrice: r.startingPrice ?? r.postRaceTopPrice,
         voided: voidResult.isVoid,
         voidReason: voidResult.reason,
       })
@@ -193,11 +202,65 @@ export function computeOutcomeStats(rows: AccuracyRow[]): OutcomeStats {
   }
 }
 
+export interface StrikeRatePool {
+  label: string
+  n: number
+  wins: number
+  strikePct: number | null
+}
+
+// Four coverage questions about the actual WINNER of each race (this
+// session's own validation standard for closing_merit/gear_change/the
+// alpha work, now surfaced directly in the dashboard): of races with a
+// known winner, how often did the winner satisfy each condition - rated
+// #1, rated in the top 4, rated under $10 by the model's own softmax
+// price, or priced shorter by the model than the market (the model's
+// value/edge signal). Deliberately NOT a per-selection strike rate
+// (e.g. "of runners rated under $10, how often do they win") - that
+// question dilutes badly for a multi-runner pool like "top 4" (only one
+// of four selections can ever win, so a per-runner average is
+// misleadingly lower than the #1 tier alone - see chat), and "how often
+// is the WINNER in this pool" is the more useful, consistent framing a
+// bettor actually wants across all four. Each condition has its own
+// applicable() denominator so a winner missing price data doesn't count
+// against a price-based row it can't actually be evaluated on.
+export function computeStrikeRates(rows: AccuracyRow[]): StrikeRatePool[] {
+  const conditions: {
+    label: string
+    applicable: (r: AccuracyRow) => boolean
+    hit: (r: AccuracyRow) => boolean
+  }[] = [
+    { label: 'Top rated', applicable: (r) => r.predictedRank != null, hit: (r) => r.predictedRank === 1 },
+    { label: 'Top 4 rated', applicable: (r) => r.predictedRank != null, hit: (r) => r.predictedRank! <= 4 },
+    { label: 'Rated under $10', applicable: (r) => r.wprPrice != null, hit: (r) => r.wprPrice! < 10 },
+    {
+      label: 'Rated shorter than market',
+      applicable: (r) => r.wprPrice != null && r.marketPrice != null,
+      hit: (r) => r.wprPrice! < r.marketPrice!,
+    },
+  ]
+  return conditions.map(({ label, applicable, hit }) => {
+    let n = 0
+    let wins = 0
+    for (const r of rows) {
+      if (r.finishPosition !== 1 || !applicable(r)) continue
+      n++
+      if (hit(r)) wins++
+    }
+    return { label, n, wins, strikePct: n > 0 ? (wins / n) * 100 : null }
+  })
+}
+
 export interface BreakdownRow {
   group: string
   n: number
   mae: number
   bias: number
+  // Of this group's rated-#1 picks, how often they actually won - lets
+  // "where the model struggles" surface a group with fine MAE but a poor
+  // top-pick strike rate, which the MAE/bias columns alone can't show.
+  topRatedN: number
+  topRatedStrikePct: number | null
 }
 
 const MIN_BREAKDOWN_N = 10
@@ -217,7 +280,21 @@ export function computeBreakdown(rows: AccuracyRow[], keyFn: (r: AccuracyRow) =>
   for (const [group, groupRows] of groups) {
     const s = computeAccuracyStats(groupRows)
     if (s.n < MIN_BREAKDOWN_N || s.mae == null || s.bias == null) continue
-    out.push({ group, n: s.n, mae: s.mae, bias: s.bias })
+    let topRatedN = 0
+    let topRatedWins = 0
+    for (const r of groupRows) {
+      if (r.predictedRank !== 1 || r.finishPosition == null) continue
+      topRatedN++
+      if (r.won) topRatedWins++
+    }
+    out.push({
+      group,
+      n: s.n,
+      mae: s.mae,
+      bias: s.bias,
+      topRatedN,
+      topRatedStrikePct: topRatedN > 0 ? (topRatedWins / topRatedN) * 100 : null,
+    })
   }
   out.sort((a, b) => b.mae - a.mae)
   return out
@@ -429,12 +506,21 @@ export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
  * is a judgment call the reader has to make on their own. */
 export function buildHeadlineSummary(
   periodLabel: string,
+  strikeRates: StrikeRatePool[],
   rankStats: RankStats,
   marginStats: MarginStats,
   voidedCount: number,
   totalCount: number
 ): string[] {
   const lines: string[] = []
+  const topRated = strikeRates.find((s) => s.label === 'Top rated')
+  const top4 = strikeRates.find((s) => s.label === 'Top 4 rated')
+  if (topRated?.strikePct != null && top4?.strikePct != null) {
+    lines.push(
+      `${periodLabel}, the winner was the model's #1 pick ${topRated.strikePct.toFixed(1)}% of the time, and ` +
+        `rated somewhere in its top 4 ${top4.strikePct.toFixed(1)}% of the time.`
+    )
+  }
   if (rankStats.spearman != null) {
     lines.push(
       `${periodLabel}, the model ordered the field with a ${rankStats.spearman.toFixed(2)} rank correlation ` +

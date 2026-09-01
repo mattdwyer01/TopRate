@@ -80,7 +80,15 @@ def _prior_means(fh, race_date):
     """Build per-horse prior-mean lookups for every signal the model
     needs, restricted to runs before race_date."""
     cols = ["positionSettled", "field_size", "sect_ld_early", "sect_i_early",
-            "sect_i_to800", "margin800m", "raceShapeEarly", "wpr"]
+            "sect_i_to800", "margin800m", "raceShapeEarly", "wpr",
+            # candidates being tested (Aug 2026 reload - richer early-race
+            # positional/sectional profile, see _race_features' own
+            # before/after correlation check): position600m/800m give the
+            # model TWO more early-race snapshots per horse than the single
+            # positionSettled point; sect_i_to600 extends the already-used
+            # sect_i_to800 with one more early-sectional data point;
+            # margin600m is the early-race counterpart of margin800m.
+            "position600m", "position800m", "sect_i_to600", "margin600m"]
     prior = fh[fh["date"] < race_date]
     out = {}
     for c in cols:
@@ -89,18 +97,42 @@ def _prior_means(fh, race_date):
             continue
         s = prior.dropna(subset=[c])
         out[c] = s.groupby("horse_lc")[c].mean().to_dict()
+
+    # rel_by_distband (candidate, Aug 2026 reload): does THIS horse settle
+    # differently at DIFFERENT distances (e.g. closer to the pace at
+    # sprint trips, further back at staying trips)? positionSettled above
+    # is a single all-distances average - this instead buckets a horse's
+    # own prior relative-settle by 200m distance band (same _dist_band
+    # convention wpr_projection.py's own_distance/track_barrier use), so
+    # _race_features can prefer the band matching TODAY's trip when
+    # available. Keyed by (horse_lc, dist_band).
+    out["rel_by_distband"] = {}
+    if {"positionSettled", "field_size", "distance"} <= set(prior.columns):
+        ps_d = pd.to_numeric(prior["positionSettled"], errors="coerce")
+        fs_d = pd.to_numeric(prior["field_size"], errors="coerce")
+        dist_d = pd.to_numeric(prior["distance"], errors="coerce")
+        valid_d = (ps_d > 0) & (fs_d > 0) & dist_d.notna()
+        if valid_d.any():
+            rel_d = (ps_d[valid_d] / fs_d[valid_d]).clip(0, 1)
+            band_d = (dist_d[valid_d] // 200 * 200).astype(int)
+            out["rel_by_distband"] = pd.DataFrame({
+                "horse_lc": prior.loc[valid_d, "horse_lc"],
+                "dist_band": band_d, "rel": rel_d,
+            }).groupby(["horse_lc", "dist_band"])["rel"].mean().to_dict()
     return out
 
 
 def _race_features(race_runners, pmeans):
     """Build the per-race feature row the model expects."""
     rel, barrier, ld, ie, t8, m8, prse, pwpr = ([] for _ in range(8))
+    rel800, rel600, t6, m6, rel_distmatch = [], [], [], [], []
+    rel_by_distband = pmeans.get("rel_by_distband", {})
     for _, r in race_runners.iterrows():
         hl = str(r.get("horse", "")).strip().lower()
         ps = pmeans["positionSettled"].get(hl, np.nan)
         fs = pmeans["field_size"].get(hl, np.nan)
-        rel.append((ps / fs) if (ps == ps and fs == fs and fs > 0)
-                    else np.nan)
+        rel_val = (ps / fs) if (ps == ps and fs == fs and fs > 0) else np.nan
+        rel.append(rel_val)
         b = r.get("barrier")
         barrier.append(float(b) if b is not None and str(b) != "nan"
                        else np.nan)
@@ -110,8 +142,30 @@ def _race_features(race_runners, pmeans):
         m8.append(pmeans["margin800m"].get(hl, np.nan))
         prse.append(pmeans["raceShapeEarly"].get(hl, np.nan))
         pwpr.append(pmeans["wpr"].get(hl, np.nan))
+        # richer early-race positional/sectional profile (candidates)
+        p8 = pmeans["position800m"].get(hl, np.nan)
+        rel800.append((p8 / fs) if (p8 == p8 and fs == fs and fs > 0) else np.nan)
+        p6 = pmeans["position600m"].get(hl, np.nan)
+        rel600.append((p6 / fs) if (p6 == p6 and fs == fs and fs > 0) else np.nan)
+        t6.append(pmeans["sect_i_to600"].get(hl, np.nan))
+        m6.append(pmeans["margin600m"].get(hl, np.nan))
+        # distance-matched relative settle: prefer this horse's own
+        # relative settle at TODAY's 200m distance band; falls back to
+        # NaN (not the unconditional rel_val) when no matching-band prior
+        # run exists, so the field-level aggregate below reflects only
+        # genuine distance-matched coverage, not a silently diluted mix.
+        dist_today = r.get("distance")
+        try:
+            db_today = int(float(dist_today) // 200 * 200)
+        except (TypeError, ValueError):
+            db_today = None
+        rel_distmatch.append(rel_by_distband.get((hl, db_today), np.nan)
+                             if db_today is not None else np.nan)
     relA = np.array(rel, dtype=float)
     ldA = np.array(ld, dtype=float)
+    rel800A = np.array(rel800, dtype=float)
+    rel600A = np.array(rel600, dtype=float)
+    relDistA = np.array(rel_distmatch, dtype=float)
 
     def nanmean(a):
         a = np.array(a, dtype=float)
@@ -136,6 +190,17 @@ def _race_features(race_runners, pmeans):
         "mean_pwpr": nanmean(pwpr),
         "distance": float(race_runners["distance"].iloc[0])
             if "distance" in race_runners.columns else np.nan,
+        # --- candidates being tested (Aug 2026 reload) - richer
+        # early-race positional/sectional profile, see train()'s own
+        # before/after held-out correlation check for the result ---
+        "mean_rel800": nanmean(rel800A),
+        "std_rel800": float(np.nanstd(rel800A)) if np.isfinite(rel800A).any() else np.nan,
+        "mean_rel600": nanmean(rel600A),
+        "std_rel600": float(np.nanstd(rel600A)) if np.isfinite(rel600A).any() else np.nan,
+        "mean_t6": nanmean(t6),
+        "mean_m6": nanmean(m6),
+        "mean_rel_distmatch": nanmean(relDistA),
+        "n_distmatch": float(np.isfinite(relDistA).sum()),
     }
 
 

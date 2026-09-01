@@ -253,7 +253,7 @@ FEATURES = [
 # simpler design's own numbers disappoint enough to reconsider the trade.
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
-    "own_trend", "own_long_spell", "track_barrier",
+    "own_trend", "own_long_spell", "track_barrier", "closing_merit",
 ]
 
 # Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
@@ -648,6 +648,94 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lo
     return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
 
 
+# closing_merit: a second population+own-history hybrid ADJ_TERM (Aug 2026,
+# strike-rate validation - see wpr_closing_merit_strike_eval.py), motivated
+# by the Sectional Time Ratings doc's "flashing lights" warning: a horse's
+# raw closing-sectional strength is misleading without race context (it
+# looks fast closing on a race the leaders let die, not because it ran home
+# genuinely well). The population half is "expected sect_i_l600 given how
+# THAT run's race actually unfolded" (raceShapeEarly, bucketed by
+# _CLOSING_MERIT_BINS) - fit once, in train_wpr_projection(), on trn only,
+# from the RAW form history directly (not the per-horse training frame -
+# this is a population fact about how races run, independent of any one
+# horse's own history) and shipped in config.json as pace_baseline_lookup.
+# The own-history half (which run's residual to average) DOES need
+# prior_runs, so it is computed inside build_features() itself, same as
+# every other own_* term - see the "closing_pairs" ingredient there. The
+# two halves are combined post-hoc by _closing_merit_term below, called
+# both at serve time (project_race, using the loaded lookup) and at
+# train_wpr_projection()'s own cf/te scoring step (using the freshly-fit
+# lookup) - same split as track_barrier's own two-stage pattern above,
+# just with the own-history half needing prior_runs instead of being pure
+# population. Validated (strike-rate rose in BOTH chronological
+# half-split directions, held-out MAE worse in both - a real, adopted
+# strike-rate/MAE tradeoff, same as gear_change; see git history).
+_CLOSING_MERIT_BINS = [-999, -7, -5, -3, -1, 1, 3, 5, 7, 999]
+
+
+def _closing_merit_bucket(v):
+    """Bucket a raceShapeEarly value into _CLOSING_MERIT_BINS, string-keyed
+    to match pandas' own str(Interval) format for INTEGER bins exactly
+    (verified: "(-7, -5]", no decimal point) - the same key format used by
+    both the population fit (pd.cut in _fit_pace_baseline) and this
+    manual, per-call version (avoids pd.cut's per-call overhead when
+    called up to 3x per horse across a full retrain). None if v is
+    missing or outside the binned range."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v <= _CLOSING_MERIT_BINS[0] or v > _CLOSING_MERIT_BINS[-1]:
+        return None
+    for lo, hi in zip(_CLOSING_MERIT_BINS[:-1], _CLOSING_MERIT_BINS[1:]):
+        if v <= hi:
+            return f"({lo}, {hi}]"
+    return None
+
+
+def _closing_merit_term(pairs, lookup):
+    """Combine the own-history half (pairs: a list of up to 3
+    (sect_i_l600, bucket_str) tuples from this horse's own last prior
+    runs - see build_features' "closing_pairs") with the FITTED
+    population lookup (bucket_str -> expected sect_i_l600, see
+    _fit_pace_baseline) into one shrunk residual, same _shrink convention
+    as every other own_* term. 0.0 if either half is unavailable."""
+    if not pairs or not lookup:
+        return 0.0
+    residuals = []
+    for sect, bucket in pairs:
+        if bucket is None:
+            continue
+        expected = lookup.get(bucket)
+        if expected is None or sect is None or sect != sect:
+            continue
+        residuals.append(float(sect) - float(expected))
+    if not residuals:
+        return 0.0
+    return _shrink(float(np.mean(residuals)), len(residuals))
+
+
+def _fit_pace_baseline(form_history_csv, cutoff_date):
+    """Population mean sect_i_l600 per _CLOSING_MERIT_BINS bucket, fit on
+    RAW form history rows strictly before cutoff_date only (leak-safe,
+    same trn-only convention as track_barrier's own fit). Reads the raw
+    CSV directly (not the per-horse training frame D) since this is a
+    population fact about race shape vs sectional time, independent of
+    any one horse's own history - see wpr_closing_merit_strike_eval.py's
+    fit_pace_baseline for the methodology this replicates."""
+    fh = pd.read_csv(form_history_csv, low_memory=False)
+    fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
+    fh = _dedup_scrape_baseline(fh, verbose=False)
+    fh = fh[(fh.get("isBarrierTrial") != True) & (fh.get("is_jumpout") != True)]
+    fh = fh[fh["date"] < pd.to_datetime(cutoff_date)]
+    sect = pd.to_numeric(fh.get("sect_i_l600"), errors="coerce")
+    early = pd.to_numeric(fh.get("raceShapeEarly"), errors="coerce")
+    d = pd.DataFrame({"sect": sect, "early": early}).dropna()
+    d["bucket"] = d["early"].apply(_closing_merit_bucket)
+    d = d.dropna(subset=["bucket"])
+    return {k: float(v) for k, v in d.groupby("bucket")["sect"].mean().items()}
+
+
 # Shrinkage for the own-history adjustment deltas below: a delta computed
 # from 1-2 of a horse's own runs is mostly noise dressed up as a personal
 # signal - the same small-sample trap CareerStats' vsBase colouring and
@@ -922,6 +1010,24 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         _nudge = _settle_barrier_nudge(cur_barrier, cur_field_size)
         _rel_est = min(1.0, max(0.0, run_style + _nudge))
         cur_settle_band = _settle_band(_rel_est)
+
+    # closing_merit ingredients (own-history half - see _closing_merit_term's
+    # docstring for the population half): this horse's own last up to 3
+    # PRIOR runs' (sect_i_l600, raceShapeEarly-bucket) pairs, in the SAME
+    # last-N-by-position-then-drop-invalid order wpr_closing_merit_strike_
+    # eval.py's build_closing_merit validated (not "last 3 valid values
+    # regardless of how far back" - a real behavioural difference when a
+    # horse has gaps in sectional capture). Combined with the fitted
+    # population lookup post-hoc by _closing_merit_term, both at serve
+    # time (project_race) and at train_wpr_projection()'s own cf/te
+    # scoring step.
+    closing_pairs = []
+    if "sect_i_l600" in p.columns and "raceShapeEarly" in p.columns:
+        _cm_sect = pd.to_numeric(p["sect_i_l600"], errors="coerce").iloc[-3:]
+        _cm_early = pd.to_numeric(p["raceShapeEarly"], errors="coerce").iloc[-3:]
+        for _s, _e in zip(_cm_sect, _cm_early):
+            if _s == _s and _e == _e:
+                closing_pairs.append((float(_s), _closing_merit_bucket(_e)))
 
     # per-horse WPR split: on-pace runs (front third) vs off-pace (back
     # third). "Does this horse run better leading or coming from behind."
@@ -1553,6 +1659,11 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "own_second_up": own_second_up,
         "own_trend": own_trend,
         "own_long_spell": own_long_spell,
+        # closing_merit's own-history half (see _closing_merit_term) - NOT
+        # the ADJ_TERM itself (that needs the fitted population lookup,
+        # injected post-hoc same as track_barrier - see project_race and
+        # train_wpr_projection).
+        "closing_pairs": closing_pairs,
         # Raw (unshrunk) record behind own_distance/own_going/own_first_up/
         # own_second_up above, and how many prior runs were discounted for
         # a comment-flagged issue (vet/checked/eased/etc) - for describe()'s
@@ -1938,6 +2049,15 @@ def project_race(runners, race_date):
                 r.get("cur_track"), r.get("cur_distance"),
                 r.get("cur_barrier"), r.get("cur_field_size"), _tb_lookup)
 
+    # closing_merit: same two-stage pattern as track_barrier above - the
+    # own-history half (closing_pairs) IS computed inside build_features
+    # (it needs prior_runs), but the fitted population lookup only exists
+    # after _load_models(), so the final term is combined here.
+    _pb_lookup = _CFG.get("pace_baseline_lookup")
+    for f in feat_dicts:
+        if f is not None:
+            f["closing_merit"] = _closing_merit_term(f.get("closing_pairs"), _pb_lookup)
+
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
     # the horse's own anchor (ewm5/ewm3, falling
@@ -2069,6 +2189,11 @@ def _adj_phrase(feat, value, contribution):
                  "track and trip" if neg else
                  "its barrier draw tends to go better than average at this "
                  "track and trip")
+    if feat == "closing_merit":
+        return ("its recent closing sectionals have been weaker than the "
+                 "pace of those races would suggest" if neg else
+                 "its recent closing sectionals have been stronger than the "
+                 "pace of those races would suggest")
     return None
 
 
@@ -2700,6 +2825,18 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                                           _frame["barrier"], _frame["field_size"])
         ]
 
+    # closing_merit: population half fit on trn's date cutoff (q1), same
+    # leak-safe convention as track_barrier above - see _fit_pace_baseline
+    # and _closing_merit_term's docstrings for the full two-stage design.
+    print("  fitting closing_merit pace-context baseline (population, trn only)...")
+    pace_baseline_lookup = _fit_pace_baseline(form_history_csv, q1)
+    print(f"  closing_merit: {len(pace_baseline_lookup):,} pace-context buckets")
+    for _frame in (cf, te):
+        _frame["closing_merit"] = [
+            _closing_merit_term(pairs, pace_baseline_lookup)
+            for pairs in _frame["closing_pairs"]
+        ]
+
     # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
     # the confidence quantile models (ADJ_TERMS themselves have no fitting
     # step to weight - see below).
@@ -2782,21 +2919,33 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # correction no longer applies - re-blending toward avg_last3 on top of
     # a base that is already recent-form-anchored would double-count it.
 
-    # beta (the price softmax parameter) is calibrated separately by
-    # calibrate_price_beta.py against real resulted-race outcomes - it is
-    # NOT re-derived here (this function has no win/loss data, only WPR
-    # values). Carry the existing config's beta forward so a retrain does
-    # not silently reset it back to the 0.4 default; only a config.json
-    # that has never been calibrated falls back to 0.4.
+    # beta (the price softmax parameter, calibrate_price_beta.py) and
+    # edge_score (the primary-ranking blend calibration, calibrate_edge_
+    # score.py) are both calibrated by SEPARATE scripts against real
+    # win/loss outcomes - this function has no win/loss data, only WPR
+    # values, so it must never re-derive or drop them. BUG FIX (Aug 2026,
+    # found right after shipping closing_merit): this used to write a
+    # brand-new dict from scratch, carrying forward ONLY "beta" by name -
+    # every other externally-calibrated key (edge_score being the one
+    # that actually mattered - it silently disappeared from config.json
+    # for as long as it took to notice, breaking compute_edge_scores'
+    # PRIMARY ranking, see git history for the exact commit range) was
+    # wiped on every retrain. Fixed by loading the whole existing config
+    # and updating it in place, so ANY key this function does not own
+    # (present or future) survives a retrain automatically.
     _existing_cfg_path = Path(out_dir) / "config.json"
-    beta = 0.4
+    existing_cfg = {}
     if _existing_cfg_path.exists():
         try:
-            beta = json.load(open(_existing_cfg_path)).get("beta", 0.4)
+            existing_cfg = json.load(open(_existing_cfg_path))
         except Exception:
             pass
+    beta = existing_cfg.get("beta", 0.4)
     print(f"  beta carried forward from existing config: {beta} "
           f"(re-run calibrate_price_beta.py --write to re-derive it)")
+    if "edge_score" in existing_cfg:
+        print("  edge_score calibration carried forward unchanged "
+              "(re-run calibrate_edge_score.py --write to re-derive it)")
 
     Path(out_dir).mkdir(exist_ok=True)
     # projection.joblib is now vestigial (no more Ridge model to store) -
@@ -2804,12 +2953,14 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # and wpr_models/'s three-file shape don't need to change.
     joblib.dump({}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
-    json.dump({"features": FEATURES, "adj_terms": ADJ_TERMS,
+    new_cfg = dict(existing_cfg)
+    new_cfg.update({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
                "beta": beta, "min_runs": _MIN_RUNS,
-               "track_barrier_lookup": track_barrier_lookup},
-              open(Path(out_dir) / "config.json", "w"), indent=1)
+               "track_barrier_lookup": track_barrier_lookup,
+               "pace_baseline_lookup": pace_baseline_lookup})
+    json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
 
