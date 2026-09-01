@@ -256,6 +256,11 @@ export interface BreakdownRow {
   n: number
   mae: number
   bias: number
+  // Of this group's rated-#1 picks, how often they actually won - lets
+  // "where the model struggles" surface a group with fine MAE but a poor
+  // top-pick strike rate, which the MAE/bias columns alone can't show.
+  topRatedN: number
+  topRatedStrikePct: number | null
 }
 
 const MIN_BREAKDOWN_N = 10
@@ -275,7 +280,21 @@ export function computeBreakdown(rows: AccuracyRow[], keyFn: (r: AccuracyRow) =>
   for (const [group, groupRows] of groups) {
     const s = computeAccuracyStats(groupRows)
     if (s.n < MIN_BREAKDOWN_N || s.mae == null || s.bias == null) continue
-    out.push({ group, n: s.n, mae: s.mae, bias: s.bias })
+    let topRatedN = 0
+    let topRatedWins = 0
+    for (const r of groupRows) {
+      if (r.predictedRank !== 1 || r.finishPosition == null) continue
+      topRatedN++
+      if (r.won) topRatedWins++
+    }
+    out.push({
+      group,
+      n: s.n,
+      mae: s.mae,
+      bias: s.bias,
+      topRatedN,
+      topRatedStrikePct: topRatedN > 0 ? (topRatedWins / topRatedN) * 100 : null,
+    })
   }
   out.sort((a, b) => b.mae - a.mae)
   return out
@@ -487,12 +506,21 @@ export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
  * is a judgment call the reader has to make on their own. */
 export function buildHeadlineSummary(
   periodLabel: string,
+  strikeRates: StrikeRatePool[],
   rankStats: RankStats,
   marginStats: MarginStats,
   voidedCount: number,
   totalCount: number
 ): string[] {
   const lines: string[] = []
+  const topRated = strikeRates.find((s) => s.label === 'Top rated')
+  const top4 = strikeRates.find((s) => s.label === 'Top 4 rated')
+  if (topRated?.strikePct != null && top4?.strikePct != null) {
+    lines.push(
+      `${periodLabel}, the winner was the model's #1 pick ${topRated.strikePct.toFixed(1)}% of the time, and ` +
+        `rated somewhere in its top 4 ${top4.strikePct.toFixed(1)}% of the time.`
+    )
+  }
   if (rankStats.spearman != null) {
     lines.push(
       `${periodLabel}, the model ordered the field with a ${rankStats.spearman.toFixed(2)} rank correlation ` +

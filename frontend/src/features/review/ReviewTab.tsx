@@ -123,8 +123,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
   const periodSentence = PERIODS.find((p) => p.value === period)?.sentence ?? 'Overall'
   const headline = useMemo(
-    () => buildHeadlineSummary(periodSentence, rankStats, marginStats, voided.length, allRows.length),
-    [periodSentence, rankStats, marginStats, voided.length, allRows.length]
+    () => buildHeadlineSummary(periodSentence, strikeRates, rankStats, marginStats, voided.length, allRows.length),
+    [periodSentence, strikeRates, rankStats, marginStats, voided.length, allRows.length]
   )
 
   const filteredRows = useMemo(
@@ -187,31 +187,22 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
       ) : (
         <>
           <div className="rounded-lg border border-emerald-line bg-emerald-bg p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-emerald-deep">
-                  Top pick win rate
-                </div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-4xl font-bold text-ink">{fmtPct(outcome.topPickWinPct)}</span>
-                  {winMultiplier != null && (
-                    <span className="text-sm font-medium text-emerald-deep">
-                      {winMultiplier.toFixed(1)}&times; a random runner
-                    </span>
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-deep">
+              Strike rates - how often the winner matched the model's calls
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {strikeRates.map((s) => (
+                <div key={s.label}>
+                  <div className="text-2xl font-bold text-ink sm:text-3xl">{fmtPct(s.strikePct)}</div>
+                  <div className="text-xs text-ink-mute">{s.label}</div>
+                  {s.label === 'Top rated' && winMultiplier != null && (
+                    <div className="text-xs font-medium text-emerald-deep">
+                      {winMultiplier.toFixed(1)}&times; field avg ({fmtPct(outcome.fieldAvgWinPct)})
+                    </div>
                   )}
+                  <div className="text-[11px] text-ink-faint">n={s.n.toLocaleString()}</div>
                 </div>
-              </div>
-              <div className="text-xs text-ink-mute sm:text-right">
-                <p>
-                  vs {fmtPct(outcome.fieldAvgWinPct)} field average &middot; n={outcome.topPickN} rated-#1 picks
-                </p>
-                <p>
-                  Typical miss: {fmtWpr(stats.mae)} WPR pts
-                  {stats.bias != null && Math.abs(stats.bias) >= 1
-                    ? `, ${stats.bias > 0 ? 'under' : 'over'}-projects on average`
-                    : ', roughly unbiased'}
-                </p>
-              </div>
+              ))}
             </div>
             {headline.length > 0 && (
               <div className="mt-3 flex flex-col gap-1 border-t border-emerald-line pt-3 text-sm text-ink">
@@ -222,42 +213,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-line bg-panel">
-            <div className="border-b border-line px-4 py-2.5">
-              <div className="text-sm font-semibold text-ink">Strike rates by selection</div>
-              <div className="text-xs text-ink-faint">
-                Of races with a known winner, how often that winner met each condition - the real bar for whether a
-                model change (or the model's own value calls) actually pays off, not just whether it looks better
-                on paper.
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs text-ink-mute">
-                    <th className="px-4 py-2 font-medium">Winner was...</th>
-                    <th className="px-4 py-2 text-right font-medium">n</th>
-                    <th className="px-4 py-2 text-right font-medium">Hits</th>
-                    <th className="px-4 py-2 text-right font-medium">Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line-soft">
-                  {strikeRates.map((s) => (
-                    <tr key={s.label}>
-                      <td className="px-4 py-2 text-ink">{s.label}</td>
-                      <td className="px-4 py-2 text-right text-ink-mute">{s.n.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-right text-ink-mute">{s.wins.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-right font-mono font-semibold text-ink">
-                        {fmtPct(s.strikePct)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - the substance behind the headline number" defaultOpen>
+          <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - depth behind the strike rates above, including the model's typical WPR miss">
             <div className="flex flex-col gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-ink">Point accuracy</h3>
@@ -371,7 +327,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           {(distBreakdown.length > 0 || goingBreakdown.length > 0 || venueBreakdown.length > 0) && (
             <Disclosure
               title="Where the model struggles"
-              subtitle="A high MAE or big bias in a group below means be more skeptical of top picks from there"
+              subtitle="A weak top-rated strike rate, high MAE, or big bias in a group below means be more skeptical of top picks from there"
             >
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {distBreakdown.length > 0 && (
@@ -570,7 +526,7 @@ function BreakdownTable({
   onSelect,
 }: {
   title: string
-  rows: { group: string; n: number; mae: number; bias: number }[]
+  rows: { group: string; n: number; mae: number; bias: number; topRatedN: number; topRatedStrikePct: number | null }[]
   activeValue: string | null
   onSelect: (value: string) => void
 }) {
@@ -583,6 +539,7 @@ function BreakdownTable({
             <tr className="text-left text-ink-mute">
               <th className="px-3 py-1.5 font-medium">Group</th>
               <th className="px-3 py-1.5 text-right font-medium">n</th>
+              <th className="px-3 py-1.5 text-right font-medium">Top-rated strike</th>
               <th className="px-3 py-1.5 text-right font-medium">MAE</th>
               <th className="px-3 py-1.5 text-right font-medium">Bias</th>
             </tr>
@@ -599,6 +556,10 @@ function BreakdownTable({
               >
                 <td className="px-3 py-1 text-ink">{r.group}</td>
                 <td className="px-3 py-1 text-right text-ink-mute">{r.n}</td>
+                <td className="px-3 py-1 text-right font-mono">
+                  {fmtPct(r.topRatedStrikePct)}
+                  <span className="text-ink-faint"> (n={r.topRatedN})</span>
+                </td>
                 <td className="px-3 py-1 text-right font-mono">{r.mae.toFixed(1)}</td>
                 <td className="px-3 py-1 text-right font-mono">{fmtSigned(r.bias)}</td>
               </tr>
