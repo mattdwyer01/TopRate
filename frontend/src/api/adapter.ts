@@ -112,6 +112,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     weightCarried: r.wt,
     jockeyWinPct90d: r.jw,
     trainerWinPct365d: r.tw,
+    pfmScore: r.pfm,
     jtComboWinPct: r.jcp,
     jtComboRides: r.jcr,
     jockeyRating: r.jrt,
@@ -214,5 +215,6 @@ export function adaptDashboardPayload(
     runIso: raw.RUN_ISO,
     githubRepo: raw.GITHUB_REPO,
     priceBeta: raw.PRICE_BETA,
+    edgeScoreConfig: raw.EDGE_SCORE_CFG,
   }
 }

@@ -75,6 +75,9 @@ export interface RawRunner {
   wt: number | null
   jw: number | null
   tw: number | null
+  // Form-provider score - one of the edge_score blend's 4 inputs (see
+  // EDGE_SCORE_CFG below and lib/raceModel.ts's override recompute).
+  pfm: number | null
   jcp: number | null
   jcr: number | null
   jrt: number | null
@@ -177,5 +180,19 @@ export interface RawDashboardPayload {
   VENUE_BIAS: RawVenueBias
   // Softmax beta behind wpjpr (WPR $) - lets the frontend replicate the
   // exact price formula for a manual-override recompute (see lib/raceModel.ts).
+  // Superseded by EDGE_SCORE_CFG below now that wpjpr is the blend price
+  // (Sep 2026); kept for any code path still keying off the plain
+  // projection formula.
   PRICE_BETA: number | null
+  // edge_score blend's features/means/stds/beta (see
+  // wpr_projection.get_edge_score_config) - lets the frontend replicate
+  // compute_edge_scores' exact formula for a manual-override recompute
+  // of wpjpr/wpjr (the blend price/rank). null if the edge_score
+  // calibration hasn't been fitted server-side.
+  EDGE_SCORE_CFG: {
+    features: string[]
+    means: Record<string, number>
+    stds: Record<string, number>
+    beta: number
+  } | null
 }

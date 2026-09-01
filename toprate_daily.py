@@ -3120,6 +3120,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
+                # Form-provider score - one of the 4 edge_score blend
+                # inputs (see wpr_projection.compute_edge_scores). Shipped
+                # so the dashboard can replicate the blend formula
+                # client-side for a manual rating override (see wpjpr
+                # below - it's the blend price now, not the plain
+                # projection, so the override recompute needs this).
+                "pfm":  sf(row.get("pfm_score")),
                 # Jockey/trainer combination win% and ride count together.
                 # DO NOT use for scoring/strategy - confirmed data leak, see
                 # this field's definition comment above in SIGNALS. Kept for
@@ -3168,14 +3175,21 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)
                 "wpjcb": contrib_parsed,              # adjustment breakdown by feature
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
-                "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
-                "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
+                # wpjpr/wpjr ("WPR $"/"WPR rank" everywhere on the
+                # dashboard) are the BLEND price/rank as of Sep 2026 (see
+                # wpr_projection.compute_edge_scores) - a held-out
+                # backtest found the blend beats plain-projection ranking
+                # on both AUC (~0.68 vs ~0.58) and top-1 strike rate
+                # (~27% vs ~23-25%). This was already computed and
+                # shipped under wpjbp/wpjbr/wpjbpr below, but the
+                # frontend never actually read those keys - this closes
+                # that gap rather than adding a second, unused price.
+                "wpjpr": sf(row.get("wprp_blend_price")),
+                "wpjr":  si(row.get("wprp_blend_rank")),
                 "wpjpk": sf(row.get("wprp_peak")),    # career peak WPR
-                # Blend score (Step 2c2): the PRIMARY ranking as of Aug
-                # 2026 (promoted from wpr_rank/wprp_rank - a held-out
-                # backtest found it beats WPR-alone ranking on both top-1
-                # strike rate and ROI, see wpr_projection.compute_edge_scores).
-                # Needs no market price, same as wpjpr/wpjr.
+                # Blend score (Step 2c2), kept alongside wpjpr/wpjr above
+                # for anything that wants the probability specifically
+                # (wpjbp) rather than just the price/rank.
                 "wpjbp": sf(row.get("wprp_blend_prob")),   # blend win probability
                 "wpjbr": si(row.get("wprp_blend_rank")),   # blend rank within race
                 "wpjbpr": sf(row.get("wprp_blend_price")), # blend fair price
@@ -3413,6 +3427,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
               f"recompute will fall back to its own default.")
         price_beta = None
 
+    try:
+        import wpr_projection as wpr
+        edge_score_cfg = wpr.get_edge_score_config()
+    except Exception as e:
+        print(f"  Could not read edge_score config ({e}); dashboard override "
+              f"recompute will fall back to not recomputing WPR $ on override.")
+        edge_score_cfg = None
+
     html, data_json = render_html(
         races=races_data,
         model_picks_by_race=model_picks_by_race,
@@ -3423,6 +3445,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         model_pick_rows=model_pick_rows or [],
         primary_model_key=primary_key,
         price_beta=price_beta,
+        edge_score_cfg=edge_score_cfg,
     )
     del html
     # Data payload the frontend fetches at boot instead of inlining it

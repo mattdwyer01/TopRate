@@ -193,7 +193,8 @@ def _safe(v, default=None):
 
 def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 run_date, run_iso, model_pick_rows, primary_model_key='main',
-                github_repo='mattdwyer01/TopRate', price_beta=None):
+                github_repo='mattdwyer01/TopRate', price_beta=None,
+                edge_score_cfg=None):
     """
     Render the full v3 HTML dashboard.
 
@@ -452,7 +453,17 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         "VENUE_BIAS": venue_bias,
         # Softmax beta behind wpjpr (WPR $) - lets the dashboard replicate
         # the exact price formula for a live manual-override recompute.
+        # Superseded by EDGE_SCORE_CFG below now that wpjpr is the blend
+        # price (Sep 2026), but kept for any code path still keying off
+        # the plain-projection formula.
         "PRICE_BETA": price_beta,
+        # edge_score blend's features/means/stds/beta (see
+        # wpr_projection.get_edge_score_config) - lets the dashboard
+        # replicate compute_edge_scores' exact formula client-side so a
+        # manual rating override can recompute wpjpr/wpjr (the blend
+        # price/rank) correctly, not just the plain-projection softmax.
+        # None if the edge_score calibration hasn't been fitted.
+        "EDGE_SCORE_CFG": edge_score_cfg,
     }
     data_json = json.dumps(data_obj, separators=(',', ':'))
 

@@ -246,9 +246,9 @@ export function RunnerDetailModal({
                     <span className="font-mono font-semibold text-ink">{fmtPrice(effectivePrice)}</span> WPR
                   </span>
                 )}
-                {runner.wprRank != null && (
+                {(effective?.effectiveRank ?? runner.wprRank) != null && (
                   <span className="text-xs text-ink-mute">
-                    rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
+                    rank <span className="font-mono font-semibold text-ink">{effective?.effectiveRank ?? runner.wprRank}</span>
                   </span>
                 )}
               </div>
