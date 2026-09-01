@@ -54,7 +54,8 @@ def run():
     full = merge_state(full)
 
     full = add_base(full)
-    non_tb_terms = [t for t in wpr.ADJ_TERMS if t not in ("track_barrier", "closing_merit")]
+    non_tb_terms = [t for t in wpr.ADJ_TERMS
+                    if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit")]
     full = full.dropna(subset=["target", "_base", "career_avg"] + non_tb_terms +
                         ["barrier", "field_size", "track", "cur_distance",
                          "trainer_win_pct_365d", "jockey_win_pct_90d", "state"])
