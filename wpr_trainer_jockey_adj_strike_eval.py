@@ -42,6 +42,24 @@ _SHRINK_K = 300.0  # matches wpr._TRACK_BARRIER_K (population-level lookup)
 N_BUCKETS = 10
 
 
+def merge_trainer_jockey_by_horse_date(D, runners_csv="toprate_runners.csv"):
+    """trainer_win_pct_365d/jockey_win_pct_90d are NOT part of
+    wpr_form_history.csv.gz's per-run career archive at all (confirmed -
+    that file only has the jockey/trainer NAME strings, not their trailing
+    win-rate stats) - they are a "today's race" contextual snapshot only
+    ever written to toprate_runners.csv at fetch time. Same (horse, date)
+    join as merge_won_by_horse_date, for the exact same reason (run_id is
+    not a reliable per-historical-row key - see that function's own
+    docstring for the full writeup) - D must already have gone through
+    merge_won_by_horse_date so it has "horse" and "date" columns."""
+    tr = pd.read_csv(runners_csv, low_memory=False,
+                     usecols=["horse", "date", "trainer_win_pct_365d", "jockey_win_pct_90d"])
+    tr["date"] = pd.to_datetime(tr["date"], errors="coerce")
+    tr = tr.dropna(subset=["date"])
+    tr = tr.drop_duplicates(subset=["horse", "date"], keep=False)  # drop ambiguous same-day name clashes
+    return D.merge(tr, on=["horse", "date"], how="inner")
+
+
 def add_closing_merit(apply_frames, cutoff_date):
     """Mirrors add_track_barrier's pattern for the OTHER population+own-
     history hybrid ADJ_TERM already in production (see wpr_projection.
@@ -137,6 +155,11 @@ def run():
 
     print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date)...")
     full = merge_won_by_horse_date(full)
+
+    print("Merging trainer/jockey trailing win-rate from toprate_runners.csv "
+          "by (horse, date) - not part of wpr_form_history.csv.gz's career "
+          "archive at all, only ever captured at fetch time...")
+    full = merge_trainer_jockey_by_horse_date(full)
 
     full = add_base(full)
     non_tb_terms = [t for t in wpr.ADJ_TERMS if t not in ("track_barrier", "closing_merit")]
