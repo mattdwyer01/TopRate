@@ -176,6 +176,12 @@ def report(sub, label):
     se = profit.std(ddof=1) / np.sqrt(len(profit))
     t = profit.mean() / se if se > 0 else float("nan")
     flag = "  ** SIGNIFICANT **" if abs(t) >= 1.96 else ""
+    # avg/median price + % favourites (<$3) - a suspiciously strong result
+    # that's just "the filter mostly selects short-priced favourites" (real
+    # favourite-longshot bias, not model skill) shows up here as a much
+    # lower avg price than the unfiltered population.
+    print(f"      [avg price ${sub['sp'].mean():.2f}  median ${sub['sp'].median():.2f}  "
+          f"<$3: {(sub['sp'] < 3).mean()*100:.1f}%]")
     print(f"    {label}: n={len(sub):5d}  strike={sub['won'].mean()*100:5.2f}%  "
           f"ROI={profit.sum()/len(sub)*100:+6.2f}%  t={t:+.2f}{flag}")
 
@@ -183,7 +189,8 @@ def report(sub, label):
 def report_bets(bets, label):
     print(f"\n{'='*70}\nVariant {label}\n{'='*70}")
     fallback_pct = bets["used_sp_fallback"].mean() * 100
-    print(f"total scored bets: {len(bets):,}  (fixed_win_price fallback to SP for {fallback_pct:.1f}%)\n")
+    print(f"total scored bets: {len(bets):,}  (fixed_win_price fallback to SP for {fallback_pct:.1f}%)  "
+          f"[population avg price ${bets['sp'].mean():.2f}, <$3: {(bets['sp'] < 3).mean()*100:.1f}%]\n")
 
     print("=== Edge threshold alone ===")
     for thr in EDGE_THRESHOLDS:
@@ -200,6 +207,50 @@ def run_variant(d, features, label):
     report_bets(walk_forward_bets(d, features), f"{label}: edge features = {features}")
 
 
+def _brier(data, beta):
+    """Same metric/shape as calibrate_price_beta.py's own _brier - kept
+    separate (not imported) since that script reads wprp_proj straight
+    from toprate_runners.csv, which is stale for history (see module
+    docstring); this one scores the freshly recomputed wprp_proj."""
+    rows = []
+    for rid, g in data.groupby("race_id"):
+        if len(g) < 4:
+            continue
+        pv = g["wprp_proj"].to_numpy(dtype=float)
+        e = np.exp(beta * (pv - pv.max()))
+        p = e / e.sum()
+        rows.extend(zip(p, g["won"]))
+    arr = pd.DataFrame(rows, columns=["p", "won"])
+    return float(((arr["p"] - arr["won"]) ** 2).mean()) if len(arr) else float("nan")
+
+
+def refit_beta(d):
+    """calibrate_price_beta.py's own retrain-log note is explicit: 'beta
+    carried forward from existing config: 0.4 (re-run calibrate_price_beta.py
+    --write to re-derive it)' - and that script's own history already found
+    0.4 'badly overconfident' even on the OLD model (implied ~49% win prob
+    on top-decile picks vs ~27% actual, held-out Brier 0.096 vs ~0.090 at
+    beta~0.15-0.20). Adding two more ADJ_TERMs widens wprp_proj's spread
+    further, so reusing 0.4 unmodified for a WPR-price-alone edge variant
+    would be comparing against a KNOWN-overconfident price, not a fair test
+    of "is WPR price alone as good as the blend" - grid search + held-out
+    Brier, same shape as calibrate_price_beta.py, on the freshly recomputed
+    projection instead of stale toprate_runners.csv values."""
+    grid = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40]
+    cut = d["date"].quantile(0.70)
+    trn, tst = d[d["date"] < cut], d[d["date"] >= cut]
+    print(f"\nRe-deriving beta on the recomputed wprp_proj (train Brier picks, held-out verifies):")
+    print("  beta | train Brier | held-out Brier")
+    best_beta, best_brier = None, float("inf")
+    for beta in grid:
+        b_trn, b_tst = _brier(trn, beta), _brier(tst, beta)
+        print(f"    {beta:.2f} | {b_trn:.4f}      | {b_tst:.4f}")
+        if b_trn < best_brier:
+            best_brier, best_beta = b_trn, beta
+    print(f"  train-selected beta: {best_beta}  (held-out Brier at this beta: {_brier(tst, best_beta):.4f})")
+    return best_beta
+
+
 def run():
     d = build_new_proj_frame()
     print(f"\nresulted races: {d['race_id'].nunique():,}  runners: {len(d):,}  "
@@ -210,8 +261,12 @@ def run():
     run_variant(d, ["wprp_proj", "pfm_score"],
                 "B (trainer/jockey dropped, avoids double-counting)")
 
-    beta = json.load(open(CONFIG_PATH)).get("beta", 0.4)
-    report_bets(wpr_price_bets(d, beta), f"C (WPR price alone, no blend - beta={beta})")
+    stale_beta = json.load(open(CONFIG_PATH)).get("beta", 0.4)
+    report_bets(wpr_price_bets(d, stale_beta),
+                f"C (WPR price alone, STALE beta={stale_beta} - documented overconfident, see refit below)")
+
+    new_beta = refit_beta(d)
+    report_bets(wpr_price_bets(d, new_beta), f"D (WPR price alone, refit beta={new_beta})")
 
     print("\nSame multiple-comparisons caveat as the earlier bet-selection scripts: treat any")
     print("row here as a hypothesis for a future walk-forward period, not a result to ship.")
