@@ -49,7 +49,7 @@ from wpr_bet_selection_post_retrain import merge_price_pfm, report
 EDGE_FEATURES_A = ["wprp_proj", "trainer_win_pct_365d", "jockey_win_pct_90d", "pfm_score"]
 EDGE_FEATURES_B = ["wprp_proj", "pfm_score"]
 BETA_GRID = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40]
-EDGE_THRESHOLDS = [0.08, 0.10, 0.13, 0.15, 0.20]
+EDGE_THRESHOLDS = [0.0, 0.08, 0.10, 0.13, 0.15, 0.20]
 PRICE_CAPS = [15.0, 26.0]
 
 
