@@ -2186,7 +2186,19 @@ def update_results(jwt, runners_df, fetch_workers=DEFAULT_FETCH_WORKERS,
                     sp    = r.get("starting_price_sp")
                     venue = r.get("venue", "")
                     race  = r.get("race", "")
-                    if fin:
+                    # fin can be a leftover NaN (top pick had no entry in
+                    # this race's result_map - scratched, or no recorded
+                    # finish) rather than None. NaN is truthy in Python, so
+                    # `if fin:` alone let it through to int(fin) below,
+                    # which raises "cannot convert float NaN to integer" -
+                    # crashing this whole race's per-runner result writes
+                    # (finish_position/won/placed/resulted, all written
+                    # earlier in this same try block) were already saved
+                    # for every OTHER runner by that point; only this
+                    # cosmetic summary line and the caught exception's noisy
+                    # "Error fetching results" print were lost. pd.notna
+                    # guards both None and NaN.
+                    if fin and pd.notna(fin):
                         status = "WON" if fin == 1 else (f"placed {int(fin)}th" if fin <= 3 else f"{int(fin)}th")
                         sp_str = f" @ ${float(sp):.2f}" if sp else ""
                         print(f"  Result: {venue} R{race} {horse} — {status}{sp_str}")
