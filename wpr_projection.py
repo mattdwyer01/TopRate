@@ -254,6 +254,7 @@ FEATURES = [
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
     "own_trend", "own_long_spell", "track_barrier", "closing_merit",
+    "trainer_merit", "jockey_merit",
 ]
 
 # Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
@@ -646,6 +647,119 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lo
     if db is None or band is None:
         return 0.0
     return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
+
+
+# trainer_merit/jockey_merit: two more population-level ADJ_TERMS (Sep 2026,
+# strike-rate validated - see wpr_trainer_jockey_adj_strike_eval.py),
+# deliberately an adjustment to WPR itself rather than a separate blended
+# ranking (an earlier attempt to fold trainer/jockey trailing form into a
+# SEPARATE blend score, replacing wpr_price wholesale, was reverted -
+# "doesn't pass the pub test": a disconnected second ranking system is
+# confusing even when it measures better, whereas an ADJ_TERM keeps WPR as
+# the one number, nudged the same transparent way track_barrier/
+# closing_merit already do). Same shrunk-population-residual structure as
+# track_barrier, just bucketed by DECILE of trainer_win_pct_365d/
+# jockey_win_pct_90d (data-dependent quantile edges, fit at train time)
+# instead of a fixed Inside/Mid/Wide band. Both cleared the strike-rate bar
+# in both held-out chronological-split directions individually, and
+# combined cleared it by MORE than either alone (+1.1 to +1.4 points, vs
+# +0.3-0.7 for either alone) - complementary, not redundant, signal. MAE
+# got slightly worse in all three variants, the same accepted tradeoff
+# track_barrier/closing_merit were adopted under.
+_TJ_MERIT_K = 300.0
+_TJ_MERIT_BUCKETS = 10
+
+
+def _merit_bucket(value, edges):
+    """Bucket a raw win-pct value into one of the fitted decile buckets
+    (see _fit_merit_lookup) using the SAME edges the lookup was fit
+    against. None if value or edges is missing/unusable."""
+    if value is None or value != value or not edges:
+        return None
+    return int(np.digitize([float(value)], edges[1:-1])[0])
+
+
+def _merit_term(bucket, lookup):
+    """Live lookup against the FITTED trainer_merit/jockey_merit table
+    (see above). 0.0 (no adjustment) for any bucket not seen in
+    training - same "unseen -> 0" contract track_barrier uses."""
+    if bucket is None or not lookup:
+        return 0.0
+    return float(lookup.get(str(bucket), 0.0))
+
+
+def _fit_merit_lookup(full_df, col, fit_frac=0.70):
+    """Population mean residual (target - career_avg) per decile bucket
+    of col, shrunk toward the global mean with strength _TJ_MERIT_K.
+    Returns (edges, lookup dict keyed by str(bucket) - JSON needs string
+    keys).
+
+    Takes the FULL training frame (not train_wpr_projection's own trn
+    split) and finds its own leak-safe cutoff WITHIN the covered subset,
+    rather than reusing the global trn/cf/te split - trainer_win_pct_365d/
+    jockey_win_pct_90d are only ever captured in the last however-many
+    months toprate_runners.csv has been running (confirmed: ~20% overall
+    coverage across the full multi-year career archive), which sits almost
+    entirely inside cf/te's own (most recent) date range. Using the global
+    trn cutoff left trn essentially empty for these two columns specifically
+    (crashed outright on np.quantile of an empty array) - a cutoff computed
+    from the COVERED subset's own dates at least has real data to fit on,
+    at the cost of some overlap with cf/te's dates in this function's own
+    internal fit (the actual out-of-sample validation already happened
+    properly in wpr_trainer_jockey_adj_strike_eval.py's own h1/h2 walk-
+    forward split, which had no such overlap - same precedent as
+    calibrate_edge_score.py's final production means/stds being fit on
+    ALL data once walk-forward has already validated the approach
+    generalizes)."""
+    cov = full_df.dropna(subset=[col, "target", "career_avg"])
+    if len(cov) < 50:
+        return [], {}
+    cutoff = cov["date"].quantile(fit_frac)
+    d = cov[cov["date"] < cutoff]
+    if len(d) < 50:
+        d = cov  # coverage window too narrow to split further - fit on all of it
+    edges = np.unique(np.quantile(d[col], np.linspace(0, 1, _TJ_MERIT_BUCKETS + 1)))
+    resid = d["target"] - d["career_avg"]
+    global_mean = resid.mean()
+    bucket = np.digitize(d[col], edges[1:-1])
+    lookup = {}
+    for b in range(len(edges) - 1):
+        m = resid[bucket == b]
+        if len(m):
+            n = len(m)
+            shrunk = (n * m.mean() + _TJ_MERIT_K * global_mean) / (n + _TJ_MERIT_K)
+            lookup[str(b)] = float(shrunk - global_mean)
+    return edges.tolist(), lookup
+
+
+def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="toprate_runners.csv"):
+    """trainer_win_pct_365d/jockey_win_pct_90d are NOT part of the per-run
+    career archive (form_history_csv) at all - confirmed, that file only
+    has the jockey/trainer NAME strings, not their trailing win-rate
+    stats. They are only ever captured in runners_csv (toprate_runners.csv)
+    at daily-fetch time, one row per (race, runner) as it was originally
+    scraped as "today's races". Joins by (horse name, date), NOT run_id
+    (not a reliable per-historical-row key - every row in a scraped
+    horse's whole form table shares one run_id, see
+    wpr_own_pace_backtest.merge_won_by_horse_date's docstring for the full
+    writeup this mirrors) and not horse_id (runners_csv has no horse_id
+    column, only the name - form_history_csv has both, hence the name_map
+    step below).
+
+    Returns (name_map: horse_id -> horse name, lookup: {(horse, date_str):
+    (trainer_win_pct_365d, jockey_win_pct_90d)})."""
+    name_map = pd.read_csv(form_history_csv, usecols=["horse_id", "horse"], low_memory=False)
+    name_map = name_map.dropna().drop_duplicates(subset="horse_id", keep="last")
+    name_map = name_map.set_index("horse_id")["horse"]
+
+    tr = pd.read_csv(runners_csv, low_memory=False,
+                     usecols=["horse", "date", "trainer_win_pct_365d", "jockey_win_pct_90d"])
+    tr["date"] = pd.to_datetime(tr["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    tr = tr.dropna(subset=["date"])
+    tr = tr.drop_duplicates(subset=["horse", "date"], keep=False)  # drop ambiguous same-day name clashes
+    lookup = {(row.horse, row.date): (row.trainer_win_pct_365d, row.jockey_win_pct_90d)
+             for row in tr.itertuples()}
+    return name_map, lookup
 
 
 # closing_merit: a second population+own-history hybrid ADJ_TERM (Aug 2026,
@@ -1874,143 +1988,72 @@ def get_price_beta():
     return _CFG.get("beta", 0.4)
 
 
-EDGE_FEATURES = ["wprp_proj", "trainer_win_pct_365d", "jockey_win_pct_90d", "pfm_score"]
+EDGE_FEATURES = ["wprp_proj"]
 
 
 def compute_edge_scores(runners):
-    """Blend WPR projection + trailing jockey/trainer form + a
-    form-provider score (pfm_score) into a per-race win-probability
-    estimate: the PRIMARY ranking model for the Race tab (promoted Aug
-    2026 - see below), plus a bet-selection comparison against the
-    market's own implied probability.
+    """Compare WPR's own fair-value price against the market's, per race.
 
     runners: list of dicts, one per horse in the SAME race, each carrying
-      whatever of EDGE_FEATURES is available plus "market_price" (the
-      price to compare against - fixed_win_price pre-race, starting_price_sp/
-      price_top once resulted).
-
-    HOW THE SCORE IS COMPUTED: an unweighted average of z-scores (NOT a
-    fitted model - see calibrate_edge_score.py's docstring for why a plain
-    average beat a fitted logistic regression walked forward). Each
-    feature is z-scored against its training mean/std; a runner missing a
-    feature has it SKIPPED, not imputed - the score is the mean of
-    whichever z-scores it actually has. A runner missing every feature
-    gets no score at all (blend_prob/rank/price all None), same as a WPR
-    projection with insufficient history - it does NOT get silently
-    treated as "average".
+      "wprp_proj" and "market_price" (the price to compare against -
+      fixed_win_price pre-race, starting_price_sp/price_top once resulted).
 
     Returns a list of result dicts (same order):
-      blend_prob, blend_rank, blend_price - the primary ranking. Softmax
-        of the blend score over the WHOLE field (no market price needed -
-        same convention as project_race's wpr_price). A missing wprp_proj
-        forces the score to neutral (0.0) rather than leaving the runner
-        unscored (see _score below) - practically, every runner with a
-        valid config gets a blend_prob/rank/price. All three are None only
-        in the defensive fallback case of an empty runners list.
+      blend_prob, blend_rank, blend_price - WPR's own implied win
+        probability/rank/price: softmax of wprp_proj over the whole
+        scored field, using the SAME beta as project_race's wpr_price
+        (see get_price_beta) - so these are mathematically the same
+        number as wpr_price/wpr_rank, just computed independently here.
+        Kept under their original "blend_*" names (harmless - nothing
+        about the name implies a blend of other signals) rather than
+        renaming and touching every call site, per WHY THIS CHANGED
+        below. None for every runner if fewer than 1 has a wprp_proj.
       has_edge, model_prob, market_prob, edge (model_prob - market_prob,
         in probability points - multiply by 100 for percentage points).
         model_prob/market_prob are renormalised over just the runners with
-        BOTH a score and a usable market_price, so they are directly
+        BOTH a wprp_proj and a usable market_price, so they are directly
         comparable to each other (this is why they can differ slightly
         from blend_prob, which normalises over the whole scored field).
         has_edge is False (other keys None) for a runner with no usable
-        market_price or score, or for every runner if fewer than 2 in the
-        race qualify.
-    All keys are None (blend_* included) if the edge_score calibration
-    hasn't been fitted yet (see calibrate_edge_score.py --write).
+        market_price or wprp_proj, or for every runner if fewer than 2 in
+        the race qualify.
 
-    WHY THIS IS THE PRIMARY RANKING (not wprp_proj/wpr_rank), AND WHY THESE
-    4 FEATURES: an Aug 2026 audit walked a model forward weekly (refit on
-    strictly-prior data each time, not a single train/test split) across
-    the full history and found this blend's ranking beats wpr_nett/
-    wprp_proj alone on both AUC (~0.68 vs ~0.58) and top-1 strike rate
-    (~27% vs ~23-25%) consistently across every burn-in window tested.
-    Feature ablation showed trainer/jockey trailing form does almost all
-    of that work; speed_rating and pf_ai_score added nothing and were
-    dropped. pfm_score is a genuine mixed case (added AUC, but its
-    presence/absence swung the ROI point estimate in a way neither
-    version's ROI is significant enough to read as real) - kept in on the
-    AUC evidence; see calibrate_edge_score.py's docstring for the full
-    reasoning. It still does not beat the market favourite's raw strike
-    rate (~34%) - the market has information this model doesn't (late
-    scratches, drift, insider money).
-
-    Separately, has_edge/model_prob/market_prob/edge is a bet-SELECTION
-    filter on top of the ranking above - and the SAME walk-forward audit
-    found NO overlay threshold reached statistical significance (max
-    |t|=1.24 at edge>=0.20, n=362; low thresholds like edge>=0 were
-    significantly NEGATIVE, t=-9.94). Treat edge as an experimental
-    signal worth tracking forward, not a validated source of profit - see
-    calibrate_edge_score.py's docstring for the full numbers.
-
-    NOTE: the numbers above were walked forward under skip-and-average
-    scoring (a runner missing wprp_proj scored from whatever else it had).
-    Production _score below instead forces a missing wprp_proj to 0.0, a
-    later explicit user decision made AFTER seeing that this measurably
-    costs every metric (strike 27.25%->26.64%, ROI -0.02%->-1.87%, AUC
-    0.6817->0.6701) - so the numbers above are not exactly what production
-    currently does, they are the closest validated reference point. If
-    re-validating, walk forward with the SAME force-zero rule production
-    uses, not skip-and-average.
-
-    Deliberately excludes jt_combo_win_pct - see toprate_daily.py's
-    SIGNALS comment for why (confirmed leak of the runner's own result on
-    low-ride-count combos). Mean/std come from calibrate_edge_score.py,
-    computed offline on resulted races and stored in wpr_models/config.json
-    under "edge_score" - never hand-edit that block, rerun the script
-    (quarterly, or once a season's worth of new resulted races has
-    accumulated).
+    WHY THIS CHANGED (Sep 2026): this used to average z-scores of wprp_proj
+    + trailing jockey/trainer form + pfm_score (see calibrate_edge_score.py,
+    kept for its documented history of what was tried and why). Once
+    trainer_merit/jockey_merit became ADJ_TERMS inside wprp_proj itself
+    (see wpr_trainer_jockey_adj_strike_eval.py), that blend was double-
+    counting the same signal once raw, once via WPR. A leak-free
+    walk-forward test (every population artifact fit on one date-half,
+    scored purely on the other, both directions pooled) found WPR's own
+    price ALONE beat every blend variant on ROI at every threshold tested;
+    a favourite-longshot-bias check ruled out "it's just picking
+    favourites" (backing every favourite in this data LOSES money,
+    t=-6.16, while the edge filter flips every price bucket's own negative
+    baseline to positive - a pure price-bucket bias could not do that).
+    Explicit user decision to use WPR alone, not a blend, per the same
+    "WPR should stay one transparent number" reasoning that reverted the
+    earlier separate blend-ranking design (mattdwyer01/TopRate#146).
     """
     _load_models()
     empty = {"blend_prob": None, "blend_rank": None, "blend_price": None,
              "has_edge": False, "model_prob": None, "market_prob": None, "edge": None}
     n = len(runners)
-    cfg = _CFG.get("edge_score")
-    if not cfg or n < 1:
-        return [dict(empty) for _ in runners]
-
-    feats = cfg["features"]
-    means = cfg["means"]
-    stds = cfg["stds"]
-
-    def _score(r):
-        # A missing wprp_proj forces the WHOLE score to neutral (0.0),
-        # regardless of how strong the other signals (trainer/jockey form,
-        # pfm_score) are - a deliberate user decision (Aug 2026), not the
-        # better-performing option. Walk-forward tested against
-        # skip-and-average (score the runner from whatever signals it DOES
-        # have): forcing 0 measurably cost every metric (strike 27.25% ->
-        # 26.64%, ROI -0.02% -> -1.87%, AUC 0.6817 -> 0.6701, logloss
-        # 0.3032 -> 0.3051) and changed the top pick in 12.4% of races, 98.5%
-        # of which were exactly this case (a no-wprp_proj runner winning on
-        # strong trailing form under skip-and-average). Kept anyway per
-        # explicit instruction - see calibrate_edge_score.py's docstring.
-        wpr_v = r.get("wprp_proj")
-        if wpr_v is None or wpr_v != wpr_v:
-            return 0.0
-        zs = []
-        for f in feats:
-            v = r.get(f)
-            std = stds.get(f, 0.0)
-            if v is None or v != v or not std:
-                continue
-            zs.append((float(v) - means.get(f, 0.0)) / std)
-        return float(np.mean(zs)) if zs else 0.0
-
-    score = np.array([_score(r) for r in runners], dtype=float)
-    have_score = np.isfinite(score)
     results = [dict(empty) for _ in runners]
+    if n < 1:
+        return results
+
+    beta = get_price_beta()
+    proj = np.array([r.get("wprp_proj") for r in runners], dtype=float)
+    have_score = np.isfinite(proj)
     if not have_score.any():
         return results
 
-    # Primary ranking: softmax over runners that have a score. _score now
-    # always returns a float (0.0 for a missing wprp_proj, per the user's
-    # explicit instruction - see _score above), so have_score is true for
-    # every real runner in practice; this guard is defensive only (an
-    # empty runners list). Mirrors project_race's own wpr_price softmax so
-    # the two "fair price" numbers behave alike.
-    s_v = score[have_score]
-    e_full = np.exp(s_v - s_v.max())
+    # Primary ranking: softmax over runners with a wprp_proj. Mirrors
+    # project_race's own wpr_price softmax exactly (same beta, same
+    # field) so the two "fair price" numbers agree.
+    s_v = proj[have_score]
+    e_full = np.exp(beta * (s_v - s_v.max()))
     blend_prob_v = e_full / e_full.sum()
     blend_rank_v = (-blend_prob_v).argsort().argsort() + 1
     blend_price_v = np.minimum(1.0 / blend_prob_v, 999.0)
@@ -2031,8 +2074,8 @@ def compute_edge_scores(runners):
     # market_prob (not the whole field) so the two are directly comparable -
     # an unpriced (e.g. late-scratched) or unscored runner shouldn't dilute
     # either side.
-    s_valid = score[valid]
-    e_v = np.exp(s_valid - s_valid.max())
+    p_valid = proj[valid]
+    e_v = np.exp(beta * (p_valid - p_valid.max()))
     model_prob_v = e_v / e_v.sum()
     inv_v = 1.0 / prices[valid]
     market_prob_v = inv_v / inv_v.sum()
@@ -2109,6 +2152,20 @@ def project_race(runners, race_date):
         if f is not None:
             f["gear_change"] = _gear_change_term(
                 _gear_change_bucket(r.get("cur_gear_changes")), _gc_lookup)
+
+    # trainer_merit/jockey_merit: pure population lookups, same injection
+    # pattern as track_barrier/gear_change above - today's actual booking,
+    # unrelated to prior_runs so cannot be computed inside build_features.
+    _tm_edges = _CFG.get("trainer_merit_edges")
+    _tm_lookup = _CFG.get("trainer_merit_lookup")
+    _jm_edges = _CFG.get("jockey_merit_edges")
+    _jm_lookup = _CFG.get("jockey_merit_lookup")
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["trainer_merit"] = _merit_term(
+                _merit_bucket(r.get("cur_trainer_win_pct_365d"), _tm_edges), _tm_lookup)
+            f["jockey_merit"] = _merit_term(
+                _merit_bucket(r.get("cur_jockey_win_pct_90d"), _jm_edges), _jm_lookup)
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
@@ -2246,6 +2303,16 @@ def _adj_phrase(feat, value, contribution):
                  "pace of those races would suggest" if neg else
                  "its recent closing sectionals have been stronger than the "
                  "pace of those races would suggest")
+    if feat == "trainer_merit":
+        return ("this trainer's runners tend to underperform their rating "
+                 "lately" if neg else
+                 "this trainer's runners have been running above their "
+                 "rating lately")
+    if feat == "jockey_merit":
+        return ("this jockey's mounts tend to underperform their rating "
+                 "lately" if neg else
+                 "this jockey's mounts have been running above their "
+                 "rating lately")
     if feat == "gear_change":
         return ("horses wearing this gear change tend to run below "
                  "expectations" if neg else
@@ -2771,6 +2838,22 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         subset=["target", "date"]).sort_values("date")
     print(f"  {len(D):,} training rows")
 
+    # trainer_win_pct_365d/jockey_win_pct_90d ingredients (trainer_merit/
+    # jockey_merit ADJ_TERMS) - NOT part of build_training_frame's own
+    # per-run career archive (confirmed, form_history_csv only has the
+    # jockey/trainer NAME strings) - merged in separately by (horse, date),
+    # same join wpr_trainer_jockey_adj_strike_eval.py validated this with.
+    print("  merging trainer/jockey trailing win-rate from toprate_runners.csv "
+          "by (horse, date)...")
+    _name_map, _tj_lookup = _load_trainer_jockey_by_horse_date(form_history_csv)
+    _tj_dates = D["date"].dt.strftime("%Y-%m-%d")
+    _tj_names = D["horse_id"].map(_name_map)
+    _tj_vals = [_tj_lookup.get((n, d), (np.nan, np.nan)) for n, d in zip(_tj_names, _tj_dates)]
+    D["trainer_win_pct_365d"] = [t for t, j in _tj_vals]
+    D["jockey_win_pct_90d"] = [j for t, j in _tj_vals]
+    print(f"  trainer_win_pct_365d coverage: {D['trainer_win_pct_365d'].notna().mean()*100:.1f}%  "
+          f"jockey_win_pct_90d coverage: {D['jockey_win_pct_90d'].notna().mean()*100:.1f}%")
+
     # Void filter: drop runs the horse did not get a fair chance to show its
     # true WPR (vet/bled/eased/fell/checked). Training on these teaches the
     # model to predict a compromised run-day rating, which both adds noise and
@@ -2884,6 +2967,30 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             _track_barrier_term(trk, dist, bar, fs, track_barrier_lookup)
             for trk, dist, bar, fs in zip(_frame["track"], _frame["cur_distance"],
                                           _frame["barrier"], _frame["field_size"])
+        ]
+
+    # trainer_merit/jockey_merit: pure population decile-bucketed lookups.
+    # NOT fit on trn like track_barrier above - trainer_win_pct_365d/
+    # jockey_win_pct_90d coverage (~20% of the full multi-year career
+    # archive) sits almost entirely inside cf/te's own recent date range,
+    # so the global trn cutoff leaves trn empty for these two columns
+    # specifically. _fit_merit_lookup finds its own leak-safe cutoff
+    # within whichever rows of D actually have the column - see its
+    # docstring for the full reasoning.
+    print("  fitting trainer_merit lookup (population, own coverage-aware cutoff)...")
+    trainer_merit_edges, trainer_merit_lookup = _fit_merit_lookup(D, "trainer_win_pct_365d")
+    print(f"  trainer_merit: {len(trainer_merit_lookup):,} deciles {trainer_merit_lookup}")
+    print("  fitting jockey_merit lookup (population, own coverage-aware cutoff)...")
+    jockey_merit_edges, jockey_merit_lookup = _fit_merit_lookup(D, "jockey_win_pct_90d")
+    print(f"  jockey_merit: {len(jockey_merit_lookup):,} deciles {jockey_merit_lookup}")
+    for _frame in (cf, te):
+        _frame["trainer_merit"] = [
+            _merit_term(_merit_bucket(v, trainer_merit_edges), trainer_merit_lookup)
+            for v in _frame["trainer_win_pct_365d"]
+        ]
+        _frame["jockey_merit"] = [
+            _merit_term(_merit_bucket(v, jockey_merit_edges), jockey_merit_lookup)
+            for v in _frame["jockey_win_pct_90d"]
         ]
 
     # gear_change: pure population lookup fit on trn only, same shrunk-
@@ -3041,7 +3148,11 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                "beta": beta, "min_runs": _MIN_RUNS,
                "track_barrier_lookup": track_barrier_lookup,
                "pace_baseline_lookup": pace_baseline_lookup,
-               "gear_change_lookup": gear_change_lookup})
+               "gear_change_lookup": gear_change_lookup,
+               "trainer_merit_edges": trainer_merit_edges,
+               "trainer_merit_lookup": trainer_merit_lookup,
+               "jockey_merit_edges": jockey_merit_edges,
+               "jockey_merit_lookup": jockey_merit_lookup})
     json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 

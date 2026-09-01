@@ -24,6 +24,24 @@ WHY
   price/probability. Ranking is unaffected (softmax is rank-preserving for
   any beta > 0); only the price numbers change.
 
+  WHY wprp_proj IS RECOMPUTED, NOT READ FROM toprate_runners.csv (Sep 2026)
+  compute_wpr_projection() in toprate_daily.py only ever (re)computes
+  wprp_proj for the day just fetched - it never retroactively rewrites
+  historical rows (by design, so the Review tab's predicted-vs-actual
+  accuracy audit reflects what was ACTUALLY predicted at the time, not a
+  hindsight-revised number). So after any model change (like adding
+  trainer_merit/jockey_merit), toprate_runners.csv's wprp_proj column
+  stays stale for nearly all of history until enough new days accumulate
+  under the new model - reading it directly here would calibrate beta
+  against the OLD model almost entirely. _load_resulted() instead
+  recomputes wprp_proj for every resulted row using the CURRENTLY SHIPPED
+  config.json (same convention already used for calibrate_edge_score.py's
+  means/stds: fit population artifacts once, apply to all data, on the
+  basis that walk-forward validation already confirmed the approach
+  generalizes - see wpr_trainer_jockey_adj_strike_eval.py). This is slower
+  (rebuilds the full training frame, ~5-10 min) than the old direct CSV
+  read, acceptable for a script meant to be re-run quarterly, not daily.
+
 USAGE
   python calibrate_price_beta.py           # report only
   python calibrate_price_beta.py --write   # also update wpr_models/config.json
@@ -46,16 +64,9 @@ BETA_GRID = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40]
 
 
 def _load_resulted():
-    df = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str, "race_id": str},
-                     low_memory=False)
-    df["resulted"] = pd.to_numeric(df.get("resulted"), errors="coerce")
-    df = df[df["resulted"] == 1].copy()
-    df["wprp_proj"] = pd.to_numeric(df.get("wprp_proj"), errors="coerce")
-    df["finish_position"] = pd.to_numeric(df.get("finish_position"),
-                                          errors="coerce")
-    df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
-    df = df.dropna(subset=["wprp_proj", "finish_position", "race_id", "date"])
-    df["won"] = (df["finish_position"] == 1).astype(float)
+    from wpr_bet_selection_post_retrain import build_new_proj_frame
+    df = build_new_proj_frame()
+    df = df.dropna(subset=["wprp_proj", "won", "race_id", "date"])
     return df
 
 
