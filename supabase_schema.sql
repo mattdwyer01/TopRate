@@ -145,6 +145,7 @@ create table if not exists toprate_runners (
   pfm_score             double precision,
   pfm_score_rank        double precision,
   fixed_win_price       double precision,
+  open_price            double precision,
   jockey_win_pct_90d    double precision,
   trainer_win_pct_365d  double precision,
   jockey_rating         double precision,
@@ -168,6 +169,23 @@ create table if not exists toprate_runners (
   wpr_actual            double precision,
   comments_video        text,
   comments_steward      text,
+  -- Punting Form (pf_*) - the PF subscription was cancelled and the model
+  -- runs on WPR projection only, but the CSV still carries these columns
+  -- from before that removal, so the table needs them too or every upsert
+  -- fails outright (see the Aug 2026 sync-outage note below).
+  pf_ai_rank            double precision,
+  pf_ai_price           double precision,
+  pf_ai_score           double precision,
+  pf_class_rank         double precision,
+  pf_tac_class_rank     double precision,
+  pf_time_rank          double precision,
+  pf_early_time_rank    double precision,
+  pf_last600_rank       double precision,
+  pf_last400_rank       double precision,
+  pf_last200_rank       double precision,
+  pf_run_style          text,
+  pf_class_change       double precision,
+  pf_reliable           boolean,
   wpr_dist_n            double precision,
   sect_early            text,
   speed_rank_in_race    double precision,
@@ -185,7 +203,16 @@ create table if not exists toprate_runners (
   rs_score              double precision,
   rs_label              text,
   wpr_actual_rank       double precision,
-  silk_url              text
+  silk_url              text,
+  -- Base/adjustment decomposition (wpr_projection.py's _compute_base() /
+  -- ADJ_TERMS) and the miss-explanation fields (compute_miss_explanations()).
+  wprp_base             double precision,
+  wprp_adj              double precision,
+  wprp_contrib          text,
+  wprp_miss_category    text,
+  wprp_miss_reason      text,
+  -- Late scratch flag, set post-capture by toprate_price_refresh.py.
+  scratched             double precision
 );
 
 create index if not exists idx_tr_date    on toprate_runners (date);
@@ -221,3 +248,36 @@ create policy "Public read access"
   for select
   to anon
   using (true);
+
+-- ============================================================
+-- Migration (Aug 2026): toprate_runners had drifted 20 columns behind
+-- toprate_runners.csv - CREATE TABLE IF NOT EXISTS above is a no-op on an
+-- existing table, so the columns above never actually reached the live
+-- database. PostgREST rejects an upsert containing ANY unknown column for
+-- the WHOLE request, and supabase_sync.py's _upsert() aborts entirely on
+-- the first failed batch - so the daily sync had been failing at row 0 on
+-- every run (confirmed via Action logs: "Could not find the 'open_price'
+-- column"), and toprate_runners had been frozen at whatever the last fully-
+-- successful sync captured. Run this once against the live database to
+-- catch it up; safe to re-run (ADD COLUMN IF NOT EXISTS).
+-- ============================================================
+alter table toprate_runners add column if not exists open_price         double precision;
+alter table toprate_runners add column if not exists pf_ai_rank         double precision;
+alter table toprate_runners add column if not exists pf_ai_price        double precision;
+alter table toprate_runners add column if not exists pf_ai_score        double precision;
+alter table toprate_runners add column if not exists pf_class_rank      double precision;
+alter table toprate_runners add column if not exists pf_tac_class_rank  double precision;
+alter table toprate_runners add column if not exists pf_time_rank       double precision;
+alter table toprate_runners add column if not exists pf_early_time_rank double precision;
+alter table toprate_runners add column if not exists pf_last600_rank    double precision;
+alter table toprate_runners add column if not exists pf_last400_rank    double precision;
+alter table toprate_runners add column if not exists pf_last200_rank    double precision;
+alter table toprate_runners add column if not exists pf_run_style       text;
+alter table toprate_runners add column if not exists pf_class_change    double precision;
+alter table toprate_runners add column if not exists pf_reliable        boolean;
+alter table toprate_runners add column if not exists wprp_base          double precision;
+alter table toprate_runners add column if not exists wprp_adj           double precision;
+alter table toprate_runners add column if not exists wprp_contrib       text;
+alter table toprate_runners add column if not exists wprp_miss_category text;
+alter table toprate_runners add column if not exists wprp_miss_reason   text;
+alter table toprate_runners add column if not exists scratched          double precision;
