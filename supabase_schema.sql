@@ -117,6 +117,11 @@ create table if not exists toprate_runners (
   race_shape_late       text,
   has_first_starter     boolean,
   run_id                bigint primary key,
+  -- Stable per-horse id (same field wpr_form_history already keys on) -
+  -- lets a horse be tracked across races without a name join (apostrophes,
+  -- "(NZ)" suffixes, etc). Was already being fetched every run, just never
+  -- kept on this table until now (Sep 2026).
+  horse_id              bigint,
   tab_number            double precision,
   barrier               double precision,
   horse                 text,
@@ -311,3 +316,25 @@ alter table toprate_runners add column if not exists wprp_blend_rank    double p
 alter table toprate_runners add column if not exists wprp_edge          double precision;
 alter table toprate_runners add column if not exists wprp_edge_mkt_prob double precision;
 alter table toprate_runners add column if not exists wprp_edge_prob     double precision;
+
+-- ============================================================
+-- Migration (Sep 2026): expose horse_id on toprate_runners, the same
+-- stable per-horse id wpr_form_history already keys on - was already
+-- being fetched every run, just never copied onto this table, so a horse
+-- could only be tracked across races via a name join (apostrophes, "(NZ)"
+-- suffixes, name changes). Existing rows backfilled from
+-- wpr_form_history's own (run_id -> horse_id) mapping, since every run_id
+-- already captured there already has it; going forward toprate_daily.py
+-- writes it directly (no name join needed at all).
+-- ============================================================
+alter table toprate_runners add column if not exists horse_id bigint;
+
+update toprate_runners tr
+set horse_id = fh.horse_id
+from (select distinct on (run_id) run_id, horse_id
+      from wpr_form_history
+      where horse_id is not null) fh
+where tr.run_id = fh.run_id
+  and tr.horse_id is null;
+
+create index if not exists idx_tr_horse_id on toprate_runners (horse_id);
