@@ -37,6 +37,13 @@ export interface AccuracyRow {
   actualRank: number | null
   finishPosition: number | null
   won: boolean
+  // The model's own softmax-derived $ price for this runner, and the
+  // market's own settled price (starting price, falling back to the
+  // post-race top fluctuation when SP itself is missing) - both null
+  // until price/result data is available. Used by computeStrikeRates'
+  // "rated under $10" / "rated shorter than market" pools.
+  wprPrice: number | null
+  marketPrice: number | null
   // Was this run compromised (vet/checked/eased/fell/etc), per video and
   // steward comments? Only ever flags UNDERperformances (see lib/wprVoid.ts's
   // direction rule) - a trouble comment on a run that beat its projection
@@ -85,6 +92,8 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         actualRank: r.actualWprRank,
         finishPosition: r.finishPosition,
         won: r.won,
+        wprPrice: r.wprPrice,
+        marketPrice: r.startingPrice ?? r.postRaceTopPrice,
         voided: voidResult.isVoid,
         voidReason: voidResult.reason,
       })
@@ -191,6 +200,44 @@ export function computeOutcomeStats(rows: AccuracyRow[]): OutcomeStats {
     winnerMedianRank: quantile(winnerRanks, 0.5),
     winnerTop3Pct: winnersWithRank ? (winnersTop3 / winnersWithRank) * 100 : null,
   }
+}
+
+export interface StrikeRatePool {
+  label: string
+  n: number
+  wins: number
+  strikePct: number | null
+}
+
+// Four named runner pools the user tracks as the real bar for a model
+// change (this session's own validation standard for closing_merit/
+// gear_change/the alpha work): does the model's own most-confident
+// picks - by rank, and separately by its own $ price against the
+// market's - actually win at a good rate. "Rated shorter than market"
+// is the model's value/edge signal: wprPrice < marketPrice means the
+// model thinks this runner is a better chance than the market prices
+// it, so its OWN win rate is the real test of whether that signal means
+// anything.
+export function computeStrikeRates(rows: AccuracyRow[]): StrikeRatePool[] {
+  const pools: { label: string; test: (r: AccuracyRow) => boolean }[] = [
+    { label: 'Top rated', test: (r) => r.predictedRank === 1 },
+    { label: 'Top 4 rated', test: (r) => r.predictedRank != null && r.predictedRank <= 4 },
+    { label: 'Rated under $10', test: (r) => r.wprPrice != null && r.wprPrice < 10 },
+    {
+      label: 'Rated shorter than market',
+      test: (r) => r.wprPrice != null && r.marketPrice != null && r.wprPrice < r.marketPrice,
+    },
+  ]
+  return pools.map(({ label, test }) => {
+    let n = 0
+    let wins = 0
+    for (const r of rows) {
+      if (r.finishPosition == null || !test(r)) continue
+      n++
+      if (r.won) wins++
+    }
+    return { label, n, wins, strikePct: n > 0 ? (wins / n) * 100 : null }
+  })
 }
 
 export interface BreakdownRow {

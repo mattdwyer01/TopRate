@@ -14,13 +14,12 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { SummaryTab } from './features/summary/SummaryTab'
 
-type TopTab = 'race' | 'review' | 'summary'
+type TopTab = 'race' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'summary' ? t : 'race'
+  return t === 'review' ? t : 'race'
 }
 
 function App() {
@@ -61,7 +60,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'summary') {
+    if (tab === 'review') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -107,16 +106,6 @@ function App() {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
-              <button
-                type="button"
-                onClick={() => switchTab('summary')}
-                className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
-                  (topTab === 'summary' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Summary
-              </button>
               <button
                 type="button"
                 onClick={() => switchTab('race')}
@@ -192,9 +181,6 @@ function App() {
         )}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
-        )}
-        {state.status === 'ready' && topTab === 'summary' && (
-          <SummaryTab races={state.data.races} showBush={showBush} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (

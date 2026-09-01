@@ -9,6 +9,7 @@ import {
   computeMarginStats,
   computeOutcomeStats,
   computeRankStats,
+  computeStrikeRates,
   computeWinnerRankStats,
   distanceBand,
   splitVoided,
@@ -90,6 +91,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
   const stats = useMemo(() => computeAccuracyStats(rows), [rows])
   const outcome = useMemo(() => computeOutcomeStats(rows), [rows])
+  const strikeRates = useMemo(() => computeStrikeRates(rows), [rows])
   const rankStats = useMemo(() => computeRankStats(rows), [rows])
   const winnerRankStats = useMemo(() => computeWinnerRankStats(rows), [rows])
   const marginStats = useMemo(() => computeMarginStats(rows), [rows])
@@ -218,6 +220,40 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-line bg-panel">
+            <div className="border-b border-line px-4 py-2.5">
+              <div className="text-sm font-semibold text-ink">Strike rates by selection</div>
+              <div className="text-xs text-ink-faint">
+                Win rate within each pool of runners - the real bar for whether a model change (or the model's own
+                value calls) actually pays off, not just whether it looks better on paper.
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs text-ink-mute">
+                    <th className="px-4 py-2 font-medium">Selection</th>
+                    <th className="px-4 py-2 text-right font-medium">n</th>
+                    <th className="px-4 py-2 text-right font-medium">Wins</th>
+                    <th className="px-4 py-2 text-right font-medium">Strike rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line-soft">
+                  {strikeRates.map((s) => (
+                    <tr key={s.label}>
+                      <td className="px-4 py-2 text-ink">{s.label}</td>
+                      <td className="px-4 py-2 text-right text-ink-mute">{s.n.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right text-ink-mute">{s.wins.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right font-mono font-semibold text-ink">
+                        {fmtPct(s.strikePct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - the substance behind the headline number" defaultOpen>
