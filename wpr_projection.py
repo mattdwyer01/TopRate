@@ -688,12 +688,36 @@ def _merit_term(bucket, lookup):
     return float(lookup.get(str(bucket), 0.0))
 
 
-def _fit_merit_lookup(fit_rows, col):
+def _fit_merit_lookup(full_df, col, fit_frac=0.70):
     """Population mean residual (target - career_avg) per decile bucket
-    of col, shrunk toward the global mean with strength _TJ_MERIT_K, fit
-    on fit_rows only. Returns (edges, lookup dict keyed by str(bucket) -
-    JSON needs string keys)."""
-    d = fit_rows.dropna(subset=[col, "target", "career_avg"])
+    of col, shrunk toward the global mean with strength _TJ_MERIT_K.
+    Returns (edges, lookup dict keyed by str(bucket) - JSON needs string
+    keys).
+
+    Takes the FULL training frame (not train_wpr_projection's own trn
+    split) and finds its own leak-safe cutoff WITHIN the covered subset,
+    rather than reusing the global trn/cf/te split - trainer_win_pct_365d/
+    jockey_win_pct_90d are only ever captured in the last however-many
+    months toprate_runners.csv has been running (confirmed: ~20% overall
+    coverage across the full multi-year career archive), which sits almost
+    entirely inside cf/te's own (most recent) date range. Using the global
+    trn cutoff left trn essentially empty for these two columns specifically
+    (crashed outright on np.quantile of an empty array) - a cutoff computed
+    from the COVERED subset's own dates at least has real data to fit on,
+    at the cost of some overlap with cf/te's dates in this function's own
+    internal fit (the actual out-of-sample validation already happened
+    properly in wpr_trainer_jockey_adj_strike_eval.py's own h1/h2 walk-
+    forward split, which had no such overlap - same precedent as
+    calibrate_edge_score.py's final production means/stds being fit on
+    ALL data once walk-forward has already validated the approach
+    generalizes)."""
+    cov = full_df.dropna(subset=[col, "target", "career_avg"])
+    if len(cov) < 50:
+        return [], {}
+    cutoff = cov["date"].quantile(fit_frac)
+    d = cov[cov["date"] < cutoff]
+    if len(d) < 50:
+        d = cov  # coverage window too narrow to split further - fit on all of it
     edges = np.unique(np.quantile(d[col], np.linspace(0, 1, _TJ_MERIT_BUCKETS + 1)))
     resid = d["target"] - d["career_avg"]
     global_mean = resid.mean()
@@ -3016,14 +3040,19 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                                           _frame["barrier"], _frame["field_size"])
         ]
 
-    # trainer_merit/jockey_merit: pure population decile-bucketed lookups,
-    # fit on trn only, same shrunk-residual-vs-career_avg convention as
-    # track_barrier above (see _fit_merit_lookup/_merit_term docstrings).
-    print("  fitting trainer_merit lookup (population, trn only)...")
-    trainer_merit_edges, trainer_merit_lookup = _fit_merit_lookup(trn, "trainer_win_pct_365d")
+    # trainer_merit/jockey_merit: pure population decile-bucketed lookups.
+    # NOT fit on trn like track_barrier above - trainer_win_pct_365d/
+    # jockey_win_pct_90d coverage (~20% of the full multi-year career
+    # archive) sits almost entirely inside cf/te's own recent date range,
+    # so the global trn cutoff leaves trn empty for these two columns
+    # specifically. _fit_merit_lookup finds its own leak-safe cutoff
+    # within whichever rows of D actually have the column - see its
+    # docstring for the full reasoning.
+    print("  fitting trainer_merit lookup (population, own coverage-aware cutoff)...")
+    trainer_merit_edges, trainer_merit_lookup = _fit_merit_lookup(D, "trainer_win_pct_365d")
     print(f"  trainer_merit: {len(trainer_merit_lookup):,} deciles {trainer_merit_lookup}")
-    print("  fitting jockey_merit lookup (population, trn only)...")
-    jockey_merit_edges, jockey_merit_lookup = _fit_merit_lookup(trn, "jockey_win_pct_90d")
+    print("  fitting jockey_merit lookup (population, own coverage-aware cutoff)...")
+    jockey_merit_edges, jockey_merit_lookup = _fit_merit_lookup(D, "jockey_win_pct_90d")
     print(f"  jockey_merit: {len(jockey_merit_lookup):,} deciles {jockey_merit_lookup}")
     for _frame in (cf, te):
         _frame["trainer_merit"] = [
