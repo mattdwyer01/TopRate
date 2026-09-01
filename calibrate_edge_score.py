@@ -1,5 +1,18 @@
 """
-calibrate_edge_score.py - fit the "edge score": an unweighted z-score
+calibrate_edge_score.py - HISTORICAL / NOT USED IN PRODUCTION (Sep 2026).
+compute_edge_scores() no longer reads the "edge_score" config block this
+script writes - once trainer_merit/jockey_merit became ADJ_TERMS inside
+wprp_proj itself, this blend was double-counting that signal (once raw,
+once via WPR), and a leak-free walk-forward test found WPR's own price
+ALONE beats every blend variant on ROI - see wpr_projection.
+compute_edge_scores' own docstring for the full reasoning and
+wpr_bet_selection_leakfree_eval.py for the test. Kept only for its
+documented history of what was tried and why (same status as
+toprate_html_v3.py - reference, not live). Do not re-run --write; it
+would populate a config block nothing reads.
+
+ORIGINAL DOCSTRING (for history):
+fit the "edge score": an unweighted z-score
 average of WPR projection + trailing jockey/trainer form + a form-provider
 score (pfm_score) into a per-race win-probability estimate, compared
 against the market's own implied
