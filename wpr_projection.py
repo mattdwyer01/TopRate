@@ -1877,31 +1877,6 @@ def get_price_beta():
 EDGE_FEATURES = ["wprp_proj", "trainer_win_pct_365d", "jockey_win_pct_90d", "pfm_score"]
 
 
-def get_edge_score_config():
-    """The edge_score blend's features/means/stds/beta, exposed so the
-    dashboard can replicate compute_edge_scores' exact formula client-side
-    for a manual rating override (see get_price_beta's docstring above for
-    why this matters - wpjpr/wpjr, the dashboard's "WPR $"/rank, are the
-    BLEND price/rank as of Sep 2026 (see compute_edge_scores), not the
-    plain projection, so a manual override needs this full config, not
-    just a single beta).
-
-    Returns None if the edge_score calibration hasn't been fitted yet
-    (see calibrate_edge_score.py --write) - the dashboard falls back to
-    not recomputing on override in that case.
-    """
-    _load_models()
-    cfg = _CFG.get("edge_score")
-    if not cfg:
-        return None
-    return {
-        "features": cfg["features"],
-        "means": cfg["means"],
-        "stds": cfg["stds"],
-        "beta": cfg.get("blend_beta", 1.0),
-    }
-
-
 def compute_edge_scores(runners):
     """Blend WPR projection + trailing jockey/trainer form + a
     form-provider score (pfm_score) into a per-race win-probability
@@ -1997,15 +1972,6 @@ def compute_edge_scores(runners):
     feats = cfg["features"]
     means = cfg["means"]
     stds = cfg["stds"]
-    # blend_beta: softmax sharpness for THIS score, calibrated separately
-    # from wpr_price's own beta (see calibrate_blend_price_beta.py) -
-    # grid search + Brier score + held-out validation against real
-    # outcomes landed on 1.0 (i.e. no scaling), a genuine U-shaped optimum
-    # (both train and held-out Brier get worse in either direction from
-    # it), not just "we never calibrated it so it stayed at the default".
-    # Falls back to 1.0 (the prior always-implicit behaviour) if the
-    # calibration script hasn't been run yet.
-    blend_beta = cfg.get("blend_beta", 1.0)
 
     def _score(r):
         # A missing wprp_proj forces the WHOLE score to neutral (0.0),
@@ -2041,13 +2007,10 @@ def compute_edge_scores(runners):
     # always returns a float (0.0 for a missing wprp_proj, per the user's
     # explicit instruction - see _score above), so have_score is true for
     # every real runner in practice; this guard is defensive only (an
-    # empty runners list). blend_beta (see above) is this score's OWN
-    # calibrated sharpness - deliberately separate from project_race's
-    # wpr_price beta, since the two scores have different scales (a WPR
-    # gap vs a z-score gap) and calibrated to very different values
-    # (0.15-0.20 for wpr_price, 1.0 for this blend).
+    # empty runners list). Mirrors project_race's own wpr_price softmax so
+    # the two "fair price" numbers behave alike.
     s_v = score[have_score]
-    e_full = np.exp(blend_beta * (s_v - s_v.max()))
+    e_full = np.exp(s_v - s_v.max())
     blend_prob_v = e_full / e_full.sum()
     blend_rank_v = (-blend_prob_v).argsort().argsort() + 1
     blend_price_v = np.minimum(1.0 / blend_prob_v, 999.0)
@@ -2069,7 +2032,7 @@ def compute_edge_scores(runners):
     # an unpriced (e.g. late-scratched) or unscored runner shouldn't dilute
     # either side.
     s_valid = score[valid]
-    e_v = np.exp(blend_beta * (s_valid - s_valid.max()))
+    e_v = np.exp(s_valid - s_valid.max())
     model_prob_v = e_v / e_v.sum()
     inv_v = 1.0 / prices[valid]
     market_prob_v = inv_v / inv_v.sum()

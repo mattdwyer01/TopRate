@@ -188,28 +188,7 @@ function App() {
               key={urlState.raceId}
               race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
               allRaces={state.data.races}
-              // The raw, unoverridden server beta - sharpnessScale below is
-              // how a per-device override actually applies now (see its
-              // own comment), not a merge here, so this must stay the true
-              // server value for that ratio to be meaningful.
-              priceBeta={state.data.priceBeta}
-              edgeScoreConfig={state.data.edgeScoreConfig}
-              // "WPR $ price sharpness" in Settings edits betaOverride on the
-              // OLD plain-projection beta's scale (~0.15-0.4) - WPR $ is now
-              // the blend price, whose calibrated beta (1.0, see
-              // calibrate_blend_price_beta.py) lives on a different numeric
-              // scale (z-score gaps, not WPR-point gaps), so the raw
-              // override value can't be applied to it directly. Instead
-              // apply it as a RATIO relative to the server's own
-              // (unoverridden) beta - "half as sharp as the pipeline's
-              // default" means the same thing regardless of which formula
-              // is actually driving the price. 1 (no-op) when no override
-              // is set.
-              sharpnessScale={
-                betaOverride != null && state.data.priceBeta
-                  ? betaOverride / state.data.priceBeta
-                  : 1
-              }
+              priceBeta={betaOverride ?? state.data.priceBeta}
               deltas={deltas}
               bases={bases}
               scratched={scratched}

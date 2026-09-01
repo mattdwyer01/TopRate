@@ -9958,7 +9958,6 @@
     "significant": false
    }
   ],
-  "note": "Unweighted z-score average (NOT a fitted model) - deliberately excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). A missing wprp_proj forces score=0 (user decision, costs some accuracy - see wpr_projection.compute_edge_scores' _score). WARNING: edge>=0.00 and up (0.00, 0.05, 0.08, 0.10) showed SIGNIFICANTLY NEGATIVE ROI in the walk-forward audit (see overlay_validation below) - these are CONFIRMED LOSING thresholds under this scoring rule, not merely unproven. Do not surface them as a viable tier in the UI; re-run this script if the scoring rule ever changes back.",
-  "blend_beta": 1.0
+  "note": "Unweighted z-score average (NOT a fitted model) - deliberately excludes jt_combo_win_pct (confirmed leak, see toprate_daily.py SIGNALS comment). A missing wprp_proj forces score=0 (user decision, costs some accuracy - see wpr_projection.compute_edge_scores' _score). WARNING: edge>=0.00 and up (0.00, 0.05, 0.08, 0.10) showed SIGNIFICANTLY NEGATIVE ROI in the walk-forward audit (see overlay_validation below) - these are CONFIRMED LOSING thresholds under this scoring rule, not merely unproven. Do not surface them as a viable tier in the UI; re-run this script if the scoring rule ever changes back."
  }
 }
