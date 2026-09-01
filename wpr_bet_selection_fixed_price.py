@@ -48,6 +48,8 @@ BURN_IN_WEEKS = 5
 MIN_TRAIN = 300
 EDGE_THRESHOLDS = [0.08, 0.10, 0.13, 0.15, 0.20]
 PRICE_CAPS = [15.0, 26.0]
+MODEL_PRICE_CAPS = [5.0, 10.0, 15.0]
+RANK_CAPS = [1, 2, 3]
 
 
 def _load_resulted_fixed_price():
@@ -86,7 +88,17 @@ def walk_forward_bets(d, burn_in_weeks=BURN_IN_WEEKS, min_train=MIN_TRAIN):
         test["p_mkt_norm"] = (1.0 / test["sp"]) / test.groupby("race_id")["sp"].transform(
             lambda s: (1.0 / s).sum())
         test["edge"] = p - test["p_mkt_norm"]
-        bets.append(test[["won", "sp", "edge", "used_sp_fallback"]])
+        # "wpr price": the model's OWN implied price from this same blend
+        # score (1/p), same softmax-normalisation convention the dashboard's
+        # WPR $ price uses (see wpr_projection's price calc) - a cheap
+        # runner by the model's own reckoning, not the market's.
+        test["model_price"] = 1.0 / p
+        # live_rank: this runner's rank by the model's own score within its
+        # race, computed the same walk-forward week as edge (leak-safe) -
+        # NOT the same as the wprp_rank column stored in toprate_runners.csv,
+        # which is a single static in-sample fit, not walk-forward.
+        test["live_rank"] = test.groupby("race_id")["score"].rank(ascending=False, method="first")
+        bets.append(test[["won", "sp", "edge", "used_sp_fallback", "model_price", "live_rank"]])
     return pd.concat(bets, ignore_index=True)
 
 
@@ -124,6 +136,29 @@ def run():
         report(base, f"edge>={thr:.2f}, no price cap")
         for cap in PRICE_CAPS:
             report(base[base["sp"] <= cap], f"edge>={thr:.2f}, price<={cap:.0f}")
+        print()
+
+    # Price cap fixed at $26 from here on (per chat, Sep 2026: the earlier
+    # cap sweep + the "97.8% of ALL winners are <=$26" coverage check both
+    # point at $26 as the practical choice - $15 costs real winning
+    # coverage for little extra noise reduction).
+    CAP = 26.0
+    capped = bets[bets["sp"] <= CAP]
+
+    print(f"=== overlay (edge threshold) x model_price<X, price<=${CAP:.0f} throughout ===")
+    for thr in EDGE_THRESHOLDS:
+        base = capped[capped["edge"] >= thr]
+        report(base, f"edge>={thr:.2f}, any model_price")
+        for mp in MODEL_PRICE_CAPS:
+            report(base[base["model_price"] < mp], f"edge>={thr:.2f}, model_price<{mp:.0f}")
+        print()
+
+    print(f"=== overlay (edge threshold) x live_rank<=X, price<=${CAP:.0f} throughout ===")
+    for thr in EDGE_THRESHOLDS:
+        base = capped[capped["edge"] >= thr]
+        report(base, f"edge>={thr:.2f}, any rank")
+        for rk in RANK_CAPS:
+            report(base[base["live_rank"] <= rk], f"edge>={thr:.2f}, live_rank<={rk}")
         print()
 
     print("Same multiple-comparisons caveat as wpr_bet_selection_dimensions.py: treat any")
