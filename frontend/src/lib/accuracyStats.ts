@@ -209,32 +209,43 @@ export interface StrikeRatePool {
   strikePct: number | null
 }
 
-// Four named runner pools the user tracks as the real bar for a model
-// change (this session's own validation standard for closing_merit/
-// gear_change/the alpha work): does the model's own most-confident
-// picks - by rank, and separately by its own $ price against the
-// market's - actually win at a good rate. "Rated shorter than market"
-// is the model's value/edge signal: wprPrice < marketPrice means the
-// model thinks this runner is a better chance than the market prices
-// it, so its OWN win rate is the real test of whether that signal means
-// anything.
+// Four coverage questions about the actual WINNER of each race (this
+// session's own validation standard for closing_merit/gear_change/the
+// alpha work, now surfaced directly in the dashboard): of races with a
+// known winner, how often did the winner satisfy each condition - rated
+// #1, rated in the top 4, rated under $10 by the model's own softmax
+// price, or priced shorter by the model than the market (the model's
+// value/edge signal). Deliberately NOT a per-selection strike rate
+// (e.g. "of runners rated under $10, how often do they win") - that
+// question dilutes badly for a multi-runner pool like "top 4" (only one
+// of four selections can ever win, so a per-runner average is
+// misleadingly lower than the #1 tier alone - see chat), and "how often
+// is the WINNER in this pool" is the more useful, consistent framing a
+// bettor actually wants across all four. Each condition has its own
+// applicable() denominator so a winner missing price data doesn't count
+// against a price-based row it can't actually be evaluated on.
 export function computeStrikeRates(rows: AccuracyRow[]): StrikeRatePool[] {
-  const pools: { label: string; test: (r: AccuracyRow) => boolean }[] = [
-    { label: 'Top rated', test: (r) => r.predictedRank === 1 },
-    { label: 'Top 4 rated', test: (r) => r.predictedRank != null && r.predictedRank <= 4 },
-    { label: 'Rated under $10', test: (r) => r.wprPrice != null && r.wprPrice < 10 },
+  const conditions: {
+    label: string
+    applicable: (r: AccuracyRow) => boolean
+    hit: (r: AccuracyRow) => boolean
+  }[] = [
+    { label: 'Top rated', applicable: (r) => r.predictedRank != null, hit: (r) => r.predictedRank === 1 },
+    { label: 'Top 4 rated', applicable: (r) => r.predictedRank != null, hit: (r) => r.predictedRank! <= 4 },
+    { label: 'Rated under $10', applicable: (r) => r.wprPrice != null, hit: (r) => r.wprPrice! < 10 },
     {
       label: 'Rated shorter than market',
-      test: (r) => r.wprPrice != null && r.marketPrice != null && r.wprPrice < r.marketPrice,
+      applicable: (r) => r.wprPrice != null && r.marketPrice != null,
+      hit: (r) => r.wprPrice! < r.marketPrice!,
     },
   ]
-  return pools.map(({ label, test }) => {
+  return conditions.map(({ label, applicable, hit }) => {
     let n = 0
     let wins = 0
     for (const r of rows) {
-      if (r.finishPosition == null || !test(r)) continue
+      if (r.finishPosition !== 1 || !applicable(r)) continue
       n++
-      if (r.won) wins++
+      if (hit(r)) wins++
     }
     return { label, n, wins, strikePct: n > 0 ? (wins / n) * 100 : null }
   })
