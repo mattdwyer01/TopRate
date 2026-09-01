@@ -1245,24 +1245,19 @@ def compute_wpr_projection(runners_df, target_date_str=None):
 
 
 def compute_edge_score(runners_df, target_date_str=None):
-    """Add wprp_blend_prob/wprp_blend_rank/wprp_blend_price (the PRIMARY
-    ranking - see below) and wprp_edge/wprp_edge_prob/wprp_edge_mkt_prob
-    (a bet-selection filter on top of it) columns: a blend of wprp_proj +
-    speed_rating + pfm_score + pf_ai_score + trailing jockey/trainer form
-    (see wpr_projection.compute_edge_scores for the full rationale and
-    calibrate_edge_score.py for how the weights were fit).
+    """Add wprp_blend_prob/wprp_blend_rank/wprp_blend_price and
+    wprp_edge/wprp_edge_prob/wprp_edge_mkt_prob columns - see
+    wpr_projection.compute_edge_scores for the full rationale (Sep 2026:
+    now WPR's own price alone, no blend of other signals - the wprp_blend_*
+    names are kept only to avoid touching every call site/column name).
 
-    wprp_blend_rank/wprp_blend_price are the PRIMARY ranking as of Aug
-    2026 (promoted from wpr_rank/wprp_rank) - a held-out backtest found
-    this blend beats ranking by WPR alone on both top-1 strike rate and
-    ROI. They need no market price (softmax over the whole field, same
-    convention as wpr_price) so they're available whenever the underlying
-    signals are, same as wpr_rank/wprp_rank.
+    wprp_blend_prob/rank/price need no market price (softmax over the
+    whole field, same convention as wpr_price - in fact mathematically
+    the same number now) so they're available whenever wprp_proj is.
 
     wprp_edge/wprp_edge_prob/wprp_edge_mkt_prob stay a SEPARATE
-    bet-selection filter: a large positive wprp_edge means the blend
-    thinks the market is underpricing that runner specifically, which is
-    a different question from "is this the best horse in the race" -
+    bet-selection comparison: a large positive wprp_edge means WPR's own
+    price thinks the market is underpricing that runner specifically -
     needs a usable market price, so it's null pre-price and for fields
     with fewer than 2 priced runners.
 
