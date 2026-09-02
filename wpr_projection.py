@@ -1565,10 +1565,25 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     # rows matched exactly vs 28,118/32,101 within the band) - precision
     # outweighs the sample-size loss here. Replaces the band entirely,
     # no accuracy reason to keep both.
+    #
+    # Hybrid fallback (Sep 2026, user request): that test replaced the
+    # band for EVERY runner, which is why exact-only won outright. It
+    # never checked keeping exact match where available (unchanged above)
+    # and falling back to the +/-200m band (distband_wpr/distband_n,
+    # already computed above for a different candidate feature) only for
+    # the 33% of runners with no exact match at all - who otherwise get a
+    # flat 0.0, "no signal", even though 92% of them have a usable nearby-
+    # distance average sitting right there. K=4-fold leak-free test
+    # (wpr_distance_hybrid_fallback_test.py): this fallback improved
+    # held-out MAE in every one of 4 folds (5.8878 -> 5.8845), strike
+    # rate/ROI unaffected - a one-sided win (only changes rows that
+    # previously got no signal at all) rather than a replacement.
     dist_match = dist == float(cur_distance)
     n_dist = int(dist_match.sum())
-    own_distance = _shrink(float(w[dist_match].mean() - career_avg), n_dist) \
-        if n_dist >= 1 else 0.0
+    if n_dist >= 1:
+        own_distance = _shrink(float(w[dist_match].mean() - career_avg), n_dist)
+    else:
+        own_distance = _shrink(distband_wpr - career_avg, distband_n)
 
     going_band_hist = p["going"].apply(_going_band)
     cur_going_band = _going_band(cur_going)
@@ -2471,11 +2486,19 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     # ── Trip and going record ──
     cur_dist = feats.get("cur_distance")
     dn, davg = feats.get("dist_match_n", 0), feats.get("dist_match_avg")
+    dbn, dbwpr = feats.get("distband_n", 0), feats.get("distband_wpr")
     gn, gavg = feats.get("going_match_n", 0), feats.get("going_match_avg")
     trip_bits = []
     if dn >= 1 and _ok(davg) and career_avg is not None and cur_dist is not None:
         trip_bits.append(f"Races {_vs(davg - career_avg)} its {cur_dist:.0f}m average "
                          f"({davg:.1f} from {dn})")
+    # No exact match, but own_distance now falls back to a +/-200m band
+    # average (Sep 2026 hybrid fallback - see own_distance's own comment
+    # above) - say so, rather than "Untried" implying no adjustment at all
+    # when one is actually being applied from the nearby-distance runs.
+    elif dn == 0 and dbn >= 1 and _ok(dbwpr) and career_avg is not None and cur_dist is not None:
+        trip_bits.append(f"Untried at exactly {cur_dist:.0f}m, {_vs(dbwpr - career_avg)} "
+                         f"its nearby-distance average ({dbwpr:.1f} from {dbn})")
     elif dn == 0 and cur_dist is not None:
         trip_bits.append(f"Untried at {cur_dist:.0f}m")
     # dn >= 1 but davg unusable (void-masked): say nothing rather than
