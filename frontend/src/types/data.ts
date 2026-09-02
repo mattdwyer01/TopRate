@@ -99,6 +99,13 @@ export interface RawRunner {
   wpjpr: number | null
   wpjr: number | null
   wpjpk: number | null
+  // model_prob - market_prob (WPR's own price vs the market's, see
+  // wpr_projection.compute_edge_scores). null unless both a projection and
+  // a usable market price exist for this runner (and at least 2 runners in
+  // the race qualify).
+  wpje: number | null
+  wpjep: number | null
+  wpjem: number | null
   wpjpA: number | null
   wpjcA: number | null
   wpjd: string | null
