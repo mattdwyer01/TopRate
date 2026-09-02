@@ -101,7 +101,7 @@ def fit_best_alpha(fit_rows):
     return best_alpha, best_mae
 
 
-def screen_variable(name, full, h1, h2, bucket_fn):
+def screen_variable(name, h1, h2, bucket_fn, global_alpha_h1, global_alpha_h2):
     h1 = h1.copy()
     h2 = h2.copy()
     h1["_bucket"] = bucket_fn(h1)
@@ -116,22 +116,28 @@ def screen_variable(name, full, h1, h2, bucket_fn):
         alpha_from_h1, _ = fit_best_alpha(h1b)
         alpha_from_h2, _ = fit_best_alpha(h2b)
 
-        mae_shipped = pd.concat([
-            (h2b["target"] - raw_base_at_alpha(h2b, 0.5)).abs(),
-            (h1b["target"] - raw_base_at_alpha(h1b, 0.5)).abs(),
+        # Benchmark against the GLOBAL leak-free-fit alpha (already ~1.0,
+        # per Test A - ewm3 hurts MAE across the WHOLE population, not just
+        # specific circumstances), not the shipped 0.5 - comparing against
+        # 0.5 would just have every bucket "discover" the same global
+        # effect independently, which isn't circumstance-specific signal.
+        mae_global = pd.concat([
+            (h2b["target"] - raw_base_at_alpha(h2b, global_alpha_h1)).abs(),
+            (h1b["target"] - raw_base_at_alpha(h1b, global_alpha_h2)).abs(),
         ]).mean()
         mae_fitted = pd.concat([
             (h2b["target"] - raw_base_at_alpha(h2b, alpha_from_h1)).abs(),
             (h1b["target"] - raw_base_at_alpha(h1b, alpha_from_h2)).abs(),
         ]).mean()
-        gain = mae_shipped - mae_fitted
-        flag = "  <-- candidate" if gain > 0.05 and alpha_from_h1 != 0.5 and alpha_from_h2 != 0.5 else ""
+        gain = mae_global - mae_fitted
+        flag = "  <-- candidate" if gain > 0.05 else ""
         if gain > 0.05:
             any_real_gain = True
         print(f"    {bucket!s:>18}: n={len(h1b)+len(h2b):6,d}  fit alpha={alpha_from_h1}/{alpha_from_h2}  "
-              f"MAE shipped={mae_shipped:.4f} fit={mae_fitted:.4f} gain={gain:+.4f}{flag}")
+              f"(global={global_alpha_h1}/{global_alpha_h2})  "
+              f"MAE@global={mae_global:.4f} MAE@bucket-fit={mae_fitted:.4f} gain={gain:+.4f}{flag}")
     if not any_real_gain:
-        print("    (no bucket showed a meaningful MAE gain over the shipped flat 0.5)")
+        print("    (no bucket differs meaningfully from the global optimal alpha)")
 
 
 def run():
@@ -140,50 +146,60 @@ def run():
     mid = full["date"].quantile(0.5)
     h1, h2 = full[full["date"] < mid].copy(), full[full["date"] >= mid].copy()
 
-    print(f"\n{'='*90}\nComprehensive circumstance screen: per-bucket leak-free alpha vs shipped 0.5\n{'='*90}")
+    global_alpha_h1, _ = fit_best_alpha(h1)
+    global_alpha_h2, _ = fit_best_alpha(h2)
+    print(f"\nGlobal leak-free-fit alpha (whole population, no circumstance split): "
+          f"{global_alpha_h1} (from H1) / {global_alpha_h2} (from H2)")
+    print("Every bucket below is benchmarked against THIS, not the shipped 0.5 - otherwise every")
+    print("bucket just independently rediscovers this same global effect, which isn't circumstance-specific.")
 
-    screen_variable("first_up (0=no, 1=yes)", full, h1, h2, lambda f: f["first_up"])
-    screen_variable("second_up (0=no, 1=yes)", full, h1, h2, lambda f: f["second_up"])
-    screen_variable("camp_run (run number this prep)", full, h1, h2,
+    def screen(name, bucket_fn):
+        screen_variable(name, h1, h2, bucket_fn, global_alpha_h1, global_alpha_h2)
+
+    print(f"\n{'='*90}\nComprehensive circumstance screen: per-bucket leak-free alpha vs the GLOBAL fit\n{'='*90}")
+
+    screen("first_up (0=no, 1=yes)", lambda f: f["first_up"])
+    screen("second_up (0=no, 1=yes)", lambda f: f["second_up"])
+    screen("camp_run (run number this prep)",
                      lambda f: pd.cut(f["camp_run"], [0, 1, 2, 3, 4, 100], labels=["1", "2", "3", "4", "5+"]))
-    screen_variable("n_runs (career experience)", full, h1, h2,
+    screen("n_runs (career experience)",
                      lambda f: pd.cut(f["n_runs"], [0, 5, 7, 10, 15, 25, 1000],
                                        labels=["3-5", "6-7", "8-10", "11-15", "16-25", "26+"]))
-    screen_variable("days_since (gap since last run)", full, h1, h2,
+    screen("days_since (gap since last run)",
                      lambda f: pd.cut(f["days_since"], [0, 14, 21, 35, 60, 90, 100000],
                                        labels=["<=14", "15-21", "22-35", "36-60", "61-90", "91+"]))
-    screen_variable("class_move (today's class vs recent)", full, h1, h2,
+    screen("class_move (today's class vs recent)",
                      lambda f: pd.cut(f["class_move"], [-1000, -8, -2, 2, 8, 1000],
                                        labels=["big drop", "slight drop", "neutral", "slight rise", "big rise"]))
-    screen_variable("own_trend (last run vs prior 2)", full, h1, h2,
+    screen("own_trend (last run vs prior 2)",
                      lambda f: pd.qcut(f["own_trend"], 4, duplicates="drop"))
-    screen_variable("career_momentum", full, h1, h2,
+    screen("career_momentum",
                      lambda f: pd.qcut(f["career_momentum"], 4, duplicates="drop"))
-    screen_variable("wpr_traj (trajectory)", full, h1, h2,
+    screen("wpr_traj (trajectory)",
                      lambda f: pd.qcut(f["wpr_traj"], 4, duplicates="drop"))
-    screen_variable("std_last5 (recent-form volatility)", full, h1, h2,
+    screen("std_last5 (recent-form volatility)",
                      lambda f: pd.qcut(f["std_last5"], 4, duplicates="drop"))
-    screen_variable("std_career (career volatility)", full, h1, h2,
+    screen("std_career (career volatility)",
                      lambda f: pd.qcut(f["std_career"], 4, duplicates="drop"))
-    screen_variable("consistency_ratio", full, h1, h2,
+    screen("consistency_ratio",
                      lambda f: pd.qcut(f["consistency_ratio"], 4, duplicates="drop"))
-    screen_variable("recent_vs_peak (below own best)", full, h1, h2,
+    screen("recent_vs_peak (below own best)",
                      lambda f: pd.qcut(f["recent_vs_peak"], 4, duplicates="drop"))
-    screen_variable("pct_of_peak", full, h1, h2,
+    screen("pct_of_peak",
                      lambda f: pd.qcut(f["pct_of_peak"], 4, duplicates="drop"))
-    screen_variable("peak_recency (runs since peak)", full, h1, h2,
+    screen("peak_recency (runs since peak)",
                      lambda f: pd.qcut(f["peak_recency"], 4, duplicates="drop"))
-    screen_variable("field_size", full, h1, h2,
+    screen("field_size",
                      lambda f: pd.cut(f["field_size"], [0, 6, 8, 10, 12, 100],
                                        labels=["<=6", "7-8", "9-10", "11-12", "13+"]))
-    screen_variable("is_small_field (0=no, 1=yes)", full, h1, h2, lambda f: f["is_small_field"])
-    screen_variable("going_delta (going change)", full, h1, h2,
+    screen("is_small_field (0=no, 1=yes)", lambda f: f["is_small_field"])
+    screen("going_delta (going change)",
                      lambda f: pd.qcut(f["going_delta"], 4, duplicates="drop"))
-    screen_variable("gear_changes (any change today)", full, h1, h2,
-                     lambda f: f["gear_changes"].apply(lambda v: "none" if (v is None or str(v).strip().lower() in ("", "none", "nan")) else "changed"))
-    screen_variable("run_style", full, h1, h2,
+    screen("gear_changes (any change today)",
+                     lambda f: f["gear_changes"].apply(lambda v: "none" if (v is None or str(v).strip() in ("", "[]", "None", "nan")) else "changed"))
+    screen("run_style",
                      lambda f: pd.qcut(f["run_style"], 4, duplicates="drop"))
-    screen_variable("pace_dependence", full, h1, h2,
+    screen("pace_dependence",
                      lambda f: pd.qcut(f["pace_dependence"], 4, duplicates="drop"))
 
     print("\nSame multiple-comparisons caveat as the other bet-selection scripts, more so here given")
