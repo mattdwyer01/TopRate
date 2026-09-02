@@ -1236,6 +1236,21 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                     runners_df.at[idx, "wprp_conf_alt"] = ra.get("confidence")
                 projected += 1
             else:
+                # Explicitly clear stale values from an earlier run rather
+                # than leaving them in place - a runner that no longer
+                # qualifies (has_projection False THIS run, e.g. lost a
+                # prior-runs edge case, or was pre-fetched successfully on
+                # an earlier day and now re-evaluates differently) must not
+                # keep showing an old wprp_proj/price/rank. Found live Sep
+                # 2026: this caused a race's wpr_price to skip (valid.sum()
+                # <2, correctly strict) while wpjbp/wpje still computed as
+                # if a healthy field existed, because compute_edge_score()
+                # reads wprp_proj straight from runners_df and can't tell a
+                # fresh value from a stale leftover one.
+                for col in ["wprp_proj", "wprp_conf", "wprp_price", "wprp_rank",
+                            "wprp_base", "wprp_adj", "wprp_contrib",
+                            "wprp_proj_alt", "wprp_conf_alt"]:
+                    runners_df.at[idx, col] = None
                 fallback += 1
 
     print(f"  WPR projection: {projected} runners projected, "
@@ -1319,10 +1334,19 @@ def compute_edge_score(runners_df, target_date_str=None):
                 runners_df.at[idx, "wprp_blend_rank"] = res.get("blend_rank")
                 runners_df.at[idx, "wprp_blend_price"] = res.get("blend_price")
                 scored += 1
+            else:
+                # Clear stale values rather than leaving an old blend_price
+                # in place - see the matching comment in
+                # compute_wpr_projection()'s fallback branch above.
+                for col in ["wprp_blend_prob", "wprp_blend_rank", "wprp_blend_price"]:
+                    runners_df.at[idx, col] = None
             if res.get("has_edge"):
                 runners_df.at[idx, "wprp_edge"] = res.get("edge")
                 runners_df.at[idx, "wprp_edge_prob"] = res.get("model_prob")
                 runners_df.at[idx, "wprp_edge_mkt_prob"] = res.get("market_prob")
+            else:
+                for col in ["wprp_edge", "wprp_edge_prob", "wprp_edge_mkt_prob"]:
+                    runners_df.at[idx, col] = None
 
     print(f"  Edge score: {scored} runners scored for {target_date_str}")
     return runners_df

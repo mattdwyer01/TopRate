@@ -118,6 +118,13 @@ export interface Runner {
   wprPrice: number | null
   wprRank: number | null
   peakWpr: number | null
+  // WPR's own implied win probability vs the market's, for this runner -
+  // edge = edgeModelProb - edgeMarketProb (positive = WPR rates this runner
+  // shorter than the market does). null unless both a projection and a
+  // usable market price exist - see wpr_projection.compute_edge_scores.
+  edge: number | null
+  edgeModelProb: number | null
+  edgeMarketProb: number | null
   projectedWprAltGoing: number | null
   projectionConfidenceAltGoing: number | null
   projectionDescription: string | null
