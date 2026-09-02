@@ -3795,13 +3795,25 @@ def main():
     # save_runners) to finish before exiting. They've been running
     # concurrently with Steps 2c-2f/4/publish above, so this is usually a
     # short or zero wait rather than the full ~30-60s each took blocking
-    # the pipeline before. Bounded timeout as a safety net only - the
-    # underlying requests already cap themselves per-batch; this just
-    # guards against the join call itself hanging forever.
+    # the pipeline before. Generous timeout as a safety net only - the
+    # underlying requests already cap themselves per-batch (60s each), so
+    # this just guards against the join call itself hanging forever. It
+    # used to be 120s, which the runners sync alone (244s, growing with the
+    # table) could blow past - since these are daemon threads, hitting that
+    # timeout doesn't just delay the sync, it means main() exits and the
+    # still-running thread gets killed mid-request with no error and no
+    # completion log line at all (discovered when a day's wpr_form_history
+    # sync had no [supabase] log line whatsoever - not a failure message,
+    # just silently abandoned). 600s comfortably covers the observed
+    # runners-sync duration with margin; if a thread is STILL alive after
+    # that, say so explicitly instead of moving on in silence.
     for _label, _th in (("form-history", _supa_form_thread),
                          ("runners", _supa_runners_thread)):
         if _th is not None and _th.is_alive():
-            _th.join(timeout=120)
+            _th.join(timeout=600)
+            if _th.is_alive():
+                print(f"  [supabase] {_label}: still running after 600s wait - "
+                      f"this run is exiting without it, sync may be incomplete")
     _main_step("Waited for background Supabase syncs")
 
     print(f"\n{'='*60}")
