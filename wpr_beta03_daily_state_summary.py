@@ -27,6 +27,16 @@ own columns) - merged by race_id (already recovered via merge_won_by_
 horse_date's toprate_runners.csv join), deduplicated to one row per
 race_id since state is race-level, not runner-level.
 
+Race quality: toprate_runners.csv's race_class is free text (Maiden/
+Open/Class N/Benchmark NN/Restricted NN/Group.../Listed, ~30+ distinct
+values, not cleanly ordered) - prize_money is used instead as a single
+clean, fully-populated (0 missing across 5,752 races), continuous proxy
+for race quality, same quantity the app's own bush-meeting rule already
+keys off (frontend/src/lib/meetings.ts's BUSH_TRACK_THRESHOLD = $20k).
+Bucketed into 5 tiers by prize money (Bush <=$20k through Stakes/Group
+>$100k) chosen from the actual quantile spread (10th=$14.5k, 50th=$28k,
+90th=$80k, 95th=$150k) rather than round numbers picked blind.
+
 NO EM DASHES policy: hyphens only in this file.
 """
 import pickle
@@ -47,6 +57,11 @@ EDGE_THRESHOLD = 0.05  # "High Volume" tier - the union of all Summary tab picks
 PRICE_CAP = 26.0
 DAILY_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_daily_summary.csv"
 STATE_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_state_summary.csv"
+STATE_QUALITY_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_state_quality_summary.csv"
+
+QUALITY_BINS = [0, 20_000, 30_000, 50_000, 100_000, float("inf")]
+QUALITY_LABELS = ["Bush (<=20k)", "Provincial (20-30k)", "Midweek Metro (30-50k)",
+                   "Feature (50-100k)", "Stakes/Group (>100k)"]
 
 
 def build_full():
@@ -77,6 +92,17 @@ def merge_state(D, runners_csv=RUNNERS_CSV):
     D = D.copy()
     D["race_id"] = D["race_id"].astype(str)
     return D.merge(tr, on="race_id", how="left")
+
+
+def merge_race_quality(D, runners_csv=RUNNERS_CSV):
+    tr = pd.read_csv(runners_csv, dtype={"race_id": str}, low_memory=False,
+                      usecols=["race_id", "prize_money"])
+    tr = tr.dropna(subset=["race_id", "prize_money"]).drop_duplicates(subset="race_id", keep="first")
+    D = D.copy()
+    D["race_id"] = D["race_id"].astype(str)
+    D = D.merge(tr, on="race_id", how="left")
+    D["quality"] = pd.cut(D["prize_money"], bins=QUALITY_BINS, labels=QUALITY_LABELS)
+    return D
 
 
 def _edge_from_score(frame, score_col):
@@ -136,7 +162,9 @@ def run():
     full = full.dropna(subset=["sp"])
     full = full[full["sp"] > 1.0]
     full = merge_state(full)
-    print(f"\nScoped rows: {len(full):,}  (state missing for {full['state'].isna().sum():,})")
+    full = merge_race_quality(full)
+    print(f"\nScoped rows: {len(full):,}  (state missing for {full['state'].isna().sum():,}, "
+          f"quality missing for {full['quality'].isna().sum():,})")
 
     mid = full["date"].quantile(0.5)
     h1, h2 = full[full["date"] < mid].copy(), full[full["date"] >= mid].copy()
@@ -189,6 +217,38 @@ def run():
         "t_stat": "{:+.2f}".format,
     }))
     print(f"State summary written to {STATE_CSV_OUT}")
+
+    quality_summary = bets.groupby("quality", observed=True).apply(summarize, include_groups=False).reset_index()
+    quality_summary = quality_summary.set_index("quality").reindex(QUALITY_LABELS).reset_index()
+    print(f"\n{'='*90}\nBREAKDOWN BY RACE QUALITY (beta={BETA}, edge>={EDGE_THRESHOLD}, price<=${PRICE_CAP:.0f})\n{'='*90}")
+    print(quality_summary.to_string(index=False, formatters={
+        "strike_pct": "{:.1f}%".format, "roi_pct": "{:+.1f}%".format,
+        "staked_u": "{:.0f}u".format, "profit_u": "{:+.2f}u".format,
+        "t_stat": "{:+.2f}".format,
+    }))
+
+    state_quality = bets.groupby(["state", "quality"], observed=True).apply(
+        summarize, include_groups=False).reset_index()
+    state_order = state_summary.sort_values("n_bets", ascending=False)["state"].tolist()
+    state_quality["state"] = pd.Categorical(state_quality["state"], categories=state_order, ordered=True)
+    state_quality["quality"] = pd.Categorical(state_quality["quality"], categories=QUALITY_LABELS, ordered=True)
+    state_quality = state_quality.sort_values(["state", "quality"])
+    state_quality.to_csv(STATE_QUALITY_CSV_OUT, index=False)
+    print(f"\n{'='*90}\nBREAKDOWN BY STATE x RACE QUALITY "
+          f"(beta={BETA}, edge>={EDGE_THRESHOLD}, price<=${PRICE_CAP:.0f})\n{'='*90}")
+    print(state_quality.to_string(index=False, formatters={
+        "strike_pct": "{:.1f}%".format, "roi_pct": "{:+.1f}%".format,
+        "staked_u": "{:.0f}u".format, "profit_u": "{:+.2f}u".format,
+        "t_stat": "{:+.2f}".format,
+    }))
+    print(f"State x quality summary written to {STATE_QUALITY_CSV_OUT}")
+
+    roi_pivot = state_quality.pivot(index="state", columns="quality", values="roi_pct")
+    n_pivot = state_quality.pivot(index="state", columns="quality", values="n_bets")
+    print(f"\n{'='*90}\nPIVOT: ROI% by state (rows) x quality (cols)\n{'='*90}")
+    print(roi_pivot.to_string(float_format=lambda v: f"{v:+.1f}%" if pd.notna(v) else "-"))
+    print(f"\n{'='*90}\nPIVOT: n bets by state (rows) x quality (cols)\n{'='*90}")
+    print(n_pivot.to_string(float_format=lambda v: f"{v:.0f}" if pd.notna(v) else "-"))
 
     print("\nSame multiple-comparisons caveat as the other bet-selection scripts: treat this")
     print("as a hypothesis for a future walk-forward period, not a result to ship blindly.")
