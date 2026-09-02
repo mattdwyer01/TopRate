@@ -111,6 +111,8 @@ def summarize(g):
     profit = np.where(g["won"] == 1, g["sp"] - 1, -1.0)
     staked = float(n)
     total_profit = float(profit.sum())
+    se = profit.std(ddof=1) / np.sqrt(n) if n > 1 else np.nan
+    t = profit.mean() / se if se and se > 0 else np.nan
     return pd.Series({
         "n_bets": n,
         "wins": wins,
@@ -118,6 +120,7 @@ def summarize(g):
         "staked_u": staked,
         "profit_u": total_profit,
         "roi_pct": total_profit / staked * 100 if staked else np.nan,
+        "t_stat": t,
     })
 
 
@@ -164,6 +167,7 @@ def run():
     print(daily.to_string(index=False, formatters={
         "strike_pct": "{:.1f}%".format, "roi_pct": "{:+.1f}%".format,
         "staked_u": "{:.0f}u".format, "profit_u": "{:+.2f}u".format,
+        "t_stat": "{:+.2f}".format,
     }))
 
     monthly = bets.groupby(bets["date"].dt.to_period("M")).apply(summarize, include_groups=False).reset_index()
@@ -172,6 +176,7 @@ def run():
     print(monthly.to_string(index=False, formatters={
         "strike_pct": "{:.1f}%".format, "roi_pct": "{:+.1f}%".format,
         "staked_u": "{:.0f}u".format, "profit_u": "{:+.2f}u".format,
+        "t_stat": "{:+.2f}".format,
     }))
 
     state_summary = bets.groupby("state", dropna=False).apply(summarize, include_groups=False).reset_index()
@@ -181,6 +186,7 @@ def run():
     print(state_summary.to_string(index=False, formatters={
         "strike_pct": "{:.1f}%".format, "roi_pct": "{:+.1f}%".format,
         "staked_u": "{:.0f}u".format, "profit_u": "{:+.2f}u".format,
+        "t_stat": "{:+.2f}".format,
     }))
     print(f"State summary written to {STATE_CSV_OUT}")
 
