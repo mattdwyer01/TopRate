@@ -316,7 +316,7 @@ export function SummaryTab({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-ink">Betting Options</h2>
           <p className="mt-0.5 text-sm text-ink-mute">
@@ -325,7 +325,7 @@ export function SummaryTab({
             {RETURN_UNITS} units) would have made once a date's races have resulted.
           </p>
         </div>
-        <label className="flex items-center gap-1.5 text-sm text-ink-mute">
+        <label className="flex flex-none items-center gap-1.5 text-sm text-ink-mute">
           <input
             type="checkbox"
             checked={showBush}
@@ -385,99 +385,121 @@ export function SummaryTab({
             No qualifying runners on {date}.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-line bg-panel">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs uppercase tracking-wide text-ink-mute">
-                  <th className="px-3 py-2 font-medium">Time</th>
-                  <th className="px-3 py-2 font-medium">Race</th>
-                  <th className="px-3 py-2 font-medium">Horse</th>
-                  <th className="px-3 py-2 font-medium text-right">WPR $</th>
-                  <th className="px-3 py-2 font-medium text-right">Market $</th>
-                  <th className="px-3 py-2 font-medium text-right">Edge</th>
-                  <th className="px-3 py-2 font-medium text-right">Result</th>
-                  <th className="px-3 py-2 font-medium text-right">Stake</th>
-                  <th className="px-3 py-2 font-medium text-right">P&amp;L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((pick) => {
-                  const { race, runner } = pick
-                  const r = resultOf(pick)
-                  const tier = strongestTier(pick.edge)
-                  return (
-                    <tr
-                      key={runner.runId}
-                      className="cursor-pointer border-b border-line last:border-0 even:bg-line-soft/40 hover:bg-bg"
-                      onClick={() => onSelectRace(race.raceId, race.date, runner.runId)}
-                    >
-                      <td className="px-3 py-2 text-ink-mute">{fmtRaceTime(race)}</td>
-                      <td className="px-3 py-2 text-ink-mute">
-                        {race.venue} R{race.raceNumber}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          {runner.silkUrl ? (
-                            <img
-                              src={runner.silkUrl}
-                              alt=""
-                              className="h-7 w-7 flex-none rounded-sm border border-line-soft object-contain"
-                            />
-                          ) : (
-                            <span className="h-7 w-7 flex-none" />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate font-medium text-ink">{runner.horse}</span>
-                              <span
-                                className={`flex-none rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tier.chipClass}`}
-                              >
-                                {tier.badgeLabel}
-                              </span>
-                            </div>
-                            {(runner.jockey || runner.trainer) && (
-                              <div className="truncate text-xs text-ink-faint">
-                                {runner.jockey}
-                                {runner.jockey && runner.trainer ? ' / ' : ''}
-                                {runner.trainer}
-                              </div>
-                            )}
-                          </div>
+          <div className="overflow-hidden rounded-md border border-line bg-panel">
+            {/* Mobile header: mirrors the row's own mobile grid-cols below
+                (Horse/Edge/Result/P&L) - the desktop header covers every
+                column but is hidden below sm since most aren't shown there
+                (same split as RaceDetail's RunnerRow header). */}
+            <div className="grid grid-cols-[1fr_44px_38px_54px] gap-x-1.5 border-b border-line px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-mute sm:hidden">
+              <span>Horse</span>
+              <span className="text-right">Edge</span>
+              <span className="text-right">Res</span>
+              <span className="text-right">P&amp;L</span>
+            </div>
+            <div className="hidden grid-cols-[52px_112px_1fr_56px_56px_52px_48px_52px_60px] gap-x-2 border-b border-line px-3 py-2 text-xs font-medium uppercase tracking-wide text-ink-mute sm:grid">
+              <span>Time</span>
+              <span>Race</span>
+              <span>Horse</span>
+              <span className="text-right">WPR $</span>
+              <span className="text-right">Market $</span>
+              <span className="text-right">Edge</span>
+              <span className="text-right">Result</span>
+              <span className="text-right">Stake</span>
+              <span className="text-right">P&amp;L</span>
+            </div>
+            {list.map((pick) => {
+              const { race, runner } = pick
+              const r = resultOf(pick)
+              const tier = strongestTier(pick.edge)
+              return (
+                <div
+                  key={runner.runId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectRace(race.raceId, race.date, runner.runId)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelectRace(race.raceId, race.date, runner.runId)
+                    }
+                  }}
+                  className="grid w-full cursor-pointer grid-cols-[1fr_44px_38px_54px] items-center gap-x-1.5 gap-y-0.5 border-b border-line px-2 py-2 text-left text-sm last:border-0 even:bg-line-soft/40 hover:bg-bg sm:grid-cols-[52px_112px_1fr_56px_56px_52px_48px_52px_60px] sm:gap-x-2 sm:px-3"
+                >
+                  <span className="hidden text-ink-mute sm:inline">{fmtRaceTime(race)}</span>
+                  <span
+                    className="hidden truncate text-ink-mute sm:inline"
+                    title={`${race.venue} R${race.raceNumber}`}
+                  >
+                    {race.venue} R{race.raceNumber}
+                  </span>
+                  <span className="min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      {runner.silkUrl ? (
+                        <img
+                          src={runner.silkUrl}
+                          alt=""
+                          className="h-6 w-6 flex-none rounded-sm border border-line-soft object-contain sm:h-7 sm:w-7"
+                        />
+                      ) : (
+                        <span className="h-6 w-6 flex-none sm:h-7 sm:w-7" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="truncate font-medium text-ink">{runner.horse}</span>
+                          <span
+                            className={`flex-none rounded px-0.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide sm:px-1 sm:text-[10px] ${tier.chipClass}`}
+                          >
+                            {tier.badgeLabel}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink">{fmtPrice(pick.wprPrice)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(pick.price)}</td>
-                      <td className={`px-3 py-2 text-right font-mono font-semibold ${tier.edgeClass}`}>
-                        +{(pick.edge * 100).toFixed(1)}%
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {r.resulted ? (
-                          r.won ? (
-                            <span className="inline-flex items-center rounded bg-emerald-bg px-1.5 py-0.5 text-xs font-semibold text-emerald-deep">
-                              WON
-                            </span>
-                          ) : (
-                            <span className="text-xs font-medium text-ink-faint">LOST</span>
-                          )
-                        ) : (
-                          <span className="text-ink-faint">-</span>
+                        {/* Time/race only get their own columns at sm+ - on
+                            mobile those columns are hidden for space, so
+                            they need a home here instead or they'd vanish
+                            entirely. */}
+                        <div className="truncate text-xs text-ink-faint sm:hidden">
+                          {fmtRaceTime(race)} · {race.venue} R{race.raceNumber}
+                        </div>
+                        {(runner.jockey || runner.trainer) && (
+                          <div className="hidden truncate text-xs text-ink-faint sm:block">
+                            {runner.jockey}
+                            {runner.jockey && runner.trainer ? ' / ' : ''}
+                            {runner.trainer}
+                          </div>
                         )}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                        {r.resulted ? `${r.stake.toFixed(2)}u` : '-'}
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-right font-mono ${
-                          !r.resulted ? 'text-ink-faint' : r.profit >= 0 ? 'text-emerald' : 'text-rose'
-                        }`}
-                      >
-                        {r.resulted ? fmtUnits(r.profit) : '-'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                  </span>
+                  <span className="hidden text-right font-mono text-ink sm:inline">{fmtPrice(pick.wprPrice)}</span>
+                  <span className="hidden text-right font-mono text-ink-mute sm:inline">{fmtPrice(pick.price)}</span>
+                  <span className={`text-right font-mono font-semibold ${tier.edgeClass}`}>
+                    +{(pick.edge * 100).toFixed(1)}%
+                  </span>
+                  <span className="text-right">
+                    {r.resulted ? (
+                      r.won ? (
+                        <span className="inline-flex items-center rounded bg-emerald-bg px-1 py-0.5 text-[10px] font-semibold text-emerald-deep sm:px-1.5 sm:text-xs">
+                          WON
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-ink-faint sm:text-xs">LOST</span>
+                      )
+                    ) : (
+                      <span className="text-ink-faint">-</span>
+                    )}
+                  </span>
+                  <span className="hidden text-right font-mono text-ink-mute sm:inline">
+                    {r.resulted ? `${r.stake.toFixed(2)}u` : '-'}
+                  </span>
+                  <span
+                    className={`text-right font-mono ${
+                      !r.resulted ? 'text-ink-faint' : r.profit >= 0 ? 'text-emerald' : 'text-rose'
+                    }`}
+                  >
+                    {r.resulted ? fmtUnits(r.profit) : '-'}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
       </section>
