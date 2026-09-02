@@ -294,13 +294,12 @@ ADJ_TERMS = [
 # reimplementation of this same base formula (see "_base" there) - that
 # path fits/evaluates the RAW model against real targets; calibration is a
 # serving-time correction on top of it, not part of what gets trained.
-# _CALIB_INTERCEPT/_CALIB_BASE_SLOPE are the MID-segment base calibration -
-# re-fit together with _BASE_BLEND_ALPHA and the low/high segments below
-# (see that block's docstring). _CALIB_ADJ_SLOPE is independent of the base
-# blend entirely (calibrates the ADJUSTMENT sum, not the base anchor) and
-# is untouched by the alpha revert.
-_CALIB_INTERCEPT = 2.084
-_CALIB_BASE_SLOPE = 0.9544
+# _CALIB_INTERCEPT/_CALIB_BASE_SLOPE are the single global base calibration -
+# re-fit together with _BASE_BLEND_ALPHA (see that block's docstring).
+# _CALIB_ADJ_SLOPE is independent of the base blend entirely (calibrates the
+# ADJUSTMENT sum, not the base anchor) and is untouched by the alpha revert.
+_CALIB_INTERCEPT = -1.8514
+_CALIB_BASE_SLOPE = 0.9925
 _CALIB_ADJ_SLOPE = 0.1791
 
 # The blend weight was raised to 0.80 in Aug 2026 after finding a real,
@@ -324,41 +323,30 @@ _CALIB_ADJ_SLOPE = 0.1791
 # above still applies.
 _BASE_BLEND_ALPHA = 0.50
 
-# Base calibration is piecewise, not one global slope (Aug 2026, found while
-# investigating a user-flagged case - a horse with strong, consistent recent
-# form projected well below its actual result). A single slope fit across
-# the whole population is a compromise: split by raw base value (the
-# _BASE_BLEND_ALPHA-weighted nett/ewm3 blend, pre-calibration) into
-# low/mid/high segments on real outcomes (H1 fit, H2 held-out, both
-# directions checked) showed the true slope is NOT constant - low raw-base
-# horses need heavier shrinkage (noisier/less reliable form) while high
-# raw-base horses need almost none (an established level is real, not
-# noise). A 3-segment piecewise fit (bottom 10% / middle 70% / top 20%,
-# breakpoints and slopes fit on the full void-excluded resulted set) fixes
-# the "strong horse projected too low" failure mode without moving the
-# middle segment's own shape. Re-derived together with _BASE_BLEND_ALPHA
-# above (changing the blend changes the raw base's whole distribution, so
-# the breakpoints/slopes below are NOT independent of that choice - re-fit
-# both together, never one without the other). Re-fit for the Aug 2026
-# 0.80->0.50 revert using the same methodology (full-data fit, p10/p80
-# breakpoints of THIS alpha's own raw-base distribution, not the old
-# breakpoint values, since the distribution itself shifts with alpha).
-_CALIB_LOW_BREAK = 64.25   # raw base <= this: low-segment slope
-_CALIB_HIGH_BREAK = 81.96  # raw base > this: high-segment slope
-_CALIB_LOW_INTERCEPT = -0.950
-_CALIB_LOW_SLOPE = 0.9968
-_CALIB_HIGH_INTERCEPT = 1.076
-_CALIB_HIGH_SLOPE = 0.9679
-
-
+# Base calibration was piecewise (3-segment: bottom 10% / middle 70% / top
+# 20%, each with its own fitted slope) from Aug 2026 to Sep 2026, added
+# after investigating a user-flagged case where a horse with strong,
+# consistent recent form projected well below its actual result - an
+# in-sample split by raw base value showed low raw-base horses apparently
+# needing heavier shrinkage than high raw-base horses. Removed at the
+# user's explicit instruction (Sep 2026: "remove piecewise base calibration
+# entirely, I don't want it") after a direct K=4-fold held-out comparison
+# (wpr_piecewise_removal_test.py) showed the piecewise/single-slope gap was
+# an overfitting artifact, not real signal: piecewise looked meaningfully
+# better in-sample (full-data MAE 5.91 vs 6.08) but that gap vanished
+# entirely on genuinely held-out folds (MAE, market-favourite calibration
+# gap, and Summary-tab-style edge/ROI all within noise of single-slope at
+# every alpha from 0.5 to 1.0, never meaningfully better) - the extra
+# segments were fitting training-specific noise, not a real low/high-base
+# reliability difference. _CALIB_INTERCEPT/_CALIB_BASE_SLOPE above are a
+# single global OLS fit (target ~ raw base) on the full resulted set at the
+# current _BASE_BLEND_ALPHA - re-fit together with _BASE_BLEND_ALPHA if that
+# ever changes (changing the blend changes the raw base's whole
+# distribution, so the slope/intercept are not independent of that choice).
 def _calibrate_base(raw):
     """raw base (pre-calibration _BASE_BLEND_ALPHA-weighted nett/ewm3 blend,
-    or a single-source fallback) -> calibrated base. See the piecewise-
-    calibration note above _CALIB_LOW_BREAK for why this isn't one slope."""
-    if raw <= _CALIB_LOW_BREAK:
-        return _CALIB_LOW_INTERCEPT + _CALIB_LOW_SLOPE * raw
-    if raw > _CALIB_HIGH_BREAK:
-        return _CALIB_HIGH_INTERCEPT + _CALIB_HIGH_SLOPE * raw
+    or a single-source fallback) -> calibrated base via a single global
+    slope (see the calibration note above for why this isn't piecewise)."""
     return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * raw
 
 
