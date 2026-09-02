@@ -63,23 +63,35 @@ GROUP_MERIT = ["trainer_merit", "jockey_merit"]
 
 
 def build_full():
+    """IMPORTANT: the cache is keyed only on wpr_form_history.csv.gz's mtime,
+    not on wpr._BASE_BLEND_ALPHA - a cache built while alpha was still 0.50
+    (as this one was, early in the session, before the Sep 2026 alpha=0.80
+    change) carries a STALE "_base" column computed under the OLD alpha. If
+    a later script trusts that cached "_base" as-is while also calling the
+    CURRENT (alpha=0.80-fit) _calibrate_base() on it, the mismatch produces
+    a large, spurious mean residual (found directly: 0.71 points, entirely
+    an artifact of this staleness, not a real calibration bias - confirmed
+    by re-deriving "_base" fresh, which drops the mean residual to ~0.007).
+    So "_base" is ALWAYS dropped and recomputed fresh below, cache hit or
+    not - cheap (a vectorised column op), unlike the ~15-20 min feature
+    rebuild the cache actually exists to avoid."""
     form_mtime = Path(FORM_CSV).stat().st_mtime
     if CACHE_PATH.exists():
         with open(CACHE_PATH, "rb") as fh:
             cached_mtime, full = pickle.load(fh)
         if cached_mtime == form_mtime:
             print(f"Loaded cached training frame ({len(full):,} rows) - skipping the ~15-20 min rebuild.")
-            return full
+            full = full.drop(columns=["_base"], errors="ignore")
+            return add_base(full)
         print("Cache is stale - rebuilding.")
     print("Rebuilding training frame (full history, this takes a while)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
     full = merge_won_by_horse_date(full)
     full = merge_trainer_jockey_by_horse_date(full)
-    full = add_base(full)
     with open(CACHE_PATH, "wb") as fh:
         pickle.dump((form_mtime, full), fh)
-    return full
+    return add_base(full)
 
 
 def fit_direction(fit_half, h1, h2, fit_cutoff):
