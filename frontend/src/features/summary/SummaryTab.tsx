@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
+import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { fmtPrice } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
+import { Pill } from '../../components/Pill'
 
 interface SummaryTabProps {
   races: Race[]
@@ -38,44 +39,60 @@ const TIERS = [
   },
 ] as const
 
+type Tier = (typeof TIERS)[number]
+
 const PRICE_CAP = 26
+// Proportional ("to return") staking: stake sized so a WIN returns exactly
+// this many units total (stake back + profit), regardless of price - a
+// short-priced favourite needs a bigger stake to return the same amount as
+// a long shot. 1 unit = $50 elsewhere in this dashboard, kept in units here
+// (not converted to $) since that's how a staking plan is normally talked
+// about. stake = RETURN_UNITS / price; win profit = RETURN_UNITS - stake;
+// loss profit = -stake. Per explicit user decision (Sep 2026) - confirmed
+// "return" means total payback, not profit-on-top.
+const RETURN_UNITS = 4
 
 interface Pick {
   race: Race
   runner: Runner
-  tier: (typeof TIERS)[number]
+  tier: Tier
+  price: number
 }
 
-/** Every not-yet-run, non-scratched runner that clears a tier's edge
+/** The price basis actually used to compute this runner's stored edge
+ * (see toprate_daily.py's compute_edge_score/wpr_backfill_historical_
+ * projections.py: fixed_win_price, falling back to starting_price_sp then
+ * price_top) - matched here so a pick's qualification, displayed market
+ * price, and P&L all agree on the same number. */
+function marketPrice(runner: Runner): number | null {
+  return runner.fixedWinPrice ?? runner.startingPrice ?? runner.postRaceTopPrice
+}
+
+/** Every non-scratched runner on the given date that clears a tier's edge
  * threshold with a market price under the cap - assigned to the single
  * HIGHEST tier it clears (a big edge shouldn't also clutter the lower
  * tiers). Mirrors the exact "edge" WPR already computes (WPR's own price
  * vs the market's, see wpr_projection.compute_edge_scores) - no separate
- * blend, no re-derivation here.
- *
- * Scoped to today-or-later races only, and requires a live projectedWpr -
- * a small, permanent fraction of races never get a result recorded at all
- * (abandoned meetings, missing results feeds) and so never lose their
- * finishPosition==null "not yet run" look no matter how old they get.
- * Some of those, from before WPR's own price replaced the old edge blend,
- * still carry a stale edge value computed back when they WERE genuinely
- * upcoming - requiring today-or-later AND a current projection filters
- * both that staleness and any equally old abandoned-meeting noise out,
- * without needing to touch the backend's own "only touch today" data
- * model to do it. */
-function collectPicks(races: Race[]): Pick[] {
-  const todayStr = new Date().toISOString().slice(0, 10)
+ * blend, no re-derivation here. Requires a live projectedWpr - a small,
+ * permanent fraction of races never get a result recorded at all
+ * (abandoned meetings, missing results feeds), and some pre-WPR-alone-edge
+ * rows still carry a stale edge value computed under the old blend formula
+ * - both filtered out by requiring a current projection alongside the
+ * edge. Included regardless of whether the race has resulted yet - the
+ * caller decides whether to show a live shortlist or a P&L review from
+ * that alone. */
+function collectPicks(races: Race[], date: string): Pick[] {
   const picks: Pick[] = []
   for (const race of races) {
-    if (race.date < todayStr) continue
+    if (race.date !== date) continue
     for (const runner of race.runners) {
-      if (runner.dataScratched || runner.finishPosition != null) continue
-      if (runner.projectedWpr == null) continue
-      if (runner.edge == null || runner.fixedWinPrice == null) continue
-      if (runner.fixedWinPrice > PRICE_CAP) continue
+      if (runner.dataScratched) continue
+      if (runner.projectedWpr == null || runner.edge == null) continue
+      const price = marketPrice(runner)
+      if (price == null || price > PRICE_CAP) continue
       const tier = TIERS.find((t) => runner.edge! >= t.minEdge)
       if (!tier) continue
-      picks.push({ race, runner, tier })
+      picks.push({ race, runner, tier, price })
     }
   }
   return picks
@@ -97,21 +114,80 @@ function fmtRaceTime(race: Race): string {
   return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+interface PickResult {
+  resulted: boolean
+  won: boolean
+  stake: number
+  profit: number
+}
+
+function resultOf(pick: Pick): PickResult {
+  if (pick.runner.finishPosition == null) {
+    return { resulted: false, won: false, stake: 0, profit: 0 }
+  }
+  const stake = RETURN_UNITS / pick.price
+  const profit = pick.runner.won ? RETURN_UNITS - stake : -stake
+  return { resulted: true, won: pick.runner.won, stake, profit }
+}
+
+function fmtUnits(v: number): string {
+  return `${v > 0 ? '+' : ''}${v.toFixed(2)}u`
+}
+
+function fmtRoiPct(v: number): string {
+  return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
+}
+
+const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
+  { label: 'Yesterday', offset: -1 },
+  { label: 'Today', offset: 0 },
+  { label: 'Tomorrow', offset: 1 },
+]
+
 export function SummaryTab({ races, onSelectRace, showBush, onShowBushChange }: SummaryTabProps) {
+  const [date, setDate] = useState(() => todayIso())
+  const [activeTierKey, setActiveTierKey] = useState<Tier['key']>(TIERS[0].key)
+  const activeTier = TIERS.find((t) => t.key === activeTierKey)!
+
   const scoped = useMemo(() => {
     if (showBush) return races
     const bushKeys = bushMeetingKeys(races)
     return races.filter((r) => !bushKeys.has(meetingKey(r)))
   }, [races, showBush])
 
-  const picks = useMemo(() => collectPicks(scoped), [scoped])
+  const allPicks = useMemo(() => collectPicks(scoped, date), [scoped, date])
   const byTier = useMemo(() => {
     const m = new Map<string, Pick[]>()
     for (const tier of TIERS) m.set(tier.key, [])
-    for (const p of picks) m.get(p.tier.key)!.push(p)
+    for (const p of allPicks) m.get(p.tier.key)!.push(p)
     for (const list of m.values()) list.sort((a, b) => raceTime(a.race) - raceTime(b.race))
     return m
-  }, [picks])
+  }, [allPicks])
+
+  const list = byTier.get(activeTierKey) ?? []
+  const stats = useMemo(() => {
+    let resulted = 0
+    let wins = 0
+    let staked = 0
+    let profit = 0
+    for (const pick of list) {
+      const r = resultOf(pick)
+      if (!r.resulted) continue
+      resulted++
+      if (r.won) wins++
+      staked += r.stake
+      profit += r.profit
+    }
+    return {
+      n: list.length,
+      resulted,
+      wins,
+      strikePct: resulted > 0 ? (wins / resulted) * 100 : null,
+      staked,
+      profit,
+      roiPct: staked > 0 ? (profit / staked) * 100 : null,
+    }
+  }, [list])
 
   return (
     <div className="flex flex-col gap-5">
@@ -119,8 +195,9 @@ export function SummaryTab({ races, onSelectRace, showBush, onShowBushChange }: 
         <div>
           <h2 className="text-base font-semibold text-ink">Betting Options</h2>
           <p className="mt-0.5 text-sm text-ink-mute">
-            Runners where WPR rates them shorter than the market by a validated margin, in today's
-            and upcoming races. Not a bet log or P&amp;L tracker - a live shortlist only.
+            Runners where WPR rates them shorter than the market by a validated margin. Not a bet
+            log - a live shortlist, with a P&amp;L review of what proportional staking (to return{' '}
+            {RETURN_UNITS} units) would have made once a date's races have resulted.
           </p>
         </div>
         <label className="flex items-center gap-1.5 text-sm text-ink-mute">
@@ -133,73 +210,112 @@ export function SummaryTab({ races, onSelectRace, showBush, onShowBushChange }: 
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {DATE_QUICK_BUTTONS.map((btn) => {
+          const btnDate = todayIso(btn.offset)
+          return (
+            <Pill key={btn.label} active={date === btnDate} onClick={() => setDate(btnDate)}>
+              {btn.label}
+            </Pill>
+          )
+        })}
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         {TIERS.map((tier) => (
-          <StatTile
-            key={tier.key}
-            label={tier.label}
-            value={String(byTier.get(tier.key)?.length ?? 0)}
-            sublabel={tier.backtest}
-            tone={(byTier.get(tier.key)?.length ?? 0) > 0 ? 'positive' : 'muted'}
-          />
+          <Pill key={tier.key} active={tier.key === activeTierKey} onClick={() => setActiveTierKey(tier.key)}>
+            {tier.label} ({byTier.get(tier.key)?.length ?? 0})
+          </Pill>
         ))}
       </div>
 
-      {TIERS.map((tier) => {
-        const list = byTier.get(tier.key) ?? []
-        return (
-          <section key={tier.key} className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-ink">
-              {tier.label}{' '}
-              <span className="font-normal text-ink-faint">(edge &ge; {(tier.minEdge * 100).toFixed(0)}%)</span>
-            </h3>
-            {list.length === 0 ? (
-              <p className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-ink-faint">
-                No qualifying runners right now.
-              </p>
-            ) : (
-              <div className="overflow-x-auto rounded-md border border-line bg-panel">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-xs uppercase tracking-wide text-ink-mute">
-                      <th className="px-3 py-2 font-medium">Time</th>
-                      <th className="px-3 py-2 font-medium">Race</th>
-                      <th className="px-3 py-2 font-medium">Horse</th>
-                      <th className="px-3 py-2 font-medium text-right">WPR $</th>
-                      <th className="px-3 py-2 font-medium text-right">Market $</th>
-                      <th className="px-3 py-2 font-medium text-right">Edge</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map(({ race, runner }) => (
-                      <tr
-                        key={runner.runId}
-                        className="cursor-pointer border-b border-line last:border-0 hover:bg-bg"
-                        onClick={() => onSelectRace(race.raceId, race.date, runner.runId)}
+      <section className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Picks" value={String(stats.n)} sublabel={activeTier.backtest} />
+          <StatTile
+            label="Strike rate"
+            value={stats.strikePct != null ? `${stats.strikePct.toFixed(1)}%` : '-'}
+            sublabel={stats.resulted > 0 ? `${stats.wins} wins / ${stats.resulted} resulted` : 'none resulted yet'}
+          />
+          <StatTile
+            label="Staked"
+            value={stats.resulted > 0 ? `${stats.staked.toFixed(2)}u` : '-'}
+          />
+          <StatTile
+            label="P&L"
+            value={stats.resulted > 0 ? fmtUnits(stats.profit) : '-'}
+            sublabel={stats.roiPct != null ? `ROI ${fmtRoiPct(stats.roiPct)}` : undefined}
+            tone={stats.resulted === 0 ? 'muted' : stats.profit >= 0 ? 'positive' : 'negative'}
+          />
+        </div>
+
+        {list.length === 0 ? (
+          <p className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-ink-faint">
+            No qualifying runners on {date}.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border border-line bg-panel">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-ink-mute">
+                  <th className="px-3 py-2 font-medium">Time</th>
+                  <th className="px-3 py-2 font-medium">Race</th>
+                  <th className="px-3 py-2 font-medium">Horse</th>
+                  <th className="px-3 py-2 font-medium text-right">WPR $</th>
+                  <th className="px-3 py-2 font-medium text-right">Market $</th>
+                  <th className="px-3 py-2 font-medium text-right">Edge</th>
+                  <th className="px-3 py-2 font-medium text-right">Result</th>
+                  <th className="px-3 py-2 font-medium text-right">Stake</th>
+                  <th className="px-3 py-2 font-medium text-right">P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((pick) => {
+                  const { race, runner } = pick
+                  const r = resultOf(pick)
+                  return (
+                    <tr
+                      key={runner.runId}
+                      className="cursor-pointer border-b border-line last:border-0 hover:bg-bg"
+                      onClick={() => onSelectRace(race.raceId, race.date, runner.runId)}
+                    >
+                      <td className="px-3 py-2 text-ink-mute">{fmtRaceTime(race)}</td>
+                      <td className="px-3 py-2 text-ink-mute">
+                        {race.venue} R{race.raceNumber}
+                      </td>
+                      <td className="px-3 py-2 font-medium text-ink">{runner.horse}</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink">{fmtPrice(runner.wprPrice)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(pick.price)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald">
+                        +{((runner.edge ?? 0) * 100).toFixed(1)}%
+                      </td>
+                      <td className="px-3 py-2 text-right text-ink-mute">
+                        {r.resulted ? (r.won ? 'WON' : 'LOST') : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-mute">
+                        {r.resulted ? `${r.stake.toFixed(2)}u` : '-'}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right font-mono ${
+                          !r.resulted ? 'text-ink-faint' : r.profit >= 0 ? 'text-emerald' : 'text-rose'
+                        }`}
                       >
-                        <td className="px-3 py-2 text-ink-mute">{fmtRaceTime(race)}</td>
-                        <td className="px-3 py-2 text-ink-mute">
-                          {race.venue} R{race.raceNumber}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-ink">{runner.horse}</td>
-                        <td className="px-3 py-2 text-right font-mono text-ink">
-                          {fmtPrice(runner.wprPrice)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                          {fmtPrice(runner.fixedWinPrice)}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-emerald">
-                          +{((runner.edge ?? 0) * 100).toFixed(1)}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )
-      })}
+                        {r.resulted ? fmtUnits(r.profit) : '-'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
