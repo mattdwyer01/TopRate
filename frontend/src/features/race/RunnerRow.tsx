@@ -191,16 +191,31 @@ export function RunnerRow({
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtPrice(displayPrice)}
       </span>
-      <span className="text-right font-mono text-ink-mute">
-        {scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}
-        {!scratched && showMove && (
-          <span
-            className={priceMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}
-            title={`Opened ${fmtPrice(runner.openFixedPrice)} - ${priceMove.direction} ${priceMove.pctChange.toFixed(0)}%`}
-          >
-            {priceMove.direction === 'firmed' ? ' ▼' : ' ▲'}
-          </span>
-        )}
+      <span className="flex items-center justify-end font-mono text-ink-mute">
+        <span>{scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}</span>
+        {/* Fixed-width slot, always rendered (just invisible when there's no
+            move) - an inline-appended arrow used to change how much content
+            sat inside this right-aligned cell, so the price digits landed in
+            a different horizontal spot on rows with a move vs rows without,
+            and nothing in the column actually lined up. Reserving the same
+            width every row regardless of content keeps the price flush
+            right consistently. */}
+        <span
+          className={`ml-0.5 w-2.5 flex-none text-center text-[10px] leading-none ${
+            !scratched && showMove
+              ? priceMove.direction === 'firmed'
+                ? 'text-emerald-deep'
+                : 'text-rose'
+              : 'invisible'
+          }`}
+          title={
+            !scratched && showMove
+              ? `Opened ${fmtPrice(runner.openFixedPrice)} - ${priceMove.direction} ${priceMove.pctChange.toFixed(0)}%`
+              : undefined
+          }
+        >
+          {!scratched && showMove ? (priceMove.direction === 'firmed' ? '▼' : '▲') : '▲'}
+        </span>
       </span>
       <span className="hidden text-right sm:inline">
         {runner.finishPosition === 1 ? (
