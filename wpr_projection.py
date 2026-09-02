@@ -225,6 +225,61 @@ _FIRST_UP_TRIAL_COEF = {
     "won_a_trial": -0.1158,
 }
 
+# Distance-edge correction (Sep 2026, user request - see
+# wpr_dist_edge_correction_kfold_test.py). dist_edge (signed metres
+# today's trip sits outside a horse's ever-proven distance range - 0
+# inside the range, positive if longer than ever tried, negative if
+# shorter) is a candidate feature computed above but never previously
+# used anywhere. Scoping found the model systematically OVER-predicts
+# every dist_edge != 0 runner, not just adds noise around dist_edge==0 -
+# a real, uncorrected bias. A run_style (settling-position) interaction
+# was tested properly and added nothing beyond direction alone (see
+# wpr_dist_edge_run_style_interaction_kfold_test.py) - this correction is
+# the plain per-bucket mean-residual fit, full-data, shrunk toward 0 by
+# bucket sample size (K=30, same n/(n+K) convention as every other own-
+# history term, just applied to a population bucket instead of a per-
+# horse match).
+#
+# K=4-fold validated: a GENUINE TRADE-OFF, not a clean win - held-out MAE
+# consistently WORSE (6.4938 -> 6.6640, every fold) but top-1 strike rate
+# better-or-tied in every fold (17.11% -> 17.22%) and ROI improves at the
+# tighter edge thresholds (edge>=0.10: +55.5%->+57.8%, edge>=0.20:
+# +122.7%->+125.2%, strike 17.4%->19.4%) though slightly worse at the
+# loosest (edge>=0.05: +39.6%->+38.3%) - the same kind of MAE-for-strike-
+# rate trade-off track_barrier/closing_merit and the first-up trial
+# correction above were adopted under, at the user's explicit instruction
+# to accept it here too. Applied as a direct, already-final-scale
+# correction (like _first_up_trial_estimate/_debut_trial_estimate) rather
+# than a normal ADJ_TERM - fit straight against the residual of the fully
+# calibrated projection, not a raw pre-slope blend.
+# Explicit (lo, hi, value] triples, not a shared bin-edge list - the
+# (-1, 1] bucket (dist_edge=1 exactly, since 0 is handled separately
+# below) had under 5 rows in the full-data fit and was dropped rather
+# than guessed, same "unseen -> 0" contract track_barrier/gear_change
+# use for any bucket not seen in training. A dist_edge that lands there
+# correctly falls through to None (no correction) below.
+_DIST_EDGE_CORRECTION = [
+    (-float("inf"), -400, -3.0531),
+    (-400, -200, -2.7609),
+    (-200, -1, -1.0010),
+    (1, 200, -0.3718),
+    (200, 400, -1.1540),
+    (400, float("inf"), -2.2462),
+]
+
+
+def _dist_edge_correction_value(dist_edge):
+    """Bucket dist_edge into _DIST_EDGE_CORRECTION's (lo, hi] triples and
+    return the matching value - None (no correction) when dist_edge is
+    None/NaN/0 (inside the horse's proven range, already well
+    calibrated) or lands in the unfitted (-1, 1] gap."""
+    if dist_edge is None or (isinstance(dist_edge, float) and dist_edge != dist_edge) or dist_edge == 0:
+        return None
+    for lo, hi, val in _DIST_EDGE_CORRECTION:
+        if lo < dist_edge <= hi:
+            return val
+    return None
+
 # Recency-weighted training. TopRate's wpr is a relative rating and its
 # scale DRIFTS - the target mean fell ~6 points from 2024 to 2026. Old
 # training rows teach the model an outdated scale, so an unweighted model
@@ -2100,6 +2155,10 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         # dist_edge - candidate feature, emitted not yet in FEATURES.
         # Tested via compare_feature_sets before lock-in.
         "dist_edge": dist_edge,
+        # Direct, already-final-scale correction for running outside this
+        # horse's ever-proven distance range - see
+        # _dist_edge_correction_value / _DIST_EDGE_CORRECTION.
+        "_dist_edge_correction": _dist_edge_correction_value(dist_edge),
         "going_delta": going_delta,
         "today_wet": today_wet,
         "today_wetness": today_wetness,
@@ -2431,7 +2490,15 @@ def project_race(runners, race_date):
         (f.get("_first_up_trial_correction") if f is not None else None) or 0.0
         for f in feat_dicts
     ], dtype=float)
-    adj = adj + first_up_corr
+    # Distance-edge correction (see _dist_edge_correction_value /
+    # _DIST_EDGE_CORRECTION) - same direct, already-final-scale pattern
+    # and same reason for bypassing the shared slope as the first-up
+    # trial correction above.
+    dist_edge_corr = np.array([
+        (f.get("_dist_edge_correction") if f is not None else None) or 0.0
+        for f in feat_dicts
+    ], dtype=float)
+    adj = adj + first_up_corr + dist_edge_corr
     proj = base_arr + adj
 
     # Confidence still needs the FULL feature frame - the q10/q90 models are
@@ -2506,6 +2573,8 @@ def project_race(runners, race_date):
             contributions = dict(zip(ADJ_TERMS, adj_contributions[i]))
             if first_up_corr[i] != 0.0:
                 contributions["first_up_trial_correction"] = first_up_corr[i]
+            if dist_edge_corr[i] != 0.0:
+                contributions["dist_edge_correction"] = dist_edge_corr[i]
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
@@ -2754,6 +2823,17 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
         # above) would otherwise start the sentence lowercase.
         bit_text = " and ".join(trip_bits) + "."
         sentences.append(bit_text[0].upper() + bit_text[1:])
+
+    # Genuinely outside this horse's ever-proven distance range (see
+    # _dist_edge_correction_value) - a different, harder case than the
+    # nearby-distance band above (there's no "nearby" run to average when
+    # the trip is this far outside what's ever been tried).
+    de_corr = feats.get("_dist_edge_correction")
+    dist_edge = feats.get("dist_edge")
+    if de_corr is not None and dist_edge:
+        direction = "further than" if dist_edge > 0 else "shorter than"
+        sentences.append(f"Today's trip is {abs(dist_edge):.0f}m {direction} it has ever raced - "
+                         f"a real step into the unknown, marked down accordingly.")
 
     # ── Anything else driving a real gap from recent form, not already covered above ──
     avg3 = feats.get("avg_last3")
