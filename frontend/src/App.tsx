@@ -173,7 +173,7 @@ function App() {
             </div>
           </div>
         </div>
-        {state.status === 'ready' && topTab === 'race' && (
+        {state.status === 'ready' && (
           <div className="mx-auto w-full max-w-6xl">
             <NextToJumpTicker
               races={tickerRaces}
