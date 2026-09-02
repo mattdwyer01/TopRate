@@ -3047,6 +3047,24 @@ def rebuild_html(runners_df, model_pick_rows=None):
         if len(rdf) == 0:
             continue
         first = rdf.iloc[0]
+        # start_time specifically needs to coalesce across the WHOLE race
+        # group, not just trust row 0: a race_id can carry rows from more
+        # than one fetch of differing completeness (e.g. an early
+        # discovery pass before full detail was available, alongside a
+        # later, complete re-fetch) - if the incomplete row happens to
+        # sort first, first.get("start_time") silently returns its missing
+        # value even though a good one exists elsewhere in the same
+        # group. Found live Sep 2026: several meetings showed the literal
+        # string "nan" as start_time (a still-separate bug - a missing
+        # value is truthy in Python, so `if first.get(...)` didn't catch
+        # it - fixed below at the payload line) purely because row 0
+        # happened to be the incomplete fetch.
+        _race_start_time = None
+        if "start_time" in rdf.columns:
+            _sst = rdf["start_time"].dropna().astype(str)
+            _sst = _sst[_sst != "nan"]
+            if len(_sst):
+                _race_start_time = _sst.iloc[0]
         # Active (non-scratched) field size - a scratched runner stays in
         # rdf (its row is kept for history) but shouldn't count toward the
         # field the dashboard displays.
@@ -3296,7 +3314,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "track_grading": str(first.get("track_grading", "")) if first.get("track_grading") else "",
             "rail":      str(first.get("rail_position", "")) if first.get("rail_position") and str(first.get("rail_position")) != "nan" else "",
             "prize":     int(first.get("prize_money") or 0),
-            "start_time": str(first.get("start_time", "")) if first.get("start_time") else "",
+            "start_time": str(_race_start_time) if _race_start_time else "",
             "rse":       sf(first.get("race_shape_early")) if callable(sf) else None,
             "rsm":       sf(first.get("race_shape_mid")) if callable(sf) else None,
             "rsl":       sf(first.get("race_shape_late")) if callable(sf) else None,
