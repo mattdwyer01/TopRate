@@ -134,7 +134,26 @@ except ImportError:
 _DIR = Path(__file__).parent
 _MODEL_DIR = _DIR / "wpr_models"
 _SPELL_GAP_DAYS = 60   # a gap longer than this starts a new campaign
-_MIN_RUNS = 3          # fewer prior runs than this -> no projection
+# Lowered from 3 to 1 in Sep 2026 (user request - see
+# wpr_thin_history_kfold_test.py) after finding _MIN_RUNS=3 was excluding
+# 1-2-real-run horses for no real reason - the existing architecture
+# (_compute_base's fallback chain, every _shrink()-based ADJ_TERM) already
+# degrades gracefully with a small sample via n/(n+K) shrinkage, nothing
+# about it assumes >=3 runs specifically. K=4-fold chronological
+# validation, UNCHANGED model, against the "population mean" baseline
+# (the honest comparison, since these horses got no projection at all
+# before this change): n_runs=1 beat it in every fold (avg MAE 10.08 ->
+# 6.92, 31% reduction), n_runs=2 likewise (9.90 -> 6.28, 37% reduction) -
+# n_runs=2's model MAE is close to the whole population's typical ~5.9.
+# Confidence checked too, not just assumed: the existing quantile
+# interval-width model (fit under the old _MIN_RUNS=3 population, never
+# retrained) still correlates with actual error at least as well on this
+# newly-included population (n_runs=1 corr=0.32, n_runs=2 corr=0.23, vs
+# 0.24 for the original 3+-run population) and already reports
+# appropriately lower average confidence for it (32/47 vs 57) with no
+# override needed - unlike the separate true-debutant case (0 real runs,
+# see _DEBUT_TRIAL_CONFIDENCE below), which genuinely does need one.
+_MIN_RUNS = 1          # fewer prior runs than this -> no projection
 
 # Debut base-rating estimate from pre-debut trial/jumpout performance (Sep
 # 2026, user request - see wpr_trial_debut_rating_kfold_test.py). A true
