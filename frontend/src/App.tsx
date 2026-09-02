@@ -199,6 +199,10 @@ function App() {
             onSelectRace={goToRace}
             showBush={showBush}
             onShowBushChange={setShowBush}
+            deltas={deltas}
+            bases={bases}
+            scratched={scratched}
+            priceBeta={betaOverride ?? state.data.priceBeta}
           />
         )}
         {state.status === 'ready' && topTab === 'race' &&
