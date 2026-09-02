@@ -1129,17 +1129,36 @@ def compute_wpr_projection(runners_df, target_date_str=None):
     # form history - read once, then keep only the horses running today
     try:
         today_horses = set(today["horse"].astype(str).str.strip().str.lower())
-        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                         dtype={"horse": str, "horse_id": str})
-        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
-        fh = fh[fh["horse_lc"].isin(today_horses)]   # only today's horses
-        fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
-        fh["wpr"] = pd.to_numeric(fh["wpr"], errors="coerce")
-        fh = fh.dropna(subset=["date", "wpr"])
+        fh_raw = pd.read_csv(WPR_FORM_HISTORY_CSV,
+                             dtype={"horse": str, "horse_id": str})
+        fh_raw["horse_lc"] = fh_raw["horse"].astype(str).str.strip().str.lower()
+        fh_raw = fh_raw[fh_raw["horse_lc"].isin(today_horses)]   # only today's horses
+        fh_raw["date"] = pd.to_datetime(fh_raw["date"], errors="coerce")
+        fh_raw["wpr"] = pd.to_numeric(fh_raw["wpr"], errors="coerce")
+
+        fh = fh_raw.dropna(subset=["date", "wpr"])
         if "isBarrierTrial" in fh.columns:
             fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
         fh = fh.sort_values(["horse_lc", "date"])
         form_by_horse = dict(tuple(fh.groupby("horse_lc")))
+
+        # Debut-trial fallback (Sep 2026, see wpr_projection._debut_trial_
+        # estimate): a SEPARATE, isolated lookup of trial/jumpout rows only
+        # (no wpr - excluded from form_by_horse above, and from every other
+        # path this pipeline has ever used), for horses with zero real
+        # prior runs. Built independently from fh_raw rather than touching
+        # fh/form_by_horse at all, so every existing horse's projection is
+        # completely unaffected by this addition.
+        trial_by_horse = {}
+        if "isBarrierTrial" in fh_raw.columns or "is_jumpout" in fh_raw.columns:
+            is_trial = pd.Series(False, index=fh_raw.index)
+            if "isBarrierTrial" in fh_raw.columns:
+                is_trial |= fh_raw["isBarrierTrial"].fillna(0).astype(int) == 1
+            if "is_jumpout" in fh_raw.columns:
+                is_trial |= fh_raw["is_jumpout"].fillna(0).astype(int) == 1
+            trial_fh = fh_raw[is_trial & fh_raw["date"].notna()].dropna(subset=["date"])
+            trial_fh = trial_fh.sort_values(["horse_lc", "date"])
+            trial_by_horse = dict(tuple(trial_fh.groupby("horse_lc")))
     except Exception as e:
         print(f"  WPR projection skipped: could not read form history ({e})")
         return runners_df
@@ -1177,6 +1196,8 @@ def compute_wpr_projection(runners_df, target_date_str=None):
             horse_lc = str(r.get("horse", "")).strip().lower()
             hist = form_by_horse.get(horse_lc)
             prior = hist[hist["date"] < race_date] if hist is not None else None
+            trial_hist = trial_by_horse.get(horse_lc)
+            trial_prior = trial_hist[trial_hist["date"] < race_date] if trial_hist is not None else None
             going = r.get("going") or "Good 4"
             # the model reads going only as wet vs dry (today_wet). Flip it
             # so the dashboard can show a what-if projection for the other
@@ -1186,6 +1207,7 @@ def compute_wpr_projection(runners_df, target_date_str=None):
             going_alt = "Good 4" if is_wet else "Heavy 9"
             base = {
                 "prior_runs": prior,
+                "trial_runs": trial_prior,
                 "cur_distance": r.get("distance") or 1400,
                 "cur_track": r.get("venue") or "",
                 "cur_track_grading": r.get("track_grading"),

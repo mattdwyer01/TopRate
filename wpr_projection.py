@@ -136,6 +136,46 @@ _MODEL_DIR = _DIR / "wpr_models"
 _SPELL_GAP_DAYS = 60   # a gap longer than this starts a new campaign
 _MIN_RUNS = 3          # fewer prior runs than this -> no projection
 
+# Debut base-rating estimate from pre-debut trial/jumpout performance (Sep
+# 2026, user request - see wpr_trial_debut_rating_kfold_test.py). A true
+# debutant (zero real prior runs) is excluded entirely by _MIN_RUNS above
+# and gets no projection at all today, even though ~47% of debutants have
+# a pre-debut trial/jumpout on record (scoping check:
+# wpr_trial_debut_scoping_check.py) and its finishing quality predicts
+# debut WPR (corr=0.27 on n=8,452 horses with both). Trials/jumpouts carry
+# no wpr or sectional rating at all (0% coverage, confirmed directly) -
+# only finishing position, field size, and margin are usable, a cruder
+# signal than a real per-run WPR would give.
+#
+# K=4 chronological folds (by DEBUT date, not trial date): an OLS of
+# debut_wpr on the features below beat the "population mean" baseline -
+# the honest comparison, since these horses get nothing today, not some
+# existing model output - in every one of 4 folds, a consistent ~6% MAE
+# reduction (avg 9.8350 -> 9.2496). _DEBUT_TRIAL_COEF below is the
+# full-data OLS fit (fit on ALL 8,452 debutants once the K-fold split
+# validated the approach generalises - same precedent as every other
+# "final production constants" fit this session, e.g. _CALIB_INTERCEPT).
+_DEBUT_TRIAL_COEF = {
+    "intercept": 60.4199,
+    "n_trials": 1.2594,
+    "avg_finish_pct": 8.0628,
+    "best_finish_pct": 2.1868,
+    "won_a_trial": -0.0834,
+    "avg_margin": -0.5269,
+    "days_since_last_trial": 0.0042,
+}
+_DEBUT_TRIAL_MARGIN_MEDIAN = 2.53  # fallback when a trial has no recorded margin
+# Fixed, deliberately conservative confidence for a debut-trial estimate,
+# NOT the usual quantile-interval computation (_CONF["hi"]/["lo"]) - that
+# model was trained on real per-horse feature vectors and would see a
+# mostly-median-imputed row here (this estimate populates only career_avg,
+# leaving the ~20 other FEATURES entries to their training-median fill),
+# which would understate the real uncertainty. This estimate's own held-
+# out MAE (~9.25) is roughly 1.5x the main model's (~5.9) - a real
+# prediction, but a distinctly less certain one; 25 reads as clearly below
+# the normal confidence range without asserting false precision.
+_DEBUT_TRIAL_CONFIDENCE = 25.0
+
 # Recency-weighted training. TopRate's wpr is a relative rating and its
 # scale DRIFTS - the target mean fell ~6 points from 2024 to 2026. Old
 # training rows teach the model an outdated scale, so an unweighted model
@@ -397,6 +437,15 @@ def _compute_base(feat):
     above) - every caller wants the calibrated anchor, not the raw blend."""
     def _ok(v):
         return v is not None and not (isinstance(v, float) and v != v)
+
+    # Debut-trial estimate (Sep 2026, see _debut_trial_estimate) is already
+    # a direct, final WPR-scale prediction - fit straight against real
+    # debut_wpr outcomes, not a raw nett/ewm3-style blend. Routing it
+    # through _calibrate_base() below would double-transform it (that
+    # calibration expects an UNcalibrated raw blend as input); return it
+    # as-is instead.
+    if feat.get("_is_debut_trial_estimate"):
+        return feat.get("career_avg")
 
     nett = feat.get("wpr_nett")
     ewm3 = feat.get("ewm3")
@@ -1042,10 +1091,56 @@ def _safe_slope(x, y):
     return float(np.polyfit(x[ok], y[ok], 1)[0])
 
 
+def _debut_trial_estimate(trial_runs, race_date):
+    """For a true debutant (zero real prior runs - see build_features'
+    early-return gate below), estimate a base rating from pre-debut
+    trial/jumpout performance. See _DEBUT_TRIAL_COEF's docstring above for
+    the K=4-fold validation this was fit and checked under.
+
+    trial_runs: DataFrame of this horse's trial/jumpout rows ONLY (no real
+    prior runs - those are handled entirely separately by the normal
+    path), needs positionFinish/field_size/marginFinish/date columns.
+    Returns a minimal feat dict (just "career_avg" plus two informational
+    keys) if there is at least one usable pre-race trial, else None -
+    same "fall through to no projection" contract as every other missing-
+    data case in this file, not a fabricated guess."""
+    if trial_runs is None or len(trial_runs) == 0:
+        return None
+    t = trial_runs.copy()
+    t["date"] = pd.to_datetime(t["date"], errors="coerce")
+    t = t[t["date"] < pd.to_datetime(race_date)]
+    if len(t) == 0:
+        return None
+    pos = pd.to_numeric(t.get("positionFinish"), errors="coerce")
+    fs = pd.to_numeric(t.get("field_size"), errors="coerce")
+    valid = pos.notna() & fs.notna() & (fs > 0)
+    if not valid.any():
+        return None
+    pos, fs, t = pos[valid], fs[valid], t[valid]
+
+    finish_pct = 1 - (pos - 1) / fs
+    margin = pd.to_numeric(t.get("marginFinish"), errors="coerce")
+    avg_margin = float(margin.mean()) if margin.notna().any() else _DEBUT_TRIAL_MARGIN_MEDIAN
+    n_trials = len(t)
+    c = _DEBUT_TRIAL_COEF
+    est = (c["intercept"]
+           + c["n_trials"] * n_trials
+           + c["avg_finish_pct"] * float(finish_pct.mean())
+           + c["best_finish_pct"] * float(finish_pct.max())
+           + c["won_a_trial"] * float((pos == 1).max())
+           + c["avg_margin"] * avg_margin
+           + c["days_since_last_trial"] * float((pd.to_datetime(race_date) - t["date"].max()).days))
+    return {
+        "career_avg": est,
+        "_is_debut_trial_estimate": True,
+        "_debut_trial_n": n_trials,
+    }
+
+
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
                    cur_field_size=None, cur_wpr_nett=None, cur_barrier=None,
-                   cur_race_speed_label=None):
+                   cur_race_speed_label=None, trial_runs=None):
     """Build the feature dict for one horse.
 
     prior_runs: DataFrame of the horse's PAST runs only, any order. Needs
@@ -1101,6 +1196,15 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         # any date-based reasoning runs.
         p = p[pd.to_numeric(p["wpr"], errors="coerce").notna()]
     if p is None or len(p) < _MIN_RUNS:
+        # True debutant (zero real prior runs, as distinct from 1-2 real
+        # runs which still fall through to None below - a different,
+        # not-yet-validated case) - try the pre-debut trial/jumpout
+        # fallback (Sep 2026, see _debut_trial_estimate above) before
+        # giving up entirely.
+        if (p is None or len(p) == 0) and trial_runs is not None:
+            est = _debut_trial_estimate(trial_runs, race_date)
+            if est is not None:
+                return est
         return None
 
     p = p.sort_values("date").reset_index(drop=True)
@@ -2158,7 +2262,8 @@ def project_race(runners, race_date):
                        cur_field_size=r.get("cur_field_size"),
                        cur_wpr_nett=r.get("cur_wpr_nett"),
                        cur_barrier=r.get("cur_barrier"),
-                       cur_race_speed_label=r.get("cur_race_speed_label"))
+                       cur_race_speed_label=r.get("cur_race_speed_label"),
+                       trial_runs=r.get("trial_runs"))
         for r in runners
     ]
     fallbacks = [f is None for f in feat_dicts]
@@ -2241,6 +2346,14 @@ def project_race(runners, race_date):
     interval_width = _CONF["hi"].predict(X) - _CONF["lo"].predict(X)
     clo, chi = _CFG["conf_lo"], _CFG["conf_hi"]
     conf = np.clip(100 * (1 - (interval_width - clo) / (chi - clo)), 0, 100)
+    # Debut-trial estimates get a fixed, deliberately conservative
+    # confidence instead (see _DEBUT_TRIAL_CONFIDENCE's docstring) - the
+    # quantile models above were trained on real per-horse feature
+    # vectors and would see a mostly-median-imputed row here, which would
+    # understate the real uncertainty of this cruder, trial-only estimate.
+    for i, f in enumerate(feat_dicts):
+        if f is not None and f.get("_is_debut_trial_estimate"):
+            conf[i] = _DEBUT_TRIAL_CONFIDENCE
 
     valid = np.array([not fb for fb in fallbacks])
     price = np.full(len(runners), np.nan)
@@ -2277,7 +2390,16 @@ def project_race(runners, race_date):
                                f"{'s' if nrun != 1 else ''}) for a projection.",
             })
         else:
-            w = pd.to_numeric(pr["wpr"], errors="coerce")
+            # A debut-trial estimate (see _debut_trial_estimate) has no
+            # real prior_runs at all (pr is None or empty) - peak/avg_l3
+            # genuinely don't exist yet, same as the no-projection branch
+            # above, not an error case.
+            if pr is not None and len(pr) >= 1:
+                w = pd.to_numeric(pr["wpr"], errors="coerce")
+                peak_wpr = round(float(w.max()), 1) if w.notna().any() else None
+                avg_l3 = round(float(w.iloc[-3:].mean()), 1) if w.notna().any() else None
+            else:
+                peak_wpr = avg_l3 = None
             # base_wpr + adjustment reproduce projected_wpr exactly.
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
@@ -2296,8 +2418,8 @@ def project_race(runners, race_date):
                 "confidence": int(round(conf[i])),
                 "wpr_price": round(float(price[i]), 2) if price[i] == price[i] else None,
                 "wpr_rank": int(rank[i]) if rank[i] == rank[i] else None,
-                "peak_wpr": round(float(w.max()), 1),
-                "avg_l3": round(float(w.iloc[-3:].mean()), 1),
+                "peak_wpr": peak_wpr,
+                "avg_l3": avg_l3,
                 "description": describe(feat_dicts[i], float(proj[i]),
                                         int(round(conf[i])),
                                         int(rank[i]) if rank[i] == rank[i] else None,
@@ -2389,6 +2511,17 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     """
     if feats is None:
         return "Not enough form history to make a projection."
+
+    # Debut-trial estimate (see _debut_trial_estimate) - a dedicated,
+    # honest narrative rather than falling through the per-run clauses
+    # below, which all assume real race history (n_runs, days_since,
+    # campaign position, trip/going records) this horse doesn't have yet.
+    if feats.get("_is_debut_trial_estimate"):
+        n = feats.get("_debut_trial_n", 0)
+        return (f"Yet to race - rating estimated from {n} pre-race trial"
+                f"{'s' if n != 1 else ''}, not a real-race record. "
+                f"Treat with more caution than a normal projection "
+                f"(confidence {confidence} reflects that).")
 
     def _ordinal(n):
         if 10 <= n % 100 <= 20:
