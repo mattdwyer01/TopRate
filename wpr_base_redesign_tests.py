@@ -172,6 +172,19 @@ def test_a(h1, h2):
 
 def test_b_diagnostic(full):
     print(f"\n{'='*90}\nTEST B (diagnostic): does class_move differ for the hot-streak subset?\n{'='*90}")
+    # Pure descriptive diagnostic (not a leak-free evaluation) - in-sample
+    # population-lookup fit on the whole frame is fine here, just to get a
+    # wprp_proj to identify each race's own top pick by.
+    full = full.copy()
+    add_track_barrier(full, [full])
+    add_closing_merit([full], full["date"].max())
+    edges_t, lookup_t = fit_bucket_lookup(full, "trainer_win_pct_365d")
+    edges_j, lookup_j = fit_bucket_lookup(full, "jockey_win_pct_90d")
+    apply_bucket(full, "trainer_win_pct_365d", edges_t, lookup_t, "trainer_merit")
+    apply_bucket(full, "jockey_win_pct_90d", edges_j, lookup_j, "jockey_merit")
+    full["wprp_proj"] = full["_base"] + wpr._cap_adj_sum(
+        full[wpr.ADJ_TERMS].to_numpy()).sum(axis=1) * wpr._CALIB_ADJ_SLOPE
+
     top_idx = full.groupby("race_id")["wprp_proj"].idxmax()
     tops = full.loc[top_idx].dropna(subset=["wpr_nett", "ewm3"]).copy()
     hot = tops[tops["ewm3"] > tops["wpr_nett"]]
