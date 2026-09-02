@@ -24,29 +24,52 @@ const DEFAULT_BETA = 0.4
 // from a genuinely leak-free walk-forward test (every population artifact
 // fit on one date-half, scored purely on the other, both directions
 // pooled - see wpr_bet_selection_leakfree_eval.py, chat Sep 2026), not a
-// live guarantee. Ordered strongest-signal-first for display.
+// live guarantee. Cumulative, not exclusive: a pick that clears Value's
+// 20% bar also shows up under Mid and High Volume (each tab is just "edge
+// >= this threshold"), so High Volume is the broadest tab and Value the
+// narrowest - per explicit user decision (Sep 2026), reversing the earlier
+// single-highest-tier-only design. Ordered loosest-threshold-first to
+// match that same left-to-right tab order (most inclusive tab first).
 const TIERS = [
   {
-    key: 'value',
-    label: 'Value',
-    minEdge: 0.20,
-    backtest: 'edge ≥ 20%, price ≤ $26: n=790, ROI +53.3%, t=4.55 (leak-free backtest)',
+    key: 'volume',
+    label: 'High Volume',
+    badgeLabel: 'VOLUME',
+    minEdge: 0.05,
+    backtest: 'edge ≥ 5%, price ≤ $26: n=5,994, ROI +31.4%, t=6.79 (leak-free backtest)',
+    chipClass: 'bg-slate-bg text-slate',
+    edgeClass: 'text-slate',
   },
   {
     key: 'mid',
     label: 'Mid',
+    badgeLabel: 'MID',
     minEdge: 0.10,
     backtest: 'edge ≥ 10%, price ≤ $26: n=2,720, ROI +44.7%, t=6.68 (leak-free backtest)',
+    chipClass: 'bg-indigo-bg text-indigo',
+    edgeClass: 'text-indigo',
   },
   {
-    key: 'volume',
-    label: 'High Volume',
-    minEdge: 0.05,
-    backtest: 'edge ≥ 5%, price ≤ $26: n=5,994, ROI +31.4%, t=6.79 (leak-free backtest)',
+    key: 'value',
+    label: 'Value',
+    badgeLabel: 'VALUE',
+    minEdge: 0.20,
+    backtest: 'edge ≥ 20%, price ≤ $26: n=790, ROI +53.3%, t=4.55 (leak-free backtest)',
+    chipClass: 'bg-amber-bg text-amber',
+    edgeClass: 'text-amber',
   },
 ] as const
 
 type Tier = (typeof TIERS)[number]
+
+// Strongest-first, for finding the highest tier a given edge clears (used
+// for the row badge - a Value-grade pick shown on the High Volume tab
+// should still read as a Value pick, not a generic volume one).
+const TIERS_BY_STRENGTH = [...TIERS].sort((a, b) => b.minEdge - a.minEdge)
+
+function strongestTier(edge: number): Tier {
+  return TIERS_BY_STRENGTH.find((t) => edge >= t.minEdge) ?? TIERS_BY_STRENGTH[TIERS_BY_STRENGTH.length - 1]
+}
 
 const PRICE_CAP = 26
 // Proportional ("to return") staking: stake sized so a WIN returns exactly
@@ -62,7 +85,6 @@ const RETURN_UNITS = 4
 interface Pick {
   race: Race
   runner: Runner
-  tier: Tier
   price: number
   // WPR's own fair price/edge for this runner, recomputed client-side from
   // EFFECTIVE ratings (model projection, or a manually-entered base/delta
@@ -71,6 +93,8 @@ interface Pick {
   wprPrice: number | null
   edge: number
 }
+
+const LOOSEST_MIN_EDGE = Math.min(...TIERS.map((t) => t.minEdge))
 
 /** The price basis actually used to compute this runner's stored edge
  * (see toprate_daily.py's compute_edge_score/wpr_backfill_historical_
@@ -127,10 +151,12 @@ function computeEffectiveEdges(
   return result
 }
 
-/** Every non-scratched runner on the given date that clears a tier's edge
- * threshold with a market price under the cap - assigned to the single
- * HIGHEST tier it clears (a big edge shouldn't also clutter the lower
- * tiers). A whole RACE is skipped unless every runner still standing (not
+/** Every non-scratched runner on the given date that clears the LOOSEST
+ * tier's edge threshold with a market price under the cap. Tiers are
+ * cumulative (see TIERS above), so a single flat pick list is collected
+ * here and each tab just filters it down to its own threshold - a pick
+ * that qualifies for Value necessarily qualifies for Mid and High Volume
+ * too. A whole RACE is skipped unless every runner still standing (not
  * scratched, real or manually toggled) has a WPR value - either the
  * model's own projection, or a manually-entered base override - since a
  * race missing a rating for even one runner isn't a fair market to grade
@@ -171,14 +197,12 @@ function collectPicks(
     for (const runner of active) {
       const edgeRow = edges[runner.runId]
       if (!edgeRow) continue
+      if (edgeRow.edge < LOOSEST_MIN_EDGE) continue
       const price = marketPrice(runner)
       if (price == null || price > PRICE_CAP) continue
-      const tier = TIERS.find((t) => edgeRow.edge >= t.minEdge)
-      if (!tier) continue
       picks.push({
         race,
         runner,
-        tier,
         price,
         wprPrice: effectiveByRunId[runner.runId]?.effectivePrice ?? null,
         edge: edgeRow.edge,
@@ -260,9 +284,8 @@ export function SummaryTab({
   )
   const byTier = useMemo(() => {
     const m = new Map<string, Pick[]>()
-    for (const tier of TIERS) m.set(tier.key, [])
-    for (const p of allPicks) m.get(p.tier.key)!.push(p)
-    for (const list of m.values()) list.sort((a, b) => raceTime(a.race) - raceTime(b.race))
+    const sorted = [...allPicks].sort((a, b) => raceTime(a.race) - raceTime(b.race))
+    for (const tier of TIERS) m.set(tier.key, sorted.filter((p) => p.edge >= tier.minEdge))
     return m
   }, [allPicks])
 
@@ -381,24 +404,64 @@ export function SummaryTab({
                 {list.map((pick) => {
                   const { race, runner } = pick
                   const r = resultOf(pick)
+                  const tier = strongestTier(pick.edge)
                   return (
                     <tr
                       key={runner.runId}
-                      className="cursor-pointer border-b border-line last:border-0 hover:bg-bg"
+                      className="cursor-pointer border-b border-line last:border-0 even:bg-line-soft/40 hover:bg-bg"
                       onClick={() => onSelectRace(race.raceId, race.date, runner.runId)}
                     >
                       <td className="px-3 py-2 text-ink-mute">{fmtRaceTime(race)}</td>
                       <td className="px-3 py-2 text-ink-mute">
                         {race.venue} R{race.raceNumber}
                       </td>
-                      <td className="px-3 py-2 font-medium text-ink">{runner.horse}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {runner.silkUrl ? (
+                            <img
+                              src={runner.silkUrl}
+                              alt=""
+                              className="h-7 w-7 flex-none rounded-sm border border-line-soft object-contain"
+                            />
+                          ) : (
+                            <span className="h-7 w-7 flex-none" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate font-medium text-ink">{runner.horse}</span>
+                              <span
+                                className={`flex-none rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tier.chipClass}`}
+                              >
+                                {tier.badgeLabel}
+                              </span>
+                            </div>
+                            {(runner.jockey || runner.trainer) && (
+                              <div className="truncate text-xs text-ink-faint">
+                                {runner.jockey}
+                                {runner.jockey && runner.trainer ? ' / ' : ''}
+                                {runner.trainer}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-right font-mono text-ink">{fmtPrice(pick.wprPrice)}</td>
                       <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(pick.price)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-emerald">
+                      <td className={`px-3 py-2 text-right font-mono font-semibold ${tier.edgeClass}`}>
                         +{(pick.edge * 100).toFixed(1)}%
                       </td>
-                      <td className="px-3 py-2 text-right text-ink-mute">
-                        {r.resulted ? (r.won ? 'WON' : 'LOST') : '-'}
+                      <td className="px-3 py-2 text-right">
+                        {r.resulted ? (
+                          r.won ? (
+                            <span className="inline-flex items-center rounded bg-emerald-bg px-1.5 py-0.5 text-xs font-semibold text-emerald-deep">
+                              WON
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-ink-faint">LOST</span>
+                          )
+                        ) : (
+                          <span className="text-ink-faint">-</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-ink-mute">
                         {r.resulted ? `${r.stake.toFixed(2)}u` : '-'}
