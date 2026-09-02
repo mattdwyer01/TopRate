@@ -28,12 +28,17 @@ WHAT THIS IS
   race condition (first-up, spell length, own consistency were all tested
   and didn't hold up independently of that drift) - then reverted back to a
   flat 50/50 shortly after at the user's explicit instruction, despite the
-  0.80 shift's documented improvement - see _BASE_BLEND_ALPHA's docstring
-  for both the drift analysis and the reversion rationale. (A brief Aug
-  2026 period removed wpr_nett from base entirely for zero dependence on
-  TopRate's own unaudited rating - reverted at the user's explicit
-  instruction after it cost a real, measured ~0.56 held-out MAE; see git
-  history for both sets of numbers.)
+  0.80 shift's documented improvement, because the single-split validation
+  behind it couldn't rule out the older/newer data behaving too differently
+  to generalise. Re-raised to 0.80 again in Sep 2026 after a proper K=4-fold
+  chronological re-validation (each fold held out and scored independently,
+  not just one 50/50 split, with its own base calibration re-derived per
+  fold - see _BASE_BLEND_ALPHA's docstring) showed the improvement held in
+  every fold, directly addressing the generalisation concern that motivated
+  the revert. (A brief Aug 2026 period removed wpr_nett from base entirely
+  for zero dependence on TopRate's own unaudited rating - reverted at the
+  user's explicit instruction after it cost a real, measured ~0.56 held-out
+  MAE; see git history for both sets of numbers.)
   ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
   for something simpler and more transparent than a fitted regression) is
   sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
@@ -297,9 +302,9 @@ ADJ_TERMS = [
 # _CALIB_INTERCEPT/_CALIB_BASE_SLOPE are the single global base calibration -
 # re-fit together with _BASE_BLEND_ALPHA (see that block's docstring).
 # _CALIB_ADJ_SLOPE is independent of the base blend entirely (calibrates the
-# ADJUSTMENT sum, not the base anchor) and is untouched by the alpha revert.
-_CALIB_INTERCEPT = -1.8514
-_CALIB_BASE_SLOPE = 0.9925
+# ADJUSTMENT sum, not the base anchor) and is untouched by the alpha choice.
+_CALIB_INTERCEPT = -5.4714
+_CALIB_BASE_SLOPE = 1.0319
 _CALIB_ADJ_SLOPE = 0.1791
 
 # The blend weight was raised to 0.80 in Aug 2026 after finding a real,
@@ -318,10 +323,28 @@ _CALIB_ADJ_SLOPE = 0.1791
 # (6.283 vs 5.868) - the older data (H1) behaves differently enough from
 # recent data that a calibration fit on it doesn't generalise well, which
 # is consistent with the original alpha-drift finding, not a contradiction
-# of it. This is a deliberate override of that evidence, not a finding that
-# 50/50 is actually better - if revisiting this, the alpha-drift analysis
-# above still applies.
-_BASE_BLEND_ALPHA = 0.50
+# of it. That was a deliberate override of the evidence, not a finding that
+# 50/50 is actually better, specifically because a single 50/50 split
+# couldn't rule out the old/new-data generalisation problem it surfaced.
+#
+# Re-raised to 0.80 in Sep 2026 (wpr_alpha_08_proper_validation.py) after a
+# proper K=4-fold chronological re-validation directly answering that
+# concern: 4 independent folds, each held out and scored on its own, with
+# its own base calibration (see _CALIB_INTERCEPT/_CALIB_BASE_SLOPE above)
+# re-derived fresh per fold rather than reusing the 0.50-tuned constants
+# (changing alpha changes the raw base's whole distribution, so the
+# calibration isn't valid for a different alpha otherwise). Alpha=0.7-0.9
+# beat 0.50 in every one of the 4 folds on MAE, market-favourite
+# calibration gap, and Summary-tab-style edge/ROI at every threshold
+# (0.05/0.10/0.20) - the instability that sank the single-split version
+# didn't appear. 0.80 specifically has the best average held-out MAE
+# (5.9324 vs 0.50's 6.0806); 0.90 and 1.00 push ROI further but at a real
+# MAE cost (5.9412/5.9804), a sign that's fitting the specific edge-based
+# tail rather than genuinely improving broad point-accuracy - 0.80 is the
+# more conservative pick that still keeps most of the gain. If revisiting
+# this again, the K=4-fold methodology above is the bar to clear, not a
+# single split.
+_BASE_BLEND_ALPHA = 0.80
 
 # Base calibration was piecewise (3-segment: bottom 10% / middle 70% / top
 # 20%, each with its own fitted slope) from Aug 2026 to Sep 2026, added
@@ -354,12 +377,13 @@ def _compute_base(feat):
     """The horse's own anchor for the additive model: an
     _BASE_BLEND_ALPHA-weighted blend of wpr_nett (TopRate's own pre-race
     rating) and ewm3 (this horse's own recency-weighted average of its last
-    ~3 runs) when both are available. Was shifted from a flat 50/50 to a
-    data-derived 0.80 in Aug 2026 after finding a real, validated time-drift
-    (see _BASE_BLEND_ALPHA's docstring), then reverted back to a flat 50/50
-    shortly after at the user's explicit instruction, despite that
-    documented improvement - see _BASE_BLEND_ALPHA's docstring for the
-    reversion rationale. wpr_nett is never
+    ~3 runs) when both are available. Shifted from a flat 50/50 to a
+    data-derived 0.80 in Aug 2026, reverted back to 50/50 shortly after at
+    the user's explicit instruction (a single-split validation couldn't
+    rule out a generalisation problem), then re-raised to 0.80 again in Sep
+    2026 after a proper K=4-fold chronological re-validation confirmed the
+    improvement holds fold-by-fold - see _BASE_BLEND_ALPHA's docstring for
+    the full history and both validations. wpr_nett is never
     dropped from base entirely - a brief Aug 2026 period that removed it
     cost a real, measured ~0.56 held-out MAE (5.769 -> 6.333) for zero
     dependence on TopRate's own unaudited rating, reverted at the user's
