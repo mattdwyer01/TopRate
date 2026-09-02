@@ -124,8 +124,6 @@ function campaignHistoryEntries(history: FormHistoryEntry[], status: 'first-up' 
 export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] {
   const history = runner.formHistory
   const careerAvg = mean(sortedWprs(history).wprs)
-  const distLo = race.distance * 0.9
-  const distHi = race.distance * 1.1
   const goingToday = goingBand(race.going)
   const sixMonthsAgo = new Date(race.date)
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
@@ -139,7 +137,14 @@ export function computeCareerStats(runner: Runner, race: Race): CareerStatRow[] 
     buildRow('Career', history, careerAvg),
     buildRow(
       `${race.distance}m`,
-      history.filter((e) => e.distance >= distLo && e.distance <= distHi),
+      // Exact match, not a +/-10% band - matches wpr_projection.py's own
+      // own_distance term exactly (switched from a band to an exact match
+      // Aug 2026, validated as more accurate: see that function's own
+      // docstring). This row used to use the old band logic and drifted
+      // out of sync with the backend when that change shipped - found
+      // Sep 2026 when a horse's displayed distance-row stats (5 runs)
+      // didn't match its own projection description's own figure (2 runs).
+      history.filter((e) => e.distance === race.distance),
       careerAvg,
       'own_distance',
     ),
