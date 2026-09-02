@@ -923,7 +923,20 @@ _OWN_DELTA_TOTAL_CAP = 6.0
 def _shrink(delta, n):
     if n <= 0:
         return 0.0
-    shrunk = float(delta) * n / (n + _OWN_DELTA_SHRINK_K)
+    d = float(delta)
+    # A NaN delta (a matching-condition slice whose own wpr values are
+    # themselves missing, even though the condition itself matched >=1
+    # prior run) must fall back to "no adjustment", the same "unseen -> 0"
+    # contract every other ADJ_TERM uses on a genuine miss. Without this
+    # check it silently did the opposite: Python's min/max don't propagate
+    # NaN (min(cap, nan) returns cap, not nan), so max(-cap, min(cap, nan))
+    # evaluated to exactly +cap - the LARGEST possible adjustment, in a
+    # fixed direction, for a case that should have produced none at all.
+    # Found Sep 2026 investigating why WPR under-separates market
+    # favourites (see wpr_adj_cap_favourite_test.py).
+    if d != d:
+        return 0.0
+    shrunk = d * n / (n + _OWN_DELTA_SHRINK_K)
     return max(-_OWN_DELTA_CAP, min(_OWN_DELTA_CAP, shrunk))
 
 
