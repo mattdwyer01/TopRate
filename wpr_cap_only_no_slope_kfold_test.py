@@ -28,6 +28,23 @@ the shipped combination, across the FULL population (not just a dist_
 edge/first_up subset - this changes every runner's adjustment, not a
 targeted correction).
 
+RESULT: confirms the theoretical concern exactly. MAE degrades
+monotonically and substantially as the cap loosens (avg MAE 5.8980 at
+cap=0.5 -> 6.3271 at cap=6.0, a 7.4% relative degradation at the loosest
+cap vs shipped's 5.8919) - the "systematically too extreme" pattern from
+the Aug 2026 history, reproduced cleanly once the slope is removed. Even
+the TIGHTEST cap tested never quite beats the shipped combination: cap=
+0.5 comes close on MAE (5.8980 vs 5.8919) and edges out on aggregate
+strike rate (33.01% vs 32.95%), but loses on ROI at every edge threshold
+(edge>=0.05: +57.6% vs +60.3%, edge>=0.10: +80.5% vs +82.2%, edge>=0.20:
++98.8% vs +99.1%). No cap value beats the current slope+cap combination -
+the best a cap-only approach can do is approximately match it by being
+tight enough that it behaves similarly to a slope anyway (crude uniform
+shrinkage via wholesale collapse to the cap ceiling). The slope is doing
+real, distributed work across the whole population that a cap, by
+construction, only ever partially replicates. No production change -
+the shipped _CALIB_ADJ_SLOPE/_OWN_DELTA_TOTAL_CAP combination stands.
+
 NO EM DASHES policy: hyphens only in this file.
 """
 import pickle
