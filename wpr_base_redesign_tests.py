@@ -262,9 +262,14 @@ def test_c(full):
           f"(the model only rates horses with >=3 prior runs at all - true 0-2-start debutants are")
     print(f"  structurally out of scope for this exact frame, a separate gap)")
 
-    resid = full["target"] - full["_base"]
+    # Must compare against the CALIBRATED base, not the raw pre-calibration
+    # blend - _base itself is raw (see add_base), and calibration exists
+    # specifically to correct raw-base-vs-actual bias, so comparing target
+    # against raw _base would just rediscover "calibration is needed" (already
+    # known) rather than a REMAINING trend after the existing correction.
     full = full.copy()
-    full["_resid"] = resid
+    full["_base_calibrated"] = full["_base"].apply(wpr._calibrate_base)
+    full["_resid"] = full["target"] - full["_base_calibrated"]
     buckets = [3, 4, 5, 6, 8, 10, 15, 25, 1000]
     labels = ["3", "4", "5", "6", "7-8", "9-10", "11-15", "16-25", "26+"]
     full["n_runs_bucket"] = pd.cut(full["n_runs"], bins=[2] + buckets, labels=labels)
