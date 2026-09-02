@@ -97,6 +97,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `toprate_data.json`, `toprate_live.html`, `wpr_form_history.csv.gz`), take the
   incoming version: `git checkout --theirs <file>` then add and continue. Only
   discard generated data files, never code.
+  - This means **theirs, always** — never "ours because my local rebuild/backfill
+    took longer to compute so it must be more valuable." A real incident (Sep
+    2026): resolving a merge with `git show HEAD:<file>` (i.e. keeping ours)
+    across two consecutive merges reverted today's race field from an
+    already-scratched, final 583 runners back to a stale 1,049-runner
+    pre-scratch snapshot, and silently deleted an entire freshly-pre-fetched
+    race day (2026-09-03, 341 rows) that only existed in `theirs`. Prices
+    self-heal on the next refresh; field composition (scratches, declared
+    fields, newly pre-fetched days) does not — there is no "next cycle" that
+    fixes a reverted field, only a human noticing the live site looks wrong.
+    If a local compute (retrain, backfill, recomputed projections) needs to
+    survive a merge, the correct order is: take theirs for the conflicted
+    file, THEN re-run your own recompute on top of that fresher base -
+    never keep your own snapshot of the base data itself.
 
 ## Secrets — never commit these
 
