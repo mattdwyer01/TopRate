@@ -17,10 +17,14 @@ performed" rather than "how would re-optimizing beta have performed".
 qualifying threshold (edge_wpr >= 0.05, the "High Volume" tier - the
 union of all three tiers, since Mid/Value are strict subsets of it) with
 price <= $26, same scoping as the Summary tab and the beta-comparison
-script. Staking convention: FLAT 1-unit-per-bet (profit = sp-1 on a win,
--1 on a loss) - same convention as report() elsewhere in this repo, NOT
-the Summary tab UI's own proportional "stake to return 4 units"
-convention.
+script. Staking convention: PROPORTIONAL "stake to return RETURN_UNITS"
+(see summarize()'s docstring), matching the Summary tab UI's own
+convention exactly, NOT the flat-1-unit-per-bet convention used by
+report() and every other backtest script in this repo. A short-priced
+favourite costs a bigger stake than a long shot to hit the same return,
+so staked_u/profit_u/roi_pct are NOT directly comparable to the earlier
+flat-staking numbers in wpr_summary_tab_beta_comparison.py or wpr_bet_
+selection_post_retrain.py's report().
 
 State comes from toprate_runners.csv (NOT part of build_training_frame's
 own columns) - merged by race_id (already recovered via merge_won_by_
@@ -55,6 +59,7 @@ CACHE_PATH = Path("/tmp/wpr_full_training_frame_cache.pkl")
 BETA = 0.30
 EDGE_THRESHOLD = 0.05  # "High Volume" tier - the union of all Summary tab picks
 PRICE_CAP = 26.0
+RETURN_UNITS = 4  # matches SummaryTab.tsx's RETURN_UNITS - stake sized to return this many units on a win
 DAILY_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_daily_summary.csv"
 STATE_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_state_summary.csv"
 STATE_QUALITY_CSV_OUT = "/tmp/claude-0/-home-user-TopRate/37b9fca0-b163-5591-8763-1dcf84252930/scratchpad/beta03_state_quality_summary.csv"
@@ -132,10 +137,20 @@ def score_at_beta(held_out, beta):
 
 
 def summarize(g):
+    """Proportional ("to return") staking: stake sized so a WIN returns
+    exactly RETURN_UNITS total (stake back + profit), matching the
+    Summary tab UI's own convention (SummaryTab.tsx's RETURN_UNITS) -
+    NOT the flat-1-unit-per-bet convention used elsewhere in this repo's
+    backtest scripts. stake = RETURN_UNITS/price; win profit =
+    RETURN_UNITS - stake; loss profit = -stake. ROI is still profit/
+    staked, so it's comparable in shape to the flat convention, but the
+    actual unit and per-bet stake size differ - a short-priced favourite
+    now costs a BIGGER stake than a long shot to hit the same return."""
     n = len(g)
     wins = int(g["won"].sum())
-    profit = np.where(g["won"] == 1, g["sp"] - 1, -1.0)
-    staked = float(n)
+    stake = RETURN_UNITS / g["sp"].to_numpy()
+    profit = np.where(g["won"] == 1, RETURN_UNITS - stake, -stake)
+    staked = float(stake.sum())
     total_profit = float(profit.sum())
     se = profit.std(ddof=1) / np.sqrt(n) if n > 1 else np.nan
     t = profit.mean() / se if se and se > 0 else np.nan
