@@ -143,9 +143,19 @@ export function RunnerRow({
       </span>
       <span
         className={`text-right font-mono ${
-          spell.label === 'FU' ? 'font-semibold text-amber' : 'text-ink-mute'
+          spell.label === 'FU'
+            ? 'font-semibold text-amber'
+            : spell.label === 'FS'
+              ? 'font-semibold text-indigo'
+              : 'text-ink-mute'
         }`}
-        title={spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined}
+        title={
+          spell.label === 'FS'
+            ? 'First starter - no prior race starts'
+            : spell.daysSince != null
+              ? `${spell.daysSince} days since last run`
+              : undefined
+        }
       >
         {spell.label}
       </span>

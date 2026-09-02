@@ -3,6 +3,7 @@ import type { Race, Runner } from '../../types/domain'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { fmtPrice } from '../../lib/format'
 import { computeEffectiveRace, type EffectiveRunner } from '../../lib/raceModel'
+import { spellPosition } from '../../lib/spellPosition'
 import { StatTile } from '../../components/StatTile'
 import { Pill } from '../../components/Pill'
 
@@ -411,6 +412,7 @@ export function SummaryTab({
               const { race, runner } = pick
               const r = resultOf(pick)
               const tier = strongestTier(pick.edge)
+              const isFirstStarter = spellPosition(runner.formHistory, race.date).label === 'FS'
               return (
                 <div
                   key={runner.runId}
@@ -446,6 +448,14 @@ export function SummaryTab({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1">
                           <span className="truncate font-medium text-ink">{runner.horse}</span>
+                          {isFirstStarter && (
+                            <span
+                              title="First starter - no prior race starts"
+                              className="flex-none rounded bg-indigo-bg px-0.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo sm:px-1 sm:text-[10px]"
+                            >
+                              FS
+                            </span>
+                          )}
                           <span
                             className={`flex-none rounded px-0.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide sm:px-1 sm:text-[10px] ${tier.chipClass}`}
                           >

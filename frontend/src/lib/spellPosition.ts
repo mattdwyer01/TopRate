@@ -17,8 +17,9 @@ function daysBetween(a: Date | null, b: Date | null): number | null {
 }
 
 export interface SpellInfo {
-  // 'FU' (first-up), '2U', '3U', ... or '—' for a debut runner with no
-  // prior form at all.
+  // 'FU' (first-up), '2U', '3U', ... or 'FS' (first starter - no prior
+  // race starts at all; may still have unraced trial/jumpout form the
+  // frontend has no visibility into).
   label: string
   daysSince: number | null
 }
@@ -32,7 +33,7 @@ export interface SpellInfo {
 // consecutive gaps under SPELL_GAP_DAYS, the same walk build_features()
 // does server-side over the same underlying data.
 export function spellPosition(formHistory: FormHistoryEntry[], raceDate: string | null): SpellInfo {
-  if (formHistory.length === 0) return { label: '—', daysSince: null }
+  if (formHistory.length === 0) return { label: 'FS', daysSince: null }
   const today = parseISO(raceDate)
   const dates = formHistory.map((r) => parseISO(r.date))
   const lastRunDate = dates[dates.length - 1] ?? null
