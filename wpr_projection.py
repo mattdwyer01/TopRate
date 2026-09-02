@@ -195,6 +195,36 @@ _DEBUT_TRIAL_MARGIN_MEDIAN = 2.53  # fallback when a trial has no recorded margi
 # the normal confidence range without asserting false precision.
 _DEBUT_TRIAL_CONFIDENCE = 25.0
 
+# First-up trial correction (Sep 2026, user request - see
+# wpr_first_up_trial_correction_kfold_test.py). DIFFERENT question from
+# the debut case above: this horse already has real race history and its
+# own projection from that history (ewm3/career_avg/etc, all UNCHANGED) -
+# a trial/jumpout run BETWEEN its last real run and today (before a
+# first-up return from a spell) adds INCREMENTAL signal on top of that,
+# it doesn't replace missing history. The model already over-predicts
+# first-up runners on average (a known, existing pattern); the scoping
+# check (wpr_interim_trial_scoping_check.py) found that over-prediction
+# shrinks sharply with better trial form (bottom trial-finish quartile
+# resid=-1.92, top quartile resid=-0.05, n=2,852) - this correction is a
+# full-data OLS fit of that pattern: resid ~ avg_finish_pct + won_a_trial.
+#
+# K=4-fold validated: a GENUINE TRADE-OFF, not a clean win - held-out MAE
+# is consistently WORSE (5.9600 -> 6.0678, every fold) but top-1 strike
+# rate is better-or-tied in every fold (11.58% -> 11.86%) and edge>=0.10
+# ROI improves to statistical significance (+34.93% n.s. -> +61.03%,
+# t=2.26) - the same kind of MAE-for-strike-rate trade-off track_barrier/
+# closing_merit were adopted under, at the user's explicit instruction to
+# accept it here too. Applied as a direct, already-final-scale correction
+# (like _debut_trial_estimate) rather than a normal ADJ_TERM - it was fit
+# straight against the residual of the fully calibrated projection, not a
+# raw pre-slope blend, so routing it through _CALIB_ADJ_SLOPE would
+# distort its scale.
+_FIRST_UP_TRIAL_COEF = {
+    "intercept": -2.5188,
+    "avg_finish_pct": 2.8747,
+    "won_a_trial": -0.1158,
+}
+
 # Recency-weighted training. TopRate's wpr is a relative rating and its
 # scale DRIFTS - the target mean fell ~6 points from 2024 to 2026. Old
 # training rows teach the model an outdated scale, so an unweighted model
@@ -1156,6 +1186,35 @@ def _debut_trial_estimate(trial_runs, race_date):
     }
 
 
+def _first_up_trial_correction(trial_runs, race_date, days_since):
+    """For a first-up runner (already has real history - see
+    _FIRST_UP_TRIAL_COEF's docstring), a direct, already-final-scale
+    correction from any trial/jumpout run strictly between its last real
+    run and today. None if no usable intervening trial - the existing
+    (unchanged) projection stands as-is, same "fall through, no
+    fabricated correction" contract as every other missing-data case."""
+    if trial_runs is None or len(trial_runs) == 0 or days_since is None:
+        return None
+    race_date = pd.to_datetime(race_date)
+    last_real_date = race_date - pd.Timedelta(days=days_since)
+    t = trial_runs.copy()
+    t["date"] = pd.to_datetime(t["date"], errors="coerce")
+    t = t[(t["date"] < race_date) & (t["date"] > last_real_date)]
+    if len(t) == 0:
+        return None
+    pos = pd.to_numeric(t.get("positionFinish"), errors="coerce")
+    fs = pd.to_numeric(t.get("field_size"), errors="coerce")
+    valid = pos.notna() & fs.notna() & (fs > 0)
+    if not valid.any():
+        return None
+    pos, fs = pos[valid], fs[valid]
+    finish_pct = 1 - (pos - 1) / fs
+    c = _FIRST_UP_TRIAL_COEF
+    return (c["intercept"]
+            + c["avg_finish_pct"] * float(finish_pct.mean())
+            + c["won_a_trial"] * float((pos == 1).max()))
+
+
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
                    cur_field_size=None, cur_wpr_nett=None, cur_barrier=None,
@@ -1969,6 +2028,14 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "days_since": days_since,
         "first_up": 1 if runs_this_camp == 1 else 0,
         "second_up": 1 if runs_this_camp == 2 else 0,
+        # Direct, already-final-scale correction from a trial/jumpout run
+        # before this first-up return - see _first_up_trial_correction /
+        # _FIRST_UP_TRIAL_COEF. None (no correction applied) when not
+        # first-up, or first-up with no intervening trial.
+        "_first_up_trial_correction": (
+            _first_up_trial_correction(trial_runs, race_date, days_since)
+            if runs_this_camp == 1 else None
+        ),
         # ADJ_TERMS (see the SIMPLE ADJUSTMENT MODEL block above) - the
         # ENTIRE adjustment now, summed directly in project_race. No
         # regression, no coefficients: each is a shrunk +/- vs this
@@ -2351,6 +2418,20 @@ def project_race(runners, race_date):
     # contributions scaled too, so they still sum to the scaled adjustment).
     adj_contributions = adj_contributions * _CALIB_ADJ_SLOPE
     adj = adj_contributions.sum(axis=1)
+
+    # First-up trial correction (see _first_up_trial_correction /
+    # _FIRST_UP_TRIAL_COEF) - a direct, already-final-scale addition, NOT
+    # part of X_adj/_cap_adj_sum/_CALIB_ADJ_SLOPE above (it was fit
+    # straight against the residual of the fully calibrated projection,
+    # not a raw pre-slope blend - routing it through the shared slope
+    # would distort its scale). Added into `adj` here so base_wpr +
+    # adjustment == projected_wpr still holds; surfaced as its own labeled
+    # entry in `contributions` below, same as every other named component.
+    first_up_corr = np.array([
+        (f.get("_first_up_trial_correction") if f is not None else None) or 0.0
+        for f in feat_dicts
+    ], dtype=float)
+    adj = adj + first_up_corr
     proj = base_arr + adj
 
     # Confidence still needs the FULL feature frame - the q10/q90 models are
@@ -2423,6 +2504,8 @@ def project_race(runners, race_date):
             base_wpr = float(base_arr[i])
             adjustment = float(proj[i]) - base_wpr
             contributions = dict(zip(ADJ_TERMS, adj_contributions[i]))
+            if first_up_corr[i] != 0.0:
+                contributions["first_up_trial_correction"] = first_up_corr[i]
             results.append({
                 "has_projection": True,
                 "projected_wpr": round(float(proj[i]), 1),
@@ -2623,6 +2706,12 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
         else:
             sentences.append(f"First-up off {an_days} {days_since}-day break - "
                              f"no 1st-up runs on record.")
+        # Trial/jumpout run before this return (see
+        # _first_up_trial_correction) - only worth a sentence when it
+        # actually moved the projection.
+        fu_corr = feats.get("_first_up_trial_correction")
+        if fu_corr is not None and abs(fu_corr) >= 0.3:
+            sentences.append(f"A pre-race trial {_vs(fu_corr)} what that break alone would suggest.")
     elif feats.get("second_up") == 1:
         n_r, avg_r = feats.get("second_up_record_n", 0), feats.get("second_up_record_avg")
         if n_r >= 1 and _ok(avg_r) and career_avg is not None:
