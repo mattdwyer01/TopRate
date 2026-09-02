@@ -24,6 +24,19 @@ half-split directions. Looking for whether a K other than 300 clears the
 strike-rate bar by MORE in both directions, not just whether 300 itself
 clears it (already known - it shipped).
 
+RESULT: every K from 30 to 1200 clears the strike-rate bar in both
+chronological half-splits (H1 and H2), same as K=300 does - all of them
+"work" by that bar. Lower K does look nominally better on strike rate in
+this sweep (K=30: +0.94pp/+0.96pp vs K=1200: +0.49pp/+0.36pp), but every
+K-to-K delta in the strike-rate column is smaller than the sampling
+noise floor (H1 has 2,488 races, SE ~0.92pp; H2 has 2,646 races, SE
+~0.89pp) - the apparent "lower K does better" pattern is not
+distinguishable from noise at this sample size. MAE gets worse than the
+shipped baseline at every K tested in both halves (mae:False throughout),
+the same accepted strike-rate-vs-MAE trade-off the term shipped under
+originally. No production change: K=300 is not disproven by this sweep,
+and there is no statistically meaningful case for moving it.
+
 NO EM DASHES policy: hyphens only in this file.
 """
 import pickle
