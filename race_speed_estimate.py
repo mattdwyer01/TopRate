@@ -453,7 +453,7 @@ def train(out_dir="."):
     print(f"  held-out correlation: {heldout_corr:+.3f}")
     print(f"  held-out MAE: {heldout_mae:.3f}")
 
-    # Tempo-label bucket cutpoints. BUG FIX (Aug 2026, found while
+    # Tempo-label bucket cutpoints. BUG FIX (Aug 2026 v1, found while
     # investigating a skewed live label distribution - 826/1024 August
     # 2026 races landing in "Fast", only 1 "Slow", far from the intended
     # ~10/25/30/25% split): these used to be computed from the TRAIN
@@ -467,12 +467,24 @@ def train(out_dir="."):
     # confirmed directly: predicted_rse on a 1,024-race August sample had
     # a 25th-75th percentile range of just -0.37 to +0.47, while the
     # actual-value quantiles used as thresholds spanned -4.2 to +4.1.
-    # Fix: compute the thresholds from the model's OWN predictions on the
-    # training set (pred_tr), so the buckets are calibrated to the
-    # distribution the model actually produces, not the wider
-    # distribution of reality it can only weakly approximate.
-    pred_tr = model.predict(Xtr_f)
-    hot, fast, even, slow = np.quantile(pred_tr, [0.10, 0.35, 0.65, 0.90])
+    # v1's fix: compute the thresholds from the model's OWN predictions
+    # on the TRAINING set (pred_tr) instead.
+    #
+    # BUG FIX v2 (Sep 2026, user-flagged: "all races... predicted hot or
+    # fast" on the live dashboard): v1 was still wrong, in the same
+    # direction as the bug it fixed - pred_tr is the model's predictions
+    # on the exact rows it was FIT to, which is never what live serving
+    # sees (every real call is out-of-sample by definition). Confirmed
+    # directly: scoring 1,496 real historical races through the actual
+    # live estimate_race_speed() call path gave predicted_rse quantiles
+    # (p10=-0.60, p35=-0.04, p65=+0.45, p90=+1.21) running a full +0.4 to
+    # +0.6 higher across the board than pred_tr's quantiles - a live label
+    # split of Hot 49%/Fast 33%/Even 15%/Slow 4%, nowhere near the
+    # intended ~35/30/25/10%. pred_te (the held-out test predictions,
+    # already computed two lines up for heldout_corr/heldout_mae) is
+    # sitting right there and IS genuinely out-of-sample, the same way
+    # every live call is - fit the quantiles on that instead.
+    hot, fast, even, slow = np.quantile(pred_te, [0.10, 0.35, 0.65, 0.90])
 
     Path(out_dir).mkdir(exist_ok=True)
     joblib.dump(model, Path(out_dir) / "race_speed_model.joblib")
