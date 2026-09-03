@@ -118,7 +118,19 @@ def _upsert(table, df, label):
 
 def sync_runners(runners_df):
     """Upsert the day's runners to toprate_runners (key run_id)."""
-    _upsert("toprate_runners", runners_df, "runners")
+    if runners_df is None or len(runners_df) == 0:
+        _upsert("toprate_runners", runners_df, "runners")
+        return
+    df = runners_df.copy()
+    # horse_id is a `bigint` column in Postgres, but pandas upgrades it to
+    # float64 the moment any row is missing one (NaN forces the whole
+    # column to float) - it then serializes as "395126.0", and Postgres's
+    # bigint input parser rejects the decimal point outright (same bug as
+    # formnumber in sync_form_history() below). Nullable Int64 keeps real
+    # NaNs as null while writing whole numbers.
+    if "horse_id" in df.columns:
+        df["horse_id"] = pd.array(df["horse_id"], dtype="Int64")
+    _upsert("toprate_runners", df, "runners")
 
 
 def sync_form_history(new_df):
