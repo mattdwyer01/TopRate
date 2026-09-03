@@ -5,10 +5,15 @@ wpr_signal_watch_daily_pnl.py - day-by-day P&L for the Signal Watch rule
 consistent tiered-model edge values (wpr_roi_filter_search.build_pooled),
 NOT the live dashboard's stale pre-backfill numbers.
 
-Proportional staking, same convention as the live dashboard (toprate_
-daily.py's RETURN_UNITS=4, 1 unit=$50): stake = RETURN_UNITS / price,
-in dollars that's ($50 * 4) / price = $200 / price, targeting a $200
-return on every winning bet regardless of price.
+Proportional staking, the REAL production rule (toprate_html_v3.py's own
+documented convention, not a formula this script invented): stake =
+round(4 / price, 2) UNITS, clamped to [0.25u, 4u], "bet to return 4u"
+(gross payout, not profit), 1 unit = $50. The clamp matters: for any
+price above 16 the raw 4/price falls below the 0.25u floor, so those
+bets get floored UP to 0.25u ($12.50) rather than the smaller raw
+proportional amount - a first pass at this script missed the clamp
+entirely, understating both stakes and losses on every higher-priced
+qualifying bet.
 
 NO EM DASHES policy: hyphens only in this file.
 """
@@ -21,12 +26,19 @@ from wpr_roi_filter_search import build_pooled
 
 UNIT_DOLLARS = 50.0
 RETURN_UNITS = 4
-TARGET_RETURN = UNIT_DOLLARS * RETURN_UNITS  # $200
+MIN_STAKE_UNITS = 0.25
+MAX_STAKE_UNITS = 4.0
 
 EDGE_THR = 0.05
 PRICE_CAP = 26.0
 JOCKEY_CUT = 16.9
 TRAINER_CUT = 17.3
+
+
+def stake_dollars(price):
+    """stake = round(4/price, 2) units, clamped to [0.25u, 4u], * $50/unit."""
+    units = np.clip(np.round(RETURN_UNITS / price, 2), MIN_STAKE_UNITS, MAX_STAKE_UNITS)
+    return units * UNIT_DOLLARS
 
 
 def run(full_period=False):
@@ -47,7 +59,7 @@ def run(full_period=False):
         & ((window["jockey_win_pct_90d"] >= JOCKEY_CUT) | (window["trainer_win_pct_365d"] >= TRAINER_CUT))
     ].copy()
 
-    matches["stake"] = TARGET_RETURN / matches["sp"]
+    matches["stake"] = stake_dollars(matches["sp"].to_numpy())
     matches["profit"] = np.where(matches["won"] == 1, matches["stake"] * (matches["sp"] - 1), -matches["stake"])
 
     print(f"\nTotal matches in window: {len(matches)}")
