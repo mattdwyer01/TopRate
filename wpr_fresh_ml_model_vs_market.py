@@ -69,8 +69,29 @@ EXCLUDE_COLS = {
     "target", "won", "race_id", "horse_id", "horse", "run_id", "date",
     "comments_video", "comments_steward", "fixed_win_price", "starting_price_sp",
     "pfm_score", "track",
+    # closing_pairs is a raw list-of-tuples (internal input to closing_merit's
+    # own fitted lookup, not a usable scalar feature) - excluded rather than
+    # engineered further here, out of scope for this first attempt.
+    "closing_pairs",
+    # LEAK, confirmed by direct inspection (Sep 2026): build_training_frame()'s
+    # own internal wpr_nett merge (wpr_projection.py ~line 2905) joins on
+    # run_id, which is NOT a per-historical-row race identifier - every row
+    # in a horse's scraped history batch shares the run_id of whichever race
+    # triggered that scrape, so ALL of a horse's historical rows get stamped
+    # with the SAME wpr_nett value (whatever TopRate's rating was as of the
+    # LATEST scrape), not that row's own point-in-time pre-race rating.
+    # Verified directly: horse_id 300668 shows wpr_nett=84.1 identically
+    # across 12 rows spanning 2026-04-27 to 2026-08-28. This is real look-
+    # ahead leakage for offline analysis (a horse's April row sees its
+    # September rating) - NOT a live-serving bug, since project_race()'s
+    # own live path reads cur_wpr_nett fresh from today's own runners.csv
+    # row, never a historical merge. Excluded here; a first (implausibly
+    # good: Brier beats market, +54.6% ROI t=17.72) run of this exact
+    # script WITH wpr_nett included is what surfaced the leak - wpr_nett
+    # was the dominant feature by a wide margin (1045 vs race_class's 749).
+    "wpr_nett",
 }
-CATEGORICAL_COLS = ["race_class", "going", "state"]
+CATEGORICAL_COLS = ["race_class", "going", "state", "cur_settle_band"]
 
 
 def build_full():
@@ -116,7 +137,15 @@ def run():
     full = full.sort_values("date").reset_index(drop=True)
     print(f"Scoped rows: {len(full):,}  ({full['date'].min().date()} to {full['date'].max().date()})")
 
-    feature_cols = [c for c in full.columns if c not in EXCLUDE_COLS and c != "price" and c != "finish_position"]
+    # gear_changes is a JSON-stringified list of specific gear notes (near-
+    # unbounded distinct combinations - "Blinkers Again", "Winkers Off Again
+    # + Tongue Tie Again", etc.) - too high-cardinality to treat as a plain
+    # category, collapsed to a simple "gear changed today at all" flag
+    # instead (a real, commonly-cited racing angle in its own right).
+    full["gear_change_flag"] = (full["gear_changes"].astype(str) != "[]").astype(int)
+
+    feature_cols = [c for c in full.columns if c not in EXCLUDE_COLS
+                     and c not in ("price", "finish_position", "gear_changes")]
     print(f"Feature count: {len(feature_cols)}")
 
     X = full[feature_cols].copy()
