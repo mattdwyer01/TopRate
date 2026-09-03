@@ -12,6 +12,8 @@ return on every winning bet regardless of price.
 
 NO EM DASHES policy: hyphens only in this file.
 """
+import sys
+
 import numpy as np
 import pandas as pd
 
@@ -27,12 +29,15 @@ JOCKEY_CUT = 16.9
 TRAINER_CUT = 17.3
 
 
-def run():
+def run(full_period=False):
     print("Rebuilding pooled held-out scored data (NEW tiered base)...")
     pooled = build_pooled()
 
     today = pooled["date"].max()
-    window_start = today - pd.Timedelta(days=30)
+    if full_period:
+        window_start = pooled["date"].min() - pd.Timedelta(days=1)
+    else:
+        window_start = today - pd.Timedelta(days=30)
     window = pooled[(pooled["date"] > window_start) & (pooled["date"] <= today)].copy()
     print(f"Window: {window_start.date()} to {today.date()}  ({window['date'].nunique()} race days)")
 
@@ -77,4 +82,4 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    run(full_period="--full" in sys.argv)
