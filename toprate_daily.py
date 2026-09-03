@@ -38,7 +38,6 @@ import time
 import math
 import json
 import os
-import threading
 import warnings
 import urllib3
 from datetime import datetime, timedelta, date, timezone
@@ -3565,32 +3564,6 @@ def publish():
         print("    git push")
 
 
-def _run_supabase_sync_async(label, fn, *args):
-    """Run a Supabase upsert in a background thread instead of blocking the
-    pipeline on network I/O (measured ~32-62s each - a third of a run's
-    total time - for something that's already documented as "additive and
-    FAIL-SAFE" and doesn't feed anything downstream in this run). The
-    caller should keep the returned Thread and join() it later, after the
-    CSV-only steps that don't depend on Supabase have had a chance to run
-    concurrently, so the network time overlaps with real work instead of
-    serializing in front of it. daemon=True so a crash elsewhere in the
-    pipeline can't hang the process waiting on a forgotten sync thread;
-    the explicit join() below is what actually guarantees the sync
-    completes before the script exits under normal operation.
-    supabase_sync._upsert() already swallows its own exceptions (that's
-    the fail-safe contract), so the try/except here only guards prep work
-    done inside fn before it reaches that point.
-    """
-    def _run():
-        try:
-            fn(*args)
-        except Exception as _e:
-            print(f"  [supabase] {label} sync error in background thread ({_e})")
-    t = threading.Thread(target=_run, name=f"supabase-{label}", daemon=True)
-    t.start()
-    return t
-
-
 def main():
     parser = argparse.ArgumentParser(description="TopRate daily runner database + live HTML")
     parser.add_argument("--no-html",    action="store_true", help="Skip HTML rebuild")
@@ -3678,27 +3651,7 @@ def main():
     # _GEAR_CHANGES_TODAY populated by its rich-capture pass) and BEFORE
     # save_runners() near the end of main().
     runners_df = apply_gear_changes_today(runners_df, args.date)
-    # Supabase sync: push recently-scraped form rows (parallel to the gz;
-    # fail-safe). Reads the just-written history and upserts only the last few
-    # days of scrapes so the push stays small. Runs in the background (see
-    # _run_supabase_sync_async) - joined near the end of main() rather than
-    # blocking here, so its ~30s of network time overlaps with Steps
-    # 2c-2f/4 instead of sitting in front of them.
-    _supa_form_thread = None
-    try:
-        import supabase_sync
-        import datetime as _dt
-        _fh = pd.read_csv(WPR_FORM_HISTORY_CSV, low_memory=False)
-        if "scrape_date" in _fh.columns:
-            _cut = (_dt.date.today() - _dt.timedelta(days=4)).strftime("%Y-%m-%d")
-            _recent = _fh[_fh["scrape_date"].astype(str).str[:10] >= _cut]
-        else:
-            _recent = _fh
-        _supa_form_thread = _run_supabase_sync_async(
-            "form-history", supabase_sync.sync_form_history, _recent)
-    except Exception as _e:
-        print(f"  [supabase] form-history sync skipped ({_e})")
-    _main_step("Step 2a: Saving WPR form history (Supabase sync started in background)")
+    _main_step("Step 2a: Saving WPR form history")
     print()
 
     # ── Step 2c: WPR projection ─────────────────────────────────────────────
@@ -3756,19 +3709,7 @@ def main():
 
     save_runners(runners_df)
     print(f"Saved -> {RUNNERS_CSV} ({len(runners_df):,} runners, {runners_df['race_id'].nunique():,} races)")
-    # Supabase sync: upsert the day's finalized runners (parallel to the CSV;
-    # fail-safe, never breaks the run). Backgrounded like the form-history
-    # sync above - joined near the end of main() so its ~60s of network
-    # time overlaps with the price snapshot and HTML rebuild instead of
-    # blocking in front of them.
-    _supa_runners_thread = None
-    try:
-        import supabase_sync
-        _supa_runners_thread = _run_supabase_sync_async(
-            "runners", supabase_sync.sync_runners, runners_df)
-    except Exception as _e:
-        print(f"  [supabase] runners sync skipped ({_e})")
-    _main_step("Saved runners (Supabase sync started in background)")
+    _main_step("Saved runners")
 
     # Snapshot prices for drift tracking
     print("  Snapshotting prices for drift tracking…")
@@ -3790,31 +3731,6 @@ def main():
     if args.publish:
         publish()
         _main_step("Publish")
-
-    # Wait for the background Supabase syncs (started in Step 2a and after
-    # save_runners) to finish before exiting. They've been running
-    # concurrently with Steps 2c-2f/4/publish above, so this is usually a
-    # short or zero wait rather than the full ~30-60s each took blocking
-    # the pipeline before. Generous timeout as a safety net only - the
-    # underlying requests already cap themselves per-batch (60s each), so
-    # this just guards against the join call itself hanging forever. It
-    # used to be 120s, which the runners sync alone (244s, growing with the
-    # table) could blow past - since these are daemon threads, hitting that
-    # timeout doesn't just delay the sync, it means main() exits and the
-    # still-running thread gets killed mid-request with no error and no
-    # completion log line at all (discovered when a day's wpr_form_history
-    # sync had no [supabase] log line whatsoever - not a failure message,
-    # just silently abandoned). 600s comfortably covers the observed
-    # runners-sync duration with margin; if a thread is STILL alive after
-    # that, say so explicitly instead of moving on in silence.
-    for _label, _th in (("form-history", _supa_form_thread),
-                         ("runners", _supa_runners_thread)):
-        if _th is not None and _th.is_alive():
-            _th.join(timeout=600)
-            if _th.is_alive():
-                print(f"  [supabase] {_label}: still running after 600s wait - "
-                      f"this run is exiting without it, sync may be incomplete")
-    _main_step("Waited for background Supabase syncs")
 
     print(f"\n{'='*60}")
     print(f"Done. Total: {time.time() - _main_t0:.1f}s")
