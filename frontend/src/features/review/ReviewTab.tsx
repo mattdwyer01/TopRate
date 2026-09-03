@@ -21,6 +21,7 @@ import { fmtWpr } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
 import { PredictedVsActualChart } from '../../components/PredictedVsActualChart'
 import { useScrollShadow } from '../../lib/useScrollShadow'
+import { collectSignalWatchRows, computeSignalWatchStats, SIGNAL_WATCH_RULE } from '../../lib/signalWatch'
 
 interface ReviewTabProps {
   races: Race[]
@@ -112,6 +113,17 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   // MIN_BREAKDOWN_N=10 floor as distance/going keeps one-off country tracks
   // from cluttering the table with noisy single-digit-n rows.
   const venueBreakdown = useMemo(() => computeBreakdown(rows, (r) => r.venue), [rows])
+
+  // Signal watch: tracks one specific candidate rule found via offline
+  // backtesting (not a proven edge - see lib/signalWatch.ts's own comment
+  // for the full caveat). Uses the raw races prop directly, independent
+  // of the accuracy pipeline above, so this experimental addition can
+  // never affect the established accuracy numbers.
+  const signalWatchRows = useMemo(
+    () => collectSignalWatchRows(races, { period, excludeBush }),
+    [races, period, excludeBush]
+  )
+  const signalWatchStats = useMemo(() => computeSignalWatchStats(signalWatchRows), [signalWatchRows])
 
   // The hero number: how much better than a coin-flip-against-the-field is
   // the model's top pick, in a single multiplier a non-statistician reads
@@ -357,6 +369,82 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               </div>
             </Disclosure>
           )}
+
+          <Disclosure
+            title="Signal watch: jockey/trainer form (experimental)"
+            subtitle="One candidate rule from offline backtesting, tracked here against real results - not a proven edge, not a bet recommendation"
+          >
+            <p className="mb-3 text-xs text-ink-faint">
+              Backtested rule: WPR edge &ge; {(SIGNAL_WATCH_RULE.edgeThreshold * 100).toFixed(0)}pp vs the
+              market, price &le; ${SIGNAL_WATCH_RULE.priceCap}, and the jockey's 90-day strike rate &ge;{' '}
+              {SIGNAL_WATCH_RULE.jockeyWinPctCut}% or the trainer's 365-day strike rate &ge;{' '}
+              {SIGNAL_WATCH_RULE.trainerWinPctCut}%. In offline K-fold backtesting this was the ONE rule (out
+              of dozens tried - price caps, market-rank agreement, barrier, distance, class move, and more)
+              that came back positive rather than negative, holding up across all 4 held-out folds - but it
+              was not statistically significant (t=1.58, short of the usual 1.96 bar) and came from a wide
+              search, so real forward results here are the actual test, not the backtest number.
+            </p>
+            {signalWatchStats.n === 0 ? (
+              <div className="rounded-lg border border-line bg-panel p-4 text-center text-sm text-ink-mute">
+                No runners have matched this rule in this window yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StatTile label="Matches" value={String(signalWatchStats.n)} />
+                <StatTile label="Strike rate" value={fmtPct(signalWatchStats.strikePct)} />
+                <StatTile
+                  label="ROI"
+                  value={fmtSigned(signalWatchStats.roiPct, 1) + '%'}
+                  tone={signalWatchStats.roiPct != null && signalWatchStats.roiPct > 0 ? 'positive' : 'negative'}
+                />
+                <StatTile
+                  label="Avg price"
+                  value={signalWatchStats.avgPrice != null ? `$${signalWatchStats.avgPrice.toFixed(2)}` : '-'}
+                />
+              </div>
+            )}
+            {signalWatchRows.length > 0 && (
+              <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-line">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-panel">
+                    <tr className="text-left text-ink-mute">
+                      <th className="px-3 py-1.5 font-medium">Date</th>
+                      <th className="px-3 py-1.5 font-medium">Track</th>
+                      <th className="px-3 py-1.5 font-medium">Horse</th>
+                      <th className="px-3 py-1.5 text-right font-medium">Price</th>
+                      <th className="px-3 py-1.5 text-right font-medium">Edge</th>
+                      <th className="px-3 py-1.5 text-right font-medium">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line-soft">
+                    {[...signalWatchRows]
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .slice(0, MAX_DETAIL_ROWS)
+                      .map((r, i) => (
+                        <tr
+                          key={`${r.raceId}-${r.horse}-${i}`}
+                          onClick={() => onSelectRace(r.raceId, r.date, r.runId)}
+                          className="cursor-pointer hover:bg-bg"
+                        >
+                          <td className="whitespace-nowrap px-3 py-1 text-ink-mute">{r.date}</td>
+                          <td className="whitespace-nowrap px-3 py-1">{r.venue}</td>
+                          <td className="px-3 py-1 font-medium">{r.horse}</td>
+                          <td className="px-3 py-1 text-right font-mono">${r.price.toFixed(2)}</td>
+                          <td className="px-3 py-1 text-right font-mono">{fmtSigned(r.edge * 100, 1)}pp</td>
+                          <td className="px-3 py-1 text-right">
+                            {r.won ? (
+                              <span className="font-semibold text-emerald-deep">Won</span>
+                            ) : (
+                              <span className="text-ink-mute">Lost</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Disclosure>
 
           <Disclosure
             title="Explore individual results"
