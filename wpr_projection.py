@@ -425,18 +425,65 @@ _CALIB_ADJ_SLOPE = 0.1791
 _BASE_SIGNAL_TIERS = {
     # (wpr_nett, ewm5) - the only two signals ever guaranteed for a horse
     # that clears _MIN_RUNS at all; every other tier upgrades from here.
+    # Coefficients are (wpr_nett, ewm5, hinge) - see _HINGE_KNOT below for
+    # what the trailing hinge term is.
     "minimal": {"cols": ("wpr_nett", "ewm5"),
-                "intercept": 5.0439, "coef": (0.3269, 0.5778)},
+                "intercept": 2.4248, "coef": (0.6295, 0.2909, 0.1395)},
     # + track_wpr (own average WPR at today's track, or its avg_last3
-    # fallback when no run there - see the note above).
+    # fallback when no run there - see the note above). Coefficients are
+    # (wpr_nett, ewm5, track_wpr, hinge).
     "track": {"cols": ("wpr_nett", "ewm5", "track_wpr"),
-              "intercept": 4.9950, "coef": (0.3118, 0.4614, 0.1326)},
+              "intercept": 4.4721, "coef": (0.4016, 0.3749, 0.1235, 0.1082)},
     # + best3 (best 3 of the last 6 runs) on top of track_wpr - only when
     # best3 is genuinely available (see point 3 above for why it isn't
     # always). Note the negative best3 coefficient - see point 5 above.
+    # Coefficients are (wpr_nett, ewm5, track_wpr, best3, hinge).
     "full": {"cols": ("wpr_nett", "ewm5", "track_wpr", "best3"),
-             "intercept": 7.1909, "coef": (0.2399, 0.5734, 0.1422, -0.0710)},
+             "intercept": 12.6285, "coef": (0.1732, 0.5448, 0.1420, -0.0589, 0.2354)},
 }
+
+# HINGE TERM (Sep 2026, user-flagged case: a horse with wpr_nett=103.0,
+# ewm5=104.5 got base=99.1 - BELOW both its own raw inputs, despite going
+# on to win with actual WPR 107.0). Investigated whether the tiered
+# regression above under-projects genuinely elite horses (checked: it
+# does NOT do this more than the old alpha-blend did in aggregate - see
+# wpr_tiered_base_tail_bias_check.py - so this isn't a regression from
+# that change). The real cause, found by bucketing held-out bias by raw
+# signal LEVEL ((wpr_nett+ewm5)/2): bias sits near zero through the bulk
+# of the range, then climbs steadily positive (under-projection) above
+# raw level ~90, in EVERY tier (minimal/track/full alike, all checked
+# separately - wpr_hinge_all_tiers_test.py), on samples large enough to
+# trust (n=514-1,146 per tier at raw level 90-95) - the plain linear fit
+# cannot capture this because it is dominated by the dense middle of the
+# distribution and extrapolates a straight line past it, when the true
+# relationship curves upward for genuinely elite horses.
+#
+# A plain quadratic term fixes the 90-95 band but is NOT what shipped -
+# it overshoots badly beyond it (bias swings from +0.68 to -2.42 in the
+# 95-100 band) with unstable fold-to-fold coefficients (the linear
+# wpr_nett term flips negative in every fold, only corrected by the
+# quadratic) - a small-sample overfitting signature, not a genuine
+# relationship (wpr_nonlinear_top_end_test.py).
+#
+# A HINGE term - max(0, raw_level - knot), i.e. exactly 0 below the knot
+# and growing 1:1 with raw_level above it - is far gentler: it cannot
+# accelerate the way a quadratic's curvature can, so it does not run away
+# in the sparse extreme tail. K=4-fold knot grid search (75-92) landed on
+# 75 for every tier, with a stable, same-sign hinge coefficient across
+# every fold in every tier (no sign flips, unlike the quadratic). Fixes
+# the well-evidenced 90-95 band cleanly in every tier (e.g. full tier:
+# +1.51 -> -0.30 bias) with a small overall MAE improvement everywhere.
+# STILL not perfect beyond ~95 (bias sign-flips to over-projection there,
+# e.g. full tier 100+: +1.40 -> -1.62, on n=6-13 per tier - too sparse to
+# resolve either direction with confidence) - this is an honest, accepted
+# limit of how little data exists for genuinely elite horses, not
+# something this fix claims to solve, only to handle better than a flat
+# line that we now know for certain is wrong in one direction.
+_HINGE_KNOT = 75.0
+
+
+def _base_hinge(raw_level):
+    return max(0.0, raw_level - _HINGE_KNOT)
 
 
 def _calibrate_base(raw):
@@ -486,20 +533,22 @@ def _compute_base(feat):
     nett = feat.get("wpr_nett")
     ewm5 = feat.get("ewm5")
     if _ok(nett) and _ok(ewm5):
+        nett, ewm5 = float(nett), float(ewm5)
+        hinge = _base_hinge((nett + ewm5) / 2.0)
         track = feat.get("track_wpr")
         best3 = feat.get("best3")
         if _ok(track) and _ok(best3):
             tier = _BASE_SIGNAL_TIERS["full"]
-            i, (c_nett, c_ewm5, c_track, c_best3) = tier["intercept"], tier["coef"]
-            return i + c_nett * float(nett) + c_ewm5 * float(ewm5) \
-                + c_track * float(track) + c_best3 * float(best3)
+            i, (c_nett, c_ewm5, c_track, c_best3, c_hinge) = tier["intercept"], tier["coef"]
+            return i + c_nett * nett + c_ewm5 * ewm5 \
+                + c_track * float(track) + c_best3 * float(best3) + c_hinge * hinge
         if _ok(track):
             tier = _BASE_SIGNAL_TIERS["track"]
-            i, (c_nett, c_ewm5, c_track) = tier["intercept"], tier["coef"]
-            return i + c_nett * float(nett) + c_ewm5 * float(ewm5) + c_track * float(track)
+            i, (c_nett, c_ewm5, c_track, c_hinge) = tier["intercept"], tier["coef"]
+            return i + c_nett * nett + c_ewm5 * ewm5 + c_track * float(track) + c_hinge * hinge
         tier = _BASE_SIGNAL_TIERS["minimal"]
-        i, (c_nett, c_ewm5) = tier["intercept"], tier["coef"]
-        return i + c_nett * float(nett) + c_ewm5 * float(ewm5)
+        i, (c_nett, c_ewm5, c_hinge) = tier["intercept"], tier["coef"]
+        return i + c_nett * nett + c_ewm5 * ewm5 + c_hinge * hinge
     for key in ("wpr_nett", "ewm5", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
@@ -3143,14 +3192,19 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     _tier_min = _BASE_SIGNAL_TIERS["minimal"]
     _tier_trk = _BASE_SIGNAL_TIERS["track"]
     _tier_full = _BASE_SIGNAL_TIERS["full"]
-    _i_m, (_c_m_nett, _c_m_ewm5) = _tier_min["intercept"], _tier_min["coef"]
-    _i_t, (_c_t_nett, _c_t_ewm5, _c_t_track) = _tier_trk["intercept"], _tier_trk["coef"]
-    _i_f, (_c_f_nett, _c_f_ewm5, _c_f_track, _c_f_best3) = _tier_full["intercept"], _tier_full["coef"]
+    _i_m, (_c_m_nett, _c_m_ewm5, _c_m_hinge) = _tier_min["intercept"], _tier_min["coef"]
+    _i_t, (_c_t_nett, _c_t_ewm5, _c_t_track, _c_t_hinge) = _tier_trk["intercept"], _tier_trk["coef"]
+    _i_f, (_c_f_nett, _c_f_ewm5, _c_f_track, _c_f_best3, _c_f_hinge) = _tier_full["intercept"], _tier_full["coef"]
+    # hinge (see _HINGE_KNOT/_base_hinge) - same raw_level definition
+    # ((wpr_nett+ewm5)/2) used by every tier, applied vectorized here.
+    _hinge_val = (D["wpr_nett"] + D["ewm5"]) / 2.0 - _HINGE_KNOT
+    _hinge_val = _hinge_val.clip(lower=0.0)
 
-    _base_minimal = _i_m + _c_m_nett * D["wpr_nett"] + _c_m_ewm5 * D["ewm5"]
-    _base_track = _i_t + _c_t_nett * D["wpr_nett"] + _c_t_ewm5 * D["ewm5"] + _c_t_track * D["track_wpr"]
+    _base_minimal = _i_m + _c_m_nett * D["wpr_nett"] + _c_m_ewm5 * D["ewm5"] + _c_m_hinge * _hinge_val
+    _base_track = (_i_t + _c_t_nett * D["wpr_nett"] + _c_t_ewm5 * D["ewm5"]
+                   + _c_t_track * D["track_wpr"] + _c_t_hinge * _hinge_val)
     _base_full = (_i_f + _c_f_nett * D["wpr_nett"] + _c_f_ewm5 * D["ewm5"]
-                  + _c_f_track * D["track_wpr"] + _c_f_best3 * D["best3"])
+                  + _c_f_track * D["track_wpr"] + _c_f_best3 * D["best3"] + _c_f_hinge * _hinge_val)
 
     _has_track = D["track_wpr"].notna()
     _has_best3 = D["best3"].notna()
