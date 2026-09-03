@@ -51,12 +51,12 @@
     "mean_rel_distmatch": 0.5102706741911288,
     "n_distmatch": 4.0
   },
-  "heldout_corr": 0.283,
+  "heldout_corr": 0.2883383618809755,
   "y_quantiles": {
-    "hot": -0.91,
-    "fast": -0.31,
-    "even": 0.17,
-    "slow": 0.84
+    "hot": -0.85,
+    "fast": -0.26,
+    "even": 0.19,
+    "slow": 0.86
   },
   "n_train": 17767
 }
