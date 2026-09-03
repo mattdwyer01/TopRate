@@ -14,13 +14,12 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { SummaryTab } from './features/summary/SummaryTab'
 
-type TopTab = 'race' | 'review' | 'summary'
+type TopTab = 'race' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'summary' ? t : 'race'
+  return t === 'review' ? t : 'race'
 }
 
 function App() {
@@ -61,7 +60,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'summary') {
+    if (tab === 'review') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -135,16 +134,6 @@ function App() {
               >
                 Review
               </button>
-              <button
-                type="button"
-                onClick={() => switchTab('summary')}
-                className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
-                  (topTab === 'summary' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Summary
-              </button>
             </nav>
           </div>
           <div className="flex items-center gap-3">
@@ -192,18 +181,6 @@ function App() {
         )}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
-        )}
-        {state.status === 'ready' && topTab === 'summary' && (
-          <SummaryTab
-            races={state.data.races}
-            onSelectRace={goToRace}
-            showBush={showBush}
-            onShowBushChange={setShowBush}
-            deltas={deltas}
-            bases={bases}
-            scratched={scratched}
-            priceBeta={betaOverride ?? state.data.priceBeta}
-          />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
