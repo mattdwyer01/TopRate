@@ -71,7 +71,7 @@ export function RunnerRow({
           onClick()
         }
       }}
-      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_44px_60px_56px_56px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] ${rowPadding} ${
+      className={`grid w-full cursor-pointer grid-cols-[40px_1fr_44px_60px_68px_70px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
