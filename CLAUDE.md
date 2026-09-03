@@ -47,7 +47,6 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `describe()` (the plain-English projection explanation shown in the
   dashboard's runner detail panel).
 - `toprate_json_capture.py` — rich per-runner form capture (SvelteKit __data.json).
-- `supabase_sync.py` — pushes runners + form history to Supabase each run.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
   runs. There is a duplicate `daily.yml` in the repo ROOT that is NOT used —
   ignore it (or delete it); only `.github/workflows/daily.yml` matters.
@@ -114,20 +113,23 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 ## Secrets — never commit these
 
-- `supabase_key.txt` (service_role key) is gitignored. Never read it into output,
-  never commit it, never print it. The Action uses the `SUPABASE_SERVICE_KEY`
-  GitHub secret instead.
 - Never print or echo any key, token, or password in output.
 
-## Current state (migration in progress)
+## Current state
 
-- The data is being migrated to Supabase (Postgres). Two tables exist and are
-  loaded: `wpr_form_history` (composite key run_id+date) and `toprate_runners`
-  (key run_id). The daily Action now writes to Supabase in parallel with the CSVs
-  (see `supabase_sync.py` calls in `toprate_daily.py`). Schema is in
-  `supabase_schema.sql`.
-- The dashboard still reads `toprate_data.json` (not Supabase yet). Repointing
-  the dashboard to read from Supabase is a planned future step.
+- Supabase was tried as a parallel Postgres copy of `toprate_runners` and
+  `wpr_form_history` (with an eye toward eventually repointing the dashboard
+  at it), then dropped (Sep 2026) - it never actually served the live
+  dashboard (which reads `toprate_data.json` directly, unchanged throughout),
+  cost real money and ~5-10 min of extra daily-run time for syncing, and was
+  the source of most of the bugs chased around that time (schema drift, a
+  bigint-cast bug, a silently-abandoned background sync, a storage-quota
+  overage). If Supabase (or another external DB) is wanted again, treat it as
+  a fresh decision rather than resurrecting the old `supabase_sync.py` - the
+  git history has it (search for "Fix two Supabase sync bugs" and nearby
+  commits) if the old approach is a useful reference. A collaborator who had
+  read-only Supabase dashboard access now gets the CSVs directly instead
+  (`toprate_runners.csv`, `wpr_form_history.csv.gz`) via repo access.
 - The WPR projection model is at its accuracy ceiling; extensive feature and
   structural experiments found no improvement beyond noise. Do not add model
   complexity without a fundamentally new data source. The unexplored lever is
