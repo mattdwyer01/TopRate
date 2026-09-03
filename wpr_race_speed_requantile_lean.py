@@ -90,7 +90,7 @@ def run():
 
     counts = Counter(label(p) for p in predicted)
     print(f"Label split under NEW thresholds (on this same held-out sample): {counts}")
-    print(f"  as %: {{{', '.join(f'{k}: {v/len(new_labels)*100:.0f}%' for k, v in counts.items())}}}")
+    print(f"  as %: {{{', '.join(f'{k}: {v/len(predicted)*100:.0f}%' for k, v in counts.items())}}}")
 
     cfg = json.load(open(CONFIG_PATH))
     cfg["y_quantiles"] = {"hot": float(hot), "fast": float(fast),
