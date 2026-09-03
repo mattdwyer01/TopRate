@@ -211,7 +211,7 @@ export function RaceDetail({
             (silk/horse/RTS/proj/wprPrice/fixedPrice) so labels land above
             the right column - the desktop header below covers every column
             but is hidden below sm since most of them aren't shown there. */}
-        <div className="grid grid-cols-[40px_1fr_44px_60px_56px_56px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
+        <div className="grid grid-cols-[40px_1fr_44px_60px_68px_70px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
           <span />
           <button
             type="button"
@@ -249,7 +249,7 @@ export function RaceDetail({
             Fixed $
           </button>
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_56px_56px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
