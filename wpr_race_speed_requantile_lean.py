@@ -25,6 +25,20 @@ import race_speed_estimate as rse
 
 FORM_CSV = "wpr_form_history.csv.gz"
 TEST_CUTOFF = "2026-03-01"  # matches train()'s own date-based split
+# CALIBRATION_WINDOW_START (Sep 2026, drift fix): predicted_rse has a
+# genuine, confirmed upward drift within the held-out period itself
+# (wpr_race_speed_drift_check.py - monthly mean climbs from -0.130 in
+# March to roughly -0.02/-0.004 by May-August, then plateaus). Fitting
+# quantiles on the FULL 6-month held-out period (as the first version of
+# this script did) gets pulled down by the now-stale March/April months,
+# leaving thresholds too low for what the model actually produces now -
+# confirmed directly: even after fixing the pred_tr/pred_te mismatch, the
+# most recent 1,500 races still skewed Hot 51% (barely improved from
+# 49% before that fix). Restricting calibration to the recent, stable
+# window (May onward, where the drift has plateaued) instead of the full
+# period fixes this without needing an unstable rolling recalibration
+# scheme - re-run this again periodically if drift resumes.
+CALIBRATION_WINDOW_START = "2026-05-01"
 CONFIG_PATH = "race_speed_config.json"
 
 
@@ -41,8 +55,12 @@ def run():
                         n=("horse_lc", "count"))
                    .reset_index())
     race_meta = race_meta[race_meta["n"] >= 4]
-    test_races = race_meta[race_meta["date"] >= pd.Timestamp(TEST_CUTOFF)]
-    print(f"Held-out (test) races on/after {TEST_CUTOFF}: {len(test_races):,}")
+    # Held-out (genuinely out-of-sample, per train()'s own split) AND
+    # within the recent, drift-stable calibration window - see
+    # CALIBRATION_WINDOW_START's comment above.
+    test_races = race_meta[(race_meta["date"] >= pd.Timestamp(TEST_CUTOFF))
+                            & (race_meta["date"] >= pd.Timestamp(CALIBRATION_WINDOW_START))]
+    print(f"Held-out (test) races on/after {max(TEST_CUTOFF, CALIBRATION_WINDOW_START)}: {len(test_races):,}")
 
     fh_by_race = fh.groupby("race_key")
     pmeans_by_date = {}
