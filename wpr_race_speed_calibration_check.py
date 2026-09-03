@@ -60,18 +60,26 @@ def run():
     race_ids = rdf.sort_values("date")["race_id"].drop_duplicates().tail(1500).tolist()
     print(f"Scoring {len(race_ids):,} real races via the LIVE estimate_race_speed() call path...")
 
+    races_by_id = {rid: g for rid, g in rdf[rdf["race_id"].isin(race_ids)].groupby("race_id")}
+    # pmeans only depends on race_date (see _prior_means docstring) - every
+    # race on the same day shares one, so compute it once per unique date
+    # instead of once per race (the exact inefficiency estimate_race_speed's
+    # own docstring warns about for multi-race callers).
+    pmeans_by_date = {}
     predicted = []
     labels = []
     for i, rid in enumerate(race_ids):
         if i % 300 == 0:
             print(f"  ... {i}/{len(race_ids)}")
-        race = rdf[rdf["race_id"] == rid]
-        if len(race) < 4:
+        race = races_by_id.get(rid)
+        if race is None or len(race) < 4:
             continue
         race_date = race["date"].iloc[0]
+        if race_date not in pmeans_by_date:
+            pmeans_by_date[race_date] = rse._prior_means(fh, race_date)
         try:
-            res = rse.estimate_race_speed(race, race_date, fh)
-        except Exception as e:
+            res = rse.estimate_race_speed(race, race_date, fh, pmeans=pmeans_by_date[race_date])
+        except Exception:
             continue
         predicted.append(res["predicted_rse"])
         labels.append(res["label"])
