@@ -35,10 +35,21 @@ WHAT THIS IS
   not just one 50/50 split, with its own base calibration re-derived per
   fold - see _BASE_BLEND_ALPHA's docstring) showed the improvement held in
   every fold, directly addressing the generalisation concern that motivated
-  the revert. (A brief Aug 2026 period removed wpr_nett from base entirely
-  for zero dependence on TopRate's own unaudited rating - reverted at the
-  user's explicit instruction after it cost a real, measured ~0.56 held-out
-  MAE; see git history for both sets of numbers.)
+  the revert. Reverted again days later, Sep 2026, once that whole 0.80
+  decision was traced to a real data leak in build_training_frame()'s own
+  wpr_nett merge (every historical row for a horse was stamped with the
+  SAME, latest-known wpr_nett rather than that row's own point-in-time
+  value - confirmed NOT a live-serving bug, project_race() always read
+  wpr_nett fresh per race). Re-running the same K=4-fold validation with
+  that leak fixed reversed the finding outright (MAE rises monotonically
+  with alpha), and a follow-up full [0,1] sweep plus standalone-signal
+  comparison found the genuine optimum at alpha=0.40 (ewm3-leaning, not the
+  previous 50/50 default and not the leaked 0.80) - see _BASE_BLEND_ALPHA's
+  docstring for both re-validations. (A brief Aug 2026 period removed
+  wpr_nett from base entirely for zero dependence on TopRate's own
+  unaudited rating - reverted at the user's explicit instruction after it
+  cost a real, measured ~0.56 held-out MAE; see git history for both sets
+  of numbers.)
   ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
   for something simpler and more transparent than a fitted regression) is
   sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
@@ -362,8 +373,13 @@ ADJ_TERMS = [
 # re-fit together with _BASE_BLEND_ALPHA (see that block's docstring).
 # _CALIB_ADJ_SLOPE is independent of the base blend entirely (calibrates the
 # ADJUSTMENT sum, not the base anchor) and is untouched by the alpha choice.
-_CALIB_INTERCEPT = -5.4714
-_CALIB_BASE_SLOPE = 1.0319
+#
+# Re-fit for _BASE_BLEND_ALPHA=0.40 in Sep 2026 (wpr_refit_alpha04_
+# calibration.py) alongside the alpha correction below - single global OLS
+# fit (target ~ raw base) on the full leak-corrected resulted set, same
+# convention the previous -5.4714/1.0319 constants came from.
+_CALIB_INTERCEPT = 6.5421
+_CALIB_BASE_SLOPE = 0.8839
 _CALIB_ADJ_SLOPE = 0.1791
 
 # The blend weight was raised to 0.80 in Aug 2026 after finding a real,
@@ -403,7 +419,35 @@ _CALIB_ADJ_SLOPE = 0.1791
 # more conservative pick that still keeps most of the gain. If revisiting
 # this again, the K=4-fold methodology above is the bar to clear, not a
 # single split.
-_BASE_BLEND_ALPHA = 0.80
+#
+# REVERTED again in Sep 2026, days later: the entire 0.80 decision above
+# turned out to rest on a real data leak in build_training_frame()'s own
+# wpr_nett merge (it joins historical form rows onto toprate_runners.csv by
+# run_id, which every row in a horse's scraped-history batch shares - so
+# EVERY historical row for a horse got stamped with whatever wpr_nett was
+# as of the LATEST scrape, not that row's own point-in-time value, i.e.
+# real look-ahead leakage for this offline validation only. Confirmed NOT a
+# live-serving bug - project_race()'s live path reads wpr_nett fresh from
+# today's own toprate_runners.csv row, a different and correct data path).
+# Re-running the exact same K=4-fold methodology with wpr_nett re-merged by
+# (horse, date, race_id) instead (wpr_alpha_08_leak_corrected_validation.py)
+# reversed the finding completely: MAE now rises MONOTONICALLY with alpha
+# across the whole tested range (0.50 best of {0.5,0.7,0.8,0.9,1.0} at
+# 6.7413, 1.00 worst at 6.9869) - the "wpr_nett has become more predictive
+# over time" story the 0.80 decision was built on was an artifact of that
+# leak, not a real drift.
+#
+# Followed up with a full [0,1] sweep plus standalone single-signal
+# comparisons (wpr_best_anchor_signal_test.py) to find the genuine optimum
+# rather than assume 0.50: ewm3 alone (6.8120 MAE) clearly beats wpr_nett
+# alone (6.9998) once the leak is gone, and the blend minimum is a flat
+# plateau at alpha=0.3-0.4, bottoming at alpha=0.40 (6.7506) before rising
+# monotonically toward pure wpr_nett. Shipping 0.40 - the actual measured
+# optimum, tilted toward the horse's own recent form over TopRate's rating,
+# not the previous default of 0.50 and not the leaked 0.80. If revisiting
+# this again, re-run wpr_best_anchor_signal_test.py's full-range sweep with
+# the wpr_nett leak fix, not a narrow range around the current value.
+_BASE_BLEND_ALPHA = 0.40
 
 # Base calibration was piecewise (3-segment: bottom 10% / middle 70% / top
 # 20%, each with its own fitted slope) from Aug 2026 to Sep 2026, added
@@ -439,10 +483,13 @@ def _compute_base(feat):
     ~3 runs) when both are available. Shifted from a flat 50/50 to a
     data-derived 0.80 in Aug 2026, reverted back to 50/50 shortly after at
     the user's explicit instruction (a single-split validation couldn't
-    rule out a generalisation problem), then re-raised to 0.80 again in Sep
-    2026 after a proper K=4-fold chronological re-validation confirmed the
-    improvement holds fold-by-fold - see _BASE_BLEND_ALPHA's docstring for
-    the full history and both validations. wpr_nett is never
+    rule out a generalisation problem), re-raised to 0.80 again in Sep
+    2026 after a proper K=4-fold chronological re-validation appeared to
+    confirm the improvement fold-by-fold, then reverted a final time days
+    later once that whole 0.80 result was traced to a wpr_nett data leak in
+    the validation frame - a leak-corrected re-run found the genuine
+    optimum at 0.40, not 50/50 and not 0.80 - see _BASE_BLEND_ALPHA's
+    docstring for the full history and all validations. wpr_nett is never
     dropped from base entirely - a brief Aug 2026 period that removed it
     cost a real, measured ~0.56 held-out MAE (5.769 -> 6.333) for zero
     dependence on TopRate's own unaudited rating, reverted at the user's
