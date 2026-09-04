@@ -106,7 +106,8 @@ def run():
     full = merge_won_by_horse_date(full)
 
     full = add_base(full)
-    non_tb_terms = [t for t in wpr.ADJ_TERMS if t not in ("track_barrier", "closing_merit")]
+    non_tb_terms = [t for t in wpr.ADJ_TERMS
+                    if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit")]
     full = full.dropna(subset=["target", "_base", "career_avg"] + non_tb_terms +
                         ["barrier", "field_size", "track", "cur_distance"])
     print(f"\nScoped rows: {len(full):,}")
