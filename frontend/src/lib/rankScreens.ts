@@ -75,20 +75,61 @@ export interface RankScreenRow {
   placed: boolean
 }
 
+// Two ways to slice by date: the usual rolling window (matches signalWatch.ts/
+// accuracyStats.ts's Period), or "last N occurrences of this weekday" - added
+// so a specific validation check done during this rule's research (checking
+// results against the real last 4 actual Saturdays, since that's the day most
+// of the meaningful racing falls on) can be reproduced live on the dashboard
+// instead of needing a one-off script.
+export type RankScreenDateFilter =
+  | { mode: 'period'; period: 'all' | '90' | '30' }
+  | { mode: 'weekday'; weekday: number; count: number } // weekday: 0=Sun..6=Sat
+
 export interface RankScreenFilters {
-  period: 'all' | '90' | '30'
+  dateFilter: RankScreenDateFilter
   excludeBush: boolean
 }
 
-/** Same period/bush-track filtering convention as signalWatch.ts/
- * accuracyStats.ts, applied independently so this feature can't regress
- * either of those pipelines. */
+function dateOnly(s: string): string {
+  return s.slice(0, 10)
+}
+
+/** The last `count` calendar dates (today included) that fall on `weekday`,
+ * as "YYYY-MM-DD" strings - computed by walking back from today one day at a
+ * time rather than doing modular date arithmetic, since that's trivially
+ * correct across month/year boundaries and DST doesn't apply to plain
+ * calendar dates. Built once per render, not per-race. */
+export function lastNWeekdayDates(weekday: number, count: number): Set<string> {
+  const dates = new Set<string>()
+  const now = new Date()
+  const cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  let guard = 0
+  while (dates.size < count && guard < 3660) {
+    if (cursor.getUTCDay() === weekday) dates.add(cursor.toISOString().slice(0, 10))
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
+    guard += 1
+  }
+  return dates
+}
+
+function buildDateMatcher(filter: RankScreenDateFilter): (raceDate: string) => boolean {
+  if (filter.mode === 'period') {
+    if (filter.period === 'all') return () => true
+    const cutoff = Date.now() - Number(filter.period) * 86_400_000
+    return (raceDate) => new Date(raceDate).getTime() >= cutoff
+  }
+  const dates = lastNWeekdayDates(filter.weekday, filter.count)
+  return (raceDate) => dates.has(dateOnly(raceDate))
+}
+
+/** Same bush-track filtering convention as signalWatch.ts/accuracyStats.ts,
+ * applied independently so this feature can't regress either pipeline. */
 export function collectRankScreenRows(races: Race[], tierId: RankScreenTierId, filters: RankScreenFilters): RankScreenRow[] {
   const tier = RANK_SCREEN_TIERS.find((t) => t.id === tierId) ?? RANK_SCREEN_TIERS[0]
-  const cutoff = filters.period === 'all' ? null : Date.now() - Number(filters.period) * 86_400_000
+  const matchesDate = buildDateMatcher(filters.dateFilter)
   const rows: RankScreenRow[] = []
   for (const race of races) {
-    if (cutoff != null && new Date(race.date).getTime() < cutoff) continue
+    if (!matchesDate(race.date)) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
 
     // Rank ewm5 within the full non-scratched field first (matters for

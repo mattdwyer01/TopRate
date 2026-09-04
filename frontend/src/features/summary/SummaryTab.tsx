@@ -6,6 +6,8 @@ import {
   RANK_SCREEN_TRAINER_CUT,
   collectRankScreenRows,
   computeRankScreenStats,
+  lastNWeekdayDates,
+  type RankScreenDateFilter,
   type RankScreenTierId,
 } from '../../lib/rankScreens'
 import { StatTile } from '../../components/StatTile'
@@ -22,7 +24,18 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: 'all', label: 'All time' },
 ]
 
+const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 const MAX_DETAIL_ROWS = 100
+
+function fmtDateShort(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  })
+}
 
 function fmtSigned(v: number | null, digits = 1): string {
   if (v == null || Number.isNaN(v)) return '-'
@@ -43,36 +56,103 @@ function fmtPct(v: number | null): string {
 // once, not one, and the user asked for a dedicated place to flip between
 // them.
 export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
+  const [dateMode, setDateMode] = useState<'period' | 'weekday'>('period')
   const [period, setPeriod] = useState<Period>('90')
+  const [weekday, setWeekday] = useState(6) // Saturday
+  const [weekdayCount, setWeekdayCount] = useState(4)
   const [excludeBush, setExcludeBush] = useState(true)
   const [tierId, setTierId] = useState<RankScreenTierId>('targeted')
 
   const tier = RANK_SCREEN_TIERS.find((t) => t.id === tierId) ?? RANK_SCREEN_TIERS[0]
 
+  const dateFilter: RankScreenDateFilter =
+    dateMode === 'period' ? { mode: 'period', period } : { mode: 'weekday', weekday, count: weekdayCount }
+
   const rows = useMemo(
-    () => collectRankScreenRows(races, tierId, { period, excludeBush }),
-    [races, tierId, period, excludeBush]
+    () => collectRankScreenRows(races, tierId, { dateFilter, excludeBush }),
+    // dateFilter is rebuilt every render from primitives below - listing those
+    // primitives (not the object itself) keeps this memo from recomputing on
+    // every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [races, tierId, dateMode, period, weekday, weekdayCount, excludeBush]
   )
   const stats = useMemo(() => computeRankScreenStats(rows), [rows])
+
+  // Shown under the weekday picker so "last 4 Saturdays" is reproducible
+  // rather than a black box - names exactly which calendar dates qualified.
+  const weekdayDates = useMemo(
+    () => (dateMode === 'weekday' ? [...lastNWeekdayDates(weekday, weekdayCount)].sort().reverse() : []),
+    [dateMode, weekday, weekdayCount]
+  )
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-md border border-line bg-panel p-0.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => setPeriod(p.value)}
-              className={
-                'rounded px-2.5 py-1 text-xs font-medium transition-colors ' +
-                (period === p.value ? 'bg-emerald text-white' : 'text-ink-mute hover:text-ink')
-              }
-            >
-              {p.label}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => setDateMode('period')}
+            className={
+              'rounded px-2.5 py-1 text-xs font-medium transition-colors ' +
+              (dateMode === 'period' ? 'bg-emerald text-white' : 'text-ink-mute hover:text-ink')
+            }
+          >
+            Rolling window
+          </button>
+          <button
+            type="button"
+            onClick={() => setDateMode('weekday')}
+            className={
+              'rounded px-2.5 py-1 text-xs font-medium transition-colors ' +
+              (dateMode === 'weekday' ? 'bg-emerald text-white' : 'text-ink-mute hover:text-ink')
+            }
+          >
+            Day of week
+          </button>
         </div>
+
+        {dateMode === 'period' ? (
+          <div className="flex rounded-md border border-line bg-panel p-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setPeriod(p.value)}
+                className={
+                  'rounded px-2.5 py-1 text-xs font-medium transition-colors ' +
+                  (period === p.value ? 'bg-emerald text-white' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
+            <span>Last</span>
+            <input
+              type="number"
+              min={1}
+              max={52}
+              value={weekdayCount}
+              onChange={(e) => setWeekdayCount(Math.min(52, Math.max(1, Number(e.target.value) || 1)))}
+              className="w-14 rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink"
+            />
+            <select
+              value={weekday}
+              onChange={(e) => setWeekday(Number(e.target.value))}
+              className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink"
+            >
+              {WEEKDAY_LABELS.map((label, i) => (
+                <option key={i} value={i}>
+                  {label}
+                  {weekdayCount !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <label className="flex items-center gap-1.5 text-xs text-ink-soft">
           <input
             type="checkbox"
@@ -83,6 +163,12 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
           Exclude bush/picnic tracks
         </label>
       </div>
+
+      {dateMode === 'weekday' && weekdayDates.length > 0 && (
+        <p className="text-xs text-ink-faint">
+          Selected dates: {weekdayDates.map(fmtDateShort).join(', ')}
+        </p>
+      )}
 
       <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-xs text-ink-soft sm:p-4">
         <span className="font-semibold text-ink">Experimental, not a proven edge.</span> These three tiers are
