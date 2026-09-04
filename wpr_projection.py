@@ -38,12 +38,14 @@ WHAT THIS IS
   between them by construction - but a freely-FITTED calibration slope
   reintroduced an almost identical symptom via shrinkage (caught before
   shipping: the exact Autumn Glow inputs still gave base=99.04 under a
-  fitted slope). Fixed at the user's explicit instruction ("should be no
-  calibration shrinkage") by pinning the calibration slope at 1.0 and
-  fitting only an additive offset (_BASE_CALIB_OFFSET) - see _compute_base
-  and _calibrate_base for the full account and the small (~0.2% relative)
-  held-out MAE cost this accepts. ewm5 (not ewm3) is used as the second
-  signal because it was re-verified (wpr_best_anchor_signal_test.py
+  fitted slope). A first fix attempt kept a single additive offset
+  (slope pinned at 1.0) - REJECTED by the user ("no calibration") and,
+  independently, shown to be measurably worse on held-out MAE than no
+  correction at all (see _compute_base's history for the numbers: MAE is
+  an L1 loss, minimized by the residual MEDIAN, not the MEAN an additive
+  offset like that one was fit on). Base now has NO calibration step at
+  all - it IS the raw two-signal blend. ewm5 (not ewm3) is used as the
+  second signal because it was re-verified (wpr_best_anchor_signal_test.py
   extended, Sep 2026) to beat ewm3 on standalone held-out MAE (6.758 vs
   6.812) and in blend with wpr_nett (best alpha 0.30, MAE 6.7094, vs
   ewm3's best alpha 0.40, MAE 6.7503) - a strictly better, zero-cost swap,
@@ -188,7 +190,7 @@ _MIN_RUNS = 1          # fewer prior runs than this -> no projection
 # reduction (avg 9.8350 -> 9.2496). _DEBUT_TRIAL_COEF below is the
 # full-data OLS fit (fit on ALL 8,452 debutants once the K-fold split
 # validated the approach generalises - same precedent as every other
-# "final production constants" fit this session, e.g. _BASE_CALIB_OFFSET).
+# "final production constants" fit this session, e.g. _BASE_BLEND_ALPHA).
 _DEBUT_TRIAL_COEF = {
     "intercept": 60.4199,
     "n_trials": 1.2594,
@@ -372,11 +374,10 @@ ADJ_TERMS = [
 # reimplementation of this same base formula (see "_base" there) - that
 # path fits/evaluates the RAW model against real targets; calibration is a
 # serving-time correction on top of it, not part of what gets trained.
-# _BASE_CALIB_OFFSET (below, alongside _BASE_BLEND_ALPHA) calibrates
-# the base anchor, applied uniformly via _calibrate_base() to both the
-# main wpr_nett/ewm5 blend path and the single-source fallback.
-# _CALIB_ADJ_SLOPE calibrates the ADJUSTMENT sum, not the base anchor, and
-# is unrelated to any of this - untouched by every base-side change below.
+# The base anchor now has NO calibration step at all - see _compute_base's
+# history below for why. _CALIB_ADJ_SLOPE calibrates the ADJUSTMENT sum,
+# not the base anchor, and is unrelated to any of this - untouched by
+# every base-side change below.
 _CALIB_ADJ_SLOPE = 0.1791
 
 # HISTORY (condensed - see git history / this session's scripts for full
@@ -391,7 +392,7 @@ _CALIB_ADJ_SLOPE = 0.1791
 # always read wpr_nett fresh per race). A leak-corrected full [0,1] alpha
 # sweep found the genuine fixed-weight optimum at alpha=0.40 (shipped
 # briefly), tilted toward the horse's own recent form over TopRate's
-# rating - see _BASE_CALIB_OFFSET's history for that constant's derivation.
+# rating.
 #
 # SUPERSEDED, same session, once the user asked "how could MAE be reduced
 # further": tested ewm5/track_wpr/best3 as additional base signals on top
@@ -431,51 +432,33 @@ _CALIB_ADJ_SLOPE = 0.1791
 # tail is a general property of this calibration approach, not specific to
 # tiering.
 #
-# FIX (user's explicit instruction: "should be no calibration shrinkage"):
-# _calibrate_base() below fixes the slope at 1.0 and fits ONLY an additive
-# offset (mean(target - raw) on the full leak-corrected set) - no
-# compression of extreme values at all, so the raw blend's "always between
-# its two inputs" guarantee survives all the way to the calibrated output
-# (Autumn Glow case -> base=102.26, ~1 point off its own inputs, not ~5).
-# Held-out MAE cost is small (6.7237 vs 6.7094 with a freely fitted slope,
-# ~0.2% relative) - within this model's known accuracy ceiling (see this
-# file's own module docstring) and an explicit, accepted trade for
-# removing the shrinkage artifact. The bias-by-level shape does not
-# disappear, it inverts (now UNDER-projects the bottom of the range,
-# ~+2.7 below raw level 60, and OVER-projects the very top, ~-2.6 above
-# raw level 100, n=13) - an honest trade, not a fix that eliminates bias
-# altogether, just the specific "elite horse scored below its own inputs"
-# shape.
+# FIRST FIX ATTEMPT (user's instruction: "should be no calibration
+# shrinkage"): kept a single additive offset (mean(target - raw), slope
+# fixed at 1.0) rather than a freely-fitted slope. REJECTED by the user
+# ("remove step 2, i said no calibration") - correctly: rechecked via
+# proper K=4-fold held-out MAE and the mean-based offset was not just
+# unwanted but measurably WORSE than no correction at all (6.7237 vs
+# 6.5998 with zero offset) - because MAE (L1 loss) is minimized by the
+# MEDIAN of the residual distribution, not the MEAN, and target-raw is
+# skewed enough that the two diverge (median-offset held-out MAE 6.5959,
+# almost identical to zero-offset, confirming zero-offset was never
+# leaving real accuracy on the table - it happened to already sit near
+# the L1-optimal point). So: no calibration step of any kind. base IS the
+# raw two-signal blend, nothing added, nothing scaled.
 #
 # ewm5 (not the originally-shipped ewm3) is used as the second signal:
 # re-verified head-to-head (wpr_best_anchor_signal_test.py extended with
 # an ewm5 arm, Sep 2026, same K=4-fold leak-corrected method) to beat ewm3
 # both standalone (held-out MAE 6.758 vs 6.812) and in blend with wpr_nett
-# (best alpha 0.30, MAE 6.7094, vs ewm3's best alpha 0.40, MAE 6.7503) -
-# a strictly better, zero-cost swap, not a tradeoff. _BASE_BLEND_ALPHA is
-# that same K=4-fold-verified value; _BASE_CALIB_OFFSET is the full-
-# population fit described above (same convention as every other constant
-# in this file: K-fold verified, then a single global fit on the full
-# leak-corrected resulted set for the shipped number).
+# (best alpha 0.30, MAE 6.7094 with a freely fitted slope - see above for
+# why that slope was itself rejected - vs ewm3's best alpha 0.40, MAE
+# 6.7503) - a strictly better, zero-cost swap, not a tradeoff.
+# _BASE_BLEND_ALPHA is that same K=4-fold-verified value.
 #
 # track_wpr/best3 are NOT deleted from the codebase - they remain
 # available as ADJ_TERMS candidate features (see FEATURES) - only their
 # use as BASE inputs was reverted.
 _BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm5 gets (1 - alpha) = 0.70
-_BASE_CALIB_OFFSET = -1.7893  # additive only - slope fixed at 1.0, no shrinkage
-
-
-def _calibrate_base(raw):
-    """Raw base (the wpr_nett/ewm5 blend, or - when one of those two is
-    missing entirely - a single-source fallback all the way down to
-    career_avg) -> calibrated value via a single additive offset, NOT a
-    fitted slope (see the FIX note above: a freely-fitted slope reintroduced
-    the exact "elite horse scored below its own inputs" symptom this whole
-    revert was meant to remove, via shrinkage rather than sub-1 tier
-    weights). Slope fixed at 1.0 so the "always between its two raw
-    inputs" property the blend itself guarantees survives all the way to
-    the number actually shown."""
-    return raw + _BASE_CALIB_OFFSET
 
 
 def _compute_base(feat):
@@ -489,8 +472,10 @@ def _compute_base(feat):
     entirely - rare in practice (career_avg is guaranteed once a horse
     clears _MIN_RUNS prior runs at all).
 
-    Returns the calibrated base - every caller wants this number, not a
-    raw signal value."""
+    NO calibration step (see _BASE_BLEND_ALPHA's history above - the
+    user's explicit instruction, and independently confirmed to cost
+    nothing in held-out MAE): the value returned here IS the raw blend,
+    unmodified. Every caller uses this number directly."""
     def _ok(v):
         return v is not None and not (isinstance(v, float) and v != v)
 
@@ -503,12 +488,11 @@ def _compute_base(feat):
     nett = feat.get("wpr_nett")
     ewm5 = feat.get("ewm5")
     if _ok(nett) and _ok(ewm5):
-        raw = _BASE_BLEND_ALPHA * float(nett) + (1 - _BASE_BLEND_ALPHA) * float(ewm5)
-        return _calibrate_base(raw)
+        return _BASE_BLEND_ALPHA * float(nett) + (1 - _BASE_BLEND_ALPHA) * float(ewm5)
     for key in ("wpr_nett", "ewm5", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
-            return _calibrate_base(float(v))
+            return float(v)
     return None
 
 
@@ -2377,12 +2361,12 @@ def project_race(runners, race_date):
                          for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
-    # Calibration offset (see _CALIB_ADJ_SLOPE/_BASE_CALIB_OFFSET above
-    # _compute_base) applied to the adjustment here - the intercept and
-    # base slope are already folded into base_arr via _compute_base,
-    # together reproducing the fitted decomposed calibration exactly while
-    # keeping base_wpr + adjustment == projected_wpr (per-feature
-    # contributions scaled too, so they still sum to the scaled adjustment).
+    # _CALIB_ADJ_SLOPE (adjustment-only calibration - see its own docstring
+    # above _compute_base) applied to the adjustment here. base_arr carries
+    # NO calibration of its own (see _compute_base - the raw blend is
+    # returned unmodified), so base_wpr + adjustment == projected_wpr still
+    # holds trivially (per-feature contributions scaled too, so they still
+    # sum to the scaled adjustment).
     adj_contributions = adj_contributions * _CALIB_ADJ_SLOPE
     adj = adj_contributions.sum(axis=1)
     proj = base_arr + adj
