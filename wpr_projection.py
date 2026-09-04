@@ -17,24 +17,45 @@ WHAT THIS IS
   (Aug 2026): it read as an unexplained constant fudge applied to every
   runner, which cost trust in the model even though it was a real, measured
   correction. See git history for the numbers if this is ever revisited.)
-  BASE is the horse's own anchor: a tiered multi-signal regression over
-  wpr_nett (TopRate's own pre-race rating), ewm5 (this horse's own
-  recency-weighted average of its last ~5 runs), track_wpr (own average
-  WPR at today's specific track) and best3 (best 3 of its last 6 runs) -
-  see _compute_base and _BASE_SIGNAL_TIERS for the exact tiering (which
-  signals are used depends on what's available for that horse) and the
-  full history of how this superseded first a flat 50/50 wpr_nett/ewm3
-  blend, then a data-derived alpha=0.80 blend (Aug-Sep 2026, eventually
-  traced to a data leak in build_training_frame()'s wpr_nett merge and
-  reverted), then a leak-corrected alpha=0.40 fixed-weight blend
-  (briefly shipped, Sep 2026), before the user's own follow-up question
-  ("what is the best measure of future performance?") led to testing
-  ewm5/track_wpr/best3 as additional signals and finding each earned a
-  real, K=4-fold-verified place over the 2-signal blend. (A brief Aug
-  2026 period removed wpr_nett from base entirely for zero dependence on
-  TopRate's own unaudited rating - reverted at the user's explicit
-  instruction after it cost a real, measured ~0.56 held-out MAE; see git
-  history for the numbers.)
+  BASE is the horse's own anchor: a fixed-weight blend of wpr_nett
+  (TopRate's own pre-race rating) and ewm5 (this horse's own recency-
+  weighted average of its last ~5 runs) - see _compute_base and
+  _BASE_BLEND_ALPHA. History: a flat 50/50 wpr_nett/ewm3 blend, then a
+  data-derived alpha=0.80 blend (Aug-Sep 2026, eventually traced to a
+  data leak in build_training_frame()'s wpr_nett merge and reverted),
+  then a leak-corrected alpha=0.40 fixed-weight blend (briefly shipped,
+  Sep 2026), then a tiered multi-signal regression adding track_wpr/
+  best3 on top of ewm5 (each earned a real, K=4-fold-verified MAE gain
+  over the 2-signal blend) plus a hinge term correcting elite-horse
+  under-projection - REVERTED again at the user's explicit request (Sep
+  2026) back to a simple wpr_nett/ewm5 blend: the tiered regression's
+  fitted weights did not sum to 1, so a horse whose two always-on inputs
+  disagreed could land BELOW/ABOVE both of them (a user-flagged case: a
+  horse with wpr_nett=103.0, ewm5=104.5 got base=99.1) - the hinge term
+  patched the resulting elite-tail symptom but not the structural cause.
+  A genuine two-signal alpha blend cannot do this on its own: it is a
+  convex combination of exactly two inputs, so the RAW blend is always
+  between them by construction - but a freely-FITTED calibration slope
+  reintroduced an almost identical symptom via shrinkage (caught before
+  shipping: the exact Autumn Glow inputs still gave base=99.04 under a
+  fitted slope). A first fix attempt kept a single additive offset
+  (slope pinned at 1.0) - REJECTED by the user ("no calibration") and,
+  independently, shown to be measurably worse on held-out MAE than no
+  correction at all (see _compute_base's history for the numbers: MAE is
+  an L1 loss, minimized by the residual MEDIAN, not the MEAN an additive
+  offset like that one was fit on). Base now has NO calibration step at
+  all - it IS the raw two-signal blend. ewm5 (not ewm3) is used as the
+  second signal because it was re-verified (wpr_best_anchor_signal_test.py
+  extended, Sep 2026) to beat ewm3 on standalone held-out MAE (6.758 vs
+  6.812) and in blend with wpr_nett (best alpha 0.30, MAE 6.7094, vs
+  ewm3's best alpha 0.40, MAE 6.7503) - a strictly better, zero-cost swap,
+  not a tradeoff. track_wpr/best3 remain available as ADJ_TERMS features
+  (see FEATURES) - only their use as BASE inputs was reverted. (A brief
+  Aug 2026 period removed
+  wpr_nett from base entirely for zero dependence on TopRate's own
+  unaudited rating - reverted at the user's explicit instruction after it
+  cost a real, measured ~0.56 held-out MAE; see git history for the
+  numbers.)
   ADJUSTMENT (rebuilt again, later Aug 2026, at the user's request
   for something simpler and more transparent than a fitted regression) is
   sum(ADJ_TERMS) - a handful of "+/- vs this horse's own career average at
@@ -169,7 +190,7 @@ _MIN_RUNS = 1          # fewer prior runs than this -> no projection
 # reduction (avg 9.8350 -> 9.2496). _DEBUT_TRIAL_COEF below is the
 # full-data OLS fit (fit on ALL 8,452 debutants once the K-fold split
 # validated the approach generalises - same precedent as every other
-# "final production constants" fit this session, e.g. _CALIB_INTERCEPT).
+# "final production constants" fit this session, e.g. _BASE_BLEND_ALPHA).
 _DEBUT_TRIAL_COEF = {
     "intercept": 60.4199,
     "n_trials": 1.2594,
@@ -284,8 +305,8 @@ FEATURES = [
     # gain measured in the Stage 0 work.
     "field_size",
     # --- wpr_nett: TopRate's own automated pre-race base rating. Feeds
-    # BASE directly again (see _compute_base - one of the tiered
-    # regression's always-on inputs), and is also
+    # BASE directly again (see _compute_base - one of the blend's two
+    # inputs), and is also
     # an input to the confidence (q10/q90 interval width) models, a
     # separate architecture. See build_features' cur_wpr_nett docstring
     # for the leak-check (frozen at first capture per run_id).
@@ -353,17 +374,10 @@ ADJ_TERMS = [
 # reimplementation of this same base formula (see "_base" there) - that
 # path fits/evaluates the RAW model against real targets; calibration is a
 # serving-time correction on top of it, not part of what gets trained.
-# _CALIB_INTERCEPT/_CALIB_BASE_SLOPE now serve only the rare single-source
-# fallback inside _calibrate_base() below (wpr_nett or ewm5 missing
-# entirely - effectively dead in practice, see _compute_base's docstring).
-# The main base path (both present) was superseded in Sep 2026 by a tiered
-# multi-signal regression - see _BASE_SIGNAL_TIERS below - whose outputs
-# are already calibrated by construction (a direct OLS fit against target),
-# so _calibrate_base() is no longer applied to them.
-# _CALIB_ADJ_SLOPE calibrates the ADJUSTMENT sum, not the base anchor, and
-# is unrelated to any of this - untouched by every base-side change below.
-_CALIB_INTERCEPT = 6.5421
-_CALIB_BASE_SLOPE = 0.8839
+# The base anchor now has NO calibration step at all - see _compute_base's
+# history below for why. _CALIB_ADJ_SLOPE calibrates the ADJUSTMENT sum,
+# not the base anchor, and is unrelated to any of this - untouched by
+# every base-side change below.
 _CALIB_ADJ_SLOPE = 0.1791
 
 # HISTORY (condensed - see git history / this session's scripts for full
@@ -378,149 +392,90 @@ _CALIB_ADJ_SLOPE = 0.1791
 # always read wpr_nett fresh per race). A leak-corrected full [0,1] alpha
 # sweep found the genuine fixed-weight optimum at alpha=0.40 (shipped
 # briefly), tilted toward the horse's own recent form over TopRate's
-# rating - see _CALIB_INTERCEPT's history for that constant's derivation.
+# rating.
 #
-# SUPERSEDED again, same session, once the user asked "how could MAE be
-# reduced further": a fixed alpha on exactly 2 signals turned out to leave
-# real accuracy on the table.
-#   1. ewm5 (5-run recency-weighted average) beats the shipped ewm3 (3-run)
-#      on standalone held-out MAE (6.7581 vs 6.8120, wpr_best_anchor_
-#      signal_test.py's own numbers were for ewm3 only) with IDENTICAL
-#      full coverage - a strictly better, zero-cost replacement, not a
-#      tradeoff (wpr_extended_signal_search.py).
-#   2. track_wpr (this horse's own average WPR at TODAY's specific track,
-#      already falls back to avg_last3 internally when it has no run
-#      there - see its own computation - so it is very rarely truly
-#      unavailable) and best3 (best 3 of the last 6 runs) each add a
-#      further, real, K=4-fold-verified reduction in held-out MAE on top
-#      of wpr_nett+ewm5 (wpr_multi_signal_regression_test.py, wpr_
-#      extended_signal_search.py) - win strike rate / avg beaten margin of
-#      the resulting top pick checked and unaffected (within normal fold
-#      noise) by any of these swaps, so this is a point-accuracy gain, not
-#      a pick-quality tradeoff (wpr_signal_strike_margin_combo_test.py).
-#   3. best3 is missing for ~38% of rows - NOT a "young vs established
-#      horse" split (checked directly: rows missing it span n_runs 2-168
-#      and the whole date range) but an incidental gap from how it is
-#      computed (best-of-last-6 pulls in NaN if any of a horse's last 6
-#      WPRs is itself unrated, e.g. an unrated race in that window,
-#      whereas ewm-style averages just skip NaNs) - effectively random
-#      with respect to horse quality, not a systematic bias risk.
-#   4. Rather than a single 2-signal fixed alpha, the base is now a
-#      3-tier regression (see _BASE_SIGNAL_TIERS) selected per horse by
-#      which of track_wpr/best3 are actually available for it, each
-#      tier's own weights fit directly against target (K=4-fold verified
-#      stable per fold, then a single global OLS fit on the full
-#      leak-corrected resulted set for the shipped constants, same
-#      convention as every other constant in this file).
-#   5. The FULL tier's best3 coefficient is NEGATIVE (-0.071) despite
-#      best3 correlating positively with target on its own (0.645) -
-#      checked this is NOT multicollinearity noise before shipping it:
-#      stable in sign and magnitude across all 4 folds under both OLS and
-#      Ridge(alpha=5). Reads as a real conditional effect, not an
-#      artifact: a best3 that is elevated relative to what wpr_nett/ewm5/
-#      track_wpr already say (i.e. the horse's peak-of-6 was a while back
-#      and its more recent form hasn't matched it) is mildly bearish, not
-#      bullish - consistent with "coasting on an old good run" rather than
-#      current form.
-_BASE_SIGNAL_TIERS = {
-    # (wpr_nett, ewm5) - the only two signals ever guaranteed for a horse
-    # that clears _MIN_RUNS at all; every other tier upgrades from here.
-    # Coefficients are (wpr_nett, ewm5, hinge) - see _HINGE_KNOT below for
-    # what the trailing hinge term is.
-    "minimal": {"cols": ("wpr_nett", "ewm5"),
-                "intercept": 2.4248, "coef": (0.6295, 0.2909, 0.1395)},
-    # + track_wpr (own average WPR at today's track, or its avg_last3
-    # fallback when no run there - see the note above). Coefficients are
-    # (wpr_nett, ewm5, track_wpr, hinge).
-    "track": {"cols": ("wpr_nett", "ewm5", "track_wpr"),
-              "intercept": 4.4721, "coef": (0.4016, 0.3749, 0.1235, 0.1082)},
-    # + best3 (best 3 of the last 6 runs) on top of track_wpr - only when
-    # best3 is genuinely available (see point 3 above for why it isn't
-    # always). Note the negative best3 coefficient - see point 5 above.
-    # Coefficients are (wpr_nett, ewm5, track_wpr, best3, hinge).
-    "full": {"cols": ("wpr_nett", "ewm5", "track_wpr", "best3"),
-             "intercept": 12.6285, "coef": (0.1732, 0.5448, 0.1420, -0.0589, 0.2354)},
-}
-
-# HINGE TERM (Sep 2026, user-flagged case: a horse with wpr_nett=103.0,
-# ewm5=104.5 got base=99.1 - BELOW both its own raw inputs, despite going
-# on to win with actual WPR 107.0). Investigated whether the tiered
-# regression above under-projects genuinely elite horses (checked: it
-# does NOT do this more than the old alpha-blend did in aggregate - see
-# wpr_tiered_base_tail_bias_check.py - so this isn't a regression from
-# that change). The real cause, found by bucketing held-out bias by raw
-# signal LEVEL ((wpr_nett+ewm5)/2): bias sits near zero through the bulk
-# of the range, then climbs steadily positive (under-projection) above
-# raw level ~90, in EVERY tier (minimal/track/full alike, all checked
-# separately - wpr_hinge_all_tiers_test.py), on samples large enough to
-# trust (n=514-1,146 per tier at raw level 90-95) - the plain linear fit
-# cannot capture this because it is dominated by the dense middle of the
-# distribution and extrapolates a straight line past it, when the true
-# relationship curves upward for genuinely elite horses.
+# SUPERSEDED, same session, once the user asked "how could MAE be reduced
+# further": tested ewm5/track_wpr/best3 as additional base signals on top
+# of the alpha=0.40 wpr_nett/ewm3 blend, found each earned a real,
+# K=4-fold-verified MAE gain, and shipped a 3-tier multi-signal regression
+# (selected per horse by which of track_wpr/best3 were available) plus a
+# hinge term correcting an elite-horse under-projection the tiers
+# introduced (full history: git log for "_BASE_SIGNAL_TIERS", "_HINGE_KNOT").
 #
-# A plain quadratic term fixes the 90-95 band but is NOT what shipped -
-# it overshoots badly beyond it (bias swings from +0.68 to -2.42 in the
-# 95-100 band) with unstable fold-to-fold coefficients (the linear
-# wpr_nett term flips negative in every fold, only corrected by the
-# quadratic) - a small-sample overfitting signature, not a genuine
-# relationship (wpr_nonlinear_top_end_test.py).
+# REVERTED again (Sep 2026), at the user's explicit request, back to a
+# simple two-signal wpr_nett/ewm5 alpha blend ("basic base calc"). Root
+# reason: the tiered regression's fitted weights did not sum to 1 (e.g.
+# full tier: 0.1732+0.5448+0.1420-0.0589 = 0.801, not 1.0), so it is not a
+# weighted average of its inputs - a horse whose inputs disagreed could
+# land BELOW/ABOVE both of them, which is exactly the user-flagged bug
+# (wpr_nett=103.0, ewm5=104.5 -> base=99.1, below both, despite the horse
+# going on to record an actual WPR of 107.0). The hinge term patched the
+# resulting elite-tail symptom (see git history) but not this structural
+# cause, and remained an honest, only-partial fix even for the tail it
+# targeted (see its own removed docstring in git history).
 #
-# A HINGE term - max(0, raw_level - knot), i.e. exactly 0 below the knot
-# and growing 1:1 with raw_level above it - is far gentler: it cannot
-# accelerate the way a quadratic's curvature can, so it does not run away
-# in the sparse extreme tail. K=4-fold knot grid search (75-92) landed on
-# 75 for every tier, with a stable, same-sign hinge coefficient across
-# every fold in every tier (no sign flips, unlike the quadratic). Fixes
-# the well-evidenced 90-95 band cleanly in every tier (e.g. full tier:
-# +1.51 -> -0.30 bias) with a small overall MAE improvement everywhere.
-# STILL not perfect beyond ~95 (bias sign-flips to over-projection there,
-# e.g. full tier 100+: +1.40 -> -1.62, on n=6-13 per tier - too sparse to
-# resolve either direction with confidence) - this is an honest, accepted
-# limit of how little data exists for genuinely elite horses, not
-# something this fix claims to solve, only to handle better than a flat
-# line that we now know for certain is wrong in one direction.
-_HINGE_KNOT = 75.0
-
-
-def _base_hinge(raw_level):
-    return max(0.0, raw_level - _HINGE_KNOT)
-
-
-def _calibrate_base(raw):
-    """Single-source raw base (wpr_nett or ewm5 alone, or a fallback all
-    the way down to career_avg) -> calibrated value via a single global
-    slope. Only reached when a horse has NEITHER of the two always-on
-    tiered-regression inputs available (see _compute_base) - effectively
-    dead in current data (wpr_nett/ewm5 coverage is 100% once _MIN_RUNS is
-    met), kept as a defensive fallback for whatever edge case eventually
-    hits it live."""
-    return _CALIB_INTERCEPT + _CALIB_BASE_SLOPE * raw
+# A genuine alpha blend (base = alpha*wpr_nett + (1-alpha)*ewm5, alpha in
+# [0,1]) cannot produce this failure mode by itself: it is a convex
+# combination of exactly two inputs, so the RAW blend is always between
+# them by construction. CORRECTION, caught before shipping: this does NOT
+# by itself mean the final (calibrated) base stays between them too - a
+# freely-FITTED calibration slope came out well below 1 (0.8968), which
+# shrinks extreme values toward the population mean regardless of how the
+# raw base was built. Checked directly: the exact Autumn Glow inputs
+# (wpr_nett=103.0, ewm5=104.5) still produced base=99.04 under a fitted-
+# slope calibration - almost identical to the original 99.1 bug, for a
+# different reason (shrinkage, not sub-1 tier weights). A held-out bias-
+# by-raw-level check (same diagnostic that originally caught the hinge-era
+# bug) confirmed this is not one bad case: bias climbs to +1.41 (under-
+# projection) in the 90-95 raw-level bucket under the fitted slope, same
+# shape as the tiered model - single-global-slope shrinkage at the elite
+# tail is a general property of this calibration approach, not specific to
+# tiering.
+#
+# FIRST FIX ATTEMPT (user's instruction: "should be no calibration
+# shrinkage"): kept a single additive offset (mean(target - raw), slope
+# fixed at 1.0) rather than a freely-fitted slope. REJECTED by the user
+# ("remove step 2, i said no calibration") - correctly: rechecked via
+# proper K=4-fold held-out MAE and the mean-based offset was not just
+# unwanted but measurably WORSE than no correction at all (6.7237 vs
+# 6.5998 with zero offset) - because MAE (L1 loss) is minimized by the
+# MEDIAN of the residual distribution, not the MEAN, and target-raw is
+# skewed enough that the two diverge (median-offset held-out MAE 6.5959,
+# almost identical to zero-offset, confirming zero-offset was never
+# leaving real accuracy on the table - it happened to already sit near
+# the L1-optimal point). So: no calibration step of any kind. base IS the
+# raw two-signal blend, nothing added, nothing scaled.
+#
+# ewm5 (not the originally-shipped ewm3) is used as the second signal:
+# re-verified head-to-head (wpr_best_anchor_signal_test.py extended with
+# an ewm5 arm, Sep 2026, same K=4-fold leak-corrected method) to beat ewm3
+# both standalone (held-out MAE 6.758 vs 6.812) and in blend with wpr_nett
+# (best alpha 0.30, MAE 6.7094 with a freely fitted slope - see above for
+# why that slope was itself rejected - vs ewm3's best alpha 0.40, MAE
+# 6.7503) - a strictly better, zero-cost swap, not a tradeoff.
+# _BASE_BLEND_ALPHA is that same K=4-fold-verified value.
+#
+# track_wpr/best3 are NOT deleted from the codebase - they remain
+# available as ADJ_TERMS candidate features (see FEATURES) - only their
+# use as BASE inputs was reverted.
+_BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm5 gets (1 - alpha) = 0.70
 
 
 def _compute_base(feat):
-    """The horse's own anchor for the additive model: a tiered multi-
-    signal regression (see _BASE_SIGNAL_TIERS above for the full history
-    of how this superseded a single fixed-weight wpr_nett/ewm3 alpha
-    blend) selected per horse by which of track_wpr/best3 are actually
-    available for it:
-      - wpr_nett (TopRate's own pre-race rating) + ewm5 (this horse's own
-        recency-weighted average of its last ~5 runs) are always used
-        when both are present - which is effectively always, once a horse
-        clears _MIN_RUNS prior runs at all.
-      - track_wpr (own average WPR at today's specific track) is added on
-        top when available.
-      - best3 (best 3 of the last 6 runs) is added on top of that again
-        when ALSO available (see _BASE_SIGNAL_TIERS point 3 for why it
-        sometimes isn't, even for well-established horses).
-    Each tier's weights were fit directly against target (already
-    calibrated by construction - no separate _calibrate_base() step for
-    this path). Falls back to _calibrate_base() on a single raw source
-    (wpr_nett, then ewm5, then avg_last3, then career_avg) only when
-    NEITHER wpr_nett nor ewm5 is available at all - see that function's
-    docstring for why this is effectively dead code in current data.
+    """The horse's own anchor for the additive model: a fixed-weight
+    blend of wpr_nett (TopRate's own pre-race rating) and ewm5 (this
+    horse's own recency-weighted average of its last ~5 runs) - see
+    _BASE_BLEND_ALPHA above for the full history of how this superseded,
+    and was then reverted back from, a tiered multi-signal regression.
+    Falls back to a single raw source (wpr_nett, then ewm5, then
+    avg_last3, then career_avg) only when one of wpr_nett/ewm5 is missing
+    entirely - rare in practice (career_avg is guaranteed once a horse
+    clears _MIN_RUNS prior runs at all).
 
-    Returns the calibrated base - every caller wants this number, not a
-    raw signal value."""
+    NO calibration step (see _BASE_BLEND_ALPHA's history above - the
+    user's explicit instruction, and independently confirmed to cost
+    nothing in held-out MAE): the value returned here IS the raw blend,
+    unmodified. Every caller uses this number directly."""
     def _ok(v):
         return v is not None and not (isinstance(v, float) and v != v)
 
@@ -533,26 +488,11 @@ def _compute_base(feat):
     nett = feat.get("wpr_nett")
     ewm5 = feat.get("ewm5")
     if _ok(nett) and _ok(ewm5):
-        nett, ewm5 = float(nett), float(ewm5)
-        hinge = _base_hinge((nett + ewm5) / 2.0)
-        track = feat.get("track_wpr")
-        best3 = feat.get("best3")
-        if _ok(track) and _ok(best3):
-            tier = _BASE_SIGNAL_TIERS["full"]
-            i, (c_nett, c_ewm5, c_track, c_best3, c_hinge) = tier["intercept"], tier["coef"]
-            return i + c_nett * nett + c_ewm5 * ewm5 \
-                + c_track * float(track) + c_best3 * float(best3) + c_hinge * hinge
-        if _ok(track):
-            tier = _BASE_SIGNAL_TIERS["track"]
-            i, (c_nett, c_ewm5, c_track, c_hinge) = tier["intercept"], tier["coef"]
-            return i + c_nett * nett + c_ewm5 * ewm5 + c_track * float(track) + c_hinge * hinge
-        tier = _BASE_SIGNAL_TIERS["minimal"]
-        i, (c_nett, c_ewm5, c_hinge) = tier["intercept"], tier["coef"]
-        return i + c_nett * nett + c_ewm5 * ewm5 + c_hinge * hinge
+        return _BASE_BLEND_ALPHA * float(nett) + (1 - _BASE_BLEND_ALPHA) * float(ewm5)
     for key in ("wpr_nett", "ewm5", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
-            return _calibrate_base(float(v))
+            return float(v)
     return None
 
 
@@ -2411,9 +2351,8 @@ def project_race(runners, race_date):
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
-    # the horse's own anchor (a tiered wpr_nett/ewm5/track_wpr/best3
-    # regression, falling back down a recency chain - see _compute_base);
-    # a fallback of None
+    # the horse's own anchor (a wpr_nett/ewm5 alpha blend, falling back
+    # down a recency chain - see _compute_base); a fallback of None
     # only happens if EVERY level feature is missing, which
     # build_features() cannot produce once it has passed the _MIN_RUNS
     # gate (career_avg always exists by then) - the 0.0 fallback below is
@@ -2422,12 +2361,12 @@ def project_race(runners, race_date):
                          for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
-    # Calibration slope (see _CALIB_ADJ_SLOPE/_CALIB_INTERCEPT above
-    # _compute_base) applied to the adjustment here - the intercept and
-    # base slope are already folded into base_arr via _compute_base,
-    # together reproducing the fitted decomposed calibration exactly while
-    # keeping base_wpr + adjustment == projected_wpr (per-feature
-    # contributions scaled too, so they still sum to the scaled adjustment).
+    # _CALIB_ADJ_SLOPE (adjustment-only calibration - see its own docstring
+    # above _compute_base) applied to the adjustment here. base_arr carries
+    # NO calibration of its own (see _compute_base - the raw blend is
+    # returned unmodified), so base_wpr + adjustment == projected_wpr still
+    # holds trivially (per-feature contributions scaled too, so they still
+    # sum to the scaled adjustment).
     adj_contributions = adj_contributions * _CALIB_ADJ_SLOPE
     adj = adj_contributions.sum(axis=1)
     proj = base_arr + adj
@@ -3179,41 +3118,18 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             print("  surface filter: no blank-going runs")
 
     # BASE for the additive architecture - must match _compute_base()
-    # exactly: the same tiered multi-signal regression (see
-    # _BASE_SIGNAL_TIERS), selected per row by which of track_wpr/best3
-    # are available, falling back to a single raw source (wpr_nett, then
-    # ewm5, then avg_last3, then career_avg) when neither wpr_nett nor
-    # ewm5 is available at all. Computed from RAW values, BEFORE the
+    # exactly: the RAW (uncalibrated) wpr_nett/ewm5 alpha blend (see
+    # _BASE_BLEND_ALPHA), falling back to a single raw source (wpr_nett,
+    # then ewm5, then avg_last3, then career_avg) when either of
+    # wpr_nett/ewm5 is missing. Computed from RAW values, BEFORE the
     # FEATURES median-fill below - the fallback chain only means anything
     # before a missing value gets silently replaced by the population
     # median. career_avg is guaranteed present once _MIN_RUNS is met, so
     # this should never actually fall through to NaN - the dropna is
     # defensive.
-    _tier_min = _BASE_SIGNAL_TIERS["minimal"]
-    _tier_trk = _BASE_SIGNAL_TIERS["track"]
-    _tier_full = _BASE_SIGNAL_TIERS["full"]
-    _i_m, (_c_m_nett, _c_m_ewm5, _c_m_hinge) = _tier_min["intercept"], _tier_min["coef"]
-    _i_t, (_c_t_nett, _c_t_ewm5, _c_t_track, _c_t_hinge) = _tier_trk["intercept"], _tier_trk["coef"]
-    _i_f, (_c_f_nett, _c_f_ewm5, _c_f_track, _c_f_best3, _c_f_hinge) = _tier_full["intercept"], _tier_full["coef"]
-    # hinge (see _HINGE_KNOT/_base_hinge) - same raw_level definition
-    # ((wpr_nett+ewm5)/2) used by every tier, applied vectorized here.
-    _hinge_val = (D["wpr_nett"] + D["ewm5"]) / 2.0 - _HINGE_KNOT
-    _hinge_val = _hinge_val.clip(lower=0.0)
-
-    _base_minimal = _i_m + _c_m_nett * D["wpr_nett"] + _c_m_ewm5 * D["ewm5"] + _c_m_hinge * _hinge_val
-    _base_track = (_i_t + _c_t_nett * D["wpr_nett"] + _c_t_ewm5 * D["ewm5"]
-                   + _c_t_track * D["track_wpr"] + _c_t_hinge * _hinge_val)
-    _base_full = (_i_f + _c_f_nett * D["wpr_nett"] + _c_f_ewm5 * D["ewm5"]
-                  + _c_f_track * D["track_wpr"] + _c_f_best3 * D["best3"] + _c_f_hinge * _hinge_val)
-
-    _has_track = D["track_wpr"].notna()
-    _has_best3 = D["best3"].notna()
-    D["_base"] = np.select(
-        [_has_track & _has_best3, _has_track],
-        [_base_full, _base_track],
-        default=_base_minimal,
-    )
-    D["_base"] = pd.Series(D["_base"], index=D.index).fillna(D["avg_last3"]).fillna(D["career_avg"])
+    D["_base"] = _BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - _BASE_BLEND_ALPHA) * D["ewm5"]
+    D["_base"] = D["_base"].fillna(D["wpr_nett"]).fillna(D["ewm5"]) \
+        .fillna(D["avg_last3"]).fillna(D["career_avg"])
     n_before_base = len(D)
     D = D.dropna(subset=["_base"]).copy()
     if len(D) < n_before_base:
