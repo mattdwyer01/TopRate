@@ -133,7 +133,7 @@
  },
  "conf_lo": 9.588172391763493,
  "conf_hi": 25.649943496466626,
- "beta": 0.15,
+ "beta": 0.3,
  "min_runs": 3,
  "track_barrier_lookup": {
   "Adaminaby|1000": {
