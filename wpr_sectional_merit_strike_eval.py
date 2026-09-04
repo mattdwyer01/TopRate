@@ -93,7 +93,11 @@ def top1_strike_rate(frame, proj_col):
 
 
 def proj_of(frame, extra_terms):
-    terms = list(wpr.ADJ_TERMS) + extra_terms
+    # trainer_merit/jockey_merit need their own population-fit lookup
+    # (like track_barrier/closing_merit) that this script never builds -
+    # they are not plain columns here, so excluded from the base ADJ_TERMS
+    # set (same exclusion as non_tb_terms below).
+    terms = [t for t in wpr.ADJ_TERMS if t not in ("trainer_merit", "jockey_merit")] + extra_terms
     return frame["_base"].to_numpy() + wpr._cap_adj_sum(frame[terms].to_numpy()).sum(axis=1)
 
 
