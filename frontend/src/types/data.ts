@@ -93,6 +93,11 @@ export interface RawRunner {
   scr?: 0 | 1
   wpjp: number | null
   wpjb: number | null
+  // Plain trailing form signals for the Summary tab's rank-conjunction
+  // rule (see toprate_daily.py's rc_ewm5/rc_avg_sect_i_time computation) -
+  // independent of wpjb/wpjp. Absent/undefined on older cached payloads.
+  wpje5?: number | null
+  wpjst?: number | null
   wpjadj: number | null
   wpjcb: Record<string, number> | null
   wpjc: number | null
