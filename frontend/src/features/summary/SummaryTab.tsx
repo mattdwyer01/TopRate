@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import {
-  RANK_SCREEN_JOCKEY_CUT,
+  RANK_SCREEN_PRICE_CAP,
   RANK_SCREEN_TIERS,
-  RANK_SCREEN_TRAINER_CUT,
   collectRankScreenRows,
   computeRankScreenStats,
   lastNWeekdayDates,
@@ -11,12 +10,26 @@ import {
   type RankScreenTierId,
 } from '../../lib/rankScreens'
 import { StatTile } from '../../components/StatTile'
+import { Pill } from '../../components/Pill'
+import { todayIso } from '../../lib/meetings'
 import type { Period } from '../../lib/accuracyStats'
 
 interface SummaryTabProps {
   races: Race[]
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
+
+type DateMode = 'day' | 'period' | 'weekday'
+
+// Same Yesterday/Today/Tomorrow quick-nav convention as MeetingsGrid's date
+// picker (lib/meetings.todayIso already handles the Melbourne-timezone
+// pitfall that bit an earlier feature here - never re-derive "today" via a
+// bare `new Date()`).
+const DAY_QUICK_BUTTONS: { label: string; offset: number }[] = [
+  { label: 'Yesterday', offset: -1 },
+  { label: 'Today', offset: 0 },
+  { label: 'Tomorrow', offset: 1 },
+]
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: '30', label: 'Last 30 days' },
@@ -47,16 +60,21 @@ function fmtPct(v: number | null): string {
   return `${v.toFixed(1)}%`
 }
 
-// Three toggleable volume tiers of one validated rank-conjunction betting
-// rule (see lib/rankScreens.ts for the full backtest history/caveats):
-// within-race form (ewm5) rank AND jockey_win_pct_90d>=15% AND
-// trainer_win_pct_365d>=15%, with only the form-rank cutoff varying across
-// tiers to trade selectivity for volume. Deliberately its own tab, not
-// folded into Review's Signal Watch panel - this is 3 candidate rules at
-// once, not one, and the user asked for a dedicated place to flip between
-// them.
+// Three toggleable volume tiers of one validated rule (see lib/rankScreens.ts
+// for the full backtest history/caveats, including why the original rank-
+// based version of this tab was scrapped): jockey_win_pct_90d AND
+// trainer_win_pct_365d both above a cutoff, price capped at $15, with only
+// the cutoff varying across tiers to trade selectivity for volume.
+// Deliberately its own tab, not folded into Review's Signal Watch panel -
+// this is 3 candidate rules at once, not one, and the user asked for a
+// dedicated place to flip between them.
 export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
-  const [dateMode, setDateMode] = useState<'period' | 'weekday'>('period')
+  // Defaults to today's picks (see Race tab's Meetings grid for the same
+  // convention) - a betting-rule tab should open on "what qualifies right
+  // now", not a historical backtest; Rolling window/Day of week stay one
+  // click away for the backtest view.
+  const [dateMode, setDateMode] = useState<DateMode>('day')
+  const [selectedDate, setSelectedDate] = useState(() => todayIso())
   const [period, setPeriod] = useState<Period>('90')
   const [weekday, setWeekday] = useState(6) // Saturday
   const [weekdayCount, setWeekdayCount] = useState(4)
@@ -66,7 +84,11 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
   const tier = RANK_SCREEN_TIERS.find((t) => t.id === tierId) ?? RANK_SCREEN_TIERS[0]
 
   const dateFilter: RankScreenDateFilter =
-    dateMode === 'period' ? { mode: 'period', period } : { mode: 'weekday', weekday, count: weekdayCount }
+    dateMode === 'day'
+      ? { mode: 'day', date: selectedDate }
+      : dateMode === 'period'
+        ? { mode: 'period', period }
+        : { mode: 'weekday', weekday, count: weekdayCount }
 
   const rows = useMemo(
     () => collectRankScreenRows(races, tierId, { dateFilter, excludeBush }),
@@ -74,7 +96,7 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
     // primitives (not the object itself) keeps this memo from recomputing on
     // every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [races, tierId, dateMode, period, weekday, weekdayCount, excludeBush]
+    [races, tierId, dateMode, selectedDate, period, weekday, weekdayCount, excludeBush]
   )
   const stats = useMemo(() => computeRankScreenStats(rows), [rows])
 
@@ -89,6 +111,16 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-md border border-line bg-panel p-0.5">
+          <button
+            type="button"
+            onClick={() => setDateMode('day')}
+            className={
+              'rounded px-2.5 py-1 text-xs font-medium transition-colors ' +
+              (dateMode === 'day' ? 'bg-emerald text-white' : 'text-ink-mute hover:text-ink')
+            }
+          >
+            Single day
+          </button>
           <button
             type="button"
             onClick={() => setDateMode('period')}
@@ -111,7 +143,24 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
           </button>
         </div>
 
-        {dateMode === 'period' ? (
+        {dateMode === 'day' ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {DAY_QUICK_BUTTONS.map((btn) => {
+              const btnDate = todayIso(btn.offset)
+              return (
+                <Pill key={btn.label} active={selectedDate === btnDate} onClick={() => setSelectedDate(btnDate)}>
+                  {btn.label}
+                </Pill>
+              )
+            })}
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
+            />
+          </div>
+        ) : dateMode === 'period' ? (
           <div className="flex rounded-md border border-line bg-panel p-0.5">
             {PERIODS.map((p) => (
               <button
@@ -172,12 +221,13 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
 
       <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-xs text-ink-soft sm:p-4">
         <span className="font-semibold text-ink">Experimental, not a proven edge.</span> These three tiers are
-        one backtested rule (form/ewm5 rank AND jockey 90-day win% &ge; {RANK_SCREEN_JOCKEY_CUT}% AND trainer
-        365-day win% &ge; {RANK_SCREEN_TRAINER_CUT}%), varying only how many top-ranked-by-form runners per
-        race qualify. It came from a wide offline search across dozens of signal combinations, checked across
-        chronological halves, the real last 30 days, and the last 4 actual Saturdays - direction held positive
-        every time, but magnitude shrank on the more recent, smaller checks. Track it here against real
-        results; it is not a bet recommendation.
+        one backtested rule - jockey (90-day) and trainer (365-day) win% both above a cutoff, price &le;$
+        {RANK_SCREEN_PRICE_CAP} - varying only the cutoff. WPR rank, sect_i_time rank, and recent-form (ewm5)
+        rank were all tested as additions and found NEGATIVE on clean data (a form-history duplication bug
+        made an earlier version of this rule look positive when it wasn't - see the repo's wpr_rank_
+        conjunction_screen_v9_deduped.py). Checked against the real last 30 days: direction held positive at
+        every cutoff, but smaller and noisier than the historical split, as usual for a rule found by search.
+        Track it here against real results; it is not a bet recommendation.
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -196,33 +246,42 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
             <div className={'text-sm font-semibold ' + (tierId === t.id ? 'text-emerald-deep' : 'text-ink')}>
               {t.label}
             </div>
-            <div className="mt-0.5 text-xs text-ink-faint">Form rank top-{t.formRankMax}</div>
+            <div className="mt-0.5 text-xs text-ink-faint">Jockey/trainer &ge;{t.cutoffPct}%</div>
           </button>
         ))}
       </div>
 
       <p className="text-xs text-ink-faint">{tier.description}</p>
 
-      {stats.n === 0 ? (
+      {rows.length === 0 ? (
         <div className="rounded-lg border border-line bg-panel p-6 text-center text-sm text-ink-mute">
-          No runners have matched this rule in this window yet.
+          No runners have matched this rule {dateMode === 'day' ? `on ${selectedDate}` : 'in this window'} yet.
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatTile label="Matches" value={String(stats.n)} />
-            <StatTile label="Win strike rate" value={fmtPct(stats.strikePct)} />
-            <StatTile label="Place strike rate" value={fmtPct(stats.placeStrikePct)} sublabel="top-3 finish" />
-            <StatTile
-              label="ROI"
-              value={fmtSigned(stats.roiPct, 1)}
-              tone={stats.roiPct != null && stats.roiPct > 0 ? 'positive' : 'negative'}
-            />
-          </div>
-          <div className="text-xs text-ink-faint">
-            Avg price {stats.avgPrice != null ? `$${stats.avgPrice.toFixed(2)}` : '-'}. ROI/win strike rate use
-            win price only (no place-price data is captured); place strike rate has no associated ROI.
-          </div>
+          {stats.n === 0 ? (
+            <div className="rounded-lg border border-line bg-panel p-4 text-sm text-ink-soft">
+              {stats.pendingN} pick{stats.pendingN === 1 ? '' : 's'} qualif{stats.pendingN === 1 ? 'ies' : 'y'} so far,
+              all still awaiting a result - see the table below.
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StatTile label="Matches" value={String(stats.n)} sublabel={stats.pendingN > 0 ? `+${stats.pendingN} pending` : undefined} />
+                <StatTile label="Win strike rate" value={fmtPct(stats.strikePct)} />
+                <StatTile label="Place strike rate" value={fmtPct(stats.placeStrikePct)} sublabel="top-3 finish" />
+                <StatTile
+                  label="ROI"
+                  value={fmtSigned(stats.roiPct, 1)}
+                  tone={stats.roiPct != null && stats.roiPct > 0 ? 'positive' : 'negative'}
+                />
+              </div>
+              <div className="text-xs text-ink-faint">
+                Avg price {stats.avgPrice != null ? `$${stats.avgPrice.toFixed(2)}` : '-'}. ROI/win strike rate use
+                win price only (no place-price data is captured); place strike rate has no associated ROI.
+              </div>
+            </>
+          )}
 
           <div className="max-h-[560px] overflow-y-auto rounded-lg border border-line bg-panel">
             <table className="w-full text-sm">
@@ -231,7 +290,8 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
                   <th className="px-3 py-2 font-medium">Date</th>
                   <th className="px-3 py-2 font-medium">Track</th>
                   <th className="px-3 py-2 font-medium">Horse</th>
-                  <th className="px-3 py-2 text-right font-medium">Form rank</th>
+                  <th className="px-3 py-2 text-right font-medium">Jockey %</th>
+                  <th className="px-3 py-2 text-right font-medium">Trainer %</th>
                   <th className="px-3 py-2 text-right font-medium">Price</th>
                   <th className="px-3 py-2 text-right font-medium">Result</th>
                 </tr>
@@ -249,10 +309,17 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
                       <td className="whitespace-nowrap px-3 py-1.5 text-ink-mute">{r.date}</td>
                       <td className="whitespace-nowrap px-3 py-1.5">{r.venue}</td>
                       <td className="px-3 py-1.5 font-medium">{r.horse}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-mute">#{r.formRank}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-ink-mute">
+                        {r.jockeyWinPct90d != null ? `${r.jockeyWinPct90d.toFixed(0)}%` : '-'}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-ink-mute">
+                        {r.trainerWinPct365d != null ? `${r.trainerWinPct365d.toFixed(0)}%` : '-'}
+                      </td>
                       <td className="px-3 py-1.5 text-right font-mono">${r.price.toFixed(2)}</td>
                       <td className="px-3 py-1.5 text-right">
-                        {r.won ? (
+                        {!r.resulted ? (
+                          <span className="text-ink-faint">Pending</span>
+                        ) : r.won ? (
                           <span className="font-semibold text-emerald-deep">Won</span>
                         ) : r.placed ? (
                           <span className="text-amber">Placed</span>
