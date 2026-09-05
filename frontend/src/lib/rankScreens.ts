@@ -2,30 +2,33 @@ import type { Race, Runner } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
 
 // Three volume tiers of ONE validated rule (Sep 2026, see
-// wpr_rank_conjunction_screen_v9_deduped.py in the repo root): jockey_win_
-// pct_90d AND trainer_win_pct_365d both above a cutoff, with the market
-// price capped at $15 to keep it staking-sane. Tiers vary only the
-// cutoff (18/20/22%) to trade selectivity for volume - no rank
-// condition (WPR, sect_i_time, or recent-form ewm5) is part of this rule.
+// wpr_rank_conjunction_screen_v9_deduped.py and its "2-of-3" follow-up
+// analysis in the repo root): at least 2 of the 3 rank signals (WPR,
+// sect_i_time, ewm5/recent form) ranking this runner top-3 in its race,
+// AND jockey_win_pct_90d/trainer_win_pct_365d both above a cutoff, with
+// the market price capped at $15 to keep it staking-sane. Tiers vary only
+// the cutoff (15/18/20%) to trade selectivity for volume.
 //
-// This is a full redesign, not a tuning pass, of the original rank-
-// conjunction rule (form/ewm5 rank AND jockey/trainer>=15%) shipped
-// earlier this same session. That rule was invalidated after discovering
-// wpr_form_history.csv.gz is 42% duplicate (horse, date) rows (a WPR
-// rebaseline re-scrape issue toprate_daily.py already dedupes for the
-// Race tab's form-history display, but which none of v1-v8's ewm5/
-// sect_i_time computations did) - fixing the duplication alone flipped
-// every rank-based tier from solidly positive to solidly negative ROI.
-// Re-running the full signal search (v9, on deduplicated data, large
-// chronological H1/H2 halves) found EVERY rank signal (WPR, sect_i_time,
-// form) is NEGATIVE alone or in combination, at every threshold tried -
-// the only genuinely robust, both-halves-positive finding left is
-// jockey/trainer on their own, and only once the cutoff is raised to
-// 18%+ (15% fails clean data: H1 -5.9%, H2 +0.9%). Checked live against
-// the real last 30 days: still positive at all three cutoffs, though (as
-// with every check this session) smaller and noisier than the H1/H2
-// historical split - the usual pattern for a rule mined by search.
+// This "2-of-3" shape is a deliberate choice, not the first thing tried.
+// History: the original version of this rule (form rank alone AND
+// jockey/trainer>=15%) was invalidated after discovering wpr_form_
+// history.csv.gz is 42% duplicate (horse, date) rows (a WPR rebaseline
+// re-scrape issue toprate_daily.py's own form_lookup already dedupes for
+// the Race tab's form-history display, but which no earlier version of
+// this rule's research did) - fixing the duplication alone flipped every
+// rank-based tier from solidly positive to solidly negative ROI. Re-
+// running the full signal search on deduplicated data found EVERY rank
+// signal (WPR, sect_i_time, form) is negative ALONE, and requiring ALL
+// THREE together (the "full combo") is inconsistent between chronological
+// halves at good cutoffs (small, noisy samples). Requiring at least 2 of
+// the 3 to agree, though, is both robust (both-halves-positive at every
+// cutoff from 15% to 20%) and keeps all three signals in play rather than
+// dropping them for a jockey/trainer-only rule - explicit user preference
+// over the simpler, single-signal alternative that was also tried and
+// works, but drops WPR/sect_time/form entirely.
 export const RANK_SCREEN_PRICE_CAP = 15
+export const RANK_SCREEN_TOP_N = 3 // a rank signal "agrees" when it puts the runner in the top 3 of its race
+export const RANK_SCREEN_MIN_SIGNALS = 2 // how many of the 3 must agree
 
 export type RankScreenTierId = 'targeted' | 'mid' | 'high'
 
@@ -40,20 +43,20 @@ export const RANK_SCREEN_TIERS: RankScreenTier[] = [
   {
     id: 'targeted',
     label: 'Targeted',
-    cutoffPct: 22,
-    description: 'Jockey (90-day) and trainer (365-day) win% both >=22%, price <=$15 - fewest bets, best backtested ROI.',
+    cutoffPct: 20,
+    description: '2-of-3 rank signals (WPR/sect time/form) top-3, AND jockey/trainer both >=20%, price <=$15 - fewest bets, best backtested ROI.',
   },
   {
     id: 'mid',
     label: 'Mid volume',
-    cutoffPct: 20,
-    description: 'Jockey and trainer win% both >=20%, price <=$15 - a middle ground on volume vs selectivity.',
+    cutoffPct: 18,
+    description: '2-of-3 rank signals top-3, AND jockey/trainer both >=18%, price <=$15 - a middle ground on volume vs selectivity.',
   },
   {
     id: 'high',
     label: 'High volume',
-    cutoffPct: 18,
-    description: 'Jockey and trainer win% both >=18%, price <=$15 - most bets, lower average edge per bet.',
+    cutoffPct: 15,
+    description: '2-of-3 rank signals top-3, AND jockey/trainer both >=15%, price <=$15 - most bets, thinnest edge per bet.',
   },
 ]
 
@@ -63,6 +66,7 @@ export interface RankScreenRow {
   date: string
   venue: string
   horse: string
+  signalCount: number // how many of WPR/sect_time/form ranked this runner top-3 (2 or 3)
   price: number
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null
@@ -134,6 +138,40 @@ function meetsCutoff(r: Runner, cutoffPct: number): boolean {
   return (r.jockeyWinPct90d ?? -Infinity) >= cutoffPct && (r.trainerWinPct365d ?? -Infinity) >= cutoffPct
 }
 
+/** Within-race rank helper: returns runId -> rank (1 = best) for a metric,
+ * descending (higher value = better), skipping scratched runners and
+ * runners with no value for this metric (never given a fabricated rank -
+ * a first-starter with no ewm5/avg_sect_i_time yet just doesn't count
+ * toward that signal, exactly as pandas' rank() leaves a NaN unranked). */
+function rankWithinRace(race: Race, metric: (r: Runner) => number | null): Map<string, number> {
+  const ranked = race.runners
+    .filter((r) => !r.dataScratched)
+    .map((r) => ({ r, v: metric(r) }))
+    .filter((x): x is { r: Runner; v: number } => x.v != null)
+    .sort((a, b) => b.v - a.v)
+  const result = new Map<string, number>()
+  ranked.forEach(({ r }, i) => result.set(r.runId, i + 1))
+  return result
+}
+
+/** How many of the 3 rank signals (WPR, sect_i_time, ewm5/form) put each
+ * runner in the top RANK_SCREEN_TOP_N of its race - keyed by runId. */
+function signalCountsForRace(race: Race): Map<string, number> {
+  const wprRanks = rankWithinRace(race, (r) => r.wprNett)
+  const sectRanks = rankWithinRace(race, (r) => r.avgSectITime)
+  const formRanks = rankWithinRace(race, (r) => r.ewm5)
+  const counts = new Map<string, number>()
+  for (const r of race.runners) {
+    if (r.dataScratched) continue
+    let c = 0
+    if ((wprRanks.get(r.runId) ?? Infinity) <= RANK_SCREEN_TOP_N) c += 1
+    if ((sectRanks.get(r.runId) ?? Infinity) <= RANK_SCREEN_TOP_N) c += 1
+    if ((formRanks.get(r.runId) ?? Infinity) <= RANK_SCREEN_TOP_N) c += 1
+    counts.set(r.runId, c)
+  }
+  return counts
+}
+
 /** Same bush-track filtering convention as signalWatch.ts/accuracyStats.ts,
  * applied independently so this feature can't regress either pipeline. */
 export function collectRankScreenRows(races: Race[], tierId: RankScreenTierId, filters: RankScreenFilters): RankScreenRow[] {
@@ -144,8 +182,11 @@ export function collectRankScreenRows(races: Race[], tierId: RankScreenTierId, f
     if (!matchesDate(race.date)) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
 
+    const signalCounts = signalCountsForRace(race)
     for (const r of race.runners) {
       if (r.dataScratched) continue
+      const signalCount = signalCounts.get(r.runId) ?? 0
+      if (signalCount < RANK_SCREEN_MIN_SIGNALS) continue
       if (!meetsCutoff(r, tier.cutoffPct)) continue
       const price = r.fixedWinPrice ?? r.startingPrice
       if (price == null || price <= 1 || price > RANK_SCREEN_PRICE_CAP) continue
@@ -161,6 +202,7 @@ export function collectRankScreenRows(races: Race[], tierId: RankScreenTierId, f
         date: race.date,
         venue: race.venue,
         horse: r.horse,
+        signalCount,
         price,
         jockeyWinPct90d: r.jockeyWinPct90d,
         trainerWinPct365d: r.trainerWinPct365d,
@@ -220,14 +262,17 @@ export function computeRankScreenStats(rows: RankScreenRow[]): RankScreenStats {
 /** For badging a single race's runners on the Race tab: the most
  * selective tier (Targeted > Mid > High) each non-scratched runner
  * qualifies for right now, keyed by runId. Since the tiers are nested
- * (a higher cutoff also clears the lower ones), a runner only ever gets
- * its BEST tier - no need to show three badges on one horse. Works
- * identically whether the race has resulted or not, so today's/
- * tomorrow's fields get badges too, not just settled ones. */
+ * (a higher cutoff also clears the lower ones, at the same 2-of-3 rank
+ * bar), a runner only ever gets its BEST tier - no need to show three
+ * badges on one horse. Works identically whether the race has resulted
+ * or not, so today's/tomorrow's fields get badges too, not just settled
+ * ones. */
 export function qualifyingTierForRace(race: Race): Map<string, RankScreenTierId> {
   const result = new Map<string, RankScreenTierId>()
+  const signalCounts = signalCountsForRace(race)
   for (const r of race.runners) {
     if (r.dataScratched) continue
+    if ((signalCounts.get(r.runId) ?? 0) < RANK_SCREEN_MIN_SIGNALS) continue
     const price = r.fixedWinPrice ?? r.startingPrice
     if (price == null || price <= 1 || price > RANK_SCREEN_PRICE_CAP) continue
     const tier = RANK_SCREEN_TIERS.find((t) => meetsCutoff(r, t.cutoffPct))

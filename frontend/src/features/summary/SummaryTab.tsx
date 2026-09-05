@@ -61,13 +61,12 @@ function fmtPct(v: number | null): string {
 }
 
 // Three toggleable volume tiers of one validated rule (see lib/rankScreens.ts
-// for the full backtest history/caveats, including why the original rank-
-// based version of this tab was scrapped): jockey_win_pct_90d AND
-// trainer_win_pct_365d both above a cutoff, price capped at $15, with only
-// the cutoff varying across tiers to trade selectivity for volume.
-// Deliberately its own tab, not folded into Review's Signal Watch panel -
-// this is 3 candidate rules at once, not one, and the user asked for a
-// dedicated place to flip between them.
+// for the full backtest history/caveats): at least 2 of 3 rank signals
+// (WPR, sect_i_time, ewm5/form) top-3 in the race, AND jockey_win_pct_90d/
+// trainer_win_pct_365d both above a cutoff, price capped at $15 - only the
+// cutoff varies across tiers. Deliberately its own tab, not folded into
+// Review's Signal Watch panel - this is 3 candidate rules at once, not
+// one, and the user asked for a dedicated place to flip between them.
 export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
   // Defaults to today's picks (see Race tab's Meetings grid for the same
   // convention) - a betting-rule tab should open on "what qualifies right
@@ -221,13 +220,15 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
 
       <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-xs text-ink-soft sm:p-4">
         <span className="font-semibold text-ink">Experimental, not a proven edge.</span> These three tiers are
-        one backtested rule - jockey (90-day) and trainer (365-day) win% both above a cutoff, price &le;$
-        {RANK_SCREEN_PRICE_CAP} - varying only the cutoff. WPR rank, sect_i_time rank, and recent-form (ewm5)
-        rank were all tested as additions and found NEGATIVE on clean data (a form-history duplication bug
-        made an earlier version of this rule look positive when it wasn't - see the repo's wpr_rank_
-        conjunction_screen_v9_deduped.py). Checked against the real last 30 days: direction held positive at
-        every cutoff, but smaller and noisier than the historical split, as usual for a rule found by search.
-        Track it here against real results; it is not a bet recommendation.
+        one backtested rule: at least 2 of 3 rank signals (WPR, sect_i_time, recent form/ewm5) rank the runner
+        top-3 in its race, AND jockey (90-day)/trainer (365-day) win% both clear a cutoff, price &le;$
+        {RANK_SCREEN_PRICE_CAP} - only the cutoff varies across tiers. Requiring all 3 signals (not just 2)
+        gave inconsistent, noisy results; requiring none (jockey/trainer alone) also clears the bar but drops
+        WPR/sect_time/form entirely - this "2 of 3" shape was chosen to keep all three signals in play. A
+        form-history duplication bug made an earlier, single-signal version of this rule look positive when it
+        wasn't - see the repo's wpr_rank_conjunction_screen_v9_deduped.py. Checked against the real last 30
+        days: direction held positive at every cutoff, but smaller and noisier than the historical split, as
+        usual for a rule found by search. Track it here against real results; it is not a bet recommendation.
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -246,7 +247,7 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
             <div className={'text-sm font-semibold ' + (tierId === t.id ? 'text-emerald-deep' : 'text-ink')}>
               {t.label}
             </div>
-            <div className="mt-0.5 text-xs text-ink-faint">Jockey/trainer &ge;{t.cutoffPct}%</div>
+            <div className="mt-0.5 text-xs text-ink-faint">2-of-3 signals, jockey/trainer &ge;{t.cutoffPct}%</div>
           </button>
         ))}
       </div>
@@ -290,6 +291,7 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
                   <th className="px-3 py-2 font-medium">Date</th>
                   <th className="px-3 py-2 font-medium">Track</th>
                   <th className="px-3 py-2 font-medium">Horse</th>
+                  <th className="px-3 py-2 text-right font-medium">Signals</th>
                   <th className="px-3 py-2 text-right font-medium">Jockey %</th>
                   <th className="px-3 py-2 text-right font-medium">Trainer %</th>
                   <th className="px-3 py-2 text-right font-medium">Price</th>
@@ -309,6 +311,7 @@ export function SummaryTab({ races, onSelectRace }: SummaryTabProps) {
                       <td className="whitespace-nowrap px-3 py-1.5 text-ink-mute">{r.date}</td>
                       <td className="whitespace-nowrap px-3 py-1.5">{r.venue}</td>
                       <td className="px-3 py-1.5 font-medium">{r.horse}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-mute">{r.signalCount}/3</td>
                       <td className="px-3 py-1.5 text-right font-mono text-ink-mute">
                         {r.jockeyWinPct90d != null ? `${r.jockeyWinPct90d.toFixed(0)}%` : '-'}
                       </td>
