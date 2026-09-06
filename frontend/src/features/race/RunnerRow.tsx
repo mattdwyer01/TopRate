@@ -3,7 +3,6 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { spellPosition } from '../../lib/spellPosition'
-import { RANK_SCREEN_TIERS, type RankScreenTierId } from '../../lib/rankScreens'
 
 interface RunnerRowProps {
   runner: Runner
@@ -11,21 +10,8 @@ interface RunnerRowProps {
   compact: boolean
   selected: boolean
   effective?: EffectiveRunner
-  // Which Summary-tab rank-conjunction tier (if any) this runner qualifies
-  // for right now - see lib/rankScreens.ts. null when it meets none of them.
-  qualifyingTier?: RankScreenTierId | null
   onClick: () => void
   onToggleScratch: () => void
-}
-
-// Short badge codes for the row (full label doesn't fit next to the horse
-// name) - tone strongest (emerald) for the most selective/best-backtested
-// tier, weakest (slate) for the highest-volume one, matching the Summary
-// tab's own framing of "best ROI" -> "most volume".
-const TIER_BADGE: Record<RankScreenTierId, { code: string; className: string }> = {
-  targeted: { code: 'TGT', className: 'border-emerald-line bg-emerald-bg text-emerald-deep' },
-  mid: { code: 'MID', className: 'border-amber-line bg-amber-bg text-amber' },
-  high: { code: 'HI', className: 'border-line bg-slate-bg text-slate' },
 }
 
 function fmtAdj(v: number | null): string {
@@ -52,12 +38,9 @@ export function RunnerRow({
   compact,
   selected,
   effective,
-  qualifyingTier,
   onClick,
   onToggleScratch,
 }: RunnerRowProps) {
-  const badge = qualifyingTier ? TIER_BADGE[qualifyingTier] : null
-  const badgeTier = qualifyingTier ? RANK_SCREEN_TIERS.find((t) => t.id === qualifyingTier) : null
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
   const scratched = effective?.scratched ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
@@ -112,17 +95,6 @@ export function RunnerRow({
           {runner.finishPosition === 1 && (
             <span className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono text-[10px] font-semibold text-amber sm:hidden">
               1
-            </span>
-          )}
-          {/* Experimental Summary-tab rule match - see lib/rankScreens.ts.
-              Not shown on a scratched runner (the model's own criteria no
-              longer apply to a horse that isn't running). */}
-          {badge && badgeTier && !scratched && (
-            <span
-              title={`Meets the Summary tab's "${badgeTier.label}" criteria: ${badgeTier.description}`}
-              className={`flex-none rounded border px-1 text-[10px] font-semibold ${badge.className}`}
-            >
-              {badge.code}
             </span>
           )}
           {runner.dataScratched ? (

@@ -2797,81 +2797,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
         print(f"  runners_df windowing skipped ({_e})")
     _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
 
-    # ── Trailing ewm5 + avg_sect_i_time for the Summary tab's rank rule ──────
-    # Two plain trailing form signals, computed independently of
-    # wpr_projection.py, exactly as wpr_rank_conjunction_screen_v9_
-    # deduped.py's load_trailing_form_deduped() defines them: ewm5 is a
-    # recency-weighted average of the horse's last ~5 runs' wpr;
-    # avg_sect_i_time is a plain rolling average of its last 6 runs'
-    # sect_i_time. Both use merge_asof (backward, exclusive of the race
-    # itself) rather than an exact (horse, date) join - reduces to the same
-    # value for a resulted race (its own immediately-preceding run either
-    # way) and additionally covers a pending race with no self-row in
-    # wpr_form_history.csv.gz yet, needed for the Race tab's badges and the
-    # Summary tab's Today/Tomorrow picks.
-    #
-    # CRITICAL: wpr_form_history.csv.gz has 42% duplicate (horse, date) rows
-    # (a WPR rebaseline re-scrape issue - see form_lookup's own dedup a few
-    # steps below) - found live (Sep 2026) while first building this
-    # computation: left undeduplicated, it silently turned a genuinely
-    # positive rank-conjunction rule negative. Dedup BEFORE computing either
-    # trailing average, every time, no exceptions.
-    runners_df = runners_df.copy()
-    runners_df["rc_ewm5"] = None
-    runners_df["rc_avg_sect_i_time"] = None
-    try:
-        if WPR_FORM_HISTORY_CSV.exists():
-            _rc_today_horses = set(
-                str(h).strip().lower() for h in runners_df.get("horse", []) if h)
-            _rc_cols = ["horse", "date", "wpr", "sect_i_time", "track", "scrape_date"]
-            _rc_fh = pd.read_csv(WPR_FORM_HISTORY_CSV, usecols=lambda c: c in _rc_cols,
-                                  dtype={"horse": str})
-            _rc_fh["horse_lc"] = _rc_fh["horse"].astype(str).str.strip().str.lower()
-            _rc_fh = _rc_fh[_rc_fh["horse_lc"].isin(_rc_today_horses)]
-            _rc_fh["wpr"] = pd.to_numeric(_rc_fh["wpr"], errors="coerce")
-            _rc_fh["sect_i_time"] = pd.to_numeric(_rc_fh.get("sect_i_time"), errors="coerce")
-            _rc_fh["date"] = pd.to_datetime(_rc_fh["date"], errors="coerce")
-            _rc_fh = _rc_fh.dropna(subset=["date"])
-            _rc_dedup_keys = ["horse_lc", "date"]
-            if "track" in _rc_fh.columns:
-                _rc_dedup_keys.append("track")
-            if "scrape_date" in _rc_fh.columns:
-                _rc_fh = _rc_fh.sort_values("scrape_date", kind="stable")
-            _rc_fh = _rc_fh.drop_duplicates(subset=_rc_dedup_keys, keep="last")
-            _rc_fh = _rc_fh.sort_values(["horse_lc", "date"])
-            _rc_g = _rc_fh.groupby("horse_lc", sort=False)
-            # INCLUDES each row's own result (no shift) - merge_asof's
-            # exclusive backward match is what excludes the race being
-            # evaluated, not a shift here (a shift here would double-exclude
-            # and land one run too far back).
-            _rc_fh["ewm5_asof"] = _rc_g["wpr"].transform(lambda s: s.ewm(span=5).mean())
-            _rc_fh["sect_asof"] = _rc_g["sect_i_time"].transform(
-                lambda s: s.rolling(6, min_periods=1).mean())
-            _rc_fh = _rc_fh.sort_values("date")
-
-            _rc_left = pd.DataFrame({
-                "date": pd.to_datetime(runners_df["date"], errors="coerce"),
-                "horse_lc": runners_df["horse"].astype(str).str.strip().str.lower(),
-                "_orig_order": np.arange(len(runners_df)),
-            })
-            # merge_asof requires a non-null, sorted "on" column - drop
-            # unparseable dates here (both rc_ columns stay None for them,
-            # via the np.nan default below) rather than erroring the build.
-            _rc_left = _rc_left.dropna(subset=["date"]).sort_values("date")
-
-            _rc_merged = pd.merge_asof(
-                _rc_left, _rc_fh[["date", "horse_lc", "ewm5_asof", "sect_asof"]],
-                on="date", by="horse_lc", direction="backward", allow_exact_matches=False,
-            )
-            _rc_ewm5 = np.full(len(runners_df), np.nan)
-            _rc_sect = np.full(len(runners_df), np.nan)
-            _rc_ewm5[_rc_merged["_orig_order"].to_numpy()] = _rc_merged["ewm5_asof"].to_numpy()
-            _rc_sect[_rc_merged["_orig_order"].to_numpy()] = _rc_merged["sect_asof"].to_numpy()
-            runners_df["rc_ewm5"] = _rc_ewm5
-            runners_df["rc_avg_sect_i_time"] = _rc_sect
-    except Exception as _e:
-        print(f"  rc_ewm5/rc_avg_sect_i_time computation skipped ({_e})")
-
     _FORM_RUNS_SHOWN = 10  # rows kept per horse for the detail-panel form table
 
     _step(f"Building form-history lookup (last {_FORM_RUNS_SHOWN} + peak + tendency)...")
@@ -3319,11 +3244,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # None on fallback runners (under 3 prior runs).
                 "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR
                 "wpjb":  sf(row.get("wprp_base")),    # base WPR (pre-adjustment)
-                # Plain trailing form signals for the Summary tab's rank-
-                # conjunction rule (see rc_ewm5/rc_avg_sect_i_time's
-                # computation above) - independent of wpjb/wpjp.
-                "wpje5": sf(row.get("rc_ewm5")),
-                "wpjst": sf(row.get("rc_avg_sect_i_time")),
                 "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)
                 "wpjcb": contrib_parsed,              # adjustment breakdown by feature
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100

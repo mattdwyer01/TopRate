@@ -109,13 +109,6 @@ export interface Runner {
   // projection at all - insufficient form history).
   projectedWpr: number | null
   baseWpr: number | null
-  // Plain trailing form signals for the Summary tab's rank-conjunction
-  // rule (see lib/rankScreens.ts) - independent of baseWpr/projectedWpr.
-  // ewm5: recency-weighted average of the horse's last ~5 runs' WPR.
-  // avgSectITime: rolling average of its last 6 runs' sect_i_time.
-  // Both null when there's no trailing form history yet (first starter).
-  ewm5: number | null
-  avgSectITime: number | null
   wprAdjustment: number | null
   // What drove wprAdjustment, by feature - values sum to wprAdjustment
   // exactly (includes a "baseline" entry for the model's uniform terms).

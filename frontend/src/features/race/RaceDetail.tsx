@@ -5,7 +5,6 @@ import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
-import { qualifyingTierForRace } from '../../lib/rankScreens'
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
@@ -87,12 +86,6 @@ export function RaceDetail({
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
     [race.runners, deltas, bases, priceBeta, effectiveScratched],
   )
-  // Which Summary-tab tier (if any) each runner qualifies for right now -
-  // see lib/rankScreens.ts's qualifyingTierForRace. Independent of
-  // deltas/bases/scratched (a manual WPR override doesn't change the
-  // model's own recent-form ranking), so it only needs to recompute when
-  // the race's own data changes.
-  const qualifyingTiers = useMemo(() => qualifyingTierForRace(race), [race])
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
   // only this race's runners against it, not the set's raw size.
@@ -281,7 +274,6 @@ export function RaceDetail({
             compact={compact}
             selected={runner.runId === selectedRunId}
             effective={effectiveByRunId[runner.runId]}
-            qualifyingTier={qualifyingTiers.get(runner.runId) ?? null}
             onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
             onToggleScratch={() => setScratched(runner.runId, !scratched.has(runner.runId))}
           />
