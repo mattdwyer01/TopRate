@@ -23,9 +23,26 @@ NO EM DASHES policy: hyphens only.
 
 # Strong markers: the run is compromised enough to void on its own (given an
 # underperformance). Health and hard-incident words.
+#
+# Sep 2026 expansion: 11 markers added after a diagnostic review of the
+# biggest currently-"unexplained" material misses (wpr_miss_review_v1.py) -
+# reading the actual comment text behind them turned up genuine incidents
+# with no marker on the original list (vet/behavioural/incident language,
+# not generic poor-run descriptions - every match sampled was a real
+# compromised run, often paired with corroborating language like
+# "vet-clear" or "ordered to trial"; see wpr_miss_review_v1.py's own
+# output for the sampled matches). Validated via
+# wpr_void_expansion_bidirectional_test.py before adding here: expanding
+# this list improved WPR's held-out projection MAE in BOTH directions of a
+# swapped chronological split (forward: 6.351 -> 6.241; reversed: 5.495 ->
+# 5.451) - this codebase's own bar for trusting a candidate change.
 STRONG = ["shin", "vet", "lame", "bled", "blood", "broke down", "fell",
           "checked", "badly hampered", "eased", "tailed off", "severely",
-          "pulled up", "lost rider", "fractured"]
+          "pulled up", "lost rider", "fractured",
+          "reared", "took no part", "difficult to load", "fractious",
+          "struck head", "stewards queried", "stewards query",
+          "resented kickback", "failed to handle", "cardiac",
+          "amiss", "flatfooted"]
 
 # Weak markers: minor trouble. Only voids a LARGE underperformance, since most
 # horses overcome these.
