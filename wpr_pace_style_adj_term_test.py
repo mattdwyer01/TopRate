@@ -6,6 +6,29 @@ barrier) benefit or suffer given the race's PREDICTED pace shape
 (cur_race_speed_label: Hot/Fast/Even/Slow, race_speed_estimate.py's own
 leak-safe pre-race model)?
 
+RESULT (Sep 2026): REJECTED - does not clear this codebase's own adoption
+bar. After fixing a window-mismatch bug in the first run (D spans years
+further back than the 365-day race_id_to_label window used initially,
+leaving direction B's test set with almost no label coverage and a
+meaningless exact-0.0000 read), a corrected run with D bounded to the
+labeled window (99.2% cur_race_speed_label coverage) made held-out MAE
+WORSE in BOTH directions, at every K tried (100/300/600):
+  direction A (forward):  6.2698 -> 6.2769/6.2774/6.2778 (worse, +0.007 to +0.008)
+  direction B (reversed): 5.5471 -> 5.5606/5.5610/5.5612 (worse, +0.0135 to +0.0141)
+Consistent and small - not a K-tuning problem, a real signal-strength
+problem. The underlying effect IS real (see wpr_track_bias_pace_review_v1.py's
+oracle-based diagnostic: leader miss -1.03 slow -> -4.00 hot, using the
+ACTUAL post-race pace/position) but this term has to run on two PREDICTED
+pre-race inputs instead - race_speed_estimate.py's own pace model (only
++0.29 held-out correlation, honestly documented as low-confidence) and
+cur_settle_band (itself a prediction from the horse's own history). Each
+noisy alone; combined, the real effect is diluted below what a population
+lookup can extract without adding more noise than signal. Consistent with
+race_speed_estimate.py's own caveat that any WPR-facing use of its
+estimate "must be a small, gentle adjustment... never a large swing" -
+even a small one does not survive here. Not pursued further without a
+materially better pre-race pace or running-style predictor first.
+
 WHY THIS EXISTS (direct user example): a lower-rated horse drawn to get an
 uncontested, soft lead (predicted Slow pace + predicted Leader) can be a
 BETTER bet than a higher-rated horse that has to work into a genuine speed
