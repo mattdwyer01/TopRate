@@ -86,6 +86,29 @@ def run():
     print("Loading form history...")
     fh = rse._load_and_prep_form()
     fh = fh.dropna(subset=["track", "raceNumber", "raceShapeEarly"])
+
+    # BUG FOUND (this run): the raw archive goes back to 2017 (2,839
+    # distinct calendar days). race_speed_estimate.py's own train()
+    # inherited pattern - pmeans_cache{} keyed by day, each entry a fresh
+    # set of ~13 dicts keyed by every horse_lc seen up to that day - grows
+    # unbounded over that many distinct days and OOM-killed this script
+    # twice (once at 6.75GB fighting for CPU with a concurrent job, once
+    # alone at 13.95GB - so this is a real inefficiency in the inherited
+    # design, not a contention artifact). Same latent risk likely exists
+    # in race_speed_estimate.py's own train() if ever re-run on today's
+    # full (now much longer than when it was last fit) archive - worth a
+    # separate look, not fixed here. Pragmatic bound for THIS test, same
+    # convention as wpr_own_pace_backtest.py's own --since default: keep
+    # 2 years of history (still >>> the 70/30 split needs, nowhere near
+    # 2017-2026's full 2,839 days) so pmeans_cache stays a few hundred
+    # entries, not thousands.
+    since = fh["date"].max() - pd.Timedelta(days=730)
+    n_before = len(fh)
+    fh = fh[fh["date"] >= since].copy()
+    print(f"  bounded to last 2 years ({since.date()} onward): "
+          f"{n_before:,} -> {len(fh):,} rows, "
+          f"{fh['date'].dt.normalize().nunique():,} distinct days")
+
     fh["race_key"] = (fh["track"].astype(str) + "|" + fh["date"].astype(str)
                       + "|" + fh["raceNumber"].astype(str))
     print(f"  {len(fh):,} rows")
