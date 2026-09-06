@@ -204,6 +204,21 @@ def run():
     D = prepare_frame(race_id_to_label)
     print(f"  done in {time.time() - t0:.0f}s")
 
+    # BUG FOUND (first run of this script): D spans years further back than
+    # the 365-day race_id_to_label window, so cur_race_speed_label coverage
+    # was only 51% overall - and direction B's test set (the OLDEST 15% of
+    # D's full multi-year span) fell almost entirely OUTSIDE the labeled
+    # window, landing at exactly 0.0000 baseline-vs-candidate difference in
+    # every K row - not a real "no effect" result, just no label data to
+    # test against. Bounding D to the SAME window as the labels fixes this:
+    # both directions' test sets now have full coverage, making the
+    # comparison meaningful in both.
+    n_before = len(D)
+    D = D[D["date"] >= pd.Timestamp(since)].copy()
+    print(f"  bounded D to the labeled window ({since} onward): {n_before:,} -> {len(D):,} rows")
+    print(f"  cur_race_speed_label coverage within bounded D: "
+          f"{D['cur_race_speed_label'].notna().mean()*100:.1f}%")
+
     print("\n=== pace_style ADJ_TERM candidate: K sweep, both directions ===")
     for k in K_VALUES:
         print(f"\n--- K={k:.0f} ---")
