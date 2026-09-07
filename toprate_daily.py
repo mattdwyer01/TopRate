@@ -3168,13 +3168,24 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _rel = (_ps / _fs).clip(0, 1)
             _rel = _rel.where((_ps > 0) & (_fs > 0))
             _sfh = _sfh.assign(_rel=_rel)
-            _grp = _sfh.dropna(subset=["_rel"]).groupby("horse_lc")["_rel"]
+
+            # Tactical-variance exclusion (settling_estimate.TACTICAL_MARKERS) -
+            # a run deliberately ridden further back than normal doesn't
+            # represent this horse's usual style, so it shouldn't count
+            # toward run_style_tendency/last5_tendency here either - must
+            # mirror settling_estimate.train()'s own exclusion or this
+            # dashboard-facing lookup silently diverges from the live model.
+            _cv = _sfh.get("comments_video", pd.Series("", index=_sfh.index)).fillna("").astype(str).str.lower()
+            _is_tactical = _cv.apply(lambda t: any(m in t for m in _se_mod.TACTICAL_MARKERS))
+            _rel_for_tendency = _rel.where(~_is_tactical)
+            _sfh = _sfh.assign(_rel_tend=_rel_for_tendency)
+            _grp = _sfh.dropna(subset=["_rel_tend"]).groupby("horse_lc")["_rel_tend"]
             _tendency = _grp.mean().to_dict()
 
             # last5_tendency per horse - same definition as
             # settling_estimate.last5_tendency, vectorised via rolling(5)
             # over each horse's own full (deduped, date-sorted) history.
-            _last5 = (_sfh.dropna(subset=["_rel"]).groupby("horse_lc")["_rel"]
+            _last5 = (_sfh.dropna(subset=["_rel_tend"]).groupby("horse_lc")["_rel_tend"]
                           .apply(lambda s: s.rolling(5, min_periods=1).mean().iloc[-1]).to_dict())
 
             # trailing early-speed rating per horse, winsorized at the
@@ -3211,10 +3222,33 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # sect_rank_in_race: rank each runner's trailing early-speed
             # rating against the OTHER runners in the SAME today's race -
             # one vectorised groupby-rank over all runners at once, not a
-            # per-race Python loop.
+            # per-race Python loop. Scratched runners are masked out of the
+            # ranking POOL (a scratched horse isn't part of the field that
+            # actually races) - found (Sep 2026) suppressing the genuinely-
+            # best active runner's percentile in a real case.
             _runners_hlc = runners_df["horse"].astype(str).str.strip().str.lower()
+            _runners_scratched = pd.to_numeric(runners_df.get("scratched"), errors="coerce").fillna(0) == 1
             _runners_sect = _runners_hlc.map(_sect_tendency)
-            _sect_rank_by_race = _runners_sect.groupby(runners_df["race_id"]).rank(pct=True)
+            _runners_sect_active = _runners_sect.where(~_runners_scratched)
+            _sect_rank_by_race = _runners_sect_active.groupby(runners_df["race_id"]).rank(pct=True)
+
+            # sect_margin_to_rest: how CLEAR a runner's trailing early-speed
+            # rating is of the rest of TODAY's active field, not just its
+            # rank (see settling_estimate.SECT_MARGIN_LO's own docstring -
+            # a rank alone can't tell "narrowly best" from "uncontested").
+            def _margin_to_rest_group(s):
+                vals = s.dropna()
+                out = pd.Series(np.nan, index=s.index)
+                if len(vals) < 2:
+                    return out
+                top_idx = vals.idxmax()
+                field_max = vals.max()
+                rest_max = vals.drop(top_idx).max()
+                for idx in vals.index:
+                    out[idx] = (vals[idx] - rest_max) if idx == top_idx else (vals[idx] - field_max)
+                return out
+            _sect_margin_by_race = _runners_sect_active.groupby(runners_df["race_id"]).transform(_margin_to_rest_group)
+            _sect_margin_by_race = _sect_margin_by_race.clip(_se_mod.SECT_MARGIN_LO, _se_mod.SECT_MARGIN_HI)
 
             _runners_tend = _runners_hlc.map(_tendency)
             _runners_last5 = _runners_hlc.map(_last5)
@@ -3237,6 +3271,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     "trailing_sect_ld_early": _runners_ld_early,
                     "trailing_sect_i_to800": _runners_i_to800,
                     "trailing_margin800m": _runners_margin800m,
+                    "sect_margin_to_rest": _sect_margin_by_race,
                 })
                 _med = _se_mod._CFG["medians"]
                 _feat_df = _feat_df[_se_mod._CFG["features"]].apply(
