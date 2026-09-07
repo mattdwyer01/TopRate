@@ -3216,12 +3216,21 @@ def _build_pace_shape_settle_lookup(since):
     rel_valid = rel.where(valid)
     g = fh["horse_lc"]
 
-    csum_incl = rel_valid.fillna(0).groupby(g).cumsum()
-    ccount_incl = valid.astype(int).groupby(g).cumsum()
+    # Tactical-variance exclusion (mirrors settling_estimate.train() -
+    # see its TACTICAL_MARKERS docstring) - must stay in sync with that
+    # function's own logic, or this leak-safe reconstruction silently
+    # diverges from what the live model was actually trained on.
+    cv = fh.get("comments_video", pd.Series("", index=fh.index)).fillna("").astype(str).str.lower()
+    is_tactical = cv.apply(lambda t: any(m in t for m in se.TACTICAL_MARKERS))
+    rel_for_tendency = rel_valid.where(~is_tactical)
+    valid_for_tendency = valid & ~is_tactical
+
+    csum_incl = rel_for_tendency.fillna(0).groupby(g).cumsum()
+    ccount_incl = valid_for_tendency.astype(int).groupby(g).cumsum()
     fh["run_style_tendency"] = (csum_incl.groupby(g).shift(1) /
                                 ccount_incl.groupby(g).shift(1).replace(0, np.nan))
 
-    fh["_rel_for_roll"] = rel_valid
+    fh["_rel_for_roll"] = rel_for_tendency
     fh["last5_tendency"] = fh.groupby("horse_lc")["_rel_for_roll"].transform(
         lambda s: s.rolling(5, min_periods=1).mean().shift(1))
     fh = fh.drop(columns=["_rel_for_roll"])
@@ -3256,6 +3265,23 @@ def _build_pace_shape_settle_lookup(since):
     fh["draw_frac"] = ((fh["barrier"] - 1) / (fh["field_size"] - 1)).clip(0, 1)
     fh["draw_signal"] = (fh["draw_frac"] - 0.5) * 2
     fh["sect_signal"] = (fh["sect_rank_in_race"] - 0.5) * 2
+
+    # sect_margin_to_rest (mirrors settling_estimate.train() - see its
+    # SECT_MARGIN_LO docstring) - same "must stay in sync" note as the
+    # tactical exclusion above.
+    def _margin_to_rest_vec(s):
+        vals = s.dropna()
+        if len(vals) < 2:
+            return pd.Series(np.nan, index=s.index)
+        top_idx = vals.idxmax()
+        field_max = vals.max()
+        rest_max = vals.drop(top_idx).max()
+        out = pd.Series(np.nan, index=s.index)
+        for idx in vals.index:
+            out[idx] = (vals[idx] - rest_max) if idx == top_idx else (vals[idx] - field_max)
+        return out
+    fh["sect_margin_to_rest"] = fh.groupby("_race_key")["trailing_sect_i_early"].transform(_margin_to_rest_vec)
+    fh["sect_margin_to_rest"] = fh["sect_margin_to_rest"].clip(se.SECT_MARGIN_LO, se.SECT_MARGIN_HI)
 
     se._load_model()
     features = se._CFG["features"]
