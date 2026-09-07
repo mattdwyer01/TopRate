@@ -4,16 +4,22 @@
   "last5_tendency",
   "draw_signal",
   "sect_signal",
-  "field_size"
+  "field_size",
+  "trailing_sect_ld_early",
+  "trailing_sect_i_to800",
+  "trailing_margin800m"
  ],
  "medians": {
-  "run_style_tendency": 0.5492307692307692,
-  "last5_tendency": 0.5493162393162393,
+  "run_style_tendency": 0.5494304306804307,
+  "last5_tendency": 0.549677405927406,
   "draw_signal": 0.0,
   "sect_signal": 0.19999999999999996,
-  "field_size": 10.0
+  "field_size": 10.0,
+  "trailing_sect_ld_early": -2.4499999999999997,
+  "trailing_sect_i_to800": -5.664999999999999,
+  "trailing_margin800m": 3.1333333333333333
  },
- "heldout_mae": 0.19822579612198868,
- "n_train": 114915,
+ "heldout_mae": 0.19729312191405143,
+ "n_train": 114322,
  "train_window_days": 730
 }

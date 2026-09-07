@@ -14,7 +14,7 @@ WHAT IT DOES
   foundation for both.
 
 THE MODEL (Sep 2026 rebuild: trained, not a hand-tuned formula)
-  A small LightGBM regressor on 5 features, predicting actual relative
+  A small LightGBM regressor on 8 features, predicting actual relative
   settle directly:
     - run_style_tendency: the horse's historical relative settle, the
       mean of (positionSettled / field_size) over its past runs. 0 =
@@ -29,6 +29,21 @@ THE MODEL (Sep 2026 rebuild: trained, not a hand-tuned formula)
       from run_style_tendency, which is ordinal (settled 3rd of 8 either
       way, whether by a nose or ten lengths).
     - field_size.
+    - trailing_sect_ld_early: trailing mean of sect_ld_early
+      ("leaderEarlySpeed") - how fast the LEADER went early in this
+      horse's past races, context for interpreting its own sect_i_early.
+    - trailing_sect_i_to800: trailing mean of sect_i_to800 - an early
+      sectional split further into the race than sect_i_early alone.
+    - trailing_margin800m: trailing mean of margin800m - how far behind
+      at the 800m mark in past races.
+    (Added Sep 2026, wpr_settle_extra_sectionals_test.py: validated
+    bidirectionally as a combined addition, MAE 0.1983 -> 0.1977 forward,
+    0.2033 -> 0.2025 reversed. Individually, trailing_margin800m alone
+    clears the bidirectional bar; trailing_sect_ld_early and
+    trailing_sect_i_to800 each only help ONE direction alone and would
+    not clear the bar on their own - shipped together anyway per explicit
+    user instruction, since the COMBINED addition is what was actually
+    tested and passed.)
 
   HISTORY - why this replaced a hand-tuned linear formula: the original
   design (predicted_rel = run_style_tendency + barrier_nudge, later +
@@ -128,6 +143,14 @@ BARRIER_MAX_NUDGE = 0.12
 # now learns that combination itself, on this same underlying feature.
 SECT_EARLY_LO, SECT_EARLY_HI = -24.54, 6.80   # winsorization bounds (1st/99th pctile, fit-time population)
 
+# Three more sectional fields already used by race_speed_estimate.py's
+# own _prior_means, added Sep 2026 (wpr_settle_extra_sectionals_test.py) -
+# see module docstring for the validated result. Winsorization bounds are
+# each field's own fitted population 1st/99th percentile.
+SECT_LD_EARLY_LO, SECT_LD_EARLY_HI = -20.70, 10.73   # "leaderEarlySpeed"
+SECT_I_TO800_LO, SECT_I_TO800_HI = -24.60, 6.90
+MARGIN800M_LO, MARGIN800M_HI = 0.00, 10.60
+
 _MIN_RUNS_FOR_STYLE = 3   # fewer usable settle runs -> low confidence
 
 
@@ -191,6 +214,37 @@ def trailing_sect_early(prior_runs):
     if len(clipped) == 0:
         return None, 0
     return float(clipped.mean()), int(len(clipped))
+
+
+def _trailing_winsorized(prior_runs, col, lo, hi):
+    """Shared shape for the three extra sectional primitives below -
+    mean of `col` over a horse's past runs, winsorized at (lo, hi).
+    Returns (mean, n_usable); mean is None if no usable runs."""
+    if prior_runs is None or len(prior_runs) == 0:
+        return None, 0
+    raw = pd.to_numeric(prior_runs.get(col), errors="coerce")
+    clipped = raw.clip(lo, hi).dropna()
+    if len(clipped) == 0:
+        return None, 0
+    return float(clipped.mean()), int(len(clipped))
+
+
+def trailing_sect_ld_early(prior_runs):
+    """Trailing mean of sect_ld_early ("leaderEarlySpeed") - how fast the
+    LEADER went early in this horse's past races. See _trailing_winsorized."""
+    return _trailing_winsorized(prior_runs, "sect_ld_early", SECT_LD_EARLY_LO, SECT_LD_EARLY_HI)
+
+
+def trailing_sect_i_to800(prior_runs):
+    """Trailing mean of sect_i_to800 - an early sectional split further
+    into the race than sect_i_early alone. See _trailing_winsorized."""
+    return _trailing_winsorized(prior_runs, "sect_i_to800", SECT_I_TO800_LO, SECT_I_TO800_HI)
+
+
+def trailing_margin800m(prior_runs):
+    """Trailing mean of margin800m - how far behind at the 800m mark in
+    past races. See _trailing_winsorized."""
+    return _trailing_winsorized(prior_runs, "margin800m", MARGIN800M_LO, MARGIN800M_HI)
 
 
 def last5_tendency(prior_runs):
@@ -259,6 +313,9 @@ def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
                 "n_runs": n, "nudge": 0.0, "confidence": "none"}
     l5, _ = last5_tendency(prior_runs)
     sect, _ = trailing_sect_early(prior_runs)
+    ld_early, _ = trailing_sect_ld_early(prior_runs)
+    i_to800, _ = trailing_sect_i_to800(prior_runs)
+    m800, _ = trailing_margin800m(prior_runs)
     draw_frac = None
     if barrier is not None and field_size is not None and field_size >= 2:
         try:
@@ -270,6 +327,8 @@ def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
         "draw_signal": (draw_frac - 0.5) * 2 if draw_frac is not None else None,
         "sect_signal": (sect_rank_in_race - 0.5) * 2 if sect_rank_in_race is not None else None,
         "field_size": field_size,
+        "trailing_sect_ld_early": ld_early, "trailing_sect_i_to800": i_to800,
+        "trailing_margin800m": m800,
     }
     rel = _predict([feat])[0]
     conf = "ok" if n >= _MIN_RUNS_FOR_STYLE else "low"
@@ -296,6 +355,9 @@ def estimate_race_settling(field):
     for label, prior_runs, barrier, field_size in field:
         tendency, n = run_style_tendency(prior_runs)
         l5, _ = last5_tendency(prior_runs)
+        ld_early, _ = trailing_sect_ld_early(prior_runs)
+        i_to800, _ = trailing_sect_i_to800(prior_runs)
+        m800, _ = trailing_margin800m(prior_runs)
         draw_frac = None
         if barrier is not None and field_size is not None and field_size >= 2:
             try:
@@ -311,6 +373,8 @@ def estimate_race_settling(field):
             "draw_signal": (draw_frac - 0.5) * 2 if draw_frac is not None else None,
             "sect_signal": (sect_rank - 0.5) * 2 if sect_rank is not None and sect_rank == sect_rank else None,
             "field_size": field_size,
+            "trailing_sect_ld_early": ld_early, "trailing_sect_i_to800": i_to800,
+            "trailing_margin800m": m800,
         })
 
     # Rows with no own-history tendency can't be scored meaningfully -
@@ -418,12 +482,27 @@ def train(out_dir=None):
     fh["_race_key"] = fh["track"].astype(str) + "|" + fh["date"].astype(str) + "|" + fh["raceNumber"].astype(str)
     fh["sect_rank_in_race"] = fh.groupby("_race_key")["trailing_sect_i_early"].rank(pct=True, na_option="keep")
 
+    print("Computing 3 extra trailing sectionals (sect_ld_early, sect_i_to800, margin800m)...")
+    for col, out_col, lo, hi in [
+        ("sect_ld_early", "trailing_sect_ld_early", SECT_LD_EARLY_LO, SECT_LD_EARLY_HI),
+        ("sect_i_to800", "trailing_sect_i_to800", SECT_I_TO800_LO, SECT_I_TO800_HI),
+        ("margin800m", "trailing_margin800m", MARGIN800M_LO, MARGIN800M_HI),
+    ]:
+        raw = pd.to_numeric(fh[col], errors="coerce")
+        clipped = raw.clip(lo, hi)
+        v = clipped.notna()
+        v_vals = clipped.where(v)
+        csum = v_vals.fillna(0).groupby(g).cumsum()
+        ccount = v.astype(int).groupby(g).cumsum()
+        fh[out_col] = csum.groupby(g).shift(1) / ccount.groupby(g).shift(1).replace(0, np.nan)
+
     fh["draw_frac"] = ((fh["barrier"] - 1) / (fh["field_size"] - 1)).clip(0, 1)
     fh["draw_signal"] = (fh["draw_frac"] - 0.5) * 2
     fh["sect_signal"] = (fh["sect_rank_in_race"] - 0.5) * 2
     fh["actual_rel"] = rel_valid
 
-    features = ["run_style_tendency", "last5_tendency", "draw_signal", "sect_signal", "field_size"]
+    features = ["run_style_tendency", "last5_tendency", "draw_signal", "sect_signal", "field_size",
+                "trailing_sect_ld_early", "trailing_sect_i_to800", "trailing_margin800m"]
     usable = fh.dropna(subset=features + ["actual_rel"]).copy()
     print(f"  usable rows (all features + target present): {len(usable):,}")
 

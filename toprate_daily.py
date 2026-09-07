@@ -3091,6 +3091,21 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _sfh = _sfh.assign(_sect=_sect_clipped)
             _sect_tendency = _sfh.dropna(subset=["_sect"]).groupby("horse_lc")["_sect"].mean().to_dict()
 
+            # 3 extra trailing sectionals per horse (Sep 2026, see
+            # settling_estimate.py's module docstring for the validated
+            # result) - same winsorize-then-mean pattern as sect_i_early
+            # above, one per field.
+            _extra_tendency = {}
+            for _col, _lo, _hi in [
+                ("sect_ld_early", _se_mod.SECT_LD_EARLY_LO, _se_mod.SECT_LD_EARLY_HI),
+                ("sect_i_to800", _se_mod.SECT_I_TO800_LO, _se_mod.SECT_I_TO800_HI),
+                ("margin800m", _se_mod.MARGIN800M_LO, _se_mod.MARGIN800M_HI),
+            ]:
+                _raw = pd.to_numeric(_sfh.get(_col), errors="coerce")
+                _clipped = _raw.clip(_lo, _hi)
+                _tmp = _sfh.assign(_v=_clipped)
+                _extra_tendency[_col] = _tmp.dropna(subset=["_v"]).groupby("horse_lc")["_v"].mean().to_dict()
+
             def _band_of(rel):
                 if rel <= 0.20:
                     return "Leader"
@@ -3115,6 +3130,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _draw_frac = ((_runners_barrier - 1) / (_runners_fsz - 1)).clip(0, 1)
             _draw_signal = (_draw_frac - 0.5) * 2
             _sect_signal = (_sect_rank_by_race - 0.5) * 2
+            _runners_ld_early = _runners_hlc.map(_extra_tendency["sect_ld_early"])
+            _runners_i_to800 = _runners_hlc.map(_extra_tendency["sect_i_to800"])
+            _runners_margin800m = _runners_hlc.map(_extra_tendency["margin800m"])
 
             _has_tend = _runners_tend.notna()
             if _has_tend.any():
@@ -3123,6 +3141,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     "run_style_tendency": _runners_tend, "last5_tendency": _runners_last5,
                     "draw_signal": _draw_signal, "sect_signal": _sect_signal,
                     "field_size": _runners_fsz,
+                    "trailing_sect_ld_early": _runners_ld_early,
+                    "trailing_sect_i_to800": _runners_i_to800,
+                    "trailing_margin800m": _runners_margin800m,
                 })
                 _med = _se_mod._CFG["medians"]
                 _feat_df = _feat_df[_se_mod._CFG["features"]].apply(
