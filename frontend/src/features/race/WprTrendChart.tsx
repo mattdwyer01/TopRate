@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
 
@@ -10,10 +10,11 @@ interface WprTrendChartProps {
 
 const WIDTH = 720
 const HEIGHT = 260
-const MARGIN = { top: 16, right: 88, bottom: 16, left: 36 }
+const MARGIN = { top: 16, right: 32, bottom: 16, left: 36 }
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom
 const MAX_PAST_RUNS = 8
+const LABEL_GAP = 6 // px between the "today" point and its end-of-line tab-number label
 
 interface TrendPoint {
   x: number // 0 = today (predicted); negative = runs back from today
@@ -50,6 +51,14 @@ function parseISO(s: string | null | undefined): Date | null {
 function daysBetween(a: Date | null, b: Date | null): number | null {
   if (!a || !b) return null
   return Math.round((a.getTime() - b.getTime()) / 86_400_000)
+}
+
+// Nearest-rank percentile - fine for the handful of dozen points this
+// chart ever has, no need for interpolation precision here.
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))
+  return sorted[idx]
 }
 
 // Anchored on TODAY (x=0, the predicted rating), not on raw run count - a
@@ -110,27 +119,50 @@ function buildLine(
   return { runId: runner.runId, tabNumber: runner.tabNumber, horse: runner.horse, points }
 }
 
-function pathFor(points: TrendPoint[], xScale: (x: number) => number, yScale: (v: number) => number): string {
-  return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.x).toFixed(1)},${yScale(p.wpr).toFixed(1)}`).join(' ')
+// Clamps a point's WPR into [yLo, yHi] for drawing - a single wild outlier
+// run must not be allowed to stretch the whole chart's scale until every
+// other horse's real variation is squashed flat near one edge. A clamped
+// point renders as a small triangle instead of a circle (pointing the
+// direction its true value lies), so it still reads as "this one goes further
+// than shown", never silently as an accurate position.
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v))
+}
+
+function pathFor(
+  points: TrendPoint[],
+  xScale: (x: number) => number,
+  yScale: (v: number) => number,
+  yLo: number,
+  yHi: number,
+): string {
+  return points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.x).toFixed(1)},${yScale(clamp(p.wpr, yLo, yHi)).toFixed(1)}`)
+    .join(' ')
 }
 
 function FilterButton({
   active,
+  disabled,
   onClick,
   children,
 }: {
   active: boolean
+  disabled?: boolean
   onClick: () => void
   children: ReactNode
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-        active
-          ? 'border-amber bg-amber-bg text-amber'
-          : 'border-line text-ink-mute hover:border-line-soft hover:text-ink'
+        disabled
+          ? 'cursor-not-allowed border-line text-ink-faint opacity-60'
+          : active
+            ? 'border-amber bg-amber-bg text-amber'
+            : 'border-line text-ink-mute hover:border-line-soft hover:text-ink'
       }`}
     >
       {children}
@@ -152,7 +184,16 @@ function finLabel(p: TrendPoint): string | null {
 // whole field. One line is highlighted at a time (hover/tap) rather than a
 // full N-colour legend - with up to 16+ runners a fixed categorical palette
 // can't give each one a distinguishable hue, and the actual question this
-// answers ("how is THIS horse trending") is naturally one-at-a-time.
+// answers ("how is THIS horse trending") is naturally one-at-a-time. A small
+// tab-number label at each line's "today" end gives orientation without any
+// interaction at all - identifying a line was previously only possible by
+// hovering/tapping it first.
+//
+// Interaction: hover previews a line on desktop (transient, clears on mouse-
+// leave); tapping/clicking LOCKS it (stays selected after the pointer moves
+// away or lifts) - touch devices have no hover at all, so without an
+// explicit tap-to-lock the chart was untouchable on mobile. Tap the same
+// line again, or tap empty space, to unlock.
 //
 // Dist/Going filters (same matching convention as RecentRunsTable's own
 // filters - +/-10% distance band, same going band) don't hide anything here
@@ -162,6 +203,7 @@ function finLabel(p: TrendPoint): string | null {
 // reads at a glance without needing to hover each horse individually.
 export function WprTrendChart({ runners, race }: WprTrendChartProps) {
   const [hover, setHover] = useState<HoverKey | null>(null)
+  const [locked, setLocked] = useState(false)
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
 
@@ -182,13 +224,15 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
   }
 
   const allX = lines.flatMap((l) => l.points.map((p) => p.x))
-  const allWpr = lines.flatMap((l) => l.points.map((p) => p.wpr))
+  const allWprSorted = lines.flatMap((l) => l.points.map((p) => p.wpr)).sort((a, b) => a - b)
   const minX = Math.min(...allX)
-  const minWpr = Math.min(...allWpr)
-  const maxWpr = Math.max(...allWpr)
-  const wprPad = Math.max(1, (maxWpr - minWpr) * 0.12)
-  const yLo = minWpr - wprPad
-  const yHi = maxWpr + wprPad
+  // Robust range: 5th-95th percentile, not raw min/max - one wild outlier
+  // run must not set the scale for the whole field (see clamp()'s docstring).
+  const pLo = percentile(allWprSorted, 0.05)
+  const pHi = percentile(allWprSorted, 0.95)
+  const wprPad = Math.max(1, (pHi - pLo) * 0.15)
+  const yLo = pLo - wprPad
+  const yHi = pHi + wprPad
 
   const xScale = (x: number) => ((x - minX) / (0 - minX || 1)) * PLOT_W
   const yScale = (v: number) => PLOT_H - ((v - yLo) / (yHi - yLo || 1)) * PLOT_H
@@ -200,13 +244,84 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
   const activeLine = hover ? lines.find((l) => l.runId === hover.runId) ?? null : null
   const activePoint = activeLine && hover ? activeLine.points[hover.index] ?? null : null
 
+  function previewLine(key: HoverKey) {
+    if (!locked) setHover(key)
+  }
+  function toggleLock(key: HoverKey) {
+    if (locked && hover?.runId === key.runId && hover?.index === key.index) {
+      setLocked(false)
+      setHover(null)
+    } else {
+      setHover(key)
+      setLocked(true)
+    }
+  }
+  function clearPreview() {
+    if (!locked) setHover(null)
+  }
+  function clearLock() {
+    if (locked) {
+      setLocked(false)
+      setHover(null)
+    }
+  }
+
+  // End-of-line label anchor: the "today" point if the horse has a
+  // projection, else its last real run - always the rightmost point.
+  function labelPoint(line: TrendLine): TrendPoint {
+    return line.points.find((p) => p.predicted) ?? line.points[line.points.length - 1]
+  }
+
+  function Marker({
+    p,
+    r,
+    fill,
+    stroke,
+    onEnter,
+    onClick,
+  }: {
+    p: TrendPoint
+    r: number
+    fill: string
+    stroke?: string
+    onEnter: () => void
+    onClick: () => void
+  }) {
+    const cx = xScale(p.x)
+    const cy = yScale(clamp(p.wpr, yLo, yHi))
+    const clipped = p.wpr < yLo || p.wpr > yHi
+    const pointingDown = p.wpr < yLo
+    const handleClick = (e: MouseEvent) => {
+      e.stopPropagation() // don't let this bubble to the SVG's own onClick (clearLock)
+      onClick()
+    }
+    if (clipped) {
+      // small triangle pointing the direction the true value actually lies
+      const d = pointingDown
+        ? `M${cx - r},${cy - r * 0.6} L${cx + r},${cy - r * 0.6} L${cx},${cy + r * 0.9} Z`
+        : `M${cx - r},${cy + r * 0.6} L${cx + r},${cy + r * 0.6} L${cx},${cy - r * 0.9} Z`
+      return (
+        <g className="cursor-pointer" onMouseEnter={onEnter} onClick={handleClick}>
+          <path d={d} fill={fill} stroke={stroke} strokeWidth={stroke ? 1.5 : 0} />
+          <circle cx={cx} cy={cy} r={9} fill="transparent" />
+        </g>
+      )
+    }
+    return (
+      <g className="cursor-pointer" onMouseEnter={onEnter} onClick={handleClick}>
+        <circle cx={cx} cy={cy} r={r} fill={fill} stroke={stroke} strokeWidth={stroke ? 2 : 0} />
+        <circle cx={cx} cy={cy} r={9} fill="transparent" />
+      </g>
+    )
+  }
+
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Rating trend into today</span>
         <span className="text-xs text-ink-faint">
-          Last {MAX_PAST_RUNS} WPR ratings &middot; hollow point = today&apos;s projection &middot; hover a point for
-          detail
+          Last {MAX_PAST_RUNS} WPR ratings &middot; hollow point = today&apos;s projection &middot; triangle = off-scale
+          run &middot; tap a line for detail
         </span>
       </div>
 
@@ -215,8 +330,8 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
         <FilterButton active={filterDistance} onClick={() => setFilterDistance((v) => !v)}>
           Distance &plusmn;10% ({race.distance}m)
         </FilterButton>
-        <FilterButton active={filterGoing} onClick={() => setFilterGoing((v) => !v)}>
-          Going ({race.going || '—'})
+        <FilterButton active={filterGoing} disabled={!race.going} onClick={() => setFilterGoing((v) => !v)}>
+          Going {race.going ? `(${race.going})` : '(not yet known)'}
         </FilterButton>
       </div>
 
@@ -225,7 +340,8 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
         className="mt-1 w-full"
         role="img"
         aria-label="WPR rating trend per runner, ending in today's projection"
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={clearPreview}
+        onClick={clearLock}
       >
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
           {yTicks.map((t) => (
@@ -249,22 +365,29 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
             Today
           </text>
 
-          {/* Recessive pass: every non-hovered line, drawn first so the
-              hovered one always sits on top. */}
+          {/* Recessive pass: every non-active line, drawn first so the
+              active one always sits on top. */}
           {lines.map((line) => {
             const isActive = line.runId === hover?.runId
             if (isActive) return null
             const real = line.points.filter((p) => !p.predicted)
             const pred = line.points.find((p) => p.predicted)
+            const lp = labelPoint(line)
             return (
               <g key={line.runId}>
-                <path d={pathFor(real, xScale, yScale)} fill="none" stroke="var(--color-ink-faint)" strokeWidth={1.5} opacity={0.45} />
+                <path
+                  d={pathFor(real, xScale, yScale, yLo, yHi)}
+                  fill="none"
+                  stroke="var(--color-ink-faint)"
+                  strokeWidth={1.5}
+                  opacity={0.45}
+                />
                 {pred && real.length > 0 && (
                   <line
                     x1={xScale(real[real.length - 1].x)}
-                    y1={yScale(real[real.length - 1].wpr)}
+                    y1={yScale(clamp(real[real.length - 1].wpr, yLo, yHi))}
                     x2={xScale(pred.x)}
-                    y2={yScale(pred.wpr)}
+                    y2={yScale(clamp(pred.wpr, yLo, yHi))}
                     stroke="var(--color-ink-faint)"
                     strokeWidth={1.5}
                     strokeDasharray="3,3"
@@ -272,40 +395,65 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
                   />
                 )}
                 {/* condition-match markers - visible on every line, not just
-                    the hovered one, so a filter surfaces the whole field at
+                    the active one, so a filter surfaces the whole field at
                     once (see the component docstring above) */}
                 {real
                   .filter((p) => p.matchesToday)
                   .map((p, i) => (
-                    <circle key={`m${i}`} cx={xScale(p.x)} cy={yScale(p.wpr)} r={3.5} fill="none" stroke="var(--color-amber)" strokeWidth={2} />
+                    <circle
+                      key={`m${i}`}
+                      cx={xScale(p.x)}
+                      cy={yScale(clamp(p.wpr, yLo, yHi))}
+                      r={3.5}
+                      fill="none"
+                      stroke="var(--color-amber)"
+                      strokeWidth={2}
+                    />
                   ))}
-                {/* per-point hover targets (bigger invisible circle, small
-                    visible dot) so a specific run can be identified, not
-                    just "this line somewhere" */}
+                {/* per-point hover/tap targets */}
                 {line.points.map((p, i) => (
-                  <g key={i} className="cursor-pointer" onMouseEnter={() => setHover({ runId: line.runId, index: i })}>
-                    <circle cx={xScale(p.x)} cy={yScale(p.wpr)} r={2} fill="var(--color-ink-faint)" opacity={0.45} />
-                    <circle cx={xScale(p.x)} cy={yScale(p.wpr)} r={8} fill="transparent" />
-                  </g>
+                  <Marker
+                    key={i}
+                    p={p}
+                    r={2}
+                    fill="var(--color-ink-faint)"
+                    onEnter={() => previewLine({ runId: line.runId, index: i })}
+                    onClick={() => toggleLock({ runId: line.runId, index: i })}
+                  />
                 ))}
+                <text
+                  x={xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)}
+                  y={yScale(clamp(lp.wpr, yLo, yHi))}
+                  dy="0.32em"
+                  className="fill-ink-faint text-[9px]"
+                >
+                  {line.tabNumber}
+                </text>
               </g>
             )
           })}
 
-          {/* Highlighted line, on top. */}
+          {/* Active line, on top. */}
           {activeLine &&
             (() => {
               const real = activeLine.points.filter((p) => !p.predicted)
               const pred = activeLine.points.find((p) => p.predicted)
+              const lp = labelPoint(activeLine)
               return (
                 <g>
-                  <path d={pathFor(real, xScale, yScale)} fill="none" stroke="var(--color-emerald-deep)" strokeWidth={2.5} strokeLinecap="round" />
+                  <path
+                    d={pathFor(real, xScale, yScale, yLo, yHi)}
+                    fill="none"
+                    stroke="var(--color-emerald-deep)"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                  />
                   {pred && real.length > 0 && (
                     <line
                       x1={xScale(real[real.length - 1].x)}
-                      y1={yScale(real[real.length - 1].wpr)}
+                      y1={yScale(clamp(real[real.length - 1].wpr, yLo, yHi))}
                       x2={xScale(pred.x)}
-                      y2={yScale(pred.wpr)}
+                      y2={yScale(clamp(pred.wpr, yLo, yHi))}
                       stroke="var(--color-emerald-deep)"
                       strokeWidth={2.5}
                       strokeDasharray="4,3"
@@ -314,34 +462,38 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
                   {real
                     .filter((p) => p.matchesToday)
                     .map((p, i) => (
-                      <circle key={`m${i}`} cx={xScale(p.x)} cy={yScale(p.wpr)} r={5} fill="none" stroke="var(--color-amber)" strokeWidth={2} />
+                      <circle
+                        key={`m${i}`}
+                        cx={xScale(p.x)}
+                        cy={yScale(clamp(p.wpr, yLo, yHi))}
+                        r={5}
+                        fill="none"
+                        stroke="var(--color-amber)"
+                        strokeWidth={2}
+                      />
                     ))}
                   {activeLine.points.map((p, i) => {
                     const isHovered = hover?.index === i
-                    return p.predicted ? (
-                      <circle
+                    return (
+                      <Marker
                         key={i}
-                        cx={xScale(p.x)}
-                        cy={yScale(p.wpr)}
-                        r={isHovered ? 5.5 : 4.5}
-                        fill="var(--color-panel)"
+                        p={p}
+                        r={p.predicted ? (isHovered ? 5.5 : 4.5) : isHovered ? 4.5 : 3.5}
+                        fill={p.predicted ? 'var(--color-panel)' : 'var(--color-emerald-deep)'}
                         stroke="var(--color-emerald-deep)"
-                        strokeWidth={2.5}
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHover({ runId: activeLine.runId, index: i })}
-                      />
-                    ) : (
-                      <circle
-                        key={i}
-                        cx={xScale(p.x)}
-                        cy={yScale(p.wpr)}
-                        r={isHovered ? 4.5 : 3.5}
-                        fill="var(--color-emerald-deep)"
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHover({ runId: activeLine.runId, index: i })}
+                        onEnter={() => previewLine({ runId: activeLine.runId, index: i })}
+                        onClick={() => toggleLock({ runId: activeLine.runId, index: i })}
                       />
                     )
                   })}
+                  <text
+                    x={xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)}
+                    y={yScale(clamp(lp.wpr, yLo, yHi))}
+                    dy="0.32em"
+                    className="fill-emerald-deep text-[10px] font-semibold"
+                  >
+                    {activeLine.tabNumber}
+                  </text>
                 </g>
               )
             })()}
@@ -350,7 +502,7 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
 
       {/* Tooltip-equivalent: fixed status line under the chart rather than a
           cursor-following box, so it never overlaps the plot on a narrow
-          screen - names the hovered horse and the specific run's detail. */}
+          screen - names the active horse and the specific run's detail. */}
       <div className="mt-1 min-h-8 text-xs text-ink-mute">
         {activeLine && activePoint ? (
           <div>
@@ -377,7 +529,7 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
             )}
           </div>
         ) : (
-          <span className="text-ink-faint">Hover a point to see its date, distance, going and result.</span>
+          <span className="text-ink-faint">Tap a line to see its runs, date, distance, going and result.</span>
         )}
       </div>
     </div>
