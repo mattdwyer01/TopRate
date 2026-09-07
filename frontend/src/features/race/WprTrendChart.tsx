@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
-import type { Runner } from '../../types/domain'
+import type { ReactNode } from 'react'
+import type { Race, Runner } from '../../types/domain'
+import { goingBand } from '../../lib/pace'
 
 interface WprTrendChartProps {
   runners: Runner[]
+  race: Race
 }
 
 const WIDTH = 720
@@ -17,7 +20,13 @@ interface TrendPoint {
   wpr: number
   date: string | null
   track: string | null
+  distance: number | null
+  going: string | null
+  finishPosition: number | null
+  margin: number | null
+  daysSinceLast: number | null // gap since the PREVIOUS run in this same sequence
   predicted: boolean
+  matchesToday: boolean // distance/going match, per the active filters - see matchFlags()
 }
 
 interface TrendLine {
@@ -27,25 +36,75 @@ interface TrendLine {
   points: TrendPoint[]
 }
 
+interface HoverKey {
+  runId: string
+  index: number
+}
+
+function parseISO(s: string | null | undefined): Date | null {
+  if (!s) return null
+  const t = Date.parse(s)
+  return Number.isNaN(t) ? null : new Date(t)
+}
+
+function daysBetween(a: Date | null, b: Date | null): number | null {
+  if (!a || !b) return null
+  return Math.round((a.getTime() - b.getTime()) / 86_400_000)
+}
+
 // Anchored on TODAY (x=0, the predicted rating), not on raw run count - a
 // horse with 4 runs and one with 10 both have their most recent ACTUAL run
 // at x=-1, so "how has this horse trended INTO today" compares like for
 // like across the field, rather than jumbling horses with different amounts
 // of history at different x positions.
-function buildLine(runner: Runner): TrendLine | null {
+function buildLine(
+  runner: Runner,
+  race: Race,
+  filterDistance: boolean,
+  filterGoing: boolean,
+): TrendLine | null {
   const real = runner.recentRuns
     .filter((r) => r.wpr != null)
     .slice(0, MAX_PAST_RUNS)
     .reverse() // oldest -> newest
-  const points: TrendPoint[] = real.map((r, i) => ({
-    x: -(real.length - i),
-    wpr: r.wpr as number,
-    date: r.date ?? null,
-    track: r.track,
-    predicted: false,
-  }))
+
+  const distLo = race.distance * 0.9
+  const distHi = race.distance * 1.1
+  const raceBand = goingBand(race.going)
+
+  const points: TrendPoint[] = real.map((r, i) => {
+    const prevDate = i > 0 ? parseISO(real[i - 1].date) : null
+    const distOk = !filterDistance || (r.distance >= distLo && r.distance <= distHi)
+    const goingOk = !filterGoing || goingBand(r.going) === raceBand
+    return {
+      x: -(real.length - i),
+      wpr: r.wpr as number,
+      date: r.date ?? null,
+      track: r.track,
+      distance: r.distance,
+      going: r.going,
+      finishPosition: r.finishPosition,
+      margin: r.margin,
+      daysSinceLast: daysBetween(parseISO(r.date), prevDate),
+      predicted: false,
+      matchesToday: (filterDistance || filterGoing) && distOk && goingOk,
+    }
+  })
   if (runner.projectedWpr != null) {
-    points.push({ x: 0, wpr: runner.projectedWpr, date: null, track: null, predicted: true })
+    const lastReal = real.length > 0 ? parseISO(real[real.length - 1].date) : null
+    points.push({
+      x: 0,
+      wpr: runner.projectedWpr,
+      date: race.date,
+      track: race.venue,
+      distance: race.distance,
+      going: race.going,
+      finishPosition: null,
+      margin: null,
+      daysSinceLast: daysBetween(parseISO(race.date), lastReal),
+      predicted: true,
+      matchesToday: false,
+    })
   }
   if (points.length < 2) return null
   return { runId: runner.runId, tabNumber: runner.tabNumber, horse: runner.horse, points }
@@ -53,6 +112,37 @@ function buildLine(runner: Runner): TrendLine | null {
 
 function pathFor(points: TrendPoint[], xScale: (x: number) => number, yScale: (v: number) => number): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.x).toFixed(1)},${yScale(p.wpr).toFixed(1)}`).join(' ')
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+        active
+          ? 'border-amber bg-amber-bg text-amber'
+          : 'border-line text-ink-mute hover:border-line-soft hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function finLabel(p: TrendPoint): string | null {
+  if (p.finishPosition == null) return null
+  const ord = p.finishPosition === 1 ? 'st' : p.finishPosition === 2 ? 'nd' : p.finishPosition === 3 ? 'rd' : 'th'
+  const margin = p.margin != null && p.margin > 0 ? ` (${p.margin.toFixed(1)}L)` : ''
+  return `${p.finishPosition}${ord}${margin}`
 }
 
 // Rating trend into today: each runner's recent WPR history (capped at the
@@ -63,12 +153,24 @@ function pathFor(points: TrendPoint[], xScale: (x: number) => number, yScale: (v
 // full N-colour legend - with up to 16+ runners a fixed categorical palette
 // can't give each one a distinguishable hue, and the actual question this
 // answers ("how is THIS horse trending") is naturally one-at-a-time.
-export function WprTrendChart({ runners }: WprTrendChartProps) {
-  const [activeId, setActiveId] = useState<string | null>(null)
+//
+// Dist/Going filters (same matching convention as RecentRunsTable's own
+// filters - +/-10% distance band, same going band) don't hide anything here
+// (a trend chart needs its continuity) - instead they mark which past
+// points were run under conditions like today's, across EVERY line at once,
+// so "has this field seen today's trip/going before, and how did they rate"
+// reads at a glance without needing to hover each horse individually.
+export function WprTrendChart({ runners, race }: WprTrendChartProps) {
+  const [hover, setHover] = useState<HoverKey | null>(null)
+  const [filterDistance, setFilterDistance] = useState(false)
+  const [filterGoing, setFilterGoing] = useState(false)
 
   const lines = useMemo(
-    () => runners.map(buildLine).filter((l): l is TrendLine => l !== null),
-    [runners],
+    () =>
+      runners
+        .map((r) => buildLine(r, race, filterDistance, filterGoing))
+        .filter((l): l is TrendLine => l !== null),
+    [runners, race, filterDistance, filterGoing],
   )
 
   if (lines.length === 0) {
@@ -95,25 +197,35 @@ export function WprTrendChart({ runners }: WprTrendChartProps) {
   const step = (yHi - yLo) / 4
   for (let i = 0; i <= 4; i++) yTicks.push(yLo + step * i)
 
-  const active = lines.find((l) => l.runId === activeId) ?? null
-  const activePoint = active
-    ? active.points.find((p) => p.predicted) ?? active.points[active.points.length - 1]
-    : null
+  const activeLine = hover ? lines.find((l) => l.runId === hover.runId) ?? null : null
+  const activePoint = activeLine && hover ? activeLine.points[hover.index] ?? null : null
 
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Rating trend into today</span>
         <span className="text-xs text-ink-faint">
-          Last {MAX_PAST_RUNS} WPR ratings &middot; hollow point = today&apos;s projection &middot; hover to highlight
+          Last {MAX_PAST_RUNS} WPR ratings &middot; hollow point = today&apos;s projection &middot; hover a point for
+          detail
         </span>
       </div>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-ink-faint">Highlight runs at today&apos;s:</span>
+        <FilterButton active={filterDistance} onClick={() => setFilterDistance((v) => !v)}>
+          Distance &plusmn;10% ({race.distance}m)
+        </FilterButton>
+        <FilterButton active={filterGoing} onClick={() => setFilterGoing((v) => !v)}>
+          Going ({race.going || '—'})
+        </FilterButton>
+      </div>
+
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="mt-1 w-full"
         role="img"
         aria-label="WPR rating trend per runner, ending in today's projection"
-        onMouseLeave={() => setActiveId(null)}
+        onMouseLeave={() => setHover(null)}
       >
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
           {yTicks.map((t) => (
@@ -140,11 +252,12 @@ export function WprTrendChart({ runners }: WprTrendChartProps) {
           {/* Recessive pass: every non-hovered line, drawn first so the
               hovered one always sits on top. */}
           {lines.map((line) => {
-            if (line.runId === activeId) return null
+            const isActive = line.runId === hover?.runId
+            if (isActive) return null
             const real = line.points.filter((p) => !p.predicted)
             const pred = line.points.find((p) => p.predicted)
             return (
-              <g key={line.runId} className="cursor-pointer" onMouseEnter={() => setActiveId(line.runId)}>
+              <g key={line.runId}>
                 <path d={pathFor(real, xScale, yScale)} fill="none" stroke="var(--color-ink-faint)" strokeWidth={1.5} opacity={0.45} />
                 {pred && real.length > 0 && (
                   <line
@@ -158,18 +271,32 @@ export function WprTrendChart({ runners }: WprTrendChartProps) {
                     opacity={0.45}
                   />
                 )}
-                {/* invisible fat hit-area so hovering near the line (not
-                    just exactly on the 1.5px stroke) picks it up */}
-                <path d={pathFor(line.points, xScale, yScale)} fill="none" stroke="transparent" strokeWidth={10} />
+                {/* condition-match markers - visible on every line, not just
+                    the hovered one, so a filter surfaces the whole field at
+                    once (see the component docstring above) */}
+                {real
+                  .filter((p) => p.matchesToday)
+                  .map((p, i) => (
+                    <circle key={`m${i}`} cx={xScale(p.x)} cy={yScale(p.wpr)} r={3.5} fill="none" stroke="var(--color-amber)" strokeWidth={2} />
+                  ))}
+                {/* per-point hover targets (bigger invisible circle, small
+                    visible dot) so a specific run can be identified, not
+                    just "this line somewhere" */}
+                {line.points.map((p, i) => (
+                  <g key={i} className="cursor-pointer" onMouseEnter={() => setHover({ runId: line.runId, index: i })}>
+                    <circle cx={xScale(p.x)} cy={yScale(p.wpr)} r={2} fill="var(--color-ink-faint)" opacity={0.45} />
+                    <circle cx={xScale(p.x)} cy={yScale(p.wpr)} r={8} fill="transparent" />
+                  </g>
+                ))}
               </g>
             )
           })}
 
           {/* Highlighted line, on top. */}
-          {active &&
+          {activeLine &&
             (() => {
-              const real = active.points.filter((p) => !p.predicted)
-              const pred = active.points.find((p) => p.predicted)
+              const real = activeLine.points.filter((p) => !p.predicted)
+              const pred = activeLine.points.find((p) => p.predicted)
               return (
                 <g>
                   <path d={pathFor(real, xScale, yScale)} fill="none" stroke="var(--color-emerald-deep)" strokeWidth={2.5} strokeLinecap="round" />
@@ -184,19 +311,37 @@ export function WprTrendChart({ runners }: WprTrendChartProps) {
                       strokeDasharray="4,3"
                     />
                   )}
-                  {real.map((p, i) => (
-                    <circle key={i} cx={xScale(p.x)} cy={yScale(p.wpr)} r={3.5} fill="var(--color-emerald-deep)" />
-                  ))}
-                  {pred && (
-                    <circle
-                      cx={xScale(pred.x)}
-                      cy={yScale(pred.wpr)}
-                      r={4.5}
-                      fill="var(--color-panel)"
-                      stroke="var(--color-emerald-deep)"
-                      strokeWidth={2.5}
-                    />
-                  )}
+                  {real
+                    .filter((p) => p.matchesToday)
+                    .map((p, i) => (
+                      <circle key={`m${i}`} cx={xScale(p.x)} cy={yScale(p.wpr)} r={5} fill="none" stroke="var(--color-amber)" strokeWidth={2} />
+                    ))}
+                  {activeLine.points.map((p, i) => {
+                    const isHovered = hover?.index === i
+                    return p.predicted ? (
+                      <circle
+                        key={i}
+                        cx={xScale(p.x)}
+                        cy={yScale(p.wpr)}
+                        r={isHovered ? 5.5 : 4.5}
+                        fill="var(--color-panel)"
+                        stroke="var(--color-emerald-deep)"
+                        strokeWidth={2.5}
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHover({ runId: activeLine.runId, index: i })}
+                      />
+                    ) : (
+                      <circle
+                        key={i}
+                        cx={xScale(p.x)}
+                        cy={yScale(p.wpr)}
+                        r={isHovered ? 4.5 : 3.5}
+                        fill="var(--color-emerald-deep)"
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHover({ runId: activeLine.runId, index: i })}
+                      />
+                    )
+                  })}
                 </g>
               )
             })()}
@@ -205,24 +350,34 @@ export function WprTrendChart({ runners }: WprTrendChartProps) {
 
       {/* Tooltip-equivalent: fixed status line under the chart rather than a
           cursor-following box, so it never overlaps the plot on a narrow
-          screen - names the hovered horse and its projection plainly. */}
-      <div className="mt-1 h-4 text-xs text-ink-mute">
-        {active && activePoint ? (
-          <span>
+          screen - names the hovered horse and the specific run's detail. */}
+      <div className="mt-1 min-h-8 text-xs text-ink-mute">
+        {activeLine && activePoint ? (
+          <div>
             <span className="font-semibold text-ink">
-              {active.tabNumber}. {active.horse}
+              {activeLine.tabNumber}. {activeLine.horse}
             </span>
             {activePoint.predicted ? (
-              <> &middot; today&apos;s projection {activePoint.wpr.toFixed(1)}</>
+              <>
+                {' '}
+                &middot; <span className="font-medium text-ink">today&apos;s projection {activePoint.wpr.toFixed(1)}</span>
+                {' '}&middot; {race.venue} &middot; {race.distance}m &middot; {race.going || '—'}
+                {activePoint.daysSinceLast != null && <> &middot; {activePoint.daysSinceLast}d since last run</>}
+              </>
             ) : (
               <>
                 {' '}
-                &middot; {activePoint.date ?? ''} {activePoint.track ?? ''} &middot; {activePoint.wpr.toFixed(1)}
+                &middot; {activePoint.date ?? ''} {activePoint.track ?? ''} &middot; {activePoint.distance ?? '—'}m &middot;{' '}
+                {activePoint.going || '—'}
+                {activePoint.daysSinceLast != null && <> &middot; {activePoint.daysSinceLast}d since prior run</>}
+                {finLabel(activePoint) && <> &middot; fin {finLabel(activePoint)}</>}
+                {' '}&middot; <span className="font-medium text-ink">WPR {activePoint.wpr.toFixed(1)}</span>
+                {activePoint.matchesToday && <span className="ml-1 text-amber">&middot; matches today</span>}
               </>
             )}
-          </span>
+          </div>
         ) : (
-          <span className="text-ink-faint">Hover a line to identify it.</span>
+          <span className="text-ink-faint">Hover a point to see its date, distance, going and result.</span>
         )}
       </div>
     </div>

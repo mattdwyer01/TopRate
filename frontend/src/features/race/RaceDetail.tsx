@@ -286,7 +286,7 @@ export function RaceDetail({
       <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
 
       <div className="mt-3">
-        <WprTrendChart runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+        <WprTrendChart race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
       </div>
 
       {selectedRunner && (
