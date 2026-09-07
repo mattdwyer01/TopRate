@@ -10,8 +10,17 @@ name: TAB diagnose test (temporary, hosted runner)
 #
 # Delete this file once the answer is in - it's a one-off diagnostic, not
 # part of the real integration (see tab_results.yml / tab_results_poller.py).
+#
+# Triggers on push (not just workflow_dispatch): workflow_dispatch can only
+# be fired via the API/UI for a workflow file that already exists on the
+# repo's default branch, which this one deliberately doesn't (it's a
+# throwaway, not going anywhere near main) - so `push` is what actually lets
+# it run from this feature branch.
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/tabcorp-api-live-results-zi8kg3]
+    paths: [.github/workflows/tab_diagnose_test.yml]
 
 jobs:
   diagnose:
