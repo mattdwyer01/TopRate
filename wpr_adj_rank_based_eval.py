@@ -99,6 +99,16 @@ def main():
         m.fit(d[feats], d["target"] - d["career_avg"])
         return m
 
+    def fit_coverage_aware(feats):
+        """trainer_win_pct_365d/jockey_win_pct_90d only exist in the last
+        ~year of history - fit on the COVERED subset's own 70% cutoff
+        (same pattern production _fit_merit_lookup uses), not whichever
+        direction's global trn is passed in (which can be entirely
+        uncovered and crash on an empty frame)."""
+        cov = D.dropna(subset=feats + ["target", "career_avg"])
+        cov_trn = cov[cov["date"] < cov["date"].quantile(0.70)]
+        return fit(cov_trn, feats)
+
     def pred_or_zero(model, frame, feats):
         ok = frame[feats].notna().all(axis=1)
         out = pd.Series(0.0, index=frame.index)
@@ -120,9 +130,11 @@ def main():
 
     for label, trn, te in splits:
         print(f"\n=== {label}: trn={len(trn):,} te={len(te):,} ===")
-        m_tb, m_trm, m_jm, m_gc, m_cm = (
-            fit(trn, tb_feats), fit(trn, trm_feats), fit(trn, jm_feats),
-            fit(trn, gc_feats), fit(trn, cm_feats))
+        m_tb = fit(trn, tb_feats)
+        m_trm = fit_coverage_aware(trm_feats)
+        m_jm = fit_coverage_aware(jm_feats)
+        m_gc = fit(trn, gc_feats)
+        m_cm = fit(trn, cm_feats)
 
         te["track_barrier"] = pred_or_zero(m_tb, te, tb_feats)
         te["trainer_merit"] = pred_or_zero(m_trm, te, trm_feats)

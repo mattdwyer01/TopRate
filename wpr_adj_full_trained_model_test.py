@@ -57,12 +57,26 @@ def build_frame():
     return D
 
 
-def eval_term(name, D, feat_cols, cat_cols, build_lookup_pred, splits):
+def eval_term(name, D, feat_cols, cat_cols, build_lookup_pred, splits, coverage_aware=False):
     """build_lookup_pred(trn, te) -> te's shipped-lookup prediction (residual
-    scale). splits: list of (label, trn, te) tuples."""
+    scale). splits: list of (label, trn, te) tuples.
+
+    coverage_aware: for columns only populated in the last ~year of history
+    (trainer_win_pct_365d/jockey_win_pct_90d), the global date-quantile
+    splits leave one direction's trn or te empty (all the coverage sits in
+    the recent tail). When set, ignore the passed-in splits entirely and
+    instead build forward/reversed splits from the COVERED subset's own
+    date range - same "own coverage-aware cutoff" pattern _fit_merit_lookup
+    already uses in production, just applied bidirectionally here."""
     print(f"\n=== {name}: trained model vs shipped lookup ===")
     all_feats = feat_cols
     Dt = D.dropna(subset=all_feats + ["target", "career_avg"]).copy()
+    if coverage_aware:
+        q70, q85, q15, q30 = Dt["date"].quantile([0.70, 0.85, 0.15, 0.30])
+        splits = [
+            ("A forward (own coverage window)", Dt[Dt["date"] < q70], Dt[Dt["date"] >= q85]),
+            ("B reversed (own coverage window)", Dt[Dt["date"] > q30], Dt[Dt["date"] <= q15]),
+        ]
     for label, trn, te in splits:
         trn = Dt.loc[Dt.index.intersection(trn.index)]
         te = Dt.loc[Dt.index.intersection(te.index)]
@@ -110,14 +124,14 @@ def main():
         return [wpr._merit_term(wpr._merit_bucket(v, cfg.get("trainer_merit_edges")), cfg.get("trainer_merit_lookup"))
                 for v in te["trainer_win_pct_365d"]]
     eval_term("trainer_merit", D, ["trainer_win_pct_365d", "field_size"], [],
-              trainer_lookup, splits)
+              trainer_lookup, splits, coverage_aware=True)
 
     # --- jockey_merit ---
     def jockey_lookup(trn, te):
         return [wpr._merit_term(wpr._merit_bucket(v, cfg.get("jockey_merit_edges")), cfg.get("jockey_merit_lookup"))
                 for v in te["jockey_win_pct_90d"]]
     eval_term("jockey_merit", D, ["jockey_win_pct_90d", "field_size"], [],
-              jockey_lookup, splits)
+              jockey_lookup, splits, coverage_aware=True)
 
     # --- gear_change ---
     def gear_lookup(trn, te):
@@ -159,8 +173,8 @@ def main():
     trn = D[D["date"] < q1].dropna(subset=["target", "career_avg"])
     te = D[D["date"] >= q2].copy()
 
-    def fit(feats):
-        d = trn.dropna(subset=feats + ["target", "career_avg"])
+    def fit(fit_frame, feats):
+        d = fit_frame.dropna(subset=feats + ["target", "career_avg"])
         m = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
                               num_leaves=8, random_state=42, verbosity=-1,
                               objective="quantile", alpha=0.5)
@@ -173,8 +187,21 @@ def main():
     gc_feats = ["gear_code", "field_size", "first_up", "second_up", "n_runs"]
     cm_feats = ["closing_raw_resid", "closing_n_pairs", "field_size"]
 
-    m_tb, m_trm, m_jm, m_gc, m_cm = (fit(tb_feats), fit(trm_feats), fit(jm_feats),
-                                      fit(gc_feats), fit(cm_feats))
+    # trainer_merit/jockey_merit: coverage only exists in the last ~year of
+    # history (see eval_term's coverage_aware note) - fit on the COVERED
+    # subset's own trn cutoff, not the global trn (which is almost entirely
+    # uncovered and crashes on an empty frame), same as production
+    # _fit_merit_lookup already does.
+    trm_cov = D.dropna(subset=trm_feats + ["target", "career_avg"])
+    jm_cov = D.dropna(subset=jm_feats + ["target", "career_avg"])
+    trm_trn = trm_cov[trm_cov["date"] < trm_cov["date"].quantile(0.70)]
+    jm_trn = jm_cov[jm_cov["date"] < jm_cov["date"].quantile(0.70)]
+
+    m_tb = fit(trn, tb_feats)
+    m_trm = fit(trm_trn, trm_feats)
+    m_jm = fit(jm_trn, jm_feats)
+    m_gc = fit(trn, gc_feats)
+    m_cm = fit(trn, cm_feats)
 
     def pred_or_zero(model, frame, feats):
         ok = frame[feats].notna().all(axis=1)
