@@ -1253,7 +1253,17 @@ def compute_wpr_projection(runners_df, target_date_str=None):
             prior = hist[hist["date"] < race_date] if hist is not None else None
             se_hist = se_form_by_horse.get(horse_lc)
             se_prior = se_hist[se_hist["date"] < race_date] if se_hist is not None else None
-            settle_field.append((idx, se_prior, r.get("barrier"), active_field_size))
+            # Exclude scratched runners from the settle FIELD - sect_signal
+            # is a rank against today's field, and a scratched horse isn't
+            # part of the field that's actually going to run. Found (Sep
+            # 2026) investigating a real example: a scratched runner with
+            # the field's best trailing early-speed rating was still being
+            # ranked against, suppressing the genuinely-best ACTIVE
+            # runner's percentile from 1.0 (unambiguous best) to 0.89.
+            _scr = r.get("scratched")
+            _is_scratched = pd.notna(_scr) and int(_scr) == 1
+            if not _is_scratched:
+                settle_field.append((idx, se_prior, r.get("barrier"), active_field_size))
             trial_hist = trial_by_horse.get(horse_lc)
             trial_prior = trial_hist[trial_hist["date"] < race_date] if trial_hist is not None else None
             going = r.get("going") or "Good 4"
