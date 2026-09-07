@@ -34,10 +34,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        # pandas is needed too - tab_results_poller.py imports toprate_daily
-        # at module level (for load_runners/save_runners), which needs it,
-        # even just to reach the --diagnose code path.
-        run: python -m pip install curl_cffi pandas
+        # tab_results_poller.py imports toprate_daily at module level (for
+        # load_runners/save_runners), which pulls in its full dependency
+        # list even just to reach the --diagnose code path. Matching
+        # price_refresh.yml's own install line plus curl_cffi.
+        run: python -m pip install curl_cffi pandas requests openpyxl scikit-learn joblib
 
       - name: Where does GitHub think this runner is?
         run: curl -s --max-time 15 https://ipinfo.io/json || echo "ipinfo request failed"
