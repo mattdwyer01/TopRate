@@ -1,0 +1,19 @@
+{
+ "features": [
+  "run_style_tendency",
+  "last5_tendency",
+  "draw_signal",
+  "sect_signal",
+  "field_size"
+ ],
+ "medians": {
+  "run_style_tendency": 0.5492307692307692,
+  "last5_tendency": 0.5493162393162393,
+  "draw_signal": 0.0,
+  "sect_signal": 0.19999999999999996,
+  "field_size": 10.0
+ },
+ "heldout_mae": 0.19822579612198868,
+ "n_train": 114915,
+ "train_window_days": 730
+}
