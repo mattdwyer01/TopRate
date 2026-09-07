@@ -31,7 +31,13 @@ from wpr_own_pace_backtest import add_base, add_track_barrier, merge_won_by_hors
 from wpr_trainer_jockey_adj_strike_eval import FORM_CSV, merge_trainer_jockey_by_horse_date, \
     add_closing_merit, fit_bucket_lookup, apply_bucket
 from wpr_bet_selection_post_retrain import merge_price_pfm, report
-from wpr_bet_selection_leakfree_eval import _edge_from_score
+from wpr_bet_selection_leakfree_eval import _edge_from_score, PRICE_BUCKETS, PRICE_BUCKET_LABELS
+
+# Which slopes to run the (expensive-ish, O(bets)) favourite-bias
+# diagnostic on - the two extremes (shipped vs fully removed) are the
+# comparison that matters; the middle values were already shown not to
+# change the qualitative picture in the main sweep.
+BIAS_DIAGNOSTIC_SLOPES = [0.1791, 1.00]
 
 SLOPES = [0.1791, 0.35, 0.50, 0.70, 1.00]
 EDGE_THRESHOLDS = [0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.13, 0.15, 0.20]
@@ -88,6 +94,31 @@ def report_edge(bets, label):
     print(f"total held-out bets: {len(bets):,}  [population avg price ${bets['sp'].mean():.2f}]")
     for thr in EDGE_THRESHOLDS:
         report(bets[bets["edge_wpr"] >= thr], f"edge>={thr:.2f}")
+
+
+def favourite_bias_diagnostic(pooled, label):
+    """Is a higher slope's better strike-rate/ROI genuine model skill, or
+    just the model agreeing more with the market's own favourite-longshot
+    bias (favourites structurally underbet, so a strategy that shifts
+    toward shorter prices looks profitable regardless of the model)? Same
+    check wpr_bet_selection_leakfree_eval.py's own diagnostic runs:
+    compares edge-filtered ROI WITHIN a price bucket against that SAME
+    bucket's own unconditional baseline (every runner in that price range,
+    no model/edge filter at all). If edge-filtered ROI is close to its
+    bucket's baseline, the filter isn't adding anything beyond "pick a
+    shorter price" - if it's clearly higher, that's real incremental
+    selection skill on top of whatever price-bucket bias exists."""
+    print(f"\n{'-'*70}\nFavourite-bias check: {label}\n{'-'*70}")
+    pooled = pooled.copy()
+    pooled["bucket"] = pd.cut(pooled["sp"], bins=PRICE_BUCKETS, labels=PRICE_BUCKET_LABELS, right=False)
+    print("--- Baseline: back EVERY runner in each price bucket, no model/edge filter ---")
+    for b in PRICE_BUCKET_LABELS:
+        report(pooled[pooled["bucket"] == b], f"bucket ${b} (unconditional)")
+    for thr in [0.10, 0.15]:
+        print(f"\n--- edge_wpr>={thr:.2f}-selected bets, BY price bucket (compare to baseline above) ---")
+        sub = pooled[pooled["edge_wpr"] >= thr]
+        for b in PRICE_BUCKET_LABELS:
+            report(sub[sub["bucket"] == b], f"edge>={thr:.2f}, bucket ${b}")
 
 
 def run():
@@ -150,6 +181,8 @@ def run():
         pooled = pd.concat([h1_scored, h2_scored], ignore_index=True)
         tag = " <- shipped" if abs(slope - 0.1791) < 1e-6 else (" <- removed" if slope >= 1.0 else "")
         report_edge(pooled, f"slope={slope}{tag}  (WPR price alone, beta refit per direction)")
+        if any(abs(slope - s) < 1e-6 for s in BIAS_DIAGNOSTIC_SLOPES):
+            favourite_bias_diagnostic(pooled, f"slope={slope}{tag}")
 
 
 if __name__ == "__main__":
