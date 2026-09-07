@@ -8,6 +8,7 @@ import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
+import { WprTrendChart } from './WprTrendChart'
 import { formatCountdown } from '../../lib/countdown'
 
 interface RaceDetailProps {
@@ -283,6 +284,10 @@ export function RaceDetail({
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
       <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+
+      <div className="mt-3">
+        <WprTrendChart runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+      </div>
 
       {selectedRunner && (
         <RunnerDetailModal
