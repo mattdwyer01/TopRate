@@ -334,7 +334,7 @@ FEATURES = [
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
     "own_trend", "own_long_spell", "track_barrier", "closing_merit",
-    "trainer_merit", "jockey_merit",
+    "trainer_merit", "jockey_merit", "pace_shape",
 ]
 
 # Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
@@ -509,6 +509,7 @@ def _adj_term_frame(feat_dicts):
 _PROJ = None
 _CONF = None
 _CFG = None
+_PACE_SHAPE_MODEL = None
 
 
 def _load_models():
@@ -523,8 +524,14 @@ def _load_models():
     FULL feature set - unaffected by the ADJUSTMENT rework above (a
     separate architecture entirely). Their predicted interval width is
     the confidence signal (see project_race).
+    pace_shape.joblib (see pace_shape's own docstring above
+    _PACE_SHAPE_FEATURES) is OPTIONAL - loaded best-effort, defaulting to
+    None (pace_shape term then always returns 0.0, the same "unseen -> 0"
+    contract every other population term uses) so an older wpr_models/
+    without it, or a retrain that failed to produce it, never breaks
+    serving.
     """
-    global _PROJ, _CONF, _CFG
+    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL
     if _PROJ is not None:
         return
     cfg_path = _MODEL_DIR / "config.json"
@@ -536,6 +543,14 @@ def _load_models():
     _CFG = json.load(open(cfg_path))
     _PROJ = joblib.load(_MODEL_DIR / "projection.joblib")
     _CONF = joblib.load(_MODEL_DIR / "confidence.joblib")
+    _pace_shape_path = _MODEL_DIR / "pace_shape.joblib"
+    if _pace_shape_path.exists():
+        try:
+            _PACE_SHAPE_MODEL = joblib.load(_pace_shape_path)
+        except Exception:
+            _PACE_SHAPE_MODEL = None
+    else:
+        _PACE_SHAPE_MODEL = None
 
 
 # ---------------------------------------------------------------------------
@@ -989,6 +1004,105 @@ def _gear_change_term(bucket, lookup):
     if not lookup:
         return 0.0
     return float(lookup.get(bucket, 0.0))
+
+
+# pace_shape: the first race-shape/pace ADJ_TERM to reach WPR's live rating
+# (Sep 2026, explicit user request - "there should be a race-shape-based
+# bonus/penalty on the actual WPR rating", motivated by a real example: a
+# lone, uncontested leader controlling how a race is run being worth more
+# than its raw rating implies, which nothing in ADJ_TERMS captured). Two
+# earlier attempts on the SAME underlying idea were rejected:
+#   1. wpr_pace_style_adj_term_test.py - population lookup on discrete
+#      Hot/Fast/Even/Slow (cur_race_speed_label) x Leader/On-pace/Midfield/
+#      Back (cur_settle_band, the OLD barrier_nudge formula). Worse in both
+#      directions at every K.
+#   2. wpr_pace_style_v2_better_settle_test.py - same discrete-lookup
+#      architecture, swapping in settling_estimate's new TRAINED model for
+#      the settle side. Worse again, and worse than attempt 1 - real
+#      evidence the discretization itself was the problem, not input
+#      accuracy (a more accurate continuous prediction made a WORSE
+#      discrete band once forced through 4 coarse buckets, both from lower
+#      coverage - trained-model inputs are more often all-missing than a
+#      simple formula - and a flexible model's output being less
+#      population-lookup-friendly than a formula's stable band edges).
+# This is a genuinely different (not a third variant of the same) mechanism:
+# wpr_pace_adjustment_continuous_test.py fed the two CONTINUOUS predictions
+# straight into a small trained model instead of discretizing them first -
+# mirroring the exact lesson settling_estimate.py's own formula-to-trained-
+# model rebuild taught this session (a trained model beats a hand-tuned
+# formula on the same information by roughly 10x). It cleared the
+# bidirectional MAE bar (the LightGBM candidate ~5x stronger than a plain
+# OLS coefficient on the interaction term alone, which also cleared it) -
+# see that script's own RESULT for the numbers.
+#
+# Inputs (both already-shipped, already-validated PRE-RACE predictions from
+# their own separate models, used here as fixed inputs, same "use an
+# already-validated model as a fixed input" pattern own_pace/closing_merit's
+# pace-context baseline use elsewhere):
+#   settle_signal = (predicted_rel_settle - 0.5) * 2   [settling_estimate,
+#     0=leads/1=last -> -1=leads/+1=last]
+#   pace_signal   = (pace_score - 0.5) * 2   [race_speed_estimate,
+#     0=slow/1=hot -> -1=slow/+1=hot]
+#   interaction   = settle_signal * pace_signal   [the textbook mechanism
+#     made explicit: forward-running (low settle_signal) into a hot pace
+#     (high pace_signal) is a genuinely bad combination for a leader (gets
+#     run down); the reverse (forward-running into a slow pace, an
+#     uncontested/easy lead) is genuinely good]
+#   field_size
+#
+# UNLIKE every other population term above (a shrunk lookup TABLE, fit once
+# and JSON-serializable), this is a small TRAINED model (LightGBM,
+# predicting residual = target - career_avg directly, same target every
+# other population term here fits) - shipped as pace_shape.joblib alongside
+# the JSON config, loaded by _load_models(). This is a deliberate, explicit
+# transparency-for-accuracy tradeoff (the same one this session already made
+# once for settling_estimate.py) - the breakdown panel can still narrate the
+# DIRECTION and INPUTS (predicted to control an uncontested race vs.
+# predicted to lead into a hot pace, see describe()), just not a single
+# readable coefficient the way track_barrier/trainer_merit/jockey_merit can.
+#
+# Fit in train_wpr_projection() on its own coverage-scoped recent window
+# (predicted_rel_settle/pace_score are only leak-safely reconstructable for
+# roughly the last year of history - same "own coverage-aware cutoff"
+# problem trainer_merit/jockey_merit already solved, see _fit_merit_lookup's
+# docstring for why the global trn/cf/te split does not work for a
+# recent-only-covered column) - bounded to the EXACT window
+# wpr_pace_adjustment_continuous_test.py validated (365 days), never a
+# superset of what was tested.
+_PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size"]
+
+
+def _pace_shape_features(pace_score, predicted_rel_settle, field_size):
+    """The 4 model inputs (see pace_shape's docstring above), or None if
+    either continuous prediction is missing - the "unseen -> 0" contract
+    is enforced by the caller (_pace_shape_term), not here."""
+    if pace_score is None or pace_score != pace_score:
+        return None
+    if predicted_rel_settle is None or predicted_rel_settle != predicted_rel_settle:
+        return None
+    settle_signal = (float(predicted_rel_settle) - 0.5) * 2
+    pace_signal = (float(pace_score) - 0.5) * 2
+    return {
+        "settle_signal": settle_signal,
+        "pace_signal": pace_signal,
+        "interaction": settle_signal * pace_signal,
+        "field_size": float(field_size) if field_size is not None and field_size == field_size else 0.0,
+    }
+
+
+def _pace_shape_term(pace_score, predicted_rel_settle, field_size, model):
+    """Live pace_shape ADJ_TERM: runs the fitted LightGBM model on today's
+    continuous pace_score (race_speed_estimate) and predicted_rel_settle
+    (settling_estimate). 0.0 (no adjustment) if either input or the model
+    itself is unavailable - same "unseen -> 0" contract every other
+    population term here uses."""
+    if model is None:
+        return 0.0
+    feat = _pace_shape_features(pace_score, predicted_rel_settle, field_size)
+    if feat is None:
+        return 0.0
+    row = pd.DataFrame([feat], columns=_PACE_SHAPE_FEATURES)
+    return float(model.predict(row)[0])
 
 
 # Shrinkage for the own-history adjustment deltas below: a delta computed
@@ -2349,6 +2463,20 @@ def project_race(runners, race_date):
             f["jockey_merit"] = _merit_term(
                 _merit_bucket(r.get("cur_jockey_win_pct_90d"), _jm_edges), _jm_lookup)
 
+    # pace_shape: needs today's continuous pace_score (race_speed_estimate,
+    # whole-field) and predicted_rel_settle (settling_estimate, per-horse) -
+    # both computed by the CALLER (toprate_daily.py's compute_wpr_projection,
+    # which already has the whole race field in scope) and passed in per
+    # runner, same "caller supplies today's context, this module just
+    # applies the fitted model" split as cur_race_speed_label above. 0.0 for
+    # any runner missing either input, or if no model was shipped (see
+    # _load_models).
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["pace_shape"] = _pace_shape_term(
+                r.get("cur_pace_score"), r.get("cur_predicted_rel_settle"),
+                r.get("cur_field_size"), _PACE_SHAPE_MODEL)
+
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
     # the horse's own anchor (a wpr_nett/ewm5 alpha blend, falling back
@@ -2517,6 +2645,13 @@ def _adj_phrase(feat, value, contribution):
                  "expectations" if neg else
                  "horses wearing this gear change for the first time tend "
                  "to run above expectations")
+    if feat == "pace_shape":
+        return ("today's predicted running position and race shape look "
+                 "like a tougher combination for it than its rating alone "
+                 "suggests" if neg else
+                 "today's predicted running position and race shape look "
+                 "like an easier combination for it than its rating alone "
+                 "suggests")
     return None
 
 
@@ -3028,6 +3163,163 @@ def _verify_feature_consistency(form_history_csv, n_check=40):
     return mismatches  # 0 by construction - build_training_frame uses build_features
 
 
+def _build_pace_shape_race_scores(since):
+    """Leak-safe CONTINUOUS pace score (0-1, 1=hottest) per race_id, since
+    the given date - see wpr_pace_adjustment_continuous_test.py's
+    build_race_speed_scores, which this reproduces exactly (same day-by-day
+    prior_means, same already-trained race_speed_estimate model, used here
+    as a fixed input - same "use an already-validated model as a fixed
+    input" pattern wpr_own_pace_backtest.build_race_speed_labels()
+    established)."""
+    import race_speed_estimate as rse
+    fh = rse._load_and_prep_form()
+    rse._load_model()
+    scoped = fh[(fh["date"] >= since) & fh["race_id"].notna()]
+    dates = sorted(scoped["date"].dt.date.unique())
+    print(f"    building leak-safe pace scores for {len(dates)} race days "
+          f"({scoped['race_id'].nunique():,} races) since {since}...")
+    race_id_to_score = {}
+    for i, d in enumerate(dates):
+        if i % 40 == 0:
+            print(f"      ... {i}/{len(dates)} days")
+        day_races = scoped[scoped["date"].dt.date == d]
+        pmeans = rse._prior_means(fh, pd.Timestamp(d))
+        for race_id, race_runners in day_races.groupby("race_id"):
+            try:
+                res = rse.estimate_race_speed(race_runners, pd.Timestamp(d), fh, pmeans)
+            except Exception:
+                continue
+            race_id_to_score[race_id] = res["score"]
+    print(f"    scored {len(race_id_to_score):,} races")
+    return race_id_to_score
+
+
+def _build_pace_shape_settle_lookup(since):
+    """Leak-safe CONTINUOUS predicted_rel_settle (0-1, 0=lead) per
+    (horse_lc, date), since the given date - see
+    wpr_pace_style_v2_better_settle_test.py's build_settle_band_lookup /
+    wpr_pace_adjustment_continuous_test.py's build_settle_score_lookup,
+    which this reproduces exactly (identical feature computation to
+    settling_estimate.train(), then predicts via the already-trained
+    settling_estimate model instead of banding the result)."""
+    import settling_estimate as se
+    print("    building predicted_rel_settle from the trained settling model...")
+    fh = se._load_form()
+    fh = fh[fh["date"] >= pd.Timestamp(since)].copy()
+    fh = fh.sort_values(["horse_lc", "date"]).reset_index(drop=True)
+
+    settle = pd.to_numeric(fh["positionSettled"], errors="coerce")
+    fh["field_size"] = pd.to_numeric(fh["field_size"], errors="coerce")
+    fs = fh["field_size"]
+    valid = (settle > 0) & (fs > 0)
+    rel = (settle / fs).clip(0, 1)
+    rel_valid = rel.where(valid)
+    g = fh["horse_lc"]
+
+    csum_incl = rel_valid.fillna(0).groupby(g).cumsum()
+    ccount_incl = valid.astype(int).groupby(g).cumsum()
+    fh["run_style_tendency"] = (csum_incl.groupby(g).shift(1) /
+                                ccount_incl.groupby(g).shift(1).replace(0, np.nan))
+
+    fh["_rel_for_roll"] = rel_valid
+    fh["last5_tendency"] = fh.groupby("horse_lc")["_rel_for_roll"].transform(
+        lambda s: s.rolling(5, min_periods=1).mean().shift(1))
+    fh = fh.drop(columns=["_rel_for_roll"])
+
+    sect_raw = pd.to_numeric(fh["sect_i_early"], errors="coerce")
+    sect_clipped = sect_raw.clip(se.SECT_EARLY_LO, se.SECT_EARLY_HI)
+    sect_valid = sect_clipped.notna()
+    sect_valid_vals = sect_clipped.where(sect_valid)
+    sect_csum = sect_valid_vals.fillna(0).groupby(g).cumsum()
+    sect_ccount = sect_valid.astype(int).groupby(g).cumsum()
+    fh["trailing_sect_i_early"] = (sect_csum.groupby(g).shift(1) /
+                                   sect_ccount.groupby(g).shift(1).replace(0, np.nan))
+
+    fh["barrier"] = pd.to_numeric(fh["barrier"], errors="coerce")
+    fh["raceNumber"] = pd.to_numeric(fh["raceNumber"], errors="coerce")
+    fh["_race_key"] = fh["track"].astype(str) + "|" + fh["date"].astype(str) + "|" + fh["raceNumber"].astype(str)
+    fh["sect_rank_in_race"] = fh.groupby("_race_key")["trailing_sect_i_early"].rank(pct=True, na_option="keep")
+
+    for col, out_col, lo, hi in [
+        ("sect_ld_early", "trailing_sect_ld_early", se.SECT_LD_EARLY_LO, se.SECT_LD_EARLY_HI),
+        ("sect_i_to800", "trailing_sect_i_to800", se.SECT_I_TO800_LO, se.SECT_I_TO800_HI),
+        ("margin800m", "trailing_margin800m", se.MARGIN800M_LO, se.MARGIN800M_HI),
+    ]:
+        raw = pd.to_numeric(fh[col], errors="coerce")
+        clipped = raw.clip(lo, hi)
+        v = clipped.notna()
+        v_vals = clipped.where(v)
+        csum = v_vals.fillna(0).groupby(g).cumsum()
+        ccount = v.astype(int).groupby(g).cumsum()
+        fh[out_col] = csum.groupby(g).shift(1) / ccount.groupby(g).shift(1).replace(0, np.nan)
+
+    fh["draw_frac"] = ((fh["barrier"] - 1) / (fh["field_size"] - 1)).clip(0, 1)
+    fh["draw_signal"] = (fh["draw_frac"] - 0.5) * 2
+    fh["sect_signal"] = (fh["sect_rank_in_race"] - 0.5) * 2
+
+    se._load_model()
+    features = se._CFG["features"]
+    has_tend = fh["run_style_tendency"].notna()
+    med = se._CFG["medians"]
+    feat_df = fh[features].apply(lambda col: col.fillna(med.get(col.name, 0.0)))
+    pred = np.clip(se._MODEL.predict(feat_df), 0.0, 1.0)
+    pred = pd.Series(pred, index=fh.index).where(has_tend)
+
+    lookup = {}
+    for hlc, dt, p in zip(fh["horse_lc"], fh["date"], pred):
+        if pd.notna(p):
+            lookup[(hlc, dt)] = float(p)
+    print(f"    built lookup for {len(lookup):,} (horse, date) rows")
+    return lookup
+
+
+def _fit_pace_shape_model(D, name_map):
+    """Fit the pace_shape ADJ_TERM's LightGBM model (see its own module
+    docstring above _PACE_SHAPE_FEATURES) and apply it to D's cf/te rows in
+    place (adding a "pace_shape" column), same two-stage pattern as every
+    other population term in train_wpr_projection().
+
+    Bounded to the EXACT 365-day window wpr_pace_adjustment_continuous_
+    test.py validated (never a superset of what was tested) - within that
+    window, own_pace/trainer_merit's "own coverage-aware cutoff" pattern is
+    reused (a global trn/cf/te split of the FULL multi-year D would leave
+    trn almost entirely uncovered, since predicted_rel_settle/pace_score
+    are only leak-safely reconstructable for roughly the last year).
+
+    Returns the fitted model (None if too little covered data to fit)."""
+    import lightgbm as lgb
+    since = (D["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
+    print(f"  building pace_shape ingredients (leak-safe, since {since})...")
+    race_id_to_score = _build_pace_shape_race_scores(since)
+    settle_lookup = _build_pace_shape_settle_lookup(since)
+
+    D["pace_score"] = D["race_id"].map(race_id_to_score)
+    D["horse_lc"] = D["horse_id"].map(name_map).astype(str).str.lower()
+    D["predicted_rel_settle"] = [
+        settle_lookup.get((h, d)) for h, d in zip(D["horse_lc"], D["date"])
+    ]
+    D["settle_signal"] = (D["predicted_rel_settle"] - 0.5) * 2
+    D["pace_signal"] = (D["pace_score"] - 0.5) * 2
+    D["interaction"] = D["settle_signal"] * D["pace_signal"]
+    print(f"  pace_score coverage: {D['pace_score'].notna().mean()*100:.1f}%  "
+          f"predicted_rel_settle coverage: {D['predicted_rel_settle'].notna().mean()*100:.1f}%")
+
+    cov = D[D["date"] >= pd.Timestamp(since)].dropna(
+        subset=["settle_signal", "pace_signal", "interaction", "target", "career_avg"])
+    if len(cov) < 200:
+        print(f"  pace_shape: only {len(cov):,} covered rows, skipping fit "
+              f"(need >=200)")
+        return None
+    cutoff = cov["date"].quantile(0.70)
+    cov_trn = cov[cov["date"] < cutoff]
+    print(f"  pace_shape: fitting on {len(cov_trn):,} covered rows "
+          f"(own {since}-onward window, own 70% cutoff {cutoff.date()})")
+    model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
+                              num_leaves=8, random_state=42, verbosity=-1)
+    model.fit(cov_trn[_PACE_SHAPE_FEATURES], cov_trn["target"] - cov_trn["career_avg"])
+    return model
+
+
 def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                          out_dir="wpr_models", n_jobs=1):
     """Re-fit the projection (q50) and confidence (q10/q90 interval) models.
@@ -3244,6 +3536,32 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             for pairs in _frame["closing_pairs"]
         ]
 
+    # pace_shape: the one ADJ_TERM that is a TRAINED MODEL rather than a
+    # shrunk lookup table - see its own module docstring above
+    # _PACE_SHAPE_FEATURES for the full rationale/history. Fit on its own
+    # coverage-scoped recent window (own coverage-aware cutoff, same
+    # pattern trainer_merit/jockey_merit use above) - _fit_pace_shape_model
+    # adds pace_score/predicted_rel_settle/settle_signal/pace_signal/
+    # interaction columns to D (and therefore to cf/te, already split off
+    # D by reference... no - cf/te were sliced from D BEFORE this call, so
+    # the new columns must be looked up fresh below, not assumed present).
+    print("  fitting pace_shape model (leak-safe, own coverage-aware window)...")
+    pace_shape_model = _fit_pace_shape_model(D, _name_map)
+    if pace_shape_model is not None:
+        for _frame in (cf, te):
+            _fps = D.loc[_frame.index, ["pace_score", "predicted_rel_settle"]]
+            _frame["pace_shape"] = [
+                _pace_shape_term(ps, prs, fs, pace_shape_model)
+                for ps, prs, fs in zip(_fps["pace_score"], _fps["predicted_rel_settle"],
+                                       _frame["field_size"])
+            ]
+        print("  pace_shape: model fitted and applied to cf/te")
+    else:
+        for _frame in (cf, te):
+            _frame["pace_shape"] = 0.0
+        print("  pace_shape: fit skipped (insufficient covered data), "
+              "term is 0.0 everywhere this run")
+
     # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
     # the confidence quantile models (ADJ_TERMS themselves have no fitting
     # step to weight - see below).
@@ -3360,6 +3678,14 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # and wpr_models/'s three-file shape don't need to change.
     joblib.dump({}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
+    # pace_shape.joblib: OPTIONAL artifact (see _load_models' docstring) -
+    # only written when the fit actually produced a model, so a run with
+    # too little covered data leaves any PREVIOUS pace_shape.joblib in
+    # place rather than deleting it (an unlucky retrain should not silently
+    # remove a working term).
+    if pace_shape_model is not None:
+        joblib.dump(pace_shape_model, Path(out_dir) / "pace_shape.joblib")
+        print("  pace_shape.joblib written")
     new_cfg = dict(existing_cfg)
     new_cfg.update({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),

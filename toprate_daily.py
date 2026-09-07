@@ -1105,6 +1105,23 @@ def compute_wpr_projection(runners_df, target_date_str=None):
         print(f"  WPR projection skipped: cannot import wpr_projection ({e})")
         return runners_df
 
+    # pace_shape ADJ_TERM inputs (Sep 2026) - today's continuous pace_score
+    # (race_speed_estimate, whole-field) and predicted_rel_settle
+    # (settling_estimate, per-horse). Both OPTIONAL and best-effort: if
+    # either import fails, cur_pace_score/cur_predicted_rel_settle stay None
+    # for every runner and pace_shape falls back to its "unseen -> 0"
+    # contract in wpr_projection - never fatal to the projection step.
+    try:
+        import race_speed_estimate as _rse_mod
+    except Exception as e:
+        print(f"  pace_shape inputs: race_speed_estimate unavailable ({e})")
+        _rse_mod = None
+    try:
+        import settling_estimate as _se_mod
+    except Exception as e:
+        print(f"  pace_shape inputs: settling_estimate unavailable ({e})")
+        _se_mod = None
+
     if not WPR_FORM_HISTORY_CSV.exists():
         print(f"  WPR projection skipped: {WPR_FORM_HISTORY_CSV.name} not found")
         return runners_df
@@ -1162,6 +1179,17 @@ def compute_wpr_projection(runners_df, target_date_str=None):
         print(f"  WPR projection skipped: could not read form history ({e})")
         return runners_df
 
+    # Shared prior-means for today's pace-score estimates (see compute_
+    # race_speed's own identical precompute) - every race today shares the
+    # same "before today" cutoff, so this expensive full-history groupby is
+    # done ONCE here rather than once per race.
+    _shared_pmeans = None
+    if _rse_mod is not None:
+        try:
+            _shared_pmeans = _rse_mod._prior_means(fh, race_date=pd.to_datetime(target_date_str))
+        except Exception as e:
+            print(f"  pace_shape inputs: shared prior-means precompute skipped ({e})")
+
     projected = 0
     fallback = 0
     races = 0
@@ -1191,10 +1219,12 @@ def compute_wpr_projection(runners_df, target_date_str=None):
         runners = []
         runners_alt = []   # same field, going flipped wet<->dry
         idx_order = []
+        settle_field = []   # (idx, prior_runs, barrier, field_size) for estimate_race_settling
         for idx, r in race.iterrows():
             horse_lc = str(r.get("horse", "")).strip().lower()
             hist = form_by_horse.get(horse_lc)
             prior = hist[hist["date"] < race_date] if hist is not None else None
+            settle_field.append((idx, prior, r.get("barrier"), active_field_size))
             trial_hist = trial_by_horse.get(horse_lc)
             trial_prior = trial_hist[trial_hist["date"] < race_date] if trial_hist is not None else None
             going = r.get("going") or "Good 4"
@@ -1224,6 +1254,30 @@ def compute_wpr_projection(runners_df, target_date_str=None):
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))
             idx_order.append(idx)
+
+        # pace_shape ADJ_TERM inputs - whole-field, computed once per race
+        # (see the module-level imports above). Best-effort: any failure
+        # here just leaves cur_pace_score/cur_predicted_rel_settle as None
+        # for this race, and pace_shape falls back to 0.0 in wpr_projection.
+        cur_pace_score = None
+        if _rse_mod is not None:
+            try:
+                _pace_res = _rse_mod.estimate_race_speed(race, race_date, fh, pmeans=_shared_pmeans)
+                cur_pace_score = _pace_res.get("score")
+            except Exception:
+                cur_pace_score = None
+        settle_by_idx = {}
+        if _se_mod is not None:
+            try:
+                _settle_est = _se_mod.estimate_race_settling(settle_field)
+                settle_by_idx = {lbl: est.get("rel") for lbl, est in _settle_est.items()}
+            except Exception:
+                settle_by_idx = {}
+        for k, idx in enumerate(idx_order):
+            runners[k]["cur_pace_score"] = cur_pace_score
+            runners[k]["cur_predicted_rel_settle"] = settle_by_idx.get(idx)
+            runners_alt[k]["cur_pace_score"] = cur_pace_score
+            runners_alt[k]["cur_predicted_rel_settle"] = settle_by_idx.get(idx)
 
         try:
             results = wpr.project_race(runners, race_date=race_date)
