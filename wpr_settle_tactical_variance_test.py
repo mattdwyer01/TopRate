@@ -68,14 +68,25 @@ currently-live +0.09, though not the full +2 originally expected.
 
 Combined with the margin feature (wpr_settle_margin_feature_test.py,
 which DOES clear the bar on its own): Lindermann's predicted rel_settle
-drops further to 0.285, giving pace_shape~+0.96 - see the combined
-bidirectional check run alongside this result for whether the COMBINATION
-clears the bar overall (this file tests the tactical exclusion alone).
+drops further to 0.285, giving pace_shape~+0.96.
 
-NOT ADOPTED ALONE (fails the bidirectional bar by itself) - potentially
-adoptable only as part of a combined change with the margin feature,
-which should be validated as ONE combined candidate, not two separately-
-passing decisions assumed to compose.
+COMBINED bidirectional check (margin feature + this tactical exclusion,
+both features together vs the plain baseline): direction A 0.1975 ->
+0.1975 (+0.0000, essentially a tie, technically not an improvement),
+direction B 0.2034 -> 0.2007 (-0.0027, a real improvement, almost
+identical to the margin feature's own -0.0028 alone). CONCLUSION: adding
+the tactical exclusion on top of the margin feature costs essentially
+nothing at the population level (differences from margin-alone are in the
+4th decimal - rounding noise) while providing a real, textually-evidenced
+fix for cases exactly like Lindermann's. The margin feature is carrying
+nearly all of the measured population-level MAE gain; the tactical
+exclusion's value is case-specific correctness, not aggregate accuracy.
+
+NOT ADOPTED ALONE (fails the bidirectional bar by itself, marginally).
+DEFENSIBLE ONLY AS PART OF THE COMBINED CANDIDATE (margin feature +
+tactical exclusion together) - left for the user's decision given the
+blast radius (retrains the live settling_estimate model, used by the
+dashboard's speed map for every race).
 """
 import numpy as np
 import pandas as pd
