@@ -101,8 +101,35 @@ def run():
     full = merge_price_pfm(full)
     full = add_base(full)
 
+    # pace_shape: added to ADJ_TERMS this session, not part of
+    # wpr_own_pace_backtest's own_* set the older bet-selection scripts were
+    # written against. Only has leak-safe coverage for the last ~365 days
+    # (see its own module docstring) - applying the ALREADY-SHIPPED, already
+    # -validated model as a FIXED input here (not re-fit per half) is the
+    # same "reuse a validated fixed input" pattern the term itself already
+    # uses for its own two ingredients, and keeps this test focused on the
+    # slope question rather than re-deriving pace_shape's own day-by-day
+    # scoring twice per slope value. Falls back to 0.0 (its live "unseen ->
+    # 0" contract) outside that window, same as track_barrier/gear_change/
+    # etc - NOT required in the dropna below (that would gut the dataset to
+    # one year for no reason relevant to this test).
+    print("  building pace_shape (shipped model, fixed input)...")
+    since = (full["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
+    race_id_to_score = wpr._build_pace_shape_race_scores(since)
+    _name_map, _ = wpr._load_trainer_jockey_by_horse_date(FORM_CSV)
+    full["horse_lc"] = full["horse_id"].map(_name_map).astype(str).str.lower()
+    settle_lookup = wpr._build_pace_shape_settle_lookup(since)
+    full["pace_score"] = full["race_id"].map(race_id_to_score)
+    full["predicted_rel_settle"] = [settle_lookup.get((h, d)) for h, d in zip(full["horse_lc"], full["date"])]
+    import joblib
+    _pace_model = joblib.load("wpr_models/pace_shape.joblib")
+    full["pace_shape"] = [
+        wpr._pace_shape_term(ps, prs, fs, _pace_model)
+        for ps, prs, fs in zip(full["pace_score"], full["predicted_rel_settle"], full["field_size"])
+    ]
+
     non_pop_terms = [t for t in wpr.ADJ_TERMS
-                     if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit")]
+                     if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit", "pace_shape")]
     full = full.dropna(subset=["target", "_base", "career_avg"] + non_pop_terms +
                         ["barrier", "field_size", "track", "cur_distance"])
     sp = pd.to_numeric(full["fixed_win_price"], errors="coerce")
