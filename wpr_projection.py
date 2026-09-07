@@ -3340,8 +3340,16 @@ def _fit_pace_shape_model(D, name_map):
     cov_trn = cov[cov["date"] < cutoff]
     print(f"  pace_shape: fitting on {len(cov_trn):,} covered rows "
           f"(own {since}-onward window, own 70% cutoff {cutoff.date()})")
+    # objective="quantile", alpha=0.5 (median regression) - Sep 2026, see
+    # wpr_pace_shape_median_objective_test.py: LightGBM's default (L2/
+    # mean-fitting) objective is a worse fit for this skewed residual
+    # target (WPR's target-career_avg has skew=-1.69, mean/median
+    # opposite signs - see wpr_adj_median_bucket_test.py), same fix
+    # settling_estimate.py's own model already made. Clears the
+    # bidirectional bar (-0.0700/-0.0846 MAE).
     model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
-                              num_leaves=8, random_state=42, verbosity=-1)
+                              num_leaves=8, random_state=42, verbosity=-1,
+                              objective="quantile", alpha=0.5)
     model.fit(cov_trn[_PACE_SHAPE_FEATURES], cov_trn["target"] - cov_trn["career_avg"])
     return model
 
