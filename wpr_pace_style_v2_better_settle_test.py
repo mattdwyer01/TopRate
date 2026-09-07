@@ -4,6 +4,29 @@ candidate (predicted pace x predicted running style -> a population-level
 WPR rating adjustment), which FAILED in wpr_pace_style_adj_term_test.py
 (worse held-out MAE in both directions, every K tried).
 
+RESULT (Sep 2026): REJECTED AGAIN - and WORSE than the original rejection,
+not better, despite the objectively more accurate settle-style input:
+  direction A (forward):  6.2222 -> 6.2619/6.2623/6.2625 (worse, +0.040 at every K)
+  direction B (reversed): 5.5393 -> 5.5554/5.5558/5.5559 (worse, +0.016 to +0.017)
+The original test's degradation was +0.007 to +0.016; this one is +0.016
+to +0.040, roughly 2-3x worse. Two likely compounding causes: (1) coverage
+dropped (88.2% vs the simpler formula's higher coverage - the trained
+model needs all 8 inputs present, silently failing more often), and (2)
+a more accurate CONTINUOUS estimate does not imply better-behaved BANDS -
+a flexible trained model can assign horses to Leader/On-pace/Midfield/
+Back more idiosyncratically than a simple linear formula, which hurts a
+population-level lookup that needs many horses to share a band
+consistently for a reliable per-cell average. This is now two
+independent rejections of the same mechanism, the second with a strictly
+better input failing HARDER - real evidence the bottleneck is not the
+settle-side predictor's accuracy. It is either the pace-side predictor
+(unchanged, still only +0.29 correlation, already extensively tried
+today - same_day dead-end, track_hist rejected, jockey rejected, no
+further gains found) or the population-lookup architecture itself for
+combining two predicted categorical variables into a rating adjustment.
+Not pursued further without a fundamentally different mechanism, not
+another settle-model swap.
+
 WHY RE-TEST RATHER THAN ACCEPT THE EARLIER REJECTION: the earlier failure
 was attributed to BOTH inputs being too noisy pre-race predictions -
 race_speed_estimate.py's pace model (+0.29 held-out correlation, honestly
