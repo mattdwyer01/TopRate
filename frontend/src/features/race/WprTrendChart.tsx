@@ -15,6 +15,7 @@ const PLOT_W = WIDTH - MARGIN.left - MARGIN.right
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom
 const MAX_PAST_RUNS = 8
 const LABEL_GAP = 6 // px between the "today" point and its end-of-line tab-number label
+const MIN_LABEL_ROW_GAP = 11 // px - minimum vertical spacing between two end-of-line labels
 
 interface TrendPoint {
   x: number // 0 = today (predicted); negative = runs back from today
@@ -272,6 +273,32 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
     return line.points.find((p) => p.predicted) ?? line.points[line.points.length - 1]
   }
 
+  // Label declutter: raw label y-positions can land within a few px of each
+  // other when several horses converge on a similar rating - the labels
+  // then overlap and render as garbled digits, worse than no label at all
+  // (a real bug, not a hypothetical - see the screenshot this was reported
+  // from). Greedy top-to-bottom pass: sort by raw y, push any label closer
+  // than MIN_LABEL_ROW_GAP to the one above it straight down by the gap. A
+  // short leader line (drawn below, only when a label actually moved) keeps
+  // a shifted label honest about which point it belongs to.
+  const labelLayout = useMemo(() => {
+    const raw = lines
+      .map((line) => {
+        const lp = labelPoint(line)
+        return { runId: line.runId, anchorX: xScale(lp.x), anchorY: yScale(clamp(lp.wpr, yLo, yHi)), predicted: lp.predicted }
+      })
+      .sort((a, b) => a.anchorY - b.anchorY)
+    let prevY = -Infinity
+    const out = new Map<string, { labelY: number; anchorX: number; anchorY: number; predicted: boolean }>()
+    for (const r of raw) {
+      const labelY = Math.max(r.anchorY, prevY + MIN_LABEL_ROW_GAP)
+      prevY = labelY
+      out.set(r.runId, { labelY, anchorX: r.anchorX, anchorY: r.anchorY, predicted: r.predicted })
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- xScale/yScale/yLo/yHi are pure derivations of `lines`, recomputing together every render
+  }, [lines])
+
   function Marker({
     p,
     r,
@@ -421,14 +448,30 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
                     onClick={() => toggleLock({ runId: line.runId, index: i })}
                   />
                 ))}
-                <text
-                  x={xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)}
-                  y={yScale(clamp(lp.wpr, yLo, yHi))}
-                  dy="0.32em"
-                  className="fill-ink-faint text-[9px]"
-                >
-                  {line.tabNumber}
-                </text>
+                {(() => {
+                  const layout = labelLayout.get(line.runId)
+                  const labelX = xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)
+                  const labelY = layout?.labelY ?? yScale(clamp(lp.wpr, yLo, yHi))
+                  const shifted = layout != null && Math.abs(layout.labelY - layout.anchorY) > 1
+                  return (
+                    <>
+                      {shifted && layout && (
+                        <line
+                          x1={layout.anchorX + 2}
+                          y1={layout.anchorY}
+                          x2={labelX - 2}
+                          y2={labelY}
+                          stroke="var(--color-ink-faint)"
+                          strokeWidth={1}
+                          opacity={0.35}
+                        />
+                      )}
+                      <text x={labelX} y={labelY} dy="0.32em" className="fill-ink-faint text-[9px]">
+                        {line.tabNumber}
+                      </text>
+                    </>
+                  )
+                })()}
               </g>
             )
           })}
@@ -486,14 +529,30 @@ export function WprTrendChart({ runners, race }: WprTrendChartProps) {
                       />
                     )
                   })}
-                  <text
-                    x={xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)}
-                    y={yScale(clamp(lp.wpr, yLo, yHi))}
-                    dy="0.32em"
-                    className="fill-emerald-deep text-[10px] font-semibold"
-                  >
-                    {activeLine.tabNumber}
-                  </text>
+                  {(() => {
+                    const layout = labelLayout.get(activeLine.runId)
+                    const labelX = xScale(lp.x) + LABEL_GAP + (lp.predicted ? 4 : 0)
+                    const labelY = layout?.labelY ?? yScale(clamp(lp.wpr, yLo, yHi))
+                    const shifted = layout != null && Math.abs(layout.labelY - layout.anchorY) > 1
+                    return (
+                      <>
+                        {shifted && layout && (
+                          <line
+                            x1={layout.anchorX + 2}
+                            y1={layout.anchorY}
+                            x2={labelX - 2}
+                            y2={labelY}
+                            stroke="var(--color-emerald-deep)"
+                            strokeWidth={1}
+                            opacity={0.5}
+                          />
+                        )}
+                        <text x={labelX} y={labelY} dy="0.32em" className="fill-emerald-deep text-[10px] font-semibold">
+                          {activeLine.tabNumber}
+                        </text>
+                      </>
+                    )
+                  })()}
                 </g>
               )
             })()}
