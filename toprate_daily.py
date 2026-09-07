@@ -3029,16 +3029,28 @@ def rebuild_html(runners_df, model_pick_rows=None):
         _tend_lookup = {}
 
     # Predicted settling band per runner, for the detail-panel settling
-    # comparison table. Uses settling_estimate's logic (run-style
-    # tendency + barrier nudge; validated MAE 0.207).
+    # comparison table (this IS the live speed map's data source). Uses
+    # settling_estimate's logic (run-style tendency + barrier nudge +
+    # sect_early_nudge; validated MAE 0.207, extended Sep 2026 - see
+    # settling_estimate.py's own module docstring).
     #
     # VECTORISED: a horse's run-style tendency (mean relative settle) is
     # a stable per-horse number. The earlier version date-filtered the
     # horse's history per runner (~thousands of pandas ops, ~130s). Now
     # the tendency is computed once for every horse via one groupby, and
-    # per runner it is just tendency + barrier_nudge - pure arithmetic.
-    # Runs for ALL runners (no scoping), so every race's detail panel
-    # gets its settling highlight.
+    # per runner it is just tendency + nudge - pure arithmetic. Runs for
+    # ALL runners (no scoping), so every race's detail panel gets its
+    # settling highlight.
+    #
+    # BUG FIX (Sep 2026): _sfh was never deduped before this groupby -
+    # 42% of (horse, date) row-pairs are duplicated from a WPR rebaseline
+    # re-scrape issue (this session's own established, mandatory-dedup
+    # finding - every other trailing-history computation in this codebase
+    # already applies it, this one spot didn't). Quantified impact on
+    # this exact computation: mean |difference| 0.013 across 18,185
+    # horses, 25% of horses shifted by >0.02, 5.5% by >0.05 (enough to
+    # flip the displayed band) - a real, live, user-facing accuracy bug
+    # in the speed map, not just a research-script issue.
     _step("Building settling-band lookup...")
     _settle_band_lookup = {}
     try:
@@ -3049,6 +3061,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _sfh["horse_lc"] = _sfh["horse"].astype(str).str.strip().str.lower()
             if "isBarrierTrial" in _sfh.columns:
                 _sfh = _sfh[_sfh["isBarrierTrial"].fillna(0).astype(int) == 0]
+            if "scrape_date" in _sfh.columns:
+                _sfh = _sfh.sort_values("scrape_date").drop_duplicates(
+                    subset=["horse_lc", "date", "track"], keep="last")
             # run-style tendency per horse, vectorised: mean of
             # positionSettled / field_size over the horse's runs.
             _ps = pd.to_numeric(_sfh.get("positionSettled"), errors="coerce")
@@ -3058,7 +3073,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _sfh = _sfh.assign(_rel=_rel)
             _grp = _sfh.dropna(subset=["_rel"]).groupby("horse_lc")["_rel"]
             _tendency = _grp.mean().to_dict()
-            _tend_n = _grp.count().to_dict()
+
+            # trailing early-speed rating per horse, same vectorised
+            # pattern, winsorized at the fitted population bounds (see
+            # settling_estimate.SECT_EARLY_LO/HI) - see that module's
+            # trailing_sect_early() for the row-by-row equivalent.
+            _sect_raw = pd.to_numeric(_sfh.get("sect_i_early"), errors="coerce")
+            _sect_clipped = _sect_raw.clip(_se_mod.SECT_EARLY_LO, _se_mod.SECT_EARLY_HI)
+            _sfh = _sfh.assign(_sect=_sect_clipped)
+            _sect_tendency = _sfh.dropna(subset=["_sect"]).groupby("horse_lc")["_sect"].mean().to_dict()
 
             def _band_of(rel):
                 if rel <= 0.20:
@@ -3069,16 +3092,32 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     return "Midfield"
                 return "Back"
 
-            for _, _rr in runners_df.iterrows():
+            # sect_rank_in_race: rank each runner's trailing early-speed
+            # rating against the OTHER runners in the SAME today's race -
+            # one vectorised groupby-rank over all runners at once, not a
+            # per-race Python loop.
+            _runners_sect = runners_df["horse"].astype(str).str.strip().str.lower().map(_sect_tendency)
+            _sect_rank_by_race = _runners_sect.groupby(runners_df["race_id"]).rank(pct=True)
+
+            for _ridx, _rr in runners_df.iterrows():
                 _hlc = str(_rr.get("horse", "")).strip().lower()
                 _rid = str(_rr.get("run_id", ""))
                 _tend = _tendency.get(_hlc)
                 if _tend is None:
                     continue
                 _fsz = _rr.get("field_size")
-                _nudge = _se_mod.barrier_nudge(
-                    _rr.get("barrier"),
-                    int(_fsz) if pd.notna(_fsz) else None)
+                _fsz_int = int(_fsz) if pd.notna(_fsz) else None
+                _barrier = _rr.get("barrier")
+                _draw_nudge = 0.0
+                if _barrier is not None and _fsz_int is not None and _fsz_int >= 2:
+                    try:
+                        _b, _fs2 = float(_barrier), float(_fsz_int)
+                        _draw_frac = min(1.0, max(0.0, (_b - 1) / (_fs2 - 1)))
+                        _draw_nudge = (_draw_frac - 0.5) * 2 * _se_mod.SECT_NUDGE_DRAW_SLOPE
+                    except (TypeError, ValueError):
+                        pass
+                _sect_rank = _sect_rank_by_race.loc[_ridx]
+                _nudge = _draw_nudge + _se_mod.sect_early_nudge(_sect_rank)
                 _rel_est = min(1.0, max(0.0, _tend + _nudge))
                 _settle_band_lookup[_rid] = _band_of(_rel_est)
     except Exception as _e:

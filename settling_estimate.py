@@ -15,7 +15,7 @@ WHAT IT DOES
 
 THE MODEL (deliberately simple and transparent)
   predicted_relative_settle =
-      run_style_tendency  +  barrier_nudge
+      run_style_tendency  +  barrier_nudge  +  sect_early_nudge
 
   - run_style_tendency: the horse's historical relative settle, the mean
     of (positionSettled / field_size) over its past runs. 0 = habitual
@@ -25,6 +25,16 @@ THE MODEL (deliberately simple and transparent)
     makes holding a forward position harder (nudge toward the back); an
     inside draw makes it easier (nudge toward the front). Small effect -
     barrier influences but does not dictate where a horse settles.
+  - sect_early_nudge (added Sep 2026, see wpr_settle_sectional_test.py):
+    this horse's own trailing early-speed RATING (sect_i_early), ranked
+    against the OTHER runners in today's actual field. Genuinely
+    different information from run_style_tendency, which is ordinal
+    (settled 3rd of 8 either way, whether by a nose or ten lengths) -
+    validated bidirectionally as a real, if modest, accuracy gain. Needs
+    the WHOLE field's trailing ratings to rank against - see
+    estimate_race_settling(), not estimate_settle() alone, to get this
+    filled in (estimate_settle() alone leaves it at 0 unless a caller
+    supplies sect_rank_in_race itself).
 
   Kept transparent on purpose: this estimate feeds the WPR adjustment
   layer (Stage 3), which must be auditable and overridable. A black-box
@@ -33,13 +43,14 @@ THE MODEL (deliberately simple and transparent)
 USAGE
   python settling_estimate.py --race <race_id>      # estimate one race
   python settling_estimate.py --validate            # descriptive check
-  python settling_estimate.py --validate --n 300    # larger validation
+  python settling_estimate.py --validate --n 300    # sample 300 races
 
 VALIDATION
   --validate compares the estimate to ACTUAL settled positions on past
-  resulted runs: for each runner, predicted relative settle vs actual
-  positionSettled / field_size. Reports mean absolute error and band-
-  hit rate. This is descriptive - it does NOT touch ROI or betting.
+  resulted runs, working race-by-race (sect_rank_in_race needs a whole
+  field to rank against): for each runner, predicted relative settle vs
+  actual positionSettled / field_size. Reports mean absolute error and
+  band-hit rate. This is descriptive - it does NOT touch ROI or betting.
 
 NO EM DASHES policy: hyphens only in this file.
 """
@@ -58,7 +69,33 @@ RUNNERS_CSV = Path(__file__).parent / "toprate_runners.csv"
 # drawn 1 gets nudged the same amount toward the front; the middle of
 # the field gets ~0. Small by design - the draw influences settling but
 # the horse's own run-style dominates.
+#
+# NOT changed to the properly-fit value (~0.081, see
+# wpr_settle_barrier_nudge_calibration_test.py) - that fit was only
+# validated jointly WITH the sect_early_nudge below, and this constant is
+# also read directly by wpr_projection.py's own build_features()
+# (`from settling_estimate import barrier_nudge`) for cur_settle_band,
+# which is out of scope here (see estimate_race_settling's own docstring
+# for why). Changing it alone would be an unvalidated, silent change to
+# that separate, live rating pipeline.
 BARRIER_MAX_NUDGE = 0.12
+
+# sect_early_nudge: a SEPARATE, ADDITIONAL nudge from this horse's own
+# trailing early-speed RATING (sect_i_early, "individualEarlySpeed" per
+# toprate_json_capture.py's field mapping) relative to the OTHER runners
+# in today's field - genuinely different information from run_style_
+# tendency (which is ordinal: settled 3rd of 8 either way, whether by a
+# nose or ten lengths) or barrier_nudge (today's draw only). Validated
+# (Sep 2026, wpr_settle_sectional_test.py) bidirectionally: jointly
+# refitting the draw-nudge slope (0.0806, matching BARRIER_MAX_NUDGE's
+# effect almost exactly) alongside this sect coefficient improved held-out
+# settling MAE in BOTH directions of a swapped chronological split
+# (0.2092 -> 0.2085 and 0.2176 -> 0.2172) - final coefficients refit on
+# all available data.
+SECT_NUDGE_DRAW_SLOPE = 0.0806    # draw-nudge slope, fit JOINTLY with the term below
+SECT_NUDGE_COEF = -0.0162         # negative: a stronger relative early-speed rating pulls forward
+SECT_EARLY_LO, SECT_EARLY_HI = -24.54, 6.80   # winsorization bounds (1st/99th pctile, fit-time population)
+_MIN_RUNS_FOR_SECT = 1
 
 _MIN_RUNS_FOR_STYLE = 3   # fewer usable settle runs -> low confidence
 
@@ -110,12 +147,50 @@ def barrier_nudge(barrier, field_size):
     return (draw_frac - 0.5) * 2 * BARRIER_MAX_NUDGE
 
 
-def estimate_settle(prior_runs, barrier, field_size):
+def trailing_sect_early(prior_runs):
+    """Mean early-speed RATING (sect_i_early) over a horse's past runs,
+    winsorized at the fitted population bounds (SECT_EARLY_LO/HI) so a
+    rare extreme outlier does not dominate a horse with few runs. Returns
+    (mean, n_usable); mean is None if no usable runs. Mirrors
+    run_style_tendency's own shape."""
+    if prior_runs is None or len(prior_runs) == 0:
+        return None, 0
+    raw = pd.to_numeric(prior_runs.get("sect_i_early"), errors="coerce")
+    clipped = raw.clip(SECT_EARLY_LO, SECT_EARLY_HI).dropna()
+    if len(clipped) == 0:
+        return None, 0
+    return float(clipped.mean()), int(len(clipped))
+
+
+def sect_early_nudge(sect_rank_in_race):
+    """Shift from this horse's trailing early-speed rating RANKED against
+    the other runners in today's actual field (0 = weakest rating in the
+    field, 1 = strongest). None (unknown rank - e.g. this horse has no
+    sect_i_early history) returns 0.0, same "unseen -> 0" contract as
+    barrier_nudge."""
+    if sect_rank_in_race is None or sect_rank_in_race != sect_rank_in_race:  # NaN
+        return 0.0
+    r = min(1.0, max(0.0, float(sect_rank_in_race)))
+    # centre on 0; HIGH rank (strong relative early speed) pulls TOWARD
+    # the front - since 0=lead in this scale, that is a NEGATIVE nudge.
+    return (r - 0.5) * 2 * SECT_NUDGE_COEF
+
+
+def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
     """Estimate one horse's settling position today.
+
+    sect_rank_in_race: this horse's trailing_sect_early ranked against the
+    REST of today's field (0-1, see sect_early_nudge) - optional, since it
+    needs the whole field's trailing values to compute (unlike barrier_
+    nudge, which only needs this one horse's own barrier/field_size).
+    None (the default) leaves that term at 0.0 - existing callers are
+    unaffected. Use estimate_race_settling() to get this filled in for
+    every runner in a race at once.
+
     Returns dict: rel (0-1 or None), band, tendency, n_runs, nudge,
     confidence ('ok' / 'low' / 'none')."""
     tendency, n = run_style_tendency(prior_runs)
-    nudge = barrier_nudge(barrier, field_size)
+    nudge = barrier_nudge(barrier, field_size) + sect_early_nudge(sect_rank_in_race)
     if tendency is None:
         # no settle history - cannot estimate from run-style. Fall back
         # to a neutral midfield estimate, flagged as no-confidence.
@@ -125,6 +200,49 @@ def estimate_settle(prior_runs, barrier, field_size):
     conf = "ok" if n >= _MIN_RUNS_FOR_STYLE else "low"
     return {"rel": rel, "band": _band(rel), "tendency": tendency,
             "n_runs": n, "nudge": nudge, "confidence": conf}
+
+
+def estimate_race_settling(field):
+    """Estimate settling for every runner in a race AT ONCE - needed for
+    sect_rank_in_race, which requires comparing this horse's trailing
+    early-speed rating against the REST of today's actual field (a single-
+    horse function like estimate_settle cannot compute this alone).
+
+    field: list of (label, prior_runs, barrier, field_size) tuples - label
+    is caller-defined (horse name, run_id, whatever the caller wants back
+    to identify the row).
+
+    Uses the JOINTLY-fit draw-nudge slope (SECT_NUDGE_DRAW_SLOPE), not the
+    standalone BARRIER_MAX_NUDGE - see SECT_NUDGE_DRAW_SLOPE's own comment
+    for why those two coefficients must travel together.
+
+    Returns {label: estimate_settle(...) dict}."""
+    trailing = {label: trailing_sect_early(prior_runs) for label, prior_runs, _, _ in field}
+    vals = pd.Series({label: t for label, (t, n) in trailing.items() if t is not None})
+    ranks = vals.rank(pct=True) if len(vals) else pd.Series(dtype=float)
+
+    out = {}
+    for label, prior_runs, barrier, field_size in field:
+        tendency, n = run_style_tendency(prior_runs)
+        draw_nudge = 0.0
+        if barrier is not None and field_size is not None and field_size >= 2:
+            try:
+                b, fs = float(barrier), float(field_size)
+                draw_frac = min(1.0, max(0.0, (b - 1) / (fs - 1)))
+                draw_nudge = (draw_frac - 0.5) * 2 * SECT_NUDGE_DRAW_SLOPE
+            except (TypeError, ValueError):
+                pass
+        sect_rank = ranks.get(label)
+        nudge = draw_nudge + sect_early_nudge(sect_rank)
+        if tendency is None:
+            out[label] = {"rel": None, "band": "Unknown", "tendency": None,
+                          "n_runs": n, "nudge": nudge, "confidence": "none"}
+            continue
+        rel = min(1.0, max(0.0, tendency + nudge))
+        conf = "ok" if n >= _MIN_RUNS_FOR_STYLE else "low"
+        out[label] = {"rel": rel, "band": _band(rel), "tendency": tendency,
+                      "n_runs": n, "nudge": nudge, "confidence": conf}
+    return out
 
 
 def _load_form():
@@ -137,6 +255,20 @@ def _load_form():
     fh = fh.dropna(subset=["date"])
     if "isBarrierTrial" in fh.columns:
         fh = fh[fh["isBarrierTrial"].fillna(0).astype(int) == 0]
+    # MANDATORY dedup (this session's own established finding, re-verified
+    # the hard way in wpr_settle_barrier_nudge_calibration_test.py): 42% of
+    # (horse, date) row-pairs are duplicated from a WPR rebaseline
+    # re-scrape issue. Without this, run_style_tendency silently double-
+    # (or triple-, etc.) counts whichever historical runs happened to be
+    # re-scraped more often - quantified impact on this exact function's
+    # own output: mean |difference| 0.013 across 18,185 horses, 25% of
+    # horses shifted by >0.02, 5.5% by >0.05 (enough to flip a displayed
+    # band) - this fed the LIVE speed map (toprate_daily.py's settling-
+    # band lookup uses the same undeduped pattern this fixes here) before
+    # being caught and fixed (Sep 2026).
+    if "scrape_date" in fh.columns:
+        fh = fh.sort_values("scrape_date").drop_duplicates(
+            subset=["horse_lc", "date", "track"], keep="last")
     return fh.sort_values(["horse_lc", "date"])
 
 
@@ -158,12 +290,13 @@ def estimate_race(race_id):
     venue = race["venue"].iloc[0] if "venue" in race.columns else "?"
     print(f"{venue}  field size {field_size}  date {race_date.date()}")
     print("=" * 70)
-    rows = []
+    field = []
     for _, r in race.iterrows():
         horse_lc = str(r.get("horse", "")).strip().lower()
         hist = fh[(fh["horse_lc"] == horse_lc) & (fh["date"] < race_date)]
-        est = estimate_settle(hist, r.get("barrier"), field_size)
-        rows.append((r.get("horse"), r.get("barrier"), est))
+        field.append((r.get("horse"), hist, r.get("barrier"), field_size))
+    ests = estimate_race_settling(field)
+    rows = [(label, barrier, ests[label]) for label, _, barrier, _ in field]
     # print sorted by estimated settle - leaders first
     rows.sort(key=lambda x: (x[2]["rel"] if x[2]["rel"] is not None else 99))
     print(f"\n{'Horse':22s} {'Bar':>4s} {'Est':>6s} {'Band':10s} "
@@ -179,25 +312,29 @@ def estimate_race(race_id):
 
 def validate(n_runs):
     """Descriptive check: predicted relative settle vs actual, on past
-    resulted runs. For each run with a known positionSettled + field_size,
-    estimate it from the horse's PRIOR runs and compare."""
+    resulted runs. Works RACE-BY-RACE (not row-by-row, unlike the pre-
+    Sep-2026 version) - sect_rank_in_race needs the WHOLE field's trailing
+    early-speed ratings to rank against, which a single-row loop cannot
+    provide. n_runs is now the number of most-recent RACES sampled (each
+    contributing multiple runner-rows), not individual rows."""
     fh = _load_form()
-    # need positionSettled + field_size + barrier present
+    if "race_id" not in fh.columns:
+        print("No race_id column - cannot group into races for validation.")
+        return
     usable = fh[
         pd.to_numeric(fh.get("positionSettled"), errors="coerce").notna()
         & pd.to_numeric(fh.get("field_size"), errors="coerce").notna()
+        & fh["race_id"].notna()
     ].copy()
-    usable["positionSettled"] = pd.to_numeric(usable["positionSettled"],
-                                              errors="coerce")
-    usable["field_size"] = pd.to_numeric(usable["field_size"],
-                                         errors="coerce")
-    usable = usable[(usable["positionSettled"] > 0)
-                    & (usable["field_size"] >= 2)]
-    # sample the most recent n_runs runs as the test set
-    test = usable.sort_values("date", ascending=False).head(n_runs)
+    usable["positionSettled"] = pd.to_numeric(usable["positionSettled"], errors="coerce")
+    usable["field_size"] = pd.to_numeric(usable["field_size"], errors="coerce")
+    usable = usable[(usable["positionSettled"] > 0) & (usable["field_size"] >= 2)]
+
+    race_dates = usable.groupby("race_id")["date"].first().sort_values(ascending=False)
+    test_race_ids = race_dates.head(n_runs).index
 
     print("=" * 70)
-    print(f"SETTLING ESTIMATE - VALIDATION on {len(test)} past runs")
+    print(f"SETTLING ESTIMATE - VALIDATION on {len(test_race_ids)} past races")
     print("descriptive only: predicted relative settle vs actual")
     print("=" * 70)
 
@@ -205,20 +342,25 @@ def validate(n_runs):
     band_hits = 0
     band_total = 0
     skipped = 0
-    for _, run in test.iterrows():
-        horse_lc = run["horse_lc"]
-        run_date = run["date"]
-        prior = fh[(fh["horse_lc"] == horse_lc) & (fh["date"] < run_date)]
-        est = estimate_settle(prior, run.get("barrier"),
-                              run["field_size"])
-        if est["rel"] is None:
-            skipped += 1
-            continue
-        actual_rel = min(1.0, run["positionSettled"] / run["field_size"])
-        abs_errs.append(abs(est["rel"] - actual_rel))
-        band_total += 1
-        if est["band"] == _band(actual_rel):
-            band_hits += 1
+    for race_id, race_rows in usable[usable["race_id"].isin(test_race_ids)].groupby("race_id"):
+        race_date = race_rows["date"].iloc[0]
+        field_size = race_rows["field_size"].iloc[0]
+        field = []
+        for _, run in race_rows.iterrows():
+            prior = fh[(fh["horse_lc"] == run["horse_lc"]) & (fh["date"] < race_date)]
+            field.append((run.name, prior, run.get("barrier"), field_size))
+        ests = estimate_race_settling(field)
+        for label, _, _, _ in field:
+            run = race_rows.loc[label]
+            est = ests[label]
+            if est["rel"] is None:
+                skipped += 1
+                continue
+            actual_rel = min(1.0, run["positionSettled"] / run["field_size"])
+            abs_errs.append(abs(est["rel"] - actual_rel))
+            band_total += 1
+            if est["band"] == _band(actual_rel):
+                band_hits += 1
 
     if not abs_errs:
         print("No runs had enough prior history to estimate. "
@@ -243,8 +385,9 @@ def main():
     ap.add_argument("--race", default=None, help="race_id to estimate")
     ap.add_argument("--validate", action="store_true",
                     help="run the descriptive validation")
-    ap.add_argument("--n", type=int, default=500,
-                    help="validation sample size (default 500)")
+    ap.add_argument("--n", type=int, default=200,
+                    help="number of most-recent RACES to sample (default 200; "
+                         "each race contributes multiple runner-rows)")
     args = ap.parse_args()
 
     if args.validate:
