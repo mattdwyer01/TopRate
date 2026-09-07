@@ -150,19 +150,26 @@ def merge_won_by_horse_date(D, form_csv=FORM_CSV, runners_csv="toprate_runners.c
 def add_base(D):
     """Replicates train_wpr_projection's _base computation exactly (must
     match _compute_base()) - build_training_frame() doesn't compute this
-    itself, only the raw wpr_nett/ewm3/avg_last3/career_avg it needs.
+    itself, only the raw wpr_nett/ewm5/avg_last3/career_avg it needs.
     Simplification vs the real training pipeline: skips the void-comment
     exclusion filter (a smaller-impact refinement, not needed to answer
     "does own_pace help at all") but keeps the blank-going/dirt-synth
-    exclusion, which materially changes the row count."""
+    exclusion, which materially changes the row count.
+
+    BUG FIX (Sep 2026): this used ewm3, not ewm5 - stale since
+    _compute_base()'s own ewm3->ewm5 swap (see wpr_projection.py's
+    _BASE_BLEND_ALPHA docstring). Every backtest built on this helper
+    (wpr_bet_selection_leakfree_eval.py included) was scoring a base the
+    live model no longer computes. Fixed to match current _compute_base()
+    exactly."""
     D = D.copy()
     if "going" in D.columns:
         g = D["going"].astype(str).str.strip().str.lower()
         blank_going = D["going"].isna() | g.isin(["", "nan", "none", "<na>"])
         D = D[~blank_going].copy()
-    both = D["wpr_nett"].notna() & D["ewm3"].notna()
-    D["_base"] = np.where(both, wpr._BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - wpr._BASE_BLEND_ALPHA) * D["ewm3"],
-                          D["wpr_nett"].fillna(D["ewm3"]))
+    both = D["wpr_nett"].notna() & D["ewm5"].notna()
+    D["_base"] = np.where(both, wpr._BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - wpr._BASE_BLEND_ALPHA) * D["ewm5"],
+                          D["wpr_nett"].fillna(D["ewm5"]))
     D["_base"] = pd.Series(D["_base"], index=D.index).fillna(D["avg_last3"]).fillna(D["career_avg"])
     return D.dropna(subset=["_base"])
 
