@@ -54,6 +54,17 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   hours, refreshes prices and `toprate_data.json` only (via
   `toprate_price_refresh.py` → `toprate_daily.py`'s `rebuild_html()`). Never
   touches `toprate_live.html`.
+- `tab_results_poller.py` / `.github/workflows/tab_results.yml` — fast,
+  provisional per-race results from TAB's public racing API (see
+  `TAB_API_NOTES.md`), closing the gap where the authoritative feed above
+  can't resolve a race until its whole meeting finishes. MUST run on a
+  self-hosted GitHub Actions runner registered from a real Australian
+  machine (TAB geo-blocks and TLS-fingerprints everything else, VPS/cloud
+  included). Only ever writes finish_position/margin_finish/won/placed/
+  starting_price_sp; never resulted/wpr_actual/comments_* — those stay
+  exclusively `update_results()`'s job so it keeps confirming/correcting
+  what TAB reported. Triggered externally (cron-job.org → workflow_dispatch,
+  same pattern as `price_refresh.yml`), not GitHub's own `schedule:`.
 
 ## Data files
 
