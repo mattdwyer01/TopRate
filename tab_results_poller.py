@@ -21,7 +21,7 @@ feed's job, so update_results() keeps re-checking and finalizing exactly as
 it does today, including correcting anything TAB got wrong (e.g. a protest).
 
 WHAT IT WRITES (toprate_runners.csv, via toprate_daily.load_runners/save_runners)
-    finish_position, margin_finish, won, placed, starting_price_sp
+    finish_position, won, placed
 WHAT IT NEVER TOUCHES
     resulted, wpr_actual, comments_video, comments_steward, race_id, run_id,
     or any WPR/rating column. A later authoritative fetch overwrites all of
@@ -31,11 +31,24 @@ WHAT IT NEVER TOUCHES
 MATCHING
 toprate_runners.csv keys results by the provider's own run_id/race_id, which
 TAB knows nothing about. So rows are matched on (date, venue, race, tab_number)
-instead. TAB's venue names frequently don't match the provider's (confirmed
-against the real CSV: provider says "Belmont Park", TAB says "Belmont";
-provider says "Sandown", TAB splits it into "Sandown-Hillside" and
-"Sandown-Lakeside") -- see VENUE_ALIASES below. An unmatched TAB venue is
-logged loudly and skipped, never guessed at.
+instead, case-insensitively -- TAB returns AU venue names in ALL CAPS
+("GRAFTON", "TATURA") while the provider CSV uses Title Case ("Grafton"),
+confirmed against a real payload. TAB's venue names also frequently don't
+match the provider's beyond casing (provider says "Belmont Park", TAB says
+"BELMONT"; provider says "Sandown", TAB splits it into "SANDOWN-HILLSIDE" and
+"SANDOWN-LAKESIDE") -- see VENUE_ALIASES below (keys upper-cased). An
+unmatched TAB venue is logged loudly and skipped, never guessed at.
+
+FETCHING
+Confirmed against a real payload: the meeting-list response already embeds
+each race's raceStatus and finishing results[] directly on its stub, before
+any drill-down. There's no need to follow _links.races -> _links.self at all
+for this poller's purpose (fast provisional finish order) -- that would have
+been 1 + N-meetings + N*M-races requests per cycle for no benefit. This
+version reads results straight off the meeting list: one request per AU
+state per cycle. The tradeoff is starting_price_sp is no longer available at
+this cheap tier (it lived at the race-detail level); that's fine, it was
+always best-effort and the authoritative feed fills it in regardless.
 
 USAGE
     pip install curl_cffi
@@ -70,15 +83,17 @@ RACE_TYPE = "R"  # thoroughbred only; TopRate doesn't track harness/greyhound
 FINAL_STATUSES = ("Paying", "Abandoned")
 AU_STATES = ("VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT")
 
-# TAB meeting name -> provider (toprate.au) venue name, as it appears in
-# toprate_runners.csv. Confirmed mismatches so far; expect to grow this the
-# first few times a live run logs an UNMATCHED VENUE line. Never guess a
-# mapping -- a wrong alias silently writes a result onto the wrong race.
+# TAB meeting name (upper-cased -- TAB returns AU venues in ALL CAPS,
+# confirmed against a real payload) -> provider (toprate.au) venue name, as
+# it appears in toprate_runners.csv. Confirmed mismatches so far; expect to
+# grow this the first few times a live run logs an UNMATCHED VENUE line.
+# Never guess a mapping -- a wrong alias silently writes a result onto the
+# wrong race.
 VENUE_ALIASES = {
-    "Belmont": "Belmont Park",
-    "Sandown-Hillside": "Sandown",
-    "Sandown-Lakeside": "Sandown",
-    "Randwick-Kensington": "Randwick",
+    "BELMONT": "Belmont Park",
+    "SANDOWN-HILLSIDE": "Sandown",
+    "SANDOWN-LAKESIDE": "Sandown",
+    "RANDWICK-KENSINGTON": "Randwick",
 }
 
 CACHE_FILE = Path(__file__).parent / "tab_poller_terminal_races.json"
@@ -146,9 +161,12 @@ def save_terminal_cache(cache):
 def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                         archive=True):
     """
-    Returns a list of dicts: {venue, race_no, tab_number, finish, margin, sp}
-    for every runner in every non-terminal thoroughbred race across `states`.
-    Mutates terminal_cache in place with any race that reached Paying/Abandoned.
+    Returns a list of dicts: {venue, race_no, tab_number, finish} for every
+    runner in every non-terminal AU thoroughbred race, read straight off the
+    meeting-list response (raceStatus and results[] are already embedded on
+    each race stub -- confirmed against a real payload, no drill-down into
+    _links.races/_links.self needed). Mutates terminal_cache in place with
+    any race that reached Paying/Abandoned.
     """
     terminal_cache = terminal_cache if terminal_cache is not None else set()
     out = []
@@ -161,84 +179,67 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
             print(f"  {jurisdiction}: meeting list failed: {type(e).__name__}: {str(e)[:80]}")
             continue
 
+        if archive:
+            _archive_raw(target_date, jurisdiction, payload)
+
         for m in payload.get("meetings", []):
             if m.get("raceType") != RACE_TYPE:
                 continue
+            # Jurisdiction is a query filter, not a location filter -- the
+            # response mixes in international meetings (confirmed: USA/JPN/
+            # TUR/GBR/etc thoroughbred meetings appear even under
+            # jurisdiction=VIC, some with a full _links.races of their own).
+            # TopRate is AU-thoroughbred only.
+            if m.get("location") not in AU_STATES:
+                continue
             venue = str(m.get("meetingName", "")).strip()
-            # Jurisdiction is a filter, not a location -- a meeting can show up
-            # under more than one state loop. Dedupe by (date, venue).
+            # A venue can also appear under more than one jurisdiction loop
+            # (same reason as above). Dedupe by (date, venue).
             mkey = (target_date, venue)
             if mkey in seen_meetings:
                 continue
             seen_meetings.add(mkey)
 
-            link = (m.get("_links") or {}).get("races")
-            if not link:
-                continue
-            try:
-                race_list = get(link, {"returnPromo": "false"}).get("races") or []
-            except Exception as e:
-                print(f"  {venue}: race list failed: {type(e).__name__}: {str(e)[:80]}")
-                continue
-
-            for rc in race_list:
+            for rc in m.get("races", []):
                 race_no = rc.get("raceNumber")
                 rkey = f"{target_date}|{venue}|{race_no}"
                 if rkey in terminal_cache:
                     continue  # Paying/Abandoned already -- never changes again
 
-                self_link = (rc.get("_links") or {}).get("self")
-                if not self_link:
-                    continue
-                try:
-                    rd = get(self_link)
-                except Exception as e:
-                    print(f"  {venue} R{race_no}: detail failed: {type(e).__name__}: {str(e)[:60]}")
-                    continue
-
-                status = rd.get("raceStatus")
+                status = rc.get("raceStatus")
                 if status in FINAL_STATUSES:
                     terminal_cache.add(rkey)
 
-                if archive:
-                    _archive_raw(target_date, venue, race_no, rd)
-
-                results = rd.get("results") or []
+                results = rc.get("results") or []
                 if not results:
-                    time.sleep(0.15)
                     continue
 
-                runner_by_no = {r.get("runnerNumber"): r for r in (rd.get("runners") or [])}
-                # results[] is a list of finishing groups; each group is a list
-                # of runner numbers that finished together (dead heats).
+                # results[] is a list of finishing-position groups; each
+                # group is a list of runner numbers (more than one on a dead
+                # heat), and can be shorter than the full field (confirmed:
+                # some races only carry placegetters, with empty trailing
+                # groups) -- enumerate() and the inner loop both degrade
+                # safely to zero iterations on an empty group.
                 for pos, group in enumerate(results, start=1):
                     numbers = group if isinstance(group, list) else [group]
                     for tab_no in numbers:
-                        runner = runner_by_no.get(tab_no, {})
-                        fo = runner.get("fixedOdds") or {}
+                        if tab_no is None:
+                            continue
                         out.append(dict(
                             date=target_date, venue=venue, race_no=race_no,
                             tab_number=tab_no, finish=pos,
-                            margin=None,  # TAB's race detail doesn't carry a
-                                          # clean per-runner margin field in
-                                          # the same shape as the provider's
-                                          # marginFinish -- leave it to the
-                                          # authoritative feed rather than
-                                          # guess at a mapping.
-                            sp=fo.get("returnWin"),
                         ))
-                time.sleep(0.15)
-            time.sleep(0.3)
+
+        time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
     return out, terminal_cache
 
 
-def _archive_raw(target_date, venue, race_no, rd):
+def _archive_raw(target_date, jurisdiction, payload):
     try:
         d = RAW_ARCHIVE_DIR / target_date
         d.mkdir(parents=True, exist_ok=True)
-        safe_venue = venue.replace("/", "-")
-        (d / f"{safe_venue}_R{race_no}.json").write_text(json.dumps(rd))
+        (d / f"meetings_{jurisdiction}.json").write_text(json.dumps(payload))
     except Exception:
         pass  # archival is best-effort, never blocks the actual result write
 
@@ -247,17 +248,21 @@ def _archive_raw(target_date, venue, race_no, rd):
 def apply_results(runners_df, tab_results):
     """
     Match each TAB result row onto toprate_runners.csv by
-    (date, provider-venue, race, tab_number). Returns (updated_df, n_written,
+    (date, provider-venue, race, tab_number), case-insensitively on venue --
+    TAB returns AU venues in ALL CAPS, the provider CSV uses Title Case
+    (confirmed against a real payload). Returns (updated_df, n_written,
     unmatched_venues).
     """
     unmatched_venues = set()
     n_written = 0
+    runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for res in tab_results:
-        provider_venue = VENUE_ALIASES.get(res["venue"], res["venue"])
+        tab_venue_upper = res["venue"].upper()
+        provider_venue = VENUE_ALIASES.get(tab_venue_upper, res["venue"])
         mask = (
             (runners_df["date"] == res["date"]) &
-            (runners_df["venue"] == provider_venue) &
+            (runner_venue_upper == provider_venue.upper()) &
             (pd.to_numeric(runners_df["race"], errors="coerce") == res["race_no"]) &
             (pd.to_numeric(runners_df["tab_number"], errors="coerce") == res["tab_number"])
         )
@@ -271,8 +276,6 @@ def apply_results(runners_df, tab_results):
         runners_df.loc[idx, "finish_position"] = finish
         runners_df.loc[idx, "won"] = 1 if finish == 1 else 0
         runners_df.loc[idx, "placed"] = 1 if finish <= 3 else 0
-        if res.get("sp") is not None:
-            runners_df.loc[idx, "starting_price_sp"] = res["sp"]
         # Deliberately NOT touching resulted / wpr_actual / comments_* -- see
         # module docstring. The authoritative feed still owns those.
         n_written += 1

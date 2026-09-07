@@ -60,11 +60,14 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   can't resolve a race until its whole meeting finishes. MUST run on a
   self-hosted GitHub Actions runner registered from a real Australian
   machine (TAB geo-blocks and TLS-fingerprints everything else, VPS/cloud
-  included). Only ever writes finish_position/margin_finish/won/placed/
-  starting_price_sp; never resulted/wpr_actual/comments_* — those stay
-  exclusively `update_results()`'s job so it keeps confirming/correcting
-  what TAB reported. Triggered externally (cron-job.org → workflow_dispatch,
-  same pattern as `price_refresh.yml`), not GitHub's own `schedule:`.
+  included). Reads results straight off the cheap meeting-list endpoint
+  (raceStatus/results[] are already embedded per race, no drill-down into
+  race detail needed), matching case-insensitively since TAB returns AU
+  venues in ALL CAPS. Only ever writes finish_position/won/placed; never
+  resulted/wpr_actual/comments_* — those stay exclusively `update_results()`'s
+  job so it keeps confirming/correcting what TAB reported. Triggered
+  externally (cron-job.org → workflow_dispatch, same pattern as
+  `price_refresh.yml`), not GitHub's own `schedule:`.
 
 ## Data files
 

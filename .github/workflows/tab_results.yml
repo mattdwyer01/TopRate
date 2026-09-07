@@ -4,7 +4,7 @@ name: TAB live results (self-hosted)
 # TAB_API_NOTES.md and tab_results_poller.py) - closes the gap where the
 # authoritative feed (update_results() in toprate_daily.py, run via
 # price_refresh.yml) can't resolve a race until its WHOLE MEETING finishes.
-# Only ever writes finish_position/margin_finish/won/placed/starting_price_sp;
+# Only ever writes finish_position/won/placed;
 # never resulted/wpr_actual/comments_* - see tab_results_poller.py's
 # docstring for why that split matters.
 #
