@@ -7,19 +7,21 @@
   "field_size",
   "trailing_sect_ld_early",
   "trailing_sect_i_to800",
-  "trailing_margin800m"
+  "trailing_margin800m",
+  "sect_margin_to_rest"
  ],
  "medians": {
-  "run_style_tendency": 0.5494304306804307,
-  "last5_tendency": 0.549677405927406,
+  "run_style_tendency": 0.5411726846385937,
+  "last5_tendency": 0.5416666666666666,
   "draw_signal": 0.0,
   "sect_signal": 0.19999999999999996,
   "field_size": 10.0,
-  "trailing_sect_ld_early": -2.4499999999999997,
-  "trailing_sect_i_to800": -5.664999999999999,
-  "trailing_margin800m": 3.1333333333333333
+  "trailing_sect_ld_early": -2.45,
+  "trailing_sect_i_to800": -5.666666666666667,
+  "trailing_margin800m": 3.136181818181818,
+  "sect_margin_to_rest": -2.6500000000000004
  },
- "heldout_mae": 0.19729312191405143,
- "n_train": 114322,
+ "heldout_mae": 0.19304433081127595,
+ "n_train": 112600,
  "train_window_days": 730
 }

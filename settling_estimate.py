@@ -14,8 +14,14 @@ WHAT IT DOES
   foundation for both.
 
 THE MODEL (Sep 2026 rebuild: trained, not a hand-tuned formula)
-  A small LightGBM regressor on 8 features, predicting actual relative
-  settle directly:
+  A small LightGBM regressor on 9 features, quantile objective (alpha=0.5,
+  i.e. predicting the conditional MEDIAN rather than LightGBM's default
+  mean-fitting - see SECT_MARGIN_LO/TACTICAL_MARKERS docstrings and
+  wpr_settle_median_objective_test.py for why: BY FAR the single biggest
+  validated accuracy improvement to this model, found investigating a
+  real complaint that predictions were pulled toward a less-likely middle
+  value for right-skewed cases like a confirmed-leader-type horse drawn
+  wide), predicting actual relative settle directly:
     - run_style_tendency: the horse's historical relative settle, the
       mean of (positionSettled / field_size) over its past runs. 0 =
       habitual leader, 1 = habitual backmarker.
@@ -44,6 +50,18 @@ THE MODEL (Sep 2026 rebuild: trained, not a hand-tuned formula)
     not clear the bar on their own - shipped together anyway per explicit
     user instruction, since the COMBINED addition is what was actually
     tested and passed.)
+    - sect_margin_to_rest: how CLEAR this horse's trailing early-speed
+      rating is of the rest of today's field, not just its RANK (see
+      SECT_MARGIN_LO's own docstring above) - a rank alone cannot tell a
+      narrow best from an uncontested one. Added Sep 2026 alongside
+      sect_signal (complementary, not a replacement), part of the same
+      combined candidate as the quantile-objective switch above.
+
+  Tactical-variance runs (a jockey deliberately riding a horse further
+  back than its normal style that day - see TACTICAL_MARKERS above,
+  distinct from wpr_void.py's trouble/interference markers) are excluded
+  from CONTRIBUTING to run_style_tendency/last5_tendency's trailing
+  windows, though still valid training targets in their own right.
 
   HISTORY - why this replaced a hand-tuned linear formula: the original
   design (predicted_rel = run_style_tendency + barrier_nudge, later +
@@ -151,6 +169,61 @@ SECT_LD_EARLY_LO, SECT_LD_EARLY_HI = -20.70, 10.73   # "leaderEarlySpeed"
 SECT_I_TO800_LO, SECT_I_TO800_HI = -24.60, 6.90
 MARGIN800M_LO, MARGIN800M_HI = 0.00, 10.60
 
+# sect_margin_to_rest (Sep 2026, wpr_settle_margin_feature_test.py): how
+# CLEAR a horse's trailing early-speed rating is of the rest of TODAY's
+# field, not just its RANK. sect_signal (above) is a percentile rank - it
+# can tell "2nd-highest of 9" but not whether that 2nd-highest is a nose
+# or ten lengths behind the best, or whether the best is narrowly or
+# uncontestedly ahead of everyone else. Found investigating a real case
+# (Lindermann, Randwick 2026-09-05): his trailing sect_i_early (-0.55) beat
+# the next-best ACTIVE runner by 1.5, while the rest of the field sat at
+# -4 to -11 - a genuinely uncontested best that a rank alone couldn't
+# distinguish from a narrow one. For the single highest scorer in a field,
+# this is (their own value - the 2nd-highest); for every other runner,
+# it's (their own value - the highest) - i.e. positive/large only for a
+# clear leader in early speed, non-positive for everyone else. NaN when
+# fewer than 2 runners in the field have a usable trailing rating.
+# Winsorization bounds are the fitted population 1st/99th percentile, same
+# convention as every other trailing sectional above - deliberately NOT
+# further rescaled to +/-1 the way draw_signal/sect_signal are (a tree
+# model's splits are invariant to any monotonic rescaling of one feature,
+# so it would change nothing about what the model learns - simpler to
+# leave it in the same natural units as the other trailing_* features).
+# Validated bidirectionally as a real, adopted addition ALONGSIDE
+# sect_signal (not a replacement - the two carry complementary
+# information): MAE 0.1975 -> 0.1973 forward, 0.2034 -> 0.2007 reversed.
+SECT_MARGIN_LO, SECT_MARGIN_HI = -11.20, 5.52
+
+# Tactical-variance comment markers (Sep 2026, wpr_settle_tactical_
+# variance_test.py): a DIFFERENT category of noise from wpr_void.py's
+# STRONG/WEAK trouble/interference markers. wpr_void answers "did this
+# horse get a fair chance to show its ABILITY" (vet, lame, checked,
+# hampered); this answers a settling-specific question wpr_void was never
+# built for - "does this run reflect the horse's NORMAL RUNNING STYLE".
+# Found on a real case (Lindermann, Randwick 2026-09-05): his one dead-
+# last run in the last 6 was not trouble - the comment read "Restrained
+# today thus Settled Down last... ridden quiet... into 2nd x 25m", a
+# deliberate one-off tactical choice by the jockey, and the horse still
+# closed into 2nd near the line. wpr_void's markers would not catch this.
+# Markers chosen from real data (leave-one-out deviation from each horse's
+# OWN other runs' average settle position - population baseline ~0.0000,
+# these markers average +0.21 to +0.33, i.e. genuinely, unusually further
+# back than that horse's own normal pattern): "restrained" and "back off"
+# were deliberately left OUT despite real signal (+0.137, +0.125) - too
+# common/noisy alone (can describe a calm ride with no unusual backward
+# shift), risking the same over-broad removal that made a population-wide
+# median swap (wpr_settle_robust_tendency_test.py) actively worse. Only
+# excludes a flagged run from CONTRIBUTING to run_style_tendency/
+# last5_tendency's trailing windows (see _exclude_tactical below) - the
+# run itself is still a completely valid training TARGET, using its own
+# (unflagged) prior features. Marginally fails the bidirectional bar
+# ALONE (+0.0002/+0.0001 - a real but tiny cost, far smaller than the
+# median swap's), but costs nothing measurable combined with the margin
+# feature above (differences from margin-alone are in the 4th decimal)
+# while fixing exactly this kind of case - shipped as part of the combined
+# candidate, not as a standalone change.
+TACTICAL_MARKERS = ["settled down last", "ridden quiet", "sat back"]
+
 _MIN_RUNS_FOR_STYLE = 3   # fewer usable settle runs -> low confidence
 
 
@@ -167,11 +240,37 @@ def _band(rel):
     return "Back"
 
 
+def _is_tactical_variance(comment_video):
+    """True if this run's video comment shows a deliberate one-off
+    tactical variance (see TACTICAL_MARKERS above), not this horse's
+    normal running style."""
+    if comment_video is None or (isinstance(comment_video, float) and comment_video != comment_video):
+        return False
+    t = str(comment_video).lower()
+    return any(m in t for m in TACTICAL_MARKERS)
+
+
+def _exclude_tactical(prior_runs):
+    """Drop rows flagged as tactical-variance (see TACTICAL_MARKERS) from
+    a prior_runs DataFrame before it feeds run_style_tendency/
+    last5_tendency - a flagged run doesn't represent this horse's normal
+    running style, so it shouldn't count toward "how does this horse
+    usually settle". No-op if comments_video isn't a column (older/
+    minimal callers) - same "unseen -> no exclusion" default every other
+    optional signal in this module uses."""
+    if prior_runs is None or "comments_video" not in prior_runs.columns:
+        return prior_runs
+    mask = prior_runs["comments_video"].apply(_is_tactical_variance)
+    return prior_runs[~mask]
+
+
 def run_style_tendency(prior_runs):
-    """Mean relative settle over a horse's past runs. Returns
-    (tendency, n_usable). tendency is None if no usable runs.
-    Mirrors wpr_projection.build_features' run_style definition:
-    relative settle = positionSettled / field_size, 0-sentinels dropped."""
+    """Mean relative settle over a horse's past runs (tactical-variance
+    runs excluded, see _exclude_tactical). Returns (tendency, n_usable).
+    tendency is None if no usable runs. Mirrors wpr_projection.
+    build_features' run_style definition: relative settle =
+    positionSettled / field_size, 0-sentinels dropped."""
+    prior_runs = _exclude_tactical(prior_runs)
     if prior_runs is None or len(prior_runs) == 0:
         return None, 0
     settle = pd.to_numeric(prior_runs.get("positionSettled"), errors="coerce")
@@ -248,11 +347,14 @@ def trailing_margin800m(prior_runs):
 
 
 def last5_tendency(prior_runs):
-    """Mean relative settle over just a horse's LAST 5 runs (recency-
-    weighted alternative to run_style_tendency's all-time average).
-    prior_runs must already be date-sorted ascending (same contract
-    run_style_tendency implicitly relies on via its caller). Returns
-    (mean, n_usable); mean is None if no usable runs."""
+    """Mean relative settle over just a horse's LAST 5 runs (tactical-
+    variance runs excluded first, see _exclude_tactical, then the most
+    recent 5 of what remains - recency-weighted alternative to
+    run_style_tendency's all-time average). prior_runs must already be
+    date-sorted ascending (same contract run_style_tendency implicitly
+    relies on via its caller). Returns (mean, n_usable); mean is None if
+    no usable runs."""
+    prior_runs = _exclude_tactical(prior_runs)
     if prior_runs is None or len(prior_runs) == 0:
         return None, 0
     tail = prior_runs.sort_values("date").tail(5) if "date" in prior_runs.columns else prior_runs.tail(5)
@@ -296,11 +398,31 @@ def _predict(feat_rows):
     return [float(min(1.0, max(0.0, p))) for p in pred]
 
 
-def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
+def _margin_to_rest(vals):
+    """vals: {label: trailing_sect_i_early} for real values only (already
+    dropna'd by the caller). For the single highest scorer, returns (their
+    value - the 2nd highest) - how clear their early-speed lead is. For
+    everyone else, returns (their value - the highest) - non-positive,
+    how far behind the best they are. See SECT_MARGIN_LO/HI's own
+    docstring above. Returns {} if fewer than 2 real values."""
+    if len(vals) < 2:
+        return {}
+    top_label = max(vals, key=vals.get)
+    field_max = vals[top_label]
+    rest_max = max((v for lbl, v in vals.items() if lbl != top_label), default=None)
+    out = {}
+    for label, v in vals.items():
+        out[label] = (v - rest_max) if label == top_label else (v - field_max)
+    return out
+
+
+def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None,
+                    sect_margin_to_rest=None):
     """Estimate one horse's settling position today, via the trained
-    model. sect_rank_in_race is optional (needs the whole field's
-    trailing ratings to compute - see estimate_race_settling) and is
-    median-filled if not supplied, same as any other missing feature.
+    model. sect_rank_in_race/sect_margin_to_rest are optional (both need
+    the whole field's trailing ratings to compute - see
+    estimate_race_settling) and are median-filled if not supplied, same
+    as any other missing feature.
 
     Returns dict: rel (0-1 or None), band, tendency, n_runs, nudge,
     confidence ('ok' / 'low' / 'none'). 'nudge' is now the model's total
@@ -322,13 +444,15 @@ def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
             draw_frac = min(1.0, max(0.0, (float(barrier) - 1) / (float(field_size) - 1)))
         except (TypeError, ValueError):
             pass
+    margin_clipped = (max(SECT_MARGIN_LO, min(SECT_MARGIN_HI, sect_margin_to_rest))
+                      if sect_margin_to_rest is not None else None)
     feat = {
         "run_style_tendency": tendency, "last5_tendency": l5,
         "draw_signal": (draw_frac - 0.5) * 2 if draw_frac is not None else None,
         "sect_signal": (sect_rank_in_race - 0.5) * 2 if sect_rank_in_race is not None else None,
         "field_size": field_size,
         "trailing_sect_ld_early": ld_early, "trailing_sect_i_to800": i_to800,
-        "trailing_margin800m": m800,
+        "trailing_margin800m": m800, "sect_margin_to_rest": margin_clipped,
     }
     rel = _predict([feat])[0]
     conf = "ok" if n >= _MIN_RUNS_FOR_STYLE else "low"
@@ -338,9 +462,10 @@ def estimate_settle(prior_runs, barrier, field_size, sect_rank_in_race=None):
 
 def estimate_race_settling(field):
     """Estimate settling for every runner in a race AT ONCE - needed for
-    sect_signal, which requires comparing this horse's trailing early-
-    speed rating against the REST of today's actual field (a single-
-    horse function like estimate_settle cannot compute this alone).
+    sect_signal/sect_margin_to_rest, which require comparing this horse's
+    trailing early-speed rating against the REST of today's actual field
+    (a single-horse function like estimate_settle cannot compute this
+    alone).
 
     field: list of (label, prior_runs, barrier, field_size) tuples - label
     is caller-defined (horse name, run_id, whatever the caller wants back
@@ -350,6 +475,7 @@ def estimate_race_settling(field):
     trailing_sect = {label: trailing_sect_early(prior_runs)[0] for label, prior_runs, _, _ in field}
     vals = pd.Series({label: t for label, t in trailing_sect.items() if t is not None})
     ranks = vals.rank(pct=True) if len(vals) else pd.Series(dtype=float)
+    margins = _margin_to_rest({label: t for label, t in trailing_sect.items() if t is not None})
 
     labels, feats, tendencies, ns = [], [], [], []
     for label, prior_runs, barrier, field_size in field:
@@ -365,6 +491,8 @@ def estimate_race_settling(field):
             except (TypeError, ValueError):
                 pass
         sect_rank = ranks.get(label)
+        margin = margins.get(label)
+        margin_clipped = max(SECT_MARGIN_LO, min(SECT_MARGIN_HI, margin)) if margin is not None else None
         labels.append(label)
         tendencies.append(tendency)
         ns.append(n)
@@ -374,7 +502,7 @@ def estimate_race_settling(field):
             "sect_signal": (sect_rank - 0.5) * 2 if sect_rank is not None and sect_rank == sect_rank else None,
             "field_size": field_size,
             "trailing_sect_ld_early": ld_early, "trailing_sect_i_to800": i_to800,
-            "trailing_margin800m": m800,
+            "trailing_margin800m": m800, "sect_margin_to_rest": margin_clipped,
         })
 
     # Rows with no own-history tendency can't be scored meaningfully -
@@ -422,17 +550,19 @@ def _load_form():
 
 
 def train(out_dir=None):
-    """Retrain the settling model. Reproduces
-    wpr_settle_recency_nonlinear_test.py's validated pipeline exactly
-    (same dedup, same 2-year window, same 5 features, same LightGBM
-    hyperparameters) - ship what was tested, not a superset of it.
+    """Retrain the settling model - 9 features (see module docstring),
+    quantile/median objective (Sep 2026, see wpr_settle_median_objective_
+    test.py and SECT_MARGIN_LO/TACTICAL_MARKERS docstrings above for the
+    validated combined candidate this reproduces) - ship what was tested,
+    not a superset of it.
 
-    Race key for the sect_signal ranking: (track, date, raceNumber) -
-    same convention race_speed_estimate.py's own train() uses and
-    documents (race_id in the raw form history identifies which race a
-    row's CAPTURE was taken for, not necessarily a stable grouping key
-    across a horse's whole scraped table for THIS purpose - track/date/
-    raceNumber is the one already-verified-reliable alternative)."""
+    Race key for the sect_signal/sect_margin_to_rest ranking: (track,
+    date, raceNumber) - same convention race_speed_estimate.py's own
+    train() uses and documents (race_id in the raw form history
+    identifies which race a row's CAPTURE was taken for, not necessarily
+    a stable grouping key across a horse's whole scraped table for THIS
+    purpose - track/date/raceNumber is the one already-verified-reliable
+    alternative)."""
     import lightgbm as lgb
     from sklearn.metrics import mean_absolute_error
     import joblib
@@ -454,14 +584,25 @@ def train(out_dir=None):
     rel_valid = rel.where(valid)
     g = fh["horse_lc"]
 
+    # Tactical-variance exclusion (see TACTICAL_MARKERS docstring above) -
+    # a flagged run doesn't count toward "how does this horse usually
+    # settle", but is still a completely valid training TARGET (actual_rel
+    # below uses rel_valid, unfiltered).
+    cv = fh.get("comments_video", pd.Series("", index=fh.index)).fillna("").astype(str).str.lower()
+    is_tactical = cv.apply(lambda t: any(m in t for m in TACTICAL_MARKERS))
+    print(f"  tactical-variance rows excluded from tendency: {is_tactical.sum():,} / {len(fh):,} "
+          f"({is_tactical.mean()*100:.2f}%)")
+    rel_for_tendency = rel_valid.where(~is_tactical)
+    valid_for_tendency = valid & ~is_tactical
+
     print("Computing trailing run_style_tendency (all-time)...")
-    csum_incl = rel_valid.fillna(0).groupby(g).cumsum()
-    ccount_incl = valid.astype(int).groupby(g).cumsum()
+    csum_incl = rel_for_tendency.fillna(0).groupby(g).cumsum()
+    ccount_incl = valid_for_tendency.astype(int).groupby(g).cumsum()
     fh["run_style_tendency"] = (csum_incl.groupby(g).shift(1) /
                                 ccount_incl.groupby(g).shift(1).replace(0, np.nan))
 
     print("Computing last5_tendency...")
-    fh["_rel_for_roll"] = rel_valid
+    fh["_rel_for_roll"] = rel_for_tendency
     fh["last5_tendency"] = fh.groupby("horse_lc")["_rel_for_roll"].transform(
         lambda s: s.rolling(5, min_periods=1).mean().shift(1))
     fh = fh.drop(columns=["_rel_for_roll"])
@@ -496,13 +637,29 @@ def train(out_dir=None):
         ccount = v.astype(int).groupby(g).cumsum()
         fh[out_col] = csum.groupby(g).shift(1) / ccount.groupby(g).shift(1).replace(0, np.nan)
 
+    print("Computing sect_margin_to_rest (how UNCONTESTED the early-speed lead is)...")
+    def _margin_to_rest_vec(s):
+        vals = s.dropna()
+        if len(vals) < 2:
+            return pd.Series(np.nan, index=s.index)
+        top_idx = vals.idxmax()
+        field_max = vals.max()
+        rest_max = vals.drop(top_idx).max()
+        out = pd.Series(np.nan, index=s.index)
+        for idx in vals.index:
+            out[idx] = (vals[idx] - rest_max) if idx == top_idx else (vals[idx] - field_max)
+        return out
+    fh["sect_margin_to_rest"] = fh.groupby("_race_key")["trailing_sect_i_early"].transform(_margin_to_rest_vec)
+    fh["sect_margin_to_rest"] = fh["sect_margin_to_rest"].clip(SECT_MARGIN_LO, SECT_MARGIN_HI)
+
     fh["draw_frac"] = ((fh["barrier"] - 1) / (fh["field_size"] - 1)).clip(0, 1)
     fh["draw_signal"] = (fh["draw_frac"] - 0.5) * 2
     fh["sect_signal"] = (fh["sect_rank_in_race"] - 0.5) * 2
     fh["actual_rel"] = rel_valid
 
     features = ["run_style_tendency", "last5_tendency", "draw_signal", "sect_signal", "field_size",
-                "trailing_sect_ld_early", "trailing_sect_i_to800", "trailing_margin800m"]
+                "trailing_sect_ld_early", "trailing_sect_i_to800", "trailing_margin800m",
+                "sect_margin_to_rest"]
     usable = fh.dropna(subset=features + ["actual_rel"]).copy()
     print(f"  usable rows (all features + target present): {len(usable):,}")
 
@@ -512,8 +669,21 @@ def train(out_dir=None):
     print(f"  split at {cut.date()}: {len(trn):,} train, {len(te):,} held-out test")
 
     med = trn[features].median()
+    # objective="quantile", alpha=0.5 (median regression) - Sep 2026, see
+    # wpr_settle_median_objective_test.py: the DEFAULT LightGBM objective
+    # (L2/squared-error) fits the conditional MEAN, which for a right-
+    # skewed target like relative settle (a confirmed-leader, wide-draw
+    # profile has mode ~0.10-0.20 but mean pulled to ~0.335 by a real
+    # "everything fell apart" tail) sits noticeably further from the
+    # mode/most-likely outcome than the median does. Matches the switch
+    # wpr_projection.py's own q50 model already made for the same reason.
+    # BY FAR the single biggest validated improvement in this whole
+    # investigation: MAE -0.0032/-0.0031 alone (more than 10x every
+    # feature-engineering candidate), -0.0035/-0.0059 combined with the
+    # sect_margin_to_rest feature and tactical-variance exclusion above.
     model = lgb.LGBMRegressor(n_estimators=200, max_depth=3, learning_rate=0.05,
-                              num_leaves=8, random_state=42, verbosity=-1)
+                              num_leaves=8, random_state=42, verbosity=-1,
+                              objective="quantile", alpha=0.5)
     model.fit(trn[features].fillna(med), trn["actual_rel"])
     pred_te = model.predict(te[features].fillna(med))
     mae = float(mean_absolute_error(te["actual_rel"], pred_te))
