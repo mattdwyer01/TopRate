@@ -41,6 +41,31 @@ Two candidates tested, both bidirectionally:
      directly - the actual "different mechanism" this script is named
      for, mirroring the settling model's own successful rebuild.
 
+RESULT (Sep 2026): BOTH candidates cleared the bidirectional bar, the
+first pace-to-rating mechanism to do so after two rejections.
+
+  direction A (forward): baseline=6.2222
+    +interaction (OLS, c=+1.15)   MAE=6.2153 (better, -0.0069)
+    +LightGBM (continuous)        MAE=6.1863 (better, -0.0359)
+  direction B (reversed): baseline=5.5393
+    +interaction (OLS, c=+1.36)   MAE=5.5377 (better, -0.0016)
+    +LightGBM (continuous)        MAE=5.5132 (better, -0.0261)
+
+The fixed OLS coefficient on the interaction term alone (no discretization,
+but still a plain formula) already improves both directions, confirming the
+diagnosis that discretization, not the underlying signals, was what sank
+pace_style v1/v2. The LightGBM model on the 4 continuous inputs is ~5x
+stronger in both directions, consistent with this session's other
+formula-vs-trained-model result (settling_estimate.py). Both coefficients
+fit positive (settle and pace both pushing the same direction on the
+interaction), matching the mechanism's own intuition: a forward-running
+horse (low predicted_rel_settle) in a hot-pace race (high pace_score) is
+a genuinely bad combination, and the reverse is genuinely good.
+
+Next step: implement the LightGBM version as a new ADJ_TERM in
+wpr_projection.py (this is the first pace/race-shape signal to actually
+reach WPR's live rating, per explicit user request).
+
 NO EM DASHES policy: hyphens only.
 """
 import numpy as np
