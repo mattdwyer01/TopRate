@@ -1476,15 +1476,30 @@ def compute_edge_score(runners_df, target_date_str=None):
 # this tracks the MODEL's own flagged opportunities automatically, no user
 # input, and is not presented as anyone's real wagers.
 #
-# OVERLAY_EDGE_THRESHOLD=0.10 and OVERLAY_LIVE_SINCE are fixed constants, not
-# something a retrain silently changes - see wpr_walkforward_shipped_roi_
-# test.py's walk-forward validation (4 monthly folds, Jun-Sep 2026, strictly-
-# prior-data refits only) for why 0.10: the smallest threshold that cleared
-# statistical significance in BOTH the pre-Sep-2026 baseline (t=2.01) and the
-# architecture shipped that month (t=2.99), while keeping a usable bet volume
-# (~2,400 over ~4 months, vs a few hundred at higher thresholds).
+# OVERLAY_EDGE_THRESHOLD=0.10 is a fixed constant, not something a retrain
+# silently changes - see wpr_walkforward_shipped_roi_test.py's walk-forward
+# validation (4 monthly folds, Jun-Sep 2026, strictly-prior-data refits
+# only) for why 0.10: the smallest threshold that cleared statistical
+# significance in BOTH the pre-Sep-2026 baseline (t=2.01) and the
+# architecture shipped that month (t=2.99), while keeping a usable bet
+# volume (~2,400 over ~4 months, vs a few hundred at higher thresholds).
 OVERLAY_EDGE_THRESHOLD = 0.10
-OVERLAY_LIVE_SINCE = "2026-09-08"  # the day this tracker shipped
+
+# OVERLAY_LIVE_SINCE is NOT "the day the tracker shipped" - it is the
+# earliest date wprp_edge is known to reflect TODAY's architecture, not a
+# stale prior one. compute_edge_score() runs on "today" every daily fetch
+# and freezes per-day like wprp_proj, so plenty of OLDER wprp_edge values
+# exist in toprate_runners.csv - they were just computed under whatever
+# architecture was live on THAT historical day, which is wrong to mix in
+# here (a user asking "what would today's model have flagged" should not
+# silently get some rows scored under a materially different, already-
+# superseded model). This constant marks how far back wpr_backfill_edge_
+# scores.py has actually been (re)run - bump it by hand (and rerun that
+# script for the wider window) after any future model change significant
+# enough to warrant re-validating, same discipline as OVERLAY_BACKTEST_
+# VALIDATION above. Currently matches wpr_backfill_projections.py's own
+# 30-day-back window, backfilled Sep 2026 after the per-race demeaning fix.
+OVERLAY_LIVE_SINCE = "2026-08-09"
 
 # Hardcoded from wpr_walkforward_shipped_roi_test.py's actual run (Sep 2026)
 # at OVERLAY_EDGE_THRESHOLD - NOT auto-regenerated. Re-run that script and
