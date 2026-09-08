@@ -153,12 +153,85 @@ def walk_forward_validate(d, burn_in_weeks=BURN_IN_WEEKS, min_train=300):
         test["p_mkt"] = 1.0 / test["sp"]
         test["p_mkt_norm"] = test["p_mkt"] / test.groupby("race_id")["p_mkt"].transform("sum")
         test["edge"] = p - test["p_mkt_norm"]
+        test["model_prob"] = p
         for _, row in test.iterrows():
-            edge_bets.append((row["won"], row["sp"], row["edge"]))
-    return rows, auc_list, ll_list, np.array(bet_profits), pd.DataFrame(edge_bets, columns=["won", "sp", "edge"])
+            edge_bets.append((row["won"], row["sp"], row["edge"], row["model_prob"]))
+    return (rows, auc_list, ll_list, np.array(bet_profits),
+            pd.DataFrame(edge_bets, columns=["won", "sp", "edge", "model_prob"]))
 
 
-def calibrate(write=False):
+# Price brackets for segmenting the overlay test - favourite-longshot bias
+# means a pooled overlay result (as the base walk_forward_validate/calibrate
+# report above does) can hide a real signal in one bracket, or make a bracket
+# with a genuine leak look tolerable once averaged with the rest. Bucketed by
+# the runner's own SP, since that's the standard framing for favourite-
+# longshot bias in the literature (final market position, not entry price -
+# see the CLV note below for why entry price isn't usable here).
+PRICE_BRACKETS = [
+    ("favourite <=$3", 1.0, 3.0),
+    ("mid $3-8", 3.0, 8.0),
+    ("longshot $8-20", 8.0, 20.0),
+    ("roughie $20+", 20.0, float("inf")),
+]
+
+
+def calibration_report(edge_bets):
+    """Reliability diagram as a table: bucket every walk-forward runner by
+    model_prob (not just the ones flagged as overlays), compare predicted
+    probability to actual empirical win rate per bucket. This is checked
+    BEFORE any overlay/edge analysis because it answers a more basic
+    question the pooled overlay test doesn't: are the model's probabilities
+    trustworthy at all, independent of how they compare to the market. A
+    model that ranks well (see the AUC numbers above) can still be poorly
+    calibrated - e.g. systematically overconfident on short-priced runners -
+    which would make any edge computed from it unreliable regardless of
+    threshold."""
+    bins = [0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 1.01]
+    labels = ["0-5%", "5-10%", "10-15%", "15-20%", "20-30%", "30-50%", "50%+"]
+    d = edge_bets.copy()
+    d["bucket"] = pd.cut(d["model_prob"], bins=bins, labels=labels, right=False)
+    print("\n  calibration (predicted probability vs actual win rate, all walk-forward runners):")
+    print(f"    {'bucket':<10} {'n':>7} {'mean predicted':>15} {'actual win rate':>16} {'diff':>8}")
+    for label in labels:
+        sub = d[d["bucket"] == label]
+        if len(sub) < 20:
+            continue
+        pred = sub["model_prob"].mean()
+        actual = sub["won"].mean()
+        print(f"    {label:<10} {len(sub):>7,} {pred*100:>14.1f}% {actual*100:>15.1f}% "
+              f"{(actual-pred)*100:>+7.1f}pp")
+    print("    (a well-calibrated bucket has actual close to predicted; a bucket that's "
+          "consistently over-predicted means the model is overconfident there, which would "
+          "make edge computed against that bucket's runners look better than it really is)")
+
+
+def overlay_by_bracket(edge_bets):
+    """Repeats calibrate()'s pooled edge>=threshold overlay test, but
+    separately within each PRICE_BRACKET, since a pooled result can hide a
+    bracket-specific signal (or bracket-specific leak) that averages out to
+    "not significant" overall. Same t-test methodology as the pooled
+    version - see calibrate() for the significance-flagging convention."""
+    print("\n  edge-vs-market overlay, segmented by price bracket:")
+    for label, lo, hi in PRICE_BRACKETS:
+        bracket = edge_bets[(edge_bets["sp"] > lo) & (edge_bets["sp"] <= hi)]
+        print(f"\n    -- {label} (n={len(bracket):,} runners in bracket) --")
+        any_tested = False
+        for thr in [0.0, 0.05, 0.08, 0.10, 0.13, 0.15, 0.20]:
+            sub = bracket[bracket["edge"] >= thr]
+            if len(sub) < 20:
+                continue
+            any_tested = True
+            profit = np.where(sub["won"] == 1, sub["sp"] - 1, -1.0)
+            se = profit.std(ddof=1) / np.sqrt(len(profit))
+            t = profit.mean() / se if se > 0 else float("nan")
+            flag = "  ** SIGNIFICANT **" if abs(t) >= 1.96 else ""
+            print(f"      edge>={thr:.2f}: n={len(sub):5d}  strike={sub['won'].mean()*100:5.2f}%  "
+                  f"ROI={profit.sum()/len(sub)*100:+6.2f}%  t={t:+.2f}{flag}")
+        if not any_tested:
+            print("      (fewer than 20 bets at every threshold in this bracket - too few to test)")
+
+
+def calibrate(write=False, extended=False):
     d = _load_resulted()
     print(f"resulted races: {d['race_id'].nunique():,}  runners: {len(d):,}  "
           f"({d['date'].min().date()} to {d['date'].max().date()})")
@@ -211,6 +284,23 @@ def calibrate(write=False):
         print("  No threshold reached |t|>=1.96 either direction - indistinguishable from "
               "break-even, not proven profitable. Do not report bigger point estimates from a "
               "later run as proof without re-checking significance.")
+
+    if extended:
+        calibration_report(edge_bets)
+        overlay_by_bracket(edge_bets)
+        print(
+            "\n  CLV / entry-price note: wanted to also test edge computed against an early "
+            "(bettable) price rather than starting_price_sp, and to check CLV (does the price "
+            "move toward our pick after we'd have bet it) - not possible with current data. "
+            "fixed_win_price in toprate_runners.csv correlates 0.97 with starting_price_sp "
+            "(exactly equal 45% of the time, median abs diff $0.10) because it's overwritten on "
+            "every price_refresh.yml run, so by resulted time it just IS the closing price, not "
+            "an earlier one. toprate_runners.csv's own open_price column has only 7% coverage. "
+            "toprate_price_history.csv has genuine open-vs-current snapshots but only keeps a "
+            "rolling 7 days (by design, see snapshot_prices() in toprate_daily.py) - nowhere near "
+            "enough history for a walk-forward validation. Revisit once price_history has "
+            "accumulated months of data, or if a separate un-rotated price log is ever kept."
+        )
 
     # Final production mean/std: computed on ALL resulted data now that the
     # walk-forward above has validated the approach generalizes.
@@ -282,5 +372,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true",
                     help="write the fitted edge_score block into wpr_models/config.json")
+    ap.add_argument("--extended", action="store_true",
+                    help="also report a calibration/reliability table and the overlay "
+                         "threshold test segmented by price bracket (favourite/mid/"
+                         "longshot/roughie), on top of the standard pooled report")
     args = ap.parse_args()
-    calibrate(write=args.write)
+    calibrate(write=args.write, extended=args.extended)
