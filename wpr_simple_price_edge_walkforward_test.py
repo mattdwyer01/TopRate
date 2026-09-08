@@ -103,10 +103,14 @@ def run():
             print("  skipped (insufficient data)")
             continue
 
-        beta = _fit_beta(fit_data)
-        print(f"  walk-forward re-fit beta = {beta}")
-
         bets = score_shipped_fold(fit_data, held_out)  # has wprp_proj, edge_wpr (OLD), sp, won
+        # score_shipped_fold fits beta internally (score_wpr = beta * wprp_proj) but
+        # doesn't return it - recover it exactly from its own output instead of
+        # calling _fit_beta(fit_data) separately (fit_data has no wprp_proj until
+        # score_shipped_fold computes it, which raised KeyError on the first run).
+        nz = bets["wprp_proj"] != 0
+        beta = float((bets.loc[nz, "score_wpr"] / bets.loc[nz, "wprp_proj"]).iloc[0])
+        print(f"  walk-forward re-fit beta = {beta}")
         bets["blend_price"] = blend_price_per_race(bets, beta)
         bets["price_edge_pct"] = bets["sp"] / bets["blend_price"] - 1.0
 
