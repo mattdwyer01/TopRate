@@ -337,48 +337,49 @@ ADJ_TERMS = [
     "trainer_merit", "jockey_merit", "pace_shape",
 ]
 
-# Serving-time calibration (Aug 2026): a review of projected_wpr vs the real
-# post-race wpr_actual (~37k clean, void-excluded runs, once the
-# update_results() backlog fix landed ~20k fresh results) found raw
-# projections systematically too extreme. Two versions were tried, both fit
-# on the first half of the data and evaluated purely out-of-sample on the
-# second before being trusted:
-#   1. A single blended slope on the whole projection (actual = a +
-#      b*projected, b=0.8355) - cut held-out MAE ~2%.
-#   2. DECOMPOSED base vs adjustment (this one, shipped): fitting
-#      actual = a + b_base*base + b_adj*adjustment separately found the
-#      adjustment term explains real outcomes MUCH more weakly than the
-#      base (b_adj=0.1791 vs b_base=0.8807) - a raw adjustment of, say,
-#      +3 should really only move the projection by about +0.54. Blending
-#      base and adjustment into one slope (version 1) mostly corrected the
-#      base, since base values dwarf adjustment values in magnitude, and
-#      barely touched the real problem. Decomposing cut held-out MAE
-#      4.88% - more than double version 1's gain. An asymmetric version
-#      (separate slopes for positive vs negative adjustments) was also
-#      tested and did NOT help further (4.86%, a wash) - the earlier-
-#      looking pos/neg asymmetry was mostly base characteristics
-#      correlating with adjustment sign, not a real direction effect, so
-#      the fix is a uniform adjustment shrink, not an asymmetric cap.
+# Serving-time calibration - REMOVED (Sep 2026). HISTORY: a Aug 2026 review
+# of projected_wpr vs real post-race wpr_actual found raw projections
+# systematically too extreme, and fit a decomposed calibration (actual =
+# a + b_base*base + b_adj*adjustment) that shrank the adjustment sum by
+# _CALIB_ADJ_SLOPE=0.1791 before adding it to base - a raw adjustment of,
+# say, +3 was shrunk to only move the projection by about +0.54. This cut
+# held-out point-accuracy MAE 4.88% at the time, and a fresh re-check
+# months later (wpr_adj_slope_and_bucket_model_test.py, Sep 2026) confirmed
+# the slope was still close to MAE-optimal, not stale: raising it made MAE
+# worse at every value tested, up to +0.55 MAE at slope=1.0 (no shrink).
 #
-# Applied here (not as a separate post-processing step) so it's the single
-# source of truth every caller of _compute_base()/project_race() shares -
-# describe()'s narration recomputes base_val independently and must match
-# the base_wpr shown elsewhere in the UI exactly (see its own docstring).
-# The intercept is folded entirely into the base (the anchor); the
-# adjustment slope is applied to the adjustment total in project_race() -
-# together they reproduce a + b_base*base + b_adj*adj = the fitted
-# calibration exactly, so base_wpr + adjustment == projected_wpr still
-# holds (an invariant the frontend relies on - see types/domain.ts).
+# REMOVED ANYWAY, at the user's explicit instruction, once evaluated on the
+# metric that actually matters for a betting tool: MAE rewards a rating
+# that hugs base and rarely disagrees with the market sharply - close to
+# the OPPOSITE of what finds a genuine overlay. wpr_slope_roi_test.py
+# tested slope directly against real starting prices and results (leak-
+# free bidirectional half-split, same methodology as wpr_bet_selection_
+# leakfree_eval.py): at every edge threshold >=0.06, raising the slope
+# toward 1.0 (removed) monotonically INCREASED strike rate (e.g. edge>=0.10:
+# 16.7%->19.1%) and overlay count found, while ROI held or improved and
+# t-stats mostly strengthened (edge>=0.15: t=1.85, not even significant, at
+# shipped -> t=4.25, the strongest in the whole sweep, at slope=1.0). A
+# favourite-longshot-bias check (within-price-bucket comparison, same
+# diagnostic wpr_bet_selection_leakfree_eval.py already uses) confirmed
+# this was NOT just the model agreeing more with the market's own
+# favourites: the gain held (and mostly grew) WITHIN price buckets in the
+# $3-$26 range, and was if anything slightly worse in the pure-favourites
+# (<$3) bucket. So: MAE and ROI point in opposite directions here, which is
+# the expected signature of a metric mismatch, not a contradiction - MAE
+# optimizes point-accuracy, ROI optimizes for being confidently right about
+# real mispricings even at the cost of being "wrong" more often on average.
+# For a tool whose only real lever is bet selection (see CLAUDE.md), ROI is
+# the metric that matters. adjustment is now added to base UNSHRUNK - see
+# project_race().
 #
-# Deliberately NOT applied inside build_training_frame()'s own independent
-# reimplementation of this same base formula (see "_base" there) - that
-# path fits/evaluates the RAW model against real targets; calibration is a
-# serving-time correction on top of it, not part of what gets trained.
-# The base anchor now has NO calibration step at all - see _compute_base's
-# history below for why. _CALIB_ADJ_SLOPE calibrates the ADJUSTMENT sum,
-# not the base anchor, and is unrelated to any of this - untouched by
-# every base-side change below.
-_CALIB_ADJ_SLOPE = 0.1791
+# This also motivated converting every population-lookup ADJ_TERM
+# (track_barrier, trainer_merit, jockey_merit, gear_change, closing_merit)
+# from a shrunk bucket-lookup table to a trained per-row model (see each
+# term's own docstring above) - the original "these adjustments are too
+# minor" complaint traced to two separate causes, both fixed together:
+# individually-noisy hand-tuned lookups (fixed by trained models, each
+# independently MAE-validated bidirectionally) AND the global slope (fixed
+# by removing it, per the ROI evidence above).
 
 # HISTORY (condensed - see git history / this session's scripts for full
 # numbers on any of these): the base anchor was a flat 50/50 wpr_nett/ewm3
@@ -510,6 +511,7 @@ _PROJ = None
 _CONF = None
 _CFG = None
 _PACE_SHAPE_MODEL = None
+_POP_ADJ_MODELS = None
 
 
 def _load_models():
@@ -531,7 +533,7 @@ def _load_models():
     without it, or a retrain that failed to produce it, never breaks
     serving.
     """
-    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL
+    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL, _POP_ADJ_MODELS
     if _PROJ is not None:
         return
     cfg_path = _MODEL_DIR / "config.json"
@@ -551,6 +553,22 @@ def _load_models():
             _PACE_SHAPE_MODEL = None
     else:
         _PACE_SHAPE_MODEL = None
+    # pop_adj_models.joblib (Sep 2026): the trained-model replacements for
+    # every population-lookup ADJ_TERM (track_barrier, trainer_merit,
+    # jockey_merit, gear_change, closing_merit - see each term's own
+    # docstring above for why) plus track_code_map (the fitted str->int
+    # track-identity encoding track_barrier's model needs, so train and
+    # serve can never drift). OPTIONAL, same best-effort/None-default
+    # contract as pace_shape.joblib - a term with a missing model always
+    # falls back to 0.0 ("unseen -> 0"), never breaks serving.
+    _pop_adj_path = _MODEL_DIR / "pop_adj_models.joblib"
+    if _pop_adj_path.exists():
+        try:
+            _POP_ADJ_MODELS = joblib.load(_pop_adj_path)
+        except Exception:
+            _POP_ADJ_MODELS = None
+    else:
+        _POP_ADJ_MODELS = None
 
 
 # ---------------------------------------------------------------------------
@@ -719,47 +737,47 @@ def _barrier_band(barrier, field_size):
 # lookup - every other term above/below needs no fitting at all (each is
 # just "this horse's own past runs at this condition"). This one is
 # population-level: does barrier draw matter more at SOME tracks/distances
-# than others, aggregated across every horse that has raced there. Tested
-# Aug 2026 (user request) as a shrunk (track, 200m distance band) ->
-# per-barrier-band residual-WPR lookup, residual = target - career_avg
-# (quality-normalised, so it isn't just re-learning "this is a good/bad
-# horse"), shrunk toward the pooled global mean for that barrier band with
-# strength _TRACK_BARRIER_K, then centered per (track, dist_band) group so
-# it can never become a flat track-quality bias (a wide-draw specialist
-# track should shift Inside down and Wide up, not just shift everything
-# up). Robustness-tested across K=30-1200 before adoption: held-out MAE
-# improved at every K from 75 up (best -0.0094 at K=300), only K=30 (barely
-# shrunk) was worse - see git history for the full sweep. The lookup itself
-# is FIT in train_wpr_projection() (population statistics need a training
-# pass, unlike every other term here) and shipped in config.json; this
-# constant and the two helpers below are shared between that fit and the
-# live per-runner lookup in project_race() so the two can never drift.
-_TRACK_BARRIER_K = 300.0
+# than others, aggregated across every horse that has raced there.
+#
+# HISTORY: shipped Aug 2026 as a shrunk (track, 200m distance band) ->
+# per-barrier-band residual-WPR lookup table (residual = target -
+# career_avg). REPLACED Sep 2026 with a trained LightGBM model on the same
+# underlying inputs (distance, barrier, field_size, track identity) - the
+# same lesson settling_estimate.py/pace_shape already taught this session:
+# a smooth per-row model generalises better than a rigid population bucket
+# once there's enough data and real feature interactions to learn (track x
+# distance x barrier here). Validated bidirectionally against the shipped
+# lookup (wpr_adj_slope_and_bucket_model_test.py): residual MAE
+# 6.6124->6.5488 (-0.0637) forward, 5.6880->5.5976 (-0.0904) reversed - a
+# clear, real win in both directions, not a coin-flip.
+#
+# The model is FIT in train_wpr_projection() (needs a training pass, unlike
+# every per-horse own-history term here) and shipped as part of
+# pop_adj_models.joblib; track identity is encoded via _TRACK_CODE_MAP (a
+# fitted str->int mapping, shipped in config.json so train and serve can
+# never drift) - an unseen track at serve time gets the reserved
+# out-of-vocabulary code -1, never aliased to whatever existing track
+# happens to share that code.
+_TRACK_BARRIER_FEATURES = ["cur_distance", "barrier", "field_size", "track_code"]
 
 
-def _dist_band(distance):
-    """200m distance band, e.g. 1200-1399m -> 1200. None if unusable."""
+def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, track_code_map, model):
+    """Live per-runner track_barrier ADJ_TERM via the FITTED trained model
+    (see above). 0.0 (no adjustment) if the model, track, or any input is
+    unavailable - same "unseen -> 0" contract the robustness backtest was
+    actually validated under."""
+    if model is None or not cur_track:
+        return 0.0
     try:
-        d = float(distance)
+        cd, cb, cfs = float(cur_distance), float(cur_barrier), float(cur_field_size)
     except (TypeError, ValueError):
-        return None
-    if d != d:
-        return None
-    return int(d // 200 * 200)
-
-
-def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lookup):
-    """Live per-runner lookup against the FITTED track_barrier table (see
-    above). 0.0 (no adjustment) for any track/distance-band combo not seen
-    in training - same "unseen -> 0" contract the robustness backtest was
-    actually validated under, not a fallback to some other average."""
-    if not cur_track or lookup is None:
         return 0.0
-    db = _dist_band(cur_distance)
-    band = _barrier_band(cur_barrier, cur_field_size)
-    if db is None or band is None:
+    if cd != cd or cb != cb or cfs != cfs:
         return 0.0
-    return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
+    track_code = (track_code_map or {}).get(cur_track, -1)
+    row = pd.DataFrame([{"cur_distance": cd, "barrier": cb, "field_size": cfs, "track_code": track_code}],
+                       columns=_TRACK_BARRIER_FEATURES)
+    return float(model.predict(row)[0])
 
 
 # trainer_merit/jockey_merit: two more population-level ADJ_TERMS (Sep 2026,
@@ -770,79 +788,83 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, lo
 # "doesn't pass the pub test": a disconnected second ranking system is
 # confusing even when it measures better, whereas an ADJ_TERM keeps WPR as
 # the one number, nudged the same transparent way track_barrier/
-# closing_merit already do). Same shrunk-population-residual structure as
-# track_barrier, just bucketed by DECILE of trainer_win_pct_365d/
-# jockey_win_pct_90d (data-dependent quantile edges, fit at train time)
-# instead of a fixed Inside/Mid/Wide band. Both cleared the strike-rate bar
-# in both held-out chronological-split directions individually, and
-# combined cleared it by MORE than either alone (+1.1 to +1.4 points, vs
-# +0.3-0.7 for either alone) - complementary, not redundant, signal. MAE
-# got slightly worse in all three variants, the same accepted tradeoff
-# track_barrier/closing_merit were adopted under.
-_TJ_MERIT_K = 300.0
-_TJ_MERIT_BUCKETS = 10
+# closing_merit already do).
+#
+# HISTORY: shipped Aug/Sep 2026 as a shrunk-per-DECILE-bucket lookup of
+# trainer_win_pct_365d/jockey_win_pct_90d (data-dependent quantile edges,
+# fit at train time). REPLACED Sep 2026 with a trained LightGBM model on
+# the raw CONTINUOUS win-pct value (plus field_size) - same track_barrier/
+# pace_shape lesson: a smooth model resolves more than 10 coarse buckets
+# can, and removes an arbitrary bucket-count choice entirely. Fit on the
+# column's own coverage-aware window (trainer_win_pct_365d/
+# jockey_win_pct_90d are only captured in toprate_runners.csv's last
+# ~20% of history by date - see _fit_coverage_aware_trn below).
+_TRAINER_MERIT_FEATURES = ["trainer_win_pct_365d", "field_size"]
+_JOCKEY_MERIT_FEATURES = ["jockey_win_pct_90d", "field_size"]
 
 
-def _merit_bucket(value, edges):
-    """Bucket a raw win-pct value into one of the fitted decile buckets
-    (see _fit_merit_lookup) using the SAME edges the lookup was fit
-    against. None if value or edges is missing/unusable."""
-    if value is None or value != value or not edges:
-        return None
-    return int(np.digitize([float(value)], edges[1:-1])[0])
-
-
-def _merit_term(bucket, lookup):
-    """Live lookup against the FITTED trainer_merit/jockey_merit table
-    (see above). 0.0 (no adjustment) for any bucket not seen in
-    training - same "unseen -> 0" contract track_barrier uses."""
-    if bucket is None or not lookup:
+def _merit_term(value, field_size, model, features):
+    """Live trainer_merit/jockey_merit ADJ_TERM via the FITTED trained
+    model (see above). 0.0 (no adjustment) if the model or value is
+    unavailable - same "unseen -> 0" contract every population term here
+    uses."""
+    if model is None or value is None or value != value:
         return 0.0
-    return float(lookup.get(str(bucket), 0.0))
+    try:
+        fs = float(field_size) if field_size is not None and field_size == field_size else 0.0
+    except (TypeError, ValueError):
+        fs = 0.0
+    row = pd.DataFrame([{features[0]: float(value), features[1]: fs}], columns=features)
+    return float(model.predict(row)[0])
 
 
-def _fit_merit_lookup(full_df, col, fit_frac=0.70):
-    """Population mean residual (target - career_avg) per decile bucket
-    of col, shrunk toward the global mean with strength _TJ_MERIT_K.
-    Returns (edges, lookup dict keyed by str(bucket) - JSON needs string
-    keys).
-
-    Takes the FULL training frame (not train_wpr_projection's own trn
-    split) and finds its own leak-safe cutoff WITHIN the covered subset,
-    rather than reusing the global trn/cf/te split - trainer_win_pct_365d/
+def _fit_coverage_aware_trn(full_df, cols, fit_frac=0.70):
+    """The covered-subset trn slice for a column (or columns) only
+    populated in the last stretch of history - trainer_win_pct_365d/
     jockey_win_pct_90d are only ever captured in the last however-many
     months toprate_runners.csv has been running (confirmed: ~20% overall
     coverage across the full multi-year career archive), which sits almost
-    entirely inside cf/te's own (most recent) date range. Using the global
-    trn cutoff left trn essentially empty for these two columns specifically
-    (crashed outright on np.quantile of an empty array) - a cutoff computed
-    from the COVERED subset's own dates at least has real data to fit on,
-    at the cost of some overlap with cf/te's dates in this function's own
-    internal fit (the actual out-of-sample validation already happened
-    properly in wpr_trainer_jockey_adj_strike_eval.py's own h1/h2 walk-
-    forward split, which had no such overlap - same precedent as
-    calibrate_edge_score.py's final production means/stds being fit on
-    ALL data once walk-forward has already validated the approach
-    generalizes)."""
-    cov = full_df.dropna(subset=[col, "target", "career_avg"])
+    entirely inside the global trn/cf/te split's cf/te (most recent) date
+    range. Using the global trn cutoff left trn essentially empty for
+    these columns specifically (crashed outright on an empty frame) - a
+    cutoff computed from the COVERED subset's own dates at least has real
+    data to fit on, at the cost of some overlap with cf/te's dates in this
+    fit (the actual out-of-sample validation already happened properly in
+    wpr_trainer_jockey_adj_strike_eval.py's own h1/h2 walk-forward split,
+    which had no such overlap - same precedent as calibrate_edge_score.py's
+    final production means/stds being fit on ALL data once walk-forward
+    has already validated the approach generalizes)."""
+    cov = full_df.dropna(subset=list(cols) + ["target", "career_avg"])
     if len(cov) < 50:
-        return [], {}
+        return cov
     cutoff = cov["date"].quantile(fit_frac)
     d = cov[cov["date"] < cutoff]
-    if len(d) < 50:
-        d = cov  # coverage window too narrow to split further - fit on all of it
-    edges = np.unique(np.quantile(d[col], np.linspace(0, 1, _TJ_MERIT_BUCKETS + 1)))
-    resid = d["target"] - d["career_avg"]
-    global_mean = resid.mean()
-    bucket = np.digitize(d[col], edges[1:-1])
-    lookup = {}
-    for b in range(len(edges) - 1):
-        m = resid[bucket == b]
-        if len(m):
-            n = len(m)
-            shrunk = (n * m.mean() + _TJ_MERIT_K * global_mean) / (n + _TJ_MERIT_K)
-            lookup[str(b)] = float(shrunk - global_mean)
-    return edges.tolist(), lookup
+    return d if len(d) >= 50 else cov  # coverage window too narrow to split further - fit on all of it
+
+
+def _fit_simple_adj_model(trn, feats, label):
+    """Generic small-model fit shared by every trained-model population
+    ADJ_TERM (track_barrier/trainer_merit/jockey_merit/gear_change/
+    closing_merit - see each term's own docstring for its own validation
+    numbers): LightGBM, median objective (quantile alpha=0.5 - same fix
+    settling_estimate.py/pace_shape/track_barrier's own median-objective
+    test already made for this skewed residual target, see
+    wpr_adj_median_bucket_test.py for the skew numbers), predicting
+    residual = target - career_avg from `feats`. Returns None if too few
+    covered rows to fit (same >=200 bar pace_shape's own fit uses) - a
+    missing model means the term always returns 0.0 ("unseen -> 0"),
+    never breaks serving."""
+    import lightgbm as lgb
+    d = trn.dropna(subset=feats + ["target", "career_avg"])
+    if len(d) < 200:
+        print(f"    {label}: only {len(d):,} covered rows, skipping fit (need >=200)")
+        return None
+    model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
+                              num_leaves=8, random_state=42, verbosity=-1,
+                              objective="quantile", alpha=0.5)
+    model.fit(d[feats], d["target"] - d["career_avg"])
+    print(f"    {label}: fitted on {len(d):,} rows")
+    return model
 
 
 def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="toprate_runners.csv"):
@@ -920,14 +942,29 @@ def _closing_merit_bucket(v):
     return None
 
 
-def _closing_merit_term(pairs, lookup):
+# closing_merit's final combination step: shipped Aug 2026 as the fixed
+# n/(n+K) _shrink() formula every own_* term uses. REPLACED Sep 2026 with a
+# trained LightGBM model (validated: residual MAE -0.1116/-0.1526 both
+# directions in wpr_adj_full_trained_model_test.py, the largest single-term
+# gain of the five terms converted that session) - lets the model learn how
+# much to trust a 1-pair vs 3-pair own-history residual instead of one
+# hand-picked shrink constant. The population half (pace_baseline_lookup,
+# _fit_pace_baseline above) is UNCHANGED - it is a population fact about
+# race shape vs sectional time, not a per-horse bucket lookup, so it is not
+# what "the population bucket lookups are too minor" was ever about.
+_CLOSING_MERIT_FEATURES = ["closing_raw_resid", "closing_n_pairs", "field_size"]
+
+
+def _closing_merit_term(pairs, lookup, field_size, model):
     """Combine the own-history half (pairs: a list of up to 3
     (sect_i_l600, bucket_str) tuples from this horse's own last prior
     runs - see build_features' "closing_pairs") with the FITTED
     population lookup (bucket_str -> expected sect_i_l600, see
-    _fit_pace_baseline) into one shrunk residual, same _shrink convention
-    as every other own_* term. 0.0 if either half is unavailable."""
-    if not pairs or not lookup:
+    _fit_pace_baseline) into a raw mean residual, then feed that (plus how
+    many prior runs fed it, plus today's field size) to the FITTED trained
+    model (see above). 0.0 if the model or either half is unavailable -
+    same "unseen -> 0" contract every population term here uses."""
+    if model is None or not pairs or not lookup:
         return 0.0
     residuals = []
     for sect, bucket in pairs:
@@ -939,7 +976,14 @@ def _closing_merit_term(pairs, lookup):
         residuals.append(float(sect) - float(expected))
     if not residuals:
         return 0.0
-    return _shrink(float(np.mean(residuals)), len(residuals))
+    raw_resid = float(np.mean(residuals))
+    try:
+        fs = float(field_size) if field_size is not None and field_size == field_size else 0.0
+    except (TypeError, ValueError):
+        fs = 0.0
+    row = pd.DataFrame([{"closing_raw_resid": raw_resid, "closing_n_pairs": float(len(residuals)), "field_size": fs}],
+                       columns=_CLOSING_MERIT_FEATURES)
+    return float(model.predict(row)[0])
 
 
 def _fit_pace_baseline(form_history_csv, cutoff_date):
@@ -963,19 +1007,21 @@ def _fit_pace_baseline(form_history_csv, cutoff_date):
     return {k: float(v) for k, v in d.groupby("bucket")["sect"].mean().items()}
 
 
-# gear_change: a third population-only ADJ_TERM (Aug 2026, strike-rate
+# gear_change: a third population ADJ_TERM (Aug 2026, strike-rate
 # validation - see wpr_gear_change_strike_eval.py), testing racing lore that
-# first-time gear (blinkers especially) sharpens a horse's focus. Pure
-# population lookup, same structure as track_barrier: gear changes are
-# mostly a rare, one-off event per horse, so there is no meaningful "own
-# history in this gear" to match against. Bucket is a fact announced
-# pre-race in the formguide (no leak); the fitted shrunk mean residual
-# (target - career_avg) per bucket is fit in train_wpr_projection() on trn
-# only and shipped in config.json as gear_change_lookup, applied post-hoc
-# by _gear_change_term below (same two-stage pattern as track_barrier/
-# closing_merit) both at serve time (project_race) and at
-# train_wpr_projection()'s own cf/te scoring step.
-_GEAR_CHANGE_K = 3.0
+# first-time gear (blinkers especially) sharpens a horse's focus. Bucket is
+# a fact announced pre-race in the formguide (no leak).
+#
+# HISTORY: shipped Aug 2026 as a shrunk 3-bucket lookup (blinkers_first_
+# time / other_first_time_gear / no_change), the fixed n/(n+K) shrink
+# convention every population lookup here used. REPLACED Sep 2026 with a
+# trained LightGBM model that also sees field_size and the horse's own
+# first_up/second_up/n_runs (gear changes are disproportionately a
+# freshening-up event, so whether they interact with a fresh campaign is
+# real information a 3-bucket mean can't represent) - validated: residual
+# MAE -0.1065/-0.1128 both directions (wpr_adj_full_trained_model_test.py).
+_GEAR_BUCKET_CODE = {"no_change": 0, "blinkers_first_time": 1, "other_first_time_gear": 2}
+_GEAR_CHANGE_FEATURES = ["gear_code", "field_size", "first_up", "second_up", "n_runs"]
 
 
 def _gear_change_bucket(raw):
@@ -998,12 +1044,25 @@ def _gear_change_bucket(raw):
     return "no_change"
 
 
-def _gear_change_term(bucket, lookup):
-    """Live lookup against the FITTED gear_change table (see above). 0.0
-    (no adjustment) if the bucket or lookup is unavailable."""
-    if not lookup:
+def _gear_change_term(bucket, field_size, first_up, second_up, n_runs, model):
+    """Live gear_change ADJ_TERM via the FITTED trained model (see above).
+    0.0 (no adjustment) if the model is unavailable - same "unseen -> 0"
+    contract every population term here uses."""
+    if model is None:
         return 0.0
-    return float(lookup.get(bucket, 0.0))
+    try:
+        fs = float(field_size) if field_size is not None and field_size == field_size else 0.0
+    except (TypeError, ValueError):
+        fs = 0.0
+    try:
+        nr = float(n_runs) if n_runs is not None and n_runs == n_runs else 0.0
+    except (TypeError, ValueError):
+        nr = 0.0
+    row = pd.DataFrame([{
+        "gear_code": _GEAR_BUCKET_CODE.get(bucket, 0), "field_size": fs,
+        "first_up": float(bool(first_up)), "second_up": float(bool(second_up)), "n_runs": nr,
+    }], columns=_GEAR_CHANGE_FEATURES)
+    return float(model.predict(row)[0])
 
 
 # pace_shape: the first race-shape/pace ADJ_TERM to reach WPR's live rating
@@ -1059,14 +1118,17 @@ def _gear_change_term(bucket, lookup):
 # once for settling_estimate.py) - the breakdown panel can still narrate the
 # DIRECTION and INPUTS (predicted to control an uncontested race vs.
 # predicted to lead into a hot pace, see describe()), just not a single
-# readable coefficient the way track_barrier/trainer_merit/jockey_merit can.
+# readable coefficient (every population ADJ_TERM is now a small trained
+# model, not a lookup table - see track_barrier/trainer_merit/jockey_merit/
+# gear_change/closing_merit's own docstrings - but pace_shape was the
+# first, and remains the one with by far the richest feature interaction).
 #
 # Fit in train_wpr_projection() on its own coverage-scoped recent window
 # (predicted_rel_settle/pace_score are only leak-safely reconstructable for
 # roughly the last year of history - same "own coverage-aware cutoff"
-# problem trainer_merit/jockey_merit already solved, see _fit_merit_lookup's
-# docstring for why the global trn/cf/te split does not work for a
-# recent-only-covered column) - bounded to the EXACT window
+# problem trainer_merit/jockey_merit already solved, see
+# _fit_coverage_aware_trn's docstring for why the global trn/cf/te split
+# does not work for a recent-only-covered column) - bounded to the EXACT window
 # wpr_pace_adjustment_continuous_test.py validated (365 days), never a
 # superset of what was tested.
 _PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size"]
@@ -2420,48 +2482,55 @@ def project_race(runners, race_date):
     fallbacks = [f is None for f in feat_dicts]
 
     # track_barrier: the one ADJ_TERMS entry not computed inside
-    # build_features (see its docstring above _TRACK_BARRIER_K) - it needs
-    # the FITTED population lookup from config.json, which only exists
-    # after _load_models() above, so it is injected here rather than
+    # build_features (see its docstring above _TRACK_BARRIER_FEATURES) - it
+    # needs the FITTED trained model from pop_adj_models.joblib, which only
+    # exists after _load_models() above, so it is injected here rather than
     # threaded through build_features's own-history-only signature.
-    _tb_lookup = _CFG.get("track_barrier_lookup")
+    _pop = _POP_ADJ_MODELS or {}
+    _tb_model = _pop.get("track_barrier")
+    _tb_code_map = _pop.get("track_code_map")
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             f["track_barrier"] = _track_barrier_term(
                 r.get("cur_track"), r.get("cur_distance"),
-                r.get("cur_barrier"), r.get("cur_field_size"), _tb_lookup)
+                r.get("cur_barrier"), r.get("cur_field_size"), _tb_code_map, _tb_model)
 
     # closing_merit: same two-stage pattern as track_barrier above - the
     # own-history half (closing_pairs) IS computed inside build_features
-    # (it needs prior_runs), but the fitted population lookup only exists
-    # after _load_models(), so the final term is combined here.
+    # (it needs prior_runs); pace_baseline_lookup (the population half - a
+    # population FACT about race shape vs sectional time, unchanged, still
+    # JSON-serializable) comes from config.json, the trained combination
+    # model from pop_adj_models.joblib - both only exist after
+    # _load_models(), so the final term is combined here.
     _pb_lookup = _CFG.get("pace_baseline_lookup")
-    for f in feat_dicts:
+    _cm_model = _pop.get("closing_merit")
+    for f, r in zip(feat_dicts, runners):
         if f is not None:
-            f["closing_merit"] = _closing_merit_term(f.get("closing_pairs"), _pb_lookup)
+            f["closing_merit"] = _closing_merit_term(
+                f.get("closing_pairs"), _pb_lookup, r.get("cur_field_size"), _cm_model)
 
-    # gear_change: pure population lookup, same injection pattern as
-    # track_barrier above - it needs the fitted table from config.json,
-    # unrelated to prior_runs so it cannot be computed inside build_features.
-    _gc_lookup = _CFG.get("gear_change_lookup")
+    # gear_change: same injection pattern as track_barrier above - it needs
+    # the fitted model from pop_adj_models.joblib, unrelated to prior_runs
+    # so it cannot be computed inside build_features. first_up/second_up/
+    # n_runs are already in f (computed by build_features - see FEATURES).
+    _gc_model = _pop.get("gear_change")
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             f["gear_change"] = _gear_change_term(
-                _gear_change_bucket(r.get("cur_gear_changes")), _gc_lookup)
+                _gear_change_bucket(r.get("cur_gear_changes")), r.get("cur_field_size"),
+                f.get("first_up"), f.get("second_up"), f.get("n_runs"), _gc_model)
 
-    # trainer_merit/jockey_merit: pure population lookups, same injection
-    # pattern as track_barrier/gear_change above - today's actual booking,
-    # unrelated to prior_runs so cannot be computed inside build_features.
-    _tm_edges = _CFG.get("trainer_merit_edges")
-    _tm_lookup = _CFG.get("trainer_merit_lookup")
-    _jm_edges = _CFG.get("jockey_merit_edges")
-    _jm_lookup = _CFG.get("jockey_merit_lookup")
+    # trainer_merit/jockey_merit: same injection pattern as track_barrier/
+    # gear_change above - today's actual booking, unrelated to prior_runs
+    # so cannot be computed inside build_features.
+    _trm_model = _pop.get("trainer_merit")
+    _jm_model = _pop.get("jockey_merit")
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             f["trainer_merit"] = _merit_term(
-                _merit_bucket(r.get("cur_trainer_win_pct_365d"), _tm_edges), _tm_lookup)
+                r.get("cur_trainer_win_pct_365d"), r.get("cur_field_size"), _trm_model, _TRAINER_MERIT_FEATURES)
             f["jockey_merit"] = _merit_term(
-                _merit_bucket(r.get("cur_jockey_win_pct_90d"), _jm_edges), _jm_lookup)
+                r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES)
 
     # pace_shape: needs today's continuous pace_score (race_speed_estimate,
     # whole-field) and predicted_rel_settle (settling_estimate, per-horse) -
@@ -2488,14 +2557,12 @@ def project_race(runners, race_date):
     base_arr = np.array([_compute_base(f) if f is not None else 0.0
                          for f in feat_dicts], dtype=float)
     X_adj = _adj_term_frame(feat_dicts)
+    # No calibration slope on the adjustment sum (removed Sep 2026 - see
+    # the "Serving-time calibration - REMOVED" history above _BASE_BLEND_
+    # ALPHA for the ROI evidence). base_arr carries no calibration of its
+    # own either (see _compute_base), so base_wpr + adjustment ==
+    # projected_wpr holds trivially, unscaled.
     adj_contributions = _cap_adj_sum(X_adj.to_numpy())
-    # _CALIB_ADJ_SLOPE (adjustment-only calibration - see its own docstring
-    # above _compute_base) applied to the adjustment here. base_arr carries
-    # NO calibration of its own (see _compute_base - the raw blend is
-    # returned unmodified), so base_wpr + adjustment == projected_wpr still
-    # holds trivially (per-feature contributions scaled too, so they still
-    # sum to the scaled adjustment).
-    adj_contributions = adj_contributions * _CALIB_ADJ_SLOPE
     adj = adj_contributions.sum(axis=1)
     proj = base_arr + adj
 
@@ -3467,107 +3534,96 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     D[FEATURES] = D[FEATURES].fillna(med)
 
     q1, q2 = D["date"].quantile([0.70, 0.85])
-    trn = D[D["date"] < q1]
+    # .copy() (added Sep 2026): trn now gets new columns added below
+    # (track_code/gear_code/closing_raw_resid etc, for the trained
+    # population-term models) - it used to be read-only.
+    trn = D[D["date"] < q1].copy()
     cf = D[(D["date"] >= q1) & (D["date"] < q2)].copy()
     te = D[D["date"] >= q2].copy()
 
-    # track_barrier: fit the population lookup on trn only (see its
-    # docstring near _TRACK_BARRIER_K above) - the one ADJ_TERMS entry that
-    # needs an actual training pass, unlike every other term here, which is
-    # a pure per-horse own-history lookup needing no fitting. cur_distance/
-    # field_size are FEATURES columns (already median-filled above, never
-    # NaN here); only barrier can be missing, handled by _barrier_band
-    # returning None and the dropna below dropping it.
-    print("  fitting track_barrier lookup (population, trn only)...")
-    _tb_resid = trn["target"] - trn["career_avg"]
-    _tb_band = [_barrier_band(b, f) for b, f in zip(trn["barrier"], trn["field_size"])]
-    _tb_dist_band = (trn["cur_distance"] // 200 * 200).astype(int)
-    _tb_frame = pd.DataFrame({
-        "track": trn["track"], "dist_band": _tb_dist_band,
-        "band": _tb_band, "residual": _tb_resid,
-    }).dropna(subset=["track", "band", "residual"])
-    _tb_global = _tb_frame.groupby("band")["residual"].mean().to_dict()
-    track_barrier_lookup = {}
-    for (trk, db), g in _tb_frame.groupby(["track", "dist_band"]):
-        stats = g.groupby("band")["residual"].agg(["mean", "count"])
-        shrunk = {}
-        for b in ["Inside", "Mid", "Wide"]:
-            if b in stats.index:
-                n, m = stats.loc[b, "count"], stats.loc[b, "mean"]
-                shrunk[b] = (n * m + _TRACK_BARRIER_K * _tb_global.get(b, 0.0)) / (n + _TRACK_BARRIER_K)
-            else:
-                shrunk[b] = _tb_global.get(b, 0.0)
-        center = float(np.mean(list(shrunk.values())))
-        track_barrier_lookup[f"{trk}|{int(db)}"] = {
-            b: float(max(-_OWN_DELTA_CAP, min(_OWN_DELTA_CAP, shrunk[b] - center))) for b in shrunk
-        }
-    print(f"  track_barrier: {len(track_barrier_lookup):,} (track, dist-band) combos")
-
-    # Applied to cf/te (not trn, which is never scored) so the held-out MAE
-    # printed further down actually reflects this term - project_race()
-    # injects it at serve time from this SAME lookup, saved to config.json
-    # below.
+    # track_barrier/trainer_merit/jockey_merit/gear_change/closing_merit:
+    # ALL FIVE population ADJ_TERMS were converted (Sep 2026) from shrunk
+    # lookup tables to trained LightGBM models - see each term's own
+    # docstring above (_TRACK_BARRIER_FEATURES, _TRAINER_MERIT_FEATURES,
+    # _GEAR_CHANGE_FEATURES, _CLOSING_MERIT_FEATURES) for the per-term
+    # validation numbers. gear_change/closing_merit have full multi-year
+    # coverage (fit on trn only, same leak-safe convention track_barrier
+    # always used); trainer_merit/jockey_merit only exist in the last
+    # ~20% of history by date, so they use _fit_coverage_aware_trn instead
+    # of the global trn (see that function's docstring).
+    print("  fitting track_barrier model (population, trn only)...")
+    track_categories = sorted(D["track"].dropna().unique())
+    track_code_map = {t: i for i, t in enumerate(track_categories)}
+    for _frame in (trn, cf, te):
+        # .loc assignment (not a bare column set) since trn is a VIEW
+        # (D[D["date"] < q1], no .copy()) further up - cf/te are already
+        # .copy()'d, trn is not, and adding a column to a view raises
+        # pandas' SettingWithCopyWarning at best, silently no-ops at worst.
+        _frame.loc[:, "track_code"] = _frame["track"].map(track_code_map).fillna(-1).astype(int)
+    track_barrier_model = _fit_simple_adj_model(trn, _TRACK_BARRIER_FEATURES, "track_barrier")
     for _frame in (cf, te):
         _frame["track_barrier"] = [
-            _track_barrier_term(trk, dist, bar, fs, track_barrier_lookup)
+            _track_barrier_term(trk, dist, bar, fs, track_code_map, track_barrier_model)
             for trk, dist, bar, fs in zip(_frame["track"], _frame["cur_distance"],
                                           _frame["barrier"], _frame["field_size"])
         ]
 
-    # trainer_merit/jockey_merit: pure population decile-bucketed lookups.
-    # NOT fit on trn like track_barrier above - trainer_win_pct_365d/
-    # jockey_win_pct_90d coverage (~20% of the full multi-year career
-    # archive) sits almost entirely inside cf/te's own recent date range,
-    # so the global trn cutoff leaves trn empty for these two columns
-    # specifically. _fit_merit_lookup finds its own leak-safe cutoff
-    # within whichever rows of D actually have the column - see its
-    # docstring for the full reasoning.
-    print("  fitting trainer_merit lookup (population, own coverage-aware cutoff)...")
-    trainer_merit_edges, trainer_merit_lookup = _fit_merit_lookup(D, "trainer_win_pct_365d")
-    print(f"  trainer_merit: {len(trainer_merit_lookup):,} deciles {trainer_merit_lookup}")
-    print("  fitting jockey_merit lookup (population, own coverage-aware cutoff)...")
-    jockey_merit_edges, jockey_merit_lookup = _fit_merit_lookup(D, "jockey_win_pct_90d")
-    print(f"  jockey_merit: {len(jockey_merit_lookup):,} deciles {jockey_merit_lookup}")
+    print("  fitting trainer_merit model (population, own coverage-aware cutoff)...")
+    trainer_merit_trn = _fit_coverage_aware_trn(D, ["trainer_win_pct_365d"])
+    trainer_merit_model = _fit_simple_adj_model(trainer_merit_trn, _TRAINER_MERIT_FEATURES, "trainer_merit")
+    print("  fitting jockey_merit model (population, own coverage-aware cutoff)...")
+    jockey_merit_trn = _fit_coverage_aware_trn(D, ["jockey_win_pct_90d"])
+    jockey_merit_model = _fit_simple_adj_model(jockey_merit_trn, _JOCKEY_MERIT_FEATURES, "jockey_merit")
     for _frame in (cf, te):
         _frame["trainer_merit"] = [
-            _merit_term(_merit_bucket(v, trainer_merit_edges), trainer_merit_lookup)
-            for v in _frame["trainer_win_pct_365d"]
+            _merit_term(v, fs, trainer_merit_model, _TRAINER_MERIT_FEATURES)
+            for v, fs in zip(_frame["trainer_win_pct_365d"], _frame["field_size"])
         ]
         _frame["jockey_merit"] = [
-            _merit_term(_merit_bucket(v, jockey_merit_edges), jockey_merit_lookup)
-            for v in _frame["jockey_win_pct_90d"]
+            _merit_term(v, fs, jockey_merit_model, _JOCKEY_MERIT_FEATURES)
+            for v, fs in zip(_frame["jockey_win_pct_90d"], _frame["field_size"])
         ]
 
-    # gear_change: pure population lookup fit on trn only, same shrunk-
-    # residual-vs-career_avg convention as track_barrier above (see
-    # _gear_change_bucket/_gear_change_term docstrings).
-    print("  fitting gear_change lookup (population, trn only)...")
-    _gc_resid = trn["target"] - trn["career_avg"]
-    _gc_bucket = trn["gear_changes"].apply(_gear_change_bucket)
-    _gc_frame = pd.DataFrame({"bucket": _gc_bucket, "residual": _gc_resid}).dropna(subset=["residual"])
-    _gc_global = float(_gc_frame["residual"].mean())
-    gear_change_lookup = {}
-    for bucket, g in _gc_frame.groupby("bucket"):
-        n, m = len(g), float(g["residual"].mean())
-        shrunk = (n * m + _GEAR_CHANGE_K * _gc_global) / (n + _GEAR_CHANGE_K)
-        gear_change_lookup[bucket] = float(shrunk - _gc_global)
-    print(f"  gear_change: {len(gear_change_lookup):,} buckets {gear_change_lookup}")
+    print("  fitting gear_change model (population, trn only)...")
+    for _frame in (trn, cf, te):
+        _bucket = _frame["gear_changes"].apply(_gear_change_bucket)
+        _frame.loc[:, "gear_code"] = _bucket.map(_GEAR_BUCKET_CODE).fillna(0).astype(int)
+    gear_change_model = _fit_simple_adj_model(trn, _GEAR_CHANGE_FEATURES, "gear_change")
     for _frame in (cf, te):
         _frame["gear_change"] = [
-            _gear_change_term(b, gear_change_lookup)
-            for b in _frame["gear_changes"].apply(_gear_change_bucket)
+            _gear_change_term(b, fs, fu, su, nr, gear_change_model)
+            for b, fs, fu, su, nr in zip(
+                _frame["gear_changes"].apply(_gear_change_bucket), _frame["field_size"],
+                _frame["first_up"], _frame["second_up"], _frame["n_runs"])
         ]
 
-    # closing_merit: population half fit on trn's date cutoff (q1), same
-    # leak-safe convention as track_barrier above - see _fit_pace_baseline
-    # and _closing_merit_term's docstrings for the full two-stage design.
+    # closing_merit: population half (pace_baseline_lookup - a population
+    # FACT about race shape vs sectional time, not a per-horse bucket
+    # lookup) fit on trn's date cutoff (q1), same leak-safe convention as
+    # every other term here - see _fit_pace_baseline's docstring. UNCHANGED
+    # by the trained-model conversion; only the final combination step is
+    # now a trained model (see _closing_merit_term's docstring).
     print("  fitting closing_merit pace-context baseline (population, trn only)...")
     pace_baseline_lookup = _fit_pace_baseline(form_history_csv, q1)
     print(f"  closing_merit: {len(pace_baseline_lookup):,} pace-context buckets")
+
+    def _closing_raw_resid_one(pairs):
+        vals = []
+        for sect, bucket in pairs:
+            exp = pace_baseline_lookup.get(bucket)
+            if exp is not None and sect is not None and sect == sect:
+                vals.append(float(sect) - float(exp))
+        return (float(np.mean(vals)), float(len(vals))) if vals else (np.nan, 0.0)
+
+    for _frame in (trn, cf, te):
+        _computed = [_closing_raw_resid_one(p) for p in _frame["closing_pairs"]]
+        _frame.loc[:, "closing_raw_resid"] = [c[0] for c in _computed]
+        _frame.loc[:, "closing_n_pairs"] = [c[1] for c in _computed]
+    closing_merit_model = _fit_simple_adj_model(trn, _CLOSING_MERIT_FEATURES, "closing_merit")
     for _frame in (cf, te):
         _frame["closing_merit"] = [
-            _closing_merit_term(pairs, pace_baseline_lookup)
-            for pairs in _frame["closing_pairs"]
+            _closing_merit_term(pairs, pace_baseline_lookup, fs, closing_merit_model)
+            for pairs, fs in zip(_frame["closing_pairs"], _frame["field_size"])
         ]
 
     # pace_shape: the one ADJ_TERM that is a TRAINED MODEL rather than a
@@ -3720,18 +3776,36 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     if pace_shape_model is not None:
         joblib.dump(pace_shape_model, Path(out_dir) / "pace_shape.joblib")
         print("  pace_shape.joblib written")
+    # pop_adj_models.joblib (Sep 2026): bundles the 5 trained-model
+    # population ADJ_TERMS (track_barrier, trainer_merit, jockey_merit,
+    # gear_change, closing_merit - each replacing a shrunk lookup table,
+    # see each term's own docstring) plus track_code_map (the fitted
+    # track-identity encoding track_barrier's model needs). Same OPTIONAL,
+    # best-effort artifact contract as pace_shape.joblib - any individual
+    # model here can be None (too little covered data) without breaking
+    # serving (that term just returns 0.0).
+    joblib.dump({
+        "track_barrier": track_barrier_model, "track_code_map": track_code_map,
+        "trainer_merit": trainer_merit_model, "jockey_merit": jockey_merit_model,
+        "gear_change": gear_change_model, "closing_merit": closing_merit_model,
+    }, Path(out_dir) / "pop_adj_models.joblib")
+    print("  pop_adj_models.joblib written")
     new_cfg = dict(existing_cfg)
+    # track_barrier_lookup/gear_change_lookup/trainer_merit_edges+lookup/
+    # jockey_merit_edges+lookup are OBSOLETE (Sep 2026) - superseded by
+    # pop_adj_models.joblib above. Popped explicitly rather than left to
+    # linger unused in config.json (existing_cfg is loaded and updated in
+    # place - see this function's own BUG FIX note above - so a stale key
+    # would otherwise survive every future retrain forever).
+    for _stale_key in ("track_barrier_lookup", "gear_change_lookup",
+                      "trainer_merit_edges", "trainer_merit_lookup",
+                      "jockey_merit_edges", "jockey_merit_lookup"):
+        new_cfg.pop(_stale_key, None)
     new_cfg.update({"features": FEATURES, "adj_terms": ADJ_TERMS,
                "medians": med.to_dict(),
                "conf_lo": float(clo), "conf_hi": float(chi),
                "beta": beta, "min_runs": _MIN_RUNS,
-               "track_barrier_lookup": track_barrier_lookup,
-               "pace_baseline_lookup": pace_baseline_lookup,
-               "gear_change_lookup": gear_change_lookup,
-               "trainer_merit_edges": trainer_merit_edges,
-               "trainer_merit_lookup": trainer_merit_lookup,
-               "jockey_merit_edges": jockey_merit_edges,
-               "jockey_merit_lookup": jockey_merit_lookup})
+               "pace_baseline_lookup": pace_baseline_lookup})
     json.dump(new_cfg, open(Path(out_dir) / "config.json", "w"), indent=1)
     print(f"  written -> {out_dir}/")
 
