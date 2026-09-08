@@ -1,45 +1,40 @@
-"""wpr_simple_price_edge_walkforward_test.py - test a simpler edge
-definition (user request, Sep 2026): "Edge should be as simple as wpr
-price lower than sp / fixed price" - i.e. compare the model's own fair
-price (wpr_price/blend_price, the exact number already shown on the
-dashboard, a softmax over the WHOLE scored field) directly against the
-market's raw price, instead of the current compute_edge_scores() approach
-of computing model_prob/market_prob as separately-renormalised
-probabilities over just the priced-and-scored subset and taking their
-DIFFERENCE.
+"""wpr_simple_price_edge_walkforward_test.py - test wpr_price alone as the
+overlay signal (user request, Sep 2026): "Edge should be as simple as wpr
+price lower than sp / fixed price" - compare the model's own fair price
+(wpr_price/blend_price, the exact number already shown on the dashboard, a
+softmax over the WHOLE scored field) directly against the market's raw
+price. Per explicit follow-up instruction, this no longer computes or
+reports the old model_prob/market_prob DIFFERENCE ("edge") at all - wpr_
+price is now the only overlay signal tested.
 
 WHY THIS IS WORTH TESTING
-  A probability-POINT difference (the current "edge") is not scale
-  consistent across the price range: going from an implied 50% to 60% win
-  chance (edge=0.10) is a modest price move ($2.00 -> $1.67), while going
-  from 5% to 15% (also edge=0.10) implies the market is wildly mispricing
-  a longshot ($20 -> $6.67) - a far bigger ask. So the SAME edge>=0.10
-  threshold demands very different degrees of "the market is wrong"
-  depending on where in the price range a runner sits, which can shift
-  the composition of flagged bets across time/venues in ways that make a
-  fixed probability-difference threshold behave inconsistently. A PRICE-
-  RATIO edge (market_price / model_price - 1, i.e. genuine expected-value
-  overlay percentage - the textbook definition of betting edge) does not
-  have this problem: a 20% overlay means the same thing whether the fair
-  price is $3 or $10.
+  A probability-POINT difference is not scale consistent across the price
+  range: going from an implied 50% to 60% win chance is a modest price
+  move ($2.00 -> $1.67), while going from 5% to 15% implies the market is
+  wildly mispricing a longshot ($20 -> $6.67) - a far bigger ask. A PRICE-
+  RATIO (market_price / wpr_price - 1, the textbook definition of betting
+  edge) does not have this problem: a 20% overlay means the same thing
+  whether the fair price is $3 or $10. This is also simply what a user
+  visually does when comparing WPR's own displayed price to the market's.
 
-  This is also simply what a user visually does when comparing WPR's own
-  displayed price to the market's price - this test ties the edge metric
-  to that exact same number (blend_price / wpr_price) rather than a
-  separately-computed, differently-normalised probability pair.
+FIXED BETA, NOT AUTO-FIT (follow-up instruction: "test both 0.15 & 0.3")
+  The first version of this test auto-refit beta via Brier-minimising
+  grid search per fold, which consistently landed on beta=0.15 and
+  produced badly negative results at every threshold. That beta was
+  chosen to minimise PROBABILITY CALIBRATION error (Brier score), not to
+  make wpr_price a useful comparison point - a flatter (lower) beta makes
+  blend_price cluster closer to a uniform "1/field_size" reference, which
+  degenerates the price-ratio signal into "everything except the
+  favourite", the classic favourite-longshot-bias loser. Testing the two
+  actual live candidate values (0.15 = this model's own calibrated value,
+  0.3 = the deliberately sharper value shipped since Sep 4 2026, see
+  wpr_projection.get_price_beta()) directly checks whether a SHARPER,
+  more discriminating beta fixes that degeneracy.
 
-ALSO RETESTS BETA (separate ask, same message): rather than trust the
-single 70/30-split calibrate_price_beta.py result (which predates this
-session's trained-model/no-slope architecture change), this uses the
-SAME walk-forward expanding-window discipline as wpr_walkforward_shipped_
-roi_test.py - beta is re-selected via Brier-minimising grid search on
-each fold's strictly-prior fit data, never carried forward from config.
-
-Reports, per fold AND pooled, ROI/strike/t-stat for:
-  (a) the OLD edge (model_prob - market_prob >= 0.10), for direct
-      before/after comparison against the exact same held-out bets, and
-  (b) the NEW simple price-ratio edge (market_price/blend_price - 1) at a
-      grid of overlay-percentage thresholds.
+Reports, per fold AND pooled, ROI/strike/t-stat for price_edge_pct =
+sp/blend_price - 1 at a grid of overlay-percentage thresholds, for BOTH
+beta=0.15 and beta=0.3 side by side (same held-out bets, same wprp_proj -
+beta only changes the price/edge conversion, never the projection itself).
 
 USAGE
   python wpr_simple_price_edge_walkforward_test.py
@@ -49,18 +44,16 @@ NO EM DASHES policy: hyphens only in this file.
 import numpy as np
 import pandas as pd
 
-from wpr_walkforward_shipped_roi_test import build_frame, score_shipped_fold, FOLD_MONTHS, _fit_beta
-from wpr_bet_selection_leakfree_eval import _edge_from_score
+from wpr_walkforward_shipped_roi_test import build_frame, score_shipped_fold, FOLD_MONTHS
 
 PRICE_EDGE_THRESHOLDS = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.75, 1.00]
-PROB_EDGE_THRESHOLD = 0.10  # the OLD metric's threshold, for reference
+BETAS_TO_TEST = [0.15, 0.3]
 
 
 def blend_price_per_race(df, beta):
     """wpr_price/blend_price: softmax(beta) over wprp_proj across the WHOLE
     field present per race_id in df (matches project_race's own price
-    formula and compute_edge_scores' blend_price - not the priced-only
-    subset used by the OLD model_prob/market_prob edge)."""
+    formula and compute_edge_scores' blend_price)."""
     out = np.full(len(df), np.nan)
     proj = df["wprp_proj"].to_numpy(dtype=float)
     for rid, idx in df.groupby("race_id").indices.items():
@@ -103,33 +96,27 @@ def run():
             print("  skipped (insufficient data)")
             continue
 
-        bets = score_shipped_fold(fit_data, held_out)  # has wprp_proj, edge_wpr (OLD), sp, won
-        # score_shipped_fold fits beta internally (score_wpr = beta * wprp_proj) but
-        # doesn't return it - recover it exactly from its own output instead of
-        # calling _fit_beta(fit_data) separately (fit_data has no wprp_proj until
-        # score_shipped_fold computes it, which raised KeyError on the first run).
-        nz = bets["wprp_proj"] != 0
-        beta = float((bets.loc[nz, "score_wpr"] / bets.loc[nz, "wprp_proj"]).iloc[0])
-        print(f"  walk-forward re-fit beta = {beta}")
-        bets["blend_price"] = blend_price_per_race(bets, beta)
-        bets["price_edge_pct"] = bets["sp"] / bets["blend_price"] - 1.0
+        # score_shipped_fold's internally-fit beta is irrelevant here - wprp_proj
+        # (the projection itself) never depends on beta, only the price/edge
+        # conversion downstream of it does, which this script recomputes at
+        # FIXED beta values instead of trusting any auto-fit.
+        bets = score_shipped_fold(fit_data, held_out)
 
-        print(f"\n  --- OLD edge (model_prob - market_prob) ---")
-        print_stats_row(f"edge>={PROB_EDGE_THRESHOLD:.2f}", roi_stats(bets[bets["edge_wpr"] >= PROB_EDGE_THRESHOLD]))
-
-        print(f"  --- NEW simple price edge (sp/blend_price - 1) ---")
-        for thr in PRICE_EDGE_THRESHOLDS:
-            print_stats_row(f"price_edge>={thr:.2f}", roi_stats(bets[bets["price_edge_pct"] >= thr]))
+        for beta in BETAS_TO_TEST:
+            bets[f"blend_price_b{beta}"] = blend_price_per_race(bets, beta)
+            bets[f"price_edge_pct_b{beta}"] = bets["sp"] / bets[f"blend_price_b{beta}"] - 1.0
+            print(f"\n  --- wpr price edge (sp/blend_price - 1), beta={beta} ---")
+            for thr in PRICE_EDGE_THRESHOLDS:
+                print_stats_row(f"price_edge>={thr:.2f}", roi_stats(bets[bets[f"price_edge_pct_b{beta}"] >= thr]))
 
         fold_bets.append(bets)
 
     pooled = pd.concat(fold_bets, ignore_index=True)
     print(f"\n{'='*78}\nPOOLED ACROSS ALL FOLDS ({len(pooled):,} held-out bets)\n{'='*78}")
-    print(f"--- OLD edge (model_prob - market_prob) ---")
-    print_stats_row(f"edge>={PROB_EDGE_THRESHOLD:.2f}", roi_stats(pooled[pooled["edge_wpr"] >= PROB_EDGE_THRESHOLD]))
-    print(f"--- NEW simple price edge (sp/blend_price - 1) ---")
-    for thr in PRICE_EDGE_THRESHOLDS:
-        print_stats_row(f"price_edge>={thr:.2f}", roi_stats(pooled[pooled["price_edge_pct"] >= thr]))
+    for beta in BETAS_TO_TEST:
+        print(f"--- wpr price edge (sp/blend_price - 1), beta={beta} ---")
+        for thr in PRICE_EDGE_THRESHOLDS:
+            print_stats_row(f"price_edge>={thr:.2f}", roi_stats(pooled[pooled[f"price_edge_pct_b{beta}"] >= thr]))
 
 
 if __name__ == "__main__":
