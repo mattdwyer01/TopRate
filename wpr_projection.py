@@ -2532,6 +2532,41 @@ def project_race(runners, race_date):
             f["jockey_merit"] = _merit_term(
                 r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES)
 
+    # Per-race demeaning (Sep 2026 bug fix): track_barrier/closing_merit/
+    # trainer_merit/jockey_merit each include a feature that is IDENTICAL
+    # for every runner in a race (track/distance identity for track_barrier,
+    # field_size for all four) - a trained model can (and, found live, DOES)
+    # latch onto that shared context as a proxy for something real but
+    # race-wide (e.g. "TopRate underrates this track", not "this barrier/
+    # trainer/jockey is good"), producing a near-uniform positive bump for
+    # the WHOLE FIELD rather than a per-horse relative signal. Caught from a
+    # live example where track_barrier was positive for all 10 runners in a
+    # race (barriers 1-10) and the +6 total-adjustment cap was firing for
+    # 8 of 10 runners - the cap is meant to catch a rare stacked-terms
+    # outlier, not the median runner.
+    #
+    # The OLD shrunk-lookup track_barrier explicitly guarded against exactly
+    # this ("centered per (track, dist_band) group so it can never become a
+    # flat track-quality bias" - see its own history above
+    # _TRACK_BARRIER_FEATURES) - the trained-model conversion dropped that
+    # guarantee. Restored here, generalised to all four terms and done
+    # dynamically against TODAY'S actual field (strictly better than the
+    # old design's static per-historical-group centering): after computing
+    # each term for every runner, subtract that race's own mean so each
+    # term can only ever say "relative to the rest of THIS field", never
+    # shift the whole race up or down together. own_*/pace_shape are
+    # unaffected (each already keys off genuinely per-horse inputs, not a
+    # feature shared identically across the field, and pace_shape's own
+    # live example - see its docstring - already showed real sign variation
+    # within a race).
+    for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit"):
+        _vals = [f[_term] for f in feat_dicts if f is not None]
+        if _vals:
+            _mean = float(np.mean(_vals))
+            for f in feat_dicts:
+                if f is not None:
+                    f[_term] -= _mean
+
     # pace_shape: needs today's continuous pace_score (race_speed_estimate,
     # whole-field) and predicted_rel_settle (settling_estimate, per-horse) -
     # both computed by the CALLER (toprate_daily.py's compute_wpr_projection,
@@ -3625,6 +3660,15 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             _closing_merit_term(pairs, pace_baseline_lookup, fs, closing_merit_model)
             for pairs, fs in zip(_frame["closing_pairs"], _frame["field_size"])
         ]
+
+    # Per-race demeaning (see project_race()'s own docstring for the full
+    # bug this fixes) - must match live serving exactly, or this function's
+    # own printed held-out MAE would silently diverge from what's actually
+    # shown to users. Grouped by race_id (already a column here, reused by
+    # pace_shape's own scoring below).
+    for _frame in (cf, te):
+        for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit"):
+            _frame[_term] = _frame[_term] - _frame.groupby("race_id")[_term].transform("mean")
 
     # pace_shape: the one ADJ_TERM that is a TRAINED MODEL rather than a
     # shrunk lookup table - see its own module docstring above
