@@ -115,6 +115,12 @@ def _load_resulted():
     df["sp"] = df["sp"].fillna(pd.to_numeric(df.get("price_top"), errors="coerce"))
     for f in FEATURES:
         df[f] = pd.to_numeric(df.get(f), errors="coerce")
+    # wprp_price - the field-relative softmax price already shown on the
+    # dashboard (see wpr_projection.project_race) - loaded here too so
+    # wpr_price_edge_report() below can compare "edge vs the number the user
+    # actually sees" against the blend-score edge above, without a second
+    # CSV read.
+    df["wprp_price"] = pd.to_numeric(df.get("wprp_price"), errors="coerce")
     df = df.dropna(subset=["date", "race_id", "sp"])
     df = df[df["sp"] > 1.0]
     return df.sort_values("date")
@@ -242,6 +248,77 @@ def overlay_by_bracket(edge_bets):
                   f"ROI={profit.sum()/len(sub)*100:+6.2f}%  t={t:+.2f}{flag}")
         if not any_tested:
             print("      (fewer than 20 bets at every threshold in this bracket - too few to test)")
+
+
+def _overlay_sweep(bets, label_indent="    "):
+    """Shared edge>=threshold t-test sweep, used by wpr_price_edge_report()
+    below. calibrate()'s own pooled loop and overlay_by_bracket() predate
+    this helper and are left as their own inline loops (each has slightly
+    different bookkeeping - significant_negative/positive tracking for the
+    production --write note - not worth the risk of refactoring already-
+    validated code to remove the duplication)."""
+    for thr in [0.0, 0.05, 0.08, 0.10, 0.13, 0.15, 0.20]:
+        sub = bets[bets["edge"] >= thr]
+        if len(sub) < 20:
+            continue
+        profit = np.where(sub["won"] == 1, sub["sp"] - 1, -1.0)
+        se = profit.std(ddof=1) / np.sqrt(len(profit))
+        t = profit.mean() / se if se > 0 else float("nan")
+        flag = "  ** SIGNIFICANT **" if abs(t) >= 1.96 else ""
+        print(f"{label_indent}edge>={thr:.2f}: n={len(sub):5d}  strike={sub['won'].mean()*100:5.2f}%  "
+              f"ROI={profit.sum()/len(sub)*100:+6.2f}%  t={t:+.2f}{flag}")
+
+
+def wpr_price_edge_report(d):
+    """Same edge = model_prob - market_prob idea as compute_edge_scores, but
+    with model_prob taken straight from wprp_price (the field-relative
+    softmax price the dashboard already shows, from wpr_projection.
+    project_race) instead of the separate blend-score z-average.
+
+    No walk-forward refitting needed here, unlike the blend score - wprp_
+    price is already a genuine pre-race number the production pipeline
+    computed with no knowledge of the result, so there's no leakage risk in
+    using it directly across the whole history in one pass (more data than
+    the blend's walk-forward test gets after burn-in).
+
+    Answers a different question than the blend-score edge: is "edge
+    relative to the number the user actually sees on the Race tab" a
+    usable signal, as opposed to edge relative to a blend the dashboard
+    doesn't surface directly. Trade-off: wprp_proj alone was the weakest of
+    the ablated features in the Aug 2026 edge-score audit (trainer/jockey
+    trailing form did most of the work) - so expect this to rank worse than
+    the blend on AUC/strike rate. Whether it does better, worse, or the same
+    on the OVERLAY specifically is a separate, open question - that's what
+    this checks."""
+    sub = d.dropna(subset=["wprp_price"]).copy()
+    sub["model_prob_raw"] = 1.0 / sub["wprp_price"]
+    sub["model_prob"] = (sub["model_prob_raw"]
+                          / sub.groupby("race_id")["model_prob_raw"].transform("sum"))
+    sub["mkt_prob_raw"] = 1.0 / sub["sp"]
+    sub["mkt_prob"] = (sub["mkt_prob_raw"]
+                        / sub.groupby("race_id")["mkt_prob_raw"].transform("sum"))
+    sub["edge"] = sub["model_prob"] - sub["mkt_prob"]
+
+    print(f"\n{'='*60}\nwprp_price edge report ({sub['race_id'].nunique():,} races, "
+          f"{len(sub):,} runners, {sub['date'].min().date()} to {sub['date'].max().date()})")
+
+    top1 = sub.loc[sub.groupby("race_id")["model_prob"].idxmax()]
+    profit = np.where(top1["won"] == 1, top1["sp"] - 1, -1.0)
+    se = profit.std(ddof=1) / np.sqrt(len(profit))
+    t = profit.mean() / se
+    auc = roc_auc_score(sub["won"], sub["model_prob"]) if sub["won"].nunique() == 2 else float("nan")
+    print(f"  top-1 pick (by wprp_price alone): n={len(top1):,}  strike={top1['won'].mean()*100:.2f}%  "
+          f"ROI={profit.sum()/len(top1)*100:+.2f}%  t={t:+.2f}")
+    print(f"  AUC (whole field, all runners) = {auc:.4f}")
+
+    print("\n  edge-vs-market overlay (pooled, wprp_price as model_prob):")
+    _overlay_sweep(sub)
+
+    print("\n  edge-vs-market overlay, segmented by price bracket (wprp_price as model_prob):")
+    for label, lo, hi in PRICE_BRACKETS:
+        bracket = sub[(sub["sp"] > lo) & (sub["sp"] <= hi)]
+        print(f"\n    -- {label} (n={len(bracket):,} runners in bracket) --")
+        _overlay_sweep(bracket, label_indent="      ")
 
 
 def calibrate(write=False, extended=False):
@@ -389,5 +466,12 @@ if __name__ == "__main__":
                     help="also report a calibration/reliability table and the overlay "
                          "threshold test segmented by price bracket (favourite/mid/"
                          "longshot/roughie), on top of the standard pooled report")
+    ap.add_argument("--wpr-price-edge", action="store_true",
+                    help="also report the edge-vs-market overlay (pooled and by price "
+                         "bracket) using wprp_price directly as model_prob, instead of "
+                         "the blend score - i.e. edge relative to the number already "
+                         "shown on the dashboard, not the separate trainer/jockey blend")
     args = ap.parse_args()
     calibrate(write=args.write, extended=args.extended)
+    if args.wpr_price_edge:
+        wpr_price_edge_report(_load_resulted())
