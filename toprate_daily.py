@@ -1523,30 +1523,55 @@ def compute_overlay_tracker(runners_df):
     result = {
         "threshold": OVERLAY_EDGE_THRESHOLD, "live_since": OVERLAY_LIVE_SINCE,
         "n_settled": 0, "n_pending": 0, "strike_rate": None, "roi_pct": None,
-        "t_stat": None, "backtest": OVERLAY_BACKTEST_VALIDATION,
+        "t_stat": None, "backtest": OVERLAY_BACKTEST_VALIDATION, "bets": [],
     }
     if len(scoped) == 0:
         return result
 
-    settled = scoped[scoped["resulted"] == 1]
+    settled = scoped[scoped["resulted"] == 1].copy()
     result["n_pending"] = int((scoped["resulted"] != 1).sum())
 
-    price = pd.to_numeric(settled["fixed_win_price"], errors="coerce").combine_first(
+    settled["_price"] = pd.to_numeric(settled["fixed_win_price"], errors="coerce").combine_first(
         pd.to_numeric(settled["starting_price_sp"], errors="coerce"))
-    won = pd.to_numeric(settled["won"], errors="coerce")
-    valid = price.notna() & (price > 1.0) & won.notna()
-    price, won = price[valid], won[valid]
+    settled["_won"] = pd.to_numeric(settled["won"], errors="coerce")
+    valid = settled["_price"].notna() & (settled["_price"] > 1.0) & settled["_won"].notna()
+    settled = settled[valid]
 
-    n_settled = int(len(price))
+    n_settled = int(len(settled))
     result["n_settled"] = n_settled
     if n_settled > 0:
-        profit = np.where(won.to_numpy() == 1, price.to_numpy() - 1.0, -1.0)
-        result["strike_rate"] = round(float(won.mean() * 100), 2)
+        won_arr = settled["_won"].to_numpy()
+        price_arr = settled["_price"].to_numpy()
+        profit = np.where(won_arr == 1, price_arr - 1.0, -1.0)
+        result["strike_rate"] = round(float(won_arr.mean() * 100), 2)
         result["roi_pct"] = round(float(profit.sum() / n_settled * 100), 2)
         if n_settled > 1:
             se = profit.std(ddof=1) / np.sqrt(n_settled)
             if se > 0:
                 result["t_stat"] = round(float(profit.mean() / se), 2)
+
+        # Per-bet ledger for the dashboard's date-range drill-down (Sep 2026)
+        # - one row per settled overlay, small enough to embed directly
+        # (a few thousand rows at most even after months of daily racing,
+        # negligible next to the payload's own size). Pending (not yet
+        # resulted) runners are deliberately excluded here - nothing to
+        # show for them but "flagged", which the summary count already
+        # covers; a bet only earns a ledger row once it has an outcome.
+        edge_v = pd.to_numeric(settled["wprp_edge"], errors="coerce")
+        finish_v = pd.to_numeric(settled.get("finish_position"), errors="coerce")
+        for (rid, dt, venue, race_no, horse, tab, edge, price, won, finish) in zip(
+                settled["race_id"], settled["date"], settled["venue"], settled["race"],
+                settled["horse"], settled["tab_number"], edge_v, price_arr, won_arr, finish_v):
+            result["bets"].append({
+                "race_id": str(rid), "date": dt, "venue": venue, "race": int(race_no) if race_no == race_no else None,
+                "horse": horse, "tab": int(tab) if tab == tab else None,
+                "edge": round(float(edge), 4) if edge == edge else None,
+                "price": round(float(price), 2),
+                "won": bool(won == 1),
+                "finish": int(finish) if finish == finish else None,
+                "profit": round(float(price - 1.0 if won == 1 else -1.0), 2),
+            })
+        result["bets"].sort(key=lambda b: b["date"], reverse=True)
     return result
 
 
