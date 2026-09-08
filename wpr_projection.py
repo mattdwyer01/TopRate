@@ -3151,22 +3151,41 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     fh = pd.read_csv(form_history_csv)
     fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
     # wpr_nett (TopRate's own pre-race base rating) is not captured in the
-    # form-history scrape - it only exists in toprate_runners.csv, keyed by
-    # run_id, from the pre-race fetch. Merge it in here so _horse_feature_rows
-    # can read cur["wpr_nett"] the same way it reads cur["distance"] etc.
+    # form-history scrape - it only exists in toprate_runners.csv, from the
+    # pre-race fetch. Merge it in here so _horse_feature_rows can read
+    # cur["wpr_nett"] the same way it reads cur["distance"] etc.
+    #
+    # BUG FIX (Sep 2026): this used to join on run_id alone. run_id in the
+    # form-history scrape is NOT a reliable per-row race identifier - every
+    # row in a scraped horse's form table (its entire multi-year history)
+    # gets stamped with the SAME run_id, whatever race that horse was
+    # actually being scraped FOR at the time (see merge_won_by_horse_date's
+    # docstring in wpr_own_pace_backtest.py for the same bug found and
+    # fixed there for "won"). Verified directly: of 534,663 form-history
+    # rows joinable to toprate_runners.csv by run_id, 97.0% had a run_id
+    # whose OWN date did not match the form-history row's date - i.e. the
+    # merged wpr_nett belonged to a completely different race - and 99.7%
+    # of those mismatches pulled wpr_nett from a LATER race (median 316
+    # days ahead, max 3,638), a severe future leak straight into _base
+    # (30% wpr_nett) for effectively every historical training/backtest
+    # row. Fixed to join by (horse, date) instead, the same reliable key
+    # merge_won_by_horse_date/merge_price_pfm already use - ambiguous
+    # same-day/different-track name clashes are dropped rather than risk
+    # a wrong match, same conservative principle as those two.
+    #
     # Left join: a run with no matching runners.csv row (or no wpr_nett
     # captured for it) just gets NaN, filled with the training median same
     # as every other feature.
-    if "run_id" in fh.columns:
+    if "horse" in fh.columns:
         _runners_csv = _DIR / "toprate_runners.csv"
         if _runners_csv.exists():
-            _tr = pd.read_csv(_runners_csv, dtype={"run_id": str},
-                              usecols=lambda c: c in ("run_id", "wpr_nett"),
+            _tr = pd.read_csv(_runners_csv,
+                              usecols=lambda c: c in ("horse", "date", "wpr_nett"),
                               low_memory=False)
-            _tr["run_id"] = _tr["run_id"].astype(str)
-            _tr = _tr.drop_duplicates(subset="run_id", keep="last")
-            fh["run_id"] = fh["run_id"].astype(str)
-            fh = fh.merge(_tr, on="run_id", how="left")
+            _tr["date"] = pd.to_datetime(_tr["date"], errors="coerce")
+            _tr = _tr.dropna(subset=["horse", "date"])
+            _tr = _tr.drop_duplicates(subset=["horse", "date"], keep=False)
+            fh = fh.merge(_tr[["horse", "date", "wpr_nett"]], on=["horse", "date"], how="left")
             if verbose:
                 print(f"  wpr_nett merged: {fh['wpr_nett'].notna().sum():,} "
                       f"/ {len(fh):,} rows")
