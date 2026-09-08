@@ -60,16 +60,39 @@ def merge_trainer_jockey_by_horse_date(D, runners_csv="toprate_runners.csv"):
     return D.merge(tr, on=["horse", "date"], how="inner")
 
 
+def _closing_merit_shrink_term(pairs, lookup):
+    """Local reimplementation of the OLD shrink-based closing_merit
+    combination (wpr_projection._closing_merit_term's signature changed
+    when that term's final combination step became a trained model, Sep
+    2026 - see _SHRINK_K's docstring above for why this script keeps the
+    old version rather than following that change). Same _shrink()
+    convention every own_* term used at the time."""
+    if not pairs or not lookup:
+        return 0.0
+    residuals = []
+    for sect, bucket in pairs:
+        expected = lookup.get(bucket)
+        if expected is None or sect is None or sect != sect:
+            continue
+        residuals.append(float(sect) - float(expected))
+    if not residuals:
+        return 0.0
+    return wpr._shrink(float(np.mean(residuals)), len(residuals))
+
+
 def add_closing_merit(apply_frames, cutoff_date):
     """Mirrors add_track_barrier's pattern for the OTHER population+own-
     history hybrid ADJ_TERM already in production (see wpr_projection.
-    _fit_pace_baseline/_closing_merit_term) - needed here since the
-    current 8-term baseline includes closing_merit and this frame must
-    match production's proj_of() exactly."""
+    _fit_pace_baseline - UNCHANGED, still the population half here and in
+    production) - needed here since the current 8-term baseline includes
+    closing_merit and this frame must match production's proj_of() exactly
+    (as production stood at the time this script was written - see
+    _closing_merit_shrink_term's docstring for why the final combination
+    step is now a local copy rather than calling wpr_projection directly)."""
     lookup = wpr._fit_pace_baseline(FORM_CSV, cutoff_date)
     for frame in apply_frames:
         frame["closing_merit"] = [
-            wpr._closing_merit_term(pairs, lookup) for pairs in frame["closing_pairs"]
+            _closing_merit_shrink_term(pairs, lookup) for pairs in frame["closing_pairs"]
         ]
 
 

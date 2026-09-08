@@ -174,14 +174,39 @@ def add_base(D):
     return D.dropna(subset=["_base"])
 
 
+# Matches the value wpr_projection.py's track_barrier lookup always used
+# (_TRACK_BARRIER_K, back when track_barrier was a shrunk lookup table -
+# see git history). Hardcoded here, not read from wpr_projection, because
+# track_barrier was converted to a trained model there (Sep 2026) and the
+# constant no longer exists on that module - this script deliberately
+# reproduces the OLD lookup architecture for A/B comparison against a
+# calibration-slope change, so it must not follow wpr_projection's own
+# architecture changes underneath it.
+_TRACK_BARRIER_K = 300.0
+
+
+def _track_barrier_lookup_term(cur_track, cur_distance, cur_barrier, cur_field_size, lookup):
+    """Local reimplementation of the OLD shrunk-lookup track_barrier term
+    (wpr_projection._track_barrier_term's signature changed when that term
+    became a trained model - see _TRACK_BARRIER_K's docstring above)."""
+    if not cur_track or lookup is None:
+        return 0.0
+    db = int(cur_distance // 200 * 200) if cur_distance == cur_distance else None
+    band = wpr._barrier_band(cur_barrier, cur_field_size)
+    if db is None or band is None:
+        return 0.0
+    return float(lookup.get(f"{cur_track}|{db}", {}).get(band, 0.0))
+
+
 def add_track_barrier(fit, frames):
-    """Replicates train_wpr_projection's track_barrier fit+apply exactly
-    (wpr_projection.py lines 2644-2678) - the one ADJ_TERMS entry that needs
-    an actual fitted lookup (population residual by track/dist-band/barrier-
-    band) rather than a pure per-horse history lookup. Fits on `fit` only,
-    applies the resulting lookup to every frame in `frames` (which may
-    include `fit` itself, matching how every other held_out_mae() call here
-    reports an in-sample number for context alongside the real held-out one)."""
+    """Replicates train_wpr_projection's OLD track_barrier fit+apply (the
+    shrunk-lookup-table architecture, superseded Sep 2026 by a trained
+    model in wpr_projection.py - see _TRACK_BARRIER_K's docstring above for
+    why this script keeps the old version rather than following that
+    change). Fits on `fit` only, applies the resulting lookup to every
+    frame in `frames` (which may include `fit` itself, matching how every
+    other held_out_mae() call here reports an in-sample number for context
+    alongside the real held-out one)."""
     tb_resid = fit["target"] - fit["career_avg"]
     tb_band = [wpr._barrier_band(b, f) for b, f in zip(fit["barrier"], fit["field_size"])]
     tb_dist_band = (fit["cur_distance"] // 200 * 200).astype(int)
@@ -197,7 +222,7 @@ def add_track_barrier(fit, frames):
         for b in ["Inside", "Mid", "Wide"]:
             if b in stats.index:
                 n, m = stats.loc[b, "count"], stats.loc[b, "mean"]
-                shrunk[b] = (n * m + wpr._TRACK_BARRIER_K * tb_global.get(b, 0.0)) / (n + wpr._TRACK_BARRIER_K)
+                shrunk[b] = (n * m + _TRACK_BARRIER_K * tb_global.get(b, 0.0)) / (n + _TRACK_BARRIER_K)
             else:
                 shrunk[b] = tb_global.get(b, 0.0)
         center = float(np.mean(list(shrunk.values())))
@@ -206,7 +231,7 @@ def add_track_barrier(fit, frames):
         }
     for frame in frames:
         frame["track_barrier"] = [
-            wpr._track_barrier_term(trk, dist, bar, fs, lookup)
+            _track_barrier_lookup_term(trk, dist, bar, fs, lookup)
             for trk, dist, bar, fs in zip(frame["track"], frame["cur_distance"],
                                           frame["barrier"], frame["field_size"])
         ]
