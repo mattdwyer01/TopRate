@@ -157,7 +157,7 @@ export function ReviewTab({ races, onSelectRace, overlayTracker }: ReviewTabProp
 
   return (
     <div className="flex flex-col gap-4">
-      <OverlayTrackerCard tracker={overlayTracker} />
+      <OverlayTrackerCard tracker={overlayTracker} onSelectRace={onSelectRace} />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-md border border-line bg-panel p-0.5">
@@ -591,7 +591,50 @@ function overlaySignificant(tStat: number | null): boolean {
 // anyone placed - see toprate_daily.compute_overlay_tracker's own
 // docstring for why a real bet-log P&L tab remains a separate, deliberately
 // not-built thing (CLAUDE.md).
-function OverlayTrackerCard({ tracker }: { tracker: OverlayTracker | null }) {
+type OverlayRangePreset = '7' | '30' | 'all' | 'custom'
+
+const OVERLAY_RANGE_PRESETS: { value: OverlayRangePreset; label: string; days?: number }[] = [
+  { value: '7', label: 'Last 7 days', days: 7 },
+  { value: '30', label: 'Last 30 days', days: 30 },
+  { value: 'all', label: 'All' },
+]
+
+function daysAgoIso(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return d.toISOString().slice(0, 10)
+}
+
+function OverlayTrackerCard({
+  tracker,
+  onSelectRace,
+}: {
+  tracker: OverlayTracker | null
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
+  const [showBets, setShowBets] = useState(false)
+  const [rangePreset, setRangePreset] = useState<OverlayRangePreset>('7')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+
+  const preset = OVERLAY_RANGE_PRESETS.find((p) => p.value === rangePreset)
+  const rangeFrom =
+    rangePreset === 'custom' ? customFrom : preset?.days != null ? daysAgoIso(preset.days) : ''
+  const rangeTo = rangePreset === 'custom' ? customTo : ''
+
+  const filteredBets = useMemo(() => {
+    if (!tracker) return []
+    return tracker.bets.filter((b) => (!rangeFrom || b.date >= rangeFrom) && (!rangeTo || b.date <= rangeTo))
+  }, [tracker, rangeFrom, rangeTo])
+
+  const filteredStats = useMemo(() => {
+    if (filteredBets.length === 0) return null
+    const n = filteredBets.length
+    const wins = filteredBets.filter((b) => b.won).length
+    const roi = (filteredBets.reduce((sum, b) => sum + b.profit, 0) / n) * 100
+    return { n, strikePct: (wins / n) * 100, roiPct: roi }
+  }, [filteredBets])
+
   if (!tracker) return null
   const { backtest } = tracker
   const liveReady = tracker.nSettled >= OVERLAY_MIN_SETTLED_TO_SHOW
@@ -668,6 +711,121 @@ function OverlayTrackerCard({ tracker }: { tracker: OverlayTracker | null }) {
           )}
         </div>
       </div>
+
+      {tracker.bets.length > 0 && (
+        <div className="mt-3 border-t border-line-soft pt-3">
+          <button
+            type="button"
+            onClick={() => setShowBets((v) => !v)}
+            className="text-xs font-medium text-emerald-deep hover:underline"
+          >
+            {showBets ? 'Hide' : 'View'} individual bets ({tracker.bets.length})
+          </button>
+
+          {showBets && (
+            <div className="mt-2 flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {OVERLAY_RANGE_PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setRangePreset(p.value)}
+                    className={
+                      'rounded px-2 py-0.5 text-xs font-medium transition-colors ' +
+                      (rangePreset === p.value
+                        ? 'bg-emerald text-white'
+                        : 'border border-line text-ink-mute hover:text-ink')
+                    }
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                <span className="text-xs text-ink-faint">or</span>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => {
+                    setCustomFrom(e.target.value)
+                    setRangePreset('custom')
+                  }}
+                  className="rounded-md border border-line bg-panel px-2 py-0.5 text-xs font-mono"
+                />
+                <span className="text-xs text-ink-faint">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => {
+                    setCustomTo(e.target.value)
+                    setRangePreset('custom')
+                  }}
+                  className="rounded-md border border-line bg-panel px-2 py-0.5 text-xs font-mono"
+                />
+              </div>
+
+              {filteredStats ? (
+                <div className="text-xs text-ink-mute">
+                  {filteredStats.n} bet{filteredStats.n === 1 ? '' : 's'} in range &middot; strike{' '}
+                  {fmtPct(filteredStats.strikePct)} &middot; ROI{' '}
+                  <span className={filteredStats.roiPct > 0 ? 'text-emerald-deep' : 'text-rose'}>
+                    {fmtSigned(filteredStats.roiPct, 1)}%
+                  </span>
+                </div>
+              ) : (
+                <div className="text-xs text-ink-faint">No settled bets in this range.</div>
+              )}
+
+              {filteredBets.length > 0 && (
+                <div className="max-h-72 overflow-y-auto rounded-lg border border-line">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-panel">
+                      <tr className="text-left text-ink-mute">
+                        <th className="px-3 py-1.5 font-medium">Date</th>
+                        <th className="px-3 py-1.5 font-medium">Venue</th>
+                        <th className="px-3 py-1.5 font-medium">Horse</th>
+                        <th className="px-3 py-1.5 text-right font-medium">Price</th>
+                        <th className="px-3 py-1.5 text-right font-medium">Edge</th>
+                        <th className="px-3 py-1.5 text-right font-medium">Result</th>
+                        <th className="px-3 py-1.5 text-right font-medium">Profit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line-soft">
+                      {filteredBets.map((b, i) => (
+                        <tr
+                          key={`${b.raceId}-${b.horse}-${i}`}
+                          onClick={() => onSelectRace(b.raceId, b.date)}
+                          className="cursor-pointer hover:bg-bg"
+                        >
+                          <td className="whitespace-nowrap px-3 py-1 text-ink-mute">{b.date}</td>
+                          <td className="whitespace-nowrap px-3 py-1">
+                            {b.venue} R{b.race ?? '-'}
+                          </td>
+                          <td className="px-3 py-1 font-medium">{b.horse}</td>
+                          <td className="px-3 py-1 text-right font-mono">${b.price.toFixed(2)}</td>
+                          <td className="px-3 py-1 text-right font-mono">
+                            {b.edge != null ? fmtSigned(b.edge * 100, 1) + 'pp' : '-'}
+                          </td>
+                          <td className="px-3 py-1 text-right">
+                            {b.won ? (
+                              <span className="font-medium text-emerald-deep">Won</span>
+                            ) : (
+                              <span className="text-ink-mute">{b.finish ? `${b.finish}th` : 'Lost'}</span>
+                            )}
+                          </td>
+                          <td
+                            className={`px-3 py-1 text-right font-mono ${b.profit > 0 ? 'text-emerald-deep' : 'text-rose'}`}
+                          >
+                            {fmtSigned(b.profit, 2)}u
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

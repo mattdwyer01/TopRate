@@ -36,6 +36,19 @@ function toOverlayTracker(raw: RawOverlayTracker | null | undefined): OverlayTra
       tStat: raw.backtest.t_stat,
       validatedDate: raw.backtest.validated_date,
     },
+    bets: (raw.bets ?? []).map((b) => ({
+      raceId: b.race_id,
+      date: b.date,
+      venue: b.venue,
+      race: b.race,
+      horse: b.horse,
+      tab: b.tab,
+      edge: b.edge,
+      price: b.price,
+      won: b.won,
+      finish: b.finish,
+      profit: b.profit,
+    })),
   }
 }
 

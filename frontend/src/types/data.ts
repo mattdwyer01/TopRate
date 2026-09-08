@@ -179,6 +179,20 @@ export interface RawOverlayBacktest {
   validated_date: string
 }
 
+export interface RawOverlayBet {
+  race_id: string
+  date: string
+  venue: string
+  race: number | null
+  horse: string
+  tab: number | null
+  edge: number | null
+  price: number
+  won: boolean
+  finish: number | null
+  profit: number
+}
+
 // Overlay ROI tracker (see toprate_daily.compute_overlay_tracker) - an
 // automated record of runners whose wprp_edge crosses `threshold`, tallied
 // as real results come in. NOT a bet log of anyone's actual wagers.
@@ -191,6 +205,7 @@ export interface RawOverlayTracker {
   roi_pct: number | null
   t_stat: number | null
   backtest: RawOverlayBacktest
+  bets: RawOverlayBet[]
 }
 
 export interface RawDashboardPayload {

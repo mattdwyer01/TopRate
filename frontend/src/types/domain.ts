@@ -198,6 +198,20 @@ export interface OverlayBacktest {
   validatedDate: string
 }
 
+export interface OverlayBet {
+  raceId: string
+  date: string
+  venue: string
+  race: number | null
+  horse: string
+  tab: number | null
+  edge: number | null
+  price: number
+  won: boolean
+  finish: number | null
+  profit: number
+}
+
 // Overlay ROI tracker: an automated record of runners whose model-vs-market
 // edge crosses `threshold`, tallied as real results come in - NOT a log of
 // anyone's actual placed bets (see CareerStats/Review docs for why a real
@@ -211,6 +225,7 @@ export interface OverlayTracker {
   roiPct: number | null
   tStat: number | null
   backtest: OverlayBacktest
+  bets: OverlayBet[]
 }
 
 export interface DashboardData {
