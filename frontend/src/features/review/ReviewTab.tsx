@@ -744,6 +744,7 @@ function OverlayTrackerCard({
                 <input
                   type="date"
                   value={customFrom}
+                  min={tracker.liveSince}
                   onChange={(e) => {
                     setCustomFrom(e.target.value)
                     setRangePreset('custom')
@@ -754,6 +755,7 @@ function OverlayTrackerCard({
                 <input
                   type="date"
                   value={customTo}
+                  min={tracker.liveSince}
                   onChange={(e) => {
                     setCustomTo(e.target.value)
                     setRangePreset('custom')
@@ -771,7 +773,12 @@ function OverlayTrackerCard({
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-ink-faint">No settled bets in this range.</div>
+                <div className="text-xs text-ink-faint">
+                  No settled bets in this range
+                  {rangeTo && rangeTo < tracker.liveSince
+                    ? ` (the live tracker only started ${tracker.liveSince} - there's no backfilled history before that).`
+                    : '.'}
+                </div>
               )}
 
               {filteredBets.length > 0 && (
