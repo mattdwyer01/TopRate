@@ -2,6 +2,7 @@ import type {
   RawDashboardPayload,
   RawFormAllEntry,
   RawFormRun,
+  RawOverlayTracker,
   RawRace,
   RawRunner,
 } from '../types/data'
@@ -10,10 +11,33 @@ import type {
   FormHistoryEntry,
   FormRun,
   GoingBreakdown,
+  OverlayTracker,
   PriceHistoryEntry,
   Race,
   Runner,
 } from '../types/domain'
+
+function toOverlayTracker(raw: RawOverlayTracker | null | undefined): OverlayTracker | null {
+  if (!raw) return null
+  return {
+    threshold: raw.threshold,
+    liveSince: raw.live_since,
+    nSettled: raw.n_settled,
+    nPending: raw.n_pending,
+    strikeRate: raw.strike_rate,
+    roiPct: raw.roi_pct,
+    tStat: raw.t_stat,
+    backtest: {
+      method: raw.backtest.method,
+      period: raw.backtest.period,
+      nBets: raw.backtest.n_bets,
+      strikeRate: raw.backtest.strike_rate,
+      roiPct: raw.backtest.roi_pct,
+      tStat: raw.backtest.t_stat,
+      validatedDate: raw.backtest.validated_date,
+    },
+  }
+}
 
 // Some runners (jockey not yet declared for a future acceptance, mostly)
 // carry the raw payload's jockey/trainer field as the literal string "nan"
@@ -217,5 +241,6 @@ export function adaptDashboardPayload(
     runIso: raw.RUN_ISO,
     githubRepo: raw.GITHUB_REPO,
     priceBeta: raw.PRICE_BETA,
+    overlayTracker: toOverlayTracker(raw.OVERLAY_TRACKER),
   }
 }

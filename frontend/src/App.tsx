@@ -180,7 +180,7 @@ function App() {
           <ErrorState message={state.message} onRetry={retry} />
         )}
         {state.status === 'ready' && topTab === 'review' && (
-          <ReviewTab races={state.data.races} onSelectRace={goToRace} />
+          <ReviewTab races={state.data.races} onSelectRace={goToRace} overlayTracker={state.data.overlayTracker} />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (

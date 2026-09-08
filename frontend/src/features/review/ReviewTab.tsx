@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import type { Race } from '../../types/domain'
+import type { OverlayTracker, Race } from '../../types/domain'
 import {
   buildHeadlineSummary,
   collectAccuracyRows,
@@ -26,6 +26,7 @@ import { collectSignalWatchRows, computeSignalWatchStats, SIGNAL_WATCH_RULE } fr
 interface ReviewTabProps {
   races: Race[]
   onSelectRace: (raceId: string, date: string, runId?: string) => void
+  overlayTracker: OverlayTracker | null
 }
 
 const PERIODS: { value: Period; label: string; sentence: string }[] = [
@@ -70,7 +71,7 @@ function matchesGroupFilter(r: AccuracyRow, filter: GroupFilter): boolean {
 // breakdown tables and the individual-runner table default closed - both
 // are audit/curiosity tools, not something you need to look at to get the
 // tab's answer.
-export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
+export function ReviewTab({ races, onSelectRace, overlayTracker }: ReviewTabProps) {
   const [period, setPeriod] = useState<Period>('90')
   const [excludeBush, setExcludeBush] = useState(true)
   const [excludeVoid, setExcludeVoid] = useState(true)
@@ -156,6 +157,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      <OverlayTrackerCard tracker={overlayTracker} />
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex rounded-md border border-line bg-panel p-0.5">
           {PERIODS.map((p) => (
@@ -564,6 +567,107 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           </Disclosure>
         </>
       )}
+    </div>
+  )
+}
+
+// Minimum settled bets before the live tracker's own strike/ROI numbers are
+// shown as real figures rather than "too early to read" - a handful of
+// results is nearly pure coin-flip noise (see the backtest's own t-stats,
+// which needed thousands of bets to clear significance) and displaying a
+// confident-looking percentage from n=6 would be actively misleading.
+const OVERLAY_MIN_SETTLED_TO_SHOW = 30
+
+function overlaySignificant(tStat: number | null): boolean {
+  return tStat != null && Math.abs(tStat) >= 1.96
+}
+
+// Overlay ROI tracker: always-visible summary (unlike the collapsed
+// "Signal watch" Disclosure below) pairing the offline walk-forward
+// validation that justified shipping the no-calibration-slope/trained-
+// population-term architecture with an automated, ongoing record of what
+// backing every runner the model flags (edge >= threshold) would actually
+// return, day by day, as real results land. Explicitly NOT a log of bets
+// anyone placed - see toprate_daily.compute_overlay_tracker's own
+// docstring for why a real bet-log P&L tab remains a separate, deliberately
+// not-built thing (CLAUDE.md).
+function OverlayTrackerCard({ tracker }: { tracker: OverlayTracker | null }) {
+  if (!tracker) return null
+  const { backtest } = tracker
+  const liveReady = tracker.nSettled >= OVERLAY_MIN_SETTLED_TO_SHOW
+
+  return (
+    <div className="rounded-lg border border-line bg-panel p-4 sm:p-5">
+      <div className="text-xs font-semibold uppercase tracking-wide text-ink-mute">
+        Overlay ROI tracker
+      </div>
+      <p className="mt-1 text-xs text-ink-faint">
+        Runners where WPR's own fair-value price disagrees with the market by at least{' '}
+        {(tracker.threshold * 100).toFixed(0)} percentage points - not a log of bets anyone placed, just what
+        backing every one of these at the shown price would actually return.
+      </p>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-line-soft bg-bg p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-ink">Backtest validation</div>
+            {overlaySignificant(backtest.tStat) && (
+              <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
+                significant
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-[11px] text-ink-faint">
+            {backtest.method} &middot; {backtest.period}
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <StatTile label="Bets" value={backtest.nBets.toLocaleString()} />
+            <StatTile label="Strike rate" value={fmtPct(backtest.strikeRate)} />
+            <StatTile
+              label="ROI"
+              value={fmtSigned(backtest.roiPct, 1) + '%'}
+              tone={backtest.roiPct > 0 ? 'positive' : 'negative'}
+            />
+          </div>
+          <div className="mt-1 text-[11px] text-ink-faint">t={backtest.tStat.toFixed(2)}</div>
+        </div>
+
+        <div className="rounded-md border border-line-soft bg-bg p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-ink">Live since {tracker.liveSince}</div>
+            {overlaySignificant(tracker.tStat) && (
+              <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
+                significant
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-[11px] text-ink-faint">
+            {tracker.nPending} runner{tracker.nPending === 1 ? '' : 's'} flagged, not yet resulted
+          </div>
+          {!liveReady ? (
+            <div className="mt-2 rounded-md border border-line-soft bg-panel p-2 text-center text-xs text-ink-mute">
+              {tracker.nSettled === 0
+                ? 'No settled overlay bets yet.'
+                : `Only ${tracker.nSettled} settled so far - too few to read yet (needs ${OVERLAY_MIN_SETTLED_TO_SHOW}+).`}
+            </div>
+          ) : (
+            <>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <StatTile label="Bets" value={tracker.nSettled.toLocaleString()} />
+                <StatTile label="Strike rate" value={fmtPct(tracker.strikeRate)} />
+                <StatTile
+                  label="ROI"
+                  value={fmtSigned(tracker.roiPct, 1) + '%'}
+                  tone={(tracker.roiPct ?? 0) > 0 ? 'positive' : 'negative'}
+                />
+              </div>
+              <div className="mt-1 text-[11px] text-ink-faint">
+                {tracker.tStat != null ? `t=${tracker.tStat.toFixed(2)}` : 'n/a'}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
