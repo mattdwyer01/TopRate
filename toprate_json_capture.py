@@ -146,7 +146,20 @@ ALL_COLS = SECT_COLS + EXTRA_COLS + CORE_COLS + HORSE_COL_NAMES + RUN_COL_NAMES
 def _scalar(v):
     """Keep only JSON-scalar values (str/int/float/bool); anything else
     (an undereferenced pointer, a nested dict/list) becomes None rather than
-    being written into the CSV as garbage."""
+    being written into the CSV as garbage.
+
+    Also normalises NaN to None, in both forms TopRate's API can hand
+    back: a real float NaN, and (found via the Sep 2026 bulk backfill,
+    which crashed at ~1.3M rows on exactly this) the literal STRING
+    "NaN" for some runners on some fields. Either one, left alone,
+    later blows up pandas with "Invalid value 'NaN' for dtype
+    'float64'" the first time it lands in a column whose existing
+    values made pandas infer a numeric dtype - neither is a real value
+    worth keeping."""
+    if isinstance(v, float) and v != v:  # NaN != NaN is the reliable check
+        return None
+    if isinstance(v, str) and v.strip().lower() == "nan":
+        return None
     return v if isinstance(v, (str, int, float, bool)) else None
 
 

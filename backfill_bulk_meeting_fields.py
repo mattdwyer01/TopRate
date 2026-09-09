@@ -345,6 +345,8 @@ def merge_into_history(fields_by_key, commit, backup=True):
 
     n_rows_touched = 0
     n_cells_filled = 0
+    n_cells_skipped = 0
+    skipped_examples = []
     for key, fields in fields_by_key.items():
         rows = idx_by_key.get(key)
         if not rows:
@@ -354,14 +356,29 @@ def merge_into_history(fields_by_key, commit, backup=True):
             for col, v in fields.items():
                 if v is None:
                     continue
-                if pd.isna(fh.at[idx, col]):
+                if not pd.isna(fh.at[idx, col]):
+                    continue
+                # Defensive: cap._scalar already normalises the known bad
+                # value (a literal "NaN" string from the API) that crashed
+                # a 1.3M-row run at scale before this was found - but a
+                # single unanticipated value here must never sink an
+                # 18-minute fetch again. Skip and count instead of raising.
+                try:
                     fh.at[idx, col] = v
                     n_cells_filled += 1
                     touched_this_row = True
+                except (TypeError, ValueError) as e:
+                    n_cells_skipped += 1
+                    if len(skipped_examples) < 10:
+                        skipped_examples.append(f"{col}={v!r} ({e})")
             if touched_this_row:
                 n_rows_touched += 1
 
     print(f"  {n_rows_touched:,} existing rows had at least one cell filled")
+    if n_cells_skipped:
+        print(f"  {n_cells_skipped:,} cells SKIPPED (bad value for the column's dtype), examples:")
+        for ex in skipped_examples:
+            print(f"    {ex}")
     print(f"  {n_cells_filled:,} individual cells filled")
 
     if not commit:
