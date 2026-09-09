@@ -145,6 +145,20 @@ def _race_results_path(year):
     one file."""
     return Path(__file__).parent / f"race_results_{year}.csv.gz"
 
+
+def _fetch_sibling_path(base_path, key):
+    """<base>.<key>.json next to base_path (e.g. base "out.json", key
+    "2019" or "track" -> "out.2019.json"). Used to split the fetch
+    phase's output into one file per year (see main()'s --fetch-only/
+    --merge-only handling for why: a single JSON holding all ~1.3M rows
+    at once made --merge-only's json.load() + pd.DataFrame() peak
+    memory large enough to risk OOM on a standard GitHub Actions
+    runner - confirmed as the likely cause of an unusually slow/possibly
+    stalled real --all run, Sep 2026, see chat)."""
+    base = Path(base_path)
+    stem = base.name[:-len(base.suffix)] if base.suffix else base.name
+    return base.parent / f"{stem}.{key}{base.suffix}"
+
 # CORE_COLS entries are raw API key names that are ALSO the column name on
 # the per-runner __data.json endpoint. Confirmed via --diagnose-one (Sep
 # 2026, see chat) that this bulk endpoint does NOT share that naming for
@@ -675,16 +689,38 @@ def main():
         return
 
     if args.merge_only:
-        with open(args.merge_only) as f:
-            payload = json.load(f)
-        race_rows = payload.get("race_rows", [])
-        track_rows = payload.get("track_rows", [])
-        print(f"Loaded {len(race_rows):,} race rows, {len(track_rows):,} track rows "
-              f"from {args.merge_only}")
-        merge_race_results(race_rows, commit=args.commit, backup=True)
+        year_files = sorted(Path(args.merge_only).parent.glob(
+            f"{_fetch_sibling_path(args.merge_only, '*').name}"))
+        # The glob above also matches the "track" sibling - split it out.
+        track_file = _fetch_sibling_path(args.merge_only, "track")
+        year_files = [p for p in year_files if p != track_file]
+        if not year_files:
+            sys.exit(f"No per-year sibling files found next to {args.merge_only} "
+                      "(expected e.g. <stem>.2024.json) - was this fetched with "
+                      "the current --fetch-only, which writes one file per year?")
+
+        all_meeting_ids = set()
+        total_race_rows = 0
+        for yf in year_files:
+            with open(yf) as f:
+                race_rows = json.load(f).get("race_rows", [])
+            total_race_rows += len(race_rows)
+            print(f"Loaded {len(race_rows):,} race rows from {yf.name}")
+            merge_race_results(race_rows, commit=args.commit, backup=True)
+            if args.commit:
+                all_meeting_ids |= checkpoint_meeting_ids(race_rows)
+            del race_rows  # free this year's rows before loading the next
+
+        track_rows = []
+        if track_file.exists():
+            with open(track_file) as f:
+                track_rows = json.load(f).get("track_rows", [])
+        print(f"Loaded {len(track_rows):,} track rows from {track_file.name}")
         merge_track_codes(track_rows, commit=args.commit, backup=True)
+
+        print(f"Merge done: {total_race_rows:,} race rows across {len(year_files)} year file(s)")
         if args.commit:
-            write_checkpoint(checkpoint_meeting_ids(race_rows))
+            write_checkpoint(all_meeting_ids)
         return
 
     if not (args.limit or args.since or args.all):
@@ -700,10 +736,19 @@ def main():
     race_rows, track_rows = run_fetch_phase(meeting_ids, args.workers)
 
     if args.fetch_only:
-        with open(args.fetch_only, "w") as f:
-            json.dump({"race_rows": race_rows, "track_rows": track_rows}, f)
-        print(f"Wrote {len(race_rows):,} race rows, {len(track_rows):,} track rows "
-              f"to {args.fetch_only}")
+        by_year = {}
+        for r in race_rows:
+            by_year.setdefault(str(r["date"])[:4], []).append(r)
+        for year, rows in sorted(by_year.items()):
+            yf = _fetch_sibling_path(args.fetch_only, year)
+            with open(yf, "w") as f:
+                json.dump({"race_rows": rows}, f)
+            print(f"  wrote {len(rows):,} race rows to {yf.name}")
+        track_file = _fetch_sibling_path(args.fetch_only, "track")
+        with open(track_file, "w") as f:
+            json.dump({"track_rows": track_rows}, f)
+        print(f"Wrote {len(race_rows):,} race rows across {len(by_year)} year file(s), "
+              f"{len(track_rows):,} track rows to {track_file.name}")
         return
 
     # Combined mode: merge immediately using this same process's fetch
