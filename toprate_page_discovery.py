@@ -149,11 +149,13 @@ if __name__ == "__main__":
             rv = deref(v)
             flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
             print(f"  {k:30s} = {_describe(rv)}{flag}")
-            seen.add(id(rv))
         print()
         print(f"-- recursive scan of node[{i}] (depth 3) --")
         for k, v in root.items():
             rv = deref(v)
             if isinstance(rv, (dict, list)):
-                _walk(k, v, deref, 1, seen, max_depth=3)
+                # depth 0 here (not 1): the root-level container itself has
+                # not been visited by _walk yet, only printed above, so it
+                # must not be pre-marked seen or _walk bails immediately.
+                _walk(k, v, deref, 0, seen, max_depth=3)
         print()
