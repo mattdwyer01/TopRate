@@ -94,6 +94,21 @@ CORE_COLS = [
     "margin800m", "margin600m", "margin400m", "margin200m", "marginFinish",
     "raceShapeEarly", "raceShapeMid", "raceShapeLate",
     "winner", "isBarrierTrial",
+    # wprStatus ('Preliminary' vs 'Final' - see the WPR signal ledger's own
+    # open decision on training-data staging) and blackType (Group/Listed
+    # grading, e.g. 'G2' - a cleaner class signal than the free-text
+    # race_class string) - confirmed present (Sep 2026, see chat) but never
+    # captured until now. NOTE: blackType is confirmed present on the
+    # per-runner __data.json endpoint's form entries (what this module and
+    # the live daily capture use) but NOT on the meetings/{id}/history bulk
+    # endpoint's race/runner dicts (what backfill_bulk_meeting_fields.py and
+    # backfill_race_results.py use for historical backfill) - so it will
+    # populate going forward via live capture, but historical backfill of
+    # this one field would need the far more expensive per-runner-page
+    # route, not attempted here. wprStatus IS confirmed present on the bulk
+    # endpoint (at race level), so it backfills historically via both
+    # scripts same as everything else in this list.
+    "wprStatus", "blackType",
 ]
 
 # Horse-level attributes (age, sex, pedigree, home base, current claim
