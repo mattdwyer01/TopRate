@@ -169,47 +169,6 @@ export interface RawVenueBias {
   totalRaces: number
 }
 
-export interface RawOverlayBacktest {
-  validated: boolean
-  method: string
-  period: string
-  n_bets: number
-  strike_rate: number
-  roi_pct: number
-  t_stat: number
-  validated_date: string
-  note?: string
-}
-
-export interface RawOverlayBet {
-  race_id: string
-  date: string
-  venue: string
-  race: number | null
-  horse: string
-  tab: number | null
-  edge: number | null
-  price: number
-  won: boolean
-  finish: number | null
-  profit: number
-}
-
-// Overlay ROI tracker (see toprate_daily.compute_overlay_tracker) - an
-// automated record of runners whose wprp_edge crosses `threshold`, tallied
-// as real results come in. NOT a bet log of anyone's actual wagers.
-export interface RawOverlayTracker {
-  threshold: number
-  live_since: string
-  n_settled: number
-  n_pending: number
-  strike_rate: number | null
-  roi_pct: number | null
-  t_stat: number | null
-  backtest: RawOverlayBacktest
-  bets: RawOverlayBet[]
-}
-
 export interface RawDashboardPayload {
   RACES: RawRace[]
   PICKS_TODAY: unknown[]
@@ -226,6 +185,4 @@ export interface RawDashboardPayload {
   // Softmax beta behind wpjpr (WPR $) - lets the frontend replicate the
   // exact price formula for a manual-override recompute (see lib/raceModel.ts).
   PRICE_BETA: number | null
-  // Absent on older payloads that predate this field.
-  OVERLAY_TRACKER?: RawOverlayTracker | null
 }

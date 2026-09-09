@@ -193,8 +193,7 @@ def _safe(v, default=None):
 
 def render_html(*, races, model_picks_by_race, model_meta, price_hist,
                 run_date, run_iso, model_pick_rows, primary_model_key='main',
-                github_repo='mattdwyer01/TopRate', price_beta=None,
-                overlay_tracker=None):
+                github_repo='mattdwyer01/TopRate', price_beta=None):
     """
     Render the full v3 HTML dashboard.
 
@@ -219,10 +218,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         Which model_meta key is the betting model (default 'main')
     github_repo : str
         GitHub repo path 'owner/name' for Actions trigger button
-    overlay_tracker : dict or None
-        Overlay ROI tracker summary (see toprate_daily.compute_overlay_
-        tracker) - passed straight through into the payload as OVERLAY_
-        TRACKER, untouched.
     """
     primary = model_meta.get(primary_model_key, {})
 
@@ -458,7 +453,6 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
         # Softmax beta behind wpjpr (WPR $) - lets the dashboard replicate
         # the exact price formula for a live manual-override recompute.
         "PRICE_BETA": price_beta,
-        "OVERLAY_TRACKER": overlay_tracker,
     }
     data_json = json.dumps(data_obj, separators=(',', ':'))
 
