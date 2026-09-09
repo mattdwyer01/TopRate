@@ -126,7 +126,7 @@ jobs:
                 break
               fi
               echo "Checkpoint push rejected or timed out (attempt $i) - pulling and retrying"
-              timeout 120 git pull --rebase --no-edit || git rebase --abort
+              timeout 120 git pull --rebase --no-edit || git rebase --abort || true
               sleep 3
             done
           fi
