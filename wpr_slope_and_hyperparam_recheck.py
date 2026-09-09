@@ -36,7 +36,7 @@ import lightgbm as lgb
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
-from wpr_adj_term_ablation_test import build_frame, ALL_CANDIDATES
+from wpr_adj_term_ablation_test import build_frame, ALL_CANDIDATES, fit_and_apply_all_terms
 
 HP_GRID = [
     {"n_estimators": 150, "max_depth": 3, "learning_rate": 0.05, "num_leaves": 8},   # current shipped
@@ -140,19 +140,25 @@ def eval_slope_mae(D, a, b_base, b_adj, use_slope):
     return mean_absolute_error(d["target"], pred), len(d)
 
 
-def slope_recheck(h1, h2):
+def slope_recheck(h1_scored, h2_scored):
+    """h1_scored/h2_scored: ADJ_TERMS already computed OUT-OF-SAMPLE (terms
+    fit on the OPPOSITE half, matching fit_and_apply_all_terms's own
+    convention) - fitting the slope on one and evaluating on the other
+    keeps both the term-fitting AND the slope-fitting leak-free."""
     print(f"\n{'='*90}\nITEM 2: calibration slope re-check (fixed _base)\n{'='*90}")
-    a_a, bb_a, ba_a = fit_decomposed_slope(h1)
-    print(f"Direction A (fit H1): a={a_a:.4f}  b_base={bb_a:.4f}  b_adj={ba_a:.4f}")
-    mae_noslope_a, n_a = eval_slope_mae(h2, a_a, bb_a, ba_a, use_slope=False)
-    mae_slope_a, _ = eval_slope_mae(h2, a_a, bb_a, ba_a, use_slope=True)
+    a_a, bb_a, ba_a = fit_decomposed_slope(h1_scored)
+    print(f"Direction A (fit slope on H1, terms out-of-sample from H2): "
+          f"a={a_a:.4f}  b_base={bb_a:.4f}  b_adj={ba_a:.4f}")
+    mae_noslope_a, n_a = eval_slope_mae(h2_scored, a_a, bb_a, ba_a, use_slope=False)
+    mae_slope_a, _ = eval_slope_mae(h2_scored, a_a, bb_a, ba_a, use_slope=True)
     print(f"  H2 held-out MAE: no-slope(current shipped)={mae_noslope_a:.4f}  "
           f"with-fitted-slope={mae_slope_a:.4f}  (n={n_a})")
 
-    a_b, bb_b, ba_b = fit_decomposed_slope(h2)
-    print(f"Direction B (fit H2): a={a_b:.4f}  b_base={bb_b:.4f}  b_adj={ba_b:.4f}")
-    mae_noslope_b, n_b = eval_slope_mae(h1, a_b, bb_b, ba_b, use_slope=False)
-    mae_slope_b, _ = eval_slope_mae(h1, a_b, bb_b, ba_b, use_slope=True)
+    a_b, bb_b, ba_b = fit_decomposed_slope(h2_scored)
+    print(f"Direction B (fit slope on H2, terms out-of-sample from H1): "
+          f"a={a_b:.4f}  b_base={bb_b:.4f}  b_adj={ba_b:.4f}")
+    mae_noslope_b, n_b = eval_slope_mae(h1_scored, a_b, bb_b, ba_b, use_slope=False)
+    mae_slope_b, _ = eval_slope_mae(h1_scored, a_b, bb_b, ba_b, use_slope=True)
     print(f"  H1 held-out MAE: no-slope(current shipped)={mae_noslope_b:.4f}  "
           f"with-fitted-slope={mae_slope_b:.4f}  (n={n_b})")
 
@@ -168,7 +174,12 @@ def run():
     h1, h2 = D[D["date"] < mid].copy(), D[D["date"] >= mid].copy()
     print(f"H1: {len(h1):,} rows, H2: {len(h2):,} rows")
 
-    slope_recheck(h1, h2)
+    print("Scoring ADJ_TERMS out-of-sample for the slope re-check "
+          "(terms fit on one half, applied to the other)...")
+    h2_scored = fit_and_apply_all_terms(h1, h2, h1["date"].max())
+    h1_scored = fit_and_apply_all_terms(h2, h1, h2["date"].max())
+    slope_recheck(h1_scored, h2_scored)
+
     hyperparam_sweep(h1, h2)
 
 
