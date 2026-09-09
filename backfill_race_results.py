@@ -34,13 +34,24 @@ WHY THIS EXISTS (as a separate file/script from backfill_bulk_meeting_fields.py)
   deliberately duplicated rather than shared.
 
 OUTPUTS
-  race_results.csv.gz - one row per runner per race. Columns: race_id,
-  meeting_id, date, rail_position, horse_id, horse, run_id, plus every
-  field toprate_json_capture.py already knows the raw API key names for
+  race_results_YYYY.csv.gz (one file per year, split on the row's own
+  "date") - one row per runner per race. Columns: race_id, meeting_id,
+  date, rail_position, horse_id, horse, run_id, plus every field
+  toprate_json_capture.py already knows the raw API key names for
   (CORE_COLS, SECT_MAP, HORSE_COLS, RUN_COLS, and the same per-runner
   extras EXTRA_COLS covers) - reused directly so this file's columns
   match wpr_form_history.csv.gz's naming instead of drifting into a
   parallel scheme.
+
+  Split by year (not one file) because a real --all run (Sep 2026, see
+  chat) produced 1,344,089 rows that compressed to 160MB - over
+  GitHub's 100MB hard file limit, and the push was rejected outright
+  (GH001). At ~124 bytes/row compressed (matching wpr_form_history.csv.gz's
+  own per-row density - this isn't unusually bloated, it's simply ~4x
+  the ROWS of that file, since it keeps every runner in every race, not
+  just independently-scraped horses), one file per year lands around
+  15-20MB each given the actual per-year meeting count on file, with
+  large headroom before any single year could approach the limit again.
 
   track_codes.csv - a second, tiny output from the SAME fetch pass:
   meetingResult.tracks[], which turned out (via --diagnose-one, Sep
@@ -73,17 +84,28 @@ VERIFY BEFORE TRUSTING
 SAFETY
   - Dry-run by default. Pass --commit to actually write a CSV.
   - Never overwrites an existing (race_id, horse_id) row, only appends
-    genuinely new ones - this file only grows, it is never corrected in
+    genuinely new ones - these files only grow, never corrected in
     place by this script.
   - Same fetch/merge split as backfill_bulk_meeting_fields.py, for the
-    same reason: race_results.csv.gz isn't touched by anything else (so
-    conflicts are far less likely than on wpr_form_history.csv.gz), but
-    keeping the expensive network phase decoupled from the write phase
-    is still the safer default given how long --all can run.
-  - The fetch step checkpoints successfully-FETCHED meeting_ids (own
-    checkpoint file, separate from backfill_bulk_meeting_fields.py's) so
-    a long run can resume. A meeting whose result isn't finalized yet is
-    NOT checkpointed, so it is retried on a later run.
+    same reason: race_results_*.csv.gz isn't touched by anything else
+    (so conflicts are far less likely than on wpr_form_history.csv.gz),
+    but keeping the expensive network phase decoupled from the write
+    phase is still the safer default given how long --all can run.
+  - The checkpoint is written ONLY after a successful --commit merge
+    (never during fetch). Originally checkpointed as-you-fetched instead
+    (matching backfill_bulk_meeting_fields.py's own documented,
+    deliberately-left-unfixed gap) - that cost a real incident here (Sep
+    2026, see chat): the 100MB-limit push failure above left 19,295
+    successfully-FETCHED meetings marked "done" in a pushed checkpoint
+    even though their data never reached any CSV, and the fetch JSON
+    only ever existed on the ephemeral Action runner - permanently lost,
+    not recoverable. Fixed properly this time rather than re-documented
+    as a known gap: checkpoint_meeting_ids()/write_checkpoint() run
+    after merge_race_results succeeds, using the meeting_ids actually
+    present in the merged rows, and are committed+pushed in the SAME
+    git operation as the CSVs (see backfill_race_results.yml) - so a
+    checkpoint entry existing always means its data is durably on disk
+    in git, never just fetched-but-not-yet-saved.
 
 USAGE (local, combined mode)
   python backfill_race_results.py --diagnose-one 144208
@@ -113,9 +135,15 @@ import pandas as pd
 import toprate_json_capture as cap
 
 CHECKPOINT_FILE = Path(__file__).parent / "backfill_race_results.checkpoint"
-RACE_RESULTS_CSV = Path(__file__).parent / "race_results.csv.gz"
 TRACK_CODES_CSV = Path(__file__).parent / "track_codes.csv"
 DEFAULT_WORKERS = 8
+
+
+def _race_results_path(year):
+    """race_results_YYYY.csv.gz for the given year (int or str). See
+    module OUTPUTS docstring for why this is split by year rather than
+    one file."""
+    return Path(__file__).parent / f"race_results_{year}.csv.gz"
 
 # CORE_COLS entries are raw API key names that are ALSO the column name on
 # the per-runner __data.json endpoint. Confirmed via --diagnose-one (Sep
@@ -454,10 +482,11 @@ def _select_meeting_ids(args):
     return meeting_ids, checkpoint
 
 
-def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True):
-    """Fetch every meeting_id and return (race_rows, track_rows).
-    Checkpoints each meeting as soon as it's successfully fetched, same
-    pattern as backfill_bulk_meeting_fields.py."""
+def run_fetch_phase(meeting_ids, workers):
+    """Fetch every meeting_id and return (race_rows, track_rows). Does
+    NOT touch the checkpoint - checkpointing happens only after a
+    successful merge (see write_checkpoint), not here. See the module
+    SAFETY docstring for why (a real incident, Sep 2026)."""
     n_ok = n_empty = n_fail = 0
     t0 = time.time()
     race_rows = []
@@ -495,9 +524,6 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
             n_ok += 1
             race_rows.extend(rr)
             track_rows.extend(tr)
-            if checkpoint_as_you_go:
-                checkpoint.add(mid)
-                CHECKPOINT_FILE.write_text("\n".join(sorted(checkpoint)))
 
     print(f"\nFetch done in {time.time()-t0:.0f}s.")
     print(f"  meetings: {n_ok:,} merged, {n_empty:,} not finalized/empty, {n_fail:,} failed")
@@ -505,47 +531,80 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
     return race_rows, track_rows
 
 
-def merge_race_results(race_rows, commit, backup=True):
-    """Append genuinely new (race_id, horse_id) rows to race_results.csv.gz.
-    Never overwrites an existing row - this file only grows."""
-    if RACE_RESULTS_CSV.exists():
-        existing = pd.read_csv(RACE_RESULTS_CSV, low_memory=False,
-                                dtype={"race_id": str, "horse_id": str, "meeting_id": str})
-        print(f"  existing race_results.csv.gz: {len(existing):,} rows")
-    else:
-        existing = pd.DataFrame()
-        print("  no existing race_results.csv.gz - will create one")
+def checkpoint_meeting_ids(race_rows):
+    """The set of meeting_ids actually represented in race_rows, as
+    strings - used to checkpoint only AFTER those rows are confirmed
+    merged, never at fetch time (see module SAFETY docstring)."""
+    return {str(r["meeting_id"]) for r in race_rows if r.get("meeting_id") is not None}
 
-    new = pd.DataFrame(race_rows)
-    if new.empty:
+
+def write_checkpoint(meeting_ids):
+    """Union meeting_ids into CHECKPOINT_FILE on disk. Call this ONLY
+    after merge_race_results has successfully written the corresponding
+    rows - never before, never speculatively."""
+    if not meeting_ids:
+        return
+    existing = set()
+    if CHECKPOINT_FILE.exists():
+        existing = set(CHECKPOINT_FILE.read_text().split())
+    combined = existing | {str(m) for m in meeting_ids}
+    CHECKPOINT_FILE.write_text("\n".join(sorted(combined)))
+    print(f"  checkpoint: {len(combined) - len(existing):,} new meeting_ids added "
+          f"({len(combined):,} total)")
+
+
+def merge_race_results(race_rows, commit, backup=True):
+    """Append genuinely new (race_id, horse_id) rows to
+    race_results_YYYY.csv.gz, one file per year (parsed from each row's
+    own "date" - see module OUTPUTS docstring for why split by year).
+    Never overwrites an existing row - these files only grow. Returns
+    total new rows written across all years."""
+    new_all = pd.DataFrame(race_rows)
+    if new_all.empty:
         print("  no race-result rows to merge")
         return 0
-    new["race_id"] = new["race_id"].astype(str)
-    new["horse_id"] = new["horse_id"].astype(str)
+    new_all["race_id"] = new_all["race_id"].astype(str)
+    new_all["horse_id"] = new_all["horse_id"].astype(str)
+    new_all["year"] = new_all["date"].astype(str).str[:4]
 
-    if not existing.empty:
-        existing_keys = set(zip(existing["race_id"].astype(str), existing["horse_id"].astype(str)))
-        before = len(new)
-        new = new[~new.apply(lambda r: (r["race_id"], r["horse_id"]) in existing_keys, axis=1)]
-        print(f"  {before - len(new):,} rows already present, skipped")
+    total_new = 0
+    for year, new in new_all.groupby("year"):
+        new = new.drop(columns=["year"])
+        path = _race_results_path(year)
+        if path.exists():
+            existing = pd.read_csv(path, low_memory=False,
+                                    dtype={"race_id": str, "horse_id": str, "meeting_id": str})
+            print(f"  existing {path.name}: {len(existing):,} rows")
+        else:
+            existing = pd.DataFrame()
+            print(f"  no existing {path.name} - will create one")
 
-    print(f"  {len(new):,} genuinely new rows")
-    if new.empty:
-        return 0
+        if not existing.empty:
+            existing_keys = set(zip(existing["race_id"].astype(str), existing["horse_id"].astype(str)))
+            before = len(new)
+            new = new[~new.apply(lambda r: (r["race_id"], r["horse_id"]) in existing_keys, axis=1)]
+            print(f"  {year}: {before - len(new):,} rows already present, skipped")
 
-    if not commit:
+        print(f"  {year}: {len(new):,} genuinely new rows")
+        if new.empty:
+            continue
+        total_new += len(new)
+
+        if not commit:
+            continue
+
+        if backup and path.exists():
+            bkp = f"{path}.pre_merge_{datetime.now():%Y%m%d_%H%M%S}"
+            shutil.copy(path, bkp)
+            print(f"  backed up existing file to {bkp}")
+
+        combined = pd.concat([existing, new], ignore_index=True) if not existing.empty else new
+        combined.to_csv(path, index=False)
+        print(f"  wrote {path} ({len(combined):,} total rows)")
+
+    if not commit and total_new:
         print("DRY RUN - nothing written. Pass --commit to save for real.")
-        return len(new)
-
-    if backup and RACE_RESULTS_CSV.exists():
-        bkp = f"{RACE_RESULTS_CSV}.pre_merge_{datetime.now():%Y%m%d_%H%M%S}"
-        shutil.copy(RACE_RESULTS_CSV, bkp)
-        print(f"  backed up existing file to {bkp}")
-
-    combined = pd.concat([existing, new], ignore_index=True) if not existing.empty else new
-    combined.to_csv(RACE_RESULTS_CSV, index=False)
-    print(f"  wrote {RACE_RESULTS_CSV} ({len(combined):,} total rows)")
-    return len(new)
+    return total_new
 
 
 def merge_track_codes(track_rows, commit, backup=True):
@@ -624,6 +683,8 @@ def main():
               f"from {args.merge_only}")
         merge_race_results(race_rows, commit=args.commit, backup=True)
         merge_track_codes(track_rows, commit=args.commit, backup=True)
+        if args.commit:
+            write_checkpoint(checkpoint_meeting_ids(race_rows))
         return
 
     if not (args.limit or args.since or args.all):
@@ -636,7 +697,7 @@ def main():
         print("Nothing to do.")
         return
 
-    race_rows, track_rows = run_fetch_phase(meeting_ids, args.workers, checkpoint)
+    race_rows, track_rows = run_fetch_phase(meeting_ids, args.workers)
 
     if args.fetch_only:
         with open(args.fetch_only, "w") as f:
@@ -650,6 +711,8 @@ def main():
     # the GitHub Action uses, same reasoning as backfill_bulk_meeting_fields.py.
     merge_race_results(race_rows, commit=args.commit)
     merge_track_codes(track_rows, commit=args.commit)
+    if args.commit:
+        write_checkpoint(checkpoint_meeting_ids(race_rows))
 
 
 if __name__ == "__main__":

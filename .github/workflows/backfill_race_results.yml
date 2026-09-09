@@ -1,12 +1,13 @@
 name: TopRate Backfill Race Results
 
-# Manual only. Builds race_results.csv.gz (one row per runner per
-# race, for EVERY runner in a finalized meeting - not just runners
-# already captured elsewhere) and track_codes.csv (a small track
-# name/id/code reference table), via backfill_race_results.py. See
-# that script's own module docstring for the full design rationale,
-# in particular why it is a separate file/script/checkpoint from
-# backfill_bulk_meeting_fields.py rather than folded into it.
+# Manual only. Builds race_results_YYYY.csv.gz (one file per year, one
+# row per runner per race, for EVERY runner in a finalized meeting -
+# not just runners already captured elsewhere) and track_codes.csv (a
+# small track name/id/code reference table), via
+# backfill_race_results.py. See that script's own module docstring for
+# the full design rationale, in particular why it is a separate
+# file/script/checkpoint from backfill_bulk_meeting_fields.py rather
+# than folded into it, and why the output is split by year.
 #
 # ALWAYS run with diagnose_meeting_id first (or on your very first
 # dispatch), read the logged output, and only then run a real
@@ -19,8 +20,17 @@ name: TopRate Backfill Race Results
 # CLAUDE.md's incident writeup): a single long-running step that
 # fetches for a while then writes the CSVs it loaded at job start
 # would go stale under price_refresh.yml's every-5-minutes writes to
-# OTHER files in this repo, though race_results.csv.gz itself is not
+# OTHER files in this repo, though race_results_*.csv.gz itself is not
 # touched by anything else yet.
+#
+# The checkpoint is committed ONLY inside the merge step below, in the
+# SAME git operation as the CSVs - never as its own earlier step. A
+# real run (Sep 2026) that checkpointed right after fetch (like
+# backfill_bulk_meeting_fields.yml still does) left 19,295 meetings
+# marked "done" after a merge failure (the 100MB file limit, before
+# the year-split fix) with their fetched data never durably saved
+# anywhere - permanently lost. See backfill_race_results.py's own
+# SAFETY docstring for the fix.
 
 on:
   workflow_dispatch:
@@ -97,7 +107,9 @@ jobs:
 
       # ─────────────────────────────────────────────────────────
       # Step 1: Fetch phase only. Writes results to a local JSON;
-      # never touches race_results.csv.gz or track_codes.csv.
+      # never touches race_results_*.csv.gz, track_codes.csv, or the
+      # checkpoint (see top-of-file comment for why checkpointing was
+      # moved out of the fetch phase).
       # ─────────────────────────────────────────────────────────
       - name: Fetch race results
         if: ${{ !inputs.diagnose_meeting_id }}
@@ -113,45 +125,27 @@ jobs:
           python backfill_race_results.py $ARGS
 
       # ─────────────────────────────────────────────────────────
-      # Step 2: Commit the checkpoint right away, independent of
-      # whether the merge below (commit=true) even runs.
+      # Step 2: Merge phase, only when commit=true was requested.
+      # The python call itself updates backfill_race_results.checkpoint
+      # on disk (only for meeting_ids whose rows just got merged), so
+      # it is committed and pushed in the SAME git operation as the
+      # CSVs below - a checkpoint entry can never exist without its
+      # data being durably on disk in the same commit. race_results_*
+      # .csv.gz/track_codes.csv are new files nothing else touches, so
+      # a push conflict here is far less likely than on
+      # wpr_form_history.csv.gz - still retries against a freshly
+      # re-fetched base rather than assuming.
       # ─────────────────────────────────────────────────────────
-      - name: Commit checkpoint
-        if: ${{ !inputs.diagnose_meeting_id }}
+      - name: Merge into race_results_*.csv.gz / track_codes.csv
+        if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          [ -f backfill_race_results.checkpoint ] && git add backfill_race_results.checkpoint
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo "No checkpoint changes to commit"
-          else
-            git commit -m "Backfill race results checkpoint update $(date -u +%Y-%m-%dT%H:%MZ)"
-            for i in 1 2 3 4 5 6 7 8; do
-              if timeout 90 git push; then
-                echo "Checkpoint pushed on attempt $i"
-                break
-              fi
-              echo "Checkpoint push rejected or timed out (attempt $i) - pulling and retrying"
-              timeout 120 git pull --rebase --no-edit || git rebase --abort
-              sleep 3
-            done
-          fi
-
-      # ─────────────────────────────────────────────────────────
-      # Step 3: Merge phase, only when commit=true was requested.
-      # race_results.csv.gz/track_codes.csv are new
-      # files nothing else touches, so a push conflict here is far
-      # less likely than on wpr_form_history.csv.gz - still retries
-      # against a freshly re-fetched base rather than assuming.
-      # ─────────────────────────────────────────────────────────
-      - name: Merge into race_results.csv.gz / track_codes.csv
-        if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
-        run: |
           for i in 1 2 3 4 5 6 7 8; do
             python backfill_race_results.py --merge-only backfill_race_results.json --commit
-            git add race_results.csv.gz track_codes.csv 2>/dev/null || true
-            if [[ -z "$(git status --porcelain -- race_results.csv.gz track_codes.csv)" ]]; then
-              echo "No CSV changes to commit"
+            git add race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint 2>/dev/null || true
+            if [[ -z "$(git status --porcelain -- race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint)" ]]; then
+              echo "No changes to commit"
               break
             fi
             git commit -m "Backfill race results $(date -u +%Y-%m-%dT%H:%MZ)"
