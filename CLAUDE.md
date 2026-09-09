@@ -134,6 +134,29 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   structural experiments found no improvement beyond noise. Do not add model
   complexity without a fundamentally new data source. The unexplored lever is
   bet selection, not prediction accuracy.
+- **IMPORTANT for whoever next runs `train_wpr_projection()`/a full retrain
+  (Sep 2026)**: `wpr_form_history.csv.gz` just had a major dedup bug fixed.
+  Its dedup key used to include `formNumber`, which looks like a stable
+  "which run number in career" index but isn't (it's relative to whatever
+  race triggered the capture, so the same physical run got a different
+  formNumber on every re-scrape). Result: 73% of the file (448,908/613,477
+  rows) were undetected duplicate captures of the same (horse, date) run,
+  80% of those with a genuinely different `wpr` value between copies - not
+  cosmetic. Fixed in `flush_wpr_form_history()` (key is now `(horse_id-or-
+  name, date)` only) and the existing file cleaned via
+  `wpr_form_history_dedup_cleanup.py` (613,477 -> 324,026 rows, file
+  79.3MB -> 39.9MB). Every own-history ADJ_TERM and the base signals
+  (`ewm5`, `career_avg`, `best3`) average over a horse's own row series
+  from this file, so a horse's older runs being silently double/triple-
+  counted (worse the more it's raced since) was a systematic bias, not
+  cosmetic bloat - this was NOT re-validated end-to-end against the live
+  model tonight (too large an undertaking at the time, see chat). **The
+  next retrain should explicitly compare held-out MAE/strike-rate before
+  vs. after this fix** (the pre-fix numbers are the ones already documented
+  throughout this file and the git history) rather than assuming they still
+  hold - if a base-calc or ADJ_TERM conclusion shifts meaningfully once fed
+  correct, undeduplicated-by-formNumber data, that supersedes the earlier
+  finding, not the other way around.
 - The dashboard frontend rebuild (Python-templated HTML → React/Vite, see File
   map) is in progress, phased, and further along than "Phase 1" implies -
   most of what's genuinely useful without bet tracking is already live:
