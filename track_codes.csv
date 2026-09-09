@@ -23,3 +23,362 @@ Devonport Synthetic,380,DEVSY
 Randwick-Kensington,19,RANDI
 Belmont Park,67,BELPK
 Sandown-Hillside,345,SANHL
+Junction,448,JUNCK
+Hawkesbury,246,HAWKE
+Kempsey,24,KEMPS
+Toowoomba,477,TOWBA
+Emerald,236,EMRLD
+Bundaberg,297,BBERG
+Goondiwindi,587,GWIND
+Mildura,319,MDURA
+Morphettville Parks,490,MORPI
+Prairie,302,PRAIR
+Birdsville,453,BRDSV
+Mareeba,571,MAREE
+Fannie Bay,228,FANNI
+Mendooran,210,MNDOO
+Randwick,32,RANDW
+Canberra,2,CANBE
+Illawarra Grange,760,ILGRA
+Wyong,10,WYONG
+Coffs Harbour,363,COFFS
+Mackay,267,MACKA
+Flemington,427,FLEMI
+Northam,45,NORTH
+Mornington,3,MORNI
+Warwick Farm,581,WFARM
+Warrnambool,585,WBOOL
+Caulfield Heath,653,CAULH
+Wodonga,327,WODON
+Kerang,492,KERAN
+Deagon,205,DEAGO
+Taree,92,TAREE
+Casterton,200,CASTE
+Gosford,475,GOSFO
+Cranbourne,340,CRANB
+Scone,222,SCONE
+Corowa,332,COROW
+Strathalbyn,320,STRAT
+Pakenham,554,PAKPK
+Mudgee,422,MUDGE
+Carnarvon,262,CARNV
+Echuca,63,ECHUC
+Kembla Grange,351,KEMBL
+McKinlay,77,MCKIN
+Cairns,499,CAIRN
+Kununurra,440,KUNUN
+Warra,257,WARRA
+Gulargambone,190,GULAR
+Warracknabeal,108,WBEAL
+Betoota,451,BETOO
+Moruya,358,MORUY
+Springsure,368,SPRIN
+Morphettville,342,MORPH
+Pioneer Park,241,PI PK
+Geelong,338,GEELO
+Caulfield,104,CAULF
+Naracoorte,504,NARAC
+Burrumbeet,72,BBEET
+Beaudesert,96,BDSRT
+Halidon,622,HALID
+Wagga,260,WAGGA
+Rockhampton,479,ROCKY
+Canterbury,251,CANTE
+Seymour,255,SEYMO
+Doomben,539,DOOMB
+Beaumont,295,BEAUM
+Warwick,384,WWICK
+Tamworth,425,TAMWT
+Pakenham Synthetic,480,PAKSY
+Tuncurry,600,TUNCU
+Narromine,135,NAMIN
+Longford,488,LONGF
+Wangaratta,412,WANGA
+Kilcoy,16,KILCO
+Port Augusta,158,PT AU
+Goulburn,1,GBURN
+Port Macquarie,143,PT MA
+Mt Newman,607,MT NE
+Mt Isa,463,MTISA
+Aramac,513,ARAMA
+Gympie,507,GYMPI
+Berrigan,103,BERRG
+Cobar,534,COBAR
+Charleville,423,CHARL
+Dingo,311,DINGO
+Newcastle,438,NEWCA
+Canberra Acton,121,ACTON
+Sale,329,SALE 
+Murwillumbah,325,MURWI
+Murtoa,385,MURTO
+Hobart,65,ELWIC
+Pinjarra,404,PINJR
+Sandown-Lakeside,494,SANLK
+Albury,543,ALBUR
+Traralgon,129,TRARA
+Bathurst,563,BATHU
+St Arnaud,206,ST AR
+Ballarat,394,BALLA
+Narrandera,115,NARRA
+Roma,179,ROMA 
+Broome,624,BROOM
+Bowen,232,BOWEN
+Katherine,306,KATHR
+Richmond,218,RICHM
+Innisfail,354,INISF
+Gold Coast Poly,650,GCOPT
+Longreach,94,LNGRC
+Quorn,439,QUORN
+Gunnedah,12,GUNND
+Bunbury,198,BUNBR
+Pinjarra Scarpside,631,PINSC
+Ballina,227,BALLN
+Dalby,337,DALBY
+Nowra,623,NOWRA
+Nanango,252,NANAN
+Casino,74,CASIN
+Gladstone,136,GLADS
+Louth,328,LOUTH
+Muttaburra,443,MUTTA
+Cunnamulla,344,CMULL
+Mt Gambier,21,MTGMB
+Geelong Synthetic,223,GEESY
+Quirindi,548,QUIRI
+Bairnsdale,510,BAIRN
+Hamilton,243,HAMIL
+Forbes,515,FORBE
+Tambo,114,TAMBO
+Gilgandra,493,GILGA
+Port Hedland,435,PT HE
+Yeppoon,95,YEPOO
+Corfield,374,CORFI
+Roxby Downs,591,ROXBY
+Gatton,403,GATTO
+Swan Hill,140,SWAN 
+Sapphire Coast,500,SAPCT
+Balaklava,276,BALAK
+Middlemount,203,MIDDL
+Julia Creek,616,JULCK
+Roebourne,569,ROBRN
+Coonabarabran,371,CBRAN
+Atherton,595,ATHER
+Trangie,530,TRANG
+Warren,56,WARRE
+Sunshine Coast Inner,128,SCINN
+Coleraine,28,COLRN
+Blackall,503,BLKAL
+Carinda,580,CARIN
+Inverell,526,IVELL
+Derby,460,DERBY
+Thangool,321,THANG
+Hughenden,421,HUGHE
+Werribee,127,WERRI
+Donald,379,DONAL
+Cowra,274,COWRA
+Wean,120,WEAN 
+Ingham,70,INGHA
+Ilfracombe,300,ILFRA
+Esk,388,ESK  
+Barcaldine,482,BARCA
+Bluff,30,BLUFF
+Stamford,287,STAMF
+Oak Park,498,OAKPK
+Marble Bar,512,MARBL
+Mortlake,618,MORTK
+Bordertown,183,BORTW
+Home Hill,134,HMHLL
+Alpha,347,ALPHA
+Laura,138,LAURA
+Clermont,289,CLERM
+Talmoi,360,TALMO
+Walgett,352,WALGE
+Gayndah,309,GAYND
+Injune,220,INJUN
+Gulgong,201,GULGN
+Mallawa,601,MALLA
+Moranbah,266,MORBA
+Kilmore,442,KILMO
+Wondai,299,WONDA
+Hawker,196,HWKER
+Horsham,126,HORSH
+Sunshine Coast Poly,633,SCPOL
+Gawler,447,GAWLE
+Wagga Riverside,71,WAGRI
+Stawell,288,STAWE
+Parkes,529,PARKE
+Tennant Creek,280,TEN C
+Chinchilla,99,CHINC
+Brewarrina,609,BRWRN
+Albany,547,ALBAN
+York,396,YORK 
+Kyneton,22,KYNET
+Ararat,310,ARARA
+Ascot,139,ASCOT
+Quilpie,528,QUILP
+Quambone,505,QBONE
+Cloncurry,544,CLONC
+Gordonvale,57,GDVAL
+Burrandowan,366,BDWAN
+Leeton,17,LEETO
+Mt Garnet,386,MTGNT
+Gregory Downs,567,GRDWS
+Boorowa,468,BOORW
+Jandowae,464,JANDO
+Binnaway,170,BNNWA
+Oakbank,116,OAKBA
+Geraldton,55,GLDTO
+Terang,550,TERAN
+Rockingham,759,ROCHA
+Nyngan,619,NYNGA
+Deniliquin,497,DQUIN
+Armidale,348,ARMDL
+Cootamundra,323,COOTA
+Camperdown,250,CDOWN
+Narrogin,588,NAGIN
+Balnarring,238,BALNA
+Yea,194,YEA  
+Tomingley,286,TOMIN
+Orange,562,ORANG
+Launceston,391,MOWBR
+Wellington,574,WELLI
+Noorama,207,NOORA
+Warialda,605,WRILD
+Maxwelton,471,MAXWE
+Grenfell,341,GRENF
+Hillston,593,HILLS
+Augathella,208,AUGTH
+Swifts Creek,419,SWKCK
+Penola,275,PENOL
+Bourke,339,BOURK
+Dongara,549,DGARA
+Flinton,433,FLINT
+Lightning Ridge,124,LTGRG
+Tocumwal,81,TOCUM
+Clare,582,CLARE
+Avoca,62,AVOCA
+Port Lincoln,444,PT LI
+Tullibigeal,82,TULBG
+Healesville,98,HLSVL
+Broken Hill,428,BKNHL
+Carrathool,610,CRRTH
+Yarra Glen,159,YARRA
+Hawkesbury Inner,97,HAWKI
+Narrabri,359,NABRI
+Streaky Bay,294,STRBA
+Ardlethan,573,ATHAN
+Woolamai,418,WOOLA
+Crookwell,565,CROOK
+Alexandra,231,ALEXA
+Stony Creek,181,ST CK
+Edenhope,75,EDENH
+Penong,7,PENON
+Wandoan,531,WANDN
+Tottenham,334,TOTTE
+Hinnomunjie,100,HINNO
+Towong,46,TOWON
+Esperance,355,ESPER
+Colac,506,COLAC
+Taroom,430,TAROO
+Yass,271,YASS 
+Dederang,153,DEDRN
+Condobolin,608,CONDO
+Kingscote,367,KINGS
+Lock,43,LOCK 
+Buchan,296,BUCHA
+Kojonup,248,KOJON
+Bedgerebong,399,BEDBN
+Holbrook,15,HOLBR
+Lismore,185,LISMO
+Mt Barker,402,MTBKR
+Braidwood,53,BRDWD
+Tumut,175,TUMUT
+Walcha,316,WALCH
+Miles,401,MILES
+Tumbarumba,137,TUMBM
+Ceduna,42,CEDUN
+Hanging Rock,489,HROCK
+Deepwater,604,DPWTR
+Great Western,60,GTWES
+Glen Innes,291,GLINN
+Bowraville,317,BOWRV
+Bell,370,BELL 
+Merton,612,MERTO
+Drouin,61,DROUI
+Nhill,572,NHILL
+Wauchope,431,WAUCH
+Moulamein,461,MOULA
+Texas,191,TEXAS
+Cooma,603,COOMA
+Penshurst,298,PENHS
+Adaminaby,219,ADAMI
+Pentland,429,PNTLN
+Hay,583,HAY  
+Bong Bong,64,BBONG
+Mt Perry,112,MT PE
+Dunkeld,199,DUNKL
+Cooktown,596,COOKT
+Kumbia,131,KUMBI
+Wentworth,481,WWRTH
+Mansfield,509,MANSF
+Wycheproof,441,WYCHE
+Laverton,85,LAVER
+Harden,395,HARDE
+Collie,535,COLLI
+Balranald,491,BALRA
+Isisford,110,ISISF
+Moonee Valley,285,MOONE
+Clifton,538,CLIFT
+Ewan,5,EWAN 
+Leinster,313,LEINS
+Bombala,133,BOMBL
+Stanthorpe,410,STANT
+Mitchell,346,MITCH
+Coonamble,318,COONA
+Manangatang,284,MTANG
+Young,290,YOUNG
+Leonora,111,LEONO
+Landor,540,LANDO
+Mungery,417,MUNGR
+Eidsvold,304,EIDSV
+Gunbower,39,GUNBW
+Jundah,184,JUNDA
+Tabulam,29,TABUL
+Bundarra,47,BUARR
+Moora,247,MOORA
+Jamestown,478,JTOWN
+Tara,373,TARA 
+Lockhart,450,LOKHT
+Toodyay,335,TDYAY
+Come By Chance,458,CBYCH
+Jerilderie,484,JERIL
+Twin Hills,522,TWIN 
+St George,122,ST GE
+Benalla,51,BENLL
+Morven,216,MORVE
+Pooncarie,117,POONC
+Mt Magnet,508,MTMAG
+Winton,495,WINTO
+Einasleigh,160,EINAS
+Griffith,559,GRIFF
+Bedourie,564,BEDOU
+Geurie,361,GEURI
+Surat,249,SURAT
+Bunbury Fibre Sand,744,BFSAN
+Randwick Polytrack,751,RANDP
+Mungindi,389,MUNGI
+Merriwa,314,MERRI
+Monto,239,MONTO
+Pingrup,409,PINGR
+Cranbourne Training,406,CRANT
+King Island,568,KING 
+Talwood,23,TALWD
+Barraba,156,BARRA
+Enngonia,79,ENNGO
+Collarenebri,230,COLBR
+Bingara,558,BINGA
+Charters Towers,144,CHTOW
+Calliope,592,CALL 
+Mingenew,273,MINGN
+Newcastle Synthetic,652,NEWSY
+Cessnock,105,CESSN
+Murray Bridge,13,MURRA
