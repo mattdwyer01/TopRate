@@ -544,14 +544,18 @@ def _enrich_form_history_rich(new_df):
 def flush_wpr_form_history():
     """Write accumulated form rows to WPR_FORM_HISTORY_CSV (append + dedup).
 
-    Dedup key is (dedup_key, formNumber, date) where dedup_key is horse_id
-    when available, else the horse name. A horse's run is uniquely identified
-    by which horse it is, which run number in its career it was, and the date.
-    Re-scraping the same horse on later days refreshes the same rows rather
-    than duplicating them. keep='last' so the most recent capture wins (a past
-    run's wpr can be revised by TopRate up to ~5 days post-race). Rows with
-    neither a horse_id nor a name are dropped - without a stable identity they
-    cannot be safely deduped or used for modelling."""
+    Dedup key is (dedup_key, date) where dedup_key is horse_id when
+    available, else the horse name - a horse races at most once a day, so
+    that pair alone identifies one run (see key's own comment below for why
+    formNumber was removed from this key, Sep 2026: it looked like a stable
+    "which run number in career" index but isn't, and including it let 73%
+    of the file accumulate as undetected duplicates). Re-scraping the same
+    horse on later days refreshes the same row rather than duplicating it.
+    keep='last' (after the enriched/thin sort below) so the most recent
+    capture wins (a past run's wpr can be revised by TopRate up to ~5 days
+    post-race). Rows with neither a horse_id nor a name are dropped -
+    without a stable identity they cannot be safely deduped or used for
+    modelling."""
     if not _WPR_FORM_ROWS:
         print("WPR form history: nothing to write")
         return
@@ -589,7 +593,23 @@ def flush_wpr_form_history():
     combined["_dedup"] = combined["horse_id"].astype(str)
     blank = combined["_dedup"].isin(["", "nan", "None"])
     combined.loc[blank, "_dedup"] = combined.loc[blank, "horse"].astype(str)
-    key = ["_dedup", "formNumber", "date"]
+    # key is (_dedup, date) ONLY - formNumber was dropped from it (Sep 2026,
+    # found during a data-quality audit). formNumber looks like a stable
+    # "which run number in career" index but is NOT: it's relative to
+    # whatever race triggered the capture, so the SAME physical run gets a
+    # different formNumber on every re-scrape (confirmed directly - the same
+    # (horse, date) run appeared as formNumber 2, 3 and 4 across three rows
+    # captured on the SAME scrape_date). With formNumber in the key, that
+    # meant the dedup this docstring promises never actually happened: 73%
+    # of the accumulated file (448,908 / 613,477 rows) turned out to be
+    # duplicate captures of the same (horse, date) run, 80% of those with a
+    # genuinely different `wpr` value between copies, not just cosmetic
+    # differences - see the one-time cleanup this same session for the
+    # historical fix. (horse_id, date) alone is already established
+    # elsewhere in this file as sufficient (see _enrich_form_history_rich's
+    # own docstring: "a horse races at most once a day"), so it needs no
+    # further disambiguation.
+    key = ["_dedup", "date"]
     # Prefer ENRICHED rows when deduping. The rich __data.json enrichment
     # fills the per-horse sectionals (sect_i_*) and class; a plain re-scrape
     # of the same run produces a THIN row with those columns NaN. With a
