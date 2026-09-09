@@ -38,6 +38,22 @@ _INTERESTING = re.compile(
     re.IGNORECASE,
 )
 
+# The page itself embeds a session object for client hydration on every
+# route (confirmed: a 'session'/'cookies' node showed up dumping a live
+# access_token, refresh_token, and personal details). Any key matching
+# this is redacted AND not recursed into, at every depth, not just the
+# top level - this is not toprate.au's fault, just what SSR frameworks
+# commonly do, but this script has no business printing it.
+_SENSITIVE_KEY = re.compile(
+    r"token|cookie|password|secret|credential|authorization|jwt|apikey|"
+    r"\bsession\b",
+    re.IGNORECASE,
+)
+
+
+def _redacted(k):
+    return bool(_SENSITIVE_KEY.search(str(k)))
+
 
 def _build_url(path):
     """Deliberately does NOT default-add x-sveltekit-invalidated like
@@ -109,6 +125,9 @@ def _walk(label, obj, deref, depth, seen, max_depth):
     seen.add(id(resolved))
     if isinstance(resolved, dict):
         for k, v in resolved.items():
+            if _redacted(k):
+                print(f"  {label}.{k:28s} = [REDACTED - sensitive key name]")
+                continue
             rv = deref(v)
             flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
             print(f"  {label}.{k:28s} = {_describe(rv)}{flag}")
@@ -154,12 +173,17 @@ if __name__ == "__main__":
         print("=" * 70)
         seen = set()
         for k, v in root.items():
+            if _redacted(k):
+                print(f"  {k:30s} = [REDACTED - sensitive key name]")
+                continue
             rv = deref(v)
             flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
             print(f"  {k:30s} = {_describe(rv)}{flag}")
         print()
-        print(f"-- recursive scan of node[{i}] (depth 3) --")
+        print(f"-- recursive scan of node[{i}] (depth 6) --")
         for k, v in root.items():
+            if _redacted(k):
+                continue  # already noted above, and must not be descended into
             rv = deref(v)
             if isinstance(rv, (dict, list)):
                 # depth 0 here (not 1): the root-level container itself has

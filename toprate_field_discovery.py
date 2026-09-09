@@ -42,6 +42,21 @@ _INTERESTING = re.compile(
     re.IGNORECASE,
 )
 
+# This script only ever parses the node containing 'runnerDetail', so it
+# has not been seen to carry auth data the way the generic page-discovery
+# script did (a sibling node on other pages embeds a live session object
+# for client hydration). Redacting here too anyway, cheap insurance
+# against the same class of leak if a future payload nests one.
+_SENSITIVE_KEY = re.compile(
+    r"token|cookie|password|secret|credential|authorization|jwt|apikey|"
+    r"\bsession\b",
+    re.IGNORECASE,
+)
+
+
+def _redacted(k):
+    return bool(_SENSITIVE_KEY.search(str(k)))
+
 
 def _fetch_raw(run_id):
     """Fetch one runner page and return (rd, deref) with NO field
@@ -110,6 +125,9 @@ def _walk(label, obj, deref, depth, seen):
 
     if isinstance(resolved, dict):
         for k, v in resolved.items():
+            if _redacted(k):
+                print(f"  {label}.{k:28s} = [REDACTED - sensitive key name]")
+                continue
             rv = deref(v)
             flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
             print(f"  {label}.{k:28s} = {_describe(rv)}{flag}")
@@ -138,6 +156,9 @@ if __name__ == "__main__":
     print("=" * 70)
     seen = set()
     for k, v in rd.items():
+        if _redacted(k):
+            print(f"  rd.{k:28s} = [REDACTED - sensitive key name]")
+            continue
         rv = deref(v)
         flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
         print(f"  rd.{k:28s} = {_describe(rv)}{flag}")
@@ -151,6 +172,9 @@ if __name__ == "__main__":
         fe = deref(form[0])
         if isinstance(fe, dict):
             for k, v in fe.items():
+                if _redacted(k):
+                    print(f"  form[0].{k:24s} = [REDACTED - sensitive key name]")
+                    continue
                 rv = deref(v)
                 flag = "  <-- LOOK AT THIS" if _INTERESTING.search(str(k)) else ""
                 print(f"  form[0].{k:24s} = {_describe(rv)}{flag}")
@@ -163,6 +187,8 @@ if __name__ == "__main__":
           "on runnerDetail:")
     print("=" * 70)
     for k, v in rd.items():
+        if _redacted(k):
+            continue  # already noted above, and must not be descended into
         rv = deref(v)
         if isinstance(rv, (dict, list)):
             _walk(f"rd.{k}", v, deref, 1, seen)
