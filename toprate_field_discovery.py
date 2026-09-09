@@ -104,7 +104,7 @@ def _walk(label, obj, deref, depth, seen):
     still surface. `seen` guards against re-descending into the same
     pointer twice (the payload is a shared, de-duplicated node array)."""
     resolved = deref(obj)
-    if id(resolved) in seen or depth > 2:
+    if id(resolved) in seen or depth > 3:
         return
     seen.add(id(resolved))
 
