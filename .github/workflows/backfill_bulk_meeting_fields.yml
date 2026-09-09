@@ -120,13 +120,13 @@ jobs:
             echo "No checkpoint changes to commit"
           else
             git commit -m "Backfill checkpoint update $(date -u +%Y-%m-%dT%H:%MZ)"
-            for i in 1 2 3 4 5; do
-              if git push; then
+            for i in 1 2 3 4 5 6 7 8; do
+              if timeout 90 git push; then
                 echo "Checkpoint pushed on attempt $i"
                 break
               fi
-              echo "Checkpoint push rejected (attempt $i) - pulling and retrying"
-              git pull --rebase --no-edit || git rebase --abort
+              echo "Checkpoint push rejected or timed out (attempt $i) - pulling and retrying"
+              timeout 120 git pull --rebase --no-edit || git rebase --abort
               sleep 3
             done
           fi
@@ -141,7 +141,7 @@ jobs:
       - name: Merge into wpr_form_history.csv.gz
         if: ${{ inputs.commit }}
         run: |
-          for i in 1 2 3 4 5; do
+          for i in 1 2 3 4 5 6 7 8; do
             python backfill_bulk_meeting_fields.py --merge-only backfill_results.json --commit
             git add wpr_form_history.csv.gz
             if [[ -z "$(git status --porcelain -- wpr_form_history.csv.gz)" ]]; then
@@ -149,12 +149,12 @@ jobs:
               break
             fi
             git commit -m "Backfill bulk meeting fields $(date -u +%Y-%m-%dT%H:%MZ)"
-            if git push; then
+            if timeout 90 git push; then
               echo "Pushed on attempt $i"
               break
             fi
-            echo "Push rejected (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
-            git fetch origin
+            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            timeout 120 git fetch origin
             git reset --hard "origin/${{ github.ref_name }}"
             sleep 3
           done
