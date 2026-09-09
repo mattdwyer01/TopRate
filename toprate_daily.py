@@ -1501,19 +1501,42 @@ OVERLAY_EDGE_THRESHOLD = 0.10
 # 30-day-back window, backfilled Sep 2026 after the per-race demeaning fix.
 OVERLAY_LIVE_SINCE = "2026-08-09"
 
-# Hardcoded from wpr_walkforward_shipped_roi_test.py's actual run (Sep 2026)
-# at OVERLAY_EDGE_THRESHOLD - NOT auto-regenerated. Re-run that script and
-# update this block by hand if the model changes enough to warrant
-# re-validating; an auto-updating badge here would let a real regression
-# ship while still showing "validated".
+# Hardcoded, NOT auto-regenerated - re-run and update this block by hand if
+# re-validation ever finds a genuine edge; an auto-updating badge here would
+# let a real regression ship while still showing "validated".
+#
+# RETRACTED (Sep 2026): the +20.61% ROI / t=2.99 figure originally shown
+# here (from wpr_walkforward_shipped_roi_test.py's first run) was built on
+# a severe bug in build_training_frame()'s wpr_nett merge - it joined by
+# run_id, which is not a reliable per-row identifier in the scraped form
+# history (97% of joinable rows resolved to the WRONG race, 99.7% of those
+# leaking a LATER race's rating into an earlier one, median 316 days
+# ahead - see wpr_projection.py's build_training_frame docstring). That
+# leak inflated every backtest built on it. After fixing the leak and
+# re-running the exact same walk-forward test, the result reversed to
+# negative at every threshold, matching what this tracker's own live
+# (real, no-reconstruction) numbers had already been showing since it
+# shipped. A subsequent joint search over every ADJ_TERM's weight
+# (individually and in combination, via leak-free greedy search) also
+# failed to recover a profitable combination - see wpr_adj_term_combo_
+# search_test.py. Conclusion: no validated overlay edge currently exists
+# at this threshold or any other tested. Kept here (rather than deleted)
+# so the retraction itself stays visible - this constant should not be
+# quietly reset to a rosier number without a genuinely new, leak-free
+# validation to back it.
 OVERLAY_BACKTEST_VALIDATION = {
+    "validated": False,
     "method": "Walk-forward: 4 monthly folds, strictly-prior-data refits only",
     "period": "2026-06 to 2026-09",
-    "n_bets": 2414,
-    "strike_rate": 18.77,
-    "roi_pct": 20.61,
-    "t_stat": 2.99,
-    "validated_date": "2026-09-08",
+    "n_bets": 9539,
+    "strike_rate": 13.23,
+    "roi_pct": -14.63,
+    "t_stat": -3.34,
+    "validated_date": "2026-09-09",
+    "note": "No profitable edge validated. An earlier +20.61% ROI figure shown here was "
+            "retracted (Sep 2026) after a future-leak bug in the backtest pipeline was "
+            "found and fixed; the corrected result is negative, matching this tracker's "
+            "own live numbers.",
 }
 
 

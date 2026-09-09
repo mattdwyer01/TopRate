@@ -170,6 +170,7 @@ export interface RawVenueBias {
 }
 
 export interface RawOverlayBacktest {
+  validated: boolean
   method: string
   period: string
   n_bets: number
@@ -177,6 +178,7 @@ export interface RawOverlayBacktest {
   roi_pct: number
   t_stat: number
   validated_date: string
+  note?: string
 }
 
 export interface RawOverlayBet {

@@ -654,9 +654,15 @@ function OverlayTrackerCard({
         <div className="rounded-md border border-line-soft bg-bg p-3">
           <div className="flex items-center justify-between">
             <div className="text-xs font-semibold text-ink">Backtest validation</div>
-            {overlaySignificant(backtest.tStat) && (
-              <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
-                significant
+            {backtest.validated ? (
+              overlaySignificant(backtest.tStat) && backtest.roiPct > 0 && (
+                <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
+                  significant
+                </span>
+              )
+            ) : (
+              <span className="rounded-full border border-amber-line bg-amber-bg px-1.5 py-0.5 text-[10px] font-medium text-amber">
+                not validated
               </span>
             )}
           </div>
@@ -673,16 +679,26 @@ function OverlayTrackerCard({
             />
           </div>
           <div className="mt-1 text-[11px] text-ink-faint">t={backtest.tStat.toFixed(2)}</div>
+          {!backtest.validated && backtest.note && (
+            <div className="mt-2 rounded-md border border-amber-line bg-amber-bg p-2 text-[11px] leading-snug text-amber">
+              {backtest.note}
+            </div>
+          )}
         </div>
 
         <div className="rounded-md border border-line-soft bg-bg p-3">
           <div className="flex items-center justify-between">
             <div className="text-xs font-semibold text-ink">Live since {tracker.liveSince}</div>
-            {overlaySignificant(tracker.tStat) && (
-              <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
-                significant
-              </span>
-            )}
+            {overlaySignificant(tracker.tStat) &&
+              ((tracker.roiPct ?? 0) > 0 ? (
+                <span className="rounded-full bg-emerald-bg px-1.5 py-0.5 text-[10px] font-medium text-emerald-deep">
+                  significant
+                </span>
+              ) : (
+                <span className="rounded-full border border-rose-line bg-rose-bg px-1.5 py-0.5 text-[10px] font-medium text-rose">
+                  significantly negative
+                </span>
+              ))}
           </div>
           <div className="mt-0.5 text-[11px] text-ink-faint">
             {tracker.nPending} runner{tracker.nPending === 1 ? '' : 's'} flagged, not yet resulted

@@ -28,6 +28,7 @@ function toOverlayTracker(raw: RawOverlayTracker | null | undefined): OverlayTra
     roiPct: raw.roi_pct,
     tStat: raw.t_stat,
     backtest: {
+      validated: raw.backtest.validated ?? true,
       method: raw.backtest.method,
       period: raw.backtest.period,
       nBets: raw.backtest.n_bets,
@@ -35,6 +36,7 @@ function toOverlayTracker(raw: RawOverlayTracker | null | undefined): OverlayTra
       roiPct: raw.backtest.roi_pct,
       tStat: raw.backtest.t_stat,
       validatedDate: raw.backtest.validated_date,
+      note: raw.backtest.note ?? null,
     },
     bets: (raw.bets ?? []).map((b) => ({
       raceId: b.race_id,

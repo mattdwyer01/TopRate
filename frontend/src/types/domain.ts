@@ -189,6 +189,7 @@ export interface PriceHistoryEntry {
 }
 
 export interface OverlayBacktest {
+  validated: boolean
   method: string
   period: string
   nBets: number
@@ -196,6 +197,7 @@ export interface OverlayBacktest {
   roiPct: number
   tStat: number
   validatedDate: string
+  note: string | null
 }
 
 export interface OverlayBet {
