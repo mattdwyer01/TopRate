@@ -1,0 +1,41 @@
+name: TopRate Field Discovery
+
+# Manual only. Runs toprate_field_discovery.py against one live runner
+# page, for verifying the raw payload schema (e.g. ratingProfiles/stats
+# blocks) before writing extraction code against it. Read-only,
+# network GET only, never touches any repo file. See
+# toprate_field_discovery.py's own module docstring.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'A runner run_id to fetch (e.g. from toprate_runners.csv)'
+        required: true
+        type: string
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run field discovery
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python toprate_field_discovery.py "${{ inputs.run_id }}"
