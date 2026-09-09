@@ -1,0 +1,166 @@
+name: TopRate Backfill Bulk Meeting Fields
+
+# Manual only. Backfills the age/sex/pedigree/claim/race-condition
+# fields (added to toprate_json_capture.py, Sep 2026) into EXISTING
+# rows of wpr_form_history.csv.gz, via backfill_bulk_meeting_fields.py.
+# See that script's own module docstring for the full design rationale,
+# in particular why the fetch and merge phases are split into separate
+# steps here rather than one combined run.
+#
+# wpr_form_history.csv.gz is also written by price_refresh.yml every 5
+# minutes. A single long-running step that fetches for a while then
+# writes the CSV it loaded at job start would go stale, and resolving
+# the resulting git conflict the way this repo's OTHER Actions do
+# (-X theirs, fine for files that are fully regenerated each run) would
+# silently discard the whole backfill - CLAUDE.md documents a real past
+# incident of exactly that failure mode on this exact file. So: fetch
+# once (expensive, network-bound, cached to a local JSON), then merge
+# in a retry loop that re-pulls a FRESH copy of the CSV on every
+# conflict and re-runs the cheap, network-free merge against it -
+# "take theirs, then re-run the recompute on top of the fresher base",
+# per CLAUDE.md's own prescribed fix.
+#
+# Start small: --limit first, then a --since range, before --all
+# (thousands of calls, can run for a long time). The checkpoint file
+# this workflow commits back tracks which meetings were already
+# FETCHED (not merged) so repeated dispatches resume rather than
+# refetch, letting a full backfill be done across several runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Only fetch the first N meetings (most recent first). Good for a first test run.'
+        required: false
+        type: string
+      since:
+        description: 'Only meetings on/after this date (YYYY-MM-DD). Leave blank for no date floor.'
+        required: false
+        type: string
+      all:
+        description: 'Process every meeting on file (thousands of calls - can take a long time)'
+        required: false
+        type: boolean
+        default: false
+      commit:
+        description: 'Actually write the CSV. Leave off for a dry run that only reports what would change.'
+        required: false
+        type: boolean
+        default: false
+
+# Only one backfill run at a time (they'd both be doing expensive
+# fetches and would confuse the checkpoint file). Deliberately a
+# separate group from daily.yml/price_refresh.yml - this should NOT
+# block the live 5-minute price refresh while it runs.
+concurrency:
+  group: toprate-backfill-bulk-meeting-fields
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # Generous but under GitHub's 360-min hosted-runner ceiling - a
+    # full --all run is thousands of calls and can run long.
+    timeout-minutes: 340
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need write access to push the checkpoint and CSV back.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate inputs
+        run: |
+          if [ -z "${{ inputs.limit }}" ] && [ -z "${{ inputs.since }}" ] && [ "${{ inputs.all }}" != "true" ]; then
+            echo "::error::One of limit, since, or all must be set - refusing to guess the scope."
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 1: Fetch phase only. Can take a long time. Writes results
+      # to a local JSON; never touches wpr_form_history.csv.gz.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch meeting results
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          ARGS="--fetch-only backfill_results.json"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          [ -n "${{ inputs.since }}" ] && ARGS="$ARGS --since ${{ inputs.since }}"
+          [ "${{ inputs.all }}" = "true" ] && ARGS="$ARGS --all"
+          echo "Running: python backfill_bulk_meeting_fields.py $ARGS"
+          python backfill_bulk_meeting_fields.py $ARGS
+
+      # ─────────────────────────────────────────────────────────
+      # Step 2: Commit the checkpoint right away, independent of
+      # whether the merge below (--commit) even runs. The checkpoint
+      # only tracks what was FETCHED (the expensive, network-bound
+      # part) - it should persist across ephemeral runs regardless of
+      # the merge outcome, so a later dispatch never re-fetches a
+      # meeting this run already got.
+      # ─────────────────────────────────────────────────────────
+      - name: Commit checkpoint
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f backfill_bulk_meeting_fields.checkpoint ] && git add backfill_bulk_meeting_fields.checkpoint
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No checkpoint changes to commit"
+          else
+            git commit -m "Backfill checkpoint update $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3 4 5; do
+              if git push; then
+                echo "Checkpoint pushed on attempt $i"
+                break
+              fi
+              echo "Checkpoint push rejected (attempt $i) - pulling and retrying"
+              git pull --rebase --no-edit || git rebase --abort
+              sleep 3
+            done
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 3: Merge phase, only when commit=true was requested.
+      # Retries against a FRESHLY RE-PULLED copy of the CSV on every
+      # push conflict - never -X theirs on this file (see the top-of-
+      # file comment and backfill_bulk_meeting_fields.py's docstring
+      # for why that would silently discard the backfill).
+      # ─────────────────────────────────────────────────────────
+      - name: Merge into wpr_form_history.csv.gz
+        if: ${{ inputs.commit }}
+        run: |
+          for i in 1 2 3 4 5; do
+            python backfill_bulk_meeting_fields.py --merge-only backfill_results.json --commit
+            git add wpr_form_history.csv.gz
+            if [[ -z "$(git status --porcelain -- wpr_form_history.csv.gz)" ]]; then
+              echo "No CSV changes to commit"
+              break
+            fi
+            git commit -m "Backfill bulk meeting fields $(date -u +%Y-%m-%dT%H:%MZ)"
+            if git push; then
+              echo "Pushed on attempt $i"
+              break
+            fi
+            echo "Push rejected (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            git fetch origin
+            git reset --hard "origin/${{ github.ref_name }}"
+            sleep 3
+          done
+
+      - name: Dry-run report
+        if: ${{ !inputs.commit }}
+        run: |
+          echo "Dry run requested (commit was left off) - reporting what WOULD change, nothing written."
+          python backfill_bulk_meeting_fields.py --merge-only backfill_results.json
