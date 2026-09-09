@@ -18,33 +18,69 @@ WHY THIS EXISTS
   and it needs about 20,648 calls (one per meeting already on file)
   instead of one per runner.
 
-SAFETY
+THREE MODES
+  Combined (default, for a local interactive run): fetch AND merge in
+  one process, exactly like the first version of this script. Fine
+  locally where you can see the whole run and nothing else is racing
+  you to write the same file.
+
+  --fetch-only OUT.json: fetch phase ONLY. Writes {run_id: {col: val}}
+  for every runner found to OUT.json. Never reads, merges, or writes
+  wpr_form_history.csv.gz at all.
+
+  --merge-only IN.json [--commit]: merge phase ONLY. Loads the CURRENT
+  wpr_form_history.csv.gz fresh (no network calls) and IN.json, fills
+  empty cells, writes if --commit.
+
+  Split mode exists because this file is also touched by price_refresh.yml
+  every 5 minutes. A long fetch phase (minutes to hours) means the CSV
+  checked out at job start is stale by the time a combined run would
+  write it - pushing that stale-derived version, then resolving the
+  inevitable git conflict with the standard "-X theirs" used elsewhere
+  in this repo's Actions, would silently DISCARD the whole backfill (see
+  CLAUDE.md's own incident writeup for exactly this failure mode on this
+  exact file). The correct order, also per CLAUDE.md, is: take theirs
+  for the conflicted file, then re-run the recompute on top of that
+  fresher base - never push a snapshot of a base that's gone stale. The
+  merge phase is cheap and side-effect-free enough to safely repeat
+  against a freshly re-pulled file inside a retry loop (see
+  .github/workflows/backfill_bulk_meeting_fields.yml); the fetch
+  phase's expensive network results, cached in the JSON, never need
+  refetching just because the CSV moved under it.
+
+SAFETY (applies to the merge step in every mode)
   - Dry-run by default. Pass --commit to actually write the CSV.
   - Only fills cells that are currently NaN/empty. Never overwrites a
     value that's already there, in any column, old or new.
   - Never creates new rows and never touches the dedup key or any
     column this script doesn't own.
-  - Backs up the CSV (timestamped) before any write.
-  - Checkpoints successfully-merged meeting_ids to a local file so a
-    long run can be interrupted and resumed without refetching. Only
-    written when --commit is set, so a dry run never poisons resume
-    state for a later real run. A meeting whose result isn't finalized
-    yet is NOT checkpointed, so it gets retried on the next run rather
-    than silently skipped forever.
+  - Local combined/--merge-only runs back up the CSV (timestamped)
+    before writing. (The GitHub Action doesn't need this - git history
+    is the backup there.)
+  - The fetch step checkpoints successfully-fetched meeting_ids to a
+    local file so a long run can be interrupted and resumed without
+    refetching. A meeting whose result isn't finalized yet is NOT
+    checkpointed, so it gets retried on a later run rather than
+    silently skipped forever.
 
-USAGE
+USAGE (local, combined mode)
   python backfill_bulk_meeting_fields.py --limit 20              # dry-run test
   python backfill_bulk_meeting_fields.py --limit 20 --commit      # write a small batch
   python backfill_bulk_meeting_fields.py --since 2025-01-01 --commit
   python backfill_bulk_meeting_fields.py --all --commit           # everything (hours)
 
-  Start small. One of --limit / --since / --all is required so a bare
-  invocation can't accidentally kick off a multi-hour run.
+USAGE (split mode, what the GitHub Action uses)
+  python backfill_bulk_meeting_fields.py --fetch-only out.json --since 2025-01-01
+  python backfill_bulk_meeting_fields.py --merge-only out.json --commit
+
+  One of --limit / --since / --all is required in every fetch-capable
+  mode so a bare invocation can't accidentally kick off a multi-hour run.
 
 NO EM DASHES policy: hyphens only in this file.
 """
 
 import argparse
+import json
 import shutil
 import sys
 import time
@@ -78,9 +114,9 @@ def _build_url(meeting_id):
 def fetch_meeting_result(meeting_id):
     """Fetch meetings/{id}/history and return (meetingResult dict, deref)
     or (None, None) if the meeting isn't finalized yet, wasn't found, or
-    a hard failure occurred. Reuses the same auth/redirect/login-bounce
-    handling already established for this route in
-    toprate_page_discovery.py."""
+    ("ERROR", None) if a hard failure occurred after retries. Reuses the
+    same auth/redirect/login-bounce handling already established for
+    this route in toprate_page_discovery.py."""
     url = _build_url(meeting_id)
     for attempt in range(1, cap.MAX_RETRIES + 1):
         headers, cookies = cap._auth_bits()
@@ -150,14 +186,30 @@ def fetch_meeting_result(meeting_id):
 
 
 def extract_meeting_fields(meeting_result, deref):
-    """Return {run_id (str): {col: value}} for every runner in this
-    finalized meeting, restricted to FILLABLE_COLS. Runner-level values
-    win; race-level ones (e.g. weightRestriction, venue) are the
-    fallback for keys that live on the race rather than the runner."""
+    """Return {"horse_id|date": {col: value}} for every runner in this
+    finalized meeting, restricted to FILLABLE_COLS.
+
+    Keyed by (horse_id, date), NOT run_id. Confirmed by direct check
+    against the real file (see chat): run_id in wpr_form_history.csv.gz
+    identifies the runner-PAGE scrape that produced a whole batch of
+    past-run rows, not any single row - one run_id spans up to a dozen+
+    different dates for one horse. (horse_id, date) is the join key
+    _enrich_form_history_rich already uses elsewhere in this exact
+    codebase, for the same documented reason: "a horse races at most
+    once a day". Using run_id here would have silently written one
+    meeting's per-run fields (weight_restriction, sectionals, etc) onto
+    several unrelated rows for other dates.
+
+    Runner-level values win; race-level ones (e.g. weightRestriction,
+    venue) are the fallback for keys that live on the race rather than
+    the runner. The string key (not a tuple) is so this dict survives a
+    plain json.dump/load round trip between the fetch and merge phases."""
     out = {}
+    meeting_date = deref(meeting_result.get("date"))
     races = deref(meeting_result.get("races"))
-    if not isinstance(races, list):
+    if not isinstance(races, list) or not meeting_date:
         return out
+    meeting_date = str(meeting_date)[:10]
     src_map = {**cap.HORSE_COLS, **cap.RUN_COLS}
     for rp in races:
         race = deref(rp)
@@ -170,8 +222,8 @@ def extract_meeting_fields(meeting_result, deref):
             runner = deref(rup)
             if not isinstance(runner, dict):
                 continue
-            run_id = deref(runner.get("runId"))
-            if run_id is None:
+            horse_id = deref(runner.get("horseId"))
+            if horse_id is None:
                 continue
             fields = {}
             sr = deref(runner.get("sectionalRating"))
@@ -184,8 +236,145 @@ def extract_meeting_fields(meeting_result, deref):
                 if v is None:
                     v = race.get(src_key)
                 fields[col] = cap._scalar(deref(v))
-            out[str(run_id)] = fields
+            out[f"{horse_id}|{meeting_date}"] = fields
     return out
+
+
+def _load_history_for_scoping():
+    """Read wpr_form_history.csv.gz just far enough to list candidate
+    meeting_ids (used by both the fetch phase and combined mode)."""
+    import toprate_daily as td
+    fh_path = td.WPR_FORM_HISTORY_CSV
+    print(f"Loading {fh_path} for meeting scoping ...")
+    fh = pd.read_csv(fh_path, usecols=["run_id", "meeting_id", "date"],
+                      dtype={"run_id": str}, low_memory=False)
+    print(f"  {len(fh):,} rows")
+    return fh_path, fh
+
+
+def _select_meeting_ids(fh, args):
+    meetings = fh.loc[fh["meeting_id"].notna(), ["meeting_id", "date"]].drop_duplicates()
+    meetings["meeting_id"] = meetings["meeting_id"].astype(float).astype(int).astype(str)
+    if args.since:
+        meetings = meetings[meetings["date"] >= args.since]
+    meetings = meetings.sort_values("date", ascending=False)
+    meeting_ids = meetings["meeting_id"].tolist()
+
+    checkpoint = set()
+    if CHECKPOINT_FILE.exists():
+        checkpoint = set(CHECKPOINT_FILE.read_text().split())
+        print(f"  Resuming: {len(checkpoint):,} meetings already fetched per checkpoint")
+    meeting_ids = [m for m in meeting_ids if m not in checkpoint]
+
+    if args.limit:
+        meeting_ids = meeting_ids[:args.limit]
+    return meeting_ids, checkpoint
+
+
+def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True):
+    """Fetch every meeting_id and return {"horse_id|date": {col: val}}
+    merged across all of them. Checkpoints each meeting as soon as it's
+    successfully fetched (default on - the fetch-only mode always wants
+    this so a later run can resume; combined mode also wants it since a
+    dry run there no longer implies "don't remember what was fetched",
+    only "don't implies write the CSV")."""
+    n_ok = n_empty = n_fail = 0
+    t0 = time.time()
+    results = {}
+
+    def _one(mid):
+        try:
+            return mid, fetch_meeting_result(mid)
+        except Exception:
+            return mid, ("ERROR", None)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_one, mid) for mid in meeting_ids]
+        done = 0
+        for fut in as_completed(futures):
+            done += 1
+            if done % 200 == 0:
+                elapsed = time.time() - t0
+                rate = done / elapsed if elapsed else 0
+                eta = (len(meeting_ids) - done) / rate if rate else float("nan")
+                print(f"  ... {done}/{len(meeting_ids)} meetings "
+                      f"({elapsed:.0f}s, {len(results):,} runs collected, ETA {eta:.0f}s)")
+            mid, (mr, deref) = fut.result()
+            if mr == "ERROR":
+                n_fail += 1
+                continue
+            if mr is None:
+                n_empty += 1
+                continue
+            fields_by_run = extract_meeting_fields(mr, deref)
+            if not fields_by_run:
+                n_empty += 1
+                continue
+            n_ok += 1
+            results.update(fields_by_run)
+            if checkpoint_as_you_go:
+                checkpoint.add(mid)
+                CHECKPOINT_FILE.write_text("\n".join(sorted(checkpoint)))
+
+    print(f"\nFetch done in {time.time()-t0:.0f}s.")
+    print(f"  meetings: {n_ok:,} merged, {n_empty:,} not finalized/empty, {n_fail:,} failed")
+    print(f"  {len(results):,} runs collected")
+    return results
+
+
+def merge_into_history(fields_by_key, commit, backup=True):
+    """Load wpr_form_history.csv.gz FRESH (no caching across calls -
+    this is the whole point, see module docstring), fill empty cells
+    from fields_by_key keyed by "horse_id|date" (see
+    extract_meeting_fields' docstring for why NOT run_id), write if
+    commit. Returns (n_rows_touched, n_cells_filled)."""
+    import toprate_daily as td
+    fh_path = td.WPR_FORM_HISTORY_CSV
+    print(f"Loading {fh_path} for merge ...")
+    fh = pd.read_csv(fh_path, dtype={"run_id": str, "horse_id": str}, low_memory=False)
+    print(f"  {len(fh):,} rows")
+
+    for col in FILLABLE_COLS:
+        if col not in fh.columns:
+            fh[col] = None
+
+    idx_by_key = {}
+    dates = fh["date"].astype(str).str[:10]
+    for idx, hid, d in zip(fh.index, fh["horse_id"].astype(str), dates):
+        idx_by_key.setdefault(f"{hid}|{d}", []).append(idx)
+
+    n_rows_touched = 0
+    n_cells_filled = 0
+    for key, fields in fields_by_key.items():
+        rows = idx_by_key.get(key)
+        if not rows:
+            continue  # this (horse_id, date) isn't in our existing history - never create rows
+        for idx in rows:
+            touched_this_row = False
+            for col, v in fields.items():
+                if v is None:
+                    continue
+                if pd.isna(fh.at[idx, col]):
+                    fh.at[idx, col] = v
+                    n_cells_filled += 1
+                    touched_this_row = True
+            if touched_this_row:
+                n_rows_touched += 1
+
+    print(f"  {n_rows_touched:,} existing rows had at least one cell filled")
+    print(f"  {n_cells_filled:,} individual cells filled")
+
+    if not commit:
+        print("DRY RUN - nothing written. Pass --commit to save for real.")
+        return n_rows_touched, n_cells_filled
+
+    if backup:
+        bkp = f"{fh_path}.pre_bulk_backfill_{datetime.now():%Y%m%d_%H%M%S}"
+        shutil.copy(fh_path, bkp)
+        print(f"Backed up existing file to {bkp}")
+    fh.to_csv(fh_path, index=False)
+    print(f"Wrote {fh_path}")
+    return n_rows_touched, n_cells_filled
 
 
 def main():
@@ -200,116 +389,44 @@ def main():
     ap.add_argument("--commit", action="store_true",
                      help="Actually write the CSV (default: dry-run, nothing saved)")
     ap.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+    ap.add_argument("--fetch-only", metavar="OUT.json", default=None,
+                     help="Fetch phase only: write results here, never touch the CSV")
+    ap.add_argument("--merge-only", metavar="IN.json", default=None,
+                     help="Merge phase only: read results from here, load the CSV fresh, "
+                          "no network calls")
     args = ap.parse_args()
+
+    if args.merge_only:
+        with open(args.merge_only) as f:
+            fields_by_run = json.load(f)
+        print(f"Loaded {len(fields_by_run):,} runs from {args.merge_only}")
+        merge_into_history(fields_by_run, commit=args.commit, backup=True)
+        return
 
     if not (args.limit or args.since or args.all):
         sys.exit("Refusing to run with no scope: pass --limit N, --since DATE, "
                   "or --all explicitly. See the module docstring for examples.")
 
-    import toprate_daily as td
-    fh_path = td.WPR_FORM_HISTORY_CSV
-    print(f"Loading {fh_path} ...")
-    fh = pd.read_csv(fh_path, dtype={"run_id": str, "horse_id": str}, low_memory=False)
-    print(f"  {len(fh):,} rows")
-
-    for col in FILLABLE_COLS:
-        if col not in fh.columns:
-            fh[col] = None
-
-    meetings = fh.loc[fh["meeting_id"].notna(), ["meeting_id", "date"]].drop_duplicates()
-    meetings["meeting_id"] = meetings["meeting_id"].astype(float).astype(int).astype(str)
-    if args.since:
-        meetings = meetings[meetings["date"] >= args.since]
-    meetings = meetings.sort_values("date", ascending=False)
-    meeting_ids = meetings["meeting_id"].tolist()
-
-    checkpoint = set()
-    if CHECKPOINT_FILE.exists():
-        checkpoint = set(CHECKPOINT_FILE.read_text().split())
-        print(f"  Resuming: {len(checkpoint):,} meetings already done per checkpoint")
-    meeting_ids = [m for m in meeting_ids if m not in checkpoint]
-
-    if args.limit:
-        meeting_ids = meeting_ids[:args.limit]
-    print(f"  {len(meeting_ids):,} meetings to fetch "
-          f"({'DRY RUN, nothing will be saved' if not args.commit else 'WILL WRITE on completion'})")
+    _, fh = _load_history_for_scoping()
+    meeting_ids, checkpoint = _select_meeting_ids(fh, args)
+    print(f"  {len(meeting_ids):,} meetings to fetch")
     if not meeting_ids:
         print("Nothing to do.")
         return
 
-    idx_by_run_id = {}
-    for idx, rid in fh["run_id"].astype(str).items():
-        idx_by_run_id.setdefault(rid, []).append(idx)
+    fields_by_run = run_fetch_phase(meeting_ids, args.workers, checkpoint)
 
-    n_meetings_ok = n_meetings_empty = n_meetings_fail = 0
-    n_rows_touched = 0
-    n_cells_filled = 0
-    t0 = time.time()
-
-    def _one(mid):
-        try:
-            return mid, fetch_meeting_result(mid)
-        except Exception:
-            return mid, ("ERROR", None)
-
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = [pool.submit(_one, mid) for mid in meeting_ids]
-        done = 0
-        for fut in as_completed(futures):
-            done += 1
-            if done % 200 == 0:
-                elapsed = time.time() - t0
-                rate = done / elapsed if elapsed else 0
-                eta = (len(meeting_ids) - done) / rate if rate else float("nan")
-                print(f"  ... {done}/{len(meeting_ids)} meetings "
-                      f"({elapsed:.0f}s, {n_rows_touched:,} rows touched, "
-                      f"ETA {eta:.0f}s)")
-            mid, (mr, deref) = fut.result()
-            if mr == "ERROR":
-                n_meetings_fail += 1
-                continue  # genuine failure - not checkpointed, retried next run
-            if mr is None:
-                n_meetings_empty += 1
-                continue  # not finalized / not found - also retried next run
-            fields_by_run = extract_meeting_fields(mr, deref)
-            if not fields_by_run:
-                n_meetings_empty += 1
-                continue
-            n_meetings_ok += 1
-            for rid, fields in fields_by_run.items():
-                rows = idx_by_run_id.get(rid)
-                if not rows:
-                    continue  # this run isn't in our existing history - never create rows
-                for idx in rows:
-                    touched_this_row = False
-                    for col, v in fields.items():
-                        if v is None:
-                            continue
-                        if pd.isna(fh.at[idx, col]):
-                            fh.at[idx, col] = v
-                            n_cells_filled += 1
-                            touched_this_row = True
-                    if touched_this_row:
-                        n_rows_touched += 1
-            if args.commit:
-                checkpoint.add(mid)
-                CHECKPOINT_FILE.write_text("\n".join(sorted(checkpoint)))
-
-    print(f"\nDone in {time.time()-t0:.0f}s.")
-    print(f"  meetings: {n_meetings_ok:,} merged, {n_meetings_empty:,} not finalized/empty, "
-          f"{n_meetings_fail:,} failed")
-    print(f"  {n_rows_touched:,} existing rows had at least one cell filled")
-    print(f"  {n_cells_filled:,} individual cells filled")
-
-    if not args.commit:
-        print("\nDRY RUN - nothing written. Re-run with --commit to save for real.")
+    if args.fetch_only:
+        with open(args.fetch_only, "w") as f:
+            json.dump(fields_by_run, f)
+        print(f"Wrote {len(fields_by_run):,} runs to {args.fetch_only}")
         return
 
-    backup = f"{fh_path}.pre_bulk_backfill_{datetime.now():%Y%m%d_%H%M%S}"
-    shutil.copy(fh_path, backup)
-    print(f"Backed up existing file to {backup}")
-    fh.to_csv(fh_path, index=False)
-    print(f"Wrote {fh_path}")
+    # Combined mode: merge immediately using the same process's fetch
+    # results. Fine for a local manual run; the split mode above is what
+    # the GitHub Action uses instead, precisely to avoid this window
+    # between a long fetch and the eventual write going stale.
+    merge_into_history(fields_by_run, commit=args.commit)
 
 
 if __name__ == "__main__":
