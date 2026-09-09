@@ -120,15 +120,21 @@ jobs:
             echo "No checkpoint changes to commit"
           else
             git commit -m "Backfill checkpoint update $(date -u +%Y-%m-%dT%H:%MZ)"
-            for i in 1 2 3 4 5 6 7 8; do
+            pushed=false
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
               if timeout 90 git push; then
                 echo "Checkpoint pushed on attempt $i"
+                pushed=true
                 break
               fi
               echo "Checkpoint push rejected or timed out (attempt $i) - pulling and retrying"
               timeout 120 git pull --rebase --no-edit || git rebase --abort || true
-              sleep 3
+              sleep $((10 + RANDOM % 20))
             done
+            if [ "$pushed" != "true" ]; then
+              echo "::error::Failed to push the checkpoint after all retry attempts - this run's fetched meetings will be re-fetched next time, not a data-loss risk on its own, but flag it rather than silently succeed."
+              exit 1
+            fi
           fi
 
       # ─────────────────────────────────────────────────────────
@@ -141,23 +147,36 @@ jobs:
       - name: Merge into wpr_form_history.csv.gz
         if: ${{ inputs.commit }}
         run: |
-          for i in 1 2 3 4 5 6 7 8; do
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pushed=false
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             python backfill_bulk_meeting_fields.py --merge-only backfill_results.json --commit
             git add wpr_form_history.csv.gz
             if [[ -z "$(git status --porcelain -- wpr_form_history.csv.gz)" ]]; then
               echo "No CSV changes to commit"
+              pushed=true
               break
             fi
             git commit -m "Backfill bulk meeting fields $(date -u +%Y-%m-%dT%H:%MZ)"
             if timeout 90 git push; then
               echo "Pushed on attempt $i"
+              pushed=true
               break
             fi
             echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
             timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
             git reset --hard "origin/${{ github.ref_name }}" || true
-            sleep 3
+            sleep $((10 + RANDOM % 20))
           done
+          # Same incident as backfill_race_results.yml (Sep 2026, see chat):
+          # exhausting retries used to fall through silently, and the final
+          # git reset --hard discarded a fully-merged local commit while the
+          # step still reported success. Never again - fail loudly instead.
+          if [ "$pushed" != "true" ]; then
+            echo "::error::Failed to push after all retry attempts - the locally merged commit was discarded by the final git reset. All this run's merged data is lost; re-run the backfill."
+            exit 1
+          fi
 
       - name: Dry-run report
         if: ${{ !inputs.commit }}

@@ -141,23 +141,36 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for i in 1 2 3 4 5 6 7 8; do
+          pushed=false
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             python backfill_race_results.py --merge-only backfill_race_results.json --commit
             git add race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint 2>/dev/null || true
             if [[ -z "$(git status --porcelain -- race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint)" ]]; then
               echo "No changes to commit"
+              pushed=true
               break
             fi
             git commit -m "Backfill race results $(date -u +%Y-%m-%dT%H:%MZ)"
             if timeout 90 git push; then
               echo "Pushed on attempt $i"
+              pushed=true
               break
             fi
             echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
             timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
             git reset --hard "origin/${{ github.ref_name }}" || true
-            sleep 3
+            sleep $((10 + RANDOM % 20))
           done
+          # A real incident (Sep 2026, see chat): this loop used to exhaust
+          # all attempts under heavy push contention, then just fall through
+          # with no error - the final "git reset --hard" silently discarded
+          # a fully-merged local commit (~1.5 hours of fetch+merge work) and
+          # the step still reported success. Never let that happen silently
+          # again: an unpushed merge after every retry is a real failure.
+          if [ "$pushed" != "true" ]; then
+            echo "::error::Failed to push after all retry attempts - the locally merged commit was discarded by the final git reset. All this run's merged data is lost; re-run the backfill."
+            exit 1
+          fi
 
       - name: Dry-run report
         if: ${{ !inputs.diagnose_meeting_id && !inputs.commit }}
