@@ -40,14 +40,22 @@ _INTERESTING = re.compile(
 
 
 def _build_url(path):
+    """Deliberately does NOT default-add x-sveltekit-invalidated like
+    toprate_json_capture.py's runner fetch does. That param tells the
+    server which layout segments the CLIENT already has cached from a
+    prior page load ('0' = reuse cache, skip refetch), which is only
+    true for a real browser mid-navigation. A cold one-shot script has
+    no prior state, so forcing '0001' can make the server skip parent
+    layout nodes entirely (e.g. a meeting's rail/going, which live in
+    the /meetings/{id} layout, not the /history leaf) - exactly what
+    happened on the first run of this script against a real page.
+    Omitting the param outright asks for everything fresh. Pass it
+    explicitly in <path> yourself (as a query string) to override."""
     path = path.strip().lstrip("/")
     if not path.startswith("http"):
         path = f"{tjc.WEB_BASE}/{path}"
     if "__data.json" not in path:
         path = path.rstrip("/") + "/__data.json"
-    if "x-sveltekit-invalidated" not in path:
-        sep = "&" if "?" in path else "?"
-        path = f"{path}{sep}x-sveltekit-invalidated=0001"
     return path
 
 
