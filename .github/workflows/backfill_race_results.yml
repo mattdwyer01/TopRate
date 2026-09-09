@@ -1,0 +1,172 @@
+name: TopRate Backfill Race Results
+
+# Manual only. Builds race_results.csv.gz (one row per runner per
+# race, for EVERY runner in a finalized meeting - not just runners
+# already captured elsewhere) and track_conditions_history.csv (a
+# per-track rail/going timeline), via backfill_race_results.py. See
+# that script's own module docstring for the full design rationale,
+# in particular why it is a separate file/script/checkpoint from
+# backfill_bulk_meeting_fields.py rather than folded into it.
+#
+# ALWAYS run with diagnose_meeting_id first (or on your very first
+# dispatch), read the logged output, and only then run a real
+# limit/since/all pass - this script's field-name assumptions (which
+# key holds the horse's name, the exact rail-position/meetingHistory
+# key names) come from an earlier live page dump, not a fresh check.
+#
+# Same fetch/merge split as backfill_bulk_meeting_fields.yml, for the
+# same reason (see that workflow's own top-of-file comment and
+# CLAUDE.md's incident writeup): a single long-running step that
+# fetches for a while then writes the CSVs it loaded at job start
+# would go stale under price_refresh.yml's every-5-minutes writes to
+# OTHER files in this repo, though race_results.csv.gz itself is not
+# touched by anything else yet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      diagnose_meeting_id:
+        description: 'Print the raw schema for one meeting and exit (no CSV writes). Run this first.'
+        required: false
+        type: string
+      limit:
+        description: 'Only fetch the first N meetings (most recent first). Good for a first test run.'
+        required: false
+        type: string
+      since:
+        description: 'Only meetings on/after this date (YYYY-MM-DD). Leave blank for no date floor.'
+        required: false
+        type: string
+      all:
+        description: 'Process every meeting on file (thousands of calls - can take a long time)'
+        required: false
+        type: boolean
+        default: false
+      commit:
+        description: 'Actually write the CSVs. Leave off for a dry run that only reports what would change.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: toprate-backfill-race-results
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ─────────────────────────────────────────────────────────
+      # Diagnose mode: print the raw schema for one meeting, then
+      # stop. No CSV writes, nothing to commit. Use this before
+      # trusting any real run, and again if a real run's row counts
+      # look wrong.
+      # ─────────────────────────────────────────────────────────
+      - name: Diagnose one meeting
+        if: ${{ inputs.diagnose_meeting_id }}
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python backfill_race_results.py --diagnose-one "${{ inputs.diagnose_meeting_id }}"
+
+      - name: Validate inputs
+        if: ${{ !inputs.diagnose_meeting_id }}
+        run: |
+          if [ -z "${{ inputs.limit }}" ] && [ -z "${{ inputs.since }}" ] && [ "${{ inputs.all }}" != "true" ]; then
+            echo "::error::One of limit, since, or all must be set - refusing to guess the scope."
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 1: Fetch phase only. Writes results to a local JSON;
+      # never touches race_results.csv.gz or track_conditions_history.csv.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch race results
+        if: ${{ !inputs.diagnose_meeting_id }}
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          ARGS="--fetch-only backfill_race_results.json"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          [ -n "${{ inputs.since }}" ] && ARGS="$ARGS --since ${{ inputs.since }}"
+          [ "${{ inputs.all }}" = "true" ] && ARGS="$ARGS --all"
+          echo "Running: python backfill_race_results.py $ARGS"
+          python backfill_race_results.py $ARGS
+
+      # ─────────────────────────────────────────────────────────
+      # Step 2: Commit the checkpoint right away, independent of
+      # whether the merge below (commit=true) even runs.
+      # ─────────────────────────────────────────────────────────
+      - name: Commit checkpoint
+        if: ${{ !inputs.diagnose_meeting_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f backfill_race_results.checkpoint ] && git add backfill_race_results.checkpoint
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No checkpoint changes to commit"
+          else
+            git commit -m "Backfill race results checkpoint update $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3 4 5 6 7 8; do
+              if timeout 90 git push; then
+                echo "Checkpoint pushed on attempt $i"
+                break
+              fi
+              echo "Checkpoint push rejected or timed out (attempt $i) - pulling and retrying"
+              timeout 120 git pull --rebase --no-edit || git rebase --abort
+              sleep 3
+            done
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 3: Merge phase, only when commit=true was requested.
+      # race_results.csv.gz/track_conditions_history.csv are new
+      # files nothing else touches, so a push conflict here is far
+      # less likely than on wpr_form_history.csv.gz - still retries
+      # against a freshly re-fetched base rather than assuming.
+      # ─────────────────────────────────────────────────────────
+      - name: Merge into race_results.csv.gz / track_conditions_history.csv
+        if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
+        run: |
+          for i in 1 2 3 4 5 6 7 8; do
+            python backfill_race_results.py --merge-only backfill_race_results.json --commit
+            git add race_results.csv.gz track_conditions_history.csv 2>/dev/null || true
+            if [[ -z "$(git status --porcelain -- race_results.csv.gz track_conditions_history.csv)" ]]; then
+              echo "No CSV changes to commit"
+              break
+            fi
+            git commit -m "Backfill race results $(date -u +%Y-%m-%dT%H:%MZ)"
+            if timeout 90 git push; then
+              echo "Pushed on attempt $i"
+              break
+            fi
+            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            timeout 120 git fetch origin
+            git reset --hard "origin/${{ github.ref_name }}"
+            sleep 3
+          done
+
+      - name: Dry-run report
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.commit }}
+        run: |
+          echo "Dry run requested (commit was left off) - reporting what WOULD change, nothing written."
+          python backfill_race_results.py --merge-only backfill_race_results.json

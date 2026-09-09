@@ -152,6 +152,18 @@ RUNNER_COLS = [
     # impossible +60-140% ROI purely because of this leak. Kept only for
     # display/reference; never feed it into a model or ranking.
     "jt_combo_win_pct","jt_combo_rides",
+    # potPercent (profit-on-turnover) / lt3LengthsPercent (beaten <3 lengths)
+    # from the SAME filtered stat-domain dicts as jockey_win_pct_90d/
+    # trainer_win_pct_365d above - same trailing pre-race window, same
+    # get_race_stats RPC, no leak risk (Sep 2026 addition, see chat).
+    "jockey_pot_pct_90d","trainer_pot_pct_365d",
+    "jockey_lt3l_pct_90d","trainer_lt3l_pct_365d",
+    # jt_combo_pot_pct/jt_combo_lt3l_pct come from the SAME array entry as
+    # jt_combo_win_pct above, so they inherit its documented leak (on
+    # jt_combo_rides==1 rows this reflects TODAY's own result, not a
+    # pre-race trailing window). Same rule as jt_combo_win_pct: display/
+    # reference only, never a model input.
+    "jt_combo_pot_pct","jt_combo_lt3l_pct",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
     "going_breakdown","form_string",
@@ -929,6 +941,8 @@ def build_stats_lookup(race_stats):
         # Path A: a dedicated array similar to jockeyStats/trainerStats
         jt_combo_win_pct = None
         jt_combo_rides   = None
+        jt_match = {}  # kept defined even when no combo array matches, so the
+                        # potPercent/lt3LengthsPercent lookup below never NameErrors
         for arr_key in ("jockeyTrainerStats", "jockeyTrainerComboStats",
                         "comboStats", "jtComboStats", "jtStats"):
             arr = runner.get(arr_key)
@@ -961,6 +975,20 @@ def build_stats_lookup(race_stats):
             # doesn't expose this; the score formula falls back to other signals.
             "jt_combo_win_pct": jt_combo_win_pct,
             "jt_combo_rides":   jt_combo_rides,
+            # potPercent (profit-on-turnover) and lt3LengthsPercent (beaten <3
+            # lengths) live on the same filtered stat-domain dicts as
+            # winPercent above - confirmed present on jockeyStats/trainerStats/
+            # jockeyTrainerStats (Sep 2026, see chat). Stronger form signals
+            # than win% alone per TopRate's own material; live-only (this
+            # whole lookup is built from today's get_race_stats RPC for
+            # today's runners, never backfilled onto historical rows, so
+            # there is no point-in-time leak risk here).
+            "jockey_pot_pct_90d":    j90.get("potPercent"),
+            "trainer_pot_pct_365d":  t365.get("potPercent"),
+            "jockey_lt3l_pct_90d":   j90.get("lt3LengthsPercent"),
+            "trainer_lt3l_pct_365d": t365.get("lt3LengthsPercent"),
+            "jt_combo_pot_pct":      jt_match.get("potPercent"),
+            "jt_combo_lt3l_pct":     jt_match.get("lt3LengthsPercent"),
         }
     return lookup
 
@@ -2597,6 +2625,14 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     # formula falls back to other signals when missing.
                     "jt_combo_win_pct":   s.get("jt_combo_win_pct"),
                     "jt_combo_rides":     s.get("jt_combo_rides"),
+                    # potPercent/lt3LengthsPercent - see RUNNER_COLS comment
+                    # for which of these are safe model inputs vs display-only.
+                    "jockey_pot_pct_90d":    s.get("jockey_pot_pct_90d"),
+                    "trainer_pot_pct_365d":  s.get("trainer_pot_pct_365d"),
+                    "jockey_lt3l_pct_90d":   s.get("jockey_lt3l_pct_90d"),
+                    "trainer_lt3l_pct_365d": s.get("trainer_lt3l_pct_365d"),
+                    "jt_combo_pot_pct":      s.get("jt_combo_pot_pct"),
+                    "jt_combo_lt3l_pct":     s.get("jt_combo_lt3l_pct"),
                     # Contextual fields
                     "sect_early":         d.get("sectEarly"),
                     "weight_carried":     d.get("weightCarried"),
