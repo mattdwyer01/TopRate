@@ -70,9 +70,13 @@ def _build_url(path):
     path = path.strip().lstrip("/")
     if not path.startswith("http"):
         path = f"{tjc.WEB_BASE}/{path}"
-    if "__data.json" not in path:
-        path = path.rstrip("/") + "/__data.json"
-    return path
+    # Split off any query string (e.g. ?resMeetingId=...&resView=allRaces)
+    # before inserting __data.json, otherwise it lands after the query
+    # string instead of before it and the request 404s.
+    base, sep, query = path.partition("?")
+    if "__data.json" not in base:
+        base = base.rstrip("/") + "/__data.json"
+    return base + (sep + query if sep else "")
 
 
 def _fetch(url):
