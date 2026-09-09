@@ -165,5 +165,5 @@ if __name__ == "__main__":
                 # depth 0 here (not 1): the root-level container itself has
                 # not been visited by _walk yet, only printed above, so it
                 # must not be pre-marked seen or _walk bails immediately.
-                _walk(k, v, deref, 0, seen, max_depth=3)
+                _walk(k, v, deref, 0, seen, max_depth=6)
         print()
