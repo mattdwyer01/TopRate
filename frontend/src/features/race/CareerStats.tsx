@@ -113,19 +113,18 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
         </tbody>
         {/* Reconciliation: the Adj column above only covers whichever
             ADJ_TERMS matched a career/condition row (distance/going/
-            first-up/second-up). own_trend/own_long_spell have no matching
-            row, and the calibration offset (baseline) applies uniformly to
-            every runner rather than being specific to this horse - both
-            were previously either buried in a plain-text footer or dropped
-            entirely, so the Adj column never visibly added up to the
-            adjustment total shown above. Listing what's left plus a Total
-            row that reconciles exactly closes that gap. A second <tbody>
-            of THIS SAME <table> (not a separate table below it) - a
-            separate table with its own auto-computed column widths only
-            ever approximated the main table's Adj column position; a
-            colSpan cell within the same table can't establish a competing
-            width for the (non-spanned) Adj column, so this guarantees the
-            Total row's value lands in the exact same column. */}
+            first-up/second-up) - own_trend/own_long_spell/track_barrier/
+            closing_merit/trainer_merit/jockey_merit/pace_shape have no
+            matching career-condition row, so without this the Adj column
+            never visibly added up to the adjustment total shown above.
+            Listing what's left plus a Total row that reconciles exactly
+            closes that gap. A second <tbody> of THIS SAME <table> (not a
+            separate table below it) - a separate table with its own
+            auto-computed column widths only ever approximated the main
+            table's Adj column position; a colSpan cell within the same
+            table can't establish a competing width for the (non-spanned)
+            Adj column, so this guarantees the Total row's value lands in
+            the exact same column. */}
         {breakdown && runner.wprAdjustment != null && (
           <tbody className="[&_td]:py-0.5">
             {otherAdj.map(([key, v], i) => (
@@ -138,20 +137,6 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
                 </td>
               </tr>
             ))}
-            {breakdown.baseline != null && Math.abs(breakdown.baseline) >= MIN_ADJ_SHOWN && (
-              <tr className={`text-ink-faint ${otherAdj.length === 0 ? 'border-t border-line-soft' : ''}`}>
-                <td colSpan={4} className="pt-1">
-                  Calibration (every runner)
-                </td>
-                <td
-                  className={`pt-1 pl-2 text-right font-mono ${
-                    breakdown.baseline > 0 ? 'text-emerald-deep' : 'text-rose'
-                  }`}
-                >
-                  {fmtSigned(breakdown.baseline)}
-                </td>
-              </tr>
-            )}
             <tr className="border-t border-line-soft font-semibold text-ink">
               <td colSpan={4} className="pt-1">
                 Total adjustment
