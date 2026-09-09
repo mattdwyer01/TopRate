@@ -18,4 +18,5 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   gear_change: 'Gear change today',
   trainer_merit: "Trainer's recent strike rate",
   jockey_merit: "Jockey's recent strike rate",
+  pace_shape: "Today's predicted race shape fit",
 }

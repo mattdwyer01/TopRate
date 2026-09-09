@@ -110,9 +110,9 @@ export interface Runner {
   projectedWpr: number | null
   baseWpr: number | null
   wprAdjustment: number | null
-  // What drove wprAdjustment, by feature - values sum to wprAdjustment
-  // exactly (includes a "baseline" entry for the model's uniform terms).
-  // Null when there's no projection.
+  // What drove wprAdjustment, by feature (one entry per wpr_projection.py
+  // ADJ_TERM) - values sum to wprAdjustment exactly. Null when there's no
+  // projection.
   adjustmentBreakdown: Record<string, number> | null
   projectionConfidence: number | null
   wprPrice: number | null
@@ -188,46 +188,6 @@ export interface PriceHistoryEntry {
   sampleCount: number | null
 }
 
-export interface OverlayBacktest {
-  method: string
-  period: string
-  nBets: number
-  strikeRate: number
-  roiPct: number
-  tStat: number
-  validatedDate: string
-}
-
-export interface OverlayBet {
-  raceId: string
-  date: string
-  venue: string
-  race: number | null
-  horse: string
-  tab: number | null
-  edge: number | null
-  price: number
-  won: boolean
-  finish: number | null
-  profit: number
-}
-
-// Overlay ROI tracker: an automated record of runners whose model-vs-market
-// edge crosses `threshold`, tallied as real results come in - NOT a log of
-// anyone's actual placed bets (see CareerStats/Review docs for why a real
-// bet-log P&L tab is a separate, not-yet-built thing).
-export interface OverlayTracker {
-  threshold: number
-  liveSince: string
-  nSettled: number
-  nPending: number
-  strikeRate: number | null
-  roiPct: number | null
-  tStat: number | null
-  backtest: OverlayBacktest
-  bets: OverlayBet[]
-}
-
 export interface DashboardData {
   races: Race[]
   priceHistory: Record<string, PriceHistoryEntry>
@@ -237,5 +197,4 @@ export interface DashboardData {
   // Softmax beta behind wprPrice - lets the UI replicate the exact price
   // formula when a manual rating override changes the field's ratings.
   priceBeta: number | null
-  overlayTracker: OverlayTracker | null
 }

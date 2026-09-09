@@ -1466,130 +1466,6 @@ def compute_edge_score(runners_df, target_date_str=None):
     return runners_df
 
 
-# ── Overlay ROI tracker (Sep 2026) ──────────────────────────────────────────
-# The dashboard's own automated record of what would happen if every runner
-# crossing OVERLAY_EDGE_THRESHOLD (wprp_edge, computed daily by
-# compute_edge_score above) was backed at its shown price - a "backtest
-# running live" view. This is deliberately NOT the real bet-log/P&L tab
-# CLAUDE.md documents as explicitly not built ("there's no bet log, and one
-# wasn't wanted without real bet tracking behind it") - that decision stands;
-# this tracks the MODEL's own flagged opportunities automatically, no user
-# input, and is not presented as anyone's real wagers.
-#
-# OVERLAY_EDGE_THRESHOLD=0.10 is a fixed constant, not something a retrain
-# silently changes - see wpr_walkforward_shipped_roi_test.py's walk-forward
-# validation (4 monthly folds, Jun-Sep 2026, strictly-prior-data refits
-# only) for why 0.10: the smallest threshold that cleared statistical
-# significance in BOTH the pre-Sep-2026 baseline (t=2.01) and the
-# architecture shipped that month (t=2.99), while keeping a usable bet
-# volume (~2,400 over ~4 months, vs a few hundred at higher thresholds).
-OVERLAY_EDGE_THRESHOLD = 0.10
-
-# OVERLAY_LIVE_SINCE is NOT "the day the tracker shipped" - it is the
-# earliest date wprp_edge is known to reflect TODAY's architecture, not a
-# stale prior one. compute_edge_score() runs on "today" every daily fetch
-# and freezes per-day like wprp_proj, so plenty of OLDER wprp_edge values
-# exist in toprate_runners.csv - they were just computed under whatever
-# architecture was live on THAT historical day, which is wrong to mix in
-# here (a user asking "what would today's model have flagged" should not
-# silently get some rows scored under a materially different, already-
-# superseded model). This constant marks how far back wpr_backfill_edge_
-# scores.py has actually been (re)run - bump it by hand (and rerun that
-# script for the wider window) after any future model change significant
-# enough to warrant re-validating, same discipline as OVERLAY_BACKTEST_
-# VALIDATION above. Currently matches wpr_backfill_projections.py's own
-# 30-day-back window, backfilled Sep 2026 after the per-race demeaning fix.
-OVERLAY_LIVE_SINCE = "2026-08-09"
-
-# Hardcoded from wpr_walkforward_shipped_roi_test.py's actual run (Sep 2026)
-# at OVERLAY_EDGE_THRESHOLD - NOT auto-regenerated. Re-run that script and
-# update this block by hand if the model changes enough to warrant
-# re-validating; an auto-updating badge here would let a real regression
-# ship while still showing "validated".
-OVERLAY_BACKTEST_VALIDATION = {
-    "method": "Walk-forward: 4 monthly folds, strictly-prior-data refits only",
-    "period": "2026-06 to 2026-09",
-    "n_bets": 2414,
-    "strike_rate": 18.77,
-    "roi_pct": 20.61,
-    "t_stat": 2.99,
-    "validated_date": "2026-09-08",
-}
-
-
-def compute_overlay_tracker(runners_df):
-    """The LIVE half of the tracker: every non-scratched runner since
-    OVERLAY_LIVE_SINCE with wprp_edge >= OVERLAY_EDGE_THRESHOLD, tallied as
-    settled (resulted) vs still pending. Cheap - a filter + tally over
-    already-computed columns, no model calls - so it's recomputed fresh on
-    every rebuild and never goes stale, unlike wprp_proj/wprp_edge
-    themselves (which freeze per-day at compute time).
-
-    Call this on the FULL (unwindowed) runners_df, before rebuild_html()'s
-    own 30-day display-window filter - OVERLAY_LIVE_SINCE only grows further
-    behind "today" as time passes, so a windowed frame would silently start
-    dropping early tracker rows once more than ~30 days have elapsed."""
-    df = runners_df.copy()
-    df["date"] = df["date"].astype(str).str[:10]
-    edge = pd.to_numeric(df["wprp_edge"], errors="coerce")
-    scoped = df[(df["date"] >= OVERLAY_LIVE_SINCE) & (df["scratched"] != 1) &
-                edge.notna() & (edge >= OVERLAY_EDGE_THRESHOLD)]
-
-    result = {
-        "threshold": OVERLAY_EDGE_THRESHOLD, "live_since": OVERLAY_LIVE_SINCE,
-        "n_settled": 0, "n_pending": 0, "strike_rate": None, "roi_pct": None,
-        "t_stat": None, "backtest": OVERLAY_BACKTEST_VALIDATION, "bets": [],
-    }
-    if len(scoped) == 0:
-        return result
-
-    settled = scoped[scoped["resulted"] == 1].copy()
-    result["n_pending"] = int((scoped["resulted"] != 1).sum())
-
-    settled["_price"] = pd.to_numeric(settled["fixed_win_price"], errors="coerce").combine_first(
-        pd.to_numeric(settled["starting_price_sp"], errors="coerce"))
-    settled["_won"] = pd.to_numeric(settled["won"], errors="coerce")
-    valid = settled["_price"].notna() & (settled["_price"] > 1.0) & settled["_won"].notna()
-    settled = settled[valid]
-
-    n_settled = int(len(settled))
-    result["n_settled"] = n_settled
-    if n_settled > 0:
-        won_arr = settled["_won"].to_numpy()
-        price_arr = settled["_price"].to_numpy()
-        profit = np.where(won_arr == 1, price_arr - 1.0, -1.0)
-        result["strike_rate"] = round(float(won_arr.mean() * 100), 2)
-        result["roi_pct"] = round(float(profit.sum() / n_settled * 100), 2)
-        if n_settled > 1:
-            se = profit.std(ddof=1) / np.sqrt(n_settled)
-            if se > 0:
-                result["t_stat"] = round(float(profit.mean() / se), 2)
-
-        # Per-bet ledger for the dashboard's date-range drill-down (Sep 2026)
-        # - one row per settled overlay, small enough to embed directly
-        # (a few thousand rows at most even after months of daily racing,
-        # negligible next to the payload's own size). Pending (not yet
-        # resulted) runners are deliberately excluded here - nothing to
-        # show for them but "flagged", which the summary count already
-        # covers; a bet only earns a ledger row once it has an outcome.
-        edge_v = pd.to_numeric(settled["wprp_edge"], errors="coerce")
-        finish_v = pd.to_numeric(settled.get("finish_position"), errors="coerce")
-        for (rid, dt, venue, race_no, horse, tab, edge, price, won, finish) in zip(
-                settled["race_id"], settled["date"], settled["venue"], settled["race"],
-                settled["horse"], settled["tab_number"], edge_v, price_arr, won_arr, finish_v):
-            result["bets"].append({
-                "race_id": str(rid), "date": dt, "venue": venue, "race": int(race_no) if race_no == race_no else None,
-                "horse": horse, "tab": int(tab) if tab == tab else None,
-                "edge": round(float(edge), 4) if edge == edge else None,
-                "price": round(float(price), 2),
-                "won": bool(won == 1),
-                "finish": int(finish) if finish == finish else None,
-                "profit": round(float(price - 1.0 if won == 1 else -1.0), 2),
-            })
-        result["bets"].sort(key=lambda b: b["date"], reverse=True)
-    return result
-
-
 def compute_wpr_actual(runners_df):
     """Add wpr_actual and wpr_actual_rank to RESULTED runners.
 
@@ -3003,15 +2879,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # that work is never done in the first place. +2 day buffer so this is
     # always a superset of whatever render_html() keeps - never narrower -
     # so the final HTML/JSON output is unaffected, just faster to build.
-    # Computed on the FULL, unwindowed runners_df (see its own docstring for
-    # why) - before the display-window filter just below narrows runners_df
-    # for everything else in this function.
-    try:
-        overlay_tracker = compute_overlay_tracker(runners_df)
-    except Exception as e:
-        print(f"  Overlay tracker error: {e}")
-        overlay_tracker = None
-
     _orig_runner_count = len(runners_df)
     try:
         _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "30")) + 2
@@ -3835,7 +3702,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
         model_pick_rows=model_pick_rows or [],
         primary_model_key=primary_key,
         price_beta=price_beta,
-        overlay_tracker=overlay_tracker,
     )
     del html
     # Data payload the frontend fetches at boot instead of inlining it
