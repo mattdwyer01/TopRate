@@ -42,12 +42,20 @@ OUTPUTS
   match wpr_form_history.csv.gz's naming instead of drifting into a
   parallel scheme.
 
-  track_conditions_history.csv - a second, much smaller output from the
-  SAME fetch pass: meetingHistory.tracks[].history[], TopRate's own
-  compiled per-track rail/going timeline, independent of whether we have
-  runner data for that particular meeting. Columns: track, date,
-  rail_position, going_changes (raw JSON list string - schema not fully
-  characterized yet, see --diagnose-one).
+  track_codes.csv - a second, tiny output from the SAME fetch pass:
+  meetingResult.tracks[], which turned out (via --diagnose-one, Sep
+  2026) to be just a flat {track, trackId, trackCode} identifier for
+  the meeting's own track, NOT the richer per-track rail/going timeline
+  originally hoped for (an earlier live page dump this session, on a
+  different route, suggested a "meetingHistory.tracks[].history[]" with
+  127-230 dated entries per track - that shape does not exist on THIS
+  endpoint's meetingResult node; may live in a different SvelteKit node
+  of the same response, not pursued further since it turned out to be
+  unnecessary - track bias by rail/going is already fully answerable
+  from race_results.csv.gz itself: group by (track, going, rail_position)
+  across every race this script backfills, per the ledger's own "track
+  bias is a lookup against similar past meetings" framing). Kept anyway
+  as a cheap track-name/id/code reference table, deduped by track name.
 
 VERIFY BEFORE TRUSTING
   This script's field-name assumptions for the runner/race dicts (which
@@ -106,7 +114,7 @@ import toprate_json_capture as cap
 
 CHECKPOINT_FILE = Path(__file__).parent / "backfill_race_results.checkpoint"
 RACE_RESULTS_CSV = Path(__file__).parent / "race_results.csv.gz"
-TRACK_HISTORY_CSV = Path(__file__).parent / "track_conditions_history.csv"
+TRACK_CODES_CSV = Path(__file__).parent / "track_codes.csv"
 DEFAULT_WORKERS = 8
 
 # CORE_COLS entries are raw API key names that are ALSO the column name on
@@ -165,7 +173,7 @@ def fetch_meeting_full(meeting_id):
     for the per-track rail/going timeline - removed once --diagnose-one
     (Sep 2026, see chat) showed that wrapper doesn't exist on this
     endpoint; "tracks" sits directly on meeting_result itself, read from
-    there by extract_track_history."""
+    there by extract_track_codes."""
     url = _build_url(meeting_id)
     for attempt in range(1, cap.MAX_RETRIES + 1):
         headers, cookies = cap._auth_bits()
@@ -310,19 +318,16 @@ def extract_race_results(meeting_result, deref):
     return rows
 
 
-def extract_track_history(meeting_result, deref):
-    """Return a list of {track, date, rail_position, going_changes} rows
-    from meetingResult.tracks[].history[] - TopRate's own compiled
-    per-track rail/going timeline, independent of runner data. NOTE: an
-    earlier live page dump this session (a different route) suggested
-    this lived under a separate "meetingHistory" wrapper key -
-    --diagnose-one on THIS endpoint (Sep 2026, see chat) showed that
-    wrapper does not exist here; "tracks" sits directly on meetingResult
-    alongside "races". Cheap either way: no extra network cost, it's a
-    small array already in the same
-    payload extract_race_results reads. going_changes is stored as a
-    raw JSON string; its own schema isn't characterized yet, see
-    --diagnose-one."""
+def extract_track_codes(meeting_result, deref):
+    """Return a list of {track, track_id, track_code} rows from
+    meetingResult.tracks[]. Originally hoped this held a per-track rail/
+    going timeline (see module OUTPUTS docstring for why that turned out
+    to be wrong) - confirmed by --diagnose-one (Sep 2026, see chat) to
+    just be a flat identifier: meetingResult.tracks[0] = {'track':
+    'Hawkesbury', 'trackId': 246, 'trackCode': 'HAWKE'}, no 'history'
+    key at all. Kept as a cheap track-name/id/code reference table
+    rather than dropped entirely - it's free, already in the same
+    payload extract_race_results reads."""
     rows = []
     if not isinstance(meeting_result, dict):
         return rows
@@ -333,25 +338,11 @@ def extract_track_history(meeting_result, deref):
         track = deref(tp)
         if not isinstance(track, dict):
             continue
-        track_name = cap._scalar(deref(track.get("track") or track.get("name")))
-        history = deref(track.get("history"))
-        if not isinstance(history, list):
-            continue
-        for hp in history:
-            h = deref(hp)
-            if not isinstance(h, dict):
-                continue
-            date = deref(h.get("date"))
-            rail = cap._scalar(deref(h.get("railPosition")))
-            gc = deref(h.get("goingChanges"))
-            going_changes = (json.dumps([cap._scalar(deref(x)) for x in gc])
-                              if isinstance(gc, list) else None)
-            rows.append({
-                "track": track_name,
-                "date": str(date)[:10] if date else None,
-                "rail_position": rail,
-                "going_changes": going_changes,
-            })
+        rows.append({
+            "track": cap._scalar(deref(track.get("track"))),
+            "track_id": cap._scalar(deref(track.get("trackId"))),
+            "track_code": cap._scalar(deref(track.get("trackCode"))),
+        })
     return rows
 
 
@@ -497,7 +488,7 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
                 n_empty += 1
                 continue
             rr = extract_race_results(mr, deref)
-            tr = extract_track_history(mr, deref)
+            tr = extract_track_codes(mr, deref)
             if not rr:
                 n_empty += 1
                 continue
@@ -557,24 +548,27 @@ def merge_race_results(race_rows, commit, backup=True):
     return len(new)
 
 
-def merge_track_history(track_rows, commit, backup=True):
-    """Append genuinely new (track, date) rows to track_conditions_history.csv."""
-    if TRACK_HISTORY_CSV.exists():
-        existing = pd.read_csv(TRACK_HISTORY_CSV, low_memory=False)
-        print(f"  existing track_conditions_history.csv: {len(existing):,} rows")
+def merge_track_codes(track_rows, commit, backup=True):
+    """Append genuinely new track rows to track_codes.csv, deduped by
+    track name (a track's id/code is static, unlike a rail/going
+    timeline - one row per distinct track is all this file ever needs)."""
+    if TRACK_CODES_CSV.exists():
+        existing = pd.read_csv(TRACK_CODES_CSV, low_memory=False)
+        print(f"  existing track_codes.csv: {len(existing):,} rows")
     else:
         existing = pd.DataFrame()
-        print("  no existing track_conditions_history.csv - will create one")
+        print("  no existing track_codes.csv - will create one")
 
     new = pd.DataFrame(track_rows)
     if new.empty:
-        print("  no track-history rows to merge")
+        print("  no track rows to merge")
         return 0
+    new = new.drop_duplicates(subset=["track"])
 
     if not existing.empty:
-        existing_keys = set(zip(existing["track"].astype(str), existing["date"].astype(str)))
+        existing_keys = set(existing["track"].astype(str))
         before = len(new)
-        new = new[~new.apply(lambda r: (str(r["track"]), str(r["date"])) in existing_keys, axis=1)]
+        new = new[~new["track"].astype(str).isin(existing_keys)]
         print(f"  {before - len(new):,} rows already present, skipped")
 
     print(f"  {len(new):,} genuinely new rows")
@@ -585,14 +579,14 @@ def merge_track_history(track_rows, commit, backup=True):
         print("DRY RUN - nothing written. Pass --commit to save for real.")
         return len(new)
 
-    if backup and TRACK_HISTORY_CSV.exists():
-        bkp = f"{TRACK_HISTORY_CSV}.pre_merge_{datetime.now():%Y%m%d_%H%M%S}"
-        shutil.copy(TRACK_HISTORY_CSV, bkp)
+    if backup and TRACK_CODES_CSV.exists():
+        bkp = f"{TRACK_CODES_CSV}.pre_merge_{datetime.now():%Y%m%d_%H%M%S}"
+        shutil.copy(TRACK_CODES_CSV, bkp)
         print(f"  backed up existing file to {bkp}")
 
     combined = pd.concat([existing, new], ignore_index=True) if not existing.empty else new
-    combined.to_csv(TRACK_HISTORY_CSV, index=False)
-    print(f"  wrote {TRACK_HISTORY_CSV} ({len(combined):,} total rows)")
+    combined.to_csv(TRACK_CODES_CSV, index=False)
+    print(f"  wrote {TRACK_CODES_CSV} ({len(combined):,} total rows)")
     return len(new)
 
 
@@ -629,7 +623,7 @@ def main():
         print(f"Loaded {len(race_rows):,} race rows, {len(track_rows):,} track rows "
               f"from {args.merge_only}")
         merge_race_results(race_rows, commit=args.commit, backup=True)
-        merge_track_history(track_rows, commit=args.commit, backup=True)
+        merge_track_codes(track_rows, commit=args.commit, backup=True)
         return
 
     if not (args.limit or args.since or args.all):
@@ -655,7 +649,7 @@ def main():
     # results. Fine for a local manual run; the split mode above is what
     # the GitHub Action uses, same reasoning as backfill_bulk_meeting_fields.py.
     merge_race_results(race_rows, commit=args.commit)
-    merge_track_history(track_rows, commit=args.commit)
+    merge_track_codes(track_rows, commit=args.commit)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@ name: TopRate Backfill Race Results
 
 # Manual only. Builds race_results.csv.gz (one row per runner per
 # race, for EVERY runner in a finalized meeting - not just runners
-# already captured elsewhere) and track_conditions_history.csv (a
-# per-track rail/going timeline), via backfill_race_results.py. See
+# already captured elsewhere) and track_codes.csv (a small track
+# name/id/code reference table), via backfill_race_results.py. See
 # that script's own module docstring for the full design rationale,
 # in particular why it is a separate file/script/checkpoint from
 # backfill_bulk_meeting_fields.py rather than folded into it.
@@ -97,7 +97,7 @@ jobs:
 
       # ─────────────────────────────────────────────────────────
       # Step 1: Fetch phase only. Writes results to a local JSON;
-      # never touches race_results.csv.gz or track_conditions_history.csv.
+      # never touches race_results.csv.gz or track_codes.csv.
       # ─────────────────────────────────────────────────────────
       - name: Fetch race results
         if: ${{ !inputs.diagnose_meeting_id }}
@@ -139,18 +139,18 @@ jobs:
 
       # ─────────────────────────────────────────────────────────
       # Step 3: Merge phase, only when commit=true was requested.
-      # race_results.csv.gz/track_conditions_history.csv are new
+      # race_results.csv.gz/track_codes.csv are new
       # files nothing else touches, so a push conflict here is far
       # less likely than on wpr_form_history.csv.gz - still retries
       # against a freshly re-fetched base rather than assuming.
       # ─────────────────────────────────────────────────────────
-      - name: Merge into race_results.csv.gz / track_conditions_history.csv
+      - name: Merge into race_results.csv.gz / track_codes.csv
         if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
         run: |
           for i in 1 2 3 4 5 6 7 8; do
             python backfill_race_results.py --merge-only backfill_race_results.json --commit
-            git add race_results.csv.gz track_conditions_history.csv 2>/dev/null || true
-            if [[ -z "$(git status --porcelain -- race_results.csv.gz track_conditions_history.csv)" ]]; then
+            git add race_results.csv.gz track_codes.csv 2>/dev/null || true
+            if [[ -z "$(git status --porcelain -- race_results.csv.gz track_codes.csv)" ]]; then
               echo "No CSV changes to commit"
               break
             fi
