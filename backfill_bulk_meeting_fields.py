@@ -102,13 +102,11 @@ DEFAULT_WORKERS = 8
 # like position/margin curves are already well populated on old
 # (long-finalized) rows via the thin feed, so touching them adds risk
 # for no real gain. Two explicit CORE_COLS exceptions (Sep 2026):
-# wprStatus (confirmed present at race level on this bulk endpoint - the
-# ledger's own training-data-staging decision needs this field to exist
-# anywhere at all) and blackType (added for symmetry/documentation, but
-# confirmed ABSENT from both the race and runner dicts on this endpoint
-# - see cap.CORE_COLS' own comment - so it will always come back None
-# here; only backfillable via the far more expensive per-runner route,
-# not attempted).
+# wprStatus (confirmed present at race level - the ledger's own
+# training-data-staging decision needs this field to exist anywhere at
+# all) and blackType (Group/Listed grading - sparse by nature, only set
+# on actual stakes races, confirmed working via a real --limit 10 run:
+# 7/589 rows filled - see cap.CORE_COLS' own comment).
 FILLABLE_COLS = (list(cap.SECT_MAP.values())
                   + list(cap.HORSE_COLS.values())
                   + list(cap.RUN_COLS.values())

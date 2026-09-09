@@ -98,16 +98,13 @@ CORE_COLS = [
     # open decision on training-data staging) and blackType (Group/Listed
     # grading, e.g. 'G2' - a cleaner class signal than the free-text
     # race_class string) - confirmed present (Sep 2026, see chat) but never
-    # captured until now. NOTE: blackType is confirmed present on the
-    # per-runner __data.json endpoint's form entries (what this module and
-    # the live daily capture use) but NOT on the meetings/{id}/history bulk
-    # endpoint's race/runner dicts (what backfill_bulk_meeting_fields.py and
-    # backfill_race_results.py use for historical backfill) - so it will
-    # populate going forward via live capture, but historical backfill of
-    # this one field would need the far more expensive per-runner-page
-    # route, not attempted here. wprStatus IS confirmed present on the bulk
-    # endpoint (at race level), so it backfills historically via both
-    # scripts same as everything else in this list.
+    # captured until now. Both confirmed present on the per-runner
+    # __data.json endpoint AND backfillable via the meetings/{id}/history
+    # bulk endpoint (a first attempt found blackType absent on one sampled
+    # meeting/race, but that meeting simply had no graded stakes race that
+    # day - a real --limit 10 backfill run populated it in 7/589 rows, so
+    # it IS present when the race itself is actually graded; sparse by
+    # nature, not a coverage gap).
     "wprStatus", "blackType",
 ]
 

@@ -154,8 +154,8 @@ jobs:
               break
             fi
             echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
-            timeout 120 git fetch origin
-            git reset --hard "origin/${{ github.ref_name }}"
+            timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            git reset --hard "origin/${{ github.ref_name }}" || true
             sleep 3
           done
 
