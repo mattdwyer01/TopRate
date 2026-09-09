@@ -46,7 +46,9 @@ import wpr_projection as wpr
 from wpr_adj_term_roi_ablation_test import build_frame, fit_fold_terms, ALL_TERMS_FULL
 
 FOLD_MONTHS = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
-BETA_GRID = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40]
+# In z-score units (see _brier_and_beta) - NOT raw prediction units, so this
+# one grid works regardless of a candidate's native output scale.
+BETA_GRID = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0]
 
 
 def _brier_and_beta(fit_scored, held_scored, pred_col):
@@ -54,13 +56,32 @@ def _brier_and_beta(fit_scored, held_scored, pred_col):
     fit_scored, then reports held_scored's Brier score at that beta. Beta
     is fit fresh per fold per architecture so a Brier comparison between
     two candidates is fair (neither is handicapped by a stale/mismatched
-    beta) - same convention wpr_beta_recalibration_clean.py established."""
+    beta) - same convention wpr_beta_recalibration_clean.py established.
+
+    BUG FIX (Sep 2026): pred_col is z-scored (using fit_scored's own mean/
+    std) before the softmax, not used raw. Found via the lambdarank
+    candidate: every single fold picked beta=0.40, the grid's own maximum -
+    a dead giveaway the search was hitting a boundary, not a true optimum.
+    Root cause: BETA_GRID's original range (0.05-0.40) was tuned for
+    WPR-rating-scale predictions (40-110ish); LightGBM's raw lambdarank
+    score lives on a completely different, arbitrary scale, so the same
+    grid was simply wrong for it - not a lambdarank-specific quirk, a
+    latent bug that would silently under-calibrate ANY future candidate
+    whose native output scale differs from a WPR rating. Z-scoring first
+    makes one grid correct for any candidate's scale, and does not change
+    the WPR-scale models' own results (their beta was already comfortably
+    interior to the old grid, not at a boundary)."""
+    mean = fit_scored[pred_col].mean()
+    std = fit_scored[pred_col].std()
+    if not std or std != std or std == 0:
+        std = 1.0
+
     def brier_at(data, beta):
         rows = []
         for rid, g in data.groupby("race_id"):
             if len(g) < 4:
                 continue
-            pv = g[pred_col].to_numpy(dtype=float)
+            pv = (g[pred_col].to_numpy(dtype=float) - mean) / std
             e = np.exp(beta * (pv - pv.max()))
             p = e / e.sum()
             rows.extend(zip(p, g["won"]))
