@@ -95,7 +95,52 @@ CORE_COLS = [
     "raceShapeEarly", "raceShapeMid", "raceShapeLate",
     "winner", "isBarrierTrial",
 ]
-ALL_COLS = SECT_COLS + EXTRA_COLS + CORE_COLS
+
+# Horse-level attributes (age, sex, pedigree, home base, current claim
+# allowance): confirmed present on runnerDetail via a live field dump
+# (see chat, Sep 2026) but never previously extracted. One value per
+# horse, not per run - written into every row for that horse the same
+# way weight_handicap already is below, so a row is self-contained
+# without a second join back to a horse-level table.
+HORSE_COLS = {
+    "horseAge":            "horse_age",
+    "horseSex":            "horse_sex",
+    "horseCountry":        "horse_country",
+    "horseColour":         "horse_colour",
+    "horseFoaled":         "horse_foaled",
+    "sire":                "sire",
+    "sireId":              "sire_id",
+    "sireCountry":         "sire_country",
+    "dam":                 "dam",
+    "damId":               "dam_id",
+    "damCountry":          "dam_country",
+    "sireOfDam":           "sire_of_dam",
+    "sireOfDamCountry":    "sire_of_dam_country",
+    "trainingLocation":    "training_location",
+    "weightAllowance":     "weight_allowance",
+}
+
+# Per-run columns confirmed on the same field dump but likewise never
+# extracted: race conditions (age/weight/jockey restriction - the last
+# is how "set weights vs WFA vs handicap" is actually distinguished),
+# the apprentice claim taken on that specific run, and price movement
+# beyond just starting price.
+RUN_COLS = {
+    "ageRestriction":      "age_restriction",
+    "weightRestriction":   "weight_restriction",
+    "jockeyRestriction":   "jockey_restriction",
+    "weightAdjustment":    "weight_adjustment",
+    "venue":               "venue",
+    "raceName":            "race_name",
+    "priceOpening":        "price_opening",
+    "priceMid":            "price_mid",
+    "priceTop":            "price_top",
+    "winnersTime":         "winners_time",
+}
+HORSE_COL_NAMES = list(HORSE_COLS.values())
+RUN_COL_NAMES = list(RUN_COLS.values())
+
+ALL_COLS = SECT_COLS + EXTRA_COLS + CORE_COLS + HORSE_COL_NAMES + RUN_COL_NAMES
 
 
 def _scalar(v):
@@ -302,6 +347,10 @@ def extract_runs(payload):
     gear_changes_today = (json.dumps([deref(x) for x in gc_today])
                           if isinstance(gc_today, list) else None)
 
+    horse_cols = {}
+    for src_key, col in HORSE_COLS.items():
+        horse_cols[col] = _scalar(deref(rd.get(src_key)))
+
     form = deref(rd.get("form"))
     if not isinstance(form, list):
         return horse_id, [], gear_changes_today
@@ -377,6 +426,10 @@ def extract_runs(payload):
         # inspection) just comes through as None like everything else here.
         for k in CORE_COLS:
             figs[k] = _scalar(deref(fe.get(k)))
+
+        figs.update(horse_cols)
+        for src_key, col in RUN_COLS.items():
+            figs[col] = _scalar(deref(fe.get(src_key)))
 
         out.append({"date": str(run_date), "fields": figs})
     return horse_id, out, gear_changes_today
@@ -521,13 +574,19 @@ if __name__ == "__main__":
         sys.exit(1)
     print(f"horse_id = {horse_id}")
     print(f"gear_changes_today = {gear_changes_today}")
+    if runs:
+        h = runs[0]["fields"]
+        print(f"horse_age={h.get('horse_age')}  horse_sex={h.get('horse_sex')}  "
+              f"sire={h.get('sire')}  dam={h.get('dam')}  "
+              f"training_location={h.get('training_location')}")
     print(f"{len(runs)} form runs parsed:\n")
     for r in runs:
         f = r["fields"]
         print(f"  {r['date']}  field_size={f.get('field_size')}  "
               f"class={f.get('race_class')}  "
               f"sect_i_time={f.get('sect_i_time')}  "
-              f"jockey={f.get('jockey')}")
+              f"jockey={f.get('jockey')}  "
+              f"weight_restriction={f.get('weight_restriction')}")
     # show the full field set of the first run so every captured column
     # can be eyeballed
     if runs:
