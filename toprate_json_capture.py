@@ -142,6 +142,87 @@ RUN_COL_NAMES = list(RUN_COLS.values())
 
 ALL_COLS = SECT_COLS + EXTRA_COLS + CORE_COLS + HORSE_COL_NAMES + RUN_COL_NAMES
 
+# "Today stats" - horse-level CURRENT-state aggregates confirmed live
+# (Sep 2026, see chat) under rd["stats"] (career-stage/sire-going/
+# track/jockey-combo starts-wins-places blocks) and rd["ratingProfiles"]
+# (best/next-best WPR by category across several trailing windows).
+# These are TopRate's own "as of now" aggregates, NOT point-in-time
+# snapshots - safe to use for TODAY's upcoming race (captured same-day,
+# so "current" IS correct), but must NEVER be attached to historical
+# wpr_form_history.csv.gz rows the way HORSE_COLS is (that would leak
+# future stats into past rows, e.g. a 2019 row picking up a jockey-combo
+# record that didn't exist until 2026). Kept in a separate return value
+# from extract_runs()/fetch_runner() for exactly this reason - the
+# caller (toprate_daily._enrich_form_history_rich /
+# _TODAY_STATS_BY_RID / apply_today_stats) routes it to
+# toprate_runners.csv only, never to wpr_form_history.csv.gz.
+#
+# Scoped to the subset the WPR-signal ledger flagged as high-value and
+# not already covered elsewhere in toprate_runners.csv: firstUp/
+# secondUp (own FU/2U pattern), track (course affinity - distinct from
+# the already-captured wins_at_dist/starts_at_dist/places_at_dist,
+# which are distance-based, not track-based), sireDry/sireWet (going
+# split), and currentJockey (this exact jockey pairing's record).
+# Deliberately SKIPPED for now: stats.firm/good/soft/heavy/synthetic
+# (already covered by the existing going_breakdown column), stats.
+# career/distance/trackDistance/jumps/sireOfDamDry/sireOfDamWet, and
+# ratingProfiles' non-Career windows/non-"all" categories (lower
+# priority, not yet requested - add later following this same pattern
+# if wanted).
+_STATS_BLOCKS = {
+    "firstUp":       "stats_first_up",
+    "secondUp":      "stats_second_up",
+    "track":         "stats_track",
+    "sireDry":       "stats_sire_dry",
+    "sireWet":       "stats_sire_wet",
+    "currentJockey": "stats_current_jockey",
+}
+
+
+def _extract_today_stats(rd, deref):
+    """Extract the horse-level CURRENT-state aggregates for TODAY's
+    race only (see _STATS_BLOCKS comment above for the leak-safety
+    reasoning). Returns a flat {column: value} dict."""
+    out = {}
+    stats = deref(rd.get("stats"))
+    if isinstance(stats, dict):
+        for src_key, prefix in _STATS_BLOCKS.items():
+            block = deref(stats.get(src_key))
+            if isinstance(block, dict):
+                out[f"{prefix}_starts"] = _scalar(deref(block.get("starts")))
+                out[f"{prefix}_wins"] = _scalar(deref(block.get("wins")))
+                out[f"{prefix}_places"] = _scalar(deref(block.get("places")))
+
+    profiles = deref(rd.get("ratingProfiles"))
+    if isinstance(profiles, list):
+        for pp in profiles:
+            p = deref(pp)
+            if not isinstance(p, dict):
+                continue
+            domain = deref(p.get("domain"))
+            period = deref(domain.get("period")) if isinstance(domain, dict) else None
+            if period != "Career":
+                continue
+            all_block = deref(p.get("all"))
+            if not isinstance(all_block, dict):
+                break
+            best = deref(all_block.get("best"))
+            nxt = deref(all_block.get("next"))
+            if isinstance(best, dict):
+                out["rating_career_best_wpr"] = _scalar(deref(best.get("wpr")))
+                out["rating_career_best_rank"] = _scalar(deref(best.get("rank")))
+            if isinstance(nxt, dict):
+                out["rating_career_next_wpr"] = _scalar(deref(nxt.get("wpr")))
+                out["rating_career_next_rank"] = _scalar(deref(nxt.get("rank")))
+            break
+    return out
+
+
+TODAY_STATS_COLS = ([f"{p}_{f}" for p in _STATS_BLOCKS.values()
+                     for f in ("starts", "wins", "places")]
+                    + ["rating_career_best_wpr", "rating_career_best_rank",
+                       "rating_career_next_wpr", "rating_career_next_rank"])
+
 
 def _scalar(v):
     """Keep only JSON-scalar values (str/int/float/bool); anything else
@@ -327,8 +408,12 @@ def _parse_data_json(payload):
 
 def extract_runs(payload):
     """From a parsed __data.json payload return (horse_id, runs,
-    gear_changes_today) where runs is a list of {date, fields} - fields
-    being the SECT_COLS + EXTRA_COLS dict for that form run.
+    gear_changes_today, today_stats) where runs is a list of
+    {date, fields} - fields being the SECT_COLS + EXTRA_COLS dict for
+    that form run. today_stats (see _extract_today_stats/_STATS_BLOCKS
+    above) is a flat dict of horse-level CURRENT-state aggregates -
+    the caller must route it to TODAY's row only, never onto any past
+    form row, unlike horse_cols below.
 
     gear_changes_today (Aug 2026 addition - see gear_change ADJ_TERM):
     this runner's gear changes for the CURRENT/upcoming race, a JSON
@@ -345,13 +430,14 @@ def extract_runs(payload):
     ["Ear Muffs Off Again", "Tongue Tie Off First Time"], sibling to
     "form", not inside it.
 
-    Returns (None, [], None) on a malformed payload (caller may retry),
-    ('EMPTY', [], None) when runnerDetail is null (do NOT retry)."""
+    Returns (None, [], None, None) on a malformed payload (caller may
+    retry), ('EMPTY', [], None, None) when runnerDetail is null (do NOT
+    retry)."""
     parsed = _parse_data_json(payload)
     if parsed == "EMPTY":
-        return "EMPTY", [], None
+        return "EMPTY", [], None, None
     if parsed is None:
-        return None, [], None
+        return None, [], None, None
     rd, deref = parsed
 
     horse_id = deref(rd.get("horseId"))
@@ -360,13 +446,15 @@ def extract_runs(payload):
     gear_changes_today = (json.dumps([deref(x) for x in gc_today])
                           if isinstance(gc_today, list) else None)
 
+    today_stats = _extract_today_stats(rd, deref)
+
     horse_cols = {}
     for src_key, col in HORSE_COLS.items():
         horse_cols[col] = _scalar(deref(rd.get(src_key)))
 
     form = deref(rd.get("form"))
     if not isinstance(form, list):
-        return horse_id, [], gear_changes_today
+        return horse_id, [], gear_changes_today, today_stats
 
     # weightHandicap: the weight basis this scrape's wpr figures are
     # adjusted to. One value per scrape, written to every form row.
@@ -445,7 +533,7 @@ def extract_runs(payload):
             figs[col] = _scalar(deref(fe.get(src_key)))
 
         out.append({"date": str(run_date), "fields": figs})
-    return horse_id, out, gear_changes_today
+    return horse_id, out, gear_changes_today, today_stats
 
 
 # ---------------------------------------------------------------------------
@@ -453,9 +541,9 @@ def extract_runs(payload):
 # ---------------------------------------------------------------------------
 def fetch_runner(run_id):
     """Fetch and parse one runner-page __data.json.
-    Returns (horse_id, runs, gear_changes_today) on success (see
-    extract_runs' docstring for gear_changes_today), ('EMPTY', [], None)
-    when the runner is not served, or (None, [], None) on a hard
+    Returns (horse_id, runs, gear_changes_today, today_stats) on success
+    (see extract_runs' docstring for both), ('EMPTY', [], None, None)
+    when the runner is not served, or (None, [], None, None) on a hard
     failure."""
     url = (f"{WEB_BASE}/runners/{run_id}/__data.json"
            f"?x-sveltekit-invalidated=0001")
@@ -485,7 +573,7 @@ def fetch_runner(run_id):
             time.sleep(2 * attempt)
             continue
         if resp.status_code == 404:
-            return None, [], None
+            return None, [], None, None
         if resp.status_code != 200:
             last_err = f"HTTP {resp.status_code}"
             time.sleep(2 * attempt)
@@ -536,7 +624,7 @@ def fetch_runner(run_id):
             else:
                 # Redirect with no usable location - treat as not-served, not a
                 # hard parse failure (avoids the noisy error spam).
-                return "EMPTY", [], None
+                return "EMPTY", [], None, None
 
         # Login bounce: the session expired mid-run, so the route returns
         # HTTP 200 but the page node is the LOGIN page, not runnerDetail. The
@@ -551,20 +639,20 @@ def fetch_runner(run_id):
             time.sleep(2 * attempt)
             continue
 
-        horse_id, runs, gear_changes_today = extract_runs(payload)
+        horse_id, runs, gear_changes_today, today_stats = extract_runs(payload)
         if horse_id == "EMPTY":
-            return "EMPTY", [], None
+            return "EMPTY", [], None, None
         if horse_id is None:
             # Deterministic parse failure on a valid 200 JSON response:
             # retrying the same page returns the same structure, so fail
             # fast rather than burning retry sleeps across the whole field
             # (that is what pushed the daily run toward the 15-min timeout).
             print(f"  fetch_runner({run_id}) failed: could not parse runnerDetail/form")
-            return None, [], None
-        return horse_id, runs, gear_changes_today
+            return None, [], None, None
+        return horse_id, runs, gear_changes_today, today_stats
 
     print(f"  fetch_runner({run_id}) failed: {last_err}")
-    return None, [], None
+    return None, [], None, None
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +666,7 @@ if __name__ == "__main__":
         sys.exit("Usage: python toprate_json_capture.py <run_id>")
     rid = sys.argv[1]
     print(f"Fetching runner page {rid} ...")
-    horse_id, runs, gear_changes_today = fetch_runner(rid)
+    horse_id, runs, gear_changes_today, today_stats = fetch_runner(rid)
     if horse_id == "EMPTY":
         print("Result: EMPTY - runnerDetail null (runner not served).")
         sys.exit(0)
@@ -587,6 +675,7 @@ if __name__ == "__main__":
         sys.exit(1)
     print(f"horse_id = {horse_id}")
     print(f"gear_changes_today = {gear_changes_today}")
+    print(f"today_stats = {today_stats}")
     if runs:
         h = runs[0]["fields"]
         print(f"horse_age={h.get('horse_age')}  horse_sex={h.get('horse_sex')}  "

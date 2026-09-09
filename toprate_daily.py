@@ -164,6 +164,20 @@ RUNNER_COLS = [
     # pre-race trailing window). Same rule as jt_combo_win_pct: display/
     # reference only, never a model input.
     "jt_combo_pot_pct","jt_combo_lt3l_pct",
+    # "Today stats" - horse-level CURRENT-state aggregates from the rich
+    # __data.json runner page (rd["stats"]/rd["ratingProfiles"]), TODAY's
+    # runners only, filled by apply_today_stats(). Keep this list in sync
+    # with toprate_json_capture.TODAY_STATS_COLS (see that module's
+    # _STATS_BLOCKS comment for what each one is and why the rest of
+    # rd["stats"] was deliberately left out).
+    "stats_first_up_starts","stats_first_up_wins","stats_first_up_places",
+    "stats_second_up_starts","stats_second_up_wins","stats_second_up_places",
+    "stats_track_starts","stats_track_wins","stats_track_places",
+    "stats_sire_dry_starts","stats_sire_dry_wins","stats_sire_dry_places",
+    "stats_sire_wet_starts","stats_sire_wet_wins","stats_sire_wet_places",
+    "stats_current_jockey_starts","stats_current_jockey_wins","stats_current_jockey_places",
+    "rating_career_best_wpr","rating_career_best_rank",
+    "rating_career_next_wpr","rating_career_next_rank",
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
     "going_breakdown","form_string",
@@ -349,6 +363,19 @@ _WPR_NAME_BY_RID = {}
 # runners_df before it is saved to toprate_runners.csv.
 _GEAR_CHANGES_TODAY = {}
 
+# run_id (str) -> flat dict of horse-level CURRENT-state aggregates
+# (Sep 2026 addition - see cap._extract_today_stats/cap._STATS_BLOCKS).
+# Populated as the SAME side effect of the SAME rich __data.json fetch
+# as _GEAR_CHANGES_TODAY above - same reasoning applies: these fields
+# (own FU/2U record, track affinity, sire dry/wet split, this exact
+# jockey pairing's record, career-best rating) are TopRate's own "as of
+# now" aggregates, safe for TODAY's race but NEVER to be attached to
+# historical wpr_form_history.csv.gz rows (that would leak future stats
+# into past rows). Consumed once by apply_today_stats() to add columns
+# onto runners_df before it is saved to toprate_runners.csv - mirrors
+# apply_gear_changes_today() exactly, for the same reason.
+_TODAY_STATS_BY_RID = {}
+
 # Fields pulled from each form entry. These are the raw inputs a WPR
 # projection model trains on (target = the `wpr` of the run itself).
 # Confirmed against the live API via the structural diagnostic - the form
@@ -472,7 +499,7 @@ def _enrich_form_history_rich(new_df):
         try:
             return rid, cap.fetch_runner(rid)
         except Exception:
-            return rid, (None, [], None)
+            return rid, (None, [], None, None)
 
     with ThreadPoolExecutor(max_workers=DEFAULT_FETCH_WORKERS) as pool:
         futures = [pool.submit(_one, rid) for rid in run_ids]
@@ -480,7 +507,7 @@ def _enrich_form_history_rich(new_df):
             _done += 1
             if _done % 100 == 0:
                 print(f"    ... {_done}/{len(run_ids)} ({time.time()-t0:.0f}s)")
-            rid, (horse_id, runs, gear_today) = fut.result()
+            rid, (horse_id, runs, gear_today, today_stats) = fut.result()
             if horse_id == "EMPTY":
                 n_empty += 1
                 continue
@@ -490,6 +517,8 @@ def _enrich_form_history_rich(new_df):
             n_ok += 1
             if gear_today is not None:
                 _GEAR_CHANGES_TODAY[str(rid)] = gear_today
+            if today_stats:
+                _TODAY_STATS_BY_RID[str(rid)] = today_stats
             for run in runs:
                 # date strings: __data.json gives ISO dates; the form-history
                 # date column is also ISO. Slice to 10 chars on both sides of
@@ -691,6 +720,48 @@ def apply_gear_changes_today(runners_df, target_date_str=None):
         return runners_df
     except Exception as e:
         print(f"  Gear changes skipped: {e}")
+        return runners_df
+
+
+def apply_today_stats(runners_df, target_date_str=None):
+    """Add the cap.TODAY_STATS_COLS columns to runners_df from
+    _TODAY_STATS_BY_RID (populated as a side effect of
+    flush_wpr_form_history()'s rich __data.json capture - see that
+    dict's own docstring). Must run AFTER flush_wpr_form_history() (so
+    the dict is populated) and BEFORE save_runners() (so the columns
+    actually land in toprate_runners.csv). Mirrors
+    apply_gear_changes_today() exactly, including its scoping/fail-safe
+    discipline - see that function's docstring for the reasoning.
+    """
+    try:
+        import toprate_json_capture as cap
+        for col in cap.TODAY_STATS_COLS:
+            if col not in runners_df.columns:
+                runners_df[col] = None
+        if not _TODAY_STATS_BY_RID:
+            return runners_df
+        if target_date_str is None:
+            target_date_str = date.today().strftime("%Y-%m-%d")
+        day_mask = runners_df["date"].astype(str).str[:10] == target_date_str
+        run_id_str = runners_df["run_id"].astype(str)
+        matched_stats = run_id_str.map(_TODAY_STATS_BY_RID)
+        n = 0
+        for idx in runners_df.index[day_mask & matched_stats.notna()]:
+            stats = matched_stats.loc[idx]
+            touched = False
+            for col in cap.TODAY_STATS_COLS:
+                if col not in stats:
+                    continue
+                if pd.isna(runners_df.at[idx, col]):
+                    runners_df.at[idx, col] = stats[col]
+                    touched = True
+            if touched:
+                n += 1
+        if n:
+            print(f"  Today stats: captured for {n} runner(s) today")
+        return runners_df
+    except Exception as e:
+        print(f"  Today stats skipped: {e}")
         return runners_df
 
 
@@ -3968,6 +4039,10 @@ def main():
     # _GEAR_CHANGES_TODAY populated by its rich-capture pass) and BEFORE
     # save_runners() near the end of main().
     runners_df = apply_gear_changes_today(runners_df, args.date)
+    # Same timing requirement as gear changes above (needs
+    # _TODAY_STATS_BY_RID populated by the same rich-capture pass,
+    # must land before save_runners()).
+    runners_df = apply_today_stats(runners_df, args.date)
     _main_step("Step 2a: Saving WPR form history")
     print()
 
