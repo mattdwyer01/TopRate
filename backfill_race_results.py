@@ -109,19 +109,28 @@ RACE_RESULTS_CSV = Path(__file__).parent / "race_results.csv.gz"
 TRACK_HISTORY_CSV = Path(__file__).parent / "track_conditions_history.csv"
 DEFAULT_WORKERS = 8
 
-# CORE_COLS entries are raw API key names that are ALSO the column name
-# (see toprate_json_capture.py: the thin feed and rich feed share these
-# names already, so no src->col mapping is needed). Runner-level value
-# wins; race-level is the fallback, since some of these (track, going,
-# distance, raceNumber) plausibly live on the race dict rather than each
-# runner's own dict on this bulk endpoint - unconfirmed either way until
-# --diagnose-one is actually run, hence the fallback covers both shapes.
+# CORE_COLS entries are raw API key names that are ALSO the column name on
+# the per-runner __data.json endpoint. Confirmed via --diagnose-one (Sep
+# 2026, see chat) that this bulk endpoint does NOT share that naming for
+# every field: race[0] carries "number"/"name", not "raceNumber"/
+# "raceName", and there is no "trackCode" key at all (a "trackId" exists
+# instead, a different concept - not mapped here rather than guess wrong).
+# Left as cap.CORE_COLS anyway (not worth a parallel constant for two
+# misses) - raceNumber/race_name just come back None from this path,
+# same as any other field genuinely absent from a given payload. Runner-
+# level value wins; race level, then meeting level, are the fallback
+# (see _lookup) - going/track/trackGrading/distance/weightRestriction/
+# jockeyRestriction/positionSettled/wpr/weightCarried/barrier/margins/
+# positions/raceShape*/priceStarting are all confirmed present at
+# runner-and/or-race level by that same diagnose run.
 _CORE_KEYS = cap.CORE_COLS
 
 # Per-runner extras EXTRA_COLS covers, expressed as {raw_key: col} since
 # (unlike CORE_COLS) the raw API key and column name differ for these.
+# "starters" (intended for field_size) confirmed ABSENT anywhere on this
+# endpoint by --diagnose-one - field_size is instead computed directly as
+# len(runners) in extract_race_results, not looked up here.
 _EXTRA_RUNNER_KEYS = {
-    "starters":        "field_size",
     "class":           "race_class",
     "isLetup":         "is_letup",
     "isSpell":         "is_spell",
@@ -148,13 +157,15 @@ def _build_url(meeting_id):
 
 def fetch_meeting_full(meeting_id):
     """Fetch meetings/{id}/history and return (meeting_result,
-    meeting_history, deref). meeting_result/meeting_history are None if
-    the meeting isn't finalized yet or wasn't found; ("ERROR", None,
-    None) on a hard failure after retries. Mirrors
-    backfill_bulk_meeting_fields.fetch_meeting_result's auth/redirect/
-    login-bounce handling exactly (same endpoint, same session), but
-    also derefs meetingHistory from the same root node, which that
-    function discards since its own job never needed it."""
+    deref). meeting_result is None if the meeting isn't finalized yet or
+    wasn't found; ("ERROR", None) on a hard failure after retries.
+    Mirrors backfill_bulk_meeting_fields.fetch_meeting_result's auth/
+    redirect/login-bounce handling exactly (same endpoint, same
+    session). Originally also derefed a separate "meetingHistory" node
+    for the per-track rail/going timeline - removed once --diagnose-one
+    (Sep 2026, see chat) showed that wrapper doesn't exist on this
+    endpoint; "tracks" sits directly on meeting_result itself, read from
+    there by extract_track_history."""
     url = _build_url(meeting_id)
     for attempt in range(1, cap.MAX_RETRIES + 1):
         headers, cookies = cap._auth_bits()
@@ -171,7 +182,7 @@ def fetch_meeting_full(meeting_id):
             time.sleep(2 * attempt)
             continue
         if resp.status_code == 404:
-            return None, None, None
+            return None, None
         if resp.status_code != 200:
             time.sleep(2 * attempt)
             continue
@@ -201,7 +212,7 @@ def fetch_meeting_full(meeting_id):
 
         nodes = payload.get("nodes") if isinstance(payload, dict) else None
         if not isinstance(nodes, list):
-            return None, None, None
+            return None, None
         for n in nodes:
             if not (isinstance(n, dict) and isinstance(n.get("data"), list)):
                 continue
@@ -214,21 +225,25 @@ def fetch_meeting_full(meeting_id):
                 return _data[p] if isinstance(p, int) else p
 
             mr = deref(root.get("meetingResult"))
-            mh = deref(root.get("meetingHistory"))
-            return (mr if isinstance(mr, dict) else None,
-                    mh if isinstance(mh, dict) else None,
-                    deref)
-        return None, None, None
+            return (mr if isinstance(mr, dict) else None), deref
+        return None, None
     # Retries exhausted without ever getting a usable response - a
     # genuine failure, distinct from a clean response whose
     # meetingResult is legitimately null (handled by the returns above).
-    return "ERROR", None, None
+    return "ERROR", None
 
 
-def _runner_or_race(runner, race, key):
+def _lookup(runner, race, meeting_result, key):
+    """Runner value wins; race is the fallback; meeting_result is the
+    fallback after that. Confirmed necessary, not just defensive: venue
+    lives ONLY on meetingResult (absent from both race and runner) per
+    --diagnose-one (Sep 2026, see chat) - a 2-level fallback would have
+    silently dropped it on every row."""
     v = runner.get(key)
     if v is None:
         v = race.get(key)
+    if v is None:
+        v = meeting_result.get(key)
     return v
 
 
@@ -257,6 +272,11 @@ def extract_race_results(meeting_result, deref):
         runners = deref(race.get("runners"))
         if not isinstance(runners, list):
             continue
+        # field_size: no "starters" (or any other) key carries this on
+        # this bulk endpoint, confirmed by --diagnose-one (Sep 2026) -
+        # computed directly from the runner list actually returned, once
+        # per race, rather than looked up.
+        field_size = len(runners)
         for rup in runners:
             runner = deref(rup)
             if not isinstance(runner, dict):
@@ -273,6 +293,7 @@ def extract_race_results(meeting_result, deref):
                 "horse": cap._scalar(deref(runner.get("horse")
                                             or runner.get("horseName"))),
                 "run_id": cap._scalar(deref(runner.get("runId"))),
+                "field_size": field_size,
             }
             sr = deref(runner.get("sectionalRating"))
             if isinstance(sr, dict):
@@ -280,27 +301,32 @@ def extract_race_results(meeting_result, deref):
                     v = deref(sr.get(src_key))
                     row[col] = v if isinstance(v, (int, float)) else None
             for key in _CORE_KEYS:
-                row[key] = cap._scalar(deref(_runner_or_race(runner, race, key)))
+                row[key] = cap._scalar(deref(_lookup(runner, race, meeting_result, key)))
             for src_key, col in _EXTRA_RUNNER_KEYS.items():
-                row[col] = cap._scalar(deref(_runner_or_race(runner, race, src_key)))
+                row[col] = cap._scalar(deref(_lookup(runner, race, meeting_result, src_key)))
             for src_key, col in _FALLBACK_KEYS.items():
-                row[col] = cap._scalar(deref(_runner_or_race(runner, race, src_key)))
+                row[col] = cap._scalar(deref(_lookup(runner, race, meeting_result, src_key)))
             rows.append(row)
     return rows
 
 
-def extract_track_history(meeting_history, deref):
+def extract_track_history(meeting_result, deref):
     """Return a list of {track, date, rail_position, going_changes} rows
-    from meetingHistory.tracks[].history[] - TopRate's own compiled
-    per-track rail/going timeline, independent of runner data. Cheap:
-    no extra network cost, it's a small array already in the same
+    from meetingResult.tracks[].history[] - TopRate's own compiled
+    per-track rail/going timeline, independent of runner data. NOTE: an
+    earlier live page dump this session (a different route) suggested
+    this lived under a separate "meetingHistory" wrapper key -
+    --diagnose-one on THIS endpoint (Sep 2026, see chat) showed that
+    wrapper does not exist here; "tracks" sits directly on meetingResult
+    alongside "races". Cheap either way: no extra network cost, it's a
+    small array already in the same
     payload extract_race_results reads. going_changes is stored as a
     raw JSON string; its own schema isn't characterized yet, see
     --diagnose-one."""
     rows = []
-    if not isinstance(meeting_history, dict):
+    if not isinstance(meeting_result, dict):
         return rows
-    tracks = deref(meeting_history.get("tracks"))
+    tracks = deref(meeting_result.get("tracks"))
     if not isinstance(tracks, list):
         return rows
     for tp in tracks:
@@ -334,7 +360,7 @@ def diagnose_one(meeting_id):
     for one meeting, without writing anything. Run this via the Action
     (needs live credentials) before trusting any real fetch/merge."""
     print(f"Fetching meeting {meeting_id} for a raw schema dump ...\n")
-    mr, mh, deref = fetch_meeting_full(meeting_id)
+    mr, deref = fetch_meeting_full(meeting_id)
     if mr == "ERROR":
         sys.exit("Hard failure - see messages above.")
     if mr is None:
@@ -362,9 +388,10 @@ def diagnose_one(meeting_id):
                 print("race[0].runners[0] keys:",
                       list(runner.keys()) if isinstance(runner, dict) else runner)
                 if isinstance(runner, dict):
-                    print("  horseId:", runner.get("horseId"))
-                    print("  horse/horseName:", runner.get("horse"), runner.get("horseName"))
-                    print("  runId:", runner.get("runId"))
+                    print("  horseId:", deref(runner.get("horseId")))
+                    print("  horse/horseName:", deref(runner.get("horse")),
+                          deref(runner.get("horseName")))
+                    print("  runId:", deref(runner.get("runId")))
                     for k in ("weatherCondition", "weather", "trackWeather",
                               "temperature", "wind", "rainfall"):
                         if k in runner:
@@ -379,20 +406,36 @@ def diagnose_one(meeting_id):
 
     print()
     print("=" * 70)
-    print("meetingHistory:", "present" if isinstance(mh, dict) else "ABSENT/None")
+    print("meetingResult.tracks:")
     print("=" * 70)
-    if isinstance(mh, dict):
-        print("meetingHistory top-level keys:", list(mh.keys()))
-        tracks = deref(mh.get("tracks"))
-        if isinstance(tracks, list) and tracks:
-            print(f"  {len(tracks)} track(s)")
-            t0 = deref(tracks[0])
-            print("  tracks[0] keys:", list(t0.keys()) if isinstance(t0, dict) else t0)
-            if isinstance(t0, dict):
-                hist = deref(t0.get("history"))
-                if isinstance(hist, list) and hist:
-                    print(f"  tracks[0].history: {len(hist)} entries")
-                    print("  tracks[0].history[0]:", deref(hist[0]))
+    tracks = deref(mr.get("tracks"))
+    if not isinstance(tracks, list) or not tracks:
+        print("  ABSENT/empty - meetingResult has no usable 'tracks' key")
+    else:
+        print(f"  {len(tracks)} track(s)")
+        t0 = deref(tracks[0])
+        print("  tracks[0] keys:", list(t0.keys()) if isinstance(t0, dict) else t0)
+        if isinstance(t0, dict):
+            print("  tracks[0] (deref'd, non-list/dict fields):",
+                  {k: deref(v) for k, v in t0.items()
+                   if not isinstance(deref(v), (list, dict))})
+            hist = deref(t0.get("history"))
+            if isinstance(hist, list) and hist:
+                print(f"  tracks[0].history: {len(hist)} entries")
+                h0 = deref(hist[0])
+                print("  tracks[0].history[0] keys:",
+                      list(h0.keys()) if isinstance(h0, dict) else h0)
+                if isinstance(h0, dict):
+                    print("  tracks[0].history[0] (deref'd, non-list/dict fields):",
+                          {k: deref(v) for k, v in h0.items()
+                           if not isinstance(deref(v), (list, dict))})
+                    for k, v in h0.items():
+                        rv = deref(v)
+                        if isinstance(rv, list):
+                            print(f"  tracks[0].history[0].{k}: list, {len(rv)} items, "
+                                  f"first: {deref(rv[0]) if rv else None}")
+            else:
+                print("  tracks[0] has no usable 'history' list")
 
 
 def _select_meeting_ids(args):
@@ -433,7 +476,7 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
         try:
             return mid, fetch_meeting_full(mid)
         except Exception:
-            return mid, ("ERROR", None, None)
+            return mid, ("ERROR", None)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(_one, mid) for mid in meeting_ids]
@@ -446,7 +489,7 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
                 eta = (len(meeting_ids) - done) / rate if rate else float("nan")
                 print(f"  ... {done}/{len(meeting_ids)} meetings "
                       f"({elapsed:.0f}s, {len(race_rows):,} race rows collected, ETA {eta:.0f}s)")
-            mid, (mr, mh, deref) = fut.result()
+            mid, (mr, deref) = fut.result()
             if mr == "ERROR":
                 n_fail += 1
                 continue
@@ -454,7 +497,7 @@ def run_fetch_phase(meeting_ids, workers, checkpoint, checkpoint_as_you_go=True)
                 n_empty += 1
                 continue
             rr = extract_race_results(mr, deref)
-            tr = extract_track_history(mh, deref) if mh is not None else []
+            tr = extract_track_history(mr, deref)
             if not rr:
                 n_empty += 1
                 continue
