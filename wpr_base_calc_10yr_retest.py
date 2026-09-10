@@ -96,19 +96,45 @@ ERA_BOUNDS = [
 ]
 
 
+# Columns actually needed: build_training_frame()'s own "keep" list (see
+# its source), "horse" (its wpr_nett merge key, dropped after that merge),
+# plus atw/weight_restriction for this script's own side-test. Everything
+# else (pedigree, prices, race names, jockey/trainer names, venue...) is
+# pure memory bloat at this row count (1.3M+) - the first attempt at this
+# 4x-larger-than-usual build got OOM-killed by the sandbox's memory cgroup
+# (confirmed via dmesg, a real kill this time - not this session's earlier
+# false alarms) carrying all 87 original race_results columns through.
+_SECT_COLS = ["sect_i_time", "sect_ld_early", "sect_i_early", "sect_i_to600",
+              "sect_i_to800", "sect_i_l200", "sect_i_l400", "sect_i_l600",
+              "sect_i_l800", "sect_i_400_200", "sect_i_600_400",
+              "sect_i_800_400", "sect_i_800_600"]
+NEEDED_COLS = [
+    "horse_id", "horse", "date", "race_id", "run_id", "wpr", "distance",
+    "going", "track", "trackGrading", "positionSettled", "position800m",
+    "position600m", "margin800m", "margin600m", "margin400m", "marginFinish",
+    "isBarrierTrial", "barrier", "field_size", "raceShapeEarly",
+    "raceShapeMid", "raceShapeLate", "race_class", "comments_video",
+    "comments_steward", "gear_changes", "atw", "weight_restriction",
+    "rail_position",
+] + _SECT_COLS
+
+
 def load_combined():
     if COMBINED_CSV.exists():
         print(f"Loading cached combined race_results from {COMBINED_CSV} ...")
         combined = pd.read_csv(COMBINED_CSV, low_memory=False)
         print(f"  {len(combined):,} rows")
         return combined
-    print("Concatenating race_results_2017.csv.gz .. race_results_2026.csv.gz ...")
+    print("Concatenating race_results_2017.csv.gz .. race_results_2026.csv.gz "
+          f"(trimmed to {len(NEEDED_COLS)} needed columns) ...")
     frames = []
     for y in YEARS:
         f = REPO / f"race_results_{y}.csv.gz"
         if not f.exists():
             continue
-        df = pd.read_csv(f, low_memory=False)
+        cols = pd.read_csv(f, nrows=0).columns
+        use = [c for c in NEEDED_COLS if c in cols]
+        df = pd.read_csv(f, low_memory=False, usecols=use)
         frames.append(df)
         print(f"  {y}: {len(df):,} rows")
     combined = pd.concat(frames, ignore_index=True)
@@ -123,8 +149,9 @@ def build_D(combined):
         with open(D_CACHE, "rb") as f:
             return pickle.load(f)
     print("\nRunning wp.build_training_frame() on the combined 10-year file "
-          "(reuses build_features() exactly, n_jobs=-1) ...")
-    D = wp.build_training_frame(str(COMBINED_CSV), verbose=True, n_jobs=-1)
+          "(reuses build_features() exactly, n_jobs=2 - reduced from -1/4 "
+          "after the first attempt's OOM, see NEEDED_COLS comment) ...")
+    D = wp.build_training_frame(str(COMBINED_CSV), verbose=True, n_jobs=2)
     D["date"] = pd.to_datetime(D["date"])
     print(f"  {len(D):,} training rows")
     with open(D_CACHE, "wb") as f:
