@@ -180,13 +180,16 @@ def build_D(combined):
     print(f"\n{len(all_horses):,} horses split into {len(batches)} batches of "
           f"up to {BATCH_SIZE:,} each (n_jobs=-1 per batch, safe at this scale) ...")
 
-    batch_frames = []
+    # Each batch is pickled to disk and then DROPPED from memory (not kept
+    # in a running list) - only the final concat below re-reads everything
+    # from disk, once, after every batch is done. Keeping finished batches
+    # resident in memory throughout the loop (an earlier version of this
+    # function did) was the same accumulation pattern that caused trouble
+    # before, just slower - by batch 6/9 memory was down to 2.3GB free.
     for i, horse_ids in enumerate(batches):
         batch_pkl = BATCH_DIR / f"batch_{i:03d}.pkl"
         if batch_pkl.exists():
-            print(f"  batch {i+1}/{len(batches)}: cached, loading {batch_pkl} ...")
-            with open(batch_pkl, "rb") as f:
-                batch_frames.append(pickle.load(f))
+            print(f"  batch {i+1}/{len(batches)}: cached, skipping")
             continue
         print(f"  batch {i+1}/{len(batches)}: {len(horse_ids):,} horses ...")
         batch_csv = BATCH_DIR / f"batch_{i:03d}.csv.gz"
@@ -197,10 +200,15 @@ def build_D(combined):
         with open(batch_pkl, "wb") as f:
             pickle.dump(batch_D, f)
         batch_csv.unlink()  # done with the temp CSV, only the pickle is kept
-        batch_frames.append(batch_D)
+        del batch_D
 
+    print("\nAll batches done - loading each pickle once for the final concat ...")
+    batch_frames = []
+    for i in range(len(batches)):
+        with open(BATCH_DIR / f"batch_{i:03d}.pkl", "rb") as f:
+            batch_frames.append(pickle.load(f))
     D = pd.concat(batch_frames, ignore_index=True)
-    print(f"\nAll batches combined: {len(D):,} training rows total")
+    print(f"All batches combined: {len(D):,} training rows total")
     with open(D_CACHE, "wb") as f:
         pickle.dump(D, f)
     return D
