@@ -1131,6 +1131,114 @@ def _gear_change_term(bucket, field_size, first_up, second_up, n_runs, model):
 # does not work for a recent-only-covered column) - bounded to the EXACT window
 # wpr_pace_adjustment_continuous_test.py validated (365 days), never a
 # superset of what was tested.
+def _load_rail_position_by_horse_date():
+    """(horse_id, date_str) -> rail_position, sourced from race_results_*.csv.gz
+    (the meetings/{id}/history bulk backfill - see backfill_race_results.py).
+    wpr_form_history.csv.gz has NO rail_position column at all (confirmed
+    absent, Sep 2026) - this is the only place training rows can get it.
+
+    Same conservative (horse_id, date) join-key discipline this file
+    already uses for wpr_nett above (see build_training_frame's own
+    docstring for why run_id is NOT a safe per-row key here): a horse
+    races at most once a day, but if the same (horse_id, date) somehow
+    maps to more than one rail_position, that pair is dropped rather than
+    risk a wrong value - same principle as the wpr_nett merge's own
+    ambiguous-match drop."""
+    frames = []
+    for f in sorted(_DIR.glob("race_results_*.csv.gz")):
+        frames.append(pd.read_csv(f, low_memory=False,
+                                   usecols=["horse_id", "date", "rail_position"],
+                                   dtype={"horse_id": str}))
+    if not frames:
+        return {}
+    rr = pd.concat(frames, ignore_index=True)
+    rr = rr.dropna(subset=["horse_id", "date", "rail_position"])
+    rr["date"] = rr["date"].astype(str).str[:10]
+    dupes = rr.groupby(["horse_id", "date"])["rail_position"].nunique()
+    ambiguous = set(dupes[dupes > 1].index)
+    rr = rr.drop_duplicates(subset=["horse_id", "date"])
+    lookup = {}
+    for hid, d, rail in zip(rr["horse_id"], rr["date"], rr["rail_position"]):
+        if (hid, d) in ambiguous:
+            continue
+        lookup[(hid, d)] = rail
+    return lookup
+
+
+def _build_track_bias_lookup(min_n=20):
+    """{key: bias_score} population lookup with a fallback tier chain -
+    exact (track, going, rail_position), then (track, going), then
+    (track) alone - for combinations too rare to trust on their own. Same
+    "unseen -> 0" contract every other population term here uses,
+    generalized to a chain instead of a hard cliff since track/going/rail
+    is much higher-cardinality than anything else this file looks up
+    (rail_position alone is free text, e.g. "+3m 900m-275m, Cutaway
+    Applies" - thousands of distinct strings, most low-frequency).
+
+    bias_score is this bucket's mean raceShapeEarly (TopRate's own "how
+    much faster/slower the early stage of the race ran than the grade
+    norm" score) minus the population grand mean - how much MORE (or
+    less) genuine early pace pressure this track/going/rail combination
+    produces than average. Empirically confirmed real (Sep 2026, see
+    chat): bucket means spread with std=0.85 around a near-zero grand
+    mean (std=4.19 overall) - not degenerate to zero the way a naive
+    settle-to-finish-percentile-change metric was (that metric averages
+    to ~0 in EVERY bucket by construction, since ranks within a field are
+    zero-sum - a methodological dead end caught and discarded before this
+    shipped, not a real "no bias" finding).
+
+    ONE VALUE PER RACE, not per runner - raceShapeEarly is a race-level
+    field (deduped by race_id) before bucket means are computed, so a
+    big field does not outweigh a small one just by having more runners."""
+    frames = []
+    for f in sorted(_DIR.glob("race_results_*.csv.gz")):
+        frames.append(pd.read_csv(f, low_memory=False,
+                                   usecols=["race_id", "track", "going",
+                                            "rail_position", "raceShapeEarly"]))
+    if not frames:
+        return {}
+    rr = pd.concat(frames, ignore_index=True)
+    races = rr.dropna(subset=["track", "going", "raceShapeEarly"]).drop_duplicates(subset=["race_id"])
+    grand_mean = races["raceShapeEarly"].mean()
+
+    lookup = {}
+    has_rail = races.dropna(subset=["rail_position"])
+    g1 = has_rail.groupby(["track", "going", "rail_position"])["raceShapeEarly"].agg(["mean", "size"])
+    for (trk, go, rail), row in g1.iterrows():
+        if row["size"] >= min_n:
+            lookup[("exact", trk, go, rail)] = row["mean"] - grand_mean
+    g2 = races.groupby(["track", "going"])["raceShapeEarly"].agg(["mean", "size"])
+    for (trk, go), row in g2.iterrows():
+        if row["size"] >= min_n:
+            lookup[("track_going", trk, go)] = row["mean"] - grand_mean
+    g3 = races.groupby(["track"])["raceShapeEarly"].agg(["mean", "size"])
+    for trk, row in g3.iterrows():
+        if row["size"] >= min_n:
+            lookup[("track", trk)] = row["mean"] - grand_mean
+    return lookup
+
+
+def _track_bias_score(track, going, rail_position, lookup):
+    """Look up today's (track, going, rail_position) in the fallback chain
+    _build_track_bias_lookup built: exact combo -> (track, going) ->
+    (track) -> 0.0 (no signal, same "unseen -> 0" contract as everything
+    else here)."""
+    if not lookup or not track:
+        return 0.0
+    if rail_position and going:
+        v = lookup.get(("exact", track, going, rail_position))
+        if v is not None:
+            return float(v)
+    if going:
+        v = lookup.get(("track_going", track, going))
+        if v is not None:
+            return float(v)
+    v = lookup.get(("track", track))
+    if v is not None:
+        return float(v)
+    return 0.0
+
+
 _PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size"]
 
 
@@ -3191,6 +3299,27 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
                       f"/ {len(fh):,} rows")
         elif verbose:
             print(f"  wpr_nett merge skipped: {_runners_csv.name} not found")
+
+    # rail_position: NOT captured anywhere in wpr_form_history.csv.gz
+    # (confirmed absent, Sep 2026) - only race_results_*.csv.gz has it
+    # (the meetings/{id}/history bulk backfill, see backfill_race_results.py).
+    # Joined by (horse_id, date), same conservative discipline as the
+    # wpr_nett merge above - a horse races at most once a day, ambiguous
+    # matches dropped rather than risk a wrong value (see
+    # _load_rail_position_by_horse_date's own docstring). Feeds the
+    # track_bias input to pace_shape (see _build_track_bias_lookup /
+    # _fit_pace_shape_model below) - rows with no match just get NaN,
+    # same as wpr_nett.
+    _rail_lookup = _load_rail_position_by_horse_date()
+    if _rail_lookup:
+        _fh_hid = fh["horse_id"].astype(str)
+        _fh_date = fh["date"].dt.strftime("%Y-%m-%d")
+        fh["rail_position"] = [_rail_lookup.get((h, d)) for h, d in zip(_fh_hid, _fh_date)]
+        if verbose:
+            print(f"  rail_position merged: {fh['rail_position'].notna().sum():,} "
+                  f"/ {len(fh):,} rows")
+    elif verbose:
+        print("  rail_position merge skipped: no race_results_*.csv.gz files found")
     # Collapse multi-scrape baselines BEFORE the keep-filter strips
     # scrape_date / formNumber. Must precede sort and feature build - a
     # mixed-baseline history corrupts every wpr-derived feature.
@@ -3220,6 +3349,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
             "isBarrierTrial", "barrier",
             "field_size", "raceShapeEarly", "raceShapeMid",
             "raceShapeLate", "race_class", "race_id", "run_id", "wpr_nett",
+            "rail_position",
             "comments_video", "comments_steward", "gear_changes"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
