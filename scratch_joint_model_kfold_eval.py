@@ -57,8 +57,13 @@ if _CACHE.exists():
         D, _name_map = pickle.load(f)
     print(f"{len(D):,} training rows (from cache)")
 else:
-    print("Building training frame (n_jobs=-1, parallel across free cores) ...")
-    D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=-1).dropna(
+    # n_jobs=1 (serial), not -1: three consecutive parallel (n_jobs=-1)
+    # attempts were silently killed mid-build by the sandbox (Sep 10 2026,
+    # see chat - not OOM, not a script error), while every serial run this
+    # session (scratch_track_bias_eval.py, twice) survived the same
+    # volatile period to completion. Slower, but it actually finishes.
+    print("Building training frame (n_jobs=1, serial - see comment on why) ...")
+    D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=1).dropna(
         subset=["target", "date"]).sort_values("date")
     print(f"{len(D):,} training rows")
 
