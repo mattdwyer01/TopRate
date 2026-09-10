@@ -3227,6 +3227,15 @@ def _horse_feature_rows(g, race_speed_labels=None):
         # a per-horse own_barrier lookup can't answer.
         f["track"] = cur.get("track")
         f["barrier"] = cur.get("barrier")
+        # rail_position for THIS run - analysis-only (not a model feature).
+        # Carried so a track/going/rail bias lookup (_build_track_bias_lookup)
+        # can be joined back to training rows. Without this line the
+        # rail_position column added to fh by build_training_frame's own
+        # merge (right before the per-horse loop) never reaches the
+        # returned frame at all - this function builds its own explicit
+        # output dict from cur, it does not pass raw fh columns through by
+        # default (confirmed missing, Sep 2026 - see chat).
+        f["rail_position"] = cur.get("rail_position")
         # Raw gear_changes JSON-list string for THIS run. Analysis-only (not
         # a model feature - gear_change is a population-fitted ADJ_TERM,
         # see _gear_change_bucket/_gear_change_term above).
