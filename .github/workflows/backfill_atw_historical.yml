@@ -1,0 +1,165 @@
+name: TopRate Backfill ATW Historical
+
+# Manual only. Adds `atw` (TopRate's actual weight-adjusted WPR) onto
+# race_results_YYYY.csv.gz, keyed by run_id, via backfill_atw_historical.py.
+# See that script's own module docstring for the full rationale: race_
+# results_*.csv.gz's `wpr` is the RAW WFA rating (confirmed against
+# toprate.au directly, Sep 2026), and atw is TopRate's own already-computed
+# conversion to what that rating means at the ACTUAL weight carried - this
+# backfill captures it rather than trying to reverse-engineer an
+# approximation.
+#
+# ALWAYS run --diagnose-one first (or on your very first dispatch) and read
+# the logged output before trusting a real run - this script's field-name
+# assumption (get_race_results' runners[].runId / runners[].atw) comes from
+# backfill_atw.py's own prior validation on a DIFFERENT file (toprate_
+# runners.csv), not a fresh check against race_results_*.csv.gz's races.
+#
+# START WITH --restriction SW (Set Weight), not --all. Set Weight races are
+# the clean subset for actually learning the weight-to-rating relationship
+# (every horse of the same age/sex carries the same base weight by
+# condition, so the only variation left is the apprentice claim itself -
+# unlike Handicap, where weight is ASSIGNED based on rating, a real
+# confound). 27,816 of 29,930 SW races allow claims. Only widen to --all
+# (152,355 races - ~7.9x the call volume of backfill_race_results.yml's
+# 19,320 meetings, since this is one call per RACE not per meeting) once
+# the SW subset has actually validated the signal is worth having broadly.
+#
+# Same fetch/merge split as backfill_race_results.yml, for the same reason
+# (see that workflow's own top-of-file comment and CLAUDE.md's incident
+# writeup): the checkpoint is committed ONLY inside the merge step, in the
+# SAME git operation as the CSV writes - never as an earlier separate step.
+
+on:
+  workflow_dispatch:
+    inputs:
+      diagnose_race_id:
+        description: 'Print the raw get_race_results schema for one race and exit (no CSV writes). Run this first.'
+        required: false
+        type: string
+      restriction:
+        description: 'Comma-separated weight_restriction codes to scope to, e.g. SW (recommended first). Leave blank if using "all".'
+        required: false
+        type: string
+      limit:
+        description: 'Only fetch the first N races (most recent first, within the restriction/since scope). Good for a first test run.'
+        required: false
+        type: string
+      since:
+        description: 'Only races on/after this date (YYYY-MM-DD). Leave blank for no date floor.'
+        required: false
+        type: string
+      all:
+        description: 'Every race on file regardless of weight_restriction (152,355 races - only after SW has validated the signal)'
+        required: false
+        type: boolean
+        default: false
+      commit:
+        description: 'Actually write the atw column. Leave off for a dry run that only reports what would change.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: toprate-backfill-atw-historical
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Diagnose one race
+        if: ${{ inputs.diagnose_race_id }}
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python backfill_atw_historical.py --diagnose-one "${{ inputs.diagnose_race_id }}"
+
+      - name: Validate inputs
+        if: ${{ !inputs.diagnose_race_id }}
+        run: |
+          if [ -z "${{ inputs.restriction }}" ] && [ "${{ inputs.all }}" != "true" ]; then
+            echo "::error::One of restriction or all must be set - refusing to guess the scope."
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # Step 1: Fetch phase only. Writes atw values to a local JSON;
+      # never touches race_results_*.csv.gz or the checkpoint.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch atw values
+        if: ${{ !inputs.diagnose_race_id }}
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          ARGS="--fetch-only backfill_atw_historical.json"
+          [ -n "${{ inputs.restriction }}" ] && ARGS="$ARGS --restriction ${{ inputs.restriction }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          [ -n "${{ inputs.since }}" ] && ARGS="$ARGS --since ${{ inputs.since }}"
+          [ "${{ inputs.all }}" = "true" ] && ARGS="$ARGS --all"
+          echo "Running: python backfill_atw_historical.py $ARGS"
+          python backfill_atw_historical.py $ARGS
+
+      # ─────────────────────────────────────────────────────────
+      # Step 2: Merge phase, only when commit=true was requested. The
+      # checkpoint is written and committed in the SAME step/commit as
+      # the atw column - see top-of-file comment for why.
+      # ─────────────────────────────────────────────────────────
+      - name: Merge atw into race_results_*.csv.gz
+        if: ${{ !inputs.diagnose_race_id && inputs.commit }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pushed=false
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            python backfill_atw_historical.py --merge-only backfill_atw_historical.json --commit
+            git add race_results_*.csv.gz backfill_atw_historical.checkpoint 2>/dev/null || true
+            if [[ -z "$(git status --porcelain -- race_results_*.csv.gz backfill_atw_historical.checkpoint)" ]]; then
+              echo "No changes to commit"
+              pushed=true
+              break
+            fi
+            git commit -m "Backfill atw historical $(date -u +%Y-%m-%dT%H:%MZ)"
+            if timeout 90 git push; then
+              echo "Pushed on attempt $i"
+              pushed=true
+              break
+            fi
+            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            git reset --hard "origin/${{ github.ref_name }}" || true
+            sleep $((10 + RANDOM % 20))
+          done
+          # Same incident as backfill_race_results.yml (Sep 2026, see chat):
+          # exhausting retries used to fall through silently, and the final
+          # git reset --hard discarded a fully-merged local commit while the
+          # step still reported success. Never again - fail loudly instead.
+          if [ "$pushed" != "true" ]; then
+            echo "::error::Failed to push after all retry attempts - the locally merged commit was discarded by the final git reset. All this run's merged data is lost; re-run the backfill."
+            exit 1
+          fi
+
+      - name: Dry-run report
+        if: ${{ !inputs.diagnose_race_id && !inputs.commit }}
+        run: |
+          echo "Dry run requested (commit was left off) - reporting what WOULD change, nothing written."
+          python backfill_atw_historical.py --merge-only backfill_atw_historical.json
