@@ -144,8 +144,24 @@ jobs:
               pushed=true
               break
             fi
-            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
-            timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            echo "Push rejected or timed out (attempt $i)"
+            # A real incident (Sep 10 2026, see chat): git fetch origin (bare,
+            # no branch) timed out on EVERY one of 12 retries here, and the
+            # old `|| echo ...` fallback let the loop proceed anyway - git
+            # reset --hard then reset to the SAME stale ref every time (fetch
+            # never actually advanced it), so every subsequent ~4-minute
+            # re-merge + push was doomed before it started. Detect a genuinely
+            # failed fetch and skip straight to the next retry (no wasted
+            # reset/re-merge against data that never got fresher) rather than
+            # ploughing ahead on stale state. Branch-scoped (not bare) fetch
+            # and a longer timeout, since a bare fetch of every ref is more
+            # than this loop needs and was the slower of the two in practice.
+            if ! timeout 300 git fetch origin "${{ github.ref_name }}"; then
+              echo "Fetch failed/timed out (attempt $i) - retrying without re-merging against stale data"
+              sleep $((10 + RANDOM % 20))
+              continue
+            fi
+            echo "Fetched fresh base - re-merging"
             git reset --hard "origin/${{ github.ref_name }}" || true
             sleep $((10 + RANDOM % 20))
           done
