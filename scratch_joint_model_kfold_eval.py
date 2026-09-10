@@ -57,13 +57,15 @@ if _CACHE.exists():
         D, _name_map = pickle.load(f)
     print(f"{len(D):,} training rows (from cache)")
 else:
-    # n_jobs=1 (serial), not -1: three consecutive parallel (n_jobs=-1)
-    # attempts were silently killed mid-build by the sandbox (Sep 10 2026,
-    # see chat - not OOM, not a script error), while every serial run this
-    # session (scratch_track_bias_eval.py, twice) survived the same
-    # volatile period to completion. Slower, but it actually finishes.
-    print("Building training frame (n_jobs=1, serial - see comment on why) ...")
-    D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=1).dropna(
+    # n_jobs=-1 (parallel): a serial (n_jobs=1) attempt was ALSO killed
+    # (even faster than parallel got), disproving the earlier "serial is
+    # more resilient" theory - the sandbox appears to be recycling on some
+    # recurring cadence independent of what's running (Sep 10 2026, see
+    # chat). Parallel finishes the vulnerable build phase fastest, giving
+    # it the best odds of completing before the next interruption; rerun
+    # aggressively and lean on the /tmp cache once it does.
+    print("Building training frame (n_jobs=-1, parallel - see comment on why) ...")
+    D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=-1).dropna(
         subset=["target", "date"]).sort_values("date")
     print(f"{len(D):,} training rows")
 
