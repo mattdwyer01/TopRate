@@ -1,0 +1,39 @@
+name: TopRate Joint Model K-Fold Eval
+
+# Manual only, one-off, read-only. Runs scratch_joint_model_kfold_eval.py
+# on GitHub's own runner instead of the local Claude Code session sandbox,
+# which has been killing this same script's background process repeatedly
+# (Sep 10 2026, see chat - not OOM, not a script bug, the sandbox itself
+# recycling on some cadence independent of what's running). GH Actions
+# runners are isolated per-job VMs with no relationship to that session,
+# so this sidesteps the problem entirely rather than fighting it with
+# relaunch loops.
+#
+# Does NOT modify wpr_projection.py, does NOT touch any shipped model file
+# or write anything back to the repo - purely prints its comparison to the
+# job log (fetched afterward via the GitHub API/MCP tools).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run K-fold joint model eval
+        run: python scratch_joint_model_kfold_eval.py
