@@ -80,8 +80,25 @@ except ImportError:
 SCRATCH = Path("/tmp/claude-0/-home-user-TopRate/95a262de-71bd-5daf-b05e-b7e3031f09dd/scratchpad")
 COMBINED_CSV = SCRATCH / "race_results_combined_2017_2026.csv.gz"
 D_CACHE = SCRATCH / "wpr_10yr_D_cache.pkl"
+BATCH_DIR = SCRATCH / "wpr_10yr_batches"
 YEARS = range(2017, 2027)
 REPO = Path("/home/user/TopRate")
+
+# Full 87,404-horse population, batched rather than downsampled (user's
+# explicit call, Sep 2026 - see chat) - two earlier full-population, all-
+# at-once attempts (n_jobs=2, n_jobs=1) each burned 2+ hours without
+# finishing (one OOM-killed, one projected at ~4 more hours from its
+# measured per-horse rate), because build_training_frame() accumulates
+# every horse's feature rows into ONE Python list before the final
+# DataFrame conversion - that accumulation scales with total horse count
+# regardless of n_jobs. Splitting the 87,404 horses into fixed-size
+# batches and calling build_training_frame() separately per batch (each
+# batch written as its own temp combined CSV, each batch's D pickled to
+# BATCH_DIR, concatenated at the very end) bounds peak memory to ONE
+# batch's worth - close to the ORIGINAL successful retrain's scale
+# (18,647 horses, 325k rows, which ran safely in parallel) - while still
+# processing every horse in the full population, not a subset.
+BATCH_SIZE = 12000
 
 STANDALONE_SIGNALS = ["wpr_nett", "ewm3", "ewm5", "avg_last3", "avg_last5",
                        "career_avg", "best3", "recent5_max"]
@@ -138,24 +155,52 @@ def load_combined():
         frames.append(df)
         print(f"  {y}: {len(df):,} rows")
     combined = pd.concat(frames, ignore_index=True)
-    print(f"Combined: {len(combined):,} rows -> caching to {COMBINED_CSV} ...")
+    print(f"Combined (full population): {len(combined):,} rows, "
+          f"{combined['horse_id'].nunique():,} horses -> caching to {COMBINED_CSV} ...")
     combined.to_csv(COMBINED_CSV, index=False)
     return combined
 
 
 def build_D(combined):
+    """Builds the full-population training frame in horse-id batches (see
+    BATCH_SIZE comment above for why) - each batch is written as its own
+    temp combined CSV, fed through wp.build_training_frame() exactly as a
+    normal (much smaller) retrain would be, pickled to BATCH_DIR, then
+    freed before the next batch starts. Resumable: a batch whose pickle
+    already exists on disk is skipped, so a killed/interrupted run picks
+    up at the next unfinished batch instead of restarting from scratch."""
     if D_CACHE.exists():
         print(f"Loading cached D from {D_CACHE} ...")
         with open(D_CACHE, "rb") as f:
             return pickle.load(f)
-    print("\nRunning wp.build_training_frame() on the combined 10-year file "
-          "(reuses build_features() exactly, n_jobs=1/serial - the n_jobs=2 "
-          "attempt still climbed steadily for 2+ hours without finishing and "
-          "was killed before it hit the same OOM ceiling; serial drops the "
-          "~7GB of worker-process overhead at the cost of wall-clock time) ...")
-    D = wp.build_training_frame(str(COMBINED_CSV), verbose=True, n_jobs=1)
-    D["date"] = pd.to_datetime(D["date"])
-    print(f"  {len(D):,} training rows")
+
+    BATCH_DIR.mkdir(parents=True, exist_ok=True)
+    all_horses = sorted(combined["horse_id"].dropna().unique())
+    batches = [all_horses[i:i + BATCH_SIZE] for i in range(0, len(all_horses), BATCH_SIZE)]
+    print(f"\n{len(all_horses):,} horses split into {len(batches)} batches of "
+          f"up to {BATCH_SIZE:,} each (n_jobs=-1 per batch, safe at this scale) ...")
+
+    batch_frames = []
+    for i, horse_ids in enumerate(batches):
+        batch_pkl = BATCH_DIR / f"batch_{i:03d}.pkl"
+        if batch_pkl.exists():
+            print(f"  batch {i+1}/{len(batches)}: cached, loading {batch_pkl} ...")
+            with open(batch_pkl, "rb") as f:
+                batch_frames.append(pickle.load(f))
+            continue
+        print(f"  batch {i+1}/{len(batches)}: {len(horse_ids):,} horses ...")
+        batch_csv = BATCH_DIR / f"batch_{i:03d}.csv.gz"
+        combined[combined["horse_id"].isin(set(horse_ids))].to_csv(batch_csv, index=False)
+        batch_D = wp.build_training_frame(str(batch_csv), verbose=True, n_jobs=-1)
+        batch_D["date"] = pd.to_datetime(batch_D["date"])
+        print(f"    {len(batch_D):,} training rows from this batch")
+        with open(batch_pkl, "wb") as f:
+            pickle.dump(batch_D, f)
+        batch_csv.unlink()  # done with the temp CSV, only the pickle is kept
+        batch_frames.append(batch_D)
+
+    D = pd.concat(batch_frames, ignore_index=True)
+    print(f"\nAll batches combined: {len(D):,} training rows total")
     with open(D_CACHE, "wb") as f:
         pickle.dump(D, f)
     return D
