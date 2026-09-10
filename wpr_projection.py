@@ -331,6 +331,40 @@ FEATURES = [
 # effect, first/second_up as Ridge interaction terms) are preserved in git
 # history and in this file's earlier revisions - worth revisiting if this
 # simpler design's own numbers disappoint enough to reconsider the trade.
+#
+# REJECTED (Sep 2026): joint training - one LightGBM model fit on base
+# signals (wpr_nett, ewm5, etc) plus every ADJ_TERM's raw underlying
+# ingredient columns together, predicting target directly, instead of the
+# fixed base blend + 11 independently-fit terms summed unshrunk. A single
+# train/test split found a large held-out MAE win (6.2910 -> 5.8453,
+# -0.4457) - big enough to warrant this codebase's own K=4-fold walk-forward
+# bar rather than trusting one split (scratch_joint_model_kfold_eval.py):
+# confirmed and even slightly stronger there, mean MAE 5.9928 -> 5.5395
+# (-0.4533), joint model won all 4 out-of-sample folds (deltas -0.41 to
+# -0.52, remarkably tight). Looked like a real, large, robust win on the
+# metric alone.
+#
+# Then failed the metric that actually matters for a betting tool - a
+# leak-free bidirectional ROI backtest against real starting prices
+# (scratch_joint_model_roi_eval.py, same 50/50-half methodology
+# wpr_bet_selection_leakfree_eval.py established): the joint model's edge
+# was WORSE than the additive architecture's at nearly every edge threshold
+# and price cap tested. At the highest-conviction end (edge>=0.20,
+# price<=26) additive reached +1.58% ROI (t=+0.12) vs joint's -13.21%
+# (t=-1.13); at edge>=0.15,price<=15 additive was near-breakeven (-0.57%,
+# t=-0.07) vs joint's -12.42% (t=-1.60). Same signature as the calibration-
+# slope removal above: MAE and ROI pointing in opposite directions. Best
+# guess why: a single model trained to minimize MAE naturally gravitates
+# toward agreeing with the market consensus (which is itself a strong MAE
+# minimizer) - worse for finding genuine mispricings than several narrow,
+# independently-fit terms each capturing one specific signal. NOT shipped -
+# scratch_joint_model_eval.py / scratch_joint_model_kfold_eval.py /
+# scratch_joint_model_roi_eval.py kept in git history as the full record
+# (all three read-only, never touched project_race() or any shipped model
+# file) - worth revisiting only with a genuinely different approach to
+# translating the joint model's output into a price (the plain price-
+# softmax-beta translation tested here may itself be the weak link, not
+# the joint architecture per se).
 ADJ_TERMS = [
     "own_distance", "own_going", "own_first_up", "own_second_up",
     "own_trend", "own_long_spell", "track_barrier", "closing_merit",
@@ -511,6 +545,7 @@ _PROJ = None
 _CONF = None
 _CFG = None
 _PACE_SHAPE_MODEL = None
+_TRACK_BIAS_LOOKUP = None
 _POP_ADJ_MODELS = None
 
 
@@ -533,7 +568,7 @@ def _load_models():
     without it, or a retrain that failed to produce it, never breaks
     serving.
     """
-    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL, _POP_ADJ_MODELS
+    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL, _TRACK_BIAS_LOOKUP, _POP_ADJ_MODELS
     if _PROJ is not None:
         return
     cfg_path = _MODEL_DIR / "config.json"
@@ -546,13 +581,25 @@ def _load_models():
     _PROJ = joblib.load(_MODEL_DIR / "projection.joblib")
     _CONF = joblib.load(_MODEL_DIR / "confidence.joblib")
     _pace_shape_path = _MODEL_DIR / "pace_shape.joblib"
+    _PACE_SHAPE_MODEL = None
+    _TRACK_BIAS_LOOKUP = {}
     if _pace_shape_path.exists():
         try:
-            _PACE_SHAPE_MODEL = joblib.load(_pace_shape_path)
+            _loaded = joblib.load(_pace_shape_path)
+            # Sep 2026: pace_shape.joblib became a {"model", "track_bias_
+            # lookup"} bundle (track_bias_score, the 5th feature - see
+            # _PACE_SHAPE_FEATURES). A pre-existing file from before that
+            # change is a bare model object, not a dict - keep loading it
+            # fine (track_bias_score just stays 0.0, the same "unseen -> 0"
+            # contract every other population term uses) rather than
+            # breaking serving until the next retrain ships the new shape.
+            if isinstance(_loaded, dict) and "model" in _loaded:
+                _PACE_SHAPE_MODEL = _loaded["model"]
+                _TRACK_BIAS_LOOKUP = _loaded.get("track_bias_lookup") or {}
+            else:
+                _PACE_SHAPE_MODEL = _loaded
         except Exception:
             _PACE_SHAPE_MODEL = None
-    else:
-        _PACE_SHAPE_MODEL = None
     # pop_adj_models.joblib (Sep 2026): the trained-model replacements for
     # every population-lookup ADJ_TERM (track_barrier, trainer_merit,
     # jockey_merit, gear_change, closing_merit - see each term's own
@@ -1239,13 +1286,18 @@ def _track_bias_score(track, going, rail_position, lookup):
     return 0.0
 
 
-_PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size"]
+_PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size",
+                        "track_bias_score"]
 
 
-def _pace_shape_features(pace_score, predicted_rel_settle, field_size):
-    """The 4 model inputs (see pace_shape's docstring above), or None if
+def _pace_shape_features(pace_score, predicted_rel_settle, field_size, track_bias_score=0.0):
+    """The 5 model inputs (see pace_shape's docstring above), or None if
     either continuous prediction is missing - the "unseen -> 0" contract
-    is enforced by the caller (_pace_shape_term), not here."""
+    is enforced by the caller (_pace_shape_term), not here. track_bias_score
+    (Sep 2026 addition - see _build_track_bias_lookup/_track_bias_score)
+    already defaults to 0.0 on any miss by construction, so it never blocks
+    a fit/prediction the way a missing pace_score/predicted_rel_settle
+    does."""
     if pace_score is None or pace_score != pace_score:
         return None
     if predicted_rel_settle is None or predicted_rel_settle != predicted_rel_settle:
@@ -1257,18 +1309,22 @@ def _pace_shape_features(pace_score, predicted_rel_settle, field_size):
         "pace_signal": pace_signal,
         "interaction": settle_signal * pace_signal,
         "field_size": float(field_size) if field_size is not None and field_size == field_size else 0.0,
+        "track_bias_score": float(track_bias_score) if track_bias_score is not None and track_bias_score == track_bias_score else 0.0,
     }
 
 
-def _pace_shape_term(pace_score, predicted_rel_settle, field_size, model):
+def _pace_shape_term(pace_score, predicted_rel_settle, field_size, model, track_bias_score=0.0):
     """Live pace_shape ADJ_TERM: runs the fitted LightGBM model on today's
-    continuous pace_score (race_speed_estimate) and predicted_rel_settle
-    (settling_estimate). 0.0 (no adjustment) if either input or the model
-    itself is unavailable - same "unseen -> 0" contract every other
-    population term here uses."""
+    continuous pace_score (race_speed_estimate), predicted_rel_settle
+    (settling_estimate), and track_bias_score (today's track/going/rail
+    combo vs the grade norm - see _track_bias_score). 0.0 (no adjustment)
+    if pace_score/predicted_rel_settle or the model itself is unavailable -
+    same "unseen -> 0" contract every other population term here uses.
+    track_bias_score missing/0.0 does NOT block the term (see
+    _pace_shape_features docstring)."""
     if model is None:
         return 0.0
-    feat = _pace_shape_features(pace_score, predicted_rel_settle, field_size)
+    feat = _pace_shape_features(pace_score, predicted_rel_settle, field_size, track_bias_score)
     if feat is None:
         return 0.0
     row = pd.DataFrame([feat], columns=_PACE_SHAPE_FEATURES)
@@ -2685,9 +2741,11 @@ def project_race(runners, race_date):
     # _load_models).
     for f, r in zip(feat_dicts, runners):
         if f is not None:
+            _tbs = _track_bias_score(r.get("cur_track"), r.get("cur_going"),
+                                     r.get("cur_rail_position"), _TRACK_BIAS_LOOKUP)
             f["pace_shape"] = _pace_shape_term(
                 r.get("cur_pace_score"), r.get("cur_predicted_rel_settle"),
-                r.get("cur_field_size"), _PACE_SHAPE_MODEL)
+                r.get("cur_field_size"), _PACE_SHAPE_MODEL, _tbs)
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
@@ -3572,7 +3630,9 @@ def _fit_pace_shape_model(D, name_map):
     trn almost entirely uncovered, since predicted_rel_settle/pace_score
     are only leak-safely reconstructable for roughly the last year).
 
-    Returns the fitted model (None if too little covered data to fit)."""
+    Returns (model, track_bias_lookup) - model is None if too little
+    covered data to fit (track_bias_lookup is still returned/usable even
+    then, but a None model means the term is 0.0 everywhere regardless)."""
     import lightgbm as lgb
     since = (D["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
     print(f"  building pace_shape ingredients (leak-safe, since {since})...")
@@ -3590,12 +3650,27 @@ def _fit_pace_shape_model(D, name_map):
     print(f"  pace_score coverage: {D['pace_score'].notna().mean()*100:.1f}%  "
           f"predicted_rel_settle coverage: {D['predicted_rel_settle'].notna().mean()*100:.1f}%")
 
+    # track_bias_score (Sep 2026 addition): unlike pace_score/predicted_rel_
+    # settle, this is NOT bounded to the 365-day window - _build_track_bias_
+    # lookup sources from race_results_*.csv.gz (10 years of history), a
+    # completely separate dataset from wpr_form_history.csv.gz's own leak-
+    # safe scoring, so there is no matching leak concern here. "unseen ->
+    # 0.0" by construction (see _track_bias_score), so it never blocks the
+    # coverage/dropna gate below the way pace_score/predicted_rel_settle do.
+    track_bias_lookup = _build_track_bias_lookup()
+    D["track_bias_score"] = [
+        _track_bias_score(trk, going, rail, track_bias_lookup)
+        for trk, going, rail in zip(D["track"], D["going"], D.get("rail_position"))
+    ]
+    print(f"  track_bias_score nonzero: {(D['track_bias_score'] != 0).mean()*100:.1f}% of rows "
+          f"({len(track_bias_lookup):,} lookup entries)")
+
     cov = D[D["date"] >= pd.Timestamp(since)].dropna(
         subset=["settle_signal", "pace_signal", "interaction", "target", "career_avg"])
     if len(cov) < 200:
         print(f"  pace_shape: only {len(cov):,} covered rows, skipping fit "
               f"(need >=200)")
-        return None
+        return None, track_bias_lookup
     cutoff = cov["date"].quantile(0.70)
     cov_trn = cov[cov["date"] < cutoff]
     print(f"  pace_shape: fitting on {len(cov_trn):,} covered rows "
@@ -3607,11 +3682,18 @@ def _fit_pace_shape_model(D, name_map):
     # opposite signs - see wpr_adj_median_bucket_test.py), same fix
     # settling_estimate.py's own model already made. Clears the
     # bidirectional bar (-0.0700/-0.0846 MAE).
+    #
+    # track_bias_score added as a 5th feature (Sep 2026): a standalone
+    # scratch comparison (scratch_track_bias_eval.py) found it improved
+    # held-out MAE (6.9705 -> 6.9592, -0.0112) and came out as the TOP
+    # importance feature in the 5-feature model, ahead of field_size - a
+    # small but real, ship-worthy gain (matching the scale of every other
+    # legitimately-shipped ADJ_TERM refinement in this file's history).
     model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
                               num_leaves=8, random_state=42, verbosity=-1,
                               objective="quantile", alpha=0.5)
     model.fit(cov_trn[_PACE_SHAPE_FEATURES], cov_trn["target"] - cov_trn["career_avg"])
-    return model
+    return model, track_bias_lookup
 
 
 def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
@@ -3838,14 +3920,14 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # D by reference... no - cf/te were sliced from D BEFORE this call, so
     # the new columns must be looked up fresh below, not assumed present).
     print("  fitting pace_shape model (leak-safe, own coverage-aware window)...")
-    pace_shape_model = _fit_pace_shape_model(D, _name_map)
+    pace_shape_model, track_bias_lookup = _fit_pace_shape_model(D, _name_map)
     if pace_shape_model is not None:
         for _frame in (cf, te):
-            _fps = D.loc[_frame.index, ["pace_score", "predicted_rel_settle"]]
+            _fps = D.loc[_frame.index, ["pace_score", "predicted_rel_settle", "track_bias_score"]]
             _frame["pace_shape"] = [
-                _pace_shape_term(ps, prs, fs, pace_shape_model)
-                for ps, prs, fs in zip(_fps["pace_score"], _fps["predicted_rel_settle"],
-                                       _frame["field_size"])
+                _pace_shape_term(ps, prs, fs, pace_shape_model, tbs)
+                for ps, prs, fs, tbs in zip(_fps["pace_score"], _fps["predicted_rel_settle"],
+                                            _frame["field_size"], _fps["track_bias_score"])
             ]
         print("  pace_shape: model fitted and applied to cf/te")
     else:
@@ -3896,6 +3978,16 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     def _additive_predict(frame):
         return frame["_base"].to_numpy() + _cap_adj_sum(
             frame[ADJ_TERMS].to_numpy()).sum(axis=1)
+
+    # Defensive: each population ADJ_TERM's own function claims an
+    # "unseen -> 0.0" contract, but a handful of cf/te rows still come out
+    # NaN after the per-race demeaning above (e.g. every row in a race
+    # group NaN for a term). Confirmed in scratch testing (see the joint-
+    # training rejection note above) this is a pre-existing edge case, not
+    # something any one term introduces - fill defensively rather than
+    # letting mean_absolute_error below blow up on it.
+    for _frame in (cf, te):
+        _frame[ADJ_TERMS] = _frame[ADJ_TERMS].fillna(0.0)
 
     cf["abs_err"] = (_additive_predict(cf) - cf["target"]).abs()
     te["abs_err"] = (_additive_predict(te) - te["target"]).abs()
@@ -3976,8 +4068,9 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # place rather than deleting it (an unlucky retrain should not silently
     # remove a working term).
     if pace_shape_model is not None:
-        joblib.dump(pace_shape_model, Path(out_dir) / "pace_shape.joblib")
-        print("  pace_shape.joblib written")
+        joblib.dump({"model": pace_shape_model, "track_bias_lookup": track_bias_lookup},
+                    Path(out_dir) / "pace_shape.joblib")
+        print("  pace_shape.joblib written (model + track_bias_lookup)")
     # pop_adj_models.joblib (Sep 2026): bundles the 5 trained-model
     # population ADJ_TERMS (track_barrier, trainer_merit, jockey_merit,
     # gear_change, closing_merit - each replacing a shrunk lookup table,

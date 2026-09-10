@@ -1408,6 +1408,11 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 "cur_gear_changes": r.get("gear_changes"),
                 "cur_trainer_win_pct_365d": r.get("trainer_win_pct_365d"),
                 "cur_jockey_win_pct_90d": r.get("jockey_win_pct_90d"),
+                # track_bias_score input (pace_shape's 5th feature, Sep
+                # 2026) - same value for every runner in the race (a
+                # race-level field), degrades gracefully to 0.0 in
+                # project_race if None (see _track_bias_score).
+                "cur_rail_position": r.get("rail_position"),
             }
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))
