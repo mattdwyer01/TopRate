@@ -33,6 +33,9 @@ config.json. Read-only comparison, safe to run repeatedly.
 
 NO EM DASHES policy: hyphens only in this file.
 """
+import pickle
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
@@ -40,55 +43,73 @@ from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wp
 
-print("Building training frame (n_jobs=-1, parallel across free cores) ...")
-D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=-1).dropna(
-    subset=["target", "date"]).sort_values("date")
-print(f"{len(D):,} training rows")
+# Checkpoint the expensive prep (build_training_frame + trainer/jockey merge
+# + filters + _base/median-fill) to disk so a relaunch after an interrupted
+# run (this sandbox has been silently killing background processes mid-run,
+# Sep 10 2026 - not an OOM, not a script bug, see chat) can skip straight to
+# the fold loop instead of redoing ~10 minutes of feature-building every
+# time. /tmp, not the repo - this is throwaway, never meant to be committed.
+_CACHE = Path("/tmp/joint_model_kfold_D_cache.pkl")
 
-print("merging trainer/jockey trailing win-rate by (horse, date)...")
-_name_map, _tj_lookup = wp._load_trainer_jockey_by_horse_date("wpr_form_history.csv.gz")
-_tj_dates = D["date"].dt.strftime("%Y-%m-%d")
-_tj_names = D["horse_id"].map(_name_map)
-_tj_vals = [_tj_lookup.get((n, d), (np.nan, np.nan)) for n, d in zip(_tj_names, _tj_dates)]
-D["trainer_win_pct_365d"] = [t for t, j in _tj_vals]
-D["jockey_win_pct_90d"] = [j for t, j in _tj_vals]
+if _CACHE.exists():
+    print(f"Loading cached prepped D from {_CACHE} (skipping rebuild)...")
+    with open(_CACHE, "rb") as f:
+        D, _name_map = pickle.load(f)
+    print(f"{len(D):,} training rows (from cache)")
+else:
+    print("Building training frame (n_jobs=-1, parallel across free cores) ...")
+    D = wp.build_training_frame("wpr_form_history.csv.gz", n_jobs=-1).dropna(
+        subset=["target", "date"]).sort_values("date")
+    print(f"{len(D):,} training rows")
 
-try:
-    from wpr_void import void_from_comment_only
-    cv = D["comments_video"] if "comments_video" in D.columns else None
-    cs = D["comments_steward"] if "comments_steward" in D.columns else None
-    if cv is not None or cs is not None:
-        cv = cv if cv is not None else [None] * len(D)
-        cs = cs if cs is not None else [None] * len(D)
-        void_mask = [void_from_comment_only(a, b)[0] for a, b in zip(cv, cs)]
-        n_void = int(sum(void_mask))
-        if n_void:
-            D = D[[not v for v in void_mask]].copy()
-            print(f"void filter: excluded {n_void:,} rows, {len(D):,} remain")
-except ImportError:
-    print("void filter: wpr_void not found, skipping")
+    print("merging trainer/jockey trailing win-rate by (horse, date)...")
+    _name_map, _tj_lookup = wp._load_trainer_jockey_by_horse_date("wpr_form_history.csv.gz")
+    _tj_dates = D["date"].dt.strftime("%Y-%m-%d")
+    _tj_names = D["horse_id"].map(_name_map)
+    _tj_vals = [_tj_lookup.get((n, d), (np.nan, np.nan)) for n, d in zip(_tj_names, _tj_dates)]
+    D["trainer_win_pct_365d"] = [t for t, j in _tj_vals]
+    D["jockey_win_pct_90d"] = [j for t, j in _tj_vals]
 
-if "going" in D.columns:
-    _g = D["going"].astype(str).str.strip().str.lower()
-    blank_going = D["going"].isna() | _g.isin(["", "nan", "none", "<na>"])
-    n_blank = int(blank_going.sum())
-    if n_blank:
-        D = D[~blank_going].copy()
-        print(f"surface filter: excluded {n_blank:,} rows, {len(D):,} remain")
+    try:
+        from wpr_void import void_from_comment_only
+        cv = D["comments_video"] if "comments_video" in D.columns else None
+        cs = D["comments_steward"] if "comments_steward" in D.columns else None
+        if cv is not None or cs is not None:
+            cv = cv if cv is not None else [None] * len(D)
+            cs = cs if cs is not None else [None] * len(D)
+            void_mask = [void_from_comment_only(a, b)[0] for a, b in zip(cv, cs)]
+            n_void = int(sum(void_mask))
+            if n_void:
+                D = D[[not v for v in void_mask]].copy()
+                print(f"void filter: excluded {n_void:,} rows, {len(D):,} remain")
+    except ImportError:
+        print("void filter: wpr_void not found, skipping")
 
-D["_base"] = wp._BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - wp._BASE_BLEND_ALPHA) * D["ewm5"]
-D["_base"] = D["_base"].fillna(D["wpr_nett"]).fillna(D["ewm5"]) \
-    .fillna(D["avg_last3"]).fillna(D["career_avg"])
-D = D.dropna(subset=["_base"]).copy()
+    if "going" in D.columns:
+        _g = D["going"].astype(str).str.strip().str.lower()
+        blank_going = D["going"].isna() | _g.isin(["", "nan", "none", "<na>"])
+        n_blank = int(blank_going.sum())
+        if n_blank:
+            D = D[~blank_going].copy()
+            print(f"surface filter: excluded {n_blank:,} rows, {len(D):,} remain")
 
-med = D[wp.FEATURES].median()
-D[wp.FEATURES] = D[wp.FEATURES].fillna(med)
+    D["_base"] = wp._BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - wp._BASE_BLEND_ALPHA) * D["ewm5"]
+    D["_base"] = D["_base"].fillna(D["wpr_nett"]).fillna(D["ewm5"]) \
+        .fillna(D["avg_last3"]).fillna(D["career_avg"])
+    D = D.dropna(subset=["_base"]).copy()
 
-# pace_shape excluded entirely (see module docstring).
-D["pace_shape"] = 0.0
-D["settle_signal"] = 0.0
-D["pace_signal"] = 0.0
-D["interaction"] = 0.0
+    med = D[wp.FEATURES].median()
+    D[wp.FEATURES] = D[wp.FEATURES].fillna(med)
+
+    # pace_shape excluded entirely (see module docstring).
+    D["pace_shape"] = 0.0
+    D["settle_signal"] = 0.0
+    D["pace_signal"] = 0.0
+    D["interaction"] = 0.0
+
+    print(f"Caching prepped D to {_CACHE} ...")
+    with open(_CACHE, "wb") as f:
+        pickle.dump((D, _name_map), f)
 
 BASE_JOINT_FEATURES = list(wp.FEATURES) + [
     "barrier", "track_code", "trainer_win_pct_365d", "jockey_win_pct_90d",
