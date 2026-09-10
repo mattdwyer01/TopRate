@@ -149,9 +149,11 @@ def build_D(combined):
         with open(D_CACHE, "rb") as f:
             return pickle.load(f)
     print("\nRunning wp.build_training_frame() on the combined 10-year file "
-          "(reuses build_features() exactly, n_jobs=2 - reduced from -1/4 "
-          "after the first attempt's OOM, see NEEDED_COLS comment) ...")
-    D = wp.build_training_frame(str(COMBINED_CSV), verbose=True, n_jobs=2)
+          "(reuses build_features() exactly, n_jobs=1/serial - the n_jobs=2 "
+          "attempt still climbed steadily for 2+ hours without finishing and "
+          "was killed before it hit the same OOM ceiling; serial drops the "
+          "~7GB of worker-process overhead at the cost of wall-clock time) ...")
+    D = wp.build_training_frame(str(COMBINED_CSV), verbose=True, n_jobs=1)
     D["date"] = pd.to_datetime(D["date"])
     print(f"  {len(D):,} training rows")
     with open(D_CACHE, "wb") as f:
