@@ -174,6 +174,28 @@ trn["pace_signal"] = (D.loc[trn.index, "pace_score"] - 0.5) * 2
 trn["interaction"] = trn["settle_signal"] * trn["pace_signal"]
 
 # --- Current live architecture's held-out MAE (the number to beat) ---
+# Diagnostic: every individual ADJ_TERM function (own_distance's _shrink,
+# track_barrier_term, _merit_term, _closing_merit_term, _pace_shape_term)
+# is documented to return a clean 0.0 on any missing/NaN input - so no
+# ADJ_TERM column should ever be NaN by the time we get here. Check that
+# claim directly rather than assume it, since a crash here would mean
+# either a bug in this script's own term-assembly, or a real gap in one
+# of those "unseen -> 0" guarantees.
+for _frame_name, _frame in (("cf", cf), ("te", te)):
+    _nan_counts = _frame[["_base"] + wp.ADJ_TERMS].isna().sum()
+    _nan_counts = _nan_counts[_nan_counts > 0]
+    if len(_nan_counts):
+        print(f"NaN check ({_frame_name}): {dict(_nan_counts)}")
+    else:
+        print(f"NaN check ({_frame_name}): all clean")
+
+# Defensive backstop only - matches the "unseen -> 0" contract every
+# ADJ_TERM already documents for itself. If the check above found real
+# NaNs, this is what SHOULD have happened anyway; if it found none, this
+# is a no-op.
+for _frame in (cf, te):
+    _frame[wp.ADJ_TERMS] = _frame[wp.ADJ_TERMS].fillna(0.0)
+
 def _additive_predict(frame):
     return frame["_base"].to_numpy() + wp._cap_adj_sum(
         frame[wp.ADJ_TERMS].to_numpy()).sum(axis=1)
