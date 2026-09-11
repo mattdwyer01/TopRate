@@ -3138,6 +3138,30 @@ def rebuild_html(runners_df, model_pick_rows=None):
             _fa["_ds"] = pd.to_numeric(_fa.get("distance"), errors="coerce")
             _fa["_go"] = _fa.get("going", "").astype(str).where(
                 _fa.get("going").notna(), "")
+            # void flag (Sep 2026): same comment-only void test the
+            # projection model itself uses to discount a compromised run
+            # (vet/eased/checked/fell/etc, see wpr_void.void_from_comment_
+            # only and wpr_projection._compute_base's own void-masking of
+            # w) - exposed here so the dashboard's own career/condition
+            # table can exclude the same runs from ITS averages instead of
+            # silently disagreeing with the model's adjustment (found Sep
+            # 2026: a horse's displayed "First-up avg" and the model's own
+            # own_first_up figure diverged because only the model discounted
+            # a checked run). Best-effort: any import/column failure leaves
+            # every row void=False (unchanged prior behaviour).
+            try:
+                from wpr_void import void_from_comment_only as _void_fn
+                _cv = _fa.get("comments_video")
+                _cs = _fa.get("comments_steward")
+                if _cv is None:
+                    _cv = pd.Series([None] * len(_fa), index=_fa.index)
+                if _cs is None:
+                    _cs = pd.Series([None] * len(_fa), index=_fa.index)
+                _fa["_void"] = [
+                    _void_fn(a, b)[0] for a, b in zip(_cv, _cs)
+                ]
+            except Exception:
+                _fa["_void"] = False
             # against-shape per run = horse late sectional minus race late
             # shape. Higher = ran home stronger than the race late shape.
             # Tendency per horse = mean over the LAST 5 runs (min 3),
@@ -3259,9 +3283,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 _fa_dates = (_fa_g["date"].astype(str).str[:10]
                              if "date" in _fa_g.columns
                              else [""] * len(_fa_g))
-                for _w, _go, _ds, _tmp, _rel, _dt in zip(
+                _fa_void = (_fa_g["_void"] if "_void" in _fa_g.columns
+                            else [False] * len(_fa_g))
+                for _w, _go, _ds, _tmp, _rel, _dt, _vd in zip(
                         _fa_g["_w"], _fa_g["_go"], _fa_g["_ds"],
-                        _fa_g["_tmp"], _fa_g["_rel"], _fa_dates):
+                        _fa_g["_tmp"], _fa_g["_rel"], _fa_dates, _fa_void):
                     _recs.append({
                         "w": float(_w),
                         "go": _go if isinstance(_go, str) else "",
@@ -3272,6 +3298,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
                         "d": _dt,   # run date - lets the payload exclude the
                                     # current race from the comparison tables,
                                     # same as formRuns (display-only).
+                        # void (Sep 2026): True if this run was compromised
+                        # (vet/eased/checked/fell/etc per steward/video
+                        # comments) - same test the projection model itself
+                        # uses to discount a run's WPR from own-history
+                        # averages. Only emitted True (never False) to keep
+                        # the payload from growing a redundant key on every
+                        # one of a horse's runs - falsy/absent means valid.
+                        **({"void": True} if bool(_vd) else {}),
                     })
                 form_all_lookup[_hlc] = _recs
     except Exception as _e:

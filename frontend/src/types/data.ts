@@ -37,6 +37,11 @@ export interface RawFormAllEntry {
   tmp: string | null
   rel: number | null
   d: string
+  // True if this run was compromised (vet/eased/checked/fell/etc per
+  // steward/video comments) - same test wpr_projection.py's own model
+  // uses to discount a run's WPR from own-history averages. Only ever
+  // present (and true) on a voided run; absent means valid.
+  void?: true
 }
 
 export interface RawGoingBreakdown {

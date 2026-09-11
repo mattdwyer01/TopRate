@@ -62,6 +62,7 @@ function toFormHistoryEntry(r: RawFormAllEntry): FormHistoryEntry {
     tempo: r.tmp as FormHistoryEntry['tempo'],
     relativeSettlePosition: r.rel,
     date: r.d,
+    isVoid: r.void === true,
   }
 }
 

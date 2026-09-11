@@ -23,12 +23,22 @@ export interface CareerStatRow {
 const SPELL_GAP_DAYS = 60
 const MS_PER_DAY = 86_400_000
 
+// dated: every run with a usable wpr+date, void or not - campaign/spell
+// position (first-up, second-up, "this prep") is a STRUCTURAL question
+// about which calendar slot a run falls in, unaffected by whether that
+// run's own result was compromised, same as the backend model's own
+// camp_run_series (computed from raw dates, before any void masking -
+// see wpr_projection.py's build_features). wprs: only the NON-void
+// values, since averaging in a run the horse didn't get a fair chance to
+// show its true form would be double-counting the same class of error
+// the backend already discounts for its own own_* adjustment terms.
 function sortedWprs(entries: FormHistoryEntry[]): { dated: FormHistoryEntry[]; wprs: number[] } {
   const dated = entries
     .filter((e) => e.wpr != null && e.date)
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date))
-  return { dated, wprs: dated.map((e) => e.wpr as number) }
+  const wprs = dated.filter((e) => !e.isVoid).map((e) => e.wpr as number)
+  return { dated, wprs }
 }
 
 function mean(values: number[]): number | null {

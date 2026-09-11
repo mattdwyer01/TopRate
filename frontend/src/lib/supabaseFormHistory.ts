@@ -119,6 +119,12 @@ export async function fetchFullFormHistory(
     tempo: tempoOf(r.sect_i_early, r.sect_i_l600),
     relativeSettlePosition: relativeSettle(r.positionsettled, r.field_size),
     date: r.date ?? '',
+    // This source doesn't fetch comments_video/comments_steward (see
+    // FIELDS above), so void status can't be determined here - defaults
+    // to false (shown as valid) rather than silently misrepresenting an
+    // unknown as void. The main toprate_data.json path (adapter.ts) does
+    // carry real void detection - see FormHistoryEntry's own docstring.
+    isVoid: false,
   }))
 
   const runs: FormRun[] = sorted

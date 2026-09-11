@@ -32,6 +32,11 @@ export interface FormHistoryEntry {
   tempo: 'Fast' | 'Even' | 'Slow' | null
   relativeSettlePosition: number | null
   date: string
+  // True if this run was compromised (vet/eased/checked/fell/etc) and
+  // its WPR shouldn't count as honest evidence of the horse's ability -
+  // same test the projection model itself applies to its own own_*
+  // adjustment terms (see CareerStats/careerStats.ts).
+  isVoid: boolean
 }
 
 export interface GoingBreakdown {
