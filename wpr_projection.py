@@ -512,7 +512,7 @@ ADJ_TERMS = [
 # track_wpr/best3 are NOT deleted from the codebase - they remain
 # available as ADJ_TERMS candidate features (see FEATURES) - only their
 # use as BASE inputs was reverted.
-_BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm7 gets (1 - alpha) = 0.70
+_BASE_BLEND_ALPHA = 0.20  # wpr_nett weight; ewm7 gets (1 - alpha) = 0.80
 
 
 def _compute_base(feat):
@@ -541,11 +541,27 @@ def _compute_base(feat):
     indistinguishable from ewm5 for horses with under 7 starts (differs
     by at most 0.003 MAE, actually best of all candidates in the 1-2-
     starts band) - it degrades gracefully on its own, no separate
-    fallback needed. _BASE_BLEND_ALPHA (0.30) was NOT re-optimized
-    specifically for the ewm7 partner - the same alpha was applied
-    uniformly to every anchor candidate in this comparison for a fair
-    test; revisiting alpha itself for ewm7 specifically is a worthwhile
-    future refinement, not yet done.
+    fallback needed. _BASE_BLEND_ALPHA (originally 0.30, carried over
+    unchanged from the ewm5 comparison - the same alpha was applied
+    uniformly to every anchor candidate there for a fair test) WAS
+    subsequently re-optimized specifically for the ewm7 partner (Sep
+    2026, wpr_alpha_reopt_for_ewm7_test.py): the full 10-year era
+    framework can't measure alpha at all (wpr_nett, the other blend
+    input, has 0% coverage before 2026 and only ~45% even within 2026,
+    so the blend collapses to 100% ewm7 regardless of alpha across 95%+
+    of that dataset - a first attempt got an identical MAE at every
+    alpha, the giveaway). Rebuilt on the SAME K=4-fold chronological
+    method the original 0.30 was derived under, scoped to the ~4.5-month
+    window where wpr_nett actually exists (~51.5k rows): alpha=0.20 beat
+    0.30 by -0.0087 pooled MAE, and every one of the 4 independent folds
+    independently picked a best alpha below 0.30 (0.15-0.25 range) - a
+    consistent, fold-stable signal. alpha=0.0 (100% ewm7, discarding
+    wpr_nett entirely) was also tested and came in +0.0353 WORSE than
+    0.30 - wpr_nett is real signal (its own addition was "the single
+    largest accuracy gain found in the Aug 2026 feature search," MAE
+    5.75 -> 5.14) despite its narrow recent-only coverage, so a token
+    weight for it earns its keep even though ewm7 dominates the blend
+    either way (70-80% across every alpha actually tested).
 
     NO calibration step (see _BASE_BLEND_ALPHA's history above - the
     user's explicit instruction, and independently confirmed to cost
