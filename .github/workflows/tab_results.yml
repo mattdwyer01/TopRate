@@ -5,11 +5,12 @@ name: TAB live results (self-hosted)
 # tab_results_poller.py). Results close the gap where the authoritative feed
 # (update_results() in toprate_daily.py, run via price_refresh.yml) can't
 # resolve a race until its WHOLE MEETING finishes.
-# Writes finish_position/won/placed (per runner) and going/track_grading/
-# rail_position (per meeting); never resulted/wpr_actual/comments_* - see
-# tab_results_poller.py's docstring for why that split matters. going/
-# rail updates are display-only for now - they do NOT trigger a WPR ratings
-# recompute (see CLAUDE.md's Current state section for why that's deferred).
+# Writes finish_position/won/placed/interim_resulted (per runner) and
+# going/track_grading/rail_position (per meeting); never resulted/
+# wpr_actual/comments_* - see tab_results_poller.py's docstring for why
+# that split matters. A real going change DOES trigger a WPR ratings
+# recompute, scoped to just the meeting(s) that changed (see CLAUDE.md's
+# Current state section for the measured cost that made this safe).
 #
 # MUST run on a self-hosted runner registered from a real Australian
 # machine - TAB geo-blocks and TLS-fingerprints most cloud/VPS hosts,
@@ -89,15 +90,21 @@ jobs:
           # Pull-then-push with retry, same rationale as price_refresh.yml:
           # the daily workflow, manual pushes, and this job's own frequent
           # trigger all commit to main, so a plain push often gets rejected.
-          # -X theirs is safe here too - these are the same regenerated data
-          # files, never code.
+          # -X ours (not -X theirs) is deliberate here: --ours/--theirs are
+          # INVERTED in a rebase vs. a merge - in `git pull --rebase`, --ours
+          # is the upstream/incoming commit and --theirs is this job's own
+          # local commit being replayed. The repo's policy is "always take
+          # incoming for these generated files" (see CLAUDE.md's Deploy
+          # section for the real incident this caused when a plain merge's
+          # --theirs got copy-pasted into a rebase context), so -X ours is
+          # the flag that actually means that here.
           for i in 1 2 3 4 5; do
             if git push; then
               echo "Pushed on attempt $i"
               exit 0
             fi
             echo "Push rejected (attempt $i) - pulling and retrying"
-            git pull --rebase -X theirs --no-edit || git rebase --abort
+            git pull --rebase -X ours --no-edit || git rebase --abort
             sleep 3
           done
           echo "Push failed after retries"

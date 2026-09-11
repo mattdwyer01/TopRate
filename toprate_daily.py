@@ -187,6 +187,13 @@ RUNNER_COLS = [
     "starting_price_sp","price_top",
     # Result fields
     "finish_position","margin_finish","won","placed","resulted",
+    # Set by tab_results_poller.py the moment TAB reports a race Paying/
+    # Abandoned - lets the dashboard show a race as resulted right away
+    # (see the "done" flag near the RACES payload build) without touching
+    # `resulted` itself, which stays exclusively update_results()'s job
+    # (the authoritative wpr_actual/comments_* pass, days later, confirms
+    # or corrects it). Never read by anything price/accuracy-related.
+    "interim_resulted",
     # Late scratch, set by toprate_price_refresh.py after first capture (the
     # isScratched check above only ever runs once, at capture time)
     "scratched",
@@ -1204,7 +1211,7 @@ def compute_race_speed(runners_df, target_date_str=None):
     return runners_df
 
 
-def compute_wpr_projection(runners_df, target_date_str=None):
+def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None):
     """Add wprp_proj, wprp_conf, wprp_price, wprp_rank, wprp_peak, wprp_desc
     columns to the runners DataFrame.
 
@@ -1213,6 +1220,12 @@ def compute_wpr_projection(runners_df, target_date_str=None):
     it every run is both wasteful and grows unbounded, so the work is scoped
     to today's races. Past runners keep whatever wprp_* values they already
     had.
+
+    target_venues (optional): further restrict to just these venue(s) within
+    target_date_str - e.g. an intraday recompute after a track condition
+    change at one meeting, where re-projecting every other race that day too
+    would be pure waste. None (default, and what the daily pipeline passes)
+    means every race that day, matching prior behaviour exactly.
 
     Additive and fail-safe: returns the DataFrame unchanged on any failure -
     the projection must never break the daily pipeline.
@@ -1257,8 +1270,12 @@ def compute_wpr_projection(runners_df, target_date_str=None):
         target_date_str = date.today().strftime("%Y-%m-%d")
     day_mask = runners_df["date"].astype(str).str[:10] == target_date_str
     today = runners_df[day_mask]
+    if target_venues:
+        venue_set = {str(v).strip().lower() for v in target_venues}
+        today = today[today["venue"].astype(str).str.strip().str.lower().isin(venue_set)]
     if len(today) == 0:
-        print(f"  WPR projection: no runners for {target_date_str}, skipping")
+        print(f"  WPR projection: no runners for {target_date_str}"
+              f"{' / ' + ', '.join(sorted(target_venues)) if target_venues else ''}, skipping")
         return runners_df
 
     # form history - read once, then keep only the horses running today
@@ -2725,6 +2742,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "won":               None,
                     "placed":            None,
                     "resulted":          0,
+                    "interim_resulted":  0,
                 })
 
             if not race_runners:
@@ -3715,7 +3733,20 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rs_label":  str(first.get("rs_label")) if first.get("rs_label") and str(first.get("rs_label")) != "nan" else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
             "fs":        _active_field_size,
-            "done":      int((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else 0),
+            # True once every runner is resulted for real (authoritative,
+            # via update_results()) OR interim-resulted (TAB's fast feed,
+            # via tab_results_poller.py) - either is enough to show the race
+            # as done; the authoritative pass still lands later and simply
+            # confirms/corrects finish_position, it doesn't need to flip
+            # this again. See RUNNER_COLS' interim_resulted comment for why
+            # these stay two separate columns instead of TAB setting
+            # `resulted` directly.
+            "done":      int(
+                ((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else False)
+                or ((rdf.get("interim_resulted") == 1).all()
+                    if "interim_resulted" in rdf.columns and rdf["interim_resulted"].notna().any()
+                    else False)
+            ),
             # Cumulative score formula path used for this race ('A' or 'B').
             # 'A' = jt_combo + tr (better, 44% rk-1 WR). 'B' = tr + wpr3 + late (33% rk-1 WR).
             # JS uses this to pick the right coverage curve in the Quaddie tab.
