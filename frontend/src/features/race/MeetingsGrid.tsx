@@ -135,21 +135,12 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
                             title={finishers && finishers.length > 0
-                              ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length}: #${finishers.join(', #')}`
+                              ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}`
                               : undefined}
                             className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[status]}`}
                           >
                             {finishers && finishers.length > 0 ? (
-                              // 2x2 grid, not space-joined text left to wrap
-                              // on its own - at narrow column widths (and
-                              // especially on mobile) plain text wrapping
-                              // put one number per line, making these pills
-                              // noticeably taller than a time-showing one.
-                              <span className="grid grid-cols-2 gap-x-1 leading-tight">
-                                {finishers.map((t) => (
-                                  <span key={t}>#{t}</span>
-                                ))}
-                              </span>
+                              finishers.join('/')
                             ) : (
                               formatTimeOfDay(race.startTime)
                             )}
