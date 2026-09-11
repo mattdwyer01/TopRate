@@ -55,7 +55,7 @@ SHIPPED_NEW_TERM_FEATURES = {
     "pop_going": ("going_delta", wp._POP_GOING_FEATURES),
 }
 
-ALPHA_GRID = [round(a, 2) for a in np.arange(0.05, 0.65, 0.05)]
+ALPHA_GRID = [round(a, 2) for a in np.arange(0.0, 0.65, 0.05)]
 N_FOLDS = 4
 
 
