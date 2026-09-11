@@ -132,7 +132,7 @@ NEEDED_COLS = [
     "isBarrierTrial", "barrier", "field_size", "raceShapeEarly",
     "raceShapeMid", "raceShapeLate", "race_class", "comments_video",
     "comments_steward", "gear_changes", "atw", "weight_restriction",
-    "rail_position",
+    "rail_position", "positionFinish", "priceStarting",
 ] + _SECT_COLS
 
 
