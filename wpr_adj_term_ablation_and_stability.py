@@ -88,6 +88,22 @@ def _load_D():
         subset=["target", "date"]).sort_values("date")
     print(f"{len(D):,} training rows")
 
+    # trainer_win_pct_365d/jockey_win_pct_90d are NOT part of build_training_
+    # frame()'s own output (confirmed in wp._load_trainer_jockey_by_horse_date's
+    # own docstring: only ever captured in toprate_runners.csv at daily-fetch
+    # time, never in the form-history archive) - fit_trained_terms's trainer_
+    # merit/jockey_merit fitting needs them. Missing here in every earlier
+    # version of this script (a real bug, never caught because the script was
+    # never actually run until now) - same merge pattern scratch_joint_model_
+    # roi_eval.py already uses.
+    print("Merging trainer/jockey trailing win-rate from toprate_runners.csv...")
+    _name_map, _tj_lookup = wp._load_trainer_jockey_by_horse_date(FORM_CSV)
+    _tj_dates = D["date"].dt.strftime("%Y-%m-%d")
+    _tj_names = D["horse_id"].map(_name_map)
+    _tj_vals = [_tj_lookup.get((n, d), (np.nan, np.nan)) for n, d in zip(_tj_names, _tj_dates)]
+    D["trainer_win_pct_365d"] = [t for t, j in _tj_vals]
+    D["jockey_win_pct_90d"] = [j for t, j in _tj_vals]
+
     if "going" in D.columns:
         g = D["going"].astype(str).str.strip().str.lower()
         blank_going = D["going"].isna() | g.isin(["", "nan", "none", "<na>"])
