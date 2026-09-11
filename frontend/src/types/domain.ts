@@ -79,6 +79,12 @@ export interface Runner {
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null
+  // Ride/start counts behind the two figures above - null when the API
+  // doesn't expose it. Used to flag a strike rate built on a thin sample
+  // (see wpr_projection.py's jockey_merit/trainer_merit sample-size
+  // shrink, same reasoning applied here for display).
+  jockeyStarts90d: number | null
+  trainerStarts365d: number | null
   jtComboWinPct: number | null
   jtComboRides: number | null
   jockeyRating: number | null

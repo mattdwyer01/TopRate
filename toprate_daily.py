@@ -3726,6 +3726,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
+                # Ride/start counts behind jw/tw above (Sep 2026) - lets the
+                # dashboard flag a strike rate built on a thin sample, same
+                # reasoning as wpr_projection.py's own jockey_merit/
+                # trainer_merit shrink (see that module's _merit_term
+                # docstring). None until the API is confirmed to expose it.
+                "jwN":  sf(row.get("jockey_starts_90d")),
+                "twN":  sf(row.get("trainer_starts_365d")),
                 # Jockey/trainer combination win% and ride count together.
                 # DO NOT use for scoring/strategy - confirmed data leak, see
                 # this field's definition comment above in SIGNALS. Kept for
