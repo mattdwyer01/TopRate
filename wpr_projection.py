@@ -387,8 +387,22 @@ FEATURES = [
 ADJ_TERMS = [
     "own_first_up", "own_second_up", "own_long_spell", "track_barrier",
     "closing_merit", "trainer_merit", "jockey_merit", "pace_shape",
-    "trainer_change", "pop_distance", "pop_going",
+    "pop_distance", "pop_going",
 ]
+# trainer_change (Sep 2026): turned OFF per explicit user instruction, after
+# a quality-aware redesign attempt (new trainer's win% minus the old
+# trainer's win% at the switch, instead of a flat 0/1 changed flag) was
+# tested and rejected - the old-trainer lookup only has ~10% coverage of
+# actual changes (wpr_trainer_jockey_quality_change_test.py), so it came
+# out essentially unchanged vs the binary flag on held-out MAE, and the
+# binary flag's own "no change = positive bonus" oddity (wpr_trainer_
+# change_rebase_test.py) was never resolved. Rather than keep a term that
+# behaves in an unexplained way, it is off. The fit (trainer_change_model,
+# in pop_adj_models.joblib) and the raw trainer_change flag in
+# build_features() are left in place, not deleted - same "kept as a
+# candidate, not shipped" treatment track_wpr/best3 already get above -
+# so re-enabling (by adding "trainer_change" back to ADJ_TERMS) needs no
+# rebuilding of the underlying plumbing, just a retrain.
 
 # Serving-time calibration - REMOVED (Sep 2026). HISTORY: a Aug 2026 review
 # of projected_wpr vs real post-race wpr_actual found raw projections
