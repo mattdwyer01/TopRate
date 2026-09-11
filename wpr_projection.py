@@ -930,39 +930,50 @@ _POP_DISTANCE_FEATURES = ["dist_vs_last", "field_size"]
 _POP_GOING_FEATURES = ["going_delta", "field_size"]
 
 
-# Sample-size shrink for trainer_merit/jockey_merit (Sep 2026): the
-# trained model only ever sees the trailing win% ITSELF, never how many
-# rides/starts it was computed from - a jockey on 1-of-2 rides (50%) read
-# identically to one on 50-of-100 (also 50%), confirmed live (Explosive
-# Tycoon, 2026-09-12: jockey_merit +6.04 off a 50% jockey_win_pct_90d that
-# the jockey's own jockey_pot_pct_90d/jockey_lt3l_pct_90d figures pointed
-# at being a tiny sample, not a genuine hot streak - see chat). Same
-# failure MODE as jt_combo_win_pct's own documented leak (winPercent
-# reading ~100/~0 on 1-ride combos, toprate_daily.py's SIGNALS comment),
-# just less extreme since this is jockey-wide, not jockey+trainer-combo-
-# narrow. Discounts the model's prediction toward 0 by n/(n+K), same
+# Sample-size shrink for population terms whose input is itself a rate/
+# delta computed from an entity's own trailing history (Sep 2026): the
+# trained model only ever sees the rate ITSELF, never how many
+# rides/starts/runs it was computed from - a jockey on 1-of-2 rides (50%)
+# read identically to one on 50-of-100 (also 50%), confirmed live
+# (Explosive Tycoon, 2026-09-12: jockey_merit +6.04 off a 50%
+# jockey_win_pct_90d that the jockey's own jockey_pot_pct_90d/
+# jockey_lt3l_pct_90d figures pointed at being a tiny sample, not a
+# genuine hot streak - see chat). Same failure MODE as jt_combo_win_pct's
+# own documented leak (winPercent reading ~100/~0 on 1-ride combos,
+# toprate_daily.py's SIGNALS comment), just less extreme. A second
+# instance found in the same audit pass: pop_going's going_delta (this
+# horse's own wet-minus-dry WPR average) required only 1 run on each side
+# to compute a value, with no shrink at all, despite own_wet/own_dry (the
+# same underlying wet/dry split, diagnostic-only) already shrinking via
+# _shrink() - going_delta just never inherited it before reaching a live
+# ADJ_TERM. Discounts the model's prediction toward 0 by n/(n+K), same
 # _shrink() shape every own-history term already uses, just applied to a
-# TRAINED MODEL's output instead of a raw delta (own-history terms shrink
-# the delta itself; there is no equivalent "delta" here to shrink before
-# the model runs - the count only becomes known at serve time). K=10 is
-# an untuned starting point, not empirically fit: unlike every other
-# constant in this file, there is no historical ride-count data to
-# backtest against (jockey_starts_90d/trainer_starts_365d are new columns,
-# Sep 2026 - see build_stats_lookup) - revisit once enough live data has
-# accumulated to actually validate a K.
+# TRAINED MODEL's output instead of a raw delta (there is no equivalent
+# "delta" here to shrink before the model runs for jockey_merit/
+# trainer_merit - the count only becomes known at serve time; going_delta
+# COULD have been shrunk before the model instead, own_wet/own_dry-style,
+# but shrinking here keeps one shrink mechanism for every sample-size-
+# aware term instead of two). K differs by scale: jockey/trainer ride
+# counts run tens-to-hundreds (K=_MERIT_SAMPLE_SHRINK_K=10, an untuned
+# starting point - unlike every other constant in this file there is no
+# historical ride-count data yet to backtest against, these are new
+# columns); going_delta's own wet/dry run counts run the same small
+# career-long scale every other own-history shrink term uses, so it
+# reuses _OWN_DELTA_SHRINK_K (3.0) instead of K=10 - see each call site.
 _MERIT_SAMPLE_SHRINK_K = 10.0
 
 
-def _merit_term(value, field_size, model, features, sample_n=None):
-    """Live trainer_merit/jockey_merit ADJ_TERM via the FITTED trained
-    model (see above). 0.0 (no adjustment) if the model or value is
-    unavailable - same "unseen -> 0" contract every population term here
-    uses. sample_n (optional): ride/start count behind `value` - see
-    _MERIT_SAMPLE_SHRINK_K above. None (the default, and what every
-    non-merit caller of this shared function passes) skips the shrink
-    entirely - trainer_change/pop_distance/pop_going have no sample-size
-    concept, and a missing count degrades to this function's pre-fix
-    behaviour rather than guessing."""
+def _merit_term(value, field_size, model, features, sample_n=None, shrink_k=_MERIT_SAMPLE_SHRINK_K):
+    """Live population ADJ_TERM (trainer_merit/jockey_merit/trainer_change/
+    pop_distance/pop_going) via the FITTED trained model (see above). 0.0
+    (no adjustment) if the model or value is unavailable - same
+    "unseen -> 0" contract every population term here uses. sample_n
+    (optional): count behind `value` - see _MERIT_SAMPLE_SHRINK_K above.
+    None (the default, and what trainer_change/pop_distance/dist_vs_last-
+    based callers pass - no sample-size concept for a single fact) skips
+    the shrink entirely, degrading to this function's pre-fix behaviour
+    rather than guessing. shrink_k lets a caller use a different K for a
+    different count scale (see going_delta_n's own call site)."""
     if model is None or value is None or value != value:
         return 0.0
     try:
@@ -977,7 +988,7 @@ def _merit_term(value, field_size, model, features, sample_n=None):
         except (TypeError, ValueError):
             return pred
         if n >= 0:
-            pred *= n / (n + _MERIT_SAMPLE_SHRINK_K)
+            pred *= n / (n + shrink_k)
     return pred
 
 
@@ -1946,6 +1957,15 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     dry_w = w[is_wet_hist == 0]
     going_delta = float(wet_w.mean() - dry_w.mean()) \
         if len(wet_w) >= 1 and len(dry_w) >= 1 else 0.0
+    # Sample size behind going_delta above, for pop_going's own shrink
+    # (Sep 2026, see _merit_term/_MERIT_SAMPLE_SHRINK_K's docstring) - the
+    # weaker of the two sides, since a delta needs BOTH to be reliable
+    # (1 wet run + 20 dry runs is still only a 1-run-deep wet estimate).
+    # own_wet/own_dry (this same wet/dry split, diagnostic-only) already
+    # shrink via _shrink(delta, n) - going_delta itself never did despite
+    # feeding a live ADJ_TERM (pop_going), found in the same audit pass
+    # that caught jockey_merit/trainer_merit's analogous gap.
+    going_delta_n = min(len(wet_w), len(dry_w)) if len(wet_w) >= 1 and len(dry_w) >= 1 else 0
 
     # Surface: today's surface, and the horse's experience on it. A
     # grading-3 synthetic is not a grading-3 turf - surface is its own axis.
@@ -2531,6 +2551,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         # Tested via compare_feature_sets before lock-in.
         "dist_edge": dist_edge,
         "going_delta": going_delta,
+        "going_delta_n": going_delta_n,
         "today_wet": today_wet,
         "today_wetness": today_wetness,
         "cur_surface": cur_surface,
@@ -2853,7 +2874,8 @@ def project_race(runners, race_date):
             f["pop_distance"] = _merit_term(
                 f.get("dist_vs_last"), r.get("cur_field_size"), _pd_model, _POP_DISTANCE_FEATURES)
             f["pop_going"] = _merit_term(
-                f.get("going_delta"), r.get("cur_field_size"), _pg_model, _POP_GOING_FEATURES)
+                f.get("going_delta"), r.get("cur_field_size"), _pg_model, _POP_GOING_FEATURES,
+                sample_n=f.get("going_delta_n"), shrink_k=_OWN_DELTA_SHRINK_K)
 
     # Per-race demeaning (Sep 2026 bug fix): track_barrier/closing_merit/
     # trainer_merit/jockey_merit each include a feature that is IDENTICAL
@@ -4071,8 +4093,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             for v, fs in zip(_frame["dist_vs_last"], _frame["field_size"])
         ]
         _frame["pop_going"] = [
-            _merit_term(v, fs, pop_going_model, _POP_GOING_FEATURES)
-            for v, fs in zip(_frame["going_delta"], _frame["field_size"])
+            _merit_term(v, fs, pop_going_model, _POP_GOING_FEATURES, sample_n=n, shrink_k=_OWN_DELTA_SHRINK_K)
+            for v, fs, n in zip(_frame["going_delta"], _frame["field_size"], _frame["going_delta_n"])
         ]
 
     # closing_merit: population half (pace_baseline_lookup - a population
