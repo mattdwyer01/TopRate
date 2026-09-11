@@ -1,0 +1,92 @@
+name: TAB live results (self-hosted)
+
+# Fast, provisional per-race results from TAB's public API (see
+# TAB_API_NOTES.md and tab_results_poller.py) - closes the gap where the
+# authoritative feed (update_results() in toprate_daily.py, run via
+# price_refresh.yml) can't resolve a race until its WHOLE MEETING finishes.
+# Only ever writes finish_position/won/placed;
+# never resulted/wpr_actual/comments_* - see tab_results_poller.py's
+# docstring for why that split matters.
+#
+# MUST run on a self-hosted runner registered from a real Australian
+# machine on a home/business connection - TAB geo-blocks and TLS-fingerprints
+# everything else, VPS/cloud hosts included (see TAB_API_NOTES.md). This is
+# NOT optional infrastructure choice, it's the one access requirement TAB
+# itself imposes.
+#
+# Triggered externally, like price_refresh.yml, NOT via GitHub's own
+# `schedule:` event - that trigger is already known unreliable on this repo
+# (price_refresh.yml hit a ~19hr silent outage on it; see its own comments).
+# Point an external scheduler (cron-job.org, same as price_refresh.yml) at
+# this workflow's workflow_dispatch endpoint, firing every 1-2 min during AU
+# racing hours. Adjust frequency there, not here.
+#
+# ---- Runner setup (one-time, on the AU machine) ----
+#   1. This repo's GitHub page -> Settings -> Actions -> Runners -> New self-
+#      hosted runner. Follow the generated install commands for that
+#      machine's OS, then install it as a background service (the runner
+#      setup script offers this - `./svc.sh install && ./svc.sh start` on
+#      Linux/macOS, an equivalent Windows service option on Windows) so it's
+#      alive without anyone logged in.
+#   2. Install this project's Python deps on that machine ONCE, matching what
+#      running toprate_daily.py --rebuild-only and tab_results_poller.py need:
+#        pip install pandas requests openpyxl scikit-learn joblib curl_cffi
+#      Deliberately NOT reinstalled on every run below (unlike
+#      price_refresh.yml's hosted runner, which starts from a clean VM every
+#      time) - a self-hosted runner's filesystem persists between jobs, so
+#      reinstalling on every 1-2 min trigger would be pure waste.
+#   3. Run `python tab_results_poller.py --diagnose` on that machine once to
+#      confirm it actually clears TAB's access checks before relying on this
+#      workflow for anything.
+on:
+  workflow_dispatch:   # cron-job.org's real trigger; also allows manual runs
+
+# Avoid concurrent runs - if a poll is still going when the next one fires,
+# skip rather than queue (matches price_refresh.yml's reasoning: the next
+# trigger is only a minute or two away regardless).
+concurrency:
+  group: tab-results
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: [self-hosted]
+    timeout-minutes: 5   # a single --once pass should take well under a minute
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Poll TAB and update results
+        # --no-push: this job handles commit/push itself below, same split
+        # as price_refresh.yml's own steps.
+        run: python tab_results_poller.py --once --no-push
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add toprate_runners.csv toprate_data.json
+          git commit -m "TAB live results $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Pull-then-push with retry, same rationale as price_refresh.yml:
+          # the daily workflow, manual pushes, and this job's own frequent
+          # trigger all commit to main, so a plain push often gets rejected.
+          # -X theirs is safe here too - these are the same regenerated data
+          # files, never code.
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i) - pulling and retrying"
+            git pull --rebase -X theirs --no-edit || git rebase --abort
+            sleep 3
+          done
+          echo "Push failed after retries"
+          exit 1

@@ -35,3 +35,9 @@ catboost_info/
 # (same artifact-tracking convention as everything else in this repo).
 frontend/node_modules/
 frontend/dist/
+
+# tab_results_poller.py runs locally on an AU machine only (see
+# TAB_API_NOTES.md); its terminal-race cache and raw JSON archive are
+# per-machine scratch state, not shared repo data.
+tab_poller_terminal_races.json
+tab_raw/
