@@ -129,6 +129,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - On rebase conflicts on generated files (`toprate_runners.csv`,
   `toprate_data.json`, `toprate_live.html`, `wpr_form_history.csv.gz`), take the
   incoming (remote) version. Only discard generated data files, never code.
+  `toprate_data.json` is marked `binary` in `.gitattributes` (Sep 2026) so this
+  resolves instantly via `-X ours`/`-X theirs` instead of git computing a text
+  diff/merge on an ~80MB single-line file every time - that cost was real: it
+  turned into multi-minute push-retry hangs on `tab_results.yml`'s self-hosted
+  runner once main's commit rate picked up. `toprate_runners.csv` stays text on
+  purpose (see the `.gitattributes` comment) - it's genuinely row-per-runner,
+  so different jobs updating different rows still benefit from a real merge.
   - **Don't resolve this via `--ours`/`--theirs` from memory - verify which
     side is which first.** `--ours`/`--theirs` are INVERTED between `git
     rebase` (this repo's flow is `git pull --rebase`, see above) and a

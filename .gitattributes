@@ -21,3 +21,17 @@
 *.jpg binary
 *.pdf binary
 *.xlsx binary
+
+# toprate_data.json is minified to a single ~80MB line (see toprate_html_v3.py's
+# json.dumps(..., separators=(',',':'))) - a text diff/merge was never able to
+# do anything finer than "the whole line conflicts" on it anyway, but git still
+# paid the full cost of computing that on every rebase, which on the
+# self-hosted runner's constrained hardware (see tab_results.yml) turned into
+# real multi-minute pushed-rejected-retry hangs once main's commit rate picked
+# up (confirmed live, 2026-09-11). Marked binary so -X ours/-X theirs resolve
+# a conflict by picking one side wholesale, instantly - zero loss of merge
+# quality since there was never a finer-grained merge to lose. toprate_runners.csv
+# stays text on purpose: it's genuinely row-per-runner, so two jobs touching
+# different rows (different races) still benefit from being combined rather
+# than one wholesale version winning.
+toprate_data.json binary
