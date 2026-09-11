@@ -30,15 +30,18 @@ function ratingSuffix(v: number | null): string {
 // (the current dashboard dual-renders every data grid; this is the
 // consolidation the rebuild plan calls for). Both breakpoints are a real
 // CSS grid with columns - the same shape RaceDetail's header row uses -
-// they just use a different grid-template. Below sm, RTS/Base/Adj/Proj/
-// WPR $/Fixed $/FP are ALL still real columns (not hidden or stacked onto
-// a second line) - Peak/Actual stay desktop-only. Since that's more
-// columns than a phone's width can show without squeezing the name unreadable
-// (measured previously: ~18px), the row is wider than the viewport on
-// purpose and the shared overflow-x-auto wrapper in RaceDetail scrolls it
-// horizontally - silk+name are `sticky left-0`/`left-10` so they stay in
-// view (frozen) while the stat columns scroll underneath, same "frozen
-// first column" pattern MeetingsGrid already uses for its own wide table.
+// they just use a different grid-template. Below sm, Base/Adj/Proj/WPR $/
+// Fixed $/FP are all still real columns (not hidden or stacked onto a
+// second line) - Peak/Actual stay desktop-only, and RTS isn't a column at
+// all on mobile (not worth a sortable column of its own - it rides along
+// with the name/jockey-trainer text instead, see rtsColorClass/rtsTitle
+// below). That's still more columns than a phone's width can show without
+// squeezing the name unreadable (measured previously: ~18px), so the row
+// is wider than the viewport on purpose and the shared overflow-x-auto
+// wrapper in RaceDetail scrolls it horizontally - silk+name are `sticky
+// left-0`/`left-10` so they stay in view (frozen) while the stat columns
+// scroll underneath, same "frozen first column" pattern MeetingsGrid
+// already uses for its own wide table.
 export function RunnerRow({
   runner,
   raceDate,
@@ -60,6 +63,24 @@ export function RunnerRow({
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
+
+  // RTS isn't worth its own sortable mobile column (it's not something
+  // anyone sorts by day-to-day, unlike Proj/WPR $) - on mobile it rides
+  // along with the name/jockey-trainer text instead to save a column's
+  // worth of scroll width; desktop keeps its own dedicated column, shared
+  // styling/tooltip extracted here so the two don't drift apart.
+  const rtsColorClass =
+    spell.label === 'FU'
+      ? 'font-semibold text-amber'
+      : spell.label === 'FS'
+        ? 'font-semibold text-indigo'
+        : 'text-ink-mute'
+  const rtsTitle =
+    spell.label === 'FS'
+      ? 'First starter - no prior race starts'
+      : spell.daysSince != null
+        ? `${spell.daysSince} days since last run`
+        : undefined
 
   // The two sticky (frozen) cells need a background that matches the row's
   // own state, not a fixed one - otherwise a selected/hovered row would
@@ -85,7 +106,7 @@ export function RunnerRow({
           onClick()
         }
       }}
-      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_48px_52px_52px_58px_64px_68px_44px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
+      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_52px_52px_58px_64px_68px_44px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -103,6 +124,15 @@ export function RunnerRow({
             <span className="font-mono text-ink-mute sm:hidden">{runner.tabNumber}. </span>
             {runner.horse}
           </span>
+          {/* Compact mode has no jockey/trainer subtitle line for RTS to
+              ride along with (see below) - it rides the name line instead,
+              mobile-only, so it's still visible in every density like
+              before, just not as its own scrollable column any more. */}
+          {compact && (
+            <span className={`flex-none font-mono text-[11px] sm:hidden ${rtsColorClass}`} title={rtsTitle}>
+              {spell.label}
+            </span>
+          )}
           {runner.dataScratched && (
             // A real, data-confirmed scratch (see toprate_price_refresh.py) -
             // not a toggle, just a fact. The manual what-if toggle used to
@@ -119,28 +149,22 @@ export function RunnerRow({
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
+            {/* Mobile-only RTS prefix (desktop already has its own column,
+                see below - this would double it up there). "Put with
+                jockey/trainer to save width" - user request, Sep 2026. */}
+            <span className="sm:hidden">
+              <span className={`font-mono ${rtsColorClass}`} title={rtsTitle}>
+                {spell.label}
+              </span>
+              {' · '}
+            </span>
             {runner.jockey}
             {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
             {ratingSuffix(runner.trainerRating)}
           </span>
         )}
       </span>
-      <span
-        className={`text-right font-mono ${
-          spell.label === 'FU'
-            ? 'font-semibold text-amber'
-            : spell.label === 'FS'
-              ? 'font-semibold text-indigo'
-              : 'text-ink-mute'
-        }`}
-        title={
-          spell.label === 'FS'
-            ? 'First starter - no prior race starts'
-            : spell.daysSince != null
-              ? `${spell.daysSince} days since last run`
-              : undefined
-        }
-      >
+      <span className={`hidden text-right font-mono sm:inline ${rtsColorClass}`} title={rtsTitle}>
         {spell.label}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
