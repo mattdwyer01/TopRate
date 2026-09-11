@@ -56,7 +56,14 @@ concurrency:
 jobs:
   poll:
     runs-on: [self-hosted]
-    timeout-minutes: 5   # a single --once pass should take well under a minute
+    # The poll step alone (form-history + settling-band lookup on this
+    # 1 vCPU/2GB box) regularly takes ~2.5-3 min on its own, before the
+    # commit/push retry loop even starts - a 5-min cap left too little
+    # headroom and killed a real run (2026-09-11, run #4) mid-push-retry
+    # with "operation was canceled" while it was still legitimately
+    # working, not stuck. 15 min gives that loop room to finish its
+    # retries.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
