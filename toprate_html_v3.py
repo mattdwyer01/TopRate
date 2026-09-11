@@ -425,9 +425,12 @@ def render_html(*, races, model_picks_by_race, model_meta, price_hist,
     # broke pushes). The dashboard only needs recent races: P&L reads the
     # separate SETTLED payload, and the ratingContext lookups degrade
     # gracefully when a race is absent. Full history stays in the CSVs.
+    # Default reduced 30 -> 25 days (Sep 2026): the 30-day payload had grown
+    # back to 94.4MB and was closing in on the limit again; 25 days measured
+    # out at 81.3MB, ~19MB of headroom for continued organic growth.
     import os as _os
     from datetime import datetime as _dt, timedelta as _td
-    _win = int(_os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "30"))
+    _win = int(_os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "25"))
     try:
         _cut = (_dt.now() - _td(days=_win)).strftime("%Y-%m-%d")
         _rw = [r for r in races if str(r.get("date") or "")[:10] >= _cut]

@@ -62,7 +62,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   transparently. Committed to git so it persists across Action runs.
 - `toprate_runners.csv` — current runner set (one row per runner per race).
 - `toprate_data.json` — the dashboard's data payload, RACES windowed to the last
-  45 days (via `TOPRATE_RACES_WINDOW_DAYS`) to stay under 100MB.
+  25 days (via `TOPRATE_RACES_WINDOW_DAYS`, reduced from 30 Sep 2026 after the
+  30-day payload grew to 94.4MB) to stay under GitHub's 100MB file limit.
 
 ## Conventions (follow these)
 

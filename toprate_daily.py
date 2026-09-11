@@ -3009,17 +3009,21 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
     # ── Window runners_df to the same recent range render_html() keeps ───────
     # render_html() (toprate_html_v3.py) already discards any race older than
-    # TOPRATE_RACES_WINDOW_DAYS (default 30) from the final payload - but only
-    # AFTER this function has spent most of its runtime building the form-
-    # history lookup, settling-band lookup, and full per-race runner payload
-    # for EVERY race ever recorded (39k+ runners across 4k+ races as of
-    # 2026-08), not just the ~1k that survive the window. Pre-filter here so
-    # that work is never done in the first place. +2 day buffer so this is
-    # always a superset of whatever render_html() keeps - never narrower -
-    # so the final HTML/JSON output is unaffected, just faster to build.
+    # TOPRATE_RACES_WINDOW_DAYS (default 25, reduced from 30 Sep 2026 - the
+    # 30-day payload had grown to 94.4MB and was closing in on GitHub's
+    # 100MB file limit; 25 days measured out at 81.3MB, ~19MB of headroom
+    # for continued organic per-runner payload growth) from the final
+    # payload - but only AFTER this function has spent most of its runtime
+    # building the form-history lookup, settling-band lookup, and full
+    # per-race runner payload for EVERY race ever recorded (39k+ runners
+    # across 4k+ races as of 2026-08), not just the ~1k that survive the
+    # window. Pre-filter here so that work is never done in the first
+    # place. +2 day buffer so this is always a superset of whatever
+    # render_html() keeps - never narrower - so the final HTML/JSON output
+    # is unaffected, just faster to build.
     _orig_runner_count = len(runners_df)
     try:
-        _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "30")) + 2
+        _win_days = int(os.environ.get("TOPRATE_RACES_WINDOW_DAYS", "25")) + 2
         _win_cut = (datetime.now() - timedelta(days=_win_days)).strftime("%Y-%m-%d")
         _windowed = runners_df[runners_df["date"].astype(str).str[:10] >= _win_cut]
         if len(_windowed) > 0:
