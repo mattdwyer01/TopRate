@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-tab_results_poller.py -- fast, provisional race results from TAB's public API.
+tab_results_poller.py -- fast, provisional race results (and track condition/
+rail updates) from TAB's public API.
 
-RUNS LOCALLY ONLY, ON AN AUSTRALIAN MACHINE. It cannot run in GitHub Actions
-or any cloud runner -- TAB geo-blocks non-AU IPs and fingerprints the TLS
-handshake (see TAB_API_NOTES.md). This is why it's a separate script with its
-own scheduler, not a step added to .github/workflows/*.yml.
+MUST RUN FROM A REAL AUSTRALIAN IP -- TAB geo-blocks and TLS-fingerprints
+everything else, VPS/cloud included in general (confirmed against GitHub-
+hosted runners specifically), though a Vultr AU datacenter instance has been
+confirmed working in practice, contrary to the general rule. Runs today as a
+GitHub Actions self-hosted runner (see .github/workflows/tab_results.yml)
+registered from such a machine -- not a step on a normal hosted runner.
 
 WHY THIS EXISTS
 toprate.au (the authoritative results feed used by update_results() in
@@ -21,12 +24,20 @@ feed's job, so update_results() keeps re-checking and finalizing exactly as
 it does today, including correcting anything TAB got wrong (e.g. a protest).
 
 WHAT IT WRITES (toprate_runners.csv, via toprate_daily.load_runners/save_runners)
-    finish_position, won, placed
+    finish_position, won, placed (per runner, from race results)
+    going, track_grading, rail_position (per meeting, from trackCondition/
+    railPosition -- applied to every runner at that venue+date, since
+    conditions are a whole-card property, not a per-race one)
 WHAT IT NEVER TOUCHES
     resulted, wpr_actual, comments_video, comments_steward, race_id, run_id,
-    or any WPR/rating column. A later authoritative fetch overwrites all of
-    the "WHAT IT WRITES" fields anyway once the meeting resolves, so a wrong
-    or partial TAB read is self-correcting, never a lasting bad state.
+    or any WPR/rating column. A later authoritative fetch overwrites the
+    result fields anyway once the meeting resolves, so a wrong or partial
+    TAB read there is self-correcting, never a lasting bad state. going/
+    track_grading/rail_position are DISPLAY-ONLY freshness for now -- they
+    update what the dashboard shows, but do NOT trigger a WPR ratings
+    recompute (compute_wpr_projection() only runs in the full daily
+    pipeline, not --rebuild-only; recomputing ratings on this cadence is a
+    separate, not-yet-built decision -- see CLAUDE.md/git history for why).
 
 MATCHING
 toprate_runners.csv keys results by the provider's own run_id/race_id, which
@@ -54,16 +65,20 @@ USAGE
     pip install curl_cffi
     python tab_results_poller.py --diagnose      # check AU IP + TLS shim first
     python tab_results_poller.py                 # run the live polling loop
-    python tab_results_poller.py --once           # single pass, no loop (cron/Task Scheduler)
+    python tab_results_poller.py --once           # single pass (workflow/cron)
 
-Intended scheduling: Windows Task Scheduler (or cron on the AU machine)
-running `--once` every 1-2 minutes from ~30 min before the first AU race to
-last-race-paying. NOT tested against the live TAB API from this environment
-(this sketch was written from a cloud sandbox, which TAB itself would block) --
-run --diagnose on the real AU machine before trusting anything else here.
+Scheduling in production: an external cron-job.org schedule calls
+.github/workflows/tab_results.yml's workflow_dispatch endpoint during AU
+racing hours, which dispatches to the self-hosted runner, which runs
+`--once --no-push` (the workflow's own step handles git). A full cycle
+(poll + --rebuild-only) has been measured taking ~2-3 min on a modest 1
+vCPU/2GB box, so pick a firing interval wider than that or rely on the
+workflow's concurrency group (skips an overlapping trigger rather than
+queuing it) to avoid most triggers being no-ops.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -158,18 +173,49 @@ def save_terminal_cache(cache):
 
 
 # --------------------------------------------------------------------- fetch + parse
+# Matches TAB's condensed condition strings ("SOFT7", "GOOD4") into
+# (going, track_grading) matching the provider's own format in
+# toprate_runners.csv ("Soft 7", 7.0 -- confirmed by inspecting real CSV
+# rows). Conditions with no trailing number are real too (confirmed in a
+# live payload: "FIRM", "HEAVY", "AWT" for synthetic/all-weather tracks) --
+# those get title-cased with no grading number rather than guessed at.
+_CONDITION_RE = re.compile(r"^([A-Za-z]+)\s*(\d+)?$")
+
+def parse_track_condition(raw):
+    if not raw:
+        return None, None
+    m = _CONDITION_RE.match(str(raw).strip())
+    if not m:
+        return str(raw).strip(), None
+    word, number = m.groups()
+    going = f"{word.capitalize()} {number}" if number else word.capitalize()
+    grading = float(number) if number else None
+    return going, grading
+
+
 def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                         archive=True):
     """
-    Returns a list of dicts: {venue, race_no, tab_number, finish} for every
+    Returns (results, conditions, terminal_cache).
+
+    results: a list of dicts {venue, race_no, tab_number, finish} for every
     runner in every non-terminal AU thoroughbred race, read straight off the
     meeting-list response (raceStatus and results[] are already embedded on
     each race stub -- confirmed against a real payload, no drill-down into
-    _links.races/_links.self needed). Mutates terminal_cache in place with
-    any race that reached Paying/Abandoned.
+    _links.races/_links.self needed).
+
+    conditions: a list of dicts {date, venue, going, track_grading,
+    rail_position}, one per AU meeting that reported a trackCondition or
+    railPosition this cycle -- these are whole-card properties in TAB's
+    payload (on the meeting object, not per-race), so they apply to every
+    runner at that venue+date, not a specific race/tab_number.
+
+    Mutates terminal_cache in place with any race that reached
+    Paying/Abandoned.
     """
     terminal_cache = terminal_cache if terminal_cache is not None else set()
     out = []
+    conditions = []
     seen_meetings = set()
 
     for jurisdiction in states:
@@ -199,6 +245,14 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
             if mkey in seen_meetings:
                 continue
             seen_meetings.add(mkey)
+
+            going, track_grading = parse_track_condition(m.get("trackCondition"))
+            rail_position = m.get("railPosition")
+            if going or rail_position:
+                conditions.append(dict(
+                    date=target_date, venue=venue, going=going,
+                    track_grading=track_grading, rail_position=rail_position,
+                ))
 
             for rc in m.get("races", []):
                 race_no = rc.get("raceNumber")
@@ -232,7 +286,7 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
 
         time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
-    return out, terminal_cache
+    return out, conditions, terminal_cache
 
 
 def _archive_raw(target_date, jurisdiction, payload):
@@ -283,6 +337,53 @@ def apply_results(runners_df, tab_results):
     return runners_df, n_written, unmatched_venues
 
 
+def apply_conditions(runners_df, conditions):
+    """
+    Update going/track_grading/rail_position for every runner at a meeting,
+    case-insensitively on venue (same matching as apply_results). Applied to
+    the whole (date, venue) group, not a specific race/tab_number -- track
+    condition and rail position are meeting-wide, not per-race. Returns
+    (updated_df, n_rows_touched, changes, unmatched_venues), where `changes`
+    is a list of human-readable "old -> new" strings for going values that
+    actually differ from what was already there -- so a run that reconfirms
+    an unchanged condition stays quiet, but a real downgrade/upgrade is
+    always visible in the log.
+    """
+    unmatched_venues = set()
+    n_written = 0
+    changes = []
+    runner_venue_upper = runners_df["venue"].astype(str).str.upper()
+
+    for cond in conditions:
+        tab_venue_upper = cond["venue"].upper()
+        provider_venue = VENUE_ALIASES.get(tab_venue_upper, cond["venue"])
+        mask = (
+            (runners_df["date"] == cond["date"]) &
+            (runner_venue_upper == provider_venue.upper())
+        )
+        rows = runners_df[mask]
+        if rows.empty:
+            unmatched_venues.add(cond["venue"])
+            continue
+
+        if cond.get("going"):
+            old_going = rows["going"].iloc[0] if "going" in rows.columns else None
+            if str(old_going) != str(cond["going"]):
+                # Log using the CSV's own venue casing (Title Case), not
+                # provider_venue's TAB-cased fallback when there's no alias
+                # entry - reads properly in the Action log either way.
+                csv_venue = rows["venue"].iloc[0]
+                changes.append(f"{csv_venue}: going {old_going!r} -> {cond['going']!r}")
+            runners_df.loc[mask, "going"] = cond["going"]
+        if cond.get("track_grading") is not None:
+            runners_df.loc[mask, "track_grading"] = cond["track_grading"]
+        if cond.get("rail_position"):
+            runners_df.loc[mask, "rail_position"] = cond["rail_position"]
+        n_written += len(rows)
+
+    return runners_df, n_written, changes, unmatched_venues
+
+
 # --------------------------------------------------------------------- publish
 def rebuild_data_json():
     """Refresh toprate_data.json from toprate_runners.csv (--rebuild-only,
@@ -325,25 +426,39 @@ def run_once(push=True):
     target_date = date.today().isoformat()
     terminal_cache = load_terminal_cache()
 
-    results, terminal_cache = fetch_today_results(target_date, terminal_cache=terminal_cache)
+    results, conditions, terminal_cache = fetch_today_results(
+        target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
 
-    if not results:
-        print("  No new TAB results this cycle")
+    if not results and not conditions:
+        print("  No new TAB results or conditions this cycle")
         return
 
     runners_df = td.load_runners()
-    runners_df, n_written, unmatched = apply_results(runners_df, results)
+    n_result_rows = 0
+    n_condition_rows = 0
 
-    if unmatched:
-        print(f"  UNMATCHED VENUE(S), skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+    if results:
+        runners_df, n_result_rows, unmatched = apply_results(runners_df, results)
+        if unmatched:
+            print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
 
-    if n_written == 0:
+    if conditions:
+        runners_df, n_condition_rows, changes, unmatched = apply_conditions(runners_df, conditions)
+        if unmatched:
+            print(f"  UNMATCHED VENUE(S) for conditions, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+        for c in changes:
+            print(f"  Track condition update: {c}")
+
+    if n_result_rows == 0 and n_condition_rows == 0:
         print("  Nothing matched this cycle")
         return
 
     td.save_runners(runners_df)
-    print(f"  Wrote {n_written} TAB result rows")
+    if n_result_rows:
+        print(f"  Wrote {n_result_rows} TAB result rows")
+    if n_condition_rows:
+        print(f"  Updated conditions for {n_condition_rows} runner rows across {len(conditions)} meetings")
 
     rebuild_data_json()
     if push:
