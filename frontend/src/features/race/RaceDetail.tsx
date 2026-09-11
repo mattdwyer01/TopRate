@@ -259,7 +259,7 @@ export function RaceDetail({
             stay pinned while the rest scrolls underneath, same as every row
             below. The desktop header further down covers every column but
             is hidden below sm since it's laid out differently there. */}
-        <div className="grid w-max grid-cols-[40px_150px_52px_52px_58px_64px_68px_44px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
+        <div className="grid w-max grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
           {MOBILE_COLUMN_LABELS.map((col, i) => (
             <button
@@ -267,7 +267,9 @@ export function RaceDetail({
               type="button"
               onClick={() => onSort(col.key)}
               className={`transition-colors hover:text-ink ${
-                i === 0 ? 'sticky left-10 z-10 bg-bg text-left' : 'text-right'
+                // left-12 (48px) to match RunnerRow's silk cell's true
+                // rendered width - see that file's own comment.
+                i === 0 ? 'sticky left-12 z-10 bg-bg text-left' : 'text-right'
               } ${sortKey === col.key ? 'text-emerald-deep' : ''}`}
             >
               {col.label}
