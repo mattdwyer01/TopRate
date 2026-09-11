@@ -77,7 +77,11 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   change DOES trigger a WPR ratings recompute, scoped to just the
   meeting(s) that changed (`compute_wpr_projection(..., target_venues=...)`
   — see Current state below for the measured cost that made this safe to
-  wire in). TAB fixed prices are NOT yet used anywhere (see Current state).
+  wire in). Also writes fixed_win_price/scratched (per runner) from a
+  race's own fixedOdds, bounded to races starting within ~2hr (same window
+  `toprate_price_refresh.py` already uses) — a SECOND, independent price
+  source alongside that job's existing 5-min refresh, not a replacement of
+  it (see Current state for why a cutover is a separate decision).
   Triggered externally (cron-job.org → workflow_dispatch, same pattern as
   `price_refresh.yml`), not GitHub's own `schedule:`.
 
@@ -199,18 +203,30 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   ticker) immediately - `resulted` itself, and everything keyed off it
   (P&L math, miss-note detection, wpr_actual/comments backfill), still
   waits exclusively for `update_results()`'s authoritative pass, which
-  overwrites/confirms it later. Still NOT done: using TAB's `fixedOdds` to
-  refresh live prices (or replace `price_refresh.yml`). Investigation so
-  far: the meeting-list endpoint this poller already polls does NOT carry
-  price data - `starting_price_sp` and (presumed, unconfirmed) `fixedOdds`
-  only exist one tier down, via `_links.races`/`_links.self` race-detail
-  calls, which is real added request volume (1 + N-meetings + N*M-races per
-  cycle) this poller deliberately avoided for results/conditions. Before
-  building this: run `python tab_results_poller.py --probe-odds` from an AU
-  IP (a one-off, read-only diagnostic, see its docstring) to confirm where
-  and how fixedOdds is actually shaped, then run TAB prices in parallel
-  against the existing feed to check accuracy/completeness before
-  considering any cutover - don't swap `price_refresh.yml` out blind.
+  overwrites/confirms it later. `fixed_win_price`/`scratched` are now ALSO
+  refreshed from TAB's `fixedOdds` (Sep 2026), confirmed live via
+  `--probe-odds` from the Vultr box: the cheap meeting-list endpoint
+  carries no price data at all, but each race's own detail endpoint - built
+  directly from the meeting's `venueMnemonic` + race number
+  (`RACE_DETAIL`), no need for the extra `_links.races` meeting-level hop
+  first - returns `runners[].fixedOdds` with `returnWin`/`returnPlace`/
+  `bettingStatus`/`flucs`. Bounded to races that are still open
+  (`hasFixedOdds`) and starting within `PRICE_LOOKAHEAD_HOURS` (2.0,
+  matching `toprate_price_refresh.py`'s own window) - not every open race
+  on the card all day, one extra request per eligible race per cycle.
+  `apply_prices()` only ever writes a price when `bettingStatus` isn't
+  `LateScratched` and `returnWin > 1` (same floor `toprate_price_refresh.py`
+  already applies), and only ever sets `scratched=1`, never clears it. This
+  is a SECOND, independent price source alongside `toprate_price_refresh.py`
+  and `price_refresh.yml`'s existing 5-min refresh - both keep running
+  unchanged, whichever wrote most recently wins on `fixed_win_price`, same
+  as any other field multiple jobs touch. Actually REPLACING
+  `price_refresh.yml` (so it stops running rather than racing TAB) is still
+  a separate, not-yet-made decision - that would mean the AU machine going
+  down takes out results AND prices AND conditions at once instead of just
+  results/price freshness, so it needs its own deliberate call, not an
+  assumption that "TAB writes prices now" implies "so does replacing the
+  GitHub-hosted job entirely."
 - **IMPORTANT for whoever next runs `train_wpr_projection()`/a full retrain
   (Sep 2026)**: `wpr_form_history.csv.gz` just had a major dedup bug fixed.
   Its dedup key used to include `formNumber`, which looks like a stable

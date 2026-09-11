@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-tab_results_poller.py -- fast, provisional race results (and track condition/
-rail updates) from TAB's public API.
+tab_results_poller.py -- fast, provisional race results, track condition/
+rail updates, and live fixed prices, from TAB's public API.
 
 MUST RUN FROM A REAL AUSTRALIAN IP -- TAB geo-blocks and TLS-fingerprints
 everything else, VPS/cloud included in general (confirmed against GitHub-
@@ -24,20 +24,24 @@ feed's job, so update_results() keeps re-checking and finalizing exactly as
 it does today, including correcting anything TAB got wrong (e.g. a protest).
 
 WHAT IT WRITES (toprate_runners.csv, via toprate_daily.load_runners/save_runners)
-    finish_position, won, placed (per runner, from race results)
+    finish_position, won, placed, interim_resulted (per runner, from race
+    results -- interim_resulted flips the dashboard's race-level "done"
+    display flag right away, see apply_results())
     going, track_grading, rail_position (per meeting, from trackCondition/
     railPosition -- applied to every runner at that venue+date, since
-    conditions are a whole-card property, not a per-race one)
+    conditions are a whole-card property, not a per-race one). A real going
+    change also triggers a WPR ratings recompute, scoped to just that
+    meeting (see run_once()/compute_wpr_projection's target_venues param).
+    fixed_win_price, scratched (per runner, from a race's own fixedOdds --
+    see fetch_today_results' `prices` docstring and apply_prices()). A
+    SECOND, independent source alongside toprate_price_refresh.py's
+    existing 5-min refresh, not a replacement of it.
 WHAT IT NEVER TOUCHES
     resulted, wpr_actual, comments_video, comments_steward, race_id, run_id,
-    or any WPR/rating column. A later authoritative fetch overwrites the
-    result fields anyway once the meeting resolves, so a wrong or partial
-    TAB read there is self-correcting, never a lasting bad state. going/
-    track_grading/rail_position are DISPLAY-ONLY freshness for now -- they
-    update what the dashboard shows, but do NOT trigger a WPR ratings
-    recompute (compute_wpr_projection() only runs in the full daily
-    pipeline, not --rebuild-only; recomputing ratings on this cadence is a
-    separate, not-yet-built decision -- see CLAUDE.md/git history for why).
+    or any WPR/rating column except via the scoped recompute above. A later
+    authoritative fetch overwrites the result fields anyway once the
+    meeting resolves, so a wrong or partial TAB read there is
+    self-correcting, never a lasting bad state.
 
 MATCHING
 toprate_runners.csv keys results by the provider's own run_id/race_id, which
@@ -53,13 +57,21 @@ unmatched TAB venue is logged loudly and skipped, never guessed at.
 FETCHING
 Confirmed against a real payload: the meeting-list response already embeds
 each race's raceStatus and finishing results[] directly on its stub, before
-any drill-down. There's no need to follow _links.races -> _links.self at all
-for this poller's purpose (fast provisional finish order) -- that would have
-been 1 + N-meetings + N*M-races requests per cycle for no benefit. This
-version reads results straight off the meeting list: one request per AU
-state per cycle. The tradeoff is starting_price_sp is no longer available at
-this cheap tier (it lived at the race-detail level); that's fine, it was
-always best-effort and the authoritative feed fills it in regardless.
+any drill-down, plus enough on the meeting object (venueMnemonic) and race
+stub (hasFixedOdds, raceStartTime) to decide what's worth fetching further.
+Results/conditions read straight off this cheap tier: one request per AU
+state per cycle, no drill-down needed at all.
+
+Prices are the one thing that genuinely isn't on the cheap tier (confirmed
+via --probe-odds from an AU IP: starting_price_sp and fixedOdds both only
+exist at the race-detail level). Rather than following a meeting's
+_links.races hop first, the race-detail URL is built directly from
+venue_mnemonic + race number (RACE_DETAIL), one extra request per race that
+is both still open (hasFixedOdds True, not yet Paying/Abandoned) and
+starting within PRICE_LOOKAHEAD_HOURS (same bounding window
+toprate_price_refresh.py already uses) -- not every open race on the card
+all day. That detail response's runners[] carries a fixedOdds dict per
+runner (returnWin/returnPlace/bettingStatus/flucs/...).
 
 USAGE
     pip install curl_cffi
@@ -84,7 +96,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -94,8 +106,15 @@ import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps
 
 ROOT = "https://api.beta.tab.com.au"
 MEETINGS = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings"
+RACE_DETAIL = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings/R/{venue_mnemonic}/races/{race_no}"
 RACE_TYPE = "R"  # thoroughbred only; TopRate doesn't track harness/greyhound
 FINAL_STATUSES = ("Paying", "Abandoned")
+# Matches toprate_price_refresh.py's own LOOKAHEAD_HOURS default (2.0) and
+# "last 30 min" past-window - same reasoning: bound the per-race price
+# drill-down to races that actually matter right now, not every open race
+# on the card all day.
+PRICE_LOOKAHEAD_HOURS = 2.0
+PRICE_PAST_WINDOW_MINUTES = 30
 AU_STATES = ("VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT")
 
 # TAB meeting name (upper-cased -- TAB returns AU venues in ALL CAPS,
@@ -267,10 +286,37 @@ def parse_track_condition(raw):
     return going, grading
 
 
+def _parse_tab_time(raw):
+    """Parse TAB's raceStartTime ('2026-09-11T08:00:00.000Z') to a UTC
+    datetime, or None. Matches toprate_price_refresh.py's own
+    parse_start_time tolerance for a bad/missing value."""
+    if not raw:
+        return None
+    try:
+        dt = pd.to_datetime(raw, errors="coerce", utc=True)
+        if pd.isna(dt):
+            return None
+        return dt.to_pydatetime()
+    except Exception:
+        return None
+
+
+def _within_price_window(start_dt):
+    """True if start_dt falls in [now - 30min, now + PRICE_LOOKAHEAD_HOURS] --
+    the same window toprate_price_refresh.py already uses for the existing
+    fixed_win_price refresh, so this drill-down stays bounded to races that
+    actually matter right now rather than every open race on the card."""
+    if start_dt is None:
+        return False
+    now = datetime.now(timezone.utc)
+    return (now - timedelta(minutes=PRICE_PAST_WINDOW_MINUTES)) <= start_dt <= \
+        (now + timedelta(hours=PRICE_LOOKAHEAD_HOURS))
+
+
 def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
-                        archive=True):
+                        archive=True, fetch_prices=True):
     """
-    Returns (results, conditions, terminal_cache).
+    Returns (results, conditions, prices, terminal_cache).
 
     results: a list of dicts {venue, race_no, tab_number, finish} for every
     runner in every non-terminal AU thoroughbred race, read straight off the
@@ -284,12 +330,29 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
     payload (on the meeting object, not per-race), so they apply to every
     runner at that venue+date, not a specific race/tab_number.
 
+    prices: a list of dicts {date, venue, race_no, tab_number, scratched,
+    fixed_win_price (optional)} -- ONE extra HTTP call per race that is
+    still open (hasFixedOdds, not yet Paying/Abandoned) and starting within
+    PRICE_LOOKAHEAD_HOURS (or finished in the last 30 min). Confirmed via a
+    real payload (--probe-odds): the cheap meeting-list response has no
+    price data at all, but each race's own detail endpoint -- constructed
+    directly from the meeting's venueMnemonic + the race number, no need to
+    follow a meeting-level _links.races hop first -- returns runners[] with
+    a fixedOdds dict per runner (returnWin/returnPlace/bettingStatus/...).
+    fixed_win_price is only included when bettingStatus isn't LateScratched
+    and returnWin > 1 (same sanity floor toprate_price_refresh.py already
+    applies to the existing fixed-odds source) -- scratched is always
+    reported so a late scratch is caught even without a valid price.
+    fetch_prices=False skips this tier entirely (used by callers that only
+    want results/conditions, e.g. tests).
+
     Mutates terminal_cache in place with any race that reached
     Paying/Abandoned.
     """
     terminal_cache = terminal_cache if terminal_cache is not None else set()
     out = []
     conditions = []
+    prices = []
     seen_meetings = set()
 
     for jurisdiction in states:
@@ -313,6 +376,7 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
             if m.get("location") not in AU_STATES:
                 continue
             venue = str(m.get("meetingName", "")).strip()
+            venue_mnemonic = m.get("venueMnemonic")
             # A venue can also appear under more than one jurisdiction loop
             # (same reason as above). Dedupe by (date, venue).
             mkey = (target_date, venue)
@@ -338,6 +402,35 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                 if status in FINAL_STATUSES:
                     terminal_cache.add(rkey)
 
+                # Price drill-down: independent of whether results[] exists
+                # yet -- this is exactly for races that HAVEN'T run, so it
+                # has to run before the `if not results: continue` below,
+                # not after.
+                if (fetch_prices and venue_mnemonic and rc.get("hasFixedOdds")
+                        and status not in FINAL_STATUSES
+                        and _within_price_window(_parse_tab_time(rc.get("raceStartTime")))):
+                    try:
+                        race_detail = get(
+                            RACE_DETAIL.format(date=target_date, venue_mnemonic=venue_mnemonic,
+                                               race_no=race_no),
+                            {"jurisdiction": jurisdiction})
+                        for run in race_detail.get("runners", []):
+                            tab_no = run.get("runnerNumber")
+                            if tab_no is None:
+                                continue
+                            fo = run.get("fixedOdds") or {}
+                            is_scratched = fo.get("bettingStatus") == "LateScratched"
+                            entry = dict(date=target_date, venue=venue, race_no=race_no,
+                                        tab_number=tab_no, scratched=is_scratched)
+                            win_price = fo.get("returnWin")
+                            if not is_scratched and win_price and win_price > 1:
+                                entry["fixed_win_price"] = win_price
+                            prices.append(entry)
+                    except Exception as e:
+                        print(f"  price fetch failed for {venue} R{race_no}: "
+                              f"{type(e).__name__}: {str(e)[:60]}")
+                    time.sleep(0.15)  # polite spacing between per-race calls
+
                 results = rc.get("results") or []
                 if not results:
                     continue
@@ -360,7 +453,7 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
 
         time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
-    return out, conditions, terminal_cache
+    return out, conditions, prices, terminal_cache
 
 
 def _archive_raw(target_date, jurisdiction, payload):
@@ -471,6 +564,55 @@ def apply_conditions(runners_df, conditions):
     return runners_df, n_written, changes, changed_venues, unmatched_venues
 
 
+def apply_prices(runners_df, prices):
+    """
+    Write fixed_win_price/scratched from TAB's per-race fixedOdds drill-down
+    (see fetch_today_results' `prices` docstring). Matches the same way as
+    apply_results: (date, provider-venue, race, tab_number), case-
+    insensitively on venue. This is a SECOND, independent source for
+    fixed_win_price alongside toprate_price_refresh.py's existing 5-min
+    refresh (untouched, still running) - not a replacement, see CLAUDE.md's
+    Current state section for why a cutover needs separate validation
+    first. Only ever ADDS a fresher price or a newly-discovered scratch;
+    never clears an existing scratched=1 (a scratch is permanent) or writes
+    a price for a scratched runner. Returns (updated_df, n_priced,
+    n_scratched, unmatched_venues).
+    """
+    unmatched_venues = set()
+    n_priced = 0
+    n_scratched = 0
+    runner_venue_upper = runners_df["venue"].astype(str).str.upper()
+
+    for p in prices:
+        tab_venue_upper = p["venue"].upper()
+        provider_venue = VENUE_ALIASES.get(tab_venue_upper, p["venue"])
+        mask = (
+            (runners_df["date"] == p["date"]) &
+            (runner_venue_upper == provider_venue.upper()) &
+            (pd.to_numeric(runners_df["race"], errors="coerce") == p["race_no"]) &
+            (pd.to_numeric(runners_df["tab_number"], errors="coerce") == p["tab_number"])
+        )
+        rows = runners_df[mask]
+        if rows.empty:
+            unmatched_venues.add(p["venue"])
+            continue
+
+        idx = rows.index[0]
+        if p.get("scratched"):
+            already = rows.get("scratched")
+            already_scratched = already is not None and int(already.iloc[0] or 0) == 1
+            runners_df.loc[idx, "scratched"] = 1
+            if not already_scratched:
+                n_scratched += 1
+            continue  # never write a price alongside a scratch
+
+        if "fixed_win_price" in p:
+            runners_df.loc[idx, "fixed_win_price"] = p["fixed_win_price"]
+            n_priced += 1
+
+    return runners_df, n_priced, n_scratched, unmatched_venues
+
+
 # --------------------------------------------------------------------- publish
 def rebuild_data_json():
     """Refresh toprate_data.json from toprate_runners.csv (--rebuild-only,
@@ -513,17 +655,19 @@ def run_once(push=True):
     target_date = date.today().isoformat()
     terminal_cache = load_terminal_cache()
 
-    results, conditions, terminal_cache = fetch_today_results(
+    results, conditions, prices, terminal_cache = fetch_today_results(
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
 
-    if not results and not conditions:
-        print("  No new TAB results or conditions this cycle")
+    if not results and not conditions and not prices:
+        print("  No new TAB results, conditions, or prices this cycle")
         return
 
     runners_df = td.load_runners()
     n_result_rows = 0
     n_condition_rows = 0
+    n_priced = 0
+    n_scratched = 0
 
     if results:
         runners_df, n_result_rows, unmatched = apply_results(runners_df, results)
@@ -539,7 +683,12 @@ def run_once(push=True):
         for c in changes:
             print(f"  Track condition update: {c}")
 
-    if n_result_rows == 0 and n_condition_rows == 0:
+    if prices:
+        runners_df, n_priced, n_scratched, unmatched = apply_prices(runners_df, prices)
+        if unmatched:
+            print(f"  UNMATCHED VENUE(S) for prices, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+
+    if n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0:
         print("  Nothing matched this cycle")
         return
 
@@ -561,6 +710,10 @@ def run_once(push=True):
         print(f"  Wrote {n_result_rows} TAB result rows")
     if n_condition_rows:
         print(f"  Updated conditions for {n_condition_rows} runner rows across {len(conditions)} meetings")
+    if n_priced:
+        print(f"  Updated fixed_win_price for {n_priced} runners")
+    if n_scratched:
+        print(f"  {n_scratched} newly late-scratched runner(s) via TAB fixedOdds")
 
     rebuild_data_json()
     if push:
