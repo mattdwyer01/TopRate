@@ -277,8 +277,8 @@ def _rarity_weights(target):
 # leak (it averaged a horse's first-up runs across its whole career,
 # including runs after the one being projected) and is permanently excluded.
 FEATURES = [
-    # --- 34 base features ---
-    "avg_last3", "avg_last5", "ewm3", "ewm5", "last1", "last2", "peak",
+    # --- 35 base features ---
+    "avg_last3", "avg_last5", "ewm3", "ewm5", "ewm7", "last1", "last2", "peak",
     "recent5_max", "best3", "career_avg", "recent_vs_career", "trend",
     "std_last5", "std_career", "n_runs", "runs_this_camp", "days_since",
     "first_up", "second_up", "cur_distance", "dist_grad", "dist_vs_last",
@@ -512,19 +512,40 @@ ADJ_TERMS = [
 # track_wpr/best3 are NOT deleted from the codebase - they remain
 # available as ADJ_TERMS candidate features (see FEATURES) - only their
 # use as BASE inputs was reverted.
-_BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm5 gets (1 - alpha) = 0.70
+_BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm7 gets (1 - alpha) = 0.70
 
 
 def _compute_base(feat):
     """The horse's own anchor for the additive model: a fixed-weight
-    blend of wpr_nett (TopRate's own pre-race rating) and ewm5 (this
-    horse's own recency-weighted average of its last ~5 runs) - see
+    blend of wpr_nett (TopRate's own pre-race rating) and ewm7 (this
+    horse's own recency-weighted average of its last ~7 runs) - see
     _BASE_BLEND_ALPHA above for the full history of how this superseded,
     and was then reverted back from, a tiered multi-signal regression.
-    Falls back to a single raw source (wpr_nett, then ewm5, then
-    avg_last3, then career_avg) only when one of wpr_nett/ewm5 is missing
+    Falls back to a single raw source (wpr_nett, then ewm7, then
+    avg_last3, then career_avg) only when one of wpr_nett/ewm7 is missing
     entirely - rare in practice (career_avg is guaranteed once a horse
     clears _MIN_RUNS prior runs at all).
+
+    ewm5 -> ewm7 (Sep 2026): re-tested against the genuinely 10-year-deep
+    race_results dataset (wpr_form_history.csv.gz is 98%+ post-2022, too
+    recency-skewed for a real era-stability check) after the ADJ_TERMS
+    revision below shipped - ewm7 beat ewm5 on both average held-out MAE
+    and era-to-era stability (wpr_base_calc_10yr_retest.py), then AGAIN
+    on the actual revised ADJ_TERMS composition, not the old one (wpr_
+    base_anchor_vs_new_architecture_test.py: pooled MAE 6.7169 -> 6.6999
+    across 5 real eras, wins every single era). A cascading window (ewm10
+    once a horse has >=10 own prior runs, else a shorter span) was also
+    tested and LOST to plain ewm7 in every era - the extra complexity
+    wasn't earning its keep. Checked specifically for lightly-raced
+    horses (by number-of-starts band, same script): ewm7 is statistically
+    indistinguishable from ewm5 for horses with under 7 starts (differs
+    by at most 0.003 MAE, actually best of all candidates in the 1-2-
+    starts band) - it degrades gracefully on its own, no separate
+    fallback needed. _BASE_BLEND_ALPHA (0.30) was NOT re-optimized
+    specifically for the ewm7 partner - the same alpha was applied
+    uniformly to every anchor candidate in this comparison for a fair
+    test; revisiting alpha itself for ewm7 specifically is a worthwhile
+    future refinement, not yet done.
 
     NO calibration step (see _BASE_BLEND_ALPHA's history above - the
     user's explicit instruction, and independently confirmed to cost
@@ -540,10 +561,10 @@ def _compute_base(feat):
         return feat.get("career_avg")
 
     nett = feat.get("wpr_nett")
-    ewm5 = feat.get("ewm5")
-    if _ok(nett) and _ok(ewm5):
-        return _BASE_BLEND_ALPHA * float(nett) + (1 - _BASE_BLEND_ALPHA) * float(ewm5)
-    for key in ("wpr_nett", "ewm5", "avg_last3", "career_avg"):
+    ewm7 = feat.get("ewm7")
+    if _ok(nett) and _ok(ewm7):
+        return _BASE_BLEND_ALPHA * float(nett) + (1 - _BASE_BLEND_ALPHA) * float(ewm7)
+    for key in ("wpr_nett", "ewm7", "avg_last3", "career_avg"):
         v = feat.get(key)
         if _ok(v):
             return float(v)
@@ -1928,6 +1949,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
 
     ewm3 = float(w.ewm(span=3).mean().iloc[-1])
     ewm5 = float(w.ewm(span=5).mean().iloc[-1])
+    ewm7 = float(w.ewm(span=7).mean().iloc[-1])
     avg_last5 = float(w.iloc[-5:].mean())
     peak = float(w.max())
     recent5_max = float(w.iloc[-5:].max())
@@ -2375,6 +2397,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "avg_last5": avg_last5,
         "ewm3": ewm3,
         "ewm5": ewm5,
+        "ewm7": ewm7,
         "last1": float(wv[-1]),
         "last2": float(w.iloc[-2:].mean()),
         "peak": peak,
@@ -3106,17 +3129,17 @@ def describe(feats, projected_wpr, confidence, wpr_rank, adj_contributions=None)
     # runs, why) is secondary to the number itself.
     base_val = _compute_base(feats)
     nett = feats.get("wpr_nett")
-    ewm5 = feats.get("ewm5")
+    ewm7 = feats.get("ewm7")
     has_nett = nett is not None and nett == nett
-    has_ewm5 = ewm5 is not None
+    has_ewm7 = ewm7 is not None
     n_void = feats.get("n_void_excluded", 0)
     void_bit = f"; {n_void} run{'s' if n_void != 1 else ''} set aside" if n_void >= 1 else ""
     if base_val is not None:
-        if has_nett and has_ewm5:
-            sentences.append(f"Base {base_val:.1f} (TopRate {nett:.1f}, form {ewm5:.1f}{void_bit}).")
+        if has_nett and has_ewm7:
+            sentences.append(f"Base {base_val:.1f} (TopRate {nett:.1f}, form {ewm7:.1f}{void_bit}).")
         elif has_nett:
             sentences.append(f"Base {base_val:.1f} (TopRate's rating only{void_bit}).")
-        elif has_ewm5:
+        elif has_ewm7:
             sentences.append(f"Base {base_val:.1f} (recent form only{void_bit}).")
         else:
             sentences.append(f"Base {base_val:.1f} (career average only{void_bit}).")
@@ -3885,17 +3908,18 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
             print("  surface filter: no blank-going runs")
 
     # BASE for the additive architecture - must match _compute_base()
-    # exactly: the RAW (uncalibrated) wpr_nett/ewm5 alpha blend (see
-    # _BASE_BLEND_ALPHA), falling back to a single raw source (wpr_nett,
-    # then ewm5, then avg_last3, then career_avg) when either of
-    # wpr_nett/ewm5 is missing. Computed from RAW values, BEFORE the
-    # FEATURES median-fill below - the fallback chain only means anything
-    # before a missing value gets silently replaced by the population
-    # median. career_avg is guaranteed present once _MIN_RUNS is met, so
-    # this should never actually fall through to NaN - the dropna is
-    # defensive.
-    D["_base"] = _BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - _BASE_BLEND_ALPHA) * D["ewm5"]
-    D["_base"] = D["_base"].fillna(D["wpr_nett"]).fillna(D["ewm5"]) \
+    # exactly: the RAW (uncalibrated) wpr_nett/ewm7 alpha blend (see
+    # _BASE_BLEND_ALPHA - ewm5 -> ewm7, Sep 2026, see _compute_base's own
+    # docstring for the full validation), falling back to a single raw
+    # source (wpr_nett, then ewm7, then avg_last3, then career_avg) when
+    # either of wpr_nett/ewm7 is missing. Computed from RAW values, BEFORE
+    # the FEATURES median-fill below - the fallback chain only means
+    # anything before a missing value gets silently replaced by the
+    # population median. career_avg is guaranteed present once _MIN_RUNS
+    # is met, so this should never actually fall through to NaN - the
+    # dropna is defensive.
+    D["_base"] = _BASE_BLEND_ALPHA * D["wpr_nett"] + (1 - _BASE_BLEND_ALPHA) * D["ewm7"]
+    D["_base"] = D["_base"].fillna(D["wpr_nett"]).fillna(D["ewm7"]) \
         .fillna(D["avg_last3"]).fillna(D["career_avg"])
     n_before_base = len(D)
     D = D.dropna(subset=["_base"]).copy()
