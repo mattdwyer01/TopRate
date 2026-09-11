@@ -50,13 +50,15 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'actualWpr', label: 'Actual' },
 ]
 
-// Same 8 columns RunnerRow's mobile grid-template actually shows (Peak and
-// Actual stay desktop-only - see RunnerRow's own comment) - order here must
-// match RunnerRow's mobile grid-cols exactly, same as COLUMN_LABELS does
-// for the desktop template above.
+// Same 7 columns RunnerRow's mobile grid-template actually shows (Peak and
+// Actual stay desktop-only, RTS isn't a mobile column at all any more - it
+// rides along with the name/jockey-trainer text instead to save width, see
+// RunnerRow's own comment - the pre-existing sort-by-anything <select>
+// above still covers sorting by it) - order here must match RunnerRow's
+// mobile grid-cols exactly, same as COLUMN_LABELS does for the desktop
+// template above.
 const MOBILE_COLUMN_LABELS: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'daysSince', label: 'RTS' },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj' },
@@ -249,14 +251,15 @@ export function RaceDetail({
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: matches RunnerRow's mobile grid-cols exactly
-            (silk/horse/RTS/base/adj/proj/wprPrice/fixedPrice/FP - Peak and
-            Actual stay desktop-only) so labels land above the right column.
+            (silk/horse/base/adj/proj/wprPrice/fixedPrice/FP - Peak and
+            Actual stay desktop-only, RTS isn't a mobile column at all, see
+            RunnerRow's own comment) so labels land above the right column.
             Wider than the viewport on purpose - the shared overflow-x-auto
             wrapper scrolls it, with the silk/horse cells sticky so they
             stay pinned while the rest scrolls underneath, same as every row
             below. The desktop header further down covers every column but
             is hidden below sm since it's laid out differently there. */}
-        <div className="grid w-max grid-cols-[40px_150px_48px_52px_52px_58px_64px_68px_44px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
+        <div className="grid w-max grid-cols-[40px_150px_52px_52px_58px_64px_68px_44px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
           {MOBILE_COLUMN_LABELS.map((col, i) => (
             <button
