@@ -81,7 +81,10 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   race's own fixedOdds, bounded to races starting within ~2hr (same window
   `toprate_price_refresh.py` already uses) — a SECOND, independent price
   source alongside that job's existing 5-min refresh, not a replacement of
-  it (see Current state for why a cutover is a separate decision).
+  it (see Current state for why a cutover is a separate decision). A plain
+  results/prices/scratches cycle publishes via a fast direct JSON patch
+  (`toprate_daily.patch_data_json()`), not the full `--rebuild-only`
+  pipeline — only a going change still forces that (see Current state).
   Triggered externally (cron-job.org → workflow_dispatch, same pattern as
   `price_refresh.yml`), not GitHub's own `schedule:`.
 
@@ -226,7 +229,18 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   down takes out results AND prices AND conditions at once instead of just
   results/price freshness, so it needs its own deliberate call, not an
   assumption that "TAB writes prices now" implies "so does replacing the
-  GitHub-hosted job entirely."
+  GitHub-hosted job entirely." A plain results/prices/scratches cycle also
+  no longer pays the full `--rebuild-only` cost (Sep 2026) -
+  `toprate_daily.patch_data_json()` writes just the touched runners'
+  fx/f/won/scr keys directly into the existing `toprate_data.json` and
+  flips a race's `done` flag once every runner has a finish, skipping the
+  form-history/settling-band rebuild entirely (none of it depends on these
+  fields) - only a real `going` change still forces the full rebuild
+  (needed to serialize the scoped WPR recompute's `wprp_*` fields), and
+  `patch_data_json()` itself falls back to signalling "do a full rebuild"
+  rather than risk shipping a half-patched payload (missing/unparseable
+  JSON, or a touched `run_id` not yet in the payload - a brand-new runner
+  that hasn't been through a full rebuild yet).
 - **IMPORTANT for whoever next runs `train_wpr_projection()`/a full retrain
   (Sep 2026)**: `wpr_form_history.csv.gz` just had a major dedup bug fixed.
   Its dedup key used to include `formNumber`, which looks like a stable

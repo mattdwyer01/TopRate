@@ -2995,6 +2995,92 @@ def build_bt_races(bt_df):
     return bt_races
 
 
+def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None):
+    """Lightweight, fast alternative to --rebuild-only for a cycle that only
+    touched fixed_win_price/finish_position/won/scratched (TAB's live
+    prices + fast results, see tab_results_poller.py) - NOT going/
+    track_grading/rail_position, which still needs the full pipeline via a
+    WPR recompute (tab_results_poller.py only calls this when there was no
+    going change this cycle).
+
+    Patches ONLY the touched runners' "fx"/"f"/"won"/"scr" keys directly
+    into the existing toprate_data.json on disk (keyed by "rid" = run_id,
+    matching how each runner is identified in the payload - see
+    rebuild_html()'s runner dict), and flips a race's "done" flag to 1 once
+    every one of its runners now has a finish position. Skips the
+    expensive form-history/settling-band/per-race-payload build that
+    dominates --rebuild-only's ~2.5-3 min cost entirely - none of those
+    depend on any of these fields. RUN_ISO/RUN_DATE are refreshed too, so
+    the dashboard's "as of" freshness indicator doesn't lag behind data
+    that's actually current. PICKS_TODAY/MODEL_PICKS and every other
+    derived field are left exactly as they were at the last full rebuild -
+    price_refresh.yml's own periodic rebuild keeps those from staying
+    stale indefinitely.
+
+    price_updates/result_updates/scratch_updates: run_id -> value, as
+    produced by tab_results_poller.py's apply_prices()/apply_results()
+    `patches` return value.
+
+    Returns True if the patch was applied (or there was nothing to patch),
+    False if the caller should fall back to a full rebuild - missing/
+    unparseable toprate_data.json, or any touched run_id not found in it
+    (a brand-new runner that hasn't been through a full rebuild yet; safer
+    to fall back than ship a half-patched payload).
+    """
+    price_updates = price_updates or {}
+    result_updates = result_updates or {}
+    scratch_updates = scratch_updates or {}
+    touched = set(price_updates) | set(result_updates) | set(scratch_updates)
+    if not touched:
+        return True
+
+    data_path = OUTPUT_HTML.parent / "toprate_data.json"
+    if not data_path.exists():
+        print("  patch_data_json: toprate_data.json doesn't exist yet, falling back to full rebuild")
+        return False
+    try:
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"  patch_data_json: could not read/parse toprate_data.json ({e}), falling back to full rebuild")
+        return False
+
+    races = data.get("RACES")
+    if not isinstance(races, list):
+        return False
+
+    remaining = set(touched)
+    for race in races:
+        runners = race.get("runners")
+        if not isinstance(runners, list):
+            continue
+        for run in runners:
+            rid = run.get("rid")
+            if rid in price_updates:
+                run["fx"] = price_updates[rid]
+                remaining.discard(rid)
+            if rid in result_updates:
+                run.update(result_updates[rid])
+                remaining.discard(rid)
+            if rid in scratch_updates:
+                run["scr"] = scratch_updates[rid]
+                remaining.discard(rid)
+        if any(rr.get("rid") in touched for rr in runners) and runners:
+            if all(rr.get("f") is not None for rr in runners):
+                race["done"] = 1
+
+    if remaining:
+        print(f"  patch_data_json: {len(remaining)} touched runner(s) not found in current "
+              f"payload, falling back to full rebuild")
+        return False
+
+    now_utc = datetime.now(timezone.utc)
+    data["RUN_ISO"] = now_utc.isoformat()
+    data["RUN_DATE"] = now_utc.strftime("%d %b %Y %H:%M UTC")
+
+    data_path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    return True
+
+
 def rebuild_html(runners_df, model_pick_rows=None):
     """
     Render the v3 dashboard HTML.

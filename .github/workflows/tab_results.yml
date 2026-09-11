@@ -14,7 +14,11 @@ name: TAB live results (self-hosted)
 # for why that split matters. A real going change DOES trigger a WPR
 # ratings recompute, scoped to just the meeting(s) that changed (see
 # CLAUDE.md's Current state section for the measured cost that made this
-# safe).
+# safe). A plain results/prices/scratches cycle publishes via a fast direct
+# JSON patch instead of the full --rebuild-only pipeline (see
+# tab_results_poller.py's PUBLISHING docstring section) - only a going
+# change (or the patch safely falling back) still runs the full ~2-3 min
+# rebuild, so most cycles now finish in well under a minute.
 #
 # MUST run on a self-hosted runner registered from a real Australian
 # machine - TAB geo-blocks and TLS-fingerprints most cloud/VPS hosts,
@@ -61,13 +65,15 @@ concurrency:
 jobs:
   poll:
     runs-on: [self-hosted]
-    # The poll step alone (form-history + settling-band lookup on this
-    # 1 vCPU/2GB box) regularly takes ~2.5-3 min on its own, before the
-    # commit/push retry loop even starts - a 5-min cap left too little
-    # headroom and killed a real run (2026-09-11, run #4) mid-push-retry
-    # with "operation was canceled" while it was still legitimately
-    # working, not stuck. 15 min gives that loop room to finish its
-    # retries.
+    # 15 min is headroom for the SLOW path (a going change, or
+    # patch_data_json falling back to a full rebuild), which still does the
+    # form-history/settling-band rebuild that regularly takes ~2.5-3 min on
+    # this 1 vCPU/2GB box - a 5-min cap left too little room for that plus
+    # the commit/push retry loop and killed a real run (2026-09-11, run #4)
+    # mid-retry with "operation was canceled" while it was still
+    # legitimately working, not stuck. A typical cycle (fast JSON patch,
+    # see tab_results_poller.py's PUBLISHING docstring section) finishes in
+    # well under a minute now, so this ceiling is rarely approached.
     timeout-minutes: 15
 
     steps:

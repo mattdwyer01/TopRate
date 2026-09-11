@@ -82,11 +82,22 @@ USAGE
 Scheduling in production: an external cron-job.org schedule calls
 .github/workflows/tab_results.yml's workflow_dispatch endpoint during AU
 racing hours, which dispatches to the self-hosted runner, which runs
-`--once --no-push` (the workflow's own step handles git). A full cycle
-(poll + --rebuild-only) has been measured taking ~2-3 min on a modest 1
-vCPU/2GB box, so pick a firing interval wider than that or rely on the
-workflow's concurrency group (skips an overlapping trigger rather than
-queuing it) to avoid most triggers being no-ops.
+`--once --no-push` (the workflow's own step handles git).
+
+PUBLISHING (patch_data_json vs. a full rebuild)
+A plain results/prices/scratches cycle no longer runs the full
+`toprate_daily.py --rebuild-only` subprocess (~2-3 min on a modest 1
+vCPU/2GB box, dominated by a form-history/settling-band rebuild that
+doesn't depend on any of these fields at all) - it patches just the
+touched runners' fx/f/won/scr keys directly into the existing
+toprate_data.json (see toprate_daily.patch_data_json()), which is a
+fraction of a second. Only a real going change still forces the full
+rebuild, since that's what the scoped WPR recompute needs to get its
+wprp_* fields serialized. A typical cycle should now complete in well
+under a minute; the workflow's concurrency group (skips an overlapping
+trigger rather than queuing it) still guards against a genuinely slow
+cycle (a real going change, or patch_data_json falling back to a full
+rebuild) overlapping the next trigger.
 """
 import argparse
 import json
@@ -480,9 +491,18 @@ def apply_results(runners_df, tab_results):
     before update_results() gets to that meeting and sets the real
     `resulted`. Never touches resulted/wpr_actual/comments_* -- see module
     docstring.
+
+    Also returns `patches`: run_id -> {"f": finish, "won": won} for every
+    row written, keyed the same way toprate_data.json's own runner records
+    are ("rid") -- lets run_once() patch the JSON directly instead of
+    running the full rebuild for a plain results cycle. Only rows with a
+    non-blank run_id are included (a runner not yet through a full rebuild
+    has no "rid" match in the JSON yet - patching it would be a no-op
+    anyway, and its result is safely picked up on the next full rebuild).
     """
     unmatched_venues = set()
     n_written = 0
+    patches = {}
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for res in tab_results:
@@ -501,15 +521,19 @@ def apply_results(runners_df, tab_results):
 
         idx = rows.index[0]
         finish = res["finish"]
+        won = 1 if finish == 1 else 0
         runners_df.loc[idx, "finish_position"] = finish
-        runners_df.loc[idx, "won"] = 1 if finish == 1 else 0
+        runners_df.loc[idx, "won"] = won
         runners_df.loc[idx, "placed"] = 1 if finish <= 3 else 0
         runners_df.loc[idx, "interim_resulted"] = 1
         # Deliberately NOT touching resulted / wpr_actual / comments_* -- see
         # module docstring. The authoritative feed still owns those.
         n_written += 1
+        run_id = rows["run_id"].iloc[0] if "run_id" in rows.columns else None
+        if run_id and str(run_id) != "nan":
+            patches[str(run_id)] = {"f": finish, "won": won}
 
-    return runners_df, n_written, unmatched_venues
+    return runners_df, n_written, unmatched_venues, patches
 
 
 def apply_conditions(runners_df, conditions):
@@ -576,11 +600,16 @@ def apply_prices(runners_df, prices):
     first. Only ever ADDS a fresher price or a newly-discovered scratch;
     never clears an existing scratched=1 (a scratch is permanent) or writes
     a price for a scratched runner. Returns (updated_df, n_priced,
-    n_scratched, unmatched_venues).
+    n_scratched, unmatched_venues, patches).
+
+    `patches` is run_id -> {"fx": price} or {"scr": 1} -- see
+    apply_results' own `patches` docstring for why (lets run_once() patch
+    toprate_data.json directly instead of a full rebuild).
     """
     unmatched_venues = set()
     n_priced = 0
     n_scratched = 0
+    patches = {}
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for p in prices:
@@ -598,19 +627,26 @@ def apply_prices(runners_df, prices):
             continue
 
         idx = rows.index[0]
+        run_id = rows["run_id"].iloc[0] if "run_id" in rows.columns else None
+        has_run_id = bool(run_id) and str(run_id) != "nan"
+
         if p.get("scratched"):
             already = rows.get("scratched")
             already_scratched = already is not None and int(already.iloc[0] or 0) == 1
             runners_df.loc[idx, "scratched"] = 1
             if not already_scratched:
                 n_scratched += 1
+                if has_run_id:
+                    patches[str(run_id)] = {"scr": 1}
             continue  # never write a price alongside a scratch
 
         if "fixed_win_price" in p:
             runners_df.loc[idx, "fixed_win_price"] = p["fixed_win_price"]
             n_priced += 1
+            if has_run_id:
+                patches[str(run_id)] = {"fx": p["fixed_win_price"]}
 
-    return runners_df, n_priced, n_scratched, unmatched_venues
+    return runners_df, n_priced, n_scratched, unmatched_venues, patches
 
 
 # --------------------------------------------------------------------- publish
@@ -668,9 +704,12 @@ def run_once(push=True):
     n_condition_rows = 0
     n_priced = 0
     n_scratched = 0
+    result_patches = {}
+    price_patches = {}
+    scratch_patches = {}
 
     if results:
-        runners_df, n_result_rows, unmatched = apply_results(runners_df, results)
+        runners_df, n_result_rows, unmatched, result_patches = apply_results(runners_df, results)
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
 
@@ -684,9 +723,15 @@ def run_once(push=True):
             print(f"  Track condition update: {c}")
 
     if prices:
-        runners_df, n_priced, n_scratched, unmatched = apply_prices(runners_df, prices)
+        runners_df, n_priced, n_scratched, unmatched, price_scratch_patches = apply_prices(
+            runners_df, prices)
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for prices, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+        for rid, patch in price_scratch_patches.items():
+            if "fx" in patch:
+                price_patches[rid] = patch["fx"]
+            if "scr" in patch:
+                scratch_patches[rid] = patch["scr"]
 
     if n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0:
         print("  Nothing matched this cycle")
@@ -715,9 +760,35 @@ def run_once(push=True):
     if n_scratched:
         print(f"  {n_scratched} newly late-scratched runner(s) via TAB fixedOdds")
 
-    rebuild_data_json()
+    # The expensive part of a full rebuild (form-history/settling-band/
+    # per-race-payload, ~2.5-3 min - see CLAUDE.md's Current state note) is
+    # entirely about STATIC data that only the daily pipeline changes -
+    # none of it depends on price/result/scratch fields. A going change is
+    # the one thing here that genuinely needs the full pipeline (it just
+    # recomputed wprp_* fields above, which only rebuild_html() knows how
+    # to serialize). Everything else gets the fast, direct JSON patch;
+    # patch_data_json() itself falls back (returns False) if anything
+    # about it looks unsafe (missing/unparseable JSON, an unrecognized
+    # run_id), so this never ships a half-patched payload.
+    did_full_rebuild = False
+    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
+        rebuild_data_json()
+        did_full_rebuild = True
+    print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
+
     if push:
         commit_and_push()
+
+
+def patch_data_json_safe(price_patches, result_patches, scratch_patches):
+    """Thin wrapper around toprate_daily.patch_data_json() -- treats any
+    exception as "unsafe, fall back to full rebuild" rather than letting a
+    patching bug take down the whole cycle."""
+    try:
+        return td.patch_data_json(price_patches, result_patches, scratch_patches)
+    except Exception as e:
+        print(f"  patch_data_json failed ({type(e).__name__}: {e}), falling back to full rebuild")
+        return False
 
 
 def main():
