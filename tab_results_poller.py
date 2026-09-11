@@ -102,6 +102,7 @@ rebuild) overlapping the next trigger.
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -513,6 +514,37 @@ def _archive_raw(target_date, jurisdiction, payload):
         pass  # archival is best-effort, never blocks the actual result write
 
 
+RAW_ARCHIVE_RETENTION_DAYS = 3  # this is a debugging aid (per field notes
+# point 4), not data anything depends on -- nothing was ever pruning it, and
+# at one dated folder added per day forever with no reader ever deleting
+# old ones, it's the one genuinely unbounded thing this poller writes to
+# disk on a box that otherwise gets restarted rarely (self-hosted, meant to
+# run unattended for months). Confirmed as a live problem 2026-09-11: the
+# runner reported 0 MB free disk space right after the outage above.
+
+
+def _prune_raw_archive(target_date):
+    """Delete tab_raw/<date> folders older than the retention window. Best-
+    effort and cheap (a handful of directory-name comparisons) -- run once
+    per cycle so disk usage stays flat regardless of how long this poller
+    runs unattended."""
+    try:
+        if not RAW_ARCHIVE_DIR.is_dir():
+            return
+        cutoff = date.fromisoformat(target_date) - timedelta(days=RAW_ARCHIVE_RETENTION_DAYS)
+        for d in RAW_ARCHIVE_DIR.iterdir():
+            if not d.is_dir():
+                continue
+            try:
+                d_date = date.fromisoformat(d.name)
+            except ValueError:
+                continue  # not a dated archive folder -- leave it alone
+            if d_date < cutoff:
+                shutil.rmtree(d, ignore_errors=True)
+    except Exception as e:
+        print(f"  raw archive prune failed (non-fatal): {type(e).__name__}: {e}")
+
+
 # --------------------------------------------------------------------- match + write
 def apply_results(runners_df, tab_results):
     """
@@ -726,6 +758,7 @@ def commit_and_push():
 # --------------------------------------------------------------------- main
 def run_once(push=True):
     target_date = date.today().isoformat()
+    _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
 
     results, conditions, prices, terminal_cache = fetch_today_results(
