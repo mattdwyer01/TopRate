@@ -50,15 +50,19 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'actualWpr', label: 'Actual' },
 ]
 
-// Same 5 columns RunnerRow actually shows on a mobile-width row (silk/RTS/
-// Proj/WPR $/Fixed $ are the ones not hidden by sm:inline there) - the
-// mobile sort bar below only offers sorting by what's visible to sort by.
-const MOBILE_SORT_KEYS: { key: SortKey; label: string }[] = [
+// Same 8 columns RunnerRow's mobile grid-template actually shows (Peak and
+// Actual stay desktop-only - see RunnerRow's own comment) - order here must
+// match RunnerRow's mobile grid-cols exactly, same as COLUMN_LABELS does
+// for the desktop template above.
+const MOBILE_COLUMN_LABELS: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'daysSince', label: 'RTS' },
+  { key: 'baseWpr', label: 'Base' },
+  { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'wprPrice', label: 'WPR $' },
   { key: 'fixedPrice', label: 'Fixed $' },
+  { key: 'finish', label: 'FP' },
 ]
 
 export function RaceDetail({
@@ -244,25 +248,27 @@ export function RaceDetail({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-        {/* Mobile header: RunnerRow no longer lays mobile out as flat grid
-            columns (a variable-length horse name never had room alongside
-            four fixed-width price columns - see RunnerRow's own comment),
-            so there's no single column position left for these labels to
-            sit above. A plain sort-button bar keeps the same "tap to sort"
-            behaviour without claiming a column alignment that no longer
-            exists; the desktop header below (a real column grid) is
-            unaffected, still hidden below sm. */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute sm:hidden">
-          <span className="text-ink-faint">Sort:</span>
-          {MOBILE_SORT_KEYS.map(({ key, label }) => (
+        {/* Mobile header: matches RunnerRow's mobile grid-cols exactly
+            (silk/horse/RTS/base/adj/proj/wprPrice/fixedPrice/FP - Peak and
+            Actual stay desktop-only) so labels land above the right column.
+            Wider than the viewport on purpose - the shared overflow-x-auto
+            wrapper scrolls it, with the silk/horse cells sticky so they
+            stay pinned while the rest scrolls underneath, same as every row
+            below. The desktop header further down covers every column but
+            is hidden below sm since it's laid out differently there. */}
+        <div className="grid w-max grid-cols-[40px_150px_48px_52px_52px_58px_64px_68px_44px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
+          <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
+          {MOBILE_COLUMN_LABELS.map((col, i) => (
             <button
-              key={key}
+              key={col.key}
               type="button"
-              onClick={() => onSort(key)}
-              className={`transition-colors hover:text-ink ${sortKey === key ? 'text-emerald-deep' : ''}`}
+              onClick={() => onSort(col.key)}
+              className={`transition-colors hover:text-ink ${
+                i === 0 ? 'sticky left-10 z-10 bg-bg text-left' : 'text-right'
+              } ${sortKey === col.key ? 'text-emerald-deep' : ''}`}
             >
-              {label}
-              {sortKey === key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+              {col.label}
+              {sortKey === col.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
             </button>
           ))}
         </div>
