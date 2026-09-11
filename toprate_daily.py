@@ -3337,20 +3337,30 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # frame ONCE, before the per-horse loop. The earlier version
             # used iterrows() over all ~90k rows, which was the rebuild
             # slowdown. iterrows is a pandas anti-pattern; this avoids it.
+            import wpr_projection as wpr
             _fa = _fh.copy()
             _fa["_w"] = pd.to_numeric(_fa["wpr"], errors="coerce").round(1)
             _se_col = pd.to_numeric(_fa.get("sect_i_early"), errors="coerce")
             _il_col = pd.to_numeric(_fa.get("sect_i_l600"), errors="coerce")
-            _diff = _se_col - _il_col
+            _fa["_ds"] = pd.to_numeric(_fa.get("distance"), errors="coerce")
+            # Distance-band correction (see wpr_projection._TEMPO_DIST_BAND_MEDIAN's
+            # own docstring) before the +/-2 Fast/Even/Slow cutoff - without it,
+            # sect_i_early/sect_i_l600 not being distance-normalized meant "Slow"
+            # swallowed ~half of ALL runs regardless of how a horse actually ran.
+            # Same formula as wpr_projection._own_tempo_band (imported, not
+            # reimplemented) so "Fast" means the same thing everywhere in the app.
+            _dist_band = (_fa["_ds"] // 200 * 200).clip(
+                lower=min(wpr._TEMPO_DIST_BAND_MEDIAN), upper=max(wpr._TEMPO_DIST_BAND_MEDIAN))
+            _tempo_correction = _dist_band.map(wpr._TEMPO_DIST_BAND_MEDIAN).fillna(0.0)
+            _diff = (_se_col - _il_col) - _tempo_correction
             _fa["_tmp"] = np.where(_diff >= 2, "Fast",
                           np.where(_diff <= -2, "Slow", "Even"))
-            _fa.loc[_diff.isna(), "_tmp"] = None
+            _fa.loc[(_se_col - _il_col).isna(), "_tmp"] = None
             _ps = pd.to_numeric(_fa.get("positionSettled"), errors="coerce")
             _fs = pd.to_numeric(_fa.get("field_size"), errors="coerce")
             _rel = (_ps / _fs).clip(upper=1.0).round(3)
             _rel = _rel.where((_fs > 0) & (_ps > 0))
             _fa["_rel"] = _rel
-            _fa["_ds"] = pd.to_numeric(_fa.get("distance"), errors="coerce")
             _fa["_go"] = _fa.get("going", "").astype(str).where(
                 _fa.get("going").notna(), "")
             # void flag (Sep 2026): same comment-only void test the
