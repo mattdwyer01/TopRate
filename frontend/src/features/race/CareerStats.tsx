@@ -63,14 +63,24 @@ function CareerConditionTable({ runner, race }: CareerStatsProps) {
       <div className="mb-1.5 text-xs font-semibold text-ink">
         Career &amp; condition <span className="font-normal text-ink-faint">&middot; reference</span>
       </div>
-      <table className="w-full min-w-[220px] text-xs">
+      {/* table-fixed + explicit column %-widths (Sep 2026): this table now
+          sits in a half-width column next to AdjustmentBreakdown (see
+          CareerStats) rather than always having the full modal width to
+          itself. Table-auto (the default) sizes columns to fit content
+          regardless of the parent's width, which was overflowing the
+          allotted column by ~35px at phone width (Trend pushed out of
+          view) - table-fixed makes the widths below authoritative, so
+          "truncate" on the label column actually has a box to truncate
+          against instead of being a no-op. Tighter pl-1 gaps and a
+          narrower Sparkline free up the space "vs Car."/Trend still need. */}
+      <table className="w-full min-w-0 table-fixed text-xs">
         <thead>
           <tr className="border-b border-line-soft text-ink-faint">
-            <th className="pb-1 text-left font-normal" />
-            <th className="pb-1 pl-2 text-right font-normal">Peak</th>
-            <th className="pb-1 pl-2 text-right font-normal">Avg</th>
-            <th className="pb-1 pl-2 text-right font-normal">vs Career</th>
-            <th className="pb-1 pl-2 text-right font-normal">Trend</th>
+            <th className="w-[35%] pb-1 text-left font-normal" />
+            <th className="w-[15%] pb-1 pl-1 text-right font-normal">Peak</th>
+            <th className="w-[15%] pb-1 pl-1 text-right font-normal">Avg</th>
+            <th className="w-[17%] pb-1 pl-1 text-right font-normal">vs Car.</th>
+            <th className="w-[18%] pb-1 pl-1 text-right font-normal">Trend</th>
           </tr>
         </thead>
         <tbody className="[&_td]:py-0.5 [&_td]:leading-5">
@@ -83,16 +93,16 @@ function CareerConditionTable({ runner, race }: CareerStatsProps) {
                   isCareer ? 'font-medium text-ink' : 'text-ink'
                 }`}
               >
-                <td className="whitespace-nowrap">
+                <td className="truncate" title={`${row.label} · ${row.runs} runs`}>
                   {row.label} <span className="font-normal text-ink-faint">&middot; {row.runs}</span>
                 </td>
-                <td className="pl-2 text-right font-mono">{fmt(row.peak)}</td>
-                <td className="pl-2 text-right font-mono">{fmt(row.avg)}</td>
-                <td className={`pl-2 text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
+                <td className="pl-1 text-right font-mono">{fmt(row.peak)}</td>
+                <td className="pl-1 text-right font-mono">{fmt(row.avg)}</td>
+                <td className={`pl-1 text-right font-mono ${vsCareerAvgClass(row.vsCareerAvg, row.runs)}`}>
                   {fmtSigned(row.vsCareerAvg)}
                 </td>
-                <td className="py-0.5 pl-2 text-right">
-                  <Sparkline values={row.trend} />
+                <td className="py-0.5 pl-1 text-right">
+                  <Sparkline values={row.trend} width={22} height={13} />
                 </td>
               </tr>
             )
@@ -145,7 +155,13 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
           // with the number sitting to its right.
           const barPct = Math.min(48, (Math.abs(v) / maxAbs) * 48)
           return (
-            <div key={key} className="flex items-center gap-2 border-b border-line-soft/60 py-1 last:border-0">
+            // Bar/value columns shrunk from w-16/w-11 (Sep 2026): this panel
+            // now sits in a half-width column next to CareerConditionTable
+            // (see CareerStats) rather than having the full modal width to
+            // itself, so the label - the part that actually needs the
+            // space, and already wraps rather than truncating - gets
+            // priority over the bar's width.
+            <div key={key} className="flex items-center gap-1.5 border-b border-line-soft/60 py-1 last:border-0">
               <div className="min-w-0 flex-1 text-xs text-ink">
                 <span className="inline-flex items-center gap-1.5">
                   {isLowSample && (
@@ -162,7 +178,7 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
                   </div>
                 )}
               </div>
-              <div className="relative h-1.5 w-16 flex-none rounded-full bg-line-soft">
+              <div className="relative h-1.5 w-10 flex-none rounded-full bg-line-soft">
                 <div
                   className={`absolute top-0 bottom-0 rounded-full ${
                     v > 0 ? 'left-1/2' : 'right-1/2'
@@ -171,7 +187,7 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
                 />
               </div>
               <div
-                className={`w-11 flex-none text-right font-mono text-xs font-semibold ${
+                className={`w-9 flex-none text-right font-mono text-xs font-semibold ${
                   isLowSample ? 'text-amber' : v > 0 ? 'text-emerald-deep' : 'text-rose'
                 }`}
               >
@@ -180,10 +196,10 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
             </div>
           )
         })}
-        <div className="flex items-center gap-2 border-t border-line-soft pt-1.5 font-semibold text-ink">
+        <div className="flex items-center gap-1.5 border-t border-line-soft pt-1.5 font-semibold text-ink">
           <div className="flex-1 text-xs">Total adjustment</div>
-          <div className="w-16 flex-none" />
-          <div className="w-11 flex-none text-right font-mono text-xs">{fmtSigned(runner.wprAdjustment)}</div>
+          <div className="w-10 flex-none" />
+          <div className="w-9 flex-none text-right font-mono text-xs">{fmtSigned(runner.wprAdjustment)}</div>
         </div>
       </div>
     </div>
@@ -194,9 +210,19 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
   if (!runner.formHistory.length) return null
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
-      <div className="flex flex-col gap-4">
-        <CareerConditionTable runner={runner} race={race} />
-        <AdjustmentBreakdown runner={runner} />
+      {/* Side by side even on mobile (Sep 2026, user feedback: this used to
+          stack the two tables full-height, costing a lot of scroll on a
+          phone) - each takes half the available width. min-w-0 lets a flex
+          child actually shrink below its content's natural width instead of
+          overflowing; without it a wide "vs Career"/Trend column or a long
+          adjustment label would force this row wider than the modal. */}
+      <div className="flex flex-row gap-3">
+        <div className="min-w-0 flex-1">
+          <CareerConditionTable runner={runner} race={race} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <AdjustmentBreakdown runner={runner} />
+        </div>
       </div>
     </div>
   )

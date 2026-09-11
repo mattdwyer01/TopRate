@@ -8,25 +8,29 @@
 // matching runs it has (see wpr_projection.py's _shrink()). Everything
 // else is population-fitted (a small model trained across every horse,
 // not just this one) - see wpr_projection.py's ADJ_TERMS.
+// Shortened (Sep 2026) so this list wraps to at most 1-2 lines in the
+// narrower half-width column it now sits in next to CareerConditionTable
+// (see CareerStats) - the original longer wording is still the tooltip/
+// chat-level explanation, this is just the scannable list label.
 export const ADJUSTMENT_LABELS: Record<string, string> = {
-  own_distance: 'This trip vs its own average',
-  own_going: 'This going vs its own average',
-  own_first_up: 'First-up vs its own average',
-  own_second_up: 'Second-up vs its own average',
+  own_distance: 'Trip vs own average',
+  own_going: 'Going vs own average',
+  own_first_up: 'First-up vs own avg',
+  own_second_up: 'Second-up vs own avg',
   own_trend: 'Improving/declining trend',
-  own_long_spell: 'After a long spell vs its own average',
-  track_barrier: 'Barrier draw at this track and trip',
-  closing_merit: 'Closing sectionals vs race pace',
+  own_long_spell: 'Long spell vs own avg',
+  track_barrier: 'Barrier draw',
+  closing_merit: 'Closing vs race pace',
   gear_change: 'Gear change today',
-  trainer_merit: "Trainer's recent strike rate",
-  jockey_merit: "Jockey's recent strike rate",
-  pace_shape: "Today's predicted race shape fit",
+  trainer_merit: 'Trainer strike rate',
+  jockey_merit: 'Jockey strike rate',
+  pace_shape: 'Predicted race shape fit',
   // Sep 2026: replaced own_distance/own_going/own_trend (this horse's own
   // history, above) with these three population-fitted terms - see
   // wpr_projection.py's ADJ_TERMS history comment.
   trainer_change: 'Trainer change today',
-  pop_distance: 'Distance step-up/down (field-wide pattern)',
-  pop_going: 'Wet/dry form profile (field-wide pattern)',
+  pop_distance: 'Distance step-up/down',
+  pop_going: 'Wet/dry form profile',
 }
 
 // Terms whose model only ever sees a strike-rate PERCENTAGE, never the

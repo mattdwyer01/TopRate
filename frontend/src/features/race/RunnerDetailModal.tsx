@@ -344,7 +344,14 @@ export function RunnerDetailModal({
               doesn't move around depending on whether the race has
               resulted. */}
           <div className="flex flex-wrap items-start gap-3">
-            <div className="w-full sm:min-w-[320px] sm:w-auto sm:flex-1">
+            {/* min-width and flex share both bumped (Sep 2026): CareerStats
+                now fits its Career table and Adjustment breakdown side by
+                side internally (see CareerStats) rather than stacked, so it
+                needs noticeably more width than when it held one table at a
+                time - flex-[1.6] (vs Price/Result's flex-1 each) claims a
+                bigger share of this row instead of squeezing both of its
+                own sub-tables just to stay even with cards that didn't grow. */}
+            <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
               <CareerStats runner={runner} race={race} />
             </div>
             <div className="flex w-full gap-3 sm:contents">
