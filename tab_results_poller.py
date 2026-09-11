@@ -284,12 +284,22 @@ def apply_results(runners_df, tab_results):
 
 
 # --------------------------------------------------------------------- publish
-def rebuild_and_push():
-    """Refresh toprate_data.json from the CSV, then commit + push the same
-    way price_refresh.yml does: pull --rebase first, retry a few times,
-    take theirs on conflicts in generated files (never code)."""
+def rebuild_data_json():
+    """Refresh toprate_data.json from toprate_runners.csv (--rebuild-only,
+    no network fetch) so the dashboard actually picks up what was just
+    written. Always runs, independent of --no-push -- that flag means "let
+    the caller handle git", not "skip regenerating the payload". (This used
+    to live inside rebuild_and_push(), gated behind `if push`, which meant
+    the workflow's --no-push call silently never rebuilt toprate_data.json
+    at all -- confirmed live: a run wrote 100 result rows to the CSV but
+    only 1 file changed in the commit, not 2.)"""
     subprocess.run([sys.executable, "toprate_daily.py", "--rebuild-only"], check=True)
 
+
+def commit_and_push():
+    """Commit + push toprate_runners.csv/toprate_data.json, same way
+    price_refresh.yml does: pull --rebase first, retry a few times,
+    take theirs on conflicts in generated files (never code)."""
     status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
     if not status.stdout.strip():
         print("  No changes to commit")
@@ -335,8 +345,9 @@ def run_once(push=True):
     td.save_runners(runners_df)
     print(f"  Wrote {n_written} TAB result rows")
 
+    rebuild_data_json()
     if push:
-        rebuild_and_push()
+        commit_and_push()
 
 
 def main():
