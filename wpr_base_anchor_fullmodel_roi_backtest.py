@@ -160,6 +160,21 @@ def fit_terms_on_fold(fit_half, apply_to, form_csv):
             _f[_term] = _f[_term] - _f.groupby("race_id")[_term].transform("mean")
         _f[FULL_TERMS] = _f[FULL_TERMS].fillna(0.0)
 
+    # NOTE: this function never returned anything until now - a pre-
+    # existing gap (not introduced by the batch-vectorization fix) that
+    # never surfaced because this script's own run() doesn't use the
+    # return value, only relying on apply_to's in-place mutation. Callers
+    # that DO need the fitted models for a later re-apply (the stability
+    # checks in wpr_adj_term_ablation_10yr.py and wpr_new_signals_tier1_
+    # audit.py) assumed a dict was returned and crashed with TypeError:
+    # 'NoneType' object is not subscriptable on their first real run.
+    return {
+        "track_code_map": track_code_map,
+        "track_barrier_model": track_barrier_model,
+        "closing_merit_model": closing_merit_model,
+        "pace_baseline_lookup": pace_baseline_lookup,
+    }
+
 
 def _brier(data, beta, pred_col):
     rows = []
