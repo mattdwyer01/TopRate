@@ -19,4 +19,10 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   trainer_merit: "Trainer's recent strike rate",
   jockey_merit: "Jockey's recent strike rate",
   pace_shape: "Today's predicted race shape fit",
+  // Sep 2026: replaced own_distance/own_going/own_trend (this horse's own
+  // history, above) with these three population-fitted terms - see
+  // wpr_projection.py's ADJ_TERMS history comment.
+  trainer_change: 'Trainer change today',
+  pop_distance: 'Distance step-up/down (field-wide pattern)',
+  pop_going: 'Wet/dry form profile (field-wide pattern)',
 }
