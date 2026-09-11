@@ -50,6 +50,17 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'actualWpr', label: 'Actual' },
 ]
 
+// Same 5 columns RunnerRow actually shows on a mobile-width row (silk/RTS/
+// Proj/WPR $/Fixed $ are the ones not hidden by sm:inline there) - the
+// mobile sort bar below only offers sorting by what's visible to sort by.
+const MOBILE_SORT_KEYS: { key: SortKey; label: string }[] = [
+  { key: 'horse', label: 'Horse' },
+  { key: 'daysSince', label: 'RTS' },
+  { key: 'projectedWpr', label: 'Proj' },
+  { key: 'wprPrice', label: 'WPR $' },
+  { key: 'fixedPrice', label: 'Fixed $' },
+]
+
 export function RaceDetail({
   race,
   allRaces,
@@ -179,7 +190,13 @@ export function RaceDetail({
           <span>{race.distance}m</span>
           <span>{race.going}</span>
           <span>
-            {race.fieldSize} runners
+            {/* race.fieldSize is the ACTIVE (non-scratched) count the model
+                uses internally (see toprate_daily.py's _active_field_size) -
+                using it here too used to read as "8 runners (4 scratched)"
+                on a 12-horse field, implying 8 was the total. runners.length
+                is always the true declared field size regardless of scratch
+                source (data-driven or this device's manual toggle). */}
+            {race.runners.length} runners
             {scratchedInRace > 0 && (
               <span className="text-rose"> ({scratchedInRace} scratched)</span>
             )}
@@ -227,47 +244,27 @@ export function RaceDetail({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-        {/* Mobile header: mirrors RunnerRow's mobile grid-cols exactly
-            (silk/horse/RTS/proj/wprPrice/fixedPrice) so labels land above
-            the right column - the desktop header below covers every column
-            but is hidden below sm since most of them aren't shown there. */}
-        <div className="grid grid-cols-[40px_1fr_44px_60px_68px_70px] gap-x-2 border-b border-line bg-bg px-2 py-1 text-[10px] font-medium text-ink-mute sm:hidden">
-          <span />
-          <button
-            type="button"
-            onClick={() => onSort('horse')}
-            className={`text-left transition-colors hover:text-ink ${sortKey === 'horse' ? 'text-emerald-deep' : ''}`}
-          >
-            Horse
-          </button>
-          <button
-            type="button"
-            onClick={() => onSort('daysSince')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'daysSince' ? 'text-emerald-deep' : ''}`}
-          >
-            RTS
-          </button>
-          <button
-            type="button"
-            onClick={() => onSort('projectedWpr')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'projectedWpr' ? 'text-emerald-deep' : ''}`}
-          >
-            Proj
-          </button>
-          <button
-            type="button"
-            onClick={() => onSort('wprPrice')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'wprPrice' ? 'text-emerald-deep' : ''}`}
-          >
-            WPR $
-          </button>
-          <button
-            type="button"
-            onClick={() => onSort('fixedPrice')}
-            className={`text-right transition-colors hover:text-ink ${sortKey === 'fixedPrice' ? 'text-emerald-deep' : ''}`}
-          >
-            Fixed $
-          </button>
+        {/* Mobile header: RunnerRow no longer lays mobile out as flat grid
+            columns (a variable-length horse name never had room alongside
+            four fixed-width price columns - see RunnerRow's own comment),
+            so there's no single column position left for these labels to
+            sit above. A plain sort-button bar keeps the same "tap to sort"
+            behaviour without claiming a column alignment that no longer
+            exists; the desktop header below (a real column grid) is
+            unaffected, still hidden below sm. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute sm:hidden">
+          <span className="text-ink-faint">Sort:</span>
+          {MOBILE_SORT_KEYS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onSort(key)}
+              className={`transition-colors hover:text-ink ${sortKey === key ? 'text-emerald-deep' : ''}`}
+            >
+              {label}
+              {sortKey === key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+            </button>
+          ))}
         </div>
         <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
@@ -295,7 +292,6 @@ export function RaceDetail({
             selected={runner.runId === selectedRunId}
             effective={effectiveByRunId[runner.runId]}
             onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
-            onToggleScratch={() => setScratched(runner.runId, !scratched.has(runner.runId))}
           />
         ))}
       </div>
