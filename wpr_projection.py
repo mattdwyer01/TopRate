@@ -512,7 +512,7 @@ ADJ_TERMS = [
 # track_wpr/best3 are NOT deleted from the codebase - they remain
 # available as ADJ_TERMS candidate features (see FEATURES) - only their
 # use as BASE inputs was reverted.
-_BASE_BLEND_ALPHA = 0.30  # wpr_nett weight; ewm7 gets (1 - alpha) = 0.70
+_BASE_BLEND_ALPHA = 0.20  # wpr_nett weight; ewm7 gets (1 - alpha) = 0.80
 
 
 def _compute_base(feat):
@@ -541,11 +541,27 @@ def _compute_base(feat):
     indistinguishable from ewm5 for horses with under 7 starts (differs
     by at most 0.003 MAE, actually best of all candidates in the 1-2-
     starts band) - it degrades gracefully on its own, no separate
-    fallback needed. _BASE_BLEND_ALPHA (0.30) was NOT re-optimized
-    specifically for the ewm7 partner - the same alpha was applied
-    uniformly to every anchor candidate in this comparison for a fair
-    test; revisiting alpha itself for ewm7 specifically is a worthwhile
-    future refinement, not yet done.
+    fallback needed. _BASE_BLEND_ALPHA (originally 0.30, carried over
+    unchanged from the ewm5 comparison - the same alpha was applied
+    uniformly to every anchor candidate there for a fair test) WAS
+    subsequently re-optimized specifically for the ewm7 partner (Sep
+    2026, wpr_alpha_reopt_for_ewm7_test.py): the full 10-year era
+    framework can't measure alpha at all (wpr_nett, the other blend
+    input, has 0% coverage before 2026 and only ~45% even within 2026,
+    so the blend collapses to 100% ewm7 regardless of alpha across 95%+
+    of that dataset - a first attempt got an identical MAE at every
+    alpha, the giveaway). Rebuilt on the SAME K=4-fold chronological
+    method the original 0.30 was derived under, scoped to the ~4.5-month
+    window where wpr_nett actually exists (~51.5k rows): alpha=0.20 beat
+    0.30 by -0.0087 pooled MAE, and every one of the 4 independent folds
+    independently picked a best alpha below 0.30 (0.15-0.25 range) - a
+    consistent, fold-stable signal. alpha=0.0 (100% ewm7, discarding
+    wpr_nett entirely) was also tested and came in +0.0353 WORSE than
+    0.30 - wpr_nett is real signal (its own addition was "the single
+    largest accuracy gain found in the Aug 2026 feature search," MAE
+    5.75 -> 5.14) despite its narrow recent-only coverage, so a token
+    weight for it earns its keep even though ewm7 dominates the blend
+    either way (70-80% across every alpha actually tested).
 
     NO calibration step (see _BASE_BLEND_ALPHA's history above - the
     user's explicit instruction, and independently confirmed to cost
@@ -914,11 +930,39 @@ _POP_DISTANCE_FEATURES = ["dist_vs_last", "field_size"]
 _POP_GOING_FEATURES = ["going_delta", "field_size"]
 
 
-def _merit_term(value, field_size, model, features):
+# Sample-size shrink for trainer_merit/jockey_merit (Sep 2026): the
+# trained model only ever sees the trailing win% ITSELF, never how many
+# rides/starts it was computed from - a jockey on 1-of-2 rides (50%) read
+# identically to one on 50-of-100 (also 50%), confirmed live (Explosive
+# Tycoon, 2026-09-12: jockey_merit +6.04 off a 50% jockey_win_pct_90d that
+# the jockey's own jockey_pot_pct_90d/jockey_lt3l_pct_90d figures pointed
+# at being a tiny sample, not a genuine hot streak - see chat). Same
+# failure MODE as jt_combo_win_pct's own documented leak (winPercent
+# reading ~100/~0 on 1-ride combos, toprate_daily.py's SIGNALS comment),
+# just less extreme since this is jockey-wide, not jockey+trainer-combo-
+# narrow. Discounts the model's prediction toward 0 by n/(n+K), same
+# _shrink() shape every own-history term already uses, just applied to a
+# TRAINED MODEL's output instead of a raw delta (own-history terms shrink
+# the delta itself; there is no equivalent "delta" here to shrink before
+# the model runs - the count only becomes known at serve time). K=10 is
+# an untuned starting point, not empirically fit: unlike every other
+# constant in this file, there is no historical ride-count data to
+# backtest against (jockey_starts_90d/trainer_starts_365d are new columns,
+# Sep 2026 - see build_stats_lookup) - revisit once enough live data has
+# accumulated to actually validate a K.
+_MERIT_SAMPLE_SHRINK_K = 10.0
+
+
+def _merit_term(value, field_size, model, features, sample_n=None):
     """Live trainer_merit/jockey_merit ADJ_TERM via the FITTED trained
     model (see above). 0.0 (no adjustment) if the model or value is
     unavailable - same "unseen -> 0" contract every population term here
-    uses."""
+    uses. sample_n (optional): ride/start count behind `value` - see
+    _MERIT_SAMPLE_SHRINK_K above. None (the default, and what every
+    non-merit caller of this shared function passes) skips the shrink
+    entirely - trainer_change/pop_distance/pop_going have no sample-size
+    concept, and a missing count degrades to this function's pre-fix
+    behaviour rather than guessing."""
     if model is None or value is None or value != value:
         return 0.0
     try:
@@ -926,7 +970,15 @@ def _merit_term(value, field_size, model, features):
     except (TypeError, ValueError):
         fs = 0.0
     row = pd.DataFrame([{features[0]: float(value), features[1]: fs}], columns=features)
-    return float(model.predict(row)[0])
+    pred = float(model.predict(row)[0])
+    if sample_n is not None and sample_n == sample_n:  # not NaN
+        try:
+            n = float(sample_n)
+        except (TypeError, ValueError):
+            return pred
+        if n >= 0:
+            pred *= n / (n + _MERIT_SAMPLE_SHRINK_K)
+    return pred
 
 
 def _fit_coverage_aware_trn(full_df, cols, fit_frac=0.70):
@@ -2780,9 +2832,11 @@ def project_race(runners, race_date):
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             f["trainer_merit"] = _merit_term(
-                r.get("cur_trainer_win_pct_365d"), r.get("cur_field_size"), _trm_model, _TRAINER_MERIT_FEATURES)
+                r.get("cur_trainer_win_pct_365d"), r.get("cur_field_size"), _trm_model, _TRAINER_MERIT_FEATURES,
+                sample_n=r.get("cur_trainer_starts_365d"))
             f["jockey_merit"] = _merit_term(
-                r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES)
+                r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES,
+                sample_n=r.get("cur_jockey_starts_90d"))
 
     # trainer_change/pop_distance/pop_going (Sep 2026): the raw own-history
     # inputs (trainer_change 0/1, dist_vs_last, going_delta) ARE computed

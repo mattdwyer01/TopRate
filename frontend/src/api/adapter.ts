@@ -113,6 +113,8 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     weightCarried: r.wt,
     jockeyWinPct90d: r.jw,
     trainerWinPct365d: r.tw,
+    jockeyStarts90d: r.jwN,
+    trainerStarts365d: r.twN,
     jtComboWinPct: r.jcp,
     jtComboRides: r.jcr,
     jockeyRating: r.jrt,

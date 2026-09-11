@@ -166,6 +166,12 @@ RUNNER_COLS = [
     # get_race_stats RPC, no leak risk (Sep 2026 addition, see chat).
     "jockey_pot_pct_90d","trainer_pot_pct_365d",
     "jockey_lt3l_pct_90d","trainer_lt3l_pct_365d",
+    # Ride/runner counts behind jockey_win_pct_90d/trainer_win_pct_365d -
+    # see build_stats_lookup's own comment for why (a thin count makes
+    # winPercent unreliable, same failure mode as jt_combo_win_pct's
+    # documented leak, just less extreme). None if the API doesn't expose
+    # this field.
+    "jockey_starts_90d","trainer_starts_365d",
     # jt_combo_pot_pct/jt_combo_lt3l_pct come from the SAME array entry as
     # jt_combo_win_pct above, so they inherit its documented leak (on
     # jt_combo_rides==1 rows this reflects TODAY's own result, not a
@@ -1075,6 +1081,19 @@ def build_stats_lookup(race_stats):
             "trainer_lt3l_pct_365d": t365.get("lt3LengthsPercent"),
             "jt_combo_pot_pct":      jt_match.get("potPercent"),
             "jt_combo_lt3l_pct":     jt_match.get("lt3LengthsPercent"),
+            # Ride/runner count behind jockey_win_pct_90d/trainer_win_pct_365d
+            # (Sep 2026, see wpr_projection.py's jockey_merit/trainer_merit
+            # docstring): same "rides"/"starts" field names the jt_combo
+            # extraction above already tries, on the SAME stat-domain dicts
+            # winPercent itself comes from - a jockey with a 50% winPercent
+            # off 2 rides looked identical to one off 100 rides without
+            # this, and jt_combo_win_pct's own documented leak (winPercent
+            # reading ~100/~0 on 1-ride combos) is exactly the failure mode
+            # a thin count enables. None if the API doesn't expose it here -
+            # jockey_merit/trainer_merit degrade to their pre-fix (unshrunk)
+            # behaviour on a missing count, never a crash.
+            "jockey_starts_90d":    j90.get("starts") or j90.get("rides"),
+            "trainer_starts_365d":  t365.get("starts") or t365.get("rides"),
         }
     return lookup
 
@@ -1433,6 +1452,11 @@ def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None)
                 "cur_gear_changes": r.get("gear_changes"),
                 "cur_trainer_win_pct_365d": r.get("trainer_win_pct_365d"),
                 "cur_jockey_win_pct_90d": r.get("jockey_win_pct_90d"),
+                # Sample-size behind the two win% figures above (Sep 2026) -
+                # see build_stats_lookup's own comment. Degrades to no
+                # shrink (pre-fix behaviour) in wpr_projection if None.
+                "cur_trainer_starts_365d": r.get("trainer_starts_365d"),
+                "cur_jockey_starts_90d": r.get("jockey_starts_90d"),
                 # track_bias_score input (pace_shape's 5th feature, Sep
                 # 2026) - same value for every runner in the race (a
                 # race-level field), degrades gracefully to 0.0 in
@@ -3818,6 +3842,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Strike rates (already in CSV)
                 "jw":   sf(row.get("jockey_win_pct_90d")),
                 "tw":   sf(row.get("trainer_win_pct_365d")),
+                # Ride/start counts behind jw/tw above (Sep 2026) - lets the
+                # dashboard flag a strike rate built on a thin sample, same
+                # reasoning as wpr_projection.py's own jockey_merit/
+                # trainer_merit shrink (see that module's _merit_term
+                # docstring). None until the API is confirmed to expose it.
+                "jwN":  sf(row.get("jockey_starts_90d")),
+                "twN":  sf(row.get("trainer_starts_365d")),
                 # Jockey/trainer combination win% and ride count together.
                 # DO NOT use for scoring/strategy - confirmed data leak, see
                 # this field's definition comment above in SIGNALS. Kept for
