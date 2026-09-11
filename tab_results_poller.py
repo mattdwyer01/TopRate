@@ -181,34 +181,57 @@ def probe_odds():
         for m in payload.get("meetings", []):
             if m.get("raceType") != RACE_TYPE or m.get("location") not in AU_STATES:
                 continue
-            for rc in m.get("races", []):
-                if rc.get("raceStatus") in FINAL_STATUSES:
-                    continue  # want a race still open to betting, not settled
-                print(f"Meeting: {m.get('meetingName')} ({m.get('location')})  "
-                      f"Race {rc.get('raceNumber')}  status={rc.get('raceStatus')}")
-                print("Race stub top-level keys:", sorted(rc.keys()))
-                hit = {k: v for k, v in rc.items()
-                       if any(t in k.lower() for t in ("odd", "price", "fixed"))}
-                print("  price-ish keys on the stub itself:", hit or "(none)")
+            # Prefer a race that's still open to fixed-odds betting - a
+            # settled/Interim race closes hasFixedOdds and drops any
+            # drill-down link, which is a dead end for this probe.
+            open_races = [rc for rc in m.get("races", [])
+                          if rc.get("raceStatus") not in FINAL_STATUSES
+                          and rc.get("hasFixedOdds")]
+            if not open_races:
+                continue
+            rc = open_races[0]
+            print(f"Meeting: {m.get('meetingName')} ({m.get('location')})  "
+                  f"Race {rc.get('raceNumber')}  status={rc.get('raceStatus')}  "
+                  f"hasFixedOdds={rc.get('hasFixedOdds')}")
+            print("Meeting top-level keys:", sorted(m.keys()))
+            print("Race stub top-level keys:", sorted(rc.keys()))
+            hit = {k: v for k, v in rc.items()
+                   if any(t in k.lower() for t in ("odd", "price", "fixed"))}
+            print("  price-ish keys on the race stub itself:", hit or "(none)")
 
-                race_link = (rc.get("_links") or {}).get("self") or (rc.get("_links") or {}).get("races")
-                if not race_link:
-                    print("  no _links.self/_links.races on this race stub -- stopping here")
-                    return 0
-                print(f"  fetching race detail: {race_link}")
-                detail = get(race_link)
-                print("  Race detail top-level keys:", sorted(detail.keys()))
-                runners = detail.get("runners") or (detail.get("race") or {}).get("runners") or []
-                print(f"  {len(runners)} runners in detail payload")
-                if runners:
-                    print("  First runner's full dict:")
-                    print(json.dumps(runners[0], indent=2, default=str)[:3000])
-                out_path = RAW_ARCHIVE_DIR / "probe_race_detail.json"
-                RAW_ARCHIVE_DIR.mkdir(exist_ok=True)
-                out_path.write_text(json.dumps(detail, indent=2, default=str))
-                print(f"  Full race detail saved to {out_path}")
+            # _links has shown up on the MEETING object in a real payload
+            # before (see fetch_today_results' own comment on international
+            # meetings), not necessarily on each race stub - check both.
+            race_link = ((rc.get("_links") or {}).get("self")
+                         or (m.get("_links") or {}).get("races"))
+            if not race_link:
+                print("  no _links.self (race) or _links.races (meeting) found -- stopping here")
+                print("  Full meeting dict (first 3000 chars):")
+                print(json.dumps(m, indent=2, default=str)[:3000])
                 return 0
-    print("No open (non-final) AU thoroughbred race found today to probe.")
+            print(f"  fetching race detail: {race_link}")
+            detail = get(race_link)
+            # _links.races returns EVERY race at the meeting, not one race -
+            # handle both shapes.
+            if isinstance(detail, dict) and "races" in detail and "runners" not in detail:
+                races_list = detail["races"]
+                print(f"  meeting detail: {len(races_list)} races returned")
+                match = next((r for r in races_list
+                              if r.get("raceNumber") == rc.get("raceNumber")), races_list[0])
+                print("  Matching race's top-level keys:", sorted(match.keys()))
+                detail = match
+            print("  Race detail top-level keys:", sorted(detail.keys()))
+            runners = detail.get("runners") or (detail.get("race") or {}).get("runners") or []
+            print(f"  {len(runners)} runners in detail payload")
+            if runners:
+                print("  First runner's full dict:")
+                print(json.dumps(runners[0], indent=2, default=str)[:3000])
+            out_path = RAW_ARCHIVE_DIR / "probe_race_detail.json"
+            RAW_ARCHIVE_DIR.mkdir(exist_ok=True)
+            out_path.write_text(json.dumps(detail, indent=2, default=str))
+            print(f"  Full race detail saved to {out_path}")
+            return 0
+    print("No open (hasFixedOdds=True, non-final) AU thoroughbred race found today to probe.")
     return 1
 
 
