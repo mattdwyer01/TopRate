@@ -142,6 +142,11 @@ def run():
         for cand in POP_CANDIDATES:
             variants[f"best_plus_{cand}"] = BEST_SO_FAR + [cand]
         variants["best_plus_all_3_pop"] = BEST_SO_FAR + POP_CANDIDATES
+        # pop_trend_term hurt on its own and dragged down the all-3
+        # combination - checking distance+going WITHOUT trend to see if
+        # the two winners combine cleanly or also interact negatively
+        # (same lesson as trainer_change/age/jockey_change earlier).
+        variants["best_plus_distance_and_going"] = BEST_SO_FAR + ["pop_distance_term", "pop_going_term"]
 
         maes = {}
         for name, terms in variants.items():
