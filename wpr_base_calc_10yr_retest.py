@@ -133,6 +133,13 @@ NEEDED_COLS = [
     "raceShapeMid", "raceShapeLate", "race_class", "comments_video",
     "comments_steward", "gear_changes", "atw", "weight_restriction",
     "rail_position", "positionFinish", "priceStarting",
+    # Added for the "total signal list" review (Sep 2026, user's explicit
+    # priority list, see chat) - jockey/trainer change flags, jockey-track
+    # and jockey-horse-combo history, trainer's FU/2U pattern, stable-wide
+    # form, age/sex, sire/dam stats. None of these were needed by the
+    # base-anchor work, so weren't in this trim before.
+    "jockey", "trainer", "horse_age", "horse_sex", "sire_id", "dam_id",
+    "sire_of_dam", "training_location", "venue",
 ] + _SECT_COLS
 
 
