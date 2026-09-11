@@ -41,6 +41,7 @@ population-level rather than own-history terms.
 
 NO EM DASHES policy: hyphens only in this file.
 """
+import itertools
 import pickle
 
 import numpy as np
@@ -170,6 +171,13 @@ def run():
         }
         for cand in NEW_CANDIDATES:
             variants[f"minus3_plus_{cand}"] = BASELINE_MINUS_3_TERMS + [cand]
+        # Pairwise combinations - the all-three-together result came in
+        # WORSE than several individual additions (a real interaction
+        # effect, likely _cap_adj_sum's total-magnitude cap triggering
+        # more often as more terms stack), so "add everything" isn't
+        # assumed optimal - this checks every 2-of-3 subset too.
+        for pair in itertools.combinations(NEW_CANDIDATES, 2):
+            variants[f"minus3_plus_{'_and_'.join(pair)}"] = BASELINE_MINUS_3_TERMS + list(pair)
 
         maes = {}
         for name, terms in variants.items():
