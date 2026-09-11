@@ -3,31 +3,40 @@ wpr_adj_term_ablation_and_stability.py - answers the user's "I don't
 trust the current additive model with adjustments (they're too many
 and too volatile)" concern (see chat, Sep 2026) with data, in two parts:
 
-1. LEAVE-ONE-TERM-OUT ROI ABLATION: for each ADJ_TERM, scores the full
-   additive model and a variant with that ONE term zeroed out (every
-   other term unchanged), both leak-free (bidirectional H1/H2 split,
-   population terms refit on the fit-half only, scored on the held-out
-   half - same discipline as scratch_joint_model_roi_eval.py, which
-   this script's fit_and_score() closely follows). Edge is the WPR-PRICE
-   method (softmax of the raw WPR-scale prediction, beta re-fit per
-   variant by Brier minimization, same convention calibrate_price_beta.py
-   uses) - NOT the z-score feature-blend edge from wpr_bet_selection_
-   leakfree_eval.py, which the user has separately said to ignore (see
-   chat). A term whose removal does not hurt ROI (or improves it) is a
-   candidate for cutting; a term whose removal clearly hurts is earning
-   its keep.
+1. LEAVE-ONE-TERM-OUT MAE ABLATION: for each ADJ_TERM, scores the full
+   additive model's held-out MAE and a variant with that ONE term
+   zeroed out (every other term unchanged) - leak-free bidirectional
+   H1/H2 split, population terms refit on the fit-half only, scored on
+   the held-out half. A term whose removal does not hurt (or improves)
+   held-out MAE is a candidate for cutting; a term whose removal
+   clearly hurts is earning its keep.
 
-2. RETRAIN-STABILITY CHECK: for each of the four TRAINED-MODEL terms
-   (track_barrier, closing_merit, trainer_merit, jockey_merit), fits
-   the term twice, independently, on H1 and on H2, then scores the SAME
-   full population with BOTH fits and compares the two outputs directly
-   (correlation, mean absolute difference, and the spread of the
-   difference) - this is not an accuracy check (no target involved), it
-   is a direct measure of how much a term's value for the identical
-   horse/race would have come out differently if it happened to be fit
-   on a different slice of history. High divergence here IS the
-   "volatile" the user is worried about, made concrete instead of
-   assumed.
+   NOTE (Sep 2026, user's explicit call): this used to be a ROI/edge
+   ablation via the WPR-price softmax method, matching how the joint-
+   training rejection and the base-anchor MAE finding were both gated.
+   Dropped back to plain MAE here after the base-anchor ROI backtest's
+   fitted beta was found pinned at the floor of its grid in every fold
+   - a signature of a genuinely weak, not-yet-trustworthy price/edge
+   translation. Gating a model-architecture question (which ADJ_TERMS
+   earn their keep) through a pricing method that is itself unvalidated
+   risks exactly the "these numbers feel wrong" reaction the ROI
+   backtest got. ROI/betting-strategy validation is being deliberately
+   deferred to its own dedicated piece of work, done properly, once the
+   additive architecture itself is settled - not re-litigated per
+   candidate change in the meantime. MAE is a direct, uncontroversial
+   measure of prediction accuracy that does not depend on that pricing
+   layer at all.
+
+2. RETRAIN-STABILITY CHECK (unchanged - never depended on ROI/pricing):
+   for each of the four TRAINED-MODEL terms (track_barrier, closing_
+   merit, trainer_merit, jockey_merit), fits the term twice,
+   independently, on H1 and on H2, then scores the SAME full population
+   with BOTH fits and compares the two outputs directly (correlation,
+   mean absolute difference, spread) - not an accuracy check, a direct
+   measure of how much a term's value for the identical horse/race
+   would have come out differently if fit on a different slice of
+   history. High divergence here IS the "volatile" the user is worried
+   about, made concrete instead of assumed.
 
 SCOPE: pace_shape is excluded from both parts (fixed at 0.0 everywhere,
 consistently across every variant so it does not distort the
@@ -39,7 +48,7 @@ own-history terms (own_distance, own_going, own_first_up, own_second_up,
 own_trend, own_long_spell) need no refitting (they are pure per-horse
 lookups, already correctly computed by build_training_frame) and so are
 not part of the stability check (nothing to refit) - they ARE part of
-the ablation (each can still be zeroed out and ROI compared).
+the ablation (each can still be zeroed out and MAE compared).
 
 Does NOT modify wpr_projection.py, does NOT touch wpr_models/*.joblib
 or config.json. Read-only, safe to run repeatedly.
@@ -53,13 +62,8 @@ import numpy as np
 import pandas as pd
 
 import wpr_projection as wp
-from wpr_own_pace_backtest import merge_won_by_horse_date
-from wpr_bet_selection_post_retrain import merge_price_pfm, report
 
 FORM_CSV = "wpr_form_history.csv.gz"
-BETA_GRID = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40]
-EDGE_THRESHOLDS = [0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.13, 0.15, 0.20]
-PRICE_CAPS = [15.0, 26.0]
 
 TRAINED_TERMS = ["track_barrier", "closing_merit", "trainer_merit", "jockey_merit"]
 OWN_HISTORY_TERMS = ["own_distance", "own_going", "own_first_up", "own_second_up",
@@ -73,26 +77,16 @@ def _load_D():
     if _CACHE.exists():
         print(f"Loading cached prepped D from {_CACHE} (skipping rebuild)...")
         with open(_CACHE, "rb") as f:
-            return pickle.load(f)
+            D = pickle.load(f)
+        # Older cache generations (from the ROI-ablation version of this
+        # script) may still carry sp/won/price columns - harmless if
+        # present, not required now that ablation is MAE-based.
+        return D
 
     print("Building training frame (n_jobs=-1, parallel) ...")
     D = wp.build_training_frame(FORM_CSV, n_jobs=-1).dropna(
         subset=["target", "date"]).sort_values("date")
     print(f"{len(D):,} training rows")
-
-    print("Merging won/race_id from toprate_runners.csv (leak-safe horse+date join)...")
-    D = merge_won_by_horse_date(D, form_csv=FORM_CSV)
-    print(f"  {len(D):,} rows after won/race_id merge")
-
-    print("Merging price/pfm_score from toprate_runners.csv...")
-    D = merge_price_pfm(D)
-    sp = pd.to_numeric(D["fixed_win_price"], errors="coerce")
-    sp_fallback = pd.to_numeric(D["starting_price_sp"], errors="coerce")
-    D["used_sp_fallback"] = sp.isna() & sp_fallback.notna()
-    D["sp"] = sp.fillna(sp_fallback)
-    D = D.dropna(subset=["sp"])
-    D = D[D["sp"] > 1.0]
-    print(f"  {len(D):,} rows with a usable price")
 
     if "going" in D.columns:
         g = D["going"].astype(str).str.strip().str.lower()
@@ -187,69 +181,24 @@ def _additive_predict(frame, drop_term=None):
     return frame["_base"].to_numpy() + wp._cap_adj_sum(frame[terms].to_numpy()).sum(axis=1)
 
 
-def _brier(data, beta, pred_col):
-    rows = []
-    for rid, g in data.groupby("race_id"):
-        if len(g) < 4:
-            continue
-        pv = g[pred_col].to_numpy(dtype=float)
-        e = np.exp(beta * (pv - pv.max()))
-        p = e / e.sum()
-        rows.extend(zip(p, g["won"]))
-    arr = pd.DataFrame(rows, columns=["p", "won"])
-    return float(((arr["p"] - arr["won"]) ** 2).mean()) if len(arr) else float("nan")
-
-
-def _fit_beta(fit_half, pred_col):
-    best_beta, best_brier = None, float("inf")
-    for b in BETA_GRID:
-        br = _brier(fit_half, b, pred_col)
-        if br < best_brier:
-            best_brier, best_beta = br, b
-    return best_beta
-
-
-def _edge_from_pred(frame, pred_col, beta):
-    e = np.exp(beta * (frame[pred_col] - frame.groupby("race_id")[pred_col].transform("max")))
-    denom = frame.groupby("race_id")[pred_col].transform(
-        lambda s: np.exp(beta * (s - s.max())).sum())
-    p_model = e / denom
-    p_mkt = (1.0 / frame["sp"]) / frame.groupby("race_id")["sp"].transform(lambda s: (1.0 / s).sum())
-    return p_model - p_mkt
-
-
 def fit_and_score(fit_half, held_out):
     """Fits the trained terms on fit_half, applies to both frames, then
-    computes a FULL prediction and one LEAVE-ONE-TERM-OUT prediction per
-    ADJ_TERM in ABLATION_TERMS - all on held_out, all using ONLY
-    fit_half's fits. Returns held_out with one edge_<variant> column per
-    variant plus the fitted models (for the stability check)."""
+    computes held-out MAE for the FULL additive model and one LEAVE-
+    ONE-TERM-OUT variant per ADJ_TERM in ABLATION_TERMS - all scored on
+    held_out, all using ONLY fit_half's fits. Returns a {variant: (mae,
+    n)} dict plus the fitted models (for the stability check)."""
     fit_half = fit_half.copy()
     held_out = held_out.copy()
     models = fit_trained_terms(fit_half, [fit_half, held_out])
 
     variants = ["full"] + [f"minus_{t}" for t in ABLATION_TERMS]
-    for f in (fit_half, held_out):
-        for v in variants:
-            drop = None if v == "full" else v[len("minus_"):]
-            f[f"pred_{v}"] = _additive_predict(f, drop_term=drop)
-
-    held_out = held_out.copy()
+    maes = {}
     for v in variants:
-        pred_col = f"pred_{v}"
-        beta = _fit_beta(fit_half, pred_col)
-        held_out[f"edge_{v}"] = _edge_from_pred(held_out, pred_col, beta)
-        held_out[f"beta_{v}"] = beta
-    return held_out, models
-
-
-def report_edge(bets, edge_col, label):
-    print(f"\n{'='*70}\n{label}\n{'='*70}")
-    print(f"total held-out bets: {len(bets):,}  [population avg price ${bets['sp'].mean():.2f}]\n")
-    for thr in EDGE_THRESHOLDS:
-        base = bets[bets[edge_col] >= thr]
-        for cap in PRICE_CAPS:
-            report(base[base["sp"] <= cap], f"edge>={thr:.2f}, price<={cap:.0f}")
+        drop = None if v == "full" else v[len("minus_"):]
+        pred = _additive_predict(held_out, drop_term=drop)
+        mae = float(np.abs(held_out["target"].to_numpy() - pred).mean())
+        maes[v] = (mae, len(held_out))
+    return maes, models
 
 
 def run_ablation(D):
@@ -258,16 +207,31 @@ def run_ablation(D):
     print(f"\nH1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
 
     print("\nFitting on H1, scoring held-out H2...")
-    h2_scored, models_h1 = fit_and_score(h1, h2)
+    maes_h2, models_h1 = fit_and_score(h1, h2)
     print("\nFitting on H2, scoring held-out H1...")
-    h1_scored, models_h2 = fit_and_score(h2, h1)
+    maes_h1, models_h2 = fit_and_score(h2, h1)
 
-    pooled = pd.concat([h1_scored, h2_scored], ignore_index=True)
-    print(f"\nPooled leak-free held-out set: {len(pooled):,} rows")
+    print(f"\n{'='*70}\nLEAVE-ONE-TERM-OUT MAE ABLATION (bidirectional held-out, pooled)\n{'='*70}")
+    variants = list(maes_h2.keys())
+    full_mae = None
+    print(f"{'variant':<20}{'MAE (H2 held-out)':>20}{'MAE (H1 held-out)':>20}{'pooled avg MAE':>18}{'delta vs full':>16}")
+    for v in variants:
+        m2, n2 = maes_h2[v]
+        m1, n1 = maes_h1[v]
+        pooled_avg = (m2 * n2 + m1 * n1) / (n2 + n1)
+        if v == "full":
+            full_mae = pooled_avg
+        delta = pooled_avg - full_mae if full_mae is not None else float("nan")
+        flag = ""
+        if v != "full":
+            flag = "  <-- removing HURTS (higher MAE)" if delta > 0.01 else (
+                   "  <-- removing HELPS or neutral" if delta < -0.01 else "  <-- ~neutral")
+        print(f"{v:<20}{m2:>20.4f}{m1:>20.4f}{pooled_avg:>18.4f}{delta:>+16.4f}{flag}")
 
-    report_edge(pooled, "edge_full", "FULL additive model (every ADJ_TERM, pace_shape fixed 0.0)")
-    for t in ABLATION_TERMS:
-        report_edge(pooled, f"edge_minus_{t}", f"WITHOUT {t} (every other term unchanged)")
+    print("\nReading this: 'full' is the current shipped-equivalent MAE (both terms in).")
+    print("For each 'minus_X' row, a POSITIVE delta means removing that term makes MAE")
+    print("WORSE (the term is earning its keep); a delta near zero or negative means the")
+    print("term isn't helping (or is actively hurting) accuracy - a candidate to cut.")
 
     return h1, h2, models_h1, models_h2
 
