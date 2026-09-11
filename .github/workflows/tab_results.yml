@@ -119,3 +119,24 @@ jobs:
           done
           echo "Push failed after retries"
           exit 1
+
+      - name: Prune stale git objects (prevent checkout bloat)
+        # This checkout persists across runs on the self-hosted runner
+        # (unlike a GitHub-hosted runner, which starts fresh every time).
+        # actions/checkout's shallow re-fetch each cycle leaves the
+        # PREVIOUS cycle's blobs as loose/unreachable objects the moment the
+        # local ref moves - and since this repo commits a large near-binary
+        # toprate_data.json on almost every cycle, git's own gc.auto only
+        # prunes those after its default 2-week grace window, which is
+        # exactly what silently grew this checkout to 36GB and filled the
+        # box's disk (2026-09-11 outage - see CLAUDE.md's Current state
+        # note). Force immediate pruning every cycle instead of waiting on
+        # git's defaults; cheap here since the checkout is shallow
+        # (depth 1), so there's very little reachable history to walk.
+        # if: always() -- the checkout's fetch deposits the stale objects
+        # regardless of whether the commit/push step above found changes
+        # or even failed, so this needs to run either way.
+        if: always()
+        run: |
+          git reflog expire --expire=now --all
+          git gc --prune=now
