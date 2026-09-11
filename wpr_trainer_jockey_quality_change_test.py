@@ -56,7 +56,8 @@ def build_quality_lookup(col):
     tr["date"] = pd.to_datetime(tr["date"], errors="coerce")
     tr = tr.dropna(subset=["date", col, "entity_lc"])
     tr = tr.drop_duplicates(subset=["entity_lc", "date"], keep="first")
-    tr = tr.sort_values(["entity_lc", "date"])[["entity_lc", "date", col]]
+    # merge_asof with `by=` needs the `on` column (date) globally sorted.
+    tr = tr.sort_values("date")[["entity_lc", "date", col]]
     return tr.rename(columns={col: "quality"})
 
 
@@ -67,7 +68,9 @@ def asof_lookup(targets, lookup):
     per entity - leak-free (never looks past the target date)."""
     targets = targets.reset_index(drop=True)
     targets["_row"] = targets.index
-    t = targets.dropna(subset=["entity_lc", "date"]).sort_values(["entity_lc", "date"])
+    # merge_asof with `by=` still requires the `on` column (date) globally
+    # sorted, not just sorted within each entity group.
+    t = targets.dropna(subset=["entity_lc", "date"]).sort_values("date")
     merged = pd.merge_asof(
         t, lookup, on="date", by="entity_lc", direction="backward",
     )
@@ -78,7 +81,7 @@ def asof_lookup(targets, lookup):
 
 def run():
     print("Building training frame (wpr_form_history.csv.gz, same source trainer_merit/jockey_merit use)...")
-    D = wp.build_training_frame(FORM_HISTORY_CSV, verbose=True)
+    D = wp.build_training_frame(FORM_HISTORY_CSV, verbose=True, n_jobs=-1)
 
     print("\nMerging today's (new) trainer/jockey win% via the existing coverage-aware loader...")
     name_map, tj_lookup = wp._load_trainer_jockey_by_horse_date(FORM_HISTORY_CSV)
@@ -113,6 +116,11 @@ def run():
         (D["cur_trainer_name"] != D["prior_trainer"]) & D["prior_trainer"].notna()).astype(float)
     D["jockey_change_raw"] = (
         (D["cur_jockey_name"] != D["prior_jockey"]) & D["prior_jockey"].notna()).astype(float)
+
+    # Checkpoint before the merge_asof step - the expensive part (feature
+    # build) is done; cache so a bug past this point doesn't cost a redo.
+    D.to_pickle("/tmp/claude-0/-home-user-TopRate/95a262de-71bd-5daf-b05e-b7e3031f09dd/scratchpad/quality_delta_D_checkpoint.pkl")
+    print("Checkpointed D -> scratchpad/quality_delta_D_checkpoint.pkl")
 
     print("\nBuilding leak-free (trainer/jockey, date) -> win% lookups from toprate_runners.csv...")
     trainer_lookup = build_quality_lookup("trainer_win_pct_365d")
