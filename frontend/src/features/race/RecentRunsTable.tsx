@@ -384,18 +384,28 @@ export function RecentRunsTable({
     : entries
 
   const countWord = live ? 'all' : 'last'
-  const loadingNote = liveStatus === 'loading' ? ' (loading full history…)' : ''
+  // Distinguish "still loading" from "tried, couldn't get the rest" - these
+  // used to look identical once loading finished (both just said "last N,
+  // newest first"), silently passing off a capped fallback as if it were
+  // the horse's whole history. A horse with a long career showing only
+  // ~6-10 runs with no explanation reads as "that's all there is," not
+  // "the live fetch failed" - this makes the difference visible instead of
+  // requiring devtools to notice anything's degraded.
+  const statusNote =
+    liveStatus === 'loading' ? ' (loading full history…)'
+    : liveStatus === 'unavailable' ? ' (full history unavailable - showing recent only)'
+    : ''
 
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">Recent runs</span>
         <span className="hidden text-xs text-ink-faint sm:inline">
-          {countWord} {runs.length}, newest first{loadingNote} &middot; Pos = settle/800/400/finish
+          {countWord} {runs.length}, newest first{statusNote} &middot; Pos = settle/800/400/finish
           &middot; green/red sectionals = horse vs race shape
         </span>
         <span className="text-right text-[11px] text-ink-faint sm:hidden">
-          {countWord} {runs.length}, newest first{loadingNote}
+          {countWord} {runs.length}, newest first{statusNote}
           <br />
           Pos = settle/800/400/fin &middot; Sect = horse vs shape
         </span>
