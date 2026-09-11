@@ -38,9 +38,35 @@ function fetchMeetingBlob(date: string, venue: string): Promise<MeetingBlob | nu
   return promise
 }
 
-function tempoOf(early: number | null, late: number | null): 'Fast' | 'Even' | 'Slow' | null {
+// Per-200m-distance-band median of (sect_i_early - sect_i_l600) - mirrors
+// wpr_projection.py's _TEMPO_DIST_BAND_MEDIAN exactly (see that constant's
+// own docstring for the full analysis: these two sectional figures aren't
+// distance-normalized, so the raw early-vs-late gap drifts steadily more
+// negative as distance increases - a fixed +/-2 cutoff on the raw diff
+// meant "Slow" swallowed ~half of ALL runs regardless of how a horse
+// actually ran). Correction subtracted before the same +/-2 cutoff below,
+// clamped to the fitted 800-2400m range rather than extrapolated past it.
+const TEMPO_DIST_BAND_MEDIAN: Record<number, number> = {
+  800: 1.8, 1000: -0.2, 1200: -2.0, 1400: -3.0, 1600: -3.9,
+  1800: -3.5, 2000: -4.0, 2200: -3.3, 2400: -2.6,
+}
+const TEMPO_DIST_BANDS_SORTED = Object.keys(TEMPO_DIST_BAND_MEDIAN)
+  .map(Number)
+  .sort((a, b) => a - b)
+
+function tempoDistCorrection(distance: number | null): number {
+  if (distance == null || Number.isNaN(distance)) return 0
+  const rawBand = Math.floor(distance / 200) * 200
+  const band = Math.min(
+    TEMPO_DIST_BANDS_SORTED[TEMPO_DIST_BANDS_SORTED.length - 1],
+    Math.max(TEMPO_DIST_BANDS_SORTED[0], rawBand),
+  )
+  return TEMPO_DIST_BAND_MEDIAN[band]
+}
+
+function tempoOf(early: number | null, late: number | null, distance: number | null): 'Fast' | 'Even' | 'Slow' | null {
   if (early == null || late == null) return null
-  const diff = early - late
+  const diff = early - late - tempoDistCorrection(distance)
   if (diff >= 2) return 'Fast'
   if (diff <= -2) return 'Slow'
   return 'Even'
@@ -87,7 +113,7 @@ export async function fetchMeetingFormHistory(
       wpr: r.wpr,
       going: r.go,
       distance: r.dist,
-      tempo: tempoOf(r.ie, r.il),
+      tempo: tempoOf(r.ie, r.il, r.dist),
       relativeSettlePosition: relativeSettle(r.psl, r.fs ?? null),
       date: r.d ?? '',
       // horse_history files don't carry void detection (steward/video

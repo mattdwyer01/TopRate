@@ -757,27 +757,68 @@ def _settle_band(rel):
     return "Back"
 
 
+# Per-200m-distance-band median of (sect_i_early - sect_i_l600), fit once
+# from wpr_form_history.csv.gz (Sep 2026, |diff|<=30 trimmed to drop ~1% bad
+# captures - barely moves the medians). sect_i_early/sect_i_l600 are not
+# distance-normalized, so the raw early-vs-late gap drifts steadily more
+# negative as distance increases (a sprint's gap centres near 0, a 2000m
+# race's centres near -4) - applying a fixed +/-2 cutoff straight to the raw
+# diff (see _own_tempo_band below) meant "Slow" swallowed ~half of ALL runs
+# (49%) and "Even" shrank to ~11% at staying distances, regardless of how a
+# horse actually ran, purely because of this uncorrected distance trend.
+# Subtracting the band's own median before the cutoff restores a genuinely
+# distance-relative Fast/Even/Slow split (Fast/Slow balanced ~40/40 in
+# every band, verified - "Even" staying a minority bucket even after
+# correction is expected, not a bug: a fixed +/-2 neutral zone against a
+# ~8.7-point-std distribution is under half a std wide either way, same as
+# it would be for any well-centred band). Bands past the fitted range
+# (800-2400m covers the overwhelming majority of starts) clamp to the
+# nearest edge - the tail bands (2600m+) have too few rows (<250, some
+# under 20) to fit a reliable median of their own.
+_TEMPO_DIST_BAND_MEDIAN = {
+    800: 1.8, 1000: -0.2, 1200: -2.0, 1400: -3.0, 1600: -3.9,
+    1800: -3.5, 2000: -4.0, 2200: -3.3, 2400: -2.6,
+}
+_TEMPO_DIST_BANDS_SORTED = sorted(_TEMPO_DIST_BAND_MEDIAN)
+
+
+def _tempo_dist_correction(distance):
+    """Expected (sect_i_early - sect_i_l600) offset for a race of this
+    distance, from _TEMPO_DIST_BAND_MEDIAN - clamped to the fitted range's
+    edges rather than extrapolating past it."""
+    try:
+        d = float(distance)
+    except (TypeError, ValueError):
+        return 0.0
+    if d != d:
+        return 0.0
+    band = int(d // 200 * 200)
+    band = max(_TEMPO_DIST_BANDS_SORTED[0], min(_TEMPO_DIST_BANDS_SORTED[-1], band))
+    return _TEMPO_DIST_BAND_MEDIAN[band]
+
+
 # own_pace ingredient: how did THIS horse's own early sectional shape
-# compare to its own late sectional in a given prior run - Fast/Even/Slow.
-# Exact same formula as toprate_daily.py's _tmp (the field the frontend's
-# FormHistoryEntry.tempo carries) so a run banded "Fast" here means the
-# same thing it already means everywhere else in the app - not a new,
-# fourth definition of tempo. This describes how the HORSE raced within
-# whatever shape its race had, which is a different (related but not
-# identical) question to race_speed_estimate.py's race-WIDE early-tempo
-# prediction used as cur_race_speed_label below - own_pace asks whether
-# this horse personally goes well when ITS OWN sectional profile has
-# looked like today's predicted race shape, using the model's own
-# leak-safe pre-race prediction for today (never the actual post-race
-# shape, which the model cannot know before the race is run).
-def _own_tempo_band(early, l600):
+# compare to its own late sectional in a given prior run - Fast/Even/Slow,
+# distance-corrected via _tempo_dist_correction above. Exact same formula
+# as toprate_daily.py's _tmp (the field the frontend's FormHistoryEntry.tempo
+# carries) so a run banded "Fast" here means the same thing it already
+# means everywhere else in the app - not a new, fourth definition of tempo.
+# This describes how the HORSE raced within whatever shape its race had,
+# which is a different (related but not identical) question to
+# race_speed_estimate.py's race-WIDE early-tempo prediction used as
+# cur_race_speed_label below - own_pace asks whether this horse personally
+# goes well when ITS OWN sectional profile has looked like today's
+# predicted race shape, using the model's own leak-safe pre-race prediction
+# for today (never the actual post-race shape, which the model cannot know
+# before the race is run).
+def _own_tempo_band(early, l600, distance):
     try:
         e, l = float(early), float(l600)
     except (TypeError, ValueError):
         return None
     if e != e or l != l:
         return None
-    diff = e - l
+    diff = (e - l) - _tempo_dist_correction(distance)
     if diff >= 2:
         return "Fast"
     if diff <= -2:
@@ -1798,7 +1839,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     own_tempo_hist = None
     if "sect_i_early" in p.columns and "sect_i_l600" in p.columns:
         own_tempo_hist = pd.Series(
-            [_own_tempo_band(e, l) for e, l in zip(p["sect_i_early"], p["sect_i_l600"])],
+            [_own_tempo_band(e, l, d) for e, l, d in zip(p["sect_i_early"], p["sect_i_l600"], dist)],
             index=p.index)
     cur_settle_band = None
     if len(rel_settle) >= 1 and _settle_barrier_nudge is not None:
