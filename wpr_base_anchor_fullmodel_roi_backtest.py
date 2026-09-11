@@ -78,10 +78,68 @@ def _closing_raw_resid_one(pairs, pace_baseline_lookup):
     return (float(np.mean(vals)), float(len(vals))) if vals else (np.nan, 0.0)
 
 
+# BATCH (vectorized) equivalents of wpr_projection.py's own _track_barrier_
+# term/_merit_term/_closing_merit_term. Those functions are designed for
+# live single-runner serving (project_race() calls them once per runner in
+# a race - a few dozen calls, no performance concern there) - reusing them
+# in a Python per-row loop over a backtest's hundreds of thousands to
+# millions of rows means that many individual model.predict() calls, each
+# constructing a fresh 1-row DataFrame and paying LightGBM's fixed
+# per-call overhead. Confirmed directly (Sep 2026): this stalled a 10-year-
+# scale backtest for 50+ minutes on a single fold with no progress. These
+# batch versions call model.predict() ONCE per fold on the whole frame,
+# replicating each function's exact "invalid input -> 0.0" masking
+# vectorized rather than per-row - same output, drastically faster.
+def _track_barrier_batch(frame, track_code_map, model):
+    if model is None:
+        return np.zeros(len(frame))
+    cd = pd.to_numeric(frame["cur_distance"], errors="coerce")
+    cb = pd.to_numeric(frame["barrier"], errors="coerce")
+    cfs = pd.to_numeric(frame["field_size"], errors="coerce")
+    trk = frame["track"]
+    track_code = trk.map(track_code_map).fillna(-1)
+    valid = cd.notna() & cb.notna() & cfs.notna() & trk.notna() & (trk != "")
+    X = pd.DataFrame({"cur_distance": cd, "barrier": cb, "field_size": cfs,
+                       "track_code": track_code}, index=frame.index)
+    out = np.zeros(len(frame))
+    if valid.any():
+        out[valid.to_numpy()] = model.predict(X.loc[valid, wp._TRACK_BARRIER_FEATURES])
+    return out
+
+
+def _merit_batch(value_series, field_size_series, model, features):
+    if model is None:
+        return np.zeros(len(value_series))
+    v = pd.to_numeric(value_series, errors="coerce")
+    fs = pd.to_numeric(field_size_series, errors="coerce").fillna(0.0)
+    valid = v.notna()
+    X = pd.DataFrame({features[0]: v, features[1]: fs}, index=v.index)
+    out = np.zeros(len(v))
+    if valid.any():
+        out[valid.to_numpy()] = model.predict(X.loc[valid, features])
+    return out
+
+
+def _closing_merit_batch(frame, model):
+    if model is None:
+        return np.zeros(len(frame))
+    resid = pd.to_numeric(frame["closing_raw_resid"], errors="coerce")
+    npairs = pd.to_numeric(frame["closing_n_pairs"], errors="coerce").fillna(0.0)
+    fs = pd.to_numeric(frame["field_size"], errors="coerce").fillna(0.0)
+    valid = resid.notna()
+    X = pd.DataFrame({"closing_raw_resid": resid, "closing_n_pairs": npairs,
+                       "field_size": fs}, index=frame.index)
+    out = np.zeros(len(frame))
+    if valid.any():
+        out[valid.to_numpy()] = model.predict(X.loc[valid, wp._CLOSING_MERIT_FEATURES])
+    return out
+
+
 def fit_terms_on_fold(fit_half, apply_to, form_csv):
     """Fits track_barrier + closing_merit on fit_half ONLY, applies to
-    every frame in apply_to (in place) via the SAME per-row term
-    functions the live model uses."""
+    every frame in apply_to (in place) via batch-vectorized equivalents
+    of the live per-row term functions (see _track_barrier_batch etc.
+    above for why not the per-row originals)."""
     track_categories = sorted(fit_half["track"].dropna().unique())
     track_code_map = {t: i for i, t in enumerate(track_categories)}
     for _f in apply_to:
@@ -96,14 +154,8 @@ def fit_terms_on_fold(fit_half, apply_to, form_csv):
     closing_merit_model = wp._fit_simple_adj_model(fit_half, wp._CLOSING_MERIT_FEATURES, "closing_merit")
 
     for _f in apply_to:
-        _f.loc[:, "track_barrier"] = [
-            wp._track_barrier_term(trk, dist, bar, fs, track_code_map, track_barrier_model)
-            for trk, dist, bar, fs in zip(_f["track"], _f["cur_distance"], _f["barrier"], _f["field_size"])
-        ]
-        _f.loc[:, "closing_merit"] = [
-            wp._closing_merit_term(pairs, pace_baseline_lookup, fs, closing_merit_model)
-            for pairs, fs in zip(_f["closing_pairs"], _f["field_size"])
-        ]
+        _f.loc[:, "track_barrier"] = _track_barrier_batch(_f, track_code_map, track_barrier_model)
+        _f.loc[:, "closing_merit"] = _closing_merit_batch(_f, closing_merit_model)
         for _term in FITTED_TERMS:
             _f[_term] = _f[_term] - _f.groupby("race_id")[_term].transform("mean")
         _f[FULL_TERMS] = _f[FULL_TERMS].fillna(0.0)

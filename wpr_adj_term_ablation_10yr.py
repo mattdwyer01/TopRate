@@ -46,7 +46,10 @@ import pandas as pd
 import wpr_projection as wp
 from wpr_base_calc_10yr_retest import load_combined, assign_era, ERA_BOUNDS, D_CACHE
 from wpr_base_anchor_roi_backtest import base_with_anchor
-from wpr_base_anchor_fullmodel_roi_backtest import fit_terms_on_fold, FITTED_TERMS, _closing_raw_resid_one
+from wpr_base_anchor_fullmodel_roi_backtest import (
+    fit_terms_on_fold, FITTED_TERMS, _closing_raw_resid_one,
+    _track_barrier_batch, _closing_merit_batch,
+)
 
 OWN_HISTORY_TERMS = ["own_distance", "own_going", "own_first_up", "own_second_up",
                       "own_trend", "own_long_spell"]
@@ -135,17 +138,11 @@ def run_stability(D, era_names, all_models):
         frame = D.copy()
         tcm = models["track_code_map"]
         frame.loc[:, "track_code"] = frame["track"].map(tcm).fillna(-1).astype(int)
-        frame.loc[:, "track_barrier"] = [
-            wp._track_barrier_term(trk, dist, bar, fs, tcm, models["track_barrier_model"])
-            for trk, dist, bar, fs in zip(frame["track"], frame["cur_distance"], frame["barrier"], frame["field_size"])
-        ]
+        frame.loc[:, "track_barrier"] = _track_barrier_batch(frame, tcm, models["track_barrier_model"])
         _computed = [_closing_raw_resid_one(p, models["pace_baseline_lookup"]) for p in frame["closing_pairs"]]
         frame.loc[:, "closing_raw_resid"] = [c[0] for c in _computed]
         frame.loc[:, "closing_n_pairs"] = [c[1] for c in _computed]
-        frame.loc[:, "closing_merit"] = [
-            wp._closing_merit_term(pairs, models["pace_baseline_lookup"], fs, models["closing_merit_model"])
-            for pairs, fs in zip(frame["closing_pairs"], frame["field_size"])
-        ]
+        frame.loc[:, "closing_merit"] = _closing_merit_batch(frame, models["closing_merit_model"])
         for _term in FITTED_TERMS:
             frame[_term] = frame[_term] - frame.groupby("race_id")[_term].transform("mean")
         scored[era] = frame

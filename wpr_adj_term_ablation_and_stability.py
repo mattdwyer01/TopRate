@@ -62,6 +62,9 @@ import numpy as np
 import pandas as pd
 
 import wpr_projection as wp
+from wpr_base_anchor_fullmodel_roi_backtest import (
+    _track_barrier_batch, _merit_batch, _closing_merit_batch,
+)
 
 FORM_CSV = "wpr_form_history.csv.gz"
 
@@ -144,7 +147,16 @@ def fit_trained_terms(fit_half, apply_to):
     applies to every frame in apply_to (in place). Returns the four
     fitted models/lookups so the stability check can re-apply them to a
     DIFFERENT population later."""
-    fit_half = fit_half.copy()
+    # NOTE: fit_half must NOT be re-copied/rebound here - the caller
+    # constructs apply_to as [fit_half, held_out] using this exact
+    # object, so setting track_code via the apply_to loop below only
+    # reaches the SAME fit_half later used for track_barrier's own
+    # _fit_simple_adj_model call if the reference is preserved. An
+    # earlier `fit_half = fit_half.copy()` here silently broke that
+    # aliasing (a real bug, only surfaced once this script was actually
+    # run end to end for the first time) - track_barrier's fit crashed
+    # with KeyError: ['track_code'] because the rebound local copy never
+    # got the column the apply_to loop set on the ORIGINAL object.
     track_categories = sorted(fit_half["track"].dropna().unique())
     track_code_map = {t: i for i, t in enumerate(track_categories)}
     trainer_merit_trn = wp._fit_coverage_aware_trn(fit_half, ["trainer_win_pct_365d"])
@@ -161,23 +173,19 @@ def fit_trained_terms(fit_half, apply_to):
         _f.loc[:, "closing_n_pairs"] = [c[1] for c in _computed]
     closing_merit_model = wp._fit_simple_adj_model(fit_half, wp._CLOSING_MERIT_FEATURES, "closing_merit")
 
+    # Batch (vectorized) equivalents of the live per-row term functions -
+    # see wpr_base_anchor_fullmodel_roi_backtest.py's own docstring for
+    # these: reusing the per-row originals in a Python loop over a
+    # backtest's hundreds of thousands of rows means that many individual
+    # model.predict() calls, confirmed directly to stall a fold for 50+
+    # minutes with no progress.
     for _f in apply_to:
-        _f.loc[:, "track_barrier"] = [
-            wp._track_barrier_term(trk, dist, bar, fs, track_code_map, track_barrier_model)
-            for trk, dist, bar, fs in zip(_f["track"], _f["cur_distance"], _f["barrier"], _f["field_size"])
-        ]
-        _f.loc[:, "trainer_merit"] = [
-            wp._merit_term(v, fs, trainer_merit_model, wp._TRAINER_MERIT_FEATURES)
-            for v, fs in zip(_f["trainer_win_pct_365d"], _f["field_size"])
-        ]
-        _f.loc[:, "jockey_merit"] = [
-            wp._merit_term(v, fs, jockey_merit_model, wp._JOCKEY_MERIT_FEATURES)
-            for v, fs in zip(_f["jockey_win_pct_90d"], _f["field_size"])
-        ]
-        _f.loc[:, "closing_merit"] = [
-            wp._closing_merit_term(pairs, pace_baseline_lookup, fs, closing_merit_model)
-            for pairs, fs in zip(_f["closing_pairs"], _f["field_size"])
-        ]
+        _f.loc[:, "track_barrier"] = _track_barrier_batch(_f, track_code_map, track_barrier_model)
+        _f.loc[:, "trainer_merit"] = _merit_batch(
+            _f["trainer_win_pct_365d"], _f["field_size"], trainer_merit_model, wp._TRAINER_MERIT_FEATURES)
+        _f.loc[:, "jockey_merit"] = _merit_batch(
+            _f["jockey_win_pct_90d"], _f["field_size"], jockey_merit_model, wp._JOCKEY_MERIT_FEATURES)
+        _f.loc[:, "closing_merit"] = _closing_merit_batch(_f, closing_merit_model)
         for _term in TRAINED_TERMS:
             _f[_term] = _f[_term] - _f.groupby("race_id")[_term].transform("mean")
         _f[wp.ADJ_TERMS] = _f[wp.ADJ_TERMS].fillna(0.0)
@@ -218,9 +226,24 @@ def fit_and_score(fit_half, held_out):
 
 
 def run_ablation(D):
-    mid = D["date"].quantile(0.5)
+    # Split by the COVERED subset's own median date, not the whole
+    # dataset's - trainer_win_pct_365d/jockey_win_pct_90d only exist in
+    # toprate_runners.csv's recent daily-snapshot window (~20% overall
+    # coverage, per _fit_coverage_aware_trn's own docstring), which sits
+    # almost entirely in the recent tail of this multi-year archive. A
+    # plain whole-dataset median split can put that ENTIRE window inside
+    # one half, leaving the other with zero rows to fit trainer_merit/
+    # jockey_merit from at all (confirmed directly: first real run of
+    # this script hit exactly that - "0 covered rows, skipping fit").
+    # Splitting on the covered subset's own median instead guarantees
+    # real coverage on both sides; track_barrier/closing_merit (covered
+    # across the whole archive) still get plenty of data in both halves
+    # regardless of exactly where this cutoff falls.
+    covered = D[D["trainer_win_pct_365d"].notna()]
+    mid = covered["date"].quantile(0.5) if len(covered) else D["date"].quantile(0.5)
     h1, h2 = D[D["date"] < mid].copy(), D[D["date"] >= mid].copy()
-    print(f"\nH1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
+    print(f"\nH1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()}) "
+          f"[split on trainer/jockey-merit coverage's own median date]")
 
     print("\nFitting on H1, scoring held-out H2...")
     maes_h2, models_h1 = fit_and_score(h1, h2)
@@ -265,25 +288,17 @@ def run_stability(h1, h2, models_h1, models_h2):
         frame = frame.copy()
         tcm = models["track_code_map"]
         frame.loc[:, "track_code"] = frame["track"].map(tcm).fillna(-1).astype(int)
-        frame.loc[:, "track_barrier"] = [
-            wp._track_barrier_term(trk, dist, bar, fs, tcm, models["track_barrier_model"])
-            for trk, dist, bar, fs in zip(frame["track"], frame["cur_distance"], frame["barrier"], frame["field_size"])
-        ]
-        frame.loc[:, "trainer_merit"] = [
-            wp._merit_term(v, fs, models["trainer_merit_model"], wp._TRAINER_MERIT_FEATURES)
-            for v, fs in zip(frame["trainer_win_pct_365d"], frame["field_size"])
-        ]
-        frame.loc[:, "jockey_merit"] = [
-            wp._merit_term(v, fs, models["jockey_merit_model"], wp._JOCKEY_MERIT_FEATURES)
-            for v, fs in zip(frame["jockey_win_pct_90d"], frame["field_size"])
-        ]
+        frame.loc[:, "track_barrier"] = _track_barrier_batch(frame, tcm, models["track_barrier_model"])
+        frame.loc[:, "trainer_merit"] = _merit_batch(
+            frame["trainer_win_pct_365d"], frame["field_size"],
+            models["trainer_merit_model"], wp._TRAINER_MERIT_FEATURES)
+        frame.loc[:, "jockey_merit"] = _merit_batch(
+            frame["jockey_win_pct_90d"], frame["field_size"],
+            models["jockey_merit_model"], wp._JOCKEY_MERIT_FEATURES)
         _computed = [_closing_raw_resid_one(p, models["pace_baseline_lookup"]) for p in frame["closing_pairs"]]
         frame.loc[:, "closing_raw_resid"] = [c[0] for c in _computed]
         frame.loc[:, "closing_n_pairs"] = [c[1] for c in _computed]
-        frame.loc[:, "closing_merit"] = [
-            wp._closing_merit_term(pairs, models["pace_baseline_lookup"], fs, models["closing_merit_model"])
-            for pairs, fs in zip(frame["closing_pairs"], frame["field_size"])
-        ]
+        frame.loc[:, "closing_merit"] = _closing_merit_batch(frame, models["closing_merit_model"])
         for _term in TRAINED_TERMS:
             frame[_term] = frame[_term] - frame.groupby("race_id")[_term].transform("mean")
         return frame
