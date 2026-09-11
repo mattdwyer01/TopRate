@@ -108,13 +108,36 @@ jobs:
           # section for the real incident this caused when a plain merge's
           # --theirs got copy-pasted into a rebase context), so -X ours is
           # the flag that actually means that here.
+          #
+          # Every git call below is wrapped in `timeout` (2026-09-11: this
+          # step was repeatedly observed hanging 5-13 minutes with NO error
+          # in the job log before being externally cancelled - disk space
+          # was ruled out as the cause, but the actual hang was never
+          # pinned down since a cancelled step's log gives no clue which
+          # command was stuck). Bounding each call turns a silent multi-
+          # minute hang into a fast, loud "TIMED OUT" line naming the exact
+          # command, so the next occurrence is actually diagnosable instead
+          # of just another mystery cancellation.
           for i in 1 2 3 4 5; do
-            if git push; then
+            timeout 25 git push
+            push_status=$?
+            if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
+            elif [[ $push_status -eq 124 ]]; then
+              echo "git push TIMED OUT after 25s (attempt $i)"
+            else
+              echo "git push failed, exit $push_status (attempt $i)"
             fi
-            echo "Push rejected (attempt $i) - pulling and retrying"
-            git pull --rebase -X ours --no-edit || git rebase --abort
+            timeout 25 git pull --rebase -X ours --no-edit
+            pull_status=$?
+            if [[ $pull_status -eq 124 ]]; then
+              echo "git pull --rebase TIMED OUT after 25s (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            elif [[ $pull_status -ne 0 ]]; then
+              echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            fi
             sleep 3
           done
           echo "Push failed after retries"
