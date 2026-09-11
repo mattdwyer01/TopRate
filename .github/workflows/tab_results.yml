@@ -118,9 +118,17 @@ jobs:
           # minute hang into a fast, loud "TIMED OUT" line naming the exact
           # command, so the next occurrence is actually diagnosable instead
           # of just another mystery cancellation.
+          # NOTE (2026-09-11): the first version of this used
+          # `timeout 25 git push; push_status=$?`, which is NOT safe under
+          # this step's default `bash -e` - the moment git push fails,
+          # bash exits the whole script right there, before push_status is
+          # even captured, so the retry loop below never ran (confirmed
+          # live: a run failed after exactly ONE rejected push instead of
+          # retrying up to 5 times). `cmd || push_status=$?` is the
+          # -e-safe form - the `||` clause itself absorbs the failure.
           for i in 1 2 3 4 5; do
-            timeout 25 git push
-            push_status=$?
+            push_status=0
+            timeout 25 git push || push_status=$?
             if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
@@ -129,8 +137,8 @@ jobs:
             else
               echo "git push failed, exit $push_status (attempt $i)"
             fi
-            timeout 25 git pull --rebase -X ours --no-edit
-            pull_status=$?
+            pull_status=0
+            timeout 25 git pull --rebase -X ours --no-edit || pull_status=$?
             if [[ $pull_status -eq 124 ]]; then
               echo "git pull --rebase TIMED OUT after 25s (attempt $i) - aborting"
               git rebase --abort 2>/dev/null || true
