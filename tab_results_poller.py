@@ -161,6 +161,57 @@ def diagnose():
     return 1
 
 
+def probe_odds():
+    """
+    ONE-OFF, read-only investigation tool -- not part of the regular poll
+    cycle, never writes anything. Answers the question the meeting-list
+    endpoint's own docstring already flags (see FETCHING above):
+    starting_price_sp only exists at the race-detail level, one tier down
+    via _links.races/_links.self -- fixedOdds is presumed to live there too,
+    but that's unconfirmed until a real payload is inspected from an AU IP.
+    Run this on the Vultr box (or wherever --diagnose already passes) and
+    paste the output back -- it decides whether live TAB prices are a cheap
+    add to the existing meeting-list poll, or need the pricier per-race
+    drill-down (1 + N-meetings + N*M-races requests/cycle) the results/
+    conditions path deliberately avoided.
+    """
+    today = date.today().isoformat()
+    for jurisdiction in AU_STATES:
+        payload = get(MEETINGS.format(date=today), {"jurisdiction": jurisdiction})
+        for m in payload.get("meetings", []):
+            if m.get("raceType") != RACE_TYPE or m.get("location") not in AU_STATES:
+                continue
+            for rc in m.get("races", []):
+                if rc.get("raceStatus") in FINAL_STATUSES:
+                    continue  # want a race still open to betting, not settled
+                print(f"Meeting: {m.get('meetingName')} ({m.get('location')})  "
+                      f"Race {rc.get('raceNumber')}  status={rc.get('raceStatus')}")
+                print("Race stub top-level keys:", sorted(rc.keys()))
+                hit = {k: v for k, v in rc.items()
+                       if any(t in k.lower() for t in ("odd", "price", "fixed"))}
+                print("  price-ish keys on the stub itself:", hit or "(none)")
+
+                race_link = (rc.get("_links") or {}).get("self") or (rc.get("_links") or {}).get("races")
+                if not race_link:
+                    print("  no _links.self/_links.races on this race stub -- stopping here")
+                    return 0
+                print(f"  fetching race detail: {race_link}")
+                detail = get(race_link)
+                print("  Race detail top-level keys:", sorted(detail.keys()))
+                runners = detail.get("runners") or (detail.get("race") or {}).get("runners") or []
+                print(f"  {len(runners)} runners in detail payload")
+                if runners:
+                    print("  First runner's full dict:")
+                    print(json.dumps(runners[0], indent=2, default=str)[:3000])
+                out_path = RAW_ARCHIVE_DIR / "probe_race_detail.json"
+                RAW_ARCHIVE_DIR.mkdir(exist_ok=True)
+                out_path.write_text(json.dumps(detail, indent=2, default=str))
+                print(f"  Full race detail saved to {out_path}")
+                return 0
+    print("No open (non-final) AU thoroughbred race found today to probe.")
+    return 1
+
+
 # --------------------------------------------------------------------- terminal-race cache
 def load_terminal_cache():
     if CACHE_FILE.exists():
@@ -306,6 +357,13 @@ def apply_results(runners_df, tab_results):
     TAB returns AU venues in ALL CAPS, the provider CSV uses Title Case
     (confirmed against a real payload). Returns (updated_df, n_written,
     unmatched_venues).
+
+    Also sets interim_resulted = 1 on every row written -- this is what
+    flips the dashboard's race-level "done" flag (see toprate_daily.py's
+    RACES payload build) as soon as TAB reports a finishing position, well
+    before update_results() gets to that meeting and sets the real
+    `resulted`. Never touches resulted/wpr_actual/comments_* -- see module
+    docstring.
     """
     unmatched_venues = set()
     n_written = 0
@@ -330,6 +388,7 @@ def apply_results(runners_df, tab_results):
         runners_df.loc[idx, "finish_position"] = finish
         runners_df.loc[idx, "won"] = 1 if finish == 1 else 0
         runners_df.loc[idx, "placed"] = 1 if finish <= 3 else 0
+        runners_df.loc[idx, "interim_resulted"] = 1
         # Deliberately NOT touching resulted / wpr_actual / comments_* -- see
         # module docstring. The authoritative feed still owns those.
         n_written += 1
@@ -343,15 +402,19 @@ def apply_conditions(runners_df, conditions):
     case-insensitively on venue (same matching as apply_results). Applied to
     the whole (date, venue) group, not a specific race/tab_number -- track
     condition and rail position are meeting-wide, not per-race. Returns
-    (updated_df, n_rows_touched, changes, unmatched_venues), where `changes`
-    is a list of human-readable "old -> new" strings for going values that
-    actually differ from what was already there -- so a run that reconfirms
-    an unchanged condition stays quiet, but a real downgrade/upgrade is
-    always visible in the log.
+    (updated_df, n_rows_touched, changes, changed_venues, unmatched_venues),
+    where `changes` is a list of human-readable "old -> new" strings for
+    going values that actually differ from what was already there -- so a
+    run that reconfirms an unchanged condition stays quiet, but a real
+    downgrade/upgrade is always visible in the log. `changed_venues` is the
+    matching set of CSV-cased venue names (a subset of what `changes`
+    describes), for the caller to scope a WPR recompute to just the
+    meetings that actually moved.
     """
     unmatched_venues = set()
     n_written = 0
     changes = []
+    changed_venues = set()
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for cond in conditions:
@@ -374,6 +437,7 @@ def apply_conditions(runners_df, conditions):
                 # entry - reads properly in the Action log either way.
                 csv_venue = rows["venue"].iloc[0]
                 changes.append(f"{csv_venue}: going {old_going!r} -> {cond['going']!r}")
+                changed_venues.add(csv_venue)
             runners_df.loc[mask, "going"] = cond["going"]
         if cond.get("track_grading") is not None:
             runners_df.loc[mask, "track_grading"] = cond["track_grading"]
@@ -381,7 +445,7 @@ def apply_conditions(runners_df, conditions):
             runners_df.loc[mask, "rail_position"] = cond["rail_position"]
         n_written += len(rows)
 
-    return runners_df, n_written, changes, unmatched_venues
+    return runners_df, n_written, changes, changed_venues, unmatched_venues
 
 
 # --------------------------------------------------------------------- publish
@@ -443,8 +507,10 @@ def run_once(push=True):
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
 
+    changed_venues = set()
     if conditions:
-        runners_df, n_condition_rows, changes, unmatched = apply_conditions(runners_df, conditions)
+        runners_df, n_condition_rows, changes, changed_venues, unmatched = apply_conditions(
+            runners_df, conditions)
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for conditions, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
         for c in changes:
@@ -453,6 +519,19 @@ def run_once(push=True):
     if n_result_rows == 0 and n_condition_rows == 0:
         print("  Nothing matched this cycle")
         return
+
+    if changed_venues:
+        # going feeds wpr_going as a live model input - a real track
+        # condition change makes every not-yet-run projection at that
+        # meeting stale until this recomputes it. Scoped to just the
+        # changed venue(s), not the whole day (~30s vs ~75s+ measured for a
+        # typical multi-meeting day - see CLAUDE.md's Current state note),
+        # since this runs on the same tight 5-min cycle as everything else
+        # here. Best-effort: compute_wpr_projection() itself is fail-safe
+        # (returns runners_df unchanged on any internal error).
+        t0 = time.time()
+        runners_df = td.compute_wpr_projection(runners_df, target_date, target_venues=changed_venues)
+        print(f"  WPR recompute for {sorted(changed_venues)} took {time.time()-t0:.1f}s")
 
     td.save_runners(runners_df)
     if n_result_rows:
@@ -469,6 +548,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--diagnose", action="store_true")
+    ap.add_argument("--probe-odds", action="store_true",
+                    help="one-off, read-only: inspect where TAB exposes fixed prices (see probe_odds())")
     ap.add_argument("--once", action="store_true", help="single pass (for cron/Task Scheduler)")
     ap.add_argument("--no-push", action="store_true", help="write the CSV but skip git commit/push")
     ap.add_argument("--interval", type=int, default=90,
@@ -477,6 +558,9 @@ def main():
 
     if a.diagnose:
         return diagnose()
+
+    if a.probe_odds:
+        return probe_odds()
 
     if a.once:
         run_once(push=not a.no_push)

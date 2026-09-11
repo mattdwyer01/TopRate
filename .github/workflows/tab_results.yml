@@ -5,11 +5,12 @@ name: TAB live results (self-hosted)
 # tab_results_poller.py). Results close the gap where the authoritative feed
 # (update_results() in toprate_daily.py, run via price_refresh.yml) can't
 # resolve a race until its WHOLE MEETING finishes.
-# Writes finish_position/won/placed (per runner) and going/track_grading/
-# rail_position (per meeting); never resulted/wpr_actual/comments_* - see
-# tab_results_poller.py's docstring for why that split matters. going/
-# rail updates are display-only for now - they do NOT trigger a WPR ratings
-# recompute (see CLAUDE.md's Current state section for why that's deferred).
+# Writes finish_position/won/placed/interim_resulted (per runner) and
+# going/track_grading/rail_position (per meeting); never resulted/
+# wpr_actual/comments_* - see tab_results_poller.py's docstring for why
+# that split matters. A real going change DOES trigger a WPR ratings
+# recompute, scoped to just the meeting(s) that changed (see CLAUDE.md's
+# Current state section for the measured cost that made this safe).
 #
 # MUST run on a self-hosted runner registered from a real Australian
 # machine - TAB geo-blocks and TLS-fingerprints most cloud/VPS hosts,

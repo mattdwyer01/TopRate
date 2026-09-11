@@ -67,15 +67,17 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   straight off the cheap meeting-list endpoint (raceStatus/results[]/
   trackCondition/railPosition are already embedded per meeting/race, no
   drill-down into race detail needed), matching case-insensitively since
-  TAB returns AU venues in ALL CAPS. Writes finish_position/won/placed
-  (per runner) and going/track_grading/rail_position (per meeting, applied
-  to every runner at that venue+date); never resulted/wpr_actual/
-  comments_* — those stay exclusively `update_results()`'s job. going/
-  track_grading/rail_position updates are DISPLAY-ONLY for now: they
-  refresh what the dashboard shows but do NOT trigger a WPR ratings
-  recompute (`compute_wpr_projection()` only runs in the full daily
-  pipeline, not `--rebuild-only` — deliberately deferred, see Current
-  state below, rather than assumed cheap/safe to wire in immediately).
+  TAB returns AU venues in ALL CAPS. Writes finish_position/won/placed/
+  interim_resulted (per runner) and going/track_grading/rail_position (per
+  meeting, applied to every runner at that venue+date); never resulted/
+  wpr_actual/comments_* — those stay exclusively `update_results()`'s job
+  (interim_resulted is a separate column that flips the dashboard's
+  race-level "done" display flag early; resulted itself, and everything
+  keyed off it, still waits for the authoritative pass). A real going
+  change DOES trigger a WPR ratings recompute, scoped to just the
+  meeting(s) that changed (`compute_wpr_projection(..., target_venues=...)`
+  — see Current state below for the measured cost that made this safe to
+  wire in). TAB fixed prices are NOT yet used anywhere (see Current state).
   Triggered externally (cron-job.org → workflow_dispatch, same pattern as
   `price_refresh.yml`), not GitHub's own `schedule:`.
 
@@ -179,23 +181,36 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   complexity without a fundamentally new data source. The unexplored lever is
   bet selection, not prediction accuracy.
 - `tab_results_poller.py` (Sep 2026) refreshes `going`/`track_grading`/
-  `rail_position` intraday from TAB, but deliberately does NOT trigger a WPR
-  ratings recompute when they change, even though `going` already feeds
-  `wpr_going` as a model input - this isn't the "no model complexity"
-  caution above (going is already a live input, not a new feature), it's
-  that `compute_wpr_projection()` only runs in the full daily pipeline, is
-  untimed standalone, and running it on a 5-min intraday cadence on a
-  1 vCPU/2GB box is new, unvalidated load on the one part of the codebase
-  explicitly flagged as risky to touch casually. Time it standalone and
-  decide deliberately before wiring this in, rather than assuming it's
-  cheap. Same reasoning applies to using TAB's `fixedOdds` to replace
-  `price_refresh.yml`: that job currently runs on free GitHub-hosted infra,
-  fully decoupled from whichever AU machine hosts the self-hosted runner;
-  routing prices through TAB too would mean the AU machine going down takes
-  out results AND prices AND conditions at once instead of just results
-  freshness - run TAB prices in parallel against the existing feed first to
-  check accuracy/completeness before considering a cutover, don't swap it
-  in blind.
+  `rail_position` intraday from TAB. A real `going` change now DOES trigger
+  a WPR ratings recompute (`compute_wpr_projection(runners_df, target_date,
+  target_venues=changed_venues)`), but only that - scoped to just the
+  meeting(s) that changed, never the whole day. This was timed standalone
+  before wiring it in (per the caution that used to live here): a full
+  day's recompute measured ~74s for 41 races on hardware comparable to the
+  Vultr box, dominated by a ~22s fixed cost (loading/grouping
+  `wpr_form_history.csv.gz`) plus ~1.3s/race - scoping to one meeting (e.g.
+  Geelong's 9 races) cut that to ~30s. Since this only fires when a
+  condition genuinely changes (not every cycle), and the poll cycle already
+  has room under the 15-min job timeout (see `tab_results.yml`), this was
+  judged safe to wire in. `interim_resulted` (Sep 2026, separate column
+  from `resulted`) is set by `apply_results()` the moment TAB reports a
+  finishing position, and flips the dashboard's race-level `done` flag
+  (shown as "Resulted", greys out the race, drops it from the next-to-jump
+  ticker) immediately - `resulted` itself, and everything keyed off it
+  (P&L math, miss-note detection, wpr_actual/comments backfill), still
+  waits exclusively for `update_results()`'s authoritative pass, which
+  overwrites/confirms it later. Still NOT done: using TAB's `fixedOdds` to
+  refresh live prices (or replace `price_refresh.yml`). Investigation so
+  far: the meeting-list endpoint this poller already polls does NOT carry
+  price data - `starting_price_sp` and (presumed, unconfirmed) `fixedOdds`
+  only exist one tier down, via `_links.races`/`_links.self` race-detail
+  calls, which is real added request volume (1 + N-meetings + N*M-races per
+  cycle) this poller deliberately avoided for results/conditions. Before
+  building this: run `python tab_results_poller.py --probe-odds` from an AU
+  IP (a one-off, read-only diagnostic, see its docstring) to confirm where
+  and how fixedOdds is actually shaped, then run TAB prices in parallel
+  against the existing feed to check accuracy/completeness before
+  considering any cutover - don't swap `price_refresh.yml` out blind.
 - **IMPORTANT for whoever next runs `train_wpr_projection()`/a full retrain
   (Sep 2026)**: `wpr_form_history.csv.gz` just had a major dedup bug fixed.
   Its dedup key used to include `formNumber`, which looks like a stable
