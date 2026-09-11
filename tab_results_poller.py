@@ -366,17 +366,45 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
     prices = []
     seen_meetings = set()
 
+    # Circuit breaker: if TAB starts blocking/degrading this IP again (see
+    # module docstring -- it's happened before), every get() below would
+    # otherwise sit out its own timeout one at a time across 8 jurisdictions
+    # plus every open race's price drill-down, turning a normal sub-second
+    # cycle into many minutes and eating the self-hosted runner's whole job
+    # budget on a single stuck run (2026-09-11 outage: one cycle's "Poll TAB"
+    # step alone ran ~8 min, and the runner never picked up a job again
+    # afterward). 3 consecutive failures aborts the rest of THIS cycle only
+    # (results/conditions already collected are kept, nothing is lost) --
+    # the next trigger a minute or two later tries again from scratch.
+    MAX_CONSECUTIVE_FAILURES = 3
+    FAST_FAIL_TIMEOUT = 10  # this poller runs every 1-2 min; a slow-but-
+    # working response isn't worth patiently waiting 30s for at this cadence.
+    consecutive_failures = 0
+    aborted = False
+
     for jurisdiction in states:
+        if aborted:
+            break
         try:
-            payload = get(MEETINGS.format(date=target_date), {"jurisdiction": jurisdiction})
+            payload = get(MEETINGS.format(date=target_date), {"jurisdiction": jurisdiction},
+                         timeout=FAST_FAIL_TIMEOUT)
+            consecutive_failures = 0
         except Exception as e:
             print(f"  {jurisdiction}: meeting list failed: {type(e).__name__}: {str(e)[:80]}")
+            consecutive_failures += 1
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                print(f"  {consecutive_failures} consecutive failures -- aborting rest of this "
+                      f"cycle (TAB likely blocking/degraded) instead of grinding through every "
+                      f"remaining state/race at full timeout")
+                aborted = True
             continue
 
         if archive:
             _archive_raw(target_date, jurisdiction, payload)
 
         for m in payload.get("meetings", []):
+            if aborted:
+                break
             if m.get("raceType") != RACE_TYPE:
                 continue
             # Jurisdiction is a query filter, not a location filter -- the
@@ -404,6 +432,8 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                 ))
 
             for rc in m.get("races", []):
+                if aborted:
+                    break
                 race_no = rc.get("raceNumber")
                 rkey = f"{target_date}|{venue}|{race_no}"
                 if rkey in terminal_cache:
@@ -424,7 +454,8 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                         race_detail = get(
                             RACE_DETAIL.format(date=target_date, venue_mnemonic=venue_mnemonic,
                                                race_no=race_no),
-                            {"jurisdiction": jurisdiction})
+                            {"jurisdiction": jurisdiction}, timeout=FAST_FAIL_TIMEOUT)
+                        consecutive_failures = 0
                         for run in race_detail.get("runners", []):
                             tab_no = run.get("runnerNumber")
                             if tab_no is None:
@@ -440,6 +471,12 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                     except Exception as e:
                         print(f"  price fetch failed for {venue} R{race_no}: "
                               f"{type(e).__name__}: {str(e)[:60]}")
+                        consecutive_failures += 1
+                        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                            print(f"  {consecutive_failures} consecutive failures -- aborting "
+                                  f"rest of this cycle (TAB likely blocking/degraded) instead of "
+                                  f"grinding through every remaining state/race at full timeout")
+                            aborted = True
                     time.sleep(0.15)  # polite spacing between per-race calls
 
                 results = rc.get("results") or []
