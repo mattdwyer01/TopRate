@@ -39,7 +39,7 @@ function ratingSuffix(v: number | null): string {
 // squeezing the name unreadable (measured previously: ~18px), so the row
 // is wider than the viewport on purpose and the shared overflow-x-auto
 // wrapper in RaceDetail scrolls it horizontally - silk+name are `sticky
-// left-0`/`left-10` so they stay in view (frozen) while the stat columns
+// left-0`/`left-12` so they stay in view (frozen) while the stat columns
 // scroll underneath, same "frozen first column" pattern MeetingsGrid
 // already uses for its own wide table.
 export function RunnerRow({
@@ -106,7 +106,7 @@ export function RunnerRow({
           onClick()
         }
       }}
-      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_52px_52px_58px_64px_68px_44px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
+      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -118,7 +118,15 @@ export function RunnerRow({
         )}
       </span>
       <span className="hidden font-mono text-ink-mute sm:inline">{runner.tabNumber}</span>
-      <span className={`sticky left-10 z-10 min-w-0 sm:static sm:z-auto ${stickyBg}`}>
+      {/* left-12 (48px), not left-10 (40px) - the silk cell above is 40px
+          per its grid track, but its own -ml-2 pl-2 (to flush it against
+          the row's true left edge, cancelling the row's px-2 padding for
+          just that cell) makes its RENDERED width 48px, not 40. Offsetting
+          this cell by only 40px made it stick 8px too far left, overlapping
+          the silk cell and, more importantly, covering the first ~8-20px of
+          whatever column comes right after it once scrolled all the way -
+          found via measuring actual rendered positions, not a hunch. */}
+      <span className={`sticky left-12 z-10 min-w-0 sm:static sm:z-auto ${stickyBg}`}>
         <span className="flex items-center gap-1">
           <span className={`truncate font-medium text-ink ${scratched ? 'line-through' : ''}`}>
             <span className="font-mono text-ink-mute sm:hidden">{runner.tabNumber}. </span>
@@ -209,6 +217,17 @@ export function RunnerRow({
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtPrice(displayPrice)}
       </span>
+      {/* Fixed $ and FP (below) are trimmed tighter than a plain "shrink a
+          touch" - CSS position:sticky's redundant scroll range bites here
+          specifically: scrollWidth still counts the sticky silk/name cells'
+          full natural-flow width even though they don't need to be scrolled
+          past once stuck, so the browser allows scrolling ~28px further
+          than actually useful - and that extra 28px scrolls WPR $ back
+          UNDER the sticky cells instead of revealing anything new (verified
+          by measuring real rendered positions, not a hunch). Only trimming
+          columns that come AFTER WPR $ (not WPR $ itself, and not
+          Base/Adj/Proj before it) closes that gap - FP's own content (a
+          20px circle badge) never needed 44px anyway. */}
       <span className="flex items-center justify-end font-mono text-ink-mute">
         <span>{scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}</span>
         {/* Fixed-width slot, always rendered (just invisible when there's no
