@@ -121,6 +121,7 @@ def run():
     print(f"\nEra row counts:\n{D['_era'].value_counts().reindex(era_names)}")
 
     per_era_results = {}
+    pooled_parts = []
     for era in era_names:
         fit_half = D[D["_era"] != era].copy()
         held_out = D[D["_era"] == era].copy()
@@ -139,10 +140,14 @@ def run():
         maes = {}
         for anchor in ANCHOR_CANDIDATES:
             pred = additive_predict(held_out, anchor)
+            held_out[f"_pred_{anchor}"] = pred
             mae = float(np.abs(held_out["target"].to_numpy() - pred).mean())
             maes[anchor] = (mae, len(held_out))
         per_era_results[era] = maes
+        pooled_parts.append(held_out[["n_runs", "target"] + [f"_pred_{a}" for a in ANCHOR_CANDIDATES]].copy())
         print(f"  {era}: " + "  ".join(f"{k}={v[0]:.4f}" for k, v in maes.items()))
+
+    pooled_df = pd.concat(pooled_parts, ignore_index=True)
 
     print(f"\n{'='*90}\nBASE ANCHOR MAE COMPARISON, NEW ARCHITECTURE (leave-one-era-out, pooled)\n{'='*90}")
     total_n = sum(per_era_results[e]["ewm5"][1] for e in era_names if e in per_era_results)
@@ -165,6 +170,23 @@ def run():
     print("MAE finding, but scored against the ACTUAL new ADJ_TERMS composition just")
     print("shipped, not the old one. If ewm7/ewm10 still win here, the earlier finding")
     print("holds under the new architecture and is a green light to ship the anchor swap.")
+
+    print(f"\n{'='*90}\nBY NUMBER-OF-STARTS BUCKET (does ewm7 need a fallback for lightly-raced horses?)\n{'='*90}")
+    bins = [0, 3, 5, 7, 10, 15, 1000]
+    labels = ["1-2", "3-4", "5-6", "7-9", "10-14", "15+"]
+    pooled_df["n_runs_band"] = pd.cut(pooled_df["n_runs"], bins=bins, labels=labels, right=False)
+    print(f"{'band':<10}{'n':>10}" + "".join(f"{a:>14}" for a in ANCHOR_CANDIDATES))
+    for band in labels:
+        sub = pooled_df[pooled_df["n_runs_band"] == band]
+        if len(sub) < 50:
+            continue
+        maes_str = "".join(
+            f"{float(np.abs(sub['target'] - sub[f'_pred_{a}']).mean()):>14.4f}" for a in ANCHOR_CANDIDATES)
+        print(f"{band:<10}{len(sub):>10,}{maes_str}")
+    print("\nReading this: if ewm7's MAE in the low-starts bands (1-2, 3-4, 5-6) is not")
+    print("noticeably worse than ewm5/ewm3's in those SAME bands, ewm7 already degrades")
+    print("gracefully for lightly-raced horses on its own (it's a converging average, not")
+    print("a fixed window that requires 7 real runs to be valid) - no separate fallback needed.")
     print("\nSame multiple-comparisons caveat as every backtest in this codebase:")
     print("treat this as a hypothesis, not a result to ship blind.")
     print("\nDone.")
