@@ -55,18 +55,28 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `toprate_price_refresh.py` → `toprate_daily.py`'s `rebuild_html()`). Never
   touches `toprate_live.html`.
 - `tab_results_poller.py` / `.github/workflows/tab_results.yml` — fast,
-  provisional per-race results from TAB's public racing API (see
-  `TAB_API_NOTES.md`), closing the gap where the authoritative feed above
-  can't resolve a race until its whole meeting finishes. MUST run on a
-  self-hosted GitHub Actions runner registered from a real Australian
-  machine (TAB geo-blocks and TLS-fingerprints everything else, VPS/cloud
-  included). Reads results straight off the cheap meeting-list endpoint
-  (raceStatus/results[] are already embedded per race, no drill-down into
-  race detail needed), matching case-insensitively since TAB returns AU
-  venues in ALL CAPS. Only ever writes finish_position/won/placed; never
-  resulted/wpr_actual/comments_* — those stay exclusively `update_results()`'s
-  job so it keeps confirming/correcting what TAB reported. Triggered
-  externally (cron-job.org → workflow_dispatch, same pattern as
+  provisional per-race results, plus track condition/rail updates, from
+  TAB's public racing API (see `TAB_API_NOTES.md`). Results close the gap
+  where the authoritative feed above can't resolve a race until its whole
+  meeting finishes. Runs on a self-hosted GitHub Actions runner registered
+  from a real Australian machine — currently a Vultr Melbourne instance
+  (TAB geo-blocks and TLS-fingerprints most cloud/VPS hosts, confirmed
+  empirically against GitHub-hosted runners specifically, but Vultr AU has
+  been confirmed working in practice despite that general rule; a home
+  machine works too, just less conveniently always-on). Reads everything
+  straight off the cheap meeting-list endpoint (raceStatus/results[]/
+  trackCondition/railPosition are already embedded per meeting/race, no
+  drill-down into race detail needed), matching case-insensitively since
+  TAB returns AU venues in ALL CAPS. Writes finish_position/won/placed
+  (per runner) and going/track_grading/rail_position (per meeting, applied
+  to every runner at that venue+date); never resulted/wpr_actual/
+  comments_* — those stay exclusively `update_results()`'s job. going/
+  track_grading/rail_position updates are DISPLAY-ONLY for now: they
+  refresh what the dashboard shows but do NOT trigger a WPR ratings
+  recompute (`compute_wpr_projection()` only runs in the full daily
+  pipeline, not `--rebuild-only` — deliberately deferred, see Current
+  state below, rather than assumed cheap/safe to wire in immediately).
+  Triggered externally (cron-job.org → workflow_dispatch, same pattern as
   `price_refresh.yml`), not GitHub's own `schedule:`.
 
 ## Data files
@@ -149,6 +159,24 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   structural experiments found no improvement beyond noise. Do not add model
   complexity without a fundamentally new data source. The unexplored lever is
   bet selection, not prediction accuracy.
+- `tab_results_poller.py` (Sep 2026) refreshes `going`/`track_grading`/
+  `rail_position` intraday from TAB, but deliberately does NOT trigger a WPR
+  ratings recompute when they change, even though `going` already feeds
+  `wpr_going` as a model input - this isn't the "no model complexity"
+  caution above (going is already a live input, not a new feature), it's
+  that `compute_wpr_projection()` only runs in the full daily pipeline, is
+  untimed standalone, and running it on a 5-min intraday cadence on a
+  1 vCPU/2GB box is new, unvalidated load on the one part of the codebase
+  explicitly flagged as risky to touch casually. Time it standalone and
+  decide deliberately before wiring this in, rather than assuming it's
+  cheap. Same reasoning applies to using TAB's `fixedOdds` to replace
+  `price_refresh.yml`: that job currently runs on free GitHub-hosted infra,
+  fully decoupled from whichever AU machine hosts the self-hosted runner;
+  routing prices through TAB too would mean the AU machine going down takes
+  out results AND prices AND conditions at once instead of just results
+  freshness - run TAB prices in parallel against the existing feed first to
+  check accuracy/completeness before considering a cutover, don't swap it
+  in blind.
 - **IMPORTANT for whoever next runs `train_wpr_projection()`/a full retrain
   (Sep 2026)**: `wpr_form_history.csv.gz` just had a major dedup bug fixed.
   Its dedup key used to include `formNumber`, which looks like a stable
