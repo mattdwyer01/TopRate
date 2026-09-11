@@ -29,7 +29,7 @@ function cleanName(v: string | null | undefined): string {
   return trimmed.toLowerCase() === 'nan' ? '' : trimmed
 }
 
-function toFormRun(r: RawFormRun): FormRun {
+export function toFormRun(r: RawFormRun): FormRun {
   return {
     track: r.trk,
     distance: r.dist,

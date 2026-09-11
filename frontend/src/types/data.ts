@@ -28,6 +28,11 @@ export interface RawFormRun {
   jck: string | null
   pk: 0 | 1
   d?: string
+  // field_size for that run - only present in horse_history/*.json (see
+  // toprate_daily.py's build_horse_history_files()), used to derive
+  // relativeSettlePosition client-side without a second, formAll-shaped
+  // copy of the same rows. Absent on the embedded payload's formRuns.
+  fs?: number | null
 }
 
 export interface RawFormAllEntry {

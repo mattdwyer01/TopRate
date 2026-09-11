@@ -3,20 +3,22 @@ import type { ReactNode } from 'react'
 import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
 import type { TempoBucket } from '../../lib/pace'
-import { fetchFullFormHistory } from '../../lib/supabaseFormHistory'
+import { fetchMeetingFormHistory } from '../../lib/meetingFormHistory'
 
 interface RecentRunsTableProps {
   horseName: string
   // Static, embedded fallback (capped at the last 10 - see toprate_daily.py)
-  // shown instantly and replaced once the live Supabase fetch below
+  // shown instantly and replaced once the static per-meeting fetch below
   // resolves with the horse's complete history. Kept as props (not fetched
   // from scratch every time) so there's always something to show even if
-  // the live fetch fails or the anon key isn't configured yet.
+  // the fetch fails or the meeting file doesn't exist.
   runs: FormRun[]
   peakRun: FormRun | null
   formHistory: FormHistoryEntry[]
   raceDistance: number
   raceGoing: string
+  raceDate: string
+  raceVenue: string
 }
 
 // Same campaign-reset gap the backend's own_first_up/own_second_up ADJ_TERMS
@@ -309,6 +311,8 @@ export function RecentRunsTable({
   formHistory: staticFormHistory,
   raceDistance,
   raceGoing,
+  raceDate,
+  raceVenue,
 }: RecentRunsTableProps) {
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
@@ -317,20 +321,22 @@ export function RecentRunsTable({
 
   // Static props paint instantly (from the JSON payload, capped at the last
   // 10 - see toprate_daily.py); this fetches the horse's COMPLETE history
-  // live from Supabase and swaps it in once it resolves. Falls back to the
-  // static data if the fetch fails, returns nothing, or the anon key isn't
-  // configured yet (fetchFullFormHistory resolves to null in that last
-  // case - "unavailable", not "still loading", so the status has to
-  // distinguish the two rather than inferring "not live yet" as "loading").
+  // from the static per-meeting file (toprate_daily.py's
+  // build_horse_history_files(), see CLAUDE.md) and swaps it in once it
+  // resolves. Falls back to the static data if the meeting file is missing
+  // or doesn't contain this horse ("unavailable", not "still loading", so
+  // the status has to distinguish the two rather than inferring "not live
+  // yet" as "loading").
   const [live, setLive] = useState<{ runs: FormRun[]; formHistory: FormHistoryEntry[] } | null>(null)
   const [liveStatus, setLiveStatus] = useState<'loading' | 'live' | 'unavailable'>('loading')
 
   useEffect(() => {
+    let cancelled = false
     setLive(null)
     setLiveStatus('loading')
-    const controller = new AbortController()
-    fetchFullFormHistory(horseName, controller.signal)
+    fetchMeetingFormHistory(raceDate, raceVenue, horseName)
       .then((result) => {
+        if (cancelled) return
         if (result && result.runs.length > 0) {
           setLive(result)
           setLiveStatus('live')
@@ -339,13 +345,15 @@ export function RecentRunsTable({
         }
       })
       .catch((err) => {
-        if ((err as Error)?.name !== 'AbortError') {
+        if (!cancelled) {
           console.warn('Full form history fetch failed, showing recent runs only:', err)
           setLiveStatus('unavailable')
         }
       })
-    return () => controller.abort()
-  }, [horseName])
+    return () => {
+      cancelled = true
+    }
+  }, [horseName, raceDate, raceVenue])
 
   const runs = live?.runs ?? staticRuns
   const formHistory = live?.formHistory ?? staticFormHistory

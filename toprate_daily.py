@@ -38,6 +38,7 @@ import time
 import math
 import json
 import os
+import re
 import warnings
 import urllib3
 from datetime import datetime, timedelta, date, timezone
@@ -86,6 +87,13 @@ SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
 PRICE_HISTORY_CSV = Path(__file__).parent / "toprate_price_history.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
 BT_RUNNERS_CSV = Path(__file__).parent / "toprate_runners_backtest.csv"
+# Per-meeting full horse-history files (see build_horse_history_files()) -
+# the static replacement for the dropped Supabase live-fetch that used to
+# back the runner detail panel's "Recent runs" table beyond its embedded
+# last-10-runs cap. One small JSON per (date, venue) meeting rather than
+# one per horse (thousands of tiny files) or one combined blob (the same
+# 100MB-limit mistake toprate_data.json itself already made once).
+HORSE_HISTORY_DIR = Path(__file__).parent / "horse_history"
 
 # WPR form-history dump. Each daily scrape's get_race_wpr_chart response
 # carries, per runner, a `form` array of all that horse's past runs (wpr,
@@ -3119,6 +3127,88 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     return True
 
 
+def _slugify_venue(venue):
+    """URL/filename-safe slug for a venue name, for horse_history/ filenames."""
+    s = re.sub(r"[^a-z0-9]+", "-", str(venue).strip().lower()).strip("-")
+    return s or "venue"
+
+
+def build_horse_history_files(runners_df, full_runs_lookup):
+    """Write horse_history/<date>_<venue-slug>.json, one per (date, venue)
+    meeting in runners_df (already windowed to the same range as the RACES
+    payload by the time rebuild_html() calls this - see its own windowing
+    step). Each file bundles the FULL (uncapped) form history for every
+    horse racing at that meeting, keyed by horse_lc, in the exact same
+    shape as the embedded payload's own formRuns (see _run_record()) so
+    the frontend's existing toFormRun() mapper works unmodified. Carries
+    only "runs" (RawFormRun[], including field_size) - NOT a second,
+    formAll-shaped copy of the same rows: everything a consumer might have
+    wanted from that (tempo, relativeSettlePosition) is derivable from
+    fields already in "runs", so embedding both was pure duplication (see
+    git history for the real numbers this measurably cost before it was
+    trimmed - about half the payload for zero new information).
+
+    This is the static replacement for the dropped Supabase live fetch
+    RecentRunsTable.tsx used to depend on for anything past the embedded
+    payload's last-N cap (see CLAUDE.md's Current state note - that fetch
+    silently failed once Supabase was decommissioned, with no visible
+    error, capping every horse's "Recent runs" panel at _FORM_RUNS_SHOWN
+    regardless of real career length).
+
+    One file per MEETING, not per horse (would be thousands of tiny files,
+    most never fetched in a given day) or one combined file (the exact
+    mistake that blew toprate_data.json past GitHub's 100MB limit once
+    already) - real numbers measured before choosing this (Sep 2026): 222
+    meetings in a 25-day window, largest single file ~1MB (safely under
+    the 100MB PER-FILE limit that actually matters here - GitHub has no
+    equivalent hard limit on file COUNT or combined size). Every runner at
+    a meeting shares one fetch, so opening several horses from the same
+    field (the common case - comparing a whole race) costs one request,
+    not one per horse.
+
+    Only writes a file when its content actually changed, and removes
+    stale files for meetings that rolled out of the window - this runs on
+    every rebuild_html() call, including price_refresh.yml's frequent
+    cycles, and horse form history only changes once a day at most, so
+    rewriting ~200 identical files every few minutes would be pure git
+    churn for no reason. Fail-safe: any error here is logged and swallowed
+    rather than breaking the rest of the rebuild - a missing/stale meeting
+    file just means that meeting's Recent runs falls back to the embedded
+    capped data, same as before this existed.
+    """
+    try:
+        HORSE_HISTORY_DIR.mkdir(exist_ok=True)
+        needed = set()
+        for (d, venue), grp in runners_df.groupby(["date", "venue"]):
+            fname = f"{str(d)[:10]}_{_slugify_venue(venue)}.json"
+            needed.add(fname)
+            blob = {}
+            for horse_lc in grp["horse"].astype(str).str.strip().str.lower().unique():
+                runs = full_runs_lookup.get(horse_lc)
+                if not runs:
+                    continue
+                blob[horse_lc] = runs
+            if not blob:
+                continue
+            # sort_keys so identical content always serializes identically -
+            # the unchanged-file skip below depends on that determinism.
+            content = json.dumps(blob, separators=(",", ":"), sort_keys=True)
+            path = HORSE_HISTORY_DIR / fname
+            if path.exists() and path.read_text(encoding="utf-8") == content:
+                continue
+            path.write_text(content, encoding="utf-8")
+
+        n_removed = 0
+        for existing in HORSE_HISTORY_DIR.glob("*.json"):
+            if existing.name not in needed:
+                existing.unlink()
+                n_removed += 1
+        print(f"  horse_history/: {len(needed)} meeting files current"
+              f"{f', {n_removed} stale removed' if n_removed else ''}")
+    except Exception as e:
+        print(f"  build_horse_history_files skipped: {e}")
+
+
 def rebuild_html(runners_df, model_pick_rows=None):
     """
     Render the v3 dashboard HTML.
@@ -3196,6 +3286,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     form_all_lookup = {}
     _peak_run_lookup = {}
     _tend_lookup = {}
+    _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
     try:
         if WPR_FORM_HISTORY_CSV.exists():
             _today_horses = set(
@@ -3306,6 +3397,62 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # dict access, not a full-frame filter (the mistake that has
             # bitten this rebuild before).
             _fa_by_horse = dict(tuple(_fa.groupby("horse_lc")))
+
+            def _shape(v):
+                return round(float(v), 1) if pd.notna(v) else None
+
+            # One run -> one form-table row dict. Shared by form_lookup's
+            # capped last-N (below) and build_horse_history_files' full,
+            # uncapped per-meeting export (rebuild_html's caller) - same
+            # shape either way, so the frontend's toFormRun() mapper works
+            # unmodified on both sources.
+            def _run_record(_r, _peak_wpr):
+                _w = float(_r["wpr"])
+                # NOTE on sectionals - two different things, both kept:
+                #  - se/sm/sl  = raceShapeEarly/Mid/Late: the RACE-WIDE
+                #    tempo shape (how the race was run), NOT this horse.
+                #  - ie/im/il  = sect_i_early / sect_i_to800 / sect_i_l600:
+                #    THIS HORSE's own early/mid/late sectional figures.
+                # Keeping both lets the panel show the horse's run and
+                # (future work) compare it against the race shape.
+                return {
+                    "d":  str(_r["date"].date()),
+                    "trk": str(_r.get("track", "")) if _r.get("track") else "",
+                    "dist": int(_r["distance"]) if pd.notna(_r.get("distance")) else None,
+                    "go": str(_r.get("going", "")) if _r.get("going") else "",
+                    "fin": int(_r["positionFinish"]) if pd.notna(_r.get("positionFinish")) else None,
+                    "wpr": round(_w, 1),
+                    "se": _shape(_r.get("raceShapeEarly")),  # race shape early
+                    "sm": _shape(_r.get("raceShapeMid")),    # race shape mid
+                    "sl": _shape(_r.get("raceShapeLate")),   # race shape late
+                    "ie": _shape(_r.get("sect_i_early")),    # horse early sectional
+                    "im": _shape(_r.get("sect_i_to800")),    # horse mid sectional
+                    "il": _shape(_r.get("sect_i_l600")),     # horse late sectional
+                    "bar": int(_r["barrier"]) if pd.notna(_r.get("barrier")) else None,
+                    "mgn": _shape(_r.get("marginFinish")),   # finish margin
+                    # running line: settled -> 800m -> 400m -> finish.
+                    # gives the in-running position progression per run.
+                    "psl": int(_r["positionSettled"]) if pd.notna(_r.get("positionSettled")) else None,
+                    "p8": int(_r["position800m"]) if pd.notna(_r.get("position800m")) else None,
+                    "p4": int(_r["position400m"]) if pd.notna(_r.get("position400m")) else None,
+                    "cls": str(_r.get("race_class", "")) if _r.get("race_class")
+                           and str(_r.get("race_class")) != "nan" else "",
+                    # Jockey name for the form-table Jockey column. Present
+                    # on rich-enriched runs; blank where form history has
+                    # no jockey captured. No per-run jockey RATING exists
+                    # in the form history (it is a current-race-only stat).
+                    "jck": (str(_r.get("jockey")).strip()
+                            if _r.get("jockey") and str(_r.get("jockey")) != "nan" else ""),
+                    "pk": 1 if abs(_w - _peak_wpr) < 0.05 else 0,  # peak run flag
+                    # field_size (Sep 2026): lets a consumer derive
+                    # relativeSettlePosition (positionSettled/fieldSize)
+                    # itself, same formula form_all_lookup's own "_rel"
+                    # already uses - added so build_horse_history_files()'s
+                    # export doesn't need a second, redundant copy of every
+                    # run just to carry that one extra derived value.
+                    "fs": int(_r["field_size"]) if pd.notna(_r.get("field_size")) else None,
+                }
+
             for _hlc, _g in _fh.groupby("horse_lc"):
                 _last = _g.tail(_FORM_RUNS_SHOWN)
                 _peak_wpr = _g["wpr"].max()
@@ -3318,49 +3465,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     (_g["wpr"] - _peak_wpr).abs() < 0.05]
                 _peak_outside = _peak_rows[~_peak_rows.index.isin(_last_ids)]
                 _peak_run_record = None
-                _runs = []
-                for _, _r in _last.iloc[::-1].iterrows():   # newest first
-                    _w = float(_r["wpr"])
-                    # NOTE on sectionals - two different things, both kept:
-                    #  - se/sm/sl  = raceShapeEarly/Mid/Late: the RACE-WIDE
-                    #    tempo shape (how the race was run), NOT this horse.
-                    #  - ie/im/il  = sect_i_early / sect_i_to800 / sect_i_l600:
-                    #    THIS HORSE's own early/mid/late sectional figures.
-                    # Keeping both lets the panel show the horse's run and
-                    # (future work) compare it against the race shape.
-                    def _shape(v):
-                        return round(float(v), 1) if pd.notna(v) else None
-                    _runs.append({
-                        "d":  str(_r["date"].date()),
-                        "trk": str(_r.get("track", "")) if _r.get("track") else "",
-                        "dist": int(_r["distance"]) if pd.notna(_r.get("distance")) else None,
-                        "go": str(_r.get("going", "")) if _r.get("going") else "",
-                        "fin": int(_r["positionFinish"]) if pd.notna(_r.get("positionFinish")) else None,
-                        "wpr": round(_w, 1),
-                        "se": _shape(_r.get("raceShapeEarly")),  # race shape early
-                        "sm": _shape(_r.get("raceShapeMid")),    # race shape mid
-                        "sl": _shape(_r.get("raceShapeLate")),   # race shape late
-                        "ie": _shape(_r.get("sect_i_early")),    # horse early sectional
-                        "im": _shape(_r.get("sect_i_to800")),    # horse mid sectional
-                        "il": _shape(_r.get("sect_i_l600")),     # horse late sectional
-                        "bar": int(_r["barrier"]) if pd.notna(_r.get("barrier")) else None,
-                        "mgn": _shape(_r.get("marginFinish")),   # finish margin
-                        # running line: settled -> 800m -> 400m -> finish.
-                        # gives the in-running position progression per run.
-                        "psl": int(_r["positionSettled"]) if pd.notna(_r.get("positionSettled")) else None,
-                        "p8": int(_r["position800m"]) if pd.notna(_r.get("position800m")) else None,
-                        "p4": int(_r["position400m"]) if pd.notna(_r.get("position400m")) else None,
-                        "cls": str(_r.get("race_class", "")) if _r.get("race_class")
-                               and str(_r.get("race_class")) != "nan" else "",
-                        # Jockey name for the form-table Jockey column. Present
-                        # on rich-enriched runs; blank where form history has
-                        # no jockey captured. No per-run jockey RATING exists
-                        # in the form history (it is a current-race-only stat).
-                        "jck": (str(_r.get("jockey")).strip()
-                                if _r.get("jockey") and str(_r.get("jockey")) != "nan" else ""),
-                        "pk": 1 if abs(_w - _peak_wpr) < 0.05 else 0,  # peak run flag
-                    })
-                form_lookup[_hlc] = _runs
+                form_lookup[_hlc] = [
+                    _run_record(_r, _peak_wpr) for _, _r in _last.iloc[::-1].iterrows()  # newest first
+                ]
+                # Uncapped, full-career version of the same rows - feeds
+                # build_horse_history_files() below, never the embedded
+                # payload (which stays capped at _FORM_RUNS_SHOWN).
+                _full_runs_lookup[_hlc] = [
+                    _run_record(_r, _peak_wpr) for _, _r in _g.iloc[::-1].iterrows()  # newest first
+                ]
                 # peakRun: a single rich record for the most recent
                 # career-peak run that falls OUTSIDE the visible-runs window.
                 # Used by the detail panel to surface the peak as a full
@@ -3438,6 +3551,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
         form_all_lookup = {}
         _peak_run_lookup = {}
         _tend_lookup = {}
+        _full_runs_lookup = {}
+
+    build_horse_history_files(runners_df, _full_runs_lookup)
 
     # Predicted settling band per runner, for the detail-panel settling
     # comparison table (this IS the live speed map's data source). Uses

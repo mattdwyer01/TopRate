@@ -371,6 +371,8 @@ export function RunnerDetailModal({
             formHistory={runner.formHistory}
             raceDistance={race.distance}
             raceGoing={race.going}
+            raceDate={race.date}
+            raceVenue={race.venue}
           />
 
           <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
