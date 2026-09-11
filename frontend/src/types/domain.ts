@@ -182,6 +182,9 @@ export interface Race {
   hasFirstStarter: boolean
   fieldSize: number
   allResulted: boolean
+  // True when allResulted above only reflects TAB's fast, provisional feed,
+  // not toprate.au's authoritative pass - see RawRace.prov.
+  provisional: boolean
   runners: Runner[]
 }
 

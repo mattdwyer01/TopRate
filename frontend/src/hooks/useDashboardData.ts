@@ -22,11 +22,17 @@ type State =
   | { status: 'error'; message: string }
   | { status: 'ready'; data: DashboardData }
 
-// Matches the backend's own price-refresh cadence (.github/workflows/
-// price_refresh.yml runs every 5 minutes during racing hours) - polling
-// faster than the source data actually changes would just be wasted
-// bandwidth against a ~90MB payload.
-const REFRESH_INTERVAL_MS = 5 * 60_000
+// The backend now typically publishes a live update within under a minute
+// of a TAB poll cycle starting (see tab_results_poller.py's PUBLISHING
+// docstring section - most cycles patch toprate_data.json directly rather
+// than waiting for a full rebuild), so 5 minutes was leaving real updates
+// sitting unseen for most of that window. 60s keeps detection latency
+// close to how fast the data actually changes without polling pointlessly
+// often - each poll is a conditional GET (`cache: 'no-cache'` in
+// fetchData.ts revalidates against the server's ETag/Last-Modified rather
+// than blindly re-downloading), so an unchanged ~90MB payload costs a
+// cheap 304, not a full re-fetch.
+const REFRESH_INTERVAL_MS = 60_000
 
 export function useDashboardData() {
   const [state, setState] = useState<State>({ status: 'loading', progress: null })
@@ -60,12 +66,25 @@ export function useDashboardData() {
   // next poll (or an error state's own Retry) will recover it. A poll that
   // succeeds while in an error state recovers automatically.
   useEffect(() => {
-    const id = setInterval(() => {
+    const poll = () => {
       fetchDashboardData()
         .then((data) => setState({ status: 'ready', data }))
         .catch(() => {})
-    }, REFRESH_INTERVAL_MS)
-    return () => clearInterval(id)
+    }
+    const id = setInterval(poll, REFRESH_INTERVAL_MS)
+    // Browsers throttle/suspend setInterval in a backgrounded tab, so the
+    // most common "why hasn't this updated" moment is exactly the one the
+    // timer alone handles worst: switching back to a tab that's been
+    // sitting in the background. Poll immediately on becoming visible
+    // again instead of waiting for the next (possibly overdue) tick.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') poll()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   return { state, retry }
