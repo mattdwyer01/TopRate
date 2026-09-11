@@ -982,7 +982,18 @@ _JOCKEY_MERIT_FEATURES = ["jockey_win_pct_90d", "field_size"]
 # per that same test.
 _TRAINER_CHANGE_FEATURES = ["trainer_change", "field_size"]
 _POP_DISTANCE_FEATURES = ["dist_vs_last", "field_size"]
-_POP_GOING_FEATURES = ["going_delta", "field_size"]
+# going_delta_aligned (Sep 2026), not raw going_delta: the raw split alone
+# has no information about TODAY's actual going, and the fitted model was
+# found to be near-symmetric in its sign - a horse with a big wet/dry gap
+# got rewarded whether or not today matched the side it's better on.
+# going_delta_aligned = going_delta projected onto today_wet (positive when
+# the horse's better side matches today's conditions, negative when it
+# doesn't) fixes that and won era-stably on the full 2017-2026 leave-one-
+# era-out backtest (pooled MAE -0.0060 vs the old raw-going_delta model,
+# every one of the 5 real eras individually better, tighter era-to-era
+# stability too - see chat, wpr_pop_going_alignment_test.py /
+# wpr_10yr_pop_going_alignment.py in git history for the validation).
+_POP_GOING_FEATURES = ["going_delta_aligned", "field_size"]
 
 
 # Sample-size shrink for population terms whose input is itself a rate/
@@ -2134,6 +2145,19 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
     today_wet = _going_is_wet(cur_track_grading)
     today_wetness = _going_wetness(cur_track_grading)
     untried_wet = 1 if (today_wet == 1 and wet_runs == 0) else 0
+    # going_delta_aligned (Sep 2026): pop_going's model was found live-
+    # probing wpr_models/pop_adj_models.joblib to be near-symmetric in
+    # going_delta's SIGN - a horse that runs much better wet gets almost
+    # the same reward as one that runs much better dry, regardless of
+    # whether TODAY is actually wet or dry (going_delta alone carries no
+    # information about today's conditions, only the horse's own past
+    # split). Projecting the split onto today's actual going fixes that:
+    # positive when the horse's better side matches today, negative when
+    # it doesn't, magnitude unchanged either way. Era-stable win across
+    # all 5 real 2017-2026 eras when swapped in for pop_going's raw
+    # going_delta input (leave-one-era-out MAE -0.0060 pooled, every era
+    # individually better, tighter era-to-era stability too - see chat).
+    going_delta_aligned = going_delta if today_wet == 1 else -going_delta
 
     # class movement (handoff 3A.1b fix). Was computed off trackGrading -
     # the going number, not class - so it measured wetness, not class. Now
@@ -2607,6 +2631,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "dist_edge": dist_edge,
         "going_delta": going_delta,
         "going_delta_n": going_delta_n,
+        "going_delta_aligned": going_delta_aligned,
         "today_wet": today_wet,
         "today_wetness": today_wetness,
         "cur_surface": cur_surface,
@@ -2929,7 +2954,7 @@ def project_race(runners, race_date):
             f["pop_distance"] = _merit_term(
                 f.get("dist_vs_last"), r.get("cur_field_size"), _pd_model, _POP_DISTANCE_FEATURES)
             f["pop_going"] = _merit_term(
-                f.get("going_delta"), r.get("cur_field_size"), _pg_model, _POP_GOING_FEATURES,
+                f.get("going_delta_aligned"), r.get("cur_field_size"), _pg_model, _POP_GOING_FEATURES,
                 sample_n=f.get("going_delta_n"), shrink_k=_OWN_DELTA_SHRINK_K)
 
     # Per-race demeaning (Sep 2026 bug fix): track_barrier/closing_merit/
@@ -4149,7 +4174,7 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         ]
         _frame["pop_going"] = [
             _merit_term(v, fs, pop_going_model, _POP_GOING_FEATURES, sample_n=n, shrink_k=_OWN_DELTA_SHRINK_K)
-            for v, fs, n in zip(_frame["going_delta"], _frame["field_size"], _frame["going_delta_n"])
+            for v, fs, n in zip(_frame["going_delta_aligned"], _frame["field_size"], _frame["going_delta_n"])
         ]
 
     # closing_merit: population half (pace_baseline_lookup - a population
