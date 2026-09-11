@@ -97,6 +97,22 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - `toprate_data.json` — the dashboard's data payload, RACES windowed to the last
   25 days (via `TOPRATE_RACES_WINDOW_DAYS`, reduced from 30 Sep 2026 after the
   30-day payload grew to 94.4MB) to stay under GitHub's 100MB file limit.
+- `horse_history/<date>_<venue-slug>.json` (Sep 2026) — one file per race
+  meeting, written by `toprate_daily.py`'s `build_horse_history_files()`
+  (called from `rebuild_html()`), holding every horse racing at that meeting's
+  FULL (uncapped) form history, keyed by lowercased horse name. Static
+  replacement for the decommissioned Supabase live fetch the frontend's
+  "Recent runs" panel used to depend on for anything past the embedded
+  payload's last-10 cap (see Current state below) - the frontend fetches the
+  one meeting file for a race on demand (`lib/meetingFormHistory.ts`), not
+  the whole directory. File-per-meeting (not file-per-horse - would be
+  thousands of tiny files - or one combined file - the exact mistake that
+  blew `toprate_data.json` past the 100MB limit once already) was chosen
+  after measuring real numbers: 222 files in a 25-day window, largest ~1MB,
+  ~80MB total. Only rewrites a file when its content changed and removes
+  stale meeting files that rolled out of the window, so the frequent
+  `price_refresh.yml`/`tab_results.yml` cycles don't churn ~200 unchanged
+  files every run.
 
 ## Conventions (follow these)
 
@@ -179,10 +195,19 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - Supabase was tried as a parallel Postgres copy of `toprate_runners` and
   `wpr_form_history` (with an eye toward eventually repointing the dashboard
-  at it), then dropped (Sep 2026) - it never actually served the live
-  dashboard (which reads `toprate_data.json` directly, unchanged throughout),
-  cost real money and ~5-10 min of extra daily-run time for syncing, and was
-  the source of most of the bugs chased around that time (schema drift, a
+  at it), then dropped (Sep 2026). The main dashboard payload (`toprate_data.json`)
+  never depended on it. It DID serve one real feature client-side though: the
+  runner detail panel's "Recent runs" table fetched a horse's complete career
+  history live from Supabase (`lib/supabaseFormHistory.ts`) to replace the
+  embedded payload's last-10-runs cap. Once Supabase was decommissioned that
+  fetch started silently failing (no error surfaced to the user - every
+  horse's panel just quietly capped at 10 runs regardless of real career
+  length, indistinguishable from a genuinely short career). Found and fixed
+  Sep 2026: `lib/supabaseFormHistory.ts` is gone, replaced by the static
+  `horse_history/` files above (`lib/meetingFormHistory.ts` fetches the one
+  meeting file for the race being viewed). Dropping Supabase itself cost real
+  money and ~5-10 min of extra daily-run time for syncing, and was the
+  source of most of the bugs chased around that time (schema drift, a
   bigint-cast bug, a silently-abandoned background sync, a storage-quota
   overage). If Supabase (or another external DB) is wanted again, treat it as
   a fresh decision rather than resurrecting the old `supabase_sync.py` - the
