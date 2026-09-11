@@ -228,15 +228,18 @@ export function RunnerRow({
         </span>
       </span>
       <span className="hidden text-right sm:inline">
-        {runner.finishPosition === 1 ? (
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-line bg-amber-bg font-mono font-semibold text-amber">
-            1
-          </span>
-        ) : (
-          <span className="font-mono text-ink-mute">
-            {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
-          </span>
-        )}
+        {/* Same h-5 w-5 inline-flex box for every position, winner or not -
+            the winner's circle badge used to be the only entry with a fixed-
+            width box, so its centred glyph sat visibly left of the other
+            positions' plain right-aligned text. One shared box keeps every
+            row's number in a straight column. */}
+        <span
+          className={`inline-flex h-5 w-5 items-center justify-center rounded-full font-mono text-ink-mute ${
+            runner.finishPosition === 1 ? 'border border-amber-line bg-amber-bg font-semibold text-amber' : ''
+          }`}
+        >
+          {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
+        </span>
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}

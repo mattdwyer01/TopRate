@@ -31,6 +31,25 @@ export function formatSecondsCountdown(secs: number): string {
   return `${h}h ${mm < 10 ? '0' : ''}${mm}m`
 }
 
+// "how long ago" for the header's freshness indicator - runIso is always in
+// the past (it's when the last data refresh finished), unlike
+// formatCountdown above which is always counting down to a future start
+// time, so the two never share rounding/formatting logic despite the
+// superficial resemblance.
+export function formatRelativeAge(iso: string, now = Date.now()): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diffMs = now - then
+  if (diffMs < 60_000) return 'just now'
+  const totalMinutes = Math.floor(diffMs / 60_000)
+  if (totalMinutes < 60) return `${totalMinutes}m ago`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours < 24) return minutes > 0 ? `${hours}h ${minutes}m ago` : `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export function formatCountdown(startTime: string, now = new Date()): string {
   const start = new Date(startTime)
   const diffMs = start.getTime() - now.getTime()

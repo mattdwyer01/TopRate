@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
+import { useNow } from './hooks/useNow'
 import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
 import { useWprOverrides } from './lib/wprOverrides'
@@ -24,6 +25,7 @@ function readTopTab(): TopTab {
 
 function App() {
   const { state, retry } = useDashboardData()
+  const now = useNow()
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
   const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
@@ -139,8 +141,9 @@ function App() {
           <div className="flex items-center gap-3">
             {state.status === 'ready' && (
               <FreshnessDot
-                level={freshnessLevel(state.data.runIso)}
-                runDate={state.data.runDate}
+                level={freshnessLevel(state.data.runIso, new Date(now))}
+                runIso={state.data.runIso}
+                now={now}
               />
             )}
             <button

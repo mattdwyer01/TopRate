@@ -3006,7 +3006,11 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     Patches ONLY the touched runners' "fx"/"f"/"won"/"scr" keys directly
     into the existing toprate_data.json on disk (keyed by "rid" = run_id,
     matching how each runner is identified in the payload - see
-    rebuild_html()'s runner dict), and flips a race's "done" flag to 1 once
+    rebuild_html()'s runner dict), and flips a race's "done" flag to 1 (and
+    "prov" to 1 alongside it - this function only ever runs from TAB's fast
+    path, never the authoritative one, so any race it transitions to done
+    is provisional by construction; a race already done before this patch
+    is left exactly as-is, never downgraded back to provisional) once
     every one of its runners now has a finish position. Skips the
     expensive form-history/settling-band/per-race-payload build that
     dominates --rebuild-only's ~2.5-3 min cost entirely - none of those
@@ -3064,9 +3068,19 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
             if rid in scratch_updates:
                 run["scr"] = scratch_updates[rid]
                 remaining.discard(rid)
-        if any(rr.get("rid") in touched for rr in runners) and runners:
+        was_done = race.get("done") == 1
+        if any(rr.get("rid") in touched for rr in runners) and runners and not was_done:
             if all(rr.get("f") is not None for rr in runners):
                 race["done"] = 1
+                # This function only ever runs from tab_results_poller.py's
+                # fast path (see its own docstring) - the authoritative
+                # resulted pass always goes through the full rebuild
+                # instead, so a race genuinely TRANSITIONING to done here
+                # is by construction provisional. A race that was already
+                # done before this patch (however it got there) is left
+                # exactly as-is - this function never downgrades an
+                # already-confirmed "done" back to provisional.
+                race["prov"] = 1
 
     if remaining:
         print(f"  patch_data_json: {len(remaining)} touched runner(s) not found in current "
@@ -3596,6 +3610,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
         _active_field_size = int((rdf.get("scratched").fillna(0).astype(int) != 1).sum()
                                   if "scratched" in rdf.columns else len(rdf))
 
+        # Feeds both "done" and "prov" below - computed once here rather
+        # than inline in the dict literal so both can reference it cleanly.
+        _all_resulted = (rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else False
+        _all_interim_resulted = (
+            (rdf.get("interim_resulted") == 1).all()
+            if "interim_resulted" in rdf.columns and rdf["interim_resulted"].notna().any()
+            else False
+        )
+
         # Per-race cumulative score: predictive composite for quaddie/exotic use
         # Cumulative score removed (Stage 2) - WPR projection ranks runners.
         # Empty dict kept so the HTML payload code degrades gracefully until
@@ -3853,20 +3876,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "rs_label":  str(first.get("rs_label")) if first.get("rs_label") and str(first.get("rs_label")) != "nan" else None,
             "hfs":       int(bool(first.get("has_first_starter"))),  # has first starter
             "fs":        _active_field_size,
-            # True once every runner is resulted for real (authoritative,
-            # via update_results()) OR interim-resulted (TAB's fast feed,
-            # via tab_results_poller.py) - either is enough to show the race
-            # as done; the authoritative pass still lands later and simply
-            # confirms/corrects finish_position, it doesn't need to flip
-            # this again. See RUNNER_COLS' interim_resulted comment for why
-            # these stay two separate columns instead of TAB setting
-            # `resulted` directly.
-            "done":      int(
-                ((rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else False)
-                or ((rdf.get("interim_resulted") == 1).all()
-                    if "interim_resulted" in rdf.columns and rdf["interim_resulted"].notna().any()
-                    else False)
-            ),
+            "done":      int(_all_resulted or _all_interim_resulted),
+            # True when "done" above was only satisfied via TAB's fast,
+            # provisional feed (interim_resulted), not the authoritative
+            # resulted pass - lets the dashboard show "Interim Result"
+            # instead of a confirmed "Resulted" badge until update_results()
+            # actually lands. Always 0 once _all_resulted is true, even if
+            # interim_resulted also happens to be set (real trumps interim).
+            "prov":      int(_all_interim_resulted and not _all_resulted),
             # Cumulative score formula path used for this race ('A' or 'B').
             # 'A' = jt_combo + tr (better, 44% rk-1 WR). 'B' = tr + wpr3 + late (33% rk-1 WR).
             # JS uses this to pick the right coverage curve in the Quaddie tab.

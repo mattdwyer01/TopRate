@@ -153,6 +153,11 @@ export interface RawRace {
   hfs: 0 | 1
   fs: number
   done: 0 | 1
+  // True when `done` above was only satisfied via TAB's fast, provisional
+  // feed (interim_resulted) rather than the authoritative resulted pass -
+  // absent on races the backend hasn't rebuilt since this field shipped,
+  // and always absent/0 once genuinely resulted.
+  prov?: 0 | 1
   runners: RawRunner[]
 }
 

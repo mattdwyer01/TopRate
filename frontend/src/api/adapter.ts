@@ -183,6 +183,7 @@ function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] | undef
     hasFirstStarter: r.hfs === 1,
     fieldSize: r.fs,
     allResulted: r.done === 1,
+    provisional: r.prov === 1,
     runners: r.runners.map((rr) => toRunner(rr, priceHist)),
   }
 }

@@ -92,6 +92,12 @@ export function RaceDetail({
   // only this race's runners against it, not the set's raw size.
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
 
+  // Drives the "Interim Result" status badge below - true as soon as ANY
+  // runner has a finish position, whether that's a handful of TAB results
+  // trickling in mid-meeting or the whole field once race.provisional's
+  // "done via TAB only" case applies.
+  const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
+
   // Scratched runners sort to the bottom regardless of the chosen sort key -
   // they're out of the race, cluttering the top of a Proj-sorted list with
   // a horse that can no longer win is worse than losing strict sort order
@@ -148,9 +154,16 @@ export function RaceDetail({
           <h2 className="text-lg font-semibold text-ink">
             {race.venue} R{race.raceNumber} &middot; {race.raceName}
           </h2>
-          {race.allResulted ? (
+          {race.allResulted && !race.provisional ? (
             <span className="rounded-full border border-emerald-line bg-emerald-bg px-2 py-0.5 font-mono text-xs font-semibold text-emerald-deep">
               Resulted
+            </span>
+          ) : hasAnyResult ? (
+            <span
+              className="rounded-full border border-amber-line bg-amber-bg px-2 py-0.5 font-mono text-xs font-semibold text-amber"
+              title="TAB's fast provisional feed - toprate.au's confirmed result lands once the whole meeting finishes"
+            >
+              Interim Result
             </span>
           ) : (
             <span className="font-mono text-sm text-ink-mute">{formatCountdown(race.startTime)}</span>
