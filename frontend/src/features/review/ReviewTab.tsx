@@ -497,7 +497,9 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 : voided.length > 0
                   ? 'Rows flagged ⚠ were compromised (vet/checked/eased/etc) - still shown, but not a fair test.'
                   : ''}
-              {filteredRows.length > MAX_DETAIL_ROWS ? ` Showing the worst ${MAX_DETAIL_ROWS}.` : ''}
+              {filteredRows.length > MAX_DETAIL_ROWS
+                ? ` Showing the ${sortBy === 'miss' ? 'worst' : 'most recent'} ${MAX_DETAIL_ROWS}.`
+                : ''}
             </p>
             <div className="relative">
               {/* max-h + overflow-y bounds this to one scrollable panel instead of
