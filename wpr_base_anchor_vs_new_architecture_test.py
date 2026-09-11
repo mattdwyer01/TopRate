@@ -15,6 +15,12 @@ sum(ADJ_TERMS), and the ADJ_TERMS set materially changed - a base-
 anchor comparison is only meaningful against the model that will
 actually use it.
 
+Also tests the user's own follow-up proposal (Sep 2026): rather than one
+fixed ewm span for every horse, use ewm10 once a horse has >=10 prior
+runs to actually fill that window meaningfully, cascading down to a
+shorter, faster-decaying span for lightly-raced horses (ewm7 at >=7
+runs, ewm5 at >=5, ewm3 otherwise) - "ewm_cascade" below.
+
 SCOPE: same testable-this-deep subset as every other 10-year script -
 track_barrier, closing_merit, and the NEW trainer_change/pop_distance/
 pop_going (all population-fit per era-fold, leak-free), plus the three
@@ -98,6 +104,17 @@ def run():
         c = vectorized_ewm(combined, span, "wpr", void_mask_col=void_mask)
         c = c.rename(columns={f"ewm{span}_wpr": f"ewm{span}"})
         D = D.merge(c, on=key_cols, how="left")
+
+    # ewm_cascade (user's proposal, Sep 2026): use ewm10 once a horse has
+    # enough of its OWN history (>=10 prior runs) to fill that window
+    # meaningfully, cascading down to a shorter, faster-decaying span for
+    # lightly-raced horses instead of applying one fixed window to every
+    # horse regardless of how much own history it actually has.
+    D["ewm_cascade"] = np.select(
+        [D["n_runs"] >= 10, D["n_runs"] >= 7, D["n_runs"] >= 5],
+        [D["ewm10"], D["ewm7"], D["ewm5"]],
+        default=D["ewm3"])
+    ANCHOR_CANDIDATES.append("ewm_cascade")
 
     D["_era"] = assign_era(D["date"])
     era_names = [e[0] for e in ERA_BOUNDS]
