@@ -9,6 +9,7 @@ import {
 } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
+import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
   races: Race[]
@@ -22,40 +23,6 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
   { label: 'Yesterday', offset: -1 },
   { label: 'Today', offset: 0 },
   { label: 'Tomorrow', offset: 1 },
-]
-
-// A race within this many minutes of jumping gets the "soon" highlight.
-const SOON_THRESHOLD_MS = 15 * 60_000
-
-type RaceStatus = 'resulted' | 'interim' | 'soon' | 'later'
-
-// Four states, not the old three - a race that's started but doesn't have
-// every runner's finish position yet (TAB's interim feed trickling in, or
-// nothing at all so far) used to fall through to looking IDENTICAL to a
-// race hours away the moment it passed SOON_THRESHOLD_MS post-start, which
-// is exactly backwards: that's the state most worth noticing at a glance.
-// Colors deliberately don't reuse emerald for "soon" (the old behaviour) -
-// emerald already means "confirmed Resulted" on the race detail page
-// (RaceDetail.tsx), so using it here too for "about to jump" contradicted
-// itself across the app.
-function raceStatus(race: Race, now: number): RaceStatus {
-  if (race.allResulted && !race.provisional) return 'resulted'
-  if (race.allResulted || race.runners.some((r) => r.finishPosition !== null)) return 'interim'
-  const msUntilStart = new Date(race.startTime).getTime() - now
-  return msUntilStart <= SOON_THRESHOLD_MS ? 'soon' : 'later'
-}
-
-const STATUS_CLASSES: Record<RaceStatus, string> = {
-  resulted: 'border-line-soft bg-line-soft text-ink-faint hover:border-line',
-  interim: 'border-amber-line bg-amber-bg font-semibold text-amber hover:opacity-80',
-  soon: 'border-rose-line bg-rose-bg font-semibold text-rose hover:opacity-80',
-  later: 'border-line-soft bg-bg text-ink hover:border-emerald-line hover:bg-emerald-bg',
-}
-
-const STATUS_LEGEND: { status: RaceStatus; label: string; dotClass: string }[] = [
-  { status: 'soon', label: 'Jumping soon', dotClass: 'bg-rose' },
-  { status: 'interim', label: 'Interim result', dotClass: 'bg-amber' },
-  { status: 'resulted', label: 'Resulted', dotClass: 'bg-ink-faint' },
 ]
 
 export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onShowBushChange }: MeetingsGridProps) {
@@ -153,14 +120,39 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
                     {raceNumbers.map((n) => {
                       const race = meeting.races.find((r) => r.raceNumber === n)
                       if (!race) return <td key={n} className="px-1.5 py-2" />
+                      const status = raceStatus(race, now)
+                      // Swap the time for the top finishers once there's a
+                      // result to show, not just a colour change - two
+                      // shades of grey/neutral (resulted vs. still hours
+                      // away) were too easy to mix up at a glance, this
+                      // makes the two states show genuinely different text.
+                      const finishers = status === 'resulted' || status === 'interim'
+                        ? topFinishers(race)
+                        : null
                       return (
                         <td key={n} className="px-1.5 py-2 text-center">
                           <button
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
-                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[raceStatus(race, now)]}`}
+                            title={finishers && finishers.length > 0
+                              ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length}: #${finishers.join(', #')}`
+                              : undefined}
+                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[status]}`}
                           >
-                            {formatTimeOfDay(race.startTime)}
+                            {finishers && finishers.length > 0 ? (
+                              // 2x2 grid, not space-joined text left to wrap
+                              // on its own - at narrow column widths (and
+                              // especially on mobile) plain text wrapping
+                              // put one number per line, making these pills
+                              // noticeably taller than a time-showing one.
+                              <span className="grid grid-cols-2 gap-x-1 leading-tight">
+                                {finishers.map((t) => (
+                                  <span key={t}>#{t}</span>
+                                ))}
+                              </span>
+                            ) : (
+                              formatTimeOfDay(race.startTime)
+                            )}
                           </button>
                         </td>
                       )

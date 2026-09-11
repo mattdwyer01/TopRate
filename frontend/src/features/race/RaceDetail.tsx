@@ -10,6 +10,7 @@ import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { WprTrendChart } from './WprTrendChart'
 import { formatCountdown } from '../../lib/countdown'
+import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
 interface RaceDetailProps {
   race: Race
@@ -143,7 +144,12 @@ export function RaceDetail({
 
       <div className="flex flex-wrap gap-1.5">
         {meetingRaces.map((r) => (
-          <Pill key={r.raceId} active={r.raceId === race.raceId} onClick={() => onSelectRace(r.raceId, r.date)}>
+          <Pill
+            key={r.raceId}
+            active={r.raceId === race.raceId}
+            tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]}
+            onClick={() => onSelectRace(r.raceId, r.date)}
+          >
             R{r.raceNumber}
           </Pill>
         ))}
