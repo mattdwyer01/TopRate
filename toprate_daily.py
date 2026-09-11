@@ -1413,6 +1413,12 @@ def compute_wpr_projection(runners_df, target_date_str=None):
                 # race-level field), degrades gracefully to 0.0 in
                 # project_race if None (see _track_bias_score).
                 "cur_rail_position": r.get("rail_position"),
+                # trainer_change ADJ_TERM input (Sep 2026) - today's
+                # booked trainer, compared against this horse's own last
+                # prior run's trainer inside build_features. Degrades
+                # gracefully to 0.0 if None (see build_features' own
+                # cur_trainer docstring).
+                "cur_trainer": r.get("trainer"),
             }
             runners.append(dict(base, cur_going=going))
             runners_alt.append(dict(base, cur_going=going_alt))

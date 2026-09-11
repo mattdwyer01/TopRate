@@ -365,10 +365,29 @@ FEATURES = [
 # translating the joint model's output into a price (the plain price-
 # softmax-beta translation tested here may itself be the weak link, not
 # the joint architecture per se).
+#
+# REVISED (Sep 2026): own_distance/own_going/own_trend all consistently
+# HURT held-out MAE (leave-one-term-out ablation, both a small-scale H1/H2
+# split and leave-one-era-out across 5 real 10-year eras - wpr_adj_term_
+# ablation_and_stability.py, wpr_adj_term_ablation_10yr.py) - dropped.
+# Replaced with trainer_change (own-history input: did today's trainer
+# change vs this horse's last run - a large, era-stable residual bias
+# found in wpr_new_signals_tier1_audit.py) and population-level trained-
+# model versions of distance/going (pop_distance/pop_going, built from
+# the SAME dist_vs_last/going_delta inputs own_distance/own_going used,
+# but fit across the whole population rather than per-horse - recovered
+# real signal the per-horse shrunk-lookup version couldn't, see wpr_
+# population_distance_going_trend_test.py). own_trend's population
+# equivalent did NOT recover any signal - not added. Net: pooled held-out
+# MAE 6.9062 -> 6.7169 across the same 5 real eras (trainer_change alone:
+# -0.1743; + pop_distance + pop_going together: a further -0.0150 - they
+# combine additively, unlike trainer_change/age/jockey_change which did
+# not, see wpr_new_adj_terms_candidate_test.py for that finding and why
+# age/jockey_change were tested but NOT added here).
 ADJ_TERMS = [
-    "own_distance", "own_going", "own_first_up", "own_second_up",
-    "own_trend", "own_long_spell", "track_barrier", "closing_merit",
-    "trainer_merit", "jockey_merit", "pace_shape",
+    "own_first_up", "own_second_up", "own_long_spell", "track_barrier",
+    "closing_merit", "trainer_merit", "jockey_merit", "pace_shape",
+    "trainer_change", "pop_distance", "pop_going",
 ]
 
 # Serving-time calibration - REMOVED (Sep 2026). HISTORY: a Aug 2026 review
@@ -848,6 +867,30 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, tr
 # ~20% of history by date - see _fit_coverage_aware_trn below).
 _TRAINER_MERIT_FEATURES = ["trainer_win_pct_365d", "field_size"]
 _JOCKEY_MERIT_FEATURES = ["jockey_win_pct_90d", "field_size"]
+
+# trainer_change/pop_distance/pop_going (Sep 2026): replace own_distance/
+# own_going/own_trend in ADJ_TERMS - those were per-horse shrunk lookups
+# (this horse's own deviation from ITS OWN average at conditions like
+# today's) that all three consistently HURT held-out MAE, confirmed both
+# at small scale and across 5 real 10-year eras (wpr_adj_term_ablation_
+# and_stability.py, wpr_adj_term_ablation_10yr.py) - a per-horse lookup
+# needs enough matching-condition history from THAT SPECIFIC HORSE to be
+# reliable, and shrinkage can't fully compensate for a horse with sparse
+# own history at today's conditions. Population-level trained models on
+# the same underlying signals recovered real, era-stable signal instead
+# (wpr_population_distance_going_trend_test.py): dist_vs_last/going_delta
+# (already computed by build_features - own-history-derived inputs, but
+# the MAPPING from them to a residual is now fit across the whole
+# population, same architecture as track_barrier). trainer_change (does
+# today's trainer differ from this horse's last run) is a genuinely new
+# signal (wpr_new_signals_tier1_audit.py found a large, era-stable
+# residual bias for it) - own-history input (this horse's own last
+# trainer), population-fit mapping, same pattern. own_trend's population
+# equivalent (built from "trend") did NOT recover any signal - excluded,
+# per that same test.
+_TRAINER_CHANGE_FEATURES = ["trainer_change", "field_size"]
+_POP_DISTANCE_FEATURES = ["dist_vs_last", "field_size"]
+_POP_GOING_FEATURES = ["going_delta", "field_size"]
 
 
 def _merit_term(value, field_size, model, features):
@@ -1517,15 +1560,20 @@ def _debut_trial_estimate(trial_runs, race_date):
 def build_features(prior_runs, cur_distance, cur_going, cur_track,
                    cur_track_grading, race_date, cur_race_class=None,
                    cur_field_size=None, cur_wpr_nett=None, cur_barrier=None,
-                   cur_race_speed_label=None, trial_runs=None):
+                   cur_race_speed_label=None, trial_runs=None, cur_trainer=None):
     """Build the feature dict for one horse.
 
     prior_runs: DataFrame of the horse's PAST runs only, any order. Needs
       columns: date, wpr, distance, going, track, trackGrading,
       positionSettled, position800m, position600m, marginFinish,
-      isBarrierTrial, barrier, field_size. race_class is used if present
-      (for class_move).
+      isBarrierTrial, barrier, field_size, trainer. race_class is used if
+      present (for class_move).
     cur_*: conditions of the race being projected.
+    cur_trainer: today's booked trainer for this run. Compared against
+      this horse's own last prior run's trainer to compute trainer_change
+      (feeds the trainer_change ADJ_TERM, Sep 2026 - see wp._TRAINER_
+      CHANGE_FEATURES). Defaults to None - trainer_change is then 0.0
+      (no leak risk, same "unseen -> 0" contract every other term uses).
     cur_race_class: the projected race's class string (BM64, CLS3, OPEN
       ...). Defaults to None - callers that do not pass it get a neutral
       class_move and is_jumps 0 (backward compatible).
@@ -1801,6 +1849,21 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         runs_this_camp = (n - (spell_idx.max() if len(spell_idx) else 0)) + 1
 
     dist_grad = _safe_slope(dist.values, wv) * 100
+
+    # trainer_change (Sep 2026, ADJ_TERM input - see wp._TRAINER_CHANGE_
+    # FEATURES): did today's booked trainer change vs this horse's own
+    # last prior run's trainer. Leak-free (only compares to a PRIOR run,
+    # cur_trainer is pre-race known); 0.0 if either side is unavailable,
+    # same "unseen -> 0" contract every other term's raw input follows.
+    _prior_trainer = None
+    if "trainer" in p.columns:
+        _pt = p["trainer"].dropna()
+        if len(_pt):
+            _prior_trainer = _pt.iloc[-1]
+    trainer_change = (
+        1.0 if (cur_trainer is not None and _prior_trainer is not None
+                and str(cur_trainer).strip().lower() != str(_prior_trainer).strip().lower())
+        else 0.0)
 
     # Wetness from trackGrading per prior run (not the going string).
     # tg_hist is the numeric grading; is_wet_hist the binary derived from it.
@@ -2386,6 +2449,7 @@ def build_features(prior_runs, cur_distance, cur_going, cur_track,
         "cur_distance": float(cur_distance),
         "dist_grad": dist_grad,
         "dist_vs_last": float(cur_distance) - float(dist.iloc[-1]),
+        "trainer_change": trainer_change,
         "distband_wpr": distband_wpr,
         "distband_n": distband_n,
         # dist_edge - candidate feature, emitted not yet in FEATURES.
@@ -2640,7 +2704,8 @@ def project_race(runners, race_date):
                        cur_wpr_nett=r.get("cur_wpr_nett"),
                        cur_barrier=r.get("cur_barrier"),
                        cur_race_speed_label=r.get("cur_race_speed_label"),
-                       trial_runs=r.get("trial_runs"))
+                       trial_runs=r.get("trial_runs"),
+                       cur_trainer=r.get("cur_trainer"))
         for r in runners
     ]
     fallbacks = [f is None for f in feat_dicts]
@@ -2696,6 +2761,23 @@ def project_race(runners, race_date):
             f["jockey_merit"] = _merit_term(
                 r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES)
 
+    # trainer_change/pop_distance/pop_going (Sep 2026): the raw own-history
+    # inputs (trainer_change 0/1, dist_vs_last, going_delta) ARE computed
+    # inside build_features above - same two-stage pattern as trainer_
+    # merit/jockey_merit, just fed the FITTED trained model here (only
+    # available after _load_models()) instead of a today's-booking value.
+    _tc_model = _pop.get("trainer_change")
+    _pd_model = _pop.get("pop_distance")
+    _pg_model = _pop.get("pop_going")
+    for f, r in zip(feat_dicts, runners):
+        if f is not None:
+            f["trainer_change"] = _merit_term(
+                f.get("trainer_change"), r.get("cur_field_size"), _tc_model, _TRAINER_CHANGE_FEATURES)
+            f["pop_distance"] = _merit_term(
+                f.get("dist_vs_last"), r.get("cur_field_size"), _pd_model, _POP_DISTANCE_FEATURES)
+            f["pop_going"] = _merit_term(
+                f.get("going_delta"), r.get("cur_field_size"), _pg_model, _POP_GOING_FEATURES)
+
     # Per-race demeaning (Sep 2026 bug fix): track_barrier/closing_merit/
     # trainer_merit/jockey_merit each include a feature that is IDENTICAL
     # for every runner in a race (track/distance identity for track_barrier,
@@ -2723,7 +2805,8 @@ def project_race(runners, race_date):
     # feature shared identically across the field, and pace_shape's own
     # live example - see its docstring - already showed real sign variation
     # within a race).
-    for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit"):
+    for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit",
+                  "trainer_change", "pop_distance", "pop_going"):
         _vals = [f[_term] for f in feat_dicts if f is not None]
         if _vals:
             _mean = float(np.mean(_vals))
@@ -2920,6 +3003,21 @@ def _adj_phrase(feat, value, contribution):
                  "today's predicted running position and race shape look "
                  "like an easier combination for it than its rating alone "
                  "suggests")
+    if feat == "trainer_change":
+        return ("horses changing trainers like this tend to underperform "
+                 "their rating" if neg else
+                 "horses changing trainers like this tend to run above "
+                 "their rating")
+    if feat == "pop_distance":
+        return ("horses stepping up/down in distance like this tend to "
+                 "underperform their rating" if neg else
+                 "horses stepping up/down in distance like this tend to "
+                 "run above their rating")
+    if feat == "pop_going":
+        return ("horses with this wet/dry form profile tend to underperform "
+                 "their rating in today's going" if neg else
+                 "horses with this wet/dry form profile tend to run above "
+                 "their rating in today's going")
     return None
 
 
@@ -3239,7 +3337,8 @@ def _horse_feature_rows(g, race_speed_labels=None):
                            cur_field_size=cur.get("field_size"),
                            cur_wpr_nett=cur.get("wpr_nett"),
                            cur_barrier=cur.get("barrier"),
-                           cur_race_speed_label=_label)
+                           cur_race_speed_label=_label,
+                           cur_trainer=cur.get("trainer"))
         if f is None:
             continue
         f["target"] = float(cur["wpr"])
@@ -3416,7 +3515,7 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
             "isBarrierTrial", "barrier",
             "field_size", "raceShapeEarly", "raceShapeMid",
             "raceShapeLate", "race_class", "race_id", "run_id", "wpr_nett",
-            "rail_position",
+            "rail_position", "trainer",
             "comments_video", "comments_steward", "gear_changes"] + _sect_cols
     keep = [c for c in keep if c in fh.columns]
     fh = fh[keep].copy()
@@ -3872,6 +3971,32 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                 _frame["first_up"], _frame["second_up"], _frame["n_runs"])
         ]
 
+    # trainer_change/pop_distance/pop_going (Sep 2026): same "trn only,
+    # full coverage" pattern as gear_change above - see _TRAINER_CHANGE_
+    # FEATURES's own docstring for why these replace own_distance/
+    # own_going/own_trend. trainer_change/dist_vs_last/going_delta are
+    # already computed by build_features (part of D from the per-horse
+    # loop above), just not previously used as a population-model input.
+    print("  fitting trainer_change model (population, trn only)...")
+    trainer_change_model = _fit_simple_adj_model(trn, _TRAINER_CHANGE_FEATURES, "trainer_change")
+    print("  fitting pop_distance model (population, trn only)...")
+    pop_distance_model = _fit_simple_adj_model(trn, _POP_DISTANCE_FEATURES, "pop_distance")
+    print("  fitting pop_going model (population, trn only)...")
+    pop_going_model = _fit_simple_adj_model(trn, _POP_GOING_FEATURES, "pop_going")
+    for _frame in (cf, te):
+        _frame["trainer_change"] = [
+            _merit_term(v, fs, trainer_change_model, _TRAINER_CHANGE_FEATURES)
+            for v, fs in zip(_frame["trainer_change"], _frame["field_size"])
+        ]
+        _frame["pop_distance"] = [
+            _merit_term(v, fs, pop_distance_model, _POP_DISTANCE_FEATURES)
+            for v, fs in zip(_frame["dist_vs_last"], _frame["field_size"])
+        ]
+        _frame["pop_going"] = [
+            _merit_term(v, fs, pop_going_model, _POP_GOING_FEATURES)
+            for v, fs in zip(_frame["going_delta"], _frame["field_size"])
+        ]
+
     # closing_merit: population half (pace_baseline_lookup - a population
     # FACT about race shape vs sectional time, not a per-horse bucket
     # lookup) fit on trn's date cutoff (q1), same leak-safe convention as
@@ -3907,7 +4032,8 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # shown to users. Grouped by race_id (already a column here, reused by
     # pace_shape's own scoring below).
     for _frame in (cf, te):
-        for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit"):
+        for _term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit",
+                      "trainer_change", "pop_distance", "pop_going"):
             _frame[_term] = _frame[_term] - _frame.groupby("race_id")[_term].transform("mean")
 
     # pace_shape: the one ADJ_TERM that is a TRAINED MODEL rather than a
@@ -4071,18 +4197,20 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
         joblib.dump({"model": pace_shape_model, "track_bias_lookup": track_bias_lookup},
                     Path(out_dir) / "pace_shape.joblib")
         print("  pace_shape.joblib written (model + track_bias_lookup)")
-    # pop_adj_models.joblib (Sep 2026): bundles the 5 trained-model
+    # pop_adj_models.joblib (Sep 2026): bundles the trained-model
     # population ADJ_TERMS (track_barrier, trainer_merit, jockey_merit,
-    # gear_change, closing_merit - each replacing a shrunk lookup table,
-    # see each term's own docstring) plus track_code_map (the fitted
-    # track-identity encoding track_barrier's model needs). Same OPTIONAL,
-    # best-effort artifact contract as pace_shape.joblib - any individual
-    # model here can be None (too little covered data) without breaking
-    # serving (that term just returns 0.0).
+    # gear_change, closing_merit, and now trainer_change/pop_distance/
+    # pop_going - see each term's own docstring) plus track_code_map (the
+    # fitted track-identity encoding track_barrier's model needs). Same
+    # OPTIONAL, best-effort artifact contract as pace_shape.joblib - any
+    # individual model here can be None (too little covered data) without
+    # breaking serving (that term just returns 0.0).
     joblib.dump({
         "track_barrier": track_barrier_model, "track_code_map": track_code_map,
         "trainer_merit": trainer_merit_model, "jockey_merit": jockey_merit_model,
         "gear_change": gear_change_model, "closing_merit": closing_merit_model,
+        "trainer_change": trainer_change_model, "pop_distance": pop_distance_model,
+        "pop_going": pop_going_model,
     }, Path(out_dir) / "pop_adj_models.joblib")
     print("  pop_adj_models.joblib written")
     new_cfg = dict(existing_cfg)
