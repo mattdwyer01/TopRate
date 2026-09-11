@@ -1194,16 +1194,38 @@ def _closing_merit_bucket(v):
 # what "the population bucket lookups are too minor" was ever about.
 _CLOSING_MERIT_FEATURES = ["closing_raw_resid", "closing_n_pairs", "field_size"]
 
+# Sample-size shrink on the MODEL'S OUTPUT (Sep 2026, same class of bug as
+# jockey_merit/trainer_merit's own sample-size gap above, different
+# trigger): closing_n_pairs IS already a model input, but "let the model
+# learn how much to trust a 1-pair residual" (the Aug 2026 rationale above)
+# turned out not to hold at the extreme tail - live near-cap rows (Isle
+# Aroha, Sundaytoofaraway, Harcasion, Squealer and others, Sep 2026 audit)
+# are ALL closing_n_pairs==1 with a single sect_i_l600 value in the -24 to
+# -37 range (population median is -3.48, 1st percentile -23.3 - genuinely
+# rare, not a data error), producing raw model outputs of 12-13 for a term
+# whose typical value is 0.1-0.4. The model has very few training rows in
+# this specific "n_pairs=1 AND extreme residual" corner to calibrate
+# against, so it extrapolates. Discounts by n/(n+K) same shape as every
+# other sample-size shrink here; K=1.0 (not _OWN_DELTA_SHRINK_K=3.0 or
+# _MERIT_SAMPLE_SHRINK_K=10.0 - closing_n_pairs is capped at 3, a much
+# smaller scale than either, so both existing constants would over-shrink
+# even the well-supported 3-pair case). Untuned starting point, same
+# caveat as _MERIT_SAMPLE_SHRINK_K.
+_CLOSING_MERIT_SHRINK_K = 1.0
 
-def _closing_merit_term(pairs, lookup, field_size, model):
+
+def _closing_merit_term(pairs, lookup, field_size, model, shrink_k=_CLOSING_MERIT_SHRINK_K):
     """Combine the own-history half (pairs: a list of up to 3
     (sect_i_l600, bucket_str) tuples from this horse's own last prior
     runs - see build_features' "closing_pairs") with the FITTED
     population lookup (bucket_str -> expected sect_i_l600, see
     _fit_pace_baseline) into a raw mean residual, then feed that (plus how
     many prior runs fed it, plus today's field size) to the FITTED trained
-    model (see above). 0.0 if the model or either half is unavailable -
-    same "unseen -> 0" contract every population term here uses."""
+    model (see above), then shrink the model's output toward 0 by
+    n_pairs/(n_pairs+shrink_k) - see _CLOSING_MERIT_SHRINK_K's own comment
+    for why this sits on top of a model that already sees n_pairs as a
+    feature. 0.0 if the model or either half is unavailable - same
+    "unseen -> 0" contract every population term here uses."""
     if model is None or not pairs or not lookup:
         return 0.0
     residuals = []
@@ -1221,9 +1243,11 @@ def _closing_merit_term(pairs, lookup, field_size, model):
         fs = float(field_size) if field_size is not None and field_size == field_size else 0.0
     except (TypeError, ValueError):
         fs = 0.0
-    row = pd.DataFrame([{"closing_raw_resid": raw_resid, "closing_n_pairs": float(len(residuals)), "field_size": fs}],
+    n = len(residuals)
+    row = pd.DataFrame([{"closing_raw_resid": raw_resid, "closing_n_pairs": float(n), "field_size": fs}],
                        columns=_CLOSING_MERIT_FEATURES)
-    return float(model.predict(row)[0])
+    pred = float(model.predict(row)[0])
+    return pred * n / (n + shrink_k)
 
 
 def _fit_pace_baseline(form_history_csv, cutoff_date):
