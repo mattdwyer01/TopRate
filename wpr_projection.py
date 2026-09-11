@@ -930,11 +930,39 @@ _POP_DISTANCE_FEATURES = ["dist_vs_last", "field_size"]
 _POP_GOING_FEATURES = ["going_delta", "field_size"]
 
 
-def _merit_term(value, field_size, model, features):
+# Sample-size shrink for trainer_merit/jockey_merit (Sep 2026): the
+# trained model only ever sees the trailing win% ITSELF, never how many
+# rides/starts it was computed from - a jockey on 1-of-2 rides (50%) read
+# identically to one on 50-of-100 (also 50%), confirmed live (Explosive
+# Tycoon, 2026-09-12: jockey_merit +6.04 off a 50% jockey_win_pct_90d that
+# the jockey's own jockey_pot_pct_90d/jockey_lt3l_pct_90d figures pointed
+# at being a tiny sample, not a genuine hot streak - see chat). Same
+# failure MODE as jt_combo_win_pct's own documented leak (winPercent
+# reading ~100/~0 on 1-ride combos, toprate_daily.py's SIGNALS comment),
+# just less extreme since this is jockey-wide, not jockey+trainer-combo-
+# narrow. Discounts the model's prediction toward 0 by n/(n+K), same
+# _shrink() shape every own-history term already uses, just applied to a
+# TRAINED MODEL's output instead of a raw delta (own-history terms shrink
+# the delta itself; there is no equivalent "delta" here to shrink before
+# the model runs - the count only becomes known at serve time). K=10 is
+# an untuned starting point, not empirically fit: unlike every other
+# constant in this file, there is no historical ride-count data to
+# backtest against (jockey_starts_90d/trainer_starts_365d are new columns,
+# Sep 2026 - see build_stats_lookup) - revisit once enough live data has
+# accumulated to actually validate a K.
+_MERIT_SAMPLE_SHRINK_K = 10.0
+
+
+def _merit_term(value, field_size, model, features, sample_n=None):
     """Live trainer_merit/jockey_merit ADJ_TERM via the FITTED trained
     model (see above). 0.0 (no adjustment) if the model or value is
     unavailable - same "unseen -> 0" contract every population term here
-    uses."""
+    uses. sample_n (optional): ride/start count behind `value` - see
+    _MERIT_SAMPLE_SHRINK_K above. None (the default, and what every
+    non-merit caller of this shared function passes) skips the shrink
+    entirely - trainer_change/pop_distance/pop_going have no sample-size
+    concept, and a missing count degrades to this function's pre-fix
+    behaviour rather than guessing."""
     if model is None or value is None or value != value:
         return 0.0
     try:
@@ -942,7 +970,15 @@ def _merit_term(value, field_size, model, features):
     except (TypeError, ValueError):
         fs = 0.0
     row = pd.DataFrame([{features[0]: float(value), features[1]: fs}], columns=features)
-    return float(model.predict(row)[0])
+    pred = float(model.predict(row)[0])
+    if sample_n is not None and sample_n == sample_n:  # not NaN
+        try:
+            n = float(sample_n)
+        except (TypeError, ValueError):
+            return pred
+        if n >= 0:
+            pred *= n / (n + _MERIT_SAMPLE_SHRINK_K)
+    return pred
 
 
 def _fit_coverage_aware_trn(full_df, cols, fit_frac=0.70):
@@ -2796,9 +2832,11 @@ def project_race(runners, race_date):
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             f["trainer_merit"] = _merit_term(
-                r.get("cur_trainer_win_pct_365d"), r.get("cur_field_size"), _trm_model, _TRAINER_MERIT_FEATURES)
+                r.get("cur_trainer_win_pct_365d"), r.get("cur_field_size"), _trm_model, _TRAINER_MERIT_FEATURES,
+                sample_n=r.get("cur_trainer_starts_365d"))
             f["jockey_merit"] = _merit_term(
-                r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES)
+                r.get("cur_jockey_win_pct_90d"), r.get("cur_field_size"), _jm_model, _JOCKEY_MERIT_FEATURES,
+                sample_n=r.get("cur_jockey_starts_90d"))
 
     # trainer_change/pop_distance/pop_going (Sep 2026): the raw own-history
     # inputs (trainer_change 0/1, dist_vs_last, going_delta) ARE computed
