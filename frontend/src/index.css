@@ -76,3 +76,19 @@ body {
 .font-mono {
   font-variant-numeric: tabular-nums;
 }
+
+/* For a horizontally-scrollable strip that already signals "more content"
+   some other way (NextToJumpTicker's fade-out edge) - the browser's native
+   scrollbar there is just clutter, not a data table's expected affordance.
+   Scrolling itself (touch, trackpad, drag) still works identically; only
+   the visible bar is suppressed. Deliberately NOT applied to any of the
+   app's real data tables (MeetingsGrid, RaceDetail's runner table,
+   RecentRunsTable, CareerStats, ReviewTab) - a scrollbar there is a normal,
+   expected, grabbable affordance, not clutter. */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Chromium Edge */
+}

@@ -27,6 +27,37 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 // A race within this many minutes of jumping gets the "soon" highlight.
 const SOON_THRESHOLD_MS = 15 * 60_000
 
+type RaceStatus = 'resulted' | 'interim' | 'soon' | 'later'
+
+// Four states, not the old three - a race that's started but doesn't have
+// every runner's finish position yet (TAB's interim feed trickling in, or
+// nothing at all so far) used to fall through to looking IDENTICAL to a
+// race hours away the moment it passed SOON_THRESHOLD_MS post-start, which
+// is exactly backwards: that's the state most worth noticing at a glance.
+// Colors deliberately don't reuse emerald for "soon" (the old behaviour) -
+// emerald already means "confirmed Resulted" on the race detail page
+// (RaceDetail.tsx), so using it here too for "about to jump" contradicted
+// itself across the app.
+function raceStatus(race: Race, now: number): RaceStatus {
+  if (race.allResulted && !race.provisional) return 'resulted'
+  if (race.allResulted || race.runners.some((r) => r.finishPosition !== null)) return 'interim'
+  const msUntilStart = new Date(race.startTime).getTime() - now
+  return msUntilStart <= SOON_THRESHOLD_MS ? 'soon' : 'later'
+}
+
+const STATUS_CLASSES: Record<RaceStatus, string> = {
+  resulted: 'border-line-soft bg-line-soft text-ink-faint hover:border-line',
+  interim: 'border-amber-line bg-amber-bg font-semibold text-amber hover:opacity-80',
+  soon: 'border-rose-line bg-rose-bg font-semibold text-rose hover:opacity-80',
+  later: 'border-line-soft bg-bg text-ink hover:border-emerald-line hover:bg-emerald-bg',
+}
+
+const STATUS_LEGEND: { status: RaceStatus; label: string; dotClass: string }[] = [
+  { status: 'soon', label: 'Jumping soon', dotClass: 'bg-rose' },
+  { status: 'interim', label: 'Interim result', dotClass: 'bg-amber' },
+  { status: 'resulted', label: 'Resulted', dotClass: 'bg-ink-faint' },
+]
+
 export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onShowBushChange }: MeetingsGridProps) {
   const [date, setDate] = useState(() => initialDate ?? todayIso())
 
@@ -80,6 +111,17 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
         )}
       </div>
 
+      {visibleMeetings.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mute">
+          {STATUS_LEGEND.map(({ status, label, dotClass }) => (
+            <div key={status} className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 flex-none rounded-full ${dotClass}`} />
+              {label}
+            </div>
+          ))}
+        </div>
+      )}
+
       {visibleMeetings.length === 0 ? (
         <EmptyState message={`No races on ${date}.`} />
       ) : (
@@ -111,21 +153,12 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
                     {raceNumbers.map((n) => {
                       const race = meeting.races.find((r) => r.raceNumber === n)
                       if (!race) return <td key={n} className="px-1.5 py-2" />
-                      const soon =
-                        !race.allResulted &&
-                        new Date(race.startTime).getTime() - now <= SOON_THRESHOLD_MS
                       return (
                         <td key={n} className="px-1.5 py-2 text-center">
                           <button
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
-                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${
-                              race.allResulted
-                                ? 'border-line-soft bg-bg text-ink-faint hover:border-line'
-                                : soon
-                                  ? 'border-emerald-line bg-emerald-bg font-semibold text-emerald-deep hover:opacity-80'
-                                  : 'border-line-soft bg-bg text-ink hover:border-emerald-line hover:bg-emerald-bg'
-                            }`}
+                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[raceStatus(race, now)]}`}
                           >
                             {formatTimeOfDay(race.startTime)}
                           </button>

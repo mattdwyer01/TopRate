@@ -53,7 +53,7 @@ export function NextToJumpTicker({ races, onSelectRace }: NextToJumpTickerProps)
         <div className="font-mono text-xs italic text-white/40">Nothing jumping soon.</div>
       ) : (
         <div className="relative min-w-0 flex-1">
-          <div ref={pillsRef} className="flex gap-2 overflow-x-auto">
+          <div ref={pillsRef} className="scrollbar-none flex gap-2 overflow-x-auto">
             {upcoming.map(({ race, secsUntil }) => (
               <button
                 key={race.raceId}
