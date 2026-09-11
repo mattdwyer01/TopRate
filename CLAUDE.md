@@ -119,22 +119,41 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - Both do: git add, commit, `git pull --rebase` before push, then push.
 - On rebase conflicts on generated files (`toprate_runners.csv`,
   `toprate_data.json`, `toprate_live.html`, `wpr_form_history.csv.gz`), take the
-  incoming version: `git checkout --theirs <file>` then add and continue. Only
-  discard generated data files, never code.
-  - This means **theirs, always** — never "ours because my local rebuild/backfill
-    took longer to compute so it must be more valuable." A real incident (Sep
-    2026): resolving a merge with `git show HEAD:<file>` (i.e. keeping ours)
-    across two consecutive merges reverted today's race field from an
-    already-scratched, final 583 runners back to a stale 1,049-runner
-    pre-scratch snapshot, and silently deleted an entire freshly-pre-fetched
-    race day (2026-09-03, 341 rows) that only existed in `theirs`. Prices
+  incoming (remote) version. Only discard generated data files, never code.
+  - **Don't resolve this via `--ours`/`--theirs` from memory - verify which
+    side is which first.** `--ours`/`--theirs` are INVERTED between `git
+    rebase` (this repo's flow is `git pull --rebase`, see above) and a
+    normal `git merge`: in a rebase, `--ours` is the upstream/incoming
+    commit and `--theirs` is your own local commit being replayed - the
+    opposite of merge semantics. Getting this backwards either direction
+    causes real damage (see both incidents below - one used `--theirs`
+    intending "incoming" and got local by luck, the other used `git show
+    HEAD:<file>` intending "incoming" and got local for real, silently
+    losing data). The reliable fix: don't trust either flag name blind -
+    confirm the actual incoming content first with `git show
+    origin/main:<file>` (or `FETCH_HEAD:<file>`), and confirm what you
+    kept afterward with `git show HEAD:<file>`, rather than assuming a
+    flag means what it means in the other kind of conflict.
+  - This means **the incoming/remote content, always** — never "my local
+    rebuild/backfill took longer to compute so it must be more valuable."
+    A real incident (Sep 2026): resolving a merge with `git show
+    HEAD:<file>` (i.e. keeping local/ours) across two consecutive merges
+    reverted today's race field from an already-scratched, final 583
+    runners back to a stale 1,049-runner pre-scratch snapshot, and
+    silently deleted an entire freshly-pre-fetched race day (2026-09-03,
+    341 rows) that only existed in the incoming version. Prices
     self-heal on the next refresh; field composition (scratches, declared
     fields, newly pre-fetched days) does not — there is no "next cycle" that
     fixes a reverted field, only a human noticing the live site looks wrong.
     If a local compute (retrain, backfill, recomputed projections) needs to
-    survive a merge, the correct order is: take theirs for the conflicted
-    file, THEN re-run your own recompute on top of that fresher base -
-    never keep your own snapshot of the base data itself.
+    survive a merge, the correct order is: take the incoming version for
+    the conflicted file, THEN re-run your own recompute on top of that
+    fresher base - never keep your own snapshot of the base data itself.
+    (A faster variant when the recompute itself was expensive and its
+    result still exists in git history under an orphaned/rebased-away
+    commit: pull the already-computed columns back out with `git show
+    <old-sha>:<file>` and field-merge them onto the fresher base by row
+    key, instead of re-running the full computation from scratch.)
 
 ## Secrets — never commit these
 
