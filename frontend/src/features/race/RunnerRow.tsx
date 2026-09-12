@@ -52,6 +52,7 @@ export function RunnerRow({
 }: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
   const scratched = effective?.scratched ?? false
+  const isOverlay = effective?.isOverlay ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
   // Scratched: force both to null rather than falling back to the model's
   // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
@@ -88,7 +89,11 @@ export function RunnerRow({
   // soon as you scroll it sideways. `group` + group-hover carries the
   // row's :hover state down to them (JS can't see :hover); scratched/
   // selected are already computed here, so those branch directly.
-  const stickyBg = selected ? 'bg-emerald-bg' : 'bg-panel group-hover:bg-bg'
+  const stickyBg = selected
+    ? 'bg-emerald-bg'
+    : isOverlay
+      ? 'bg-emerald-bg/25 group-hover:bg-emerald-bg/40'
+      : 'bg-panel group-hover:bg-bg'
 
   return (
     // A div, not a button - a real scratch-toggle <button> needs to nest
@@ -106,8 +111,15 @@ export function RunnerRow({
           onClick()
         }
       }}
+      title={isOverlay ? 'Overlay: market price is longer than our fair (WPR $) price' : undefined}
       className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
-        scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
+        scratched
+          ? 'opacity-50'
+          : selected
+            ? 'bg-emerald-bg'
+            : isOverlay
+              ? 'bg-emerald-bg/25 hover:bg-emerald-bg/40'
+              : 'hover:bg-bg'
       }`}
     >
       <span className={`sticky left-0 z-10 -ml-2 pl-2 sm:static sm:z-auto sm:m-0 sm:p-0 ${stickyBg}`}>

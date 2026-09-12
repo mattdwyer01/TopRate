@@ -6,6 +6,16 @@ export interface EffectiveRunner {
   effectiveRank: number | null
   hasOverride: boolean
   scratched: boolean
+  // WPR points behind the field's top-rated (effective) runner - null for a
+  // scratched runner or one with no effective wpr. 0 for the top pick itself.
+  gapFromTop: number | null
+  // true when the market's own price is longer than our fair (effectivePrice)
+  // price - i.e. wpr_projection.py's compute_edge_scores() "has_edge" case,
+  // model_prob > market_prob. Mirrors that backend definition exactly rather
+  // than reading its output, same reasoning as effectivePrice itself: this
+  // needs to reflect manual overrides and live market price, not whatever
+  // was true whenever the backend last computed it.
+  isOverlay: boolean
 }
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
@@ -17,6 +27,13 @@ const PRICE_CAP = 999
 // wpr_projection.py's get_price_beta) - practically never hit once
 // PRICE_BETA is always populated, kept only for defensiveness.
 const DEFAULT_BETA = 0.4
+
+// An overlay far behind the top-rated runner isn't a useful highlight - it's
+// asking to back a horse the model itself doesn't rate as a real chance just
+// because the market's price on it happens to be even longer. User decision
+// (Sep 2026) to cap the highlight at the same 4-WPR marker line shown in the
+// table, rather than surfacing every overlay regardless of how unlikely.
+const OVERLAY_MAX_GAP_FROM_TOP = 4
 
 // Replicates wpr_projection.py's project_race() price/rank softmax
 // EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
@@ -54,6 +71,7 @@ export function computeEffectiveRace(
 
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
+  const gapByRunId = new Map<string, number>()
   if (rated.length >= 2) {
     const maxWpr = Math.max(...rated.map((r) => r.wpr))
     const exps = rated.map((r) => ({ runId: r.runId, e: Math.exp(beta * (r.wpr - maxWpr)) }))
@@ -61,19 +79,38 @@ export function computeEffectiveRace(
     for (const x of exps) {
       priceByRunId.set(x.runId, Math.min(1 / (x.e / sumE), PRICE_CAP))
     }
+    for (const r of rated) {
+      gapByRunId.set(r.runId, maxWpr - r.wpr)
+    }
     ;[...rated]
       .sort((a, b) => b.wpr - a.wpr)
       .forEach((r, i) => rankByRunId.set(r.runId, i + 1))
   }
 
+  const marketPriceByRunId = new Map<string, number | null>(
+    runners.map((r) => [r.runId, r.fixedWinPrice ?? r.startingPrice ?? null]),
+  )
+
   const result: Record<string, EffectiveRunner> = {}
   for (const r of withEffectiveWpr) {
+    const effectivePrice = r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null
+    const marketPrice = marketPriceByRunId.get(r.runId) ?? null
+    const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
-      effectivePrice: r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null,
+      effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
       scratched: r.scratched,
+      gapFromTop,
+      isOverlay:
+        !r.scratched &&
+        effectivePrice != null &&
+        marketPrice != null &&
+        marketPrice > 1 &&
+        marketPrice > effectivePrice &&
+        gapFromTop != null &&
+        gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP,
     }
   }
   return result
