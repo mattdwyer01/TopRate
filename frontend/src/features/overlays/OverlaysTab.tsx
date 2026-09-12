@@ -4,7 +4,7 @@ import { Pill } from '../../components/Pill'
 import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
 import { computeEffectiveRace } from '../../lib/raceModel'
-import { todayIso } from '../../lib/meetings'
+import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 
@@ -15,6 +15,11 @@ interface OverlaysTabProps {
   bases: Record<string, number>
   scratched: Set<string>
   initialDate?: string | null
+  // Shared with the Race tab (App.tsx lifts this via useShowBushMeetings) so
+  // the "hide bush meetings" preference is one setting, not a different
+  // default on every tab.
+  showBush: boolean
+  onShowBushChange: (value: boolean) => void
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
@@ -67,17 +72,27 @@ export function OverlaysTab({
   bases,
   scratched,
   initialDate,
+  showBush,
+  onShowBushChange,
   onSelectRace,
 }: OverlaysTabProps) {
   const [date, setDate] = useState(() => initialDate ?? todayIso())
 
-  const dayRaces = useMemo(
-    () =>
-      races
-        .filter((r) => r.date === date)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
-    [races, date],
-  )
+  const dateRaces = useMemo(() => races.filter((r) => r.date === date), [races, date])
+
+  // Same bush/picnic threshold and default (hidden) as the Race tab's own
+  // meetings grid - a shared preference, not a separate default per tab.
+  const bushCount = useMemo(() => bushMeetingKeys(dateRaces).size, [dateRaces])
+
+  const dayRaces = useMemo(() => {
+    const withoutBush = showBush
+      ? dateRaces
+      : (() => {
+          const bushKeys = bushMeetingKeys(dateRaces)
+          return dateRaces.filter((r) => !bushKeys.has(meetingKey(r)))
+        })()
+    return [...withoutBush].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+  }, [dateRaces, showBush])
 
   const overlays = useMemo(() => {
     const rows: OverlayRow[] = []
@@ -162,6 +177,11 @@ export function OverlaysTab({
           onChange={(e) => setDate(e.target.value)}
           className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
         />
+        {bushCount > 0 && (
+          <Pill active={showBush} onClick={() => onShowBushChange(!showBush)}>
+            {showBush ? 'Hide' : 'Show'} {bushCount} bush meeting{bushCount === 1 ? '' : 's'}
+          </Pill>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
