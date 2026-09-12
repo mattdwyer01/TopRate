@@ -6,7 +6,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { todayIso } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { fmtPrice } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
 
 interface OverlaysTabProps {
   races: Race[]
@@ -27,6 +27,7 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
 interface OverlayRow {
   race: Race
   runner: Runner
+  wpr: number
   effectivePrice: number
   gapFromTop: number
   marketPrice: number
@@ -91,10 +92,18 @@ export function OverlaysTab({
       const effectiveByRunId = computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched)
       for (const runner of race.runners) {
         const eff = effectiveByRunId[runner.runId]
-        if (!eff?.isOverlay || eff.effectivePrice == null || eff.gapFromTop == null) continue
+        if (!eff?.isOverlay || eff.effectiveProjectedWpr == null || eff.effectivePrice == null || eff.gapFromTop == null)
+          continue
         const marketPrice = runner.fixedWinPrice ?? runner.startingPrice
         if (marketPrice == null) continue
-        rows.push({ race, runner, effectivePrice: eff.effectivePrice, gapFromTop: eff.gapFromTop, marketPrice })
+        rows.push({
+          race,
+          runner,
+          wpr: eff.effectiveProjectedWpr,
+          effectivePrice: eff.effectivePrice,
+          gapFromTop: eff.gapFromTop,
+          marketPrice,
+        })
       }
     }
     return rows
@@ -225,7 +234,8 @@ export function OverlaysTab({
                             {o.runner.tabNumber}. {o.runner.horse}
                           </div>
                           <div className="font-mono text-xs text-ink-mute">
-                            Gap {o.gapFromTop.toFixed(1)} &middot; WPR {fmtPrice(o.effectivePrice)} &middot; Fixed{' '}
+                            <span className="font-semibold text-emerald-deep">{fmtWpr(o.wpr)}</span> &middot; Gap{' '}
+                            {o.gapFromTop.toFixed(1)} &middot; WPR {fmtPrice(o.effectivePrice)} &middot; Fixed{' '}
                             {fmtPrice(o.marketPrice)}
                           </div>
                         </div>
@@ -244,6 +254,7 @@ export function OverlaysTab({
               <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
                 <th className="px-3 py-2 text-left">Race</th>
                 <th className="px-3 py-2 text-left">Horse</th>
+                <th className="px-3 py-2 text-right">WPR</th>
                 <th className="px-3 py-2 text-right" title="WPR points behind the field's top-rated runner">
                   Gap
                 </th>
@@ -284,6 +295,7 @@ export function OverlaysTab({
                     <td className="px-3 py-2 font-medium text-ink">
                       {o.runner.tabNumber}. {o.runner.horse}
                     </td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-emerald-deep">{fmtWpr(o.wpr)}</td>
                     <td className="px-3 py-2 text-right font-mono text-ink-mute">{o.gapFromTop.toFixed(1)}</td>
                     <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.effectivePrice)}</td>
                     <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.marketPrice)}</td>
