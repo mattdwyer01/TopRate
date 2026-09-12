@@ -126,7 +126,8 @@ export function OverlaysTab({
         <p>
           <span className="font-semibold text-ink">{overlays.length}</span> overlay
           {overlays.length === 1 ? '' : 's'} on {date} - market price longer than our fair WPR $ price, within 4 WPR
-          points of the top-rated runner in its race.
+          points of the top-rated runner in its race, and only in races where that top-rated runner is itself rated
+          over 80.
         </p>
         {summary && (
           <p className="mt-1">

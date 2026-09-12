@@ -35,6 +35,20 @@ const DEFAULT_BETA = 0.4
 // table, rather than surfacing every overlay regardless of how unlikely.
 const OVERLAY_MAX_GAP_FROM_TOP = 4
 
+// Overlays are suppressed race-wide when the field's own top-rated runner
+// is below this WPR - a weak top pick (a modest horse that's merely the
+// best of a bad bunch) makes the whole race's overlay signal less trustworthy
+// than one where the top rated runner is a genuinely strong horse. Backed by
+// a real (if not statistically airtight - see chat, Sep 2026) asymmetry: on
+// the 67-day backtest, overlays in races with a sub-80 top pick were a
+// confirmed loser (t-test vs zero, p=0.018); overlays where the top pick
+// cleared 80 were not confirmed either way. A user decision to filter on
+// that asymmetry despite it not being a fully robust threshold (a sweep of
+// nearby values found the significance doesn't hold at 75 or 85, only in
+// the 80-82 band) - kept here as one constant so it's easy to revisit once
+// there's more data to actually fit this threshold properly.
+const MIN_TOP_RATED_WPR = 80
+
 // Replicates wpr_projection.py's project_race() price/rank softmax
 // EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
 // model's own projectedWpr, or a manually entered base for a runner the
@@ -72,8 +86,10 @@ export function computeEffectiveRace(
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
+  let topRatedWpr: number | null = null
   if (rated.length >= 2) {
     const maxWpr = Math.max(...rated.map((r) => r.wpr))
+    topRatedWpr = maxWpr
     const exps = rated.map((r) => ({ runId: r.runId, e: Math.exp(beta * (r.wpr - maxWpr)) }))
     const sumE = exps.reduce((s, x) => s + x.e, 0)
     for (const x of exps) {
@@ -110,7 +126,9 @@ export function computeEffectiveRace(
         marketPrice > 1 &&
         marketPrice > effectivePrice &&
         gapFromTop != null &&
-        gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP,
+        gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP &&
+        topRatedWpr != null &&
+        topRatedWpr > MIN_TOP_RATED_WPR,
     }
   }
   return result
