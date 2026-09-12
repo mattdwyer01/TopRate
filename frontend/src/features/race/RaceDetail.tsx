@@ -318,10 +318,22 @@ export function RaceDetail({
                 onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
               />
               {show3 && (
-                <div className="h-[3px] w-full bg-amber" title="3 WPR points from the top-rated runner" />
+                <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
+                  <span className="h-[2px] flex-1 bg-amber" />
+                  <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
+                    3 WPR from top rated
+                  </span>
+                  <span className="h-[2px] flex-1 bg-amber" />
+                </div>
               )}
               {show4 && (
-                <div className="h-[3px] w-full bg-indigo" title="4 WPR points from the top-rated runner" />
+                <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
+                  <span className="h-[2px] flex-1 bg-indigo" />
+                  <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
+                    4 WPR from top rated
+                  </span>
+                  <span className="h-[2px] flex-1 bg-indigo" />
+                </div>
               )}
             </Fragment>
           )
