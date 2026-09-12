@@ -247,9 +247,14 @@ export function OverlaysTab({
                             onSelectRace(o.race.raceId, o.race.date, o.runner.runId)
                           }
                         }}
-                        className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-line-soft px-2.5 py-2 hover:bg-emerald-bg/30"
+                        className="flex cursor-pointer items-center gap-2 rounded-md border border-line-soft px-2.5 py-2 hover:bg-emerald-bg/30"
                       >
-                        <div className="min-w-0">
+                        {o.runner.silkUrl ? (
+                          <img src={o.runner.silkUrl} alt="" className="h-8 w-8 flex-none rounded-sm object-contain" />
+                        ) : (
+                          <span className="h-8 w-8 flex-none" />
+                        )}
+                        <div className="min-w-0 flex-1">
                           <div className="truncate font-medium text-ink">
                             {o.runner.tabNumber}. {o.runner.horse}
                           </div>
@@ -273,6 +278,7 @@ export function OverlaysTab({
             <thead>
               <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
                 <th className="px-3 py-2 text-left">Race</th>
+                <th className="w-8 px-1 py-2" />
                 <th className="px-3 py-2 text-left">Horse</th>
                 <th className="px-3 py-2 text-right">WPR</th>
                 <th className="px-3 py-2 text-right" title="WPR points behind the field's top-rated runner">
@@ -311,6 +317,11 @@ export function OverlaysTab({
                           </div>
                         </>
                       )}
+                    </td>
+                    <td className="px-1 py-2">
+                      {o.runner.silkUrl ? (
+                        <img src={o.runner.silkUrl} alt="" className="h-8 w-8 flex-none rounded-sm object-contain" />
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 font-medium text-ink">
                       {o.runner.tabNumber}. {o.runner.horse}
