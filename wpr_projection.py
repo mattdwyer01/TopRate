@@ -4281,23 +4281,43 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # a per-horse lookup against that horse's own history, not a fitted
     # population model, so it does not have the "regress rare examples
     # toward the population" failure mode rarity-weighting was built to
-    # counter. Kept ONLY for the confidence (q10/q90) models, which are
-    # otherwise unchanged from the Aug 2026 additive-architecture design.
+    # counter.
+    #
+    # q_hi ONLY (Sep 2026 fix, user's own follow-up question - see chat):
+    # this used to also weight q_lo, on the "kept ONLY for the confidence
+    # models" reasoning above - true, but too broad a brush. rarity_weights
+    # was only ever validated against the elite-tier (high-target) bias it
+    # was built for; nobody had checked what upweighting high-target rows
+    # does to the LOW quantile's own calibration. A live coverage check
+    # (target vs q10/q90, held-out) found q10 uncovering the downside by a
+    # similar margin at every experience level (n_runs=1 through 30+ alike,
+    # not something specific to lightly-raced horses) - actual results fell
+    # below q10 well above the nominal 10% everywhere, while q90 itself was
+    # reasonably calibrated (best at n_runs=1, if anything too conservative
+    # for veterans). A held-out era-split ablation (fit both ways on the
+    # same trn/held split) confirmed the mechanism: giving q_lo its own
+    # recency-only weight (no rarity upweighting) brought its overall
+    # coverage from 11.37% to 9.97% (nominal is 10%), with q_hi (unchanged)
+    # still at 9.34% - a clean, targeted fix, not a wash. Sharing one sw
+    # vector between q_lo and q_hi was never load-bearing for q_hi's own
+    # correction (that only ever needed the high-target upweighting), so
+    # nothing about the original elite-tier fix is lost.
     rw = _rarity_weights(trn["target"])
-    sw = rw if sw_recency is None else sw_recency * rw
+    sw_hi = rw if sw_recency is None else sw_recency * rw
+    sw_lo = sw_recency
     print("  rarity-weighted training: upweighting target>=80/90/95/100 rows "
-          "(elite-tier calibration fix, confidence models only)")
+          "(elite-tier calibration fix, q_hi/confidence-interval-upper only)")
 
-    def _fit_quantile(q):
+    def _fit_quantile(q, sw):
         m = lgb.LGBMRegressor(objective="quantile", alpha=q, n_estimators=350,
                               max_depth=3, learning_rate=0.04, num_leaves=8,
                               random_state=42, verbosity=-1)
         m.fit(trn[FEATURES], trn["target"], sample_weight=sw)
         return m
 
-    # Confidence models only (q10/q90 interval width) - unchanged design.
-    q_lo = _fit_quantile(0.1)
-    q_hi = _fit_quantile(0.9)
+    # Confidence models only (q10/q90 interval width).
+    q_lo = _fit_quantile(0.1, sw_lo)
+    q_hi = _fit_quantile(0.9, sw_hi)
 
     # The additive model's ADJUSTMENT term: sum(ADJ_TERMS) - each already a
     # complete, shrunk +/- (per-horse from build_features, or track_barrier
