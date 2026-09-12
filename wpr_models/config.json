@@ -133,8 +133,8 @@
   "field_size": 10.0,
   "wpr_nett": 74.3
  },
- "conf_lo": 10.461563880070944,
- "conf_hi": 27.02135847887887,
+ "conf_lo": 11.851534685432659,
+ "conf_hi": 27.619179136855454,
  "beta": 0.15,
  "min_runs": 1,
  "pace_baseline_lookup": {

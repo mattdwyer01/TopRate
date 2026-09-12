@@ -1194,16 +1194,38 @@ def _closing_merit_bucket(v):
 # what "the population bucket lookups are too minor" was ever about.
 _CLOSING_MERIT_FEATURES = ["closing_raw_resid", "closing_n_pairs", "field_size"]
 
+# Sample-size shrink on the MODEL'S OUTPUT (Sep 2026, same class of bug as
+# jockey_merit/trainer_merit's own sample-size gap above, different
+# trigger): closing_n_pairs IS already a model input, but "let the model
+# learn how much to trust a 1-pair residual" (the Aug 2026 rationale above)
+# turned out not to hold at the extreme tail - live near-cap rows (Isle
+# Aroha, Sundaytoofaraway, Harcasion, Squealer and others, Sep 2026 audit)
+# are ALL closing_n_pairs==1 with a single sect_i_l600 value in the -24 to
+# -37 range (population median is -3.48, 1st percentile -23.3 - genuinely
+# rare, not a data error), producing raw model outputs of 12-13 for a term
+# whose typical value is 0.1-0.4. The model has very few training rows in
+# this specific "n_pairs=1 AND extreme residual" corner to calibrate
+# against, so it extrapolates. Discounts by n/(n+K) same shape as every
+# other sample-size shrink here; K=1.0 (not _OWN_DELTA_SHRINK_K=3.0 or
+# _MERIT_SAMPLE_SHRINK_K=10.0 - closing_n_pairs is capped at 3, a much
+# smaller scale than either, so both existing constants would over-shrink
+# even the well-supported 3-pair case). Untuned starting point, same
+# caveat as _MERIT_SAMPLE_SHRINK_K.
+_CLOSING_MERIT_SHRINK_K = 1.0
 
-def _closing_merit_term(pairs, lookup, field_size, model):
+
+def _closing_merit_term(pairs, lookup, field_size, model, shrink_k=_CLOSING_MERIT_SHRINK_K):
     """Combine the own-history half (pairs: a list of up to 3
     (sect_i_l600, bucket_str) tuples from this horse's own last prior
     runs - see build_features' "closing_pairs") with the FITTED
     population lookup (bucket_str -> expected sect_i_l600, see
     _fit_pace_baseline) into a raw mean residual, then feed that (plus how
     many prior runs fed it, plus today's field size) to the FITTED trained
-    model (see above). 0.0 if the model or either half is unavailable -
-    same "unseen -> 0" contract every population term here uses."""
+    model (see above), then shrink the model's output toward 0 by
+    n_pairs/(n_pairs+shrink_k) - see _CLOSING_MERIT_SHRINK_K's own comment
+    for why this sits on top of a model that already sees n_pairs as a
+    feature. 0.0 if the model or either half is unavailable - same
+    "unseen -> 0" contract every population term here uses."""
     if model is None or not pairs or not lookup:
         return 0.0
     residuals = []
@@ -1221,9 +1243,11 @@ def _closing_merit_term(pairs, lookup, field_size, model):
         fs = float(field_size) if field_size is not None and field_size == field_size else 0.0
     except (TypeError, ValueError):
         fs = 0.0
-    row = pd.DataFrame([{"closing_raw_resid": raw_resid, "closing_n_pairs": float(len(residuals)), "field_size": fs}],
+    n = len(residuals)
+    row = pd.DataFrame([{"closing_raw_resid": raw_resid, "closing_n_pairs": float(n), "field_size": fs}],
                        columns=_CLOSING_MERIT_FEATURES)
-    return float(model.predict(row)[0])
+    pred = float(model.predict(row)[0])
+    return pred * n / (n + shrink_k)
 
 
 def _fit_pace_baseline(form_history_csv, cutoff_date):
@@ -4257,23 +4281,43 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # a per-horse lookup against that horse's own history, not a fitted
     # population model, so it does not have the "regress rare examples
     # toward the population" failure mode rarity-weighting was built to
-    # counter. Kept ONLY for the confidence (q10/q90) models, which are
-    # otherwise unchanged from the Aug 2026 additive-architecture design.
+    # counter.
+    #
+    # q_hi ONLY (Sep 2026 fix, user's own follow-up question - see chat):
+    # this used to also weight q_lo, on the "kept ONLY for the confidence
+    # models" reasoning above - true, but too broad a brush. rarity_weights
+    # was only ever validated against the elite-tier (high-target) bias it
+    # was built for; nobody had checked what upweighting high-target rows
+    # does to the LOW quantile's own calibration. A live coverage check
+    # (target vs q10/q90, held-out) found q10 uncovering the downside by a
+    # similar margin at every experience level (n_runs=1 through 30+ alike,
+    # not something specific to lightly-raced horses) - actual results fell
+    # below q10 well above the nominal 10% everywhere, while q90 itself was
+    # reasonably calibrated (best at n_runs=1, if anything too conservative
+    # for veterans). A held-out era-split ablation (fit both ways on the
+    # same trn/held split) confirmed the mechanism: giving q_lo its own
+    # recency-only weight (no rarity upweighting) brought its overall
+    # coverage from 11.37% to 9.97% (nominal is 10%), with q_hi (unchanged)
+    # still at 9.34% - a clean, targeted fix, not a wash. Sharing one sw
+    # vector between q_lo and q_hi was never load-bearing for q_hi's own
+    # correction (that only ever needed the high-target upweighting), so
+    # nothing about the original elite-tier fix is lost.
     rw = _rarity_weights(trn["target"])
-    sw = rw if sw_recency is None else sw_recency * rw
+    sw_hi = rw if sw_recency is None else sw_recency * rw
+    sw_lo = sw_recency
     print("  rarity-weighted training: upweighting target>=80/90/95/100 rows "
-          "(elite-tier calibration fix, confidence models only)")
+          "(elite-tier calibration fix, q_hi/confidence-interval-upper only)")
 
-    def _fit_quantile(q):
+    def _fit_quantile(q, sw):
         m = lgb.LGBMRegressor(objective="quantile", alpha=q, n_estimators=350,
                               max_depth=3, learning_rate=0.04, num_leaves=8,
                               random_state=42, verbosity=-1)
         m.fit(trn[FEATURES], trn["target"], sample_weight=sw)
         return m
 
-    # Confidence models only (q10/q90 interval width) - unchanged design.
-    q_lo = _fit_quantile(0.1)
-    q_hi = _fit_quantile(0.9)
+    # Confidence models only (q10/q90 interval width).
+    q_lo = _fit_quantile(0.1, sw_lo)
+    q_hi = _fit_quantile(0.9, sw_hi)
 
     # The additive model's ADJUSTMENT term: sum(ADJ_TERMS) - each already a
     # complete, shrunk +/- (per-horse from build_features, or track_barrier
