@@ -204,6 +204,8 @@ function App() {
             bases={bases}
             scratched={scratched}
             initialDate={urlState.date}
+            showBush={showBush}
+            onShowBushChange={setShowBush}
             onSelectRace={goToRace}
           />
         )}
