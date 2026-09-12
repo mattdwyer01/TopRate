@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
@@ -294,17 +294,38 @@ export function RaceDetail({
             )
           })}
         </div>
-        {sortedRunners.map((runner) => (
-          <RunnerRow
-            key={runner.runId}
-            runner={runner}
-            raceDate={race.date}
-            compact={compact}
-            selected={runner.runId === selectedRunId}
-            effective={effectiveByRunId[runner.runId]}
-            onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
-          />
-        ))}
+        {sortedRunners.map((runner, i) => {
+          // Gap-from-top marker lines: only meaningful when the list is
+          // actually grouped by rating (Proj sort) - otherwise "within 3/4
+          // WPR of the top pick" runners aren't necessarily contiguous, and
+          // a line would land at a fairly arbitrary-looking spot. Detected
+          // as a transition (this row qualifies, the next doesn't) so it
+          // still works under either sort direction, not just descending.
+          const gap = effectiveByRunId[runner.runId]?.gapFromTop
+          const nextGap =
+            i + 1 < sortedRunners.length ? effectiveByRunId[sortedRunners[i + 1].runId]?.gapFromTop : undefined
+          const showBoundary = sortKey === 'projectedWpr' && gap != null
+          const show3 = showBoundary && gap <= 3 && (nextGap == null || nextGap === undefined || nextGap > 3)
+          const show4 = showBoundary && gap <= 4 && (nextGap == null || nextGap === undefined || nextGap > 4)
+          return (
+            <Fragment key={runner.runId}>
+              <RunnerRow
+                runner={runner}
+                raceDate={race.date}
+                compact={compact}
+                selected={runner.runId === selectedRunId}
+                effective={effectiveByRunId[runner.runId]}
+                onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
+              />
+              {show3 && (
+                <div className="h-[3px] w-full bg-amber" title="3 WPR points from the top-rated runner" />
+              )}
+              {show4 && (
+                <div className="h-[3px] w-full bg-indigo" title="4 WPR points from the top-rated runner" />
+              )}
+            </Fragment>
+          )
+        })}
       </div>
 
       {/* Scratched runners are excluded, not just visually - the speed map
