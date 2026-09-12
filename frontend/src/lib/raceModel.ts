@@ -28,6 +28,13 @@ const PRICE_CAP = 999
 // PRICE_BETA is always populated, kept only for defensiveness.
 const DEFAULT_BETA = 0.4
 
+// An overlay far behind the top-rated runner isn't a useful highlight - it's
+// asking to back a horse the model itself doesn't rate as a real chance just
+// because the market's price on it happens to be even longer. User decision
+// (Sep 2026) to cap the highlight at the same 4-WPR marker line shown in the
+// table, rather than surfacing every overlay regardless of how unlikely.
+const OVERLAY_MAX_GAP_FROM_TOP = 4
+
 // Replicates wpr_projection.py's project_race() price/rank softmax
 // EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
 // model's own projectedWpr, or a manually entered base for a runner the
@@ -88,15 +95,22 @@ export function computeEffectiveRace(
   for (const r of withEffectiveWpr) {
     const effectivePrice = r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null
     const marketPrice = marketPriceByRunId.get(r.runId) ?? null
+    const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
       scratched: r.scratched,
-      gapFromTop: r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null,
+      gapFromTop,
       isOverlay:
-        !r.scratched && effectivePrice != null && marketPrice != null && marketPrice > 1 && marketPrice > effectivePrice,
+        !r.scratched &&
+        effectivePrice != null &&
+        marketPrice != null &&
+        marketPrice > 1 &&
+        marketPrice > effectivePrice &&
+        gapFromTop != null &&
+        gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP,
     }
   }
   return result
