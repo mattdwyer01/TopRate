@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import { Pill } from '../../components/Pill'
+import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { todayIso } from '../../lib/meetings'
@@ -39,9 +40,24 @@ function stakeFor(price: number, returnUnits = 1): number {
   return returnUnits / (price - 1)
 }
 
+// Shared between the desktop table and the mobile card list below, so the
+// two never drift apart on what a result looks like.
+function ResultBadge({ runner }: { runner: Runner }) {
+  if (runner.finishPosition == null) return <span className="text-xs text-ink-faint">—</span>
+  return (
+    <span
+      className={`inline-flex min-w-[2.25rem] items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-xs font-semibold ${
+        runner.won ? 'bg-emerald-bg text-emerald-deep' : 'bg-rose-bg text-rose'
+      }`}
+    >
+      {runner.won ? 'WON' : runner.finishPosition}
+    </span>
+  )
+}
+
 // All overlays on one date, across every race - not filtered to a strategy
-// threshold beyond the same 4-WPR-from-top cap the race table's own overlay
-// highlight uses (see raceModel.ts's OVERLAY_MAX_GAP_FROM_TOP), so this tab
+// threshold beyond the same caps the race table's own overlay highlight uses
+// (raceModel.ts's OVERLAY_MAX_GAP_FROM_TOP / MIN_TOP_RATED_WPR), so this tab
 // and a highlighted race table always agree on what counts as an overlay.
 export function OverlaysTab({
   races,
@@ -84,6 +100,23 @@ export function OverlaysTab({
     return rows
   }, [dayRaces, deltas, bases, priceBeta, scratched])
 
+  // Precomputed once, not per-row during render: which rows start a new
+  // race group (so the venue/race/time label only prints once, with a
+  // heavier top border), and which alternating group they belong to (for
+  // the zebra tint) - a race that produced 2+ overlays used to repeat its
+  // own venue/time text on every row, which was the main reason this list
+  // was hard to scan.
+  const groupedOverlays = useMemo(() => {
+    let groupIndex = -1
+    let prevRaceId: string | null = null
+    return overlays.map((o) => {
+      const isNewRace = o.race.raceId !== prevRaceId
+      if (isNewRace) groupIndex += 1
+      prevRaceId = o.race.raceId
+      return { ...o, isNewRace, groupIndex }
+    })
+  }, [overlays])
+
   const resulted = overlays.filter((o) => o.runner.finishPosition != null)
   const summary = useMemo(() => {
     if (resulted.length === 0) return null
@@ -122,80 +155,148 @@ export function OverlaysTab({
         />
       </div>
 
-      <div className="rounded-lg border border-line bg-panel p-3 text-sm text-ink-mute">
-        <p>
-          <span className="font-semibold text-ink">{overlays.length}</span> overlay
-          {overlays.length === 1 ? '' : 's'} on {date} - market price longer than our fair WPR $ price, within 4 WPR
-          points of the top-rated runner in its race, and only in races where that top-rated runner is itself rated
-          over 80.
-        </p>
-        {summary && (
-          <p className="mt-1">
-            <span className="font-semibold text-ink">{summary.n}</span> resulted so far &middot; strike{' '}
-            <span className="font-semibold text-ink">{(summary.strike * 100).toFixed(1)}%</span> &middot; ROI{' '}
-            <span className={`font-semibold ${summary.roi >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>
-              {summary.roi >= 0 ? '+' : ''}
-              {(summary.roi * 100).toFixed(1)}%
-            </span>{' '}
-            ({summary.profit >= 0 ? '+' : ''}
-            {summary.profit.toFixed(2)}u, proportional staking)
-          </p>
-        )}
-        <p className="mt-1 text-xs text-ink-faint">
-          One day's numbers are noise, not a signal - the ~67-day backtest behind this feature found "bet every
-          overlay" loses money on average. Useful for tracking outcomes over time, not for judging any single day.
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <StatTile label="Overlays" value={String(overlays.length)} sublabel={date} />
+          <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far today" />
+          <StatTile
+            label="Strike"
+            value={summary ? `${(summary.strike * 100).toFixed(1)}%` : '—'}
+            tone={summary ? 'default' : 'muted'}
+          />
+          <StatTile
+            label="ROI"
+            value={summary ? `${summary.roi >= 0 ? '+' : ''}${(summary.roi * 100).toFixed(1)}%` : '—'}
+            sublabel={summary ? `${summary.profit >= 0 ? '+' : ''}${summary.profit.toFixed(2)}u staked proportionally` : undefined}
+            tone={summary ? (summary.roi >= 0 ? 'positive' : 'negative') : 'muted'}
+          />
+        </div>
+        <p className="text-xs text-ink-faint">
+          Market price longer than our fair WPR $ price, within 4 WPR points of the top-rated runner in its race, and
+          only in races where that top-rated runner is itself rated over 80. One day's numbers are noise, not a
+          signal - the ~67-day backtest behind this feature found "bet every overlay" loses money on average. Useful
+          for tracking outcomes over time, not for judging any single day.
         </p>
       </div>
 
       {overlays.length === 0 ? (
-        <EmptyState message={`No overlays within 4 WPR of the top pick on ${date}.`} />
+        <EmptyState message={`No overlays on ${date} matching the current filters.`} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <>
+          {/* Mobile: cards, not a horizontally-scrolled table - this table has
+              no sticky column to keep the horse/race in view while scrolling
+              sideways (unlike RaceDetail's runner grid), so squeezing it into
+              a phone width just hides WPR $/Fixed $/Result off-screen with no
+              obvious way to reach them. One card per race, its overlays
+              stacked inside, keeps every value visible without scrolling. */}
+          <div className="flex flex-col gap-2 sm:hidden">
+            {(() => {
+              const byRace = new Map<string, typeof groupedOverlays>()
+              for (const o of groupedOverlays) {
+                const key = o.race.raceId
+                if (!byRace.has(key)) byRace.set(key, [])
+                byRace.get(key)!.push(o)
+              }
+              return [...byRace.values()].map((group) => (
+                <div key={group[0].race.raceId} className="rounded-lg border border-line bg-panel p-3">
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="font-medium text-ink">
+                      {group[0].race.venue} R{group[0].race.raceNumber}
+                    </span>
+                    <span className="font-mono text-xs text-ink-faint">{formatTimeOfDay(group[0].race.startTime)}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {group.map((o) => (
+                      <div
+                        key={o.runner.runId}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onSelectRace(o.race.raceId, o.race.date, o.runner.runId)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onSelectRace(o.race.raceId, o.race.date, o.runner.runId)
+                          }
+                        }}
+                        className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-line-soft px-2.5 py-2 hover:bg-emerald-bg/30"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-ink">
+                            {o.runner.tabNumber}. {o.runner.horse}
+                          </div>
+                          <div className="font-mono text-xs text-ink-mute">
+                            Gap {o.gapFromTop.toFixed(1)} &middot; WPR {fmtPrice(o.effectivePrice)} &middot; Fixed{' '}
+                            {fmtPrice(o.marketPrice)}
+                          </div>
+                        </div>
+                        <ResultBadge runner={o.runner} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-panel sm:block">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                <th className="px-3 py-2 text-left">Time</th>
                 <th className="px-3 py-2 text-left">Race</th>
                 <th className="px-3 py-2 text-left">Horse</th>
-                <th className="px-3 py-2 text-right">Gap</th>
+                <th className="px-3 py-2 text-right" title="WPR points behind the field's top-rated runner">
+                  Gap
+                </th>
                 <th className="px-3 py-2 text-right">WPR $</th>
                 <th className="px-3 py-2 text-right">Fixed $</th>
-                <th className="px-3 py-2 text-right">FP</th>
+                <th className="px-3 py-2 text-center">Result</th>
               </tr>
             </thead>
             <tbody>
-              {overlays.map((o) => (
-                <tr
-                  key={o.runner.runId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onSelectRace(o.race.raceId, o.race.date, o.runner.runId)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onSelectRace(o.race.raceId, o.race.date, o.runner.runId)
-                    }
-                  }}
-                  className="cursor-pointer border-b border-line-soft last:border-b-0 hover:bg-emerald-bg/30"
-                >
-                  <td className="px-3 py-2 font-mono text-ink-mute">{formatTimeOfDay(o.race.startTime)}</td>
-                  <td className="px-3 py-2 text-ink-mute">
-                    {o.race.venue} R{o.race.raceNumber}
-                  </td>
-                  <td className="px-3 py-2 font-medium text-ink">
-                    {o.runner.tabNumber}. {o.runner.horse}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">{o.gapFromTop.toFixed(1)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.effectivePrice)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.marketPrice)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">
-                    {o.runner.finishPosition != null ? (o.runner.won ? `${o.runner.finishPosition} ✓` : o.runner.finishPosition) : ''}
-                  </td>
-                </tr>
-              ))}
+              {groupedOverlays.map((o) => {
+                const zebra = o.groupIndex % 2 === 1 ? 'bg-bg/60' : ''
+                return (
+                  <tr
+                    key={o.runner.runId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectRace(o.race.raceId, o.race.date, o.runner.runId)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onSelectRace(o.race.raceId, o.race.date, o.runner.runId)
+                      }
+                    }}
+                    className={`cursor-pointer border-b border-line-soft last:border-b-0 hover:bg-emerald-bg/30 ${zebra} ${
+                      o.isNewRace && o.groupIndex > 0 ? 'border-t-2 border-t-line' : ''
+                    }`}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 align-top text-ink-mute">
+                      {o.isNewRace && (
+                        <>
+                          <div className="font-mono text-xs text-ink-faint">{formatTimeOfDay(o.race.startTime)}</div>
+                          <div className="font-medium text-ink">
+                            {o.race.venue} R{o.race.raceNumber}
+                          </div>
+                        </>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-ink">
+                      {o.runner.tabNumber}. {o.runner.horse}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-ink-mute">{o.gapFromTop.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.effectivePrice)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-ink-mute">{fmtPrice(o.marketPrice)}</td>
+                    <td className="px-3 py-2 text-center">
+                      <ResultBadge runner={o.runner} />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   )
