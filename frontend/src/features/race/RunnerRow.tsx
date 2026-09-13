@@ -101,9 +101,9 @@ export function RunnerRow({
   const stickyBg = selected
     ? 'bg-emerald-bg'
     : drifted
-      ? 'bg-amber-line/40 group-hover:bg-amber-line/55'
+      ? 'bg-amber-line/20 group-hover:bg-amber-line/35'
       : isOverlay || backedIn
-        ? 'bg-emerald-line/40 group-hover:bg-emerald-line/55'
+        ? 'bg-emerald-line/20 group-hover:bg-emerald-line/35'
         : 'bg-panel group-hover:bg-bg'
 
   return (
@@ -137,9 +137,9 @@ export function RunnerRow({
           : selected
             ? 'bg-emerald-bg'
             : drifted
-              ? 'bg-amber-line/40 hover:bg-amber-line/55'
+              ? 'bg-amber-line/20 hover:bg-amber-line/35'
               : isOverlay || backedIn
-                ? 'bg-emerald-line/40 hover:bg-emerald-line/55'
+                ? 'bg-emerald-line/20 hover:bg-emerald-line/35'
                 : 'hover:bg-bg'
       }`}
     >
