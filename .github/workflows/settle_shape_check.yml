@@ -1,0 +1,119 @@
+name: TopRate Settle/Shape Prediction Check
+
+# Manual only. Compares TopRate's own PRE-race race-shape (rs_label/
+# rs_score) and settle-position (_settling) predictions, as recorded in
+# toprate_runners.csv at prediction time, against the ACTUAL post-race
+# values toprate.au itself reports for the same races.
+#
+# Why this exists (Sep 2026, see chat): wpr_form_history.csv.gz's own
+# actual-shape backfill only fires when a horse races AGAIN (see
+# toprate_daily._enrich_form_history_rich), which measured out at well
+# under 5% real coverage per day for a 30-day window when checked
+# directly - nowhere near enough to validate predictions against.
+# race_results_*.csv.gz (backfill_race_results.py's bulk meetings/{id}/
+# history fetch) does not have that limitation, so this workflow
+# refreshes it for the requested window first, then runs the
+# comparison. See wpr_settle_shape_prediction_check.py's own docstring
+# for the full reasoning, including why the settle-position half may
+# currently report "no data" (positionSettled has been confirmed absent
+# from this endpoint's payload, a real upstream gap, not a bug here).
+#
+# Fetch/merge/commit steps here deliberately duplicate
+# backfill_race_results.yml's own steps rather than sharing them - see
+# backfill_race_results.py's own module docstring for why this project
+# already accepts that tradeoff elsewhere (a small amount of fetch/auth
+# boilerplate duplicated per script/workflow, rather than one shared
+# path multiple jobs depend on).
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'How many days back to check (default 30)'
+        required: false
+        type: string
+        default: '30'
+
+concurrency:
+  group: toprate-settle-shape-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compute since-date
+        id: since
+        run: |
+          DAYS="${{ inputs.days }}"
+          [ -z "$DAYS" ] && DAYS=30
+          SINCE=$(TZ=Australia/Melbourne date -d "-$DAYS days" +%Y-%m-%d)
+          echo "date=$SINCE" >> "$GITHUB_OUTPUT"
+          echo "Checking window: $SINCE to today"
+
+      # ─────────────────────────────────────────────────────────
+      # Refresh race_results_*.csv.gz for the window being checked.
+      # Same fetch-only/merge-only split as backfill_race_results.yml
+      # (see that script's SAFETY docstring for why the fetch and
+      # write phases stay decoupled) - always --commit here since the
+      # comparison step below needs the merged CSV to actually exist
+      # on disk, not just a dry-run report of what would change.
+      # ─────────────────────────────────────────────────────────
+      - name: Fetch race results
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python backfill_race_results.py --fetch-only backfill_race_results.json --since "${{ steps.since.outputs.date }}"
+
+      - name: Merge and commit race_results_*.csv.gz
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pushed=false
+          for i in 1 2 3 4 5; do
+            python backfill_race_results.py --merge-only backfill_race_results.json --commit
+            git add race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint 2>/dev/null || true
+            if [[ -z "$(git status --porcelain -- race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint)" ]]; then
+              echo "No changes to commit"
+              pushed=true
+              break
+            fi
+            git commit -m "Backfill race results for settle/shape check $(date -u +%Y-%m-%dT%H:%MZ)"
+            if timeout 90 git push; then
+              echo "Pushed on attempt $i"
+              pushed=true
+              break
+            fi
+            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            timeout 60 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            git reset --hard "origin/${{ github.ref_name }}" || true
+            sleep $((5 + RANDOM % 10))
+          done
+          if [ "$pushed" != "true" ]; then
+            echo "::error::Failed to push race_results_*.csv.gz after all retries - the comparison step below will still run against whatever is already on disk."
+          fi
+
+      # ─────────────────────────────────────────────────────────
+      # The comparison itself - read-only, nothing to commit. Report
+      # lands in the job log; look there for the confusion matrices.
+      # ─────────────────────────────────────────────────────────
+      - name: Compare predicted vs actual settle position and race shape
+        run: |
+          python wpr_settle_shape_prediction_check.py --since "${{ steps.since.outputs.date }}"
