@@ -16,6 +16,21 @@ export interface EffectiveRunner {
   // needs to reflect manual overrides and live market price, not whatever
   // was true whenever the backend last computed it.
   isOverlay: boolean
+  // true when this runner was a MATERIAL underlay at today's open price
+  // (market shorter than our fair price by a real margin) and has since
+  // drifted into being an overlay right now. Flagged, not excluded (user
+  // decision, Sep 2026) - anecdotal and small-sample evidence (22 cases,
+  // not yet statistically significant) suggests this specific pattern is a
+  // bad sign, not a buying opportunity: the market often knows something
+  // (gear, vet, stable mood) the model doesn't. See chat for the backing
+  // analysis (price_drift_analysis.py).
+  driftedToOverlay: boolean
+  // The mirror case: a MATERIAL overlay at open that's since been backed
+  // into an underlay right now - never shows up as an overlay itself (by
+  // definition it's now priced shorter than our fair value), so it needs
+  // its own flag to be visible at all. Informational, not a warning - the
+  // one real example checked in chat (Headley Grange, Sep 2026) won.
+  firmedToUnderlay: boolean
 }
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
@@ -48,6 +63,17 @@ const OVERLAY_MAX_GAP_FROM_TOP = 4
 // the 80-82 band) - kept here as one constant so it's easy to revisit once
 // there's more data to actually fit this threshold properly.
 const MIN_TOP_RATED_WPR = 80
+
+// "Material" thresholds for the open-vs-now price-drift flags below: the
+// open price has to be at least 15% away from our fair price in the
+// relevant direction, not just noise-level movement. Chosen to comfortably
+// catch the two real examples checked in chat (Private Eye: open $3.80 vs
+// fair $4.71, ratio 0.807; Headley Grange: open $4.80 vs fair $4.06, ratio
+// 1.182) without needing to match the Python backtest's probability-edge
+// threshold exactly - this is a separate, price-based heuristic for a live
+// UI flag, not the same computation.
+const MATERIAL_UNDERLAY_AT_OPEN_RATIO = 0.85
+const MATERIAL_OVERLAY_AT_OPEN_RATIO = 1.15
 
 // Replicates wpr_projection.py's project_race() price/rank softmax
 // EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
@@ -106,12 +132,24 @@ export function computeEffectiveRace(
   const marketPriceByRunId = new Map<string, number | null>(
     runners.map((r) => [r.runId, r.fixedWinPrice ?? r.startingPrice ?? null]),
   )
+  const openPriceByRunId = new Map<string, number | null>(runners.map((r) => [r.runId, r.openFixedPrice ?? null]))
 
   const result: Record<string, EffectiveRunner> = {}
   for (const r of withEffectiveWpr) {
     const effectivePrice = r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null
     const marketPrice = marketPriceByRunId.get(r.runId) ?? null
+    const openPrice = openPriceByRunId.get(r.runId) ?? null
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
+    const isOverlay =
+      !r.scratched &&
+      effectivePrice != null &&
+      marketPrice != null &&
+      marketPrice > 1 &&
+      marketPrice > effectivePrice &&
+      gapFromTop != null &&
+      gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP &&
+      topRatedWpr != null &&
+      topRatedWpr > MIN_TOP_RATED_WPR
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
       effectivePrice,
@@ -119,16 +157,19 @@ export function computeEffectiveRace(
       hasOverride: r.hasOverride,
       scratched: r.scratched,
       gapFromTop,
-      isOverlay:
+      isOverlay,
+      driftedToOverlay:
+        isOverlay &&
+        openPrice != null &&
+        effectivePrice != null &&
+        openPrice <= effectivePrice * MATERIAL_UNDERLAY_AT_OPEN_RATIO,
+      firmedToUnderlay:
         !r.scratched &&
+        openPrice != null &&
         effectivePrice != null &&
         marketPrice != null &&
-        marketPrice > 1 &&
-        marketPrice > effectivePrice &&
-        gapFromTop != null &&
-        gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP &&
-        topRatedWpr != null &&
-        topRatedWpr > MIN_TOP_RATED_WPR,
+        openPrice >= effectivePrice * MATERIAL_OVERLAY_AT_OPEN_RATIO &&
+        marketPrice < effectivePrice,
     }
   }
   return result

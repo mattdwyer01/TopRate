@@ -37,6 +37,7 @@ interface OverlayRow {
   effectivePrice: number
   gapFromTop: number
   marketPrice: number
+  driftedToOverlay: boolean
 }
 
 // Proportional staking: size the stake so a win returns a fixed TOTAL
@@ -48,6 +49,21 @@ interface OverlayRow {
 // across price tiers, not just a scale factor).
 function stakeFor(price: number, returnUnits = 4): number {
   return returnUnits / price
+}
+
+// Flags an overlay that was a material underlay at today's open price and
+// has since drifted into overlay territory - see raceModel.ts's
+// driftedToOverlay for the full reasoning. Warning, not exclusion (user
+// decision, Sep 2026).
+function DriftBadge() {
+  return (
+    <span
+      title="Was a material underlay at today's open price, has since drifted into an overlay - a possible bad sign (market may know something the model doesn't), not a validated buy signal"
+      className="flex-none rounded bg-amber-bg px-1 text-[10px] font-semibold text-amber"
+    >
+      ⚠ drift
+    </span>
+  )
 }
 
 // Shared between the desktop table and the mobile card list below, so the
@@ -143,6 +159,7 @@ export function OverlaysTab({
           effectivePrice: eff.effectivePrice,
           gapFromTop: eff.gapFromTop,
           marketPrice,
+          driftedToOverlay: eff.driftedToOverlay,
         })
       }
     }
@@ -286,8 +303,11 @@ export function OverlaysTab({
                           <span className="h-8 w-8 flex-none" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="truncate font-medium text-ink">
-                            {o.runner.tabNumber}. {o.runner.horse}
+                          <div className="flex items-center gap-1">
+                            <span className="truncate font-medium text-ink">
+                              {o.runner.tabNumber}. {o.runner.horse}
+                            </span>
+                            {o.driftedToOverlay && <DriftBadge />}
                           </div>
                           <div className="font-mono text-xs text-ink-mute">
                             <span className="font-semibold text-emerald-deep">{fmtWpr(o.wpr)}</span> &middot; Gap{' '}
@@ -355,7 +375,12 @@ export function OverlaysTab({
                       ) : null}
                     </td>
                     <td className="px-3 py-2 font-medium text-ink">
-                      {o.runner.tabNumber}. {o.runner.horse}
+                      <div className="flex items-center gap-1">
+                        <span>
+                          {o.runner.tabNumber}. {o.runner.horse}
+                        </span>
+                        {o.driftedToOverlay && <DriftBadge />}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-semibold text-emerald-deep">{fmtWpr(o.wpr)}</td>
                     <td className="px-3 py-2 text-right font-mono text-ink-mute">{o.gapFromTop.toFixed(1)}</td>
