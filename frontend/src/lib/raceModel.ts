@@ -46,9 +46,16 @@ const DEFAULT_BETA = 0.4
 // An overlay far behind the top-rated runner isn't a useful highlight - it's
 // asking to back a horse the model itself doesn't rate as a real chance just
 // because the market's price on it happens to be even longer. User decision
-// (Sep 2026) to cap the highlight at the same 4-WPR marker line shown in the
+// (Sep 2026) to cap the highlight at the same 5-WPR marker line shown in the
 // table, rather than surfacing every overlay regardless of how unlikely.
-const OVERLAY_MAX_GAP_FROM_TOP = 4
+// Raised from 4 to 5 (Sep 2026) after a backtest showed the extra gap-4-to-5
+// bets are statistically indistinguishable from the existing gap<=4 bucket
+// (n=903, ROI -7.6%, p=0.35, vs the baseline's own -8.9%, p=0.10) - moving
+// the line to 5 costs nothing and gains a modest amount of coverage. Beyond
+// 5, strike rate keeps falling (5-6: 5.2% dropping to 12+: 1.1%) and a
+// 75-vs-80 top-rated relaxation tested clearly worse (-16.5% on the added
+// bets, p=0.001), so that threshold (MIN_TOP_RATED_WPR below) stayed put.
+const OVERLAY_MAX_GAP_FROM_TOP = 5
 
 // Overlays are suppressed race-wide when the field's own top-rated runner
 // is below this WPR - a weak top pick (a modest horse that's merely the
