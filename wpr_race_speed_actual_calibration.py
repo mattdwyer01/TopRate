@@ -116,7 +116,11 @@ def load_actual_shape(years):
         p = HERE / f"race_results_{y}.csv.gz"
         if not p.exists():
             continue
-        frames.append(pd.read_csv(p, low_memory=False,
+        # race_id as str explicitly - load_runners() (toprate_daily.py)
+        # also loads race_id as str, and pandas otherwise infers this
+        # file's race_id as int64, which fails the merge in main() with
+        # "You are trying to merge on str and int64 columns".
+        frames.append(pd.read_csv(p, low_memory=False, dtype={"race_id": str},
                                    usecols=["race_id", "raceShapeEarly"]))
     if not frames:
         return pd.DataFrame(columns=["race_id", "raceShapeEarly"])
@@ -180,6 +184,10 @@ def main():
     ap.add_argument("--commit", action="store_true",
                     help="write the new thresholds to race_speed_config.json and backfill "
                          "rs_score/rs_label onto toprate_runners.csv. Default is dry-run.")
+    ap.add_argument("--cache", default=None,
+                    help="path to cache/reuse the (expensive, ~7min) live-scoring pass output "
+                         "as a pickle - use the same path across reruns while iterating on the "
+                         "fit/report logic so only the join+calibration part reruns.")
     args = ap.parse_args()
 
     print("Loading model + form history...")
@@ -188,7 +196,15 @@ def main():
 
     print("Loading runners_df...")
     runners_df = load_runners()
-    scored = score_all(runners_df, fh)
+
+    if args.cache and Path(args.cache).exists():
+        print(f"Loading cached scoring pass from {args.cache} (delete it to force a rescore)...")
+        scored = pd.read_pickle(args.cache)
+    else:
+        scored = score_all(runners_df, fh)
+        if args.cache:
+            scored.to_pickle(args.cache)
+            print(f"Cached scoring pass to {args.cache}")
     scored["year"] = pd.to_datetime(scored["date"]).dt.year
 
     print("\nLoading actual raceShapeEarly from race_results_*.csv.gz...")
