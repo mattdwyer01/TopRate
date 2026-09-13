@@ -5,6 +5,7 @@ import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
 import { computeEffectiveRace } from '../../lib/raceModel'
 import { todayIso, bushMeetingKeys, meetingKey } from '../../lib/meetings'
+import { useExcludedTracks } from '../../lib/excludedTracks'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 
@@ -80,6 +81,7 @@ export function OverlaysTab({
   onSelectRace,
 }: OverlaysTabProps) {
   const [date, setDate] = useState(() => initialDate ?? todayIso())
+  const { excludedTracks, toggleTrack } = useExcludedTracks()
 
   const dateRaces = useMemo(() => races.filter((r) => r.date === date), [races, date])
 
@@ -87,7 +89,7 @@ export function OverlaysTab({
   // meetings grid - a shared preference, not a separate default per tab.
   const bushCount = useMemo(() => bushMeetingKeys(dateRaces).size, [dateRaces])
 
-  const dayRaces = useMemo(() => {
+  const dayRacesBeforeTrackFilter = useMemo(() => {
     const withoutBush = showBush
       ? dateRaces
       : (() => {
@@ -96,6 +98,26 @@ export function OverlaysTab({
         })()
     return [...withoutBush].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
   }, [dateRaces, showBush])
+
+  // Venues actually on offer today (post-bush-filter) - what the track-filter
+  // pills below list, in first-race order rather than alphabetically so the
+  // row roughly matches the day's running order.
+  const venuesToday = useMemo(() => {
+    const seen = new Set<string>()
+    const ordered: string[] = []
+    for (const r of dayRacesBeforeTrackFilter) {
+      if (!seen.has(r.venue)) {
+        seen.add(r.venue)
+        ordered.push(r.venue)
+      }
+    }
+    return ordered
+  }, [dayRacesBeforeTrackFilter])
+
+  const dayRaces = useMemo(
+    () => dayRacesBeforeTrackFilter.filter((r) => !excludedTracks.has(r.venue)),
+    [dayRacesBeforeTrackFilter, excludedTracks],
+  )
 
   const overlays = useMemo(() => {
     const rows: OverlayRow[] = []
@@ -186,6 +208,20 @@ export function OverlaysTab({
           </Pill>
         )}
       </div>
+
+      {venuesToday.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-ink-mute">Tracks:</span>
+          {venuesToday.map((venue) => {
+            const excluded = excludedTracks.has(venue)
+            return (
+              <Pill key={venue} active={!excluded} onClick={() => toggleTrack(venue)}>
+                {excluded ? `${venue} ✕` : venue}
+              </Pill>
+            )
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Overlays" value={String(overlays.length)} sublabel={date} />
