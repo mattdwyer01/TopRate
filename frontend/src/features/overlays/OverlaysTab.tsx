@@ -184,28 +184,20 @@ export function OverlaysTab({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatTile label="Overlays" value={String(overlays.length)} sublabel={date} />
-          <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far today" />
-          <StatTile
-            label="Strike"
-            value={summary ? `${(summary.strike * 100).toFixed(1)}%` : '—'}
-            tone={summary ? 'default' : 'muted'}
-          />
-          <StatTile
-            label="ROI"
-            value={summary ? `${summary.roi >= 0 ? '+' : ''}${(summary.roi * 100).toFixed(1)}%` : '—'}
-            sublabel={summary ? `${summary.profit >= 0 ? '+' : ''}${summary.profit.toFixed(2)}u staked proportionally` : undefined}
-            tone={summary ? (summary.roi >= 0 ? 'positive' : 'negative') : 'muted'}
-          />
-        </div>
-        <p className="text-xs text-ink-faint">
-          Market price longer than our fair WPR $ price, within 4 WPR points of the top-rated runner in its race, and
-          only in races where that top-rated runner is itself rated over 80. One day's numbers are noise, not a
-          signal - the ~67-day backtest behind this feature found "bet every overlay" loses money on average. Useful
-          for tracking outcomes over time, not for judging any single day.
-        </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <StatTile label="Overlays" value={String(overlays.length)} sublabel={date} />
+        <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far today" />
+        <StatTile
+          label="Strike"
+          value={summary ? `${(summary.strike * 100).toFixed(1)}%` : '—'}
+          tone={summary ? 'default' : 'muted'}
+        />
+        <StatTile
+          label="ROI"
+          value={summary ? `${summary.roi >= 0 ? '+' : ''}${(summary.roi * 100).toFixed(1)}%` : '—'}
+          sublabel={summary ? `${summary.profit >= 0 ? '+' : ''}${summary.profit.toFixed(2)}u staked proportionally` : undefined}
+          tone={summary ? (summary.roi >= 0 ? 'positive' : 'negative') : 'muted'}
+        />
       </div>
 
       {overlays.length === 0 ? (
