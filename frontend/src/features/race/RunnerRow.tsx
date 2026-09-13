@@ -166,6 +166,22 @@ export function RunnerRow({
               SCR
             </span>
           )}
+          {effective?.driftedToOverlay && (
+            <span
+              title="Was a material underlay at today's open price, has since drifted into an overlay - a possible bad sign (market may know something the model doesn't), not a validated buy signal"
+              className="flex-none rounded bg-amber-bg px-1 text-[10px] font-semibold text-amber"
+            >
+              ⚠ drift
+            </span>
+          )}
+          {effective?.firmedToUnderlay && (
+            <span
+              title="Was a material overlay at today's open price, has since been backed into an underlay - the market has grown more confident in this runner than it started (and than our own price)"
+              className="flex-none rounded bg-emerald-bg px-1 text-[10px] font-semibold text-emerald-deep"
+            >
+              ▲ backed in
+            </span>
+          )}
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
