@@ -38,12 +38,15 @@ interface OverlayRow {
   marketPrice: number
 }
 
-// Same proportional-staking formula used throughout this session's backtests
-// (stake sized so a win always profits exactly 1 unit) - kept identical here
-// so this tab's numbers are directly comparable to anything discussed in
-// chat, not a different convention.
-function stakeFor(price: number, returnUnits = 1): number {
-  return returnUnits / (price - 1)
+// Proportional staking: size the stake so a win returns a fixed TOTAL
+// (stake + profit) of returnUnits, not a fixed profit - e.g. at $50/unit,
+// backing a $5 chance to return 4 units ($200) means staking $40 (0.8
+// units), since stake * price = returnUnits. User-corrected Sep 2026 (an
+// earlier version sized stake as returnUnits/(price-1), which fixes the
+// PROFIT at 1 unit instead - a materially different relative weighting
+// across price tiers, not just a scale factor).
+function stakeFor(price: number, returnUnits = 4): number {
+  return returnUnits / price
 }
 
 // Shared between the desktop table and the mobile card list below, so the
