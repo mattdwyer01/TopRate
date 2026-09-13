@@ -98,12 +98,19 @@ export function RunnerRow({
   // soon as you scroll it sideways. `group` + group-hover carries the
   // row's :hover state down to them (JS can't see :hover); scratched/
   // selected are already computed here, so those branch directly.
+  // isOverlay/drifted/backedIn use FLAT (non-alpha) tint tokens, not a
+  // bg-color/NN opacity utility - two stacked alpha layers of the same
+  // nominal color
+  // (this cell painted on top of the row's own background) visibly
+  // double-composite into a darker block under just the sticky columns,
+  // which a user spotted from a live screenshot (Sep 2026). A flat color
+  // paints identically here and on the row div with no seam.
   const stickyBg = selected
     ? 'bg-emerald-bg'
     : drifted
-      ? 'bg-amber-line/20 group-hover:bg-amber-line/35'
+      ? 'bg-amber-tint group-hover:bg-amber-tint-hover'
       : isOverlay || backedIn
-        ? 'bg-emerald-line/20 group-hover:bg-emerald-line/35'
+        ? 'bg-emerald-tint group-hover:bg-emerald-tint-hover'
         : 'bg-panel group-hover:bg-bg'
 
   return (
@@ -137,9 +144,9 @@ export function RunnerRow({
           : selected
             ? 'bg-emerald-bg'
             : drifted
-              ? 'bg-amber-line/20 hover:bg-amber-line/35'
+              ? 'bg-amber-tint hover:bg-amber-tint-hover'
               : isOverlay || backedIn
-                ? 'bg-emerald-line/20 hover:bg-emerald-line/35'
+                ? 'bg-emerald-tint hover:bg-emerald-tint-hover'
                 : 'hover:bg-bg'
       }`}
     >

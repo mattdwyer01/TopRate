@@ -36,6 +36,25 @@
   --color-amber-bg: #fffbeb;
   --color-amber-line: #fde68a;
 
+  /* Flat (non-alpha) row-highlight tints for the race tables overlay,
+     drift, and backed-in states (RunnerRow.tsx) - the equivalent of
+     emerald-line/amber-line blended at roughly 20%/35% onto the panels
+     white, baked into solid colors rather than left as a bg-color/NN
+     opacity utility.
+     Needed because the sticky silk/name cells paint their own background
+     on top of the rows own background (to stay opaque while sticky-
+     scrolled, see the stickyBg comment in RunnerRow.tsx) - two stacked
+     alpha layers of the same nominal color visibly double-composite into
+     a darker block just under the sticky columns, a real bug a user
+     spotted from a live screenshot (Sep 2026: the horse name column read
+     visibly darker green than the rest of its own row). Flat colors can
+     be painted twice with no visible seam since the top layer simply
+     replaces the bottom one. */
+  --color-emerald-tint: #edfdf6;
+  --color-emerald-tint-hover: #e0fbef;
+  --color-amber-tint: #fefae8;
+  --color-amber-tint-hover: #fef6d6;
+
   /* Gold, for the ticker's "soon" tier only - amber (#d97706) reads fine as
      text/accents on light panels but goes muddy at low opacity over the
      ticker's dark navy bg. This is a brighter, more saturated yellow tuned
