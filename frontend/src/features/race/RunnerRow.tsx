@@ -53,6 +53,15 @@ export function RunnerRow({
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
   const scratched = effective?.scratched ?? false
   const isOverlay = effective?.isOverlay ?? false
+  // driftedToOverlay is always a subset of isOverlay (see raceModel.ts), so
+  // it takes over that row's tint (amber, a warning) rather than adding to
+  // it. firmedToUnderlay never overlaps isOverlay (by definition it's priced
+  // under our fair value), so it gets its own green tint on rows that would
+  // otherwise have none. Badges used to carry this instead of the row tint
+  // itself - moved to a highlight (Sep 2026) so it reads at a glance across
+  // a whole race rather than needing to spot small text next to each name.
+  const drifted = effective?.driftedToOverlay ?? false
+  const backedIn = effective?.firmedToUnderlay ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
   // Scratched: force both to null rather than falling back to the model's
   // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
@@ -91,9 +100,11 @@ export function RunnerRow({
   // selected are already computed here, so those branch directly.
   const stickyBg = selected
     ? 'bg-emerald-bg'
-    : isOverlay
-      ? 'bg-emerald-bg/25 group-hover:bg-emerald-bg/40'
-      : 'bg-panel group-hover:bg-bg'
+    : drifted
+      ? 'bg-amber-bg/25 group-hover:bg-amber-bg/40'
+      : isOverlay || backedIn
+        ? 'bg-emerald-bg/25 group-hover:bg-emerald-bg/40'
+        : 'bg-panel group-hover:bg-bg'
 
   return (
     // A div, not a button - a real scratch-toggle <button> needs to nest
@@ -111,15 +122,25 @@ export function RunnerRow({
           onClick()
         }
       }}
-      title={isOverlay ? 'Overlay: market price is longer than our fair (WPR $) price' : undefined}
+      title={
+        drifted
+          ? 'Was a material underlay at today\'s open price, has since drifted into an overlay - a possible bad sign (market may know something the model doesn\'t), not a validated buy signal'
+          : backedIn
+            ? 'Was a material overlay at today\'s open price, has since been backed into an underlay - the market has grown more confident in this runner than it started (and than our own price)'
+            : isOverlay
+              ? 'Overlay: market price is longer than our fair (WPR $) price'
+              : undefined
+      }
       className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
         scratched
           ? 'opacity-50'
           : selected
             ? 'bg-emerald-bg'
-            : isOverlay
-              ? 'bg-emerald-bg/25 hover:bg-emerald-bg/40'
-              : 'hover:bg-bg'
+            : drifted
+              ? 'bg-amber-bg/25 hover:bg-amber-bg/40'
+              : isOverlay || backedIn
+                ? 'bg-emerald-bg/25 hover:bg-emerald-bg/40'
+                : 'hover:bg-bg'
       }`}
     >
       <span className={`sticky left-0 z-10 -ml-2 pl-2 sm:static sm:z-auto sm:m-0 sm:p-0 ${stickyBg}`}>
@@ -164,22 +185,6 @@ export function RunnerRow({
               className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white"
             >
               SCR
-            </span>
-          )}
-          {effective?.driftedToOverlay && (
-            <span
-              title="Was a material underlay at today's open price, has since drifted into an overlay - a possible bad sign (market may know something the model doesn't), not a validated buy signal"
-              className="flex-none rounded bg-amber-bg px-1 text-[10px] font-semibold text-amber"
-            >
-              ⚠ drift
-            </span>
-          )}
-          {effective?.firmedToUnderlay && (
-            <span
-              title="Was a material overlay at today's open price, has since been backed into an underlay - the market has grown more confident in this runner than it started (and than our own price)"
-              className="flex-none rounded bg-emerald-bg px-1 text-[10px] font-semibold text-emerald-deep"
-            >
-              ▲ backed in
             </span>
           )}
         </span>
