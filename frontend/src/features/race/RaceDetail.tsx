@@ -296,16 +296,18 @@ export function RaceDetail({
         </div>
         {sortedRunners.map((runner, i) => {
           // Gap-from-top marker line: only meaningful when the list is
-          // actually grouped by rating (Proj sort) - otherwise "within 4 WPR
+          // actually grouped by rating (Proj sort) - otherwise "within 5 WPR
           // of the top pick" runners aren't necessarily contiguous, and the
           // line would land at a fairly arbitrary-looking spot. Detected as
           // a transition (this row qualifies, the next doesn't) so it still
-          // works under either sort direction, not just descending.
+          // works under either sort direction, not just descending. Kept in
+          // sync with raceModel.ts's OVERLAY_MAX_GAP_FROM_TOP (raised 4->5,
+          // Sep 2026) since this line exists specifically to show that cutoff.
           const gap = effectiveByRunId[runner.runId]?.gapFromTop
           const nextGap =
             i + 1 < sortedRunners.length ? effectiveByRunId[sortedRunners[i + 1].runId]?.gapFromTop : undefined
           const showBoundary = sortKey === 'projectedWpr' && gap != null
-          const show4 = showBoundary && gap <= 4 && (nextGap == null || nextGap === undefined || nextGap > 4)
+          const showGapLine = showBoundary && gap <= 5 && (nextGap == null || nextGap === undefined || nextGap > 5)
           return (
             <Fragment key={runner.runId}>
               <RunnerRow
@@ -316,11 +318,11 @@ export function RaceDetail({
                 effective={effectiveByRunId[runner.runId]}
                 onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
               />
-              {show4 && (
+              {showGapLine && (
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    4 WPR from top rated
+                    5 WPR from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
