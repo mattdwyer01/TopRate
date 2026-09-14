@@ -26,6 +26,18 @@ directly from build_training_frame's own output (project_race's
 already-debut-safe computation - see wpr_projection.py's days_since/
 runs_this_camp Aug 2026 bug-fix comment), not recomputed here.
 
+STALENESS FIX (found running this script, Sep 2026): wpr_slope_roi_test.py's
+fit_and_score reads f[wpr.ADJ_TERMS] directly, which now includes
+pop_distance/pop_going (added to ADJ_TERMS after wpr_slope_roi_test.py
+and wpr_slope_roi_metro_saturday_slice.py were last touched - Sep 11
+per that file's mtime) - neither script currently fits/applies them, so
+both would KeyError the same way this one did before this fix if run
+today unmodified. Added add_pop_distance_going() below, mirroring
+add_track_barrier/add_closing_merit's own established pattern (fit on
+fit_half via wpr._fit_simple_adj_model, apply to both halves via
+wpr._merit_term) rather than touching the shared fit_and_score - lower
+risk than editing a file other scripts still import unchanged.
+
 USAGE
   python wpr_slope_roi_first_up_slice.py
 
@@ -39,6 +51,32 @@ from wpr_slope_roi_test import fit_and_score, EDGE_THRESHOLDS
 import wpr_slope_roi_test as roi
 
 LONG_SPELL_DAYS = 180
+
+
+def add_pop_distance_going(fit_half, apply_frames):
+    """Fit pop_distance/pop_going on fit_half only (leak-free), apply to
+    every frame in apply_frames - same fit-on-one-half/apply-to-both
+    pattern add_track_barrier/add_closing_merit already use elsewhere in
+    this codebase, using the exact live feature sets/helpers
+    (wp._POP_DISTANCE_FEATURES/_POP_GOING_FEATURES, wp._fit_simple_adj_model,
+    wp._merit_term) project_race() itself uses at serving time."""
+    trn = fit_half.dropna(subset=["target", "career_avg"])
+    pd_model = wpr._fit_simple_adj_model(trn, wpr._POP_DISTANCE_FEATURES, "pop_distance")
+    pg_model = wpr._fit_simple_adj_model(trn, wpr._POP_GOING_FEATURES, "pop_going")
+    for frame in apply_frames:
+        frame["pop_distance"] = [
+            wpr._merit_term(v, fs, pd_model, wpr._POP_DISTANCE_FEATURES)
+            for v, fs in zip(frame["dist_vs_last"], frame["field_size"])
+        ]
+        frame["pop_going"] = [
+            wpr._merit_term(v, fs, pg_model, wpr._POP_GOING_FEATURES)
+            for v, fs in zip(frame["going_delta_aligned"], frame["field_size"])
+        ]
+
+
+def fit_and_score_with_pop(fit_half, held_out, fit_cutoff, slope):
+    add_pop_distance_going(fit_half, [fit_half, held_out])
+    return fit_and_score(fit_half, held_out, fit_cutoff, slope)
 
 
 def run():
@@ -71,9 +109,18 @@ def run():
         for ps, prs, fs in zip(full["pace_score"], full["predicted_rel_settle"], full["field_size"])
     ]
 
-    non_pop_terms = [t for t in wpr.ADJ_TERMS
-                     if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit", "pace_shape")]
-    full = full.dropna(subset=["target", "_base", "career_avg"] + non_pop_terms +
+    # own_first_up/own_second_up/own_long_spell come straight out of
+    # build_training_frame (0.0 when not applicable, never NaN); pop_distance/
+    # pop_going don't exist yet at this point (added per-half below via
+    # add_pop_distance_going). Deliberately NOT requiring dist_vs_last/
+    # going_delta_aligned to be non-null here - wpr._merit_term already
+    # has its own "value is None -> 0.0" fallback (the same "unseen ->
+    # 0" contract every population term uses live), so dropping rows on
+    # those two instead of letting that fallback fire would shrink the
+    # population and introduce a selection bias the shipped model itself
+    # doesn't have.
+    own_history_terms = ["own_first_up", "own_second_up", "own_long_spell"]
+    full = full.dropna(subset=["target", "_base", "career_avg"] + own_history_terms +
                         ["barrier", "field_size", "track", "cur_distance", "first_up", "days_since"])
     sp = pd.to_numeric(full["fixed_win_price"], errors="coerce")
     sp_fallback = pd.to_numeric(full["starting_price_sp"], errors="coerce")
@@ -90,8 +137,8 @@ def run():
 
     for slope, tag in [(0.1791, "shipped"), (1.00, "removed")]:
         print(f"\n{'#'*70}\n# SLOPE = {slope} ({tag})\n{'#'*70}")
-        h2_scored = fit_and_score(h1.copy(), h2.copy(), h1["date"].max(), slope)
-        h1_scored = fit_and_score(h2.copy(), h1.copy(), h2["date"].max(), slope)
+        h2_scored = fit_and_score_with_pop(h1.copy(), h2.copy(), h1["date"].max(), slope)
+        h1_scored = fit_and_score_with_pop(h2.copy(), h1.copy(), h2["date"].max(), slope)
         pooled = pd.concat([h1_scored, h2_scored], ignore_index=True)
 
         first_up = pooled[pooled["first_up"] == 1]
