@@ -96,6 +96,12 @@ jobs:
             exit 0
           fi
           git add toprate_runners.csv toprate_data.json
+          # Per-meeting horse form history files - only touched on the rare
+          # full-rebuild path (a real going change forces rebuild_html(), see
+          # CLAUDE.md), but git-tracked and was missing from this staging
+          # list (Sep 2026 bug) same as daily.yml/price_refresh.yml - see
+          # daily.yml's comment for the dirty-tree failure chain this risked.
+          [ -d horse_history ] && git add horse_history
           git commit -m "TAB live results $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry, same rationale as price_refresh.yml:
           # the daily workflow, manual pushes, and this job's own frequent

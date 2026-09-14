@@ -181,6 +181,18 @@ jobs:
           # WPR model artifacts - committed so toprate_daily.py can load them.
           # Static unless retrained, but staging them is harmless if unchanged.
           [ -d wpr_models ] && git add wpr_models
+          # Per-meeting horse form history files (build_horse_history_files(),
+          # called from rebuild_html() above) - git-tracked but was missing
+          # from this staging list (Sep 2026 bug), which left the working
+          # tree dirty on any run where it actually changed content. Harmless
+          # on a clean push, but the moment `git push` below got rejected by
+          # a concurrent push (e.g. the 5-min price_refresh.yml job) and fell
+          # back to `git pull --rebase`, git refused to start with unstaged
+          # changes present, the `git rebase --abort` fallback then failed
+          # too (no rebase was ever in progress), and under this script's
+          # `bash -e` that killed the whole retry loop on attempt 1 instead
+          # of retrying - see the 2026-09-14 run failures this caused.
+          [ -d horse_history ] && git add horse_history
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
             exit 0

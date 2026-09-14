@@ -79,6 +79,14 @@ jobs:
           # was still gitignored at the time (git add on an ignored path
           # exits 1) - it no longer is (see .gitignore), so this is safe.
           [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
+          # Per-meeting horse form history files (build_horse_history_files(),
+          # called from toprate_price_refresh.py's rebuild_html() above) -
+          # git-tracked but was missing from this staging list (Sep 2026 bug),
+          # which left the working tree dirty whenever it actually changed
+          # content. See daily.yml's identical comment for the full failure
+          # chain this caused (dirty tree -> pull --rebase refuses -> rebase
+          # --abort has nothing to abort -> bash -e kills the retry loop).
+          [ -d horse_history ] && git add horse_history
           git commit -m "Price refresh $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry. The remote moves often - the daily
           # workflow, manual pushes, and this workflow's own every-15-min
