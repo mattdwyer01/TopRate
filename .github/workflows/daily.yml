@@ -74,7 +74,12 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20 (Sep 2026): the fetch/rebuild step alone has been
+    # observed taking ~7.5 min, and the commit/push retry loop below can now
+    # legitimately need several 60s-bounded attempts - 20 min left too
+    # little headroom and was the exact ceiling that turned one hung `git
+    # pull --rebase` into a cancelled run (see that step's own comment).
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -201,15 +206,52 @@ jobs:
           # Pull-then-push with retry. The remote moves often (5-min price
           # refresh, manual pushes), so a plain push frequently hits a
           # non-fast-forward rejection. Rebase our commit on top of whatever
-          # arrived and retry. -X theirs keeps it non-interactive and prefers
-          # incoming data on overlap (regenerated next run anyway).
+          # arrived and retry.
+          #
+          # -X ours (not -X theirs) is deliberate: --ours/--theirs are
+          # INVERTED in `git pull --rebase` vs. a normal merge - --ours
+          # means the upstream/incoming commit, --theirs means this job's
+          # own local commit being replayed. The repo's policy is "always
+          # take incoming for these generated files" (see CLAUDE.md's
+          # Deploy section - a real incident happened when a plain merge's
+          # --theirs got copy-pasted into a rebase context), so -X ours is
+          # the flag that actually means that here. (This step had -X
+          # theirs until Sep 2026 - backwards the whole time, matching
+          # tab_results.yml's own comment about this exact class of
+          # mistake; fixed to match that file's already-correct version.)
+          #
+          # Every git call is wrapped in `timeout`, same reasoning as
+          # tab_results.yml's identical loop: confirmed live (Sep 2026, run
+          # 34816070609) that an unbounded `git pull --rebase` here can
+          # hang completely silently for 12+ minutes - most likely the cost
+          # of a real 3-way text merge on toprate_runners.csv (~90MB,
+          # deliberately kept as text, see .gitattributes) once genuine
+          # overlapping row changes are present on both sides - until this
+          # job's own 20-minute timeout kills the whole run ("cancelled",
+          # not "failed", with zero log output in between to show what was
+          # stuck). Bounding each call turns that into a fast, loud "TIMED
+          # OUT" line naming the exact command instead of silently burning
+          # the entire job budget.
           for i in 1 2 3 4 5; do
-            if git push; then
+            push_status=0
+            timeout 60 git push || push_status=$?
+            if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
+            elif [[ $push_status -eq 124 ]]; then
+              echo "git push TIMED OUT after 60s (attempt $i)"
+            else
+              echo "git push failed, exit $push_status (attempt $i)"
             fi
-            echo "Push rejected (attempt $i) - pulling and retrying"
-            git pull --rebase -X theirs --no-edit || git rebase --abort
+            pull_status=0
+            timeout 60 git pull --rebase -X ours --no-edit || pull_status=$?
+            if [[ $pull_status -eq 124 ]]; then
+              echo "git pull --rebase TIMED OUT after 60s (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            elif [[ $pull_status -ne 0 ]]; then
+              echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            fi
             sleep 3
           done
           echo "Push failed after retries"

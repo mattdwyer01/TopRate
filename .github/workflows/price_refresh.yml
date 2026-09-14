@@ -30,7 +30,11 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 8           # individual runs should take ~30 sec; 8 is a safety cap
+    # individual runs should take ~30 sec; raised from 8 to 12 (Sep 2026) so
+    # the commit/push retry loop's own 60s-bounded timeouts (up to 5
+    # attempts) have room to actually retry instead of the job timeout
+    # cutting them off first - see that step's comment.
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
@@ -91,19 +95,48 @@ jobs:
           # Pull-then-push with retry. The remote moves often - the daily
           # workflow, manual pushes, and this workflow's own every-15-min
           # cron-job.org trigger all commit to main, so a plain push
-          # frequently hits a non-fast-forward rejection
-          # ("fetch first"). Rebase our single refresh commit on top of whatever
-          # arrived, then push. Retry a few times in case the remote moves again
-          # between pull and push. --no-edit/-X theirs keeps it non-interactive
-          # and prefers incoming data on the rare content overlap (data files are
-          # regenerated next run anyway, so losing our copy to theirs is safe).
+          # frequently hits a non-fast-forward rejection ("fetch first").
+          # Rebase our single refresh commit on top of whatever arrived,
+          # then push. Retry a few times in case the remote moves again
+          # between pull and push.
+          #
+          # -X ours (not -X theirs) is deliberate: --ours/--theirs are
+          # INVERTED in `git pull --rebase` vs. a normal merge - --ours
+          # means the upstream/incoming commit, --theirs means this job's
+          # own local commit being replayed. The repo's policy is "always
+          # take incoming for these generated files" (see CLAUDE.md's
+          # Deploy section - a real incident happened when a plain merge's
+          # --theirs got copy-pasted into a rebase context), so -X ours is
+          # the flag that actually means that here. (This step had -X
+          # theirs until Sep 2026 - backwards the whole time; fixed to
+          # match tab_results.yml's already-correct version.)
+          #
+          # Every git call is wrapped in `timeout`, same reasoning and same
+          # live incident as daily.yml's identical loop (Sep 2026, see that
+          # file's comment): an unbounded `git pull --rebase` can hang
+          # silently on toprate_runners.csv's real 3-way text merge, and
+          # this workflow's job timeout is only 8 minutes - a silent hang
+          # here gets cancelled even faster than in daily.yml.
           for i in 1 2 3 4 5; do
-            if git push; then
+            push_status=0
+            timeout 60 git push || push_status=$?
+            if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
+            elif [[ $push_status -eq 124 ]]; then
+              echo "git push TIMED OUT after 60s (attempt $i)"
+            else
+              echo "git push failed, exit $push_status (attempt $i)"
             fi
-            echo "Push rejected (attempt $i) - pulling and retrying"
-            git pull --rebase -X theirs --no-edit || git rebase --abort
+            pull_status=0
+            timeout 60 git pull --rebase -X ours --no-edit || pull_status=$?
+            if [[ $pull_status -eq 124 ]]; then
+              echo "git pull --rebase TIMED OUT after 60s (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            elif [[ $pull_status -ne 0 ]]; then
+              echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
+              git rebase --abort 2>/dev/null || true
+            fi
             sleep 3
           done
           echo "Push failed after retries"
