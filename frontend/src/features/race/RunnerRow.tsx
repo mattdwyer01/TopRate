@@ -56,10 +56,17 @@ export function RunnerRow({
   // driftedToOverlay is always a subset of isOverlay (see raceModel.ts), so
   // it takes over that row's tint (amber, a warning) rather than adding to
   // it. firmedToUnderlay never overlaps isOverlay (by definition it's priced
-  // under our fair value), so it gets its own green tint on rows that would
-  // otherwise have none. Badges used to carry this instead of the row tint
-  // itself - moved to a highlight (Sep 2026) so it reads at a glance across
-  // a whole race rather than needing to spot small text next to each name.
+  // under our fair value), so it gets its own tint on rows that would
+  // otherwise have none - indigo, not emerald (Sep 2026 fix): it used to
+  // share isOverlay's green, which reads as "this IS an overlay" when it's
+  // the opposite signal, and (unlike isOverlay) firmedToUnderlay has no
+  // gap-from-top gate at all, so it can land on a runner well outside the
+  // 5-WPR contender line - a real user report from a live race screenshot
+  // where a rank-15-by-rating runner was green-highlighted purely because
+  // its price had firmed since open, and read as a false overlay claim.
+  // Badges used to carry this instead of the row tint itself - moved to a
+  // highlight (Sep 2026) so it reads at a glance across a whole race rather
+  // than needing to spot small text next to each name.
   const drifted = effective?.driftedToOverlay ?? false
   const backedIn = effective?.firmedToUnderlay ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
@@ -109,9 +116,11 @@ export function RunnerRow({
     ? 'bg-emerald-bg'
     : drifted
       ? 'bg-amber-tint group-hover:bg-amber-tint-hover'
-      : isOverlay || backedIn
+      : isOverlay
         ? 'bg-emerald-tint group-hover:bg-emerald-tint-hover'
-        : 'bg-panel group-hover:bg-bg'
+        : backedIn
+          ? 'bg-indigo-tint group-hover:bg-indigo-tint-hover'
+          : 'bg-panel group-hover:bg-bg'
 
   return (
     // A div, not a button - a real scratch-toggle <button> needs to nest
@@ -145,9 +154,11 @@ export function RunnerRow({
             ? 'bg-emerald-bg'
             : drifted
               ? 'bg-amber-tint hover:bg-amber-tint-hover'
-              : isOverlay || backedIn
+              : isOverlay
                 ? 'bg-emerald-tint hover:bg-emerald-tint-hover'
-                : 'hover:bg-bg'
+                : backedIn
+                  ? 'bg-indigo-tint hover:bg-indigo-tint-hover'
+                  : 'hover:bg-bg'
       }`}
     >
       <span className={`sticky left-0 z-10 -ml-2 pl-2 sm:static sm:z-auto sm:m-0 sm:p-0 ${stickyBg}`}>

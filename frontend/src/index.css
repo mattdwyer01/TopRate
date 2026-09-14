@@ -36,7 +36,7 @@
   --color-amber-bg: #fffbeb;
   --color-amber-line: #fde68a;
 
-  /* Flat (non-alpha) row-highlight tints for the race tables overlay,
+  /* Flat (non-alpha) row-highlight tints for the race table's overlay,
      drift, and backed-in states (RunnerRow.tsx) - the equivalent of
      emerald-line/amber-line blended at roughly 20%/35% onto the panels
      white, baked into solid colors rather than left as a bg-color/NN
@@ -49,11 +49,20 @@
      spotted from a live screenshot (Sep 2026: the horse name column read
      visibly darker green than the rest of its own row). Flat colors can
      be painted twice with no visible seam since the top layer simply
-     replaces the bottom one. */
+     replaces the bottom one.
+     backed-in (firmedToUnderlay) used to share emerald-tint with a live
+     overlay - a second user report (Sep 2026, from a real race screenshot)
+     that this reads as "this IS an overlay" when it's the opposite signal
+     (a runner that's now priced UNDER our fair value, and may sit well
+     outside the 5-WPR contender line entirely - that gap check only ever
+     gated isOverlay, never backed-in). Given its own indigo tint below so
+     the two states are visually distinct, not just semantically distinct. */
   --color-emerald-tint: #edfdf6;
   --color-emerald-tint-hover: #e0fbef;
   --color-amber-tint: #fefae8;
   --color-amber-tint-hover: #fef6d6;
+  --color-indigo-tint: #eef2ff;
+  --color-indigo-tint-hover: #e0e7ff;
 
   /* Gold, for the ticker's "soon" tier only - amber (#d97706) reads fine as
      text/accents on light panels but goes muddy at low opacity over the
