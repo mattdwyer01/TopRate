@@ -52,24 +52,11 @@ const DEFAULT_BETA = 0.4
 // bets are statistically indistinguishable from the existing gap<=4 bucket
 // (n=903, ROI -7.6%, p=0.35, vs the baseline's own -8.9%, p=0.10) - moving
 // the line to 5 costs nothing and gains a modest amount of coverage. Beyond
-// 5, strike rate keeps falling (5-6: 5.2% dropping to 12+: 1.1%) and a
-// 75-vs-80 top-rated relaxation tested clearly worse (-16.5% on the added
-// bets, p=0.001), so that threshold (MIN_TOP_RATED_WPR below) stayed put.
+// 5, strike rate keeps falling (5-6: 5.2% dropping to 12+: 1.1%).
+// (The race-wide "top pick must clear 80 WPR" suppression that used to sit
+// alongside this was removed Sep 2026 - user decision - so gap-from-top is
+// now the only threshold gating the overlay highlight.)
 const OVERLAY_MAX_GAP_FROM_TOP = 5
-
-// Overlays are suppressed race-wide when the field's own top-rated runner
-// is below this WPR - a weak top pick (a modest horse that's merely the
-// best of a bad bunch) makes the whole race's overlay signal less trustworthy
-// than one where the top rated runner is a genuinely strong horse. Backed by
-// a real (if not statistically airtight - see chat, Sep 2026) asymmetry: on
-// the 67-day backtest, overlays in races with a sub-80 top pick were a
-// confirmed loser (t-test vs zero, p=0.018); overlays where the top pick
-// cleared 80 were not confirmed either way. A user decision to filter on
-// that asymmetry despite it not being a fully robust threshold (a sweep of
-// nearby values found the significance doesn't hold at 75 or 85, only in
-// the 80-82 band) - kept here as one constant so it's easy to revisit once
-// there's more data to actually fit this threshold properly.
-const MIN_TOP_RATED_WPR = 80
 
 // "Material" thresholds for the open-vs-now price-drift flags below: the
 // open price has to be at least 15% away from our fair price in the
@@ -119,10 +106,8 @@ export function computeEffectiveRace(
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
-  let topRatedWpr: number | null = null
   if (rated.length >= 2) {
     const maxWpr = Math.max(...rated.map((r) => r.wpr))
-    topRatedWpr = maxWpr
     const exps = rated.map((r) => ({ runId: r.runId, e: Math.exp(beta * (r.wpr - maxWpr)) }))
     const sumE = exps.reduce((s, x) => s + x.e, 0)
     for (const x of exps) {
@@ -154,9 +139,7 @@ export function computeEffectiveRace(
       marketPrice > 1 &&
       marketPrice > effectivePrice &&
       gapFromTop != null &&
-      gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP &&
-      topRatedWpr != null &&
-      topRatedWpr > MIN_TOP_RATED_WPR
+      gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
       effectivePrice,
