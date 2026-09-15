@@ -100,6 +100,15 @@ def fit_and_score_full(fit_half, held_out, fit_cutoff, slope=SHIPPED_SLOPE):
     add_pop_distance_going(fit_half, [fit_half, held_out])
     add_passage_risk(fit_half, [fit_half, held_out])
 
+    # _fit_beta/_brier need wprp_proj on fit_half - compute it using the
+    # BASELINE (current shipped 10-term) formula at the live slope, not a
+    # passage_risk-inclusive one: beta should reflect how the model is
+    # ACTUALLY priced today, so both variants scored later share one beta
+    # and the comparison isolates passage_risk's own effect rather than
+    # also re-optimizing beta jointly with the candidate term.
+    fit_half["wprp_proj"] = fit_half["_base"].to_numpy() + wpr._cap_adj_sum(
+        fit_half[wpr.ADJ_TERMS].fillna(0.0).to_numpy()).sum(axis=1) * SHIPPED_SLOPE
+
     beta = _fit_beta(fit_half)
     return fit_half, held_out, beta
 
