@@ -100,16 +100,58 @@ def proj_of(frame):
     return frame["_base"].to_numpy() + wpr._cap_adj_sum(frame[terms].to_numpy()).sum(axis=1)
 
 
+def fit_other_pop_terms(fit_half, held_out, fit_cutoff):
+    """Every population ADJ_TERM other than track_barrier, fit leak-free on
+    fit_half and applied to both frames - same pattern used throughout
+    tonight (wpr_review_terms_removal_test.py etc). track_barrier itself
+    is fit separately per-variant by the caller."""
+    from wpr_trainer_jockey_adj_strike_eval import add_closing_merit, fit_bucket_lookup, apply_bucket
+    from wpr_slope_roi_first_up_slice import add_pop_distance_going
+
+    add_closing_merit([fit_half, held_out], fit_cutoff)
+    edges_t, lookup_t = fit_bucket_lookup(fit_half, "trainer_win_pct_365d")
+    edges_j, lookup_j = fit_bucket_lookup(fit_half, "jockey_win_pct_90d")
+    for f in (fit_half, held_out):
+        apply_bucket(f, "trainer_win_pct_365d", edges_t, lookup_t, "trainer_merit")
+        apply_bucket(f, "jockey_win_pct_90d", edges_j, lookup_j, "jockey_merit")
+    add_pop_distance_going(fit_half, [fit_half, held_out])
+
+
+def build_pace_shape_once(full):
+    """pace_shape is a fixed shipped model applied to a continuous input -
+    not per-direction fit, same as every other script tonight that needs
+    it (see wpr_review_terms_removal_test.py for the identical block)."""
+    import joblib
+    since = (full["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
+    race_id_to_score = wpr._build_pace_shape_race_scores(since)
+    _name_map, _ = wpr._load_trainer_jockey_by_horse_date(FORM_CSV)
+    full["horse_lc"] = full["horse_id"].map(_name_map).astype(str).str.lower()
+    settle_lookup = wpr._build_pace_shape_settle_lookup(since)
+    full["pace_score"] = full["race_id"].map(race_id_to_score)
+    full["predicted_rel_settle"] = [settle_lookup.get((h, d)) for h, d in zip(full["horse_lc"], full["date"])]
+    _pace_model = joblib.load("wpr_models/pace_shape.joblib")
+    full["pace_shape"] = [
+        wpr._pace_shape_term(ps, prs, fs, _pace_model)
+        for ps, prs, fs in zip(full["pace_score"], full["predicted_rel_settle"], full["field_size"])
+    ]
+
+
 def run():
     print("Rebuilding training frame...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
     full = merge_won_by_horse_date(full)
+
+    from wpr_trainer_jockey_adj_strike_eval import merge_trainer_jockey_by_horse_date
+    full = merge_trainer_jockey_by_horse_date(full)
     full = add_base(full)
 
-    non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
-    full = full.dropna(subset=["target", "_base", "career_avg"] + non_tb_terms +
-                        ["barrier", "field_size", "track", "cur_distance", "race_id"])
+    print("  building pace_shape (shipped model, fixed input)...")
+    build_pace_shape_once(full)
+
+    own_history_terms = ["own_first_up", "own_second_up", "own_long_spell"]
+    full = full.dropna(subset=["target", "_base", "career_avg"] + own_history_terms +
+                        ["pace_shape", "barrier", "field_size", "track", "cur_distance", "race_id"])
     print(f"Scoped rows: {len(full):,} ({full['race_id'].nunique():,} races)")
 
     mid = full["date"].quantile(0.5)
@@ -122,6 +164,9 @@ def run():
 
     for fit_h, held_h, label in [(h1, h2, "H1->H2"), (h2, h1, "H2->H1")]:
         fit_half, held_out = fit_h.copy(), held_h.copy()
+        print(f"\n{label}: fitting other population terms (closing_merit/trainer_merit/"
+              f"jockey_merit/pop_distance/pop_going)...")
+        fit_other_pop_terms(fit_half, held_out, fit_half["date"].max())
         for name, params in [("baseline", BASELINE_PARAMS), ("candidate", CANDIDATE_PARAMS)]:
             print(f"\n{label}: fitting {name} track_barrier ({params.get('max_depth')}d/"
                   f"{params.get('num_leaves')}leaves)...")
