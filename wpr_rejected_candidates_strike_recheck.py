@@ -38,10 +38,13 @@ NO EM DASHES policy: hyphens only in this file.
 """
 import numpy as np
 import pandas as pd
+import joblib
 from sklearn.metrics import mean_absolute_error
 
 import wpr_projection as wpr
 from wpr_own_pace_backtest import add_base, add_track_barrier, merge_won_by_horse_date
+from wpr_trainer_jockey_adj_strike_eval import add_closing_merit, fit_bucket_lookup, apply_bucket
+from wpr_slope_roi_first_up_slice import add_pop_distance_going
 
 FORM_CSV = "wpr_form_history.csv.gz"
 CANDIDATES = [
@@ -64,23 +67,61 @@ def proj_of(frame, extra_terms):
     return frame["_base"].to_numpy() + wpr._cap_adj_sum(frame[terms].to_numpy()).sum(axis=1)
 
 
+def fit_direction_terms(fit_half, held_out, fit_cutoff):
+    """Fit every per-direction (leak-free) population term on fit_half only,
+    apply + per-race demean on both fit_half and held_out. Same pattern as
+    wpr_passage_risk_adj_term_test.fit_and_score_full / wpr_slope_roi_test's
+    fit_and_score, minus the beta/wprp_proj machinery this script doesn't
+    need (strike rate/MAE only, no ROI/edge)."""
+    add_track_barrier(fit_half, [fit_half, held_out])
+    add_closing_merit([fit_half, held_out], fit_cutoff)
+    edges_t, lookup_t = fit_bucket_lookup(fit_half, "trainer_win_pct_365d")
+    edges_j, lookup_j = fit_bucket_lookup(fit_half, "jockey_win_pct_90d")
+    for f in (fit_half, held_out):
+        apply_bucket(f, "trainer_win_pct_365d", edges_t, lookup_t, "trainer_merit")
+        apply_bucket(f, "jockey_win_pct_90d", edges_j, lookup_j, "jockey_merit")
+    add_pop_distance_going(fit_half, [fit_half, held_out])
+
+
 def run():
     print("Rebuilding training frame (no race_speed_labels needed - all 14 "
           "candidates are already computed by build_features)...")
     full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
     full["date"] = pd.to_datetime(full["date"])
 
-    print("\nMerging race result (won) from toprate_runners.csv by (horse_id, date)...")
-    full = merge_won_by_horse_date(full)
+    from wpr_trainer_jockey_adj_strike_eval import merge_trainer_jockey_by_horse_date
 
+    print("\nMerging race result (won), trainer/jockey win-rate from toprate_runners.csv...")
+    full = merge_won_by_horse_date(full)
+    full = merge_trainer_jockey_by_horse_date(full)
     full = add_base(full)
-    non_tb_terms = [t for t in wpr.ADJ_TERMS if t != "track_barrier"]
+
+    print("  building pace_shape (shipped model, fixed input)...")
+    since = (full["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
+    race_id_to_score = wpr._build_pace_shape_race_scores(since)
+    _name_map, _ = wpr._load_trainer_jockey_by_horse_date(FORM_CSV)
+    full["horse_lc"] = full["horse_id"].map(_name_map).astype(str).str.lower()
+    settle_lookup = wpr._build_pace_shape_settle_lookup(since)
+    full["pace_score"] = full["race_id"].map(race_id_to_score)
+    full["predicted_rel_settle"] = [settle_lookup.get((h, d)) for h, d in zip(full["horse_lc"], full["date"])]
+    _pace_model = joblib.load("wpr_models/pace_shape.joblib")
+    full["pace_shape"] = [
+        wpr._pace_shape_term(ps, prs, fs, _pace_model)
+        for ps, prs, fs in zip(full["pace_score"], full["predicted_rel_settle"], full["field_size"])
+    ]
+
+    # only the truly pre-computed/static terms need to be in the dropna -
+    # track_barrier/closing_merit/trainer_merit/jockey_merit/pop_distance/
+    # pop_going are all fitted per-direction below (_merit_term always
+    # returns a float, defaulting to 0.0 for unseen/missing input, so no
+    # NaN risk from requiring them here).
+    own_history_terms = ["own_first_up", "own_second_up", "own_long_spell"]
     present = [c for c in CANDIDATES if c in full.columns]
     missing = [c for c in CANDIDATES if c not in full.columns]
     if missing:
         print(f"WARNING: not found in training frame, skipping: {missing}")
-    full = full.dropna(subset=["target", "_base", "career_avg"] + non_tb_terms +
-                        ["barrier", "field_size", "track", "cur_distance"] + present)
+    full = full.dropna(subset=["target", "_base", "career_avg"] + own_history_terms +
+                        ["pace_shape", "barrier", "field_size", "track", "cur_distance", "race_id"] + present)
     print(f"Scoped rows: {len(full):,} ({full['race_id'].nunique():,} races)")
 
     mid = full["date"].quantile(0.5)
@@ -88,9 +129,9 @@ def run():
     print(f"H1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
 
     h1_d1, h2_d1 = h1.copy(), h2.copy()
-    add_track_barrier(h1_d1, [h1_d1, h2_d1])
-    h1_d2, h2_d2 = h1.copy(), h2.copy()
-    add_track_barrier(h2_d2, [h1_d2, h2_d2])
+    fit_direction_terms(h1_d1, h2_d1, h1_d1["date"].max())
+    h2_d2, h1_d2 = h2.copy(), h1.copy()
+    fit_direction_terms(h2_d2, h1_d2, h2_d2["date"].max())
 
     h1_d1["proj_base"] = proj_of(h1_d1, [])
     h2_d1["proj_base"] = proj_of(h2_d1, [])
@@ -102,7 +143,7 @@ def run():
     b_r1b, b_k1b, b_n1b = top1_strike_rate(h1_d2, "proj_base")
     b_mae2 = mean_absolute_error(h2_d1["target"], h2_d1["proj_base"])
     b_mae1 = mean_absolute_error(h1_d2["target"], h1_d2["proj_base"])
-    print(f"\nBaseline (7 terms): H1-fit/H2-val = {b_r1:.2f}%->{b_r2:.2f}% (MAE {b_mae2:.4f}), "
+    print(f"\nBaseline ({len(wpr.ADJ_TERMS)} terms): H1-fit/H2-val = {b_r1:.2f}%->{b_r2:.2f}% (MAE {b_mae2:.4f}), "
           f"H2-fit/H1-val = {b_r2b:.2f}%->{b_r1b:.2f}% (MAE {b_mae1:.4f})")
 
     print(f"\n{'candidate':>28s} | {'nonzero%':>8s} | {'H2 strike (held-out)':>22s} | "

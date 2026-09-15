@@ -59,8 +59,14 @@ def build_frame():
     full = merge_price_pfm(full)
     full = add_base(full)
 
+    # pop_distance/pop_going excluded from the required-columns list (like
+    # the other population terms) - wpr._merit_term already has its own
+    # value-is-None -> 0.0 fallback, so requiring dist_vs_last/going_delta_
+    # aligned non-null here would introduce a selection bias the live model
+    # doesn't have.
     non_pop_terms = [t for t in wpr.ADJ_TERMS
-                     if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit", "pace_shape")]
+                     if t not in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit",
+                                   "pace_shape", "pop_distance", "pop_going")]
     full = full.dropna(subset=["target", "_base", "career_avg"] + non_pop_terms +
                         ["barrier", "field_size", "track", "cur_distance"])
     sp = pd.to_numeric(full["fixed_win_price"], errors="coerce")
@@ -132,6 +138,15 @@ def fit_fold_terms(fit_data, held_out):
     fit_data["gear_code"] = fit_data["gear_bucket"].map(wpr._GEAR_BUCKET_CODE).fillna(0).astype(int)
     gc_model = wpr._fit_simple_adj_model(fit_data, wpr._GEAR_CHANGE_FEATURES, "gear_change")
 
+    # pop_distance/pop_going (added to ADJ_TERMS after this script was last
+    # touched - same staleness this session already found and fixed twice
+    # elsewhere tonight). Same direct _fit_simple_adj_model/_merit_term
+    # pattern as every other population term in this function.
+    pd_model = wpr._fit_simple_adj_model(
+        fit_data.dropna(subset=["target", "career_avg"]), wpr._POP_DISTANCE_FEATURES, "pop_distance")
+    pg_model = wpr._fit_simple_adj_model(
+        fit_data.dropna(subset=["target", "career_avg"]), wpr._POP_GOING_FEATURES, "pop_going")
+
     pace_baseline_lookup = wpr._fit_pace_baseline(FORM_CSV, fit_data["date"].max())
 
     def _closing_raw_resid_one(pairs):
@@ -171,7 +186,16 @@ def fit_fold_terms(fit_data, held_out):
             wpr._gear_change_term(b, fs, fu, su, nr, gc_model)
             for b, fs, fu, su, nr in zip(f["gear_bucket"], f["field_size"], f["first_up"], f["second_up"], f["n_runs"])
         ]
-        for term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit", "gear_change"):
+        f["pop_distance"] = [
+            wpr._merit_term(v, fs, pd_model, wpr._POP_DISTANCE_FEATURES)
+            for v, fs in zip(f["dist_vs_last"], f["field_size"])
+        ]
+        f["pop_going"] = [
+            wpr._merit_term(v, fs, pg_model, wpr._POP_GOING_FEATURES)
+            for v, fs in zip(f["going_delta_aligned"], f["field_size"])
+        ]
+        for term in ("track_barrier", "closing_merit", "trainer_merit", "jockey_merit", "gear_change",
+                     "pop_distance", "pop_going"):
             f[term] = f[term] - f.groupby("race_id")[term].transform("mean")
         f["wprp_proj"] = f["_base"].to_numpy() + wpr._cap_adj_sum(f[ALL_TERMS_FULL].to_numpy()).sum(axis=1)
 
