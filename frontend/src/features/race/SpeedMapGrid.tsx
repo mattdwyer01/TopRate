@@ -385,7 +385,18 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
               {c.shortLabel}
             </div>
             <div className="flex flex-col gap-1">
-              {columns[i].map((u) => renderCard(u, true))}
+              {/* Reversed from columns[i]'s own ascending order (kept as-is
+                  for the desktop sub-column wrapping above, where ascending
+                  reads left-to-right as inside-to-wide) - this is a single
+                  top-to-bottom stack instead, and real user feedback
+                  (2026-09-16) wants the rail at the BOTTOM of that stack,
+                  same as SpeedMap.tsx's own bar view (sorted descending so
+                  barrier 1 is the last/bottom row) and this file's own
+                  per-card barrier gauge (fills up from the bottom). Without
+                  this, the two views agreed on the gauge/fill direction but
+                  still disagreed on card ORDER - ascending put the rail
+                  card at the TOP of the stack instead. */}
+              {[...columns[i]].reverse().map((u) => renderCard(u, true))}
             </div>
           </div>
         ))}
