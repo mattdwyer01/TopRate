@@ -23,8 +23,16 @@ on:
 # Avoid concurrent runs - if a refresh is still going when the next one fires,
 # skip rather than queue. Skipped runs are fine since the next trigger is
 # only ~15 min away (cron-job.org's schedule, not a GitHub Actions cron).
+#
+# SHARED group name (Sep 2026, see daily.yml's own concurrency comment for
+# the full incident writeup): now shares ONE group with daily.yml/
+# tab_results.yml instead of its own "price-refresh" group, so this job and
+# a rare, slow daily rebuild can never push to main at the same time - that
+# race, not bad luck, was the actual cause of 3 consecutive daily.yml
+# publish failures. During a daily run this job queues instead of running
+# every ~15 min; the next run after it still picks up fully current state.
 concurrency:
-  group: price-refresh
+  group: toprate-git-push
   cancel-in-progress: false
 
 jobs:
