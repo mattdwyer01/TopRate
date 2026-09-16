@@ -14,10 +14,19 @@ screen:
          ADJ_TERM - confirmed monotonic with real win rate: 8.2% -> 10.1%
          -> 10.3% -> 13.4% across quartiles, 95% coverage) ranks in the
          top third of today's field.
-  3. FAVOURABLE PACE/SETTLING (the "speed map adjustment", per user
-     instruction that pace_shape is the right signal for this): pace_shape
-     ADJ_TERM contribution is positive (predicted to get a comfortable
-     run, not buried wide or doing extra early work).
+  3. FAVOURABLE PACE/SETTLING/DRAW (Sep 2026 update: speed_map, not
+     pace_shape - this session found mid-analysis that the live model had
+     moved 186 commits ahead on main without this branch, unifying the
+     old pace_shape + track_barrier into one trained speed_map ADJ_TERM,
+     plus 3 new validated signals: inside_threats (exposure to faster,
+     more inside rivals in TODAY's actual field - the closest thing in
+     this codebase to "will this horse get caught wide/boxed in"),
+     track_barrier_slope (a properly-fitted per-track linear barrier
+     effect, replacing a shallow-tree model that could not represent
+     150+ distinct per-track slopes), and heat_interaction (own early
+     speed vs race-wide pace pressure, train-only z-scored). speed_map
+     contribution is positive = favourable combination of all of the
+     above, not just settle/pace like the old pace_shape alone.
   4. PRICE FLOOR (user request): exclude anything under $2 / $3 - short
      favourites need an unrealistically high strike rate to break even,
      tested as a separate cut on top of the above.
@@ -78,8 +87,8 @@ def run():
 
     d["jockey_merit"] = pd.to_numeric(d["wprp_contrib"].apply(lambda x: parse_contrib(x, "jockey_merit")),
                                        errors="coerce")
-    d["pace_shape"] = pd.to_numeric(d["wprp_contrib"].apply(lambda x: parse_contrib(x, "pace_shape")),
-                                     errors="coerce")
+    d["speed_map"] = pd.to_numeric(d["wprp_contrib"].apply(lambda x: parse_contrib(x, "speed_map")),
+                                    errors="coerce")
     d["jockey_rating"] = pd.to_numeric(d["jockey_rating"], errors="coerce")
 
     sp = pd.to_numeric(d["fixed_win_price"], errors="coerce")
@@ -98,7 +107,7 @@ def run():
 
     print(f"\nScoped rows after price/field filters: {len(d):,} ({d['race_id'].nunique():,} races)")
     print(f"jockey_merit coverage: {d['jockey_merit'].notna().mean()*100:.1f}%   "
-          f"pace_shape coverage: {d['pace_shape'].notna().mean()*100:.1f}%   "
+          f"speed_map coverage: {d['speed_map'].notna().mean()*100:.1f}%   "
           f"jockey_rating coverage: {d['jockey_rating'].notna().mean()*100:.1f}%")
 
     for floor in PRICE_FLOORS:
@@ -120,8 +129,8 @@ def run():
                 ("jockey_merit>0", shortlist["jockey_merit"] > 0),
                 ("jockey top-third rating", shortlist["jockey_top_third"]),
             ]:
-                full_screen = shortlist[jmask & (shortlist["pace_shape"] > 0)]
-                report(full_screen, f"gap<={n} + {jname} + pace_shape>0")
+                full_screen = shortlist[jmask & (shortlist["speed_map"] > 0)]
+                report(full_screen, f"gap<={n} + {jname} + speed_map>0")
 
 
 if __name__ == "__main__":
