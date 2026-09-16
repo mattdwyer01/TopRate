@@ -58,6 +58,20 @@ function columnIndexOf(rel: number): number {
 // threats proxy from barrier/position alone: it's the real, validated
 // signal for "is today's context helping or hurting this horse", already
 // exposed per-runner via adjustmentBreakdown.
+//
+// NOT necessarily relative to rivals (real user question, 2026-09-16: "how
+// does every horse have a positive speed_map in this race?"): two of its
+// inputs (track_bias_score, pace_score) are shared/near-shared across a
+// race's WHOLE field by construction, and a fix attempted to strip that
+// shared component out (per-race demeaning, matching what track_barrier/
+// closing_merit/etc already get) was tried and REVERTED after a same-run
+// held-out MAE check showed it was a real, meaningful accuracy regression
+// (6.039 -> 6.078) - that shared component turned out to be genuine
+// predictive signal (e.g. a track/going/rail combo that legitimately runs
+// faster than grade norm), not noise to remove. So a uniformly-green (or
+// uniformly-red) race is a real, expected outcome sometimes, not a bug -
+// see this file's own tooltip/legend text, which says so rather than
+// implying a head-to-head comparison that isn't actually being made.
 const THREAT_THRESHOLD = 0.5
 
 function threatTone(speedMapAdj: number | undefined | null): 'help' | 'hurt' | 'neutral' {
@@ -71,6 +85,45 @@ const TONE_CLASSES: Record<'help' | 'hurt' | 'neutral', string> = {
   help: 'border-emerald-line bg-emerald-bg',
   hurt: 'border-rose-line bg-rose-bg',
   neutral: 'border-line-soft bg-bg',
+}
+
+// Barrier position, rail (0) to widest (1) - same centring convention
+// wpr_projection.py's barrier_nudge()/draw_signal use. Column placement
+// alone can't distinguish "sits midfield from an inside gate" (routine)
+// from "sits midfield from barrier 14 of 14" (requires either genuine
+// early speed to cross rivals, or a hot enough pace that the field
+// bunches up) - real user feedback (2026-09-16): a wide-drawn runner
+// shown in the same column as an inside-drawn one, with nothing marking
+// the difference, reads as a mistake even when the underlying WPR number
+// is fine. This surfaces barrier position directly instead of leaving it
+// to be inferred from the small badge number alone.
+function drawFracOf(u: Runner, fieldSize: number): number {
+  if (u.barrier == null || fieldSize < 2) return 0.5
+  return Math.max(0, Math.min(1, (u.barrier - 1) / (fieldSize - 1)))
+}
+
+function drawToneClass(drawFrac: number): string {
+  if (drawFrac >= 2 / 3) return 'bg-rose'
+  if (drawFrac >= 1 / 3) return 'bg-amber'
+  return 'bg-emerald'
+}
+
+// Caution flag: a wide gate (outer third) placed in a column at Midfield
+// or more forward (index >= MIDFIELD_IDX - COLUMNS runs Backmarker(0) ->
+// Leader(5), so "more forward" means a HIGHER index) is the exact
+// scenario that needs either early speed spent crossing rivals or a
+// genuinely hot pace to be plausible - see this function's own caller for
+// the pace gate. Not flagged on Backmarker/Off Midfield (a wide gate
+// settling back is the UNREMARKABLE case, not the one worth flagging).
+// BUG (caught in browser testing before shipping): first version compared
+// `columnIdx > MIDFIELD_IDX` and returned false (no caution) for exactly
+// the forward columns (Off Pace/Pace/Leader) this was meant to catch -
+// backwards, since higher index is MORE forward here, not less.
+const MIDFIELD_IDX = 2
+
+function needsCaution(drawFrac: number, columnIdx: number, tempoBucket: string): boolean {
+  if (drawFrac < 2 / 3 || columnIdx < MIDFIELD_IDX) return false
+  return tempoBucket !== 'Fast'
 }
 
 // Grid layout: one card per runner, bucketed into a tactical-position column
@@ -88,9 +141,13 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     )
   }
 
+  const fieldSize = runners.length
   const columns: Runner[][] = COLUMNS.map(() => [])
+  const columnIdxByRunId = new Map<string, number>()
   for (const u of runners) {
-    columns[columnIndexOf(relSettleOf(u))].push(u)
+    const idx = columnIndexOf(relSettleOf(u))
+    columns[idx].push(u)
+    columnIdxByRunId.set(u.runId, idx)
   }
   for (const col of columns) {
     col.sort((a, b) => (a.barrier ?? 99) - (b.barrier ?? 99))
@@ -101,7 +158,9 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Speed map</span>
         <span className="text-xs text-ink-faint">
-          Predicted running position &middot; tint = today&apos;s context (green helps, red hurts)
+          Predicted running position &middot; tint = today&apos;s pace/barrier/track context (green helps, red
+          hurts - can apply to the WHOLE field, not just vs rivals) &middot; bar = barrier (rail to wide) &middot; !
+          = wide gate sitting forward
         </span>
         <span className="rounded-full bg-bg px-2 py-0.5 font-mono text-xs text-ink-mute">
           {pace.display}
@@ -116,16 +175,33 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
             <div className="flex min-h-[3rem] flex-col gap-1">
               {columns[i].map((u) => {
                 const tone = threatTone(u.adjustmentBreakdown?.speed_map)
-                const title =
+                const drawFrac = drawFracOf(u, fieldSize)
+                const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
+                const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
+                const titleParts = [
+                  u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
                   u.adjustmentBreakdown?.speed_map != null
                     ? `speed_map adjustment: ${u.adjustmentBreakdown.speed_map > 0 ? '+' : ''}${u.adjustmentBreakdown.speed_map.toFixed(1)}`
-                    : undefined
+                    : null,
+                  caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
+                ].filter(Boolean)
                 return (
                   <div
                     key={u.runId}
-                    title={title}
-                    className={`flex flex-col items-center gap-0.5 rounded-md border px-1 py-1 text-center ${TONE_CLASSES[tone]}`}
+                    title={titleParts.join(' · ') || undefined}
+                    className={`relative flex flex-col items-center gap-0.5 rounded-md border px-1 py-1 text-center ${TONE_CLASSES[tone]}`}
                   >
+                    {caution && (
+                      // Positioned INSIDE the card (not overflowing outside it) -
+                      // an earlier version used a negative offset that overflowed
+                      // into the gap between narrow columns, making the badge
+                      // look attached to the wrong neighboring card (caught in
+                      // browser testing: the underlying logic was already
+                      // correct, only the badge's own placement was ambiguous).
+                      <span className="absolute left-0.5 top-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-amber text-[8px] font-bold leading-none text-white">
+                        !
+                      </span>
+                    )}
                     <div className="relative">
                       {u.silkUrl ? (
                         <img src={u.silkUrl} alt="" className="h-6 w-6 rounded-sm object-cover" />
@@ -144,6 +220,13 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                     {u.projectedWpr != null && (
                       <span className="font-mono text-[9px] text-ink-faint">{u.projectedWpr.toFixed(1)}</span>
                     )}
+                    {/* Barrier position, rail (left) to widest (right) - see drawFracOf's own comment */}
+                    <div className="h-[3px] w-full rounded-full bg-line-soft">
+                      <div
+                        className={`h-full rounded-full ${drawToneClass(drawFrac)}`}
+                        style={{ width: '15%', marginLeft: `${Math.min(85, drawFrac * 100)}%` }}
+                      />
+                    </div>
                   </div>
                 )
               })}
