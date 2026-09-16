@@ -94,24 +94,12 @@ export function RunnerRow({
 
   // The two sticky (frozen) cells need a background that matches the row's
   // own state, not a fixed one - otherwise a selected/hovered row would
-  // visibly split into "green here, not green under the frozen name" as
-  // soon as you scroll it sideways. `group` + group-hover carries the
-  // row's :hover state down to them (JS can't see :hover); scratched/
-  // selected are already computed here, so those branch directly.
-  // isOverlay/drifted/backedIn use FLAT (non-alpha) tint tokens, not a
-  // bg-color/NN opacity utility - two stacked alpha layers of the same
-  // nominal color
-  // (this cell painted on top of the row's own background) visibly
-  // double-composite into a darker block under just the sticky columns,
-  // which a user spotted from a live screenshot (Sep 2026). A flat color
-  // paints identically here and on the row div with no seam.
-  const stickyBg = selected
-    ? 'bg-emerald-bg'
-    : drifted
-      ? 'bg-amber-tint group-hover:bg-amber-tint-hover'
-      : isOverlay || backedIn
-        ? 'bg-emerald-tint group-hover:bg-emerald-tint-hover'
-        : 'bg-panel group-hover:bg-bg'
+  // visibly split as soon as you scroll it sideways. `group` + group-hover
+  // carries the row's :hover state down to them (JS can't see :hover).
+  // Real user feedback (2026-09-16): the overlay/drift/backed-in row tint
+  // removed below (see the row className's own comment) - selected/
+  // scratched are the only states with a background left.
+  const stickyBg = selected ? 'bg-emerald-bg' : 'bg-panel group-hover:bg-bg'
 
   return (
     // A div, not a button - a real scratch-toggle <button> needs to nest
@@ -139,15 +127,15 @@ export function RunnerRow({
               : undefined
       }
       className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
+        // Overlay/drift/backed-in row tint removed (real user feedback,
+        // 2026-09-16) - the tooltip above still explains a row's overlay
+        // state on hover, this just stops highlighting it visually across
+        // the whole race table.
         scratched
           ? 'opacity-50'
           : selected
             ? 'bg-emerald-bg'
-            : drifted
-              ? 'bg-amber-tint hover:bg-amber-tint-hover'
-              : isOverlay || backedIn
-                ? 'bg-emerald-tint hover:bg-emerald-tint-hover'
-                : 'hover:bg-bg'
+            : 'hover:bg-bg'
       }`}
     >
       <span className={`sticky left-0 z-10 -ml-2 pl-2 sm:static sm:z-auto sm:m-0 sm:p-0 ${stickyBg}`}>

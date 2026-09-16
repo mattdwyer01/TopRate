@@ -46,17 +46,23 @@ const DEFAULT_BETA = 0.4
 // An overlay far behind the top-rated runner isn't a useful highlight - it's
 // asking to back a horse the model itself doesn't rate as a real chance just
 // because the market's price on it happens to be even longer. User decision
-// (Sep 2026) to cap the highlight at the same 5-WPR marker line shown in the
+// (Sep 2026) to cap the highlight at the same WPR marker line shown in the
 // table, rather than surfacing every overlay regardless of how unlikely.
 // Raised from 4 to 5 (Sep 2026) after a backtest showed the extra gap-4-to-5
 // bets are statistically indistinguishable from the existing gap<=4 bucket
 // (n=903, ROI -7.6%, p=0.35, vs the baseline's own -8.9%, p=0.10) - moving
-// the line to 5 costs nothing and gains a modest amount of coverage. Beyond
-// 5, strike rate keeps falling (5-6: 5.2% dropping to 12+: 1.1%).
+// the line to 5 costs nothing and gains a modest amount of coverage.
+// Raised again 5 -> 6 (Sep 2026) to align with speedmap_jockey_tracker.py's
+// own GAP_MAX, itself picked from an exact-pipeline sweep of gap<=2 through
+// uncapped against the tracker's real solo-only rule - 6 was the clear
+// proportional-ROI peak (+14.5%, vs +5-9% for 2-5 and a steady decline past
+// 7), not an arbitrary round number, so this UI threshold now matches the
+// one the tracker actually validated rather than the dashboard and the
+// tracker quietly disagreeing about where the cutoff sits.
 // (The race-wide "top pick must clear 80 WPR" suppression that used to sit
 // alongside this was removed Sep 2026 - user decision - so gap-from-top is
 // now the only threshold gating the overlay highlight.)
-const OVERLAY_MAX_GAP_FROM_TOP = 5
+const OVERLAY_MAX_GAP_FROM_TOP = 6
 
 // "Material" thresholds for the open-vs-now price-drift flags below: the
 // open price has to be at least 15% away from our fair price in the
