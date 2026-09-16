@@ -374,17 +374,32 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           where every column has runners this converges back to an even
           split - there's no width left to redistribute - so cards can't
           rely on emptiness alone and are still sized to survive that case. */}
-      <div className="mt-2 flex gap-1 sm:hidden">
+      <div className="mt-2 flex items-stretch gap-1 sm:hidden">
         {COLUMNS.map((c, i) => (
           <div
             key={c.key}
-            className="flex min-w-0 flex-col gap-1"
+            className="flex min-w-0 flex-col"
             style={{ flex: columns[i].length > 0 ? '1 1 0%' : '0.55 1 0%' }}
           >
             <div className="truncate text-center text-[8px] font-semibold uppercase leading-tight text-ink-faint">
               {c.shortLabel}
             </div>
-            <div className="flex flex-col gap-1">
+            {/* justify-end (not just a reversed order): pins every column's
+                rail card to the SAME bottom baseline regardless of how many
+                cards it holds. A light column (fewer runners predicted to
+                settle there) is naturally shorter than a busy one - with
+                plain top-down stacking (flex-col alone, no justify-end) a
+                light column's cards start level with the busy column's but
+                run out early, leaving empty space at ITS bottom instead -
+                which reads as "no horse near the rail here" even though
+                that's just an artifact of card count, not a real gap in
+                barrier draws (real user feedback, 2026-09-16: this looked
+                like horses "avoiding the inside rail", which doesn't happen
+                in a real barrier draw). Anchoring to the bottom instead
+                means any leftover space sits at the TOP (under the label),
+                and every column's rail-most card lines up on one shared
+                inside-rail line. */}
+            <div className="mt-1 flex flex-1 flex-col justify-end gap-1">
               {/* Reversed from columns[i]'s own ascending order (kept as-is
                   for the desktop sub-column wrapping above, where ascending
                   reads left-to-right as inside-to-wide) - this is a single
