@@ -23,6 +23,16 @@ on:
 # Avoid concurrent runs - if a refresh is still going when the next one fires,
 # skip rather than queue. Skipped runs are fine since the next trigger is
 # only ~15 min away (cron-job.org's schedule, not a GitHub Actions cron).
+#
+# SHARED group name, TRIED then REVERTED same day (Sep 2026): briefly
+# shared one group with daily.yml/tab_results.yml to stop daily.yml's
+# git-pull-rebase timeouts. Made THAT better but broke tab_results.yml far
+# worse: an unexplained extra trigger was firing daily.yml every ~15 min
+# that same day, and sharing the lock meant time-sensitive jobs got queued
+# out and CANCELLED repeatedly whenever daily.yml held it (confirmed live -
+# Caulfield results silently stopped updating for ~1hr15). Reverted back to
+# this job's own group the same day, same reasoning as tab_results.yml's
+# own comment.
 concurrency:
   group: price-refresh
   cancel-in-progress: false

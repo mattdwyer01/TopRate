@@ -67,6 +67,24 @@ on:
 
 # Avoid concurrent runs - if the user mashes the Fetch button, queue rather than
 # parallel-execute (parallel pushes would race-condition the CSV commits).
+#
+# SHARED group name, TRIED then REVERTED same day (Sep 2026, speed_map
+# rollout): briefly shared one "toprate-git-push" group with tab_results.yml/
+# price_refresh.yml to stop this job's git-pull-rebase timeouts (see that
+# step's own comment - 3 consecutive real publish failures, each from a
+# concurrent tab_results.yml push landing mid-rebase). That fix worked for
+# THIS job but broke tab_results.yml far worse: an unrelated, still-
+# unexplained extra trigger was firing this workflow every ~15 min that
+# same day, and sharing the lock meant tab_results (needs to run every 5
+# min for live results) got queued out and CANCELLED repeatedly whenever
+# this job held it - confirmed live (2026-09-16, real user report: Caulfield
+# results silently stopped updating for ~1hr15 while this was live).
+# Reverted back to this job's own separate group the same day. The
+# git-pull-rebase timeout/job-timeout bumps below are KEPT (they cost
+# nothing and still help this job self-recover from a real collision) -
+# only the shared-lock idea was reverted, since starving a live, time-
+# sensitive results feed is a worse failure mode than this job occasionally
+# needing a manual retrigger.
 concurrency:
   group: toprate-daily
   cancel-in-progress: false
@@ -79,7 +97,18 @@ jobs:
     # legitimately need several 60s-bounded attempts - 20 min left too
     # little headroom and was the exact ceiling that turned one hung `git
     # pull --rebase` into a cancelled run (see that step's own comment).
-    timeout-minutes: 30
+    #
+    # Raised again 30 -> 40 (Sep 2026, speed_map rollout): 3 consecutive
+    # real runs all failed the SAME way - every `git pull --rebase` attempt
+    # (15 total across the 3 runs) hit exactly the old 60s per-attempt bound
+    # and got aborted, never completing a single rebase. A full daily
+    # rebuild's own commit (today's whole field re-projected) produces a
+    # genuinely large diff against toprate_runners.csv (~90MB, kept as text
+    # - see .gitattributes), and 60s was never enough for that specific
+    # 3-way merge cost even once, let alone 5 times - see the pull step's
+    # own timeout bump below. 40 min gives that headroom without the
+    # 60s->240s pull change alone being able to blow the job timeout.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -232,6 +261,20 @@ jobs:
           # stuck). Bounding each call turns that into a fast, loud "TIMED
           # OUT" line naming the exact command instead of silently burning
           # the entire job budget.
+          #
+          # git pull --rebase's own bound raised 60s -> 240s (Sep 2026,
+          # speed_map rollout): 3 consecutive real runs each burned all 5
+          # retries with EVERY pull attempt (15 total) hitting the old 60s
+          # wall and getting aborted - never once completing, not just
+          # occasionally slow. A full daily rebuild's own commit (today's
+          # whole field re-projected) makes a genuinely large diff against
+          # toprate_runners.csv, and 60s was never long enough for that
+          # specific 3-way merge, regardless of how many times it retried.
+          # git push's own 60s bound is UNCHANGED - the evidence points at
+          # the pull/rebase step specifically (every observed push failure
+          # was a near-instant rejection, not a timeout), so only the side
+          # that actually needs more time got it. See this job's own
+          # timeout-minutes comment above for how the two bounds interact.
           for i in 1 2 3 4 5; do
             push_status=0
             timeout 60 git push || push_status=$?
@@ -244,9 +287,9 @@ jobs:
               echo "git push failed, exit $push_status (attempt $i)"
             fi
             pull_status=0
-            timeout 60 git pull --rebase -X ours --no-edit || pull_status=$?
+            timeout 240 git pull --rebase -X ours --no-edit || pull_status=$?
             if [[ $pull_status -eq 124 ]]; then
-              echo "git pull --rebase TIMED OUT after 60s (attempt $i) - aborting"
+              echo "git pull --rebase TIMED OUT after 240s (attempt $i) - aborting"
               git rebase --abort 2>/dev/null || true
             elif [[ $pull_status -ne 0 ]]; then
               echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
