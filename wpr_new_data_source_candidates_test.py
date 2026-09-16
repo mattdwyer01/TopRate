@@ -20,56 +20,48 @@ THREE CANDIDATES:
    includes bad-trip runs). Hypothesis: a horse whose bad-trip runs drag
    its average down is being underrated by that average - the classic
    "buy the unlucky horse" idea, now actually testable with real data
-   instead of on faith. This is a genuinely new axis of information -
-   nothing else in ADJ_TERMS looks at DESCRIBED in-running events, only
-   pre-race facts and own-history WPR averages.
+   instead of on faith.
 
-2. own_sustained_finish - wpr_form_history.csv.gz has full 200m-interval
-   sectionals (sect_i_800_600/600_400/400_200 plus sect_i_l200), not just
-   the sect_i_l600 single figure closing_merit already uses. Candidate:
-   is this horse's LAST 200m faster or slower than its PRECEDING 200m
-   (sect_i_400_200 - sect_i_l200, sign-flipped so positive = accelerating
-   through the line, negative = fading/hanging on) - own-history average
-   of this per-run "finishing shape" signal, shrunk by n. Tests whether
-   knowing HOW a horse finishes (sustained vs one-paced sprint-then-fade)
-   carries information closing_merit's single closing figure doesn't.
+2. own_sustained_finish - fine 200m-interval sectionals (sect_i_400_200,
+   sect_i_l200) already exist but closing_merit only uses the single
+   sect_i_l600 figure. Candidate: own-history average finishing shape
+   (accelerating vs fading through the last 400m), same leak-free
+   construction.
 
-3. gear_change_v2 - the LIVE (but not currently shipped in ADJ_TERMS)
-   gear_change term's own bucketing (_gear_change_bucket in
-   wpr_projection.py) conflates "Blinkers Off First Time" (REMOVING
-   blinkers - a calming/settling signal) into the same "other_first_time_
-   gear" bucket as adding a completely different piece of gear (a nose
-   roll, tongue tie, etc - typically an aggression/focus cue) - the
-   string match only special-cases "Blinkers First Time" exactly, missing
-   that "Blinkers Off First Time" contains "First Time" too and falls
-   into the generic bucket. Splits it into its own 4th bucket
-   (blinkers_off_first_time) and retests gear_change with this corrected
-   bucketing against the same adoption bar gear_change failed under
-   before (this session's wpr_adj_term_roi_ablation_test.py already found
-   the OLD bucketing failed ROI as a candidate add) - if blinkers-on and
-   blinkers-off are genuinely opposite-direction signals being averaged
-   together, correcting the conflation might recover real signal the old
-   bucketing diluted.
+3. gear_change_v2 - the existing (unshipped) gear_change term's bucketing
+   conflates "Blinkers Off First Time" (REMOVING blinkers) into the same
+   generic "other_first_time_gear" bucket as unrelated first-time gear
+   additions. Splits it into its own bucket and retests.
 
-METHODOLOGY: one build_training_frame() call (shared expensive step),
-leak-free own-history candidates computed directly from wpr_form_history.
-csv.gz (expanding/shift(1) per horse, chronological - point-in-time
-correct by construction, no separate model fit needed for candidates 1-2;
-candidate 3 reuses gear_change's existing trained-model architecture,
-refit on the corrected bucketing), then the SAME leak-free bidirectional
-half-split MAE adoption bar used for every other candidate test tonight.
+METHODOLOGY CHANGE (v2, after v1 failed): speed_map's own inputs
+(inside_threats especially) are computed by the CALLER (toprate_daily.py,
+using whole-race-field settling_estimate machinery), not reachable
+standalone from wpr_projection.py - build_training_frame() alone cannot
+replicate them. Switched to calibrate_price_beta.py's _load_resulted()
+(the real compute_wpr_projection() entry point, same pattern
+wpr_rating_gap_qualitative_screen_test.py already uses post-merge) for a
+CORRECT baseline wprp_proj that already includes real speed_map, then
+adds each candidate ON TOP of that baseline (same "new term summed onto
+an already-correct base+9-terms projection" pattern the ROI candidate
+tests used all session), rather than trying to hand-rebuild speed_map.
+
+gear_change_v2 needs its own per-direction leak-free model fit (same
+_fit_simple_adj_model/predict pattern gear_change already uses live);
+own_trip_upside/own_sustained_finish are precomputed leak-free directly
+from wpr_form_history.csv.gz (expanding().shift(1) per horse), no fitting
+needed, so they're just added directly.
 
 NO EM DASHES policy: hyphens only.
 """
 import json
-import re
 import numpy as np
 import pandas as pd
 
 import wpr_projection as wpr
-from wpr_own_pace_backtest import add_base, merge_won_by_horse_date
+from calibrate_price_beta import _load_resulted
 
 FORM_CSV = "wpr_form_history.csv.gz"
+DAYS_BACK = 90
 
 BAD_TRIP_KEYWORDS = [
     "checked", "held up", "no clear run", "no galloping room", "blocked",
@@ -87,10 +79,6 @@ def _is_bad_trip(text):
 
 
 def build_trip_upside(fh):
-    """Leak-free, per-horse: trip-corrected avg (prior clean-trip runs
-    only) minus career_avg-equivalent (all prior runs) - both computed
-    with expanding().shift(1), so only strictly-prior runs ever
-    contribute to a given row's value."""
     d = fh[["horse_id", "date", "wpr", "comments_video"]].copy()
     d["wpr"] = pd.to_numeric(d["wpr"], errors="coerce")
     d["date"] = pd.to_datetime(d["date"], errors="coerce")
@@ -99,7 +87,6 @@ def build_trip_upside(fh):
 
     g = d.groupby("horse_id")
     d["all_avg_prior"] = g["wpr"].transform(lambda s: s.shift(1).expanding().mean())
-    d["all_n_prior"] = g["wpr"].cumcount()
 
     clean_wpr = d["wpr"].where(d["bad_trip"] == 0.0)
     d["clean_avg_prior"] = clean_wpr.groupby(d["horse_id"]).transform(lambda s: s.shift(1).expanding().mean())
@@ -114,19 +101,11 @@ def build_trip_upside(fh):
 
 
 def build_sustained_finish(fh):
-    """Leak-free, per-horse: own-history average of (sect_i_400_200 minus
-    sect_i_l200), sign convention such that a POSITIVE per-run value means
-    the horse ran its last 200m FASTER than the 200m before it
-    (sustaining/accelerating), negative means it faded. Averaged over
-    prior runs only, shrunk by n."""
     d = fh[["horse_id", "date", "sect_i_400_200", "sect_i_l200"]].copy()
     d["date"] = pd.to_datetime(d["date"], errors="coerce")
     for c in ("sect_i_400_200", "sect_i_l200"):
         d[c] = pd.to_numeric(d[c], errors="coerce")
     d = d.dropna(subset=["horse_id", "date"]).sort_values(["horse_id", "date"])
-    # sectional times are TIME (lower = faster), so faster last 200m than
-    # the one before it means sect_i_l200 < sect_i_400_200 - flip sign so
-    # positive = sustained/accelerating, matching the docstring convention.
     d["finish_shape"] = d["sect_i_400_200"] - d["sect_i_l200"]
 
     g = d.groupby("horse_id")
@@ -162,16 +141,6 @@ def _gear_change_bucket_v2(raw):
     return "no_change"
 
 
-def build_gear_v2(full):
-    """gear_code_v2 on the training frame, using the corrected bucketing
-    (adds blinkers_off_first_time as its own category, previously
-    conflated into other_first_time_gear)."""
-    full = full.copy()
-    full["gear_bucket_v2"] = full["gear_changes"].apply(_gear_change_bucket_v2)
-    full["gear_code_v2"] = full["gear_bucket_v2"].map(_GEAR_BUCKET_CODE_V2).fillna(0)
-    return full
-
-
 def top1_strike_rate(frame, proj_col):
     f = frame.copy()
     f["rank"] = f.groupby("race_id")[proj_col].rank(ascending=False, method="first")
@@ -179,68 +148,60 @@ def top1_strike_rate(frame, proj_col):
     return float(top1["won"].mean() * 100), len(top1)
 
 
-def proj_of(frame, extra_terms):
-    terms = list(wpr.ADJ_TERMS) + extra_terms
-    return frame["_base"].to_numpy() + wpr._cap_adj_sum(frame[terms].to_numpy()).sum(axis=1)
-
-
 def run():
-    print("Rebuilding training frame...")
-    full = wpr.build_training_frame(FORM_CSV, verbose=True, n_jobs=-1)
-    full["date"] = pd.to_datetime(full["date"])
-    full = merge_won_by_horse_date(full)
-    full = add_base(full)
+    print(f"Loading resulted races (fresh wprp_proj via compute_wpr_projection, "
+          f"{DAYS_BACK} days back)...")
+    d = _load_resulted(days_back=DAYS_BACK)
+    d = d.dropna(subset=["wprp_proj", "won", "race_id", "date", "horse_id"])
+    d["date"] = pd.to_datetime(d["date"])
+    print(f"Loaded: {len(d):,} resulted rows, {d['race_id'].nunique():,} races, "
+          f"{d['date'].min()} .. {d['date'].max()}")
 
-    print("Reading raw form history for the 3 new candidates...")
+    print("Reading raw form history for own_trip_upside/own_sustained_finish...")
     fh = pd.read_csv(FORM_CSV, low_memory=False,
                       usecols=["horse_id", "date", "wpr", "comments_video",
-                               "sect_i_400_200", "sect_i_l200", "gear_changes"])
-
-    print("  building own_trip_upside (comments_video, leak-free expanding)...")
+                               "sect_i_400_200", "sect_i_l200"])
     trip = build_trip_upside(fh)
-    print("  building own_sustained_finish (fine sectionals, leak-free expanding)...")
     finish = build_sustained_finish(fh)
 
-    full["date_only"] = full["date"]
-    trip["date_only"] = trip["date"]
-    finish["date_only"] = finish["date"]
-    full = full.merge(trip[["horse_id", "date_only", "own_trip_upside"]],
-                       on=["horse_id", "date_only"], how="left")
-    full = full.merge(finish[["horse_id", "date_only", "own_sustained_finish"]],
-                       on=["horse_id", "date_only"], how="left")
-    full["own_trip_upside"] = full["own_trip_upside"].fillna(0.0)
-    full["own_sustained_finish"] = full["own_sustained_finish"].fillna(0.0)
+    d = d.merge(trip, on=["horse_id", "date"], how="left")
+    d = d.merge(finish, on=["horse_id", "date"], how="left")
+    d["own_trip_upside"] = d["own_trip_upside"].fillna(0.0)
+    d["own_sustained_finish"] = d["own_sustained_finish"].fillna(0.0)
+    print(f"  own_trip_upside nonzero: {(d['own_trip_upside']!=0).mean()*100:.1f}%")
+    print(f"  own_sustained_finish nonzero: {(d['own_sustained_finish']!=0).mean()*100:.1f}%")
 
-    print("  building gear_change_v2 corrected bucketing...")
-    full = build_gear_v2(full)
+    # gear_change_v2 needs the raw gear_changes string + first_up/second_up/
+    # n_runs, none of which _load_resulted()'s frame carries (it's a runners_df
+    # snapshot, not the per-horse training frame) - pull from a fresh
+    # build_training_frame() pass (cheap relative to the _load_resulted cost
+    # already paid) purely for these engineered features, merged by (horse_id, date).
+    print("Building gear_change_v2 inputs from a training-frame pass...")
+    feat = wpr.build_training_frame(FORM_CSV, verbose=False, n_jobs=-1)
+    feat["date"] = pd.to_datetime(feat["date"])
+    feat["gear_bucket_v2"] = feat["gear_changes"].apply(_gear_change_bucket_v2)
+    feat["gear_code_v2"] = feat["gear_bucket_v2"].map(_GEAR_BUCKET_CODE_V2).fillna(0)
+    keep = ["horse_id", "date", "gear_code_v2", "field_size", "first_up", "second_up", "n_runs", "career_avg"]
+    d = d.merge(feat[keep].drop_duplicates(subset=["horse_id", "date"]), on=["horse_id", "date"], how="left")
+    d["target"] = d["wpr"] if "wpr" in d.columns else np.nan
+    print(f"  gear_bucket_v2 distribution:\n{d['gear_bucket_v2'].value_counts(dropna=False)}")
 
-    own_history_terms = ["own_first_up", "own_second_up", "own_long_spell"]
-    full = full.dropna(subset=["target", "_base", "career_avg"] + own_history_terms +
-                        ["speed_map", "barrier", "field_size", "track", "cur_distance", "race_id"])
-    print(f"Scoped rows: {len(full):,} ({full['race_id'].nunique():,} races)")
-    print(f"  own_trip_upside nonzero: {(full['own_trip_upside']!=0).mean()*100:.1f}%")
-    print(f"  own_sustained_finish nonzero: {(full['own_sustained_finish']!=0).mean()*100:.1f}%")
-    print(f"  gear_bucket_v2 distribution:\n{full['gear_bucket_v2'].value_counts()}")
-
-    mid = full["date"].quantile(0.5)
-    h1, h2 = full[full["date"] < mid].copy(), full[full["date"] >= mid].copy()
+    mid = d["date"].quantile(0.5)
+    h1, h2 = d[d["date"] < mid].copy(), d[d["date"] >= mid].copy()
     print(f"H1: {len(h1):,} rows (< {mid.date()}), H2: {len(h2):,} rows (>= {mid.date()})")
 
-    # gear_change_v2 needs its own trained model per direction (same
-    # _fit_simple_adj_model / _merit_term pattern gear_change already
-    # uses live, just on the corrected bucket codes)
     GEAR_V2_FEATURES = ["gear_code_v2", "field_size", "first_up", "second_up", "n_runs"]
 
     def fit_gear_v2(fit_half, held_out):
-        d = fit_half.dropna(subset=GEAR_V2_FEATURES + ["target", "career_avg"])
-        model = wpr._fit_simple_adj_model(d, GEAR_V2_FEATURES, "gear_change_v2")
+        d2 = fit_half.dropna(subset=GEAR_V2_FEATURES + ["target", "career_avg"])
+        model = wpr._fit_simple_adj_model(d2, GEAR_V2_FEATURES, "gear_change_v2")
         for frame in (fit_half, held_out):
             if model is None:
                 frame["gear_change_v2"] = 0.0
                 continue
             X = frame[GEAR_V2_FEATURES].copy()
-            X["field_size"] = pd.to_numeric(X["field_size"], errors="coerce").fillna(0.0)
-            X["n_runs"] = pd.to_numeric(X["n_runs"], errors="coerce").fillna(0.0)
+            for c in ("field_size", "first_up", "second_up", "n_runs", "gear_code_v2"):
+                X[c] = pd.to_numeric(X[c], errors="coerce").fillna(0.0)
             frame["gear_change_v2"] = model.predict(X)
         return model
 
@@ -250,40 +211,37 @@ def run():
         print(f"\n{label}: fitting gear_change_v2...")
         fit_gear_v2(fit_half, held_out)
 
-        baseline_proj = proj_of(held_out, [])
-        baseline_mae = float(np.abs(held_out["target"].to_numpy() - baseline_proj).mean())
-        held_out["proj_baseline"] = baseline_proj
-        b_strike, b_n = top1_strike_rate(held_out, "proj_baseline")
-        print(f"  {label} baseline: MAE={baseline_mae:.4f}  strike={b_strike:.2f}% (n={b_n})")
-        results.setdefault("baseline", []).append((baseline_mae, b_strike, b_n, len(held_out)))
+        baseline_proj = held_out["wprp_proj"].to_numpy()
+        # _load_resulted()'s frame has no leak-free point-in-time "target"
+        # column the way build_training_frame() does (that's a per-horse
+        # training-frame concept) - MAE dropped in favour of top-1 strike
+        # rate alone, an established adoption-bar metric used throughout
+        # tonight's other candidate tests (e.g. wpr_rejected_candidates_
+        # strike_recheck.py), against real race outcomes (won).
+        b_strike, b_n = top1_strike_rate(held_out.assign(proj_baseline=baseline_proj), "proj_baseline")
+        print(f"  {label} baseline: strike={b_strike:.2f}% (n={b_n})")
+        results.setdefault("baseline", []).append((b_strike, b_n))
 
         for cand in ["own_trip_upside", "own_sustained_finish", "gear_change_v2"]:
-            proj = proj_of(held_out, [cand])
-            mae = float(np.abs(held_out["target"].to_numpy() - proj).mean())
-            held_out[f"proj_{cand}"] = proj
-            strike, n = top1_strike_rate(held_out, f"proj_{cand}")
-            print(f"  {label} +{cand}: MAE={mae:.4f}  strike={strike:.2f}% (n={n})")
-            results.setdefault(cand, []).append((mae, strike, n, len(held_out)))
+            proj = baseline_proj + held_out[cand].fillna(0.0).to_numpy()
+            strike, n = top1_strike_rate(held_out.assign(**{f"proj_{cand}": proj}), f"proj_{cand}")
+            print(f"  {label} +{cand}: strike={strike:.2f}% (n={n})")
+            results.setdefault(cand, []).append((strike, n))
 
     print("\n" + "=" * 78)
-    print("POOLED HELD-OUT ADOPTION-BAR CHECK (MAE + top-1 strike rate)")
+    print("POOLED HELD-OUT ADOPTION-BAR CHECK (top-1 strike rate)")
     print("=" * 78)
-    def pooled_mae(rows):
-        total_n = sum(r[3] for r in rows)
-        return sum(r[0] * r[3] for r in rows) / total_n
     def pooled_strike(rows):
-        total_n = sum(r[2] for r in rows)
-        total_k = sum(r[1] / 100 * r[2] for r in rows)
+        total_n = sum(r[1] for r in rows)
+        total_k = sum(r[0] / 100 * r[1] for r in rows)
         return total_k / total_n * 100 if total_n else float("nan")
 
-    b_mae, b_strike = pooled_mae(results["baseline"]), pooled_strike(results["baseline"])
-    print(f"baseline (9 live terms): MAE={b_mae:.4f}  strike={b_strike:.2f}%")
+    b_strike = pooled_strike(results["baseline"])
+    print(f"baseline (current live speed_map-era model): strike={b_strike:.2f}%")
     for cand in ["own_trip_upside", "own_sustained_finish", "gear_change_v2"]:
-        c_mae, c_strike = pooled_mae(results[cand]), pooled_strike(results[cand])
-        mae_verdict = "IMPROVES MAE" if c_mae < b_mae else "worse MAE"
-        strike_verdict = "IMPROVES strike" if c_strike > b_strike else "worse strike"
-        print(f"+{cand:<22s}: MAE={c_mae:.4f} ({mae_verdict}, delta {c_mae-b_mae:+.4f})   "
-              f"strike={c_strike:.2f}% ({strike_verdict}, delta {c_strike-b_strike:+.2f}pts)")
+        c_strike = pooled_strike(results[cand])
+        verdict = "IMPROVES strike" if c_strike > b_strike else "worse strike"
+        print(f"+{cand:<22s}: strike={c_strike:.2f}% ({verdict}, delta {c_strike-b_strike:+.2f}pts)")
 
 
 if __name__ == "__main__":
