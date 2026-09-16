@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- toprate_live.html is a static single file re-published under the
+         same URL on every deploy - GitHub Pages/its CDN and mobile Safari
+         have both been observed serving a stale cached copy for a while
+         after a real deploy (confirmed, Sep 2026: a pushed fix tested
+         correct locally against the exact same race data still showed the
+         old behaviour on a real device). These hint browsers away from
+         caching the document itself; they can't override the CDN's own
+         HTTP headers, so a stale edge cache can still need a hard
+         refresh, but this removes the browser's own layer of staleness. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>TopRate</title>
   </head>
   <body>
