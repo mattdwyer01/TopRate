@@ -148,12 +148,23 @@ def top1_strike_rate(frame, proj_col):
     return float(top1["won"].mean() * 100), len(top1)
 
 
+CACHE_PATH = "/tmp/claude-0/-home-user-TopRate/76dfed62-bd31-52ea-bf89-3275bc38fea4/scratchpad/_load_resulted_cache.pkl"
+
+
 def run():
-    print(f"Loading resulted races (fresh wprp_proj via compute_wpr_projection, "
-          f"{DAYS_BACK} days back)...")
-    d = _load_resulted(days_back=DAYS_BACK)
-    d = d.dropna(subset=["wprp_proj", "won", "race_id", "date", "horse_id"])
-    d["date"] = pd.to_datetime(d["date"])
+    import os
+    if os.path.exists(CACHE_PATH):
+        print(f"Loading cached _load_resulted() output from {CACHE_PATH} "
+              f"(skips the ~90-min recompute - delete this file to force a fresh pull)...")
+        d = pd.read_pickle(CACHE_PATH)
+    else:
+        print(f"Loading resulted races (fresh wprp_proj via compute_wpr_projection, "
+              f"{DAYS_BACK} days back)...")
+        d = _load_resulted(days_back=DAYS_BACK)
+        d = d.dropna(subset=["wprp_proj", "won", "race_id", "date", "horse_id"])
+        d["date"] = pd.to_datetime(d["date"])
+        d.to_pickle(CACHE_PATH)
+        print(f"  cached to {CACHE_PATH} for any future rerun this session")
     print(f"Loaded: {len(d):,} resulted rows, {d['race_id'].nunique():,} races, "
           f"{d['date'].min()} .. {d['date'].max()}")
 
@@ -184,7 +195,15 @@ def run():
     keep = ["horse_id", "date", "gear_bucket_v2", "gear_code_v2", "field_size",
             "first_up", "second_up", "n_runs", "career_avg"]
     d = d.merge(feat[keep].drop_duplicates(subset=["horse_id", "date"]), on=["horse_id", "date"], how="left")
-    d["target"] = d["wpr"] if "wpr" in d.columns else np.nan
+    # target for gear_change_v2's regression fit: the REALIZED post-race
+    # WPR (wpr_actual, populated by update_results() for resulted races) -
+    # NOT "wpr" (a form-history-only column that does not exist on
+    # _load_resulted()'s runners_df-sourced frame; using it silently
+    # broadcast a scalar NaN to every row here on the first run, zeroing
+    # out every gear_change_v2 fit without erroring - "0 covered rows,
+    # skipping fit" - found via the suspiciously exact +0.00pt "delta").
+    d["target"] = pd.to_numeric(d["wpr_actual"], errors="coerce") if "wpr_actual" in d.columns else np.nan
+    print(f"  target (wpr_actual) coverage: {d['target'].notna().mean()*100:.1f}%")
     print(f"  gear_bucket_v2 distribution:\n{d['gear_bucket_v2'].value_counts(dropna=False)}")
 
     mid = d["date"].quantile(0.5)
