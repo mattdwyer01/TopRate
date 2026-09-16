@@ -235,15 +235,20 @@ function PickCard({
   row: TrackerRow
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }) {
+  // Race summary page, not the horse's own detail modal - deliberately
+  // omits runId (real user feedback, 2026-09-16: passing it opened
+  // RunnerDetailModal directly via RaceDetail's initialRunId prop, which
+  // is one horse zoomed in, not the race overview the user actually
+  // wanted from this list).
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={() => onSelectRace(row.raceId, row.date, row.runId)}
+      onClick={() => onSelectRace(row.raceId, row.date)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          onSelectRace(row.raceId, row.date, row.runId)
+          onSelectRace(row.raceId, row.date)
         }
       }}
       className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
