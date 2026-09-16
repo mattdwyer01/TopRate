@@ -131,18 +131,43 @@ function drawToneClass(drawFrac: number): string {
 // or more forward (index >= MIDFIELD_IDX - COLUMNS runs Backmarker(0) ->
 // Leader(5), so "more forward" means a HIGHER index) is the exact
 // scenario that needs either early speed spent crossing rivals or a
-// genuinely hot pace to be plausible - see this function's own caller for
-// the pace gate. Not flagged on Backmarker/Off Midfield (a wide gate
-// settling back is the UNREMARKABLE case, not the one worth flagging).
+// genuinely hot pace to be plausible. Not flagged on Backmarker/Off
+// Midfield (a wide gate settling back is the UNREMARKABLE case, not the
+// one worth flagging).
 // BUG (caught in browser testing before shipping): first version compared
 // `columnIdx > MIDFIELD_IDX` and returned false (no caution) for exactly
 // the forward columns (Off Pace/Pace/Leader) this was meant to catch -
 // backwards, since higher index is MORE forward here, not less.
 const MIDFIELD_IDX = 2
 
-function needsCaution(drawFrac: number, columnIdx: number, tempoBucket: string): boolean {
-  if (drawFrac < 2 / 3 || columnIdx < MIDFIELD_IDX) return false
-  return tempoBucket !== 'Fast'
+// A genuinely hot pace CAN excuse one wide gate crossing over into a
+// forward spot without real cost - but real user feedback (2026-09-16)
+// correctly points out that reading holds for AT MOST one horse per race:
+// two or more wide-drawn runners can't all find a free run forward from
+// the gate in the same race, no matter how fast the tempo. Previously
+// every qualifying runner got the same blanket "Fast pace forgives it"
+// exemption independently, which could silence the caution flag on
+// several wide-and-forward runners in one race at once - implausible.
+// Only the LEAST wide of the race's own qualifying group (the one most
+// plausibly able to actually cross) gets the benefit of the doubt when
+// the pace is Fast; every other qualifier is flagged regardless of tempo.
+function computeCautionRunIds(
+  runners: Runner[],
+  fieldSize: number,
+  columnIdxByRunId: Map<string, number>,
+  tempoBucket: string,
+): Set<string> {
+  const candidates = runners
+    .map((u) => ({
+      runId: u.runId,
+      drawFrac: drawFracOf(u, fieldSize),
+      columnIdx: columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX,
+    }))
+    .filter((c) => c.drawFrac >= 2 / 3 && c.columnIdx >= MIDFIELD_IDX)
+    .sort((a, b) => a.drawFrac - b.drawFrac)
+
+  const exemptCount = tempoBucket === 'Fast' ? 1 : 0
+  return new Set(candidates.slice(exemptCount).map((c) => c.runId))
 }
 
 // How many side-by-side sub-columns to wrap a tactical column's runners
@@ -202,6 +227,8 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     col.sort((a, b) => (a.barrier ?? 99) - (b.barrier ?? 99))
   }
 
+  const cautionRunIds = computeCautionRunIds(runners, fieldSize, columnIdxByRunId, pace.tempoBucket)
+
   // Display-only demeaning against THIS race's own speed_map values - see
   // threatTone's own comment above for why. Never touches wpr_projection.py
   // or any WPR number shown elsewhere; this Map only feeds the tint below.
@@ -230,8 +257,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
     const tone = threatTone(displaySpeedMap)
     const drawFrac = drawFracOf(u, fieldSize)
-    const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
-    const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
+    const caution = cautionRunIds.has(u.runId)
     const titleParts = [
       // Name first and always - narrower cards from subColsFor's
       // wrapping (desktop) or the compact mobile size truncate the
