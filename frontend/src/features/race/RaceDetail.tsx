@@ -61,13 +61,28 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // template above. Peak and Adj were dropped from this summary view
 // entirely (real user feedback, 2026-09-16) - Adjustment is still shown in
 // the runner detail modal's own breakdown.
-const MOBILE_COLUMN_LABELS: { key: SortKey; label: string }[] = [
+const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'baseWpr', label: 'Base' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
   { key: 'jockeyWinPct', label: 'Jky Win%' },
+  { key: 'fixedPrice', label: 'Fixed $' },
+  { key: 'finish', label: 'FP' },
+]
+
+// Compact mobile (the default density, see useTableDensity) drops
+// Base/Form/Jockey Win% so the whole row fits within a phone's own width
+// without needing the horizontal scroll Full still requires (real user
+// feedback, 2026-09-16: "trim mobile columns so it fits without
+// scrolling") - must match RunnerRow's own compact mobile grid-cols
+// exactly (desktop is unaffected either way - it always shows every
+// column, see COLUMN_LABELS/sm:grid-cols above).
+const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
+  { key: 'horse', label: 'Horse' },
+  { key: 'projectedWpr', label: 'Proj' },
+  { key: 'toprateRating', label: 'TopRate' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -266,19 +281,22 @@ export function RaceDetail({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-        {/* Mobile header: matches RunnerRow's mobile grid-cols exactly
-            (silk/horse/base/proj/toprateRating/formFactor/jockeyWinPct/
-            fixedPrice/FP - Actual stays desktop-only, RTS isn't a mobile
-            column at all, see RunnerRow's own comment) so labels land above
-            the right column. Wider than the viewport on purpose - the
-            shared overflow-x-auto wrapper scrolls it, with the silk/horse
-            cells sticky so they stay pinned while the rest scrolls
-            underneath, same as every row below. The desktop header further
-            down covers every column but is hidden below sm since it's laid
-            out differently there. */}
-        <div className="grid w-max grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
+        {/* Mobile header: matches RunnerRow's mobile grid-cols exactly for
+            the current density - compact drops Base/Form/Jockey Win% (and
+            narrows Horse) so the row fits without horizontal scroll, full
+            shows every column and scrolls, same as every row below (see
+            MOBILE_COLUMN_LABELS_COMPACT/_FULL's own comments). The desktop
+            header further down covers every column but is hidden below sm
+            since it's laid out differently there. */}
+        <div
+          className={`grid w-max border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
+            compact
+              ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
+              : 'gap-x-2 grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px]'
+          }`}
+        >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
-          {MOBILE_COLUMN_LABELS.map((col, i) => (
+          {(compact ? MOBILE_COLUMN_LABELS_COMPACT : MOBILE_COLUMN_LABELS_FULL).map((col, i) => (
             <button
               key={col.key}
               type="button"

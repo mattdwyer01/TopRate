@@ -162,7 +162,19 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_60px_52px_70px_56px_48px_52px_52px] ${rowPadding} ${
+      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_52px_70px_56px_48px_52px_52px] ${
+        // Compact (mobile only - desktop always shows every column, see
+        // sm:grid-cols above) drops Base/Form/Jockey Win% entirely AND
+        // tightens the column gap, so the whole row fits within a phone's
+        // own width without needing the horizontal scroll Full still
+        // requires (real user feedback, 2026-09-16: "trim mobile columns
+        // so it fits without scrolling"). Must match RaceDetail's own
+        // compact/full mobile grid-cols/gap and
+        // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
+        compact
+          ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
+          : 'gap-x-2 grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px]'
+      } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
         // state on hover, this just stops highlighting it visually across
@@ -272,7 +284,7 @@ export function RunnerRow({
       <span className={`hidden text-right font-mono sm:inline ${rtsColorClass}`} title={rtsTitle}>
         {spell.label}
       </span>
-      <span className="text-right font-mono text-ink-mute">
+      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {fmtWpr(runner.baseWpr)}
       </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
@@ -300,10 +312,10 @@ export function RunnerRow({
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}
       </span>
-      <span className="text-right font-mono text-ink-mute">
+      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {scratched ? 'SCR' : fmtInt(runner.formFactor)}
       </span>
-      <span className="text-right font-mono text-ink-mute">
+      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {scratched ? 'SCR' : fmtJockeyWin(runner.jockeyWinPct90d)}
       </span>
       {/* Fixed $ and FP (below) are trimmed tighter than a plain "shrink a
