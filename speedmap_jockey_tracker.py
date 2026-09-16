@@ -24,6 +24,12 @@ $3 still means the race wasn't genuinely uncontested: backtest showed such
 "shadow"-affected picks returned roughly half the ROI of genuinely solo
 ones, +6.8% vs +16.9% proportional).
 
+Exception to solo-only (Sep 2026, real user decision): a multi-selection
+(contested) race still fires - on EVERY qualifier in it, not just one - if
+all of them are priced above CONTESTED_PRICE_FLOOR ($6). See that
+constant's own comment for the backtest that motivated this and its
+caveat (doesn't fully survive an outlier-robustness check).
+
 Tracker A (high volume, no rating-agreement requirement) vs Tracker B (low
 volume, ALSO requires the runner to be #1 in-race by both TopRate's own
 rating (trr) and the external form-factor score (pfm_score_rank)) - see
@@ -68,6 +74,18 @@ DEMEAN_THRESHOLD = 0.5   # matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 GAP_MAX = 4.0
 JW_MIN = 14.0            # jockey_win_pct_90d floor
 PRICE_MIN = 3.0          # SP/fixed price floor
+# A multi-selection (contested) race normally never fires at all (solo-only,
+# see above). Exception (Sep 2026, real user decision): if EVERY qualifier in
+# the race is priced above this floor, fire on ALL of them rather than
+# staying silent. Backtest at the time: sweeping this floor from $4-$10
+# showed $6-$7 looking best on raw ROI (n=68/49 races, propROI +30%/+60%),
+# but it did NOT fully survive the usual robustness checks - excluding the
+# 3 biggest-priced winners flips $6 to propROI -16.4%, i.e. a handful of
+# long-priced results are carrying the headline number, not a clean edge.
+# Implemented anyway per explicit user instruction, same as the GAP_MAX 6->4
+# call above where the user weighted other factors over pure backtest
+# robustness - flagged here for whoever revisits this.
+CONTESTED_PRICE_FLOOR = 6.0
 TAGS = ("favoured", "neutral")
 
 # Bush/picnic-meeting threshold - matches lib/meetings.ts's own
@@ -236,28 +254,36 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
         # there isn't a "next" one; solo-only already established there's
         # exactly one.
         solo_a = race_qualifiers[0] if len(race_qualifiers) == 1 else None
-        include_a_rid = (
-            str(solo_a[0].get("rid", ""))
-            if solo_a is not None and solo_a[4] is not None and solo_a[4] >= PRICE_MIN
-            else None
-        )
+        include_a_rids = set()
+        if solo_a is not None:
+            if solo_a[4] is not None and solo_a[4] >= PRICE_MIN:
+                include_a_rids = {str(solo_a[0].get("rid", ""))}
+        elif len(race_qualifiers) > 1:
+            # Multi-selection floor exception (see CONTESTED_PRICE_FLOOR
+            # above) - only fires when EVERY qualifier clears it, not just
+            # the shortest-priced one; otherwise the race stays contested
+            # (silent) exactly as before.
+            prices = [q[4] for q in race_qualifiers]
+            if all(p is not None and p > CONTESTED_PRICE_FLOOR for p in prices):
+                include_a_rids = {str(q[0].get("rid", "")) for q in race_qualifiers}
 
         solo_b_rid = b_pool[0] if len(b_pool) == 1 else None
-        include_b_rid = (
-            solo_b_rid
-            if solo_b_rid is not None
-            and info_by_rid[solo_b_rid][4] is not None
-            and info_by_rid[solo_b_rid][4] >= PRICE_MIN
-            else None
-        )
+        include_b_rids = set()
+        if solo_b_rid is not None:
+            if info_by_rid[solo_b_rid][4] is not None and info_by_rid[solo_b_rid][4] >= PRICE_MIN:
+                include_b_rids = {solo_b_rid}
+        elif len(b_pool) > 1:
+            prices = [info_by_rid[rid][4] for rid in b_pool]
+            if all(p is not None and p > CONTESTED_PRICE_FLOOR for p in prices):
+                include_b_rids = set(b_pool)
 
-        for rid in {x for x in (include_a_rid, include_b_rid) if x is not None}:
+        for rid in include_a_rids | include_b_rids:
             u, tag, gap, jw, price, trr_rank, pfm_rank = info_by_rid[rid]
             yield r, u, {
                 "tag": tag, "gap": gap, "jw": jw, "price": price,
                 "trr_rank_1": trr_rank == 1, "pfm_rank_1": pfm_rank == 1,
-                "include_in_a": rid == include_a_rid,
-                "include_in_b": rid == include_b_rid,
+                "include_in_a": rid in include_a_rids,
+                "include_in_b": rid in include_b_rids,
                 "wpr_prediction": u.get("wpjp"),
                 "toprate_rating": u.get("trr"),
                 "form_factor": pfm_score_by_rid.get(rid),

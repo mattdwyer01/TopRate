@@ -63,6 +63,13 @@ const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 const GAP_MAX = 4.0
 const JW_MIN = 14.0
 const PRICE_MIN = 3.0
+// A multi-selection (contested) race still fires - on every qualifier in
+// it - if all of them are priced above this floor. See
+// speedmap_jockey_tracker.py's matching CONTESTED_PRICE_FLOOR comment for
+// the backtest that motivated this and its caveat (doesn't fully survive
+// an outlier-robustness check; implemented per explicit user decision,
+// same as the GAP_MAX 6->4 call).
+const CONTESTED_PRICE_FLOOR = 6.0
 
 function rankDesc(value: number | null, allValues: (number | null)[]): number | null {
   if (value == null) return null
@@ -145,25 +152,48 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   // through to a "next" qualifier, because solo-only already established
   // there isn't one.
   const soloA = raceQualifiers.length === 1 ? raceQualifiers[0] : null
-  const includeARid = soloA != null && soloA.price != null && soloA.price >= PRICE_MIN ? soloA.runner.runId : null
+  const includeARids = new Set<string>()
+  if (soloA != null) {
+    if (soloA.price != null && soloA.price >= PRICE_MIN) includeARids.add(soloA.runner.runId)
+  } else if (raceQualifiers.length > 1) {
+    // Multi-selection floor exception (see CONTESTED_PRICE_FLOOR above) -
+    // only fires when EVERY qualifier clears it, not just the
+    // shortest-priced one; otherwise the race stays contested (silent)
+    // exactly as before.
+    if (raceQualifiers.every((q) => q.price != null && q.price > CONTESTED_PRICE_FLOOR)) {
+      for (const q of raceQualifiers) includeARids.add(q.runner.runId)
+    }
+  }
   // Solo, but priced under PRICE_MIN - a different non-fire reason than
   // contested (there's no rival qualifier at all here, just a price too
   // short to bet).
-  const underPriceARid = soloA != null && includeARid == null ? soloA.runner.runId : null
-  // Contested: 2+ runners meet A's tactical criteria, price aside - every
-  // one of them gets contestedA, not just whichever happens to be
-  // shortest/longest priced (there's no "the" contender to single out).
-  const contestedARids = new Set(raceQualifiers.length > 1 ? raceQualifiers.map((q) => q.runner.runId) : [])
+  const underPriceARid = soloA != null && includeARids.size === 0 ? soloA.runner.runId : null
+  // Contested: 2+ runners meet A's tactical criteria and the multi-selection
+  // floor above didn't clear (still no fire) - every one of them gets
+  // contestedA, not just whichever happens to be shortest/longest priced.
+  const contestedARids = new Set(
+    raceQualifiers.length > 1 && includeARids.size === 0 ? raceQualifiers.map((q) => q.runner.runId) : [],
+  )
 
   const soloBRid = bPool.length === 1 ? bPool[0] : null
-  const soloBPrice = soloBRid != null ? infoByRid.get(soloBRid)!.price : null
-  const includeBRid = soloBRid != null && soloBPrice != null && soloBPrice >= PRICE_MIN ? soloBRid : null
-  const underPriceBRid = soloBRid != null && includeBRid == null ? soloBRid : null
-  const contestedBRids = new Set(bPool.length > 1 ? bPool : [])
+  const includeBRids = new Set<string>()
+  if (soloBRid != null) {
+    const soloBPrice = infoByRid.get(soloBRid)!.price
+    if (soloBPrice != null && soloBPrice >= PRICE_MIN) includeBRids.add(soloBRid)
+  } else if (bPool.length > 1) {
+    if (bPool.every((rid) => {
+      const p = infoByRid.get(rid)!.price
+      return p != null && p > CONTESTED_PRICE_FLOOR
+    })) {
+      for (const rid of bPool) includeBRids.add(rid)
+    }
+  }
+  const underPriceBRid = soloBRid != null && includeBRids.size === 0 ? soloBRid : null
+  const contestedBRids = new Set(bPool.length > 1 && includeBRids.size === 0 ? bPool : [])
 
   const allRids = new Set<string>([
-    ...(includeARid != null ? [includeARid] : []),
-    ...(includeBRid != null ? [includeBRid] : []),
+    ...includeARids,
+    ...includeBRids,
     ...(underPriceARid != null ? [underPriceARid] : []),
     ...(underPriceBRid != null ? [underPriceBRid] : []),
     ...contestedARids,
@@ -178,8 +208,8 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
       gapWpr: info.gap,
       jw: info.jw,
       price: info.price,
-      qualifiesA: rid === includeARid,
-      qualifiesB: rid === includeBRid,
+      qualifiesA: includeARids.has(rid),
+      qualifiesB: includeBRids.has(rid),
       contestedA: contestedARids.has(rid),
       contestedB: contestedBRids.has(rid),
       underPriceA: rid === underPriceARid,
