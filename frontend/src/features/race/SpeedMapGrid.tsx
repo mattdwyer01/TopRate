@@ -12,13 +12,19 @@ interface SpeedMapGridProps {
 // continuous 0-1 (0 = leads, 1 = settles last, see toprate_daily.py's
 // _settle_rel_lookup) - split into 6 even bands, reversed since column 0
 // here is the BACK of the field.
+// shortLabel is for the mobile header only, where a column can be as
+// narrow as ~35px (an empty/light column ceding width to busier ones -
+// see the mobile layout's own comment below) - "Backmarker"/"Off
+// Midfield" don't fit even wrapped at that width without CSS word-breaking
+// mid-word, which read worse than just using a shorter word (real device
+// feedback, 2026-09-16: the full labels visually collided with each other).
 const COLUMNS = [
-  { key: 'back', label: 'Backmarker', lo: 5 / 6, hi: 1 },
-  { key: 'offmid', label: 'Off Midfield', lo: 4 / 6, hi: 5 / 6 },
-  { key: 'mid', label: 'Midfield', lo: 3 / 6, hi: 4 / 6 },
-  { key: 'offpace', label: 'Off Pace', lo: 2 / 6, hi: 3 / 6 },
-  { key: 'pace', label: 'Pace', lo: 1 / 6, hi: 2 / 6 },
-  { key: 'lead', label: 'Leader', lo: 0, hi: 1 / 6 },
+  { key: 'back', label: 'Backmarker', shortLabel: 'Back', lo: 5 / 6, hi: 1 },
+  { key: 'offmid', label: 'Off Midfield', shortLabel: 'Off Mid', lo: 4 / 6, hi: 5 / 6 },
+  { key: 'mid', label: 'Midfield', shortLabel: 'Mid', lo: 3 / 6, hi: 4 / 6 },
+  { key: 'offpace', label: 'Off Pace', shortLabel: 'Off Pace', lo: 2 / 6, hi: 3 / 6 },
+  { key: 'pace', label: 'Pace', shortLabel: 'Pace', lo: 1 / 6, hi: 2 / 6 },
+  { key: 'lead', label: 'Leader', shortLabel: 'Lead', lo: 0, hi: 1 / 6 },
 ]
 
 // predictedRelSettle needs a fresh rebuild to be populated (added Sep 2026 -
@@ -245,15 +251,11 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
         title={titleParts.join(' · ') || undefined}
         style={compact ? undefined : { width: CARD_PX }}
         className={`relative flex flex-col items-center gap-0.5 rounded-md border text-center ${
-          compact ? 'w-full py-1 pl-1 pr-2' : 'py-1.5 pl-1.5 pr-3'
+          compact ? 'w-full py-1 pl-1 pr-2.5' : 'py-1.5 pl-1.5 pr-3'
         } ${TONE_CLASSES[tone]}`}
       >
         {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
-        <div
-          className={`pointer-events-none absolute inset-y-1 rounded-full bg-line-soft ${
-            compact ? 'right-0.5 w-0.5' : 'inset-y-1.5 right-1 w-1'
-          }`}
-        >
+        <div className="pointer-events-none absolute inset-y-1 right-1 w-1 rounded-full bg-line-soft">
           <div
             className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
             style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
@@ -268,7 +270,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           // correct, only the badge's own placement was ambiguous).
           <span
             className={`absolute left-0.5 top-0.5 flex items-center justify-center rounded-full bg-amber font-bold leading-none text-white ${
-              compact ? 'h-3 w-3 text-[7px]' : 'h-3.5 w-3.5 text-[9px]'
+              compact ? 'h-3.5 w-3.5 text-[8px]' : 'h-3.5 w-3.5 text-[9px]'
             }`}
           >
             !
@@ -276,11 +278,11 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
         )}
         <div className="relative">
           {u.silkUrl ? (
-            <img src={u.silkUrl} alt="" className={compact ? 'h-6 w-6 rounded-sm object-cover' : 'h-8 w-8 rounded-sm object-cover'} />
+            <img src={u.silkUrl} alt="" className={compact ? 'h-7 w-7 rounded-sm object-cover' : 'h-8 w-8 rounded-sm object-cover'} />
           ) : (
             <div
               className={`flex items-center justify-center rounded-sm bg-slate font-semibold text-white ${
-                compact ? 'h-6 w-6 text-[9px]' : 'h-8 w-8 text-xs'
+                compact ? 'h-7 w-7 text-[10px]' : 'h-8 w-8 text-xs'
               }`}
             >
               {u.tabNumber}
@@ -288,17 +290,17 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           )}
           <span
             className={`absolute rounded-full bg-ink font-bold leading-tight text-white ${
-              compact ? '-right-1.5 -top-1.5 px-0.5 text-[8px]' : '-right-2 -top-2 px-1 text-[10px]'
+              compact ? '-right-2 -top-2 px-1 text-[9px]' : '-right-2 -top-2 px-1 text-[10px]'
             }`}
           >
             {u.barrier ?? '—'}
           </span>
         </div>
-        <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[8px]' : 'text-[11px]'}`}>
+        <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[9px]' : 'text-[11px]'}`}>
           {compact ? u.horse : `${u.tabNumber}.${u.horse}`}
         </span>
         {u.projectedWpr != null && (
-          <span className={`font-mono text-ink-faint ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
+          <span className={`font-mono text-ink-faint ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
             {u.projectedWpr.toFixed(1)}
           </span>
         )}
@@ -348,20 +350,33 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       {/* Mobile: keeps the same 6-columns-side-by-side shape as desktop
           (not stacked into 6 full-width sections - tried that, real user
           pushback: it lost the "who's alongside whom" reading and burned a
-          lot of vertical scroll) but as one `grid-cols-6` row that always
-          fits the viewport width, so nothing needs horizontal scrolling
-          either (real user feedback, 2026-09-16: the desktop grid cut off
+          lot of vertical scroll) but as one flex row that always fits the
+          viewport width, so nothing needs horizontal scrolling either
+          (real user feedback, 2026-09-16: the desktop grid cut off
           Leader/Pace off-screen on a 390px phone). Gets there by shrinking
           (compact renderCard: smaller silk/text) and dropping the
           sub-column wrapping (always single-file per column, unlike
-          desktop's subColsFor) rather than by giving each column more
-          width - the two together are what keep 6 real columns on screen
-          without either scrolling or losing the side-by-side layout. */}
-      <div className="mt-2 grid grid-cols-6 gap-1 sm:hidden">
+          desktop's subColsFor).
+          A plain even 6-way split (grid-cols-6) still read too small on a
+          real device (user feedback, 2026-09-16: "text is small and very
+          hard to read") - an EMPTY tactical column (no runner predicted to
+          settle there, common for Backmarker/Leader on a small field) was
+          claiming a full 1/6 of the width for nothing. flex-basis below
+          gives an empty column only enough width for its own label and
+          hands the rest to columns that actually have cards, so those get
+          bigger before falling back to shrinking further. On a big field
+          where every column has runners this converges back to an even
+          split - there's no width left to redistribute - so cards can't
+          rely on emptiness alone and are still sized to survive that case. */}
+      <div className="mt-2 flex gap-1 sm:hidden">
         {COLUMNS.map((c, i) => (
-          <div key={c.key} className="flex flex-col gap-1">
-            <div className="text-center text-[7px] font-semibold uppercase leading-tight tracking-wide text-ink-faint">
-              {c.label}
+          <div
+            key={c.key}
+            className="flex min-w-0 flex-col gap-1"
+            style={{ flex: columns[i].length > 0 ? '1 1 0%' : '0.55 1 0%' }}
+          >
+            <div className="truncate text-center text-[8px] font-semibold uppercase leading-tight text-ink-faint">
+              {c.shortLabel}
             </div>
             <div className="flex flex-col gap-1">
               {columns[i].map((u) => renderCard(u, true))}
