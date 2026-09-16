@@ -20,7 +20,7 @@ import {
 // against toprate_data.json (Sep 2026), NOT wired into any model, pick, or
 // projection logic:
 //   - High volume: favoured/neutral speed map, jockey win% (90d) >= 14,
-//     within 6 WPR of the race's top-projected runner, $3+ price.
+//     within 4 WPR of the race's top-projected runner, $3+ price.
 //   - Low volume: same, plus the runner must also be #1 in-race by both
 //     TopRate's own rating AND the external form-factor score.
 // Each row is captured BEFORE the result is known (see the tracker
@@ -610,7 +610,7 @@ export function TrackersTab({ races, onSelectRace }: TrackersTabProps) {
           rows={high.rows}
           races={races}
           trackerKind="high"
-          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, and the only runner in its race meeting all of that (solo-only, checked before price) - a second runner meeting everything but priced under $3 still silences this race. That lone qualifier then also needs $3+ price to fire. No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
+          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 4 WPR of the race's top-projected runner, and the only runner in its race meeting all of that (solo-only, checked before price) - a second runner meeting everything but priced under $3 still silences this race. That lone qualifier then also needs $3+ price to fire. No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
           onSelectRace={onSelectRace}
         />
       )}

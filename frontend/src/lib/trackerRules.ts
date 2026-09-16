@@ -56,7 +56,11 @@ export interface TrackerQualifier {
 }
 
 const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
-const GAP_MAX = 6.0
+// Lowered 6 -> 4 (Sep 2026) - see speedmap_jockey_tracker.py's matching
+// constant for the re-sweep that picked 4 (post the solo-only-before-price
+// fix, which changed the qualifying population enough that the old
+// 6-picking sweep no longer applies).
+const GAP_MAX = 4.0
 const JW_MIN = 14.0
 const PRICE_MIN = 3.0
 

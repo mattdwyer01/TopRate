@@ -62,7 +62,16 @@ const DEFAULT_BETA = 0.4
 // (The race-wide "top pick must clear 80 WPR" suppression that used to sit
 // alongside this was removed Sep 2026 - user decision - so gap-from-top is
 // now the only threshold gating the overlay highlight.)
-const OVERLAY_MAX_GAP_FROM_TOP = 6
+// Lowered 6 -> 4 (Sep 2026), re-aligning with speedmap_jockey_tracker.py's
+// own GAP_MAX after ITS re-sweep post the solo-only-before-price fix (see
+// that file's own comment) - 4 gave both a higher solo-pick win rate and
+// more solo picks than 6 on the corrected rule, a different answer than
+// the earlier 6-picking sweep because that one predates the price-after-
+// solo fix entirely (its own qualifying population was different).
+// Exported so RaceDetail.tsx's own "X WPR from top rated" divider line can
+// read the live value instead of carrying a second hardcoded copy that has
+// drifted out of sync with this one before.
+export const OVERLAY_MAX_GAP_FROM_TOP = 4
 
 // "Material" thresholds for the open-vs-now price-drift flags below: the
 // open price has to be at least 15% away from our fair price in the

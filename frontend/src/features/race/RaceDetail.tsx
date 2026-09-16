@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeEffectiveRace } from '../../lib/raceModel'
+import { computeEffectiveRace, OVERLAY_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { evaluateTrackerQualifiers } from '../../lib/trackerRules'
@@ -312,19 +312,22 @@ export function RaceDetail({
         </div>
         {sortedRunners.map((runner, i) => {
           // Gap-from-top marker line: only meaningful when the list is
-          // actually grouped by rating (Proj sort) - otherwise "within 6 WPR
-          // of the top pick" runners aren't necessarily contiguous, and the
-          // line would land at a fairly arbitrary-looking spot. Detected as
-          // a transition (this row qualifies, the next doesn't) so it still
-          // works under either sort direction, not just descending. Kept in
-          // sync with raceModel.ts's OVERLAY_MAX_GAP_FROM_TOP (raised 5->6,
-          // Sep 2026, to align with the tracker's own validated cutoff)
-          // since this line exists specifically to show that cutoff.
+          // actually grouped by rating (Proj sort) - otherwise "within
+          // OVERLAY_MAX_GAP_FROM_TOP of the top pick" runners aren't
+          // necessarily contiguous, and the line would land at a fairly
+          // arbitrary-looking spot. Detected as a transition (this row
+          // qualifies, the next doesn't) so it still works under either
+          // sort direction, not just descending. Reads the live constant
+          // from raceModel.ts (not a second hardcoded copy) since this
+          // line exists specifically to show that cutoff.
           const gap = effectiveByRunId[runner.runId]?.gapFromTop
           const nextGap =
             i + 1 < sortedRunners.length ? effectiveByRunId[sortedRunners[i + 1].runId]?.gapFromTop : undefined
           const showBoundary = sortKey === 'projectedWpr' && gap != null
-          const showGapLine = showBoundary && gap <= 6 && (nextGap == null || nextGap === undefined || nextGap > 6)
+          const showGapLine =
+            showBoundary &&
+            gap <= OVERLAY_MAX_GAP_FROM_TOP &&
+            (nextGap == null || nextGap === undefined || nextGap > OVERLAY_MAX_GAP_FROM_TOP)
           return (
             <Fragment key={runner.runId}>
               <RunnerRow
@@ -340,7 +343,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    6 WPR from top rated
+                    {OVERLAY_MAX_GAP_FROM_TOP} WPR from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>

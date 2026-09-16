@@ -10,7 +10,7 @@ Both rules require, in every race with at least 2 runners carrying a
 speed_map value: the runner's speed_map, demeaned against that race's own
 mean (see wpjcb.speed_map / SpeedMapGrid.tsx's own display logic), is
 "favoured" or "neutral" (>= -0.5 relative to the field), AND the runner is
-within 6 WPR of the race's own top-projected runner, AND its jockey's
+within GAP_MAX WPR of the race's own top-projected runner, AND its jockey's
 trailing-90-day win% (jw) is >= 14, AND it is the ONLY runner in that race
 meeting all of the above - checked BEFORE price (solo-only, Sep 2026 - see
 build_candidates' own docstring for the backtest that justified this: the
@@ -56,7 +56,16 @@ TRACKER_A_CSV = _DIR / "tracker_high_volume.csv"
 TRACKER_B_CSV = _DIR / "tracker_low_volume.csv"
 
 DEMEAN_THRESHOLD = 0.5   # matches SpeedMapGrid.tsx's THREAT_THRESHOLD
-GAP_MAX = 6.0            # WPR points from the race's own top-projected runner
+# WPR points from the race's own top-projected runner. Lowered 6 -> 4 (Sep
+# 2026) after re-sweeping post the solo-only-before-price fix above (that
+# fix changed which races even reach the solo-only check, so the old
+# 6-picking sweep - done against the pre-fix rule - no longer applies):
+# GAP_MAX=4 gave both a higher solo-pick win rate and more resulted solo
+# picks than 6 on the corrected rule (win% ~21.5 vs ~21.4, n=297 vs 271 in
+# the sweep's own backtest window), so real user decision was to move to
+# 4 rather than re-confirm 6. See lib/raceModel.ts's matching
+# OVERLAY_MAX_GAP_FROM_TOP for the UI-side alignment.
+GAP_MAX = 4.0
 JW_MIN = 14.0            # jockey_win_pct_90d floor
 PRICE_MIN = 3.0          # SP/fixed price floor
 TAGS = ("favoured", "neutral")
