@@ -6,7 +6,12 @@ import { EmptyState } from '../../components/EmptyState'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { todayIso } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { liveTrackerCandidates, type TrackerCandidateRow } from '../../lib/trackerRules'
+import {
+  liveTrackerCandidates,
+  contestedTrackerGroups,
+  type TrackerCandidateRow,
+  type ContestedGroup,
+} from '../../lib/trackerRules'
 
 // Reads the two forward-tracking logs speedmap_jockey_tracker.py writes
 // (repo-root CSVs, same static-file-next-to-index.html pattern
@@ -332,6 +337,59 @@ function PickCard({
   )
 }
 
+// One race where solo-only failed - lists every runner that contributed
+// to the contest, so the reason no pick fired here is visible rather than
+// the race just silently not appearing anywhere (real user feedback,
+// 2026-09-16: "for those races with more than 1 horse that fits the
+// criteria, these should be flagged as such... somewhere on the trackers
+// tab"). Same open-the-race-summary click behaviour as PickCard.
+function ContestedCard({
+  group,
+  onSelectRace,
+}: {
+  group: ContestedGroup
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectRace(group.raceId, group.date)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelectRace(group.raceId, group.date)
+        }
+      }}
+      className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-bg"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium text-ink">
+          {group.venue} R{group.raceNo}
+        </span>
+        <span className="text-xs text-ink-faint">
+          {group.startTime ? formatTimeOfDay(group.startTime) : ''}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {group.runners.map((r) => (
+          <div key={r.runId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="min-w-0 flex-1 truncate font-medium text-ink">
+              {r.tab}. {r.horse}
+            </span>
+            <span className={`flex-none rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[r.tag] ?? ''}`}>
+              {r.tag}
+            </span>
+            <span className="flex-none font-mono text-ink-mute">{r.gapWpr.toFixed(1)} gap</span>
+            <span className="flex-none font-mono text-ink-mute">{r.jw.toFixed(1)}% jky</span>
+            <span className="flex-none font-mono text-ink-mute">{fmtPrice(r.price)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
   { label: 'Yesterday', offset: -1 },
   { label: 'Today', offset: 0 },
@@ -393,6 +451,16 @@ function TrackerView({
 
   const combined = useMemo(() => [...filtered, ...liveRows], [filtered, liveRows])
   const summary = useMemo(() => summarize(combined), [combined])
+
+  // Races where solo-only failed on 2+ runners - only meaningful for a
+  // single selected date (showAll spans the whole log, which has no
+  // matching per-day race list to re-derive this from), computed straight
+  // from race data rather than the CSV log since a contested race never
+  // produces a row to log in the first place.
+  const contestedGroups = useMemo(
+    () => (showAll ? [] : contestedTrackerGroups(races, date)[trackerKind]),
+    [races, date, showAll, trackerKind],
+  )
 
   const displayed = useMemo(() => {
     // Race start time, not race number - the picks span every meeting
@@ -470,6 +538,27 @@ function TrackerView({
           {displayed.map((r) => (
             <PickCard key={r.runId} row={r} onSelectRace={onSelectRace} />
           ))}
+        </div>
+      )}
+
+      {!showAll && (
+        <div className="mt-2 flex flex-col gap-2 border-t border-line-soft pt-3">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Contested races</h3>
+            <p className="text-xs text-ink-faint">
+              2+ runners meet the criteria here, so solo-only fails and no pick fires - shown so a contested race
+              isn't just invisible.
+            </p>
+          </div>
+          {contestedGroups.length === 0 ? (
+            <EmptyState message={`No contested races for ${date}.`} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {contestedGroups.map((g) => (
+                <ContestedCard key={g.raceId} group={g} onSelectRace={onSelectRace} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

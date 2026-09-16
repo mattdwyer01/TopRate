@@ -32,9 +32,19 @@ export interface TrackerQualifier {
   tag: TrackerTag
   gapWpr: number
   jw: number
-  price: number
+  price: number | null
   qualifiesA: boolean
   qualifiesB: boolean
+  // True when this runner meets Tracker A's/B's tactical criteria but the
+  // tracker doesn't fire for this race because 2+ runners do (solo-only
+  // failed on the base criteria, independent of any of their prices - see
+  // this file's own note above). Real user feedback (2026-09-16): "for
+  // those races with more than 1 horse that fits the criteria, these
+  // should be flagged as such" - this is that flag, distinct from
+  // qualifiesA/B (an actual, firing pick) since a contested runner never
+  // produces a pick.
+  contestedA: boolean
+  contestedB: boolean
 }
 
 const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
@@ -124,24 +134,35 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   // there isn't one.
   const soloA = raceQualifiers.length === 1 ? raceQualifiers[0] : null
   const includeARid = soloA != null && soloA.price != null && soloA.price >= PRICE_MIN ? soloA.runner.runId : null
+  // Contested: 2+ runners meet A's tactical criteria, price aside - every
+  // one of them gets contestedA, not just whichever happens to be
+  // shortest/longest priced (there's no "the" contender to single out).
+  const contestedARids = new Set(raceQualifiers.length > 1 ? raceQualifiers.map((q) => q.runner.runId) : [])
 
   const soloBRid = bPool.length === 1 ? bPool[0] : null
   const soloBPrice = soloBRid != null ? infoByRid.get(soloBRid)!.price : null
   const includeBRid = soloBRid != null && soloBPrice != null && soloBPrice >= PRICE_MIN ? soloBRid : null
+  const contestedBRids = new Set(bPool.length > 1 ? bPool : [])
 
-  for (const rid of new Set([includeARid, includeBRid].filter((x): x is string => x != null))) {
+  const allRids = new Set<string>([
+    ...(includeARid != null ? [includeARid] : []),
+    ...(includeBRid != null ? [includeBRid] : []),
+    ...contestedARids,
+    ...contestedBRids,
+  ])
+
+  for (const rid of allRids) {
     const info = infoByRid.get(rid)!
-    // include*Rid is only ever set above once its own price has already
-    // passed the `price != null && price >= PRICE_MIN` check, so info.price
-    // is guaranteed non-null for any rid this loop actually reaches.
     result.set(rid, {
       runId: rid,
       tag: info.tag,
       gapWpr: info.gap,
       jw: info.jw,
-      price: info.price as number,
+      price: info.price,
       qualifiesA: rid === includeARid,
       qualifiesB: rid === includeBRid,
+      contestedA: contestedARids.has(rid),
+      contestedB: contestedBRids.has(rid),
     })
   }
   return result
@@ -168,7 +189,7 @@ export interface TrackerCandidateRow {
   toprateRating: number | null
   formFactor: number | null
   jw: number
-  priceAtPick: number
+  priceAtPick: number | null
   resulted: boolean
   finishPosition: number | null
   won: boolean
@@ -218,6 +239,77 @@ export function liveTrackerCandidates(
       if (q.qualifiesA) high.push(row)
       if (q.qualifiesB) low.push(row)
     }
+  }
+  return { high, low }
+}
+
+// One contested runner - the display-ready subset of TrackerQualifier a
+// contested-group card actually needs.
+export interface ContestedRunner {
+  runId: string
+  tab: number
+  horse: string
+  tag: TrackerTag
+  gapWpr: number
+  jw: number
+  price: number | null
+}
+
+export interface ContestedGroup {
+  raceId: string
+  date: string
+  venue: string
+  raceNo: number
+  startTime: string
+  runners: ContestedRunner[]
+}
+
+// Every race on `targetDate` where Tracker A and/or B's solo-only check
+// failed on 2+ runners (see evaluateTrackerQualifiers' own contestedA/B
+// comment) - one group per race, per tracker, listing every runner that
+// contributed to the contest. Powers the Trackers tab's "Contested races"
+// section (real user feedback, 2026-09-16): these races produce no pick at
+// all, so they'd otherwise be invisible anywhere in the app.
+export function contestedTrackerGroups(
+  races: Race[],
+  targetDate: string,
+): { high: ContestedGroup[]; low: ContestedGroup[] } {
+  const bushKeys = bushMeetingKeys(races)
+  const high: ContestedGroup[] = []
+  const low: ContestedGroup[] = []
+  for (const race of races) {
+    if (race.date !== targetDate) continue
+    const isBush = bushKeys.has(meetingKey(race))
+    const qualifiers = evaluateTrackerQualifiers(race, isBush)
+    if (qualifiers.size === 0) continue
+
+    const contestedA: ContestedRunner[] = []
+    const contestedB: ContestedRunner[] = []
+    for (const [runId, q] of qualifiers) {
+      const runner = race.runners.find((r) => r.runId === runId)
+      if (!runner) continue
+      const entry: ContestedRunner = {
+        runId,
+        tab: runner.tabNumber,
+        horse: runner.horse,
+        tag: q.tag,
+        gapWpr: q.gapWpr,
+        jw: q.jw,
+        price: q.price,
+      }
+      if (q.contestedA) contestedA.push(entry)
+      if (q.contestedB) contestedB.push(entry)
+    }
+
+    const base = {
+      raceId: race.raceId,
+      date: race.date,
+      venue: race.venue,
+      raceNo: race.raceNumber,
+      startTime: race.startTime,
+    }
+    if (contestedA.length > 0) high.push({ ...base, runners: contestedA })
+    if (contestedB.length > 0) low.push({ ...base, runners: contestedB })
   }
   return { high, low }
 }

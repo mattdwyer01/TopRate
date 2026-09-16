@@ -22,9 +22,21 @@ interface RunnerRowProps {
 // High-volume-only (Tracker A) gets a distinct colour (indigo) rather than
 // a fainter version of the same one, so the two are easy to tell apart at a
 // glance, not just by tooltip.
-function trackerBadgeTitle(q: TrackerQualifier): string {
+function trackerFireTitle(q: TrackerQualifier): string {
   const which = q.qualifiesB ? 'Low-volume tracker pick (stronger edge)' : 'High-volume tracker pick'
-  return `${which}: ${q.tag}, ${q.gapWpr.toFixed(1)} WPR off top rated, jockey ${q.jw.toFixed(1)}% (90d), $${q.price.toFixed(2)}+`
+  const price = q.price != null ? `, $${q.price.toFixed(2)}+` : ''
+  return `${which}: ${q.tag}, ${q.gapWpr.toFixed(1)} WPR off top rated, jockey ${q.jw.toFixed(1)}% (90d)${price}`
+}
+
+// Contested: this runner meets the tactical criteria, but so does at least
+// one other runner in the same race, so solo-only fails and neither
+// tracker fires here (real user feedback, 2026-09-16: "for those races
+// with more than 1 horse that fits the criteria, these should be flagged
+// as such"). Shown outlined rather than filled - "almost, not actually" -
+// so it's never mistaken for an actual pick at a glance.
+function trackerContestedTitle(q: TrackerQualifier): string {
+  const which = q.contestedB ? 'low-volume' : 'high-volume'
+  return `Meets the ${which} tracker criteria, but another runner in this race does too - contested, no pick fires (solo-only)`
 }
 
 function fmtAdj(v: number | null): string {
@@ -196,13 +208,13 @@ export function RunnerRow({
               SCR
             </span>
           )}
-          {trackerQualifier && !scratched && (
+          {trackerQualifier && !scratched && (trackerQualifier.qualifiesA || trackerQualifier.qualifiesB) && (
             // Live flag, not read from the Trackers tab's CSV log - see
             // lib/trackerRules.ts for why it's computed fresh here instead
             // (real user feedback, 2026-09-16: the log can lag an upcoming
             // race by hours).
             <span
-              title={trackerBadgeTitle(trackerQualifier)}
+              title={trackerFireTitle(trackerQualifier)}
               className={`flex-none rounded px-1 text-[10px] font-semibold text-white ${
                 trackerQualifier.qualifiesB ? 'bg-emerald' : 'bg-indigo'
               }`}
@@ -210,6 +222,20 @@ export function RunnerRow({
               {trackerQualifier.qualifiesB ? 'B' : 'A'}
             </span>
           )}
+          {trackerQualifier &&
+            !scratched &&
+            !trackerQualifier.qualifiesA &&
+            !trackerQualifier.qualifiesB &&
+            (trackerQualifier.contestedA || trackerQualifier.contestedB) && (
+              <span
+                title={trackerContestedTitle(trackerQualifier)}
+                className={`flex-none rounded border px-1 text-[10px] font-semibold ${
+                  trackerQualifier.contestedB ? 'border-emerald text-emerald' : 'border-indigo text-indigo'
+                }`}
+              >
+                {trackerQualifier.contestedB ? 'B' : 'A'}
+              </span>
+            )}
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
