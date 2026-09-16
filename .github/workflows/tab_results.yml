@@ -59,15 +59,19 @@ on:
 # skip rather than queue (matches price_refresh.yml's reasoning: the next
 # trigger is only a minute or two away regardless).
 #
-# SHARED group name (Sep 2026, see daily.yml's own concurrency comment for
-# the full incident writeup): now shares ONE group with daily.yml/
-# price_refresh.yml instead of its own "tab-results" group, so this job and
-# a rare, slow daily rebuild can never push to main at the same time - that
-# race, not bad luck, was the actual cause of 3 consecutive daily.yml
-# publish failures. During a daily run this job queues instead of running
-# every 5 min; the next run after it still picks up fully current state.
+# SHARED group name, TRIED then REVERTED same day (Sep 2026): briefly
+# shared one group with daily.yml/price_refresh.yml to stop daily.yml's
+# git-pull-rebase timeouts. Made THAT better but broke this job far worse:
+# an unexplained extra trigger was firing daily.yml every ~15 min that same
+# day, and sharing the lock meant this job (needs to run every 5 min for
+# live results) got queued out and CANCELLED repeatedly whenever daily.yml
+# held it - confirmed live (2026-09-16, real user report: Caulfield results
+# silently stopped updating for ~1hr15 while this was in effect). Reverted
+# back to this job's own group the same day - a live, time-sensitive
+# results feed being starved is worse than daily.yml occasionally needing a
+# manual retrigger.
 concurrency:
-  group: toprate-git-push
+  group: tab-results
   cancel-in-progress: false
 
 jobs:

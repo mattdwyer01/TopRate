@@ -24,15 +24,17 @@ on:
 # skip rather than queue. Skipped runs are fine since the next trigger is
 # only ~15 min away (cron-job.org's schedule, not a GitHub Actions cron).
 #
-# SHARED group name (Sep 2026, see daily.yml's own concurrency comment for
-# the full incident writeup): now shares ONE group with daily.yml/
-# tab_results.yml instead of its own "price-refresh" group, so this job and
-# a rare, slow daily rebuild can never push to main at the same time - that
-# race, not bad luck, was the actual cause of 3 consecutive daily.yml
-# publish failures. During a daily run this job queues instead of running
-# every ~15 min; the next run after it still picks up fully current state.
+# SHARED group name, TRIED then REVERTED same day (Sep 2026): briefly
+# shared one group with daily.yml/tab_results.yml to stop daily.yml's
+# git-pull-rebase timeouts. Made THAT better but broke tab_results.yml far
+# worse: an unexplained extra trigger was firing daily.yml every ~15 min
+# that same day, and sharing the lock meant time-sensitive jobs got queued
+# out and CANCELLED repeatedly whenever daily.yml held it (confirmed live -
+# Caulfield results silently stopped updating for ~1hr15). Reverted back to
+# this job's own group the same day, same reasoning as tab_results.yml's
+# own comment.
 concurrency:
-  group: toprate-git-push
+  group: price-refresh
   cancel-in-progress: false
 
 jobs:
