@@ -3850,6 +3850,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "b":    si(row.get("barrier")),
                 "trr":  sf(row.get("toprate_rating")),
                 "trp":  sf(row.get("toprate_price")),
+                # External "form factor" score (Sep 2026) - pfm_score in
+                # toprate_runners.csv, never exposed here before now
+                # (speedmap_jockey_tracker.py was the only prior consumer,
+                # reading it straight from the CSV). 0-100, no in-race rank
+                # needed for display purposes (unlike the tracker script's
+                # own pfm_score_rank use).
+                "ff":   sf(row.get("pfm_score")),
                 "spd":  sf(row.get("speed_rating")),
                 # All four sectional speed scores (the user wants Mid+Late+Total visible)
                 "es":   sf(row.get("early_speed_score")),

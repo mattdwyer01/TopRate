@@ -9,7 +9,6 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
-import { WprTrendChart } from './WprTrendChart'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
@@ -45,7 +44,8 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
-  { key: 'wprPrice', label: 'WPR $' },
+  { key: 'toprateRating', label: 'TopRate' },
+  { key: 'formFactor', label: 'Form' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
   { key: 'actualWpr', label: 'Actual' },
@@ -63,7 +63,8 @@ const MOBILE_COLUMN_LABELS: { key: SortKey; label: string }[] = [
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj' },
-  { key: 'wprPrice', label: 'WPR $' },
+  { key: 'toprateRating', label: 'TopRate' },
+  { key: 'formFactor', label: 'Form' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -253,15 +254,16 @@ export function RaceDetail({
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: matches RunnerRow's mobile grid-cols exactly
-            (silk/horse/base/adj/proj/wprPrice/fixedPrice/FP - Peak and
-            Actual stay desktop-only, RTS isn't a mobile column at all, see
-            RunnerRow's own comment) so labels land above the right column.
-            Wider than the viewport on purpose - the shared overflow-x-auto
-            wrapper scrolls it, with the silk/horse cells sticky so they
-            stay pinned while the rest scrolls underneath, same as every row
-            below. The desktop header further down covers every column but
-            is hidden below sm since it's laid out differently there. */}
-        <div className="grid w-max grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
+            (silk/horse/base/adj/proj/toprateRating/formFactor/fixedPrice/FP -
+            Peak and Actual stay desktop-only, RTS isn't a mobile column at
+            all, see RunnerRow's own comment) so labels land above the right
+            column. Wider than the viewport on purpose - the shared
+            overflow-x-auto wrapper scrolls it, with the silk/horse cells
+            sticky so they stay pinned while the rest scrolls underneath,
+            same as every row below. The desktop header further down covers
+            every column but is hidden below sm since it's laid out
+            differently there. */}
+        <div className="grid w-max grid-cols-[40px_150px_44px_40px_50px_50px_44px_56px_22px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden">
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
           {MOBILE_COLUMN_LABELS.map((col, i) => (
             <button
@@ -279,7 +281,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_60px_52px_70px_48px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
@@ -350,10 +352,6 @@ export function RaceDetail({
       ) : (
         <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
       )}
-
-      <div className="mt-3">
-        <WprTrendChart race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
-      </div>
 
       {selectedRunner && (
         <RunnerDetailModal

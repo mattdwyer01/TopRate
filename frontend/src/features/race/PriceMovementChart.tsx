@@ -26,7 +26,7 @@ const PAD = 5
 // auto-scaled to this runner's own price range) rather than a table of
 // rows, so a glance shows the SHAPE of the move, not a column of numbers
 // to read. Sits beside CareerStats (see RunnerDetailModal). Folds in the
-// WPR $/TR $/SP bits that used to live in their own text line at the very
+// TR $/SP bits that used to live in their own text line at the very
 // bottom of the modal (and inside ResultVsProjection for a resulted
 // runner) - this card is now the one place all of a runner's price
 // information lives, not just the Fixed price trend. Falls back to plain

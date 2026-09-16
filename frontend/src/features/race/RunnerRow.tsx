@@ -30,12 +30,12 @@ function ratingSuffix(v: number | null): string {
 // (the current dashboard dual-renders every data grid; this is the
 // consolidation the rebuild plan calls for). Both breakpoints are a real
 // CSS grid with columns - the same shape RaceDetail's header row uses -
-// they just use a different grid-template. Below sm, Base/Adj/Proj/WPR $/
-// Fixed $/FP are all still real columns (not hidden or stacked onto a
-// second line) - Peak/Actual stay desktop-only, and RTS isn't a column at
-// all on mobile (not worth a sortable column of its own - it rides along
-// with the name/jockey-trainer text instead, see rtsColorClass/rtsTitle
-// below). That's still more columns than a phone's width can show without
+// they just use a different grid-template. Below sm, Base/Adj/Proj/
+// TopRate/Form/Fixed $/FP are all still real columns (not hidden or
+// stacked onto a second line) - Peak/Actual stay desktop-only, and RTS
+// isn't a column at all on mobile (not worth a sortable column of its own -
+// it rides along with the name/jockey-trainer text instead, see
+// rtsColorClass/rtsTitle below). That's still more columns than a phone's width can show without
 // squeezing the name unreadable (measured previously: ~18px), so the row
 // is wider than the viewport on purpose and the shared overflow-x-auto
 // wrapper in RaceDetail scrolls it horizontally - silk+name are `sticky
@@ -63,19 +63,18 @@ export function RunnerRow({
   const drifted = effective?.driftedToOverlay ?? false
   const backedIn = effective?.firmedToUnderlay ?? false
   const spell = spellPosition(runner.formHistory, raceDate)
-  // Scratched: force both to null rather than falling back to the model's
-  // raw (pre-scratch) projectedWpr/wprPrice - a scratched runner has no
-  // live rating any more, it shouldn't look like it's still rated just
-  // because effective.effectiveProjectedWpr is explicitly null (which ??
-  // would otherwise treat the same as "no override, use the raw value").
+  // Scratched: force to null rather than falling back to the model's raw
+  // (pre-scratch) projectedWpr - a scratched runner has no live rating any
+  // more, it shouldn't look like it's still rated just because
+  // effective.effectiveProjectedWpr is explicitly null (which ?? would
+  // otherwise treat the same as "no override, use the raw value").
   const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const displayPrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
 
   // RTS isn't worth its own sortable mobile column (it's not something
-  // anyone sorts by day-to-day, unlike Proj/WPR $) - on mobile it rides
+  // anyone sorts by day-to-day, unlike Proj/TopRate) - on mobile it rides
   // along with the name/jockey-trainer text instead to save a column's
   // worth of scroll width; desktop keeps its own dedicated column, shared
   // styling/tooltip extracted here so the two don't drift apart.
@@ -123,10 +122,10 @@ export function RunnerRow({
           : backedIn
             ? 'Was a material overlay at today\'s open price, has since been backed into an underlay - the market has grown more confident in this runner than it started (and than our own price)'
             : isOverlay
-              ? 'Overlay: market price is longer than our fair (WPR $) price'
+              ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_56px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_68px_70px_48px_52px] ${rowPadding} ${
+      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_50px_44px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_60px_52px_70px_48px_52px] ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
         // state on hover, this just stops highlighting it visually across
@@ -243,19 +242,23 @@ export function RunnerRow({
         </span>
       </span>
       <span className="text-right font-mono text-ink-mute">
-        {scratched ? 'SCR' : fmtPrice(displayPrice)}
+        {scratched ? 'SCR' : fmtWpr(runner.toprateRating)}
+      </span>
+      <span className="text-right font-mono text-ink-mute">
+        {scratched ? 'SCR' : fmtInt(runner.formFactor)}
       </span>
       {/* Fixed $ and FP (below) are trimmed tighter than a plain "shrink a
           touch" - CSS position:sticky's redundant scroll range bites here
           specifically: scrollWidth still counts the sticky silk/name cells'
           full natural-flow width even though they don't need to be scrolled
           past once stuck, so the browser allows scrolling ~28px further
-          than actually useful - and that extra 28px scrolls WPR $ back
+          than actually useful - and that extra 28px scrolls Form Factor back
           UNDER the sticky cells instead of revealing anything new (verified
-          by measuring real rendered positions, not a hunch). Only trimming
-          columns that come AFTER WPR $ (not WPR $ itself, and not
-          Base/Adj/Proj before it) closes that gap - FP's own content (a
-          20px circle badge) never needed 44px anyway. */}
+          by measuring real rendered positions, not a hunch - originally
+          found against the old WPR $ column this replaced). Only trimming
+          columns that come AFTER it (not Base/Adj/Proj/TopRate/Form
+          themselves) closes that gap - FP's own content (a 20px circle
+          badge) never needed 44px anyway. */}
       <span className="flex items-center justify-end font-mono text-ink-mute">
         <span>{scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}</span>
         {/* Fixed-width slot, always rendered (just invisible when there's no

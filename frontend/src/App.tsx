@@ -104,7 +104,17 @@ function App() {
 
   return (
     <div className="min-h-screen bg-bg text-ink">
-      <header className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
+      {/* z-30, not z-10: this is the one sticky header that must always sit
+          above EVERY other in-page sticky element (RunnerRow's sticky
+          silk/name cells, RaceDetail's sticky table header, MeetingsGrid's
+          sticky venue column - all z-10, some z-20). Those don't establish
+          their own stacking context, so at equal z-index the LATER one in
+          DOM order wins the paint order - and the runner table renders
+          after this header, so a plain z-10 here let a scrolled row's
+          sticky silk/name cells paint on top of the ticker/nav (reported:
+          a runner row visually floating over the ticker mid-scroll,
+          reproduced in a plain scroll test, not iOS-Safari-specific). */}
+      <header className="sticky top-0 z-30 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
         {state.status === 'ready' && (
           <div className="mx-auto w-full max-w-6xl">
             <NextToJumpTicker
@@ -178,7 +188,7 @@ function App() {
               {betaOverride != null && (
                 <span
                   className="pointer-events-none absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber ring-2 ring-panel"
-                  title="Custom WPR $ price sharpness active"
+                  title="Custom fair price sharpness active"
                 />
               )}
             </div>

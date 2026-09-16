@@ -62,6 +62,7 @@ export interface RawRunner {
   t: number
   b: number | null
   trr: number | null
+  ff: number | null
   trp: number | null
   spd: number | null
   es: number | null

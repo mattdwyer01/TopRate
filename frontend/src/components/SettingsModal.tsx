@@ -26,7 +26,7 @@ const STEP = 0.01
 type Status = { kind: 'idle' | 'busy' | 'ok' | 'err'; text: string }
 const IDLE: Status = { kind: 'idle', text: '' }
 
-// Client-side settings: WPR $ price sharpness, triggering a fresh data
+// Client-side settings: fair price sharpness, triggering a fresh data
 // fetch, and cross-device sync. All per-device (localStorage), reachable
 // from the header gear icon rather than a full settings page/route.
 export function SettingsModal({
@@ -138,7 +138,7 @@ export function SettingsModal({
           <div className="flex flex-col gap-3 p-4">
             <div>
               <div className="mb-1 flex items-baseline justify-between">
-                <span className="text-sm font-semibold text-ink">WPR $ price sharpness (beta)</span>
+                <span className="text-sm font-semibold text-ink">Fair price sharpness (beta)</span>
                 <span className="font-mono text-lg font-semibold text-emerald-deep">{draft.toFixed(2)}</span>
               </div>
               <p className="text-xs text-ink-mute">

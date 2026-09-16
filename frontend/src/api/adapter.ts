@@ -89,6 +89,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     barrier: r.b,
 
     toprateRating: r.trr,
+    formFactor: r.ff,
     topratePrice: r.trp,
     speedRating: r.spd,
     sectionalEarly: r.es,

@@ -216,6 +216,75 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     })
     .join(' ')
 
+  // Shared per-runner card, used by both the desktop (fixed sub-columns,
+  // whole row scrolls horizontally) and mobile (each tactical column full
+  // width, cards wrap onto their own rows) layouts below - see each
+  // layout's own comment for why they differ.
+  function renderCard(u: Runner) {
+    const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
+    const tone = threatTone(displaySpeedMap)
+    const drawFrac = drawFracOf(u, fieldSize)
+    const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
+    const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
+    const titleParts = [
+      // Name first and always - narrower cards from subColsFor's
+      // wrapping truncate the visible name more aggressively, so
+      // the full name needs to be recoverable on hover even when
+      // the tabNumber alone isn't enough to place it.
+      `${u.tabNumber}. ${u.horse}`,
+      u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
+      displaySpeedMap != null
+        ? `speed_map vs this field's average: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
+        : null,
+      caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
+    ].filter(Boolean)
+    return (
+      <div
+        key={u.runId}
+        title={titleParts.join(' · ') || undefined}
+        style={{ width: CARD_PX }}
+        className={`relative flex flex-col items-center gap-0.5 rounded-md border py-1.5 pl-1.5 pr-3 text-center ${TONE_CLASSES[tone]}`}
+      >
+        {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
+        <div className="pointer-events-none absolute inset-y-1.5 right-1 w-1 rounded-full bg-line-soft">
+          <div
+            className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
+            style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
+          />
+        </div>
+        {caution && (
+          // Positioned INSIDE the card (not overflowing outside it) -
+          // an earlier version used a negative offset that overflowed
+          // into the gap between narrow columns, making the badge
+          // look attached to the wrong neighboring card (caught in
+          // browser testing: the underlying logic was already
+          // correct, only the badge's own placement was ambiguous).
+          <span className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber text-[9px] font-bold leading-none text-white">
+            !
+          </span>
+        )}
+        <div className="relative">
+          {u.silkUrl ? (
+            <img src={u.silkUrl} alt="" className="h-8 w-8 rounded-sm object-cover" />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-slate text-xs font-semibold text-white">
+              {u.tabNumber}
+            </div>
+          )}
+          <span className="absolute -right-2 -top-2 rounded-full bg-ink px-1 text-[10px] font-bold leading-tight text-white">
+            {u.barrier ?? '—'}
+          </span>
+        </div>
+        <span className="w-full truncate text-[11px] font-medium leading-tight text-ink">
+          {u.tabNumber}.{u.horse}
+        </span>
+        {u.projectedWpr != null && (
+          <span className="font-mono text-[10px] text-ink-faint">{u.projectedWpr.toFixed(1)}</span>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -228,7 +297,16 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           {pace.display}
         </span>
       </div>
-      <div className="mt-2 overflow-x-auto">
+
+      {/* Desktop/tablet: unchanged fixed-width sub-column grid, whole row
+          scrolls horizontally when it doesn't fit - keeps every card at its
+          full, readable CARD_PX size (real user feedback, 2026-09-16: a
+          fractional/shrink-to-fit width made silks and names too small to
+          read). Hidden below sm since a phone-width viewport can't fit even
+          one full row of 6 tactical columns side by side without either
+          shrinking cards or scrolling horizontally - both ruled out for
+          mobile by this component's own further-below layout instead. */}
+      <div className="mt-2 hidden overflow-x-auto sm:block">
         <div className="grid gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
             <div key={c.key} className="flex flex-col gap-1">
@@ -239,73 +317,32 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                 className="grid min-h-[4rem] gap-1.5"
                 style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
               >
-                {columns[i].map((u) => {
-                  const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
-                  const tone = threatTone(displaySpeedMap)
-                  const drawFrac = drawFracOf(u, fieldSize)
-                  const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
-                  const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
-                  const titleParts = [
-                    // Name first and always - narrower cards from subColsFor's
-                    // wrapping truncate the visible name more aggressively, so
-                    // the full name needs to be recoverable on hover even when
-                    // the tabNumber alone isn't enough to place it.
-                    `${u.tabNumber}. ${u.horse}`,
-                    u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
-                    displaySpeedMap != null
-                      ? `speed_map vs this field's average: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
-                      : null,
-                    caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
-                  ].filter(Boolean)
-                  return (
-                    <div
-                      key={u.runId}
-                      title={titleParts.join(' · ') || undefined}
-                      className={`relative flex flex-col items-center gap-0.5 rounded-md border py-1.5 pl-1.5 pr-3 text-center ${TONE_CLASSES[tone]}`}
-                    >
-                      {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
-                      <div className="pointer-events-none absolute inset-y-1.5 right-1 w-1 rounded-full bg-line-soft">
-                        <div
-                          className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
-                          style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
-                        />
-                      </div>
-                      {caution && (
-                        // Positioned INSIDE the card (not overflowing outside it) -
-                        // an earlier version used a negative offset that overflowed
-                        // into the gap between narrow columns, making the badge
-                        // look attached to the wrong neighboring card (caught in
-                        // browser testing: the underlying logic was already
-                        // correct, only the badge's own placement was ambiguous).
-                        <span className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber text-[9px] font-bold leading-none text-white">
-                          !
-                        </span>
-                      )}
-                      <div className="relative">
-                        {u.silkUrl ? (
-                          <img src={u.silkUrl} alt="" className="h-8 w-8 rounded-sm object-cover" />
-                        ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-slate text-xs font-semibold text-white">
-                            {u.tabNumber}
-                          </div>
-                        )}
-                        <span className="absolute -right-2 -top-2 rounded-full bg-ink px-1 text-[10px] font-bold leading-tight text-white">
-                          {u.barrier ?? '—'}
-                        </span>
-                      </div>
-                      <span className="w-full truncate text-[11px] font-medium leading-tight text-ink">
-                        {u.tabNumber}.{u.horse}
-                      </span>
-                      {u.projectedWpr != null && (
-                        <span className="font-mono text-[10px] text-ink-faint">{u.projectedWpr.toFixed(1)}</span>
-                      )}
-                    </div>
-                  )
-                })}
+                {columns[i].map((u) => renderCard(u))}
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Mobile: each tactical column stacks full-width instead of sitting
+          side by side, so nothing needs horizontal scrolling to be seen -
+          the whole point of this layout (real user feedback, 2026-09-16:
+          the grid above cut off the Leader/Pace columns off-screen on a
+          390px phone). Cards keep their full CARD_PX size (same "must stay
+          readable" constraint as desktop) and simply wrap onto as many rows
+          as a column's runner count needs, via flex-wrap, instead of forcing
+          a fixed column count that would either shrink cards or overflow. */}
+      <div className="mt-2 flex flex-col gap-3 sm:hidden">
+        {COLUMNS.map((c, i) => (
+          <div key={c.key}>
+            <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+              {c.label}
+            </div>
+            <div className="mt-1 flex flex-wrap justify-center gap-1.5">
+              {columns[i].map((u) => renderCard(u))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

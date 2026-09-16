@@ -55,6 +55,7 @@ export interface Runner {
   barrier: number | null
 
   toprateRating: number | null
+  formFactor: number | null
   topratePrice: number | null
   speedRating: number | null
   sectionalEarly: number | null

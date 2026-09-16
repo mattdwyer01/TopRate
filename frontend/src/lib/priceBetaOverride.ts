@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-// A per-device override of the WPR $ price softmax beta (see
+// A per-device override of the fair price softmax beta (see
 // wpr_projection.py project_race / lib/raceModel.ts). Persisted so a
 // browsing session keeps the chosen value; null means "use the server's
 // own calibrated beta" (DashboardData.priceBeta).

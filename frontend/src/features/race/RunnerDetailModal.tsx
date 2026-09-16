@@ -70,13 +70,11 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
-  // Scratched: force both to null rather than falling back to the model's
-  // raw (pre-scratch) values - same reasoning as RunnerRow's displayProj/
-  // displayPrice (effective.effectiveProjectedWpr is explicitly null once
-  // scratched, and ?? would otherwise treat that the same as "no override").
-  const effectivePrice = scratched ? null : (effective?.effectivePrice ?? runner.wprPrice)
+  // Scratched: force to null rather than falling back to the model's
+  // raw (pre-scratch) value - same reasoning as RunnerRow's displayProj
+  // (effective.effectiveProjectedWpr is explicitly null once scratched,
+  // and ?? would otherwise treat that the same as "no override").
   const priceBitsBefore: string[] = []
-  if (effectivePrice != null) priceBitsBefore.push(`WPR ${fmtPrice(effectivePrice)}`)
   const priceBitsAfter: string[] = []
   priceBitsAfter.push(runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race')
   // Fixed price gets its own bit below (not folded into the plain-text
@@ -88,7 +86,6 @@ export function RunnerDetailModal({
   const hasPriceInfo =
     runner.priceSeries.length >= 2 ||
     runner.fixedWinPrice != null ||
-    effectivePrice != null ||
     runner.topratePrice != null ||
     runner.startingPrice != null
 
@@ -121,9 +118,6 @@ export function RunnerDetailModal({
               <div className="flex items-center gap-2 truncate text-xs">
                 <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
                 <span className="text-ink-faint">effective WPR</span>
-                {effectivePrice != null && (
-                  <span className="font-mono text-ink-mute">{fmtPrice(effectivePrice)}</span>
-                )}
               </div>
             ) : (
               <div className="truncate text-xs text-ink-faint">
@@ -241,11 +235,6 @@ export function RunnerDetailModal({
                     </button>
                   )}
                 </label>
-                {effectivePrice != null && (
-                  <span className="text-xs text-ink-mute">
-                    <span className="font-mono font-semibold text-ink">{fmtPrice(effectivePrice)}</span> WPR
-                  </span>
-                )}
                 {runner.wprRank != null && (
                   <span className="text-xs text-ink-mute">
                     rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
@@ -306,6 +295,16 @@ export function RunnerDetailModal({
                   confidence
                 </span>
               )}
+              {runner.toprateRating != null && (
+                <span>
+                  <span className="font-mono font-semibold text-ink">{fmtWpr(runner.toprateRating)}</span> TopRate
+                </span>
+              )}
+              {runner.formFactor != null && (
+                <span>
+                  <span className="font-mono font-semibold text-ink">{Math.round(runner.formFactor)}</span> form
+                </span>
+              )}
             </div>
             {runner.projectionDescription && runner.projectedWpr != null && (
               <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">
@@ -337,7 +336,7 @@ export function RunnerDetailModal({
               pre-race, so this row's layout doesn't reflow once a race
               results (user feedback: pre-race and post-race should look
               the same). PriceMovementChart is the ONE place a runner's
-              price information lives (folds in WPR $/TR $/SP too) - no
+              price information lives (folds in TR $/SP too) - no
               more separate Price line further down, pre-race or post-race.
               ComparisonGrid always lives under Recent runs now (moved
               there per feedback), not paired up here, so its position
