@@ -83,13 +83,13 @@ import pandas as pd
 
 from calibrate_price_beta import _load_resulted
 
-DAYS_BACK = 120
+DAYS_BACK = 150  # covers the full resulted history currently on disk (2026-04-26 .. today, 118 resulted dates)
 UNIFORM_N_GRID = [0, 1, 2, 3, 4, 6, 8]
 BANKER_TIGHT_GRID = [0, 1]
 BANKER_LOOSE_GRID = [2, 3, 4, 6]
 CORROBORATED_N_GRID = [2, 3, 4, 6]
 REQUIRE_PFM_PRESENT = False  # False = "if present, must be top-third"; True = "must be present AND top-third"
-CACHE_PATH = "/tmp/claude-0/-home-user-TopRate/76dfed62-bd31-52ea-bf89-3275bc38fea4/scratchpad/_quaddie_load_resulted_120d_cache.pkl"
+CACHE_PATH = f"/tmp/claude-0/-home-user-TopRate/76dfed62-bd31-52ea-bf89-3275bc38fea4/scratchpad/_quaddie_load_resulted_{DAYS_BACK}d_cache.pkl"
 
 
 def build_legs(d):
