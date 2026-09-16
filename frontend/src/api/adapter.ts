@@ -159,6 +159,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     peakRun: r.peakRun ? toFormRun(r.peakRun) : null,
     formHistory: (r.formAll ?? []).map(toFormHistoryEntry),
     predictedSettlingBand: r.psBand,
+    predictedRelSettle: r.psr,
     againstShapeTendency: r.asTend,
   }
 }

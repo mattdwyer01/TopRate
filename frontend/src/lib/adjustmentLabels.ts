@@ -19,12 +19,19 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   own_second_up: 'Second-up vs own avg',
   own_trend: 'Improving/declining trend',
   own_long_spell: 'Long spell vs own avg',
+  // track_barrier/pace_shape (Sep 2026): superseded by speed_map below,
+  // which unifies both plus inside_threats/track_barrier_slope/heat_
+  // interaction into one term - see wpr_projection.py's ADJ_TERMS history
+  // comment. Kept here only so an older, not-yet-reprojected row's
+  // breakdown (still keyed by the old terms) still gets a real label
+  // instead of falling back to the raw key.
   track_barrier: 'Barrier draw',
+  pace_shape: 'Predicted race shape fit',
+  speed_map: 'Speed map (pace, barrier & field context)',
   closing_merit: 'Closing vs race pace',
   gear_change: 'Gear change today',
   trainer_merit: 'Trainer strike rate',
   jockey_merit: 'Jockey strike rate',
-  pace_shape: 'Predicted race shape fit',
   // Sep 2026: replaced own_distance/own_going/own_trend (this horse's own
   // history, above) with these three population-fitted terms - see
   // wpr_projection.py's ADJ_TERMS history comment.

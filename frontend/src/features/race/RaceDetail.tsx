@@ -8,6 +8,7 @@ import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
+import { SpeedMapGrid } from './SpeedMapGrid'
 import { WprTrendChart } from './WprTrendChart'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
@@ -86,6 +87,7 @@ export function RaceDetail({
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
+  const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
   // each runner's real data-driven scratch (see toprate_price_refresh.py)
@@ -334,7 +336,19 @@ export function RaceDetail({
 
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
-      <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+      <div className="flex items-center justify-end gap-1.5">
+        <Pill active={speedMapView === 'grid'} onClick={() => setSpeedMapView('grid')}>
+          Grid
+        </Pill>
+        <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
+          Bar
+        </Pill>
+      </div>
+      {speedMapView === 'grid' ? (
+        <SpeedMapGrid race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+      ) : (
+        <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+      )}
 
       <div className="mt-3">
         <WprTrendChart race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />

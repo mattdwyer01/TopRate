@@ -159,6 +159,8 @@ export interface Runner {
   peakRun: FormRun | null
   formHistory: FormHistoryEntry[]
   predictedSettlingBand: string | null
+  /** Same estimate as predictedSettlingBand, continuous 0-1 (0 = leads, 1 = settles last). */
+  predictedRelSettle: number | null
   againstShapeTendency: string | null
 }
 

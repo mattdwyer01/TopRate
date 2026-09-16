@@ -131,6 +131,8 @@ export interface RawRunner {
   peakRun: RawFormRun | null
   formAll: RawFormAllEntry[] | null
   psBand: string | null
+  /** Same estimate as psBand, continuous 0-1 (0 = leads, 1 = settles last). */
+  psr: number | null
   asTend: string | null
 }
 

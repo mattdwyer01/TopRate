@@ -3609,6 +3609,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # in the speed map, not just a research-script issue.
     _step("Building settling-band lookup...")
     _settle_band_lookup = {}
+    # _settle_rel_lookup (Sep 2026): the CONTINUOUS 0-1 value _band_of()
+    # buckets into psBand's 4 strings - was computed here already
+    # (_rel_est_all) and discarded. Exposed for the grid-style speed map
+    # (frontend/src/features/race/SpeedMapGrid.tsx), which needs finer
+    # placement than 4 bands give.
+    _settle_rel_lookup = {}
     try:
         import settling_estimate as _se_mod
         if WPR_FORM_HISTORY_CSV.exists():
@@ -3742,10 +3748,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
                 _run_ids = runners_df["run_id"].astype(str)
                 for _pos in np.where(_has_tend.to_numpy())[0]:
-                    _settle_band_lookup[_run_ids.iloc[_pos]] = _band_of(_rel_est_all[_pos])
+                    _rel_val = float(_rel_est_all[_pos])
+                    _settle_band_lookup[_run_ids.iloc[_pos]] = _band_of(_rel_val)
+                    _settle_rel_lookup[_run_ids.iloc[_pos]] = _rel_val
     except Exception as _e:
         print(f"  Settling-band lookup skipped: {_e}")
         _settle_band_lookup = {}
+        _settle_rel_lookup = {}
 
     _step("Building per-race runner payload...")
     races_data = []
@@ -4012,6 +4021,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # Midfield/Back) - lets the settling comparison table
                 # highlight today's bucket. None if not estimable.
                 "psBand": _settle_band_lookup.get(
+                    str(row.get("run_id", ""))),
+                # Same estimate, continuous 0-1 (0=leads, 1=settles last) -
+                # see _settle_rel_lookup's own comment above. None if not
+                # estimable (same gate as psBand).
+                "psr": _settle_rel_lookup.get(
                     str(row.get("run_id", ""))),
                 # Against-shape tendency over last 5 prior runs (min 3).
                 # Display-only - the panel step-up flag derives a faint
