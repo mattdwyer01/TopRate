@@ -11,13 +11,18 @@ speed_map value: the runner's speed_map, demeaned against that race's own
 mean (see wpjcb.speed_map / SpeedMapGrid.tsx's own display logic), is
 "favoured" or "neutral" (>= -0.5 relative to the field), AND the runner is
 within 6 WPR of the race's own top-projected runner, AND its jockey's
-trailing-90-day win% (jw) is >= 14, AND its live/final price is $3+, AND
-it is the ONLY runner in that race meeting all of the above (solo-only,
-Sep 2026 - see build_candidates' own docstring for the backtest that
-justified this: the rule firing 2+ times in the same race performed
-dramatically worse, +14% ROI solo vs -8% to -12% blended across every
-multi-pick race, and no tie-breaker tested recovered the lost edge as
-cleanly as just not betting a contested race at all).
+trailing-90-day win% (jw) is >= 14, AND it is the ONLY runner in that race
+meeting all of the above - checked BEFORE price (solo-only, Sep 2026 - see
+build_candidates' own docstring for the backtest that justified this: the
+rule firing 2+ times in the same race performed dramatically worse, +14%
+ROI solo vs -8% to -12% blended across every multi-pick race, and no
+tie-breaker tested recovered the lost edge as cleanly as just not betting
+a contested race at all). Only once that lone qualifier is established
+does its live/final price also need to be $3+ for the tracker to actually
+fire (Sep 2026 - a second runner meeting everything else but priced under
+$3 still means the race wasn't genuinely uncontested: backtest showed such
+"shadow"-affected picks returned roughly half the ROI of genuinely solo
+ones, +6.8% vs +16.9% proportional).
 
 Tracker A (high volume, no rating-agreement requirement) vs Tracker B (low
 volume, ALSO requires the runner to be #1 in-race by both TopRate's own
@@ -177,10 +182,20 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
             if jw is None or jw < JW_MIN:
                 continue
 
+            # Price is deliberately NOT filtered here any more (Sep 2026) -
+            # solo-only means unique on the TACTICAL/rating criteria alone.
+            # A second runner meeting speed_map/gap/jw but priced under
+            # PRICE_MIN used to be silently dropped from this list before
+            # the solo count ran, so a race with such a "shadow" contender
+            # still looked solo and fired normally. Real backtest (Sep
+            # 2026): picks with a sub-PRICE_MIN shadow in the race
+            # returned roughly HALF the ROI of genuinely solo picks
+            # (+6.8% vs +16.9% proportional, n=95 vs n=271) - a race isn't
+            # genuinely uncontested just because the second contender
+            # happened to be too short to clear the floor. PRICE_MIN is
+            # now applied further below, only to the lone qualifier that
+            # survives the solo-only check.
             price = u.get("sp") if u.get("sp") is not None else u.get("fx")
-            if price is None or price < PRICE_MIN:
-                continue
-
             race_qualifiers.append((u, tag, gap, jw, price))
 
         if not race_qualifiers:
@@ -203,8 +218,29 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
             if trr_rank == 1 and pfm_rank == 1:
                 b_pool.append(rid)
 
-        include_a_rid = str(race_qualifiers[0][0].get("rid", "")) if len(race_qualifiers) == 1 else None
-        include_b_rid = b_pool[0] if len(b_pool) == 1 else None
+        # Solo-only is checked on race_qualifiers/b_pool BEFORE price (see
+        # the comment above) - PRICE_MIN is applied here, only to the lone
+        # survivor, to decide whether that tracker actually fires for this
+        # race. A solo qualifier priced under PRICE_MIN silences that
+        # tracker for this race entirely, same as if it hadn't qualified -
+        # it does NOT fall through to the next-shortest qualifier, because
+        # there isn't a "next" one; solo-only already established there's
+        # exactly one.
+        solo_a = race_qualifiers[0] if len(race_qualifiers) == 1 else None
+        include_a_rid = (
+            str(solo_a[0].get("rid", ""))
+            if solo_a is not None and solo_a[4] is not None and solo_a[4] >= PRICE_MIN
+            else None
+        )
+
+        solo_b_rid = b_pool[0] if len(b_pool) == 1 else None
+        include_b_rid = (
+            solo_b_rid
+            if solo_b_rid is not None
+            and info_by_rid[solo_b_rid][4] is not None
+            and info_by_rid[solo_b_rid][4] >= PRICE_MIN
+            else None
+        )
 
         for rid in {x for x in (include_a_rid, include_b_rid) if x is not None}:
             u, tag, gap, jw, price, trr_rank, pfm_rank = info_by_rid[rid]

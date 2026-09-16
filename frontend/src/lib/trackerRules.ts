@@ -7,7 +7,11 @@ import { bushMeetingKeys, meetingKey } from './meetings'
 // A entirely; Tracker B's rating-agreement condition is checked against its
 // own, independent solo requirement). Kept in exact lockstep with it: same
 // thresholds, same field mapping (wpjcb.speed_map -> adjustmentBreakdown.
-// speed_map, sp-or-fx -> startingPrice ?? fixedWinPrice, etc).
+// speed_map, sp-or-fx -> startingPrice ?? fixedWinPrice, etc) - including
+// that solo-only is checked BEFORE price (Sep 2026): a second runner
+// meeting speed_map/gap/jw but priced under PRICE_MIN still means the race
+// wasn't genuinely uncontested, so it counts toward the solo check even
+// though it wouldn't itself qualify.
 //
 // WHY THIS EXISTS SEPARATELY FROM THE CSV LOG THE TRACKERS TAB READS: that
 // log is only written when speedmap_jockey_tracker.py runs, which is once
@@ -48,7 +52,7 @@ interface RaceQualifier {
   tag: TrackerTag
   gap: number
   jw: number
-  price: number
+  price: number | null
 }
 
 // Every runner in `race` that qualifies for Tracker A (high volume) and/or
@@ -90,9 +94,15 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
     const jw = runner.jockeyWinPct90d
     if (jw == null || jw < JW_MIN) continue
 
+    // Price is deliberately NOT filtered here (Sep 2026) - solo-only means
+    // unique on the TACTICAL/rating criteria alone. See this file's own
+    // note above and speedmap_jockey_tracker.py's matching comment: a
+    // second runner meeting speed_map/gap/jw but priced under PRICE_MIN
+    // still means the race wasn't genuinely uncontested (backtest: such
+    // "shadow"-affected picks returned roughly half the ROI of genuinely
+    // solo ones). PRICE_MIN is applied further below, only to the lone
+    // qualifier that survives the solo-only check.
     const price = runner.startingPrice ?? runner.fixedWinPrice
-    if (price == null || price < PRICE_MIN) continue
-
     raceQualifiers.push({ runner, tag, gap, jw, price })
   }
   if (raceQualifiers.length === 0) return result
@@ -106,17 +116,30 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
     if (trrRank === 1 && pfmRank === 1) bPool.push(q.runner.runId)
   }
 
-  const includeARid = raceQualifiers.length === 1 ? raceQualifiers[0].runner.runId : null
-  const includeBRid = bPool.length === 1 ? bPool[0] : null
+  // Solo-only is checked above, price-independent - PRICE_MIN is applied
+  // here, only to the lone survivor, to decide whether that tracker
+  // actually fires for this race. A solo qualifier priced under PRICE_MIN
+  // silences that tracker for this race entirely; it does NOT fall
+  // through to a "next" qualifier, because solo-only already established
+  // there isn't one.
+  const soloA = raceQualifiers.length === 1 ? raceQualifiers[0] : null
+  const includeARid = soloA != null && soloA.price != null && soloA.price >= PRICE_MIN ? soloA.runner.runId : null
+
+  const soloBRid = bPool.length === 1 ? bPool[0] : null
+  const soloBPrice = soloBRid != null ? infoByRid.get(soloBRid)!.price : null
+  const includeBRid = soloBRid != null && soloBPrice != null && soloBPrice >= PRICE_MIN ? soloBRid : null
 
   for (const rid of new Set([includeARid, includeBRid].filter((x): x is string => x != null))) {
     const info = infoByRid.get(rid)!
+    // include*Rid is only ever set above once its own price has already
+    // passed the `price != null && price >= PRICE_MIN` check, so info.price
+    // is guaranteed non-null for any rid this loop actually reaches.
     result.set(rid, {
       runId: rid,
       tag: info.tag,
       gapWpr: info.gap,
       jw: info.jw,
-      price: info.price,
+      price: info.price as number,
       qualifiesA: rid === includeARid,
       qualifiesB: rid === includeBRid,
     })

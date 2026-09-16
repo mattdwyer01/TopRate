@@ -508,7 +508,7 @@ export function TrackersTab({ races, onSelectRace }: TrackersTabProps) {
           rows={high.rows}
           races={races}
           trackerKind="high"
-          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price, and the only runner in its race meeting all of that (solo-only). No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
+          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, and the only runner in its race meeting all of that (solo-only, checked before price) - a second runner meeting everything but priced under $3 still silences this race. That lone qualifier then also needs $3+ price to fire. No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
           onSelectRace={onSelectRace}
         />
       )}
