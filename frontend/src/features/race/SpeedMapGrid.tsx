@@ -254,11 +254,17 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           compact ? 'w-full py-1 pl-1 pr-2.5' : 'py-1.5 pl-1.5 pr-3'
         } ${TONE_CLASSES[tone]}`}
       >
-        {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
-        <div className="pointer-events-none absolute inset-y-1 right-1 w-1 rounded-full bg-line-soft">
+        {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own
+            comment. A fill growing UP FROM THE RAIL END (bottom), not a small
+            floating marker at a height - real user feedback (2026-09-16): a
+            short floating segment inside an already-small compact card read
+            as ambiguous at a glance (which end is the rail?). A fill's empty
+            bottom end IS the rail with nothing to misread, same as a real
+            barrier gauge/fuel-gauge convention. */}
+        <div className="pointer-events-none absolute inset-y-1 right-1 w-1 overflow-hidden rounded-full bg-line-soft">
           <div
-            className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
-            style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
+            className={`absolute bottom-0 w-full rounded-full ${drawToneClass(drawFrac)}`}
+            style={{ height: `${Math.max(8, drawFrac * 100)}%` }}
           />
         </div>
         {caution && (
