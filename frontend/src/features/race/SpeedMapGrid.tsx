@@ -216,11 +216,11 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     })
     .join(' ')
 
-  // Shared per-runner card, used by both the desktop (fixed sub-columns,
-  // whole row scrolls horizontally) and mobile (each tactical column full
-  // width, cards wrap onto their own rows) layouts below - see each
-  // layout's own comment for why they differ.
-  function renderCard(u: Runner) {
+  // Shared per-runner card, used by both the desktop (fixed CARD_PX,
+  // multiple sub-columns side by side, whole row scrolls horizontally) and
+  // mobile (compact, single sub-column, fills its 1/6-width grid cell)
+  // layouts below - see each layout's own comment for why they differ.
+  function renderCard(u: Runner, compact: boolean) {
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
     const tone = threatTone(displaySpeedMap)
     const drawFrac = drawFracOf(u, fieldSize)
@@ -228,9 +228,10 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
     const titleParts = [
       // Name first and always - narrower cards from subColsFor's
-      // wrapping truncate the visible name more aggressively, so
-      // the full name needs to be recoverable on hover even when
-      // the tabNumber alone isn't enough to place it.
+      // wrapping (desktop) or the compact mobile size truncate the
+      // visible name more aggressively, so the full name needs to be
+      // recoverable on hover even when the tabNumber alone isn't enough
+      // to place it.
       `${u.tabNumber}. ${u.horse}`,
       u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
       displaySpeedMap != null
@@ -242,11 +243,17 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div
         key={u.runId}
         title={titleParts.join(' · ') || undefined}
-        style={{ width: CARD_PX }}
-        className={`relative flex flex-col items-center gap-0.5 rounded-md border py-1.5 pl-1.5 pr-3 text-center ${TONE_CLASSES[tone]}`}
+        style={compact ? undefined : { width: CARD_PX }}
+        className={`relative flex flex-col items-center gap-0.5 rounded-md border text-center ${
+          compact ? 'w-full py-1 pl-1 pr-2' : 'py-1.5 pl-1.5 pr-3'
+        } ${TONE_CLASSES[tone]}`}
       >
         {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
-        <div className="pointer-events-none absolute inset-y-1.5 right-1 w-1 rounded-full bg-line-soft">
+        <div
+          className={`pointer-events-none absolute inset-y-1 rounded-full bg-line-soft ${
+            compact ? 'right-0.5 w-0.5' : 'inset-y-1.5 right-1 w-1'
+          }`}
+        >
           <div
             className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
             style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
@@ -259,27 +266,41 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           // look attached to the wrong neighboring card (caught in
           // browser testing: the underlying logic was already
           // correct, only the badge's own placement was ambiguous).
-          <span className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber text-[9px] font-bold leading-none text-white">
+          <span
+            className={`absolute left-0.5 top-0.5 flex items-center justify-center rounded-full bg-amber font-bold leading-none text-white ${
+              compact ? 'h-3 w-3 text-[7px]' : 'h-3.5 w-3.5 text-[9px]'
+            }`}
+          >
             !
           </span>
         )}
         <div className="relative">
           {u.silkUrl ? (
-            <img src={u.silkUrl} alt="" className="h-8 w-8 rounded-sm object-cover" />
+            <img src={u.silkUrl} alt="" className={compact ? 'h-6 w-6 rounded-sm object-cover' : 'h-8 w-8 rounded-sm object-cover'} />
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-slate text-xs font-semibold text-white">
+            <div
+              className={`flex items-center justify-center rounded-sm bg-slate font-semibold text-white ${
+                compact ? 'h-6 w-6 text-[9px]' : 'h-8 w-8 text-xs'
+              }`}
+            >
               {u.tabNumber}
             </div>
           )}
-          <span className="absolute -right-2 -top-2 rounded-full bg-ink px-1 text-[10px] font-bold leading-tight text-white">
+          <span
+            className={`absolute rounded-full bg-ink font-bold leading-tight text-white ${
+              compact ? '-right-1.5 -top-1.5 px-0.5 text-[8px]' : '-right-2 -top-2 px-1 text-[10px]'
+            }`}
+          >
             {u.barrier ?? '—'}
           </span>
         </div>
-        <span className="w-full truncate text-[11px] font-medium leading-tight text-ink">
-          {u.tabNumber}.{u.horse}
+        <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[8px]' : 'text-[11px]'}`}>
+          {compact ? u.horse : `${u.tabNumber}.${u.horse}`}
         </span>
         {u.projectedWpr != null && (
-          <span className="font-mono text-[10px] text-ink-faint">{u.projectedWpr.toFixed(1)}</span>
+          <span className={`font-mono text-ink-faint ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
+            {u.projectedWpr.toFixed(1)}
+          </span>
         )}
       </div>
     )
@@ -317,29 +338,33 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                 className="grid min-h-[4rem] gap-1.5"
                 style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
               >
-                {columns[i].map((u) => renderCard(u))}
+                {columns[i].map((u) => renderCard(u, false))}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Mobile: each tactical column stacks full-width instead of sitting
-          side by side, so nothing needs horizontal scrolling to be seen -
-          the whole point of this layout (real user feedback, 2026-09-16:
-          the grid above cut off the Leader/Pace columns off-screen on a
-          390px phone). Cards keep their full CARD_PX size (same "must stay
-          readable" constraint as desktop) and simply wrap onto as many rows
-          as a column's runner count needs, via flex-wrap, instead of forcing
-          a fixed column count that would either shrink cards or overflow. */}
-      <div className="mt-2 flex flex-col gap-3 sm:hidden">
+      {/* Mobile: keeps the same 6-columns-side-by-side shape as desktop
+          (not stacked into 6 full-width sections - tried that, real user
+          pushback: it lost the "who's alongside whom" reading and burned a
+          lot of vertical scroll) but as one `grid-cols-6` row that always
+          fits the viewport width, so nothing needs horizontal scrolling
+          either (real user feedback, 2026-09-16: the desktop grid cut off
+          Leader/Pace off-screen on a 390px phone). Gets there by shrinking
+          (compact renderCard: smaller silk/text) and dropping the
+          sub-column wrapping (always single-file per column, unlike
+          desktop's subColsFor) rather than by giving each column more
+          width - the two together are what keep 6 real columns on screen
+          without either scrolling or losing the side-by-side layout. */}
+      <div className="mt-2 grid grid-cols-6 gap-1 sm:hidden">
         {COLUMNS.map((c, i) => (
-          <div key={c.key}>
-            <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+          <div key={c.key} className="flex flex-col gap-1">
+            <div className="text-center text-[7px] font-semibold uppercase leading-tight tracking-wide text-ink-faint">
               {c.label}
             </div>
-            <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-              {columns[i].map((u) => renderCard(u))}
+            <div className="flex flex-col gap-1">
+              {columns[i].map((u) => renderCard(u, true))}
             </div>
           </div>
         ))}
