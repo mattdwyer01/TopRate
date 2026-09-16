@@ -140,6 +140,12 @@ VENUE_ALIASES = {
     "SANDOWN-HILLSIDE": "Sandown",
     "SANDOWN-LAKESIDE": "Sandown",
     "RANDWICK-KENSINGTON": "Randwick",
+    # TAB names today's meeting "CAULFIELD HEATH" (confirmed 2026-09-16,
+    # real user report: Caulfield results/conditions/prices all silently
+    # skipped for over an hour) while the provider CSV just says
+    # "Caulfield" - same "TAB's own name doesn't match the provider's
+    # beyond casing" pattern as BELMONT/SANDOWN/RANDWICK above.
+    "CAULFIELD HEATH": "Caulfield",
 }
 
 CACHE_FILE = Path(__file__).parent / "tab_poller_terminal_races.json"
