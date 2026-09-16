@@ -53,7 +53,11 @@ from calibrate_price_beta import _load_resulted
 from wpr_bet_selection_post_retrain import report
 
 DAYS_BACK = 120
-N_GRID = [1, 2, 3]
+# Extended (user follow-up, Sep 2026): N<=1 came out clearly best of {1,2,3}
+# in the first pass (tighter beats looser at every price floor) - this
+# widens the grid to see whether the degradation continues smoothly past
+# 3, or whether there's a local sweet spot the coarser {1,2,3} grid missed.
+N_GRID = [1, 2, 3, 4, 5, 6, 8, 10]
 PRICE_FLOORS = [1.0, 2.0, 3.0]  # 1.0 = no real floor (matches the >1.0 convention used all night)
 
 
