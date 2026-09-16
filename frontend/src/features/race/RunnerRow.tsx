@@ -28,15 +28,24 @@ function trackerFireTitle(q: TrackerQualifier): string {
   return `${which}: ${q.tag}, ${q.gapWpr.toFixed(1)} WPR off top rated, jockey ${q.jw.toFixed(1)}% (90d)${price}`
 }
 
-// Contested: this runner meets the tactical criteria, but so does at least
-// one other runner in the same race, so solo-only fails and neither
-// tracker fires here (real user feedback, 2026-09-16: "for those races
-// with more than 1 horse that fits the criteria, these should be flagged
-// as such"). Shown outlined rather than filled - "almost, not actually" -
-// so it's never mistaken for an actual pick at a glance.
-function trackerContestedTitle(q: TrackerQualifier): string {
-  const which = q.contestedB ? 'low-volume' : 'high-volume'
-  return `Meets the ${which} tracker criteria, but another runner in this race does too - contested, no pick fires (solo-only)`
+// Meets the tactical criteria but no pick fires here, for one of two
+// reasons (real user feedback, 2026-09-16: "for those races with more
+// than 1 horse that fits the criteria, these should be flagged as such...
+// also show if there is a solo pick under $3"):
+//   - contested: another runner in the race meets the criteria too, so
+//     solo-only fails.
+//   - underPrice: this IS the only runner meeting the criteria, but its
+//     own price is under the $3 floor.
+// Shown outlined rather than filled - "almost, not actually" - so it's
+// never mistaken for an actual pick at a glance.
+function trackerSkippedTitle(q: TrackerQualifier): string {
+  const isB = q.contestedB || q.underPriceB
+  const which = isB ? 'low-volume' : 'high-volume'
+  const reason =
+    q.contestedA || q.contestedB
+      ? 'another runner in this race meets it too (contested)'
+      : "it's the only runner meeting it, priced under $3"
+  return `Meets the ${which} tracker criteria, but ${reason} - no pick fires (solo-only)`
 }
 
 function fmtAdj(v: number | null): string {
@@ -226,14 +235,19 @@ export function RunnerRow({
             !scratched &&
             !trackerQualifier.qualifiesA &&
             !trackerQualifier.qualifiesB &&
-            (trackerQualifier.contestedA || trackerQualifier.contestedB) && (
+            (trackerQualifier.contestedA ||
+              trackerQualifier.contestedB ||
+              trackerQualifier.underPriceA ||
+              trackerQualifier.underPriceB) && (
               <span
-                title={trackerContestedTitle(trackerQualifier)}
+                title={trackerSkippedTitle(trackerQualifier)}
                 className={`flex-none rounded border px-1 text-[10px] font-semibold ${
-                  trackerQualifier.contestedB ? 'border-emerald text-emerald' : 'border-indigo text-indigo'
+                  trackerQualifier.contestedB || trackerQualifier.underPriceB
+                    ? 'border-emerald text-emerald'
+                    : 'border-indigo text-indigo'
                 }`}
               >
-                {trackerQualifier.contestedB ? 'B' : 'A'}
+                {trackerQualifier.contestedB || trackerQualifier.underPriceB ? 'B' : 'A'}
               </span>
             )}
         </span>

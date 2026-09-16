@@ -8,9 +8,9 @@ import { todayIso } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import {
   liveTrackerCandidates,
-  contestedTrackerGroups,
+  skippedTrackerGroups,
   type TrackerCandidateRow,
-  type ContestedGroup,
+  type SkippedGroup,
 } from '../../lib/trackerRules'
 
 // Reads the two forward-tracking logs speedmap_jockey_tracker.py writes
@@ -337,17 +337,19 @@ function PickCard({
   )
 }
 
-// One race where solo-only failed - lists every runner that contributed
-// to the contest, so the reason no pick fired here is visible rather than
+// One race where a tracker didn't fire despite meeting the tactical
+// criteria - either contested (2+ runners qualify, so solo-only fails) or
+// a lone qualifier priced under $3 - so the reason is visible rather than
 // the race just silently not appearing anywhere (real user feedback,
 // 2026-09-16: "for those races with more than 1 horse that fits the
-// criteria, these should be flagged as such... somewhere on the trackers
-// tab"). Same open-the-race-summary click behaviour as PickCard.
-function ContestedCard({
+// criteria, these should be flagged as such... also show if there is a
+// solo pick under $3"). Same open-the-race-summary click behaviour as
+// PickCard.
+function SkippedCard({
   group,
   onSelectRace,
 }: {
-  group: ContestedGroup
+  group: SkippedGroup
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }) {
   return (
@@ -367,9 +369,19 @@ function ContestedCard({
         <span className="font-medium text-ink">
           {group.venue} R{group.raceNo}
         </span>
-        <span className="text-xs text-ink-faint">
-          {group.startTime ? formatTimeOfDay(group.startTime) : ''}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="rounded bg-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink-mute"
+            title={
+              group.reason === 'contested'
+                ? '2+ runners meet the criteria - solo-only fails'
+                : 'The only runner meeting the criteria was priced under $3'
+            }
+          >
+            {group.reason === 'contested' ? 'Contested' : 'Under $3'}
+          </span>
+          <span className="text-xs text-ink-faint">{group.startTime ? formatTimeOfDay(group.startTime) : ''}</span>
+        </div>
       </div>
       <div className="flex flex-col gap-1.5">
         {group.runners.map((r) => (
@@ -452,13 +464,14 @@ function TrackerView({
   const combined = useMemo(() => [...filtered, ...liveRows], [filtered, liveRows])
   const summary = useMemo(() => summarize(combined), [combined])
 
-  // Races where solo-only failed on 2+ runners - only meaningful for a
+  // Races where the tactical criteria were met but no pick fired anyway
+  // (contested, or a lone qualifier under $3) - only meaningful for a
   // single selected date (showAll spans the whole log, which has no
   // matching per-day race list to re-derive this from), computed straight
-  // from race data rather than the CSV log since a contested race never
+  // from race data rather than the CSV log since a skipped race never
   // produces a row to log in the first place.
-  const contestedGroups = useMemo(
-    () => (showAll ? [] : contestedTrackerGroups(races, date)[trackerKind]),
+  const skippedGroups = useMemo(
+    () => (showAll ? [] : skippedTrackerGroups(races, date)[trackerKind]),
     [races, date, showAll, trackerKind],
   )
 
@@ -544,18 +557,18 @@ function TrackerView({
       {!showAll && (
         <div className="mt-2 flex flex-col gap-2 border-t border-line-soft pt-3">
           <div>
-            <h3 className="text-sm font-semibold text-ink">Contested races</h3>
+            <h3 className="text-sm font-semibold text-ink">Skipped races</h3>
             <p className="text-xs text-ink-faint">
-              2+ runners meet the criteria here, so solo-only fails and no pick fires - shown so a contested race
-              isn't just invisible.
+              The tactical criteria were met here, but no pick fires - either 2+ runners qualify (contested) or the
+              only qualifier was priced under $3. Shown so these aren't just invisible.
             </p>
           </div>
-          {contestedGroups.length === 0 ? (
-            <EmptyState message={`No contested races for ${date}.`} />
+          {skippedGroups.length === 0 ? (
+            <EmptyState message={`No skipped races for ${date}.`} />
           ) : (
             <div className="flex flex-col gap-2">
-              {contestedGroups.map((g) => (
-                <ContestedCard key={g.raceId} group={g} onSelectRace={onSelectRace} />
+              {skippedGroups.map((g) => (
+                <SkippedCard key={`${g.raceId}-${g.reason}`} group={g} onSelectRace={onSelectRace} />
               ))}
             </div>
           )}

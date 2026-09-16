@@ -45,6 +45,14 @@ export interface TrackerQualifier {
   // produces a pick.
   contestedA: boolean
   contestedB: boolean
+  // True when this runner is the ONLY one meeting the tactical criteria
+  // (solo-only passes) but its own price is under PRICE_MIN, so the
+  // tracker still doesn't fire - a different reason than contestedA/B
+  // (no rival qualifier at all, just too short) that real user feedback
+  // (2026-09-16) asked to also surface: "show if there is a solo pick
+  // under $3 in a race too".
+  underPriceA: boolean
+  underPriceB: boolean
 }
 
 const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
@@ -134,6 +142,10 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   // there isn't one.
   const soloA = raceQualifiers.length === 1 ? raceQualifiers[0] : null
   const includeARid = soloA != null && soloA.price != null && soloA.price >= PRICE_MIN ? soloA.runner.runId : null
+  // Solo, but priced under PRICE_MIN - a different non-fire reason than
+  // contested (there's no rival qualifier at all here, just a price too
+  // short to bet).
+  const underPriceARid = soloA != null && includeARid == null ? soloA.runner.runId : null
   // Contested: 2+ runners meet A's tactical criteria, price aside - every
   // one of them gets contestedA, not just whichever happens to be
   // shortest/longest priced (there's no "the" contender to single out).
@@ -142,11 +154,14 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   const soloBRid = bPool.length === 1 ? bPool[0] : null
   const soloBPrice = soloBRid != null ? infoByRid.get(soloBRid)!.price : null
   const includeBRid = soloBRid != null && soloBPrice != null && soloBPrice >= PRICE_MIN ? soloBRid : null
+  const underPriceBRid = soloBRid != null && includeBRid == null ? soloBRid : null
   const contestedBRids = new Set(bPool.length > 1 ? bPool : [])
 
   const allRids = new Set<string>([
     ...(includeARid != null ? [includeARid] : []),
     ...(includeBRid != null ? [includeBRid] : []),
+    ...(underPriceARid != null ? [underPriceARid] : []),
+    ...(underPriceBRid != null ? [underPriceBRid] : []),
     ...contestedARids,
     ...contestedBRids,
   ])
@@ -163,6 +178,8 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
       qualifiesB: rid === includeBRid,
       contestedA: contestedARids.has(rid),
       contestedB: contestedBRids.has(rid),
+      underPriceA: rid === underPriceARid,
+      underPriceB: rid === underPriceBRid,
     })
   }
   return result
@@ -243,9 +260,9 @@ export function liveTrackerCandidates(
   return { high, low }
 }
 
-// One contested runner - the display-ready subset of TrackerQualifier a
-// contested-group card actually needs.
-export interface ContestedRunner {
+// One runner in a skipped-race group - the display-ready subset of
+// TrackerQualifier a card actually needs.
+export interface SkippedRunner {
   runId: string
   tab: number
   horse: string
@@ -255,40 +272,48 @@ export interface ContestedRunner {
   price: number | null
 }
 
-export interface ContestedGroup {
+export interface SkippedGroup {
   raceId: string
   date: string
   venue: string
   raceNo: number
   startTime: string
-  runners: ContestedRunner[]
+  // 'contested': 2+ runners met the tactical criteria, so solo-only
+  // failed - runners lists all of them. 'underPrice': exactly one runner
+  // met it (solo-only passed) but its own price was under PRICE_MIN -
+  // runners has that one entry.
+  reason: 'contested' | 'underPrice'
+  runners: SkippedRunner[]
 }
 
-// Every race on `targetDate` where Tracker A and/or B's solo-only check
-// failed on 2+ runners (see evaluateTrackerQualifiers' own contestedA/B
-// comment) - one group per race, per tracker, listing every runner that
-// contributed to the contest. Powers the Trackers tab's "Contested races"
-// section (real user feedback, 2026-09-16): these races produce no pick at
-// all, so they'd otherwise be invisible anywhere in the app.
-export function contestedTrackerGroups(
+// Every race on `targetDate` where Tracker A and/or B met the tactical
+// criteria but still didn't fire a pick - either contested (2+ runners,
+// see evaluateTrackerQualifiers' own contestedA/B comment) or a lone
+// qualifier priced under PRICE_MIN (underPriceA/B). One group per race per
+// tracker. Powers the Trackers tab's "Skipped races" section (real user
+// feedback, 2026-09-16): these races produce no pick at all, so they'd
+// otherwise be invisible anywhere in the app.
+export function skippedTrackerGroups(
   races: Race[],
   targetDate: string,
-): { high: ContestedGroup[]; low: ContestedGroup[] } {
+): { high: SkippedGroup[]; low: SkippedGroup[] } {
   const bushKeys = bushMeetingKeys(races)
-  const high: ContestedGroup[] = []
-  const low: ContestedGroup[] = []
+  const high: SkippedGroup[] = []
+  const low: SkippedGroup[] = []
   for (const race of races) {
     if (race.date !== targetDate) continue
     const isBush = bushKeys.has(meetingKey(race))
     const qualifiers = evaluateTrackerQualifiers(race, isBush)
     if (qualifiers.size === 0) continue
 
-    const contestedA: ContestedRunner[] = []
-    const contestedB: ContestedRunner[] = []
+    const contestedA: SkippedRunner[] = []
+    const contestedB: SkippedRunner[] = []
+    const underPriceA: SkippedRunner[] = []
+    const underPriceB: SkippedRunner[] = []
     for (const [runId, q] of qualifiers) {
       const runner = race.runners.find((r) => r.runId === runId)
       if (!runner) continue
-      const entry: ContestedRunner = {
+      const entry: SkippedRunner = {
         runId,
         tab: runner.tabNumber,
         horse: runner.horse,
@@ -299,6 +324,8 @@ export function contestedTrackerGroups(
       }
       if (q.contestedA) contestedA.push(entry)
       if (q.contestedB) contestedB.push(entry)
+      if (q.underPriceA) underPriceA.push(entry)
+      if (q.underPriceB) underPriceB.push(entry)
     }
 
     const base = {
@@ -308,8 +335,10 @@ export function contestedTrackerGroups(
       raceNo: race.raceNumber,
       startTime: race.startTime,
     }
-    if (contestedA.length > 0) high.push({ ...base, runners: contestedA })
-    if (contestedB.length > 0) low.push({ ...base, runners: contestedB })
+    if (contestedA.length > 0) high.push({ ...base, reason: 'contested', runners: contestedA })
+    if (underPriceA.length > 0) high.push({ ...base, reason: 'underPrice', runners: underPriceA })
+    if (contestedB.length > 0) low.push({ ...base, reason: 'contested', runners: contestedB })
+    if (underPriceB.length > 0) low.push({ ...base, reason: 'underPrice', runners: underPriceB })
   }
   return { high, low }
 }
