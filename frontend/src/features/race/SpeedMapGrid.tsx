@@ -95,8 +95,13 @@ const TONE_CLASSES: Record<'help' | 'hurt' | 'neutral', string> = {
   neutral: 'border-line-soft bg-bg',
 }
 
-// Barrier position, rail (0) to widest (1) - same centring convention
-// wpr_projection.py's barrier_nudge()/draw_signal use. Column placement
+// Barrier position, rail (0) to widest (1) - rendered as a vertical gauge
+// with the rail at the BOTTOM, to match SpeedMap.tsx's own bar view
+// (sorted barrier descending so barrier 1 sits at the base of the list -
+// "reads like the track from the inside out"). Real user feedback
+// (2026-09-16): the two views used different orientations for the same
+// idea (this one ran rail-to-wide left-to-right), which made them harder
+// to cross-reference when flicking between Grid and Bar. Column placement
 // alone can't distinguish "sits midfield from an inside gate" (routine)
 // from "sits midfield from barrier 14 of 14" (requires either genuine
 // early speed to cross rivals, or a hot enough pace that the field
@@ -198,7 +203,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
         <span className="text-sm font-semibold text-ink">Speed map</span>
         <span className="text-xs text-ink-faint">
           Predicted running position &middot; tint = vs the rest of THIS field (green favoured, red hurt) &middot;
-          bar = barrier (rail to wide) &middot; ! = wide gate sitting forward
+          side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
         </span>
         <span className="rounded-full bg-bg px-2 py-0.5 font-mono text-xs text-ink-mute">
           {pace.display}
@@ -236,8 +241,15 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                   <div
                     key={u.runId}
                     title={titleParts.join(' · ') || undefined}
-                    className={`relative flex flex-col items-center gap-0.5 rounded-md border px-1 py-1 text-center ${TONE_CLASSES[tone]}`}
+                    className={`relative flex flex-col items-center gap-0.5 rounded-md border py-1 pl-1 pr-2 text-center ${TONE_CLASSES[tone]}`}
                   >
+                    {/* Barrier gauge, rail (bottom) to widest (top) - see drawFracOf's own comment */}
+                    <div className="pointer-events-none absolute inset-y-1 right-0.5 w-[3px] rounded-full bg-line-soft">
+                      <div
+                        className={`absolute w-full rounded-full ${drawToneClass(drawFrac)}`}
+                        style={{ height: '15%', bottom: `${Math.min(85, drawFrac * 100)}%` }}
+                      />
+                    </div>
                     {caution && (
                       // Positioned INSIDE the card (not overflowing outside it) -
                       // an earlier version used a negative offset that overflowed
@@ -267,13 +279,6 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                     {u.projectedWpr != null && (
                       <span className="font-mono text-[9px] text-ink-faint">{u.projectedWpr.toFixed(1)}</span>
                     )}
-                    {/* Barrier position, rail (left) to widest (right) - see drawFracOf's own comment */}
-                    <div className="h-[3px] w-full rounded-full bg-line-soft">
-                      <div
-                        className={`h-full rounded-full ${drawToneClass(drawFrac)}`}
-                        style={{ width: '15%', marginLeft: `${Math.min(85, drawFrac * 100)}%` }}
-                      />
-                    </div>
                   </div>
                 )
               })}
