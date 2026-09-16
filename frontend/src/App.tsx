@@ -15,13 +15,13 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { OverlaysTab } from './features/overlays/OverlaysTab'
+import { TrackersTab } from './features/trackers/TrackersTab'
 
-type TopTab = 'race' | 'review' | 'overlays'
+type TopTab = 'race' | 'review' | 'trackers'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'overlays' ? t : 'race'
+  return t === 'review' || t === 'trackers' ? t : 'race'
 }
 
 function App() {
@@ -63,7 +63,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'overlays') {
+    if (tab === 'review' || tab === 'trackers') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -139,13 +139,13 @@ function App() {
               </button>
               <button
                 type="button"
-                onClick={() => switchTab('overlays')}
+                onClick={() => switchTab('trackers')}
                 className={
                   'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
-                  (topTab === 'overlays' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                  (topTab === 'trackers' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
-                Overlays
+                Trackers
               </button>
             </nav>
           </div>
@@ -196,19 +196,7 @@ function App() {
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
-        {state.status === 'ready' && topTab === 'overlays' && (
-          <OverlaysTab
-            races={state.data.races}
-            priceBeta={betaOverride ?? state.data.priceBeta}
-            deltas={deltas}
-            bases={bases}
-            scratched={scratched}
-            initialDate={urlState.date}
-            showBush={showBush}
-            onShowBushChange={setShowBush}
-            onSelectRace={goToRace}
-          />
-        )}
+        {state.status === 'ready' && topTab === 'trackers' && <TrackersTab />}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
             <RaceDetail

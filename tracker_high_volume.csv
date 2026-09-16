@@ -23,8 +23,8 @@ run_id,race_id,date,venue,race_no,tab,horse,tag,gap_wpr,jw,trr_rank_1,pfm_rank_1
 14440215,1759828,2026-09-16,Caulfield,6,7,Jennyanydots,neutral,5.6,17.5,False,False,41.0,2026-09-16T20:08:50.887477+10:00,False,,,
 14440260,1759830,2026-09-16,Launceston,2,4,Miss Strat,neutral,0.6,20.3,False,False,6.5,2026-09-16T20:08:50.887477+10:00,False,,,
 14440280,1759831,2026-09-16,Launceston,3,5,Sorell Eagles,neutral,5.7,20.3,False,False,17,2026-09-16T20:08:50.887477+10:00,False,,,
-14440296,1759832,2026-09-16,Launceston,6,8,Outsidethesquare,favoured,0.0,18.5,False,False,6,2026-09-16T20:08:50.887477+10:00,False,,,
-14440308,1759833,2026-09-16,Launceston,5,1,Alfarino,favoured,0.0,20.7,False,True,3.8,2026-09-16T20:08:50.887477+10:00,False,,,
+14440296,1759832,2026-09-16,Launceston,6,8,Outsidethesquare,favoured,0.0,18.5,False,False,6,2026-09-16T20:08:50.887477+10:00,True,1,1,6
+14440308,1759833,2026-09-16,Launceston,5,1,Alfarino,favoured,0.0,20.7,False,True,3.8,2026-09-16T20:08:50.887477+10:00,True,1,1,3.8
 14440316,1759834,2026-09-16,Launceston,4,3,Rippington,neutral,0.0,20.7,False,False,7.5,2026-09-16T20:08:50.887477+10:00,False,,,
 14440328,1759835,2026-09-16,Launceston,7,9,Zuni,favoured,0.0,18.5,False,True,6.5,2026-09-16T20:08:50.887477+10:00,False,,,
 14443165,1759836,2026-09-16,Launceston,1,1,Tuskegee,neutral,4.4,20.7,False,False,8.5,2026-09-16T20:08:50.887477+10:00,False,,,
