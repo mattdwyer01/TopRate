@@ -301,7 +301,6 @@ function TrackerView({
   description: string
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }) {
-  const summary = useMemo(() => summarize(rows), [rows])
   const [date, setDate] = useState(() => todayIso())
   const [showAll, setShowAll] = useState(false)
 
@@ -310,8 +309,14 @@ function TrackerView({
   // a while, without the quick buttons growing unbounded.
   const availableDates = useMemo(() => [...new Set(rows.map((r) => r.date))].sort().reverse(), [rows])
 
+  // Scoped to whatever's currently selected (one date, or every date) -
+  // real user feedback (2026-09-16): the summary tiles used to always show
+  // all-time totals regardless of the date filter below, which read as
+  // "today" or "yesterday" but was actually the whole log.
+  const filtered = useMemo(() => (showAll ? rows : rows.filter((r) => r.date === date)), [rows, date, showAll])
+  const summary = useMemo(() => summarize(filtered), [filtered])
+
   const displayed = useMemo(() => {
-    const filtered = showAll ? rows : rows.filter((r) => r.date === date)
     // Race start time, not race number - the picks span every meeting
     // running that day, and each venue numbers its own races independently,
     // so sorting by race_no would interleave venues out of actual running
@@ -321,14 +326,14 @@ function TrackerView({
       if (a.date !== b.date) return a.date < b.date ? 1 : -1
       return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0
     })
-  }, [rows, date, showAll])
+  }, [filtered])
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-ink-faint">{description}</p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <StatTile label="Picks logged" value={String(rows.length)} sublabel="all time" />
+        <StatTile label="Picks logged" value={String(filtered.length)} sublabel={showAll ? 'all dates' : date} />
         <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far" />
         <StatTile label="Win %" value={summary ? `${summary.winPct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
         <StatTile label="Place %" value={summary ? `${summary.placePct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
