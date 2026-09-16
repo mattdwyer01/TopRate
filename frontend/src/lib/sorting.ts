@@ -15,6 +15,7 @@ export type SortKey =
   | 'projectedWpr'
   | 'toprateRating'
   | 'formFactor'
+  | 'jockeyWinPct'
   | 'fixedPrice'
   | 'finish'
   | 'actualWpr'
@@ -39,6 +40,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   projectedWpr: 'desc',
   toprateRating: 'desc',
   formFactor: 'desc',
+  jockeyWinPct: 'desc',
   fixedPrice: 'asc',
   finish: 'asc',
   actualWpr: 'desc',
@@ -79,6 +81,8 @@ function sortValue(
       return runner.toprateRating ?? -Infinity
     case 'formFactor':
       return runner.formFactor ?? -Infinity
+    case 'jockeyWinPct':
+      return runner.jockeyWinPct90d ?? -Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
     case 'finish':

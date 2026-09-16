@@ -48,10 +48,9 @@ function trackerSkippedTitle(q: TrackerQualifier): string {
   return `Meets the ${which} tracker criteria, but ${reason} - no pick fires (solo-only)`
 }
 
-function fmtAdj(v: number | null): string {
+function fmtJockeyWin(v: number | null): string {
   if (v == null) return '—'
-  const f = v.toFixed(1)
-  return v > 0 ? `+${f}` : f
+  return `${v.toFixed(1)}%`
 }
 
 // Connections' own rating, shown inline after their name rather than
@@ -67,16 +66,18 @@ function ratingSuffix(v: number | null): string {
 // CSS grid with columns - the same shape RaceDetail's header row uses -
 // they just use a different grid-template. Below sm, Base/Adj/Proj/
 // TopRate/Form/Fixed $/FP are all still real columns (not hidden or
-// stacked onto a second line) - Peak/Actual stay desktop-only, and RTS
-// isn't a column at all on mobile (not worth a sortable column of its own -
-// it rides along with the name/jockey-trainer text instead, see
+// stacked onto a second line) - Actual stays desktop-only, and RTS isn't a
+// column at all on mobile (not worth a sortable column of its own - it
+// rides along with the name/jockey-trainer text instead, see
 // rtsColorClass/rtsTitle below). That's still more columns than a phone's width can show without
 // squeezing the name unreadable (measured previously: ~18px), so the row
 // is wider than the viewport on purpose and the shared overflow-x-auto
 // wrapper in RaceDetail scrolls it horizontally - silk+name are `sticky
 // left-0`/`left-12` so they stay in view (frozen) while the stat columns
 // scroll underneath, same "frozen first column" pattern MeetingsGrid
-// already uses for its own wide table.
+// already uses for its own wide table. Peak and Adj (WPR adjustment) were
+// dropped from this summary view entirely (real user feedback, 2026-09-16)
+// - Adjustment is still shown in the runner detail modal's own breakdown.
 export function RunnerRow({
   runner,
   raceDate,
@@ -161,7 +162,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_40px_50px_50px_44px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_56px_56px_60px_60px_52px_70px_48px_52px] ${rowPadding} ${
+      className={`group grid w-max cursor-pointer grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px] items-center gap-x-2 gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:grid-cols-[44px_36px_1fr_56px_56px_60px_52px_70px_56px_48px_52px_52px] ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
         // state on hover, this just stops highlighting it visually across
@@ -271,22 +272,8 @@ export function RunnerRow({
       <span className={`hidden text-right font-mono sm:inline ${rtsColorClass}`} title={rtsTitle}>
         {spell.label}
       </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {fmtWpr(runner.peakWpr)}
-      </span>
       <span className="text-right font-mono text-ink-mute">
         {fmtWpr(runner.baseWpr)}
-      </span>
-      <span
-        className={`text-right font-mono ${
-          runner.wprAdjustment != null && runner.wprAdjustment > 0
-            ? 'text-emerald-deep'
-            : runner.wprAdjustment != null && runner.wprAdjustment < 0
-              ? 'text-rose'
-              : 'text-ink-mute'
-        }`}
-      >
-        {fmtAdj(runner.wprAdjustment)}
       </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
         {/* sm:contents on mobile-only stack: confidence sits under the WPR
@@ -311,10 +298,13 @@ export function RunnerRow({
         </span>
       </span>
       <span className="text-right font-mono text-ink-mute">
-        {scratched ? 'SCR' : fmtWpr(runner.toprateRating)}
+        {scratched ? 'SCR' : fmtInt(runner.toprateRating)}
       </span>
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtInt(runner.formFactor)}
+      </span>
+      <span className="text-right font-mono text-ink-mute">
+        {scratched ? 'SCR' : fmtJockeyWin(runner.jockeyWinPct90d)}
       </span>
       {/* Fixed $ and FP (below) are trimmed tighter than a plain "shrink a
           touch" - CSS position:sticky's redundant scroll range bites here
@@ -325,7 +315,7 @@ export function RunnerRow({
           UNDER the sticky cells instead of revealing anything new (verified
           by measuring real rendered positions, not a hunch - originally
           found against the old WPR $ column this replaced). Only trimming
-          columns that come AFTER it (not Base/Adj/Proj/TopRate/Form
+          columns that come AFTER it (not Base/Proj/TopRate/Form/Jockey Win%
           themselves) closes that gap - FP's own content (a 20px circle
           badge) never needed 44px anyway. */}
       <span className="flex items-center justify-end font-mono text-ink-mute">
