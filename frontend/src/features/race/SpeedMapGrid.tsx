@@ -54,30 +54,38 @@ function columnIndexOf(rel: number): number {
 
 // Highlights the ALREADY-computed speed_map ADJ_TERM (own history + today's
 // field/barrier/pace context combined - see wpr_projection.py's
-// _SPEED_MAP_FEATURES docstring) rather than re-deriving a cruder inside-
-// threats proxy from barrier/position alone: it's the real, validated
-// signal for "is today's context helping or hurting this horse", already
-// exposed per-runner via adjustmentBreakdown.
+// _SPEED_MAP_FEATURES docstring), but DEMEANED AGAINST THIS RACE FOR
+// DISPLAY ONLY - never fed back into wpr_projection.py or any WPR number
+// shown elsewhere on the page.
 //
-// NOT necessarily relative to rivals (real user question, 2026-09-16: "how
-// does every horse have a positive speed_map in this race?"): two of its
-// inputs (track_bias_score, pace_score) are shared/near-shared across a
-// race's WHOLE field by construction, and a fix attempted to strip that
-// shared component out (per-race demeaning, matching what track_barrier/
-// closing_merit/etc already get) was tried and REVERTED after a same-run
-// held-out MAE check showed it was a real, meaningful accuracy regression
-// (6.039 -> 6.078) - that shared component turned out to be genuine
-// predictive signal (e.g. a track/going/rail combo that legitimately runs
-// faster than grade norm), not noise to remove. So a uniformly-green (or
-// uniformly-red) race is a real, expected outcome sometimes, not a bug -
-// see this file's own tooltip/legend text, which says so rather than
-// implying a head-to-head comparison that isn't actually being made.
+// WHY: real user pushback (2026-09-16), and correct - "every horse having
+// a positive speed_map is impossible" if this tile is claiming to show
+// tactical/positional advantage, which is inherently zero-sum (there is
+// exactly one rail run, one clear passage up the outside, etc; nobody's
+// gain there comes for free). speed_map itself is NOT purely that,
+// though: two of its inputs (track_bias_score, pace_score) are shared or
+// near-shared across a race's WHOLE field by construction - they're a
+// genuine correction for how WPR itself rates performances at a specific
+// track/going/rail/pace combination, not a claim about who wins the
+// tactical battle. That component is real, validated signal for the
+// PREDICTION (confirmed the hard way: stripping it out backend-wide via
+// per-race demeaning, matching track_barrier/closing_merit/etc, was tried
+// and reverted after held-out MAE got meaningfully worse, 6.039 -> 6.078)
+// - it should NOT be removed from the number wpr_projection.py actually
+// uses. But it has no business being IN a chart that's specifically
+// asking "who's advantaged by today's traffic/positioning", which is the
+// one thing here that genuinely cannot be true for everyone at once.
+// Demeaning against this race's own mean, for this chart's tint only,
+// removes exactly that shared component and leaves the genuinely
+// relational part - and makes "every tile green" mathematically
+// impossible by construction (a race's own values can't all sit above
+// their own mean), which is the property being asked for here.
 const THREAT_THRESHOLD = 0.5
 
-function threatTone(speedMapAdj: number | undefined | null): 'help' | 'hurt' | 'neutral' {
-  if (speedMapAdj == null) return 'neutral'
-  if (speedMapAdj <= -THREAT_THRESHOLD) return 'hurt'
-  if (speedMapAdj >= THREAT_THRESHOLD) return 'help'
+function threatTone(displaySpeedMap: number | undefined | null): 'help' | 'hurt' | 'neutral' {
+  if (displaySpeedMap == null) return 'neutral'
+  if (displaySpeedMap <= -THREAT_THRESHOLD) return 'hurt'
+  if (displaySpeedMap >= THREAT_THRESHOLD) return 'help'
   return 'neutral'
 }
 
@@ -153,14 +161,26 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     col.sort((a, b) => (a.barrier ?? 99) - (b.barrier ?? 99))
   }
 
+  // Display-only demeaning against THIS race's own speed_map values - see
+  // threatTone's own comment above for why. Never touches wpr_projection.py
+  // or any WPR number shown elsewhere; this Map only feeds the tint below.
+  const rawSpeedMaps = runners
+    .map((u) => u.adjustmentBreakdown?.speed_map)
+    .filter((v): v is number => v != null)
+  const raceMean = rawSpeedMaps.length ? rawSpeedMaps.reduce((a, b) => a + b, 0) / rawSpeedMaps.length : 0
+  const displaySpeedMapByRunId = new Map<string, number | null>()
+  for (const u of runners) {
+    const v = u.adjustmentBreakdown?.speed_map
+    displaySpeedMapByRunId.set(u.runId, v != null ? v - raceMean : null)
+  }
+
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Speed map</span>
         <span className="text-xs text-ink-faint">
-          Predicted running position &middot; tint = today&apos;s pace/barrier/track context (green helps, red
-          hurts - can apply to the WHOLE field, not just vs rivals) &middot; bar = barrier (rail to wide) &middot; !
-          = wide gate sitting forward
+          Predicted running position &middot; tint = vs the rest of THIS field (green favoured, red hurt) &middot;
+          bar = barrier (rail to wide) &middot; ! = wide gate sitting forward
         </span>
         <span className="rounded-full bg-bg px-2 py-0.5 font-mono text-xs text-ink-mute">
           {pace.display}
@@ -174,14 +194,15 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
             </div>
             <div className="flex min-h-[3rem] flex-col gap-1">
               {columns[i].map((u) => {
-                const tone = threatTone(u.adjustmentBreakdown?.speed_map)
+                const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
+                const tone = threatTone(displaySpeedMap)
                 const drawFrac = drawFracOf(u, fieldSize)
                 const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
                 const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
                 const titleParts = [
                   u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
-                  u.adjustmentBreakdown?.speed_map != null
-                    ? `speed_map adjustment: ${u.adjustmentBreakdown.speed_map > 0 ? '+' : ''}${u.adjustmentBreakdown.speed_map.toFixed(1)}`
+                  displaySpeedMap != null
+                    ? `speed_map vs this field's average: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
                     : null,
                   caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
                 ].filter(Boolean)
