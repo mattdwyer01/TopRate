@@ -1264,21 +1264,24 @@ def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None)
         print(f"  WPR projection skipped: cannot import wpr_projection ({e})")
         return runners_df
 
-    # pace_shape ADJ_TERM inputs (Sep 2026) - today's continuous pace_score
-    # (race_speed_estimate, whole-field) and predicted_rel_settle
-    # (settling_estimate, per-horse). Both OPTIONAL and best-effort: if
-    # either import fails, cur_pace_score/cur_predicted_rel_settle stay None
-    # for every runner and pace_shape falls back to its "unseen -> 0"
-    # contract in wpr_projection - never fatal to the projection step.
+    # speed_map ADJ_TERM inputs (Sep 2026, formerly pace_shape's own) -
+    # today's continuous pace_score (race_speed_estimate, whole-field) and
+    # predicted_rel_settle/inside_threats/trailing_sect_i_early
+    # (settling_estimate, per-horse, needs the whole field to rank/compare
+    # against). All OPTIONAL and best-effort: if either import fails,
+    # cur_pace_score/cur_predicted_rel_settle/cur_inside_threats/
+    # cur_trailing_sect_i_early stay None for every runner and speed_map
+    # falls back to its "unseen -> 0" contract in wpr_projection - never
+    # fatal to the projection step.
     try:
         import race_speed_estimate as _rse_mod
     except Exception as e:
-        print(f"  pace_shape inputs: race_speed_estimate unavailable ({e})")
+        print(f"  speed_map inputs: race_speed_estimate unavailable ({e})")
         _rse_mod = None
     try:
         import settling_estimate as _se_mod
     except Exception as e:
-        print(f"  pace_shape inputs: settling_estimate unavailable ({e})")
+        print(f"  speed_map inputs: settling_estimate unavailable ({e})")
         _se_mod = None
 
     if not WPR_FORM_HISTORY_CSV.exists():
@@ -1491,11 +1494,26 @@ def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None)
                 settle_by_idx = {lbl: est.get("rel") for lbl, est in _settle_est.items()}
             except Exception:
                 settle_by_idx = {}
+        # inside_threats/trailing_sect_i_early (Sep 2026, speed_map inputs) -
+        # same settle_field (already excludes scratched runners, see above)
+        # and same best-effort contract as estimate_race_settling.
+        threats_by_idx = {}
+        if _se_mod is not None:
+            try:
+                _threats_est = _se_mod.compute_inside_threats(settle_field)
+                threats_by_idx = {lbl: est for lbl, est in _threats_est.items()}
+            except Exception:
+                threats_by_idx = {}
         for k, idx in enumerate(idx_order):
+            _threat_est = threats_by_idx.get(idx, {})
             runners[k]["cur_pace_score"] = cur_pace_score
             runners[k]["cur_predicted_rel_settle"] = settle_by_idx.get(idx)
+            runners[k]["cur_inside_threats"] = _threat_est.get("inside_threats")
+            runners[k]["cur_trailing_sect_i_early"] = _threat_est.get("trailing_sect_i_early")
             runners_alt[k]["cur_pace_score"] = cur_pace_score
             runners_alt[k]["cur_predicted_rel_settle"] = settle_by_idx.get(idx)
+            runners_alt[k]["cur_inside_threats"] = _threat_est.get("inside_threats")
+            runners_alt[k]["cur_trailing_sect_i_early"] = _threat_est.get("trailing_sect_i_early")
 
         try:
             results = wpr.project_race(runners, race_date=race_date)

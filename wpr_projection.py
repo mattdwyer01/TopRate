@@ -384,9 +384,20 @@ FEATURES = [
 # combine additively, unlike trainer_change/age/jockey_change which did
 # not, see wpr_new_adj_terms_candidate_test.py for that finding and why
 # age/jockey_change were tested but NOT added here).
+# speed_map (Sep 2026) replaces what used to be two separate entries here,
+# track_barrier and pace_shape, with ONE unified trained model - see
+# _SPEED_MAP_FEATURES's own docstring for the full rationale and the
+# session-research validation numbers, and train_wpr_projection()'s
+# printed A/B (OLD pace_shape+track_barrier vs NEW speed_map) for the
+# actual same-run held-out MAE this shipped on. track_barrier's own model
+# is still fitted and applied to cf/te (see train_wpr_projection) purely
+# to feed that A/B comparison and kept inspectable as a candidate - same
+# "kept as a candidate, not shipped" treatment trainer_change/track_wpr/
+# best3 already get elsewhere in this file - it is simply no longer
+# summed into the live projection.
 ADJ_TERMS = [
-    "own_first_up", "own_second_up", "own_long_spell", "track_barrier",
-    "closing_merit", "trainer_merit", "jockey_merit", "pace_shape",
+    "own_first_up", "own_second_up", "own_long_spell", "speed_map",
+    "closing_merit", "trainer_merit", "jockey_merit",
     "pop_distance", "pop_going",
 ]
 # trainer_change (Sep 2026): turned OFF per explicit user instruction, after
@@ -614,8 +625,11 @@ def _adj_term_frame(feat_dicts):
 _PROJ = None
 _CONF = None
 _CFG = None
-_PACE_SHAPE_MODEL = None
+_SPEED_MAP_MODEL = None
 _TRACK_BIAS_LOOKUP = None
+_TRACK_BARRIER_SLOPE_LOOKUP = None
+_GLOBAL_BARRIER_SLOPE = 0.0
+_SPEED_MAP_ZPARAMS = None
 _POP_ADJ_MODELS = None
 
 
@@ -631,14 +645,15 @@ def _load_models():
     FULL feature set - unaffected by the ADJUSTMENT rework above (a
     separate architecture entirely). Their predicted interval width is
     the confidence signal (see project_race).
-    pace_shape.joblib (see pace_shape's own docstring above
-    _PACE_SHAPE_FEATURES) is OPTIONAL - loaded best-effort, defaulting to
-    None (pace_shape term then always returns 0.0, the same "unseen -> 0"
+    speed_map.joblib (see speed_map's own docstring above
+    _SPEED_MAP_FEATURES) is OPTIONAL - loaded best-effort, defaulting to
+    None (speed_map term then always returns 0.0, the same "unseen -> 0"
     contract every other population term uses) so an older wpr_models/
     without it, or a retrain that failed to produce it, never breaks
-    serving.
+    serving. Supersedes the old pace_shape.joblib name/shape.
     """
-    global _PROJ, _CONF, _CFG, _PACE_SHAPE_MODEL, _TRACK_BIAS_LOOKUP, _POP_ADJ_MODELS
+    global _PROJ, _CONF, _CFG, _SPEED_MAP_MODEL, _TRACK_BIAS_LOOKUP, _POP_ADJ_MODELS
+    global _TRACK_BARRIER_SLOPE_LOOKUP, _GLOBAL_BARRIER_SLOPE, _SPEED_MAP_ZPARAMS
     if _PROJ is not None:
         return
     cfg_path = _MODEL_DIR / "config.json"
@@ -650,33 +665,38 @@ def _load_models():
     _CFG = json.load(open(cfg_path))
     _PROJ = joblib.load(_MODEL_DIR / "projection.joblib")
     _CONF = joblib.load(_MODEL_DIR / "confidence.joblib")
-    _pace_shape_path = _MODEL_DIR / "pace_shape.joblib"
-    _PACE_SHAPE_MODEL = None
+    _speed_map_path = _MODEL_DIR / "speed_map.joblib"
+    _SPEED_MAP_MODEL = None
     _TRACK_BIAS_LOOKUP = {}
-    if _pace_shape_path.exists():
+    _TRACK_BARRIER_SLOPE_LOOKUP = {}
+    _GLOBAL_BARRIER_SLOPE = 0.0
+    _SPEED_MAP_ZPARAMS = {"pace_mean": 0.0, "pace_std": 0.0, "speed_mean": 0.0, "speed_std": 0.0}
+    if not _speed_map_path.exists():
+        # Fall back to the old pace_shape.joblib name (pre-Sep-2026 model
+        # dir) - a bare/older-shape model still loads fine (the new
+        # features just stay 0.0, "unseen -> 0"), so an un-retrained
+        # wpr_models/ never breaks serving.
+        _speed_map_path = _MODEL_DIR / "pace_shape.joblib"
+    if _speed_map_path.exists():
         try:
-            _loaded = joblib.load(_pace_shape_path)
-            # Sep 2026: pace_shape.joblib became a {"model", "track_bias_
-            # lookup"} bundle (track_bias_score, the 5th feature - see
-            # _PACE_SHAPE_FEATURES). A pre-existing file from before that
-            # change is a bare model object, not a dict - keep loading it
-            # fine (track_bias_score just stays 0.0, the same "unseen -> 0"
-            # contract every other population term uses) rather than
-            # breaking serving until the next retrain ships the new shape.
+            _loaded = joblib.load(_speed_map_path)
             if isinstance(_loaded, dict) and "model" in _loaded:
-                _PACE_SHAPE_MODEL = _loaded["model"]
+                _SPEED_MAP_MODEL = _loaded["model"]
                 _TRACK_BIAS_LOOKUP = _loaded.get("track_bias_lookup") or {}
+                _TRACK_BARRIER_SLOPE_LOOKUP = _loaded.get("track_barrier_slope_lookup") or {}
+                _GLOBAL_BARRIER_SLOPE = _loaded.get("global_barrier_slope") or 0.0
+                _SPEED_MAP_ZPARAMS = _loaded.get("zparams") or _SPEED_MAP_ZPARAMS
             else:
-                _PACE_SHAPE_MODEL = _loaded
+                _SPEED_MAP_MODEL = _loaded
         except Exception:
-            _PACE_SHAPE_MODEL = None
+            _SPEED_MAP_MODEL = None
     # pop_adj_models.joblib (Sep 2026): the trained-model replacements for
     # every population-lookup ADJ_TERM (track_barrier, trainer_merit,
     # jockey_merit, gear_change, closing_merit - see each term's own
     # docstring above for why) plus track_code_map (the fitted str->int
     # track-identity encoding track_barrier's model needs, so train and
     # serve can never drift). OPTIONAL, same best-effort/None-default
-    # contract as pace_shape.joblib - a term with a missing model always
+    # contract as speed_map.joblib - a term with a missing model always
     # falls back to 0.0 ("unseen -> 0"), never breaks serving.
     _pop_adj_path = _MODEL_DIR / "pop_adj_models.joblib"
     if _pop_adj_path.exists():
@@ -936,6 +956,86 @@ def _track_barrier_term(cur_track, cur_distance, cur_barrier, cur_field_size, tr
     row = pd.DataFrame([{"cur_distance": cd, "barrier": cb, "field_size": cfs, "track_code": track_code}],
                        columns=_TRACK_BARRIER_FEATURES)
     return float(model.predict(row)[0])
+
+
+# track_barrier_slope_feature (Sep 2026, speed_map input - see
+# _SPEED_MAP_FEATURES's own docstring for why this is a SEPARATE feature
+# from track_barrier above rather than a replacement of it): an explicit,
+# separately-fitted per-track linear barrier slope. A shallow (max_depth=3)
+# tree ensemble with track_code as one categorical input among several
+# (track_barrier's own design) cannot cleanly express 150+ different linear
+# barrier slopes, one per track, from a handful of splits - handing the
+# unified speed_map model this single pre-computed number lets it spend its
+# limited depth on genuinely nonlinear interactions instead of re-deriving
+# "how much does THIS track care about barrier" from track_code + barrier
+# from scratch.
+def _build_track_barrier_slope_lookup(trn, min_n=200, k=2000.0):
+    """({track: shrunk_slope}, global_slope) - fit on trn (same "trn only,
+    full coverage" pattern gear_change/pop_distance/pop_going use, see their
+    own docstrings), regressing (target - career_avg) - the same residual
+    every other trained population ADJ_TERM here uses, so the slope already
+    nets out horse quality, not raw finishing bias - against today's
+    CENTRED barrier position: (barrier-1)/(field_size-1) - 0.5, so -0.5 =
+    barrier 1 (inside), +0.5 = widest, same centering barrier_nudge()/
+    draw_signal use elsewhere in this codebase.
+
+    Shrinkage toward the GLOBAL slope (fit across ALL of trn, any track):
+    shrunk = (n*raw_track_slope + k*global_slope) / (n+k), k=2000 - a track
+    needs several thousand of its own rows before its own raw slope is
+    trusted much over the population-wide default (same n/(n+K) shrink
+    SHAPE _OWN_DELTA_SHRINK_K uses elsewhere, independently re-tuned k for
+    this track-level population fit, not the same constant).
+
+    Returns ({}, 0.0) if trn has too few usable rows to fit even the global
+    slope - _track_barrier_slope_feature's own "unseen -> 0" handling then
+    makes this feature 0.0 everywhere, same contract every other population
+    term here uses on a miss."""
+    d = trn.dropna(subset=["barrier", "field_size", "track", "target", "career_avg"]).copy()
+    d = d[d["field_size"] >= 2]
+    if len(d) < min_n:
+        return {}, 0.0
+    draw_frac = ((d["barrier"] - 1) / (d["field_size"] - 1)).clip(0, 1)
+    d["centred_barrier"] = draw_frac - 0.5
+    d["resid"] = d["target"] - d["career_avg"]
+
+    def _ols_slope(sub):
+        x = sub["centred_barrier"].to_numpy()
+        y = sub["resid"].to_numpy()
+        if len(x) < 2 or np.std(x) == 0:
+            return np.nan
+        return float(np.cov(x, y, bias=True)[0, 1] / np.var(x))
+
+    global_slope = _ols_slope(d)
+    if global_slope != global_slope:
+        return {}, 0.0
+
+    lookup = {}
+    for track, sub in d.groupby("track"):
+        n = len(sub)
+        raw = _ols_slope(sub)
+        if raw != raw:
+            continue
+        lookup[track] = (n * raw + k * global_slope) / (n + k)
+    print(f"    track_barrier_slope: global={global_slope:+.4f}, "
+          f"{len(lookup):,} tracks fitted (min_n={min_n})")
+    return lookup, global_slope
+
+
+def _track_barrier_slope_feature(track, barrier, field_size, lookup, global_slope):
+    """Live per-runner feature (see _build_track_barrier_slope_lookup):
+    this track's fitted barrier slope * today's centred barrier position.
+    0.0 if barrier/field_size unknown or the lookup itself is empty -
+    "unseen -> 0" contract."""
+    try:
+        b, fs = float(barrier), float(field_size)
+    except (TypeError, ValueError):
+        return 0.0
+    if b != b or fs != fs or fs < 2:
+        return 0.0
+    draw_frac = min(1.0, max(0.0, (b - 1) / (fs - 1)))
+    centred = draw_frac - 0.5
+    slope = (lookup or {}).get(track, global_slope)
+    return float(slope * centred)
 
 
 # trainer_merit/jockey_merit: two more population-level ADJ_TERMS (Sep 2026,
@@ -1503,48 +1603,112 @@ def _track_bias_score(track, going, rail_position, lookup):
     return 0.0
 
 
-_PACE_SHAPE_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size",
-                        "track_bias_score"]
+# speed_map (Sep 2026): unifies what used to be THREE separate ADJ_TERMS -
+# pace_shape (race tempo x settling position), track_barrier (population
+# barrier-draw model), and the settling-position machinery feeding both -
+# into ONE trained model. HISTORY: an extensive session-long "speed map"
+# investigation (10 years of race_results_*.csv.gz, leak-free train/holdout
+# validated throughout) tried building a proper joint model of who gets a
+# clean run - own early speed/running style, barrier draw, the REST of
+# today's field's speed and barriers (not just this horse's own), race-wide
+# pace pressure, and track-specific barrier geometry. Of everything tried,
+# three signals survived integration on held-out data (most did not - see
+# each one's own note below for why): inside_threats (this horse's exposure
+# to faster, MORE INSIDE rivals in today's actual field - the single
+# strongest addition, holdout Spearman -0.3876 -> -0.3900), a track-specific
+# barrier slope (per-track shrinkage-fit linear barrier effect, since a
+# pooled/global barrier signal is confounded by real track-to-track variance
+# - Pioneer Park to Balaklava ranged -0.097 to +0.156 correlation across 67
+# tracks with n>=3,000 - holdout -0.4017 -> -0.4025), and a PROPERLY
+# centered race-heat interaction (own early speed z-score x race-wide pace
+# z-score, both z-scored on TRAIN-only stats before multiplying - an
+# earlier, uncentered attempt showed a train-only gain with ZERO holdout
+# movement to 4 decimals, the textbook overfitting signature, and was
+# rejected; centering fixed it - holdout -0.4017 -> -0.4023).
+#
+# What did NOT survive combination, and is deliberately NOT part of this
+# feature set: settle_v2 (leak-free own-history settling position) and
+# race_heat_others' own MAIN EFFECT (race-wide pace pressure, uncorrected)
+# are each real standalone signals, but ewm7/wpr_nett-based base rating
+# (this file's own `_base`) already captures "how good/forward-going is
+# this horse" - both terms are fundamentally another proxy for horse
+# quality once combined with a rating already built on that horse's own
+# history, so they add nothing net. A distance-projected (within-horse
+# fixed-effects) refinement of settling position was also tried and also
+# did not survive - its standalone gain didn't hold up structurally. The 5
+# terms below (settle_signal/pace_signal/interaction/field_size/
+# track_bias_score) are pace_shape's original feature set, kept as-is - the
+# 3 additions above are genuinely NEW information a horse-quality-based
+# rating structurally cannot see: today's specific field's barrier/speed
+# composition, and today's specific track's geometry.
+_SPEED_MAP_FEATURES = ["settle_signal", "pace_signal", "interaction", "field_size",
+                       "track_bias_score", "inside_threats", "track_barrier_slope",
+                       "heat_interaction"]
 
 
-def _pace_shape_features(pace_score, predicted_rel_settle, field_size, track_bias_score=0.0):
-    """The 5 model inputs (see pace_shape's docstring above), or None if
+def _speed_map_features(pace_score, predicted_rel_settle, field_size, track_bias_score=0.0,
+                        inside_threats=0.0, track_barrier_slope=0.0, heat_interaction=0.0):
+    """The 8 model inputs (see speed_map's docstring above), or None if
     either continuous prediction is missing - the "unseen -> 0" contract
-    is enforced by the caller (_pace_shape_term), not here. track_bias_score
-    (Sep 2026 addition - see _build_track_bias_lookup/_track_bias_score)
-    already defaults to 0.0 on any miss by construction, so it never blocks
-    a fit/prediction the way a missing pace_score/predicted_rel_settle
-    does."""
+    is enforced by the caller (_speed_map_term), not here. track_bias_score/
+    inside_threats/track_barrier_slope/heat_interaction each already
+    default to 0.0 on any miss by construction (see their own builders), so
+    none of them ever blocks a fit/prediction the way a missing
+    pace_score/predicted_rel_settle does."""
     if pace_score is None or pace_score != pace_score:
         return None
     if predicted_rel_settle is None or predicted_rel_settle != predicted_rel_settle:
         return None
     settle_signal = (float(predicted_rel_settle) - 0.5) * 2
     pace_signal = (float(pace_score) - 0.5) * 2
+
+    def _num(v):
+        return float(v) if v is not None and v == v else 0.0
+
     return {
         "settle_signal": settle_signal,
         "pace_signal": pace_signal,
         "interaction": settle_signal * pace_signal,
-        "field_size": float(field_size) if field_size is not None and field_size == field_size else 0.0,
-        "track_bias_score": float(track_bias_score) if track_bias_score is not None and track_bias_score == track_bias_score else 0.0,
+        "field_size": _num(field_size),
+        "track_bias_score": _num(track_bias_score),
+        "inside_threats": _num(inside_threats),
+        "track_barrier_slope": _num(track_barrier_slope),
+        "heat_interaction": _num(heat_interaction),
     }
 
 
-def _pace_shape_term(pace_score, predicted_rel_settle, field_size, model, track_bias_score=0.0):
-    """Live pace_shape ADJ_TERM: runs the fitted LightGBM model on today's
+def _speed_map_term(pace_score, predicted_rel_settle, field_size, model, track_bias_score=0.0,
+                    inside_threats=0.0, track_barrier_slope=0.0, heat_interaction=0.0):
+    """Live speed_map ADJ_TERM: runs the fitted LightGBM model on today's
     continuous pace_score (race_speed_estimate), predicted_rel_settle
-    (settling_estimate), and track_bias_score (today's track/going/rail
-    combo vs the grade norm - see _track_bias_score). 0.0 (no adjustment)
-    if pace_score/predicted_rel_settle or the model itself is unavailable -
-    same "unseen -> 0" contract every other population term here uses.
-    track_bias_score missing/0.0 does NOT block the term (see
-    _pace_shape_features docstring)."""
+    (settling_estimate), track_bias_score (today's track/going/rail combo
+    vs the grade norm - see _track_bias_score), inside_threats (today's
+    actual field's barrier/speed exposure - see
+    settling_estimate.compute_inside_threats), track_barrier_slope (this
+    track's fitted barrier effect - see _track_barrier_slope_feature), and
+    heat_interaction (own speed x race pace, pre-computed by the caller
+    since it needs the fitted TRAIN-only z-score params - see
+    _fit_speed_map_model). 0.0 (no adjustment) if pace_score/
+    predicted_rel_settle or the model itself is unavailable - same
+    "unseen -> 0" contract every other population term here uses.
+
+    Also 0.0 if the loaded model's own expected feature count doesn't match
+    _SPEED_MAP_FEATURES (n_features_in_, the sklearn-API attribute every
+    LightGBM regressor here exposes after fit) - a deployment where the code
+    shipped ahead of a matching retrain (an OLD, 5-feature pace_shape.joblib
+    still on disk - see _load_models' own fallback) must never crash
+    serving with a feature-count mismatch; it should just behave as if no
+    model were shipped yet, same as every other "model missing" case."""
     if model is None:
         return 0.0
-    feat = _pace_shape_features(pace_score, predicted_rel_settle, field_size, track_bias_score)
+    n_expected = getattr(model, "n_features_in_", None)
+    if n_expected is not None and n_expected != len(_SPEED_MAP_FEATURES):
+        return 0.0
+    feat = _speed_map_features(pace_score, predicted_rel_settle, field_size, track_bias_score,
+                               inside_threats, track_barrier_slope, heat_interaction)
     if feat is None:
         return 0.0
-    row = pd.DataFrame([feat], columns=_PACE_SHAPE_FEATURES)
+    row = pd.DataFrame([feat], columns=_SPEED_MAP_FEATURES)
     return float(model.predict(row)[0])
 
 
@@ -3017,21 +3181,47 @@ def project_race(runners, race_date):
                 if f is not None:
                     f[_term] -= _mean
 
-    # pace_shape: needs today's continuous pace_score (race_speed_estimate,
+    # speed_map: needs today's continuous pace_score (race_speed_estimate,
     # whole-field) and predicted_rel_settle (settling_estimate, per-horse) -
     # both computed by the CALLER (toprate_daily.py's compute_wpr_projection,
     # which already has the whole race field in scope) and passed in per
     # runner, same "caller supplies today's context, this module just
-    # applies the fitted model" split as cur_race_speed_label above. 0.0 for
-    # any runner missing either input, or if no model was shipped (see
-    # _load_models).
+    # applies the fitted model" split as cur_race_speed_label above.
+    # inside_threats/cur_trailing_sect_i_early are the same story - the
+    # caller computes them once per race via settling_estimate.
+    # compute_inside_threats (same field-scoped call as estimate_race_
+    # settling) and passes them per runner. track_barrier_slope is instead
+    # self-contained here (like track_bias_score) - it only needs today's
+    # own track/barrier/field_size, no other runner's data. heat_interaction
+    # is computed here too, from cur_pace_score and cur_trailing_sect_i_early
+    # z-scored against the TRAIN-only constants shipped in speed_map.joblib
+    # (_SPEED_MAP_ZPARAMS) - must use the SAME constants training used, or
+    # serving and training silently diverge. 0.0 for any runner missing
+    # pace_score/predicted_rel_settle, or if no model was shipped (see
+    # _load_models) - every other input already defaults to 0.0 on its own
+    # miss (see each one's own builder).
+    _zp = _SPEED_MAP_ZPARAMS or {}
+    _pace_mean, _pace_std = _zp.get("pace_mean", 0.0), _zp.get("pace_std", 0.0)
+    _speed_mean, _speed_std = _zp.get("speed_mean", 0.0), _zp.get("speed_std", 0.0)
     for f, r in zip(feat_dicts, runners):
         if f is not None:
             _tbs = _track_bias_score(r.get("cur_track"), r.get("cur_going"),
                                      r.get("cur_rail_position"), _TRACK_BIAS_LOOKUP)
-            f["pace_shape"] = _pace_shape_term(
-                r.get("cur_pace_score"), r.get("cur_predicted_rel_settle"),
-                r.get("cur_field_size"), _PACE_SHAPE_MODEL, _tbs)
+            _tbsl = _track_barrier_slope_feature(
+                r.get("cur_track"), r.get("cur_barrier"), r.get("cur_field_size"),
+                _TRACK_BARRIER_SLOPE_LOOKUP, _GLOBAL_BARRIER_SLOPE)
+            _pace_score = r.get("cur_pace_score")
+            _own_speed = r.get("cur_trailing_sect_i_early")
+            _heat = 0.0
+            if (_pace_score is not None and _pace_score == _pace_score
+                    and _own_speed is not None and _own_speed == _own_speed):
+                _pace_z = (float(_pace_score) - _pace_mean) / (_pace_std if _pace_std else 1.0)
+                _speed_z = (float(_own_speed) - _speed_mean) / (_speed_std if _speed_std else 1.0)
+                _heat = _pace_z * _speed_z
+            f["speed_map"] = _speed_map_term(
+                _pace_score, r.get("cur_predicted_rel_settle"),
+                r.get("cur_field_size"), _SPEED_MAP_MODEL, _tbs,
+                r.get("cur_inside_threats", 0.0), _tbsl, _heat)
 
     # Confidence is computed FIRST (needs the FULL feature frame - the
     # Additive architecture: projection = base + sum(ADJ_TERMS). base is
@@ -3821,7 +4011,19 @@ def _build_pace_shape_settle_lookup(since):
     wpr_pace_adjustment_continuous_test.py's build_settle_score_lookup,
     which this reproduces exactly (identical feature computation to
     settling_estimate.train(), then predicts via the already-trained
-    settling_estimate model instead of banding the result)."""
+    settling_estimate model instead of banding the result).
+
+    ALSO builds two speed_map ingredients (Sep 2026) that piggyback on the
+    exact same leak-free trailing_sect_i_early/barrier/_race_key columns
+    already computed here for sect_signal - inside_threats (this horse's
+    exposure to faster, more-inside rivals in its ACTUAL historical field -
+    see settling_estimate.compute_inside_threats, which this reproduces for
+    training the same way sect_rank_in_race reproduces
+    estimate_race_settling's own sect ranking; the two must stay in sync)
+    and each horse's own trailing_sect_i_early value (needed downstream to
+    build heat_interaction, own speed vs today's race-wide pace). Returns
+    (settle_lookup, inside_threats_lookup, sect_early_lookup), all keyed
+    (horse_lc, date)."""
     import settling_estimate as se
     print("    building predicted_rel_settle from the trained settling model...")
     fh = se._load_form()
@@ -3903,6 +4105,31 @@ def _build_pace_shape_settle_lookup(since):
     fh["sect_margin_to_rest"] = fh.groupby("_race_key")["trailing_sect_i_early"].transform(_margin_to_rest_vec)
     fh["sect_margin_to_rest"] = fh["sect_margin_to_rest"].clip(se.SECT_MARGIN_LO, se.SECT_MARGIN_HI)
 
+    # inside_threats (Sep 2026, speed_map): mirrors settling_estimate.
+    # compute_inside_threats() exactly (same formula, same trailing_sect_
+    # i_early/barrier inputs), just vectorized per _race_key group instead
+    # of that function's list-of-tuples calling convention - MUST stay in
+    # sync with it. For runner i, sums (rival_speed - own_speed) over every
+    # rival j in the SAME historical race with both a higher trailing
+    # early-speed rating and a lower (more inside) barrier than i - only
+    # rivals that are genuinely faster AND drawn to cross in front of this
+    # horse count, matching the physical "boxed in behind speed" mechanism.
+    def _inside_threats_group(g):
+        speed = g["trailing_sect_i_early"].to_numpy()
+        barrier = g["barrier"].to_numpy()
+        n = len(g)
+        out = np.zeros(n)
+        valid = ~np.isnan(speed) & ~np.isnan(barrier)
+        for i in range(n):
+            if not valid[i]:
+                continue
+            mask = valid & (speed > speed[i]) & (barrier < barrier[i])
+            out[i] = (speed[mask] - speed[i]).sum()
+        return pd.Series(out, index=g.index)
+
+    fh["inside_threats"] = fh.groupby("_race_key", group_keys=False).apply(
+        _inside_threats_group, include_groups=False)
+
     se._load_model()
     features = se._CFG["features"]
     has_tend = fh["run_style_tendency"].notna()
@@ -3912,34 +4139,59 @@ def _build_pace_shape_settle_lookup(since):
     pred = pd.Series(pred, index=fh.index).where(has_tend)
 
     lookup = {}
-    for hlc, dt, p in zip(fh["horse_lc"], fh["date"], pred):
+    inside_threats_lookup = {}
+    sect_early_lookup = {}
+    for hlc, dt, p, it, se_own in zip(fh["horse_lc"], fh["date"], pred,
+                                      fh["inside_threats"], fh["trailing_sect_i_early"]):
         if pd.notna(p):
             lookup[(hlc, dt)] = float(p)
-    print(f"    built lookup for {len(lookup):,} (horse, date) rows")
-    return lookup
+        if pd.notna(it):
+            inside_threats_lookup[(hlc, dt)] = float(it)
+        if pd.notna(se_own):
+            sect_early_lookup[(hlc, dt)] = float(se_own)
+    print(f"    built lookup for {len(lookup):,} (horse, date) rows "
+          f"(inside_threats: {len(inside_threats_lookup):,}, "
+          f"sect_early: {len(sect_early_lookup):,})")
+    return lookup, inside_threats_lookup, sect_early_lookup
 
 
-def _fit_pace_shape_model(D, name_map):
-    """Fit the pace_shape ADJ_TERM's LightGBM model (see its own module
-    docstring above _PACE_SHAPE_FEATURES) and apply it to D's cf/te rows in
-    place (adding a "pace_shape" column), same two-stage pattern as every
-    other population term in train_wpr_projection().
+def _fit_speed_map_model(D, name_map, trn):
+    """Fit the speed_map ADJ_TERM's LightGBM model (see its own module
+    docstring above _SPEED_MAP_FEATURES) and return the fitted model plus
+    every lookup/param the live term needs, same two-stage pattern as every
+    other population term in train_wpr_projection(). Supersedes what used
+    to be a separate _fit_pace_shape_model - pace_score/predicted_rel_
+    settle/track_bias_score are unchanged; inside_threats/track_barrier_
+    slope/heat_interaction are new (see _SPEED_MAP_FEATURES docstring).
 
-    Bounded to the EXACT 365-day window wpr_pace_adjustment_continuous_
-    test.py validated (never a superset of what was tested) - within that
-    window, own_pace/trainer_merit's "own coverage-aware cutoff" pattern is
-    reused (a global trn/cf/te split of the FULL multi-year D would leave
-    trn almost entirely uncovered, since predicted_rel_settle/pace_score
-    are only leak-safely reconstructable for roughly the last year).
+    pace_score/predicted_rel_settle/inside_threats are bounded to the EXACT
+    365-day window wpr_pace_adjustment_continuous_test.py validated (never a
+    superset of what was tested) - within that window, own_pace/
+    trainer_merit's "own coverage-aware cutoff" pattern is reused (a global
+    trn/cf/te split of the FULL multi-year D would leave trn almost
+    entirely uncovered, since these are only leak-safely reconstructable
+    for roughly the last year). track_bias_score and track_barrier_slope
+    are population facts fit on ALL available history (10-year race_results
+    for the former, trn's own full multi-year window for the latter - see
+    each builder's own docstring) - no matching leak concern for either.
 
-    Returns (model, track_bias_lookup) - model is None if too little
-    covered data to fit (track_bias_lookup is still returned/usable even
-    then, but a None model means the term is 0.0 everywhere regardless)."""
+    trn: the caller's already-split training frame (D[D.date < q1]), needed
+    (with target/career_avg/barrier/field_size/track already present) to
+    fit the track_barrier_slope lookup - see _build_track_barrier_slope_
+    lookup.
+
+    Returns (model, track_bias_lookup, track_barrier_slope_lookup,
+    global_barrier_slope, zparams) - model is None if too little covered
+    data to fit (every other item is still returned/usable even then, but a
+    None model means the whole term is 0.0 everywhere regardless).
+    zparams is {"pace_mean", "pace_std", "speed_mean", "speed_std"} - the
+    TRAIN-only z-score constants heat_interaction needs at serve time (see
+    its own comment below)."""
     import lightgbm as lgb
     since = (D["date"].max() - pd.Timedelta(days=365)).strftime("%Y-%m-%d")
-    print(f"  building pace_shape ingredients (leak-safe, since {since})...")
+    print(f"  building speed_map ingredients (leak-safe, since {since})...")
     race_id_to_score = _build_pace_shape_race_scores(since)
-    settle_lookup = _build_pace_shape_settle_lookup(since)
+    settle_lookup, inside_threats_lookup, sect_early_lookup = _build_pace_shape_settle_lookup(since)
 
     D["pace_score"] = D["race_id"].map(race_id_to_score)
     D["horse_lc"] = D["horse_id"].map(name_map).astype(str).str.lower()
@@ -3951,6 +4203,19 @@ def _fit_pace_shape_model(D, name_map):
     D["interaction"] = D["settle_signal"] * D["pace_signal"]
     print(f"  pace_score coverage: {D['pace_score'].notna().mean()*100:.1f}%  "
           f"predicted_rel_settle coverage: {D['predicted_rel_settle'].notna().mean()*100:.1f}%")
+
+    # inside_threats/own trailing early speed (Sep 2026): same (horse_lc,
+    # date) lookup pattern as predicted_rel_settle above, same 365-day
+    # window (both come out of the same _build_pace_shape_settle_lookup
+    # call). Missing -> 0.0 (not NaN) - "unseen -> 0" contract, since
+    # inside_threats is a genuinely optional 6th feature, not a coverage
+    # gate like settle_signal/pace_signal are.
+    D["inside_threats"] = [
+        inside_threats_lookup.get((h, d), 0.0) for h, d in zip(D["horse_lc"], D["date"])
+    ]
+    D["_own_sect_i_early"] = [
+        sect_early_lookup.get((h, d)) for h, d in zip(D["horse_lc"], D["date"])
+    ]
 
     # track_bias_score (Sep 2026 addition): unlike pace_score/predicted_rel_
     # settle, this is NOT bounded to the 365-day window - _build_track_bias_
@@ -3967,16 +4232,62 @@ def _fit_pace_shape_model(D, name_map):
     print(f"  track_bias_score nonzero: {(D['track_bias_score'] != 0).mean()*100:.1f}% of rows "
           f"({len(track_bias_lookup):,} lookup entries)")
 
+    # track_barrier_slope (Sep 2026): population fact fit on trn's own full
+    # multi-year window (see _build_track_barrier_slope_lookup docstring for
+    # why this is a separate, explicit feature from the track_barrier
+    # ADJ_TERM's own trained model). Also not bounded to the 365-day window.
+    print("  fitting track_barrier_slope (population, trn only)...")
+    tbs_lookup, tbs_global = _build_track_barrier_slope_lookup(trn)
+    D["track_barrier_slope"] = [
+        _track_barrier_slope_feature(trk, bar, fs, tbs_lookup, tbs_global)
+        for trk, bar, fs in zip(D["track"], D["barrier"], D["field_size"])
+    ]
+
     cov = D[D["date"] >= pd.Timestamp(since)].dropna(
         subset=["settle_signal", "pace_signal", "interaction", "target", "career_avg"])
+    zparams = {"pace_mean": 0.0, "pace_std": 0.0, "speed_mean": 0.0, "speed_std": 0.0}
     if len(cov) < 200:
-        print(f"  pace_shape: only {len(cov):,} covered rows, skipping fit "
+        print(f"  speed_map: only {len(cov):,} covered rows, skipping fit "
               f"(need >=200)")
-        return None, track_bias_lookup
+        return None, track_bias_lookup, tbs_lookup, tbs_global, zparams
     cutoff = cov["date"].quantile(0.70)
     cov_trn = cov[cov["date"] < cutoff]
-    print(f"  pace_shape: fitting on {len(cov_trn):,} covered rows "
+
+    # heat_interaction (Sep 2026): own early-speed z-score x race-wide pace
+    # z-score, BOTH z-scored on cov_trn-ONLY mean/std before multiplying -
+    # see _SPEED_MAP_FEATURES's own docstring for why this centering step is
+    # not optional (an earlier, uncentered attempt showed a train-only gain
+    # with ZERO holdout movement - a pure main-effect artefact, not a real
+    # interaction). KNOWN LIMITATION: pace_score is a whole-field aggregate
+    # that includes this horse's own contribution (race_speed_estimate has
+    # no leave-one-out variant), so the interaction is diluted by a small
+    # self-inclusion confound (1/field_size, typically 8-16) - a real but
+    # modest effect, not the structural centering bug the earlier attempt
+    # had. Left as a known imperfection rather than building a full leave-
+    # one-out race-speed re-scoring pass; the held-out MAE check below is
+    # the actual arbiter of whether it's still net-positive despite this.
+    pace_mean = float(cov_trn["pace_score"].mean())
+    pace_std = float(cov_trn["pace_score"].std())
+    speed_mean = float(cov_trn["_own_sect_i_early"].mean())
+    speed_std = float(cov_trn["_own_sect_i_early"].std())
+    zparams = {"pace_mean": pace_mean, "pace_std": pace_std,
+               "speed_mean": speed_mean, "speed_std": speed_std}
+
+    def _apply_heat(frame):
+        pace_z = (frame["pace_score"] - pace_mean) / (pace_std if pace_std else 1.0)
+        speed_z = (frame["_own_sect_i_early"] - speed_mean) / (speed_std if speed_std else 1.0)
+        return (pace_z * speed_z).fillna(0.0)
+
+    D["heat_interaction"] = _apply_heat(D)
+    cov = cov.copy()
+    cov["heat_interaction"] = _apply_heat(cov)
+    cov_trn = cov[cov["date"] < cutoff].copy()
+    print(f"  speed_map: fitting on {len(cov_trn):,} covered rows "
           f"(own {since}-onward window, own 70% cutoff {cutoff.date()})")
+
+    for _c in ("inside_threats", "track_barrier_slope", "heat_interaction"):
+        cov_trn[_c] = cov_trn[_c].fillna(0.0)
+
     # objective="quantile", alpha=0.5 (median regression) - Sep 2026, see
     # wpr_pace_shape_median_objective_test.py: LightGBM's default (L2/
     # mean-fitting) objective is a worse fit for this skewed residual
@@ -3991,11 +4302,29 @@ def _fit_pace_shape_model(D, name_map):
     # importance feature in the 5-feature model, ahead of field_size - a
     # small but real, ship-worthy gain (matching the scale of every other
     # legitimately-shipped ADJ_TERM refinement in this file's history).
+    # inside_threats/track_barrier_slope/heat_interaction added as a 6th,
+    # 7th and 8th feature (Sep 2026, unifying what used to be a separate
+    # track_barrier ADJ_TERM into this one model too) - see the bidirectional
+    # held-out MAE comparison train_wpr_projection() prints against the old
+    # (pace_shape + track_barrier) baseline before this replaced it.
     model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
                               num_leaves=8, random_state=42, verbosity=-1,
                               objective="quantile", alpha=0.5)
-    model.fit(cov_trn[_PACE_SHAPE_FEATURES], cov_trn["target"] - cov_trn["career_avg"])
-    return model, track_bias_lookup
+    model.fit(cov_trn[_SPEED_MAP_FEATURES], cov_trn["target"] - cov_trn["career_avg"])
+
+    # legacy_model (diagnostic only, NOT shipped/loaded at serve time): the
+    # OLD 5-feature pace_shape model, refit here purely so
+    # train_wpr_projection() can print an honest, same-run, apples-to-apples
+    # held-out MAE comparison of (old pace_shape + old track_barrier) vs
+    # (this unified speed_map) before deciding which one ADJ_TERMS actually
+    # ships with - see that comparison print for the real numbers this run
+    # produced, never assume the session-research numbers in the module
+    # docstring above transferred unchanged to this exact pipeline/data cut.
+    legacy_model = lgb.LGBMRegressor(n_estimators=150, max_depth=3, learning_rate=0.05,
+                                     num_leaves=8, random_state=42, verbosity=-1,
+                                     objective="quantile", alpha=0.5)
+    legacy_model.fit(cov_trn[_SPEED_MAP_FEATURES[:5]], cov_trn["target"] - cov_trn["career_avg"])
+    return model, track_bias_lookup, tbs_lookup, tbs_global, zparams, legacy_model
 
 
 def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
@@ -4240,31 +4569,70 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
                       "trainer_change", "pop_distance", "pop_going"):
             _frame[_term] = _frame[_term] - _frame.groupby("race_id")[_term].transform("mean")
 
-    # pace_shape: the one ADJ_TERM that is a TRAINED MODEL rather than a
+    # speed_map: the one ADJ_TERM that is a TRAINED MODEL rather than a
     # shrunk lookup table - see its own module docstring above
-    # _PACE_SHAPE_FEATURES for the full rationale/history. Fit on its own
-    # coverage-scoped recent window (own coverage-aware cutoff, same
-    # pattern trainer_merit/jockey_merit use above) - _fit_pace_shape_model
-    # adds pace_score/predicted_rel_settle/settle_signal/pace_signal/
-    # interaction columns to D (and therefore to cf/te, already split off
-    # D by reference... no - cf/te were sliced from D BEFORE this call, so
-    # the new columns must be looked up fresh below, not assumed present).
-    print("  fitting pace_shape model (leak-safe, own coverage-aware window)...")
-    pace_shape_model, track_bias_lookup = _fit_pace_shape_model(D, _name_map)
-    if pace_shape_model is not None:
+    # _SPEED_MAP_FEATURES for the full rationale/history (this replaced two
+    # separate ADJ_TERMS, pace_shape and track_barrier, with one unified
+    # model - see that docstring for what survived integration and what
+    # didn't). Fit on its own coverage-scoped recent window (own coverage-
+    # aware cutoff, same pattern trainer_merit/jockey_merit use above) -
+    # _fit_speed_map_model adds pace_score/predicted_rel_settle/
+    # settle_signal/pace_signal/interaction/inside_threats/
+    # track_barrier_slope/heat_interaction columns to D (and therefore to
+    # cf/te, already split off D by reference... no - cf/te were sliced
+    # from D BEFORE this call, so the new columns must be looked up fresh
+    # below, not assumed present).
+    print("  fitting speed_map model (leak-safe, own coverage-aware window)...")
+    (speed_map_model, track_bias_lookup, track_barrier_slope_lookup,
+     global_barrier_slope, speed_map_zparams, _legacy_pace_shape_model) = _fit_speed_map_model(D, _name_map, trn)
+    _SM_RAW_COLS = ["pace_score", "predicted_rel_settle", "track_bias_score",
+                   "inside_threats", "track_barrier_slope", "heat_interaction"]
+    if speed_map_model is not None:
         for _frame in (cf, te):
-            _fps = D.loc[_frame.index, ["pace_score", "predicted_rel_settle", "track_bias_score"]]
-            _frame["pace_shape"] = [
-                _pace_shape_term(ps, prs, fs, pace_shape_model, tbs)
-                for ps, prs, fs, tbs in zip(_fps["pace_score"], _fps["predicted_rel_settle"],
-                                            _frame["field_size"], _fps["track_bias_score"])
+            _fps = D.loc[_frame.index, _SM_RAW_COLS]
+            _frame["speed_map"] = [
+                _speed_map_term(ps, prs, fs, speed_map_model, tbs, it, tbsl, hi)
+                for ps, prs, fs, tbs, it, tbsl, hi in zip(
+                    _fps["pace_score"], _fps["predicted_rel_settle"], _frame["field_size"],
+                    _fps["track_bias_score"], _fps["inside_threats"],
+                    _fps["track_barrier_slope"], _fps["heat_interaction"])
             ]
-        print("  pace_shape: model fitted and applied to cf/te")
+            # legacy_pace_shape: OLD 5-feature model, diagnostic-only (see
+            # _fit_speed_map_model's legacy_model docstring) - used ONLY by
+            # the held-out MAE comparison just below, never part of ADJ_TERMS.
+            _legacy_feat = D.loc[_frame.index, _SPEED_MAP_FEATURES[:5]].fillna(0.0)
+            _frame["_legacy_pace_shape"] = (
+                _legacy_pace_shape_model.predict(_legacy_feat)
+                if _legacy_pace_shape_model is not None else 0.0)
+        print("  speed_map: model fitted and applied to cf/te")
     else:
         for _frame in (cf, te):
-            _frame["pace_shape"] = 0.0
-        print("  pace_shape: fit skipped (insufficient covered data), "
+            _frame["speed_map"] = 0.0
+            _frame["_legacy_pace_shape"] = 0.0
+        print("  speed_map: fit skipped (insufficient covered data), "
               "term is 0.0 everywhere this run")
+
+    # Honest, same-run A/B: does the new unified speed_map actually beat the
+    # OLD (pace_shape + track_barrier, both still fitted/applied above/here)
+    # on held-out MAE, on THIS pipeline's actual data cut - never assume the
+    # session-research numbers in _SPEED_MAP_FEATURES's docstring transfer
+    # unchanged. OLD_TERMS/NEW_TERMS both include every other ADJ_TERM
+    # unchanged; only the pace_shape/track_barrier vs speed_map slice differs.
+    _OTHER_TERMS = [t for t in ADJ_TERMS if t not in ("speed_map",)]
+    _NEW_TERMS = ADJ_TERMS
+    _OLD_TERMS = _OTHER_TERMS + ["track_barrier", "_legacy_pace_shape"]
+
+    def _predict_with(frame, terms):
+        return frame["_base"].to_numpy() + _cap_adj_sum(
+            frame[list(terms)].fillna(0.0).to_numpy()).sum(axis=1)
+
+    for _frame in (cf, te):
+        _frame["_abs_err_new"] = (_predict_with(_frame, _NEW_TERMS) - _frame["target"]).abs()
+        _frame["_abs_err_old"] = (_predict_with(_frame, _OLD_TERMS) - _frame["target"]).abs()
+    print(f"  speed_map A/B held-out MAE - cf: OLD(pace_shape+track_barrier)="
+          f"{cf['_abs_err_old'].mean():.4f}  NEW(speed_map)={cf['_abs_err_new'].mean():.4f}")
+    print(f"  speed_map A/B held-out MAE - te: OLD(pace_shape+track_barrier)="
+          f"{te['_abs_err_old'].mean():.4f}  NEW(speed_map)={te['_abs_err_new'].mean():.4f}")
 
     # recency-weighted: down-weight old rows (the wpr scale drifts). Used by
     # the confidence quantile models (ADJ_TERMS themselves have no fitting
@@ -4412,23 +4780,34 @@ def train_wpr_projection(form_history_csv="wpr_form_history.csv.gz",
     # and wpr_models/'s three-file shape don't need to change.
     joblib.dump({}, Path(out_dir) / "projection.joblib")
     joblib.dump({"lo": q_lo, "hi": q_hi}, Path(out_dir) / "confidence.joblib")
-    # pace_shape.joblib: OPTIONAL artifact (see _load_models' docstring) -
+    # speed_map.joblib: OPTIONAL artifact (see _load_models' docstring) -
     # only written when the fit actually produced a model, so a run with
-    # too little covered data leaves any PREVIOUS pace_shape.joblib in
+    # too little covered data leaves any PREVIOUS speed_map.joblib in
     # place rather than deleting it (an unlucky retrain should not silently
-    # remove a working term).
-    if pace_shape_model is not None:
-        joblib.dump({"model": pace_shape_model, "track_bias_lookup": track_bias_lookup},
-                    Path(out_dir) / "pace_shape.joblib")
-        print("  pace_shape.joblib written (model + track_bias_lookup)")
+    # remove a working term). Supersedes the old pace_shape.joblib name/
+    # shape - now also bundles track_barrier_slope_lookup/global_barrier_
+    # slope (see _build_track_barrier_slope_lookup) and zparams (the
+    # TRAIN-only heat_interaction z-score constants - see
+    # _fit_speed_map_model).
+    if speed_map_model is not None:
+        joblib.dump({"model": speed_map_model, "track_bias_lookup": track_bias_lookup,
+                    "track_barrier_slope_lookup": track_barrier_slope_lookup,
+                    "global_barrier_slope": global_barrier_slope,
+                    "zparams": speed_map_zparams},
+                    Path(out_dir) / "speed_map.joblib")
+        print("  speed_map.joblib written (model + track_bias_lookup + "
+              "track_barrier_slope_lookup + zparams)")
     # pop_adj_models.joblib (Sep 2026): bundles the trained-model
     # population ADJ_TERMS (track_barrier, trainer_merit, jockey_merit,
     # gear_change, closing_merit, and now trainer_change/pop_distance/
     # pop_going - see each term's own docstring) plus track_code_map (the
-    # fitted track-identity encoding track_barrier's model needs). Same
-    # OPTIONAL, best-effort artifact contract as pace_shape.joblib - any
-    # individual model here can be None (too little covered data) without
-    # breaking serving (that term just returns 0.0).
+    # fitted track-identity encoding track_barrier's model needs).
+    # track_barrier itself is fitted/stored here same as always (kept as an
+    # inspectable candidate, no longer summed into ADJ_TERMS - see
+    # ADJ_TERMS's own comment). Same OPTIONAL, best-effort artifact contract
+    # as speed_map.joblib - any individual model here can be None (too
+    # little covered data) without breaking serving (that term just
+    # returns 0.0).
     joblib.dump({
         "track_barrier": track_barrier_model, "track_code_map": track_code_map,
         "trainer_merit": trainer_merit_model, "jockey_merit": jockey_merit_model,
