@@ -134,10 +134,28 @@ function needsCaution(drawFrac: number, columnIdx: number, tempoBucket: string):
   return tempoBucket !== 'Fast'
 }
 
-// Grid layout: one card per runner, bucketed into a tactical-position column
-// and stacked (ordered by barrier ascending) within it - lets bunching in a
-// column read as "contested for that spot", the same way Racing NSW's own
-// speed maps do, without inventing a separate crowding metric.
+// How many side-by-side sub-columns to wrap a tactical column's runners
+// into, once there are enough of them that a single-file vertical stack
+// gets awkwardly tall (real user feedback, 2026-09-16: an 18-horse field
+// crammed 8-deep into Midfield/Pace read as an undifferentiated list, not
+// as horses actually running alongside each other at different widths).
+// Runners are already sorted by barrier ascending before this is used, and
+// CSS grid's default auto-flow (row: fills left-to-right, then wraps) means
+// the LEFTMOST card in any given row is always more inside than the one to
+// its right - a genuine spatial "how wide" cue, not just a shorter list.
+function subColsFor(n: number): number {
+  if (n > 6) return 3
+  if (n > 3) return 2
+  return 1
+}
+
+// Grid layout: one card per runner, bucketed into a tactical-position
+// column, wrapped into subColsFor(n) side-by-side sub-columns (ordered by
+// barrier ascending, so left-to-right within a row also reads inside-to-
+// wide) - lets both "contested for that spot" (bunching) and "how wide
+// within that spot" (sub-column position) read visually, the same way
+// Racing NSW's own speed maps spread a crowded tactical slot sideways
+// rather than stacking it into one long single-file column.
 export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   const pace = estimatePace(race, runners)
 
@@ -192,7 +210,10 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
             <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
               {c.label}
             </div>
-            <div className="flex min-h-[3rem] flex-col gap-1">
+            <div
+              className="grid min-h-[3rem] gap-1"
+              style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, minmax(0, 1fr))` }}
+            >
               {columns[i].map((u) => {
                 const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
                 const tone = threatTone(displaySpeedMap)
@@ -200,6 +221,11 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                 const columnIdx = columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX
                 const caution = needsCaution(drawFrac, columnIdx, pace.tempoBucket)
                 const titleParts = [
+                  // Name first and always - narrower cards from subColsFor's
+                  // wrapping truncate the visible name more aggressively, so
+                  // the full name needs to be recoverable on hover even when
+                  // the tabNumber alone isn't enough to place it.
+                  `${u.tabNumber}. ${u.horse}`,
                   u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
                   displaySpeedMap != null
                     ? `speed_map vs this field's average: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
