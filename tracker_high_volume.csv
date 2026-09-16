@@ -1,0 +1,55 @@
+run_id,race_id,date,venue,race_no,tab,horse,tag,gap_wpr,jw,trr_rank_1,pfm_rank_1,price_at_pick,captured_at,resulted,finish_position,won,price_final
+14439643,1759801,2026-09-16,Canterbury,5,1,Tremonti,favoured,5.1,14.6,False,False,31.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14439671,1759802,2026-09-16,Canterbury,4,12,Spaceballs,neutral,3.9,19.1,False,False,11.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14439668,1759802,2026-09-16,Canterbury,4,2,Snack Bar,neutral,0.0,14.6,False,True,4.4,2026-09-16T20:08:50.887477+10:00,True,4,0,4.4
+14439689,1759803,2026-09-16,Canterbury,7,7,Fierceness,neutral,2.3,28.8,False,False,5.0,2026-09-16T20:08:50.887477+10:00,True,1,1,5.0
+14439709,1759804,2026-09-16,Canterbury,3,3,Standard Deviation,neutral,0.0,21.9,False,False,4.0,2026-09-16T20:08:50.887477+10:00,True,4,0,4.0
+14439698,1759804,2026-09-16,Canterbury,3,4,County Kilkenny,favoured,2.5,19.1,False,False,26.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14439708,1759804,2026-09-16,Canterbury,3,7,Supreme Sovereign,neutral,1.1,14.6,False,False,7.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14439712,1759805,2026-09-16,Canterbury,6,2,Flightcrew,neutral,1.2,28.8,False,False,8.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14439749,1759806,2026-09-16,Canterbury,1,2,Czech Me,neutral,5.7,19.8,False,False,13.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14439738,1759806,2026-09-16,Canterbury,1,7,Vatican,neutral,3.9,21.9,False,False,7.0,2026-09-16T20:08:50.887477+10:00,True,3,0,7.0
+14439741,1759806,2026-09-16,Canterbury,1,8,Better By Far,neutral,0.0,19.1,False,False,4.6,2026-09-16T20:08:50.887477+10:00,True,2,0,4.6
+14439771,1759807,2026-09-16,Canterbury,2,4,Dr Know,favoured,4.3,28.8,False,False,4.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14439920,1759822,2026-09-16,Caulfield,3,3,Inner Gold,neutral,3.6,15.6,False,False,3.7,2026-09-16T20:08:50.887477+10:00,True,1,1,3.7
+14439969,1759823,2026-09-16,Caulfield,4,5,Handee,neutral,3.0,15.8,False,False,5.5,2026-09-16T20:08:50.887477+10:00,True,1,1,5.5
+14440033,1759824,2026-09-16,Caulfield,1,3,Mehsun,neutral,0.6,20.3,False,False,6.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440042,1759824,2026-09-16,Caulfield,1,6,Saint Fox,favoured,0.6,16.7,True,False,3.4,2026-09-16T20:08:50.887477+10:00,False,,,
+14440066,1759825,2026-09-16,Caulfield,8,1,Primal Spirit,neutral,4.0,14.5,False,False,15.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440107,1759825,2026-09-16,Caulfield,8,3,Loud Charlie,neutral,3.2,15.6,False,False,9.5,2026-09-16T20:08:50.887477+10:00,True,1,1,9.5
+14440152,1759826,2026-09-16,Caulfield,5,5,Talkin' Stern,favoured,5.7,17.5,False,False,8.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440191,1759827,2026-09-16,Caulfield,7,9,Katsumi Orochi,favoured,2.3,15.6,False,False,8.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440219,1759828,2026-09-16,Caulfield,6,1,Castellar,neutral,3.2,18.8,False,False,8.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440215,1759828,2026-09-16,Caulfield,6,7,Jennyanydots,neutral,5.6,17.5,False,False,41.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440260,1759830,2026-09-16,Launceston,2,4,Miss Strat,neutral,0.6,20.3,False,False,6.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440280,1759831,2026-09-16,Launceston,3,5,Sorell Eagles,neutral,5.7,20.3,False,False,17,2026-09-16T20:08:50.887477+10:00,False,,,
+14440296,1759832,2026-09-16,Launceston,6,8,Outsidethesquare,favoured,0.0,18.5,False,False,6,2026-09-16T20:08:50.887477+10:00,False,,,
+14440308,1759833,2026-09-16,Launceston,5,1,Alfarino,favoured,0.0,20.7,False,True,3.8,2026-09-16T20:08:50.887477+10:00,False,,,
+14440316,1759834,2026-09-16,Launceston,4,3,Rippington,neutral,0.0,20.7,False,False,7.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440328,1759835,2026-09-16,Launceston,7,9,Zuni,favoured,0.0,18.5,False,True,6.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14443165,1759836,2026-09-16,Launceston,1,1,Tuskegee,neutral,4.4,20.7,False,False,8.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440369,1759838,2026-09-16,Doomben,6,10,Earthing,favoured,0.0,14.1,False,False,6.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440381,1759839,2026-09-16,Doomben,5,7,Tulong,favoured,1.2,19.4,False,False,6.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440400,1759840,2026-09-16,Doomben,7,11,Issy's Star,neutral,3.8,14.1,False,False,34.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440427,1759841,2026-09-16,Doomben,4,6,Rosso Levanto,neutral,3.9,19.4,False,False,3.8,2026-09-16T20:08:50.887477+10:00,False,,,
+14440434,1759842,2026-09-16,Doomben,2,5,Indigo Star,neutral,1.2,23.9,False,True,8.5,2026-09-16T20:08:50.887477+10:00,True,1,1,8.5
+14440494,1759845,2026-09-16,Balaklava,9,1,Air Assault,favoured,2.1,15.2,False,False,7.5,2026-09-16T20:08:50.887477+10:00,True,2,0,7.5
+14440507,1759845,2026-09-16,Balaklava,9,11,Cicala,favoured,0.0,19.4,True,True,3.2,2026-09-16T20:08:50.887477+10:00,True,4,0,3.2
+14440490,1759845,2026-09-16,Balaklava,9,4,Williamsburg,neutral,3.8,14.5,False,False,15.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440523,1759846,2026-09-16,Balaklava,8,1,Super Lad,favoured,5.7,22.7,False,False,6.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440526,1759846,2026-09-16,Balaklava,8,5,Bayou Music,neutral,0.0,23.1,False,False,9.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440524,1759846,2026-09-16,Balaklava,8,8,Embellisher,favoured,4.5,15.2,True,True,3.9,2026-09-16T20:08:50.887477+10:00,True,4,0,3.9
+14440547,1759848,2026-09-16,Balaklava,6,1,Bellentia,favoured,0.1,22.7,True,False,4.0,2026-09-16T20:08:50.887477+10:00,True,4,0,4.0
+14440548,1759848,2026-09-16,Balaklava,6,6,Reoffer,favoured,4.4,14.5,False,False,5.5,2026-09-16T20:08:50.887477+10:00,True,3,0,5.5
+14440549,1759848,2026-09-16,Balaklava,6,7,Blinked,favoured,5.0,15.2,False,False,9.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14440591,1759851,2026-09-16,Balaklava,7,1,Overloaded,favoured,1.5,15.4,False,False,31.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440586,1759851,2026-09-16,Balaklava,7,6,Eaglelou,favoured,1.4,14.5,False,False,11.0,2026-09-16T20:08:50.887477+10:00,True,4,0,11.0
+14440583,1759851,2026-09-16,Balaklava,7,8,Magnetic Edge,favoured,3.8,15.2,False,False,17.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14440629,1759852,2026-09-16,Balaklava,4,9,Canny Miss,favoured,1.4,14.5,True,False,3.8,2026-09-16T20:08:50.887477+10:00,True,1,1,3.8
+14442901,1759956,2026-09-16,Belmont Park,4,6,Grandad's Adiction,neutral,1.6,14.1,False,False,6.0,2026-09-16T20:08:50.887477+10:00,True,1,1,6.0
+14442894,1759956,2026-09-16,Belmont Park,4,8,Vancouver Storm,favoured,4.2,14.0,False,False,15.0,2026-09-16T20:08:50.887477+10:00,True,2,0,15.0
+14442910,1759957,2026-09-16,Belmont Park,2,3,Cachaca,neutral,0.7,19.8,False,False,9.0,2026-09-16T20:08:50.887477+10:00,False,,,
+14442927,1759958,2026-09-16,Belmont Park,1,2,Win For Buster,neutral,4.0,16.1,False,False,10.0,2026-09-16T20:08:50.887477+10:00,True,4,0,10.0
+14442985,1759961,2026-09-16,Belmont Park,7,4,Cosmic Treat,favoured,0.0,19.8,False,False,4.4,2026-09-16T20:08:50.887477+10:00,False,,,
+14442975,1759961,2026-09-16,Belmont Park,7,8,Right To Silence,neutral,2.9,16.1,False,False,9.5,2026-09-16T20:08:50.887477+10:00,False,,,
+14443000,1759962,2026-09-16,Belmont Park,6,5,Must Be Nice,neutral,3.0,14.0,False,False,15,2026-09-16T20:08:50.887477+10:00,False,,,

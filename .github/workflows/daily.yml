@@ -180,6 +180,19 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────────────────
+      # Step 1b: Forward-track two speed_map + jockey betting rules found
+      # via session-long backtesting (Sep 2026, not wired into any model/
+      # pick logic - see speedmap_jockey_tracker.py's own docstring).
+      # Read-only against toprate_data.json/toprate_runners.csv, writes
+      # only its own two CSVs. Runs on every trigger (idempotent - dedupes
+      # by run_id), but only ever captures NEW picks for the real current
+      # Melbourne date, so a pre-fetch of a future day's still-provisional
+      # field never gets logged as a pick.
+      # ─────────────────────────────────────────────────────────
+      - name: Track speed_map + jockey rules
+        run: python speedmap_jockey_tracker.py
+
+      # ─────────────────────────────────────────────────────────
       # Step 2: Commit and push refreshed data + HTML.
       #
       # toprate_price_history.csv IS staged (Aug 2026, explicit user
@@ -227,6 +240,11 @@ jobs:
           # `bash -e` that killed the whole retry loop on attempt 1 instead
           # of retrying - see the 2026-09-14 run failures this caused.
           [ -d horse_history ] && git add horse_history
+          # Speed-map/jockey rule tracker logs (see the step above) -
+          # small, append-only, accumulate across runs same as the other
+          # logs here.
+          [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
+          [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
             exit 0
