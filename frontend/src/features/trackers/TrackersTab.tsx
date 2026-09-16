@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Pill } from '../../components/Pill'
 import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
-import { fmtPrice } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
+import { todayIso } from '../../lib/meetings'
+import { formatTimeOfDay } from '../../lib/countdown'
 
 // Reads the two forward-tracking logs speedmap_jockey_tracker.py writes
 // (repo-root CSVs, same static-file-next-to-index.html pattern
@@ -23,10 +25,15 @@ interface TrackerRow {
   date: string
   venue: string
   raceNo: string
+  startTime: string
   tab: string
   horse: string
+  silkUrl: string
   tag: string
+  wprPrediction: number | null
   gapWpr: number | null
+  toprateRating: number | null
+  formFactor: number | null
   jw: number | null
   priceAtPick: number | null
   resulted: boolean
@@ -96,10 +103,15 @@ function parseTrackerCsv(text: string): TrackerRow[] {
     date: r[idx('date')] ?? '',
     venue: r[idx('venue')] ?? '',
     raceNo: r[idx('race_no')] ?? '',
+    startTime: r[idx('start_time')] ?? '',
     tab: r[idx('tab')] ?? '',
     horse: r[idx('horse')] ?? '',
+    silkUrl: r[idx('silk_url')] ?? '',
     tag: r[idx('tag')] ?? '',
+    wprPrediction: numOrNull(r[idx('wpr_prediction')]),
     gapWpr: numOrNull(r[idx('gap_wpr')]),
+    toprateRating: numOrNull(r[idx('toprate_rating')]),
+    formFactor: numOrNull(r[idx('form_factor')]),
     jw: numOrNull(r[idx('jw')]),
     priceAtPick: numOrNull(r[idx('price_at_pick')]),
     resulted: r[idx('resulted')] === 'True',
@@ -110,10 +122,10 @@ function parseTrackerCsv(text: string): TrackerRow[] {
 }
 
 // Proportional staking: same "size the stake to return a fixed 4 units on a
-// win" convention OverlaysTab.tsx already uses - kept in sync with that
-// file's own stakeFor() rather than shared, since each feature owns its own
-// copy of this one-liner (see that file's own comment for the full
-// reasoning on why proportional-to-price, not flat).
+// win" convention OverlaysTab.tsx used to (before it was replaced by this
+// tab) - kept here rather than shared, since a feature owning its own copy
+// of this one-liner is the established pattern (see that file's own history
+// for the full reasoning on why proportional-to-price, not flat).
 function stakeFor(price: number, returnUnits = 4): number {
   return returnUnits / price
 }
@@ -156,11 +168,11 @@ function summarize(rows: TrackerRow[]): Summary | null {
 
 function ResultBadge({ row }: { row: TrackerRow }) {
   if (!row.resulted) {
-    return <span className="text-xs text-ink-faint">pending</span>
+    return <span className="flex-none text-xs text-ink-faint">pending</span>
   }
   return (
     <span
-      className={`inline-flex min-w-[2.25rem] items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-xs font-semibold ${
+      className={`inline-flex flex-none min-w-[2.25rem] items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-xs font-semibold ${
         row.won ? 'bg-emerald-bg text-emerald-deep' : 'bg-rose-bg text-rose'
       }`}
     >
@@ -194,6 +206,87 @@ function useTrackerCsv(url: string) {
   return { rows, error }
 }
 
+// One stat, label above value, used inside a pick card's small info grid -
+// deliberately not StatTile (that component reads as a page-level headline
+// stat; these are dense per-row facts, closer to RunnerDetailModal's own
+// small labelled-figure convention).
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] uppercase tracking-wide text-ink-faint">{label}</span>
+      <span className="font-mono text-xs text-ink-mute">{value}</span>
+    </div>
+  )
+}
+
+// One pick, as a self-contained card - every field the user asked to see
+// (silk, WPR prediction + gap to top rated, TopRate rating, form-factor
+// rating, jockey win%, price, result) fits without any horizontal
+// scrolling at any viewport width, unlike the table this replaced (real
+// user feedback, 2026-09-16: a table forced a horizontal scroll to see the
+// Result column on a phone). The whole card is clickable, same as a
+// RunnerRow, and opens the runner detail modal directly (not just the race
+// list) via onSelectRace's runId param - RaceDetail already opens
+// RunnerDetailModal whenever its initialRunId prop is set.
+function PickCard({
+  row,
+  onSelectRace,
+}: {
+  row: TrackerRow
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectRace(row.raceId, row.date, row.runId)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelectRace(row.raceId, row.date, row.runId)
+        }
+      }}
+      className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
+    >
+      <div className="flex items-center gap-2">
+        {row.silkUrl ? (
+          <img src={row.silkUrl} alt="" className="h-9 w-9 flex-none rounded-sm object-contain" />
+        ) : (
+          <span className="h-9 w-9 flex-none rounded-sm bg-bg" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="truncate font-medium text-ink">
+              {row.tab}. {row.horse}
+            </span>
+            <ResultBadge row={row} />
+          </div>
+          <div className="text-xs text-ink-faint">
+            {row.venue} R{row.raceNo}
+            {row.startTime ? ` · ${formatTimeOfDay(row.startTime)}` : ''}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-1.5">
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[row.tag] ?? ''}`}>
+          {row.tag}
+        </span>
+        <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
+        <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
+        <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
+        <Fact label="Form factor" value={row.formFactor != null ? row.formFactor.toFixed(0) : '—'} />
+        <Fact label="Jockey" value={row.jw != null ? `${row.jw.toFixed(1)}%` : '—'} />
+        <Fact label="Price" value={fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)} />
+      </div>
+    </div>
+  )
+}
+
+const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
+  { label: 'Yesterday', offset: -1 },
+  { label: 'Today', offset: 0 },
+]
+
 function TrackerView({
   rows,
   description,
@@ -204,17 +297,33 @@ function TrackerView({
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }) {
   const summary = useMemo(() => summarize(rows), [rows])
-  const sorted = useMemo(
-    () => [...rows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.raceNo < b.raceNo ? 1 : -1)),
-    [rows],
-  )
+  const [date, setDate] = useState(() => todayIso())
+  const [showAll, setShowAll] = useState(false)
+
+  // Every distinct date actually present in the log - lets "back to prior
+  // days" reach further than yesterday once the daily job has been running
+  // a while, without the quick buttons growing unbounded.
+  const availableDates = useMemo(() => [...new Set(rows.map((r) => r.date))].sort().reverse(), [rows])
+
+  const displayed = useMemo(() => {
+    const filtered = showAll ? rows : rows.filter((r) => r.date === date)
+    // Race start time, not race number - the picks span every meeting
+    // running that day, and each venue numbers its own races independently,
+    // so sorting by race_no would interleave venues out of actual running
+    // order (real user feedback, 2026-09-16: "should be in order of race
+    // time").
+    return [...filtered].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1
+      return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0
+    })
+  }, [rows, date, showAll])
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-ink-faint">{description}</p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <StatTile label="Picks logged" value={String(rows.length)} />
+        <StatTile label="Picks logged" value={String(rows.length)} sublabel="all time" />
         <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far" />
         <StatTile label="Win %" value={summary ? `${summary.winPct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
         <StatTile label="Place %" value={summary ? `${summary.placePct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
@@ -225,73 +334,50 @@ function TrackerView({
         />
       </div>
 
-      {rows.length === 0 ? (
-        <EmptyState message="No picks logged yet - the daily pipeline captures new ones each run." />
+      <div className="flex flex-wrap items-center gap-2">
+        {DATE_QUICK_BUTTONS.map((btn) => {
+          const btnDate = todayIso(btn.offset)
+          return (
+            <Pill
+              key={btn.label}
+              active={!showAll && date === btnDate}
+              onClick={() => {
+                setShowAll(false)
+                setDate(btnDate)
+              }}
+            >
+              {btn.label}
+            </Pill>
+          )
+        })}
+        <input
+          type="date"
+          value={date}
+          max={availableDates[0] ?? todayIso()}
+          onChange={(e) => {
+            setShowAll(false)
+            setDate(e.target.value)
+          }}
+          className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
+        />
+        <Pill active={showAll} onClick={() => setShowAll((v) => !v)}>
+          {showAll ? 'Showing all dates' : 'Show all dates'}
+        </Pill>
+      </div>
+
+      {displayed.length === 0 ? (
+        <EmptyState
+          message={
+            showAll
+              ? 'No picks logged yet - the daily pipeline captures new ones each run.'
+              : `No picks logged for ${date}.`
+          }
+        />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-          {/* Wider than the viewport on purpose - every cell is nowrap so a
-              row never grows tall by wrapping the horse name, and the
-              overflow-x-auto wrapper scrolls it horizontally on a phone.
-              Same "wider than viewport, scrolls" pattern RunnerRow/RaceDetail's
-              own runner table already uses (see that file's own comment) -
-              real user feedback (2026-09-16): without nowrap, a longer horse
-              name (e.g. "Right To Silence") wrapped to 2 lines and made rows
-              uneven, and the Result column got clipped off-screen with no
-              way to reach it. */}
-          <table className="min-w-[760px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                <th className="whitespace-nowrap px-3 py-2 text-left">Date</th>
-                <th className="whitespace-nowrap px-3 py-2 text-left">Race</th>
-                <th className="whitespace-nowrap px-3 py-2 text-left">Horse</th>
-                <th className="whitespace-nowrap px-3 py-2 text-left">Tag</th>
-                <th className="whitespace-nowrap px-3 py-2 text-right" title="Jockey win% (trailing 90 days)">
-                  Jockey
-                </th>
-                <th className="whitespace-nowrap px-3 py-2 text-right">Price</th>
-                <th className="whitespace-nowrap px-3 py-2 text-center">Result</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r) => (
-                <tr
-                  key={r.runId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onSelectRace(r.raceId, r.date, r.runId)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onSelectRace(r.raceId, r.date, r.runId)
-                    }
-                  }}
-                  className="cursor-pointer border-b border-line-soft last:border-b-0 hover:bg-emerald-bg/30"
-                >
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">{r.date}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-ink-mute">
-                    {r.venue} R{r.raceNo}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-medium text-ink">
-                    {r.tab}. {r.horse}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[r.tag] ?? ''}`}>
-                      {r.tag}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-ink-mute">
-                    {r.jw != null ? r.jw.toFixed(1) : '—'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-ink-mute">
-                    {fmtPrice(r.resulted ? r.priceFinal : r.priceAtPick)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-center">
-                    <ResultBadge row={r} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-2">
+          {displayed.map((r) => (
+            <PickCard key={r.runId} row={r} onSelectRace={onSelectRace} />
+          ))}
         </div>
       )}
     </div>

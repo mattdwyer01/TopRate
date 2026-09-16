@@ -48,8 +48,9 @@ PRICE_MIN = 3.0          # SP/fixed price floor
 TAGS = ("favoured", "neutral")
 
 LOG_COLUMNS = [
-    "run_id", "race_id", "date", "venue", "race_no", "tab", "horse", "tag",
-    "gap_wpr", "jw", "trr_rank_1", "pfm_rank_1", "price_at_pick",
+    "run_id", "race_id", "date", "venue", "race_no", "start_time", "tab",
+    "horse", "silk_url", "tag", "wpr_prediction", "gap_wpr", "toprate_rating",
+    "form_factor", "jw", "trr_rank_1", "pfm_rank_1", "price_at_pick",
     "captured_at", "resulted", "finish_position", "won", "price_final",
 ]
 
@@ -64,11 +65,15 @@ def _rank_desc(value, all_values):
     return 1 + sum(1 for v in all_values if v is not None and v > value)
 
 
-def _load_pfm_rank_lookup() -> dict:
+def _load_pfm_lookup() -> tuple:
+    """Returns ({run_id: pfm_score_rank}, {run_id: pfm_score}) - both pulled
+    from toprate_runners.csv since pfm_score/pfm_score_rank aren't in
+    toprate_data.json's runner payload (see CLAUDE.md/adapter.ts - never
+    exposed to the frontend directly, only used here)."""
     if not RUNNERS_CSV.exists():
-        return {}
-    df = pd.read_csv(RUNNERS_CSV, usecols=["run_id", "pfm_score_rank"], dtype={"run_id": str})
-    return dict(zip(df["run_id"], df["pfm_score_rank"]))
+        return {}, {}
+    df = pd.read_csv(RUNNERS_CSV, usecols=["run_id", "pfm_score", "pfm_score_rank"], dtype={"run_id": str})
+    return dict(zip(df["run_id"], df["pfm_score_rank"])), dict(zip(df["run_id"], df["pfm_score"]))
 
 
 def _load_log(path: Path) -> dict:
@@ -87,7 +92,7 @@ def _write_log(path: Path, rows_by_run_id: dict):
         w.writerows(rows)
 
 
-def build_candidates(data: dict, pfm_by_rid: dict, target_date: str):
+def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, target_date: str):
     """Yields (runner_dict, extra) for every runner in target_date's races
     that qualifies for Tracker A, with `extra` carrying the fields both
     trackers need (including whether it also qualifies for Tracker B)."""
@@ -133,25 +138,31 @@ def build_candidates(data: dict, pfm_by_rid: dict, target_date: str):
             if price is None or price < PRICE_MIN:
                 continue
 
+            rid = str(u.get("rid", ""))
             trr_rank = _rank_desc(u.get("trr"), trr_vals)
-            pfm_rank = pfm_by_rid.get(str(u.get("rid", "")))
+            pfm_rank = pfm_rank_by_rid.get(rid)
             qualifies_b = (trr_rank == 1) and (pfm_rank == 1)
 
             yield r, u, {
                 "tag": tag, "gap": gap, "jw": jw, "price": price,
                 "trr_rank_1": trr_rank == 1, "pfm_rank_1": pfm_rank == 1,
                 "qualifies_b": qualifies_b,
+                "wpr_prediction": wpjp,
+                "toprate_rating": u.get("trr"),
+                "form_factor": pfm_score_by_rid.get(rid),
+                "start_time": r.get("start_time"),
+                "silk_url": u.get("sk"),
             }
 
 
-def capture_new_picks(data: dict, pfm_by_rid: dict):
+def capture_new_picks(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict):
     target_date = _melbourne_today()
     log_a = _load_log(TRACKER_A_CSV)
     log_b = _load_log(TRACKER_B_CSV)
     captured_at = datetime.now(ZoneInfo("Australia/Melbourne")).isoformat()
 
     new_a = new_b = 0
-    for r, u, extra in build_candidates(data, pfm_by_rid, target_date):
+    for r, u, extra in build_candidates(data, pfm_rank_by_rid, pfm_score_by_rid, target_date):
         run_id = str(u.get("rid", ""))
         if not run_id:
             continue
@@ -161,10 +172,15 @@ def capture_new_picks(data: dict, pfm_by_rid: dict):
             "date": r.get("date"),
             "venue": r.get("venue"),
             "race_no": r.get("race"),
+            "start_time": extra["start_time"],
             "tab": u.get("tab"),
             "horse": u.get("h"),
+            "silk_url": extra["silk_url"] or "",
             "tag": extra["tag"],
+            "wpr_prediction": extra["wpr_prediction"],
             "gap_wpr": round(extra["gap"], 2),
+            "toprate_rating": extra["toprate_rating"],
+            "form_factor": extra["form_factor"],
             "jw": extra["jw"],
             "trr_rank_1": extra["trr_rank_1"],
             "pfm_rank_1": extra["pfm_rank_1"],
@@ -188,35 +204,63 @@ def capture_new_picks(data: dict, pfm_by_rid: dict):
           f"for {target_date}")
 
 
-def reconcile_results(data: dict):
+# Enrichment fields that are safe to backfill onto an already-logged row
+# whenever they're still blank (e.g. rows logged before these columns
+# existed) - never overwrites a value that's already there, since these
+# are meant to be frozen at capture time like everything else in the log.
+_ENRICHABLE = ("start_time", "silk_url", "wpr_prediction", "toprate_rating", "form_factor")
+
+
+def reconcile_results(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict):
     """Fills in the outcome for any previously-logged pick whose race has
     since resulted, by run_id. Never re-evaluates whether it still
-    qualifies - a logged pick's rule inputs are frozen at capture time."""
+    qualifies - a logged pick's rule inputs are frozen at capture time.
+    Also backfills any of _ENRICHABLE that are blank on an older row
+    (added after this script's first version shipped) whenever the run_id
+    is still findable in today's data - never touches a value already
+    present."""
     by_run_id = {}
     for r in data.get("RACES", []):
         for u in r.get("runners", []):
             rid = str(u.get("rid", ""))
             if rid:
-                by_run_id[rid] = u
+                by_run_id[rid] = (r, u)
 
     for path in (TRACKER_A_CSV, TRACKER_B_CSV):
         log = _load_log(path)
         if not log:
             continue
         n_filled = 0
+        n_enriched = 0
         for run_id, row in log.items():
+            found = by_run_id.get(run_id)
+            if found is not None:
+                r, u = found
+                if not row.get("start_time"):
+                    row["start_time"] = r.get("start_time")
+                    n_enriched += 1
+                if not row.get("silk_url"):
+                    row["silk_url"] = u.get("sk") or ""
+                if not row.get("wpr_prediction"):
+                    row["wpr_prediction"] = u.get("wpjp")
+                if not row.get("toprate_rating"):
+                    row["toprate_rating"] = u.get("trr")
+                if not row.get("form_factor"):
+                    row["form_factor"] = pfm_score_by_rid.get(run_id)
+
             if row.get("resulted") == "True":
                 continue
-            u = by_run_id.get(run_id)
-            if u is None or u.get("f") is None:
+            if found is None or found[1].get("f") is None:
                 continue
+            u = found[1]
             row["resulted"] = True
             row["finish_position"] = u.get("f")
             row["won"] = int(u.get("won") == 1)
             row["price_final"] = u.get("sp") if u.get("sp") is not None else row["price_at_pick"]
             n_filled += 1
         _write_log(path, log)
-        print(f"  {path.name}: reconciled {n_filled} newly-resulted pick(s)")
+        print(f"  {path.name}: reconciled {n_filled} newly-resulted pick(s), "
+              f"enriched {n_enriched} older row(s)")
 
 
 def main():
@@ -225,12 +269,12 @@ def main():
         return
     with open(DATA_JSON) as f:
         data = json.load(f)
-    pfm_by_rid = _load_pfm_rank_lookup()
+    pfm_rank_by_rid, pfm_score_by_rid = _load_pfm_lookup()
 
     print("Reconciling previously-logged picks...")
-    reconcile_results(data)
+    reconcile_results(data, pfm_rank_by_rid, pfm_score_by_rid)
     print("Capturing today's new picks...")
-    capture_new_picks(data, pfm_by_rid)
+    capture_new_picks(data, pfm_rank_by_rid, pfm_score_by_rid)
 
 
 if __name__ == "__main__":
