@@ -155,8 +155,14 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
             }
 
 
-def capture_new_picks(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict):
-    target_date = _melbourne_today()
+def capture_new_picks(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, target_date: str | None = None):
+    """target_date defaults to today (the normal daily-pipeline call).
+    Passing an explicit past date is how the one-off historical backfill
+    (see backfill_tracker_history.py, not part of the daily pipeline)
+    captures what the rule would have picked on a day before this script
+    existed - reconcile_results() then fills in the real result for free
+    since those races are already resulted in toprate_data.json."""
+    target_date = target_date or _melbourne_today()
     log_a = _load_log(TRACKER_A_CSV)
     log_b = _load_log(TRACKER_B_CSV)
     captured_at = datetime.now(ZoneInfo("Australia/Melbourne")).isoformat()
