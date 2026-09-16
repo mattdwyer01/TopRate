@@ -42,6 +42,32 @@ concept from wpr_rating_gap_qualitative_screen_test.py:
     applied to the other 3 legs. Tests whether concentrating combos on
     the genuinely uncertain legs (and banking the confident one down to
     fewer picks) beats spending combos evenly.
+  - CORROBORATED (user follow-up): the plain WPR gap-from-top shortlist
+    widened to N<=2/3/4 catches a lot of low-quality runners just because
+    they're close in points. This adds two independent corroborating
+    filters, same "top-third of field" pattern already validated for
+    jockey_rating in wpr_rating_gap_qualitative_screen_test.py:
+      - TR RATING top-third: toprate_rating is TAB's own published rating
+        (payload key literally "tr", see toprate_daily.py's
+        topRateRating mapping) - a genuinely independent third-party
+        number, not derived from our WPR model at all. 81.6% coverage.
+      - FORM FACTOR top-third: pfm_score_rank, a real per-race rank
+        (confirmed 1=best via direct check, matches field_size per race)
+        for pfm_score, the third-party "Form Factor" rating documented in
+        CLAUDE.md (see backfill_pfm_score.py). 42.9% coverage - lower, so
+        this filter is applied "if present" (a runner with no pfm_score
+        neither passes nor fails on this specific filter alone) rather
+        than excluding 57% of runners outright; REQUIRE_PFM_PRESENT below
+        controls a stricter variant that requires presence.
+    A runner is selected in a leg only if: WPR gap<=N AND (not requiring
+    TR, or TR top-third) AND (not requiring Form Factor, or Form Factor
+    top-third/absent per REQUIRE_PFM_PRESENT).
+
+CACHING: _load_resulted(120) costs ~70-90 min (per-date
+compute_wpr_projection() calls, see METHODOLOGY). Cached to CACHE_PATH
+after the first run in this session so re-testing new selection filters
+against the same fresh dataset doesn't re-pay that cost - delete the file
+to force a fresh pull (e.g. after model retraining).
 
 METHODOLOGY: fresh wprp_proj via calibrate_price_beta.py's _load_resulted()
 (same pattern as every other selection-strategy script this session, avoids
@@ -51,6 +77,7 @@ results after the fact.
 
 NO EM DASHES policy: hyphens only.
 """
+import os
 import numpy as np
 import pandas as pd
 
@@ -60,6 +87,9 @@ DAYS_BACK = 120
 UNIFORM_N_GRID = [0, 1, 2, 3, 4, 6, 8]
 BANKER_TIGHT_GRID = [0, 1]
 BANKER_LOOSE_GRID = [2, 3, 4, 6]
+CORROBORATED_N_GRID = [2, 3, 4, 6]
+REQUIRE_PFM_PRESENT = False  # False = "if present, must be top-third"; True = "must be present AND top-third"
+CACHE_PATH = "/tmp/claude-0/-home-user-TopRate/76dfed62-bd31-52ea-bf89-3275bc38fea4/scratchpad/_quaddie_load_resulted_120d_cache.pkl"
 
 
 def build_legs(d):
@@ -80,6 +110,16 @@ def build_legs(d):
     second = d.groupby("race_id")["wprp_proj"].apply(second_max)
     d["second_wpr"] = d["race_id"].map(second)
     d["top_to_2nd_gap"] = d["top_wpr"] - d["second_wpr"]
+
+    d["toprate_rating"] = pd.to_numeric(d["toprate_rating"], errors="coerce")
+    d["tr_rank_in_race"] = d.groupby("race_id")["toprate_rating"].rank(ascending=False, method="min")
+    d["tr_top_third"] = d["tr_rank_in_race"] <= np.ceil(d["field_size"] / 3)
+    # toprate_rating missing entirely for this runner: doesn't pass the filter
+    d.loc[d["toprate_rating"].isna(), "tr_top_third"] = False
+
+    d["pfm_score_rank"] = pd.to_numeric(d["pfm_score_rank"], errors="coerce")
+    d["pfm_top_third"] = d["pfm_score_rank"] <= np.ceil(d["field_size"] / 3)
+    d["pfm_present"] = d["pfm_score_rank"].notna()
 
     meetings = []
     for (venue, date_only), g in d.groupby(["venue", "date_only"]):
@@ -103,9 +143,18 @@ def build_legs(d):
     return meetings
 
 
-def leg_picks(leg, n):
-    """Runners selected in this leg at gap-from-top threshold n."""
-    return leg[leg["gap_from_top"] <= n + 1e-9]
+def leg_picks(leg, n, require_tr=False, require_pfm=False):
+    """Runners selected in this leg at gap-from-top threshold n, optionally
+    also requiring TR-rating and/or Form Factor top-third agreement."""
+    mask = leg["gap_from_top"] <= n + 1e-9
+    if require_tr:
+        mask &= leg["tr_top_third"]
+    if require_pfm:
+        if REQUIRE_PFM_PRESENT:
+            mask &= leg["pfm_present"] & leg["pfm_top_third"]
+        else:
+            mask &= (~leg["pfm_present"]) | leg["pfm_top_third"]
+    return leg[mask]
 
 
 def leg_winner_price(leg):
@@ -117,12 +166,16 @@ def leg_winner_covered(leg, picks):
     return (picks["won"] == 1).any()
 
 
-def evaluate(meetings, leg_ns):
+def evaluate(meetings, leg_ns, require_tr=False, require_pfm=False):
     """leg_ns: either a single int (uniform N for all 4 legs) or a
-    function(leg_index, leg_df) -> N. Returns dict of aggregate stats."""
+    function(leg_index, leg_df) -> N. Returns dict of aggregate stats.
+    A meeting where any leg's filtered shortlist is empty (no runner
+    qualifies) is skipped entirely, not counted as a $1-combo bet -
+    tracked separately as n_skipped."""
     total_cost = 0.0
     total_return = 0.0
     n_quaddies = 0
+    n_skipped = 0
     n_hits = 0
     combo_counts = []
     for m in meetings:
@@ -130,7 +183,10 @@ def evaluate(meetings, leg_ns):
         picks_per_leg = []
         for i, leg in enumerate(legs):
             n = leg_ns(i, leg) if callable(leg_ns) else leg_ns
-            picks_per_leg.append(leg_picks(leg, n))
+            picks_per_leg.append(leg_picks(leg, n, require_tr=require_tr, require_pfm=require_pfm))
+        if any(len(p) == 0 for p in picks_per_leg):
+            n_skipped += 1
+            continue
         combos = 1
         for p in picks_per_leg:
             combos *= max(len(p), 1)
@@ -152,6 +208,7 @@ def evaluate(meetings, leg_ns):
     roi = (total_return - total_cost) / total_cost * 100
     return {
         "n_quaddies": n_quaddies,
+        "n_skipped": n_skipped,
         "n_hits": n_hits,
         "strike_pct": n_hits / n_quaddies * 100 if n_quaddies else float("nan"),
         "avg_combos": float(np.mean(combo_counts)),
@@ -166,31 +223,58 @@ def print_row(label, stats):
     if stats is None:
         print(f"  {label:45s}  (no data)")
         return
-    print(f"  {label:45s}  n={stats['n_quaddies']:4d}  hits={stats['n_hits']:3d} "
-          f"({stats['strike_pct']:5.1f}%)  avg_combos={stats['avg_combos']:7.1f}  "
+    print(f"  {label:45s}  n={stats['n_quaddies']:4d} (skip={stats['n_skipped']:3d})  "
+          f"hits={stats['n_hits']:3d} ({stats['strike_pct']:5.1f}%)  "
+          f"avg_combos={stats['avg_combos']:7.1f}  "
           f"cost=${stats['total_cost']:9,.0f}  return=${stats['total_return']:9,.0f}  "
           f"ROI={stats['roi_pct']:+7.2f}%")
 
 
-def run():
-    print(f"Loading resulted races (fresh wprp_proj via compute_wpr_projection, "
-          f"{DAYS_BACK} days back)...")
-    d = _load_resulted(days_back=DAYS_BACK)
-    d = d.dropna(subset=["wprp_proj", "won", "race_id", "date", "venue", "race"])
+def load_data():
+    if os.path.exists(CACHE_PATH):
+        print(f"Loading cached _load_resulted({DAYS_BACK}) output from {CACHE_PATH} "
+              f"(delete this file to force a fresh {DAYS_BACK}-day pull)...")
+        d = pd.read_pickle(CACHE_PATH)
+    else:
+        print(f"Loading resulted races (fresh wprp_proj via compute_wpr_projection, "
+              f"{DAYS_BACK} days back, ~70-90 min)...")
+        d = _load_resulted(days_back=DAYS_BACK)
+        d.to_pickle(CACHE_PATH)
+        print(f"  cached to {CACHE_PATH} for any future rerun this session")
 
+    d = d.dropna(subset=["wprp_proj", "won", "race_id", "date", "venue", "race"])
     sp = pd.to_numeric(d["fixed_win_price"], errors="coerce")
     sp_fb = pd.to_numeric(d["starting_price_sp"], errors="coerce")
     d["sp"] = sp.fillna(sp_fb)
     d = d.dropna(subset=["sp"])
     d = d[d["sp"] > 1.0]
-
     print(f"Loaded: {len(d):,} resulted rows, {d['race_id'].nunique():,} races")
+    return d
+
+
+def mark_banker_legs(meetings):
+    """Tags each leg with whether it's the meeting's "banker" leg (biggest
+    top-to-2nd WPR gap = most confident leg). Mutates leg DataFrames."""
+    for m in meetings:
+        gaps = [leg["top_to_2nd_gap"].iloc[0] for leg in m["legs"]]
+        banker_idx = int(np.argmax(gaps))
+        for i, leg in enumerate(m["legs"]):
+            leg["_is_banker_leg"] = (i == banker_idx)
+
+
+def banker_leg_ns(i, leg, tight, loose):
+    return tight if leg["_is_banker_leg"].iloc[0] else loose
+
+
+def run():
+    d = load_data()
 
     meetings = build_legs(d)
     print(f"Meetings with a valid 4-leg 'last 4 races' quaddie: {len(meetings)}")
     if not meetings:
         print("No valid meetings found, aborting.")
         return
+    mark_banker_legs(meetings)
 
     print("\n" + "=" * 100)
     print("UNIFORM N (same rating-gap threshold applied to all 4 legs)")
@@ -206,19 +290,37 @@ def run():
         for loose in BANKER_LOOSE_GRID:
             if tight >= loose:
                 continue
-
-            def leg_ns(i, leg, _tight=tight, _loose=loose, _legs_ref=None):
-                return _tight if leg["_is_banker_leg"].iloc[0] else _loose
-
-            # precompute which leg index is the banker leg per meeting
-            for m in meetings:
-                gaps = [leg["top_to_2nd_gap"].iloc[0] for leg in m["legs"]]
-                banker_idx = int(np.argmax(gaps))
-                for i, leg in enumerate(m["legs"]):
-                    leg["_is_banker_leg"] = (i == banker_idx)
-
-            stats = evaluate(meetings, leg_ns)
+            stats = evaluate(meetings, lambda i, leg, _t=tight, _l=loose: banker_leg_ns(i, leg, _t, _l))
             print_row(f"banker tight={tight} loose={loose}", stats)
+
+    print("\n" + "=" * 100)
+    print("CORROBORATED SELECTION (WPR gap<=N AND TR-rating top-third AND/OR Form Factor top-third)")
+    print(f"(Form Factor policy: REQUIRE_PFM_PRESENT={REQUIRE_PFM_PRESENT} - "
+          f"{'must be present and top-third' if REQUIRE_PFM_PRESENT else 'top-third if present, else neutral'})")
+    print("=" * 100)
+    for require_tr, require_pfm, label in [
+        (True, False, "+TR top-third"),
+        (False, True, "+FormFactor top-third"),
+        (True, True, "+TR top-third +FormFactor top-third"),
+    ]:
+        print(f"\n--- {label} ---")
+        for n in CORROBORATED_N_GRID:
+            stats = evaluate(meetings, n, require_tr=require_tr, require_pfm=require_pfm)
+            print_row(f"N<={n} {label}", stats)
+
+    print("\n--- banker + corroborated (best plain-banker settings from above, tight=0) ---")
+    for require_tr, require_pfm, label in [
+        (True, False, "+TR top-third"),
+        (False, True, "+FormFactor top-third"),
+        (True, True, "+TR top-third +FormFactor top-third"),
+    ]:
+        for loose in BANKER_LOOSE_GRID:
+            stats = evaluate(
+                meetings,
+                lambda i, leg, _l=loose: banker_leg_ns(i, leg, 0, _l),
+                require_tr=require_tr, require_pfm=require_pfm,
+            )
+            print_row(f"banker tight=0 loose={loose} {label}", stats)
 
     print("\n" + "=" * 100)
     print("REFERENCE: single top-pick-per-leg parlay (N=0 all legs) vs market SP multi")
