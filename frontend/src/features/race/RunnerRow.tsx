@@ -1,5 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
+import type { TrackerQualifier } from '../../lib/trackerRules'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { spellPosition } from '../../lib/spellPosition'
@@ -10,7 +11,20 @@ interface RunnerRowProps {
   compact: boolean
   selected: boolean
   effective?: EffectiveRunner
+  trackerQualifier?: TrackerQualifier
   onClick: () => void
+}
+
+// Low-volume (Tracker B) implies the stronger, more selective edge in
+// backtesting (see speedmap_jockey_tracker.py's own docstring) - shown in
+// green to read as the "better" of the two when a runner qualifies for
+// both, same visual convention as a WON result badge elsewhere in the app.
+// High-volume-only (Tracker A) gets a distinct colour (indigo) rather than
+// a fainter version of the same one, so the two are easy to tell apart at a
+// glance, not just by tooltip.
+function trackerBadgeTitle(q: TrackerQualifier): string {
+  const which = q.qualifiesB ? 'Low-volume tracker pick (stronger edge)' : 'High-volume tracker pick'
+  return `${which}: ${q.tag}, ${q.gapWpr.toFixed(1)} WPR off top rated, jockey ${q.jw.toFixed(1)}% (90d), $${q.price.toFixed(2)}+`
 }
 
 function fmtAdj(v: number | null): string {
@@ -48,6 +62,7 @@ export function RunnerRow({
   compact,
   selected,
   effective,
+  trackerQualifier,
   onClick,
 }: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
@@ -179,6 +194,20 @@ export function RunnerRow({
               className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white"
             >
               SCR
+            </span>
+          )}
+          {trackerQualifier && !scratched && (
+            // Live flag, not read from the Trackers tab's CSV log - see
+            // lib/trackerRules.ts for why it's computed fresh here instead
+            // (real user feedback, 2026-09-16: the log can lag an upcoming
+            // race by hours).
+            <span
+              title={trackerBadgeTitle(trackerQualifier)}
+              className={`flex-none rounded px-1 text-[10px] font-semibold text-white ${
+                trackerQualifier.qualifiesB ? 'bg-emerald' : 'bg-indigo'
+              }`}
+            >
+              {trackerQualifier.qualifiesB ? 'B' : 'A'}
             </span>
           )}
         </span>

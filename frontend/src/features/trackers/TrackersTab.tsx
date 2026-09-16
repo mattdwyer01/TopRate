@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { todayIso } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
+import { liveTrackerCandidates, type TrackerCandidateRow } from '../../lib/trackerRules'
 
 // Reads the two forward-tracking logs speedmap_jockey_tracker.py writes
 // (repo-root CSVs, same static-file-next-to-index.html pattern
@@ -40,6 +42,41 @@ interface TrackerRow {
   finishPosition: number | null
   won: boolean
   priceFinal: number | null
+  // True for a runner that currently qualifies (evaluated live against
+  // today's data - see lib/trackerRules.ts) but hasn't been captured into
+  // this tracker's CSV log yet - the daily pipeline only runs a handful of
+  // fixed times a day, so a runner that starts qualifying in between two
+  // runs would otherwise be invisible here until it's too late to bet
+  // (real user feedback, 2026-09-16: "tracker does not showing upcoming
+  // bets"). Never persisted - recomputed fresh on every page load, and
+  // disappears once the real capture (or a condition change) overtakes it.
+  live?: boolean
+}
+
+function candidateToRow(c: TrackerCandidateRow): TrackerRow {
+  return {
+    runId: c.runId,
+    raceId: c.raceId,
+    date: c.date,
+    venue: c.venue,
+    raceNo: String(c.raceNo),
+    startTime: c.startTime,
+    tab: String(c.tab),
+    horse: c.horse,
+    silkUrl: c.silkUrl,
+    tag: c.tag,
+    wprPrediction: c.wprPrediction,
+    gapWpr: c.gapWpr,
+    toprateRating: c.toprateRating,
+    formFactor: c.formFactor,
+    jw: c.jw,
+    priceAtPick: c.priceAtPick,
+    resulted: c.resulted,
+    finishPosition: c.finishPosition,
+    won: c.won,
+    priceFinal: c.priceFinal,
+    live: true,
+  }
 }
 
 // Minimal RFC4180 parser (quoted fields, "" escaping) - Python's csv module
@@ -276,6 +313,14 @@ function PickCard({
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[row.tag] ?? ''}`}>
           {row.tag}
         </span>
+        {row.live && (
+          <span
+            title="Currently qualifies against live data, but hasn't been captured by the daily pipeline yet - could still change before that happens"
+            className="rounded bg-amber-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber"
+          >
+            Live
+          </span>
+        )}
         <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
@@ -290,14 +335,23 @@ function PickCard({
 const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
   { label: 'Yesterday', offset: -1 },
   { label: 'Today', offset: 0 },
+  // Races are sometimes pre-fetched days ahead (see daily.yml's days_ahead
+  // input) - a live pick can exist for tomorrow before the CSV log has ever
+  // run against it, so this needs to be reachable the same way Today is,
+  // not just via the raw date picker.
+  { label: 'Tomorrow', offset: 1 },
 ]
 
 function TrackerView({
   rows,
+  races,
+  trackerKind,
   description,
   onSelectRace,
 }: {
   rows: TrackerRow[]
+  races: Race[]
+  trackerKind: 'high' | 'low'
   description: string
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }) {
@@ -309,12 +363,36 @@ function TrackerView({
   // a while, without the quick buttons growing unbounded.
   const availableDates = useMemo(() => [...new Set(rows.map((r) => r.date))].sort().reverse(), [rows])
 
+  // The date picker's own max needs to reach as far as whatever race data
+  // is actually loaded (sometimes pre-fetched days ahead - see
+  // DATE_QUICK_BUTTONS' own comment), not just the latest LOGGED date -
+  // otherwise a pre-fetched future day's live-only picks are invisible
+  // because the date input itself refuses to go there.
+  const maxDate = useMemo(
+    () => [...availableDates, todayIso(), ...races.map((r) => r.date)].sort().pop() ?? todayIso(),
+    [availableDates, races],
+  )
+
   // Scoped to whatever's currently selected (one date, or every date) -
   // real user feedback (2026-09-16): the summary tiles used to always show
   // all-time totals regardless of the date filter below, which read as
   // "today" or "yesterday" but was actually the whole log.
   const filtered = useMemo(() => (showAll ? rows : rows.filter((r) => r.date === date)), [rows, date, showAll])
-  const summary = useMemo(() => summarize(filtered), [filtered])
+
+  // Live candidates fill the gap between daily.yml's fixed capture times
+  // (see lib/trackerRules.ts's own comment) - only meaningful for a single,
+  // not-in-the-past date (showAll already spans every logged date, and a
+  // past date's picks are all long since captured), and only added for a
+  // runId this tracker hasn't already logged for that date.
+  const liveRows = useMemo(() => {
+    if (showAll || date < todayIso()) return []
+    const loggedRunIds = new Set(rows.filter((r) => r.date === date).map((r) => r.runId))
+    const candidates = liveTrackerCandidates(races, date)[trackerKind]
+    return candidates.filter((c) => !loggedRunIds.has(c.runId)).map(candidateToRow)
+  }, [races, rows, date, showAll, trackerKind])
+
+  const combined = useMemo(() => [...filtered, ...liveRows], [filtered, liveRows])
+  const summary = useMemo(() => summarize(combined), [combined])
 
   const displayed = useMemo(() => {
     // Race start time, not race number - the picks span every meeting
@@ -322,18 +400,22 @@ function TrackerView({
     // so sorting by race_no would interleave venues out of actual running
     // order (real user feedback, 2026-09-16: "should be in order of race
     // time").
-    return [...filtered].sort((a, b) => {
+    return [...combined].sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1
       return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0
     })
-  }, [filtered])
+  }, [combined])
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-ink-faint">{description}</p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <StatTile label="Picks logged" value={String(filtered.length)} sublabel={showAll ? 'all dates' : date} />
+        <StatTile
+          label="Picks logged"
+          value={String(filtered.length)}
+          sublabel={showAll ? 'all dates' : liveRows.length > 0 ? `${date} · +${liveRows.length} live` : date}
+        />
         <StatTile label="Resulted" value={summary ? String(summary.n) : '—'} sublabel="so far" />
         <StatTile label="Win %" value={summary ? `${summary.winPct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
         <StatTile label="Place %" value={summary ? `${summary.placePct.toFixed(1)}%` : '—'} tone={summary ? 'default' : 'muted'} />
@@ -363,7 +445,7 @@ function TrackerView({
         <input
           type="date"
           value={date}
-          max={availableDates[0] ?? todayIso()}
+          max={maxDate}
           onChange={(e) => {
             setShowAll(false)
             setDate(e.target.value)
@@ -395,10 +477,11 @@ function TrackerView({
 }
 
 interface TrackersTabProps {
+  races: Race[]
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
-export function TrackersTab({ onSelectRace }: TrackersTabProps) {
+export function TrackersTab({ races, onSelectRace }: TrackersTabProps) {
   const [which, setWhich] = useState<'high' | 'low'>('high')
   const high = useTrackerCsv('tracker_high_volume.csv')
   const low = useTrackerCsv('tracker_low_volume.csv')
@@ -423,14 +506,18 @@ export function TrackersTab({ onSelectRace }: TrackersTabProps) {
       {!loading && which === 'high' && high.rows && (
         <TrackerView
           rows={high.rows}
-          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price, and the only runner in its race meeting all of that (solo-only). No rating-agreement requirement - higher volume, weaker edge."
+          races={races}
+          trackerKind="high"
+          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price, and the only runner in its race meeting all of that (solo-only). No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
           onSelectRace={onSelectRace}
         />
       )}
       {!loading && which === 'low' && low.rows && (
         <TrackerView
           rows={low.rows}
-          description="Same base rule, but solo-only means being the only runner #1 in-race by both TopRate's own rating and the external form-factor score - checked independently of the high-volume rule, so a runner can qualify here even on a race where that one stayed silent. Lower volume, stronger edge in backtesting."
+          races={races}
+          trackerKind="low"
+          description="Same base rule, but solo-only means being the only runner #1 in-race by both TopRate's own rating and the external form-factor score - checked independently of the high-volume rule, so a runner can qualify here even on a race where that one stayed silent. Lower volume, stronger edge in backtesting. A pick tagged Live currently qualifies but hasn't been captured yet."
           onSelectRace={onSelectRace}
         />
       )}
