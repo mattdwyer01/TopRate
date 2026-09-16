@@ -47,6 +47,26 @@ JW_MIN = 14.0            # jockey_win_pct_90d floor
 PRICE_MIN = 3.0          # SP/fixed price floor
 TAGS = ("favoured", "neutral")
 
+# Bush/picnic-meeting threshold - matches lib/meetings.ts's own
+# BUSH_TRACK_THRESHOLD exactly (a meeting whose biggest single race tops out
+# at $20k or less). Real user feedback (2026-09-16): these small-field,
+# thin-market meetings shouldn't feed a tracker meant to approximate a real
+# bettor's actual selections.
+BUSH_TRACK_THRESHOLD = 20_000
+
+
+def _bush_meeting_keys(data: dict) -> set:
+    """Returns {(date, venue)} for every meeting whose biggest single race's
+    prize money is <= BUSH_TRACK_THRESHOLD - same rule as
+    lib/meetings.ts's bushMeetingKeys(), computed independently here since
+    this script never touches the frontend bundle."""
+    top_prize = {}
+    for r in data.get("RACES", []):
+        key = (r.get("date"), r.get("venue"))
+        prize = r.get("prize") or 0
+        top_prize[key] = max(top_prize.get(key, 0), prize)
+    return {key for key, prize in top_prize.items() if prize <= BUSH_TRACK_THRESHOLD}
+
 LOG_COLUMNS = [
     "run_id", "race_id", "date", "venue", "race_no", "start_time", "tab",
     "horse", "silk_url", "tag", "wpr_prediction", "gap_wpr", "toprate_rating",
@@ -92,12 +112,19 @@ def _write_log(path: Path, rows_by_run_id: dict):
         w.writerows(rows)
 
 
-def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, target_date: str):
+def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, target_date: str,
+                      bush_keys: set | None = None):
     """Yields (runner_dict, extra) for every runner in target_date's races
     that qualifies for Tracker A, with `extra` carrying the fields both
-    trackers need (including whether it also qualifies for Tracker B)."""
+    trackers need (including whether it also qualifies for Tracker B).
+    bush_keys (optional): {(date, venue)} to skip entirely - computed once
+    via _bush_meeting_keys() and passed in rather than recomputed per call."""
+    if bush_keys is None:
+        bush_keys = _bush_meeting_keys(data)
     for r in data.get("RACES", []):
         if r.get("date") != target_date:
+            continue
+        if (r.get("date"), r.get("venue")) in bush_keys:
             continue
         runners = [u for u in r.get("runners", []) if not u.get("scr")]
         valid = []
