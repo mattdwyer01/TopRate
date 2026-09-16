@@ -11,13 +11,22 @@ speed_map value: the runner's speed_map, demeaned against that race's own
 mean (see wpjcb.speed_map / SpeedMapGrid.tsx's own display logic), is
 "favoured" or "neutral" (>= -0.5 relative to the field), AND the runner is
 within 6 WPR of the race's own top-projected runner, AND its jockey's
-trailing-90-day win% (jw) is >= 14, AND its live/final price is $3+.
+trailing-90-day win% (jw) is >= 14, AND its live/final price is $3+, AND
+it is the ONLY runner in that race meeting all of the above (solo-only,
+Sep 2026 - see build_candidates' own docstring for the backtest that
+justified this: the rule firing 2+ times in the same race performed
+dramatically worse, +14% ROI solo vs -8% to -12% blended across every
+multi-pick race, and no tie-breaker tested recovered the lost edge as
+cleanly as just not betting a contested race at all).
 
 Tracker A (high volume, no rating-agreement requirement) vs Tracker B (low
 volume, ALSO requires the runner to be #1 in-race by both TopRate's own
 rating (trr) and the external form-factor score (pfm_score_rank)) - see
-GAP_MAX/JW_MIN/PRICE_MIN/TAGS below for the shared rule, and QUALIFIES_B for
-B's extra requirement.
+GAP_MAX/JW_MIN/PRICE_MIN/TAGS below for the shared rule. Each tracker's
+solo-only requirement is checked against its OWN population, independently
+- a race with 3 base-rule qualifiers silences A entirely even if exactly
+one of those 3 also satisfies B's extra condition, and B still fires for
+that one regardless (a runner can end up in A, B, both, or neither).
 
 Run daily (idempotent): captures any newly-qualifying runner from TODAY's
 races (Australia/Melbourne) not already logged, and fills in the result
@@ -114,11 +123,13 @@ def _write_log(path: Path, rows_by_run_id: dict):
 
 def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, target_date: str,
                       bush_keys: set | None = None):
-    """Yields (runner_dict, extra) for every runner in target_date's races
-    that qualifies for Tracker A, with `extra` carrying the fields both
-    trackers need (including whether it also qualifies for Tracker B).
-    bush_keys (optional): {(date, venue)} to skip entirely - computed once
-    via _bush_meeting_keys() and passed in rather than recomputed per call."""
+    """Yields (runner_dict, extra) for every runner that qualifies for
+    Tracker A and/or Tracker B on target_date - `extra["include_in_a"]`/
+    `extra["include_in_b"]` say which (a runner can be in one, the other,
+    or both; see the solo-only comment above for why they're independent,
+    not "B implies A"). bush_keys (optional): {(date, venue)} to skip
+    entirely - computed once via _bush_meeting_keys() and passed in rather
+    than recomputed per call."""
     if bush_keys is None:
         bush_keys = _bush_meeting_keys(data)
     for r in data.get("RACES", []):
@@ -141,6 +152,11 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
         wpr_vals = [u.get("wpjp") for u in runners]
         top_wpr = max((v for v in wpr_vals if v is not None), default=None)
 
+        # Collect every base-rule qualifier in this race first, rather than
+        # yielding as each one is found - solo-only means Tracker A stays
+        # silent on this race unless exactly one runner clears every base
+        # condition.
+        race_qualifiers = []
         for u, sm in valid:
             demeaned = sm - race_mean
             if demeaned <= -DEMEAN_THRESHOLD:
@@ -165,16 +181,39 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
             if price is None or price < PRICE_MIN:
                 continue
 
+            race_qualifiers.append((u, tag, gap, jw, price))
+
+        if not race_qualifiers:
+            continue
+
+        # Tracker B's rating-agreement condition, checked independently
+        # against its OWN solo requirement - NOT coupled to whether A fired
+        # on this race. A 3-horse base-qualifier race silences A entirely,
+        # but if exactly one of those 3 also happens to be #1 by both
+        # TopRate rating and form-factor, B still fires for that one -
+        # each tracker only ever needs ITS OWN rule to be unambiguous, not
+        # the other tracker's.
+        info_by_rid = {}
+        b_pool = []
+        for (u, tag, gap, jw, price) in race_qualifiers:
             rid = str(u.get("rid", ""))
             trr_rank = _rank_desc(u.get("trr"), trr_vals)
             pfm_rank = pfm_rank_by_rid.get(rid)
-            qualifies_b = (trr_rank == 1) and (pfm_rank == 1)
+            info_by_rid[rid] = (u, tag, gap, jw, price, trr_rank, pfm_rank)
+            if trr_rank == 1 and pfm_rank == 1:
+                b_pool.append(rid)
 
+        include_a_rid = str(race_qualifiers[0][0].get("rid", "")) if len(race_qualifiers) == 1 else None
+        include_b_rid = b_pool[0] if len(b_pool) == 1 else None
+
+        for rid in {x for x in (include_a_rid, include_b_rid) if x is not None}:
+            u, tag, gap, jw, price, trr_rank, pfm_rank = info_by_rid[rid]
             yield r, u, {
                 "tag": tag, "gap": gap, "jw": jw, "price": price,
                 "trr_rank_1": trr_rank == 1, "pfm_rank_1": pfm_rank == 1,
-                "qualifies_b": qualifies_b,
-                "wpr_prediction": wpjp,
+                "include_in_a": rid == include_a_rid,
+                "include_in_b": rid == include_b_rid,
+                "wpr_prediction": u.get("wpjp"),
                 "toprate_rating": u.get("trr"),
                 "form_factor": pfm_score_by_rid.get(rid),
                 "start_time": r.get("start_time"),
@@ -224,10 +263,10 @@ def capture_new_picks(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict,
             "won": "",
             "price_final": "",
         }
-        if run_id not in log_a:
+        if extra["include_in_a"] and run_id not in log_a:
             log_a[run_id] = row
             new_a += 1
-        if extra["qualifies_b"] and run_id not in log_b:
+        if extra["include_in_b"] and run_id not in log_b:
             log_b[run_id] = dict(row)
             new_b += 1
 

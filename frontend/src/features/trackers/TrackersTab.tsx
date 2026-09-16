@@ -423,14 +423,14 @@ export function TrackersTab({ onSelectRace }: TrackersTabProps) {
       {!loading && which === 'high' && high.rows && (
         <TrackerView
           rows={high.rows}
-          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price. No rating-agreement requirement - higher volume, weaker edge."
+          description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price, and the only runner in its race meeting all of that (solo-only). No rating-agreement requirement - higher volume, weaker edge."
           onSelectRace={onSelectRace}
         />
       )}
       {!loading && which === 'low' && low.rows && (
         <TrackerView
           rows={low.rows}
-          description="Same rule, plus the runner must also be #1 in-race by both TopRate's own rating and the external form-factor score. Lower volume, stronger edge in backtesting."
+          description="Same base rule, but solo-only means being the only runner #1 in-race by both TopRate's own rating and the external form-factor score - checked independently of the high-volume rule, so a runner can qualify here even on a race where that one stayed silent. Lower volume, stronger edge in backtesting."
           onSelectRace={onSelectRace}
         />
       )}
