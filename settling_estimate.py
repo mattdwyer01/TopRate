@@ -522,6 +522,64 @@ def estimate_race_settling(field):
     return out
 
 
+def compute_inside_threats(field):
+    """For every runner in TODAY's actual field, how much of a threat do
+    FASTER, MORE INSIDE rivals pose to getting a clean run - the "boxed in
+    behind speed" mechanism a barrier-only or pace-only signal cannot see
+    on its own (a horse can be poorly drawn wide with no fast horses inside
+    it, or well drawn inside but trapped behind several). Feeds
+    wpr_projection.py's speed_map ADJ_TERM (see its own _SPEED_MAP_FEATURES
+    docstring for the session-research validation this reproduces).
+
+    field: same (label, prior_runs, barrier, field_size) tuples
+    estimate_race_settling takes.
+
+    For runner i, sums (rival_speed - own_speed) over every rival j in the
+    SAME field with BOTH a higher trailing early-speed rating
+    (trailing_sect_early) AND a lower/more-inside barrier than runner i -
+    only rivals that are genuinely faster AND drawn to cross in front of
+    this horse count, matching the physical mechanism (a faster horse
+    drawn wider never crosses in front early).
+
+    wpr_projection.py's own training-time reconstruction
+    (_build_pace_shape_settle_lookup) mirrors this EXACT formula on
+    historical data instead of a live field - the two must stay in sync.
+
+    Returns {label: {"inside_threats": float, "trailing_sect_i_early": float
+    or None}} - inside_threats is 0.0 (no threat) when this horse's own
+    trailing rating or barrier is unknown, or no rival both faster and more
+    inside exists (same "unseen -> 0" contract every other population term
+    in this codebase uses)."""
+    trailing = {label: trailing_sect_early(prior_runs)[0] for label, prior_runs, _, _ in field}
+    barriers = {}
+    for label, _, barrier, _ in field:
+        try:
+            barriers[label] = float(barrier)
+        except (TypeError, ValueError):
+            barriers[label] = None
+
+    labels = [label for label, _, _, _ in field]
+    out = {}
+    for label in labels:
+        own_speed = trailing.get(label)
+        own_barrier = barriers.get(label)
+        if own_speed is None or own_barrier is None:
+            out[label] = {"inside_threats": 0.0, "trailing_sect_i_early": own_speed}
+            continue
+        threat = 0.0
+        for rival in labels:
+            if rival == label:
+                continue
+            rival_speed = trailing.get(rival)
+            rival_barrier = barriers.get(rival)
+            if rival_speed is None or rival_barrier is None:
+                continue
+            if rival_speed > own_speed and rival_barrier < own_barrier:
+                threat += (rival_speed - own_speed)
+        out[label] = {"inside_threats": threat, "trailing_sect_i_early": own_speed}
+    return out
+
+
 def _load_form():
     if not FORM_CSV.exists():
         sys.exit(f"ERROR: {FORM_CSV.name} not found.")
