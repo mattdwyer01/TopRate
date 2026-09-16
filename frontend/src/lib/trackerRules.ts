@@ -274,6 +274,9 @@ export interface SkippedRunner {
   gapWpr: number
   jw: number
   price: number | null
+  resulted: boolean
+  finishPosition: number | null
+  won: boolean
 }
 
 export interface SkippedGroup {
@@ -325,6 +328,9 @@ export function skippedTrackerGroups(
         gapWpr: q.gapWpr,
         jw: q.jw,
         price: q.price,
+        resulted: runner.finishPosition != null,
+        finishPosition: runner.finishPosition,
+        won: runner.won,
       }
       if (q.contestedA) contestedA.push(entry)
       if (q.contestedB) contestedB.push(entry)

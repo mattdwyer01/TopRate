@@ -208,7 +208,7 @@ function summarize(rows: TrackerRow[]): Summary | null {
   }
 }
 
-function ResultBadge({ row }: { row: TrackerRow }) {
+function ResultBadge({ row }: { row: { resulted: boolean; won: boolean; finishPosition: number | null } }) {
   if (!row.resulted) {
     return <span className="flex-none text-xs text-ink-faint">pending</span>
   }
@@ -395,6 +395,7 @@ function SkippedCard({
             <span className="flex-none font-mono text-ink-mute">{r.gapWpr.toFixed(1)} gap</span>
             <span className="flex-none font-mono text-ink-mute">{r.jw.toFixed(1)}% jky</span>
             <span className="flex-none font-mono text-ink-mute">{fmtPrice(r.price)}</span>
+            <ResultBadge row={r} />
           </div>
         ))}
       </div>
