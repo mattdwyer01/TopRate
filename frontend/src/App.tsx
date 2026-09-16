@@ -196,7 +196,7 @@ function App() {
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
-        {state.status === 'ready' && topTab === 'trackers' && <TrackersTab />}
+        {state.status === 'ready' && topTab === 'trackers' && <TrackersTab onSelectRace={goToRace} />}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (
             <RaceDetail

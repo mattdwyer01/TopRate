@@ -194,7 +194,15 @@ function useTrackerCsv(url: string) {
   return { rows, error }
 }
 
-function TrackerView({ rows, description }: { rows: TrackerRow[]; description: string }) {
+function TrackerView({
+  rows,
+  description,
+  onSelectRace,
+}: {
+  rows: TrackerRow[]
+  description: string
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
   const summary = useMemo(() => summarize(rows), [rows])
   const sorted = useMemo(
     () => [...rows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.raceNo < b.raceNo ? 1 : -1)),
@@ -221,40 +229,63 @@ function TrackerView({ rows, description }: { rows: TrackerRow[]; description: s
         <EmptyState message="No picks logged yet - the daily pipeline captures new ones each run." />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+          {/* Wider than the viewport on purpose - every cell is nowrap so a
+              row never grows tall by wrapping the horse name, and the
+              overflow-x-auto wrapper scrolls it horizontally on a phone.
+              Same "wider than viewport, scrolls" pattern RunnerRow/RaceDetail's
+              own runner table already uses (see that file's own comment) -
+              real user feedback (2026-09-16): without nowrap, a longer horse
+              name (e.g. "Right To Silence") wrapped to 2 lines and made rows
+              uneven, and the Result column got clipped off-screen with no
+              way to reach it. */}
+          <table className="min-w-[760px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">Race</th>
-                <th className="px-3 py-2 text-left">Horse</th>
-                <th className="px-3 py-2 text-left">Tag</th>
-                <th className="px-3 py-2 text-right" title="Jockey win% (trailing 90 days)">
+                <th className="whitespace-nowrap px-3 py-2 text-left">Date</th>
+                <th className="whitespace-nowrap px-3 py-2 text-left">Race</th>
+                <th className="whitespace-nowrap px-3 py-2 text-left">Horse</th>
+                <th className="whitespace-nowrap px-3 py-2 text-left">Tag</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right" title="Jockey win% (trailing 90 days)">
                   Jockey
                 </th>
-                <th className="px-3 py-2 text-right">Price</th>
-                <th className="px-3 py-2 text-center">Result</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right">Price</th>
+                <th className="whitespace-nowrap px-3 py-2 text-center">Result</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((r) => (
-                <tr key={r.runId} className="border-b border-line-soft last:border-b-0">
+                <tr
+                  key={r.runId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectRace(r.raceId, r.date, r.runId)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelectRace(r.raceId, r.date, r.runId)
+                    }
+                  }}
+                  className="cursor-pointer border-b border-line-soft last:border-b-0 hover:bg-emerald-bg/30"
+                >
                   <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-ink-faint">{r.date}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-ink-mute">
                     {r.venue} R{r.raceNo}
                   </td>
-                  <td className="px-3 py-2 font-medium text-ink">
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-ink">
                     {r.tab}. {r.horse}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2">
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[r.tag] ?? ''}`}>
                       {r.tag}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">{r.jw != null ? r.jw.toFixed(1) : '—'}</td>
-                  <td className="px-3 py-2 text-right font-mono text-ink-mute">
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-ink-mute">
+                    {r.jw != null ? r.jw.toFixed(1) : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-ink-mute">
                     {fmtPrice(r.resulted ? r.priceFinal : r.priceAtPick)}
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="whitespace-nowrap px-3 py-2 text-center">
                     <ResultBadge row={r} />
                   </td>
                 </tr>
@@ -267,7 +298,11 @@ function TrackerView({ rows, description }: { rows: TrackerRow[]; description: s
   )
 }
 
-export function TrackersTab() {
+interface TrackersTabProps {
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}
+
+export function TrackersTab({ onSelectRace }: TrackersTabProps) {
   const [which, setWhich] = useState<'high' | 'low'>('high')
   const high = useTrackerCsv('tracker_high_volume.csv')
   const low = useTrackerCsv('tracker_low_volume.csv')
@@ -293,12 +328,14 @@ export function TrackersTab() {
         <TrackerView
           rows={high.rows}
           description="Favoured or neutral speed map, jockey win% (90d) >= 14, within 6 WPR of the race's top-projected runner, $3+ price. No rating-agreement requirement - higher volume, weaker edge."
+          onSelectRace={onSelectRace}
         />
       )}
       {!loading && which === 'low' && low.rows && (
         <TrackerView
           rows={low.rows}
           description="Same rule, plus the runner must also be #1 in-race by both TopRate's own rating and the external form-factor score. Lower volume, stronger edge in backtesting."
+          onSelectRace={onSelectRace}
         />
       )}
     </div>
