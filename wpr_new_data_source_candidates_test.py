@@ -181,7 +181,8 @@ def run():
     feat["date"] = pd.to_datetime(feat["date"])
     feat["gear_bucket_v2"] = feat["gear_changes"].apply(_gear_change_bucket_v2)
     feat["gear_code_v2"] = feat["gear_bucket_v2"].map(_GEAR_BUCKET_CODE_V2).fillna(0)
-    keep = ["horse_id", "date", "gear_code_v2", "field_size", "first_up", "second_up", "n_runs", "career_avg"]
+    keep = ["horse_id", "date", "gear_bucket_v2", "gear_code_v2", "field_size",
+            "first_up", "second_up", "n_runs", "career_avg"]
     d = d.merge(feat[keep].drop_duplicates(subset=["horse_id", "date"]), on=["horse_id", "date"], how="left")
     d["target"] = d["wpr"] if "wpr" in d.columns else np.nan
     print(f"  gear_bucket_v2 distribution:\n{d['gear_bucket_v2'].value_counts(dropna=False)}")
