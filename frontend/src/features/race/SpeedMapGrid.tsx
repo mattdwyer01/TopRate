@@ -200,6 +200,26 @@ function subColsFor(n: number): number {
 const CARD_PX = 92
 const GAP_PX = 6
 
+// Splits an already barrier-ascending list into row-sized chunks (matching
+// the CSS grid's own row-major auto-placement below) and reverses the
+// ROW order while keeping each row's own internal ascending order intact -
+// puts the highest-barrier row at the top and the rail (lowest barrier)
+// row at the bottom, matching the barrier gauge's own fill direction and
+// mobile's single-file reversed stack (real user feedback, 2026-09-17:
+// "speed map on desktop has running rail at the top, not at the bottom
+// like on mobile" - the desktop sub-column grid never got this flip, only
+// the mobile stack did). A plain full-array reverse would also flip each
+// row's own left-to-right order, undoing this file's separate, still-
+// intentional "ascending left-to-right within a row reads inside-to-wide"
+// convention - chunking first keeps that intact.
+function railToBottomOrder<T>(ascending: T[], subCols: number): T[] {
+  const rows: T[][] = []
+  for (let i = 0; i < ascending.length; i += subCols) {
+    rows.push(ascending.slice(i, i + subCols))
+  }
+  return rows.reverse().flat()
+}
+
 // Grid layout: one card per runner, bucketed into a tactical-position
 // column, wrapped into subColsFor(n) side-by-side sub-columns (ordered by
 // barrier ascending, so left-to-right within a row also reads inside-to-
@@ -383,7 +403,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
                 className="grid min-h-[4rem] gap-1.5"
                 style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
               >
-                {columns[i].map((u) => renderCard(u, false))}
+                {railToBottomOrder(columns[i], subColsFor(columns[i].length)).map((u) => renderCard(u, false))}
               </div>
             </div>
           ))}
