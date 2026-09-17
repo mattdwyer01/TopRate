@@ -173,32 +173,42 @@ export function RunnerRow({
         // from mobile race summary, re-add adj to desktop"). Compact drops
         // Form/Jockey Win% too and uses the tightest gap, fitting within a
         // phone's own width with no horizontal scroll at all (verified down
-        // to 360px). Full keeps Form/Jockey Win% with columns shrunk "a
-        // touch" so FP stays reachable without scrolling on a typical
-        // (~390px) phone - it can still need a few px of scroll on the
-        // narrowest (~360px) Android widths, unlike Compact. Fixed $'s own
-        // track was too narrow (42px, then 56px on a first attempt) for a
-        // real 2-decimal price like "$41.00"/"$101.00" plus the move-arrow
-        // slot - real user feedback (2026-09-17, screenshots on two
-        // separate races): "mobile layout broken" / "not fixed". Measured
-        // the actual rendered gap via Playwright bounding boxes rather than
-        // guessing again: the price text doesn't overflow its own cell
-        // (box model is exactly right), but a 6+ character price consumes
-        // almost the entire track with nothing left over, so the visual
-        // gap to the Jockey Win% column beside it collapses to ~3px
-        // (illegible, reads as touching) vs ~11px for a short price like
-        // "$1.35" - the box was technically correct but too tight to read.
-        // Widened to 68px (matching desktop's own width) first - measured
-        // gap for a 6-char price improved (~15px) but a rarer 7-char price
-        // like "$101.00" was still only ~7px, tight enough to risk a third
-        // report - widened again to 76px, giving every realistic price a
-        // consistently comfortable gap. Accepts a little more scroll on
-        // the narrowest phones as the tradeoff for not looking broken.
+        // to 360px). Fixed $'s own track was too narrow (42px, then 56px on
+        // a first attempt) for a real 2-decimal price like "$41.00"/
+        // "$101.00" plus the move-arrow slot - real user feedback
+        // (2026-09-17, screenshots on two separate races): "mobile layout
+        // broken" / "not fixed". Measured the actual rendered gap via
+        // Playwright bounding boxes rather than guessing again: the price
+        // text doesn't overflow its own cell (box model is exactly right),
+        // but a 6+ character price consumes almost the entire track with
+        // nothing left over, so the visual gap to the Jockey Win% column
+        // beside it collapses to ~3px (illegible, reads as touching) vs
+        // ~11px for a short price like "$1.35" - the box was technically
+        // correct but too tight to read. Widened to 68px (matching
+        // desktop's own width) first - measured gap for a 6-char price
+        // improved (~15px) but a rarer 7-char price like "$101.00" was
+        // still only ~7px - widened again to 76px, giving every realistic
+        // price a consistently comfortable gap.
+        //
+        // That 76px Fixed $ fix was verified in isolation and shipped, but
+        // never re-checked against the FULL row's total width - it wasn't:
+        // measured via Playwright at a real 393px viewport (2026-09-17,
+        // "you have still not fixed the mobile layout"), Full's row was
+        // 31px wider than its own scroll container, forcing every viewer
+        // to scroll to see FP at all - and scrolling that far pushed Proj
+        // back UNDER the sticky silk/name cells instead of just revealing
+        // FP, which looks broken rather than merely tight. Recovered that
+        // 31px+ from the columns that don't need to hold a wide value
+        // (Horse 84->68, Proj 40->36, TopRate/Form 28->26, Jockey Win%
+        // 30->28, gap 4px->2px) rather than re-touching Fixed $ - verified
+        // via the same Playwright measurement that the full row now fits
+        // with zero scroll at 393px (a small margin to spare) and only a
+        // few px at 360px, matching Compact's own standard.
         // Must match RaceDetail's own compact/full mobile grid-cols/gap
         // and MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_76px_20px]'
+          : 'gap-x-0.5 grid-cols-[40px_68px_36px_26px_26px_28px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -354,18 +364,16 @@ export function RunnerRow({
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {scratched ? 'SCR' : fmtJockeyWin(runner.jockeyWinPct90d)}
       </span>
-      {/* Fixed $ and FP (below) are trimmed tighter than a plain "shrink a
-          touch" - CSS position:sticky's redundant scroll range bites here
-          specifically: scrollWidth still counts the sticky silk/name cells'
-          full natural-flow width even though they don't need to be scrolled
-          past once stuck, so the browser allows scrolling ~28px further
-          than actually useful - and that extra 28px scrolls Form Factor back
-          UNDER the sticky cells instead of revealing anything new (verified
-          by measuring real rendered positions, not a hunch - originally
-          found against the old WPR $ column this replaced). Only trimming
-          columns that come AFTER it (not Base/Proj/TopRate/Form/Jockey Win%
-          themselves) closes that gap - FP's own content (a 20px circle
-          badge) never needed 44px anyway. */}
+      {/* FP's own content (a 20px circle badge) never needed more than its
+          20px track. This column - and the sticky silk/name cells to the
+          left of it - is why scrolling to reveal it used to be actively
+          harmful, not just tight: once the row was wider than its
+          container (see the grid-cols comment above), scrolling far enough
+          to reach FP also scrolled Proj back UNDER the sticky cells instead
+          of just revealing FP (verified by measuring real rendered
+          positions - originally found against the old WPR $ column this
+          replaced). Shrinking the row to fit without scrolling at all
+          (see above) sidesteps that entirely rather than fighting it. */}
       <span className="flex items-center justify-end font-mono text-ink-mute">
         <span>{scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}</span>
         {/* Fixed-width slot, always rendered (just invisible when there's no

@@ -284,16 +284,22 @@ export function RaceDetail({
             the current density - Base/Adj never show on mobile in either
             density (desktop-only). Compact additionally drops Form/Jockey
             Win% (and narrows Horse) to fit with zero horizontal scroll;
-            Full keeps Form/Jockey Win% with columns shrunk a touch so FP
-            stays reachable without scrolling on a typical phone, same as
-            every row below (see MOBILE_COLUMN_LABELS_COMPACT/_FULL's own
-            comments). The desktop header further down covers every column
-            but is hidden below sm since it's laid out differently there. */}
+            Full keeps Form/Jockey Win% too, with every column narrowed just
+            enough that the whole row fits with zero scroll at a typical
+            (~393px) phone width and only a few px at the narrowest
+            (~360px) ones, same as Compact - see RunnerRow's own comment on
+            this exact grid-cols string for the Playwright measurements
+            behind these numbers (2026-09-17: a scroll wide enough to reach
+            FP was also hiding Proj under the sticky cells, which is why
+            this fits without scrolling rather than just being sized to
+            scroll cleanly). The desktop header further down covers every
+            column but is hidden below sm since it's laid out differently
+            there. */}
         <div
           className={`grid w-max border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
               ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-              : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_76px_20px]'
+              : 'gap-x-0.5 grid-cols-[40px_68px_36px_26px_26px_28px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
