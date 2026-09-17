@@ -434,33 +434,30 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div className="mt-2 hidden overflow-x-auto sm:block">
         <div className="grid min-w-full justify-center gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
-            <div key={c.key} className="flex min-h-[4rem] flex-col gap-1">
+            // justify-end on the WHOLE column (label + card grid together),
+            // not just the cards - the outer grid row stretches every
+            // tactical column to the same (tallest column's) height, and an
+            // earlier version only bottom-anchored the card grid inside
+            // that stretched space while the label stayed pinned to the
+            // top - so a short column's label sat far above its own cards,
+            // disconnected, with a big dead gap in between (real user
+            // feedback, 2026-09-17: "pace categories look un centred and
+            // should be at the bottom"). Anchoring label+cards as one unit
+            // means the label sits directly above its own column's cards
+            // always (gap-1 apart, never more) and the whole thing moves
+            // down together - any leftover space from a shorter column
+            // now sits above the label instead of between label and cards.
+            <div key={c.key} className="flex min-h-[4rem] flex-col justify-end gap-1">
               <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
                 {c.label}
               </div>
-              {/* flex-1 + justify-end: the outer grid row already stretches
-                  every tactical column to the SAME height (the tallest
-                  column's), but a shorter column's own card grid would
-                  otherwise just sit flush under its label, ending well
-                  short of that shared height - so its rail row (the
-                  bottom one, see railToBottomLayout above) lands well
-                  ABOVE where a busier column's rail row sits, instead of
-                  lining up with it (real user feedback, 2026-09-17:
-                  "desktop speed map still does not equal mobile" - the
-                  card ORDER was already fixed, but not this alignment).
-                  Pushing the card grid to the bottom of this flex-1
-                  wrapper matches mobile's own identical fix (its "pins
-                  every column's rail card to the SAME bottom baseline"
-                  comment below applies here too now). */}
-              <div className="flex flex-1 flex-col justify-end">
-                <div
-                  className="grid gap-1.5"
-                  style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
-                >
-                  {railToBottomLayout(columns[i], subColsFor(columns[i].length)).map(({ item, row, col }) =>
-                    renderCard(item, false, { row, col }),
-                  )}
-                </div>
+              <div
+                className="grid gap-1.5"
+                style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
+              >
+                {railToBottomLayout(columns[i], subColsFor(columns[i].length)).map(({ item, row, col }) =>
+                  renderCard(item, false, { row, col }),
+                )}
               </div>
             </div>
           ))}
