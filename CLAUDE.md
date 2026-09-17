@@ -661,6 +661,32 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   already anticipating some truncation - reversing that call wasn't this
   audit's call to make unilaterally, so it's flagged here rather than
   changed.
+- **GAP_MAX 4 -> 5 sweep tested and rejected (2026-09-19)**: real user
+  question ("what if the trackers were changed to be 5 WPR instead of
+  4"). `wpr_tracker_gap_sweep.py` (new, read-only scratch script,
+  committed for the record like the other `scratch_*`/`wpr_*_test.py`
+  analyses) monkey-patches `speedmap_jockey_tracker.GAP_MAX` and reuses
+  its own real `build_candidates()` unmodified across every date in the
+  live `toprate_data.json` window with a known result (2026-08-23 to
+  2026-09-17, 26 dates) - deliberately NOT a from-scratch reimplementation
+  of the solo-only/price-floor/contested-exception logic, so it can't
+  drift from the real rule. Result: 5 is worse than the current 4 on
+  every metric for both trackers, and volume barely moves (the solo-only
+  gate dominates pick count far more than the gap threshold itself -
+  widening it mostly turns would-be additional qualifiers into contested,
+  silent races rather than more solo picks). Tracker A (high volume):
+  n 352->345, win% 19.9->18.8, flat ROI +25.0%->+22.1%, prop ROI
+  +15.9%->+14.9%. Tracker B (low volume): n 74->77, win% 31.1->29.9, flat
+  ROI +12.0%->+7.7%, prop ROI +15.1%->+11.3%. Recommendation: leave
+  GAP_MAX at 4. Caveat this sweep is explicit about: n=26 dates here vs
+  the n=297/271 the original 6->4 move was decided on (a longer,
+  session-long backtest, never committed) - directionally consistent
+  with 4 beating a looser threshold, but not the same statistical power,
+  and notably this run's own 6.0 column came out roughly tied with (even
+  slightly ahead of, on prop ROI) 4.0 for Tracker A, which the original
+  6->4 sweep did not find - a real reminder that a 26-date window is
+  noisy and shouldn't be used to relitigate settled 4-vs-6, only to
+  answer the actual question asked (4 vs 5).
 
 ## What to be careful about
 
