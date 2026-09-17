@@ -75,6 +75,39 @@ stale stored wprp_proj). 120-day window. No leakage risk here since nothing
 is trained - this only applies already-computed projections and actual
 results after the fact.
 
+RESULTS SUMMARY (Sep 2026, exhaustive - see chat log for full detail):
+Tested on 120-day and then 150-day (full available history) windows, with
+every result split-half checked (first half vs second half chronologically)
+before being trusted, per this session's standing evidence bar. Every
+narrow/concentrated strategy showed the identical failure signature
+regardless of which lever was pulled: strongly positive in one half,
+strongly negative in the other, with the pooled number an artifact of a
+handful of extreme-dividend proxy hits (in the 120-day run, 2 of 318 H1
+meetings alone drove 73% of that half's entire profit). Extending to the
+full 150-day window did not fix this - it reproduced the exact same
+flip. Tried and rejected on this basis: BANKER selection (by WPR
+top-to-2nd gap, and separately by the model's own validated wprp_conf
+confidence score), confidence-gating (betting only when the model is
+generally sure - this made ROI reliably WORSE, not better, in both
+halves), TR-rating and Form Factor corroboration filters (TR consistently
+hurt; Form Factor's apparent benefit only showed up in the same unstable,
+low-hit-count settings the split-half check already rules out),
+realistic max-combo caps, and meeting-level gates (bucketing by average
+field size, by average WPR top-to-2nd "card clarity", by total N<=4 combo
+count, and by metro vs non-metro venue - none of these produced a bucket
+that was both better than baseline AND consistent in sign across both
+halves). The ONLY thing that held up as a stable, reproducible number
+across both windows and both halves in every window: a plain, wide
+UNIFORM shortlist (N<=4, no banker, no corroboration, no meeting gate) -
+consistently and solidly NEGATIVE, roughly -40% to -49% ROI. CONCLUSION:
+no selection strategy tested here shows evidence of a real, repeatable
+quaddie edge under the current proxy-dividend methodology - this is a
+structural fat-tail problem with multiplying 4 win prices together (a
+real pari-mutuel dividend is capped by pool participation in a way this
+proxy is not), not a fixable selection-quality problem. Revisiting this
+would need real TAB dividend data (blocked from this environment, see
+above), not further selection-rule search on the same proxy.
+
 NO EM DASHES policy: hyphens only.
 """
 import os
