@@ -290,31 +290,13 @@ function Fact({ label, value }: { label: string; value: string }) {
 // RunnerRow, and opens the runner detail modal directly (not just the race
 // list) via onSelectRace's runId param - RaceDetail already opens
 // RunnerDetailModal whenever its initialRunId prop is set.
-function PickCard({
-  row,
-  onSelectRace,
-}: {
-  row: TrackerRow
-  onSelectRace: (raceId: string, date: string, runId?: string) => void
-}) {
-  // Race summary page, not the horse's own detail modal - deliberately
-  // omits runId (real user feedback, 2026-09-16: passing it opened
-  // RunnerDetailModal directly via RaceDetail's initialRunId prop, which
-  // is one horse zoomed in, not the race overview the user actually
-  // wanted from this list).
+// One runner's silk/name/badges/facts - shared by PickCard (a single
+// runner, the common case) and GroupedRaceCard (2+ selections from the
+// same race - see that component's own comment for why this had to be
+// pulled out).
+function PickCardBody({ row }: { row: TrackerRow }) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelectRace(row.raceId, row.date)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelectRace(row.raceId, row.date)
-        }
-      }}
-      className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
-    >
+    <>
       <div className="flex items-center gap-2">
         {row.silkUrl ? (
           <img src={row.silkUrl} alt="" className="h-9 w-9 flex-none rounded-sm object-contain" />
@@ -327,10 +309,6 @@ function PickCard({
               {row.tab}. {row.horse}
             </span>
             <ResultBadge row={row} />
-          </div>
-          <div className="text-xs text-ink-faint">
-            {row.venue} R{row.raceNo}
-            {row.startTime ? ` · ${formatTimeOfDay(row.startTime)}` : ''}
           </div>
         </div>
       </div>
@@ -369,6 +347,90 @@ function PickCard({
         <Fact label="Barrier" value={row.barrier != null ? String(row.barrier) : '—'} />
         <Fact label="Settling" value={row.settlingBand || '—'} />
       </div>
+    </>
+  )
+}
+
+function PickCard({
+  row,
+  onSelectRace,
+}: {
+  row: TrackerRow
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
+  // Race summary page, not the horse's own detail modal - deliberately
+  // omits runId (real user feedback, 2026-09-16: passing it opened
+  // RunnerDetailModal directly via RaceDetail's initialRunId prop, which
+  // is one horse zoomed in, not the race overview the user actually
+  // wanted from this list).
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectRace(row.raceId, row.date)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelectRace(row.raceId, row.date)
+        }
+      }}
+      className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
+    >
+      <div className="-mb-1 text-xs text-ink-faint">
+        {row.venue} R{row.raceNo}
+        {row.startTime ? ` · ${formatTimeOfDay(row.startTime)}` : ''}
+      </div>
+      <PickCardBody row={row} />
+    </div>
+  )
+}
+
+// 2+ selections (from either tracker's own solo-only rule, or the $6+
+// multi-selection floor exception - see evaluateTrackerQualifiers) landing
+// in the SAME race - previously indistinguishable from any other two
+// cards in the list, easy to miss that they're actually rivals in one
+// race rather than two unrelated picks (real user feedback, 2026-09-18).
+// One shared header (venue/race/time + a "N selections" count) instead of
+// repeating it per runner, with a divider between each runner's own
+// PickCardBody - same click-opens-the-race behaviour as a lone PickCard.
+function GroupedRaceCard({
+  rows,
+  onSelectRace,
+}: {
+  rows: TrackerRow[]
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
+}) {
+  const first = rows[0]
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectRace(first.raceId, first.date)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelectRace(first.raceId, first.date)
+        }
+      }}
+      className="flex cursor-pointer flex-col gap-2 rounded-lg border-2 border-amber-line bg-panel p-3 hover:bg-emerald-bg/30"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-semibold text-ink">
+          {first.venue} R{first.raceNo}
+          {first.startTime ? ` · ${formatTimeOfDay(first.startTime)}` : ''}
+        </span>
+        <span
+          className="flex-none rounded bg-amber-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber"
+          title="These selections are all from the same race"
+        >
+          {rows.length} selections, same race
+        </span>
+      </div>
+      {rows.map((row, i) => (
+        <div key={row.runId} className={i > 0 ? 'flex flex-col gap-2 border-t border-line-soft pt-2' : 'flex flex-col gap-2'}>
+          <PickCardBody row={row} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -577,6 +639,30 @@ function TrackerView({
       })
   }, [combined, runnerLookup])
 
+  // Groups consecutive same-raceId rows (guaranteed adjacent - they share
+  // the same date/startTime, the sort key above) into one GroupedRaceCard
+  // instead of rendering N indistinguishable PickCards in a row - see that
+  // component's own comment (real user feedback, 2026-09-18: "make it more
+  // obvious when multiple selections are from the same race").
+  const displayedGroups = useMemo(() => {
+    const groups: TrackerRow[][] = []
+    for (const row of displayed) {
+      const last = groups[groups.length - 1]
+      if (last && last[0].raceId === row.raceId) {
+        last.push(row)
+      } else {
+        groups.push([row])
+      }
+    }
+    // Within a group, tab/saddlecloth order reads more naturally than
+    // whatever order the row happened to come from (logged CSV, live, or
+    // watching) - only matters once there's actually 2+ in the group.
+    for (const g of groups) {
+      if (g.length > 1) g.sort((a, b) => Number(a.tab) - Number(b.tab))
+    }
+    return groups
+  }, [displayed])
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-ink-faint">{description}</p>
@@ -638,9 +724,13 @@ function TrackerView({
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {displayed.map((r) => (
-            <PickCard key={r.runId} row={r} onSelectRace={onSelectRace} />
-          ))}
+          {displayedGroups.map((group) =>
+            group.length > 1 ? (
+              <GroupedRaceCard key={group[0].raceId} rows={group} onSelectRace={onSelectRace} />
+            ) : (
+              <PickCard key={group[0].runId} row={group[0]} onSelectRace={onSelectRace} />
+            ),
+          )}
         </div>
       )}
 

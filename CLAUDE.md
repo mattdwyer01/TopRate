@@ -576,6 +576,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   tab's own speed map uses) - a prediction, not an actual running
   position, since that's the only "settling" data actually available on
   the runner.
+- **Multiple tracker selections from the same race now show grouped
+  (2026-09-18)**: contested watches (2+ runners meeting the base rule in
+  one race) and the $6+ multi-selection-floor exception (see
+  `evaluateTrackerQualifiers`) both put 2+ cards from the same race
+  adjacent in the Trackers tab's main list, but nothing visually said
+  they were related - easy to miss they're rivals in one race rather than
+  two unrelated picks. `TrackerView` now groups consecutive same-`raceId`
+  rows (guaranteed adjacent post-sort, since they share the exact same
+  `date`/`startTime`) into one `GroupedRaceCard`: a single amber-bordered
+  card with one shared venue/race/time header and an "N selections, same
+  race" badge, each runner's own `PickCardBody` (the silk/name/badges/
+  facts content, pulled out of `PickCard` so both share it) stacked below
+  with a divider. A lone selection still renders as a plain `PickCard`,
+  unchanged.
 
 ## What to be careful about
 
