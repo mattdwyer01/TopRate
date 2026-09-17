@@ -43,6 +43,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'horse', label: 'Horse', showCompact: true },
   { key: 'daysSince', label: 'RTS', showCompact: true },
   { key: 'baseWpr', label: 'Base' },
+  { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
@@ -52,18 +53,16 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'actualWpr', label: 'Actual' },
 ]
 
-// Same columns RunnerRow's mobile grid-template actually shows (Actual
-// stays desktop-only, RTS isn't a mobile column at all any more - it rides
-// along with the name/jockey-trainer text instead to save width, see
-// RunnerRow's own comment - the pre-existing sort-by-anything <select>
-// above still covers sorting by it) - order here must match RunnerRow's
-// mobile grid-cols exactly, same as COLUMN_LABELS does for the desktop
-// template above. Peak and Adj were dropped from this summary view
-// entirely (real user feedback, 2026-09-16) - Adjustment is still shown in
-// the runner detail modal's own breakdown.
+// Full mobile density (Compact's own subset is below) - Base/Adj stay
+// desktop-only in EITHER mobile density (real user feedback, 2026-09-16:
+// "remove base from mobile race summary, re-add adj to desktop" - Adj had
+// briefly been dropped from every view, now it's back but desktop-only,
+// same as Base always was on mobile). Order here must match RunnerRow's
+// own full-mobile grid-cols exactly, same as COLUMN_LABELS does for the
+// desktop template above. Adjustment is also still shown in the runner
+// detail modal's own breakdown regardless of any of this.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'baseWpr', label: 'Base' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
@@ -73,12 +72,13 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 ]
 
 // Compact mobile (the default density, see useTableDensity) drops
-// Base/Form/Jockey Win% so the whole row fits within a phone's own width
-// without needing the horizontal scroll Full still requires (real user
-// feedback, 2026-09-16: "trim mobile columns so it fits without
-// scrolling") - must match RunnerRow's own compact mobile grid-cols
-// exactly (desktop is unaffected either way - it always shows every
-// column, see COLUMN_LABELS/sm:grid-cols above).
+// Form/Jockey Win% too (on top of Base/Adj, dropped from both densities
+// above) so the whole row fits within a phone's own width without needing
+// ANY horizontal scroll, verified down to 360px (real user feedback,
+// 2026-09-16: "trim mobile columns so it fits without scrolling") - must
+// match RunnerRow's own compact mobile grid-cols exactly (desktop is
+// unaffected either way - it always shows every column, see
+// COLUMN_LABELS/sm:grid-cols above).
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'projectedWpr', label: 'Proj' },
@@ -282,17 +282,19 @@ export function RaceDetail({
 
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         {/* Mobile header: matches RunnerRow's mobile grid-cols exactly for
-            the current density - compact drops Base/Form/Jockey Win% (and
-            narrows Horse) so the row fits without horizontal scroll, full
-            shows every column and scrolls, same as every row below (see
-            MOBILE_COLUMN_LABELS_COMPACT/_FULL's own comments). The desktop
-            header further down covers every column but is hidden below sm
-            since it's laid out differently there. */}
+            the current density - Base/Adj never show on mobile in either
+            density (desktop-only). Compact additionally drops Form/Jockey
+            Win% (and narrows Horse) to fit with zero horizontal scroll;
+            Full keeps Form/Jockey Win% with columns shrunk a touch so FP
+            stays reachable without scrolling on a typical phone, same as
+            every row below (see MOBILE_COLUMN_LABELS_COMPACT/_FULL's own
+            comments). The desktop header further down covers every column
+            but is hidden below sm since it's laid out differently there. */}
         <div
           className={`grid w-max border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
               ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-              : 'gap-x-2 grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px]'
+              : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_42px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
@@ -301,9 +303,15 @@ export function RaceDetail({
               key={col.key}
               type="button"
               onClick={() => onSort(col.key)}
-              className={`transition-colors hover:text-ink ${
+              className={`block min-w-0 truncate transition-colors hover:text-ink ${
                 // left-12 (48px) to match RunnerRow's silk cell's true
-                // rendered width - see that file's own comment.
+                // rendered width - see that file's own comment. min-w-0 +
+                // truncate: Full mobile's narrowed columns (e.g. "TopRate"
+                // in a 28px track) would otherwise overflow past their own
+                // grid track and visually bleed into the next column - a
+                // grid item's default min-width is its content size, not
+                // its track, so without this the label just overflows
+                // rather than shrinking (real user feedback, 2026-09-17).
                 i === 0 ? 'sticky left-12 z-10 bg-bg text-left' : 'text-right'
               } ${sortKey === col.key ? 'text-emerald-deep' : ''}`}
             >
@@ -312,7 +320,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_52px_70px_56px_48px_52px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_70px_56px_48px_52px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

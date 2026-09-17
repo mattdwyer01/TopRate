@@ -50,7 +50,13 @@ function trackerSkippedTitle(q: TrackerQualifier): string {
 
 function fmtJockeyWin(v: number | null): string {
   if (v == null) return '—'
-  return `${v.toFixed(1)}%`
+  return `${Math.round(v)}%`
+}
+
+function fmtAdj(v: number | null): string {
+  if (v == null) return '—'
+  const f = v.toFixed(1)
+  return v > 0 ? `+${f}` : f
 }
 
 // Connections' own rating, shown inline after their name rather than
@@ -64,20 +70,19 @@ function ratingSuffix(v: number | null): string {
 // (the current dashboard dual-renders every data grid; this is the
 // consolidation the rebuild plan calls for). Both breakpoints are a real
 // CSS grid with columns - the same shape RaceDetail's header row uses -
-// they just use a different grid-template. Below sm, Base/Adj/Proj/
-// TopRate/Form/Fixed $/FP are all still real columns (not hidden or
-// stacked onto a second line) - Actual stays desktop-only, and RTS isn't a
-// column at all on mobile (not worth a sortable column of its own - it
-// rides along with the name/jockey-trainer text instead, see
-// rtsColorClass/rtsTitle below). That's still more columns than a phone's width can show without
-// squeezing the name unreadable (measured previously: ~18px), so the row
-// is wider than the viewport on purpose and the shared overflow-x-auto
-// wrapper in RaceDetail scrolls it horizontally - silk+name are `sticky
+// they just use a different grid-template. Below sm, Proj/TopRate/Form/
+// Jockey Win%/Fixed $/FP (Full) or just Proj/TopRate/Fixed $/FP (Compact)
+// are real columns - Base/Adj/RTS/Actual stay desktop-only (see
+// COMPACT_MOBILE/FULL_MOBILE grid-cols below and RaceDetail's matching
+// MOBILE_COLUMN_LABELS_COMPACT/_FULL). Real user feedback (2026-09-16,
+// after Peak/Adj were first dropped from this summary view entirely):
+// "remove base from mobile race summary, re-add adj to desktop" - so Base
+// is desktop-only like RTS/Actual, Adj is back but desktop-only too,
+// neither ever shows on mobile in either density. Silk+name are `sticky
 // left-0`/`left-12` so they stay in view (frozen) while the stat columns
-// scroll underneath, same "frozen first column" pattern MeetingsGrid
-// already uses for its own wide table. Peak and Adj (WPR adjustment) were
-// dropped from this summary view entirely (real user feedback, 2026-09-16)
-// - Adjustment is still shown in the runner detail modal's own breakdown.
+// that don't fit scroll underneath (Full only - Compact fits without
+// scrolling entirely, see its own grid-cols comment), same "frozen first
+// column" pattern MeetingsGrid already uses for its own wide table.
 export function RunnerRow({
   runner,
   raceDate,
@@ -162,18 +167,21 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_52px_70px_56px_48px_52px_52px] ${
-        // Compact (mobile only - desktop always shows every column, see
-        // sm:grid-cols above) drops Base/Form/Jockey Win% entirely AND
-        // tightens the column gap, so the whole row fits within a phone's
-        // own width without needing the horizontal scroll Full still
-        // requires (real user feedback, 2026-09-16: "trim mobile columns
-        // so it fits without scrolling"). Must match RaceDetail's own
-        // compact/full mobile grid-cols/gap and
+      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_70px_56px_48px_52px_52px] ${
+        // Neither mobile density ever shows Base/Adj (desktop-only, see
+        // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
+        // from mobile race summary, re-add adj to desktop"). Compact drops
+        // Form/Jockey Win% too and uses the tightest gap, fitting within a
+        // phone's own width with no horizontal scroll at all (verified down
+        // to 360px). Full keeps Form/Jockey Win% with columns shrunk "a
+        // touch" so FP stays reachable without scrolling on a typical
+        // (~390px) phone - it can still need a few px of scroll on the
+        // narrowest (~360px) Android widths, unlike Compact. Must match
+        // RaceDetail's own compact/full mobile grid-cols/gap and
         // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-          : 'gap-x-2 grid-cols-[40px_150px_44px_50px_50px_44px_44px_56px_22px]'
+          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_42px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -284,8 +292,19 @@ export function RunnerRow({
       <span className={`hidden text-right font-mono sm:inline ${rtsColorClass}`} title={rtsTitle}>
         {spell.label}
       </span>
-      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {fmtWpr(runner.baseWpr)}
+      </span>
+      <span
+        className={`hidden text-right font-mono sm:inline ${
+          runner.wprAdjustment != null && runner.wprAdjustment > 0
+            ? 'text-emerald-deep'
+            : runner.wprAdjustment != null && runner.wprAdjustment < 0
+              ? 'text-rose'
+              : 'text-ink-mute'
+        }`}
+      >
+        {fmtAdj(runner.wprAdjustment)}
       </span>
       <span className="text-right font-mono font-semibold text-emerald-deep">
         {/* sm:contents on mobile-only stack: confidence sits under the WPR
