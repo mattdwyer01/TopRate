@@ -177,17 +177,28 @@ export function RunnerRow({
         // touch" so FP stays reachable without scrolling on a typical
         // (~390px) phone - it can still need a few px of scroll on the
         // narrowest (~360px) Android widths, unlike Compact. Fixed $'s own
-        // track was too narrow (42px) for a real price like "$101.00" plus
-        // the move-arrow slot - real user feedback (2026-09-17, screenshot):
-        // "mobile layout broken", the overflowing price text was visually
-        // colliding with the Jockey Win% column next to it. Widened to
-        // 56px, accepting a little more scroll on the narrowest phones as
-        // the tradeoff for not silently overlapping columns. Must match
-        // RaceDetail's own compact/full mobile grid-cols/gap and
-        // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
+        // track was too narrow (42px, then 56px on a first attempt) for a
+        // real 2-decimal price like "$41.00"/"$101.00" plus the move-arrow
+        // slot - real user feedback (2026-09-17, screenshots on two
+        // separate races): "mobile layout broken" / "not fixed". Measured
+        // the actual rendered gap via Playwright bounding boxes rather than
+        // guessing again: the price text doesn't overflow its own cell
+        // (box model is exactly right), but a 6+ character price consumes
+        // almost the entire track with nothing left over, so the visual
+        // gap to the Jockey Win% column beside it collapses to ~3px
+        // (illegible, reads as touching) vs ~11px for a short price like
+        // "$1.35" - the box was technically correct but too tight to read.
+        // Widened to 68px (matching desktop's own width) first - measured
+        // gap for a 6-char price improved (~15px) but a rarer 7-char price
+        // like "$101.00" was still only ~7px, tight enough to risk a third
+        // report - widened again to 76px, giving every realistic price a
+        // consistently comfortable gap. Accepts a little more scroll on
+        // the narrowest phones as the tradeoff for not looking broken.
+        // Must match RaceDetail's own compact/full mobile grid-cols/gap
+        // and MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_56px_20px]'
+          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
