@@ -626,6 +626,41 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   of change `price_refresh.yml`'s own comment warns already backfired
   once (a shared concurrency group made daily.yml better but broke
   tab_results.yml far worse the same day).
+- **Mobile UX audit of Review tab/Settings modal/runner detail modal/search
+  found a real, page-wide header overflow bug (2026-09-17)**: found via the
+  same Playwright-at-real-widths methodology (360/375/393/430/540/600px,
+  exact `getBoundingClientRect`/`scrollWidth` measurements) that had
+  already fixed several Race/Summary-tab layout bugs earlier the same day.
+  `App.tsx`'s sticky header row (logo + Summary/Race/Review tabs +
+  freshness/search/settings icons) needed ~379-398px of natural content
+  width with nothing able to shrink or wrap, but only had ~328-361px of
+  room inside the header's own padding at common phone widths
+  (360-393px covers iPhone SE/12/13/14, Pixel, Galaxy). Since this header
+  is shared/sticky across every tab, the overflow silently forced the
+  WHOLE PAGE to scroll horizontally at those widths on every screen, not
+  just one - previously undiscovered because every earlier mobile-layout
+  fix this session was scoped to within-tab table/column content, never
+  page-level scroll caused by the header itself. Fixed by shrinking the
+  logo text and nav-tab padding/font at base and restoring the original
+  sizing at the `sm` (640px+) breakpoint where there's room to spare.
+  Verified `document.documentElement.scrollWidth` now exactly equals
+  `clientWidth` at 360/375/393/430px (was a fixed 395px regardless of
+  viewport below 430, i.e. genuine overflow, not measurement noise).
+  Settings modal, Review tab (including every expandable section and its
+  breakdown tables), search (empty state and real-query results), and the
+  runner detail modal were all separately verified clean/overflow-free
+  across the same width range - no further page-level bugs found there.
+  One pre-existing, non-regression item noted but deliberately NOT
+  touched: the runner detail modal's Career & condition table (see
+  `CareerStats.tsx`) truncates its label column by ~5-10px on the
+  narrowest phones ("Career" -> "Caree..."). That table's own comments
+  already document a prior explicit user choice (Sep 2026) to keep its
+  two panels side-by-side even on mobile rather than stack them (stacking
+  was tried first and rejected for costing too much scroll), plus a
+  `table-fixed` %-width tuning pass and a `title` tooltip fallback
+  already anticipating some truncation - reversing that call wasn't this
+  audit's call to make unilaterally, so it's flagged here rather than
+  changed.
 
 ## What to be careful about
 
