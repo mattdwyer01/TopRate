@@ -146,6 +146,11 @@ VENUE_ALIASES = {
     # "Caulfield" - same "TAB's own name doesn't match the provider's
     # beyond casing" pattern as BELMONT/SANDOWN/RANDWICK above.
     "CAULFIELD HEATH": "Caulfield",
+    # TAB names this meeting "ILLAWARRA GRANGE" (confirmed 2026-09-17,
+    # real user report after a live --once run logged it as an unmatched
+    # venue) while the provider CSV says "Kembla Grange" - same track,
+    # same mismatch pattern as CAULFIELD HEATH above.
+    "ILLAWARRA GRANGE": "Kembla Grange",
 }
 
 CACHE_FILE = Path(__file__).parent / "tab_poller_terminal_races.json"

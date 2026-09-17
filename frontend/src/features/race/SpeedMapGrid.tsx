@@ -361,12 +361,22 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           </span>
         )}
         <div className="relative">
+          {/* Silk size deliberately NOT scaled up with CARD_PX (92px) the
+              way the rest of this card was - these are small fixed-
+              resolution source images (medialityracing.com.au), and
+              stretching them past their native size just upscale-blurs
+              them (real user feedback, 2026-09-17: "grainy / not as clean
+              as mobile" - mobile's compact silks stay at 28px, under the
+              source resolution, so they never hit this). 32px (unchanged
+              from before the CARD_PX widening) is close to their native
+              size and stays crisp; only the card's own padding/text/
+              barrier badge got bigger. */}
           {u.silkUrl ? (
-            <img src={u.silkUrl} alt="" className={compact ? 'h-7 w-7 rounded-sm object-cover' : 'h-10 w-10 rounded-sm object-cover'} />
+            <img src={u.silkUrl} alt="" className={compact ? 'h-7 w-7 rounded-sm object-cover' : 'h-8 w-8 rounded-sm object-cover'} />
           ) : (
             <div
               className={`flex items-center justify-center rounded-sm bg-slate font-semibold text-white ${
-                compact ? 'h-7 w-7 text-[10px]' : 'h-10 w-10 text-sm'
+                compact ? 'h-7 w-7 text-[10px]' : 'h-8 w-8 text-xs'
               }`}
             >
               {u.tabNumber}
