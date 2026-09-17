@@ -241,12 +241,34 @@ export function RunnerRow({
         // the same way as Full: widened Fixed $ to the same proven 76px,
         // recovered the difference from Horse's own floor/Proj/TopRate
         // (each has real slack - a 2-3 digit rating/percent doesn't need
-        // as much room as this cost). Must match RaceDetail's own
-        // compact/full mobile grid-cols/gap and
+        // as much room as this cost).
+        //
+        // The header labels reusing the desktop words (TopRate/Form/Jky
+        // Win%) were never actually readable in these tracks either -
+        // `truncate` just turned them into "To...''/"Fo...''/"Jky...''
+        // fragments (real user feedback, 2026-09-17: "columns aren't
+        // readable"). Given their own short mobile-only labels instead
+        // (see MOBILE_COLUMN_LABELS_FULL/_COMPACT: TR/Fm/J%) - free, no
+        // width cost, since the DATA cells were already sized to their
+        // actual content, only the header text was the problem.
+        //
+        // While checking that, found the accepted "a few px of scroll at
+        // 360px" from the earlier fix was not actually harmless: scrolled
+        // all the way to reveal FP, Proj's own value was partially covered
+        // by the sticky name cell (e.g. "72.2" rendered as "2.2") - the
+        // same failure mode as the wider-viewport bug this session already
+        // fixed, just smaller. Recovered the remaining ~16px purely from
+        // Horse's own floor (68->52) - it only matters on the narrowest
+        // phones in the first place (1fr already overrides it everywhere
+        // else), and the name span already truncates with an ellipsis, so
+        // a few more px of a long name/jockey line truncating is a much
+        // smaller cost than a WPR figure silently losing a digit. Verified
+        // zero scroll needed now at 360px too, not just 393px+. Must match
+        // RaceDetail's own compact/full mobile grid-cols/gap and
         // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-          : 'gap-x-0.5 grid-cols-[40px_minmax(68px,1fr)_36px_26px_26px_28px_76px_20px]'
+          : 'gap-x-0.5 grid-cols-[40px_minmax(52px,1fr)_36px_26px_26px_28px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay

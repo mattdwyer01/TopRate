@@ -449,6 +449,28 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   own rendered content for silent overflow, not just the row's total
   width against its container.
 
+  Same day, one more round: fixing the overflow made the table
+  technically correct but still "not good enough" (real user feedback) -
+  Full's header labels reused the desktop words (TopRate/Form/Jky Win%)
+  in tracks that were never wide enough for them even before this
+  session's fixes, so `truncate` rendered them as illegible fragments
+  ("To...''/"Fo...''/"Jky...''). Gave the mobile header its own short
+  labels instead (TR/Fm/J% - see `MOBILE_COLUMN_LABELS_FULL`/`_COMPACT`)
+  - free, zero width cost, since the data cells were already sized to
+  their real content. While re-checking width budgets for this, also
+  found the "a few px of scroll is fine at 360px" call from the earlier
+  round was wrong: scrolling all the way to reveal FP at 360px partially
+  covered Proj's own value under the sticky name cell (e.g. "72.2"
+  rendering as "2.2") - the identical failure mode already fixed for the
+  wider-viewport bug, just smaller and un-checked. Recovered the
+  remaining ~16px purely from Horse's own floor (68px->52px) rather than
+  any numeric column - the floor only bites on the narrowest phones in
+  the first place (1fr overrides it everywhere else) and the name span
+  already truncates with an ellipsis, so a few more px of a long
+  name/jockey line truncating is a far smaller cost than a WPR figure
+  silently losing a digit. Full now needs zero scroll at every width
+  tested, 360px included, not just 393px+.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

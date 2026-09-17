@@ -60,12 +60,19 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // own full-mobile grid-cols exactly, same as COLUMN_LABELS does for the
 // desktop template above. Adjustment is also still shown in the runner
 // detail modal's own breakdown regardless of any of this.
+// Real words here (TopRate/Form/Jky Win%) don't fit these columns' own
+// necessarily-narrow tracks even at full width, let alone truncated - CSS
+// `truncate` was rendering them as unreadable "To...''/"Fo...''/"Jky...''
+// fragments (real user feedback, 2026-09-17: "columns aren't readable").
+// These mobile headers get their OWN short, whole labels instead of
+// truncating the desktop ones - TR/Fm/J% read cleanly at any width these
+// columns can realistically have, where a truncated "TopRate" never will.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'projectedWpr', label: 'Proj' },
-  { key: 'toprateRating', label: 'TopRate' },
-  { key: 'formFactor', label: 'Form' },
-  { key: 'jockeyWinPct', label: 'Jky Win%' },
+  { key: 'toprateRating', label: 'TR' },
+  { key: 'formFactor', label: 'Fm' },
+  { key: 'jockeyWinPct', label: 'J%' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -81,7 +88,7 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'projectedWpr', label: 'Proj' },
-  { key: 'toprateRating', label: 'TopRate' },
+  { key: 'toprateRating', label: 'TR' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -300,13 +307,24 @@ export function RaceDetail({
             see RunnerRow's own comment for how that was found (a 2-digit
             TopRate value rendering as a single digit, its neighbour eaten
             by Fixed $'s own overflowing content) and fixed to the same
-            76px. The desktop header further down covers every column but
-            is hidden below sm since it's laid out differently there. */}
+            76px. Full's own header labels are short mobile-only ones
+            (TR/Fm/J%, see MOBILE_COLUMN_LABELS_FULL above), not the
+            desktop words truncated - those never actually fit these
+            tracks either, `truncate` just made them illegible fragments
+            (real user feedback, 2026-09-17: "columns aren't readable").
+            Free (no width cost, the data cells were already sized to
+            content) - the leftover ~16px of "acceptable" scroll at 360px
+            from the previous fix was recovered from Horse's own floor
+            (68->52) instead, since checking it turned up a real defect:
+            scrolled all the way to reveal FP, Proj's own value was
+            partially covered by the sticky name cell. The desktop header
+            further down covers every column but is hidden below sm since
+            it's laid out differently there. */}
         <div
           className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
               ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-              : 'gap-x-0.5 grid-cols-[40px_minmax(68px,1fr)_36px_26px_26px_28px_76px_20px]'
+              : 'gap-x-0.5 grid-cols-[40px_minmax(52px,1fr)_36px_26px_26px_28px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
