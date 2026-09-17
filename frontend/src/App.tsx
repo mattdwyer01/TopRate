@@ -127,6 +127,12 @@ function App() {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
+              {/* Internal tab id stays 'trackers' (URL state, App.tsx's own
+                  switchTab/useUrlState) - only the visible label changed
+                  (real user feedback, 2026-09-17: it was Race that got
+                  renamed to Summary, corrected - Trackers is Summary, Race
+                  keeps its own name) so existing deep links/bookmarks with
+                  tab=trackers keep working. */}
               <button
                 type="button"
                 onClick={() => switchTab('trackers')}
@@ -135,12 +141,8 @@ function App() {
                   (topTab === 'trackers' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
-                Trackers
+                Summary
               </button>
-              {/* Internal tab id stays 'race' (URL state, App.tsx's own
-                  switchTab/useUrlState) - only the visible label changed
-                  (real user feedback, 2026-09-16: renamed to Summary) so
-                  existing deep links/bookmarks with tab=race keep working. */}
               <button
                 type="button"
                 onClick={() => switchTab('race')}
@@ -149,7 +151,7 @@ function App() {
                   (topTab === 'race' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
-                Summary
+                Race
               </button>
               <button
                 type="button"
