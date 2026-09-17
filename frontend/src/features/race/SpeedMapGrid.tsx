@@ -200,24 +200,42 @@ function subColsFor(n: number): number {
 const CARD_PX = 92
 const GAP_PX = 6
 
-// Splits an already barrier-ascending list into row-sized chunks (matching
-// the CSS grid's own row-major auto-placement below) and reverses the
-// ROW order while keeping each row's own internal ascending order intact -
-// puts the highest-barrier row at the top and the rail (lowest barrier)
-// row at the bottom, matching the barrier gauge's own fill direction and
-// mobile's single-file reversed stack (real user feedback, 2026-09-17:
-// "speed map on desktop has running rail at the top, not at the bottom
-// like on mobile" - the desktop sub-column grid never got this flip, only
-// the mobile stack did). A plain full-array reverse would also flip each
-// row's own left-to-right order, undoing this file's separate, still-
-// intentional "ascending left-to-right within a row reads inside-to-wide"
-// convention - chunking first keeps that intact.
-function railToBottomOrder<T>(ascending: T[], subCols: number): T[] {
-  const rows: T[][] = []
-  for (let i = 0; i < ascending.length; i += subCols) {
-    rows.push(ascending.slice(i, i + subCols))
+// Places an already barrier-ascending list into EXPLICIT (row, col) grid
+// coordinates (0-based, row 0 = TOP) - puts the highest-barrier chunk at
+// the top and the rail (lowest barrier) chunk at the bottom, matching the
+// barrier gauge's own fill direction and mobile's single-file reversed
+// stack (real user feedback, 2026-09-17: "speed map on desktop has
+// running rail at the top, not at the bottom like on mobile"). Each
+// row's own left-to-right order stays ascending (this file's separate,
+// still-intentional "reads inside-to-wide" convention).
+//
+// MUST use explicit placement, not "reverse the row-chunks and flatten
+// back into CSS grid auto-placement" (a first attempt at this did that,
+// see git history) - that only works when every row is fully populated.
+// The moment the count isn't an exact multiple of subCols (any tactical
+// column with 5 or 7+ runners, real user feedback 2026-09-17: "desktop
+// speed map still does not equal mobile" on a race with a 5-runner
+// bucket), the partial row is always chunked from the ascending list's
+// OWN end (byproduct of Math.ceil-style chunking from the front), and
+// re-flattening it into a fresh row-major grid re-derives DIFFERENT row
+// boundaries than the ones just reversed - silently scrambling which
+// cards share a visual row. Explicit gridRow/gridColumn placement makes
+// each card's position exact regardless of how the count divides.
+interface GridPlacement<T> {
+  item: T
+  row: number
+  col: number
+}
+
+function railToBottomLayout<T>(ascending: T[], subCols: number): GridPlacement<T>[] {
+  const numRows = Math.ceil(ascending.length / subCols)
+  const placed: GridPlacement<T>[] = []
+  for (let k = 0; k * subCols < ascending.length; k++) {
+    const chunk = ascending.slice(k * subCols, (k + 1) * subCols)
+    const row = numRows - 1 - k
+    chunk.forEach((item, col) => placed.push({ item, row, col }))
   }
-  return rows.reverse().flat()
+  return placed
 }
 
 // Grid layout: one card per runner, bucketed into a tactical-position
@@ -276,7 +294,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   // multiple sub-columns side by side, whole row scrolls horizontally) and
   // mobile (compact, single sub-column, fills its 1/6-width grid cell)
   // layouts below - see each layout's own comment for why they differ.
-  function renderCard(u: Runner, compact: boolean) {
+  function renderCard(u: Runner, compact: boolean, gridPos?: { row: number; col: number }) {
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
     const tone = threatTone(displaySpeedMap)
     const drawFrac = drawFracOf(u, fieldSize)
@@ -298,7 +316,18 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div
         key={u.runId}
         title={titleParts.join(' · ') || undefined}
-        style={compact ? undefined : { width: CARD_PX }}
+        style={
+          compact
+            ? undefined
+            : {
+                width: CARD_PX,
+                // Explicit placement (see railToBottomLayout's own
+                // comment for why auto-placement on a reversed/flattened
+                // array isn't safe here) - 1-indexed, CSS grid lines
+                // start at 1, not 0.
+                ...(gridPos ? { gridRow: gridPos.row + 1, gridColumn: gridPos.col + 1 } : {}),
+              }
+        }
         className={`relative flex flex-col items-center gap-0.5 rounded-md border text-center ${
           compact ? 'w-full py-1 pl-1 pr-2.5' : 'py-1.5 pl-1.5 pr-3'
         } ${TONE_CLASSES[tone]}`}
@@ -395,15 +424,33 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div className="mt-2 hidden overflow-x-auto sm:block">
         <div className="grid min-w-full justify-center gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
-            <div key={c.key} className="flex flex-col gap-1">
+            <div key={c.key} className="flex min-h-[4rem] flex-col gap-1">
               <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
                 {c.label}
               </div>
-              <div
-                className="grid min-h-[4rem] gap-1.5"
-                style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
-              >
-                {railToBottomOrder(columns[i], subColsFor(columns[i].length)).map((u) => renderCard(u, false))}
+              {/* flex-1 + justify-end: the outer grid row already stretches
+                  every tactical column to the SAME height (the tallest
+                  column's), but a shorter column's own card grid would
+                  otherwise just sit flush under its label, ending well
+                  short of that shared height - so its rail row (the
+                  bottom one, see railToBottomLayout above) lands well
+                  ABOVE where a busier column's rail row sits, instead of
+                  lining up with it (real user feedback, 2026-09-17:
+                  "desktop speed map still does not equal mobile" - the
+                  card ORDER was already fixed, but not this alignment).
+                  Pushing the card grid to the bottom of this flex-1
+                  wrapper matches mobile's own identical fix (its "pins
+                  every column's rail card to the SAME bottom baseline"
+                  comment below applies here too now). */}
+              <div className="flex flex-1 flex-col justify-end">
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
+                >
+                  {railToBottomLayout(columns[i], subColsFor(columns[i].length)).map(({ item, row, col }) =>
+                    renderCard(item, false, { row, col }),
+                  )}
+                </div>
               </div>
             </div>
           ))}
