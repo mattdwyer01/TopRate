@@ -129,8 +129,19 @@ function App() {
           </div>
         )}
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-emerald">TopRate</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* text-base/px-1.5/text-xs below sm: the full-size header (logo
+                + 3 tabs + freshness/search/settings) needs ~379px of natural
+                content width, which doesn't fit inside common phone
+                viewports (360-393px, ~328-361px of room once the header's
+                own px-4 side padding and the icon cluster are accounted
+                for) - real bug found via a UX audit (2026-09-17): with
+                nothing shrinking, the overflow silently forced the WHOLE
+                PAGE to scroll horizontally on every tab (not just one
+                screen), since this header is shared/sticky across all of
+                them. Tightened at base, restored to the original sizing at
+                sm (640px+) where there's room to spare. */}
+            <h1 className="text-base font-semibold text-emerald sm:text-lg">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
               {/* Internal tab id stays 'trackers' (URL state, App.tsx's own
                   switchTab/useUrlState) - only the visible label changed
@@ -142,7 +153,7 @@ function App() {
                 type="button"
                 onClick={() => switchTab('trackers')}
                 className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
                   (topTab === 'trackers' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
@@ -152,7 +163,7 @@ function App() {
                 type="button"
                 onClick={() => switchTab('race')}
                 className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
                   (topTab === 'race' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
@@ -162,7 +173,7 @@ function App() {
                 type="button"
                 onClick={() => switchTab('review')}
                 className={
-                  'rounded px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
                   (topTab === 'review' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
@@ -170,7 +181,7 @@ function App() {
               </button>
             </nav>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {state.status === 'ready' && (
               <FreshnessDot
                 level={freshnessLevel(state.data.runIso, new Date(now))}
