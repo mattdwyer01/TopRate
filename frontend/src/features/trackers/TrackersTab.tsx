@@ -452,6 +452,20 @@ function TrackerView({
   // "today" or "yesterday" but was actually the whole log.
   const filtered = useMemo(() => (showAll ? rows : rows.filter((r) => r.date === date)), [rows, date, showAll])
 
+  // Every runId this tracker has already logged for the selected date -
+  // shared by liveRows and skippedGroups below, both of which re-evaluate
+  // the tactical rule live against CURRENT race data (current price,
+  // current field of qualifiers) rather than reading it back from the CSV.
+  // A runner's live evaluation can flip after it's already fired and been
+  // logged (most commonly: its price drifted under $3 after capture,
+  // making a now-stale re-evaluation see it as "underPrice" or newly
+  // "contested") - real user report, 2026-09-17: Albert Palais showing up
+  // as both an actual logged pick AND a "skipped race" the same day.
+  const loggedRunIdsToday = useMemo(() => {
+    if (showAll || date < todayIso()) return new Set<string>()
+    return new Set(rows.filter((r) => r.date === date).map((r) => r.runId))
+  }, [rows, date, showAll])
+
   // Live candidates fill the gap between daily.yml's fixed capture times
   // (see lib/trackerRules.ts's own comment) - only meaningful for a single,
   // not-in-the-past date (showAll already spans every logged date, and a
@@ -459,10 +473,9 @@ function TrackerView({
   // runId this tracker hasn't already logged for that date.
   const liveRows = useMemo(() => {
     if (showAll || date < todayIso()) return []
-    const loggedRunIds = new Set(rows.filter((r) => r.date === date).map((r) => r.runId))
     const candidates = liveTrackerCandidates(races, date)[trackerKind]
-    return candidates.filter((c) => !loggedRunIds.has(c.runId)).map(candidateToRow)
-  }, [races, rows, date, showAll, trackerKind])
+    return candidates.filter((c) => !loggedRunIdsToday.has(c.runId)).map(candidateToRow)
+  }, [races, date, showAll, trackerKind, loggedRunIdsToday])
 
   const combined = useMemo(() => [...filtered, ...liveRows], [filtered, liveRows])
   const summary = useMemo(() => summarize(combined), [combined])
@@ -472,11 +485,17 @@ function TrackerView({
   // single selected date (showAll spans the whole log, which has no
   // matching per-day race list to re-derive this from), computed straight
   // from race data rather than the CSV log since a skipped race never
-  // produces a row to log in the first place.
-  const skippedGroups = useMemo(
-    () => (showAll ? [] : skippedTrackerGroups(races, date)[trackerKind]),
-    [races, date, showAll, trackerKind],
-  )
+  // produces a row to log in the first place. Still needs loggedRunIdsToday
+  // filtered out below though (see that comment) - a runner that DID
+  // already fire and get logged is never "skipped", whatever its live
+  // re-evaluation says now.
+  const skippedGroups = useMemo(() => {
+    if (showAll) return []
+    const groups = skippedTrackerGroups(races, date)[trackerKind]
+    return groups
+      .map((g) => ({ ...g, runners: g.runners.filter((r) => !loggedRunIdsToday.has(r.runId)) }))
+      .filter((g) => g.runners.length > 0)
+  }, [races, date, showAll, trackerKind, loggedRunIdsToday])
 
   const displayed = useMemo(() => {
     // Race start time, not race number - the picks span every meeting
