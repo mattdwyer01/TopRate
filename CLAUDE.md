@@ -417,6 +417,37 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   comparable cost reading/writing that same file via
   `patch_data_json_safe()`, and the self-hosted runner has room under
   `tab_results.yml`'s 15-min timeout.
+- **Mobile race table: two more real bugs found after being told "fixed" 4
+  times (2026-09-17)** - both `RunnerRow.tsx`'s/`RaceDetail.tsx`'s mobile
+  grid-cols. (1) Every column was a bare fixed px value under a `w-max`
+  row (pinned to exactly its own content width, never `auto`) - fine on a
+  narrow phone (forces the intended horizontal scroll), broken on anything
+  wider than that content total (~390-639px CSS width - most large phones
+  in portrait, not just tablets): the row just stopped growing, leaving
+  the rest of the card blank instead of filling it (confirmed via
+  Playwright screenshots at 430-639px, an exact match to the reported
+  screenshot). Fixed by making the Horse column `minmax(Npx, 1fr)` instead
+  of a bare px value and the row `min-w-full` instead of `w-max`, on both
+  densities - holds its floor and overflows into the existing scroll
+  below the min, absorbs any slack above it. (2) Compact (the DEFAULT
+  density, not the Full density every previous round of this bug tested)
+  had its own copy of the "Fixed $ column too narrow" bug Full went
+  through 3 rounds to fix - Compact's own Fixed $ track was still 44px,
+  never touched. `overflow: visible` meant the overflowing price text
+  didn't get clipped, it rendered backward over whatever painted before it
+  - confirmed by screenshotting exactly the TopRate cell's own box at a
+  plain 393px width: a 2-digit value like "96" rendered as "9$", the "6"
+  not clipped, just fully painted over. Fixed the same way as Full -
+  widened to the same proven 76px, recovered the difference from
+  Horse's own floor/Proj/TopRate. Both fixes verified across 360-600px
+  and both densities via Playwright (row-vs-container overflow
+  measurements, not just a screenshot glance) before being called done -
+  see the git-blame'd comments on the grid-cols lines themselves for the
+  exact numbers. Lesson for next time a "layout broken" report repeats
+  after a claimed fix: re-verify EVERY density and a real WIDTH RANGE
+  (not just the one viewport already tested), and check individual cells'
+  own rendered content for silent overflow, not just the row's total
+  width against its container.
 
 ## What to be careful about
 

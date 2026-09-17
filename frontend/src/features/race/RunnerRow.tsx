@@ -167,7 +167,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -204,11 +204,49 @@ export function RunnerRow({
         // via the same Playwright measurement that the full row now fits
         // with zero scroll at 393px (a small margin to spare) and only a
         // few px at 360px, matching Compact's own standard.
-        // Must match RaceDetail's own compact/full mobile grid-cols/gap
-        // and MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
+        //
+        // That fix was ALSO only verified at narrow widths (360-430px) and
+        // shipped as "fixed" a 4th time before actually being fixed (real
+        // user feedback, 2026-09-17, with a screenshot on a wider phone):
+        // every column above was a bare fixed px track under a `w-max` row
+        // (a block element pinned to exactly its content's width, not
+        // `auto`), so on ANY viewport wider than the fixed-column total
+        // (~390-639px - most large phones, not just tablets) the row just
+        // stopped growing, leaving the rest of the card blank instead of
+        // using the space - confirmed via Playwright at 430-639px, an
+        // EXACT visual match to the reported screenshot (table occupying
+        // only the left third of the card). Fixed by making the Horse
+        // column `minmax(Npx, 1fr)` instead of a bare px value, and the
+        // row `min-w-full` instead of `w-max`, on BOTH densities - below
+        // the min, it holds its floor and the row overflows into the
+        // existing horizontal scroll exactly as before (verified: 360px
+        // behaviour unchanged); above it, the grid now actually fills the
+        // container and the slack goes into the one column that can
+        // usefully absorb it (longer horse names show), instead of empty
+        // space.
+        //
+        // While checking that fix at a range of widths, found Compact
+        // (the DEFAULT density, not Full) had its OWN long-standing Fixed $
+        // overflow: its track was still 44px, the exact "too narrow for a
+        // real price" size Full started at and had to widen to 76px after
+        // three rounds. Every one of those rounds only ever tested Full,
+        // so Compact's own copy of the same bug went unnoticed - confirmed
+        // by cropping a screenshot to exactly the TopRate cell's own box at
+        // a completely ordinary 393px width: a 2-digit TopRate value like
+        // "96" rendered as "9$", the "6" invisible - not touching, gone -
+        // because Fixed $'s own content (needs ~70px+ for "$101.00" plus
+        // the arrow slot) overflows its 44px box (overflow: visible, so it
+        // renders, just backward over whatever painted before it) far
+        // enough to fully cover the previous cell's last character. Fixed
+        // the same way as Full: widened Fixed $ to the same proven 76px,
+        // recovered the difference from Horse's own floor/Proj/TopRate
+        // (each has real slack - a 2-3 digit rating/percent doesn't need
+        // as much room as this cost). Must match RaceDetail's own
+        // compact/full mobile grid-cols/gap and
+        // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
-          ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-          : 'gap-x-0.5 grid-cols-[40px_68px_36px_26px_26px_28px_76px_20px]'
+          ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
+          : 'gap-x-0.5 grid-cols-[40px_minmax(68px,1fr)_36px_26px_26px_28px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay

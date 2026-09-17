@@ -289,17 +289,24 @@ export function RaceDetail({
             (~393px) phone width and only a few px at the narrowest
             (~360px) ones, same as Compact - see RunnerRow's own comment on
             this exact grid-cols string for the Playwright measurements
-            behind these numbers (2026-09-17: a scroll wide enough to reach
-            FP was also hiding Proj under the sticky cells, which is why
-            this fits without scrolling rather than just being sized to
-            scroll cleanly). The desktop header further down covers every
-            column but is hidden below sm since it's laid out differently
-            there. */}
+            behind these numbers, including why the Horse column is
+            `minmax(Npx, 1fr)` rather than a bare px value (2026-09-17: a
+            bare-px row pinned to exactly its own content width left a
+            growing blank gap on any phone wider than that content - a
+            wide but still sub-`sm` device, not just a tablet - instead of
+            filling the card; 1fr lets the Horse column absorb that space
+            instead). Compact also had its own long-standing Fixed $
+            overflow (44px, the same too-narrow size Full started at) -
+            see RunnerRow's own comment for how that was found (a 2-digit
+            TopRate value rendering as a single digit, its neighbour eaten
+            by Fixed $'s own overflowing content) and fixed to the same
+            76px. The desktop header further down covers every column but
+            is hidden below sm since it's laid out differently there. */}
         <div
-          className={`grid w-max border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
+          className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
-              ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-              : 'gap-x-0.5 grid-cols-[40px_68px_36px_26px_26px_28px_76px_20px]'
+              ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
+              : 'gap-x-0.5 grid-cols-[40px_minmax(68px,1fr)_36px_26px_26px_28px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
