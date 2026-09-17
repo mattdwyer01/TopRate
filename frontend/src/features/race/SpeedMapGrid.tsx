@@ -194,7 +194,10 @@ function subColsFor(n: number): number {
 // screen instead of shrinking - same "wider than the viewport on
 // purpose, overflow-x-auto scrolls it" pattern RunnerRow/RaceDetail's
 // own runner table already uses.
-const CARD_PX = 72
+// Widened 72 -> 92 (real user feedback, 2026-09-17: "speed map is very
+// small hard to read") - desktop has the room; mobile's own compact
+// renderCard path is untouched (sized separately, see its own comment).
+const CARD_PX = 92
 const GAP_PX = 6
 
 // Grid layout: one card per runner, bucketed into a tactical-position
@@ -302,7 +305,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           // correct, only the badge's own placement was ambiguous).
           <span
             className={`absolute left-0.5 top-0.5 flex items-center justify-center rounded-full bg-amber font-bold leading-none text-white ${
-              compact ? 'h-3.5 w-3.5 text-[8px]' : 'h-3.5 w-3.5 text-[9px]'
+              compact ? 'h-3.5 w-3.5 text-[8px]' : 'h-4 w-4 text-[10px]'
             }`}
           >
             !
@@ -310,11 +313,11 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
         )}
         <div className="relative">
           {u.silkUrl ? (
-            <img src={u.silkUrl} alt="" className={compact ? 'h-7 w-7 rounded-sm object-cover' : 'h-8 w-8 rounded-sm object-cover'} />
+            <img src={u.silkUrl} alt="" className={compact ? 'h-7 w-7 rounded-sm object-cover' : 'h-10 w-10 rounded-sm object-cover'} />
           ) : (
             <div
               className={`flex items-center justify-center rounded-sm bg-slate font-semibold text-white ${
-                compact ? 'h-7 w-7 text-[10px]' : 'h-8 w-8 text-xs'
+                compact ? 'h-7 w-7 text-[10px]' : 'h-10 w-10 text-sm'
               }`}
             >
               {u.tabNumber}
@@ -322,17 +325,17 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           )}
           <span
             className={`absolute rounded-full bg-ink font-bold leading-tight text-white ${
-              compact ? '-right-2 -top-2 px-1 text-[9px]' : '-right-2 -top-2 px-1 text-[10px]'
+              compact ? '-right-2 -top-2 px-1 text-[9px]' : '-right-2 -top-2 px-1.5 text-xs'
             }`}
           >
             {u.barrier ?? '—'}
           </span>
         </div>
-        <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[9px]' : 'text-[11px]'}`}>
+        <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[9px]' : 'text-xs'}`}>
           {compact ? u.horse : `${u.tabNumber}.${u.horse}`}
         </span>
         {u.projectedWpr != null && (
-          <span className={`font-mono text-ink-faint ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
+          <span className={`font-mono text-ink-faint ${compact ? 'text-[9px]' : 'text-[11px]'}`}>
             {u.projectedWpr.toFixed(1)}
           </span>
         )}
@@ -361,8 +364,16 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           one full row of 6 tactical columns side by side without either
           shrinking cards or scrolling horizontally - both ruled out for
           mobile by this component's own further-below layout instead. */}
+      {/* justify-center: when the whole map is narrower than the panel
+          (the common case - most races don't fill every tactical column
+          with cards) this centers it instead of pinning it to the left
+          edge with a large dead gap on the right (real user feedback,
+          2026-09-17: "off centered"). Harmless once it's wider than the
+          panel - overflow-x-auto on the parent still scrolls normally,
+          justify-center on a scrollable flex container doesn't clip the
+          start of the content in any browser Tailwind targets here. */}
       <div className="mt-2 hidden overflow-x-auto sm:block">
-        <div className="grid gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
+        <div className="grid min-w-full justify-center gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
             <div key={c.key} className="flex flex-col gap-1">
               <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">

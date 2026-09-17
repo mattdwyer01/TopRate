@@ -50,7 +50,6 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'jockeyWinPct', label: 'Jky Win%' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
-  { key: 'actualWpr', label: 'Actual' },
 ]
 
 // Full mobile density (Compact's own subset is below) - Base/Adj stay
@@ -320,7 +319,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_70px_56px_48px_52px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

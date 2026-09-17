@@ -167,7 +167,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_70px_56px_48px_52px_52px] ${
+      className={`group grid w-max cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:w-full sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -359,7 +359,7 @@ export function RunnerRow({
             width every row regardless of content keeps the price flush
             right consistently. */}
         <span
-          className={`ml-0.5 w-2.5 flex-none text-center text-[10px] leading-none ${
+          className={`ml-1 w-2.5 flex-none text-center text-[10px] leading-none ${
             !scratched && showMove
               ? priceMove.direction === 'firmed'
                 ? 'text-emerald-deep'
@@ -388,9 +388,6 @@ export function RunnerRow({
         >
           {runner.finishPosition !== null ? fmtInt(runner.finishPosition) : ''}
         </span>
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {runner.actualWpr != null ? fmtWpr(runner.actualWpr) : ''}
       </span>
     </div>
   )
