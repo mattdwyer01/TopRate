@@ -76,6 +76,11 @@ function App() {
   function goToRace(raceId: string, date: string, runId?: string) {
     setTopTabState('race')
     pushUrlState({ date, raceId, runId: runId ?? null })
+    // The page itself doesn't remount on a tab switch, so without this the
+    // Race tab opens at whatever scroll position the caller (Summary tab,
+    // Review tab, the next-to-jump ticker) was left at, not the top of the
+    // race just navigated to - real user feedback, 2026-09-17.
+    window.scrollTo(0, 0)
   }
 
   const tickerRaces = useMemo(() => {
