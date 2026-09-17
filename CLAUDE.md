@@ -368,11 +368,27 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `done` flip was also loosened to accept `won is not None` alongside `f
   is not None` per runner, so a race can flip to (provisional) done once
   every runner's outcome is known even if one is only "confirmed
-  unplaced" rather than an exact position. Not yet verified end-to-end
-  against a live TAB fetch (this environment can't reach TAB) - verified
-  via a synthetic `apply_results()`/`patch_data_json()` run instead; the
-  next real `tab_results.yml` cycle against a race with an unplaced runner
-  is the first live confirmation.
+  unplaced" rather than an exact position.
+
+  Confirmed live the same day: `toprate_runners.csv`/`toprate_data.json`
+  picked up Coco Dior's `won=0`/`interim_resulted=1` correctly within one
+  `tab_results.yml` cycle of the fix landing - but the Trackers/Summary
+  tab still showed it "pending", because `speedmap_jockey_tracker.py`'s
+  `reconcile_results()` (the thing that actually flips a LOGGED pick's CSV
+  row to resulted) only ever ran from `daily.yml`'s fixed daytime slots
+  (hours apart during racing hours - see that workflow's cron comments),
+  never from the fast `tab_results.yml` cycle that runs every 1-2 min.
+  Fixed by calling `speedmap_jockey_tracker.main()` from
+  `tab_results_poller.py`'s `run_once()` too, gated on `n_result_rows > 0`
+  (skip the ~85MB `toprate_data.json` re-read on a price-only/no-op
+  cycle) and wrapped fail-safe like the WPR recompute above. `commit_and_push()`
+  now also stages `tracker_high_volume.csv`/`tracker_low_volume.csv`
+  (only if they already exist on disk) since `run_once()` can rewrite them
+  now too - leaving them uncommitted would have broken the runner's next
+  `git pull --rebase`. Verified directly against the real, live repo
+  state (not synthetic data): running `speedmap_jockey_tracker.main()`
+  picked up Coco Dior's already-written `won=0` and correctly reconciled
+  it (4 previously-stuck high-volume picks, 3 low-volume, in one pass).
 
 ## What to be careful about
 

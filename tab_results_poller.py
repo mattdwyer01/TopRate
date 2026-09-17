@@ -115,6 +115,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
+import speedmap_jockey_tracker as sjt  # reconcile tracker CSVs on the fast cycle too, see run_once()
 
 ROOT = "https://api.beta.tab.com.au"
 MEETINGS = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings"
@@ -808,15 +809,22 @@ def rebuild_data_json():
 
 
 def commit_and_push():
-    """Commit + push toprate_runners.csv/toprate_data.json, same way
-    price_refresh.yml does: pull --rebase first, retry a few times,
-    take theirs on conflicts in generated files (never code)."""
+    """Commit + push toprate_runners.csv/toprate_data.json (and the tracker
+    CSVs, now that run_once() can rewrite them too - see sjt.main() call
+    above), same way price_refresh.yml does: pull --rebase first, retry a
+    few times, take theirs on conflicts in generated files (never code)."""
     status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
     if not status.stdout.strip():
         print("  No changes to commit")
         return
 
-    subprocess.run(["git", "add", "toprate_runners.csv", "toprate_data.json"], check=True)
+    tracked = ["toprate_runners.csv", "toprate_data.json"]
+    # Only add these if they actually exist -- a fresh checkout before
+    # daily.yml/speedmap_jockey_tracker.py has ever written them would make
+    # `git add` fail on a missing pathspec and abort the whole commit.
+    tracked += [f for f in (str(sjt.TRACKER_A_CSV.name), str(sjt.TRACKER_B_CSV.name))
+                if Path(f).exists()]
+    subprocess.run(["git", "add", *tracked], check=True)
     subprocess.run(["git", "commit", "-m",
                     f"TAB live results {datetime.utcnow().strftime('%Y-%m-%dT%H:%MZ')}"], check=True)
 
@@ -922,6 +930,24 @@ def run_once(push=True):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
+
+    # speedmap_jockey_tracker.py's own reconcile/capture (main()) otherwise
+    # only runs on daily.yml's fixed daytime slots (hours apart during
+    # racing hours, see CLAUDE.md) - a pick whose horse resulted (including
+    # via the "assume unplaced" rule above) sat showing "pending" on the
+    # Trackers/Summary tab until the next slot, sometimes hours later (real
+    # user report, Coco Dior, 2026-09-17). Only worth running when this
+    # cycle actually wrote a result (n_result_rows > 0) - toprate_data.json
+    # is ~85MB, so re-reading it on every price-only/no-op cycle would be
+    # pure waste. Read-only against toprate_data.json/toprate_runners.csv,
+    # writes only its own two tracker CSVs (see its own module docstring) -
+    # best-effort, like compute_wpr_projection() above, so a bug in it
+    # never takes down the rest of this cycle.
+    if n_result_rows:
+        try:
+            sjt.main()
+        except Exception as e:
+            print(f"  speedmap_jockey_tracker reconcile failed (non-fatal): {type(e).__name__}: {e}")
 
     if push:
         commit_and_push()
