@@ -245,6 +245,14 @@ export interface TrackerCandidateRow {
   finishPosition: number | null
   won: boolean
   priceFinal: number | null
+  // Set only by pendingWatchCandidates() below - undefined for a genuine
+  // qualifying candidate from liveTrackerCandidates(). Real user request
+  // (2026-09-17): a race that's merely contested or under $3 RIGHT NOW,
+  // but hasn't run yet, shouldn't drop into "skipped" - price and the
+  // field can still move before the jump, so it stays a live watch in the
+  // main list (in race order) until the race actually resolves one way or
+  // the other.
+  watchReason?: 'contested' | 'underPrice'
 }
 
 // Every live-qualifying runner across every non-bush race on `targetDate` -
@@ -294,6 +302,68 @@ export function liveTrackerCandidates(
   return { high, low }
 }
 
+// Every runner meeting the tactical criteria but NOT currently firing
+// (contested, or a lone qualifier under $3), for a race that HASN'T
+// resulted yet - shaped identically to liveTrackerCandidates() so the
+// caller can merge both into one chronological list. Real user request
+// (2026-09-17): odds move and fields change right up to the jump, so a
+// contested/under-$3 runner in a still-upcoming race isn't a settled
+// "skip" yet - it belongs in the main list, in race order, same as a
+// genuine live candidate, until the race actually runs. Once
+// race.allResulted, this function no longer returns it at all -
+// skippedTrackerGroups() below takes over from that point.
+export function pendingWatchCandidates(
+  races: Race[],
+  targetDate: string,
+): { high: TrackerCandidateRow[]; low: TrackerCandidateRow[] } {
+  const bushKeys = bushMeetingKeys(races)
+  const high: TrackerCandidateRow[] = []
+  const low: TrackerCandidateRow[] = []
+  for (const race of races) {
+    if (race.date !== targetDate || race.allResulted) continue
+    const isBush = bushKeys.has(meetingKey(race))
+    const qualifiers = evaluateTrackerQualifiers(race, isBush)
+    if (qualifiers.size === 0) continue
+    for (const [runId, q] of qualifiers) {
+      const runner = race.runners.find((r) => r.runId === runId)
+      if (!runner) continue
+      const watchReasonA = q.contestedA ? 'contested' : q.underPriceA ? 'underPrice' : null
+      const watchReasonB = q.contestedB ? 'contested' : q.underPriceB ? 'underPrice' : null
+      if (watchReasonA == null && watchReasonB == null) continue
+      const row: TrackerCandidateRow = {
+        runId,
+        raceId: race.raceId,
+        date: race.date,
+        venue: race.venue,
+        raceNo: race.raceNumber,
+        startTime: race.startTime,
+        tab: runner.tabNumber,
+        horse: runner.horse,
+        silkUrl: runner.silkUrl ?? '',
+        tag: q.tag,
+        wprPrediction: runner.projectedWpr,
+        gapWpr: q.gapWpr,
+        toprateRating: runner.toprateRating,
+        formFactor: runner.formFactor,
+        jw: q.jw,
+        priceAtPick: q.price,
+        // race.allResulted is already false here, so these are normally
+        // all still-unresulted defaults - read straight off the runner
+        // rather than hardcoded, same as liveTrackerCandidates(), in case
+        // this specific runner's own outcome is already known (e.g. the
+        // "assume unplaced" rule firing) while the rest of the race isn't.
+        resulted: runner.resultKnown,
+        finishPosition: runner.finishPosition,
+        won: runner.won,
+        priceFinal: runner.startingPrice ?? runner.fixedWinPrice,
+      }
+      if (watchReasonA != null) high.push({ ...row, watchReason: watchReasonA })
+      if (watchReasonB != null) low.push({ ...row, watchReason: watchReasonB })
+    }
+  }
+  return { high, low }
+}
+
 // One runner in a skipped-race group - the display-ready subset of
 // TrackerQualifier a card actually needs.
 export interface SkippedRunner {
@@ -323,13 +393,20 @@ export interface SkippedGroup {
   runners: SkippedRunner[]
 }
 
-// Every race on `targetDate` where Tracker A and/or B met the tactical
-// criteria but still didn't fire a pick - either contested (2+ runners,
-// see evaluateTrackerQualifiers' own contestedA/B comment) or a lone
-// qualifier priced under PRICE_MIN (underPriceA/B). One group per race per
-// tracker. Powers the Trackers tab's "Skipped races" section (real user
-// feedback, 2026-09-16): these races produce no pick at all, so they'd
-// otherwise be invisible anywhere in the app.
+// Every RESULTED race on `targetDate` where Tracker A and/or B met the
+// tactical criteria but still didn't fire a pick - either contested (2+
+// runners, see evaluateTrackerQualifiers' own contestedA/B comment) or a
+// lone qualifier priced under PRICE_MIN (underPriceA/B). One group per
+// race per tracker. Powers the Trackers tab's "Skipped races" section
+// (real user feedback, 2026-09-16): these races produce no pick at all,
+// so they'd otherwise be invisible anywhere in the app.
+//
+// Only ever a FINAL verdict, i.e. race.allResulted - a still-upcoming
+// race that's merely contested or under $3 right now belongs to
+// pendingWatchCandidates() above instead (real user request, 2026-09-17:
+// odds move and fields change before the jump, so that's not a settled
+// skip yet). Once the race actually resolves, this function is what takes
+// over and calls it a real, final skip.
 export function skippedTrackerGroups(
   races: Race[],
   targetDate: string,
@@ -338,7 +415,7 @@ export function skippedTrackerGroups(
   const high: SkippedGroup[] = []
   const low: SkippedGroup[] = []
   for (const race of races) {
-    if (race.date !== targetDate) continue
+    if (race.date !== targetDate || !race.allResulted) continue
     const isBush = bushKeys.has(meetingKey(race))
     const qualifiers = evaluateTrackerQualifiers(race, isBush)
     if (qualifiers.size === 0) continue

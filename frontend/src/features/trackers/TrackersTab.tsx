@@ -8,6 +8,7 @@ import { todayIso } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import {
   liveTrackerCandidates,
+  pendingWatchCandidates,
   skippedTrackerGroups,
   type TrackerCandidateRow,
   type SkippedGroup,
@@ -58,6 +59,13 @@ interface TrackerRow {
   // bets"). Never persisted - recomputed fresh on every page load, and
   // disappears once the real capture (or a condition change) overtakes it.
   live?: boolean
+  // Set for a pendingWatchCandidates() row - contested or under $3 RIGHT
+  // NOW, but the race hasn't run yet, so it's not a settled skip (real
+  // user request, 2026-09-17). Mutually exclusive with `live` (a runner
+  // is either currently qualifying or currently not, never both) and with
+  // `resulted` (pendingWatchCandidates() never returns one for a resulted
+  // race - see that function's own comment).
+  watchReason?: 'contested' | 'underPrice'
 }
 
 function candidateToRow(c: TrackerCandidateRow): TrackerRow {
@@ -82,7 +90,8 @@ function candidateToRow(c: TrackerCandidateRow): TrackerRow {
     finishPosition: c.finishPosition,
     won: c.won,
     priceFinal: c.priceFinal,
-    live: true,
+    live: c.watchReason == null,
+    watchReason: c.watchReason,
   }
 }
 
@@ -328,6 +337,18 @@ function PickCard({
             Live
           </span>
         )}
+        {row.watchReason && (
+          <span
+            title={
+              row.watchReason === 'contested'
+                ? "Meets the tactical criteria but 2+ runners do, so it's not a solo pick right now - the race hasn't run yet, so a scratch could still clear it before the jump"
+                : "Meets the tactical criteria as the lone qualifier, but its price is currently under $3 - the race hasn't run yet, so this could still firm up before the jump"
+            }
+            className="rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink-mute"
+          >
+            Watching · {row.watchReason === 'contested' ? 'Contested' : 'Under $3'}
+          </span>
+        )}
         <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
@@ -477,18 +498,31 @@ function TrackerView({
     return candidates.filter((c) => !loggedRunIdsToday.has(c.runId)).map(candidateToRow)
   }, [races, date, showAll, trackerKind, loggedRunIdsToday])
 
-  const combined = useMemo(() => [...filtered, ...liveRows], [filtered, liveRows])
+  // Contested/under-$3 right now, but the race hasn't run yet - stays in
+  // the main list (in race order, alongside real picks) rather than
+  // dropping into "Skipped races" below, since price and the field can
+  // still move before the jump (real user request, 2026-09-17). Same
+  // gating as liveRows - only meaningful for today (or a pre-fetched
+  // future day), not showAll or a past date.
+  const watchingRows = useMemo(() => {
+    if (showAll || date < todayIso()) return []
+    const candidates = pendingWatchCandidates(races, date)[trackerKind]
+    return candidates.filter((c) => !loggedRunIdsToday.has(c.runId)).map(candidateToRow)
+  }, [races, date, showAll, trackerKind, loggedRunIdsToday])
+
+  const combined = useMemo(() => [...filtered, ...liveRows, ...watchingRows], [filtered, liveRows, watchingRows])
   const summary = useMemo(() => summarize(combined), [combined])
 
-  // Races where the tactical criteria were met but no pick fired anyway
-  // (contested, or a lone qualifier under $3) - only meaningful for a
-  // single selected date (showAll spans the whole log, which has no
-  // matching per-day race list to re-derive this from), computed straight
-  // from race data rather than the CSV log since a skipped race never
-  // produces a row to log in the first place. Still needs loggedRunIdsToday
-  // filtered out below though (see that comment) - a runner that DID
-  // already fire and get logged is never "skipped", whatever its live
-  // re-evaluation says now.
+  // Races where the tactical criteria were met but the race has ALREADY
+  // RESULTED and still no pick fired (contested, or a lone qualifier
+  // under $3) - see skippedTrackerGroups()'s own comment for why an
+  // upcoming race's contested/under-$3 runners live in watchingRows
+  // above instead, not here, until the race actually resolves. Only
+  // meaningful for a single selected date (showAll spans the whole log,
+  // which has no matching per-day race list to re-derive this from).
+  // Still needs loggedRunIdsToday filtered out below though - a runner
+  // that DID already fire and get logged is never "skipped", whatever
+  // its live re-evaluation says now.
   const skippedGroups = useMemo(() => {
     if (showAll) return []
     const groups = skippedTrackerGroups(races, date)[trackerKind]

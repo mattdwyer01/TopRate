@@ -529,6 +529,26 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   and confirmed every value renders intact, only the Proj HEADER's "P"
   clips (cosmetic, header only, only visible if a 360px user manually
   scrolls all the way).
+- **Contested/under-$3 races no longer jump straight to "Skipped races"
+  while still pending (2026-09-17)**: `lib/trackerRules.ts`'s
+  `skippedTrackerGroups()` used to re-evaluate every race live and call a
+  contested or under-$3 result a "skip" regardless of whether the race
+  had even run yet - misleading, since price and the field can both still
+  move before the jump (real user request: "keep them in race order in
+  the tracker even if they are under $3 or contested... only move to the
+  skipped races section once resulted and they don't fit the criteria").
+  `skippedTrackerGroups()` now only considers `race.allResulted` races -
+  a genuinely final verdict. A new `pendingWatchCandidates()` covers
+  everything it used to catch for a STILL-UPCOMING race instead, shaped
+  identically to `liveTrackerCandidates()` (reuses the same
+  `TrackerCandidateRow`/`candidateToRow()` path, just with a
+  `watchReason: 'contested' | 'underPrice'` tag) so it merges straight
+  into the Trackers tab's main list and sorts in race order alongside
+  real picks, rendered with a "Watching" badge instead of "Live". Once a
+  race actually resolves, its contested/under-$3 runners (if any)
+  transition from a Watching card to a real Skipped races entry
+  automatically - no special-casing needed, since both functions key
+  off the same `race.allResulted` flag.
 
 ## What to be careful about
 
