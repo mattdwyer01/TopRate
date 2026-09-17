@@ -263,12 +263,27 @@ export function RunnerRow({
         // else), and the name span already truncates with an ellipsis, so
         // a few more px of a long name/jockey line truncating is a much
         // smaller cost than a WPR figure silently losing a digit. Verified
-        // zero scroll needed now at 360px too, not just 393px+. Must match
+        // zero scroll needed now at 360px too, not just 393px+.
+        //
+        // Still not enough (real user feedback, 2026-09-17, on a wide
+        // phone where Horse had plenty of room via 1fr): TopRate/Form/Jky%
+        // sit right next to Fixed $, which is 76px wide to survive a rare
+        // "$101.00" - three ~26-28px columns packed at a 2px gap read as
+        // visibly cramped next to it regardless of how much slack Horse
+        // itself has, since gap and column width are independent of 1fr.
+        // Checked alignment first (exact per-column pixel match, header vs
+        // data, at 430/480/540px) to rule out an actual bug before
+        // touching anything - this was purely a density complaint.
+        // AskUserQuestion on the tradeoff (real user choice, confirmed):
+        // widen TopRate/Form/Jky% and the gap between them, recovered from
+        // Horse's floor again (52->39) rather than dropping Form from
+        // mobile Full - horse names already truncate with an ellipsis, so
+        // truncating a bit sooner there is the smaller cost. Must match
         // RaceDetail's own compact/full mobile grid-cols/gap and
         // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-          : 'gap-x-0.5 grid-cols-[40px_minmax(52px,1fr)_36px_26px_26px_28px_76px_20px]'
+          : 'gap-x-[3px] grid-cols-[40px_minmax(50px,1fr)_36px_29px_29px_31px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay

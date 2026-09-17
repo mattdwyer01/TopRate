@@ -471,6 +471,31 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   silently losing a digit. Full now needs zero scroll at every width
   tested, 360px included, not just 393px+.
 
+  Same day, one more round: still "not right" (real user feedback) even
+  with zero overflow and readable headers - TopRate/Form/Jky% sit right
+  next to Fixed $ (76px, sized for a rare "$101.00"), so three ~26-28px
+  columns at a 2px gap read as visibly cramped next to it, independent of
+  how much slack Horse itself has via `1fr` (gap and column width don't
+  scale with available space the way `1fr` does). Checked exact
+  header-vs-data pixel alignment at 430/480/540px FIRST (perfect match at
+  every width) to confirm this was a density complaint, not a bug, before
+  touching anything. Asked which tradeoff to make (`AskUserQuestion`,
+  real user choice): widen TopRate/Form/Jky% a few px each and the gap
+  between them (2px->3px), recovered from Horse's floor again rather than
+  dropping Form from mobile Full. First attempt recovered the full ~26px
+  needed entirely from Horse (52px->39px) - technically fit with zero
+  scroll, but silently went too far the other way: horse names truncated
+  to a single letter at 360px ("6. S..."), unreadable. Settled on a
+  smaller, verified widening (Horse only down to 50px) that leaves a
+  small, real 14px scroll at 360px specifically (0px at 375px+, the
+  large majority of phones) rather than firing 26px of the improvement's
+  cost into unreadable names - explicitly checked that 14px of scroll
+  does NOT reproduce the earlier value-clipping bug (unlike the 16px that
+  did, back when this session found it): scrolled all the way at 360px
+  and confirmed every value renders intact, only the Proj HEADER's "P"
+  clips (cosmetic, header only, only visible if a 360px user manually
+  scrolls all the way).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

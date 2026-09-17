@@ -317,14 +317,24 @@ export function RaceDetail({
             from the previous fix was recovered from Horse's own floor
             (68->52) instead, since checking it turned up a real defect:
             scrolled all the way to reveal FP, Proj's own value was
-            partially covered by the sticky name cell. The desktop header
-            further down covers every column but is hidden below sm since
-            it's laid out differently there. */}
+            partially covered by the sticky name cell.
+            Still not enough (real user feedback, 2026-09-17, on a wide
+            phone where Horse had plenty of room via 1fr): TopRate/Form/
+            Jky% sit right next to Fixed $, which is 76px wide to survive
+            a rare "$101.00" - three ~26-28px columns at a 2px gap read as
+            cramped next to it regardless of Horse's own slack. Checked
+            alignment first (exact per-column pixel match at 430/480/540px)
+            to confirm this was a density complaint, not a bug, then
+            widened TopRate/Form/Jky%/their shared gap and recovered from
+            Horse's floor again (52->39) rather than dropping Form from
+            mobile Full - a real user choice via AskUserQuestion. The
+            desktop header further down covers every column but is hidden
+            below sm since it's laid out differently there. */}
         <div
           className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
               ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-              : 'gap-x-0.5 grid-cols-[40px_minmax(52px,1fr)_36px_26px_26px_28px_76px_20px]'
+              : 'gap-x-[3px] grid-cols-[40px_minmax(50px,1fr)_36px_29px_29px_31px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
