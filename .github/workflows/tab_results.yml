@@ -114,6 +114,24 @@ jobs:
           # list (Sep 2026 bug) same as daily.yml/price_refresh.yml - see
           # daily.yml's comment for the dirty-tree failure chain this risked.
           [ -d horse_history ] && git add horse_history
+          # tracker_high_volume.csv/tracker_low_volume.csv - speedmap_jockey_
+          # tracker.py's sjt.main() (called from tab_results_poller.py's
+          # run_once() on every active cycle, see its own comment) reconciles
+          # picks against toprate_data.json and rewrites these two CSVs
+          # in-place, but this step's own git add never staged them (found
+          # 2026-09-17: reconcile logged "reconciled 2 newly-resulted
+          # pick(s)" in this exact job's own output, yet the commit right
+          # after only touched toprate_runners.csv/toprate_data.json - the
+          # reconciled CSV content sat as an uncommitted, unstaged local
+          # change that the NEXT cycle's checkout step (git clean -ffdx +
+          # git reset --hard) silently discarded before anyone ever
+          # committed it, over and over, every cycle, since the day that
+          # reconcile-on-every-cycle fix shipped). tab_results_poller.py's
+          # own commit_and_push() (used when NOT run with --no-push) already
+          # staged these correctly - this workflow's own separate shell
+          # step just never matched it.
+          [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
+          [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
           git commit -m "TAB live results $(date -u +%Y-%m-%dT%H:%MZ)"
           # Pull-then-push with retry, same rationale as price_refresh.yml:
           # the daily workflow, manual pushes, and this job's own frequent

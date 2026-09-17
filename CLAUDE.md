@@ -417,6 +417,40 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   comparable cost reading/writing that same file via
   `patch_data_json_safe()`, and the self-hosted runner has room under
   `tab_results.yml`'s 15-min timeout.
+
+  **That fix was silently a no-op in production the whole time it ran
+  (found 2026-09-17, "why is Bunbury R6 resulted on the race tab but not
+  the summary tab")**: `sjt.main()` DOES run every cycle and DOES
+  correctly reconcile picks in memory and on disk - confirmed straight
+  from the actual GitHub Actions job log for the exact cycle that wrote
+  State Of Boom's win, which shows "reconciled 2 newly-resulted pick(s)"
+  right there in the output. The bug is one step later: production always
+  runs `tab_results_poller.py --once --no-push` (see `tab_results.yml`),
+  meaning `run_once()`'s own Python-level `commit_and_push()` (the
+  function this session earlier taught to `git add` the tracker CSVs
+  too) never actually runs - `--no-push` hands ALL git operations to a
+  separate shell step in the workflow YAML itself, which has its own,
+  completely separate `git add toprate_runners.csv toprate_data.json`
+  line that was never updated to match. So every cycle: `sjt.main()`
+  rewrites the tracker CSVs correctly on disk, the commit step stages and
+  commits everything EXCEPT those two files, and the reconciled content
+  sits as an uncommitted, unstaged working-tree change - which the NEXT
+  cycle's checkout step (`git clean -ffdx` + `git reset --hard`) silently
+  discards before anyone ever commits it. Repeats forever, every ~5 min,
+  for every single reconcile/capture since the day that fix shipped -
+  worse, it also occasionally FAILED THE WHOLE CYCLE outright: the same
+  unstaged tracker-CSV changes made `git pull --rebase` refuse to run
+  ("cannot pull with rebase: You have unstaged changes") whenever a push
+  got rejected and needed a retry, confirmed in a real failed job's own
+  log the very next cycle after the one that reconciled fine. Fixed by
+  adding the same `[ -f tracker_*.csv ] && git add tracker_*.csv` lines
+  to `tab_results.yml`'s own commit step that `daily.yml`'s equivalent
+  step already had (which is exactly why this never affected daily.yml's
+  own reconcile/capture calls, only the fast cycle's). Lesson: a fix to a
+  Python function's own git-staging logic doesn't cover every caller of
+  that function - grep for every place `--no-push`/an equivalent flag
+  hands git off to something else before assuming a `git add` fix is
+  universally applied.
 - **Mobile race table: two more real bugs found after being told "fixed" 4
   times (2026-09-17)** - both `RunnerRow.tsx`'s/`RaceDetail.tsx`'s mobile
   grid-cols. (1) Every column was a bare fixed px value under a `w-max`
