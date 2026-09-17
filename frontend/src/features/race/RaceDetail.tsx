@@ -293,7 +293,7 @@ export function RaceDetail({
           className={`grid w-max border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
               ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-              : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_42px_20px]'
+              : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_56px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />

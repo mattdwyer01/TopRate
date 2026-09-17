@@ -176,12 +176,18 @@ export function RunnerRow({
         // to 360px). Full keeps Form/Jockey Win% with columns shrunk "a
         // touch" so FP stays reachable without scrolling on a typical
         // (~390px) phone - it can still need a few px of scroll on the
-        // narrowest (~360px) Android widths, unlike Compact. Must match
+        // narrowest (~360px) Android widths, unlike Compact. Fixed $'s own
+        // track was too narrow (42px) for a real price like "$101.00" plus
+        // the move-arrow slot - real user feedback (2026-09-17, screenshot):
+        // "mobile layout broken", the overflowing price text was visually
+        // colliding with the Jockey Win% column next to it. Widened to
+        // 56px, accepting a little more scroll on the narrowest phones as
+        // the tradeoff for not silently overlapping columns. Must match
         // RaceDetail's own compact/full mobile grid-cols/gap and
         // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
         compact
           ? 'gap-x-1 grid-cols-[40px_100px_46px_34px_44px_20px]'
-          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_42px_20px]'
+          : 'gap-x-1 grid-cols-[40px_84px_40px_28px_28px_30px_56px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
