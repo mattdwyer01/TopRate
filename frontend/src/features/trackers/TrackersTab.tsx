@@ -281,6 +281,22 @@ function Fact({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Price gets its own, larger/bolder variant of Fact (real user feedback,
+// 2026-09-19: it was sized identically to every other fact - WPR proj, gap,
+// jockey % - and got lost in the row even though it's the number a bettor
+// actually needs to place the bet). Same neutral ink colour as the rest,
+// deliberately not emerald/rose - this isn't signalling the price moved
+// favourably (unlike RunnerDetailModal's "(firmed)" price, which is), just
+// making it easier to find at a glance.
+function PriceFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] uppercase tracking-wide text-ink-faint">{label}</span>
+      <span className="font-mono text-sm font-bold text-ink">{value}</span>
+    </div>
+  )
+}
+
 // One pick, as a self-contained card - every field the user asked to see
 // (silk, WPR prediction + gap to top rated, TopRate rating, form-factor
 // rating, jockey win%, price, result) fits without any horizontal
@@ -341,7 +357,7 @@ function PickCardBody({ row }: { row: TrackerRow }) {
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
         <Fact label="Form factor" value={row.formFactor != null ? row.formFactor.toFixed(0) : '—'} />
         <Fact label="Jockey %" value={row.jw != null ? `${row.jw.toFixed(1)}%` : '—'} />
-        <Fact label="Price" value={fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)} />
+        <PriceFact label="Price" value={fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)} />
         <Fact label="Jockey" value={row.jockey || '—'} />
         <Fact label="Trainer" value={row.trainer || '—'} />
         <Fact label="Barrier" value={row.barrier != null ? String(row.barrier) : '—'} />
@@ -376,9 +392,9 @@ function PickCard({
       }}
       className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
     >
-      <div className="-mb-1 text-xs text-ink-faint">
+      <div className="-mb-1 text-xs font-semibold text-ink">
+        {row.startTime ? `${formatTimeOfDay(row.startTime)} · ` : ''}
         {row.venue} R{row.raceNo}
-        {row.startTime ? ` · ${formatTimeOfDay(row.startTime)}` : ''}
       </div>
       <PickCardBody row={row} />
     </div>
@@ -416,8 +432,8 @@ function GroupedRaceCard({
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-ink">
+          {first.startTime ? `${formatTimeOfDay(first.startTime)} · ` : ''}
           {first.venue} R{first.raceNo}
-          {first.startTime ? ` · ${formatTimeOfDay(first.startTime)}` : ''}
         </span>
         <span
           className="flex-none rounded bg-amber-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber"
