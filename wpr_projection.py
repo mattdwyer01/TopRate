@@ -3116,6 +3116,27 @@ def project_race(runners, race_date):
     # trainer_merit/jockey_merit: same injection pattern as track_barrier/
     # gear_change above - today's actual booking, unrelated to prior_runs
     # so cannot be computed inside build_features.
+    #
+    # FIXED BUG, HISTORICAL DATA STILL AFFECTED (found + fixed 2026-09-17,
+    # see chat): the sample_n args below (cur_trainer_starts_365d/
+    # cur_jockey_starts_90d) were effectively ALWAYS None until this date -
+    # NOT an API gap despite what this comment used to claim. Confirmed via
+    # toprate_field_discovery.py against a live runner page that the API
+    # DOES return the count (rd.jockeyStats[0].rides = 69 for a
+    # periodDays=90 entry, and build_stats_lookup() in toprate_daily.py
+    # already correctly reads it: j90.get("starts") or j90.get("rides")).
+    # The actual bug: the row-build step that turns that lookup into each
+    # toprate_runners.csv row never copied jockey_starts_90d/
+    # trainer_starts_365d out of it - a pure pipeline miss, now fixed
+    # there. Until enough NEW rows accumulate under the fix, existing/
+    # older rows still have this column null, so sample_n will still often
+    # be None for a while - per _merit_term's own docstring that still
+    # means the shrink skips (falls back to the unshrunk prediction) on
+    # those, not a crash. This is exactly the sample-size protection
+    # _MERIT_SAMPLE_SHRINK_K's own comment describes (built after the
+    # Explosive Tycoon incident, a 50% jockey_win_pct_90d off a tiny real
+    # sample producing a +6.04 jockey_merit) - it had never actually fired
+    # in production before this fix despite looking shipped and tested.
     _trm_model = _pop.get("trainer_merit")
     _jm_model = _pop.get("jockey_merit")
     for f, r in zip(feat_dicts, runners):

@@ -308,6 +308,31 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   private GitHub Gist - see `lib/githubSync.ts`). Deliberately NOT built,
   per explicit user decision: a P&L/bet-tracking tab - there's no bet log,
   and one wasn't wanted without real bet tracking behind it.
+- **`jockey_merit`/`trainer_merit`'s sample-size shrink was silently dead
+  code, now fixed (found + fixed 2026-09-17)**: `wpr_projection.py`'s
+  `_merit_term()` discounts a thin sample toward 0 (built after a real
+  incident, Explosive Tycoon 2026-09-12: jockey_merit +6.04 off a 50%
+  jockey_win_pct_90d that was actually 1-of-2 rides), but only when its
+  `sample_n` argument isn't None - and `jockey_starts_90d`/
+  `trainer_starts_365d` were null on 100% of `toprate_runners.csv`
+  (0/67,046 rows, both fields). Root cause was NOT an API gap (a prior
+  version of this note wrongly assumed that): confirmed via
+  `toprate_field_discovery.py` against a live runner page that the API
+  does return the count (`rd.jockeyStats[0].rides = 69` for a
+  `periodDays=90` entry), and `build_stats_lookup()` in `toprate_daily.py`
+  already correctly read it (`j90.get("starts") or j90.get("rides")`) -
+  the actual bug was the row-build step right after it never copying
+  `jockey_starts_90d`/`trainer_starts_365d` out of that lookup into each
+  CSV row. Fixed there (two added `s.get(...)` lines). Older/existing
+  rows stay null until new fetches accumulate under the fix - `_merit_term`
+  still degrades to its unshrunk fallback on a null `sample_n`, just
+  correctly rather than permanently now. Same root cause had also blocked
+  the tracker's `JW_MIN` from ever gaining a minimum-starts floor (asked
+  for 2026-09-17, "a jockey with 2 rides for 1 win... very deceiving") -
+  that's unblocked too now that the field actually populates going
+  forward, though a backtest still needs enough freshly-captured rows
+  before it means anything (nothing to bucket by yet on the historical
+  window).
 
 ## What to be careful about
 

@@ -169,8 +169,12 @@ RUNNER_COLS = [
     # Ride/runner counts behind jockey_win_pct_90d/trainer_win_pct_365d -
     # see build_stats_lookup's own comment for why (a thin count makes
     # winPercent unreliable, same failure mode as jt_combo_win_pct's
-    # documented leak, just less extreme). None if the API doesn't expose
-    # this field.
+    # documented leak, just less extreme). The API DOES expose this
+    # (confirmed 2026-09-17 via toprate_field_discovery.py against a live
+    # runner page: rd.jockeyStats[0].rides) - it was 100% null in this CSV
+    # column despite that not because of any API gap, but because the
+    # race_runners row-build step below never actually read it out of the
+    # stats_lu lookup dict (fixed 2026-09-17, see that fix's own comment).
     "jockey_starts_90d","trainer_starts_365d",
     # jt_combo_pot_pct/jt_combo_lt3l_pct come from the SAME array entry as
     # jt_combo_win_pct above, so they inherit its documented leak (on
@@ -2769,6 +2773,24 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                     "silk_url":           d.get("silksURL"),
                     "jockey_win_pct_90d": s.get("jockey_win_pct_90d"),
                     "trainer_win_pct_365d": s.get("trainer_win_pct_365d"),
+                    # Ride counts behind the two win% fields above - computed
+                    # correctly in build_stats_lookup() (j90.get("starts") or
+                    # j90.get("rides")) but never actually copied out of `s`
+                    # here until this fix (found 2026-09-17, see chat): the
+                    # API DOES expose this (confirmed via
+                    # toprate_field_discovery.py against a live runner page -
+                    # rd.jockeyStats[0].rides = 69 for a periodDays=90 entry),
+                    # it was a pure pipeline bug, not an API gap as the
+                    # RUNNER_COLS comment above previously assumed. Was
+                    # 100% null in toprate_runners.csv before this (0/67,046
+                    # rows) despite jockey_win_pct_90d itself being populated
+                    # - which also means jockey_merit/trainer_merit's
+                    # sample-size shrink (_merit_term, wpr_projection.py) has
+                    # been silently running unshrunk this whole time (see
+                    # that file's own comment at its jockey_merit/
+                    # trainer_merit call site).
+                    "jockey_starts_90d":  s.get("jockey_starts_90d"),
+                    "trainer_starts_365d": s.get("trainer_starts_365d"),
                     # Jockey/trainer combo win % - new for v3 score upgrade.
                     # May be None if the live API doesn't expose it; the score
                     # formula falls back to other signals when missing.
