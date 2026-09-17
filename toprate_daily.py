@@ -4311,10 +4311,24 @@ def publish():
         result = sp.run(["git"] + cmd, cwd=script_dir)
         return result.returncode == 0
 
-    # Files we care about
+    # Files we care about. Was missing wpr_form_history.csv.gz and
+    # horse_history/ (found 2026-09-18 auditing for the same bug class that
+    # broke tab_results.yml's own git add - see that workflow's comment):
+    # a plain `python toprate_daily.py` full run (deploy.bat's step 5,
+    # before this function's own --publish call) writes both, so a deploy
+    # could leave real generated data sitting as an uncommitted, unstaged
+    # working-tree change after this function returns - the same failure
+    # mode (a later `git pull --rebase` refuses to run at all with
+    # unstaged changes present) as the automated bug, just triggered
+    # locally instead of every 5 minutes. tracker_high_volume.csv/
+    # tracker_low_volume.csv included too even though nothing in deploy.bat
+    # currently calls speedmap_jockey_tracker.py - defensive, in case that
+    # ever changes or this function is invoked from a workflow that does.
     files_to_push = []
     for f in ["toprate_live.html", "toprate_data.json", "toprate_runners.csv",
-              "toprate_model_picks.csv", "toprate_price_history.csv"]:
+              "toprate_model_picks.csv", "toprate_price_history.csv",
+              "wpr_form_history.csv.gz", "horse_history",
+              "tracker_high_volume.csv", "tracker_low_volume.csv"]:
         if (script_dir / f).exists():
             files_to_push.append(f)
 

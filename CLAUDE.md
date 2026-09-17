@@ -590,6 +590,42 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   facts content, pulled out of `PickCard` so both share it) stacked below
   with a divider. A lone selection still renders as a plain `PickCard`,
   unchanged.
+- **Audited every other git-staging list for the tab_results.yml bug class
+  (2026-09-18)**: `price_refresh.yml`, `.github/workflows/daily.yml`, and
+  `deploy_html.bat` all checked out clean (their `git add` lists cover
+  every file their own code path can actually write). Found the same bug
+  class for real in the LOCAL manual deploy path though: `toprate_daily.py`'s
+  `publish()` (invoked by `deploy.bat`'s `--publish` step) was missing
+  `wpr_form_history.csv.gz` and `horse_history/` - both genuinely written
+  by deploy.bat's own earlier plain `python toprate_daily.py` call, so a
+  local deploy could leave them sitting as a real, uncommitted
+  working-tree change afterward, with the same downstream risk (a later
+  `git pull --rebase` refusing to run at all with unstaged changes
+  present) as the automated bug. Fixed both `publish()`'s own file list
+  and `deploy.bat`'s own (redundant, but was equally out of date) second
+  staging step at the bottom. Also confirmed `.github/workflows/
+  toprate_daily.yml` (the OTHER, non-root duplicate of daily.yml, distinct
+  from the already-documented dead root `daily.yml`) is `disabled_manually`
+  on GitHub - dead, not a live risk, no action needed.
+
+  While checking this, found something unrelated but more urgent: `daily.yml`
+  has been failing on ~every trigger for hours (runs #462-467, 2026-09-17
+  01:00-04:20 UTC) - not the fetch/rebuild/tracker steps (all succeed),
+  the "Commit and push if changed" step's `git pull --rebase -X ours`
+  retry loop, hitting its full 240s timeout on every one of 5 attempts
+  before giving up (a KNOWN chronic issue - see this file's Deploy section
+  - but this run of failures was back-to-back, not occasional). Each
+  failed run's local commit (confirmed real, e.g. "27 files changed") is
+  built on GitHub's own ephemeral hosted runner and is lost for good the
+  moment the job ends without a successful push - meaning several hours
+  of fully-computed daily fetches, including whatever they contained
+  toward the `jockey_starts_90d`/`JW_MIN` backtest mentioned in the merit
+  entry above, never actually reached `toprate_runners.csv` on `main` at
+  all. Flagged to the user rather than attempted solo - fixing the
+  underlying tab_results.yml-vs-daily.yml push race is exactly the kind
+  of change `price_refresh.yml`'s own comment warns already backfired
+  once (a shared concurrency group made daily.yml better but broke
+  tab_results.yml far worse the same day).
 
 ## What to be careful about
 

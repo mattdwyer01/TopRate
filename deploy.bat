@@ -113,6 +113,14 @@ if exist toprate_runners.csv git add toprate_runners.csv
 if exist toprate_model_picks.csv git add toprate_model_picks.csv
 if exist toprate_price_history.csv git add toprate_price_history.csv
 if exist toprate_live.html git add toprate_live.html
+REM Was missing (found 2026-09-18, auditing for the tab_results.yml git-add
+REM bug class): step 5 above (a plain, no-flag `python toprate_daily.py`
+REM run) writes both of these, and step 6's publish() call doesn't always
+REM run first if step 6 ever fails partway - leaving them as a real,
+REM uncommitted working-tree change that the next deploy.bat's own Step 1
+REM stash logic (or a `git pull --rebase`) could trip over.
+if exist wpr_form_history.csv.gz git add wpr_form_history.csv.gz
+if exist horse_history git add horse_history
 
 set HAS_DATA=
 for /f %%i in ('git diff --cached --name-only') do set HAS_DATA=1
