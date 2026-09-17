@@ -933,21 +933,38 @@ def run_once(push=True):
 
     # speedmap_jockey_tracker.py's own reconcile/capture (main()) otherwise
     # only runs on daily.yml's fixed daytime slots (hours apart during
-    # racing hours, see CLAUDE.md) - a pick whose horse resulted (including
-    # via the "assume unplaced" rule above) sat showing "pending" on the
-    # Trackers/Summary tab until the next slot, sometimes hours later (real
-    # user report, Coco Dior, 2026-09-17). Only worth running when this
-    # cycle actually wrote a result (n_result_rows > 0) - toprate_data.json
-    # is ~85MB, so re-reading it on every price-only/no-op cycle would be
-    # pure waste. Read-only against toprate_data.json/toprate_runners.csv,
-    # writes only its own two tracker CSVs (see its own module docstring) -
-    # best-effort, like compute_wpr_projection() above, so a bug in it
-    # never takes down the rest of this cycle.
-    if n_result_rows:
-        try:
-            sjt.main()
-        except Exception as e:
-            print(f"  speedmap_jockey_tracker reconcile failed (non-fatal): {type(e).__name__}: {e}")
+    # racing hours, see CLAUDE.md). Two distinct gaps that leaves:
+    #   1. RECONCILE lag - a pick whose horse resulted (including via the
+    #      "assume unplaced" rule above) sat showing "pending" on the
+    #      Trackers/Summary tab until the next slot, sometimes hours later
+    #      (real user report, Coco Dior, 2026-09-17). Fixed first by only
+    #      running this when n_result_rows > 0.
+    #   2. CAPTURE lag - a runner that only becomes newly solo-qualifying
+    #      partway through the day (e.g. a rival's own WPR gap drifts past
+    #      GAP_MAX as projections refine, same mechanism as the Albert
+    #      Palais/Hozumi case worked through 2026-09-17) can have its whole
+    #      qualifying window open and close between two daily.yml slots,
+    #      permanently missing the durable CSV log even though the live
+    #      Race tab already shows it via lib/trackerRules.ts's
+    #      liveTrackerCandidates(). Fixed by running this on every cycle
+    #      that did ANY work (results/conditions/prices/scratches), not
+    #      just a result-writing one - real user feedback (2026-09-17,
+    #      "then the tracker should be updated" - capture more often was
+    #      the confirmed intent, not re-evaluating an already-logged pick).
+    # toprate_data.json is ~85MB, so this is a real, deliberate per-cycle
+    # cost, not free - accepted because a plain price cycle already reads/
+    # writes that same file once via patch_data_json_safe() above, and the
+    # self-hosted runner has room under tab_results.yml's 15-min timeout.
+    # A genuinely no-op cycle (nothing at all changed) already returned
+    # above, before this point, so this doesn't run on those.
+    # Read-only against toprate_data.json/toprate_runners.csv, writes only
+    # its own two tracker CSVs (see its own module docstring) - best-effort,
+    # like compute_wpr_projection() above, so a bug in it never takes down
+    # the rest of this cycle.
+    try:
+        sjt.main()
+    except Exception as e:
+        print(f"  speedmap_jockey_tracker reconcile/capture failed (non-fatal): {type(e).__name__}: {e}")
 
     if push:
         commit_and_push()

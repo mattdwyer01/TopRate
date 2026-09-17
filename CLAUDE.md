@@ -390,6 +390,34 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   picked up Coco Dior's already-written `won=0` and correctly reconciled
   it (4 previously-stuck high-volume picks, 3 low-volume, in one pass).
 
+  Widened further the same day: the `n_result_rows > 0` gate above only
+  covers RECONCILE lag (an already-logged pick not flipping to resulted
+  promptly). It left a second, distinct CAPTURE lag - a runner that only
+  becomes newly solo-qualifying partway through the day (a rival's own WPR
+  gap can drift past `GAP_MAX` as projections keep refining - worked
+  through in detail via Albert Palais/Hozumi, Kembla Grange R1 2026-09-17:
+  Hozumi's gap to top was 3.9 at 08:03am capture time, contesting Albert
+  Palais out of a High Volume pick, but had drifted to 4.8 - no longer
+  qualifying - by the time it was checked again hours later) can have its
+  whole qualifying window open and close between two `daily.yml` slots,
+  permanently missing the durable CSV log even though the live Race tab
+  already surfaces it in real time via `lib/trackerRules.ts`'s
+  `liveTrackerCandidates()`. Real user feedback once this was traced back
+  ("then the tracker should be updated") confirmed via `AskUserQuestion`
+  that capturing more often was the intent, not re-evaluating an
+  already-logged pick's frozen inputs (which stays exactly as-designed -
+  see the git-blame'd comments on `reconcile_results()`/`build_candidates()`
+  for why that's deliberate). Fixed by dropping the `n_result_rows > 0`
+  gate entirely - `run_once()` already returns early above this point on a
+  genuinely no-op cycle (nothing at all changed), so `sjt.main()` now just
+  runs on every cycle that did SOME work (results/conditions/prices/
+  scratches), not only a result-writing one. Confirmed cost is acceptable:
+  measured 2.4s for a full `sjt.main()` pass against the real, live
+  ~85MB `toprate_data.json` - a plain price cycle already pays a
+  comparable cost reading/writing that same file via
+  `patch_data_json_safe()`, and the self-hosted runner has room under
+  `tab_results.yml`'s 15-min timeout.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
