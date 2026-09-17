@@ -434,30 +434,36 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       <div className="mt-2 hidden overflow-x-auto sm:block">
         <div className="grid min-w-full justify-center gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
-            // justify-end on the WHOLE column (label + card grid together),
-            // not just the cards - the outer grid row stretches every
-            // tactical column to the same (tallest column's) height, and an
-            // earlier version only bottom-anchored the card grid inside
-            // that stretched space while the label stayed pinned to the
-            // top - so a short column's label sat far above its own cards,
-            // disconnected, with a big dead gap in between (real user
-            // feedback, 2026-09-17: "pace categories look un centred and
-            // should be at the bottom"). Anchoring label+cards as one unit
-            // means the label sits directly above its own column's cards
-            // always (gap-1 apart, never more) and the whole thing moves
-            // down together - any leftover space from a shorter column
-            // now sits above the label instead of between label and cards.
-            <div key={c.key} className="flex min-h-[4rem] flex-col justify-end gap-1">
+            // Label is the LAST child, after the card grid - not because
+            // reading order matters here, but because it's the only way to
+            // get every column's label onto the SAME shared line
+            // regardless of how many rows that column has. An earlier
+            // version put the label first and pushed [label, cards]
+            // together as one bottom-anchored unit - that attached each
+            // label to its OWN column's cards, so a 3-row column's label
+            // sat near the top while a 1-row column's label sat near the
+            // bottom, staircased across columns (real user feedback,
+            // 2026-09-17, on a screenshot showing exactly that: "some
+            // categories now above, and some below. should all be
+            // below"). With the label last: the card grid (still bottom-
+            // anchored via its own flex-1/justify-end, unchanged) fills
+            // every column to the SAME stretched height minus one shared
+            // label-row's worth, so it stops at the same line everywhere,
+            // and the label - always immediately after it, same fixed
+            // size for every column - lands on that same shared line too.
+            <div key={c.key} className="flex min-h-[4rem] flex-col gap-1">
+              <div className="flex flex-1 flex-col justify-end">
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
+                >
+                  {railToBottomLayout(columns[i], subColsFor(columns[i].length)).map(({ item, row, col }) =>
+                    renderCard(item, false, { row, col }),
+                  )}
+                </div>
+              </div>
               <div className="text-center text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
                 {c.label}
-              </div>
-              <div
-                className="grid gap-1.5"
-                style={{ gridTemplateColumns: `repeat(${subColsFor(columns[i].length)}, ${CARD_PX}px)` }}
-              >
-                {railToBottomLayout(columns[i], subColsFor(columns[i].length)).map(({ item, row, col }) =>
-                  renderCard(item, false, { row, col }),
-                )}
               </div>
             </div>
           ))}
