@@ -339,13 +339,23 @@ def _within_price_window(start_dt):
 def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                         archive=True, fetch_prices=True):
     """
-    Returns (results, conditions, prices, terminal_cache).
+    Returns (results, conditions, prices, terminal_cache, unplaced_races).
 
     results: a list of dicts {venue, race_no, tab_number, finish} for every
     runner in every non-terminal AU thoroughbred race, read straight off the
     meeting-list response (raceStatus and results[] are already embedded on
     each race stub -- confirmed against a real payload, no drill-down into
     _links.races/_links.self needed).
+
+    unplaced_races: a list of dicts {date, venue, race_no, top4_numbers} for
+    every race where TAB has reported all four placegetter groups (1st-4th)
+    non-empty -- lets apply_results() safely infer every OTHER runner in
+    that race as "confirmed outside the top 4" well before the
+    authoritative pass, instead of waiting on TAB to ever report a 5th+
+    placing (some races only ever carry placegetters, per the results[]
+    comment below). Only fires once positions 1-4 are ALL populated, since
+    results[] can be shorter than the full field -- a gap in the first four
+    groups means "not reported yet", not "no runner finished there".
 
     conditions: a list of dicts {date, venue, going, track_grading,
     rail_position}, one per AU meeting that reported a trackCondition or
@@ -376,6 +386,7 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
     out = []
     conditions = []
     prices = []
+    unplaced_races = []
     seen_meetings = set()
 
     # Circuit breaker: if TAB starts blocking/degrading this IP again (see
@@ -511,9 +522,22 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                             tab_number=tab_no, finish=pos,
                         ))
 
+                # Once positions 1-4 are all non-empty, every other runner
+                # in the field is safely inferable as outside the top 4 --
+                # see unplaced_races docstring above.
+                if len(results) >= 4 and all(results[p] for p in range(4)):
+                    top4_numbers = set()
+                    for p in range(4):
+                        group = results[p] if isinstance(results[p], list) else [results[p]]
+                        top4_numbers.update(n for n in group if n is not None)
+                    unplaced_races.append(dict(
+                        date=target_date, venue=venue, race_no=race_no,
+                        top4_numbers=top4_numbers,
+                    ))
+
         time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
-    return out, conditions, prices, terminal_cache
+    return out, conditions, prices, terminal_cache, unplaced_races
 
 
 def _archive_raw(target_date, jurisdiction, payload):
@@ -557,7 +581,7 @@ def _prune_raw_archive(target_date):
 
 
 # --------------------------------------------------------------------- match + write
-def apply_results(runners_df, tab_results):
+def apply_results(runners_df, tab_results, unplaced_races=None):
     """
     Match each TAB result row onto toprate_runners.csv by
     (date, provider-venue, race, tab_number), case-insensitively on venue --
@@ -579,6 +603,16 @@ def apply_results(runners_df, tab_results):
     non-blank run_id are included (a runner not yet through a full rebuild
     has no "rid" match in the JSON yet - patching it would be a no-op
     anyway, and its result is safely picked up on the next full rebuild).
+
+    unplaced_races (see fetch_today_results' own docstring): for every race
+    in this list, every OTHER runner (not one of the reported top 4) gets
+    won=0/placed=0/interim_resulted=1 -- but finish_position is deliberately
+    left alone (we only know it's outside the top 4, not the exact
+    placing). Safe to reuse won=0 for this: an unresulted runner's `won` is
+    always NaN, never 0 (confirmed against a real payload), so this can't
+    be confused with "not yet resulted". Never overwrites a row that
+    already has a finish_position (an exact known placing always wins over
+    an inferred "somewhere outside the top 4").
     """
     unmatched_venues = set()
     n_written = 0
@@ -612,6 +646,37 @@ def apply_results(runners_df, tab_results):
         run_id = rows["run_id"].iloc[0] if "run_id" in rows.columns else None
         if run_id and str(run_id) != "nan":
             patches[str(run_id)] = {"f": finish, "won": won}
+
+    for race in (unplaced_races or []):
+        tab_venue_upper = race["venue"].upper()
+        provider_venue = VENUE_ALIASES.get(tab_venue_upper, race["venue"])
+        mask = (
+            (runners_df["date"] == race["date"]) &
+            (runner_venue_upper == provider_venue.upper()) &
+            (pd.to_numeric(runners_df["race"], errors="coerce") == race["race_no"])
+        )
+        rows = runners_df[mask]
+        if rows.empty:
+            unmatched_venues.add(race["venue"])
+            continue
+
+        tab_numbers = pd.to_numeric(rows["tab_number"], errors="coerce")
+        for idx, tab_no in tab_numbers.items():
+            if pd.isna(tab_no):
+                continue  # unparseable tab_number -- never guess
+            if tab_no in race["top4_numbers"]:
+                continue  # already written above with a real placing
+            if pd.notna(runners_df.loc[idx, "finish_position"]):
+                continue  # never overwrite a known exact placing
+            if pd.to_numeric(runners_df.loc[idx, "scratched"], errors="coerce") == 1:
+                continue  # scratched, never ran -- not "unplaced"
+            runners_df.loc[idx, "won"] = 0
+            runners_df.loc[idx, "placed"] = 0
+            runners_df.loc[idx, "interim_resulted"] = 1
+            n_written += 1
+            run_id = runners_df.loc[idx, "run_id"] if "run_id" in runners_df.columns else None
+            if run_id and str(run_id) != "nan":
+                patches[str(run_id)] = {"won": 0}
 
     return runners_df, n_written, unmatched_venues, patches
 
@@ -772,11 +837,11 @@ def run_once(push=True):
     _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
 
-    results, conditions, prices, terminal_cache = fetch_today_results(
+    results, conditions, prices, terminal_cache, unplaced_races = fetch_today_results(
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
 
-    if not results and not conditions and not prices:
+    if not results and not conditions and not prices and not unplaced_races:
         print("  No new TAB results, conditions, or prices this cycle")
         return
 
@@ -789,8 +854,9 @@ def run_once(push=True):
     price_patches = {}
     scratch_patches = {}
 
-    if results:
-        runners_df, n_result_rows, unmatched, result_patches = apply_results(runners_df, results)
+    if results or unplaced_races:
+        runners_df, n_result_rows, unmatched, result_patches = apply_results(
+            runners_df, results, unplaced_races)
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
 

@@ -282,7 +282,7 @@ export function liveTrackerCandidates(
         formFactor: runner.formFactor,
         jw: q.jw,
         priceAtPick: q.price,
-        resulted: runner.finishPosition != null,
+        resulted: runner.resultKnown,
         finishPosition: runner.finishPosition,
         won: runner.won,
         priceFinal: runner.startingPrice ?? runner.fixedWinPrice,
@@ -358,7 +358,7 @@ export function skippedTrackerGroups(
         gapWpr: q.gapWpr,
         jw: q.jw,
         price: q.price,
-        resulted: runner.finishPosition != null,
+        resulted: runner.resultKnown,
         finishPosition: runner.finishPosition,
         won: runner.won,
       }

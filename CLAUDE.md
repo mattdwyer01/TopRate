@@ -333,6 +333,46 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   forward, though a backtest still needs enough freshly-captured rows
   before it means anything (nothing to bucket by yet on the historical
   window).
+- **`tab_results_poller.py` now infers "unplaced" (2026-09-17)**: real user
+  report (Coco Dior) was that the Trackers/Summary tab kept a pick
+  "pending" all day even though its race had already resulted on TAB,
+  because that horse finished 5th+ and TAB's `results[]` (embedded on the
+  meeting-list stub) generally only ever carries the top 4 placegetter
+  groups - `apply_results()`'s old gate needed an exact `finish_position`,
+  which such a horse was never going to get from the interim feed. Fixed
+  by adding `unplaced_races` to `fetch_today_results()`: once positions
+  1-4 in a race's `results[]` are ALL non-empty (never a partial/still-
+  filling-in state - a gap earlier in the array means "not reported yet",
+  not "no runner finished there"), every OTHER runner in that race is
+  safely inferable as confirmed outside the top 4. `apply_results()` then
+  writes `won=0`/`placed=0`/`interim_resulted=1` for those runners, but
+  deliberately leaves `finish_position` blank (the exact placing is still
+  unknown) - never touches a row that already has a real finish_position,
+  and skips scratched runners (never ran, not "unplaced"). Safe to reuse
+  `won=0` for this: confirmed against a real payload that an unresulted
+  runner's `won` is always `NaN`/`None`, never `0`, so it can't collide
+  with "not yet resulted". `speedmap_jockey_tracker.py`'s
+  `reconcile_results()` gate was loosened to match (resulted once EITHER
+  `f` or `won` is known, not just `f`). The frontend gained a small,
+  additive `Runner.resultKnown` field (`r.f != null || r.won != null` in
+  `adapter.ts` - the existing `won: boolean` collapses null/0 together, so
+  it alone can't tell "not yet resulted" from "confirmed lost") used by
+  `lib/trackerRules.ts`'s live (not-yet-CSV-logged) candidate rows in
+  place of the old `finishPosition != null` check. Deliberately NOT
+  touched: `resulted`/`wpr_actual`/`comments_*` (still exclusively
+  `update_results()`'s job, per this file's `tab_results_poller.py` entry
+  above), and every Race-tab/Review-tab "resulted" check that depends on
+  the authoritative pass (`ResultVsProjection.tsx`, `RaceDetail.tsx`,
+  `raceStatus.ts`, `accuracyStats.ts`) - those are unrelated to this
+  interim-only signal and untouched. `patch_data_json()`'s race-level
+  `done` flip was also loosened to accept `won is not None` alongside `f
+  is not None` per runner, so a race can flip to (provisional) done once
+  every runner's outcome is known even if one is only "confirmed
+  unplaced" rather than an exact position. Not yet verified end-to-end
+  against a live TAB fetch (this environment can't reach TAB) - verified
+  via a synthetic `apply_results()`/`patch_data_json()` run instead; the
+  next real `tab_results.yml` cycle against a race with an unplaced runner
+  is the first live confirmation.
 
 ## What to be careful about
 

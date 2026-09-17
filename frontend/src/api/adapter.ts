@@ -129,6 +129,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     postRaceTopPrice: r.top,
     finishPosition: r.f,
     won: r.won === 1,
+    resultKnown: r.f != null || r.won != null,
     fieldSize: r.fs,
     dataScratched: r.scr === 1,
 

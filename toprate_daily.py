@@ -3142,7 +3142,11 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
                 remaining.discard(rid)
         was_done = race.get("done") == 1
         if any(rr.get("rid") in touched for rr in runners) and runners and not was_done:
-            if all(rr.get("f") is not None for rr in runners):
+            # A runner's outcome counts as known either way: an exact "f"
+            # (finish position), or tab_results_poller.py's "assume
+            # unplaced" rule (won=0 with f still None, for a runner
+            # confirmed outside the reported top 4 - see apply_results()).
+            if all(rr.get("f") is not None or rr.get("won") is not None for rr in runners):
                 race["done"] = 1
                 # This function only ever runs from tab_results_poller.py's
                 # fast path (see its own docstring) - the authoritative

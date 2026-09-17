@@ -393,9 +393,18 @@ def reconcile_results(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict)
 
             if row.get("resulted") == "True":
                 continue
-            if found is None or found[1].get("f") is None:
+            if found is None:
                 continue
             u = found[1]
+            # A runner can be resulted two ways: TAB reported its exact
+            # placing ("f" set), or it's confirmed outside the top 4
+            # without an exact placing (tab_results_poller.py's "assume
+            # unplaced" rule -- "won" set to 0 with "f" still None). Either
+            # is enough to settle the pick; an unresulted runner's "won" is
+            # always None/NaN, never 0, so this can't be confused with
+            # "not yet resulted".
+            if u.get("f") is None and u.get("won") is None:
+                continue
             row["resulted"] = True
             row["finish_position"] = u.get("f")
             row["won"] = int(u.get("won") == 1)

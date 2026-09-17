@@ -109,6 +109,13 @@ export interface Runner {
   postRaceTopPrice: number | null
   finishPosition: number | null
   won: boolean
+  // True once TAB/the authoritative pass has settled this runner's outcome
+  // AT ALL - either an exact finishPosition, or (tab_results_poller.py's
+  // "assume unplaced" rule) a confirmed-outside-top-4 won=false with no
+  // exact position yet. finishPosition != null alone under-detects the
+  // second case, which is exactly the state a same-day, not-yet-CSV-logged
+  // tracker pick can be in - see lib/trackerRules.ts.
+  resultKnown: boolean
   fieldSize: number
   // Real, data-driven late scratch (see RawRunner.scr) - distinct from the
   // manual, this-device-only scratch toggle in wprOverrides.ts. The two are
