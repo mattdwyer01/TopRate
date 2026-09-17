@@ -687,6 +687,47 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   6->4 sweep did not find - a real reminder that a 26-date window is
   noisy and shouldn't be used to relitigate settled 4-vs-6, only to
   answer the actual question asked (4 vs 5).
+- **`daily.yml`'s chronic push-race fixed for real, root cause confirmed
+  (2026-09-17)**: real user report ("Toprate daily not pushing") on top of
+  the failure streak already flagged earlier the same day (runs #462-468).
+  Pulled the actual job logs (not just conclusions) for run #468: the
+  fetch/rebuild/tracker steps all succeeded in ~6 min, then EVERY one of 5
+  `git pull --rebase -X ours` attempts hit exactly "TIMED OUT after 240s",
+  back to back, for 20 straight minutes - a livelock, not an occasional
+  slow merge (identical pattern confirmed across the whole #462-468
+  streak). Root cause: the rebase replays this job's own commit against
+  every commit that landed on `main` since checkout, and on a conflict
+  (there's always one - it and `tab_results.yml`/`price_refresh.yml` all
+  touch the same generated files) does a real 3-way content merge on
+  `toprate_runners.csv` (~90MB, kept as text - see `.gitattributes`). The
+  longer the retry loop ran, the MORE intervening commits
+  `tab_results.yml`'s own ~5-min push cadence added, making the NEXT
+  attempt's replay even more expensive - guaranteed to eventually never
+  catch up once the commit rate crossed some threshold, not a transient
+  blip that more retries could fix.
+  Fixed by replacing `git pull --rebase -X ours` with `git fetch` + `git
+  reset --mixed origin/main` in the retry loop. The repo's own policy for
+  these generated files is already "always take incoming, then redo local
+  compute on top" (this file's Deploy section) - the old rebase was
+  already trying to express exactly that via `-X ours`, just through the
+  expensive replay-with-merge route. `git reset --mixed` implements the
+  identical policy as a cheap O(1) pointer move instead: it points
+  HEAD/the index at the freshly-fetched `origin/main` (discarding only
+  this job's own commit OBJECT, never its files) while leaving the
+  working tree - this job's own freshly-generated output - completely
+  untouched, so the same `stage_generated_files` list (pulled into a
+  shell function so it isn't duplicated) just re-stages and re-commits
+  fresh on top of the new tip. No merge, so no cost that scales with how
+  many commits landed while the job was busy retrying. This is a
+  different, narrower fix than the shared-concurrency-group attempt this
+  file already documents as having backfired (that one changed
+  `tab_results.yml`'s own scheduling/locking and starved its live-results
+  cadence) - this change touches only `daily.yml`'s own internal recovery
+  logic and does not affect `tab_results.yml` or `price_refresh.yml` in
+  any way. Not yet confirmed against a real failing run (the fix landed
+  between #469's own in-flight run and its successor) - watch the next
+  few `daily.yml` runs to confirm the push actually completes fast now
+  rather than burning the full 5-attempt budget.
 
 ## What to be careful about
 

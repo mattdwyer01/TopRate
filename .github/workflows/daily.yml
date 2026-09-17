@@ -209,90 +209,77 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Stage everything that the daily run might have updated
-          [ -f toprate_runners.csv ] && git add toprate_runners.csv
-          [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
-          [ -f toprate_live.html ] && git add toprate_live.html
-          # The dashboard's data payload - without this the automated runs
-          # regenerate it locally but never publish it, so the live site's
-          # data only actually updates on a manual `deploy.bat` run (which
-          # goes through toprate_daily.py's publish() and does include it).
-          [ -f toprate_data.json ] && git add toprate_data.json
-          # Gzipped WPR form history - committed so it persists and accumulates
-          # across ephemeral Action runs (append needs the prior file).
-          [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz
-          # Price snapshot log - same accumulate-across-runs reasoning as
-          # wpr_form_history.csv.gz above. snapshot_prices() already caps it
-          # to a rolling 7 days, bounding its size.
-          [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
-          # WPR model artifacts - committed so toprate_daily.py can load them.
-          # Static unless retrained, but staging them is harmless if unchanged.
-          [ -d wpr_models ] && git add wpr_models
-          # Per-meeting horse form history files (build_horse_history_files(),
-          # called from rebuild_html() above) - git-tracked but was missing
-          # from this staging list (Sep 2026 bug), which left the working
-          # tree dirty on any run where it actually changed content. Harmless
-          # on a clean push, but the moment `git push` below got rejected by
-          # a concurrent push (e.g. the 5-min price_refresh.yml job) and fell
-          # back to `git pull --rebase`, git refused to start with unstaged
-          # changes present, the `git rebase --abort` fallback then failed
-          # too (no rebase was ever in progress), and under this script's
-          # `bash -e` that killed the whole retry loop on attempt 1 instead
-          # of retrying - see the 2026-09-14 run failures this caused.
-          [ -d horse_history ] && git add horse_history
-          # Speed-map/jockey rule tracker logs (see the step above) -
-          # small, append-only, accumulate across runs same as the other
-          # logs here.
-          [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
-          [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
+
+          # Re-run on every retry below (after a reset --mixed unstages
+          # everything) as well as once up front - kept as a function so
+          # the list only needs maintaining in one place.
+          stage_generated_files() {
+            [ -f toprate_runners.csv ] && git add toprate_runners.csv
+            [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
+            [ -f toprate_live.html ] && git add toprate_live.html
+            # The dashboard's data payload - without this the automated runs
+            # regenerate it locally but never publish it, so the live site's
+            # data only actually updates on a manual `deploy.bat` run (which
+            # goes through toprate_daily.py's publish() and does include it).
+            [ -f toprate_data.json ] && git add toprate_data.json
+            # Gzipped WPR form history - committed so it persists and accumulates
+            # across ephemeral Action runs (append needs the prior file).
+            [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz
+            # Price snapshot log - same accumulate-across-runs reasoning as
+            # wpr_form_history.csv.gz above. snapshot_prices() already caps it
+            # to a rolling 7 days, bounding its size.
+            [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
+            # WPR model artifacts - committed so toprate_daily.py can load them.
+            # Static unless retrained, but staging them is harmless if unchanged.
+            [ -d wpr_models ] && git add wpr_models
+            # Per-meeting horse form history files (build_horse_history_files(),
+            # called from rebuild_html() above).
+            [ -d horse_history ] && git add horse_history
+            # Speed-map/jockey rule tracker logs (see the step above) -
+            # small, append-only, accumulate across runs same as the other
+            # logs here.
+            [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
+            [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
+          }
+
+          stage_generated_files
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
             exit 0
           fi
           git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
-          # Pull-then-push with retry. The remote moves often (5-min price
-          # refresh, manual pushes), so a plain push frequently hits a
-          # non-fast-forward rejection. Rebase our commit on top of whatever
-          # arrived and retry.
+
+          # Push-then-recover-with-retry. The remote moves often (5-min price
+          # refresh, tab_results.yml every ~1-2 min, manual pushes), so a
+          # plain push frequently hits a non-fast-forward rejection.
           #
-          # -X ours (not -X theirs) is deliberate: --ours/--theirs are
-          # INVERTED in `git pull --rebase` vs. a normal merge - --ours
-          # means the upstream/incoming commit, --theirs means this job's
-          # own local commit being replayed. The repo's policy is "always
-          # take incoming for these generated files" (see CLAUDE.md's
-          # Deploy section - a real incident happened when a plain merge's
-          # --theirs got copy-pasted into a rebase context), so -X ours is
-          # the flag that actually means that here. (This step had -X
-          # theirs until Sep 2026 - backwards the whole time, matching
-          # tab_results.yml's own comment about this exact class of
-          # mistake; fixed to match that file's already-correct version.)
+          # REPLACED `git pull --rebase -X ours` with fetch + reset --mixed
+          # (2026-09-17, real recurring failure: runs #462-468 all burned
+          # their full 5-attempt budget with EVERY `git pull --rebase`
+          # timing out at exactly 240s, never once completing - a livelock,
+          # not an occasional slow merge, confirmed straight from those
+          # runs' own job logs (identical "TIMED OUT after 240s" on all 5
+          # attempts, every run, for hours). Root cause: the rebase was
+          # replaying this job's commit against every intervening commit
+          # with a real 3-way content merge on toprate_runners.csv (~90MB,
+          # kept as text) - and the longer the retry loop ran, the MORE
+          # intervening commits tab_results.yml's own ~5-min push cadence
+          # had added, making the next attempt's replay even more
+          # expensive. A livelock by construction, not a transient blip.
           #
-          # Every git call is wrapped in `timeout`, same reasoning as
-          # tab_results.yml's identical loop: confirmed live (Sep 2026, run
-          # 34816070609) that an unbounded `git pull --rebase` here can
-          # hang completely silently for 12+ minutes - most likely the cost
-          # of a real 3-way text merge on toprate_runners.csv (~90MB,
-          # deliberately kept as text, see .gitattributes) once genuine
-          # overlapping row changes are present on both sides - until this
-          # job's own 20-minute timeout kills the whole run ("cancelled",
-          # not "failed", with zero log output in between to show what was
-          # stuck). Bounding each call turns that into a fast, loud "TIMED
-          # OUT" line naming the exact command instead of silently burning
-          # the entire job budget.
-          #
-          # git pull --rebase's own bound raised 60s -> 240s (Sep 2026,
-          # speed_map rollout): 3 consecutive real runs each burned all 5
-          # retries with EVERY pull attempt (15 total) hitting the old 60s
-          # wall and getting aborted - never once completing, not just
-          # occasionally slow. A full daily rebuild's own commit (today's
-          # whole field re-projected) makes a genuinely large diff against
-          # toprate_runners.csv, and 60s was never long enough for that
-          # specific 3-way merge, regardless of how many times it retried.
-          # git push's own 60s bound is UNCHANGED - the evidence points at
-          # the pull/rebase step specifically (every observed push failure
-          # was a near-instant rejection, not a timeout), so only the side
-          # that actually needs more time got it. See this job's own
-          # timeout-minutes comment above for how the two bounds interact.
+          # The repo's policy for these generated files is "always take
+          # incoming, then redo local compute on top" (see CLAUDE.md's
+          # Deploy section) - which the old `-X ours` rebase was already
+          # trying to express, just via the expensive route (replay +
+          # per-commit merge). `git reset --mixed origin/main` implements
+          # the exact same policy as a cheap O(1) pointer move instead: it
+          # points HEAD/the index at the freshly-fetched origin/main
+          # (discarding only this job's own COMMIT OBJECT, never its
+          # files) while leaving the working tree - this job's own
+          # freshly-generated files - completely untouched, so they just
+          # get re-staged and re-committed fresh on top of the new tip.
+          # No merge, so no cost that scales with how many commits landed
+          # while this job was busy.
           for i in 1 2 3 4 5; do
             push_status=0
             timeout 60 git push || push_status=$?
@@ -304,15 +291,26 @@ jobs:
             else
               echo "git push failed, exit $push_status (attempt $i)"
             fi
-            pull_status=0
-            timeout 240 git pull --rebase -X ours --no-edit || pull_status=$?
-            if [[ $pull_status -eq 124 ]]; then
-              echo "git pull --rebase TIMED OUT after 240s (attempt $i) - aborting"
-              git rebase --abort 2>/dev/null || true
-            elif [[ $pull_status -ne 0 ]]; then
-              echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
-              git rebase --abort 2>/dev/null || true
+
+            fetch_status=0
+            timeout 120 git fetch origin main || fetch_status=$?
+            if [[ $fetch_status -eq 124 ]]; then
+              echo "git fetch TIMED OUT after 120s (attempt $i)"
+              sleep 3
+              continue
+            elif [[ $fetch_status -ne 0 ]]; then
+              echo "git fetch failed, exit $fetch_status (attempt $i)"
+              sleep 3
+              continue
             fi
+
+            git reset --mixed origin/main
+            stage_generated_files
+            if git diff --cached --quiet; then
+              echo "Nothing left to commit after reset (attempt $i) - remote already has our changes"
+              exit 0
+            fi
+            git commit -m "Daily fetch $(date -u +%Y-%m-%dT%H:%MZ)"
             sleep 3
           done
           echo "Push failed after retries"
