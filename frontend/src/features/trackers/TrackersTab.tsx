@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Race } from '../../types/domain'
+import type { Race, Runner } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { StatTile } from '../../components/StatTile'
 import { EmptyState } from '../../components/EmptyState'
@@ -50,6 +50,15 @@ interface TrackerRow {
   finishPosition: number | null
   won: boolean
   priceFinal: number | null
+  // Not part of the CSV log or TrackerCandidateRow - looked up client-side
+  // from `races` by runId (see runnerLookup in TrackerView) once the row
+  // is built, whichever source it came from. Real user request
+  // (2026-09-17). null when the runner isn't in the currently-loaded
+  // payload (a date outside the 25-day window, most commonly).
+  jockey?: string | null
+  trainer?: string | null
+  barrier?: number | null
+  settlingBand?: string | null
   // True for a runner that currently qualifies (evaluated live against
   // today's data - see lib/trackerRules.ts) but hasn't been captured into
   // this tracker's CSV log yet - the daily pipeline only runs a handful of
@@ -353,8 +362,12 @@ function PickCard({
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
         <Fact label="Form factor" value={row.formFactor != null ? row.formFactor.toFixed(0) : '—'} />
-        <Fact label="Jockey" value={row.jw != null ? `${row.jw.toFixed(1)}%` : '—'} />
+        <Fact label="Jockey %" value={row.jw != null ? `${row.jw.toFixed(1)}%` : '—'} />
         <Fact label="Price" value={fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)} />
+        <Fact label="Jockey" value={row.jockey || '—'} />
+        <Fact label="Trainer" value={row.trainer || '—'} />
+        <Fact label="Barrier" value={row.barrier != null ? String(row.barrier) : '—'} />
+        <Fact label="Settling" value={row.settlingBand || '—'} />
       </div>
     </div>
   )
@@ -452,6 +465,20 @@ function TrackerView({
   const [date, setDate] = useState(() => todayIso())
   const [showAll, setShowAll] = useState(false)
 
+  // Jockey/trainer/barrier/settling position aren't in the CSV log (or
+  // TrackerCandidateRow) - real user request (2026-09-17) added them by
+  // looking the runner straight up in the currently-loaded payload
+  // instead of a Python/CSV schema change, which would need backfilling
+  // every existing row. Only misses for a date outside the ~25-day
+  // window (see CLAUDE.md's TOPRATE_RACES_WINDOW_DAYS) - shows as '—'.
+  const runnerLookup = useMemo(() => {
+    const m = new Map<string, Runner>()
+    for (const race of races) {
+      for (const r of race.runners) m.set(r.runId, r)
+    }
+    return m
+  }, [races])
+
   // Every distinct date actually present in the log - lets "back to prior
   // days" reach further than yesterday once the daily job has been running
   // a while, without the quick buttons growing unbounded.
@@ -537,11 +564,18 @@ function TrackerView({
     // so sorting by race_no would interleave venues out of actual running
     // order (real user feedback, 2026-09-16: "should be in order of race
     // time").
-    return [...combined].sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? 1 : -1
-      return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0
-    })
-  }, [combined])
+    return [...combined]
+      .map((r) => {
+        const runner = runnerLookup.get(r.runId)
+        return runner
+          ? { ...r, jockey: runner.jockey, trainer: runner.trainer, barrier: runner.barrier, settlingBand: runner.predictedSettlingBand }
+          : r
+      })
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1
+        return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0
+      })
+  }, [combined, runnerLookup])
 
   return (
     <div className="flex flex-col gap-3">

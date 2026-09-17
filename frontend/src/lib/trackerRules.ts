@@ -302,6 +302,22 @@ export function liveTrackerCandidates(
   return { high, low }
 }
 
+// Whether a race has actually run, for the pendingWatchCandidates()/
+// skippedTrackerGroups() split below - deliberately NOT race.allResulted
+// (found 2026-09-17: that flag needs EVERY runner to carry a known f/won,
+// including scratches, which never get one - see toprate_daily.py's
+// patch_data_json(). A race with any scratch in the field can sit at
+// allResulted=false forever even once its winner is fully known, which
+// left resulted races - a real one confirmed: Mornington R2, winner Top
+// Conti known, four scratches keeping allResulted false - permanently
+// stuck showing "Watching" instead of moving to Skipped races). Any ONE
+// runner with a known result is enough: the race has run, so every other
+// runner's WPR/price inputs are frozen for good at that point regardless
+// of whether the fast patch path ever marks the whole race allResulted.
+function raceHasRun(race: Race): boolean {
+  return race.runners.some((r) => r.resultKnown)
+}
+
 // Every runner meeting the tactical criteria but NOT currently firing
 // (contested, or a lone qualifier under $3), for a race that HASN'T
 // resulted yet - shaped identically to liveTrackerCandidates() so the
@@ -309,8 +325,8 @@ export function liveTrackerCandidates(
 // (2026-09-17): odds move and fields change right up to the jump, so a
 // contested/under-$3 runner in a still-upcoming race isn't a settled
 // "skip" yet - it belongs in the main list, in race order, same as a
-// genuine live candidate, until the race actually runs. Once
-// race.allResulted, this function no longer returns it at all -
+// genuine live candidate, until the race actually runs. Once the race has
+// run (raceHasRun above), this function no longer returns it at all -
 // skippedTrackerGroups() below takes over from that point.
 export function pendingWatchCandidates(
   races: Race[],
@@ -320,7 +336,7 @@ export function pendingWatchCandidates(
   const high: TrackerCandidateRow[] = []
   const low: TrackerCandidateRow[] = []
   for (const race of races) {
-    if (race.date !== targetDate || race.allResulted) continue
+    if (race.date !== targetDate || raceHasRun(race)) continue
     const isBush = bushKeys.has(meetingKey(race))
     const qualifiers = evaluateTrackerQualifiers(race, isBush)
     if (qualifiers.size === 0) continue
@@ -347,11 +363,11 @@ export function pendingWatchCandidates(
         formFactor: runner.formFactor,
         jw: q.jw,
         priceAtPick: q.price,
-        // race.allResulted is already false here, so these are normally
-        // all still-unresulted defaults - read straight off the runner
-        // rather than hardcoded, same as liveTrackerCandidates(), in case
-        // this specific runner's own outcome is already known (e.g. the
-        // "assume unplaced" rule firing) while the rest of the race isn't.
+        // raceHasRun(race) is already false here (guaranteed by the
+        // continue above, which checks every runner in this race
+        // including this one), so these are always still-unresulted
+        // defaults - read straight off the runner rather than hardcoded,
+        // same as liveTrackerCandidates(), for consistency.
         resulted: runner.resultKnown,
         finishPosition: runner.finishPosition,
         won: runner.won,
@@ -401,12 +417,16 @@ export interface SkippedGroup {
 // (real user feedback, 2026-09-16): these races produce no pick at all,
 // so they'd otherwise be invisible anywhere in the app.
 //
-// Only ever a FINAL verdict, i.e. race.allResulted - a still-upcoming
-// race that's merely contested or under $3 right now belongs to
+// Only ever a FINAL verdict, i.e. raceHasRun(race) above - a still-
+// upcoming race that's merely contested or under $3 right now belongs to
 // pendingWatchCandidates() above instead (real user request, 2026-09-17:
 // odds move and fields change before the jump, so that's not a settled
 // skip yet). Once the race actually resolves, this function is what takes
-// over and calls it a real, final skip.
+// over and calls it a real, final skip. Uses raceHasRun(), not
+// race.allResulted - a race can have a fully known winner yet never flip
+// allResulted if anything in its field is scratched (see raceHasRun's own
+// comment for the real, confirmed case this caused: a resulted race stuck
+// showing "Watching" forever instead of moving here).
 export function skippedTrackerGroups(
   races: Race[],
   targetDate: string,
@@ -415,7 +435,7 @@ export function skippedTrackerGroups(
   const high: SkippedGroup[] = []
   const low: SkippedGroup[] = []
   for (const race of races) {
-    if (race.date !== targetDate || !race.allResulted) continue
+    if (race.date !== targetDate || !raceHasRun(race)) continue
     const isBush = bushKeys.has(meetingKey(race))
     const qualifiers = evaluateTrackerQualifiers(race, isBush)
     if (qualifiers.size === 0) continue

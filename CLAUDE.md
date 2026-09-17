@@ -537,8 +537,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   move before the jump (real user request: "keep them in race order in
   the tracker even if they are under $3 or contested... only move to the
   skipped races section once resulted and they don't fit the criteria").
-  `skippedTrackerGroups()` now only considers `race.allResulted` races -
-  a genuinely final verdict. A new `pendingWatchCandidates()` covers
+  `skippedTrackerGroups()` now only considers a resulted race - a
+  genuinely final verdict. A new `pendingWatchCandidates()` covers
   everything it used to catch for a STILL-UPCOMING race instead, shaped
   identically to `liveTrackerCandidates()` (reuses the same
   `TrackerCandidateRow`/`candidateToRow()` path, just with a
@@ -547,8 +547,35 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   real picks, rendered with a "Watching" badge instead of "Live". Once a
   race actually resolves, its contested/under-$3 runners (if any)
   transition from a Watching card to a real Skipped races entry
-  automatically - no special-casing needed, since both functions key
-  off the same `race.allResulted` flag.
+  automatically - no special-casing needed, since both functions key off
+  the same "has this race run" check.
+
+  That check was `race.allResulted` at first, and was itself broken (real
+  user report, same day: "Resulted races are not being pushed to the
+  skipped section" - a real, confirmed case, Mornington R2: winner Top
+  Conti fully known, but 4 scratched runners in the field, and a scratch
+  never gets a finish_position/won written, so `allResulted` (which needs
+  EVERY runner resolved) stayed false forever). Replaced with a local
+  `raceHasRun()` helper: `race.runners.some(r => r.resultKnown)` - any ONE
+  runner with a known result is enough, since the whole field's WPR/price
+  inputs are frozen for good the moment the race actually runs, regardless
+  of whether the fast-patch "done" flag ever catches up for a field with a
+  scratch in it.
+
+  Same request also asked for jockey/trainer/barrier/settling position on
+  each tracker card. None of these are in `tracker_high_volume.csv`/
+  `tracker_low_volume.csv`'s own columns (would need a Python/CSV schema
+  change plus backfilling every existing logged row). Added client-side
+  instead: `TrackerView` builds a `runnerLookup` Map from the currently-
+  loaded `races` prop, keyed by `runId`, and `displayed` enriches every
+  row (logged, live, or watching alike) from it right before render.
+  Works for any date within the loaded payload (today always is; a date
+  outside the ~25-day window shows '—' for these four fields only,
+  everything else about the row is unaffected). Settling position is
+  `predictedSettlingBand` (the same speed-map-derived label the Race
+  tab's own speed map uses) - a prediction, not an actual running
+  position, since that's the only "settling" data actually available on
+  the runner.
 
 ## What to be careful about
 
