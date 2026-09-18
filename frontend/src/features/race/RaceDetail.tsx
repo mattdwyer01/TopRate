@@ -213,6 +213,28 @@ export function RaceDetail({
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
+  // Index of the LAST runner (by current Combo-sorted position) still
+  // within OVERLAY_MAX_GAP_FROM_TOP of the top WPR - real user report
+  // (2026-09-19, screenshot on Caulfield R1): the dotted WPR-5 reference
+  // line below was originally a per-row transition check (same style as
+  // the primary Combo line), which fires every time a run of qualifying
+  // rows ends - since Combo's own order doesn't perfectly track WPR, that
+  // produced THREE separate dotted lines on one race ("should only be 1
+  // dotted line"). Precomputed once here instead: everyone AT OR BELOW
+  // this index is guaranteed >5 WPR from top (the decision-relevant
+  // framing - "below this line, definitely not in the WPR-5 group" - not
+  // "above this line, everyone qualifies", which Combo's own re-ordering
+  // can't promise anyway).
+  const lastWprGapWithinThresholdIndex = useMemo(() => {
+    if (sortKey !== 'compositeScore') return -1
+    let last = -1
+    sortedRunners.forEach((r, idx) => {
+      const g = effectiveByRunId[r.runId]?.gapFromTop
+      if (g != null && g <= OVERLAY_MAX_GAP_FROM_TOP) last = idx
+    })
+    return last
+  }, [sortedRunners, effectiveByRunId, sortKey])
+
   const meetingRaces = useMemo(
     () =>
       allRaces
@@ -464,22 +486,19 @@ export function RaceDetail({
           // twice there would just be visual noise. Combo's own ranking
           // mostly tracks WPR (50% weight) but isn't identical to it, so the
           // tracker-validated OVERLAY_MAX_GAP_FROM_TOP=5 cutoff can land at
-          // a different row than Combo's own 10-point one - this dotted
-          // line marks where the WPR-only cutoff actually falls in the
-          // CURRENT (Combo) sort order, same transition-detection approach
-          // as the line above, just against gapFromTop instead of
-          // compositeGapByRunId. Not gated on contiguity the way the
-          // primary line's own comment worries about - if WPR-5 membership
-          // isn't contiguous under Combo order, more than one dotted line
-          // can appear, which honestly reflects the underlying data rather
-          // than forcing a single, possibly misleading mark.
-          const wprGap = effectiveByRunId[runner.runId]?.gapFromTop
-          const nextWprGap = nextGapRunId == null ? undefined : effectiveByRunId[nextGapRunId]?.gapFromTop
-          const showWprGapLine =
-            usingComposite &&
-            wprGap != null &&
-            wprGap <= OVERLAY_MAX_GAP_FROM_TOP &&
-            (nextWprGap == null || nextWprGap === undefined || nextWprGap > OVERLAY_MAX_GAP_FROM_TOP)
+          // a different row than Combo's own 10-point one.
+          // FIRST VERSION used the same per-row transition check as the
+          // primary line above (fires every time a run of qualifying rows
+          // ends) - real user report on a real race (Caulfield R1,
+          // 2026-09-19 screenshot): "should only be 1 dotted line", since
+          // WPR-5 membership genuinely isn't contiguous under Combo's own
+          // order, producing 3 separate lines on one field. Replaced with
+          // lastWprGapWithinThresholdIndex (computed once above, not
+          // per-row) - a single line after the LAST qualifying row by
+          // position, so everyone below it is guaranteed outside the WPR-5
+          // group even if the rows just above it aren't all inside it
+          // either (Combo's own re-ordering can't promise that anyway).
+          const showWprGapLine = usingComposite && i === lastWprGapWithinThresholdIndex
           return (
             <Fragment key={runner.runId}>
               <RunnerRow

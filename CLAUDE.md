@@ -1562,6 +1562,27 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   renders correctly dotted/amber, appears only under Combo sort, coexists
   sensibly with the existing indigo line, no overflow/console errors)
   before landing.
+- **Dotted WPR-5 line fixed to show exactly once, same-day follow-up**:
+  the "left as an honest reflection" call above was wrong in practice -
+  real user report with a screenshot (Caulfield R1 "The Taggart (Bm74)",
+  2026-09-19): the per-row transition check fired 3 separate times on
+  that race's actual data ("should only be 1 dotted line"), which reads
+  as broken/noisy, not informative, once you actually see it happen.
+  Replaced with `lastWprGapWithinThresholdIndex` (a `useMemo`, computed
+  once per sort/race rather than per row): finds the LAST row position
+  under the current Combo sort order where `gapFromTop <=
+  OVERLAY_MAX_GAP_FROM_TOP`, and the dotted line now renders only at
+  `i === lastWprGapWithinThresholdIndex`. Deliberately the LAST qualifying
+  row, not the first - the decision-relevant framing is "everyone below
+  this line is definitely outside the WPR-5 group", which holds even when
+  a few non-qualifying rows sit ABOVE the line too (Combo's own
+  re-ordering can't promise perfect contiguity there anyway, and a line
+  positioned after the first qualifying run would incorrectly exclude
+  later qualifying runners from the visual grouping entirely). Verified
+  via a background Playwright pass specifically against the reported
+  Caulfield R1 race (confirms exactly one line now, not three) plus
+  several other large fields, and re-confirmed Proj sort/the primary
+  indigo line are both unaffected.
 
 ## What to be careful about
 
