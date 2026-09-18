@@ -1938,6 +1938,47 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   capture in this dataset. For quinella, skip the hybrid framing
   entirely - box outer10 outright if capture rate matters more than
   cost, box inner5 if cost matters more.
+- **Speed Map winner descriptive stats queried (2026-09-19)**: real user
+  question, unrelated to the Combo-edge thread above - "With the speed
+  map adj and actual winners, what is the avg & median adj? How many
+  unfav map adjs win? How many flagged speed map horses win?" - a direct
+  descriptive-stats check on the Speed Map component itself.
+  `wpr_speedmap_winner_stats_test.py` (new, read-only scratch script)
+  replicates `SpeedMapGrid.tsx`'s own demeaning, tagging
+  (`SPEED_MAP_TINT_THRESHOLD=0.5`), 10-band tactical-column indexing, and
+  `computeCautionRunIds()`'s "!" wide-gate flag (including its
+  single-Fast-tempo-exemption rule and `estimatePace()`'s own 3-way
+  priority chain) exactly, against `toprate_data.json` (speed_map isn't
+  in `toprate_runners.csv`), over every resulted race with a known winner
+  (`won==1`) in the current ~25-day window - 1,176 races.
+
+  Hit the same "None as a value defeats a dict .get() default" gotcha as
+  the pandas-NaN-defeats-exclude-style-checks bug found twice earlier
+  this session, in a new form: `u.get("wpjcb", {})` returns `None`, not
+  `{}`, when the JSON explicitly stores `"wpjcb": null` for a runner
+  (the KEY exists, so the default never applies) - fixed to
+  `(u.get("wpjcb") or {}).get("speed_map")`. Worth remembering as the
+  same footgun family as the NaN one: a "missing value" can be encoded
+  several different ways (absent key, `None`, `NaN`) and a single-style
+  default/exclude check only catches one of them.
+
+  Results: avg demeaned speed_map for winners +0.043, median +0.035 (both
+  barely above the neutral centre, not the strongly-favoured tint the
+  question's framing might suggest). 125/1,175 winners (10.6%) were
+  tagged "unfavoured" (demeaned <= -0.5); 169 (14.4%) "favoured"; 881
+  (75.0%) "neutral". 353/1,176 winners (30.0%) carried the "!" wide-gate
+  caution flag. Added field-wide base rates for context (all non-scratched
+  runners, not just winners, same 1,176 races): unfavoured 12.6%, neutral
+  75.2%, favoured 12.2%, flagged 27.6% - winners land within a couple of
+  points of the field average on every one of these metrics, i.e. the Speed
+  Map's tag/flag do NOT show a strong relationship with actually winning in
+  this data. The one mildly counterintuitive point worth stating plainly:
+  winners are carrying the "!" caution flag at a SLIGHTLY HIGHER rate than
+  the field at large (30.0% vs 27.6%), not lower - the flag's cautionary
+  framing ("needs to cross rivals/hot pace to be plausible") does not
+  translate into a materially depressed win rate here. Read-only/no
+  production change - this was purely a descriptive-stats question, not a
+  proposal to alter the Speed Map's tint/flag logic itself.
 
 ## What to be careful about
 
