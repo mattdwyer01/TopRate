@@ -8,7 +8,17 @@ the market shortens price roughly in step with rising strike rate), then
 "what about with some price floors?" - since the losses were driven by
 the shortest prices, checks whether excluding them (PRICE_MIN, same
 concept as speedmap_jockey_tracker.py's own floor) recovers any edge,
-both overall and crossed with the margin buckets above.
+both overall and crossed with the margin buckets above. A follow-up
+claim that "gap>=3 with price>=$3 is profitable" was checked directly
+rather than assumed: the exact open-ended rule is actually negative
+(-7.7% flat ROI, n=498) - the earlier +7.5% was specific to the
+NARROWER bucket 3-5 only, and that narrower result didn't survive
+excluding the 3 biggest-priced winners (flips to -3.8%) or a first-half/
+second-half split (+14.1% -> +0.9%) - the same fragility signature
+already found once this session with CONTESTED_PRICE_FLOOR's own
+robustness check. Then: "what about by race class or state?" - overall
+population (every margin, not bucketed) sliced by state and by a
+simplified race_class grouping.
 
 Read-only against toprate_runners.csv - writes nothing. Same complete-
 case population as wpr_combo_race_tab_capture_analysis.py (every non-
@@ -78,7 +88,27 @@ def main():
         "won": top1["won"],
         "placed": top1["placed"],
         "price": top1["price"],
+        "state": top1["state"],
+        "race_class": top1["race_class"],
     })
+
+    def class_bucket(v):
+        if not isinstance(v, str):
+            return "Unknown"
+        vl = v.lower()
+        if vl.startswith("maiden"):
+            return "Maiden"
+        if vl.startswith("open"):
+            return "Open"
+        if vl.startswith("class"):
+            return "Class"
+        if vl.startswith("benchmark"):
+            return "Benchmark"
+        if vl.startswith("restricted"):
+            return "Restricted"
+        return "Other"
+
+    result["class_bucket"] = result["race_class"].apply(class_bucket)
     def roi_stats(sub: pd.DataFrame) -> tuple:
         n = len(sub)
         flat_returned = sub.loc[sub["won"] == 1, "price"].sum()
@@ -140,6 +170,37 @@ def main():
             print(f"{label:>10}  {floor_label:>6}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
                   f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
                   f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
+
+    # Real user follow-up: "what about by race class or state?" - overall
+    # top-Combo-pick population (every margin, not bucketed), sliced by
+    # state and by a simplified race_class grouping (the raw field has
+    # dozens of specific Benchmark/Restricted rating values - grouped into
+    # Maiden/Open/Class/Benchmark/Restricted/Other/Unknown for a readable
+    # breakdown, not because the specific rating doesn't matter, just to
+    # keep bucket sizes meaningful).
+    print("\n=== Overall top-Combo-pick win/place/ROI by STATE ===")
+    print(f"{'state':>6}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}  "
+          f"{'flat ROI':>9}  {'prop ROI':>9}")
+    for state, sub in result.groupby("state"):
+        if len(sub) == 0:
+            continue
+        flat_roi, prop_roi = roi_stats(sub)
+        print(f"{state:>6}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
+              f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
+              f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
+
+    print("\n=== Overall top-Combo-pick win/place/ROI by RACE CLASS (grouped) ===")
+    print(f"{'class':>10}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}  "
+          f"{'flat ROI':>9}  {'prop ROI':>9}")
+    class_order = ["Maiden", "Open", "Class", "Benchmark", "Restricted", "Other", "Unknown"]
+    for cb in class_order:
+        sub = result[result["class_bucket"] == cb]
+        if len(sub) == 0:
+            continue
+        flat_roi, prop_roi = roi_stats(sub)
+        print(f"{cb:>10}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
+              f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
+              f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
 
 
 if __name__ == "__main__":
