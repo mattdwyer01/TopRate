@@ -275,8 +275,8 @@ function useTrackerCsv(url: string) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[9px] uppercase tracking-wide text-ink-faint">{label}</span>
-      <span className="font-mono text-xs text-ink-mute">{value}</span>
+      <span className="text-[9px] uppercase tracking-wide text-ink-faint sm:text-[10px]">{label}</span>
+      <span className="font-mono text-xs text-ink-mute sm:text-sm">{value}</span>
     </div>
   )
 }
@@ -291,8 +291,8 @@ function Fact({ label, value }: { label: string; value: string }) {
 function PriceFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[9px] uppercase tracking-wide text-ink-faint">{label}</span>
-      <span className="font-mono text-sm font-bold text-ink">{value}</span>
+      <span className="text-[9px] uppercase tracking-wide text-ink-faint sm:text-[10px]">{label}</span>
+      <span className="font-mono text-sm font-bold text-ink sm:text-base">{value}</span>
     </div>
   )
 }
@@ -364,11 +364,15 @@ function PickCardBody({ row }: { row: TrackerRow }) {
           same slot (WPR proj top-left, Settling bottom-right, etc) on
           every card, on both mobile and desktop - a flex-wrap row's
           wrapping point depends on total content width before it, which
-          isn't a property this grid has. 2 columns fits a full trainer
-          name like "K Dryden & L Snowden" without heavy wrapping on the
-          narrowest phones; sm: 5 gives two clean rows of 5 once there's
-          room (10 facts total, divides evenly both ways). */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-5">
+          isn't a property this grid has. 3 columns on mobile (real user
+          feedback, 2026-09-19: 2 columns' 5 rows took up too much vertical
+          space - 3 cuts it to 4 rows; an occasional long trainer name like
+          "Barry Lockwood & Emma-Jane Vincent" just wraps to 2 lines in its
+          own cell rather than pushing anything else out of place); sm: 5
+          gives two clean rows of 5 once there's room (10 facts total,
+          divides evenly both ways). Tighter gap-y (1 vs the badges row's
+          own 1) since 4-5 short rows of label+value add up fast. */}
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1 sm:grid-cols-5 sm:gap-x-4">
         <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
@@ -407,7 +411,7 @@ function PickCard({
           onSelectRace(row.raceId, row.date)
         }
       }}
-      className="flex cursor-pointer flex-col gap-2 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30"
+      className="flex cursor-pointer flex-col gap-1.5 rounded-lg border border-line bg-panel p-3 hover:bg-emerald-bg/30 sm:gap-2"
     >
       <div className="-mb-1 text-xs font-semibold text-ink">
         {row.startTime ? `${formatTimeOfDay(row.startTime)} · ` : ''}
@@ -445,7 +449,7 @@ function GroupedRaceCard({
           onSelectRace(first.raceId, first.date)
         }
       }}
-      className="flex cursor-pointer flex-col gap-2 rounded-lg border-2 border-amber-line bg-panel p-3 hover:bg-emerald-bg/30"
+      className="flex cursor-pointer flex-col gap-1.5 rounded-lg border-2 border-amber-line bg-panel p-3 hover:bg-emerald-bg/30 sm:gap-2"
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-ink">
@@ -460,7 +464,7 @@ function GroupedRaceCard({
         </span>
       </div>
       {rows.map((row, i) => (
-        <div key={row.runId} className={i > 0 ? 'flex flex-col gap-2 border-t border-line-soft pt-2' : 'flex flex-col gap-2'}>
+        <div key={row.runId} className={i > 0 ? 'flex flex-col gap-1.5 border-t border-line-soft pt-1.5 sm:gap-2 sm:pt-2' : 'flex flex-col gap-1.5 sm:gap-2'}>
           <PickCardBody row={row} />
         </div>
       ))}
