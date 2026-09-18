@@ -2,30 +2,33 @@
 general race listing, NOT the tracker's own gated betting-rule
 population), how well does the currently-shipped Combo score (0.45*wpr +
 0.30*toprateRating(rescaled) + 0.25*formFactor(rescaled)) find the actual
-race winner, at a margin of 10 and below, and at fixed top-2/3/4
-shortlists? Real user question, 2026-09-19: "What is the analysis for
-finding the winner using combo? Look at within 10 and less, look at
-strike rate of finding winner, top 2,3,4 and how many selections on avg".
+race result at a margin of 10 and below? Real user question, 2026-09-19:
+"only look at margin view, but give me strike rate for finding winner,
+quinella, trifecta, first four, and avg number of selections" - a direct
+follow-up narrowing the first pass (which also included a top-K view) to
+margin-only, and widening "capture" from just the winner to the standard
+exotic bet types.
 
-Read-only against toprate_runners.csv - writes nothing. Same methodology/
-population as wpr_composite_score_capture_test.py (complete-case resulted
-races only, so every non-scratched runner has wprp_proj/pfm_score/
-toprate_rating - avoids asymmetric treatment from pfm_score's partial
-coverage): 1,994 races, 56 dates (2026-07-24 to 2026-09-17), not gated by
-speed_map since this is a Race-tab display question, not the tracker's
-own betting rule.
+Read-only against toprate_runners.csv - writes nothing. Same population
+as wpr_composite_score_capture_test.py (complete-case resulted races
+only: every non-scratched runner has wprp_proj/pfm_score/toprate_rating -
+avoids asymmetric treatment from pfm_score's partial coverage): 1,994
+races, 56 dates (2026-07-24 to 2026-09-17), not gated by speed_map since
+this is a Race-tab display question, not the tracker's own betting rule.
 
-Two views, both reported since the user asked for both:
-  - Margin (gap-from-top) view: avg selections per race and win-capture
-    rate at margin<=T for T in 3..10. NOT directly comparable to WPR-
-    alone's own margin numbers at the same T - blending compresses the
-    scale (see wpr_composite_score_capture_test.py's own matched-margin
-    section), so Combo's pool at a given T is always smaller than WPR's
-    at that same T. Included anyway since it directly answers "within 10
-    and less" as asked, with WPR's own numbers alongside for reference.
-  - Fixed top-K view: exactly K selections per race (ties aside), which
-    IS a fair, direct comparison against WPR alone since selection count
-    is held equal by construction.
+Definitions, per race, at margin T (runners with gap-from-top <= T):
+  - Winner strike rate: the actual 1st placegetter is in the pool.
+  - Quinella strike rate: BOTH the actual 1st and 2nd placegetters are in
+    the pool (order-free, matching how a quinella bet pays).
+  - Trifecta strike rate: the actual 1st, 2nd, AND 3rd placegetters are
+    all in the pool.
+  - First four strike rate: the actual 1st, 2nd, 3rd, AND 4th
+    placegetters are all in the pool.
+Each of these is computed only over races where that many finishing
+positions are actually known (a race with only 3 finishers on record
+can't contribute to the first-four denominator) - checked directly via
+finish_position, not assumed from field size (a big field can still lack
+a recorded 4th if results are incomplete).
 """
 import pandas as pd
 
@@ -54,37 +57,59 @@ def main():
     cdf["pfm_rescaled"] = zscore_rescale(cdf["pfm_score"], wpr_mean, wpr_std)
     cdf["trr_rescaled"] = zscore_rescale(cdf["toprate_rating"], wpr_mean, wpr_std)
     cdf["combo"] = 0.45 * cdf["wprp_proj"] + 0.30 * cdf["trr_rescaled"] + 0.25 * cdf["pfm_rescaled"]
-
     cdf["combo_top"] = cdf.groupby("race_id")["combo"].transform("max")
     cdf["combo_gap"] = cdf["combo_top"] - cdf["combo"]
-    cdf["wpr_top"] = cdf.groupby("race_id")["wprp_proj"].transform("max")
-    cdf["wpr_gap"] = cdf["wpr_top"] - cdf["wprp_proj"]
-    cdf["combo_rank"] = cdf.groupby("race_id")["combo"].rank(method="min", ascending=False)
-    cdf["wpr_rank"] = cdf.groupby("race_id")["wprp_proj"].rank(method="min", ascending=False)
 
-    winners = cdf[cdf["won"] == 1]
+    # Per-race lookup: run_id of the 1st/2nd/3rd/4th placegetter, or None
+    # if that placing wasn't recorded for this race.
+    by_place = {}
+    for place in [1, 2, 3, 4]:
+        rows = cdf[cdf["finish_position"] == place]
+        by_place[place] = rows.groupby("race_id")["run_id"].apply(lambda s: s.iloc[0] if len(s) else None).to_dict()
 
-    print("\n=== Margin (gap-from-top) view: Combo vs raw WPR at the SAME nominal margin ===")
-    print(f"{'margin':>7}  {'Combo avg sel':>13}  {'Combo capture':>13}   {'WPR avg sel':>11}  {'WPR capture':>11}")
+    gap_by_race_run = cdf.set_index(["race_id", "run_id"])["combo_gap"]
+    race_ids = cdf["race_id"].unique()
+
+    def captured(race_id, run_id, T):
+        try:
+            return gap_by_race_run.loc[(race_id, run_id)] <= T
+        except KeyError:
+            return False
+
+    print("\n=== Margin view: strike rate for winner / quinella / trifecta / first-four ===")
+    print(f"{'margin':>7}  {'avg sel':>8}  {'winner':>8}  {'quinella':>9}  {'trifecta':>9}  {'first-4':>8}")
     for T in [3, 4, 5, 6, 7, 8, 9, 10]:
-        combo_pool = (cdf["combo_gap"] <= T).groupby(cdf["race_id"]).sum().mean()
-        combo_capture = (winners["combo_gap"] <= T).mean()
-        wpr_pool = (cdf["wpr_gap"] <= T).groupby(cdf["race_id"]).sum().mean()
-        wpr_capture = (winners["wpr_gap"] <= T).mean()
-        print(f"{T:>7}  {combo_pool:>13.2f}  {100*combo_capture:>12.1f}%   "
-              f"{wpr_pool:>11.2f}  {100*wpr_capture:>10.1f}%")
-    print("  (Combo's pool is always smaller than WPR's at the same margin - blending")
-    print("   compresses the scale. Not a fair strength comparison at equal T; see top-K below.)")
+        pool_size = (cdf["combo_gap"] <= T).groupby(cdf["race_id"]).sum().mean()
 
-    print("\n=== Fixed top-K view (fair: exactly K selections/race either way) ===")
-    print(f"{'K':>3}  {'Combo capture':>13}  {'Combo avg sel':>13}   {'WPR capture':>11}  {'WPR avg sel':>11}")
-    for K in [1, 2, 3, 4, 5]:
-        combo_capture = (winners["combo_rank"] <= K).mean()
-        combo_sel = (cdf["combo_rank"] <= K).groupby(cdf["race_id"]).sum().mean()
-        wpr_capture = (winners["wpr_rank"] <= K).mean()
-        wpr_sel = (cdf["wpr_rank"] <= K).groupby(cdf["race_id"]).sum().mean()
-        print(f"{K:>3}  {100*combo_capture:>12.1f}%  {combo_sel:>13.2f}   "
-              f"{100*wpr_capture:>10.1f}%  {wpr_sel:>11.2f}")
+        win_hits = win_n = 0
+        quin_hits = quin_n = 0
+        tri_hits = tri_n = 0
+        first4_hits = first4_n = 0
+        for rid in race_ids:
+            r1 = by_place[1].get(rid)
+            r2 = by_place[2].get(rid)
+            r3 = by_place[3].get(rid)
+            r4 = by_place[4].get(rid)
+            if r1 is not None:
+                win_n += 1
+                win_hits += captured(rid, r1, T)
+            if r1 is not None and r2 is not None:
+                quin_n += 1
+                quin_hits += captured(rid, r1, T) and captured(rid, r2, T)
+            if r1 is not None and r2 is not None and r3 is not None:
+                tri_n += 1
+                tri_hits += captured(rid, r1, T) and captured(rid, r2, T) and captured(rid, r3, T)
+            if r1 is not None and r2 is not None and r3 is not None and r4 is not None:
+                first4_n += 1
+                first4_hits += (
+                    captured(rid, r1, T) and captured(rid, r2, T)
+                    and captured(rid, r3, T) and captured(rid, r4, T)
+                )
+
+        print(f"{T:>7}  {pool_size:>8.2f}  {100*win_hits/win_n:>7.1f}%  {100*quin_hits/quin_n:>8.1f}%  "
+              f"{100*tri_hits/tri_n:>8.1f}%  {100*first4_hits/first4_n:>7.1f}%")
+    print(f"\n(denominators: winner n={win_n}, quinella n={quin_n}, trifecta n={tri_n}, first-4 n={first4_n} "
+          f"- races missing that many recorded placings are excluded from that column only)")
 
 
 if __name__ == "__main__":
