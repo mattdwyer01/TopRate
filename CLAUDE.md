@@ -1979,6 +1979,48 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   translate into a materially depressed win rate here. Read-only/no
   production change - this was purely a descriptive-stats question, not a
   proposal to alter the Speed Map's tint/flag logic itself.
+- **Speed Map flag correlates checked (2026-09-19)**: direct follow-up -
+  "does the flag correlate with anything else worth checking".
+  `wpr_speedmap_flag_correlates_test.py` (new, read-only scratch script,
+  same population/replicated logic as the winner-stats script above, but
+  over every priced+resulted runner-row, not just winners - 11,090 rows)
+  checked price/ROI, the speed_map TAG cross-tab, tempo bucket, and field
+  size.
+
+  No exploitable market inefficiency: backing every flagged runner to win
+  gives flat ROI -29.4% (win 11.6%, avg price $22.28) vs unflagged -27.3%
+  (win 10.3%, avg $26.64) - both deeply negative and in the same
+  ballpark, i.e. the market already prices flagged runners appropriately
+  (shorter than unflagged on average, consistent with slightly better
+  raw win rate) rather than either overreacting or ignoring the flag.
+  Robustness-checked per this file's standing convention (excl-top3-
+  winners: -35.4%, i.e. the already-negative number isn't even being
+  propped up by lucky longshots) - consistent with every other
+  Combo/tracker edge-hunt in this file: no free lunch here either.
+
+  Two genuinely informative (non-betting) correlates found, though:
+  (1) the flag is NOT a simple proxy for the "unfavoured" demeaned-tag -
+  only 24.6% of unfavoured-tagged runners are flagged, actually LOWER
+  than neutral-tagged runners' 31.8% flag rate, while favoured-tagged
+  runners are flagged at just 4.2% (vs the field's ~27% baseline flag
+  rate) - meaning `speed_map`'s own trained score (which factors in a
+  horse's own history/merit, not just barrier+column) already partly
+  discounts a bad draw/forward-position combination on its own, even
+  when the mechanical "!" flag still fires; the flag and the tag are
+  catching genuinely different, only loosely related things, not
+  duplicating each other. (2) flagged runners' win rate moves in the
+  DIRECTION the flag's own design intends by tempo - worst in Fast
+  (10.9%), better in Even (12.4%), best in Slow (14.4%) - i.e. the
+  "needs to cross rivals/hot pace to be plausible" risk the flag is
+  meant to capture shows up most exactly where a hot tempo makes
+  crossing hardest, and least where a slow tempo makes it easiest. This
+  is a real, directionally-validating signal that the flag mechanism
+  tracks genuine running-line risk, it just doesn't rise to a betting
+  edge once the market's own pricing is accounted for (see the ROI
+  numbers above). Field-size breakdown (small/medium/large) showed
+  flagged win%/price simply tracking field size the way any runner's
+  would (bigger field, longer price, lower win%) - not a flag-specific
+  effect, no further action.
 
 ## What to be careful about
 
