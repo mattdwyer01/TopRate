@@ -1193,6 +1193,28 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   bounding-box checks confirming no clipping/overlap between Cb and its
   neighbours and zero overflow at 360-1280px in both densities before
   this shipped.
+- **Combo made the prominent (bold) figure, moved left of Proj
+  (2026-09-19, direct follow-up)**: real user request ("combo should be
+  the bold number, not proj. have combo to the left of proj"). In
+  `RunnerRow.tsx`: the `font-semibold text-emerald-deep` styling that
+  used to mark Proj as the row's headline number moved to the Combo
+  cell; Proj is now styled like TopRate/Form (`text-ink-mute`, plain).
+  Proj's own confidence % sub-line and manual-override asterisk stayed
+  attached to the Proj cell, not Combo - those are specifically about
+  the raw WPR projection's own model confidence/override, not the blend,
+  so moving them would have misattributed what they describe.
+  `COLUMN_LABELS`/`MOBILE_COLUMN_LABELS_FULL`/`_COMPACT` in
+  `RaceDetail.tsx` reordered to put `compositeScore` before
+  `projectedWpr`, matching a same reorder of the two cells in
+  `RunnerRow.tsx`'s JSX. No grid-cols width-string changes were needed
+  anywhere: Compact/Full mobile already gave both cells equal widths
+  (40px/36px) when Combo was first added, and desktop's own two
+  neighbouring track widths (60px/56px) simply swap which column they
+  belong to when the cells swap order, since the string is positional,
+  not keyed - confirmed by inspection rather than assumed, then verified
+  live via Playwright (computed style, not just a screenshot glance, for
+  the bold/color swap; bounding boxes for clipping/overlap; zero
+  overflow at 360-1280px in both mobile densities) before shipping.
 
 ## What to be careful about
 

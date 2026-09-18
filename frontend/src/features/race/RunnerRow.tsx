@@ -420,7 +420,17 @@ export function RunnerRow({
       >
         {fmtAdj(runner.wprAdjustment)}
       </span>
+      {/* Combo now leads (2026-09-19, real user request: "combo should be
+          the bold number, not proj... have combo to the left of proj") -
+          it's the headline figure now, Proj demoted to the plain/muted
+          style below it (TopRate's own style). No confidence sub-line or
+          override asterisk here - those are specifically about the raw
+          WPR projection's own model confidence/override, not the blend,
+          so they stay attached to the Proj cell they've always described. */}
       <span className="text-right font-mono font-semibold text-emerald-deep">
+        {scratched ? 'SCR' : fmtWpr(displayComposite)}
+      </span>
+      <span className="text-right font-mono text-ink-mute">
         {/* sm:contents on mobile-only stack: confidence sits under the WPR
             figure (not inline after it) to keep this column narrow on
             small screens - at sm+ the wrapper disappears (display:contents)
@@ -441,14 +451,6 @@ export function RunnerRow({
             </span>
           )}
         </span>
-      </span>
-      {/* Combo: shown everywhere now (2026-09-19, real user request - see
-          the grid-cols comment above) - the blended ranking score, same
-          rounding/formatting as Proj since it's rescaled onto the same
-          WPR-like scale. TopRate (below) became desktop-only in the same
-          change, freeing up the mobile track this used to need. */}
-      <span className="text-right font-mono text-ink-mute">
-        {scratched ? 'SCR' : fmtWpr(displayComposite)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}

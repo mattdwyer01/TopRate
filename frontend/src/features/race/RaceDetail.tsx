@@ -44,7 +44,6 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'daysSince', label: 'RTS', showCompact: true },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
-  { key: 'projectedWpr', label: 'Proj', showCompact: true },
   // Combo: shown on both mobile densities too (2026-09-19, real user
   // request: "sort by combo by default... on mobile show combo column,
   // hide TR" - see MOBILE_COLUMN_LABELS_FULL/_COMPACT below, which now
@@ -52,7 +51,12 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   // was a deliberate scope-limiting choice at the time (this codebase's
   // long, hard-won history of mobile grid-cols overflow bugs, see
   // CLAUDE.md), superseded by this explicit request rather than a bug.
+  // Moved ahead of Proj, and given Proj's own bold/emerald styling
+  // (2026-09-19, direct follow-up: "combo should be the bold number, not
+  // proj... have combo to the left of proj") - it's the headline figure
+  // now; Proj demoted to the plain style below it in RunnerRow.tsx.
   { key: 'compositeScore', label: 'Combo' },
+  { key: 'projectedWpr', label: 'Proj', showCompact: true },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
   { key: 'jockeyWinPct', label: 'Jky Win%' },
@@ -84,8 +88,8 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // numbers.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'projectedWpr', label: 'Proj' },
   { key: 'compositeScore', label: 'Cb' },
+  { key: 'projectedWpr', label: 'Proj' },
   { key: 'formFactor', label: 'Fm' },
   { key: 'jockeyWinPct', label: 'J%' },
   { key: 'fixedPrice', label: 'Fixed $' },
@@ -102,8 +106,8 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 // COLUMN_LABELS/sm:grid-cols above).
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'projectedWpr', label: 'Proj' },
   { key: 'compositeScore', label: 'Cb' },
+  { key: 'projectedWpr', label: 'Proj' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
