@@ -20,9 +20,10 @@ import {
 // read-only, client-side. Two rules found via session-long backtesting
 // against toprate_data.json (Sep 2026), NOT wired into any model, pick, or
 // projection logic:
-//   - High volume: favoured/neutral speed map, jockey win% (90d) >= 14
-//     (with a >=25-start sample when that count is known), within 5 WPR
-//     of the race's top-projected runner, $3+ price. A
+//   - High volume: favoured/neutral speed map, jockey win% (90d) in the
+//     top 10% of the race's own field (and above 10%) with a >=25-start
+//     sample when that count is known, within 5 WPR of the race's
+//     top-projected runner, $3+ price. A
 //     multi-selection race still fires (on all of them) if every one is
 //     priced above $6.
 //   - Low volume: same, plus the runner must also be #1 in-race by both
@@ -819,7 +820,7 @@ export function TrackersTab({ races, onSelectRace }: TrackersTabProps) {
           rows={high.rows}
           races={races}
           trackerKind="high"
-          description="Favoured or neutral speed map, jockey win% (90d) >= 14 (with a 25+ start sample when that count is known), within 5 WPR of the race's top-projected runner, and the only runner in its race meeting all of that (solo-only, checked before price) - a second runner meeting everything but priced under $3 still silences this race. That lone qualifier then also needs $3+ price to fire. Exception: if 2+ runners meet the criteria and every one of them is priced above $6, all of them fire instead of staying silent. No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
+          description="Favoured or neutral speed map, jockey win% (90d) in the top 10% of this race's own field (and above 10% outright) with a 25+ start sample when that count is known, within 5 WPR of the race's top-projected runner, and the only runner in its race meeting all of that (solo-only, checked before price) - a second runner meeting everything but priced under $3 still silences this race. That lone qualifier then also needs $3+ price to fire. Exception: if 2+ runners meet the criteria and every one of them is priced above $6, all of them fire instead of staying silent. No rating-agreement requirement - higher volume, weaker edge. A pick tagged Live currently qualifies but hasn't been captured yet."
           onSelectRace={onSelectRace}
         />
       )}

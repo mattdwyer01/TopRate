@@ -851,6 +851,72 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   cleanup and check the actual removed count after ANY GAP_MAX/JW_MIN/
   JW_STARTS_MIN change, never assume based on which direction the
   number moved.
+- **2026-09-18 was a genuinely 0-for-13 day for both trackers, real user
+  report ("Check today's tracker results... they are very bad")**:
+  confirmed against the real CSVs, not dismissed - 11 High Volume + 2 Low
+  Volume picks resulted, 0 wins. Root-caused before drawing any
+  conclusion: all 11 High Volume picks were captured in ONE batch at
+  15:40 that day (`jw` 14.1-19.4 each) - the exact moment the JW_MIN
+  20->14 revert landed and the pipeline caught the day's whole card up
+  under the newly-loosened rule in one shot, so this was the FIRST
+  batch of data under that setting, not an established track record. The
+  2 Low Volume losses (jw 29.1/22.2, both well above even the old 20
+  floor) were unrelated to the threshold change - ordinary variance.
+  0-for-11 has roughly a 1-in-10 chance even at the backtested ~18-20%
+  win rate, so this single day didn't prove the JW_MIN=14 call wrong on
+  its own, but it was flagged as worth watching rather than dismissed -
+  and became part of the direct motivation for the relative-rank
+  replacement below.
+- **JW_MIN (absolute jockey_win_pct_90d floor) REPLACED entirely with a
+  race-relative rank, JW_FLOOR=10/JW_RELATIVE_TOP_PCT=10 (2026-09-19)**:
+  real user proposal, prompted by the rough 0-for-13 day above - "being
+  in the top x% of jockey sr in the race, rather than 14% and above...
+  floor of at least above 10%". Rationale: a jockey's ABSOLUTE win% means
+  less than how they compare to the specific field they're riding
+  against today (a 16% jockey is genuinely strong in a weak country
+  field, mediocre in a stacked metro one) - the old absolute floor
+  couldn't tell those two situations apart.
+  `wpr_tracker_jockey_relative_rank_sweep.py` (new, read-only scratch
+  script - re-implements `build_candidates()`'s race loop with only the
+  jw check swapped, since a rule-SHAPE change can't be monkey-patched the
+  way a plain constant sweep could) tested top 10/15/20/25/30/40/50%
+  against the-then-current absolute JW_MIN=14 baseline. Top 10% won
+  outright, not just on strike rate - it beat the baseline on win% AND
+  ROI AND volume simultaneously for Tracker A (n 338->403, win%
+  18.3->20.6, flat ROI +17.3%->+23.4%) and dramatically for Tracker B
+  (win% 29.5->39.0, flat ROI +6.3%->+40.7%, though B's own volume fell
+  78->41). Every X looser than 10% (15% through 30%) degraded steadily
+  for Tracker A - 10% is a genuine peak in this backtest window, not an
+  arbitrary round number picked because the user said "10" for the floor
+  too (they're two independent constants, `JW_FLOOR` and
+  `JW_RELATIVE_TOP_PCT`, that happen to share a value here).
+  Population for "in the race": every non-scratched runner's `jw`
+  (`jwN`'s "jockey_starts_90d" sibling field `jw` = jockey_win_pct_90d),
+  not just runners already past the speed_map/gap checks - the whole
+  point of a relative rule is comparing against the full field's jockey
+  quality, not an already-filtered subset. Ties count generously
+  (matching this file's existing `_rank_desc` convention elsewhere): a
+  jockey tied for the cutoff rank still qualifies. Real, deliberate
+  trade-off worth remembering: with a small field, this can still let
+  through the single best-of-the-field jockey once they clear JW_FLOOR
+  even if that jockey's own absolute number is unremarkable (e.g. an
+  11% jockey who's simply the best available in a genuinely weak field)
+  - the backtest above already reflects that behaviour and still came
+  out ahead, so it's not something to "fix" later without re-checking
+  the numbers first. `JW_STARTS_MIN=25` (unrelated mechanism, still
+  null-passes) is unaffected and stays in place alongside this.
+  Implemented in `speedmap_jockey_tracker.py`'s `build_candidates()`
+  (computes `jw_field` from the whole race's `runners`, not just `valid`,
+  right where `trr_vals`/`wpr_vals` are computed) and mirrored in
+  `frontend/src/lib/trackerRules.ts`'s `evaluateTrackerQualifiers()`
+  (same `jwField`/`jwCutoffRank` pattern, reusing the file's existing
+  `rankDesc` helper) - verified production `build_candidates()` matches
+  the sweep script's own numbers almost exactly (n=404 vs predicted 403,
+  tiny drift from data refreshing in between, not a bug). `tracker_
+  history_cleanup.py` re-run against the new rule: 23 rows removed from
+  `tracker_high_volume.csv`, 5 from `tracker_low_volume.csv` - expected,
+  since a rule-shape change (not just a threshold move) genuinely
+  reshuffles which already-logged picks still qualify.
 
 ## What to be careful about
 

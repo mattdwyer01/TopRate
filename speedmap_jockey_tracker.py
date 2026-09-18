@@ -11,11 +11,14 @@ speed_map value: the runner's speed_map, demeaned against that race's own
 mean (see wpjcb.speed_map / SpeedMapGrid.tsx's own display logic), is
 "favoured" or "neutral" (>= -0.5 relative to the field), AND the runner is
 within GAP_MAX WPR of the race's own top-projected runner, AND its jockey's
-trailing-90-day win% (jw) is >= JW_MIN, AND ITS SAMPLE SIZE IS KNOWN AND
-LARGE ENOUGH TO TRUST (jockey_starts_90d >= JW_STARTS_MIN, when that count
-is actually known - see JW_STARTS_MIN's own comment for why an unknown
-count passes rather than fails), AND it is the ONLY runner in that race
-meeting all of the above - checked BEFORE price (solo-only, Sep 2026 - see
+trailing-90-day win% (jw) is BOTH above JW_FLOOR AND in the top
+JW_RELATIVE_TOP_PCT of this race's OWN field by jw (see those constants'
+own comments for why a race-relative rank beat an absolute floor), AND ITS
+SAMPLE SIZE IS KNOWN AND LARGE ENOUGH TO TRUST (jockey_starts_90d >=
+JW_STARTS_MIN, when that count is actually known - see JW_STARTS_MIN's own
+comment for why an unknown count passes rather than fails), AND it is the
+ONLY runner in that race meeting all of the above - checked BEFORE price
+(solo-only, Sep 2026 - see
 build_candidates' own docstring for the backtest that justified this: the
 rule firing 2+ times in the same race performed dramatically worse, +14%
 ROI solo vs -8% to -12% blended across every multi-pick race, and no
@@ -36,7 +39,8 @@ caveat (doesn't fully survive an outlier-robustness check).
 Tracker A (high volume, no rating-agreement requirement) vs Tracker B (low
 volume, ALSO requires the runner to be #1 in-race by both TopRate's own
 rating (trr) and the external form-factor score (pfm_score_rank)) - see
-GAP_MAX/JW_MIN/PRICE_MIN/TAGS below for the shared rule. Each tracker's
+GAP_MAX/JW_FLOOR/JW_RELATIVE_TOP_PCT/PRICE_MIN/TAGS below for the shared
+rule. Each tracker's
 solo-only requirement is checked against its OWN population, independently
 - a race with 3 base-rule qualifiers silences A entirely even if exactly
 one of those 3 also satisfies B's extra condition, and B still fires for
@@ -88,29 +92,54 @@ DEMEAN_THRESHOLD = 0.5   # matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 # See lib/raceModel.ts's matching OVERLAY_MAX_GAP_FROM_TOP for the
 # UI-side alignment.
 GAP_MAX = 5.0
-# jockey_win_pct_90d floor. Raised 14 -> 20 (Sep 2026, real user request:
-# "strike rate increase") after wpr_tracker_strike_rate_sweep.py showed this
-# is a real, non-tradeoff lever - unlike GAP_MAX above (noisy/non-monotonic,
-# no clean win in either direction), raising JW_MIN improved win% AND ROI
-# together for BOTH trackers over the live backtest window: Tracker A
-# n 337->179, win% 19.6->22.3, flat ROI +21.1%->+32.3%; Tracker B n 74->31,
-# win% 31.1->41.9, flat ROI +12.0%->+53.9%. Went with 20 over a more
-# aggressive 22+ (bigger numbers, but Tracker B's sample thins to n<=21,
-# too noisy to trust) - real user decision.
+# HISTORY of the old absolute jockey_win_pct_90d floor (JW_MIN), replaced
+# below (Sep 2026) by a race-relative rule - kept for context since the
+# replacement's own backtest was measured against this exact lineage:
+# 14 (original) -> 20 (real user request "strike rate increase" -
+# wpr_tracker_strike_rate_sweep.py found this a real, non-tradeoff lever,
+# improving win% AND ROI together for both trackers: Tracker A n 337->179,
+# win% 19.6->22.3, flat ROI +21.1%->+32.3%; Tracker B n 74->31, win%
+# 31.1->41.9, flat ROI +12.0%->+53.9%) -> back to 14 (real user decision,
+# made explicitly against that finding, trading strike rate/ROI for
+# roughly double the pick volume: at JW_MIN=14, Tracker A n 186->337,
+# win% 21.0->18.4, flat ROI +24.4%->+17.7%; Tracker B n 31->77, win%
+# 41.9->29.9, flat ROI +53.9%->+7.7%).
 #
-# Lowered back 20 -> 14 (Sep 2026, real user decision, made explicitly
-# against this file's own strike-rate finding above): checked with
-# JW_STARTS_MIN already in place (below) in case the starts floor
-# compensated for a lower win% floor - it doesn't, since that floor is
-# still a near no-op on today's mostly-null starts data (see its own
-# comment). At JW_MIN=14 (GAP_MAX=5, JW_STARTS_MIN=25): Tracker A n
-# 186->337, win% 21.0->18.4, flat ROI +24.4%->+17.7%; Tracker B n
-# 31->77, win% 41.9->29.9, flat ROI +53.9%->+7.7%. A real, reported
-# trade of strike rate/ROI for roughly double the pick volume - user
-# confirmed that's the intended trade-off before this shipped. See
-# lib/trackerRules.ts's matching JW_MIN for the UI-side alignment
-# (live/watching candidates use the same floor as logged picks).
-JW_MIN = 14.0
+# REPLACED entirely (Sep 2026, real user proposal): "being in the top x%
+# of jockey sr in the race, rather than 14% and above... floor of at
+# least above 10%" - a race-relative rank instead of a fixed absolute
+# number, on the theory that a jockey's ABSOLUTE win% means less than how
+# they compare to the other riders in THIS specific field (a 16% jockey
+# is genuinely strong in a weak country field, mediocre in a stacked
+# metro one). wpr_tracker_jockey_relative_rank_sweep.py (read-only,
+# re-implements this file's own race loop with only the jw check swapped,
+# so it can't drift from the real rule) confirmed this beats the old
+# absolute JW_MIN=14 outright, not just on strike rate - top 10% (see
+# JW_RELATIVE_TOP_PCT below) beat it on win% AND ROI AND volume
+# simultaneously for Tracker A (n 338->403, win% 18.3->20.6, flat ROI
+# +17.3%->+23.4%) and dramatically for Tracker B (win% 29.5->39.0, flat
+# ROI +6.3%->+40.7%, though B's own volume fell 78->41). Every X looser
+# than 10% (15% through 30%) degraded steadily for Tracker A - 10% is a
+# genuine peak in this backtest window, not an arbitrary round number.
+JW_FLOOR = 10.0
+# Absolute floor UNDER the relative rank check above - a jockey at or
+# below this never qualifies no matter how weak the rest of the field is
+# (the user's own explicit condition: "floor of at least above 10%").
+# Without this, a race full of genuinely poor riders could hand a "top
+# 10%" qualification to a jockey whose real win% is, say, 4% - still the
+# best AVAILABLE, but not a rider actually worth backing.
+JW_RELATIVE_TOP_PCT = 10
+# Top X% by rank among jw values of every non-scratched runner in the
+# SAME race (the whole field, not just runners that already pass
+# speed_map/gap - the point of a relative rule is comparing against the
+# full field's jockey quality). Ties count generously (matching
+# _rank_desc's convention elsewhere in this file): a jockey tied for the
+# cutoff rank still qualifies. With a small field this can still let
+# through the single best-of-the-field jockey once they clear JW_FLOOR,
+# even if that jockey's own absolute number is unremarkable - the
+# backtest above already reflects that behaviour and still came out
+# ahead, but it's a real, deliberate trade-off, not an edge case to
+# "fix" later.
 # jockey_starts_90d floor (Sep 2026, real user request, direct follow-up to
 # the JW_MIN change above: "a jockey with 2 rides for 1 win... very
 # deceiving" - see the jockey_merit entry in CLAUDE.md for the exact same
@@ -241,6 +270,11 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
         trr_vals = [u.get("trr") for u in runners]
         wpr_vals = [u.get("wpjp") for u in runners]
         top_wpr = max((v for v in wpr_vals if v is not None), default=None)
+        # Whole field's jw, not just runners already past speed_map/gap -
+        # a relative rank needs comparing against every rider in the race,
+        # not an already-filtered subset (see JW_RELATIVE_TOP_PCT's comment).
+        jw_field = [u.get("jw") for u in runners if u.get("jw") is not None]
+        jw_cutoff_rank = max(1, round(len(jw_field) * JW_RELATIVE_TOP_PCT / 100))
 
         # Collect every base-rule qualifier in this race first, rather than
         # yielding as each one is found - solo-only means Tracker A stays
@@ -264,7 +298,9 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
                 continue
 
             jw = u.get("jw")
-            if jw is None or jw < JW_MIN:
+            if jw is None or jw <= JW_FLOOR:
+                continue
+            if _rank_desc(jw, jw_field) > jw_cutoff_rank:
                 continue
 
             # jwN (jockey_starts_90d): None passes rather than fails - see

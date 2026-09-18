@@ -63,11 +63,14 @@ const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 // decision made explicitly against the backtest's own recommendation -
 // see speedmap_jockey_tracker.py's matching constant for the numbers).
 const GAP_MAX = 5.0
-// Raised 14 -> 20, then lowered back 20 -> 14 (Sep 2026, real user
-// decision made explicitly against the strike-rate sweep's own finding,
-// trading strike rate/ROI for roughly double the pick volume) - see
-// speedmap_jockey_tracker.py's matching constant for the full numbers.
-const JW_MIN = 14.0
+// REPLACED the old absolute jockey_win_pct_90d floor (14 -> 20 -> back to
+// 14, see git history) entirely with a race-relative rank (Sep 2026, real
+// user proposal: "top x% of jockey sr in the race... floor of at least
+// above 10%") - see speedmap_jockey_tracker.py's matching constants for
+// the full backtest (top 10% beat the old absolute floor on win%, ROI,
+// AND volume simultaneously for Tracker A).
+const JW_FLOOR = 10.0
+const JW_RELATIVE_TOP_PCT = 10
 // jockey_starts_90d floor - see speedmap_jockey_tracker.py's matching
 // constant for the full reasoning. null passes rather than fails (most
 // runners don't have a real count yet - this is a near no-op today,
@@ -120,6 +123,10 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
     const v = u.projectedWpr
     return v != null && (max == null || v > max) ? v : max
   }, null)
+  // Whole field's jw, not just runners already past speed_map/gap - see
+  // speedmap_jockey_tracker.py's matching JW_RELATIVE_TOP_PCT comment.
+  const jwField = runners.map((u) => u.jockeyWinPct90d).filter((v): v is number => v != null)
+  const jwCutoffRank = Math.max(1, Math.round((jwField.length * JW_RELATIVE_TOP_PCT) / 100))
 
   const raceQualifiers: RaceQualifier[] = []
   for (const [runner, sm] of valid) {
@@ -133,7 +140,8 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
     if (gap > GAP_MAX) continue
 
     const jw = runner.jockeyWinPct90d
-    if (jw == null || jw < JW_MIN) continue
+    if (jw == null || jw <= JW_FLOOR) continue
+    if ((rankDesc(jw, jwField) ?? Infinity) > jwCutoffRank) continue
 
     // jockeyStarts90d: null passes rather than fails - see
     // speedmap_jockey_tracker.py's matching JW_STARTS_MIN comment.
