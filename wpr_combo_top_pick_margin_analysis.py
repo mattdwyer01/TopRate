@@ -17,9 +17,12 @@ handling needed).
 For each race, the "gap to 2nd" is combo(rank 1) - combo(rank 2) among
 non-scratched runners - races with fewer than 2 such runners are
 excluded (no 2nd to compare against). Bucketed into gap ranges; for each
-bucket: n races, the #1 pick's own win rate, place rate, and average
-price (context - a wider gap plausibly correlates with a shorter price
-too, which this checks directly rather than assuming).
+bucket: n races, the #1 pick's own win rate, place rate, average price,
+and ROI (real user follow-up: "any ROI calc? flat and proportionate") -
+flat (1 unit per bet, same convention as speedmap_jockey_tracker.py's
+own backtests throughout this session) and proportional (staked to
+return a fixed 4 units on a win, stake_for(price) = 4/price, matching
+that same file's summarize()/stake_for()).
 """
 import pandas as pd
 
@@ -29,6 +32,10 @@ CSV = "toprate_runners.csv"
 def zscore_rescale(series: pd.Series, target_mean: float, target_std: float) -> pd.Series:
     z = (series - series.mean()) / series.std()
     return target_mean + z * target_std
+
+
+def stake_for(price: float, return_units: float = 4.0) -> float:
+    return return_units / price
 
 
 def main():
@@ -66,22 +73,36 @@ def main():
         "placed": top1["placed"],
         "price": top1["price"],
     })
+    def roi_stats(sub: pd.DataFrame) -> tuple:
+        n = len(sub)
+        flat_returned = sub.loc[sub["won"] == 1, "price"].sum()
+        flat_roi = 100 * (flat_returned - n) / n
+        prop_staked = sub["price"].apply(stake_for).sum()
+        prop_returned = 4.0 * sub["won"].sum()
+        prop_roi = 100 * (prop_returned - prop_staked) / prop_staked
+        return flat_roi, prop_roi
+
     print(f"\nRaces with a defined #1-vs-#2 Combo gap: {len(result)}")
+    overall_flat_roi, overall_prop_roi = roi_stats(result)
     print(f"Overall top-Combo-pick win rate: {100*result['won'].mean():.1f}%  "
-          f"place rate: {100*result['placed'].mean():.1f}%  avg price: ${result['price'].mean():.2f}")
+          f"place rate: {100*result['placed'].mean():.1f}%  avg price: ${result['price'].mean():.2f}  "
+          f"flat ROI: {overall_flat_roi:+.1f}%  prop ROI: {overall_prop_roi:+.1f}%")
 
     bins = [0, 1, 2, 3, 5, 7, 10, 15, float("inf")]
     labels = ["0-1", "1-2", "2-3", "3-5", "5-7", "7-10", "10-15", "15+"]
     result["bucket"] = pd.cut(result["gap"], bins=bins, labels=labels, right=False)
 
-    print("\n=== Top-Combo-pick win/place strike rate by margin to 2nd ===")
-    print(f"{'gap bucket':>10}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}")
+    print("\n=== Top-Combo-pick win/place strike rate and ROI by margin to 2nd ===")
+    print(f"{'gap bucket':>10}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}  "
+          f"{'flat ROI':>9}  {'prop ROI':>9}")
     for label in labels:
         sub = result[result["bucket"] == label]
         if len(sub) == 0:
             continue
+        flat_roi, prop_roi = roi_stats(sub)
         print(f"{label:>10}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
-              f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}")
+              f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
+              f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
 
 
 if __name__ == "__main__":
