@@ -1215,6 +1215,17 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   live via Playwright (computed style, not just a screenshot glance, for
   the bold/color swap; bounding boxes for clipping/overlap; zero
   overflow at 360-1280px in both mobile densities) before shipping.
+- **Proj shown as a whole number (2026-09-19, direct follow-up)**: real
+  user request ("change proj to be a whole number"). `RunnerRow.tsx`'s
+  Proj value cell swapped `fmtWpr` (1 decimal) for `fmtInt` (rounded,
+  matching TopRate/Form's own convention) - Combo right next to it is
+  unaffected, still `fmtWpr`/1 decimal, since it wasn't part of the ask.
+  Scoped to this one cell only (the Race tab's Proj column specifically,
+  the exact context of this conversation) - `projectedWpr` is displayed
+  with its own formatting in several other places (`RunnerDetailModal.tsx`,
+  `SpeedMap.tsx`/`SpeedMapGrid.tsx`, `ResultVsProjection.tsx`) that were
+  deliberately left untouched, not because of any technical constraint,
+  just because they weren't part of what was asked.
 
 ## What to be careful about
 

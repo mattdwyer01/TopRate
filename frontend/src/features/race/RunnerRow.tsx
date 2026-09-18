@@ -438,7 +438,10 @@ export function RunnerRow({
             before, unstacked. */}
         <span className="flex flex-col items-end gap-0.5 sm:contents">
           <span>
-            {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(displayProj)}
+            {/* Whole number (2026-09-19, real user request: "change proj
+                to be a whole number") - Combo above keeps its own decimal
+                (fmtWpr), this is Proj-specific. */}
+            {scratched ? <span className="text-ink-faint">SCR</span> : fmtInt(displayProj)}
             {overridden && (
               <span className="ml-0.5 text-amber" title="Manually adjusted">
                 *
