@@ -41,3 +41,8 @@ frontend/dist/
 # per-machine scratch state, not shared repo data.
 tab_poller_terminal_races.json
 tab_raw/
+
+# Scratch model-retrain experiment output (out_dir passed to
+# train_wpr_projection() during ad-hoc held-out comparisons) - never the
+# live wpr_models/ directory, never meant to ship as-is.
+wpr_models_*_experiment/
