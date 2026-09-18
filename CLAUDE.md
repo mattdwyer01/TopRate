@@ -1706,6 +1706,31 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   documented "the unexplored lever is bet selection, not prediction
   accuracy" line still doesn't have a validated betting rule behind it
   from this angle either.
+- **Win-betting every runner in the inner5/outer10 Combo pool, crossed
+  with a price floor - also not profitable, same day**: direct follow-up
+  - "what about adding a price floor and only win betting those within 5
+  or 10 pts of top rated". Different bet shape from every prior Combo
+  analysis (not #1-pick-only, not an edge-vs-market framing): back EVERY
+  runner in `wpr_combo_5v10_exotics_capture_test.py`'s existing inner5/
+  outer10 pools to win, swept across price floors ($2 through $10), added
+  as a new section in that same script. Same complete-case population
+  (2,019 races), price = starting_price_sp falling back to
+  fixed_win_price. Every floor is flat-ROI-negative for both pools except
+  one cell (inner5, floor>=$10: n=248, flat ROI +1.6%, prop ROI +5.1%) -
+  checked this one BEFORE reporting it as a finding, per this file's own
+  established pattern (every prior apparently-positive cell in this
+  file's history has failed the same two checks): excluding the 3
+  biggest-priced winners (Ozzy The Equaliser $17, Pretty Perky $16, Or Am
+  I $15) flips it to -16.7%/-9.1%, and a first-half/second-half date
+  split (52 dates) shows -36.9% vs +38.9% - the apparent profit is a
+  handful of longshot winners clustered in one half of the window, not a
+  stable edge, the exact same fragility signature this file has now
+  documented repeatedly (CONTESTED_PRICE_FLOOR, the gap>=3/price>=3
+  claim, Maiden race class). No robust profitable cell found anywhere in
+  this sweep - extends the standing "no robust backing edge for Combo"
+  finding to a third distinct bet shape (straight win-betting a
+  gap-threshold pool with a price floor, after margin-bucket framing and
+  overlay/edge framing both already failed to find one).
 
 ## What to be careful about
 

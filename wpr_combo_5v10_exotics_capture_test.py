@@ -13,6 +13,15 @@ wide (10pt) pool capture nearly as well as boxing the whole wide pool for
 every position, while banking on fewer runners for the positions that
 matter most?
 
+Direct follow-up, same day: "What about adding a price floor and only
+win betting those within 5 or 10 pts of top rated" - a completely
+different bet shape from the exotics above (no #1-pick-only or edge-vs-
+market framing either, unlike wpr_combo_top_pick_margin_analysis.py/
+wpr_combo_price_overlay_test.py): back EVERY runner in the inner5 or
+outer10 pool to WIN, restricted to a price floor, and see if that's ever
+profitable. Added as a second analysis section, reusing this script's
+existing inner5/outer10 pool definitions.
+
 Read-only against toprate_runners.csv - writes nothing. Same complete-case
 population as wpr_composite_score_capture_test.py (every non-scratched
 runner in the race has wprp_proj/pfm_score/toprate_rating - no price
@@ -158,6 +167,53 @@ def main():
     for label, pools in variants:
         rate, n = capture_rate(pools)
         print(f"  {label:<46}: {rate:5.1f}%  (n={n})")
+
+    # Real user follow-up: "what about adding a price floor and only win
+    # betting those within 5 or 10 pts of top rated" - back EVERY runner
+    # in the inner5/outer10 pool to WIN (not just the #1 pick), crossed
+    # with a price floor. price = starting_price_sp falling back to
+    # fixed_win_price, this session's established convention throughout.
+    cdf["price"] = cdf["starting_price_sp"].fillna(cdf["fixed_win_price"])
+
+    def stake_for(price: float, return_units: float = 4.0) -> float:
+        return return_units / price
+
+    def roi_stats(sub: pd.DataFrame) -> tuple:
+        n = len(sub)
+        if n == 0:
+            return float("nan"), float("nan")
+        flat_returned = sub.loc[sub["won"] == 1, "price"].sum()
+        flat_roi = 100 * (flat_returned - n) / n
+        prop_staked = sub["price"].apply(stake_for).sum()
+        prop_returned = 4.0 * sub["won"].sum()
+        prop_roi = 100 * (prop_returned - prop_staked) / prop_staked
+        return flat_roi, prop_roi
+
+    # NOTE: the one apparently-positive cell in this sweep (inner5,
+    # floor>=10: n=248, flat ROI +1.6%, prop ROI +5.1%) does NOT survive
+    # the same two robustness checks every other apparently-positive
+    # result in this file's history has failed - checked directly rather
+    # than reported at face value: excluding the 3 biggest-priced winners
+    # (Ozzy The Equaliser $17, Pretty Perky $16, Or Am I $15) flips it to
+    # -16.7%/-9.1%, and a first-half/second-half date split (52 dates,
+    # 2026-07-24 to 2026-09-18) shows -36.9% vs +38.9% - the "profit"
+    # is a handful of longshot winners clustered in one half of the
+    # window, not a stable edge. Left in the sweep output below since the
+    # raw numbers are still worth seeing, but do not treat floor>=10 as a
+    # finding without re-running these same two checks on fresh data.
+    floors = [None, 2, 2.5, 3, 4, 5, 6, 8, 10]
+    for pool_col, pool_label in [("in_inner5", "INNER5 (gap<=5)"), ("in_outer10", "OUTER10 (gap<=10)")]:
+        pool_df = cdf[cdf[pool_col] & cdf["price"].notna() & (cdf["price"] > 1.0)]
+        print(f"\n=== Win-betting every runner in {pool_label}, by price floor ===")
+        print(f"{'floor':>7}  {'n bets':>7}  {'win %':>6}  {'avg price':>9}  {'flat ROI':>9}  {'prop ROI':>9}")
+        for floor in floors:
+            sub = pool_df if floor is None else pool_df[pool_df["price"] >= floor]
+            if len(sub) == 0:
+                continue
+            flat_roi, prop_roi = roi_stats(sub)
+            label = "none" if floor is None else f">={floor}"
+            print(f"{label:>7}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
+                  f"${sub['price'].mean():>8.2f}  {flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
 
 
 if __name__ == "__main__":
