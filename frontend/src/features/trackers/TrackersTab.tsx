@@ -328,7 +328,14 @@ function PickCardBody({ row }: { row: TrackerRow }) {
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-1.5">
+      {/* Badges get their own row, separate from the facts grid below (real
+          user feedback, 2026-09-18: "no consistency in where details sit" -
+          badges and facts used to share one flex-wrap row, so how many
+          badges a card had (tag always, plus Live/Watching sometimes)
+          shifted how many facts fit before the row wrapped, landing Jockey/
+          Trainer/etc on a different line from card to card). A variable
+          number of badges here no longer affects the facts below at all. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${TAG_TONE[row.tag] ?? ''}`}>
           {row.tag}
         </span>
@@ -352,6 +359,16 @@ function PickCardBody({ row }: { row: TrackerRow }) {
             Watching · {row.watchReason === 'contested' ? 'Contested' : 'Under $3'}
           </span>
         )}
+      </div>
+      {/* Fixed-column grid, not flex-wrap: every fact always lands in the
+          same slot (WPR proj top-left, Settling bottom-right, etc) on
+          every card, on both mobile and desktop - a flex-wrap row's
+          wrapping point depends on total content width before it, which
+          isn't a property this grid has. 2 columns fits a full trainer
+          name like "K Dryden & L Snowden" without heavy wrapping on the
+          narrowest phones; sm: 5 gives two clean rows of 5 once there's
+          room (10 facts total, divides evenly both ways). */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-5">
         <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
