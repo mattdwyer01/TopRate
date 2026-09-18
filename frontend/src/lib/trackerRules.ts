@@ -77,6 +77,14 @@ const JW_RELATIVE_TOP_PCT = 10
 // confirmed against the live data, and only starts filtering as more
 // days accumulate real counts).
 const JW_STARTS_MIN = 25
+// Tracker A (high volume) minimum form-factor (formFactor, i.e. pfm_score)
+// floor - see speedmap_jockey_tracker.py's matching PFM_A_FLOOR comment for
+// the full backtest (and the correction to it: the sweep script that first
+// picked 65 had a NaN-handling bug, and the corrected numbers moved the
+// pick to 60). A missing/NaN form factor fails this deliberately, same as
+// the Python side - this is a genuine backtested floor, not a thin-sample
+// guard like JW_STARTS_MIN, so there's no "unknown passes" precedent here.
+const PFM_A_FLOOR = 60.0
 const PRICE_MIN = 3.0
 // A multi-selection (contested) race still fires - on every qualifier in
 // it - if all of them are priced above this floor. See
@@ -161,12 +169,21 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   }
   if (raceQualifiers.length === 0) return result
 
+  // aPool: base qualifiers that ALSO clear PFM_A_FLOOR - this is Tracker
+  // A's own solo-only population, distinct from the shared raceQualifiers
+  // list, since adding this floor can itself flip a race between solo and
+  // contested for A (the same population-level effect documented at
+  // speedmap_jockey_tracker.py's PFM_A_FLOOR/build_candidates() - the
+  // floor must be applied before, not after, the solo-only check).
+  const aPool: string[] = []
   const bPool: string[] = []
   const infoByRid = new Map<string, RaceQualifier & { trrRank: number | null; pfmRank: number | null }>()
   for (const q of raceQualifiers) {
     const trrRank = rankDesc(q.runner.toprateRating, trrVals)
     const pfmRank = rankDesc(q.runner.formFactor, pfmVals)
     infoByRid.set(q.runner.runId, { ...q, trrRank, pfmRank })
+    const formFactor = q.runner.formFactor
+    if (formFactor != null && formFactor >= PFM_A_FLOOR) aPool.push(q.runner.runId)
     if (trrRank === 1 && pfmRank === 1) bPool.push(q.runner.runId)
   }
 
@@ -176,29 +193,32 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
   // silences that tracker for this race entirely; it does NOT fall
   // through to a "next" qualifier, because solo-only already established
   // there isn't one.
-  const soloA = raceQualifiers.length === 1 ? raceQualifiers[0] : null
+  const soloARid = aPool.length === 1 ? aPool[0] : null
   const includeARids = new Set<string>()
-  if (soloA != null) {
-    if (soloA.price != null && soloA.price >= PRICE_MIN) includeARids.add(soloA.runner.runId)
-  } else if (raceQualifiers.length > 1) {
+  if (soloARid != null) {
+    const soloAPrice = infoByRid.get(soloARid)!.price
+    if (soloAPrice != null && soloAPrice >= PRICE_MIN) includeARids.add(soloARid)
+  } else if (aPool.length > 1) {
     // Multi-selection floor exception (see CONTESTED_PRICE_FLOOR above) -
     // only fires when EVERY qualifier clears it, not just the
     // shortest-priced one; otherwise the race stays contested (silent)
     // exactly as before.
-    if (raceQualifiers.every((q) => q.price != null && q.price > CONTESTED_PRICE_FLOOR)) {
-      for (const q of raceQualifiers) includeARids.add(q.runner.runId)
+    if (aPool.every((rid) => {
+      const p = infoByRid.get(rid)!.price
+      return p != null && p > CONTESTED_PRICE_FLOOR
+    })) {
+      for (const rid of aPool) includeARids.add(rid)
     }
   }
   // Solo, but priced under PRICE_MIN - a different non-fire reason than
   // contested (there's no rival qualifier at all here, just a price too
   // short to bet).
-  const underPriceARid = soloA != null && includeARids.size === 0 ? soloA.runner.runId : null
-  // Contested: 2+ runners meet A's tactical criteria and the multi-selection
-  // floor above didn't clear (still no fire) - every one of them gets
-  // contestedA, not just whichever happens to be shortest/longest priced.
-  const contestedARids = new Set(
-    raceQualifiers.length > 1 && includeARids.size === 0 ? raceQualifiers.map((q) => q.runner.runId) : [],
-  )
+  const underPriceARid = soloARid != null && includeARids.size === 0 ? soloARid : null
+  // Contested: 2+ runners meet A's tactical criteria (including PFM_A_FLOOR)
+  // and the multi-selection floor above didn't clear (still no fire) -
+  // every one of them gets contestedA, not just whichever happens to be
+  // shortest/longest priced.
+  const contestedARids = new Set(aPool.length > 1 && includeARids.size === 0 ? aPool : [])
 
   const soloBRid = bPool.length === 1 ? bPool[0] : null
   const includeBRids = new Set<string>()

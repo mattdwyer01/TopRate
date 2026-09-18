@@ -36,15 +36,17 @@ all of them are priced above CONTESTED_PRICE_FLOOR ($6). See that
 constant's own comment for the backtest that motivated this and its
 caveat (doesn't fully survive an outlier-robustness check).
 
-Tracker A (high volume, no rating-agreement requirement) vs Tracker B (low
-volume, ALSO requires the runner to be #1 in-race by both TopRate's own
-rating (trr) and the external form-factor score (pfm_score_rank)) - see
-GAP_MAX/JW_FLOOR/JW_RELATIVE_TOP_PCT/PRICE_MIN/TAGS below for the shared
-rule. Each tracker's
-solo-only requirement is checked against its OWN population, independently
-- a race with 3 base-rule qualifiers silences A entirely even if exactly
-one of those 3 also satisfies B's extra condition, and B still fires for
-that one regardless (a runner can end up in A, B, both, or neither).
+Tracker A (high volume, ALSO requires an absolute form-factor floor -
+pfm_score >= PFM_A_FLOOR, see that constant's own comment) vs Tracker B
+(low volume, ALSO requires the runner to be #1 in-race by both TopRate's
+own rating (trr) and the external form-factor score (pfm_score_rank) - a
+RACE-RELATIVE condition, unlike A's absolute one) - see GAP_MAX/JW_FLOOR/
+JW_RELATIVE_TOP_PCT/PFM_A_FLOOR/PRICE_MIN/TAGS below for the shared rule.
+Each tracker's solo-only requirement is checked against its OWN
+population, independently - a race with 3 base-rule qualifiers silences
+A entirely even if exactly one of those 3 also satisfies B's extra
+condition, and B still fires for that one regardless (a runner can end
+up in A, B, both, or neither).
 
 Run daily (idempotent): captures any newly-qualifying runner from TODAY's
 races (Australia/Melbourne) not already logged, and fills in the result
@@ -160,6 +162,37 @@ JW_RELATIVE_TOP_PCT = 10
 # squarely at the deceptive tail (a jockey on 2-9 rides showing a 20-50%+
 # win% purely from small-sample noise), not at trimming genuine volume.
 JW_STARTS_MIN = 25
+# Tracker A (high volume) minimum form-factor (pfm_score) floor - real user
+# question, 2026-09-19: "should there be a minimum floor for form factor or
+# top rate rating?" Tracker B already has its own, RACE-RELATIVE version of
+# this idea (must be #1 in-race by both TopRate rating and form-factor) -
+# A deliberately has no rating-agreement requirement at all, so this tests
+# an ABSOLUTE floor for A specifically instead. wpr_tracker_a_rating_floor_
+# sweep.py (re-implements build_candidates()'s race loop with the floor
+# check INSIDE the qualifying loop, not a post-filter, since removing a
+# candidate can change whether a race resolves as solo - the same class of
+# effect already found once this session, see CLAUDE.md's JW_MIN entry)
+# tested both fields. TopRate rating (trr) turned out to be a real
+# TRADEOFF, not a free win - win% climbed steadily (20.5%->28.1% at
+# trr>=99) but flat ROI dropped (22.8%->10.7% at trr>=97), the classic
+# favourite-bias pattern this codebase has hit before. Form factor instead
+# is a genuine NON-tradeoff improvement - win% AND ROI moved up together
+# relative to the no-floor baseline (win% 20.5%, flat ROI +22.8%) across
+# most of the 50-90 range tested.
+# CORRECTION (2026-09-19, same day): the sweep script this was picked from
+# had a NaN-handling bug (an exclude-style check that silently let a NaN
+# pfm_score - not None, a real pandas float - through uncaught; see that
+# script's own comment and CLAUDE.md for the full story). Once fixed, a
+# finer sweep showed pfm 62-68 is actually a real LOCAL TROUGH (e.g.
+# pfm>=65 itself: flat ROI +22.6%, barely above baseline, not the "+33-35%
+# peak" the buggy numbers first suggested) sitting between two genuinely
+# stronger, stable bands either side: 58-62 (flat ROI +30-32%, n~212-227)
+# and 70-74 (flat ROI +32-35%, n~164-181). Moved off 65 to 60 - the lower
+# band, chosen over the higher one for its larger sample (n=221 vs 181),
+# since both are clearly outside the trough and beat the no-floor
+# baseline on win% and both ROI measures. TopRate rating floor NOT
+# applied - it only trades one metric for the other, no clean win.
+PFM_A_FLOOR = 60.0
 PRICE_MIN = 3.0          # SP/fixed price floor
 # A multi-selection (contested) race normally never fires at all (solo-only,
 # see above). Exception (Sep 2026, real user decision): if EVERY qualifier in
@@ -337,36 +370,44 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
         # each tracker only ever needs ITS OWN rule to be unambiguous, not
         # the other tracker's.
         info_by_rid = {}
+        a_pool = []
         b_pool = []
         for (u, tag, gap, jw, price) in race_qualifiers:
             rid = str(u.get("rid", ""))
             trr_rank = _rank_desc(u.get("trr"), trr_vals)
             pfm_rank = pfm_rank_by_rid.get(rid)
             info_by_rid[rid] = (u, tag, gap, jw, price, trr_rank, pfm_rank)
+            # PFM_A_FLOOR (see its own comment): a missing/NaN pfm_score
+            # fails this, deliberately - unlike JW_STARTS_MIN this is a
+            # genuine backtested floor, not a thin-sample guard, so there's
+            # no "unknown passes" precedent to follow here.
+            pfm_score = pfm_score_by_rid.get(rid)
+            if pfm_score is not None and pfm_score >= PFM_A_FLOOR:
+                a_pool.append(rid)
             if trr_rank == 1 and pfm_rank == 1:
                 b_pool.append(rid)
 
-        # Solo-only is checked on race_qualifiers/b_pool BEFORE price (see
-        # the comment above) - PRICE_MIN is applied here, only to the lone
+        # Solo-only is checked on a_pool/b_pool BEFORE price (see the
+        # comment above) - PRICE_MIN is applied here, only to the lone
         # survivor, to decide whether that tracker actually fires for this
         # race. A solo qualifier priced under PRICE_MIN silences that
         # tracker for this race entirely, same as if it hadn't qualified -
         # it does NOT fall through to the next-shortest qualifier, because
         # there isn't a "next" one; solo-only already established there's
         # exactly one.
-        solo_a = race_qualifiers[0] if len(race_qualifiers) == 1 else None
+        solo_a_rid = a_pool[0] if len(a_pool) == 1 else None
         include_a_rids = set()
-        if solo_a is not None:
-            if solo_a[4] is not None and solo_a[4] >= PRICE_MIN:
-                include_a_rids = {str(solo_a[0].get("rid", ""))}
-        elif len(race_qualifiers) > 1:
+        if solo_a_rid is not None:
+            if info_by_rid[solo_a_rid][4] is not None and info_by_rid[solo_a_rid][4] >= PRICE_MIN:
+                include_a_rids = {solo_a_rid}
+        elif len(a_pool) > 1:
             # Multi-selection floor exception (see CONTESTED_PRICE_FLOOR
             # above) - only fires when EVERY qualifier clears it, not just
             # the shortest-priced one; otherwise the race stays contested
             # (silent) exactly as before.
-            prices = [q[4] for q in race_qualifiers]
+            prices = [info_by_rid[rid][4] for rid in a_pool]
             if all(p is not None and p > CONTESTED_PRICE_FLOOR for p in prices):
-                include_a_rids = {str(q[0].get("rid", "")) for q in race_qualifiers}
+                include_a_rids = set(a_pool)
 
         solo_b_rid = b_pool[0] if len(b_pool) == 1 else None
         include_b_rids = set()

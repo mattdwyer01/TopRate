@@ -937,6 +937,70 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   different question (predicting a horse's rating from a jockey change
   vs ranking jockeys against each other in one race), same field, same
   direction. No production change - `jw` was already the shipped choice.
+- **Tracker A gets a form-factor floor, `PFM_A_FLOOR=60.0` - and a real NaN
+  bug found in the sweep script that first picked a different number
+  (2026-09-19)**: real user question ("should there be a minimum floor for
+  form factor or top rate rating?"). `wpr_tracker_a_rating_floor_sweep.py`
+  (new, read-only scratch script, re-implements `build_candidates()`'s
+  race loop with the floor check INSIDE the qualifying loop, same
+  population-level precedent as the jockey relative-rank change) tested
+  both fields as an ABSOLUTE floor for Tracker A only (Tracker B already
+  has its own RACE-RELATIVE version of this idea via its rating-agreement
+  condition). TopRate rating (`trr`) is a real tradeoff, not a free win -
+  win% climbs 20.5%->28.1% at trr>=99 but flat ROI drops 22.8%->10.7% at
+  trr>=97, the classic favourite-bias pattern. Form factor (`pfm_score`)
+  looked like a genuine non-tradeoff win instead, and the user confirmed
+  shipping it - initially landed on `PFM_A_FLOOR=65.0`.
+
+  While independently verifying the shipped change against the sweep
+  script's own predictions (comparing rid-sets directly, not just
+  aggregate counts), found production and the sweep disagreed (n=202 vs
+  n=213 on identical loaded data). Root cause: `run_one()`'s floor checks
+  were written exclude-style (`if val is None or val < floor: continue`),
+  and `pfm_score_by_rid.get(rid)` can return `NaN` (a real pandas float,
+  not `None`) for a missing score - `NaN is None` and `NaN < floor` are
+  BOTH `False`, so a NaN score silently passed every exclude-style check
+  instead of being filtered out. Production's own check was already
+  written the safe, include-style way (`if val is not None and val >=
+  floor: <include>`, which correctly evaluates `False` for NaN) - the bug
+  was in the sweep script alone, not in production. This is the same NaN
+  gotcha already found once earlier this session in
+  `wpr_tracker_jockey_field_choice_sweep.py`'s debugging - now hit a
+  second time in a different script, worth remembering as a recurring
+  footgun with pandas-sourced lookups specifically (`_load_pfm_lookup()`
+  reads `toprate_runners.csv` via pandas), not a one-off mistake.
+
+  Fixed the sweep script's checks to match production's include-style
+  pattern and re-ran the full sweep. The correction mattered: a finer
+  sweep (step of 2 around 58-74) showed pfm 62-68 is actually a real LOCAL
+  TROUGH, not the peak the buggy numbers suggested - `pfm>=65` itself only
+  reached flat ROI +22.6% (barely above the +22.8% no-floor baseline),
+  not the "+33-35% peak" first reported. Two genuinely stronger, stable
+  bands sit either side of that trough: 58-62 (flat ROI +30-32%, n~212-
+  227) and 70-74 (flat ROI +32-35%, n~164-181). Moved the shipped value
+  from 65 to 60 - the lower band, chosen over the higher one for its
+  larger sample (n=221 vs 181), both clearly outside the trough and both
+  still beating the no-floor baseline on win% and both ROI measures.
+  TopRate rating floor still NOT applied - it only trades one metric for
+  the other, no clean win, unaffected by this correction.
+
+  Implemented in `speedmap_jockey_tracker.py`'s `build_candidates()`: the
+  race loop now computes a shared, pre-pfm-filter `race_qualifiers` list
+  (the existing tag/gap/jw-relative-rank/jw_starts checks), then splits
+  it into Tracker A's own `a_pool` (additionally filtered by
+  `pfm_score_by_rid.get(rid) >= PFM_A_FLOOR`, include-style/NaN-safe) and
+  Tracker B's existing `b_pool` (rating-agreement, unchanged) - each pool
+  is its own independent solo-only population, mirroring how B's
+  rating-agreement already worked. Mirrored in
+  `frontend/src/lib/trackerRules.ts`'s `evaluateTrackerQualifiers()` (new
+  `aPool` array alongside the existing `bPool`, same population-level
+  solo/contested/underPrice resolution applied to it) and in
+  `TrackersTab.tsx`'s module comment + High Volume `description=` string
+  (both now mention "form factor of 60+"). `tracker_history_cleanup.py`
+  re-run against the new rule: 30 rows removed from
+  `tracker_high_volume.csv` (0 from `tracker_low_volume.csv`, expected -
+  this floor only touches Tracker A) - a real, substantial cut, consistent
+  with a genuinely new absolute filter rather than a near no-op.
 
 ## What to be careful about
 

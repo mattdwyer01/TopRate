@@ -119,11 +119,20 @@ def run_one(data, pfm_rank_by_rid, pfm_score_by_rid, dates, bush_keys, trr_floor
                     race_qualifiers_b.append((u, price))
 
                 # Tracker A: apply the new absolute floor(s) being tested.
+                # Written include-style (not "exclude if val is None or val <
+                # floor") deliberately: pfm_score_by_rid can hold NaN (a
+                # pandas artifact, not None) for a missing score, and NaN
+                # fails BOTH "is None" and "< floor" comparisons, so an
+                # exclude-style check silently lets it through - found via a
+                # real discrepancy against production's own (correct,
+                # include-style) check after this script had already been
+                # used to pick PFM_A_FLOOR=65 - re-verified afterward that
+                # the conclusion still held once fixed (see CLAUDE.md).
                 trr_val = u.get("trr")
                 pfm_val = pfm_score_by_rid.get(rid)
-                if trr_floor is not None and (trr_val is None or trr_val < trr_floor):
+                if trr_floor is not None and not (trr_val is not None and trr_val >= trr_floor):
                     continue
-                if pfm_floor is not None and (pfm_val is None or pfm_val < pfm_floor):
+                if pfm_floor is not None and not (pfm_val is not None and pfm_val >= pfm_floor):
                     continue
                 race_qualifiers_a.append((u, price))
 
