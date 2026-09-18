@@ -1355,11 +1355,29 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   the nearer Midfield column, 0.4-0.5) or 0.4 (Off Pace) - the old
   single-column Midfield bucket no longer hides that gradient. Verified
   via a background Playwright pass against real data (desktop layout,
-  console errors, tint sanity) before landing - see the pass's own
-  findings for mobile-specific overflow/legibility at 10 columns (mobile
+  mobile overflow, tint sanity, console errors) before landing - desktop
+  (10 columns, correct label pairing, zero overlapping cards, 6px gaps
+  throughout) and mobile (no page/component horizontal overflow at
+  360/393px, tint mix sane, zero JS errors) both passed cleanly. Mobile
   went from 6 to 10 columns in the same fixed-width, no-horizontal-scroll
   flex row this file has tuned carefully before - the highest risk part
-  of this change, real user aware and opted in anyway when asked).
+  of this change, real user aware and opted in anyway when asked - and
+  the pass did surface two real, non-blocking mobile findings: (1) the
+  "Off Midfield" and "Off Pace" mobile column headers both truncated to
+  "OFF ..." at 360-393px (the shared "Off " prefix ate the only 4
+  characters `truncate` leaves visible at that width), making the two
+  zones indistinguishable by header text alone - fixed immediately by
+  dropping the internal space (`shortLabel: 'OffMid'`/`'OffPace'`, no
+  longer 'Off Mid'/'Off Pace'), which moves the distinguishing M/P letter
+  into that same 4-character window instead of being pushed out by the
+  space; re-verified via a second, narrower Playwright pass. (2) mobile
+  card horse-names are now down to essentially one visible character +
+  ellipsis (vs 2-3 characters under the old 6-column layout) - an
+  inherent, expected cost of narrower cards from doubling column count
+  rather than a bug (full name is still in the card's hover tooltip), left
+  as-is rather than "fixed" since there's no free width left to recover it
+  from without giving back some of the column-count improvement itself -
+  flagged here in case a future report wants it revisited.
 
 ## What to be careful about
 
