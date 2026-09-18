@@ -1763,6 +1763,48 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   above) - not proof no edge exists at all, but every reasonably obvious
   angle checked so far comes back empty once stress-tested rather than
   taken at face value.
+- **First genuinely-more-robust-than-noise Combo result: a jockey
+  quality floor on Combo's own #1 pick, real but modest (2026-09-19)**:
+  direct follow-up - "look into that" (bringing in a signal Combo doesn't
+  already contain, the closing suggestion of the disagreement-test
+  entry above, since speedmap_jockey_tracker.py's own jockey-relative-
+  rank mechanic already has a validated positive-ROI history on ITS OWN,
+  differently-gated population). `wpr_combo_jockey_filter_test.py` (new,
+  read-only scratch script, same 6,126-race/121-date per-runner-valid
+  population as the market-disagreement test) swept both a relative
+  jockey-rank filter (top X% of jockey_win_pct_90d across the WHOLE race
+  field, same convention as the tracker's own build_candidates()) and an
+  absolute jw floor, applied to Combo's own #1-ranked pick (no solo-only,
+  speed_map, or price-floor gating - none of the tracker's other
+  machinery, just "back Combo's top pick when its jockey clears X").
+  Baseline (no filter): win 30.2%, flat ROI -13.0%. A clean, monotonic
+  improvement as the floor rises, crossing into positive territory
+  around jw>=18 (n=1,147, win 39.8%, flat ROI +3.4%, prop ROI +0.1%) and
+  peaking around jw>=20 (n=812, win 40.9%, flat ROI +4.6%, prop ROI
+  +1.4%) before thinning into noise above jw>=25 (n<=296).
+
+  Checked both cells with the same two robustness tests every other
+  apparently-positive Combo result in this file has failed (date-half
+  split, exclude-3-biggest-winners) - THIS is the first one that does
+  NOT collapse into deeply negative territory under either check: jw>=18
+  first-half +5.9%/second-half +1.6% flat (both sides of the split stay
+  positive, unlike every prior fragile finding's dramatic sign flip),
+  excl-top3-winners +0.6% (still near breakeven, not a collapse); jw>=20
+  first-half +11.4%/second-half -0.0% flat (second half is flat, not
+  negative), excl-top3-winners +2.0%. Still a real caveat worth stating
+  plainly: the effect is meaningfully weaker in the second half of the
+  window for both floors, and proportional ROI at jw>=18 does go slightly
+  negative in the second half (-2.8%) even though flat ROI doesn't -
+  this reads as "a real, modest signal that may be softening or just
+  noisy at this sample size", not "a proven, durable edge" the way the
+  tracker's own JW_MIN backtests (run on a different, much larger
+  same-idea population over more history) were treated. Not yet applied
+  anywhere in production (this is Combo's own #1 pick specifically, a
+  DIFFERENT population from both the existing tracker rule and the Race
+  tab's own display) - a natural next step if this holds up would be
+  deciding whether/how to surface it (a new tracker-style rule, a Race
+  tab badge, or just left as a documented finding) - not done without
+  that decision being made explicitly first.
 
 ## What to be careful about
 
