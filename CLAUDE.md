@@ -1226,6 +1226,29 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `SpeedMap.tsx`/`SpeedMapGrid.tsx`, `ResultVsProjection.tsx`) that were
   deliberately left untouched, not because of any technical constraint,
   just because they weren't part of what was asked.
+- **Combo reweighted 0.20/0.70/0.10 -> 0.45/0.30/0.25 (wpr/trr/pfm),
+  2026-09-19**: real user observation, using the shipped feature: "combo
+  is very aligned to market price because of the heavy trr weighting" -
+  `toprateRating` correlates closely with how the market itself prices a
+  runner, so a 70%-trr blend inherited a lot of that market-alignment,
+  making Combo less of an independent signal than intended.
+  `wpr_composite_score_capture_test.py`'s new trr-weight-cap section
+  (for each trr cap, finds the best wpr/pfm split via a finer 0.05-step
+  grid) found the tradeoff is smooth, not a cliff: capping trr at 0.30
+  (under half its original weight) only cost 1.8pp of matched-margin
+  capture rate (73.3% vs the original triple's 75.1%). Real user
+  follow-up ("can you give a bit more to pfm?") found pfm had real slack
+  at that same trr=0.30 cap too - doubling it from 0.10 to 0.20, then to
+  0.25, cost essentially nothing further (73.1%, then 73.2% - a small,
+  noisy improvement, not a real cost). Landed on 0.45/0.30/0.25: wpr
+  restored to plurality driver, trr cut well under half its original
+  weight, pfm given real, meaningful influence (up from a token 0.10) -
+  73.2% capture rate, a deliberate trade of ~2pp for a materially less
+  market-mirroring score, not a correction to the original triple (which
+  is still the single best PURE capture-rate optimum found, just not
+  what shipped). `COMPOSITE_MAX_GAP_FROM_TOP` left at 10 - the new
+  triple's own matched margin came out at 10.08, close enough not to
+  re-round for a 0.08 difference.
 
 ## What to be careful about
 

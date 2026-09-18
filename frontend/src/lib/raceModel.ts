@@ -194,12 +194,28 @@ export function computeEffectiveRace(
 // searched every weight triple with all three weights > 0 (so all three
 // genuinely contribute, per the user's own follow-up request) at matched
 // selectivity (same average shortlist size as the existing 5-WPR
-// OVERLAY_MAX_GAP_FROM_TOP threshold produces). This exact weighting won
-// outright: 75.1% winner capture rate vs projectedWpr alone's 65.5% at
-// the same selectivity - a real, validated improvement, not a tradeoff.
-export const COMPOSITE_WEIGHT_WPR = 0.20
-export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.70
-export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.10
+// OVERLAY_MAX_GAP_FROM_TOP threshold produces). Initially landed on
+// 0.20/0.70/0.10 (wpr/trr/pfm) - 75.1% winner capture rate vs projectedWpr
+// alone's 65.5% at the same selectivity, the single best triple found.
+//
+// REWEIGHTED (2026-09-19, direct follow-up): real user observation that
+// Combo tracked the market price too closely because of the heavy 0.70
+// toprateRating weight - toprateRating correlates closely with how the
+// market itself prices a runner, so leaning that hard on it pulled Combo
+// toward being a proxy for market favouritism rather than an independent
+// signal. The backtest's own trr-weight-cap curve (see that script) shows
+// a smooth, gentle tradeoff, not a cliff: capping trr at 0.30 (well under
+// half its original weight) only cost 1.8pp of capture rate (73.3% vs
+// 75.1%), and pfm's own weight had real slack at that cap too - doubling
+// it from 0.10 to 0.20-0.25 cost essentially nothing further (73.1-73.2%).
+// Landed on 0.45/0.30/0.25, a real user decision balancing all three
+// factors (wpr now the plurality driver again, trr cut to well under
+// half its original weight, pfm given a genuinely meaningful voice) for
+// 73.2% capture rate - down from the original triple's 75.1%, but a
+// deliberate trade for a less market-mirroring score, not a correction.
+export const COMPOSITE_WEIGHT_WPR = 0.45
+export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.30
+export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.25
 // Population mean/std (toprate_runners.csv, all non-scratched rows, see
 // wpr_composite_score_capture_test.py's own printed stats) used to
 // rescale toprateRating/formFactor onto projectedWpr's own natural scale
@@ -219,9 +235,11 @@ const PFM_POP_STD = 30.88
 // Margin threshold for the composite score's own "X from top rated"
 // divider, analogous to OVERLAY_MAX_GAP_FROM_TOP but NOT the same units -
 // blending compresses the scale (see the backtest's own matched-margin
-// section), so "5" doesn't carry over. The backtest's own matched-margin
-// search (same avg shortlist size as OVERLAY_MAX_GAP_FROM_TOP=5 on raw
-// WPR) landed on 9.99; rounded to an even 10, real user decision.
+// section), so "5" doesn't carry over. The original 0.20/0.70/0.10
+// weighting's matched-margin search landed on 9.99, rounded to an even
+// 10. The reweighted 0.45/0.30/0.25 triple's own matched margin came out
+// at 10.08 - close enough to leave this at 10 rather than re-round for a
+// 0.08 difference.
 export const COMPOSITE_MAX_GAP_FROM_TOP = 10
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
