@@ -80,11 +80,12 @@ const JW_STARTS_MIN = 25
 // Tracker A (high volume) minimum form-factor (formFactor, i.e. pfm_score)
 // floor - see speedmap_jockey_tracker.py's matching PFM_A_FLOOR comment for
 // the full backtest (and the correction to it: the sweep script that first
-// picked 65 had a NaN-handling bug, and the corrected numbers moved the
-// pick to 60). A missing/NaN form factor fails this deliberately, same as
-// the Python side - this is a genuine backtested floor, not a thin-sample
-// guard like JW_STARTS_MIN, so there's no "unknown passes" precedent here.
-const PFM_A_FLOOR = 60.0
+// picked 65 had a NaN-handling bug; the corrected numbers moved the pick to
+// 60, then to 70 per explicit real user decision). A missing/NaN form
+// factor fails this deliberately, same as the Python side - this is a
+// genuine backtested floor, not a thin-sample guard like JW_STARTS_MIN, so
+// there's no "unknown passes" precedent here.
+const PFM_A_FLOOR = 70.0
 const PRICE_MIN = 3.0
 // A multi-selection (contested) race still fires - on every qualifier in
 // it - if all of them are priced above this floor. See

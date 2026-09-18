@@ -187,12 +187,11 @@ JW_STARTS_MIN = 25
 # pfm>=65 itself: flat ROI +22.6%, barely above baseline, not the "+33-35%
 # peak" the buggy numbers first suggested) sitting between two genuinely
 # stronger, stable bands either side: 58-62 (flat ROI +30-32%, n~212-227)
-# and 70-74 (flat ROI +32-35%, n~164-181). Moved off 65 to 60 - the lower
-# band, chosen over the higher one for its larger sample (n=221 vs 181),
-# since both are clearly outside the trough and beat the no-floor
-# baseline on win% and both ROI measures. TopRate rating floor NOT
-# applied - it only trades one metric for the other, no clean win.
-PFM_A_FLOOR = 60.0
+# and 70-74 (flat ROI +32-35%, n~164-181, the single best flat ROI point
+# in the whole sweep). Initially moved off 65 to 60 (the lower band, for
+# its larger sample), then to 70 per explicit real user decision
+# (2026-09-19) favouring the stronger of the two bands over sample size.
+PFM_A_FLOOR = 70.0
 PRICE_MIN = 3.0          # SP/fixed price floor
 # A multi-selection (contested) race normally never fires at all (solo-only,
 # see above). Exception (Sep 2026, real user decision): if EVERY qualifier in

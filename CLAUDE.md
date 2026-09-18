@@ -1001,6 +1001,19 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `tracker_high_volume.csv` (0 from `tracker_low_volume.csv`, expected -
   this floor only touches Tracker A) - a real, substantial cut, consistent
   with a genuinely new absolute filter rather than a near no-op.
+- **`PFM_A_FLOOR` raised 60 -> 70 (2026-09-19, direct follow-up)**: real
+  user decision ("Actually make it 70"), made after the corrected sweep
+  above already showed the 70-74 band (flat ROI +32-35%, n~164-181) as
+  the single strongest stretch in the whole corrected sweep, ahead of the
+  58-62 band the previous entry landed on for its larger sample. Updated
+  everywhere `PFM_A_FLOOR` is duplicated: `speedmap_jockey_tracker.py`
+  (source of truth), `frontend/src/lib/trackerRules.ts`'s `PFM_A_FLOOR`
+  constant, and `TrackersTab.tsx`'s module comment + High Volume
+  `description=` string (both now read "form factor of 70+" / ">=70").
+  `tracker_history_cleanup.py` re-run against the tightened floor: 11
+  more rows removed from `tracker_high_volume.csv` (54->42 - runners in
+  the now-excluded 60-69 band), 0 from `tracker_low_volume.csv` (still
+  unaffected, as expected - this floor only ever touches Tracker A).
 
 ## What to be careful about
 
