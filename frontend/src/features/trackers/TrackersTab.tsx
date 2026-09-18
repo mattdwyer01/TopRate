@@ -281,22 +281,6 @@ function Fact({ label, value }: { label: string; value: string }) {
   )
 }
 
-// Price gets its own, larger/bolder variant of Fact (real user feedback,
-// 2026-09-19: it was sized identically to every other fact - WPR proj, gap,
-// jockey % - and got lost in the row even though it's the number a bettor
-// actually needs to place the bet). Same neutral ink colour as the rest,
-// deliberately not emerald/rose - this isn't signalling the price moved
-// favourably (unlike RunnerDetailModal's "(firmed)" price, which is), just
-// making it easier to find at a glance.
-function PriceFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-[9px] uppercase tracking-wide text-ink-faint sm:text-[10px]">{label}</span>
-      <span className="font-mono text-sm font-bold text-ink sm:text-base">{value}</span>
-    </div>
-  )
-}
-
 // One pick, as a self-contained card - every field the user asked to see
 // (silk, WPR prediction + gap to top rated, TopRate rating, form-factor
 // rating, jockey win%, price, result) fits without any horizontal
@@ -313,19 +297,27 @@ function PriceFact({ label, value }: { label: string; value: string }) {
 function PickCardBody({ row }: { row: TrackerRow }) {
   return (
     <>
+      {/* Price sits right in the header, next to the horse name, not buried
+          in the facts grid below (real user feedback, 2026-09-19: "it
+          should [have] prominence in the same header as the horse name") -
+          it's the number a bettor actually needs, so it gets the same
+          always-visible billing as the name and result. Name keeps
+          min-w-0/truncate/flex-1 so IT gives way first on a long horse
+          name, never the price or result badge (both flex-none). */}
       <div className="flex items-center gap-2">
         {row.silkUrl ? (
           <img src={row.silkUrl} alt="" className="h-9 w-9 flex-none rounded-sm object-contain" />
         ) : (
           <span className="h-9 w-9 flex-none rounded-sm bg-bg" />
         )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate font-medium text-ink">
-              {row.tab}. {row.horse}
-            </span>
-            <ResultBadge row={row} />
-          </div>
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium text-ink">
+            {row.tab}. {row.horse}
+          </span>
+          <span className="flex-none font-mono text-sm font-bold text-ink sm:text-base">
+            {fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)}
+          </span>
+          <ResultBadge row={row} />
         </div>
       </div>
       {/* Badges get their own row, separate from the facts grid below (real
@@ -364,21 +356,20 @@ function PickCardBody({ row }: { row: TrackerRow }) {
           same slot (WPR proj top-left, Settling bottom-right, etc) on
           every card, on both mobile and desktop - a flex-wrap row's
           wrapping point depends on total content width before it, which
-          isn't a property this grid has. 3 columns on mobile (real user
-          feedback, 2026-09-19: 2 columns' 5 rows took up too much vertical
-          space - 3 cuts it to 4 rows; an occasional long trainer name like
-          "Barry Lockwood & Emma-Jane Vincent" just wraps to 2 lines in its
-          own cell rather than pushing anything else out of place); sm: 5
-          gives two clean rows of 5 once there's room (10 facts total,
-          divides evenly both ways). Tighter gap-y (1 vs the badges row's
-          own 1) since 4-5 short rows of label+value add up fast. */}
+          isn't a property this grid has. Price moved up into the header
+          (see above) - 9 facts remain, dividing evenly into 3 clean rows
+          of 3 on mobile; sm: 5 gives a 5-then-4 split once there's room
+          (an uneven last row is still fully deterministic/consistent
+          card-to-card, just not visually full). An occasional long
+          trainer name like "Barry Lockwood & Emma-Jane Vincent" just
+          wraps to extra lines in its own cell rather than pushing
+          anything else out of place. */}
       <div className="grid grid-cols-3 gap-x-3 gap-y-1 sm:grid-cols-5 sm:gap-x-4">
         <Fact label="WPR proj" value={row.wprPrediction != null ? fmtWpr(row.wprPrediction) : '—'} />
         <Fact label="Gap to top" value={row.gapWpr != null ? row.gapWpr.toFixed(1) : '—'} />
         <Fact label="TopRate" value={row.toprateRating != null ? row.toprateRating.toFixed(1) : '—'} />
         <Fact label="Form factor" value={row.formFactor != null ? row.formFactor.toFixed(0) : '—'} />
         <Fact label="Jockey %" value={row.jw != null ? `${row.jw.toFixed(1)}%` : '—'} />
-        <PriceFact label="Price" value={fmtPrice(row.resulted ? row.priceFinal : row.priceAtPick)} />
         <Fact label="Jockey" value={row.jockey || '—'} />
         <Fact label="Trainer" value={row.trainer || '—'} />
         <Fact label="Barrier" value={row.barrier != null ? String(row.barrier) : '—'} />
