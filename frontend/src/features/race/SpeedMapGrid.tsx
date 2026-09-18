@@ -29,21 +29,25 @@ interface SpeedMapGridProps {
 // Midfield" don't fit even wrapped at that width without CSS word-breaking
 // mid-word, which read worse than just using a shorter word (real device
 // feedback, 2026-09-16: the full labels visually collided with each other).
-// "OffMid"/"OffPace" have no internal space (2026-09-19 Playwright
-// verification of the 10-column widening below): "Off Mid"/"Off Pace"
-// both truncated to "OFF ..." at 360-393px, the shared "Off " prefix
-// eating the only 4 characters that survive the header's `truncate` -
-// dropping the space moves the distinguishing letter (M vs P) into that
-// same 4-character window instead of being pushed out by it.
+// "OMid"/"OPace" (2026-09-19, revised twice by Playwright verification of
+// the 10-column widening below): "Off Mid"/"Off Pace" both truncated to
+// "OFF ..." at 360-393px, the shared "Off " prefix eating the only 4
+// characters that survive the header's `truncate`. Dropping the space
+// ("OffMid"/"OffPace") fixed 393px+ but not 360px specifically - "M" is a
+// wide glyph, so at 29px column width "OffMid" still truncated to "OFF..."
+// (the M itself swallowed by the ellipsis) while "OffPace" fit enough to
+// show its own distinguishing "P". Shortened further to "OMid"/"OPace" so
+// the distinguishing letter sits right after the shared "O", well inside
+// any width both labels need to survive to.
 const COLUMNS = [
   { key: 'back2', label: 'Backmarker', shortLabel: 'Back', lo: 9 / 10, hi: 1 },
   { key: 'back1', label: 'Backmarker', shortLabel: 'Back', lo: 8 / 10, hi: 9 / 10 },
-  { key: 'offmid2', label: 'Off Midfield', shortLabel: 'OffMid', lo: 7 / 10, hi: 8 / 10 },
-  { key: 'offmid1', label: 'Off Midfield', shortLabel: 'OffMid', lo: 6 / 10, hi: 7 / 10 },
+  { key: 'offmid2', label: 'Off Midfield', shortLabel: 'OMid', lo: 7 / 10, hi: 8 / 10 },
+  { key: 'offmid1', label: 'Off Midfield', shortLabel: 'OMid', lo: 6 / 10, hi: 7 / 10 },
   { key: 'mid2', label: 'Midfield', shortLabel: 'Mid', lo: 5 / 10, hi: 6 / 10 },
   { key: 'mid1', label: 'Midfield', shortLabel: 'Mid', lo: 4 / 10, hi: 5 / 10 },
-  { key: 'offpace2', label: 'Off Pace', shortLabel: 'OffPace', lo: 3 / 10, hi: 4 / 10 },
-  { key: 'offpace1', label: 'Off Pace', shortLabel: 'OffPace', lo: 2 / 10, hi: 3 / 10 },
+  { key: 'offpace2', label: 'Off Pace', shortLabel: 'OPace', lo: 3 / 10, hi: 4 / 10 },
+  { key: 'offpace1', label: 'Off Pace', shortLabel: 'OPace', lo: 2 / 10, hi: 3 / 10 },
   { key: 'pace', label: 'Pace', shortLabel: 'Pace', lo: 1 / 10, hi: 2 / 10 },
   { key: 'lead', label: 'Leader', shortLabel: 'Lead', lo: 0, hi: 1 / 10 },
 ]

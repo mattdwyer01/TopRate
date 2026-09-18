@@ -1370,7 +1370,15 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   dropping the internal space (`shortLabel: 'OffMid'`/`'OffPace'`, no
   longer 'Off Mid'/'Off Pace'), which moves the distinguishing M/P letter
   into that same 4-character window instead of being pushed out by the
-  space; re-verified via a second, narrower Playwright pass. (2) mobile
+  space. A second, narrower Playwright pass at exactly 360px (not just
+  393px) found this fix only PARTIAL: "OffMid" still truncated to "OFF..."
+  there specifically (the wide "M" glyph itself got swallowed by the
+  ellipsis at a 29px column width) while "OffPace" showed enough of
+  itself to display its own "P" - the two were no longer identical text,
+  but "Off Midfield" still had no distinguishing letter visible at 360px.
+  Shortened further to `'OMid'`/`'OPace'` (dropping "ff" entirely) so the
+  distinguishing letter sits immediately after the shared "O" - re-checked
+  again at exactly 360px to confirm. (2) mobile
   card horse-names are now down to essentially one visible character +
   ellipsis (vs 2-3 characters under the old 6-column layout) - an
   inherent, expected cost of narrower cards from doubling column count
