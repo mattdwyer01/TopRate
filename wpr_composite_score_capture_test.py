@@ -171,6 +171,34 @@ def main():
     for w_wpr, w_trr, w_pfm, T, pool_size, capture_rate in grid_results[:10]:
         print(f"  {w_wpr:.2f}/{w_trr:.2f}/{w_pfm:.2f}          {T:6.2f}      {pool_size:5.2f}      {100*capture_rate:5.1f}%")
 
+    # Real user follow-up (2026-09-19): "combo is very aligned to market
+    # price because of the heavy trr weighting... is there a different
+    # weighting to bring trr down but keep strike rate similar?" -
+    # toprateRating is TopRate's own rating, which correlates closely
+    # with how the market itself prices a runner (a highly-rated horse
+    # tends to be a market fancy too), so a 70%-trr blend inherits a lot
+    # of that market-alignment - shipped Combo trades some of Race-tab
+    # ORIGINALITY for capture rate. For each trr weight CAP (0.0 to the
+    # shipped 0.70), find the single BEST wpr/pfm split at that cap via a
+    # finer grid (0.05 steps) - this is the real tradeoff curve: how much
+    # capture rate do you actually give up by capping trr's influence.
+    print("\n\n=== Capture rate vs capped trr weight (finer wpr/pfm grid at each cap) ===")
+    for trr_cap in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]:
+        best = None
+        w_pfm = 0.0
+        while w_pfm <= 1.0 - trr_cap + 1e-9:
+            w_wpr = 1.0 - trr_cap - w_pfm
+            if w_wpr >= -1e-9:
+                w_wpr = max(w_wpr, 0.0)
+                score = w_wpr * cdf["wprp_proj"] + trr_cap * cdf["trr_rescaled"] + w_pfm * cdf["pfm_rescaled"]
+                T, pool_size, capture_rate = matched_margin_capture(score, target_pool)
+                if best is None or capture_rate > best[-1]:
+                    best = (w_wpr, trr_cap, w_pfm, T, pool_size, capture_rate)
+            w_pfm = round(w_pfm + 0.05, 2)
+        w_wpr, w_trr, w_pfm, T, pool_size, capture_rate = best
+        print(f"  trr<={w_trr:.2f}: best split wpr={w_wpr:.2f}/pfm={w_pfm:.2f}  "
+              f"margin={T:6.2f}  pool={pool_size:5.2f}  capture={100*capture_rate:5.1f}%")
+
 
 if __name__ == "__main__":
     main()
