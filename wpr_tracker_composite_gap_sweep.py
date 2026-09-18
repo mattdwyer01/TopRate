@@ -1,9 +1,23 @@
 """One-off scratch analysis: does replacing the tracker's WPR-based gap
 check (GAP_MAX, "how close is this runner to the race's own top-projected
-WPR") with the new Race tab "Combo" composite score change the tracker's
+WPR") with the Race tab "Combo" composite score change the tracker's
 actual ROI/win%? Real user question, 2026-09-19, direct follow-up to
 shipping the Combo score on the Race tab: "do trackers need to be
 updated to replace wpr 5 rule with new score instead?" -> "Test it".
+
+RE-RUN (2026-09-19, same day) with Combo's REWEIGHTED formula (0.45*wpr +
+0.30*trr + 0.25*pfm, down from the original 0.20/0.70/0.10 that this
+script's first run tested and rejected) - real user follow-up: "could we
+use this new combo in the tracker? is 10 pts margin still accurate?".
+The original run found every composite-gap threshold worse than WPR on
+ROI for both trackers, attributed to the 70%-trr weight's favourite-bias
+pull; the reweighted version leans far less on trr (30%, less than half),
+so that specific risk is smaller here - re-verified rather than assumed
+carried over. Also re-checks whether ~10 (the Race tab's own matched
+margin, calibrated against the GENERAL race field in toprate_runners.csv)
+still describes a sensible threshold for the tracker's own, differently-
+gated population (JW_FLOOR/JW_RELATIVE_TOP_PCT/speed_map-filtered, not
+the whole field) - swept broadly rather than assumed.
 
 This is a DIFFERENT question from the Combo score's own validation
 (wpr_composite_score_capture_test.py measured "is the winner in the
@@ -11,10 +25,7 @@ shortlist" against toprate_runners.csv's full pfm-covered window, not
 gated by speed_map). The tracker's OWN rule needs speed_map (from
 wpjcb.speed_map), which only exists from 2026-08-22 onward - so this test
 is gated the same way every prior tracker sweep this session was, even
-though the Combo score itself isn't. Real risk flagged before running
-this (jw-vs-jrt and the TopRate-rating-floor sweeps both found rating-
-heavy signals trade win% for ROI - the Combo score leans 70% on
-toprateRating) - checking whether that risk is real here, not assuming.
+though the Combo score itself isn't.
 
 Read-only against toprate_data.json/toprate_runners.csv - writes nothing.
 Re-implements build_candidates()'s race loop with ONLY the gap check's
@@ -23,14 +34,11 @@ condition (speed_map tag, JW_FLOOR/JW_RELATIVE_TOP_PCT, JW_STARTS_MIN,
 PFM_A_FLOOR for A, trr/pfm rank-agreement for B, PRICE_MIN,
 CONTESTED_PRICE_FLOOR) stays exactly as current production. Composite
 score uses the EXACT SAME formula/weights/rescale constants as the
-shipped frontend/src/lib/raceModel.ts's compositeScore() (0.20*wpr +
-0.70*toprateRating(rescaled) + 0.10*formFactor(rescaled), missing
-trr/pfm gracefully drops and renormalizes) - population mean/std for
-rescaling reused as printed by wpr_composite_score_capture_test.py.
-Since GAP_MAX's meaning doesn't carry over to the composite's different
-scale (per the Race tab's own matched-margin finding, ~10 not 5), this
-sweeps a range of composite-gap thresholds rather than assuming any
-single number.
+currently-shipped frontend/src/lib/raceModel.ts's compositeScore() -
+population mean/std for rescaling reused as printed by
+wpr_composite_score_capture_test.py. Since GAP_MAX's meaning doesn't
+carry over to the composite's different scale, this sweeps a range of
+composite-gap thresholds rather than assuming any single number.
 """
 import json
 from datetime import date
@@ -45,11 +53,11 @@ PFM_A_FLOOR = sjt.PFM_A_FLOOR
 PRICE_MIN = sjt.PRICE_MIN
 CONTESTED_PRICE_FLOOR = sjt.CONTESTED_PRICE_FLOOR
 
-# Matches frontend/src/lib/raceModel.ts exactly - see that file's own
-# comment for where these came from.
-COMPOSITE_WEIGHT_WPR = 0.20
-COMPOSITE_WEIGHT_TRR = 0.70
-COMPOSITE_WEIGHT_PFM = 0.10
+# Matches frontend/src/lib/raceModel.ts exactly (reweighted 2026-09-19 -
+# see that file's own comment for the full history).
+COMPOSITE_WEIGHT_WPR = 0.45
+COMPOSITE_WEIGHT_TRR = 0.30
+COMPOSITE_WEIGHT_PFM = 0.25
 WPR_POP_MEAN, WPR_POP_STD = 72.57, 10.48
 TRR_POP_MEAN, TRR_POP_STD = 96.26, 2.71
 PFM_POP_MEAN, PFM_POP_STD = 38.35, 30.88
@@ -224,7 +232,7 @@ def main():
     print("  A:", fmt(r["A"]), "  B:", fmt(r["B"]))
 
     print("\n=== Composite-score gap sweep (replaces WPR-based GAP_MAX check) ===")
-    for gap_max in [5, 7.5, 10, 12.5, 15, 20]:
+    for gap_max in [3, 4, 5, 6, 7.5, 10, 12.5, 15, 20]:
         r = run_one(data, pfm_rank_by_rid, pfm_score_by_rid, dates, bush_keys, True, gap_max)
         print(f"  composite gap<={gap_max:<5} A: {fmt(r['A'])}   B: {fmt(r['B'])}")
 

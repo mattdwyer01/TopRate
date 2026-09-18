@@ -1249,6 +1249,34 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   what shipped). `COMPOSITE_MAX_GAP_FROM_TOP` left at 10 - the new
   triple's own matched margin came out at 10.08, close enough not to
   re-round for a 0.08 difference.
+- **Re-tested (and re-rejected) using the REWEIGHTED Combo score in the
+  tracker, 2026-09-19**: direct follow-up ("could we use this new combo
+  in the tracker? is 10 pts margin still accurate?"). The original test
+  (see the earlier "Tested, NOT applied" entry above) used Combo's
+  original 0.20/0.70/0.10 weighting and found it worse than raw WPR at
+  every threshold - that risk was attributed to the heavy 70% trr
+  weight's favourite-bias pull, so it was worth re-checking rather than
+  assuming the conclusion still holds once trr dropped to 30%.
+  `wpr_tracker_composite_gap_sweep.py` updated to the currently-shipped
+  0.45/0.30/0.25 weights and re-run (widened the swept range down to
+  gap<=3 too, since wpr's restored dominance brings the composite's
+  scale much closer to raw WPR's own, unlike the old trr-heavy version)
+  - same conclusion holds: EVERY threshold tested (3 through 20) is
+  STILL worse than the current WPR-based GAP_MAX=5 on both ROI measures
+  for both trackers, even though Tracker A's win% at the tightest
+  thresholds (23.0-23.4% at gap<=3-5) is now close to or slightly above
+  production's 22.9% - e.g. best case for A, gap<=5: flat ROI +19.6%->
+  +11.2%, prop ROI +5.5%->+3.2%; Tracker B is uniformly worse at every
+  threshold (win% 36.4%->34.3%, flat ROI +34.8%->+27.1%, prop ROI
+  +35.7%->+27.3%, identical across the whole swept range - B's
+  rating-agreement population simply doesn't depend on this gap check).
+  On the margin question specifically: 10 is NOT the right value for
+  this reweighted formula either way - the best results now cluster
+  around gap<=3-5 (much closer to raw WPR's own scale, since wpr is the
+  plurality weight again), not 10 - but this is moot, since even the
+  best available margin still underperforms production. NOT applied,
+  same as before - tracker stays on raw WPR regardless of which Combo
+  weighting is considered.
 
 ## What to be careful about
 
