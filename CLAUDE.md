@@ -1637,6 +1637,23 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   stopped at capture rate + avg pool size, matching exactly what was
   asked) - a natural next step if this is pursued further, same as every
   other capture-rate-first analysis in this file's history.
+- **Top-Combo-pick gap>5 win rate/avg odds queried, same day**: direct
+  follow-up - "what's the strike rate and avg odds of top ranked winners
+  who are more than 5 clear of 2nd ranked". Added an open-ended `gap > 5`
+  query to `wpr_combo_top_pick_margin_analysis.py` (the existing bucketed
+  table stops at discrete ranges like "3-5"/"5-7", none of which directly
+  answer an open "more than 5" question). Same population/weighting as
+  that script's own margin-bucket table (1,994 races, complete-case incl.
+  known price, currently-shipped 0.50/0.25/0.25 Combo weighting). Result:
+  n=799 races, win 36.9%, place 69.3%, avg price $2.77, flat ROI -14.4%,
+  prop ROI -12.1% - a real, meaningfully higher strike rate than the
+  full population's overall 29.0% average (as expected - a clear
+  standout is more likely to actually win), but still ROI-negative at
+  these prices, consistent with this file's standing finding that Combo's
+  top pick has no robust backing edge anywhere tested so far (margin,
+  price floor, state, race class - see the earlier entries in this
+  section) - a higher win rate alone doesn't imply a betting edge once
+  the market has already priced that same standout-ness in.
 
 ## What to be careful about
 

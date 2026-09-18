@@ -140,6 +140,17 @@ def main():
               f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
               f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
 
+    # Real user follow-up: "what's the strike rate and avg odds of top
+    # ranked winners who are more than 5 clear of 2nd ranked" - a direct
+    # open-ended gap>5 query (not bucketed), separate from the "3-5"/"5-7"
+    # buckets above which stop at 7.
+    print("\n=== Top-Combo-pick performance when gap to 2nd is > 5 ===")
+    gap5_sub = result[result["gap"] > 5]
+    gap5_flat_roi, gap5_prop_roi = roi_stats(gap5_sub)
+    print(f"n={len(gap5_sub)}  win%={100*gap5_sub['won'].mean():.1f}%  "
+          f"place%={100*gap5_sub['placed'].mean():.1f}%  avg price=${gap5_sub['price'].mean():.2f}  "
+          f"flat ROI={gap5_flat_roi:+.1f}%  prop ROI={gap5_prop_roi:+.1f}%")
+
     floors = [None, 2, 2.5, 3, 4, 5, 6, 8, 10]
     print("\n=== Price floor sweep, overall (no margin segmentation) ===")
     print(f"{'floor':>7}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}  "
