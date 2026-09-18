@@ -112,31 +112,64 @@ def main():
     # MATCHED-MARGIN comparison: real user request - "instead of picking
     # top 5, pick a margin (like wpr 5)". For each candidate score, find
     # the margin T' whose average pool size matches WPR-only's own
-    # gap<=5 pool size (the app's current selectivity) via a fine-grained
-    # scan, then compare capture rate AT THAT MATCHED SELECTIVITY - this
-    # is the fair version of the naive same-T comparison at the top of
-    # this script (that one was confounded by variance compression).
+    # gap<=5 pool size (the app's current selectivity), then compare
+    # capture rate AT THAT MATCHED SELECTIVITY - fair, unlike the naive
+    # same-T comparison at the top of this script (confounded by
+    # variance compression from averaging).
     cdf["_score"] = scores["WPR only (baseline)"]
     cdf["_top"] = cdf.groupby("race_id")["_score"].transform("max")
     cdf["_gap"] = cdf["_top"] - cdf["_score"]
     target_pool = (cdf["_gap"] <= 5).groupby(cdf["race_id"]).sum().mean()
+    race_ids = cdf["race_id"]
+    won_mask = (cdf["won"] == 1).values
+
+    def matched_margin_capture(score: pd.Series, target: float) -> tuple:
+        """Binary search for the margin T whose avg pool size matches
+        `target` (pool size is monotonically non-decreasing in T), then
+        return (T, pool_size, winner_capture_rate) at that margin."""
+        top = score.groupby(race_ids).transform("max")
+        gap = top - score
+        lo, hi = 0.0, 30.0
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            pool = (gap <= mid).groupby(race_ids).sum().mean()
+            if pool < target:
+                lo = mid
+            else:
+                hi = mid
+        T = hi
+        in_pool = gap <= T
+        pool_size = in_pool.groupby(race_ids).sum().mean()
+        capture_rate = in_pool.values[won_mask].mean()
+        return T, pool_size, capture_rate
+
     print(f"\n\n=== Matched-margin comparison (target pool size = WPR gap<=5 = {target_pool:.2f}) ===")
     for label, score in scores.items():
-        cdf["_score"] = score
-        cdf["_top"] = cdf.groupby("race_id")["_score"].transform("max")
-        cdf["_gap"] = cdf["_top"] - cdf["_score"]
-        best_T, best_diff, best_pool, best_capture = None, None, None, None
-        for t_hundredths in range(1, 2001):  # scan 0.01 to 20.00 in 0.01 steps
-            T = t_hundredths / 100
-            in_pool = cdf["_gap"] <= T
-            pool_size = in_pool.groupby(cdf["race_id"]).sum().mean()
-            diff = abs(pool_size - target_pool)
-            if best_diff is None or diff < best_diff:
-                winners = cdf[cdf["won"] == 1]
-                best_T, best_diff, best_pool = T, diff, pool_size
-                best_capture = (winners["_gap"] <= T).mean()
-        print(f"  {label:<32} matched margin={best_T:5.2f}  pool size={best_pool:5.2f}  "
-              f"winner capture rate={100*best_capture:5.1f}%")
+        T, pool_size, capture_rate = matched_margin_capture(score, target_pool)
+        print(f"  {label:<32} matched margin={T:5.2f}  pool size={pool_size:5.2f}  "
+              f"winner capture rate={100*capture_rate:5.1f}%")
+
+    # Real user follow-up: "can you weight them in a way that toprate
+    # rating, wpr & form factor are ALL included?" - the best performer
+    # above (WPR + trr only) excludes pfm_score entirely. Grid search
+    # over 3-way weights (all three strictly > 0, so pfm genuinely
+    # contributes rather than being zeroed out) to find whether some
+    # amount of pfm_score weight can match or beat WPR+trr's capture
+    # rate while still including it.
+    print("\n\n=== 3-way weight grid (all three weights > 0), matched-margin capture rate ===")
+    grid_results = []
+    for w_pfm in [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]:
+        for w_trr in [0.20, 0.30, 0.40, 0.50, 0.60, 0.70]:
+            w_wpr = 1.0 - w_pfm - w_trr
+            if w_wpr <= 0:
+                continue
+            score = w_wpr * cdf["wprp_proj"] + w_trr * cdf["trr_rescaled"] + w_pfm * cdf["pfm_rescaled"]
+            T, pool_size, capture_rate = matched_margin_capture(score, target_pool)
+            grid_results.append((w_wpr, w_trr, w_pfm, T, pool_size, capture_rate))
+    grid_results.sort(key=lambda x: -x[5])
+    print("  wpr/trr/pfm weights      matched margin  pool size  winner capture rate")
+    for w_wpr, w_trr, w_pfm, T, pool_size, capture_rate in grid_results[:10]:
+        print(f"  {w_wpr:.2f}/{w_trr:.2f}/{w_pfm:.2f}          {T:6.2f}      {pool_size:5.2f}      {100*capture_rate:5.1f}%")
 
 
 if __name__ == "__main__":
