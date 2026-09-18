@@ -1882,6 +1882,62 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   exclusion failure alone is enough to not trust either cell. Not a
   finding - the overlay/underlay-tolerance idea does not rescue the
   jockey+map combination on this window.
+- **Exotic bet-structure efficiency (capture rate per combination),
+  same day - the "banker" structure genuinely earns its keep for
+  trifecta/first-four, but NOT for quinella**: direct follow-up - "how
+  should I structure exotic bets using the combo scores (within 5 & 10)
+  to enhance strike rate, but keep total combinations lower" - the
+  actual bet-COST question the earlier "5pt vs 10pt exotic capture"
+  entry explicitly left uncomputed. `wpr_combo_exotics_combinations_
+  efficiency_test.py` (new, read-only scratch script, same 2,019-race
+  population as that entry) computes the real number of $1-unit
+  combinations each structure needs (standard boxed-bet permutation/
+  combination formulas, per-race using that race's own actual inner5/
+  outer10 pool sizes, not the population average plugged into a
+  formula) and reports capture rate per 100 combinations - the actual
+  cost-efficiency metric, since capture rate alone trivially favours
+  boxing the widest pool every time.
+
+  Trifecta: inner5-boxed 13.3% capture at 22.96 avg combos (57.87/100,
+  the best efficiency); outer10-boxed 32.3% at 79.36 combos (40.74/100,
+  the worst efficiency but highest absolute capture); the "banker"
+  structure - ONLY 1st restricted to inner5, 2nd & 3rd open to outer10 -
+  gets 19.8% capture at 39.33 combos (50.46/100): roughly HALF outer10's
+  own cost for about 61% of its capture rate (19.8/32.3), a genuinely
+  favourable middle ground, not just a compromise. Banking BOTH 1st and
+  2nd to inner5 (leaving only 3rd open) is NOT worth it by comparison -
+  14.2% capture at 25.62 combos, barely above pure inner5's own 13.3%/
+  22.96 for real added cost. First-four shows the identical pattern at a
+  different scale: banking just 1st (rest open to outer10) gets 15.1%
+  capture at 212.61 combos vs full outer10-boxing's 24.8%/425.78 - again
+  ~half the cost for ~61% of the capture; banking 1st+2nd (10.7%/126.77)
+  or 1st+2nd+3rd (8.2%/101.26, actually WORSE capture than plain inner5-
+  boxing despite more cost) are both poor choices.
+
+  Quinella is the one genuine exception, worth flagging clearly: its own
+  "banker" hybrid (1st inner5, 2nd outer10) costs virtually the SAME as
+  fully boxing outer10 in this dataset (8.47 vs 8.47 avg combos - a real
+  empirical coincidence from inner5's pool size averaging almost exactly
+  half of outer10's, not a bug, double-checked directly) while capturing
+  meaningfully LESS (31.2% vs 49.3%) - strictly dominated, never use it.
+  For quinella specifically the real choice is just inner5-boxed (cheap,
+  lower capture, 816/100 efficiency) vs outer10-boxed (49.3% capture,
+  582/100 efficiency, no cheaper hybrid available) - also worth noting
+  quinella itself has no true "1st/2nd" ordering the way trifecta/
+  first-four do, so this hybrid framing is a proxy for a comparable
+  keyed structure, not an exact TAB banker-bet cost model, unlike the
+  trifecta/first-four formulas which do match a real "banker for 1st,
+  box the rest" bet type directly.
+
+  Bottom-line recommendation: for trifecta/first-four, bank ONLY the
+  1st-place leg to the tight inner5 pool and leave every other required
+  placing open to the wider outer10 pool - this is the one structure
+  across the whole sweep that meaningfully beats pure inner5-boxing's
+  capture rate while still costing roughly half of fully boxing outer10.
+  Banking more than just 1st adds real cost for little to no extra
+  capture in this dataset. For quinella, skip the hybrid framing
+  entirely - box outer10 outright if capture rate matters more than
+  cost, box inner5 if cost matters more.
 
 ## What to be careful about
 
