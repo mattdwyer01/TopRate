@@ -2022,6 +2022,72 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   would (bigger field, longer price, lower win%) - not a flag-specific
   effect, no further action.
 
+- **speed_map retrained and A/B'd against the currently-shipped model - small
+  real improvement found, NOT shipped (2026-09-19)**: real user request,
+  direct follow-up to the winner descriptive-stats/flag-correlates work
+  above - "Can speed map adj be updated so more the avg & median increase
+  to be more positive". Clarified via `AskUserQuestion` before touching
+  anything, since taken literally this isn't a valid target: a demeaned
+  value's race-level mean is exactly 0 by construction (zero-sum within a
+  race), so "winners' average" can only move if the model gets genuinely
+  better at separating winners from the pack, not via a display/scaling
+  tweak (which would also risk hurting live WPR accuracy, since speed_map
+  feeds real projections, not just the tint). Real user choice: attempt a
+  genuine, held-out-validated retrain.
+
+  Ran `train_wpr_projection()` twice into scratch `out_dir`s (never the
+  live `wpr_models/`, both dirs since gitignored under `wpr_models_*_
+  experiment/` and deleted after this analysis) - once as a normal full
+  retrain (fresh data, ~40 min), once with `_fit_speed_map_model` monkey-
+  patched to substitute the CURRENTLY-SHIPPED speed_map.joblib in place of
+  a freshly-fit one, so both runs share identical D/trn/cf/te (same input
+  data, same code path, same random seeds - confirmed deterministic: the
+  OLD(pace_shape+track_barrier) baseline number matched exactly across
+  both runs, cf=5.9504/te=6.0265). This isolates exactly one variable -
+  shipped model artifact vs freshly-retrained artifact - on identical
+  held-out data, which the codebase's own built-in A/B print (OLD
+  architecture vs NEW architecture) does NOT by itself answer, since both
+  sides of that print are freshly fit in the same run.
+
+  Result: the freshly-retrained model beats the shipped one on BOTH held-
+  out splits - cf 5.9443 (shipped) -> 5.9415 (retrained), te 6.0177
+  (shipped) -> 6.0170 (retrained). Real and directionally consistent (not
+  a knife-edge single-split result), most likely from the fresher/post-
+  dedup training data (see the `wpr_form_history.csv.gz` dedup-bug entry
+  above) - but SMALL: smaller than the smallest previously-shipped
+  speed_map refinement (`track_bias_score`'s own -0.0112 MAE gain, itself
+  already called "small but real, ship-worthy" at the time). Whole-system
+  held-out projection MAE barely moved (6.017 vs 6.018).
+
+  Checked whether this would actually move the winner-average stat from
+  the earlier descriptive-stats analysis before committing to that as a
+  ship criterion, and found a structural problem: the training frame `D`
+  excludes each horse's first `_MIN_RUNS` career starts (needs prior
+  history to build features), so grouping by race within `D` to demean
+  would use an INCOMPLETE field, not the same "every non-scratched
+  runner" population live serving actually demeans against (which scores
+  even thin-history runners via the "unseen -> 0.0" fallback contract
+  every population term here uses) - a materially different, less
+  faithful computation than the original toprate_data.json-based analysis,
+  not a cheap thing to fix (would need re-running the actual live serving
+  path across historical races with both models, not just this retrain's
+  own training frame). Given the underlying MAE gain (0.0007-0.0028, on
+  the FULL summed projection, not speed_map's own value in isolation) is
+  almost certainly smaller than the natural sampling noise between
+  different date windows of winners, reasoned this check would likely
+  come back "no detectable movement" regardless - real user decision,
+  presented with this reasoning: skip the expensive faithful re-serving
+  check, and don't ship the retrain at all (n=1 in "no action" over
+  either shipping the small gain or spending more effort chasing it).
+
+  No production change - `wpr_models/` untouched throughout. Consistent
+  with this file's own standing findings that the WPR model is close to
+  its accuracy ceiling and that most genuine levers left are this small;
+  also serves as one data point toward the still-outstanding "next
+  retrain should re-validate before vs after the dedup fix" caution
+  elsewhere in this file, though a full multi-term re-validation (not just
+  speed_map) would still be needed to fully close that out.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
