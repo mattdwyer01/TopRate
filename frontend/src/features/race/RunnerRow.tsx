@@ -168,7 +168,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_60px_56px_52px_44px_56px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -419,6 +419,26 @@ export function RunnerRow({
         }`}
       >
         {fmtAdj(runner.wprAdjustment)}
+      </span>
+      {/* Speed Map ADJ_TERM, demeaned against this race (2026-09-19, real
+          user request: "add a column for speed map adj, with green and red
+          colour") - the exact same number SpeedMapGrid's own tile tint is
+          built from (see raceModel.ts's speedMapDemeanedByRunId), not the
+          raw wpjcb value: two of speed_map's own inputs are shared across
+          the whole field by construction, so the raw number alone can't
+          tell "favoured vs this field" from "a generally easy speed_map
+          day" the way the demeaned value does. Desktop-only, same as
+          Base/Adj immediately to its left. */}
+      <span
+        className={`hidden text-right font-mono sm:inline ${
+          effective?.speedMapAdj != null && effective.speedMapAdj > 0
+            ? 'text-emerald-deep'
+            : effective?.speedMapAdj != null && effective.speedMapAdj < 0
+              ? 'text-rose'
+              : 'text-ink-mute'
+        }`}
+      >
+        {fmtAdj(effective?.speedMapAdj ?? null)}
       </span>
       {/* Combo now leads (2026-09-19, real user request: "combo should be
           the bold number, not proj... have combo to the left of proj") -

@@ -44,6 +44,15 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'daysSince', label: 'RTS', showCompact: true },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
+  // speed_map ADJ_TERM, demeaned against this race (2026-09-19, real user
+  // request: "add a column for speed map adj, with green and red colour")
+  // - the same number SpeedMapGrid's own tile tint is built from (see
+  // raceModel.ts's speedMapDemeanedByRunId). Desktop-only, same as Base/
+  // Adj immediately to its left - not added to either mobile density's
+  // grid-cols/MOBILE_COLUMN_LABELS below, per this file's own long history
+  // of mobile-column overflow bugs; still reachable via the mobile sort
+  // dropdown like Base/Adj already are.
+  { key: 'speedMapAdj', label: 'SM Adj' },
   // Combo: shown on both mobile densities too (2026-09-19, real user
   // request: "sort by combo by default... on mobile show combo column,
   // hide TR" - see MOBILE_COLUMN_LABELS_FULL/_COMPACT below, which now
@@ -391,7 +400,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_60px_56px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

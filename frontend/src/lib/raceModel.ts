@@ -31,6 +31,37 @@ export interface EffectiveRunner {
   // its own flag to be visible at all. Informational, not a warning - the
   // one real example checked in chat (Headley Grange, Sep 2026) won.
   firmedToUnderlay: boolean
+  // speed_map ADJ_TERM, demeaned against this race's own runners - see
+  // speedMapDemeanedByRunId's own comment for why (2026-09-19, real user
+  // request: "add a column for speed map adj, with green and red colour" -
+  // surfaces the same number SpeedMapGrid.tsx's tint is already built
+  // from, as its own sortable race-table column). null for a scratched
+  // runner (matches SpeedMapGrid, which excludes scratched runners from
+  // the map entirely) or one with no speed_map value.
+  speedMapAdj: number | null
+}
+
+// speed_map ADJ_TERM (own history + today's field/barrier/pace context,
+// see wpr_projection.py's _SPEED_MAP_FEATURES docstring), demeaned against
+// THIS race's own runners for display purposes only - never fed back into
+// any WPR number. Two of speed_map's own inputs (track_bias_score,
+// pace_score) are shared/near-shared across a race's whole field by
+// construction, which would otherwise make every runner in a race look
+// uniformly positive or negative; subtracting the race's own mean removes
+// exactly that shared part and leaves the genuinely relational signal
+// (see SpeedMapGrid.tsx's own long comment on this, where the demeaning
+// was first introduced). Shared here (2026-09-19) so SpeedMapGrid's tint
+// and the race table's own "SM Adj" column can't independently drift -
+// both call this same function rather than each computing it inline.
+export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number | null> {
+  const raw = runners.map((u) => u.adjustmentBreakdown?.speed_map).filter((v): v is number => v != null)
+  const mean = raw.length ? raw.reduce((a, b) => a + b, 0) / raw.length : 0
+  const result = new Map<string, number | null>()
+  for (const u of runners) {
+    const v = u.adjustmentBreakdown?.speed_map
+    result.set(u.runId, v != null ? v - mean : null)
+  }
+  return result
 }
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
@@ -145,6 +176,11 @@ export function computeEffectiveRace(
     runners.map((r) => [r.runId, r.fixedWinPrice ?? r.startingPrice ?? null]),
   )
   const openPriceByRunId = new Map<string, number | null>(runners.map((r) => [r.runId, r.openFixedPrice ?? null]))
+  // Same non-scratched population SpeedMapGrid.tsx's own caller filters to
+  // (RaceDetail.tsx passes it race.runners.filter(!effectiveScratched)) -
+  // matches this function's own `scratched` param exactly, so the race
+  // mean this demeans against is identical either way.
+  const speedMapByRunId = speedMapDemeanedByRunId(runners.filter((r) => !scratched.has(r.runId)))
 
   const result: Record<string, EffectiveRunner> = {}
   for (const r of withEffectiveWpr) {
@@ -180,6 +216,7 @@ export function computeEffectiveRace(
         marketPrice != null &&
         openPrice >= effectivePrice * MATERIAL_OVERLAY_AT_OPEN_RATIO &&
         marketPrice < effectivePrice,
+      speedMapAdj: r.scratched ? null : (speedMapByRunId.get(r.runId) ?? null),
     }
   }
   return result

@@ -1389,7 +1389,10 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - **Speed Map wide-gate caution threshold widened from outer-third to
   outer-half (2026-09-19), same-day direct follow-up**: real user
   follow-up to the 10-column change above, working through the same
-  Randwick R1 screenshot - Ice Kool (barrier 10 of 15, draw 0.64) was
+  Randwick screenshot (Randwick's "Nick Moraitis Trophy (Bm88)", NOT R1 -
+  corrected 2026-09-19 after a Playwright verification pass caught this
+  file mislabeling it "Randwick R1" throughout the original thread; the
+  app itself was never wrong, only these notes) - Ice Kool (barrier 10 of 15, draw 0.64) was
   projected on-pace/Midfield-forward in this Hot-tempo race, the exact
   "needs to cross rivals or a hot pace to be plausible" scenario the "!"
   caution flag exists for, but sat just under the old 2/3 (outer-third)
@@ -1424,6 +1427,33 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   single-exemption rule entirely so every qualifier gets flagged - real
   user decision was to keep it as implemented. Verified via a background
   Playwright pass against this exact race before landing.
+- **New "SM Adj" race-table column, same day**: real user request, direct
+  follow-up to the caution-threshold conversation above - "add a column
+  for speed map adj, with green and red colour". Surfaces the exact same
+  number the Speed Map's own tile tint is built from (speed_map ADJ_TERM,
+  demeaned against the race - see SpeedMapGrid.tsx's own long comment for
+  why the raw wpjcb value alone would be misleading), as its own sortable
+  desktop-only column between Adj and Combo, green for positive
+  (favoured)/red for negative (hurt)/gray for null or ~0, same styling
+  convention as the existing Adj column beside it. Extracted the demeaning
+  formula out of SpeedMapGrid.tsx into a new exported
+  `speedMapDemeanedByRunId()` in `raceModel.ts` so the Speed Map's tint and
+  this column read from ONE shared calculation rather than two independent
+  copies that could quietly drift apart over time (the same DRY precedent
+  `OVERLAY_MAX_GAP_FROM_TOP`/`compositeScore()` already set elsewhere in
+  that file) - `computeEffectiveRace()` now also returns `speedMapAdj` per
+  runner, computed over the same non-scratched population its own
+  `scratched` Set already defines (matching exactly what RaceDetail.tsx's
+  `SpeedMapGrid` prop is filtered to, so the two can never see a different
+  race mean). null for a scratched runner, same as the Speed Map excluding
+  them from the grid entirely. Desktop-only (RunnerRow.tsx/RaceDetail.tsx
+  grid-cols and COLUMN_LABELS), same as Base/Adj immediately to its left -
+  not added to either mobile density, per this file's own long, hard-won
+  history of mobile grid-cols overflow bugs; still reachable through the
+  mobile sort dropdown like Base/Adj already are. Verified via a
+  background Playwright pass (column alignment, values cross-checked
+  against the Speed Map's own tint for the same runners, sort behaviour,
+  desktop/mobile layout) before landing.
 
 ## What to be careful about
 

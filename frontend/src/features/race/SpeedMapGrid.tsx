@@ -1,5 +1,6 @@
 import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
+import { speedMapDemeanedByRunId } from '../../lib/raceModel'
 
 interface SpeedMapGridProps {
   race: Race
@@ -311,15 +312,9 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   // Display-only demeaning against THIS race's own speed_map values - see
   // threatTone's own comment above for why. Never touches wpr_projection.py
   // or any WPR number shown elsewhere; this Map only feeds the tint below.
-  const rawSpeedMaps = runners
-    .map((u) => u.adjustmentBreakdown?.speed_map)
-    .filter((v): v is number => v != null)
-  const raceMean = rawSpeedMaps.length ? rawSpeedMaps.reduce((a, b) => a + b, 0) / rawSpeedMaps.length : 0
-  const displaySpeedMapByRunId = new Map<string, number | null>()
-  for (const u of runners) {
-    const v = u.adjustmentBreakdown?.speed_map
-    displaySpeedMapByRunId.set(u.runId, v != null ? v - raceMean : null)
-  }
+  // Shared with raceModel.ts's own "SM Adj" race-table column (2026-09-19)
+  // via speedMapDemeanedByRunId, so the two can't independently drift.
+  const displaySpeedMapByRunId = speedMapDemeanedByRunId(runners)
 
   const colTemplate = columns
     .map((col) => {
