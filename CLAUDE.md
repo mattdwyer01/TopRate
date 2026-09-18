@@ -1386,6 +1386,44 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   as-is rather than "fixed" since there's no free width left to recover it
   from without giving back some of the column-count improvement itself -
   flagged here in case a future report wants it revisited.
+- **Speed Map wide-gate caution threshold widened from outer-third to
+  outer-half (2026-09-19), same-day direct follow-up**: real user
+  follow-up to the 10-column change above, working through the same
+  Randwick R1 screenshot - Ice Kool (barrier 10 of 15, draw 0.64) was
+  projected on-pace/Midfield-forward in this Hot-tempo race, the exact
+  "needs to cross rivals or a hot pace to be plausible" scenario the "!"
+  caution flag exists for, but sat just under the old 2/3 (outer-third)
+  cutoff and got no flag - the same kind of near-miss this file already
+  fixed once for the tint threshold and the column boundaries themselves.
+  Asked "is it realistic to predict Ice Kool and Nepo Baby will settle on
+  the fence from those wide barriers" -> explained the column axis never
+  claims lateral/rail position at all (only forward/back timing - the
+  barrier gauge is the only lateral cue, and it already showed Ice Kool's
+  gate as amber/moderate, not innermost) -> "should they be not settling
+  on the fence then" (confirmed: correct, realistic expectation is wide
+  running, not the rail) -> "correct the speed map then" -> `AskUserQuestion`
+  clarified the ask as specifically widening the caution flag's threshold
+  (not a UI relabel, and not a change to the underlying WPR/settle model -
+  `settling_estimate.py`'s `barrier_nudge`, already calibrated, untouched).
+  `computeCautionRunIds()`'s `drawFrac >= 2/3` check -> `drawFrac >= 1/2`.
+  Checked the real, non-obvious consequence before shipping rather than
+  assuming Ice Kool would end up flagged: the file's existing "at most ONE
+  wide-and-forward runner gets forgiven in a Fast/Hot-tempo race, the
+  LEAST wide of the qualifying group" rule (added earlier per its own
+  2026-09-16 feedback, unmodified here) means widening the pool just
+  changes who's least-wide - Ice Kool (0.64) is milder than Oakfield
+  Jupiter (barrier 11, draw 0.71), which had been the sole exemption
+  under the old threshold, so the exemption MOVES to Ice Kool: Oakfield
+  Jupiter newly gets flagged, Ice Kool stays unflagged (arguably correct
+  by the model's own "least implausible gets the benefit of the doubt"
+  logic - the flag's job was never "show every wide gate", it's "flag
+  which crossing looks LEAST plausible"). Reported this counterintuitive
+  result and asked before shipping (`AskUserQuestion`): keep it (the
+  Oakfield Jupiter catch is a real improvement, and Ice Kool being
+  exempted is defensible on the model's own terms), revert, or drop the
+  single-exemption rule entirely so every qualifier gets flagged - real
+  user decision was to keep it as implemented. Verified via a background
+  Playwright pass against this exact race before landing.
 
 ## What to be careful about
 

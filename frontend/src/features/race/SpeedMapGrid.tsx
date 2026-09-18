@@ -152,11 +152,21 @@ function drawToneClass(drawFrac: number): string {
   return 'bg-emerald'
 }
 
-// Caution flag: a wide gate (outer third) placed in a column at Midfield
-// or more forward (index >= MIDFIELD_IDX - COLUMNS runs Backmarker(0) ->
-// Leader(5), so "more forward" means a HIGHER index) is the exact
-// scenario that needs either early speed spent crossing rivals or a
-// genuinely hot pace to be plausible. Not flagged on Backmarker/Off
+// Caution flag: a wide gate (outer HALF of the field, not just the outer
+// third - widened 2026-09-19, real user report/question: Ice Kool, barrier
+// 10 of 15 (draw 0.64), projected on-pace/Midfield-forward in a Hot-tempo
+// race, was the exact "needs to cross rivals or a hot pace to be
+// plausible" scenario this flag exists for, but sat just under the old
+// 2/3 cutoff and got no flag at all - the same kind of near-miss this
+// file already fixed once for the tint threshold and the column
+// boundaries. "Half" is also the natural line drawToneClass already
+// treats as the inside/outside split (1/3-2/3 is its own middle amber
+// band, not a hard half) - a barrier in the outer half is genuinely wide
+// for this purpose even short of the outer third) placed in a column at
+// Midfield or more forward (index >= MIDFIELD_IDX - COLUMNS runs
+// Backmarker(0) -> Leader(9), so "more forward" means a HIGHER index) is
+// the exact scenario that needs either early speed spent crossing rivals
+// or a genuinely hot pace to be plausible. Not flagged on Backmarker/Off
 // Midfield (a wide gate settling back is the UNREMARKABLE case, not the
 // one worth flagging).
 // BUG (caught in browser testing before shipping): first version compared
@@ -191,7 +201,7 @@ function computeCautionRunIds(
       drawFrac: drawFracOf(u, fieldSize),
       columnIdx: columnIdxByRunId.get(u.runId) ?? MIDFIELD_IDX,
     }))
-    .filter((c) => c.drawFrac >= 2 / 3 && c.columnIdx >= MIDFIELD_IDX)
+    .filter((c) => c.drawFrac >= 1 / 2 && c.columnIdx >= MIDFIELD_IDX)
     .sort((a, b) => a.drawFrac - b.drawFrac)
 
   const exemptCount = tempoBucket === 'Fast' ? 1 : 0
