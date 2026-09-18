@@ -1475,6 +1475,31 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   file has hit before (scrolling to reveal a far-right column pushing an
   earlier value under the sticky Horse/silk cells) - see its own findings
   for whether the Horse floor needed further adjustment.
+- **SM Adj repositioned and given a real neutral zone, same day**: direct
+  follow-up on a screenshot - "Sm should be between j% and fixed. Green
+  and red colours should be +/- 0.5". Two changes: (1) moved from between
+  Adj/Combo (desktop) and Horse/Combo (mobile Full) to between Jky Win%/
+  J% and Fixed $ on both - `COLUMN_LABELS`/`MOBILE_COLUMN_LABELS_FULL`
+  reordered and both grid-cols track lists updated to match (desktop:
+  `...44px_56px_60px_68px_52px` with SM Adj's 60px track now right before
+  Fixed $'s 68px; mobile Full: `...31px_30px_76px_20px` with SM Adj's
+  30px track now right before Fixed $'s 76px). Total column widths
+  unchanged, only their order. (2) the cell's own colour check changed
+  from a bare sign test (any positive green, any negative red) to the
+  SpeedMapGrid tile's own +-0.5 neutral-zone threshold - real user
+  correction after the earlier verification pass had flagged, as a
+  cosmetic note, that a small value like -0.4 showed red text next to an
+  untinted (still-white) Speed Map tile for the same runner. Extracted
+  SpeedMapGrid.tsx's own local `THREAT_THRESHOLD` constant into a new
+  exported `SPEED_MAP_TINT_THRESHOLD` in raceModel.ts (same DRY precedent
+  as `speedMapDemeanedByRunId` itself) so the tile and the table column
+  read from one shared threshold rather than the table inventing its own
+  number that could drift from the tile's - SpeedMapGrid's own tint
+  behaviour is unchanged, just reading the constant from its new home.
+  Verified via a background Playwright pass (column position on both
+  densities, and the actual CSS class applied to several cells spanning
+  clearly-positive/clearly-negative/near-zero SM Adj values, not just a
+  visual glance) before landing.
 
 ## What to be careful about
 

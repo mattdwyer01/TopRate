@@ -44,15 +44,6 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'daysSince', label: 'RTS', showCompact: true },
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
-  // speed_map ADJ_TERM, demeaned against this race (2026-09-19, real user
-  // request: "add a column for speed map adj, with green and red colour")
-  // - the same number SpeedMapGrid's own tile tint is built from (see
-  // raceModel.ts's speedMapDemeanedByRunId). Desktop-only, same as Base/
-  // Adj immediately to its left - not added to either mobile density's
-  // grid-cols/MOBILE_COLUMN_LABELS below, per this file's own long history
-  // of mobile-column overflow bugs; still reachable via the mobile sort
-  // dropdown like Base/Adj already are.
-  { key: 'speedMapAdj', label: 'SM Adj' },
   // Combo: shown on both mobile densities too (2026-09-19, real user
   // request: "sort by combo by default... on mobile show combo column,
   // hide TR" - see MOBILE_COLUMN_LABELS_FULL/_COMPACT below, which now
@@ -69,6 +60,14 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
   { key: 'jockeyWinPct', label: 'Jky Win%' },
+  // speed_map ADJ_TERM, demeaned against this race (2026-09-19, real user
+  // request: "add a column for speed map adj, with green and red colour")
+  // - the same number SpeedMapGrid's own tile tint is built from (see
+  // raceModel.ts's speedMapDemeanedByRunId). Positioned between Jky Win%
+  // and Fixed $ (moved here 2026-09-19, direct follow-up: "sm should be
+  // between j% and fixed" - was originally between Adj and Combo). Shown
+  // on Full mobile too (see MOBILE_COLUMN_LABELS_FULL below), not Compact.
+  { key: 'speedMapAdj', label: 'SM Adj' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -97,15 +96,17 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // numbers.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  // SM Adj (2026-09-19, direct follow-up: "not seeing it" on mobile - see
-  // RunnerRow.tsx's SM Adj cell for why it's shown on Full but not
-  // Compact). Short label, matches Fm/J%'s own brevity in this cramped a
-  // track (30px).
-  { key: 'speedMapAdj', label: 'SM' },
   { key: 'compositeScore', label: 'Cb' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'formFactor', label: 'Fm' },
   { key: 'jockeyWinPct', label: 'J%' },
+  // SM Adj (2026-09-19, direct follow-up: "not seeing it" on mobile - see
+  // RunnerRow.tsx's SM Adj cell for why it's shown on Full but not
+  // Compact). Short label, matches Fm/J%'s own brevity in this cramped a
+  // track (30px). Positioned between J% and Fixed $ (moved here same day,
+  // direct follow-up: "sm should be between j% and fixed" - was originally
+  // right after Horse).
+  { key: 'speedMapAdj', label: 'SM' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -378,11 +379,13 @@ export function RaceDetail({
         <div
           className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             // Full gained an SM Adj track (2026-09-19, direct follow-up:
-            // "not seeing it" on mobile) - must match RunnerRow's own
-            // grid-cols exactly, see that file's comment for the numbers.
+            // "not seeing it" on mobile, then moved between J% and Fixed $
+            // same day per "sm should be between j% and fixed") - must
+            // match RunnerRow's own grid-cols exactly, see that file's
+            // comment for the numbers.
             compact
               ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
-              : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_30px_36px_36px_29px_31px_76px_20px]'
+              : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_36px_36px_29px_31px_30px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
@@ -408,7 +411,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_60px_56px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_60px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'

@@ -1,5 +1,5 @@
 import type { Runner } from '../../types/domain'
-import { compositeScore, type EffectiveRunner } from '../../lib/raceModel'
+import { compositeScore, SPEED_MAP_TINT_THRESHOLD, type EffectiveRunner } from '../../lib/raceModel'
 import type { TrackerQualifier } from '../../lib/trackerRules'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
@@ -168,7 +168,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_60px_56px_52px_44px_56px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_60px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -302,11 +302,12 @@ export function RunnerRow({
         // is left to the row's existing horizontal-scroll fallback at the
         // very narrowest phones rather than squeezing the name column to
         // the point of being unreadable) to make room for a new 30px SM
-        // Adj track, positioned right after Horse (matching its desktop
-        // position right before Combo) and before Cb/Proj.
+        // Adj track. Positioned between J% and Fixed $ (moved here
+        // 2026-09-19, direct follow-up: "sm should be between j% and
+        // fixed" - was originally right after Horse).
         compact
           ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
-          : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_30px_36px_36px_29px_31px_76px_20px]'
+          : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_36px_36px_29px_31px_30px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -431,30 +432,6 @@ export function RunnerRow({
       >
         {fmtAdj(runner.wprAdjustment)}
       </span>
-      {/* Speed Map ADJ_TERM, demeaned against this race (2026-09-19, real
-          user request: "add a column for speed map adj, with green and red
-          colour") - the exact same number SpeedMapGrid's own tile tint is
-          built from (see raceModel.ts's speedMapDemeanedByRunId), not the
-          raw wpjcb value: two of speed_map's own inputs are shared across
-          the whole field by construction, so the raw number alone can't
-          tell "favoured vs this field" from "a generally easy speed_map
-          day" the way the demeaned value does. Shown on Full mobile too
-          (2026-09-19, direct follow-up: "not seeing it" on mobile) - same
-          `compact ? 'hidden sm:inline' : ''` trick Form/Jockey Win% already
-          use to appear on Full mobile + desktop but not Compact, rather
-          than Base/Adj's own unconditional desktop-only hiding (those two
-          stay desktop-only, unaffected by this). */}
-      <span
-        className={`text-right font-mono ${compact ? 'hidden sm:inline' : ''} ${
-          effective?.speedMapAdj != null && effective.speedMapAdj > 0
-            ? 'text-emerald-deep'
-            : effective?.speedMapAdj != null && effective.speedMapAdj < 0
-              ? 'text-rose'
-              : 'text-ink-mute'
-        }`}
-      >
-        {fmtAdj(effective?.speedMapAdj ?? null)}
-      </span>
       {/* Combo now leads (2026-09-19, real user request: "combo should be
           the bold number, not proj... have combo to the left of proj") -
           it's the headline figure now, Proj demoted to the plain/muted
@@ -498,6 +475,38 @@ export function RunnerRow({
       </span>
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {scratched ? 'SCR' : fmtJockeyWin(runner.jockeyWinPct90d)}
+      </span>
+      {/* Speed Map ADJ_TERM, demeaned against this race (2026-09-19, real
+          user request: "add a column for speed map adj, with green and red
+          colour") - the exact same number SpeedMapGrid's own tile tint is
+          built from (see raceModel.ts's speedMapDemeanedByRunId), not the
+          raw wpjcb value: two of speed_map's own inputs are shared across
+          the whole field by construction, so the raw number alone can't
+          tell "favoured vs this field" from "a generally easy speed_map
+          day" the way the demeaned value does. Shown on Full mobile too
+          (2026-09-19, direct follow-up: "not seeing it" on mobile) - same
+          `compact ? 'hidden sm:inline' : ''` trick Form/Jockey Win% already
+          use to appear on Full mobile + desktop but not Compact.
+          Positioned between Jky Win%/J% and Fixed $ (moved here 2026-09-19,
+          direct follow-up: "sm should be between j% and fixed", was
+          originally between Adj and Combo). Green/red at +-0.5, not a bare
+          sign check (2026-09-19, same follow-up: "green and red colours
+          should be +/- 0.5") - matches SpeedMapGrid's own tile tint
+          threshold exactly (SPEED_MAP_TINT_THRESHOLD, shared from
+          raceModel.ts) rather than the plain Adj column's sign-only
+          convention, so a near-zero value here reads as neutral the same
+          way its tile does, instead of the two disagreeing on borderline
+          cases. */}
+      <span
+        className={`text-right font-mono ${compact ? 'hidden sm:inline' : ''} ${
+          effective?.speedMapAdj != null && effective.speedMapAdj >= SPEED_MAP_TINT_THRESHOLD
+            ? 'text-emerald-deep'
+            : effective?.speedMapAdj != null && effective.speedMapAdj <= -SPEED_MAP_TINT_THRESHOLD
+              ? 'text-rose'
+              : 'text-ink-mute'
+        }`}
+      >
+        {fmtAdj(effective?.speedMapAdj ?? null)}
       </span>
       {/* FP's own content (a 20px circle badge) never needed more than its
           20px track. This column - and the sticky silk/name cells to the

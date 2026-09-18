@@ -64,6 +64,15 @@ export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number |
   return result
 }
 
+// The demeaned speed_map value at which SpeedMapGrid.tsx's own tile tint
+// switches from neutral to favoured/hurt (its own THREAT_THRESHOLD,
+// originally a local constant there). Exported (2026-09-19, real user
+// request: "green and red colours should be +/- 0.5" for the race table's
+// own "SM Adj" column) so the table's colour and the Speed Map tile's tint
+// agree on what counts as neutral, rather than the table using a plain
+// sign check that would colour a value the tile itself still shows white.
+export const SPEED_MAP_TINT_THRESHOLD = 0.5
+
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
 // since beyond that the exact number is meaningless.

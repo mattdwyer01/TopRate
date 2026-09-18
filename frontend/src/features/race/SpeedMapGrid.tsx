@@ -1,6 +1,6 @@
 import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
-import { speedMapDemeanedByRunId } from '../../lib/raceModel'
+import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 
 interface SpeedMapGridProps {
   race: Race
@@ -112,12 +112,13 @@ function columnIndexOf(rel: number): number {
 // relational part - and makes "every tile green" mathematically
 // impossible by construction (a race's own values can't all sit above
 // their own mean), which is the property being asked for here.
-const THREAT_THRESHOLD = 0.5
-
+// Exported as SPEED_MAP_TINT_THRESHOLD from raceModel.ts (2026-09-19) so
+// the race table's own "SM Adj" column colours in agreement with this tile
+// tint's own neutral zone - see that export's own comment.
 function threatTone(displaySpeedMap: number | undefined | null): 'help' | 'hurt' | 'neutral' {
   if (displaySpeedMap == null) return 'neutral'
-  if (displaySpeedMap <= -THREAT_THRESHOLD) return 'hurt'
-  if (displaySpeedMap >= THREAT_THRESHOLD) return 'help'
+  if (displaySpeedMap <= -SPEED_MAP_TINT_THRESHOLD) return 'hurt'
+  if (displaySpeedMap >= SPEED_MAP_TINT_THRESHOLD) return 'help'
   return 'neutral'
 }
 
