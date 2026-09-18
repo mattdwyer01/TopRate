@@ -96,10 +96,21 @@ GAP_MAX = 5.0
 # n 337->179, win% 19.6->22.3, flat ROI +21.1%->+32.3%; Tracker B n 74->31,
 # win% 31.1->41.9, flat ROI +12.0%->+53.9%. Went with 20 over a more
 # aggressive 22+ (bigger numbers, but Tracker B's sample thins to n<=21,
-# too noisy to trust) - real user decision. See lib/trackerRules.ts's
-# matching JW_MIN for the UI-side alignment (live/watching candidates use
-# the same floor as logged picks).
-JW_MIN = 20.0
+# too noisy to trust) - real user decision.
+#
+# Lowered back 20 -> 14 (Sep 2026, real user decision, made explicitly
+# against this file's own strike-rate finding above): checked with
+# JW_STARTS_MIN already in place (below) in case the starts floor
+# compensated for a lower win% floor - it doesn't, since that floor is
+# still a near no-op on today's mostly-null starts data (see its own
+# comment). At JW_MIN=14 (GAP_MAX=5, JW_STARTS_MIN=25): Tracker A n
+# 186->337, win% 21.0->18.4, flat ROI +24.4%->+17.7%; Tracker B n
+# 31->77, win% 41.9->29.9, flat ROI +53.9%->+7.7%. A real, reported
+# trade of strike rate/ROI for roughly double the pick volume - user
+# confirmed that's the intended trade-off before this shipped. See
+# lib/trackerRules.ts's matching JW_MIN for the UI-side alignment
+# (live/watching candidates use the same floor as logged picks).
+JW_MIN = 14.0
 # jockey_starts_90d floor (Sep 2026, real user request, direct follow-up to
 # the JW_MIN change above: "a jockey with 2 rides for 1 win... very
 # deceiving" - see the jockey_merit entry in CLAUDE.md for the exact same

@@ -63,10 +63,11 @@ const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 // decision made explicitly against the backtest's own recommendation -
 // see speedmap_jockey_tracker.py's matching constant for the numbers).
 const GAP_MAX = 5.0
-// Raised 14 -> 20 (Sep 2026) - see speedmap_jockey_tracker.py's matching
-// constant for the strike-rate sweep that motivated this (a real,
-// non-tradeoff lever: win% and ROI improved together for both trackers).
-const JW_MIN = 20.0
+// Raised 14 -> 20, then lowered back 20 -> 14 (Sep 2026, real user
+// decision made explicitly against the strike-rate sweep's own finding,
+// trading strike rate/ROI for roughly double the pick volume) - see
+// speedmap_jockey_tracker.py's matching constant for the full numbers.
+const JW_MIN = 14.0
 // jockey_starts_90d floor - see speedmap_jockey_tracker.py's matching
 // constant for the full reasoning. null passes rather than fails (most
 // runners don't have a real count yet - this is a near no-op today,

@@ -827,6 +827,30 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   filtering as more days accumulate real counts. `tracker_history_
   cleanup.py` re-run against the new rule: 0 rows removed from either
   CSV, exactly as predicted.
+- **JW_MIN lowered back 20 -> 14 (2026-09-19)**: direct follow-up, real
+  user decision made explicitly against this session's own strike-rate
+  finding above ("change jw min to 14 then"). Checked first whether
+  JW_STARTS_MIN=25 (just shipped) compensated for a lower win% floor -
+  it doesn't, since that floor is still a near no-op on today's mostly-
+  null starts data. At JW_MIN=14 (GAP_MAX=5, JW_STARTS_MIN=25): Tracker
+  A n 186->337, win% 21.0->18.4, flat ROI +24.4%->+17.7%; Tracker B
+  n 31->77, win% 41.9->29.9, flat ROI +53.9%->+7.7% - reported as a real
+  trade of strike rate/ROI for roughly double the pick volume, user
+  confirmed that's the intended trade-off before shipping.
+  Non-obvious wrinkle worth remembering for next time a threshold moves
+  in EITHER direction: re-ran `tracker_history_cleanup.py` expecting 0
+  rows removed (loosening a per-runner threshold can only help a runner
+  qualify, never hurt it, or so the naive reasoning goes) and got 16
+  removed from `tracker_high_volume.csv` instead. Root cause: solo-only
+  is a RACE-LEVEL population check, not a per-runner one - loosening
+  JW_MIN can let a RIVAL newly qualify in a race that used to have
+  exactly one qualifier, turning it contested and silencing the whole
+  race (unless the CONTESTED_PRICE_FLOOR exception saves it). A looser
+  per-runner filter is not guaranteed to be a superset of picks at the
+  population level once solo-only is involved - always re-run the
+  cleanup and check the actual removed count after ANY GAP_MAX/JW_MIN/
+  JW_STARTS_MIN change, never assume based on which direction the
+  number moved.
 
 ## What to be careful about
 
