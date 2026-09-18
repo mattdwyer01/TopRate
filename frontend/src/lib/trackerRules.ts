@@ -97,8 +97,10 @@ const PRICE_MIN = 3.0
 // speedmap_jockey_tracker.py's matching CONTESTED_PRICE_FLOOR comment for
 // the backtest that motivated this and its caveat (doesn't fully survive
 // an outlier-robustness check; implemented per explicit user decision,
-// same as the GAP_MAX 6->4 call).
-const CONTESTED_PRICE_FLOOR = 6.0
+// same as the GAP_MAX 6->4 call). LOWERED 6 -> 5 (Sep 2026, real user
+// decision after a sweep showed this the only near-free volume step -
+// see the Python constant's own comment for the numbers).
+const CONTESTED_PRICE_FLOOR = 5.0
 
 function rankDesc(value: number | null, allValues: (number | null)[]): number | null {
   if (value == null) return null

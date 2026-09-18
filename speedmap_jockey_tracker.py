@@ -32,7 +32,7 @@ ones, +6.8% vs +16.9% proportional).
 
 Exception to solo-only (Sep 2026, real user decision): a multi-selection
 (contested) race still fires - on EVERY qualifier in it, not just one - if
-all of them are priced above CONTESTED_PRICE_FLOOR ($6). See that
+all of them are priced above CONTESTED_PRICE_FLOOR ($5). See that
 constant's own comment for the backtest that motivated this and its
 caveat (doesn't fully survive an outlier-robustness check).
 
@@ -214,7 +214,18 @@ PRICE_MIN = 3.0          # SP/fixed price floor
 # Implemented anyway per explicit user instruction, same as the GAP_MAX 6->4
 # call above where the user weighted other factors over pure backtest
 # robustness - flagged here for whoever revisits this.
-CONTESTED_PRICE_FLOOR = 6.0
+# LOWERED 6 -> 5 (2026-09-19, real user decision: "any more volume
+# opportunities?" -> "do the $5 nudge"). wpr_tracker_contested_floor_
+# sweep.py (monkey-patches the real build_candidates() directly - safe
+# here since this constant only decides whether an already-contested race
+# fires, not which pool a runner lands in) found this lever much weaker
+# than GAP_MAX/JW_RELATIVE_TOP_PCT/PFM_A_FLOOR: Tracker B's contested-race
+# count never changed at ANY floor value tested in this backtest window
+# (n=66 throughout), and for Tracker A, $6->$5 was the only near-free step
+# (n 255->262, flat ROI +19.6% unchanged, prop ROI +5.8%->+5.5% roughly
+# flat) - anything looser than $5 (down to $4/$3/disabled) traded real ROI
+# for volume, with "disabled" flipping prop ROI negative outright.
+CONTESTED_PRICE_FLOOR = 5.0
 TAGS = ("favoured", "neutral")
 
 # Bush/picnic-meeting threshold - matches lib/meetings.ts's own

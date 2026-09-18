@@ -1050,6 +1050,33 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   superset of picks once solo-only is involved - always re-run this
   script and check the real count after ANY `GAP_MAX`/`JW_FLOOR`/
   `JW_RELATIVE_TOP_PCT`/`JW_STARTS_MIN`/`PFM_A_FLOOR` change.
+- **`CONTESTED_PRICE_FLOOR` lowered 6 -> 5, a much weaker volume lever than
+  hoped (2026-09-19)**: direct follow-up ("any more volume opportunities?"
+  -> "yes" to sweeping this first). `wpr_tracker_contested_floor_sweep.py`
+  (new, read-only scratch script) monkey-patches the real
+  `build_candidates()` directly rather than reimplementing it - safe here
+  since, unlike `GAP_MAX`/`JW_FLOOR`/`JW_RELATIVE_TOP_PCT`/`PFM_A_FLOOR`,
+  this constant can't change which pool (a_pool/b_pool) a runner lands in;
+  it only decides whether an ALREADY-contested race (2+ pool members,
+  solo-only already failed) fires on all of them or stays silent. Result:
+  Tracker B's contested-race count never changed at ANY floor value
+  tested in this backtest window (n=66 throughout - the rating-agreement
+  condition apparently never produces a 2+-member contested group in this
+  window), so this lever does nothing for B at all. For Tracker A, only
+  $6->$5 was close to free (n 255->262, flat ROI +19.6% unchanged, prop
+  ROI +5.8%->+5.5%); every step looser than that ($4, $3, disabled
+  entirely) traded real ROI for volume, with "disabled" flipping prop ROI
+  negative outright. Shipped the $5 nudge only - real user decision, not
+  a push to $4/$3/disabled. Updated everywhere duplicated:
+  `speedmap_jockey_tracker.py` (source of truth), `frontend/src/lib/
+  trackerRules.ts`'s `CONTESTED_PRICE_FLOOR` constant, and
+  `TrackersTab.tsx`'s module comment + High Volume `description=` string.
+  `tracker_history_cleanup.py` re-run: 0 rows removed from either CSV -
+  expected here (unlike the JW_RELATIVE_TOP_PCT/JW_MIN loosenings above),
+  since this constant only affects an already-contested race's own
+  fire/silent decision, never population membership, so it genuinely
+  can't disqualify an existing pick the way a population-level threshold
+  can.
 
 ## What to be careful about
 
