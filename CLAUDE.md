@@ -1277,6 +1277,50 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   best available margin still underperforms production. NOT applied,
   same as before - tracker stays on raw WPR regardless of which Combo
   weighting is considered.
+- **`wpr_combo_race_tab_capture_analysis.py` added, Combo vs market-in-
+  order analysis, margin re-checked at 10-12, then reweighted 0.45/0.30/
+  0.25 -> 0.50/0.25/0.25 (2026-09-19)**: real user follow-up chain after
+  the tracker re-test above, asking specifically about the Race tab (not
+  the tracker): "what is the analysis for finding the winner using
+  combo? look at within 10 and less, strike rate, top 2/3/4, avg
+  selections" -> "only look at margin view, but give strike rate for
+  winner/quinella/trifecta/first-four" -> "compare to just taking the
+  market in order, add avg price" -> "what number margin should we use?"
+  -> "what about 12?" -> "leave at 10, boost wpr to 0.5 in combo".
+
+  Full margin-view findings (1,994 complete-case resulted races that
+  also require a known price, 56 dates - a stricter complete-case filter
+  than the earlier capture-rate script, since ranking by market price
+  needs every non-scratched runner to have one): market-in-order beats
+  Combo on winner AND quinella strike rate at every margin tested (3
+  through 12), at a shorter average price too, so there's no value edge
+  there either - the market's own collective information (scratchings,
+  late mail, track bias) is genuinely hard to beat for picking the
+  winner specifically. Combo's real edge is on trifecta/first-four at
+  low-to-mid margins (e.g. margin<=7: first-four 3.8% Combo vs 0.0%
+  market; margin<=10: 12.6% vs 8.4%) - but that edge erodes as the
+  margin widens and mostly vanishes by margin 12 (market catches up or
+  overtakes on every metric except a near-tied first-four). No sharp
+  cliff anywhere in the margin curve - every metric improves smoothly
+  and continuously, so there's no statistically "correct" margin, just a
+  judgment call on list length vs capture. Recommended and shipped:
+  leave `COMPOSITE_MAX_GAP_FROM_TOP` at 10 - it's close to where Combo's
+  distinctive trifecta/first-four edge is still real, before it erodes
+  at wider margins, without an excessive average selection count (~3.9).
+
+  Separately, the SAME DAY, real user request to increase `wpr`'s weight
+  further: "boost wpr to 0.5 in combo". Took the +0.05 from `trr` (0.30
+  -> 0.25), not `pfm` - consistent with the whole session's throughline
+  that `trr` (not `pfm`) is the market-aligned component being
+  deliberately dialed back; `pfm` stayed at the 0.25 it was given a
+  genuinely meaningful voice at just above. Checked before shipping:
+  capture rate barely moves (73.2% -> 72.5%), matched margin barely
+  moves (10.08 -> 9.82) - real user decision to leave the divider at 10
+  regardless, per the margin analysis above. Landed on `0.50/0.25/0.25`
+  (wpr/trr/pfm) as the CURRENT shipped weighting, superseding the
+  `0.45/0.30/0.25` entry above (that entry's own reasoning for landing
+  there is still accurate as a description of that step, just no longer
+  the final value).
 
 ## What to be careful about
 

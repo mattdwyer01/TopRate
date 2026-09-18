@@ -213,8 +213,17 @@ export function computeEffectiveRace(
 // half its original weight, pfm given a genuinely meaningful voice) for
 // 73.2% capture rate - down from the original triple's 75.1%, but a
 // deliberate trade for a less market-mirroring score, not a correction.
-export const COMPOSITE_WEIGHT_WPR = 0.45
-export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.30
+//
+// BOOSTED AGAIN (2026-09-19, same day): real user request, "boost wpr to
+// 0.5 in combo" - took the +0.05 from trr (0.30 -> 0.25), not pfm, since
+// trr is the component that was market-aligned in the first place;
+// pfm stayed at the 0.25 it was specifically given a genuinely
+// meaningful voice at just above. Checked before shipping: capture rate
+// barely moves (73.2% -> 72.5%, matched margin 10.08 -> 9.82) - real
+// user decision to leave COMPOSITE_MAX_GAP_FROM_TOP at 10 regardless
+// (see that constant's own comment).
+export const COMPOSITE_WEIGHT_WPR = 0.50
+export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.25
 export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.25
 // Population mean/std (toprate_runners.csv, all non-scratched rows, see
 // wpr_composite_score_capture_test.py's own printed stats) used to
@@ -235,11 +244,14 @@ const PFM_POP_STD = 30.88
 // Margin threshold for the composite score's own "X from top rated"
 // divider, analogous to OVERLAY_MAX_GAP_FROM_TOP but NOT the same units -
 // blending compresses the scale (see the backtest's own matched-margin
-// section), so "5" doesn't carry over. The original 0.20/0.70/0.10
-// weighting's matched-margin search landed on 9.99, rounded to an even
-// 10. The reweighted 0.45/0.30/0.25 triple's own matched margin came out
-// at 10.08 - close enough to leave this at 10 rather than re-round for a
-// 0.08 difference.
+// section), so "5" doesn't carry over. History: the original 0.20/0.70/
+// 0.10 weighting's matched-margin search landed on 9.99, rounded to an
+// even 10; the 0.45/0.30/0.25 reweight's own matched margin came out at
+// 10.08 (left at 10, too close to bother re-rounding); the current
+// 0.50/0.25/0.25 weighting's own matched margin is 9.82 - still left at
+// 10, a real user decision (2026-09-19: "leave at 10, boost wpr to 0.5
+// in combo") after being shown the margin/threshold analysis
+// (wpr_combo_race_tab_capture_analysis.py) that motivated it.
 export const COMPOSITE_MAX_GAP_FROM_TOP = 10
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
