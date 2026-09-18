@@ -282,9 +282,20 @@ export function RunnerRow({
         // truncating a bit sooner there is the smaller cost. Must match
         // RaceDetail's own compact/full mobile grid-cols/gap and
         // MOBILE_COLUMN_LABELS_COMPACT/_FULL exactly.
+        //
+        // TR swapped for Combo, both densities (2026-09-19, real user
+        // request: "sort by combo by default... on mobile show combo
+        // column, hide TR" - see raceModel.ts's own compositeScore()
+        // comment for what Combo is). Combo shows a decimal WPR-scale
+        // value like Proj (e.g. "76.6"), not a bare 2-3 digit integer
+        // like TR - given its own track the same width as Proj's rather
+        // than TR's narrower one (compact 30->40, full 29->36), recovered
+        // from Horse's own floor again (compact 90->80, full 50->43) per
+        // this file's own established pattern above, rather than
+        // reopening the Fixed $/Jky%/Fm width fights already settled.
         compact
-          ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-          : 'gap-x-[3px] grid-cols-[40px_minmax(50px,1fr)_36px_29px_29px_31px_76px_20px]'
+          ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
+          : 'gap-x-[3px] grid-cols-[40px_minmax(43px,1fr)_36px_36px_29px_31px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -431,14 +442,15 @@ export function RunnerRow({
           )}
         </span>
       </span>
-      {/* Combo: desktop-only (see COLUMN_LABELS' own comment in
-          RaceDetail.tsx for why this isn't in either mobile density) - the
-          blended ranking score, same rounding/formatting as Proj since
-          it's rescaled onto the same WPR-like scale. */}
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+      {/* Combo: shown everywhere now (2026-09-19, real user request - see
+          the grid-cols comment above) - the blended ranking score, same
+          rounding/formatting as Proj since it's rescaled onto the same
+          WPR-like scale. TopRate (below) became desktop-only in the same
+          change, freeing up the mobile track this used to need. */}
+      <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtWpr(displayComposite)}
       </span>
-      <span className="text-right font-mono text-ink-mute">
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}
       </span>
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>

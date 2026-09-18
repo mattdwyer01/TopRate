@@ -1163,6 +1163,36 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   not a knife-edge result at one threshold. NOT applied - the tracker's
   `GAP_MAX`/`speedmap_jockey_tracker.py` and `trackerRules.ts` stay on
   raw WPR, unchanged. The Combo score remains Race-tab-only.
+- **Combo made the Race tab's default sort, and given its own mobile
+  column (2026-09-19)**: real user request ("sort by combo by default...
+  on mobile show combo column, hide TR"). `RaceDetail.tsx`'s
+  `sortKey`/`sortDir` initial state changed from `projectedWpr` to
+  `compositeScore` (the existing "X from top rated" divider logic already
+  branched on `sortKey` correctly for this, no change needed there).
+
+  Mobile (both Compact and Full densities) had `toprateRating` ("TR")
+  removed and `compositeScore` ("Cb") added in its exact old slot, right
+  after Proj - TopRate itself became desktop-only in the same change
+  (`RunnerRow.tsx`'s TopRate cell gained `hidden ... sm:inline`; the
+  Combo cell lost the `hidden ... sm:inline` it shipped with initially,
+  becoming visible everywhere). Combo shows a decimal WPR-scale value
+  like Proj (e.g. "76.6"), not a bare 2-3 digit integer like TR did, so
+  its mobile track needed Proj's own width, not TR's narrower one -
+  widened compact 30px->40px and full 29px->36px, recovered from Horse's
+  own floor again (compact 90px->80px, full 50px->43px) per this file's
+  own established pattern for this exact class of change (see the
+  earlier, much longer mobile-grid-cols saga above). `RaceDetail.tsx`'s
+  matching mobile header grid-cols and `MOBILE_COLUMN_LABELS_FULL/
+  _COMPACT` updated to match exactly, same as every prior mobile
+  grid-cols change - all three (RunnerRow's grid-cols, RaceDetail's
+  header grid-cols, the label arrays) must stay in lockstep or the header
+  and data rows misalign.
+
+  This was verified via the same thorough Playwright methodology as
+  every prior mobile grid-cols change - see chat for the specific
+  bounding-box checks confirming no clipping/overlap between Cb and its
+  neighbours and zero overflow at 360-1280px in both densities before
+  this shipped.
 
 ## What to be careful about
 

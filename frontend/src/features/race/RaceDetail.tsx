@@ -45,13 +45,13 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
-  // Combo (Sep 2026): desktop-only, deliberately not added to either
-  // mobile density's own visible columns (see MOBILE_COLUMN_LABELS_FULL/
-  // _COMPACT below) - this codebase has a long, hard-won history of
-  // mobile grid-cols overflow bugs from squeezing in one more column
-  // (see CLAUDE.md), and the mobile sort dropdown below already lets a
-  // mobile user pick this sort without needing a visible mobile column
-  // (same as Base/Adj, which have never had one either).
+  // Combo: shown on both mobile densities too (2026-09-19, real user
+  // request: "sort by combo by default... on mobile show combo column,
+  // hide TR" - see MOBILE_COLUMN_LABELS_FULL/_COMPACT below, which now
+  // show Combo in TR's old slot). Initially shipped desktop-only; that
+  // was a deliberate scope-limiting choice at the time (this codebase's
+  // long, hard-won history of mobile grid-cols overflow bugs, see
+  // CLAUDE.md), superseded by this explicit request rather than a bug.
   { key: 'compositeScore', label: 'Combo' },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
@@ -75,10 +75,17 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // These mobile headers get their OWN short, whole labels instead of
 // truncating the desktop ones - TR/Fm/J% read cleanly at any width these
 // columns can realistically have, where a truncated "TopRate" never will.
+// TR replaced with Combo (2026-09-19, real user request: "on mobile show
+// combo column, hide TR") - RunnerRow.tsx's matching mobile grid-cols
+// widened Combo's own track to Proj's width (not TR's narrower one,
+// since Combo shows a decimal WPR-scale value like Proj rather than a
+// bare integer), recovered from Horse's own floor per this file's
+// established pattern - see that file's own comment for the exact
+// numbers.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'projectedWpr', label: 'Proj' },
-  { key: 'toprateRating', label: 'TR' },
+  { key: 'compositeScore', label: 'Cb' },
   { key: 'formFactor', label: 'Fm' },
   { key: 'jockeyWinPct', label: 'J%' },
   { key: 'fixedPrice', label: 'Fixed $' },
@@ -96,7 +103,7 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'projectedWpr', label: 'Proj' },
-  { key: 'toprateRating', label: 'TR' },
+  { key: 'compositeScore', label: 'Cb' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -117,8 +124,11 @@ export function RaceDetail({
 }: RaceDetailProps) {
   const { compact, setCompact } = useTableDensity()
   const { showScratched, setShowScratched } = useShowScratched()
-  const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
-  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
+  // Combo default (2026-09-19, real user request: "sort by combo by
+  // default") - was projectedWpr; see raceModel.ts's compositeScore() own
+  // comment for the backtest that motivated Combo existing at all.
+  const [sortKey, setSortKey] = useState<SortKey>('compositeScore')
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
 
@@ -350,8 +360,8 @@ export function RaceDetail({
         <div
           className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
             compact
-              ? 'gap-x-1 grid-cols-[40px_minmax(90px,1fr)_40px_30px_76px_20px]'
-              : 'gap-x-[3px] grid-cols-[40px_minmax(50px,1fr)_36px_29px_29px_31px_76px_20px]'
+              ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
+              : 'gap-x-[3px] grid-cols-[40px_minmax(43px,1fr)_36px_36px_29px_31px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
