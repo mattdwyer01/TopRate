@@ -184,3 +184,101 @@ export function computeEffectiveRace(
   }
   return result
 }
+
+// Composite ranking score (Sep 2026) - real user question: "can we order
+// race tab by a different score (perhaps a combo of wpr, form factor &
+// toprate rating), so that we are getting as many winners as possible
+// within [a margin]". wpr_composite_score_capture_test.py (backtest,
+// 1,994 complete-case resulted races, 56 dates - a much bigger sample
+// than the tracker's own sweeps, since this isn't gated by speed_map) grid
+// searched every weight triple with all three weights > 0 (so all three
+// genuinely contribute, per the user's own follow-up request) at matched
+// selectivity (same average shortlist size as the existing 5-WPR
+// OVERLAY_MAX_GAP_FROM_TOP threshold produces). This exact weighting won
+// outright: 75.1% winner capture rate vs projectedWpr alone's 65.5% at
+// the same selectivity - a real, validated improvement, not a tradeoff.
+export const COMPOSITE_WEIGHT_WPR = 0.20
+export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.70
+export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.10
+// Population mean/std (toprate_runners.csv, all non-scratched rows, see
+// wpr_composite_score_capture_test.py's own printed stats) used to
+// rescale toprateRating/formFactor onto projectedWpr's own natural scale
+// before blending - without this, toprateRating's tiny 2.71 std or
+// formFactor's wide 30.88 std would dominate/underweight the blend by
+// pure scale accident, not by the weights actually chosen. Fixed
+// constants, not recomputed live per race - a per-race z-score would be
+// a materially different, unvalidated calculation from what the backtest
+// above actually tested.
+const WPR_POP_MEAN = 72.57
+const WPR_POP_STD = 10.48
+const TRR_POP_MEAN = 96.26
+const TRR_POP_STD = 2.71
+const PFM_POP_MEAN = 38.35
+const PFM_POP_STD = 30.88
+
+// Margin threshold for the composite score's own "X from top rated"
+// divider, analogous to OVERLAY_MAX_GAP_FROM_TOP but NOT the same units -
+// blending compresses the scale (see the backtest's own matched-margin
+// section), so "5" doesn't carry over. The backtest's own matched-margin
+// search (same avg shortlist size as OVERLAY_MAX_GAP_FROM_TOP=5 on raw
+// WPR) landed on 9.99; rounded to an even 10, real user decision.
+export const COMPOSITE_MAX_GAP_FROM_TOP = 10
+
+// Blends projectedWpr with toprateRating/formFactor per the validated
+// weights above. effectiveWpr (optional): pass computeEffectiveRace's own
+// effectiveProjectedWpr so a manual override shifts the composite too,
+// same as it already does for projectedWpr itself - omit to use the raw
+// model figure. Missing toprateRating/formFactor gracefully DROPS that
+// component and renormalizes the remaining weights (matches this
+// codebase's existing convention for partial data, e.g. wpr_projection.
+// py's own base fallback chain) rather than returning null outright - a
+// null projectedWpr is the only thing that makes a composite meaningless
+// (that's the dominant, always-required term). This graceful-degradation
+// behaviour was NOT itself backtested in isolation (the backtest above
+// was complete-case only) - it's a deliberate, conservative choice that
+// never does worse than falling back toward plain WPR when data's thin.
+export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
+  const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
+  if (wpr == null) return null
+  let weightedSum = COMPOSITE_WEIGHT_WPR * wpr
+  let weightTotal = COMPOSITE_WEIGHT_WPR
+  if (runner.toprateRating != null) {
+    const trrRescaled = WPR_POP_MEAN + ((runner.toprateRating - TRR_POP_MEAN) / TRR_POP_STD) * WPR_POP_STD
+    weightedSum += COMPOSITE_WEIGHT_TOPRATE_RATING * trrRescaled
+    weightTotal += COMPOSITE_WEIGHT_TOPRATE_RATING
+  }
+  if (runner.formFactor != null) {
+    const pfmRescaled = WPR_POP_MEAN + ((runner.formFactor - PFM_POP_MEAN) / PFM_POP_STD) * WPR_POP_STD
+    weightedSum += COMPOSITE_WEIGHT_FORM_FACTOR * pfmRescaled
+    weightTotal += COMPOSITE_WEIGHT_FORM_FACTOR
+  }
+  return weightedSum / weightTotal
+}
+
+// Per-runner gap from the race's own top composite score - independent of
+// computeEffectiveRace's WPR-based gapFromTop (that one is calibrated
+// against real WPR for pricing/overlay detection; the composite score
+// has a different scale and must never feed into that price math). Same
+// "need 2+ rated runners, exclude scratched" shape as computeEffectiveRace
+// for consistency, but scratched here means client-side-toggled OR
+// data-driven (caller passes the merged set, same as elsewhere in
+// RaceDetail.tsx).
+export function computeCompositeGaps(
+  runners: Runner[],
+  effectiveByRunId: Record<string, EffectiveRunner>,
+  scratched: Set<string>,
+): Record<string, number | null> {
+  const gaps: Record<string, number | null> = {}
+  for (const r of runners) gaps[r.runId] = null
+  const scored = runners
+    .filter((r) => !scratched.has(r.runId))
+    .map((r) => ({
+      runId: r.runId,
+      score: compositeScore(r, effectiveByRunId[r.runId]?.effectiveProjectedWpr),
+    }))
+    .filter((r): r is { runId: string; score: number } => r.score != null)
+  if (scored.length < 2) return gaps
+  const top = Math.max(...scored.map((r) => r.score))
+  for (const r of scored) gaps[r.runId] = top - r.score
+  return gaps
+}

@@ -1,5 +1,5 @@
 import type { Runner } from '../types/domain'
-import type { EffectiveRunner } from './raceModel'
+import { compositeScore, type EffectiveRunner } from './raceModel'
 import { spellPosition } from './spellPosition'
 
 export type SortKey =
@@ -13,6 +13,7 @@ export type SortKey =
   | 'baseWpr'
   | 'adjustment'
   | 'projectedWpr'
+  | 'compositeScore'
   | 'toprateRating'
   | 'formFactor'
   | 'jockeyWinPct'
@@ -38,6 +39,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   baseWpr: 'desc',
   adjustment: 'desc',
   projectedWpr: 'desc',
+  compositeScore: 'desc',
   toprateRating: 'desc',
   formFactor: 'desc',
   jockeyWinPct: 'desc',
@@ -77,6 +79,8 @@ function sortValue(
       return runner.wprAdjustment ?? -Infinity
     case 'projectedWpr':
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
+    case 'compositeScore':
+      return compositeScore(runner, effective?.effectiveProjectedWpr) ?? -Infinity
     case 'toprateRating':
       return runner.toprateRating ?? -Infinity
     case 'formFactor':

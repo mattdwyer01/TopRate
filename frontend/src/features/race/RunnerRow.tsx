@@ -1,5 +1,5 @@
 import type { Runner } from '../../types/domain'
-import type { EffectiveRunner } from '../../lib/raceModel'
+import { compositeScore, type EffectiveRunner } from '../../lib/raceModel'
 import type { TrackerQualifier } from '../../lib/trackerRules'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
@@ -111,6 +111,7 @@ export function RunnerRow({
   // effective.effectiveProjectedWpr is explicitly null (which ?? would
   // otherwise treat the same as "no override, use the raw value").
   const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  const displayComposite = scratched ? null : compositeScore(runner, effective?.effectiveProjectedWpr)
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const showMove = priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
@@ -167,7 +168,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -429,6 +430,13 @@ export function RunnerRow({
             </span>
           )}
         </span>
+      </span>
+      {/* Combo: desktop-only (see COLUMN_LABELS' own comment in
+          RaceDetail.tsx for why this isn't in either mobile density) - the
+          blended ranking score, same rounding/formatting as Proj since
+          it's rescaled onto the same WPR-like scale. */}
+      <span className="hidden text-right font-mono text-ink-mute sm:inline">
+        {scratched ? 'SCR' : fmtWpr(displayComposite)}
       </span>
       <span className="text-right font-mono text-ink-mute">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}

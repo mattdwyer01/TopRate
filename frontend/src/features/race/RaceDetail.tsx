@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeEffectiveRace, OVERLAY_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { evaluateTrackerQualifiers } from '../../lib/trackerRules'
@@ -45,6 +45,14 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'baseWpr', label: 'Base' },
   { key: 'adjustment', label: 'Adj' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
+  // Combo (Sep 2026): desktop-only, deliberately not added to either
+  // mobile density's own visible columns (see MOBILE_COLUMN_LABELS_FULL/
+  // _COMPACT below) - this codebase has a long, hard-won history of
+  // mobile grid-cols overflow bugs from squeezing in one more column
+  // (see CLAUDE.md), and the mobile sort dropdown below already lets a
+  // mobile user pick this sort without needing a visible mobile column
+  // (same as Base/Adj, which have never had one either).
+  { key: 'compositeScore', label: 'Combo' },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
   { key: 'jockeyWinPct', label: 'Jky Win%' },
@@ -131,6 +139,15 @@ export function RaceDetail({
   const effectiveByRunId = useMemo(
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
     [race.runners, deltas, bases, priceBeta, effectiveScratched],
+  )
+
+  // Composite score's own "gap from top" - independent of effectiveByRunId's
+  // WPR-based gapFromTop (see computeCompositeGaps' own comment for why: that
+  // one is calibrated for price/overlay math, this one has a different
+  // scale entirely).
+  const compositeGapByRunId = useMemo(
+    () => computeCompositeGaps(race.runners, effectiveByRunId, effectiveScratched),
+    [race.runners, effectiveByRunId, effectiveScratched],
   )
 
   // Live tracker-rule flag (see lib/trackerRules.ts) - evaluated fresh
@@ -360,7 +377,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
@@ -379,22 +396,33 @@ export function RaceDetail({
         </div>
         {sortedRunners.map((runner, i) => {
           // Gap-from-top marker line: only meaningful when the list is
-          // actually grouped by rating (Proj sort) - otherwise "within
-          // OVERLAY_MAX_GAP_FROM_TOP of the top pick" runners aren't
+          // actually grouped by rating (Proj or Combo sort) - otherwise
+          // "within the gap threshold of the top pick" runners aren't
           // necessarily contiguous, and the line would land at a fairly
           // arbitrary-looking spot. Detected as a transition (this row
           // qualifies, the next doesn't) so it still works under either
-          // sort direction, not just descending. Reads the live constant
-          // from raceModel.ts (not a second hardcoded copy) since this
-          // line exists specifically to show that cutoff.
-          const gap = effectiveByRunId[runner.runId]?.gapFromTop
+          // sort direction, not just descending. Combo (Sep 2026) reads
+          // its own gap/threshold (compositeGapByRunId/
+          // COMPOSITE_MAX_GAP_FROM_TOP) rather than the WPR-based ones -
+          // see computeCompositeGaps' own comment for why they're kept
+          // entirely separate. Reads the live constants from raceModel.ts
+          // (not a second hardcoded copy) since this line exists
+          // specifically to show that cutoff.
+          const usingComposite = sortKey === 'compositeScore'
+          const gap = usingComposite ? compositeGapByRunId[runner.runId] : effectiveByRunId[runner.runId]?.gapFromTop
+          const nextGapRunId = i + 1 < sortedRunners.length ? sortedRunners[i + 1].runId : undefined
           const nextGap =
-            i + 1 < sortedRunners.length ? effectiveByRunId[sortedRunners[i + 1].runId]?.gapFromTop : undefined
-          const showBoundary = sortKey === 'projectedWpr' && gap != null
+            nextGapRunId == null
+              ? undefined
+              : usingComposite
+                ? compositeGapByRunId[nextGapRunId]
+                : effectiveByRunId[nextGapRunId]?.gapFromTop
+          const gapThreshold = usingComposite ? COMPOSITE_MAX_GAP_FROM_TOP : OVERLAY_MAX_GAP_FROM_TOP
+          const showBoundary = (sortKey === 'projectedWpr' || usingComposite) && gap != null
           const showGapLine =
             showBoundary &&
-            gap <= OVERLAY_MAX_GAP_FROM_TOP &&
-            (nextGap == null || nextGap === undefined || nextGap > OVERLAY_MAX_GAP_FROM_TOP)
+            gap <= gapThreshold &&
+            (nextGap == null || nextGap === undefined || nextGap > gapThreshold)
           return (
             <Fragment key={runner.runId}>
               <RunnerRow
@@ -410,7 +438,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {OVERLAY_MAX_GAP_FROM_TOP} WPR from top rated
+                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>

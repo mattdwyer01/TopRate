@@ -1077,6 +1077,65 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   fire/silent decision, never population membership, so it genuinely
   can't disqualify an existing pick the way a population-level threshold
   can.
+- **New "Combo" score on the Race tab (2026-09-19)**: real user request,
+  direct follow-up to the composite-score capture-rate analysis above
+  ("can we order race tab by a different score... within 5 wpr (or
+  whatever our new score is)" -> "can you weight them in a way that
+  toprate rating, wpr & form factor are included?" -> "do the best one
+  and the margin can be an even 10"). `wpr_composite_score_capture_test.py`
+  (1,994 complete-case resulted races, 56 dates - not gated by speed_map,
+  so a much bigger sample than any tracker sweep) grid-searched every
+  weight triple with all three weights > 0 and found `0.20*projectedWpr +
+  0.70*toprateRating(rescaled) + 0.10*formFactor(rescaled)` the best: 75.1%
+  winner capture rate at the SAME shortlist selectivity as the existing
+  5-WPR `OVERLAY_MAX_GAP_FROM_TOP` threshold produces, vs projectedWpr
+  alone's 65.5% - a real improvement, not a tradeoff, and it edges out
+  even the best 2-way blend (WPR+trr only, no form factor, 74.5%).
+  Deliberately did NOT touch `speedmap_jockey_tracker.py`'s own GAP_MAX/
+  solo-only logic or its live mirror in `trackerRules.ts` - the original
+  ask was specifically about the Race tab's own display/ordering, and
+  extending this to the tracker's betting rule would need its own
+  from-scratch re-sweep of every tracker threshold against the new
+  score's very different scale, a separate decision not yet made.
+
+  Implemented as a NEW, independent computation in
+  `frontend/src/lib/raceModel.ts` (`compositeScore()`,
+  `computeCompositeGaps()`, `COMPOSITE_WEIGHT_*`,
+  `COMPOSITE_MAX_GAP_FROM_TOP = 10`, rounded up from the backtest's own
+  matched-margin search which found 9.99) - deliberately NOT folded into
+  `computeEffectiveRace()`, since that function's own WPR value feeds
+  price-softmax math (mirrors `wpr_projection.py`'s `project_race()`
+  formula, calibrated against real WPR's own distribution) and overlay/
+  underlay detection - swapping in a differently-scaled blended score
+  there would have silently corrupted fair-price calculation and every
+  overlay flag derived from it. `toprateRating`/`formFactor` are rescaled
+  onto `projectedWpr`'s own population mean/std (fixed constants from the
+  backtest script's own printed stats, not recomputed live per race -
+  a per-race z-score would be a different, unvalidated calculation) before
+  blending, so the weights aren't distorted by `toprateRating`'s tiny
+  2.71 population std or `formFactor`'s wide 30.88 one. Missing
+  `toprateRating`/`formFactor` per-runner gracefully drops that component
+  and renormalizes the remaining weights (falls back toward plain WPR
+  when data's thin, matching `wpr_projection.py`'s own base-fallback-chain
+  convention) rather than returning no score at all - this specific
+  degradation behaviour was NOT itself backtested (the backtest was
+  complete-case only), a deliberate, conservative choice flagged here for
+  whoever revisits it.
+
+  New sort key `'compositeScore'` added to `frontend/src/lib/sorting.ts`,
+  surfaced as a "Combo" column in `RaceDetail.tsx` - DESKTOP-ONLY,
+  deliberately not added to either mobile density's own visible columns
+  (`MOBILE_COLUMN_LABELS_FULL`/`_COMPACT`) given this file's own long,
+  hard-won history of mobile grid-cols overflow bugs from squeezing in
+  one more column; a mobile user can still select the "Combo" sort from
+  the existing mobile dropdown (which already lists every `COLUMN_LABELS`
+  entry regardless of mobile visibility, same as Base/Adj today) without
+  needing a visible mobile column. The existing "X WPR from top rated"
+  divider line now branches on `sortKey`: Proj sort still uses the
+  original WPR-based `gapFromTop`/`OVERLAY_MAX_GAP_FROM_TOP`, completely
+  untouched; Combo sort uses the new, independent `compositeGapByRunId`/
+  `COMPOSITE_MAX_GAP_FROM_TOP` and reads "10 pts (Combo) from top rated"
+  instead, so the two never get confused for each other.
 
 ## What to be careful about
 
