@@ -71,7 +71,12 @@ const DEFAULT_BETA = 0.4
 // Exported so RaceDetail.tsx's own "X WPR from top rated" divider line can
 // read the live value instead of carrying a second hardcoded copy that has
 // drifted out of sync with this one before.
-export const OVERLAY_MAX_GAP_FROM_TOP = 4
+// Raised again 4 -> 5 (Sep 2026), re-aligning with speedmap_jockey_
+// tracker.py's own GAP_MAX after a real user decision made explicitly
+// against wpr_tracker_strike_rate_sweep.py's own recommendation (that
+// sweep found 5 neutral-to-slightly-worse than 4 once combined with the
+// tracker's new, higher JW_MIN - see that file's comment for the numbers).
+export const OVERLAY_MAX_GAP_FROM_TOP = 5
 
 // "Material" thresholds for the open-vs-now price-drift flags below: the
 // open price has to be at least 15% away from our fair price in the

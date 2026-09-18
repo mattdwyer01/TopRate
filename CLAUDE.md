@@ -728,6 +728,53 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   between #469's own in-flight run and its successor) - watch the next
   few `daily.yml` runs to confirm the push actually completes fast now
   rather than burning the full 5-attempt budget.
+- **Tracker JW_MIN raised 14 -> 20, GAP_MAX raised 4 -> 5 (2026-09-19)**:
+  real user request ("strike rate increase"). `wpr_tracker_strike_rate_
+  sweep.py` (new, read-only scratch script, same monkey-patch-the-real-
+  `build_candidates()` approach as `wpr_tracker_gap_sweep.py`) swept
+  `GAP_MAX`, `JW_MIN` (jockey_win_pct_90d floor), and `TAGS`
+  (favoured-only vs favoured+neutral) looking for a genuine strike-rate
+  lever. Headline finding: unlike `GAP_MAX` (noisy, non-monotonic - see
+  the `GAP_MAX 4 -> 5` entry above, still correct as a description of
+  that sweep alone), raising `JW_MIN` improved win% AND ROI TOGETHER for
+  both trackers, not a tradeoff - at JW_MIN=20: Tracker A n 337->179,
+  win% 19.6->22.3, flat ROI +21.1%->+32.3%; Tracker B n 74->31, win%
+  31.1->41.9, flat ROI +12.0%->+53.9%. 22+ showed even bigger numbers but
+  Tracker B's sample thinned to n<=21 (n=2 at 30), too noisy to trust -
+  real user decision to land on 20 rather than push further. Also swept
+  favoured-only (dropping the "neutral" speed-map tag): asymmetric,
+  NOT a clean global toggle - helps Tracker B (41.2% win%) but badly
+  hurts Tracker A (13.7%, -36.6% ROI) - not applied.
+
+  Separately, and AGAINST this sweep's own recommendation: `GAP_MAX` was
+  also raised 4 -> 5, a real user decision made explicitly after being
+  shown that combining GAP_MAX=5 with the new JW_MIN=20 is neutral-to-
+  negative in the same backtest window (Tracker B completely unaffected,
+  n=31/win%=41.9% identical from GAP_MAX 4 through 6 once JW_MIN=20 is
+  the binding constraint; Tracker A slightly worse as the gap widens,
+  win% 22.3%->21.0%, flat ROI +32.3%->+24.4% at 5). Implemented anyway
+  per explicit instruction, same precedent as the earlier `CONTESTED_
+  PRICE_FLOOR` call where the user weighted other factors over pure
+  backtest robustness - flagged here for whoever revisits this. This
+  supersedes the "GAP_MAX 4 -> 5 sweep tested and rejected" entry above
+  as the CURRENT production value (that entry's own numbers/reasoning
+  for why 5 alone looked worse than 4 are still accurate, just no longer
+  the decision that shipped once combined with the new JW_MIN).
+
+  Updated everywhere both constants are duplicated: `speedmap_jockey_
+  tracker.py` (source of truth), `frontend/src/lib/trackerRules.ts`
+  (live/watching candidates), `frontend/src/lib/raceModel.ts`'s
+  `OVERLAY_MAX_GAP_FROM_TOP` (the Race tab's "X WPR from top rated"
+  divider, exported so `RaceDetail.tsx` reads it live rather than
+  carrying a second hardcoded copy - see that file's own drift history),
+  and the Trackers tab's own rule-description copy/comment (both
+  numbers were hardcoded into a user-facing string, not derived from a
+  constant). Ran `tracker_history_cleanup.py` against the new thresholds
+  to purge already-logged picks that no longer qualify (same precedent
+  as the original GAP_MAX 6->4 cleanup): `tracker_high_volume.csv` 391
+  -> 94 rows, `tracker_low_volume.csv` 91 -> 32 rows. Verified live:
+  every currently-showing pick's Jockey % is now >= 20, description text
+  reads ">= 20... within 5 WPR", zero layout overflow.
 
 ## What to be careful about
 

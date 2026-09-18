@@ -69,10 +69,34 @@ DEMEAN_THRESHOLD = 0.5   # matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 # GAP_MAX=4 gave both a higher solo-pick win rate and more resulted solo
 # picks than 6 on the corrected rule (win% ~21.5 vs ~21.4, n=297 vs 271 in
 # the sweep's own backtest window), so real user decision was to move to
-# 4 rather than re-confirm 6. See lib/raceModel.ts's matching
-# OVERLAY_MAX_GAP_FROM_TOP for the UI-side alignment.
-GAP_MAX = 4.0
-JW_MIN = 14.0            # jockey_win_pct_90d floor
+# 4 rather than re-confirm 6.
+#
+# Raised again 4 -> 5 (Sep 2026, real user decision, made explicitly
+# against the backtest's own recommendation): wpr_tracker_strike_rate_
+# sweep.py, run alongside the JW_MIN change just below, found raising
+# GAP_MAX to 5 (combined with the new JW_MIN=20) is neutral-to-negative in
+# the live backtest window - Tracker B was completely unaffected (n=31,
+# win%=41.9% identical from GAP_MAX 4 through 6, since JW_MIN=20 is now
+# the binding constraint there, not the gap), and Tracker A got slightly
+# WORSE as the gap widened (win% 22.3%->21.0% at 5, flat ROI
+# +32.3%->+24.4%). Implemented anyway per explicit user instruction, same
+# as the earlier GAP_MAX 6->4 call where the user weighted other factors
+# over pure backtest robustness - flagged here for whoever revisits this.
+# See lib/raceModel.ts's matching OVERLAY_MAX_GAP_FROM_TOP for the
+# UI-side alignment.
+GAP_MAX = 5.0
+# jockey_win_pct_90d floor. Raised 14 -> 20 (Sep 2026, real user request:
+# "strike rate increase") after wpr_tracker_strike_rate_sweep.py showed this
+# is a real, non-tradeoff lever - unlike GAP_MAX above (noisy/non-monotonic,
+# no clean win in either direction), raising JW_MIN improved win% AND ROI
+# together for BOTH trackers over the live backtest window: Tracker A
+# n 337->179, win% 19.6->22.3, flat ROI +21.1%->+32.3%; Tracker B n 74->31,
+# win% 31.1->41.9, flat ROI +12.0%->+53.9%. Went with 20 over a more
+# aggressive 22+ (bigger numbers, but Tracker B's sample thins to n<=21,
+# too noisy to trust) - real user decision. See lib/trackerRules.ts's
+# matching JW_MIN for the UI-side alignment (live/watching candidates use
+# the same floor as logged picks).
+JW_MIN = 20.0
 PRICE_MIN = 3.0          # SP/fixed price floor
 # A multi-selection (contested) race normally never fires at all (solo-only,
 # see above). Exception (Sep 2026, real user decision): if EVERY qualifier in

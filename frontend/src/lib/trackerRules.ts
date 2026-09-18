@@ -59,9 +59,14 @@ const DEMEAN_THRESHOLD = 0.5 // matches SpeedMapGrid.tsx's THREAT_THRESHOLD
 // Lowered 6 -> 4 (Sep 2026) - see speedmap_jockey_tracker.py's matching
 // constant for the re-sweep that picked 4 (post the solo-only-before-price
 // fix, which changed the qualifying population enough that the old
-// 6-picking sweep no longer applies).
-const GAP_MAX = 4.0
-const JW_MIN = 14.0
+// 6-picking sweep no longer applies). Raised 4 -> 5 (Sep 2026, real user
+// decision made explicitly against the backtest's own recommendation -
+// see speedmap_jockey_tracker.py's matching constant for the numbers).
+const GAP_MAX = 5.0
+// Raised 14 -> 20 (Sep 2026) - see speedmap_jockey_tracker.py's matching
+// constant for the strike-rate sweep that motivated this (a real,
+// non-tradeoff lever: win% and ROI improved together for both trackers).
+const JW_MIN = 20.0
 const PRICE_MIN = 3.0
 // A multi-selection (contested) race still fires - on every qualifier in
 // it - if all of them are priced above this floor. See
