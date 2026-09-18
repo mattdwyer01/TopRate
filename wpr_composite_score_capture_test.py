@@ -95,8 +95,11 @@ def main():
     # distribution compressed, not because it ranks worse. A fixed TOP-K
     # per race sidesteps that confound entirely: every score gets exactly
     # the same number of candidates per race, so capture rate alone
-    # decides which ranking is more efficient.
-    print("\n\n=== Fixed top-K per race (sidesteps gap-threshold variance confound) ===")
+    # decides which ranking is more efficient. (Kept as a cross-check;
+    # the MATCHED-MARGIN comparison below is the one that answers the
+    # real question, in the same "gap from top" terms the app already
+    # uses, rather than a top-K shortlist.)
+    print("\n\n=== Fixed top-K per race (cross-check, sidesteps the variance confound) ===")
     for label, score in scores.items():
         cdf["_score"] = score
         cdf["_rank"] = cdf.groupby("race_id")["_score"].rank(method="min", ascending=False)
@@ -105,6 +108,35 @@ def main():
             winners = cdf[cdf["won"] == 1]
             capture_rate = (winners["_rank"] <= K).mean()
             print(f"  top-{K}: winner capture rate={100*capture_rate:5.1f}%")
+
+    # MATCHED-MARGIN comparison: real user request - "instead of picking
+    # top 5, pick a margin (like wpr 5)". For each candidate score, find
+    # the margin T' whose average pool size matches WPR-only's own
+    # gap<=5 pool size (the app's current selectivity) via a fine-grained
+    # scan, then compare capture rate AT THAT MATCHED SELECTIVITY - this
+    # is the fair version of the naive same-T comparison at the top of
+    # this script (that one was confounded by variance compression).
+    cdf["_score"] = scores["WPR only (baseline)"]
+    cdf["_top"] = cdf.groupby("race_id")["_score"].transform("max")
+    cdf["_gap"] = cdf["_top"] - cdf["_score"]
+    target_pool = (cdf["_gap"] <= 5).groupby(cdf["race_id"]).sum().mean()
+    print(f"\n\n=== Matched-margin comparison (target pool size = WPR gap<=5 = {target_pool:.2f}) ===")
+    for label, score in scores.items():
+        cdf["_score"] = score
+        cdf["_top"] = cdf.groupby("race_id")["_score"].transform("max")
+        cdf["_gap"] = cdf["_top"] - cdf["_score"]
+        best_T, best_diff, best_pool, best_capture = None, None, None, None
+        for t_hundredths in range(1, 2001):  # scan 0.01 to 20.00 in 0.01 steps
+            T = t_hundredths / 100
+            in_pool = cdf["_gap"] <= T
+            pool_size = in_pool.groupby(cdf["race_id"]).sum().mean()
+            diff = abs(pool_size - target_pool)
+            if best_diff is None or diff < best_diff:
+                winners = cdf[cdf["won"] == 1]
+                best_T, best_diff, best_pool = T, diff, pool_size
+                best_capture = (winners["_gap"] <= T).mean()
+        print(f"  {label:<32} matched margin={best_T:5.2f}  pool size={best_pool:5.2f}  "
+              f"winner capture rate={100*best_capture:5.1f}%")
 
 
 if __name__ == "__main__":
