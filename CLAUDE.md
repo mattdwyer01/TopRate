@@ -1500,6 +1500,68 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   densities, and the actual CSS class applied to several cells spanning
   clearly-positive/clearly-negative/near-zero SM Adj values, not just a
   visual glance) before landing.
+- **SM Adj mobile Full width tradeoff: real, conflicting verification
+  results, user chose to keep it (2026-09-19)**: a background Playwright
+  pass against the PRE-reposition build (commit 4950b13, SM Adj between
+  Horse/Combo) found two real problems at mobile widths - horse names
+  rendering with ZERO visible characters before the ellipsis at both
+  360px and 393px (Horse's floor only trimmed 43->38, ~28px short of the
+  new column's real ~33px cost), and, at 360px specifically, scrolling
+  the row fully right to reveal FP pushed the Combo score completely
+  behind the sticky Horse column (geometrically confirmed, not just a
+  screenshot glance) - the exact "value hidden under sticky cell" failure
+  class this file has hit and fixed multiple times before. Reported this
+  plainly (not softened) via `AskUserQuestion` - revert to desktop-only,
+  drop another mobile column to make room, or keep it and accept the
+  tradeoff - and flagged that repositioning (see the reposition entry
+  above) doesn't change total row width, so the same regression was
+  expected to still be present. A SEPARATE, later background Playwright
+  pass against the ALREADY-REPOSITIONED build (commit 88242a7, SM Adj
+  between J%/Fixed $) scrolled the same row fully right at both widths
+  and found NO clipping under the sticky column this time - values stayed
+  fully intact - though it still measured the same non-zero scroll
+  distance (9px at 393px, 42px at 360px) as a real, pre-existing,
+  accepted tradeoff. The two results genuinely disagree on the clipping
+  question specifically (same total row width, different column order,
+  and the second check was screenshot-based rather than the first's
+  explicit bounding-box containment math) - not yet reconciled. Real user
+  decision, made with the first (more alarming) report already in hand:
+  keep the current implementation as shipped rather than revert or drop a
+  column. Horse-name legibility at 360px was NOT re-verified against the
+  repositioned build specifically (repositioning doesn't change Horse's
+  own floor, so the zero-characters finding likely still holds) - worth a
+  closer look if a future mobile legibility complaint comes in on this
+  exact race/density/width combination.
+- **Second, dotted reference line for the WPR-based cutoff (2026-09-19)**:
+  real user request, direct follow-up - "add a dotted line for 5 from top
+  rated and different colour". The existing gap-from-top divider line
+  already showed EITHER "5 WPR from top rated" (Proj sort,
+  `OVERLAY_MAX_GAP_FROM_TOP`) OR "10 pts (Combo) from top rated" (Combo
+  sort, `COMPOSITE_MAX_GAP_FROM_TOP`) as one solid indigo line, never
+  both - so sorted by Combo (the app's default sort since an earlier
+  entry above), there was no way to see where the tracker-validated,
+  betting-relevant WPR-5 cutoff actually fell, since Combo's own ranking
+  mostly tracks WPR (50% weight in its blend) but isn't identical to it.
+  Added a SECOND divider, shown only when `usingComposite` (Combo sort) -
+  showing the primary line a second time under Proj sort would just
+  duplicate information already on screen. Styled distinctly per the
+  request: `border-dotted` (not a solid filled bar) and amber (not
+  indigo, an already-established colour elsewhere in this file for
+  informational/secondary markers, e.g. the override asterisk and FS/FU
+  spell labels) so it reads as a secondary reference line, not a second
+  primary boundary. Uses the same per-row transition-detection approach
+  as the primary line (`gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP`, checked
+  against `effectiveByRunId` directly rather than `compositeGapByRunId`)
+  but deliberately NOT gated on the primary line's own "only meaningful
+  when contiguous" concern - since Combo and WPR rank differently, WPR-5
+  membership isn't guaranteed to be contiguous under Combo's own sort
+  order, so this line can in principle appear more than once if the
+  underlying data is genuinely non-contiguous; left as an honest
+  reflection of that rather than forced into a single, potentially
+  misleading mark. Verified via a background Playwright pass (line
+  renders correctly dotted/amber, appears only under Combo sort, coexists
+  sensibly with the existing indigo line, no overflow/console errors)
+  before landing.
 
 ## What to be careful about
 

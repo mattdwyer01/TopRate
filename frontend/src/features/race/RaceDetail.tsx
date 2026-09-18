@@ -457,6 +457,29 @@ export function RaceDetail({
             showBoundary &&
             gap <= gapThreshold &&
             (nextGap == null || nextGap === undefined || nextGap > gapThreshold)
+          // Second, WPR-based reference line (2026-09-19, real user request:
+          // "add a dotted line for 5 from top rated and different colour") -
+          // only when sorted by Combo, since sorted-by-Proj already shows
+          // this exact cutoff as the primary (solid) line above; showing it
+          // twice there would just be visual noise. Combo's own ranking
+          // mostly tracks WPR (50% weight) but isn't identical to it, so the
+          // tracker-validated OVERLAY_MAX_GAP_FROM_TOP=5 cutoff can land at
+          // a different row than Combo's own 10-point one - this dotted
+          // line marks where the WPR-only cutoff actually falls in the
+          // CURRENT (Combo) sort order, same transition-detection approach
+          // as the line above, just against gapFromTop instead of
+          // compositeGapByRunId. Not gated on contiguity the way the
+          // primary line's own comment worries about - if WPR-5 membership
+          // isn't contiguous under Combo order, more than one dotted line
+          // can appear, which honestly reflects the underlying data rather
+          // than forcing a single, possibly misleading mark.
+          const wprGap = effectiveByRunId[runner.runId]?.gapFromTop
+          const nextWprGap = nextGapRunId == null ? undefined : effectiveByRunId[nextGapRunId]?.gapFromTop
+          const showWprGapLine =
+            usingComposite &&
+            wprGap != null &&
+            wprGap <= OVERLAY_MAX_GAP_FROM_TOP &&
+            (nextWprGap == null || nextWprGap === undefined || nextWprGap > OVERLAY_MAX_GAP_FROM_TOP)
           return (
             <Fragment key={runner.runId}>
               <RunnerRow
@@ -475,6 +498,15 @@ export function RaceDetail({
                     {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
+                </div>
+              )}
+              {showWprGapLine && (
+                <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
+                  <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
+                  <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
+                    {OVERLAY_MAX_GAP_FROM_TOP} WPR from top rated
+                  </span>
+                  <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
               )}
             </Fragment>
