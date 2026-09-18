@@ -130,7 +130,7 @@ JW_FLOOR = 10.0
 # Without this, a race full of genuinely poor riders could hand a "top
 # 10%" qualification to a jockey whose real win% is, say, 4% - still the
 # best AVAILABLE, but not a rider actually worth backing.
-JW_RELATIVE_TOP_PCT = 10
+JW_RELATIVE_TOP_PCT = 20
 # Top X% by rank among jw values of every non-scratched runner in the
 # SAME race (the whole field, not just runners that already pass
 # speed_map/gap - the point of a relative rule is comparing against the
@@ -142,6 +142,16 @@ JW_RELATIVE_TOP_PCT = 10
 # backtest above already reflects that behaviour and still came out
 # ahead, but it's a real, deliberate trade-off, not an edge case to
 # "fix" later.
+# RAISED 10 -> 20 (2026-09-19, real user decision: "how to get more
+# volume?" -> "make it 20"). wpr_tracker_volume_sweep.py (combined sweep
+# with PFM_A_FLOOR) confirmed Tracker B is far more tolerant of loosening
+# this than Tracker A: at top 20% (PFM_A_FLOOR=70 held fixed), Tracker B
+# n 41->66 (+61%), win% 39.0->36.4, flat ROI +40.7%->+34.8% (a real but
+# modest cost); Tracker A n 181->255 (+41%), win% 25.4->23.1, flat ROI
+# +32.4%->+19.6% (a bigger ROI cost than B, but still solidly positive).
+# 10% was the measured peak in the original relative-rank sweep - this
+# is a deliberate trade of some of that peak's edge for more volume, not
+# a correction to it.
 # jockey_starts_90d floor (Sep 2026, real user request, direct follow-up to
 # the JW_MIN change above: "a jockey with 2 rides for 1 win... very
 # deceiving" - see the jockey_merit entry in CLAUDE.md for the exact same

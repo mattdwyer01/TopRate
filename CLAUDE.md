@@ -1014,6 +1014,42 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   more rows removed from `tracker_high_volume.csv` (54->42 - runners in
   the now-excluded 60-69 band), 0 from `tracker_low_volume.csv` (still
   unaffected, as expected - this floor only ever touches Tracker A).
+- **`JW_RELATIVE_TOP_PCT` raised 10 -> 20 for more volume (2026-09-19)**:
+  real user question ("How to get more volume?"), answered by pointing
+  out the solo-only gate dominates pick count far more than any single
+  threshold, then a specific ask to sweep two axes together.
+  `wpr_tracker_volume_sweep.py` (new, read-only scratch script,
+  re-implements `build_candidates()`'s race loop with BOTH `PFM_A_FLOOR`
+  and `JW_RELATIVE_TOP_PCT` swept inside the qualifying loop, same
+  population-level precedent as every prior sweep this session) found
+  Tracker B is far more tolerant of loosening `JW_RELATIVE_TOP_PCT` than
+  Tracker A, since `PFM_A_FLOOR` doesn't touch B at all: at top 15%, B
+  n 41->57 (+39%) with only win% 39.0->36.8/flat ROI +40.7%->+35.8%; at
+  top 20% (held with `PFM_A_FLOOR=70`), B n 41->66 (+61%), win%
+  39.0->36.4, flat ROI +40.7%->+34.8% - still a modest cost. Tracker A is
+  more sensitive: at top 20% it gains n 181->255 (+41%) but flat ROI
+  drops further, +32.4%->+19.6%. Recommended 15% as the cheapest volume
+  gain for both trackers together; real user decision went with 20%
+  instead ("Make it 20"), a deliberate trade of more of Tracker A's edge
+  for more volume on both, not a correction to the 10% peak the original
+  relative-rank sweep found (that peak is still real for the strictest
+  possible setting, just no longer what's shipped).
+  Updated everywhere duplicated: `speedmap_jockey_tracker.py` (source of
+  truth), `frontend/src/lib/trackerRules.ts`'s `JW_RELATIVE_TOP_PCT`
+  constant, and `TrackersTab.tsx`'s module comment + High Volume
+  `description=` string (both "top 10%" -> "top 20%" - careful to leave
+  the SEPARATE "above 10%" wording alone, since that one describes the
+  unrelated absolute `JW_FLOOR`, which stayed at 10 and happens to share
+  the same number). `tracker_history_cleanup.py` re-run: 4 rows removed
+  from `tracker_high_volume.csv` even though this was a pure loosening (0
+  from `tracker_low_volume.csv`) - the same population-level effect
+  documented at the JW_MIN 20->14 entry above: a newly-qualifying rival
+  (who also cleared `PFM_A_FLOOR`) turned a previously-solo race
+  contested, silencing a pick that used to fire alone. Confirms, yet
+  again, that a threshold loosening is never guaranteed to be a pure
+  superset of picks once solo-only is involved - always re-run this
+  script and check the real count after ANY `GAP_MAX`/`JW_FLOOR`/
+  `JW_RELATIVE_TOP_PCT`/`JW_STARTS_MIN`/`PFM_A_FLOOR` change.
 
 ## What to be careful about
 

@@ -70,7 +70,12 @@ const GAP_MAX = 5.0
 // the full backtest (top 10% beat the old absolute floor on win%, ROI,
 // AND volume simultaneously for Tracker A).
 const JW_FLOOR = 10.0
-const JW_RELATIVE_TOP_PCT = 10
+// RAISED 10 -> 20 (Sep 2026, real user decision: "how to get more
+// volume?" -> "make it 20") - see speedmap_jockey_tracker.py's matching
+// constant for the full sweep (a deliberate trade of some of the
+// original 10%-peak's edge for more volume, biggest cost falling on
+// Tracker A; Tracker B tolerates the loosening much better).
+const JW_RELATIVE_TOP_PCT = 20
 // jockey_starts_90d floor - see speedmap_jockey_tracker.py's matching
 // constant for the full reasoning. null passes rather than fails (most
 // runners don't have a real count yet - this is a near no-op today,
