@@ -6,12 +6,23 @@ interface SpeedMapGridProps {
   runners: Runner[]
 }
 
-// 6 tactical columns, Backmarker (left) -> Leader (right) - matches the
-// Racing NSW speed map layout this was modelled on (rows of silks bucketed
-// by predicted running position, not a bar chart). predictedRelSettle is
-// continuous 0-1 (0 = leads, 1 = settles last, see toprate_daily.py's
-// _settle_rel_lookup) - split into 6 even bands, reversed since column 0
-// here is the BACK of the field.
+// 10 tactical columns, Backmarker (left) -> Leader (right) - originally 6,
+// modelled on the Racing NSW speed map layout (rows of silks bucketed by
+// predicted running position, not a bar chart). Widened to 10 (2026-09-19,
+// real user report/question: a wide-barrier runner sitting at the very
+// FRONT edge of Midfield, e.g. predictedRelSettle=0.504, just 0.004 past
+// the old Off Pace/Midfield boundary at 0.5, looked identical to one
+// sitting deep in Midfield at 0.65 - same single column, no way to tell
+// them apart - "seems like there should be more columns to space them
+// out"). predictedRelSettle is continuous 0-1 (0 = leads, 1 = settles
+// last, see toprate_daily.py's _settle_rel_lookup). The 4 broad middle
+// zones (Backmarker/Off Midfield/Midfield/Off Pace) are each split into a
+// deeper (further back) and nearer (further forward) half - these are
+// where the reported crowding actually lives - while Pace and Leader stay
+// single, already-narrow columns. Split halves intentionally SHARE the
+// same label/shortLabel (not a "Deep X" qualifier) - two adjacent columns
+// both reading "Midfield" is meant to look like one wider Midfield section
+// shown in finer resolution, not two different tactical zones.
 // shortLabel is for the mobile header only, where a column can be as
 // narrow as ~35px (an empty/light column ceding width to busier ones -
 // see the mobile layout's own comment below) - "Backmarker"/"Off
@@ -19,12 +30,16 @@ interface SpeedMapGridProps {
 // mid-word, which read worse than just using a shorter word (real device
 // feedback, 2026-09-16: the full labels visually collided with each other).
 const COLUMNS = [
-  { key: 'back', label: 'Backmarker', shortLabel: 'Back', lo: 5 / 6, hi: 1 },
-  { key: 'offmid', label: 'Off Midfield', shortLabel: 'Off Mid', lo: 4 / 6, hi: 5 / 6 },
-  { key: 'mid', label: 'Midfield', shortLabel: 'Mid', lo: 3 / 6, hi: 4 / 6 },
-  { key: 'offpace', label: 'Off Pace', shortLabel: 'Off Pace', lo: 2 / 6, hi: 3 / 6 },
-  { key: 'pace', label: 'Pace', shortLabel: 'Pace', lo: 1 / 6, hi: 2 / 6 },
-  { key: 'lead', label: 'Leader', shortLabel: 'Lead', lo: 0, hi: 1 / 6 },
+  { key: 'back2', label: 'Backmarker', shortLabel: 'Back', lo: 9 / 10, hi: 1 },
+  { key: 'back1', label: 'Backmarker', shortLabel: 'Back', lo: 8 / 10, hi: 9 / 10 },
+  { key: 'offmid2', label: 'Off Midfield', shortLabel: 'Off Mid', lo: 7 / 10, hi: 8 / 10 },
+  { key: 'offmid1', label: 'Off Midfield', shortLabel: 'Off Mid', lo: 6 / 10, hi: 7 / 10 },
+  { key: 'mid2', label: 'Midfield', shortLabel: 'Mid', lo: 5 / 10, hi: 6 / 10 },
+  { key: 'mid1', label: 'Midfield', shortLabel: 'Mid', lo: 4 / 10, hi: 5 / 10 },
+  { key: 'offpace2', label: 'Off Pace', shortLabel: 'Off Pace', lo: 3 / 10, hi: 4 / 10 },
+  { key: 'offpace1', label: 'Off Pace', shortLabel: 'Off Pace', lo: 2 / 10, hi: 3 / 10 },
+  { key: 'pace', label: 'Pace', shortLabel: 'Pace', lo: 1 / 10, hi: 2 / 10 },
+  { key: 'lead', label: 'Leader', shortLabel: 'Lead', lo: 0, hi: 1 / 10 },
 ]
 
 // predictedRelSettle needs a fresh rebuild to be populated (added Sep 2026 -
@@ -138,7 +153,10 @@ function drawToneClass(drawFrac: number): string {
 // `columnIdx > MIDFIELD_IDX` and returned false (no caution) for exactly
 // the forward columns (Off Pace/Pace/Leader) this was meant to catch -
 // backwards, since higher index is MORE forward here, not less.
-const MIDFIELD_IDX = 2
+// 4, not 2, since COLUMNS grew from 6 to 10 columns (2026-09-19) - index 4
+// is the first (deeper) of Midfield's two sub-columns, same tactical
+// zone this always meant to gate on, just at its new position.
+const MIDFIELD_IDX = 4
 
 // A genuinely hot pace CAN excuse one wide gate crossing over into a
 // forward spot without real cost - but real user feedback (2026-09-16)

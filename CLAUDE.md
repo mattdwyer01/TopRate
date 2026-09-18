@@ -1321,6 +1321,45 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `0.45/0.30/0.25` entry above (that entry's own reasoning for landing
   there is still accurate as a description of that step, just no longer
   the final value).
+- **Speed Map widened from 6 to 10 tactical columns (2026-09-19)**: real
+  user report, working from a live screenshot: "how is carbonados not an
+  unfav map, it is drawn wider than Spartus & Il Passero but they are
+  unfav" -> after explaining the tint is driven by the trained
+  `speed_map` ADJ_TERM (demeaned against the race, barrier is only one of
+  several inputs - see `SpeedMapGrid.tsx`'s own long comment on this) and
+  showing the real numbers (Carbonados barrier 18, demeaned speed_map
+  -0.39, just inside the neutral side of the -0.5 unfavoured cutoff;
+  Spartus barrier 16 at -0.53, just past it) -> "then why isn't carbonados
+  further forward in the speed map?" -> traced to the SAME kind of
+  near-miss one level up: Carbonados' `predictedRelSettle` is 0.504, just
+  0.004 past the old 0.5 boundary between the Off Pace and Midfield
+  columns, so it landed in the same single "Midfield" column as horses
+  sitting genuinely deep in that zone (e.g. Spartus at 0.622, Il Passero
+  at 0.606) with no visual way to tell them apart -> real user proposal,
+  "seems like there should be more columns to space them out", confirmed
+  via `AskUserQuestion` as "10 columns everywhere (desktop + mobile)"
+  over a desktop-only option or a within-column position-cue alternative.
+  `SpeedMapGrid.tsx`'s `COLUMNS` array split each of the 4 broad middle
+  zones (Backmarker/Off Midfield/Midfield/Off Pace - where the reported
+  crowding actually lives) into a deeper and a nearer half, while Pace and
+  Leader stay single, already-narrow columns (2+2+2+2+1+1=10). The two
+  columns in a split pair deliberately SHARE the same label/shortLabel
+  (both just say "Midfield", not "Deep Midfield"/"Midfield") - reads as
+  one wider zone shown in finer resolution, not two different tactical
+  zones, and needed no new terminology or mobile shortLabel-width work.
+  `MIDFIELD_IDX` (the wide-barrier "!" caution flag's "at least Midfield-
+  forward" cutoff) updated 2 -> 4 to match Midfield's new starting index.
+  Confirmed this genuinely fixes the reported case: Carbonados'
+  0.504 now lands in the DEEPER of the two Midfield columns (0.5-0.6),
+  distinctly one column back from a horse at 0.49 (which would land in
+  the nearer Midfield column, 0.4-0.5) or 0.4 (Off Pace) - the old
+  single-column Midfield bucket no longer hides that gradient. Verified
+  via a background Playwright pass against real data (desktop layout,
+  console errors, tint sanity) before landing - see the pass's own
+  findings for mobile-specific overflow/legibility at 10 columns (mobile
+  went from 6 to 10 columns in the same fixed-width, no-horizontal-scroll
+  flex row this file has tuned carefully before - the highest risk part
+  of this change, real user aware and opted in anyway when asked).
 
 ## What to be careful about
 
