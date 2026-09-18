@@ -917,6 +917,26 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `tracker_high_volume.csv`, 5 from `tracker_low_volume.csv` - expected,
   since a rule-shape change (not just a threshold move) genuinely
   reshuffles which already-logged picks still qualify.
+- **jw (win%) confirmed better than jrt (jockey_rating) as the tracker's
+  ranking field - checked, not applied (2026-09-19)**: real user question
+  ("rank jockeys on win strike rate, or toprate jockey rating?").
+  `wpr_tracker_jockey_field_choice_sweep.py` (new, read-only scratch
+  script) swapped `jrt` (TopRate's own ~50-100 composite jockey score,
+  currently unused by the tracker, good coverage - ~78% of runners, same
+  ballpark as `jw`) into the relative-rank rule in place of `jw` at
+  several top-X%/floor combos. `jw` won outright: at the shipped config
+  (top 10%, floor 10) Tracker A gets 20.5%/+22.8% flat ROI, B 39.0%/
+  +40.7%; `jrt`'s best config (top 20%, floor barely matters since jrt's
+  compressed distribution means the rank cutoff is already the binding
+  constraint) only reaches 18.7%/+9.2% for A and 28.9%/+5.4% for B -
+  worse at every setting tested, and ROI-negative at jrt's tightest
+  config. Consistent with an unrelated but adjacent existing finding:
+  `wpr_projection.py`'s own "own_jockey" experiment (see that file's
+  ADJ_TERM history comments) found `jockey_rating` measurably worsened
+  held-out MAE when tested as an own-history upgrade/downgrade term -
+  different question (predicting a horse's rating from a jockey change
+  vs ranking jockeys against each other in one race), same field, same
+  direction. No production change - `jw` was already the shipped choice.
 
 ## What to be careful about
 
