@@ -1136,6 +1136,33 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   untouched; Combo sort uses the new, independent `compositeGapByRunId`/
   `COMPOSITE_MAX_GAP_FROM_TOP` and reads "10 pts (Combo) from top rated"
   instead, so the two never get confused for each other.
+- **Tested, NOT applied: swapping the tracker's WPR-based GAP_MAX check
+  for the new Combo composite score (2026-09-19)**: direct follow-up
+  ("do trackers need to be updated to replace wpr 5 rule with new score
+  instead?" -> "Test it"). Flagged the risk before running rather than
+  assuming the Combo score's own win-capture validation would carry over:
+  that validation measured "is the winner in the shortlist" against
+  `toprate_runners.csv`'s full window, not the tracker's own metric
+  (ROI once jockey/price/solo-only filters stack on top), and this
+  session had already found rating-heavy signals trade win% for ROI
+  (the TopRate-rating-floor test; jw beating jrt as the ranking field for
+  the same reason) - the Combo score leans 70% on toprateRating.
+  `wpr_tracker_composite_gap_sweep.py` (new, read-only scratch script,
+  re-implements `build_candidates()`'s race loop with ONLY the gap
+  check's underlying score swapped to the exact same composite formula/
+  weights/rescale constants as `raceModel.ts`'s `compositeScore()` -
+  every other condition, and the 26-date/speed_map-gated window, stays
+  identical to every prior tracker sweep) confirmed the risk was real:
+  verified the reimplementation reproduces production exactly first
+  (n=262/66, matching), then found EVERY composite-gap threshold tested
+  (5 through 20) WORSE than the current WPR-based GAP_MAX=5 on both ROI
+  measures for BOTH trackers - e.g. at composite gap<=10 (roughly the
+  same selectivity area as today): Tracker A flat ROI +19.6%->+7.2%,
+  prop ROI +5.5%->+1.7%; Tracker B flat ROI +34.8%->+27.1%, prop ROI
+  +35.7%->+27.3% - a real, consistent loss across the whole swept range,
+  not a knife-edge result at one threshold. NOT applied - the tracker's
+  `GAP_MAX`/`speedmap_jockey_tracker.py` and `trackerRules.ts` stay on
+  raw WPR, unchanged. The Combo score remains Race-tab-only.
 
 ## What to be careful about
 
