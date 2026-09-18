@@ -1731,6 +1731,38 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   finding to a third distinct bet shape (straight win-betting a
   gap-threshold pool with a price floor, after margin-bucket framing and
   overlay/edge framing both already failed to find one).
+- **Market-disagreement angle tested - also no edge, same day**: real
+  user question, open-ended - "any betting edges you can find with combo
+  score?" - after margin/price-floor/state/class/overlay/win-betting all
+  came back negative, tried the one classic "value" framing not yet
+  covered: does Combo's #1 pick do better specifically when it DISAGREES
+  with the market (i.e. Combo's top-rated runner is NOT the market's own
+  favourite) - the textbook signature of a model seeing something real,
+  vs just echoing the market. `wpr_combo_market_disagreement_test.py`
+  (new, read-only scratch script, biggest population yet for a
+  per-runner Combo test - 6,126 races, 121 dates, no complete-case gate,
+  same per-runner-valid convention as `wpr_combo_price_overlay_test.py`)
+  splits races into AGREE (Combo's #1 = market's #1 favourite, n=3,757,
+  win 37.1%/flat ROI -11.4%) vs DISAGREE (different runners, n=2,369, win
+  19.4%/flat ROI -15.1%) - DISAGREE is WORSE, not better, both on win
+  rate and ROI, the opposite of the value hypothesis. Sliced DISAGREE
+  further by how much shorter the market favourite is (price ratio) and
+  by state looking for a sub-population where disagreement pays off -
+  found one near-breakeven cell (SA, n=173, +0.9%/+2.4%) and checked it
+  before reporting, per this file's own established practice: FAILS both
+  robustness checks (first-half/second-half date split: +15.1% vs
+  -12.0%; excluding the 2 biggest-priced winners: -7.6%) - not a real
+  finding, the honest DISAGREE headline (-15.1%/-16.2% overall) stands.
+  Combined running total across this whole thread: margin buckets, price
+  floors (both the #1-pick-only and the whole-pool framings), state,
+  race class, market-in-order comparison, softmax edge-vs-market, and now
+  market-disagreement - EVERY angle tried lands on the same conclusion,
+  no robust profitable betting rule found for Combo anywhere. This is a
+  real, useful negative result in its own right (see this file's own
+  "the unexplored lever is bet selection, not prediction accuracy" line
+  above) - not proof no edge exists at all, but every reasonably obvious
+  angle checked so far comes back empty once stress-tested rather than
+  taken at face value.
 
 ## What to be careful about
 
