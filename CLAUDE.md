@@ -1805,6 +1805,54 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   deciding whether/how to surface it (a new tracker-style rule, a Race
   tab badge, or just left as a documented finding) - not done without
   that decision being made explicitly first.
+- **Adding a "not a bad map" (speed_map) filter tested - no improvement,
+  and the jockey-only signal itself did not replicate on this smaller
+  window (2026-09-19)**: direct follow-up - "what about combo being
+  within 5 or 10 and good jockey, and not a bad map".
+  `wpr_combo_jockey_map_combo_test.py` (new, read-only scratch script)
+  combines Combo gap<=5/gap<=10 (the whole pool, same as
+  wpr_combo_5v10_exotics_capture_test.py, not just the #1 pick), a
+  jockey_win_pct_90d floor, and a speed_map tag != "unfavoured" filter
+  (matches speedmap_jockey_tracker.py's own TAGS=("favoured","neutral")/
+  DEMEAN_THRESHOLD=0.5 exactly). Necessarily reads toprate_data.json, not
+  toprate_runners.csv (speed_map isn't in the CSV) - which only carries
+  ~25 dates of speed_map history (from 2026-08-22 onward), a MUCH
+  smaller/more recent population than wpr_combo_jockey_filter_test.py's
+  own 121-date one (1,189 races here vs 6,126 there) - confirmed 'ff' in
+  toprate_data.json's runner payload is numerically identical to
+  pfm_score in toprate_runners.csv for the same run_id before trusting
+  Combo could be computed from the JSON at all.
+
+  Whole-pool result (gap<=5/10 x jw floor x map filter): every single
+  cell is still ROI-negative, from -18% down to -3% to -10% at the
+  tightest floors - excluding "unfavoured" runners gives a small,
+  fairly consistent nudge in the right direction at every combination
+  (e.g. gap<=5/jw>=20: -7.2% -> -4.8%; gap<=10/jw>=20: -9.8% -> -5.8%)
+  but never enough alone to cross into profit.
+
+  Also re-ran the SAME jockey-floor test as the prior entry (Combo's #1
+  pick only, not the whole pool) but restricted to this smaller 25-day
+  window specifically, to check whether adding the map filter helps that
+  already-promising population: it does NOT reach profitability on this
+  window either (jw>=18: -4.8%/-4.4% any/excl.unfav; jw>=20: -5.6%/-4.4%)
+  - the map filter's own effect here is negligible (a few tenths of a
+  percent), not a real lever. This is a real, honest gap with the prior
+  entry's own numbers (+3.4%/+4.6% at jw>=18/20 on the full 121-date
+  population) - NOT a contradiction though: the prior entry's own
+  robustness check already found the SAME jockey rule's second half of
+  its full window meaningfully weaker than its first half (jw>=20:
+  second-half flat ROI flat at -0.0%), and this 25-day window is exactly
+  the most recent tail of that same weaker second half, so a negative
+  result here is consistent with, not opposed to, that caveat - it just
+  makes the "may be softening or noisy" concern more concrete than
+  before. Combined reading: the jockey-quality signal is still the most
+  promising thing found in this whole Combo-edge thread, but it has NOT
+  been strengthened by adding a map filter, and its own recent-data
+  performance is a real, unresolved question mark rather than a settled
+  win - more history under this exact rule (not just more slicing of
+  the same window) is what would actually resolve it, matching this
+  file's own repeated "not enough data yet, revisit later" pattern used
+  for jockey_starts_90d/JW_STARTS_MIN elsewhere in this section.
 
 ## What to be careful about
 
