@@ -1605,6 +1605,38 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   via a background Playwright pass (correct label, position checked
   against actual Combo score values above/below the line, ordering
   relative to the indigo line, Proj sort unaffected) before landing.
+- **5pt vs 10pt Combo exotic-capture analysis, same day (analysis only,
+  no production change)**: direct follow-up to the two divider lines
+  above - "what's the analysis on 1st, quinella, tri, f4 for within 5 pts
+  vs 10 pts... could it be a standout where within 5 pts is in for all
+  positions and then within 10 pts is just in for the last 1 or 2
+  places" - i.e. a banker-for-the-top-spot(s)/wider-net-for-the-minor-
+  placings exotic structure. `wpr_combo_5v10_exotics_capture_test.py`
+  (new, read-only scratch script, same complete-case population as
+  `wpr_composite_score_capture_test.py` - 2,019 races, 57 dates - using
+  the CURRENTLY-shipped 0.50/0.25/0.25 weighting, not the older scripts'
+  0.45/0.30/0.25) computed win/quinella/trifecta/first-four capture rate
+  for the pure inner5 pool, the pure outer10 pool, and every hybrid in
+  between (relax the last 1/2/3 required placegetters from inner5 to
+  outer10). Avg selections: inner5 2.08/race, outer10 3.99/race.
+  Headline numbers: win 48.8% (inner5) vs 73.5% (outer10); quinella 15.0%
+  vs 45.4% (both-inner5 vs both-outer10), with the hybrid (1st inner5,
+  2nd outer10) at 28.7%; trifecta 4.0% (all inner5) -> 8.0% (relax last
+  1) -> 15.2% (relax last 2) -> 24.8% (all outer10); first-four 1.2% (all
+  inner5) -> 2.3% (relax last 1) -> 4.9% (relax last 2) -> 8.5% (relax
+  last 3) -> 13.9% (all outer10). Reading these together: banking only
+  the TOP spot at the tight 5pt threshold and opening every other
+  placing to the wider 10pt pool (trifecta's "relax last 2", first-four's
+  "relax last 3") recovers roughly 60% of the full outer10-boxed capture
+  rate (15.2/24.8 and 8.5/13.9) while only needing the narrow ~2-selection
+  inner5 pool for the banked leg instead of the ~4-selection outer10 pool
+  there too - a real, usable trade-off for a keyed/banker bet structure,
+  not a free lunch (it's still meaningfully behind full outer10 boxing on
+  raw capture rate, just cheaper for the banked leg). Not yet turned into
+  a staking/ROI or actual combinations-cost calculation (this analysis
+  stopped at capture rate + avg pool size, matching exactly what was
+  asked) - a natural next step if this is pursued further, same as every
+  other capture-rate-first analysis in this file's history.
 
 ## What to be careful about
 
