@@ -11,7 +11,10 @@ speed_map value: the runner's speed_map, demeaned against that race's own
 mean (see wpjcb.speed_map / SpeedMapGrid.tsx's own display logic), is
 "favoured" or "neutral" (>= -0.5 relative to the field), AND the runner is
 within GAP_MAX WPR of the race's own top-projected runner, AND its jockey's
-trailing-90-day win% (jw) is >= 14, AND it is the ONLY runner in that race
+trailing-90-day win% (jw) is >= JW_MIN, AND ITS SAMPLE SIZE IS KNOWN AND
+LARGE ENOUGH TO TRUST (jockey_starts_90d >= JW_STARTS_MIN, when that count
+is actually known - see JW_STARTS_MIN's own comment for why an unknown
+count passes rather than fails), AND it is the ONLY runner in that race
 meeting all of the above - checked BEFORE price (solo-only, Sep 2026 - see
 build_candidates' own docstring for the backtest that justified this: the
 rule firing 2+ times in the same race performed dramatically worse, +14%
@@ -97,6 +100,26 @@ GAP_MAX = 5.0
 # matching JW_MIN for the UI-side alignment (live/watching candidates use
 # the same floor as logged picks).
 JW_MIN = 20.0
+# jockey_starts_90d floor (Sep 2026, real user request, direct follow-up to
+# the JW_MIN change above: "a jockey with 2 rides for 1 win... very
+# deceiving" - see the jockey_merit entry in CLAUDE.md for the exact same
+# concern already found and fixed in the WPR projection model itself).
+# Checked against real data before shipping (wpr_tracker_jockey_starts_
+# floor_sweep.py) rather than assumed: jockey_starts_90d only actually
+# populates in toprate_data.json from 2026-09-17 onward, so as of this
+# writing ~95% of candidates still carry an unknown (None) count. A None
+# PASSES this check rather than fails it - same convention wpr_projection.
+# py's own _merit_term() already uses for a null sample_n (falls back to
+# unshrunk rather than assuming the worst) - so this floor is a near no-op
+# today (confirmed: n/win%/ROI identical with and without it in the live
+# backtest window) and only starts doing real filtering as more days
+# accumulate real counts, rather than throttling both trackers to near-zero
+# picks immediately over stale/missing data. Real, non-thin-sample jockeys
+# already comfortably clear 25 (median start count among currently-
+# passing jockeys with a known count is well over 50) - this is aimed
+# squarely at the deceptive tail (a jockey on 2-9 rides showing a 20-50%+
+# win% purely from small-sample noise), not at trimming genuine volume.
+JW_STARTS_MIN = 25
 PRICE_MIN = 3.0          # SP/fixed price floor
 # A multi-selection (contested) race normally never fires at all (solo-only,
 # see above). Exception (Sep 2026, real user decision): if EVERY qualifier in
@@ -231,6 +254,13 @@ def build_candidates(data: dict, pfm_rank_by_rid: dict, pfm_score_by_rid: dict, 
 
             jw = u.get("jw")
             if jw is None or jw < JW_MIN:
+                continue
+
+            # jwN (jockey_starts_90d): None passes rather than fails - see
+            # JW_STARTS_MIN's own comment for why (matches _merit_term's
+            # null-sample convention; most rows don't have a real count yet).
+            jw_starts = u.get("jwN")
+            if jw_starts is not None and jw_starts < JW_STARTS_MIN:
                 continue
 
             # Price is deliberately NOT filtered here any more (Sep 2026) -

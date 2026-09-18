@@ -795,6 +795,38 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   accumulated under the fix (a week or two of daily fetches, matching
   the "next retrain" caution pattern already used elsewhere in this
   file for a similar not-enough-fresh-data situation).
+- **JW_STARTS_MIN=25 shipped, JW_MIN checked and left at 20 (2026-09-19)**:
+  direct follow-up to the two entries above. Real user ask ("reduce
+  jw_min to 15, but make min starts 50") was checked against real data
+  before shipping rather than applied as asked: JW_MIN=15 alone is
+  actually WORSE than the current 20 for both trackers (win% 22.3%->
+  17.7% for A, 41.9%->27.3% for B - it sits in the same real dip the
+  original strike-rate sweep already found at JW_MIN=16), so lowering it
+  would have been a regression with no offsetting benefit. Reported this
+  back rather than implementing a known-worse change; user then asked
+  for the full list of jockeys clearing 15% (108 of 654, 69 with a real
+  starts count - see chat for the full table) and, seeing the real
+  distribution (a genuine buffer of 50+ jockeys sit comfortably above
+  50 starts; the deceptive tail - D Northey 50% on 2 starts, Teaque
+  Gould 33.3% on 3, Paige Fergusson-Smith 25% on 4 - is exactly the
+  thin-sample problem this floor targets), settled on JW_STARTS_MIN=25
+  rather than 50, keeping JW_MIN at 20.
+  Implemented in `speedmap_jockey_tracker.py`'s `build_candidates()`
+  (checks `jwN` right after the existing `jw` win% check) and mirrored
+  in `frontend/src/lib/trackerRules.ts`'s `evaluateTrackerQualifiers()`
+  (checks `runner.jockeyStarts90d`) - same null-passes-rather-than-fails
+  convention as `wpr_projection.py`'s own `_merit_term()` (an unknown
+  sample isn't penalized, it falls back to unshrunk/unfiltered), since
+  `jockey_starts_90d` only actually populates in `toprate_data.json`
+  from 2026-09-17 onward (see the jockey_merit entry above) and a strict
+  null-excludes version would throttle both trackers to near-zero picks
+  immediately over stale/missing data rather than genuinely thin
+  samples. Confirmed via a real backtest before shipping that this is a
+  near no-op today given that data gap (n/win%/ROI identical with and
+  without the floor in the live window) and will only start doing real
+  filtering as more days accumulate real counts. `tracker_history_
+  cleanup.py` re-run against the new rule: 0 rows removed from either
+  CSV, exactly as predicted.
 
 ## What to be careful about
 

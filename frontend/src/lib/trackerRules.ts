@@ -67,6 +67,12 @@ const GAP_MAX = 5.0
 // constant for the strike-rate sweep that motivated this (a real,
 // non-tradeoff lever: win% and ROI improved together for both trackers).
 const JW_MIN = 20.0
+// jockey_starts_90d floor - see speedmap_jockey_tracker.py's matching
+// constant for the full reasoning. null passes rather than fails (most
+// runners don't have a real count yet - this is a near no-op today,
+// confirmed against the live data, and only starts filtering as more
+// days accumulate real counts).
+const JW_STARTS_MIN = 25
 const PRICE_MIN = 3.0
 // A multi-selection (contested) race still fires - on every qualifier in
 // it - if all of them are priced above this floor. See
@@ -127,6 +133,11 @@ export function evaluateTrackerQualifiers(race: Race, isBush: boolean): Map<stri
 
     const jw = runner.jockeyWinPct90d
     if (jw == null || jw < JW_MIN) continue
+
+    // jockeyStarts90d: null passes rather than fails - see
+    // speedmap_jockey_tracker.py's matching JW_STARTS_MIN comment.
+    const jwStarts = runner.jockeyStarts90d
+    if (jwStarts != null && jwStarts < JW_STARTS_MIN) continue
 
     // Price is deliberately NOT filtered here (Sep 2026) - solo-only means
     // unique on the TACTICAL/rating criteria alone. See this file's own
