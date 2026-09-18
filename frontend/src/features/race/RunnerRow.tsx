@@ -293,9 +293,20 @@ export function RunnerRow({
         // from Horse's own floor again (compact 90->80, full 50->43) per
         // this file's own established pattern above, rather than
         // reopening the Fixed $/Jky%/Fm width fights already settled.
+        // Full mobile gained a 9th track for SM Adj (2026-09-19, direct
+        // follow-up: "not seeing it" on mobile - see the SM Adj cell's own
+        // comment above). Compact's own grid-cols is untouched - SM Adj
+        // stays hidden there, same as Form/Jockey Win% already are.
+        // Horse's floor trimmed 43->38 (a smaller cut than this file's
+        // usual "recover it all from Horse" pattern - the remaining width
+        // is left to the row's existing horizontal-scroll fallback at the
+        // very narrowest phones rather than squeezing the name column to
+        // the point of being unreadable) to make room for a new 30px SM
+        // Adj track, positioned right after Horse (matching its desktop
+        // position right before Combo) and before Cb/Proj.
         compact
           ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
-          : 'gap-x-[3px] grid-cols-[40px_minmax(43px,1fr)_36px_36px_29px_31px_76px_20px]'
+          : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_30px_36px_36px_29px_31px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -427,10 +438,14 @@ export function RunnerRow({
           raw wpjcb value: two of speed_map's own inputs are shared across
           the whole field by construction, so the raw number alone can't
           tell "favoured vs this field" from "a generally easy speed_map
-          day" the way the demeaned value does. Desktop-only, same as
-          Base/Adj immediately to its left. */}
+          day" the way the demeaned value does. Shown on Full mobile too
+          (2026-09-19, direct follow-up: "not seeing it" on mobile) - same
+          `compact ? 'hidden sm:inline' : ''` trick Form/Jockey Win% already
+          use to appear on Full mobile + desktop but not Compact, rather
+          than Base/Adj's own unconditional desktop-only hiding (those two
+          stay desktop-only, unaffected by this). */}
       <span
-        className={`hidden text-right font-mono sm:inline ${
+        className={`text-right font-mono ${compact ? 'hidden sm:inline' : ''} ${
           effective?.speedMapAdj != null && effective.speedMapAdj > 0
             ? 'text-emerald-deep'
             : effective?.speedMapAdj != null && effective.speedMapAdj < 0

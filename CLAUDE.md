@@ -1454,6 +1454,27 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   background Playwright pass (column alignment, values cross-checked
   against the Speed Map's own tint for the same runners, sort behaviour,
   desktop/mobile layout) before landing.
+- **SM Adj added to Full mobile density too, same day**: direct follow-up
+  - real user report "not seeing it" turned out to mean mobile, not a
+  deploy/cache issue (`AskUserQuestion` confirmed) - the column had been
+  shipped desktop-only, same as Base/Adj, on the assumption that was the
+  safe default given this file's own long mobile-column-overflow history.
+  Added to Full density only (not Compact, which stays untouched) via the
+  same `compact ? 'hidden sm:inline' : ''` trick Form/Jockey Win% already
+  use to appear on Full mobile + desktop but not Compact.
+  `RunnerRow.tsx`'s Full-only mobile grid-cols grew from 8 to 9 tracks,
+  adding a 30px SM track right after Horse (before Cb) - Horse's own floor
+  was DELIBERATELY only trimmed a little (43px -> 38px), not fully
+  absorbed the way this file's established pattern usually recovers a new
+  column's cost, since taking the whole ~33px from Horse would have left
+  it near-unreadable at 360px; the remaining width was left to the row's
+  existing horizontal-scroll fallback instead. Mirrored in `RaceDetail.tsx`
+  (matching grid-cols + a new "SM" entry in `MOBILE_COLUMN_LABELS_FULL`).
+  Verified via a background Playwright pass at 360/393px in both densities
+  before landing, specifically checking for the exact failure mode this
+  file has hit before (scrolling to reveal a far-right column pushing an
+  earlier value under the sticky Horse/silk cells) - see its own findings
+  for whether the Horse floor needed further adjustment.
 
 ## What to be careful about
 

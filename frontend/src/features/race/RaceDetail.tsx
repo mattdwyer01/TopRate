@@ -97,6 +97,11 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // numbers.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
+  // SM Adj (2026-09-19, direct follow-up: "not seeing it" on mobile - see
+  // RunnerRow.tsx's SM Adj cell for why it's shown on Full but not
+  // Compact). Short label, matches Fm/J%'s own brevity in this cramped a
+  // track (30px).
+  { key: 'speedMapAdj', label: 'SM' },
   { key: 'compositeScore', label: 'Cb' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'formFactor', label: 'Fm' },
@@ -372,9 +377,12 @@ export function RaceDetail({
             below sm since it's laid out differently there. */}
         <div
           className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
+            // Full gained an SM Adj track (2026-09-19, direct follow-up:
+            // "not seeing it" on mobile) - must match RunnerRow's own
+            // grid-cols exactly, see that file's comment for the numbers.
             compact
               ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
-              : 'gap-x-[3px] grid-cols-[40px_minmax(43px,1fr)_36px_36px_29px_31px_76px_20px]'
+              : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_30px_36px_36px_29px_31px_76px_20px]'
           }`}
         >
           <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
