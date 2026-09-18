@@ -2,7 +2,13 @@
 each race, does the MARGIN to the 2nd-rated Combo runner predict a
 higher win/place strike rate for that top pick? Real user question,
 2026-09-19: "Can you do some analysis on top rated combo horses? Strike
-rate and place strike rate based on margin to 2nd horse".
+rate and place strike rate based on margin to 2nd horse". Then: "any ROI
+calc? flat and proportionate" (every margin bucket came back negative -
+the market shortens price roughly in step with rising strike rate), then
+"what about with some price floors?" - since the losses were driven by
+the shortest prices, checks whether excluding them (PRICE_MIN, same
+concept as speedmap_jockey_tracker.py's own floor) recovers any edge,
+both overall and crossed with the margin buckets above.
 
 Read-only against toprate_runners.csv - writes nothing. Same complete-
 case population as wpr_combo_race_tab_capture_analysis.py (every non-
@@ -103,6 +109,37 @@ def main():
         print(f"{label:>10}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
               f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
               f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
+
+    floors = [None, 2, 2.5, 3, 4, 5, 6, 8, 10]
+    print("\n=== Price floor sweep, overall (no margin segmentation) ===")
+    print(f"{'floor':>7}  {'n races':>7}  {'win %':>6}  {'place %':>7}  {'avg price':>9}  "
+          f"{'flat ROI':>9}  {'prop ROI':>9}")
+    for floor in floors:
+        sub = result if floor is None else result[result["price"] >= floor]
+        if len(sub) == 0:
+            continue
+        flat_roi, prop_roi = roi_stats(sub)
+        label = "none" if floor is None else f">={floor}"
+        print(f"{label:>7}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
+              f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
+              f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
+
+    print("\n=== Price floor sweep, crossed with margin bucket ===")
+    print(f"{'bucket':>10}  {'floor':>6}  {'n races':>7}  {'win %':>6}  {'place %':>7}  "
+          f"{'avg price':>9}  {'flat ROI':>9}  {'prop ROI':>9}")
+    for label in labels:
+        bucket_sub = result[result["bucket"] == label]
+        if len(bucket_sub) == 0:
+            continue
+        for floor in [None, 3, 4, 5]:
+            sub = bucket_sub if floor is None else bucket_sub[bucket_sub["price"] >= floor]
+            if len(sub) == 0:
+                continue
+            flat_roi, prop_roi = roi_stats(sub)
+            floor_label = "none" if floor is None else f">={floor}"
+            print(f"{label:>10}  {floor_label:>6}  {len(sub):>7}  {100*sub['won'].mean():>5.1f}%  "
+                  f"{100*sub['placed'].mean():>6.1f}%  ${sub['price'].mean():>8.2f}  "
+                  f"{flat_roi:>+8.1f}%  {prop_roi:>+8.1f}%")
 
 
 if __name__ == "__main__":
