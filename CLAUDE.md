@@ -775,6 +775,26 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   -> 94 rows, `tracker_low_volume.csv` 91 -> 32 rows. Verified live:
   every currently-showing pick's Jockey % is now >= 20, description text
   reads ">= 20... within 5 WPR", zero layout overflow.
+- **Jockey_starts_90d minimum-starts floor backtested: NOT ENOUGH DATA YET
+  (2026-09-19)**: real user follow-up request ("do a backtest on min
+  jockey starts"), the exact check the `jockey_merit` entry above already
+  flagged as blocked pending real data. `wpr_tracker_jockey_starts_floor_
+  sweep.py` (new, read-only scratch script) confirmed the block is still
+  in effect: `jwN` (jockey_starts_90d) only actually populates in
+  `toprate_data.json` from 2026-09-17 onward (the date the underlying
+  field-copy bug was fixed), and of RESULTED dates as of today
+  (2026-09-18), only 2026-09-17 and 2026-09-18 have any real value at
+  all - every older row in the ~26-day window is still null. Checked
+  anyway rather than assumed: only 5/190 of Tracker A's current
+  GAP_MAX=5/JW_MIN=20 candidates and 2/32 of Tracker B's even carry a
+  real starts value, and of those, only 3 (A) and 1 (B) ever resulted -
+  n=3 and n=1 is pure noise, not a finding (A's 3 happened to all be
+  >=20 starts already, so every floor from 5 to 20 shows an identical,
+  meaningless +83.3% flat ROI; B's lone data point was a single loss,
+  -100%). No floor applied - revisit once meaningfully more days have
+  accumulated under the fix (a week or two of daily fetches, matching
+  the "next retrain" caution pattern already used elsewhere in this
+  file for a similar not-enough-fresh-data situation).
 
 ## What to be careful about
 
