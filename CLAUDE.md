@@ -1654,6 +1654,58 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   price floor, state, race class - see the earlier entries in this
   section) - a higher win rate alone doesn't imply a betting edge once
   the market has already priced that same standout-ness in.
+- **Combo converted to a fair price/edge vs market, tested for a real
+  overlay-betting signal - NOT profitable at any threshold (2026-09-19)**:
+  real user question, direct follow-up - "what about if combo was
+  converted into a price and compared against market? can it be
+  profitable to bet overlays?". `wpr_combo_price_overlay_test.py` (new,
+  read-only scratch script) replicates `wpr_projection.py`'s own
+  `compute_edge_scores()` softmax EXACTLY (same beta=0.15, read from
+  `wpr_models/config.json`, not the 0.4 fallback `get_price_beta()` uses
+  when config is missing - checking this mattered, an earlier draft
+  nearly used the wrong fallback) for both Combo and raw WPR side by
+  side, over 6,133 resulted races (121 dates, 2026-04-26 to 2026-09-18) -
+  the biggest population this session has used for any Combo analysis,
+  since this needs no complete-case restriction (edge is computed
+  per-runner over whoever has both a score and a price, matching
+  production's own per-runner-valid convention exactly, not a
+  whole-race complete-case gate).
+
+  Sanity-checked the formula before trusting any ROI number: tried
+  reproducing the CSV's own already-stored `wprp_edge` column from
+  scratch and found it does NOT match closely (mean abs diff ~0.03-0.05)
+  under either price fallback order tried - traced to `wprp_edge` being
+  written ONCE pre-race against whatever price was live at fetch time,
+  while today's `fixed_win_price`/`starting_price_sp` columns are
+  continuously overwritten by later price-refresh cycles and the
+  post-race SP fill, so comparing a frozen historical edge against a
+  now-updated price column is a timing mismatch, not evidence either
+  formula is wrong. Verified the formula a different way instead: edge
+  correlates with log(price) only moderately (~0.4, not a near-tautology
+  of "edge just means longshot"), and a high-edge (>0.10) subset beats
+  its OWN price bucket's baseline win rate in 5 of 7 buckets (e.g. $3-5:
+  20.7%->22.1%, $8-15: 6.9%->8.0%) - the same "not just picking
+  longshots" property this repo's own documented favourite-longshot-bias
+  check already required of the raw-WPR edge signal, so the underlying
+  mechanism checks out even though the specific numbers can't be
+  cross-validated against the stale stored column.
+
+  Headline result, swept edge>0.00 through edge>0.20 for both Combo and
+  raw WPR: **every single threshold is flat-ROI-negative for both**, from
+  around -17% to -31% at the loose end down to -1.1% (Combo)/-1.8% (WPR)
+  at the tightest, thinnest threshold tested (edge>0.20, n=603/454) -
+  neither ever crosses into profit. Combo modestly OUTPERFORMS raw WPR at
+  every matched threshold (e.g. edge>0.10: Combo win% 22.7%/flat ROI
+  -18.9% vs WPR's 13.4%/-18.9% - same ROI, meaningfully higher win rate,
+  i.e. shorter average winning prices) but "modestly better than a
+  losing baseline" is still a losing strategy. This extends this file's
+  own standing finding (no robust backing edge for Combo's top pick,
+  found independently via margin/price-floor/state/race-class slicing
+  earlier) to a genuine price/edge framing rather than just a margin-
+  bucket one, and reaches the same conclusion: this project's own
+  documented "the unexplored lever is bet selection, not prediction
+  accuracy" line still doesn't have a validated betting rule behind it
+  from this angle either.
 
 ## What to be careful about
 
