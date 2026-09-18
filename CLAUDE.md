@@ -1853,6 +1853,35 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   the same window) is what would actually resolve it, matching this
   file's own repeated "not enough data yet, revisit later" pattern used
   for jockey_starts_90d/JW_STARTS_MIN elsewhere in this section.
+- **Adding an overlay-or-mild-underlay price filter tested - looked
+  promising, FAILED the winner-exclusion robustness check (2026-09-19)**:
+  direct follow-up - "And either being an overlay, or within n% of the
+  price (so not too much of an underlay)". `wpr_combo_jockey_map_price_
+  test.py` (new, read-only scratch script, same 25-date speed_map-gated
+  toprate_data.json population as the map-filter entry above) adds a
+  4th condition on top of gap<=5/10 + jw>=18 + map filter: exclude only
+  SEVERE underlays. Fair price/model_prob computed via the same
+  softmax formula as wpr_combo_price_overlay_test.py (beta=0.15), over
+  the race's own combo-scored-and-priced runners; price_ratio =
+  market_price/fair_price; an "underlay tolerance" of N% keeps ratio >=
+  1-N/100 (0% = overlay-or-exactly-fair only, no underlay tolerance at
+  all).
+
+  Sweeping tolerance 0-25%: the TIGHTEST setting (0%, overlay/fair-only)
+  looked like the best row in the whole sweep - gap<=5: n=204, flat ROI
+  +5.6%, prop ROI +1.3%; gap<=10: n=258, flat ROI +2.8%, prop ROI +1.2% -
+  with ROI degrading steadily and monotonically as more underlay
+  tolerance was allowed, consistent with the "severe underlay = bad
+  sign" hypothesis. Checked before reporting either as a finding, same
+  as always: FAILS the exclude-3-biggest-winners check clearly for both
+  (gap<=5: +5.6% -> -6.3%; gap<=10: +2.8% -> -11.2%) - a handful of
+  bigger-priced winners are doing all the work, the same fragility
+  signature this file has now documented many times over. Date-half
+  split was more mixed (gap<=5's two halves both stayed positive,
+  +7.9%/+3.5%; gap<=10's flipped sign, -5.1%/+10.3%) but the winner-
+  exclusion failure alone is enough to not trust either cell. Not a
+  finding - the overlay/underlay-tolerance idea does not rescue the
+  jockey+map combination on this window.
 
 ## What to be careful about
 
