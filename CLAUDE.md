@@ -1583,6 +1583,28 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   Caulfield R1 race (confirms exactly one line now, not three) plus
   several other large fields, and re-confirmed Proj sort/the primary
   indigo line are both unaffected.
+- **Dotted line switched from WPR-based to Combo-based, same-day direct
+  correction**: "And it should be based on combo, not wpr" - the dotted
+  line's whole premise was wrong from its first version onward: it had
+  read `effectiveByRunId[...].gapFromTop` (the WPR-based
+  `OVERLAY_MAX_GAP_FROM_TOP`), showing a cross-metric comparison, when
+  the actual intent was a TIGHTER inner tier of the SAME Combo score the
+  primary 10pt line already sorts/groups by. Replaced with a new local
+  `COMBO_INNER_GAP_FROM_TOP = 5` (Combo-scale points, not exported from
+  raceModel.ts like the two real cross-file constants are, since nothing
+  else needs a "Combo gap of 5") read from `compositeGapByRunId` - the
+  exact same source the primary line uses, just a smaller threshold.
+  Label text changed to match ("5 pts (Combo) from top rated", was "5
+  WPR from top rated"). Kept the same-day single-index fix (
+  `lastComboInnerGapWithinThresholdIndex`, computed once via `useMemo`,
+  not per-row) since that fix's own reasoning (Caulfield R1's 3-lines
+  bug) applies identically here - a "Combo gap <=5" run can still be
+  non-contiguous under Combo's own sort for the same reason a WPR-based
+  one was. Since 5 < 10, the dotted line is mathematically guaranteed to
+  fall at or above the solid indigo 10pt line, never below it. Verified
+  via a background Playwright pass (correct label, position checked
+  against actual Combo score values above/below the line, ordering
+  relative to the indigo line, Proj sort unaffected) before landing.
 
 ## What to be careful about
 

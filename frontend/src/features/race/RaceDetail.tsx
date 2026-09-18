@@ -213,27 +213,34 @@ export function RaceDetail({
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
 
+  // Inner Combo threshold for the dotted reference line below - a
+  // TIGHTER tier within the same Combo score the primary 10pt line
+  // already sorts/groups by, not a different metric. Real user
+  // correction (2026-09-19, direct follow-up): the first version of this
+  // line read `effectiveByRunId[...].gapFromTop` (the WPR-based
+  // OVERLAY_MAX_GAP_FROM_TOP=5 cutoff) - "it should be based on combo,
+  // not wpr". Kept as a plain local constant (not exported from
+  // raceModel.ts like OVERLAY_MAX_GAP_FROM_TOP/COMPOSITE_MAX_GAP_FROM_TOP
+  // are) since nothing else references a "Combo gap of 5" - it exists
+  // purely to draw this one line.
+  const COMBO_INNER_GAP_FROM_TOP = 5
   // Index of the LAST runner (by current Combo-sorted position) still
-  // within OVERLAY_MAX_GAP_FROM_TOP of the top WPR - real user report
-  // (2026-09-19, screenshot on Caulfield R1): the dotted WPR-5 reference
-  // line below was originally a per-row transition check (same style as
-  // the primary Combo line), which fires every time a run of qualifying
-  // rows ends - since Combo's own order doesn't perfectly track WPR, that
-  // produced THREE separate dotted lines on one race ("should only be 1
-  // dotted line"). Precomputed once here instead: everyone AT OR BELOW
-  // this index is guaranteed >5 WPR from top (the decision-relevant
-  // framing - "below this line, definitely not in the WPR-5 group" - not
-  // "above this line, everyone qualifies", which Combo's own re-ordering
-  // can't promise anyway).
-  const lastWprGapWithinThresholdIndex = useMemo(() => {
+  // within COMBO_INNER_GAP_FROM_TOP of the top Combo score - same
+  // precompute-once-not-per-row fix as before (real user report,
+  // Caulfield R1: a per-row transition check fired 3 separate times on
+  // one race since qualifying rows aren't always contiguous). Everyone AT
+  // OR BELOW this index is guaranteed >5 Combo points from top - the
+  // decision-relevant framing ("below this line, definitely outside the
+  // inner group"), not "above this line, everyone qualifies".
+  const lastComboInnerGapWithinThresholdIndex = useMemo(() => {
     if (sortKey !== 'compositeScore') return -1
     let last = -1
     sortedRunners.forEach((r, idx) => {
-      const g = effectiveByRunId[r.runId]?.gapFromTop
-      if (g != null && g <= OVERLAY_MAX_GAP_FROM_TOP) last = idx
+      const g = compositeGapByRunId[r.runId]
+      if (g != null && g <= COMBO_INNER_GAP_FROM_TOP) last = idx
     })
     return last
-  }, [sortedRunners, effectiveByRunId, sortKey])
+  }, [sortedRunners, compositeGapByRunId, sortKey])
 
   const meetingRaces = useMemo(
     () =>
@@ -479,26 +486,21 @@ export function RaceDetail({
             showBoundary &&
             gap <= gapThreshold &&
             (nextGap == null || nextGap === undefined || nextGap > gapThreshold)
-          // Second, WPR-based reference line (2026-09-19, real user request:
-          // "add a dotted line for 5 from top rated and different colour") -
-          // only when sorted by Combo, since sorted-by-Proj already shows
-          // this exact cutoff as the primary (solid) line above; showing it
-          // twice there would just be visual noise. Combo's own ranking
-          // mostly tracks WPR (50% weight) but isn't identical to it, so the
-          // tracker-validated OVERLAY_MAX_GAP_FROM_TOP=5 cutoff can land at
-          // a different row than Combo's own 10-point one.
-          // FIRST VERSION used the same per-row transition check as the
-          // primary line above (fires every time a run of qualifying rows
-          // ends) - real user report on a real race (Caulfield R1,
-          // 2026-09-19 screenshot): "should only be 1 dotted line", since
-          // WPR-5 membership genuinely isn't contiguous under Combo's own
-          // order, producing 3 separate lines on one field. Replaced with
-          // lastWprGapWithinThresholdIndex (computed once above, not
-          // per-row) - a single line after the LAST qualifying row by
-          // position, so everyone below it is guaranteed outside the WPR-5
-          // group even if the rows just above it aren't all inside it
-          // either (Combo's own re-ordering can't promise that anyway).
-          const showWprGapLine = usingComposite && i === lastWprGapWithinThresholdIndex
+          // Second, INNER Combo reference line (2026-09-19, real user
+          // request: "add a dotted line for 5 from top rated and different
+          // colour", then a direct correction: "it should be based on
+          // combo, not wpr" - the first version read the WPR-based
+          // OVERLAY_MAX_GAP_FROM_TOP instead). Only when sorted by Combo -
+          // this is a tighter tier WITHIN the same Combo score the primary
+          // 10pt line already uses, not a cross-metric comparison, so it
+          // has no meaning under Proj sort at all.
+          // Uses lastComboInnerGapWithinThresholdIndex (computed once above,
+          // not per-row) for the same reason the primary line's own index
+          // was fixed the same day (real user report on Caulfield R1: a
+          // per-row transition check fired 3 separate times on one race
+          // since qualifying rows aren't always contiguous) - a single line
+          // after the LAST qualifying row by position.
+          const showComboInnerGapLine = usingComposite && i === lastComboInnerGapWithinThresholdIndex
           return (
             <Fragment key={runner.runId}>
               <RunnerRow
@@ -519,11 +521,11 @@ export function RaceDetail({
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
               )}
-              {showWprGapLine && (
+              {showComboInnerGapLine && (
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                    {OVERLAY_MAX_GAP_FROM_TOP} WPR from top rated
+                    {COMBO_INNER_GAP_FROM_TOP} pts (Combo) from top rated
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
