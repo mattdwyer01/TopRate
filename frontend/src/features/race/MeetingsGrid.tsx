@@ -17,6 +17,8 @@ interface MeetingsGridProps {
   initialDate?: string | null
   showBush: boolean
   onShowBushChange: (value: boolean) => void
+  hiddenVenues: Set<string>
+  onHideVenue: (venue: string) => void
 }
 
 const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
@@ -25,7 +27,15 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
   { label: 'Tomorrow', offset: 1 },
 ]
 
-export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onShowBushChange }: MeetingsGridProps) {
+export function MeetingsGrid({
+  races,
+  onSelectRace,
+  initialDate,
+  showBush,
+  onShowBushChange,
+  hiddenVenues,
+  onHideVenue,
+}: MeetingsGridProps) {
   const [date, setDate] = useState(() => initialDate ?? todayIso())
 
   const meetings = useMemo(() => groupIntoMeetings(races, date), [races, date])
@@ -34,7 +44,11 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
   // button (and its "Hide" label) disappear the instant showBush flipped
   // true, since at that point nothing was being filtered out.
   const bushCount = useMemo(() => meetings.filter(isBushMeeting).length, [meetings])
-  const visibleMeetings = showBush ? meetings : meetings.filter((m) => !isBushMeeting(m))
+  const bushFiltered = showBush ? meetings : meetings.filter((m) => !isBushMeeting(m))
+  // Manually hidden venues (see lib/hiddenVenues.ts) are excluded outright,
+  // no toggle to reveal them again from here - unhiding is a Settings-modal
+  // action, since this is a curated list rather than an automatic threshold.
+  const visibleMeetings = bushFiltered.filter((m) => !hiddenVenues.has(m.venue))
 
   // Columns run R1..the highest race number anywhere in view, so every
   // meeting's races line up under the same column regardless of how many
@@ -113,9 +127,22 @@ export function MeetingsGrid({ races, onSelectRace, initialDate, showBush, onSho
                     key={`${meeting.date}-${meeting.venue}`}
                     className="border-b border-line-soft last:border-b-0"
                   >
-                    <td className="sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
-                      <div className="font-semibold text-ink">{meeting.venue}</div>
-                      <div className="text-xs text-ink-mute">{meeting.state}</div>
+                    <td className="group sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
+                      <div className="flex items-start justify-between gap-1">
+                        <div>
+                          <div className="font-semibold text-ink">{meeting.venue}</div>
+                          <div className="text-xs text-ink-mute">{meeting.state}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onHideVenue(meeting.venue)}
+                          title={`Hide ${meeting.venue} from this grid (undo in Settings)`}
+                          aria-label={`Hide ${meeting.venue}`}
+                          className="flex-none rounded px-1 text-xs text-ink-faint opacity-0 transition-opacity hover:bg-bg hover:text-ink group-hover:opacity-100 focus:opacity-100"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                     {raceNumbers.map((n) => {
                       const race = meeting.races.find((r) => r.raceNumber === n)

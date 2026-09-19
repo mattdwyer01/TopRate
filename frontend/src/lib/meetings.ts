@@ -68,6 +68,16 @@ export function bushMeetingKeys(races: Race[]): Set<string> {
   return bush
 }
 
+// Every distinct venue string seen across the loaded races (any date in the
+// window, not just one day) - the source list for a "choose venues to hide"
+// UI (see lib/hiddenVenues.ts). No normalization: venue is a raw passthrough
+// string from the pipeline (api/adapter.ts), matching how groupIntoMeetings/
+// bushMeetingKeys above already treat it - a genuine spelling drift between
+// data sources would need fixing at the source, not papered over here.
+export function distinctVenues(races: Race[]): string[] {
+  return Array.from(new Set(races.map((r) => r.venue))).sort((a, b) => a.localeCompare(b))
+}
+
 // "Today" for this dashboard always means the current date in Melbourne
 // (the backend's own race-day boundary - the daily fetch workflow resolves
 // its target date from the real Australia/Melbourne local time too, see

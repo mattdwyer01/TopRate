@@ -15,6 +15,10 @@ interface SettingsModalProps {
   serverBeta: number | null
   betaOverride: number | null
   onSetBetaOverride: (v: number | null) => void
+  venues: string[]
+  hiddenVenues: Set<string>
+  onHideVenue: (venue: string) => void
+  onUnhideVenue: (venue: string) => void
   onClose: () => void
   onOpenMethodology: () => void
 }
@@ -33,6 +37,10 @@ export function SettingsModal({
   serverBeta,
   betaOverride,
   onSetBetaOverride,
+  venues,
+  hiddenVenues,
+  onHideVenue,
+  onUnhideVenue,
   onClose,
   onOpenMethodology,
 }: SettingsModalProps) {
@@ -44,6 +52,20 @@ export function SettingsModal({
   const [fetchDate, setFetchDate] = useState(todayIso())
   const [fetchStatus, setFetchStatus] = useState<Status>(IDLE)
   const [syncStatus, setSyncStatus] = useState<Status>(IDLE)
+  const [venueDraft, setVenueDraft] = useState('')
+
+  const hiddenList = [...hiddenVenues].sort((a, b) => a.localeCompare(b))
+  const hidableVenues = venues.filter((v) => !hiddenVenues.has(v))
+
+  // Only accept an exact match from the loaded data's own venue list (picked
+  // via the datalist below) - a free-typed typo would otherwise silently add
+  // a hidden-venue entry that can never match a real meeting.
+  function addVenueDraft() {
+    const v = venueDraft.trim()
+    if (!v || !venues.includes(v)) return
+    onHideVenue(v)
+    setVenueDraft('')
+  }
 
   useBodyScrollLock()
   useFocusTrap(panelRef)
@@ -277,6 +299,62 @@ export function SettingsModal({
                 {fetchStatus.text}
               </p>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2 p-4">
+            <span className="text-sm font-semibold text-ink">Hidden meetings</span>
+            <p className="text-xs text-ink-mute">
+              Permanently hide specific venues from the meetings grid and the next-to-jump ticker (separate from the
+              "Hide bush meetings" toggle, which is automatic and based on prize money) - useful for a venue you
+              never want to see regardless of its race quality. Hidden venues stay fully visible in search, Review
+              and Trackers.
+            </p>
+            {hiddenList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {hiddenList.map((v) => (
+                  <span
+                    key={v}
+                    className="flex items-center gap-1 rounded-full border border-line bg-bg px-2 py-0.5 text-xs text-ink-soft"
+                  >
+                    {v}
+                    <button
+                      type="button"
+                      onClick={() => onUnhideVenue(v)}
+                      aria-label={`Unhide ${v}`}
+                      className="text-ink-faint hover:text-ink"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                list="settings-hidable-venues"
+                placeholder="Venue name..."
+                value={venueDraft}
+                onChange={(e) => setVenueDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addVenueDraft()
+                }}
+                className="flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm"
+              />
+              <datalist id="settings-hidable-venues">
+                {hidableVenues.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                onClick={addVenueDraft}
+                disabled={!venues.includes(venueDraft.trim())}
+                className="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-bg disabled:opacity-50"
+              >
+                Hide
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 p-4">

@@ -5,7 +5,8 @@ import { useUrlState } from './routing/useUrlState'
 import { useBetaOverride } from './lib/priceBetaOverride'
 import { useWprOverrides } from './lib/wprOverrides'
 import { useShowBushMeetings } from './lib/bushMeetings'
-import { bushMeetingKeys, meetingKey } from './lib/meetings'
+import { useHiddenVenues } from './lib/hiddenVenues'
+import { bushMeetingKeys, distinctVenues, meetingKey } from './lib/meetings'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
 import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
@@ -31,6 +32,7 @@ function App() {
   const { betaOverride, setBetaOverride } = useBetaOverride()
   const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
   const { showBush, setShowBush } = useShowBushMeetings()
+  const { hiddenVenues, hideVenue, unhideVenue } = useHiddenVenues()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodologyOpen, setMethodologyOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -85,10 +87,13 @@ function App() {
 
   const tickerRaces = useMemo(() => {
     if (state.status !== 'ready') return []
-    if (showBush) return state.data.races
-    const bushKeys = bushMeetingKeys(state.data.races)
-    return state.data.races.filter((r) => !bushKeys.has(meetingKey(r)))
-  }, [state, showBush])
+    const bushKeys = showBush ? null : bushMeetingKeys(state.data.races)
+    return state.data.races.filter((r) => {
+      if (hiddenVenues.has(r.venue)) return false
+      if (bushKeys && bushKeys.has(meetingKey(r))) return false
+      return true
+    })
+  }, [state, showBush, hiddenVenues])
 
   // Boot-time deep-link handling: if the URL already names a race (a shared
   // link or a page reload mid-session), that wins over the default meetings
@@ -255,6 +260,8 @@ function App() {
               onSelectRace={goToRace}
               showBush={showBush}
               onShowBushChange={setShowBush}
+              hiddenVenues={hiddenVenues}
+              onHideVenue={hideVenue}
             />
           ))}
       </main>
@@ -264,6 +271,10 @@ function App() {
           serverBeta={state.status === 'ready' ? state.data.priceBeta : null}
           betaOverride={betaOverride}
           onSetBetaOverride={setBetaOverride}
+          venues={state.status === 'ready' ? distinctVenues(state.data.races) : []}
+          hiddenVenues={hiddenVenues}
+          onHideVenue={hideVenue}
+          onUnhideVenue={unhideVenue}
           onClose={() => setSettingsOpen(false)}
           onOpenMethodology={() => {
             setSettingsOpen(false)

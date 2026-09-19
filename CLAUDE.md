@@ -2158,6 +2158,83 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   documented more than once before (a new generated file added to one
   write path but not every place that stages it) - deliberately checked
   every site up front this time rather than finding it live later.
+- **New feature: hide specific venues from the meetings grid/ticker
+  (2026-09-19)**: real user request - "Give me the ability to hide
+  meetings (like bush meetings)". A manual, curated counterpart to the
+  existing automatic `useShowBushMeetings()` toggle (prize-money
+  threshold, see `lib/meetings.ts`'s `BUSH_TRACK_THRESHOLD`) - for a venue
+  the user never wants to see regardless of race quality (e.g. a
+  jumps-only or trial-heavy track), not something an automatic threshold
+  would catch.
+
+  `lib/hiddenVenues.ts` (new): `useHiddenVenues()` hook, a `Set<string>`
+  of raw venue strings persisted to localStorage
+  (`toprate_hidden_venues_v1`) as a JSON array - same pattern
+  `wprOverrides.ts`'s `readScratchedSet`/`writeScratchedSet` already uses
+  for its manual-scratch feature, reused here rather than inventing a new
+  shape. `lib/meetings.ts` gained `distinctVenues(races)` (sorted unique
+  venue strings across the whole loaded window) to populate the "choose a
+  venue to hide" UI - no normalization, venue stays the same raw
+  passthrough string `groupIntoMeetings`/`bushMeetingKeys` already treat
+  it as.
+
+  Two ways to hide a venue, both writing the same set: (1) an inline "✕"
+  button on each meeting row in `MeetingsGrid.tsx` (fades in on hover,
+  matching this file's established discoverable-but-not-cluttering
+  pattern), for quickly hiding a currently-visible meeting; (2) a new
+  "Hidden meetings" section in `SettingsModal.tsx` - shows already-hidden
+  venues as removable chips (its own "✕" per chip to unhide) plus a
+  text input with a `<datalist>` of every not-yet-hidden distinct venue
+  for adding more. The Settings-modal input only accepts an EXACT match
+  from the loaded data's own venue list (`venues.includes(v)` guard on
+  the "Hide" button and on Enter) - a free-typed value that doesn't match
+  a real venue would otherwise silently create a hidden-venue entry that
+  can never match any real meeting.
+
+  Filtering scope deliberately mirrors the existing bush-meeting
+  precedent exactly: `MeetingsGrid`'s `visibleMeetings` and `App.tsx`'s
+  `tickerRaces` (next-to-jump ticker) both exclude hidden venues, same as
+  they already exclude bush meetings - Global Search, the Trackers tab,
+  and Review tab breakdowns are all deliberately left UNFILTERED, so a
+  hidden venue's runners/picks/accuracy stats stay fully reachable and
+  analyzable, only decluttered from the main grid/ticker. This was a
+  scope decision, not an oversight - extending the hide to those other
+  surfaces (the same way `excludeBush`/`bushKeys` already thread through
+  `trackerRules.ts`/`accuracyStats.ts`/`signalWatch.ts`) is a reasonable
+  future ask but wasn't part of what was requested here.
+
+  Wired into cross-device sync (`lib/githubSync.ts`): a new
+  `hiddenVenues: string | null` field in `SyncPayload`, read/written
+  alongside the existing `showBush` field (same raw-JSON-string
+  passthrough convention, not parsed at the sync layer) in
+  `buildSyncPayload()`/`applySyncPayload()`.
+
+  Verified against the real running app before calling this done (not
+  just a clean `tsc -b`/`npm run build`): started the Vite dev server and
+  drove it with Playwright (`executablePath` pointed at the environment's
+  pre-installed Chromium, since the pinned `playwright` package version
+  didn't match what was auto-downloadable). Hit one real dev-only gotcha
+  worth remembering for next time: Vite's dev server serves `public/`
+  static files at the literal site ROOT regardless of `vite.config.ts`'s
+  `base: '/TopRate/'`, while the dev server still mounts the app's own
+  HTML/module graph under `/TopRate/` too - so a relative `fetch('toprate_
+  data.json')` from a page loaded at `http://localhost:5173/TopRate/`
+  resolves to a path Vite's dev server does NOT actually serve the real
+  file at, and (unrelated to this feature specifically) a MISSING file
+  under `/TopRate/*` silently 200s with the SPA's own `index.html` instead
+  of a real 404, which then fails oddly deeper in `fetchDashboardData()`'s
+  own parsing step rather than at the fetch call itself. Neither of these
+  affects production (GitHub Pages serves everything flat under `/TopRate/`
+  with real 404s, no dev-only base/public split) - worked around for
+  testing purposes only by loading the dev server at its unprefixed root
+  (`http://localhost:5173/`) instead. Confirmed end-to-end against the
+  real loaded data: hiding via the inline row button removes the meeting
+  from the grid and writes the localStorage key; the Settings modal shows
+  the hidden venue as a chip and its own unhide button correctly restores
+  it to the grid; hiding via the Settings-modal text input works
+  identically. `toprate_live.html` rebuilt and copied from `frontend/dist/
+  index.html` per the standard `deploy_html.bat` convention before
+  considering this shipped.
 
 ## What to be careful about
 
