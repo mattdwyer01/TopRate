@@ -2235,6 +2235,30 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   identically. `toprate_live.html` rebuilt and copied from `frontend/dist/
   index.html` per the standard `deploy_html.bat` convention before
   considering this shipped.
+- **Same-day follow-up: the inline hide button was actually unusable on
+  mobile, real user question caught it - "How to hide on mobile?"**: the
+  inline "✕" button above used `opacity-0` with `group-hover:opacity-100`
+  to fade in only on hover, matching this file's own "discoverable but
+  not cluttering" convention elsewhere - except a touch device has no
+  hover state at all, so the button was invisible AND untappable there,
+  not just undiscoverable. The Settings-modal path (chips + datalist
+  input) still worked fine on mobile the whole time (never hover-gated),
+  but the faster inline row action effectively didn't exist off desktop.
+  Fixed by making the button always-visible below the `sm:` breakpoint
+  (base `opacity-100`, `sm:opacity-0 sm:group-hover:opacity-100` only
+  from `sm:` up) - mobile keeps the always-on affordance, desktop keeps
+  the hover-declutter. Verified via Playwright at 360/375/393px with
+  `has_touch`/`is_mobile` emulation (not just a viewport resize - real
+  touch-device emulation, since a mouse-capable browser at a narrow
+  width would still fire `:hover` and hide this exact bug): button
+  renders at `opacity: 1` at all three widths, the sticky Meeting
+  column has zero horizontal overflow (`scrollWidth === clientWidth`),
+  and a simulated tap correctly hides the venue and drops the row count.
+  Lesson matching this file's own repeated pattern elsewhere (mobile
+  grid-cols overflow, SM Adj mobile visibility): an interaction verified
+  only on desktop, even carefully, doesn't verify itself on touch -
+  hover-based reveal specifically needs its own explicit touch-device
+  check, not just a narrower viewport.
 
 ## What to be careful about
 

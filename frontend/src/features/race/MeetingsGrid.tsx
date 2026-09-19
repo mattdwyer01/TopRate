@@ -138,7 +138,14 @@ export function MeetingsGrid({
                           onClick={() => onHideVenue(meeting.venue)}
                           title={`Hide ${meeting.venue} from this grid (undo in Settings)`}
                           aria-label={`Hide ${meeting.venue}`}
-                          className="flex-none rounded px-1 text-xs text-ink-faint opacity-0 transition-opacity hover:bg-bg hover:text-ink group-hover:opacity-100 focus:opacity-100"
+                          // Always visible below sm: touch devices have no
+                          // hover state, so an opacity-0-until-hover button
+                          // would be permanently invisible/untappable there
+                          // (real user question, 2026-09-19: "How to hide on
+                          // mobile?" - this was the actual cause, not just a
+                          // discoverability gap). Desktop keeps the
+                          // hover-to-reveal declutter from sm: up.
+                          className="flex-none rounded px-1 text-xs text-ink-faint transition-opacity hover:bg-bg hover:text-ink sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
                         >
                           ✕
                         </button>
