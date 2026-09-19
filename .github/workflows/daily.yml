@@ -222,6 +222,13 @@ jobs:
             # data only actually updates on a manual `deploy.bat` run (which
             # goes through toprate_daily.py's publish() and does include it).
             [ -f toprate_data.json ] && git add toprate_data.json
+            # Gzip companion (Sep 2026) - the frontend fetches this to avoid
+            # downloading the raw ~85MB payload uncompressed on mobile (see
+            # toprate_daily.py's _write_data_json docstring). Must always be
+            # committed alongside toprate_data.json itself or a gzip-capable
+            # client silently serves stale data until the next cycle that
+            # DOES stage both.
+            [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
             # Gzipped WPR form history - committed so it persists and accumulates
             # across ephemeral Action runs (append needs the prior file).
             [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz

@@ -108,6 +108,12 @@ jobs:
             exit 0
           fi
           git add toprate_runners.csv toprate_data.json
+          # Gzip companion (Sep 2026, see toprate_daily.py's
+          # _write_data_json) - must be committed alongside toprate_data.json
+          # itself every time (patch_data_json() writes both together), or
+          # it goes stale relative to the plain file this fast-path cycle
+          # just patched.
+          [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
           # Per-meeting horse form history files - only touched on the rare
           # full-rebuild path (a real going change forces rebuild_html(), see
           # CLAUDE.md), but git-tracked and was missing from this staging

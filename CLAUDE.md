@@ -2087,6 +2087,77 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   retrain should re-validate before vs after the dedup fix" caution
   elsewhere in this file, though a full multi-term re-validation (not just
   speed_map) would still be needed to fully close that out.
+- **Mobile page load fixed: `toprate_data.json.gz` companion added
+  (2026-09-19)**: real user report with a screenshot - the live dashboard
+  stuck on "Loading today's races..." for a long time on mobile Safari.
+  Confirmed via `AskUserQuestion` before building anything: it eventually
+  finished (1-several min), not an outright hang - pointed at the
+  payload's raw size, not a broken fetch. `toprate_data.json` runs
+  ~85-90MB (already flagged elsewhere in this file as sized right up
+  against GitHub's 100MB file limit), and GitHub Pages' CDN is understood
+  to not compress files past a certain size (community-reported ceiling
+  around ~10MB) - meaning a phone was downloading the full raw payload
+  every load, then `JSON.parse`-ing an 85MB string client-side on top of
+  that. Couldn't verify the live response headers directly (this session's
+  sandbox proxy blocks `mattdwyer01.github.io` outbound), so treated it as
+  a well-grounded hypothesis rather than a confirmed root cause.
+
+  Fix: `toprate_daily.py` now writes a gzip companion,
+  `toprate_data.json.gz`, alongside the plain file on every write
+  (measured on the real file: 86MB -> 17.5MB, a ~5x cut, ~5s to compress).
+  A new shared `_write_data_json(path, text)` helper writes BOTH files
+  together and is now the only way either write site is allowed to touch
+  `toprate_data.json` - `rebuild_html()`'s full-rebuild write and
+  `patch_data_json()`'s fast-path write (the one `tab_results_poller.py`'s
+  every-cycle price/result patches go through) both route through it, so
+  the two files can never drift apart the way this project's own
+  documented git-staging-list bugs have drifted before. `patch_data_json`
+  tested directly against a real payload to confirm this: after a patch,
+  decompressing the `.gz` gives byte-identical content to the plain file.
+  gzip's own embedded mtime is pinned to 0 (`gzip.GzipFile(..., mtime=0)`)
+  so identical content always produces identical compressed bytes -
+  harmless either way since `RUN_ISO` changes on every real write, but no
+  reason to add spurious diff noise on top of that.
+
+  Frontend (`fetchData.ts`): tries `toprate_data.json.gz` first when the
+  browser supports `DecompressionStream` (shipped in iOS Safari since
+  16.4, safe by now), decompressing the downloaded bytes via
+  `new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))`
+  before `JSON.parse`. Falls back to the plain `toprate_data.json` path
+  (unchanged from before this) on ANY failure fetching/reading the `.gz` -
+  missing file, network error, or a browser without
+  `DecompressionStream` - so an older cached deploy or a CDN hiccup can
+  never turn into a hard failure. Also guards a real, unverifiable-from-
+  here edge case: if GitHub Pages' CDN ever DOES apply its own
+  `Content-Encoding: gzip` to this file (plausible if it treats `.gz`
+  differently from a large `.json`), `fetch()` would have already
+  transparently decompressed the body before this code ever sees it,
+  and running `DecompressionStream` on top of already-decompressed bytes
+  would throw - checked via `response.headers.get('content-encoding')`
+  and skips the app's own decompression step in that case. The existing
+  streamed-download progress bar is untouched in spirit, now just tracking
+  the (smaller) compressed byte count in flight rather than the raw size -
+  what a user waiting on a slow connection actually cares about.
+
+  Verified end-to-end with real data before considering this done: `npx
+  tsc -b && npm run build` clean, then the EXACT decompression line from
+  `fetchData.ts` run against the real generated `.gz` in Node (which has
+  `DecompressionStream` since v18) - byte-identical to the plain file,
+  valid JSON, full `RACES` array intact. `toprate_live.html` rebuilt and
+  copied from `frontend/dist/index.html` per the standard `deploy_html.bat`
+  convention. `.gitattributes` gained the same `binary` marking
+  `toprate_data.json` already has, for the same conflict-resolution-speed
+  reason (a compressed blob has even less for a text merge to do than the
+  minified JSON does). Every git-staging list that already stages
+  `toprate_data.json` (`daily.yml`, `price_refresh.yml`, `tab_results.yml`,
+  `toprate_daily.py`'s own `publish()`) was updated to stage
+  `toprate_data.json.gz` right alongside it - checked `deploy.bat`'s own
+  redundant second staging step too, confirmed it never listed
+  `toprate_data.json` directly (relies on `publish()`), so needed no
+  change. This is exactly the git-staging-list bug class this file has
+  documented more than once before (a new generated file added to one
+  write path but not every place that stages it) - deliberately checked
+  every site up front this time rather than finding it live later.
 
 ## What to be careful about
 

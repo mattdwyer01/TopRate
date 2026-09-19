@@ -84,6 +84,10 @@ jobs:
           # The dashboard's data payload - without this the live site's data
           # only actually updates via a manual deploy.bat run.
           [ -f toprate_data.json ] && git add toprate_data.json
+          # Gzip companion (Sep 2026, see toprate_daily.py's
+          # _write_data_json) - must be committed alongside toprate_data.json
+          # itself every time, never separately, or it goes stale.
+          [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
           # Price snapshot log (Aug 2026: now committed, previously
           # deliberately excluded - see git history if resurrecting that
           # choice; the old exclusion meant it could never accumulate

@@ -37,6 +37,7 @@ import sys
 import time
 import math
 import json
+import gzip
 import os
 import re
 import warnings
@@ -3067,6 +3068,38 @@ def build_bt_races(bt_df):
     return bt_races
 
 
+# Mobile Safari real-world report (Sep 2026): toprate_data.json is ~85-90MB
+# (see this file's own "100MB-limit" comments) and GitHub Pages' CDN does
+# not compress files this large (community-reported ceiling around ~10MB;
+# confirmed indirectly here by how slowly the live site loaded on a phone
+# before this existed), so the frontend was downloading the full raw size
+# every load. Writing a gzip companion here (checked: ~85MB -> ~18MB, a
+# ~5x cut) lets the frontend fetch toprate_data.json.gz and decompress
+# client-side via the DecompressionStream API instead (supported on iOS
+# Safari since 16.4, so safe by now) - same data, far less to transfer and
+# parse on a mobile connection. Falls back to plain toprate_data.json if
+# the .gz fetch or DecompressionStream itself is unavailable (see
+# fetchData.ts). compresslevel=6 (gzip's own default) - the fast level (1)
+# saves little size for a payload this compressible, and this write
+# happens on every price/results cycle so it should stay cheap, not chase
+# the last few % a slower level (9) would cost real time for.
+def _write_data_json(path, text):
+    """Writes toprate_data.json AND its .gz companion together, so the two
+    can never drift out of sync (see the module comment above) - EVERY
+    write site for toprate_data.json must go through this, not
+    path.write_text() directly, including patch_data_json()'s fast path
+    below (a stale .gz after a price/result patch would silently serve old
+    data to every gzip-capable client until the next full rebuild)."""
+    path.write_text(text, encoding="utf-8")
+    gz_path = path.with_name(path.name + ".gz")
+    # mtime=0: gzip's header otherwise embeds the write time, which would
+    # make two writes of BYTE-IDENTICAL content produce different git
+    # diffs for no reason (harmless here since every real write also
+    # changes RUN_ISO, but no reason to add spurious churn on top of that).
+    with gzip.GzipFile(gz_path, mode="wb", compresslevel=6, mtime=0) as gz:
+        gz.write(text.encode("utf-8"))
+
+
 def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None):
     """Lightweight, fast alternative to --rebuild-only for a cycle that only
     touched fixed_win_price/finish_position/won/scratched (TAB's live
@@ -3167,7 +3200,7 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     data["RUN_ISO"] = now_utc.isoformat()
     data["RUN_DATE"] = now_utc.strftime("%d %b %Y %H:%M UTC")
 
-    data_path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    _write_data_json(data_path, json.dumps(data, separators=(",", ":")))
     return True
 
 
@@ -4239,7 +4272,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # Data payload the frontend fetches at boot instead of inlining it
     # (keeps the JS compile cost off the load path).
     OUTPUT_DATA = OUTPUT_HTML.parent / "toprate_data.json"
-    OUTPUT_DATA.write_text(data_json, encoding="utf-8")
+    _write_data_json(OUTPUT_DATA, data_json)
     _step("Data write complete.")
 
     n_total   = len(races_data)
@@ -4325,7 +4358,8 @@ def publish():
     # currently calls speedmap_jockey_tracker.py - defensive, in case that
     # ever changes or this function is invoked from a workflow that does.
     files_to_push = []
-    for f in ["toprate_live.html", "toprate_data.json", "toprate_runners.csv",
+    for f in ["toprate_live.html", "toprate_data.json", "toprate_data.json.gz",
+              "toprate_runners.csv",
               "toprate_model_picks.csv", "toprate_price_history.csv",
               "wpr_form_history.csv.gz", "horse_history",
               "tracker_high_volume.csv", "tracker_low_volume.csv"]:

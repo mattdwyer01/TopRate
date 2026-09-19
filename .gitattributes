@@ -35,3 +35,9 @@
 # different rows (different races) still benefit from being combined rather
 # than one wholesale version winning.
 toprate_data.json binary
+
+# toprate_data.json.gz (Sep 2026, see toprate_daily.py's _write_data_json) -
+# a gzip companion written alongside toprate_data.json on every write, same
+# conflict-resolution reasoning as that file above (a compressed blob has
+# even less for a text-style merge to do than the minified JSON does).
+toprate_data.json.gz binary
