@@ -116,6 +116,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
 import speedmap_jockey_tracker as sjt  # reconcile tracker CSVs on the fast cycle too, see run_once()
+import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
 
 ROOT = "https://api.beta.tab.com.au"
 MEETINGS = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings"
@@ -487,7 +488,11 @@ def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
                             fo = run.get("fixedOdds") or {}
                             is_scratched = fo.get("bettingStatus") == "LateScratched"
                             entry = dict(date=target_date, venue=venue, race_no=race_no,
-                                        tab_number=tab_no, scratched=is_scratched)
+                                        tab_number=tab_no, scratched=is_scratched,
+                                        # extra keys for tab_price_log only; apply_prices ignores them
+                                        race_start_utc=rc.get("raceStartTime"),
+                                        fixed_place_price=fo.get("returnPlace"),
+                                        betting_status=fo.get("bettingStatus"))
                             win_price = fo.get("returnWin")
                             if not is_scratched and win_price and win_price > 1:
                                 entry["fixed_win_price"] = win_price
@@ -848,6 +853,7 @@ def run_once(push=True):
     results, conditions, prices, terminal_cache, unplaced_races = fetch_today_results(
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
+    tab_price_log.append(prices)  # before any early return, so every read is kept
 
     if not results and not conditions and not prices and not unplaced_races:
         print("  No new TAB results, conditions, or prices this cycle")
