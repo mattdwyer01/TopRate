@@ -216,7 +216,8 @@ jobs:
           stage_generated_files() {
             [ -f toprate_runners.csv ] && git add toprate_runners.csv
             [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
-            [ -f toprate_live.html ] && git add toprate_live.html
+            # toprate_live.html deliberately not staged: static frontend build, a data run never changes it,
+            # and re-staging this job's (older) checkout copy reverted frontend deploys that landed mid-run.
             # The dashboard's data payload - without this the automated runs
             # regenerate it locally but never publish it, so the live site's
             # data only actually updates on a manual `deploy.bat` run (which
