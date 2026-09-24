@@ -2956,6 +2956,16 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                 _mask_op = new_df["run_id"].isin(_frozen_op.index)
                 if _mask_op.any():
                     new_df.loc[_mask_op, "open_price"] = new_df.loc[_mask_op, "run_id"].map(_frozen_op)
+        # weight_carried: toprate.au no longer supplies weights (Sep 2026), so
+        # tab_results_poller fills them from TAB race cards (tab_fields.py). A
+        # re-fetch must not wipe them: keep the existing value where the new
+        # row has none.
+        if "weight_carried" in runners_df.columns and "run_id" in runners_df.columns:
+            _wc = pd.to_numeric(runners_df["weight_carried"], errors="coerce")
+            _known_wc = _wc[_wc.notna()].groupby(runners_df.loc[_wc.notna(), "run_id"]).last()
+            if len(_known_wc) and "weight_carried" in new_df.columns:
+                _new_wc = pd.to_numeric(new_df["weight_carried"], errors="coerce")
+                new_df["weight_carried"] = _new_wc.fillna(new_df["run_id"].map(_known_wc))
         # Pandas emits a FutureWarning about dtype handling when concatenating
         # frames that contain all-NA columns. The warning is harmless here
         # (the result is correct); suppress just this one warning rather than
