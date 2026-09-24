@@ -41,6 +41,9 @@ interface RaceDetailProps {
 // entirely per the same request. Order here drives both header rows'
 // column order below and RunnerRow's matching grid-template order - keep
 // all three in sync if this ever changes again.
+const MODEL_GAP_INNER = 4
+const MODEL_GAP_OUTER = 8
+
 const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = [
   { key: 'tab', label: '#' },
   { key: 'horse', label: 'Horse', showCompact: true },
@@ -296,6 +299,28 @@ export function RaceDetail({
   )
   const useModelMap = modelMap != null
 
+  // Racing Model gap lines (shown when sorted by rating, best first), from 4,061 VIC/SA/QLD races Apr to Sep
+  // 2026 scored out of sample: runners within 4 WPR of the top rated won 8% more often than their SP implied
+  // (A/E 1.08, 2.6 runners a race, 56% of winners) - the ones to pick from first; beyond 8 WPR they won 14%
+  // less often than their SP implied (A/E 0.86, lose 43% at SP; 79% of winners are inside it).
+  const modelGapLines = useMemo(() => {
+    const none = { inner: -1, outer: -1 }
+    if (!useModel || modelSort.key !== 'r' || modelSort.dir !== 'desc') return none
+    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && x.m?.r != null)
+    if (active.length < 3) return none
+    const top = active[0].m!.r as number
+    let inner = -1
+    let outer = -1
+    modelRows.forEach((x, i) => {
+      if (effectiveScratched.has(x.runner.runId) || x.m?.r == null) return
+      const gap = top - (x.m.r as number)
+      if (gap <= MODEL_GAP_INNER) inner = i
+      if (gap <= MODEL_GAP_OUTER) outer = i
+    })
+    const last = modelRows.reduce((l, x, i) => (!effectiveScratched.has(x.runner.runId) && x.m?.r != null ? i : l), -1)
+    return { inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
+  }, [useModel, modelSort, modelRows, effectiveScratched])
+
   function onModelSort(key: ModelSortKey) {
     const col = MODEL_COLUMNS.find((c) => c.key === key)
     setModelSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: col?.dir ?? 'desc' }))
@@ -511,16 +536,35 @@ export function RaceDetail({
                 </button>
               ))}
             </div>
-            {modelRows.map((row) => (
-              <ModelRunnerRow
-                key={row.runner.runId}
-                row={row}
-                raceDate={race.date}
-                compact={compact}
-                selected={row.runner.runId === selectedRunId}
-                scratched={effectiveScratched.has(row.runner.runId)}
-                onClick={() => setSelectedRunId(row.runner.runId === selectedRunId ? null : row.runner.runId)}
-              />
+            {modelRows.map((row, i) => (
+              <Fragment key={row.runner.runId}>
+                <ModelRunnerRow
+                  row={row}
+                  raceDate={race.date}
+                  compact={compact}
+                  selected={row.runner.runId === selectedRunId}
+                  scratched={effectiveScratched.has(row.runner.runId)}
+                  onClick={() => setSelectedRunId(row.runner.runId === selectedRunId ? null : row.runner.runId)}
+                />
+                {i === modelGapLines.inner && (
+                  <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
+                    <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
+                    <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
+                      {MODEL_GAP_INNER} WPR from top rated
+                    </span>
+                    <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
+                  </div>
+                )}
+                {i === modelGapLines.outer && (
+                  <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
+                    <span className="h-[2px] flex-1 bg-indigo" />
+                    <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
+                      {MODEL_GAP_OUTER} WPR from top rated
+                    </span>
+                    <span className="h-[2px] flex-1 bg-indigo" />
+                  </div>
+                )}
+              </Fragment>
             ))}
           </>
         ) : (
