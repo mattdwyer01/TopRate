@@ -9,11 +9,11 @@ runner's handicap weight for every Australian race.
 What: tab_results_poller.run_once() calls maybe_run() every cycle. Twice a day (first cycle after 04:30 and
 after 10:30 Melbourne time; a marker file per slot) it fetches the race detail for every AU thoroughbred race
 today and tomorrow (04:30) or today (10:30, late rider changes), within an 8-minute budget, then:
-  - fills weight_carried (only where empty) in the runners dataframe, matched on (date, venue, race,
-    tab_number) exactly like apply_prices
+  - writes weight_carried in the runners dataframe (TAB wins: it is the only weight source), matched on
+    (date, venue, race, tab_number) exactly like apply_prices
   - appends every read to $FIELDS_LOG_DIR/YYYY-MM-DD.csv (default ~/racing-data/tab_fields, outside the
     runner checkout like tab_price_log) for the racing-model archive job
-Carried weight = TAB handicap weight minus the apprentice claim when TAB gives one. The first runner's raw
+Carried weight = TAB handicapWeight minus claimAmount when positive (TAB sends -1 for no claim). The first runner's raw
 keys are printed once per slot so the field names can be checked in the workflow log.
 
 Best-effort throughout: any error is printed and swallowed, the price / results poll is never affected.
@@ -45,12 +45,11 @@ def _num(v):
 
 
 def _claim(run):
-    """Apprentice claim in kg: an explicit claim field if TAB has one, else '(a3)' style text in the rider."""
-    for k, v in run.items():
-        if "claim" in k.lower() or "allowance" in k.lower():
-            f = _num(v)
-            if f:
-                return abs(f)
+    """Apprentice claim in kg. TAB's claimAmount is -1 when there is no claim (seen in the first live run,
+    24 Sep 2026), so only a positive value counts; else '(a3)' style text in the rider name; else 0."""
+    f = _num(run.get("claimAmount"))
+    if f is not None and f > 0:
+        return f
     m = re.search(r"\(a(\d+(?:\.\d+)?)\)", str(run.get("riderDriverName") or ""))
     return float(m.group(1)) if m else 0.0
 
@@ -116,7 +115,8 @@ def fetch(poller, dates):
 
 
 def apply(poller, runners_df, fields):
-    """Fill weight_carried where empty; returns (df, n_filled)."""
+    """Write weight_carried for every matched runner (TAB is the only weight source now, so it wins and a
+    later read corrects an earlier one); returns (df, n_written)."""
     if "weight_carried" not in runners_df.columns:
         runners_df["weight_carried"] = pd.NA
     venue_u = runners_df["venue"].astype(str).str.upper()
@@ -129,7 +129,7 @@ def apply(poller, runners_df, fields):
             continue
         pv = poller.VENUE_ALIASES.get(f["venue"].upper(), f["venue"]).upper()
         mask = (runners_df["date"] == f["date"]) & (venue_u == pv) & (race == f["race_no"]) & (tab == f["tab_number"])
-        idx = runners_df.index[mask & wc.isna()]
+        idx = runners_df.index[mask & (wc.isna() | (wc != f["weight_carried"]))]
         if len(idx):
             runners_df.loc[idx, "weight_carried"] = f["weight_carried"]
             n += len(idx)
@@ -170,15 +170,22 @@ def maybe_run(poller, runners_loader):
         today = datetime.now(MEL).date()
         morning = marker.name.endswith(f"{SLOTS[0][0]:02d}{SLOTS[0][1]:02d}")
         dates = [today.isoformat()] + ([(today + timedelta(days=1)).isoformat()] if morning else [])
+        # one-off: the first live run (24 Sep 2026) read claimAmount -1 as a 1kg claim; re-read that day
+        repair = LOG_DIR / ".repaired_claim_2026-09-24"
+        if not repair.exists():
+            dates = ["2026-09-24"] + dates
+            repair.touch()
         t0 = time.time()
         fields = fetch(poller, dates)
         _log(fields)
         with_w = sum(f.get("weight_carried") is not None for f in fields)
-        print(f"  tab_fields: {len(fields)} runners read ({with_w} with a weight) in {time.time() - t0:.0f}s")
+        claims = pd.Series([f.get("claim") for f in fields]).value_counts().head(8).to_dict()
+        print(f"  tab_fields: {len(fields)} runners read ({with_w} with a weight) in {time.time() - t0:.0f}s; "
+              f"claims (kg: runners) {claims}")
         if not with_w:
             return None
         df, n = apply(poller, runners_loader(), fields)
-        print(f"  tab_fields: filled weight_carried for {n} runners")
+        print(f"  tab_fields: wrote weight_carried for {n} runners")
         return (df, n) if n else None
     except Exception as e:
         print(f"  tab_fields failed (non-fatal): {type(e).__name__}: {str(e)[:120]}")
