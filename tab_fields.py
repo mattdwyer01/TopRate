@@ -77,7 +77,7 @@ def fetch(poller, dates):
     shown = False
     t0 = time.time()
     for d in dates:
-        for jurisdiction in poller.AU_STATES:
+        for jurisdiction in getattr(poller, "TAB_JURISDICTIONS", poller.AU_STATES):
             try:
                 payload = poller.get(poller.MEETINGS.format(date=d), {"jurisdiction": jurisdiction}, timeout=20)
             except Exception as e:

@@ -131,6 +131,10 @@ FINAL_STATUSES = ("Paying", "Abandoned")
 PRICE_LOOKAHEAD_HOURS = 2.0
 PRICE_PAST_WINDOW_MINUTES = 30
 AU_STATES = ("VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT")
+# jurisdictions to REQUEST meeting lists from: TAB's own. WA is not one (its TAB is RWWA) and the meetings call
+# answers jurisdiction=WA with HTTP 400 every cycle; WA meetings still appear in the other jurisdictions' lists
+# (location "WA", kept by the AU_STATES location filter) and seen_meetings dedupes them.
+TAB_JURISDICTIONS = tuple(s for s in AU_STATES if s != "WA")
 
 # TAB meeting name (upper-cased -- TAB returns AU venues in ALL CAPS,
 # confirmed against a real payload) -> provider (toprate.au) venue name, as
@@ -221,7 +225,7 @@ def probe_odds():
     conditions path deliberately avoided.
     """
     today = date.today().isoformat()
-    for jurisdiction in AU_STATES:
+    for jurisdiction in TAB_JURISDICTIONS:
         payload = get(MEETINGS.format(date=today), {"jurisdiction": jurisdiction})
         for m in payload.get("meetings", []):
             if m.get("raceType") != RACE_TYPE or m.get("location") not in AU_STATES:
@@ -339,7 +343,7 @@ def _within_price_window(start_dt):
         (now + timedelta(hours=PRICE_LOOKAHEAD_HOURS))
 
 
-def fetch_today_results(target_date, states=AU_STATES, terminal_cache=None,
+def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=None,
                         archive=True, fetch_prices=True):
     """
     Returns (results, conditions, prices, terminal_cache, unplaced_races).
