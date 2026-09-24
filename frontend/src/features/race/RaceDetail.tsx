@@ -11,8 +11,9 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
-import { RacingModelPanel } from './RacingModelPanel'
-import { modelSpeedMap, useRacingModel } from '../../lib/racingModel'
+import { blendRace, modelSpeedMap, useRacingModel } from '../../lib/racingModel'
+import { ModelRunnerRow } from './ModelRunnerRow'
+import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
@@ -152,23 +153,24 @@ export function RaceDetail({
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
-  // Speed map source: TopRate's own projection or the Racing Model's (lib/racingModel.ts). Remembered per
-  // browser; the model option only shows when the model has projected every runner still in the race.
-  const [speedMapSource, setSpeedMapSourceState] = useState<'toprate' | 'model'>(() => {
+  // Source for the ratings table and the speed map: the Racing Model (lib/racingModel.ts) or TopRate's own.
+  // One switch for both, remembered per browser; only offered when the model has projected this race.
+  const [source, setSourceState] = useState<'toprate' | 'model'>(() => {
     try {
-      return window.localStorage.getItem('speedMapSource') === 'toprate' ? 'toprate' : 'model'
+      return window.localStorage.getItem('ratingsSource') === 'toprate' ? 'toprate' : 'model'
     } catch {
       return 'model'
     }
   })
-  function setSpeedMapSource(v: 'toprate' | 'model') {
-    setSpeedMapSourceState(v)
+  function setSource(v: 'toprate' | 'model') {
+    setSourceState(v)
     try {
-      window.localStorage.setItem('speedMapSource', v)
+      window.localStorage.setItem('ratingsSource', v)
     } catch {
       // storage unavailable (private browsing): the choice just isn't remembered
     }
   }
+  const [modelSort, setModelSort] = useState<{ key: ModelSortKey; dir: 'asc' | 'desc' }>({ key: 'r', dir: 'desc' })
   const racingModel = useRacingModel()
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
@@ -230,8 +232,41 @@ export function RaceDetail({
     const scratchedRunners = sorted.filter((r) => effectiveScratched.has(r.runId))
     return [...active, ...scratchedRunners]
   }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
-  const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
-  const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
+
+  // Racing Model view of the table: every runner (scratched last, as above) with the model's figures and
+  // the blend recomputed from the current fixed prices.
+  const hasModel = racingModel != null && race.runners.some((r) => racingModel.runners[r.runId])
+  const useModel = hasModel && source === 'model'
+  const modelRows = useMemo((): ModelRow[] => {
+    if (!racingModel || !hasModel) return []
+    const blend = blendRace(race, racingModel, effectiveScratched)
+    const active = race.runners.filter((r) => !effectiveScratched.has(r.runId))
+    const settleRank = new Map(
+      active
+        .filter((r) => racingModel.runners[r.runId]?.s != null)
+        .sort((a, b) => (racingModel.runners[a.runId].s as number) - (racingModel.runners[b.runId].s as number))
+        .map((r, i) => [r.runId, i + 1] as const),
+    )
+    const rows = race.runners.map((r) => ({
+      runner: r,
+      m: racingModel.runners[r.runId],
+      b: blend[r.runId],
+      settleRank: settleRank.get(r.runId) ?? null,
+    }))
+    const cmp = (x: ModelRow, y: ModelRow) => {
+      const a = modelSortValue(x, modelSort.key, race.date)
+      const b = modelSortValue(y, modelSort.key, race.date)
+      if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1
+      const d = typeof a === 'string' || typeof b === 'string' ? String(a).localeCompare(String(b)) : a - b
+      return modelSort.dir === 'asc' ? d : -d
+    }
+    const act = rows.filter((x) => !effectiveScratched.has(x.runner.runId)).sort(cmp)
+    if (!showScratched) return act
+    return [...act, ...rows.filter((x) => effectiveScratched.has(x.runner.runId)).sort(cmp)]
+  }, [race, racingModel, hasModel, effectiveScratched, modelSort, showScratched])
+  const shownRunners = useModel ? modelRows.map((x) => x.runner) : sortedRunners
+  const selectedIndex = shownRunners.findIndex((r) => r.runId === selectedRunId)
+  const selectedRunner = selectedIndex >= 0 ? shownRunners[selectedIndex] : null
 
   // Inner Combo threshold for the dotted reference line below - a
   // TIGHTER tier within the same Combo score the primary 10pt line
@@ -274,7 +309,13 @@ export function RaceDetail({
     () => (racingModel ? modelSpeedMap(race, racingModel, effectiveScratched) : null),
     [race, racingModel, effectiveScratched],
   )
-  const useModelMap = modelMap != null && speedMapSource === 'model'
+  const useModelMap = modelMap != null && useModel
+
+  function onModelSort(key: ModelSortKey) {
+    const col = MODEL_COLUMNS.find((c) => c.key === key)
+    setModelSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: col?.dir ?? 'desc' }))
+  }
+  const modelMeta = racingModel?.races[race.raceId]
 
   function onSort(key: SortKey) {
     if (key === sortKey) {
@@ -287,8 +328,8 @@ export function RaceDetail({
 
   function step(delta: number) {
     if (selectedIndex < 0) return
-    const next = (selectedIndex + delta + sortedRunners.length) % sortedRunners.length
-    setSelectedRunId(sortedRunners[next].runId)
+    const next = (selectedIndex + delta + shownRunners.length) % shownRunners.length
+    setSelectedRunId(shownRunners[next].runId)
   }
 
   return (
@@ -350,7 +391,18 @@ export function RaceDetail({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          {hasModel && (
+            <>
+              <Pill active={useModel} onClick={() => setSource('model')}>
+                Racing Model
+              </Pill>
+              <Pill active={!useModel} onClick={() => setSource('toprate')}>
+                TopRate
+              </Pill>
+              <span className="mx-1 h-4 w-px bg-line" />
+            </>
+          )}
           <Pill active={compact} onClick={() => setCompact(true)}>Compact</Pill>
           <Pill active={!compact} onClick={() => setCompact(false)}>Full</Pill>
           {scratchedInRace > 0 && (
@@ -364,30 +416,119 @@ export function RaceDetail({
             own way to change sort - otherwise it's stuck on whatever was
             last set, with no visible way to change it. */}
         <div className="flex items-center gap-1.5 sm:hidden">
-          <select
-            value={sortKey}
-            onChange={(e) => onSort(e.target.value as SortKey)}
-            aria-label="Sort by"
-            className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
-          >
-            {COLUMN_LABELS.map((col) => (
-              <option key={col.key} value={col.key}>
-                Sort: {col.label}
-              </option>
-            ))}
-          </select>
+          {useModel ? (
+            <select
+              value={modelSort.key}
+              onChange={(e) => onModelSort(e.target.value as ModelSortKey)}
+              aria-label="Sort by"
+              className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
+            >
+              {MODEL_COLUMNS.map((col) => (
+                <option key={col.key} value={col.key}>
+                  Sort: {col.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={sortKey}
+              onChange={(e) => onSort(e.target.value as SortKey)}
+              aria-label="Sort by"
+              className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
+            >
+              {COLUMN_LABELS.map((col) => (
+                <option key={col.key} value={col.key}>
+                  Sort: {col.label}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+            onClick={() =>
+              useModel
+                ? setModelSort((s) => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))
+                : setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+            }
+            aria-label={(useModel ? modelSort.dir : sortDir) === 'asc' ? 'Sort ascending' : 'Sort descending'}
             className="flex h-6 w-6 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
           >
-            {sortDir === 'asc' ? '↑' : '↓'}
+            {(useModel ? modelSort.dir : sortDir) === 'asc' ? '↑' : '↓'}
           </button>
         </div>
       </div>
 
+      {useModel && (
+        <div className="-mt-1 flex flex-wrap gap-x-3 px-1 text-[11px] text-ink-faint">
+          <span>Racing Model projected {modelMeta?.on ?? '-'}, trained to {racingModel?.trainEnd}</span>
+          {modelMeta?.pace && (
+            <span>
+              Pace slow {Math.round(modelMeta.pace[0] * 100)}% · even {Math.round(modelMeta.pace[1] * 100)}% · fast{' '}
+              {Math.round(modelMeta.pace[2] * 100)}%
+            </span>
+          )}
+          <span>Blend $ and Edge update with the fixed price; ◆ = position value top 10%</span>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
+        {useModel ? (
+          <>
+            {/* Racing Model view: same header styling as TopRate's below, its own columns (ModelRunnerRow). */}
+            <div
+              className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
+                compact ? MODEL_GRID.compact : MODEL_GRID.full
+              }`}
+            >
+              <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
+              {MODEL_COLUMNS.filter((c) => c.short && (!compact || c.compact)).map((col, i) => (
+                <button
+                  key={col.key}
+                  type="button"
+                  title={col.title}
+                  onClick={() => onModelSort(col.key)}
+                  className={`block min-w-0 truncate transition-colors hover:text-ink ${
+                    i === 0 ? 'sticky left-12 z-10 bg-bg text-left' : 'text-right'
+                  } ${modelSort.key === col.key ? 'text-emerald-deep' : ''}`}
+                >
+                  {col.short}
+                  {modelSort.key === col.key && (modelSort.dir === 'asc' ? ' ↑' : ' ↓')}
+                </button>
+              ))}
+            </div>
+            <div
+              className={`hidden min-w-full gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid ${MODEL_GRID.desktop}`}
+            >
+              <span />
+              {MODEL_COLUMNS.map((col) => (
+                <button
+                  key={col.key}
+                  type="button"
+                  title={col.title}
+                  onClick={() => onModelSort(col.key)}
+                  className={`${col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-right'} transition-colors hover:text-ink ${
+                    modelSort.key === col.key ? 'text-emerald-deep' : ''
+                  }`}
+                >
+                  {col.label}
+                  {modelSort.key === col.key && (modelSort.dir === 'asc' ? ' ↑' : ' ↓')}
+                </button>
+              ))}
+            </div>
+            {modelRows.map((row) => (
+              <ModelRunnerRow
+                key={row.runner.runId}
+                row={row}
+                raceDate={race.date}
+                compact={compact}
+                selected={row.runner.runId === selectedRunId}
+                scratched={effectiveScratched.has(row.runner.runId)}
+                onClick={() => setSelectedRunId(row.runner.runId === selectedRunId ? null : row.runner.runId)}
+              />
+            ))}
+          </>
+        ) : (
+          <>
         {/* Mobile header: matches RunnerRow's mobile grid-cols exactly for
             the current density - Base/Adj never show on mobile in either
             density (desktop-only). Compact additionally drops Form/Jockey
@@ -559,22 +700,13 @@ export function RaceDetail({
             </Fragment>
           )
         })}
+          </>
+        )}
       </div>
 
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        {modelMap && (
-          <>
-            <Pill active={useModelMap} onClick={() => setSpeedMapSource('model')}>
-              Racing Model
-            </Pill>
-            <Pill active={!useModelMap} onClick={() => setSpeedMapSource('toprate')}>
-              TopRate
-            </Pill>
-            <span className="mx-1 h-4 w-px bg-line" />
-          </>
-        )}
         <Pill active={speedMapView === 'grid' || useModelMap} onClick={() => setSpeedMapView('grid')}>
           Grid
         </Pill>
@@ -593,8 +725,6 @@ export function RaceDetail({
       ) : (
         <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
       )}
-
-      <RacingModelPanel race={race} scratched={effectiveScratched} />
 
       {selectedRunner && (
         <RunnerDetailModal
