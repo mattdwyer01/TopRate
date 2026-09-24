@@ -28,6 +28,19 @@ export interface RMRace {
   pace: [number, number, number] | null // P(slow, even, fast)
   pv: number | null // projected pace vs the distance average (GPS pace units)
   on: string | null // date the projection was made (always before the race)
+  // projected track bias as the model applies it (from past meetings at the track, long-run + recent same rail):
+  // lead = WPR edge of a leader over a backmarker, inside = of the inside draw over the outside draw
+  bias?: { lead: number; inside: number } | null
+}
+
+// Plain-words reading of a race's projected bias; values under 0.25 WPR count as neutral.
+export function biasText(b: { lead: number; inside: number } | null | undefined): { pos: string; draw: string; tone: 'strong' | 'mild' | 'neutral' } | null {
+  if (!b) return null
+  const f = (v: number) => `${Math.abs(v).toFixed(1)} WPR`
+  const pos = Math.abs(b.lead) < 0.25 ? 'position neutral' : b.lead > 0 ? `leaders favoured (+${f(b.lead)})` : `backmarkers favoured (+${f(b.lead)})`
+  const draw = Math.abs(b.inside) < 0.25 ? 'draw neutral' : b.inside > 0 ? `inside draw favoured (+${f(b.inside)})` : `wide draw favoured (+${f(b.inside)})`
+  const m = Math.max(Math.abs(b.lead), Math.abs(b.inside))
+  return { pos, draw, tone: m >= 1 ? 'strong' : m >= 0.25 ? 'mild' : 'neutral' }
 }
 
 export interface RMPayload {

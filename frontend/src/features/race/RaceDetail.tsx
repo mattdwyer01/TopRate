@@ -11,7 +11,7 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
-import { blendRace, modelSpeedMap, useRacingModel } from '../../lib/racingModel'
+import { biasText, blendRace, modelSpeedMap, useRacingModel } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
@@ -316,6 +316,7 @@ export function RaceDetail({
     setModelSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: col?.dir ?? 'desc' }))
   }
   const modelMeta = racingModel?.races[race.raceId]
+  const bias = biasText(modelMeta?.bias)
 
   function onSort(key: SortKey) {
     if (key === sortKey) {
@@ -388,6 +389,20 @@ export function RaceDetail({
           </span>
           {race.hasFirstStarter && <span className="text-amber">First starter in field</span>}
         </div>
+        {bias && (
+          <div
+            className={`mt-2 rounded-md border px-2 py-1 text-xs ${
+              bias.tone === 'strong'
+                ? 'border-amber-line bg-amber-bg text-amber'
+                : bias.tone === 'mild'
+                  ? 'border-line bg-indigo-bg text-indigo'
+                  : 'border-line-soft bg-bg text-ink-mute'
+            }`}
+            title="Racing Model's projected track bias for this race: how much its track-bias term favours a leader over a backmarker and an inside draw over a wide one, from past meetings at this track (long-run and recent meetings on the same rail). Tested: an in-day update from earlier races on the card added nothing, so it is not used."
+          >
+            <span className="font-semibold">Projected track bias:</span> {bias.pos} · {bias.draw}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
