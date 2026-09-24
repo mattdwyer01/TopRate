@@ -481,7 +481,7 @@ export function RaceDetail({
               }`}
             >
               <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
-              {MODEL_COLUMNS.filter((c) => c.short && (!compact || c.compact)).map((col, i) => (
+              {MODEL_COLUMNS.filter((c) => c.short && (compact ? c.compact : c.full !== false)).map((col, i) => (
                 <button
                   key={col.key}
                   type="button"
