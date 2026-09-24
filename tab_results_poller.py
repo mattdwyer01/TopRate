@@ -117,6 +117,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
 import speedmap_jockey_tracker as sjt  # reconcile tracker CSVs on the fast cycle too, see run_once()
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
+import tab_fields  # twice-daily TAB race cards -> weight_carried (toprate.au no longer supplies weights)
 
 ROOT = "https://api.beta.tab.com.au"
 MEETINGS = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings"
@@ -854,12 +855,15 @@ def run_once(push=True):
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
     tab_price_log.append(prices)  # before any early return, so every read is kept
+    # Twice a day: TAB race cards for today + tomorrow -> weight_carried (best-effort, see tab_fields.py)
+    fields_res = tab_fields.maybe_run(sys.modules[__name__], td.load_runners)
+    n_weighted = fields_res[1] if fields_res else 0
 
-    if not results and not conditions and not prices and not unplaced_races:
+    if not results and not conditions and not prices and not unplaced_races and not n_weighted:
         print("  No new TAB results, conditions, or prices this cycle")
         return
 
-    runners_df = td.load_runners()
+    runners_df = fields_res[0] if fields_res else td.load_runners()
     n_result_rows = 0
     n_condition_rows = 0
     n_priced = 0
@@ -894,7 +898,7 @@ def run_once(push=True):
             if "scr" in patch:
                 scratch_patches[rid] = patch["scr"]
 
-    if n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0:
+    if n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0 and n_weighted == 0:
         print("  Nothing matched this cycle")
         return
 
@@ -932,7 +936,9 @@ def run_once(push=True):
     # about it looks unsafe (missing/unparseable JSON, an unrecognized
     # run_id), so this never ships a half-patched payload.
     did_full_rebuild = False
-    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
+    if n_weighted:
+        print(f"  Filled weight_carried for {n_weighted} runners from TAB race cards")
+    if changed_venues or n_weighted or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
