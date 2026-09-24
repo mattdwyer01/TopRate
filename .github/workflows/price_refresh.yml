@@ -80,7 +80,7 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git add toprate_runners.csv toprate_live.html
+          git add toprate_runners.csv   # not toprate_live.html: static frontend build, never changed here
           # The dashboard's data payload - without this the live site's data
           # only actually updates via a manual deploy.bat run.
           [ -f toprate_data.json ] && git add toprate_data.json

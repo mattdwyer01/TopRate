@@ -62,7 +62,7 @@ jobs:
           git add toprate_runners.csv 2>/dev/null || true
           git add toprate_selections.csv 2>/dev/null || true
           git add toprate_price_history.csv 2>/dev/null || true
-          git add toprate_live.html 2>/dev/null || true
+          # toprate_live.html not staged: static frontend build (npm run build), never changed by a data run
           git add toprate_daily.html 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
