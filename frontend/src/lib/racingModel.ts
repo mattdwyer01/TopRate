@@ -19,6 +19,8 @@ export interface RMRunner {
   d: number | null // race-day adjustment (WPR points: projection + track bias)
   ab: number | null // ability contribution (WPR points vs field)
   jt: number | null // jockey / trainer contribution (WPR points vs field)
+  pv?: number | null // position value: expected worth of the projected position and width (WPR points vs race)
+  pf?: number // 1 = position value in the top 10% (the group the market has underrated in testing)
 }
 
 export interface RMRace {
@@ -32,6 +34,7 @@ export interface RMPayload {
   trainEnd: string
   a: number
   b: number
+  posFlagThreshold?: number | null
   races: Record<string, RMRace>
   runners: Record<string, RMRunner>
 }

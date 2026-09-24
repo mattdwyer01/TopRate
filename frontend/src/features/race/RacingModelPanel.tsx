@@ -55,6 +55,7 @@ export function RacingModelPanel({ race, scratched }: RacingModelPanelProps) {
               <th className="px-1.5 text-right font-semibold">vs field</th>
               <th className="px-1.5 text-right font-semibold">Settle</th>
               <th className="px-1.5 text-right font-semibold">Leads</th>
+              <th className="px-1.5 text-right font-semibold">Pos val</th>
               <th className="px-1.5 text-right font-semibold">Model $</th>
               <th className="px-1.5 text-right font-semibold">Blend $</th>
               <th className="px-1.5 text-right font-semibold">Fixed $</th>
@@ -77,6 +78,10 @@ export function RacingModelPanel({ race, scratched }: RacingModelPanelProps) {
                   </td>
                   <td className="px-1.5 text-right text-ink-soft">{settleRank.get(runner.runId)}</td>
                   <td className="px-1.5 text-right text-ink-soft">{pct(m.l)}</td>
+                  <td className={`px-1.5 text-right ${m.pf ? 'font-semibold text-indigo' : 'text-ink-soft'}`}>
+                    {m.pf ? '◆ ' : ''}
+                    {signed(m.pv)}
+                  </td>
                   <td className="px-1.5 text-right text-ink-soft">{price(m.p ? 1 / m.p : null)}</td>
                   <td className="px-1.5 text-right text-ink">{price(b?.blendPrice)}</td>
                   <td className="px-1.5 text-right text-ink-soft">{price(runner.fixedWinPrice)}</td>
@@ -92,7 +97,9 @@ export function RacingModelPanel({ race, scratched }: RacingModelPanelProps) {
       </div>
       <div className="mt-1.5 text-[11px] text-ink-faint">
         Rating = projected WPR; Model $ is the model alone, Blend $ combines it with the current fixed price.
-        Edge = blend probability x fixed price - 1. Settle = projected position at the 800m (1 = leader).
+        Edge = blend probability x fixed price - 1. Settle = projected position at the 800m (1 = leader). Pos val =
+        what the projected position, width and pace are worth (WPR points vs the race); ◆ = top 10%, a group
+        that has won more often than its price implied in testing.
       </div>
     </div>
   )
