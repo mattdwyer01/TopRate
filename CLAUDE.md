@@ -114,6 +114,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `price_refresh.yml`/`tab_results.yml` cycles don't churn ~200 unchanged
   files every run.
 
+- `racing_model.json` (Sep 2026) - the Racing Model layer: an independent model's projections (rating,
+  model win probability, v4 settle, P(leads), extra ground, pace chances) from the private
+  mattdwyer01/racing-model repo, committed here by its daily `dashboard.yml` job (05:45 and 11:15 AEST).
+  Read by `frontend/src/lib/racingModel.ts` and shown as the Racing Model panel in race detail; the blend
+  with the market and the edge are recomputed in the browser from the live fixed price. Optional: if the
+  file is missing the panel simply doesn't render. Never edit it by hand; it is overwritten each run.
+
 ## Conventions (follow these)
 
 - NO em dashes anywhere, in code, comments, or output. Use commas or parentheses.
