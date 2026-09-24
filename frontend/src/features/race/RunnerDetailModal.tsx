@@ -9,6 +9,7 @@ import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { PriceMovementChart } from './PriceMovementChart'
+import { ModelBreakdown, ModelHeadline, type ModelDetail } from './ModelRunnerDetail'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -22,6 +23,9 @@ interface RunnerDetailModalProps {
   onClose: () => void
   onPrev: () => void
   onNext: () => void
+  // Racing Model projection for this runner: when present it replaces TopRate's rating block, adjustment
+  // breakdown and predicted WPR (the race page shows the Racing Model only)
+  model?: ModelDetail | null
 }
 
 // Full-screen overlay for a runner's projection detail. Replaces the old
@@ -43,6 +47,7 @@ export function RunnerDetailModal({
   onClose,
   onPrev,
   onNext,
+  model,
 }: RunnerDetailModalProps) {
   const scratched = effective?.scratched ?? false
   const [scrolled, setScrolled] = useState(false)
@@ -179,6 +184,10 @@ export function RunnerDetailModal({
         </div>
 
         <div className="flex flex-col gap-3 p-3">
+          {model ? (
+            <ModelHeadline runner={runner} detail={model} scratched={scratched} />
+          ) : (
+            <>
           {runner.projectedWpr == null && (
             <div className="rounded-lg border border-amber-line bg-amber-bg p-2.5 text-sm text-amber">
               No projection for this runner.{' '}
@@ -312,6 +321,8 @@ export function RunnerDetailModal({
               </p>
             )}
           </div>
+            </>
+          )}
 
           {/* ResultVsProjection and/or PriceMovementChart ride alongside
               CareerStats from the sm breakpoint up (fills the space that
@@ -351,7 +362,7 @@ export function RunnerDetailModal({
                 bigger share of this row instead of squeezing both of its
                 own sub-tables just to stay even with cards that didn't grow. */}
             <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
-              <CareerStats runner={runner} race={race} />
+              <CareerStats runner={runner} race={race} breakdown={model ? <ModelBreakdown detail={model} /> : undefined} />
             </div>
             <div className="flex w-full gap-3 sm:contents">
               {hasPriceInfo && (
@@ -365,7 +376,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} />
+                <ResultVsProjection runner={runner} model={model ? { projected: model.m.r, rank: model.rank } : undefined} />
               </div>
             </div>
           </div>
@@ -387,7 +398,9 @@ export function RunnerDetailModal({
               header subtitle - only barrier is new information here. */}
           <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">
             Barrier {runner.barrier ?? '—'}
-            <span className="ml-1.5 italic">(not used by the projection)</span>
+            <span className="ml-1.5 italic">
+              {model ? '(used in the settle, width and track-bias projection)' : '(not used by the projection)'}
+            </span>
           </div>
         </div>
       </div>

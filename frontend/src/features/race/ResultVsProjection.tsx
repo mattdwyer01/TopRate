@@ -22,6 +22,8 @@ function ordinal(n: number): string {
 
 interface ResultVsProjectionProps {
   runner: Runner
+  // Racing Model source: its projected rating / rank replace TopRate's (TopRate's miss notes are hidden)
+  model?: { projected: number | null; rank: number | null }
 }
 
 // Shown beside CareerStats regardless of whether the runner has raced yet
@@ -34,7 +36,9 @@ interface ResultVsProjectionProps {
 // vs a placing) that a WPR-rank number and a finish-position number
 // happening to coincide (e.g. both landing on "8") made read as one
 // repeated figure in an earlier layout.
-export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
+export function ResultVsProjection({ runner, model }: ResultVsProjectionProps) {
+  const projected = model ? model.projected : runner.projectedWpr
+  const projRank = model ? model.rank : runner.wprRank
   // Two independent facts, not one: the race RESULT (finish position, won)
   // is known the moment the race resolves, but the settled actual WPR
   // (actualWpr) can lag a day or more behind that - TopRate revises it
@@ -51,14 +55,14 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
   const hasActual = runner.actualWpr != null
   const { notes, setNote } = useMissNotes()
 
-  const miss = hasActual && runner.projectedWpr != null ? runner.actualWpr! - runner.projectedWpr : null
+  const miss = hasActual && projected != null ? runner.actualWpr! - projected : null
   const missAbs = miss != null ? Math.abs(miss) : null
   const missClass =
     missAbs == null ? 'text-ink-mute' : missAbs >= 8 ? 'text-rose' : missAbs >= 4 ? 'text-amber' : 'text-emerald-deep'
 
   let rankText: string | null = null
-  if (runner.wprRank != null && runner.actualWprRank != null) {
-    const rd = runner.actualWprRank - runner.wprRank
+  if (projRank != null && runner.actualWprRank != null) {
+    const rd = runner.actualWprRank - projRank
     rankText = rd === 0 ? 'exact' : rd > 0 ? `${rd} lower` : `${-rd} higher`
   }
 
@@ -68,8 +72,8 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="text-[11px] text-ink-faint">Predicted</div>
-          <div className="font-mono text-lg font-semibold text-ink">{fmt(runner.projectedWpr)}</div>
-          <div className="text-xs text-ink-mute">WPR rank {runner.wprRank ?? '—'}</div>
+          <div className="font-mono text-lg font-semibold text-ink">{fmt(projected)}</div>
+          <div className="text-xs text-ink-mute">WPR rank {projRank ?? '—'}</div>
         </div>
         <div>
           <div className="text-[11px] text-ink-faint">Actual</div>
@@ -110,13 +114,13 @@ export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
             </div>
           )}
 
-          {runner.missReason && (
+          {!model && runner.missReason && (
             <div className="mt-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
               {runner.missReason}
             </div>
           )}
 
-          {runner.missCategory === 'unexplained' && (
+          {!model && runner.missCategory === 'unexplained' && (
             <div className="mt-1.5">
               <label className="mb-0.5 block text-[11px] text-ink-faint" htmlFor={`miss-note-${runner.runId}`}>
                 Your note (why it might have missed)

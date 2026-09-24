@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import { computeCareerStats } from '../../lib/careerStats'
 import { ADJUSTMENT_LABELS, SAMPLE_SIZE_TERMS, LOW_SAMPLE_THRESHOLD } from '../../lib/adjustmentLabels'
@@ -206,7 +207,7 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
   )
 }
 
-export function CareerStats({ runner, race }: CareerStatsProps) {
+export function CareerStats({ runner, race, breakdown }: CareerStatsProps & { breakdown?: ReactNode }) {
   if (!runner.formHistory.length) return null
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel p-2.5">
@@ -221,7 +222,7 @@ export function CareerStats({ runner, race }: CareerStatsProps) {
           <CareerConditionTable runner={runner} race={race} />
         </div>
         <div className="min-w-0 flex-1">
-          <AdjustmentBreakdown runner={runner} />
+          {breakdown ?? <AdjustmentBreakdown runner={runner} />}
         </div>
       </div>
     </div>
