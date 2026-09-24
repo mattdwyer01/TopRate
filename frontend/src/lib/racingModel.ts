@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Race } from '../types/domain'
+import type { ModelSpeedMap } from '../features/race/SpeedMapGrid'
 
 // Racing Model layer (Sep 2026): a second, independent model's projections, produced daily by the
 // racing-model repo (mattdwyer01/racing-model, tools/dashboard_export.py) and committed here as
@@ -94,4 +95,38 @@ export function blendRace(race: Race, rm: RMPayload, excluded: Set<string>): Rec
     out[x.id] = { blendProb: bp, blendPrice: 1 / bp, edge: bp * (x.price as number) - 1 }
   })
   return out
+}
+
+// Speed-map input for SpeedMapGrid's Racing Model source: every runner still in the race needs a settle
+// projection, otherwise null (a map mixing two models' positions would mislead).
+export function modelSpeedMap(race: Race, rm: RMPayload, excluded: Set<string>): ModelSpeedMap | null {
+  const field = race.runners.filter((r) => !excluded.has(r.runId))
+  if (!field.length || field.some((r) => rm.runners[r.runId]?.s == null)) return null
+  const relSettle = new Map<string, number>()
+  const rating = new Map<string, number | null>()
+  const tone = new Map<string, number | null>()
+  // The settle model is a mean projection, so its values bunch toward the middle (few runners projected
+  // below 0.2 even when one clearly leads). Stretched across this race's own range so the model's front
+  // runner sits in Lead and its last in Back, same scale the grid's columns assume; gaps are kept.
+  const ss = field.map((r) => rm.runners[r.runId].s as number)
+  const lo = Math.min(...ss)
+  const span = Math.max(...ss) - lo
+  for (const r of field) {
+    const m = rm.runners[r.runId]
+    relSettle.set(r.runId, span > 1e-9 ? ((m.s as number) - lo) / span : 0.5)
+    rating.set(r.runId, m.r)
+    tone.set(r.runId, m.pv ?? null)
+  }
+  const pace = rm.races[race.raceId]?.pace ?? null
+  const names = ['Slow', 'Even', 'Fast'] as const
+  const top = pace ? pace.indexOf(Math.max(...pace)) : 1
+  const pct = (v: number) => `${Math.round(v * 100)}%`
+  return {
+    relSettle,
+    rating,
+    tone,
+    toneThreshold: 0.5,
+    tempoBucket: names[top],
+    paceLabel: pace ? `${names[top]} likely · slow ${pct(pace[0])} even ${pct(pace[1])} fast ${pct(pace[2])}` : 'Pace n/a',
+  }
 }
