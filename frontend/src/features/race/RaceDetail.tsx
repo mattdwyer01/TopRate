@@ -12,6 +12,7 @@ import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { RacingModelPanel } from './RacingModelPanel'
+import { modelSpeedMap, useRacingModel } from '../../lib/racingModel'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
@@ -151,6 +152,24 @@ export function RaceDetail({
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
+  // Speed map source: TopRate's own projection or the Racing Model's (lib/racingModel.ts). Remembered per
+  // browser; the model option only shows when the model has projected every runner still in the race.
+  const [speedMapSource, setSpeedMapSourceState] = useState<'toprate' | 'model'>(() => {
+    try {
+      return window.localStorage.getItem('speedMapSource') === 'toprate' ? 'toprate' : 'model'
+    } catch {
+      return 'model'
+    }
+  })
+  function setSpeedMapSource(v: 'toprate' | 'model') {
+    setSpeedMapSourceState(v)
+    try {
+      window.localStorage.setItem('speedMapSource', v)
+    } catch {
+      // storage unavailable (private browsing): the choice just isn't remembered
+    }
+  }
+  const racingModel = useRacingModel()
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
   // each runner's real data-driven scratch (see toprate_price_refresh.py)
@@ -250,6 +269,12 @@ export function RaceDetail({
         .sort((a, b) => a.raceNumber - b.raceNumber),
     [allRaces, race.venue, race.date],
   )
+
+  const modelMap = useMemo(
+    () => (racingModel ? modelSpeedMap(race, racingModel, effectiveScratched) : null),
+    [race, racingModel, effectiveScratched],
+  )
+  const useModelMap = modelMap != null && speedMapSource === 'model'
 
   function onSort(key: SortKey) {
     if (key === sortKey) {
@@ -538,16 +563,33 @@ export function RaceDetail({
 
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
-      <div className="flex items-center justify-end gap-1.5">
-        <Pill active={speedMapView === 'grid'} onClick={() => setSpeedMapView('grid')}>
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        {modelMap && (
+          <>
+            <Pill active={useModelMap} onClick={() => setSpeedMapSource('model')}>
+              Racing Model
+            </Pill>
+            <Pill active={!useModelMap} onClick={() => setSpeedMapSource('toprate')}>
+              TopRate
+            </Pill>
+            <span className="mx-1 h-4 w-px bg-line" />
+          </>
+        )}
+        <Pill active={speedMapView === 'grid' || useModelMap} onClick={() => setSpeedMapView('grid')}>
           Grid
         </Pill>
-        <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
-          Bar
-        </Pill>
+        {!useModelMap && (
+          <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
+            Bar
+          </Pill>
+        )}
       </div>
-      {speedMapView === 'grid' ? (
-        <SpeedMapGrid race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
+      {speedMapView === 'grid' || useModelMap ? (
+        <SpeedMapGrid
+          race={race}
+          runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))}
+          model={useModelMap ? modelMap : null}
+        />
       ) : (
         <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
       )}

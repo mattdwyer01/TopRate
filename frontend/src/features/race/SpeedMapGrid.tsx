@@ -2,9 +2,23 @@ import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
 import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 
+// Racing Model source (lib/racingModel.ts): the independent model's own settle projection placed on this
+// same grid. Positions come from its settle share (same 0 = leads, 1 = last scale as predictedRelSettle),
+// the tint from its position value (WPR points vs this race, already relative to the field), the number
+// under each name is its projected rating, and the tempo chip is its own pace forecast.
+export interface ModelSpeedMap {
+  relSettle: Map<string, number>
+  rating: Map<string, number | null>
+  tone: Map<string, number | null>
+  toneThreshold: number
+  tempoBucket: string
+  paceLabel: string
+}
+
 interface SpeedMapGridProps {
   race: Race
   runners: Runner[]
+  model?: ModelSpeedMap | null
 }
 
 // 10 tactical columns, Backmarker (left) -> Leader (right) - originally 6,
@@ -115,10 +129,13 @@ function columnIndexOf(rel: number): number {
 // Exported as SPEED_MAP_TINT_THRESHOLD from raceModel.ts (2026-09-19) so
 // the race table's own "SM Adj" column colours in agreement with this tile
 // tint's own neutral zone - see that export's own comment.
-function threatTone(displaySpeedMap: number | undefined | null): 'help' | 'hurt' | 'neutral' {
+function threatTone(
+  displaySpeedMap: number | undefined | null,
+  threshold = SPEED_MAP_TINT_THRESHOLD,
+): 'help' | 'hurt' | 'neutral' {
   if (displaySpeedMap == null) return 'neutral'
-  if (displaySpeedMap <= -SPEED_MAP_TINT_THRESHOLD) return 'hurt'
-  if (displaySpeedMap >= SPEED_MAP_TINT_THRESHOLD) return 'help'
+  if (displaySpeedMap <= -threshold) return 'hurt'
+  if (displaySpeedMap >= threshold) return 'help'
   return 'neutral'
 }
 
@@ -285,8 +302,9 @@ function railToBottomLayout<T>(ascending: T[], subCols: number): GridPlacement<T
 // within that spot" (sub-column position) read visually, the same way
 // Racing NSW's own speed maps spread a crowded tactical slot sideways
 // rather than stacking it into one long single-file column.
-export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
+export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
   const pace = estimatePace(race, runners)
+  const tempoBucket = model ? model.tempoBucket : pace.tempoBucket
 
   if (!runners.length) {
     return (
@@ -300,7 +318,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   const columns: Runner[][] = COLUMNS.map(() => [])
   const columnIdxByRunId = new Map<string, number>()
   for (const u of runners) {
-    const idx = columnIndexOf(relSettleOf(u))
+    const idx = columnIndexOf(model?.relSettle.get(u.runId) ?? relSettleOf(u))
     columns[idx].push(u)
     columnIdxByRunId.set(u.runId, idx)
   }
@@ -308,7 +326,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     col.sort((a, b) => (a.barrier ?? 99) - (b.barrier ?? 99))
   }
 
-  const cautionRunIds = computeCautionRunIds(runners, fieldSize, columnIdxByRunId, pace.tempoBucket)
+  const cautionRunIds = computeCautionRunIds(runners, fieldSize, columnIdxByRunId, tempoBucket)
 
   // Display-only demeaning against THIS race's own speed_map values - see
   // threatTone's own comment above for why. Never touches wpr_projection.py
@@ -329,8 +347,9 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   // mobile (compact, single sub-column, fills its 1/6-width grid cell)
   // layouts below - see each layout's own comment for why they differ.
   function renderCard(u: Runner, compact: boolean, gridPos?: { row: number; col: number }) {
-    const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
-    const tone = threatTone(displaySpeedMap)
+    const displaySpeedMap = (model ? model.tone.get(u.runId) : displaySpeedMapByRunId.get(u.runId)) ?? null
+    const tone = threatTone(displaySpeedMap, model?.toneThreshold)
+    const rating = model ? (model.rating.get(u.runId) ?? null) : u.projectedWpr
     const drawFrac = drawFracOf(u, fieldSize)
     const caution = cautionRunIds.has(u.runId)
     const titleParts = [
@@ -342,7 +361,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
       `${u.tabNumber}. ${u.horse}`,
       u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
       displaySpeedMap != null
-        ? `speed_map vs this field's average: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
+        ? `${model ? 'Position value (WPR pts vs this race)' : "speed_map vs this field's average"}: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
         : null,
       caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
     ].filter(Boolean)
@@ -427,9 +446,9 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
         <span className={`w-full truncate font-medium leading-tight text-ink ${compact ? 'text-[9px]' : 'text-xs'}`}>
           {compact ? u.horse : `${u.tabNumber}.${u.horse}`}
         </span>
-        {u.projectedWpr != null && (
+        {rating != null && (
           <span className={`font-mono text-ink-faint ${compact ? 'text-[9px]' : 'text-[11px]'}`}>
-            {u.projectedWpr.toFixed(1)}
+            {rating.toFixed(1)}
           </span>
         )}
       </div>
@@ -439,13 +458,15 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold text-ink">Speed map</span>
+        <span className="text-sm font-semibold text-ink">{model ? 'Speed map · Racing Model' : 'Speed map'}</span>
         <span className="text-xs text-ink-faint">
-          Predicted running position &middot; tint = vs the rest of THIS field (green favoured, red hurt) &middot;
-          side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
+          {model
+            ? 'Projected position at the 800m · tint = position value vs THIS field (green favoured, red hurt) · number = projected rating'
+            : 'Predicted running position · tint = vs the rest of THIS field (green favoured, red hurt)'}{' '}
+          &middot; side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
         </span>
         <span className="rounded-full bg-bg px-2 py-0.5 font-mono text-xs text-ink-mute">
-          {pace.display}
+          {model ? model.paceLabel : pace.display}
         </span>
       </div>
 
