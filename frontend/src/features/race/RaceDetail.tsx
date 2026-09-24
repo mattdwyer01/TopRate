@@ -11,6 +11,7 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
+import { RacingModelPanel } from './RacingModelPanel'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
@@ -550,6 +551,8 @@ export function RaceDetail({
       ) : (
         <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
       )}
+
+      <RacingModelPanel race={race} scratched={effectiveScratched} />
 
       {selectedRunner && (
         <RunnerDetailModal
