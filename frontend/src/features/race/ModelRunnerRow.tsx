@@ -1,5 +1,6 @@
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { spellPosition } from '../../lib/spellPosition'
+import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { MODEL_GRID, type ModelRow } from '../../lib/modelTable'
 
 // Racing Model view of the ratings table (RaceDetail's "Racing Model" source, see lib/racingModel.ts):
@@ -39,6 +40,10 @@ export function ModelRunnerRow({ row, raceDate, compact, selected, scratched, on
   const edge = scratched ? null : (b?.edge ?? null)
   const dash = (v: string) => (scratched ? 'SCR' : v)
   const onlyFull = compact ? 'hidden sm:inline' : ''
+  const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
+  const showMove = !scratched && priceMove != null && priceMove.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT
+  const edgeText = edge == null ? (scratched ? 'SCR' : '—') : `${edge > 0 ? '+' : ''}${Math.round(edge * 100)}%`
+  const edgeTone = edge != null && edge > 0 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'
 
   return (
     <div
@@ -54,7 +59,7 @@ export function ModelRunnerRow({ row, raceDate, compact, selected, scratched, on
       title={edge != null && edge > 0 ? 'Value: the blend price is shorter than the fixed price' : undefined}
       className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 ${
         MODEL_GRID.desktop
-      } ${compact ? MODEL_GRID.compact : `${MODEL_GRID.full} max-sm:text-xs`} ${rowPadding} ${
+      } ${compact ? MODEL_GRID.compact : MODEL_GRID.full} ${rowPadding} ${
         scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -73,6 +78,14 @@ export function ModelRunnerRow({ row, raceDate, compact, selected, scratched, on
             {runner.horse}
           </span>
           <span className="hidden flex-none font-mono text-[11px] text-ink-faint sm:inline">({runner.barrier ?? '-'})</span>
+          {runner.dataScratched && (
+            <span
+              title="Scratched (confirmed by TopRate)"
+              className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white"
+            >
+              SCR
+            </span>
+          )}
           {!scratched && m?.pf === 1 && (
             <span className="flex-none text-[11px] text-indigo" title="Position value in the top 10%">
               ◆
@@ -100,11 +113,28 @@ export function ModelRunnerRow({ row, raceDate, compact, selected, scratched, on
         {dash(signed(m?.pv))}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">{dash(fmtPrice(m?.p ? 1 / m.p : null))}</span>
-      <span className="text-right font-mono text-ink">{dash(fmtPrice(b?.blendPrice))}</span>
-      <span className="text-right font-mono text-ink-mute">{dash(fmtPrice(runner.fixedWinPrice))}</span>
-      <span className={`text-right font-mono ${edge != null && edge > 0 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`}>
-        {edge == null ? (scratched ? 'SCR' : '—') : `${edge > 0 ? '+' : ''}${Math.round(edge * 100)}%`}
+      {/* Blend $ with, on mobile Full, the edge stacked under it (same pattern as Proj's confidence line in
+          RunnerRow); desktop and Compact show Edge as its own column instead. */}
+      <span className="text-right font-mono text-ink">
+        <span className="flex flex-col items-end gap-0.5 sm:contents">
+          <span>{dash(fmtPrice(b?.blendPrice))}</span>
+          {!compact && !scratched && (
+            <span className={`text-[10px] leading-none sm:hidden ${edgeTone}`}>{edge == null ? '' : `edge ${edgeText}`}</span>
+          )}
+        </span>
       </span>
+      <span className="flex items-center justify-end font-mono text-ink-mute">
+        <span>{dash(fmtPrice(runner.fixedWinPrice))}</span>
+        <span
+          className={`ml-1 w-2.5 flex-none text-center text-[10px] leading-none ${
+            showMove ? (priceMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose') : 'invisible'
+          }`}
+          title={showMove ? `Opened ${fmtPrice(runner.openFixedPrice)} - ${priceMove.direction} ${priceMove.pctChange.toFixed(0)}%` : undefined}
+        >
+          {showMove ? (priceMove.direction === 'firmed' ? '▼' : '▲') : '▲'}
+        </span>
+      </span>
+      <span className={`text-right font-mono ${edgeTone} ${compact ? '' : 'hidden sm:inline'}`}>{edgeText}</span>
       <span className="text-right">
         <span
           className={`inline-flex h-5 w-5 items-center justify-center rounded-full font-mono text-ink-mute ${

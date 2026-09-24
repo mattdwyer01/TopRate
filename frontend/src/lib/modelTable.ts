@@ -16,12 +16,13 @@ export interface ModelRow {
 
 export const MODEL_GRID = {
   desktop: 'sm:grid-cols-[44px_36px_1fr_48px_56px_56px_44px_52px_60px_68px_68px_76px_56px_52px]',
-  full: 'gap-x-[3px] grid-cols-[40px_minmax(64px,1fr)_28px_16px_28px_42px_42px_30px_18px]',
-  compact: 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_34px_52px_60px_36px_20px]',
+  full: 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_40px_22px_36px_60px_72px_20px]',
+  compact: 'gap-x-1 grid-cols-[40px_minmax(64px,1fr)_40px_60px_72px_40px_20px]',
 }
 
 // label: desktop header; short: mobile header (only columns shown on mobile have one); dir: first-click
-// direction (best first); compact: shown in mobile Compact as well as Full.
+// direction (best first); compact: shown in mobile Compact; fullOnly false: not a mobile Full column (Edge
+// rides under Blend $ there, like Proj's confidence line in TopRate's view).
 export const MODEL_COLUMNS: {
   key: ModelSortKey
   label: string
@@ -29,6 +30,7 @@ export const MODEL_COLUMNS: {
   title: string
   dir: 'asc' | 'desc'
   compact?: boolean
+  full?: boolean
 }[] = [
   { key: 'tab', label: '#', title: 'Saddlecloth', dir: 'asc' },
   { key: 'horse', label: 'Horse', short: 'Horse', title: 'Horse', dir: 'asc', compact: true },
@@ -41,7 +43,7 @@ export const MODEL_COLUMNS: {
   { key: 'model', label: 'Model $', title: 'Racing Model alone (no market input)', dir: 'asc' },
   { key: 'blend', label: 'Blend $', short: 'Bld $', title: 'Racing Model blended with the current fixed price', dir: 'asc', compact: true },
   { key: 'fixed', label: 'Fixed $', short: 'Fixed $', title: 'Current TAB fixed price', dir: 'asc', compact: true },
-  { key: 'edge', label: 'Edge', short: 'Edge', title: 'Blend probability x fixed price - 1', dir: 'desc', compact: true },
+  { key: 'edge', label: 'Edge', short: 'Edge', title: 'Blend probability x fixed price - 1', dir: 'desc', compact: true, full: false },
   { key: 'finish', label: 'FP', short: 'FP', title: 'Finish position', dir: 'asc', compact: true },
 ]
 
