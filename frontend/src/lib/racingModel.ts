@@ -22,6 +22,7 @@ export interface RMRunner {
   jt: number | null // jockey / trainer contribution (WPR points vs field)
   pv?: number | null // position value: expected worth of the projected position and width (WPR points vs race)
   pf?: number // 1 = position value in the top 10% (the group the market has underrated in testing)
+  gb?: Record<string, number> // rating breakdown by part, WPR points vs the field (sums to v)
 }
 
 export interface RMRace {

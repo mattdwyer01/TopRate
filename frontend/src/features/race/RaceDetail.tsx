@@ -153,23 +153,8 @@ export function RaceDetail({
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
-  // Source for the ratings table and the speed map: the Racing Model (lib/racingModel.ts) or TopRate's own.
-  // One switch for both, remembered per browser; only offered when the model has projected this race.
-  const [source, setSourceState] = useState<'toprate' | 'model'>(() => {
-    try {
-      return window.localStorage.getItem('ratingsSource') === 'toprate' ? 'toprate' : 'model'
-    } catch {
-      return 'model'
-    }
-  })
-  function setSource(v: 'toprate' | 'model') {
-    setSourceState(v)
-    try {
-      window.localStorage.setItem('ratingsSource', v)
-    } catch {
-      // storage unavailable (private browsing): the choice just isn't remembered
-    }
-  }
+  // The race page shows the Racing Model (lib/racingModel.ts) whenever it has projected the race; TopRate's own
+  // rating table and speed map remain only as the fallback for races it has not.
   const [modelSort, setModelSort] = useState<{ key: ModelSortKey; dir: 'asc' | 'desc' }>({ key: 'r', dir: 'desc' })
   const racingModel = useRacingModel()
 
@@ -236,7 +221,7 @@ export function RaceDetail({
   // Racing Model view of the table: every runner (scratched last, as above) with the model's figures and
   // the blend recomputed from the current fixed prices.
   const hasModel = racingModel != null && race.runners.some((r) => racingModel.runners[r.runId])
-  const useModel = hasModel && source === 'model'
+  const useModel = hasModel
   const modelRows = useMemo((): ModelRow[] => {
     if (!racingModel || !hasModel) return []
     const blend = blendRace(race, racingModel, effectiveScratched)
@@ -309,13 +294,20 @@ export function RaceDetail({
     () => (racingModel ? modelSpeedMap(race, racingModel, effectiveScratched) : null),
     [race, racingModel, effectiveScratched],
   )
-  const useModelMap = modelMap != null && useModel
+  const useModelMap = modelMap != null
 
   function onModelSort(key: ModelSortKey) {
     const col = MODEL_COLUMNS.find((c) => c.key === key)
     setModelSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: col?.dir ?? 'desc' }))
   }
   const modelMeta = racingModel?.races[race.raceId]
+  const selectedModel = useMemo(() => {
+    const row = modelRows.find((x) => x.runner.runId === selectedRunId)
+    if (!row || !row.m) return null
+    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && x.m?.r != null)
+    const rank = active.filter((x) => (x.m?.r ?? -1e9) > (row.m?.r ?? -1e9)).length + 1
+    return { m: row.m, blend: row.b, settleRank: row.settleRank, rank: row.m.r == null ? null : rank, fieldSize: active.length }
+  }, [modelRows, selectedRunId, effectiveScratched])
   const bias = biasText(modelMeta?.bias)
 
   function onSort(key: SortKey) {
@@ -407,17 +399,6 @@ export function RaceDetail({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">
-          {hasModel && (
-            <>
-              <Pill active={useModel} onClick={() => setSource('model')}>
-                Racing Model
-              </Pill>
-              <Pill active={!useModel} onClick={() => setSource('toprate')}>
-                TopRate
-              </Pill>
-              <span className="mx-1 h-4 w-px bg-line" />
-            </>
-          )}
           <Pill active={compact} onClick={() => setCompact(true)}>Compact</Pill>
           <Pill active={!compact} onClick={() => setCompact(false)}>Full</Pill>
           {scratchedInRace > 0 && (
@@ -754,6 +735,7 @@ export function RaceDetail({
           onClose={() => setSelectedRunId(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
+          model={selectedModel}
         />
       )}
     </div>
