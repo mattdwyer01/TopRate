@@ -18,8 +18,3 @@ export function fmtInt(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '-'
   return String(Math.round(v))
 }
-
-// Carried weight (kg, claim already taken off: TAB race cards via tab_fields.py), e.g. "57kg" / "56.5kg".
-export function fmtWeight(v: number | null | undefined): string {
-  return v == null || !Number.isFinite(v) ? '' : `${Number.isInteger(v) ? v : v.toFixed(1)}kg`
-}
