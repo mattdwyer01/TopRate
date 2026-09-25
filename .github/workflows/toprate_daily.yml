@@ -58,6 +58,8 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           # Pull in case another run pushed during our execution
           git pull --rebase origin main || true
+          # TAB carried weights the poller pushed while this job ran: keep them (merge_remote_weights.py)
+          git fetch origin main && python merge_remote_weights.py origin/main || true
           # Add each file individually so one missing file doesn't fail the rest
           git add toprate_runners.csv 2>/dev/null || true
           git add toprate_selections.csv 2>/dev/null || true

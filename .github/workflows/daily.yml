@@ -250,6 +250,8 @@ jobs:
             [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
           }
 
+          # TAB carried weights the poller pushed while this job ran: keep them (merge_remote_weights.py)
+          timeout 120 git fetch origin main && python merge_remote_weights.py origin/main || echo "weights merge skipped"
           stage_generated_files
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
@@ -313,6 +315,7 @@ jobs:
             fi
 
             git reset --mixed origin/main
+            python merge_remote_weights.py origin/main || true
             stage_generated_files
             if git diff --cached --quiet; then
               echo "Nothing left to commit after reset (attempt $i) - remote already has our changes"
