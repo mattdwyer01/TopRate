@@ -489,11 +489,38 @@ def _select_meeting_ids(args):
     if CHECKPOINT_FILE.exists():
         checkpoint = set(CHECKPOINT_FILE.read_text().split())
         print(f"  Resuming: {len(checkpoint):,} meetings already fetched per checkpoint")
+    if getattr(args, "refresh_preliminary", False):
+        prelim = preliminary_meeting_ids(args.since)
+        if prelim:
+            print(f"  --refresh-preliminary: {len(prelim & checkpoint):,} checkpointed meetings still hold "
+                  f"Preliminary WPRs - re-fetching them")
+        checkpoint = checkpoint - prelim
     meeting_ids = [m for m in meeting_ids if m not in checkpoint]
 
     if args.limit:
         meeting_ids = meeting_ids[:args.limit]
     return meeting_ids, checkpoint
+
+
+def preliminary_meeting_ids(since=None):
+    """meeting_ids with at least one row still marked wprStatus == "Preliminary" in the year files (on/after
+    `since`). TopRate finalises a meeting's WPRs days after the race (and they can move a lot: 8 Sep 2026
+    Muswellbrook came down 11.5 points), but rows here were written once and never replaced, so a meeting fetched
+    while preliminary stayed preliminary for good. --refresh-preliminary re-fetches these (Sep 2026)."""
+    out = set()
+    for path in sorted(Path(__file__).parent.glob("race_results_*.csv.gz")):
+        if since and path.stem.split("_")[-1].split(".")[0] < since[:4]:
+            continue
+        try:
+            d = pd.read_csv(path, usecols=["meeting_id", "date", "wprStatus"], dtype={"meeting_id": str},
+                            low_memory=False)
+        except ValueError:
+            continue
+        d = d[d["wprStatus"].astype(str).str.lower() == "preliminary"]
+        if since:
+            d = d[d["date"].astype(str).str[:10] >= since]
+        out |= set(d["meeting_id"].dropna().astype(str).str.replace(r"\.0$", "", regex=True))
+    return out
 
 
 def run_fetch_phase(meeting_ids, workers):
@@ -567,12 +594,14 @@ def write_checkpoint(meeting_ids):
           f"({len(combined):,} total)")
 
 
-def merge_race_results(race_rows, commit, backup=True):
+def merge_race_results(race_rows, commit, backup=True, replace_preliminary=False):
     """Append genuinely new (race_id, horse_id) rows to
     race_results_YYYY.csv.gz, one file per year (parsed from each row's
     own "date" - see module OUTPUTS docstring for why split by year).
-    Never overwrites an existing row - these files only grow. Returns
-    total new rows written across all years."""
+    Never overwrites an existing row - these files only grow - EXCEPT with
+    replace_preliminary (--refresh-preliminary): an existing row still marked
+    wprStatus "Preliminary" is replaced by the freshly fetched row for the same
+    (race_id, horse_id). Returns total new or replaced rows written."""
     new_all = pd.DataFrame(race_rows)
     if new_all.empty:
         print("  no race-result rows to merge")
@@ -593,13 +622,22 @@ def merge_race_results(race_rows, commit, backup=True):
             existing = pd.DataFrame()
             print(f"  no existing {path.name} - will create one")
 
+        n_replaced = 0
+        if not existing.empty and replace_preliminary and "wprStatus" in existing.columns:
+            new_keys = set(zip(new["race_id"].astype(str), new["horse_id"].astype(str)))
+            ek = list(zip(existing["race_id"].astype(str), existing["horse_id"].astype(str)))
+            stale = (existing["wprStatus"].astype(str).str.lower() == "preliminary").to_numpy() & \
+                pd.Series([k in new_keys for k in ek]).to_numpy()
+            n_replaced = int(stale.sum())
+            existing = existing[~stale].reset_index(drop=True)
+            print(f"  {year}: {n_replaced:,} preliminary rows will be replaced by their refetched version")
         if not existing.empty:
             existing_keys = set(zip(existing["race_id"].astype(str), existing["horse_id"].astype(str)))
             before = len(new)
             new = new[~new.apply(lambda r: (r["race_id"], r["horse_id"]) in existing_keys, axis=1)]
             print(f"  {year}: {before - len(new):,} rows already present, skipped")
 
-        print(f"  {year}: {len(new):,} genuinely new rows")
+        print(f"  {year}: {len(new) - n_replaced:,} genuinely new rows")
         if new.empty:
             continue
         total_new += len(new)
@@ -680,6 +718,8 @@ def main():
     ap.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     ap.add_argument("--fetch-only", metavar="OUT.json", default=None,
                      help="Fetch phase only: write results here, never touch the CSVs")
+    ap.add_argument("--refresh-preliminary", action="store_true",
+                     help="Re-fetch meetings whose rows are still Preliminary and replace those rows")
     ap.add_argument("--merge-only", metavar="IN.json", default=None,
                      help="Merge phase only: read results from here, no network calls")
     args = ap.parse_args()
@@ -706,7 +746,8 @@ def main():
                 race_rows = json.load(f).get("race_rows", [])
             total_race_rows += len(race_rows)
             print(f"Loaded {len(race_rows):,} race rows from {yf.name}")
-            merge_race_results(race_rows, commit=args.commit, backup=True)
+            merge_race_results(race_rows, commit=args.commit, backup=True,
+                               replace_preliminary=args.refresh_preliminary)
             if args.commit:
                 all_meeting_ids |= checkpoint_meeting_ids(race_rows)
             del race_rows  # free this year's rows before loading the next
@@ -754,7 +795,7 @@ def main():
     # Combined mode: merge immediately using this same process's fetch
     # results. Fine for a local manual run; the split mode above is what
     # the GitHub Action uses, same reasoning as backfill_bulk_meeting_fields.py.
-    merge_race_results(race_rows, commit=args.commit)
+    merge_race_results(race_rows, commit=args.commit, replace_preliminary=args.refresh_preliminary)
     merge_track_codes(track_rows, commit=args.commit)
     if args.commit:
         write_checkpoint(checkpoint_meeting_ids(race_rows))
