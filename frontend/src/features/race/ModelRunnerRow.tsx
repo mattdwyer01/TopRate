@@ -1,4 +1,4 @@
-import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtInt, fmtPrice, fmtWeight, fmtWpr } from '../../lib/format'
 import { spellPosition } from '../../lib/spellPosition'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { MODEL_GRID, type ModelRow } from '../../lib/modelTable'
@@ -94,10 +94,12 @@ export function ModelRunnerRow({ row, raceDate, compact, selected, scratched, on
         </span>
         {!compact && (
           <span className="block truncate text-xs text-ink-faint">
-            <span className="sm:hidden">
+            {/* mobile: spell and barrier on their own line, so the weight (next line) is not cut off */}
+            <span className="block sm:hidden">
               <span className={`font-mono ${rtsColorClass}`}>{spell.label}</span>
-              {` · b${runner.barrier ?? '-'} · `}
+              {` · b${runner.barrier ?? '-'}`}
             </span>
+            {runner.weightCarried != null && <span className="font-mono">{fmtWeight(runner.weightCarried)} · </span>}
             {runner.jockey} / {runner.trainer}
           </span>
         )}
