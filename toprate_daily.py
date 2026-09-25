@@ -2574,7 +2574,15 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         print(f"Already have {len(existing)} runners for {today_str} ({len(pending_today)} pending) — skipping fetch.")
         print(f"  (Use --date {today_str} to re-fetch)")
         return runners_df
-    elif target_date_str is not None and len(pending_today) > 0:
+    # Weights of the pending rows a re-fetch removes below: toprate.au sends none, so they only exist here
+    # (TAB race cards via tab_fields.py). Kept aside and restored onto the re-fetched rows by run_id - the
+    # weight_carried block further down only sees what is still in runners_df, which no longer has these rows
+    # (25 Sep 2026: a same-day re-fetch shipped every runner of the day without a weight).
+    _removed_wc = pd.Series(dtype=float)
+    if len(pending_today) and "weight_carried" in pending_today.columns and "run_id" in pending_today.columns:
+        _w = pd.to_numeric(pending_today["weight_carried"], errors="coerce")
+        _removed_wc = _w[_w.notna()].groupby(pending_today.loc[_w.notna(), "run_id"]).last()
+    if target_date_str is not None and len(pending_today) > 0:
         # Remove pending rows only, keep resulted
         n_remove = len(pending_today)
         runners_df = runners_df[
@@ -2960,9 +2968,12 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         # tab_results_poller fills them from TAB race cards (tab_fields.py). A
         # re-fetch must not wipe them: keep the existing value where the new
         # row has none.
-        if "weight_carried" in runners_df.columns and "run_id" in runners_df.columns:
-            _wc = pd.to_numeric(runners_df["weight_carried"], errors="coerce")
-            _known_wc = _wc[_wc.notna()].groupby(runners_df.loc[_wc.notna(), "run_id"]).last()
+        if "run_id" in runners_df.columns:
+            _known_wc = _removed_wc
+            if "weight_carried" in runners_df.columns:
+                _wc = pd.to_numeric(runners_df["weight_carried"], errors="coerce")
+                _known_wc = pd.concat([_removed_wc, _wc[_wc.notna()].groupby(runners_df.loc[_wc.notna(), "run_id"]).last()])
+                _known_wc = _known_wc[~_known_wc.index.duplicated(keep="last")]
             if len(_known_wc) and "weight_carried" in new_df.columns:
                 _new_wc = pd.to_numeric(new_df["weight_carried"], errors="coerce")
                 new_df["weight_carried"] = _new_wc.fillna(new_df["run_id"].map(_known_wc))
