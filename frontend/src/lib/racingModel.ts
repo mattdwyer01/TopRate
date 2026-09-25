@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Race } from '../types/domain'
+import type { Race, Runner } from '../types/domain'
 import type { ModelSpeedMap } from '../features/race/SpeedMapGrid'
 
 // Racing Model layer (Sep 2026): a second, independent model's projections, produced daily by the
@@ -143,4 +143,43 @@ export function modelSpeedMap(race: Race, rm: RMPayload, excluded: Set<string>):
     tempoBucket: names[top],
     paceLabel: pace ? `${names[top]} likely · slow ${pct(pace[0])} even ${pct(pace[1])} fast ${pct(pace[2])}` : 'Pace n/a',
   }
+}
+
+// TopRate Combo with the Racing Model's race-day learnings (Sep 2026, user decision: Combo is the rating shown, with the
+// Racing Model's speed map and adjustments). Each runner's TopRate WPR projection has TopRate's own speed_map and
+// track_barrier terms taken out and the Racing Model's parts put in, all relative to the field, so Proj, WPR $ and
+// Combo (lib/raceModel.ts compositeScore) all use the adjusted figure. Which parts go in was chosen on pre-race data
+// (racing-model tools/combo_redesign_test.py, reports/combo_redesign_test.md).
+export const COMBO_MODEL_PARTS = {
+  raceDay: true, // projected settle / width / pace cost (incl. GPS ground-loss projection) + track bias
+  pastGroundLoss: true, // GPS: credit for extra ground / width covered in past runs
+  positionValue: false, // expected worth of the projected position and width
+}
+
+function modelPart(m: RMRunner): number {
+  return (
+    (COMBO_MODEL_PARTS.raceDay ? (m.d ?? 0) : 0) +
+    (COMBO_MODEL_PARTS.pastGroundLoss ? (m.gb?.['ground loss (past runs)'] ?? 0) : 0) +
+    (COMBO_MODEL_PARTS.positionValue ? (m.pv ?? 0) : 0)
+  )
+}
+
+export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): Runner[] {
+  if (!rm) return runners
+  const has = runners.filter((r) => r.projectedWpr != null && rm.runners[r.runId])
+  if (has.length < 2) return runners
+  const tpOf = (r: Runner) => (r.adjustmentBreakdown?.speed_map ?? 0) + (r.adjustmentBreakdown?.track_barrier ?? 0)
+  const tpMean = has.reduce((s, r) => s + tpOf(r), 0) / has.length
+  const ourMean = has.reduce((s, r) => s + modelPart(rm.runners[r.runId]), 0) / has.length
+  return runners.map((r) => {
+    const m = rm.runners[r.runId]
+    if (!m || r.projectedWpr == null) return r
+    const ours = modelPart(m) - ourMean
+    return {
+      ...r,
+      projectedWpr: r.projectedWpr - (tpOf(r) - tpMean) + ours,
+      // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
+      adjustmentBreakdown: { ...(r.adjustmentBreakdown ?? {}), speed_map: ours, track_barrier: 0 },
+    }
+  })
 }
