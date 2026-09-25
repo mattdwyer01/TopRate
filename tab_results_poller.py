@@ -942,7 +942,10 @@ def run_once(push=True):
     did_full_rebuild = False
     if n_weighted:
         print(f"  Filled weight_carried for {n_weighted} runners from TAB race cards")
-    if changed_venues or n_weighted or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
+    # weights alone do not force a full rebuild (3-4 min): toprate_runners.csv carries them now and the next
+    # daily / conditions rebuild puts them in toprate_data.json. Forcing it every cycle the weights were re-applied
+    # made cycles 7-10 min and their pushes collide (25 Sep 2026).
+    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
