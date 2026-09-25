@@ -729,7 +729,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {usingComposite ? `${gapThreshold.toFixed(1)} pts (Combo)` : `${gapThreshold} WPR`} from top rated
+                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
@@ -738,7 +738,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                    {COMPOSITE_INNER_GAP_FROM_TOP.toFixed(1)} pts (Combo) from top rated
+                    {COMPOSITE_INNER_GAP_FROM_TOP} pts (Combo) from top rated
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
