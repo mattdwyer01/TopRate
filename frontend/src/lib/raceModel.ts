@@ -301,7 +301,12 @@ const PFM_POP_STD = 30.88
 // 10, a real user decision (2026-09-19: "leave at 10, boost wpr to 0.5
 // in combo") after being shown the margin/threshold analysis
 // (wpr_combo_race_tab_capture_analysis.py) that motivated it.
-export const COMPOSITE_MAX_GAP_FROM_TOP = 10
+// 25 Sep 2026: Combo is now shown on the TopRate rating scale (see compositeScore), so the lines are in
+// TopRate rating points. racing-model tools/combo_lines_test.py (1,027 races Apr to Sep 2026, pre-race values):
+// within 10 WPR (2.6 TR) holds 90% of winners, outside it A/E 0.86 and ROI -46%; beyond 15 WPR (3.9 TR) is 2% of
+// winners. The inner line at 4 WPR (1.0 TR) holds 58% of winners in 2.8 runners a race (A/E 1.04 inside).
+export const COMPOSITE_MAX_GAP_FROM_TOP = 2.6
+export const COMPOSITE_INNER_GAP_FROM_TOP = 1.0
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -331,7 +336,10 @@ export function compositeScore(runner: Runner, effectiveWpr?: number | null): nu
     weightedSum += COMPOSITE_WEIGHT_FORM_FACTOR * pfmRescaled
     weightTotal += COMPOSITE_WEIGHT_FORM_FACTOR
   }
-  return weightedSum / weightTotal
+  // Blend on the WPR scale (weights validated there), then map back onto the TopRate rating scale so Combo
+  // reads like a TopRate rating (25 Sep 2026 user request). Linear, so the order is unchanged.
+  const comboWpr = weightedSum / weightTotal
+  return TRR_POP_MEAN + ((comboWpr - WPR_POP_MEAN) / WPR_POP_STD) * TRR_POP_STD
 }
 
 // Per-runner gap from the race's own top composite score - independent of

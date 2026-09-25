@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { evaluateTrackerQualifiers } from '../../lib/trackerRules'
@@ -273,9 +273,8 @@ export function RaceDetail({
   // raceModel.ts like OVERLAY_MAX_GAP_FROM_TOP/COMPOSITE_MAX_GAP_FROM_TOP
   // are) since nothing else references a "Combo gap of 5" - it exists
   // purely to draw this one line.
-  const COMBO_INNER_GAP_FROM_TOP = 5
   // Index of the LAST runner (by current Combo-sorted position) still
-  // within COMBO_INNER_GAP_FROM_TOP of the top Combo score - same
+  // within COMPOSITE_INNER_GAP_FROM_TOP of the top Combo score - same
   // precompute-once-not-per-row fix as before (real user report,
   // Caulfield R1: a per-row transition check fired 3 separate times on
   // one race since qualifying rows aren't always contiguous). Everyone AT
@@ -287,7 +286,7 @@ export function RaceDetail({
     let last = -1
     sortedRunners.forEach((r, idx) => {
       const g = compositeGapByRunId[r.runId]
-      if (g != null && g <= COMBO_INNER_GAP_FROM_TOP) last = idx
+      if (g != null && g <= COMPOSITE_INNER_GAP_FROM_TOP) last = idx
     })
     return last
   }, [sortedRunners, compositeGapByRunId, sortKey])
@@ -730,7 +729,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
+                    {usingComposite ? `${gapThreshold.toFixed(1)} pts (Combo)` : `${gapThreshold} WPR`} from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
@@ -739,7 +738,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                    {COMBO_INNER_GAP_FROM_TOP} pts (Combo) from top rated
+                    {COMPOSITE_INNER_GAP_FROM_TOP.toFixed(1)} pts (Combo) from top rated
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
