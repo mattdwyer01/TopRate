@@ -114,6 +114,9 @@ jobs:
           # it goes stale relative to the plain file this fast-path cycle
           # just patched.
           [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
+          # History half of the split payload (toprate_daily.py _write_payload), same rules as above
+          [ -f toprate_history.json ] && git add toprate_history.json
+          [ -f toprate_history.json.gz ] && git add toprate_history.json.gz
           # Per-meeting horse form history files - only touched on the rare
           # full-rebuild path (a real going change forces rebuild_html(), see
           # CLAUDE.md), but git-tracked and was missing from this staging

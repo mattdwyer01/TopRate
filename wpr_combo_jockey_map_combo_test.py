@@ -32,6 +32,7 @@ Read-only against toprate_data.json - writes nothing.
 """
 import json
 from datetime import date
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 DATA_JSON = "toprate_data.json"
 TODAY = date.today().isoformat()
@@ -80,8 +81,7 @@ def roi_stats(rows):
 
 
 def main():
-    with open(DATA_JSON) as f:
-        data = json.load(f)
+    data = payload_io.load_payload(DATA_JSON)
 
     rows_by_config = {}
     n_races = 0

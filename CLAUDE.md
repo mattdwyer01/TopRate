@@ -97,6 +97,12 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - `toprate_data.json` — the dashboard's data payload, RACES windowed to the last
   25 days (via `TOPRATE_RACES_WINDOW_DAYS`, reduced from 30 Sep 2026 after the
   30-day payload grew to 94.4MB) to stay under GitHub's 100MB file limit.
+  Split in two since 25 Sep 2026 (`toprate_daily._write_payload`): `toprate_data.json` holds today's and later
+  races plus every other key (~22MB, ~4MB gz: the page waits only for this), `toprate_history.json` the earlier
+  races (~67MB, ~14MB gz), fetched in the background and merged in by `useDashboardData` (refetched only when
+  `HISTORY_ISO` changes). `patch_data_json` patches both. Python readers wanting the whole window use
+  `payload_io.load_payload()`; any new script reading the payload must too. Both files (and .gz) must be staged
+  wherever `toprate_data.json` is.
 - `horse_history/<date>_<venue-slug>.json` (Sep 2026) — one file per race
   meeting, written by `toprate_daily.py`'s `build_horse_history_files()`
   (called from `rebuild_html()`), holding every horse racing at that meeting's

@@ -230,6 +230,9 @@ jobs:
             # client silently serves stale data until the next cycle that
             # DOES stage both.
             [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
+            # History half of the split payload (toprate_daily.py _write_payload), same rules as above
+            [ -f toprate_history.json ] && git add toprate_history.json
+            [ -f toprate_history.json.gz ] && git add toprate_history.json.gz
             # Gzipped WPR form history - committed so it persists and accumulates
             # across ephemeral Action runs (append needs the prior file).
             [ -f wpr_form_history.csv.gz ] && git add wpr_form_history.csv.gz

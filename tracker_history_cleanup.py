@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 from speedmap_jockey_tracker import build_candidates, _load_pfm_lookup, _bush_meeting_keys
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 _DIR = Path(__file__).parent
 DATA_JSON = _DIR / "toprate_data.json"
@@ -25,7 +26,7 @@ TRACKER_B_CSV = _DIR / "tracker_low_volume.csv"
 
 
 def main():
-    data = json.load(open(DATA_JSON))
+    data = payload_io.load_payload(DATA_JSON)
     pfm_rank_by_rid, pfm_score_by_rid = _load_pfm_lookup()
     bush_keys = _bush_meeting_keys(data)
 

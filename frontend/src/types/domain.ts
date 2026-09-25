@@ -221,4 +221,6 @@ export interface DashboardData {
   // Softmax beta behind wprPrice - lets the UI replicate the exact price
   // formula when a manual rating override changes the field's ratings.
   priceBeta: number | null
+  // When toprate_history.json (earlier races) was last written; undefined = single-file payload, nothing to fetch.
+  historyIso?: string
 }

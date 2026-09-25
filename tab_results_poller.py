@@ -829,6 +829,8 @@ def commit_and_push():
         return
 
     tracked = ["toprate_runners.csv", "toprate_data.json"]
+    tracked += [f for f in ("toprate_data.json.gz", "toprate_history.json", "toprate_history.json.gz")
+                if Path(f).exists()]
     # Only add these if they actually exist -- a fresh checkout before
     # daily.yml/speedmap_jockey_tracker.py has ever written them would make
     # `git add` fail on a missing pathspec and abort the whole commit.

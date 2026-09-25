@@ -166,7 +166,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
   }
 }
 
-function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] | undefined): Race {
+export function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] | undefined): Race {
   return {
     raceId: r.race_id,
     date: r.date,
@@ -224,5 +224,6 @@ export function adaptDashboardPayload(
     runIso: raw.RUN_ISO,
     githubRepo: raw.GITHUB_REPO,
     priceBeta: raw.PRICE_BETA,
+    historyIso: raw.HISTORY_ISO,
   }
 }

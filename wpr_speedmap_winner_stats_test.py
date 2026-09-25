@@ -39,6 +39,7 @@ in CLAUDE.md).
 import json
 import statistics
 from datetime import date
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 DATA_JSON = "toprate_data.json"
 TODAY = date.today().isoformat()
@@ -116,8 +117,7 @@ def compute_caution_run_ids(runners: list, field_size: int, col_idx_by_rid: dict
 
 
 def main():
-    with open(DATA_JSON) as f:
-        data = json.load(f)
+    data = payload_io.load_payload(DATA_JSON)
 
     winner_demeaned = []
     winner_tags = []

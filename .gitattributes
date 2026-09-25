@@ -41,3 +41,8 @@ toprate_data.json binary
 # conflict-resolution reasoning as that file above (a compressed blob has
 # even less for a text-style merge to do than the minified JSON does).
 toprate_data.json.gz binary
+
+# toprate_history.json(.gz) (Sep 2026): past races split out of toprate_data.json (toprate_daily.py
+# _write_payload), same single-line / compressed reasoning as above.
+toprate_history.json binary
+toprate_history.json.gz binary
