@@ -859,15 +859,15 @@ def run_once(push=True):
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
     tab_price_log.append(prices)  # before any early return, so every read is kept
-    # Twice a day: TAB race cards for today + tomorrow -> weight_carried (best-effort, see tab_fields.py)
-    fields_res = tab_fields.maybe_run(sys.modules[__name__], td.load_runners)
-    n_weighted = fields_res[1] if fields_res else 0
+    # Twice a day: TAB race cards for today + tomorrow -> the fields log; every cycle the logged weights are
+    # (re)applied to weight_carried (best-effort, see tab_fields.py)
+    n_read = tab_fields.maybe_fetch(sys.modules[__name__])
 
-    if not results and not conditions and not prices and not unplaced_races and not n_weighted:
+    if not results and not conditions and not prices and not unplaced_races and not n_read:
         print("  No new TAB results, conditions, or prices this cycle")
         return
 
-    runners_df = fields_res[0] if fields_res else td.load_runners()
+    runners_df, n_weighted = tab_fields.apply_logged(sys.modules[__name__], td.load_runners())
     n_result_rows = 0
     n_condition_rows = 0
     n_priced = 0
