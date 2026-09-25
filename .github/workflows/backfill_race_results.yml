@@ -33,8 +33,18 @@ name: TopRate Backfill Race Results
 # SAFETY docstring for the fix.
 
 on:
+  # Daily (Sep 2026): the file had not been updated since 13 Sep, so every race after it was missing (and with it
+  # carried weight) and races up to it kept TopRate's PRELIMINARY WPRs (8 Sep Muswellbrook: 74.0 here vs 62.5
+  # final). The scheduled run adds new meetings from the last 21 days and re-fetches any still preliminary.
+  schedule:
+    - cron: "40 16 * * *"     # 02:40 AEST / 03:40 AEDT, after the night's results are final
   workflow_dispatch:
     inputs:
+      refresh_preliminary:
+        description: 'Re-fetch meetings whose rows are still Preliminary and replace those rows with the current WPRs.'
+        required: false
+        type: boolean
+        default: false
       diagnose_meeting_id:
         description: 'Print the raw schema for one meeting and exit (no CSV writes). Run this first.'
         required: false
@@ -100,7 +110,7 @@ jobs:
       - name: Validate inputs
         if: ${{ !inputs.diagnose_meeting_id }}
         run: |
-          if [ -z "${{ inputs.limit }}" ] && [ -z "${{ inputs.since }}" ] && [ "${{ inputs.all }}" != "true" ]; then
+          if [ "${{ github.event_name }}" != "schedule" ] && [ -z "${{ inputs.limit }}" ] && [ -z "${{ inputs.since }}" ] && [ "${{ inputs.all }}" != "true" ]; then
             echo "::error::One of limit, since, or all must be set - refusing to guess the scope."
             exit 1
           fi
@@ -121,6 +131,10 @@ jobs:
           [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
           [ -n "${{ inputs.since }}" ] && ARGS="$ARGS --since ${{ inputs.since }}"
           [ "${{ inputs.all }}" = "true" ] && ARGS="$ARGS --all"
+          [ "${{ inputs.refresh_preliminary }}" = "true" ] && ARGS="$ARGS --refresh-preliminary"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="$ARGS --since $(date -u -d '21 days ago' +%F) --refresh-preliminary"
+          fi
           echo "Running: python backfill_race_results.py $ARGS"
           python backfill_race_results.py $ARGS
 
@@ -137,13 +151,15 @@ jobs:
       # re-fetched base rather than assuming.
       # ─────────────────────────────────────────────────────────
       - name: Merge into race_results_*.csv.gz / track_codes.csv
-        if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
+        if: ${{ !inputs.diagnose_meeting_id && (inputs.commit || github.event_name == 'schedule') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           pushed=false
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            python backfill_race_results.py --merge-only backfill_race_results.json --commit
+            REFRESH=""
+            if [ "${{ inputs.refresh_preliminary }}" = "true" ] || [ "${{ github.event_name }}" = "schedule" ]; then REFRESH="--refresh-preliminary"; fi
+            python backfill_race_results.py --merge-only backfill_race_results.json --commit $REFRESH
             git add race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint 2>/dev/null || true
             if [[ -z "$(git status --porcelain -- race_results_*.csv.gz track_codes.csv backfill_race_results.checkpoint)" ]]; then
               echo "No changes to commit"
@@ -173,7 +189,7 @@ jobs:
           fi
 
       - name: Dry-run report
-        if: ${{ !inputs.diagnose_meeting_id && !inputs.commit }}
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.commit && github.event_name != 'schedule' }}
         run: |
           echo "Dry run requested (commit was left off) - reporting what WOULD change, nothing written."
           python backfill_race_results.py --merge-only backfill_race_results.json
