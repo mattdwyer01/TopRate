@@ -197,6 +197,7 @@ RUNNER_COLS = [
     "stats_current_jockey_starts","stats_current_jockey_wins","stats_current_jockey_places",
     "rating_career_best_wpr","rating_career_best_rank",
     "rating_career_next_wpr","rating_career_next_rank",
+    "weight_handicap_today",   # today's handicap weight (runner page); fills weight_carried blanks
     # New signals supporting v3 core models (weight trajectory, distance specialty)
     "weight_trend","wins_at_dist","starts_at_dist","places_at_dist",
     "going_breakdown","form_string",
@@ -785,6 +786,17 @@ def apply_today_stats(runners_df, target_date_str=None):
                 n += 1
         if n:
             print(f"  Today stats: captured for {n} runner(s) today")
+        # weight_carried from TopRate's own handicap weight where nothing better is known (TAB's carried
+        # weight, claim taken off, is written by tab_fields.py and wins; this only fills blanks)
+        if "weight_handicap_today" in runners_df.columns:
+            if "weight_carried" not in runners_df.columns:
+                runners_df["weight_carried"] = None
+            wh = pd.to_numeric(runners_df["weight_handicap_today"], errors="coerce")
+            wc = pd.to_numeric(runners_df["weight_carried"], errors="coerce")
+            fill = day_mask & wc.isna() & wh.notna()
+            if fill.any():
+                runners_df.loc[fill, "weight_carried"] = wh[fill]
+                print(f"  Weights: filled {int(fill.sum())} runner(s) from TopRate's handicap weight")
         return runners_df
     except Exception as e:
         print(f"  Today stats skipped: {e}")
