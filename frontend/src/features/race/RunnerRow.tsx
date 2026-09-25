@@ -1,7 +1,7 @@
 import type { Runner } from '../../types/domain'
 import { compositeScore, SPEED_MAP_TINT_THRESHOLD, type EffectiveRunner } from '../../lib/raceModel'
 import type { TrackerQualifier } from '../../lib/trackerRules'
-import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtInt, fmtPrice, fmtWeight, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { spellPosition } from '../../lib/spellPosition'
 
@@ -409,6 +409,7 @@ export function RunnerRow({
               </span>
               {' · '}
             </span>
+            {runner.weightCarried != null && <span className="font-mono">{fmtWeight(runner.weightCarried)} · </span>}
             {runner.jockey}
             {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
             {ratingSuffix(runner.trainerRating)}
