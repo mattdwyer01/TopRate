@@ -227,13 +227,17 @@ def _extract_today_stats(rd, deref):
                 out["rating_career_next_wpr"] = _scalar(deref(nxt.get("wpr")))
                 out["rating_career_next_rank"] = _scalar(deref(nxt.get("rank")))
             break
+    # Today's handicap weight (kg, before any apprentice claim). The race-detail feed's weightCarried has been
+    # empty since Sep 2026; the runner page still carries it here. toprate_daily.apply_today_stats() uses it to
+    # fill weight_carried where TAB (tab_fields.py, claim taken off) has not.
+    out["weight_handicap_today"] = _scalar(deref(rd.get("weightHandicap")))
     return out
 
 
 TODAY_STATS_COLS = ([f"{p}_{f}" for p in _STATS_BLOCKS.values()
                      for f in ("starts", "wins", "places")]
                     + ["rating_career_best_wpr", "rating_career_best_rank",
-                       "rating_career_next_wpr", "rating_career_next_rank"])
+                       "rating_career_next_wpr", "rating_career_next_rank", "weight_handicap_today"])
 
 
 def _scalar(v):
