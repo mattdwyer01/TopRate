@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtPrice, fmtWeight, fmtWpr } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
@@ -126,7 +126,6 @@ export function RunnerDetailModal({
               </div>
             ) : (
               <div className="truncate text-xs text-ink-faint">
-                {runner.weightCarried != null && <span className="font-mono">{fmtWeight(runner.weightCarried)} · </span>}
                 {runner.jockey}
                 {runner.jockeyRating != null ? ` (${Math.round(runner.jockeyRating)})` : ''} / {runner.trainer}
                 {runner.trainerRating != null ? ` (${Math.round(runner.trainerRating)})` : ''}
