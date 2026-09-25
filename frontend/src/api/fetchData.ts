@@ -1,6 +1,6 @@
-import type { RawDashboardPayload } from '../types/data'
-import { adaptDashboardPayload } from './adapter'
-import type { DashboardData } from '../types/domain'
+import type { RawDashboardPayload, RawHistoryPayload } from '../types/data'
+import { adaptDashboardPayload, toRace } from './adapter'
+import type { DashboardData, Race } from '../types/domain'
 
 // Same file name and fetch approach as the current dashboard
 // (toprate_html_v3.py __bootDashboard, L5427-5462): a separate fetched JSON
@@ -21,6 +21,12 @@ const DATA_FILE = 'toprate_data.json'
 // hiccup), fetchDashboardData() below falls back to the plain file rather
 // than surfacing an error.
 const DATA_FILE_GZ = 'toprate_data.json.gz'
+
+// Earlier races (Sep 2026 split, see toprate_daily.py's _write_payload): toprate_data.json now holds only
+// today's and later races (~4MB gzipped), so the page is usable after that one download; this file
+// (~14MB gzipped) is fetched afterwards in the background and merged in by useDashboardData.
+const HISTORY_FILE = 'toprate_history.json'
+const HISTORY_FILE_GZ = 'toprate_history.json.gz'
 
 export class DashboardDataError extends Error {}
 
@@ -68,13 +74,13 @@ async function fetchOk(url: string): Promise<Response> {
 // chunk (network chunks arrive far more often than the percentage actually
 // changes, and each call is a React state update/re-render - throttled to
 // fire only when the rounded percentage moves).
-export async function fetchDashboardData(onProgress?: (pct: number) => void): Promise<DashboardData> {
+async function fetchJson<T>(file: string, fileGz: string, onProgress?: (pct: number) => void): Promise<T> {
   const canDecompress = supportsGzipDecompression()
   let response: Response
   let isGzip = false
   if (canDecompress) {
     try {
-      response = await fetchOk(DATA_FILE_GZ)
+      response = await fetchOk(fileGz)
       // If the CDN already declares Content-Encoding: gzip for this file,
       // fetch() has transparently decompressed the body for us already
       // (that's the Fetch spec's job, below the level a Response exposes)
@@ -86,13 +92,13 @@ export async function fetchDashboardData(onProgress?: (pct: number) => void): Pr
     } catch {
       // .gz missing/blocked/stale - fall back to the plain file. Only ITS
       // failure (network/HTTP) should actually surface to the caller.
-      response = await fetchOk(DATA_FILE)
+      response = await fetchOk(file)
     }
   } else {
-    response = await fetchOk(DATA_FILE)
+    response = await fetchOk(file)
   }
 
-  let raw: RawDashboardPayload
+  let raw: T
   try {
     const total = Number(response.headers.get('content-length') ?? 0)
     let text: string
@@ -132,8 +138,18 @@ export async function fetchDashboardData(onProgress?: (pct: number) => void): Pr
     raw = JSON.parse(text)
   } catch (err) {
     throw new DashboardDataError(
-      `${DATA_FILE} was not valid JSON: ${(err as Error).message}`,
+      `${file} was not valid JSON: ${(err as Error).message}`,
     )
   }
-  return adaptDashboardPayload(raw)
+  return raw
+}
+
+export async function fetchDashboardData(onProgress?: (pct: number) => void): Promise<DashboardData> {
+  return adaptDashboardPayload(await fetchJson<RawDashboardPayload>(DATA_FILE, DATA_FILE_GZ, onProgress))
+}
+
+// Earlier races, adapted the same way as the current payload's (no price history: those races are run).
+export async function fetchHistoryRaces(): Promise<Race[]> {
+  const raw = await fetchJson<RawHistoryPayload>(HISTORY_FILE, HISTORY_FILE_GZ)
+  return (raw.RACES ?? []).map((r) => toRace(r, undefined))
 }

@@ -3110,6 +3110,36 @@ def _write_data_json(path, text):
         gz.write(text.encode("utf-8"))
 
 
+HISTORY_JSON_NAME = "toprate_history.json"
+
+
+def _melbourne_today():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Australia/Melbourne")).date().isoformat()
+    except Exception:
+        return (datetime.now(timezone.utc) + timedelta(hours=10)).date().isoformat()
+
+
+def _write_payload(data, out_dir):
+    """Write the dashboard payload as two files (Sep 2026, load speed):
+      toprate_data.json     every key, RACES = today's and later races (Melbourne date); what the page
+                            waits for (~20MB raw / ~4MB gz instead of ~90 / ~18)
+      toprate_history.json  {"RACES": earlier races, "RUN_ISO": ...}, fetched by the frontend in the
+                            background after the page is up and merged in (race_id dedupe, current wins)
+    toprate_data.json carries HISTORY_ISO (when the history file was last written) so the frontend only
+    refetches history when it changed. Both go through _write_data_json (each with its .gz companion)."""
+    today = _melbourne_today()
+    races = data.get("RACES") or []
+    current = [r for r in races if str(r.get("date", "")) >= today]
+    history = [r for r in races if str(r.get("date", "")) < today]
+    iso = data.get("RUN_ISO") or datetime.now(timezone.utc).isoformat()
+    _write_data_json(out_dir / HISTORY_JSON_NAME,
+                     json.dumps({"RACES": history, "RUN_ISO": iso}, separators=(",", ":")))
+    _write_data_json(out_dir / "toprate_data.json",
+                     json.dumps({**data, "RACES": current, "HISTORY_ISO": iso}, separators=(",", ":")))
+
+
 def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None):
     """Lightweight, fast alternative to --rebuild-only for a cycle that only
     touched fixed_win_price/finish_position/won/scratched (TAB's live
@@ -3154,6 +3184,7 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
         return True
 
     data_path = OUTPUT_HTML.parent / "toprate_data.json"
+    hist_path = OUTPUT_HTML.parent / HISTORY_JSON_NAME
     if not data_path.exists():
         print("  patch_data_json: toprate_data.json doesn't exist yet, falling back to full rebuild")
         return False
@@ -3167,39 +3198,56 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     if not isinstance(races, list):
         return False
 
+    def _patch(race_list, remaining):
+        """Patch the touched runners in race_list; returns True if any runner in it was touched."""
+        hit = False
+        for race in race_list:
+            runners = race.get("runners")
+            if not isinstance(runners, list):
+                continue
+            for run in runners:
+                rid = run.get("rid")
+                if rid in price_updates:
+                    run["fx"] = price_updates[rid]
+                    remaining.discard(rid)
+                if rid in result_updates:
+                    run.update(result_updates[rid])
+                    remaining.discard(rid)
+                if rid in scratch_updates:
+                    run["scr"] = scratch_updates[rid]
+                    remaining.discard(rid)
+            was_done = race.get("done") == 1
+            if any(rr.get("rid") in touched for rr in runners) and runners:
+                hit = True
+                if not was_done:
+                    # A runner's outcome counts as known either way: an exact "f"
+                    # (finish position), or tab_results_poller.py's "assume
+                    # unplaced" rule (won=0 with f still None, for a runner
+                    # confirmed outside the reported top 4 - see apply_results()).
+                    if all(rr.get("f") is not None or rr.get("won") is not None for rr in runners):
+                        race["done"] = 1
+                        # This function only ever runs from tab_results_poller.py's
+                        # fast path (see its own docstring) - the authoritative
+                        # resulted pass always goes through the full rebuild
+                        # instead, so a race genuinely TRANSITIONING to done here
+                        # is by construction provisional. A race that was already
+                        # done before this patch (however it got there) is left
+                        # exactly as-is - this function never downgrades an
+                        # already-confirmed "done" back to provisional.
+                        race["prov"] = 1
+        return hit
+
     remaining = set(touched)
-    for race in races:
-        runners = race.get("runners")
-        if not isinstance(runners, list):
-            continue
-        for run in runners:
-            rid = run.get("rid")
-            if rid in price_updates:
-                run["fx"] = price_updates[rid]
-                remaining.discard(rid)
-            if rid in result_updates:
-                run.update(result_updates[rid])
-                remaining.discard(rid)
-            if rid in scratch_updates:
-                run["scr"] = scratch_updates[rid]
-                remaining.discard(rid)
-        was_done = race.get("done") == 1
-        if any(rr.get("rid") in touched for rr in runners) and runners and not was_done:
-            # A runner's outcome counts as known either way: an exact "f"
-            # (finish position), or tab_results_poller.py's "assume
-            # unplaced" rule (won=0 with f still None, for a runner
-            # confirmed outside the reported top 4 - see apply_results()).
-            if all(rr.get("f") is not None or rr.get("won") is not None for rr in runners):
-                race["done"] = 1
-                # This function only ever runs from tab_results_poller.py's
-                # fast path (see its own docstring) - the authoritative
-                # resulted pass always goes through the full rebuild
-                # instead, so a race genuinely TRANSITIONING to done here
-                # is by construction provisional. A race that was already
-                # done before this patch (however it got there) is left
-                # exactly as-is - this function never downgrades an
-                # already-confirmed "done" back to provisional.
-                race["prov"] = 1
+    _patch(races, remaining)
+    # A touched runner not in the current file (e.g. a late result for yesterday) is looked for in the
+    # history file (split payload, see _write_payload)
+    hist, hist_hit = None, False
+    if remaining and hist_path.exists():
+        try:
+            hist = json.loads(hist_path.read_text(encoding="utf-8"))
+            hist_hit = _patch(hist.get("RACES") or [], remaining)
+        except Exception as e:
+            print(f"  patch_data_json: could not read/parse {HISTORY_JSON_NAME} ({e})")
 
     if remaining:
         print(f"  patch_data_json: {len(remaining)} touched runner(s) not found in current "
@@ -3209,6 +3257,10 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     now_utc = datetime.now(timezone.utc)
     data["RUN_ISO"] = now_utc.isoformat()
     data["RUN_DATE"] = now_utc.strftime("%d %b %Y %H:%M UTC")
+    if hist_hit:
+        hist["RUN_ISO"] = data["RUN_ISO"]
+        data["HISTORY_ISO"] = data["RUN_ISO"]
+        _write_data_json(hist_path, json.dumps(hist, separators=(",", ":")))
 
     _write_data_json(data_path, json.dumps(data, separators=(",", ":")))
     return True
@@ -4282,7 +4334,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
     # Data payload the frontend fetches at boot instead of inlining it
     # (keeps the JS compile cost off the load path).
     OUTPUT_DATA = OUTPUT_HTML.parent / "toprate_data.json"
-    _write_data_json(OUTPUT_DATA, data_json)
+    _write_payload(json.loads(data_json), OUTPUT_HTML.parent)   # split: current + history (see _write_payload)
+    del data_json
     _step("Data write complete.")
 
     n_total   = len(races_data)
@@ -4369,6 +4422,7 @@ def publish():
     # ever changes or this function is invoked from a workflow that does.
     files_to_push = []
     for f in ["toprate_live.html", "toprate_data.json", "toprate_data.json.gz",
+              "toprate_history.json", "toprate_history.json.gz",
               "toprate_runners.csv",
               "toprate_model_picks.csv", "toprate_price_history.csv",
               "wpr_form_history.csv.gz", "horse_history",

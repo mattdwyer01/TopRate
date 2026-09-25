@@ -26,6 +26,7 @@ import json
 from datetime import date
 
 import speedmap_jockey_tracker as sjt
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 TODAY = date.today().isoformat()
 
@@ -52,8 +53,7 @@ def summarize(picks: list) -> dict | None:
 
 
 def main():
-    with open(sjt.DATA_JSON) as f:
-        data = json.load(f)
+    data = payload_io.load_payload(sjt.DATA_JSON)
     pfm_rank_by_rid, pfm_score_by_rid = sjt._load_pfm_lookup()
     bush_keys = sjt._bush_meeting_keys(data)
     dates = sorted({r.get("date") for r in data.get("RACES", []) if r.get("date") and r.get("date") <= TODAY})

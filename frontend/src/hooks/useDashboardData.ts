@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchDashboardData } from '../api/fetchData'
-import type { DashboardData } from '../types/domain'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fetchDashboardData, fetchHistoryRaces } from '../api/fetchData'
+import type { DashboardData, Race } from '../types/domain'
 
 export type FreshnessLevel = 'fresh' | 'aging' | 'stale'
 
@@ -34,9 +34,41 @@ type State =
 // cheap 304, not a full re-fetch.
 const REFRESH_INTERVAL_MS = 60_000
 
+// Split payload (Sep 2026): the current file (today and later) is merged with the earlier races from
+// toprate_history.json, fetched once in the background after the page is up and again only when the
+// current file's historyIso says the history file was rewritten. Current races win on a race_id clash.
+type History = { iso: string; races: Race[] }
+
+function withHistory(data: DashboardData, history: History | null): DashboardData {
+  if (!history || !history.races.length) return data
+  const have = new Set(data.races.map((r) => r.raceId))
+  return { ...data, races: [...history.races.filter((r) => !have.has(r.raceId)), ...data.races] }
+}
+
 export function useDashboardData() {
   const [state, setState] = useState<State>({ status: 'loading', progress: null })
   const [reloadToken, setReloadToken] = useState(0)
+  const historyRef = useRef<History | null>(null)
+  const historyLoading = useRef<string | null>(null)
+  const currentRef = useRef<DashboardData | null>(null)
+
+  // Show the current payload now (with any history already held), then fetch history if it changed.
+  const accept = useCallback((data: DashboardData) => {
+    currentRef.current = data
+    setState({ status: 'ready', data: withHistory(data, historyRef.current) })
+    const iso = data.historyIso
+    if (!iso || historyRef.current?.iso === iso || historyLoading.current === iso) return
+    historyLoading.current = iso
+    fetchHistoryRaces()
+      .then((races) => {
+        historyRef.current = { iso, races }
+        if (currentRef.current) setState({ status: 'ready', data: withHistory(currentRef.current, historyRef.current) })
+      })
+      .catch(() => {})       // history is best effort: the current races stay usable; retried on the next poll
+      .finally(() => {
+        if (historyLoading.current === iso) historyLoading.current = null
+      })
+  }, [])
 
   const retry = useCallback(() => {
     setState({ status: 'loading', progress: null })
@@ -49,7 +81,7 @@ export function useDashboardData() {
       if (!cancelled) setState({ status: 'loading', progress: pct })
     })
       .then((data) => {
-        if (!cancelled) setState({ status: 'ready', data })
+        if (!cancelled) accept(data)
       })
       .catch((err: Error) => {
         if (!cancelled) setState({ status: 'error', message: err.message })
@@ -57,7 +89,7 @@ export function useDashboardData() {
     return () => {
       cancelled = true
     }
-  }, [reloadToken])
+  }, [reloadToken, accept])
 
   // Background refresh so an open tab doesn't quietly go stale during
   // racing hours - deliberately doesn't flip status back to 'loading' (no
@@ -68,7 +100,7 @@ export function useDashboardData() {
   useEffect(() => {
     const poll = () => {
       fetchDashboardData()
-        .then((data) => setState({ status: 'ready', data }))
+        .then(accept)
         .catch(() => {})
     }
     const id = setInterval(poll, REFRESH_INTERVAL_MS)
@@ -85,7 +117,7 @@ export function useDashboardData() {
       clearInterval(id)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [])
+  }, [accept])
 
   return { state, retry }
 }

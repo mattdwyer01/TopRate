@@ -205,4 +205,13 @@ export interface RawDashboardPayload {
   // Softmax beta behind wpjpr (WPR $) - lets the frontend replicate the
   // exact price formula for a manual-override recompute (see lib/raceModel.ts).
   PRICE_BETA: number | null
+  // Split payload (Sep 2026, toprate_daily.py _write_payload): RACES here holds today's and later races;
+  // earlier races are in toprate_history.json, written at HISTORY_ISO (absent on an old single-file payload).
+  HISTORY_ISO?: string
+}
+
+// toprate_history.json: the earlier races split out of toprate_data.json.
+export interface RawHistoryPayload {
+  RACES: RawRace[]
+  RUN_ISO: string
 }

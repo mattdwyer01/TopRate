@@ -21,13 +21,14 @@ import json
 from collections import Counter
 
 import numpy as np
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 DATA_PATH = "toprate_data.json"
 
 
 def run():
     print("Loading toprate_data.json...")
-    data = json.load(open(DATA_PATH))
+    data = payload_io.load_payload(DATA_PATH)
     races = data["RACES"]
     print(f"{len(races):,} races")
 

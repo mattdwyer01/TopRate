@@ -60,6 +60,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import payload_io  # toprate_data.json + toprate_history.json as one payload
 
 DATA_JSON = "toprate_data.json"
 BETA = 0.30
@@ -154,8 +155,7 @@ def print_table(df, title, formatters=None):
 
 
 def run():
-    with open(DATA_JSON) as f:
-        data = json.load(f)
+    data = payload_io.load_payload(DATA_JSON)
     races = data["RACES"]
     done = [r for r in races if r.get("done") == 1]
     dates = sorted(set(r["date"] for r in done))
