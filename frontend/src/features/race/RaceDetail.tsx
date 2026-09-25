@@ -11,7 +11,7 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
-import { biasText, blendRace, modelSpeedMap, useRacingModel } from '../../lib/racingModel'
+import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
@@ -134,7 +134,7 @@ const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
 ]
 
 export function RaceDetail({
-  race,
+  race: rawRace,
   allRaces,
   priceBeta,
   deltas,
@@ -160,6 +160,12 @@ export function RaceDetail({
   // rating table and speed map remain only as the fallback for races it has not.
   const [modelSort, setModelSort] = useState<{ key: ModelSortKey; dir: 'asc' | 'desc' }>({ key: 'r', dir: 'desc' })
   const racingModel = useRacingModel()
+  // TopRate Combo view with the Racing Model's race-day adjustments swapped in (lib/racingModel.ts
+  // withModelAdjustments): everything below reads the adjusted runners.
+  const race = useMemo(
+    () => ({ ...rawRace, runners: withModelAdjustments(rawRace.runners, racingModel) }),
+    [rawRace, racingModel],
+  )
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
   // each runner's real data-driven scratch (see toprate_price_refresh.py)
@@ -224,7 +230,8 @@ export function RaceDetail({
   // Racing Model view of the table: every runner (scratched last, as above) with the model's figures and
   // the blend recomputed from the current fixed prices.
   const hasModel = racingModel != null && race.runners.some((r) => racingModel.runners[r.runId])
-  const useModel = hasModel
+  // TopRate Combo table is the race view (Sep 2026 user decision); the Racing Model table code stays for reference
+  const useModel = false
   const modelRows = useMemo((): ModelRow[] => {
     if (!racingModel || !hasModel) return []
     const blend = blendRace(race, racingModel, effectiveScratched)
@@ -779,7 +786,7 @@ export function RaceDetail({
           onClose={() => setSelectedRunId(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
-          model={selectedModel}
+          model={useModel ? selectedModel : null}
         />
       )}
     </div>
