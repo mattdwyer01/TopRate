@@ -172,8 +172,22 @@ jobs:
               pushed=true
               break
             fi
-            echo "Push rejected or timed out (attempt $i) - fetching the fresh base and re-merging (no network refetch needed)"
+            echo "Push rejected or timed out (attempt $i) - replaying this commit onto the fresh base"
             timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            # Cheap path first (Sep 2026): this commit only touches race_results_*.csv.gz / track_codes.csv /
+            # the checkpoint, which nothing else writes, so a rebase onto the new tip is a pointer move - no
+            # re-merge. The live-results poller commits every ~5 min, and a full re-merge of four year files took
+            # long enough that all 12 attempts lost that race (25 Sep 2026). Fall back to reset + re-merge if the
+            # rebase does not apply cleanly.
+            if timeout 120 git rebase "origin/${{ github.ref_name }}"; then
+              if timeout 90 git push; then
+                echo "Pushed on attempt $i (after rebase)"
+                pushed=true
+                break
+              fi
+            else
+              git rebase --abort 2>/dev/null || true
+            fi
             git reset --hard "origin/${{ github.ref_name }}" || true
             sleep $((10 + RANDOM % 20))
           done

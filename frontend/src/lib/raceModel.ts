@@ -270,7 +270,10 @@ export function computeEffectiveRace(
 // (see that constant's own comment).
 export const COMPOSITE_WEIGHT_WPR = 0.50
 export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.25
-export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.25
+// Form factor dropped from Combo (25 Sep 2026): on PRE-RACE TopRate values (racing-model
+// tools/combo_redesign_test.py, 22 Aug to 23 Sep 2026) Combo without it scored -0.019 log loss alone
+// (95% -0.036 to -0.003) and +0.0026 with SP (n.s.). Combo is now WPR projection 2/3 + TopRate rating 1/3.
+export const COMPOSITE_WEIGHT_FORM_FACTOR = 0
 // Population mean/std (toprate_runners.csv, all non-scratched rows, see
 // wpr_composite_score_capture_test.py's own printed stats) used to
 // rescale toprateRating/formFactor onto projectedWpr's own natural scale
