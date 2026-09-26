@@ -146,7 +146,8 @@ function App() {
                 screen), since this header is shared/sticky across all of
                 them. Tightened at base, restored to the original sizing at
                 sm (640px+) where there's room to spare. */}
-            <h1 className="text-base font-semibold text-emerald sm:text-lg">TopRate</h1>
+            {/* Visible "TopRate" wordmark removed (26 Sep 2026 user request); kept for screen readers. */}
+            <h1 className="sr-only">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
               {/* Internal tab id stays 'trackers' (URL state, App.tsx's own
                   switchTab/useUrlState) - only the visible label changed
