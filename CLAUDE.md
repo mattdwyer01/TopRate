@@ -93,7 +93,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - `wpr_form_history.csv.gz` — accumulating per-run form history, gzipped (it
   crossed GitHub's 100MB limit as raw CSV). pandas reads/writes `.gz`
   transparently. Committed to git so it persists across Action runs.
-- `toprate_runners.csv` — current runner set (one row per runner per race).
+- `toprate_runners.csv` — current runner set (one row per runner per race): races in the last 60 days
+  (Melbourne date) plus every future race. Older races live in `toprate_runners_archive.csv.gz` (same
+  columns, gzipped, rewritten only when races age out). Split 1 Oct 2026 (`runners_io.py`): the single CSV
+  hit GitHub's 100MB file limit and every Daily fetch push adding the next day's fields was rejected (GH001),
+  so tomorrow's races never reached the dashboard. `toprate_daily.load_runners()` and `wpr_projection.py`'s
+  history joins read both via `runners_io.read_runners()`; `save_runners()` writes both. Ad-hoc scripts that
+  need history older than 60 days must use `runners_io.read_runners()` too, not `pd.read_csv` on the live file.
 - `toprate_data.json` — the dashboard's data payload, RACES windowed to the last
   25 days (via `TOPRATE_RACES_WINDOW_DAYS`, reduced from 30 Sep 2026 after the
   30-day payload grew to 94.4MB) to stay under GitHub's 100MB file limit.

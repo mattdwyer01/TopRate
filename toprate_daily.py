@@ -31,6 +31,7 @@ Requirements:
 
 import requests
 import pandas as pd
+import runners_io
 import numpy as np
 import argparse
 import sys
@@ -2054,8 +2055,9 @@ def compute_signal_rankings(rdf):
 TAB_PRIZE_MIN = 20000
 
 def load_runners():
-    if RUNNERS_CSV.exists():
-        df = pd.read_csv(RUNNERS_CSV, dtype={"run_id": str, "race_id": str})
+    # Live file + gzipped archive of older races (runners_io.py: split Oct 2026 to stay under GitHub's 100MB limit)
+    if RUNNERS_CSV.exists() or runners_io.ARCHIVE_CSV.exists():
+        df = runners_io.read_runners(RUNNERS_CSV, dtype={"run_id": str, "race_id": str})
         for col in RUNNER_COLS:
             if col not in df.columns:
                 df[col] = None
@@ -2085,7 +2087,8 @@ def save_runners(df):
     extras = [c for c in df.columns if c not in RUNNER_COLS]
     # Always save deduplicated
     df = df.drop_duplicates(subset=["run_id"], keep="last")
-    df[cols + extras].to_csv(RUNNERS_CSV, index=False)
+    # Races older than runners_io.LIVE_DAYS go to toprate_runners_archive.csv.gz; the live CSV keeps the rest
+    runners_io.save_split(df[cols + extras], RUNNERS_CSV)
 
 def snapshot_prices(runners_df):
     """

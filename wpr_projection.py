@@ -1227,8 +1227,9 @@ def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="toprate_ru
     name_map = name_map.dropna().drop_duplicates(subset="horse_id", keep="last")
     name_map = name_map.set_index("horse_id")["horse"]
 
-    tr = pd.read_csv(runners_csv, low_memory=False,
-                     usecols=["horse", "date", "trainer_win_pct_365d", "jockey_win_pct_90d"])
+    import runners_io  # live file + archive of older races (Oct 2026 split)
+    tr = runners_io.read_runners(runners_csv, low_memory=False,
+                                 usecols=["horse", "date", "trainer_win_pct_365d", "jockey_win_pct_90d"])
     tr["date"] = pd.to_datetime(tr["date"], errors="coerce").dt.strftime("%Y-%m-%d")
     tr = tr.dropna(subset=["date"])
     tr = tr.drop_duplicates(subset=["horse", "date"], keep=False)  # drop ambiguous same-day name clashes
@@ -3867,9 +3868,10 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     if "horse" in fh.columns:
         _runners_csv = _DIR / "toprate_runners.csv"
         if _runners_csv.exists():
-            _tr = pd.read_csv(_runners_csv,
-                              usecols=lambda c: c in ("horse", "date", "wpr_nett"),
-                              low_memory=False)
+            import runners_io  # live file + archive of older races (Oct 2026 split)
+            _tr = runners_io.read_runners(_runners_csv,
+                                          usecols=lambda c: c in ("horse", "date", "wpr_nett"),
+                                          low_memory=False)
             _tr["date"] = pd.to_datetime(_tr["date"], errors="coerce")
             _tr = _tr.dropna(subset=["horse", "date"])
             _tr = _tr.drop_duplicates(subset=["horse", "date"], keep=False)
