@@ -107,91 +107,64 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git add toprate_runners.csv toprate_data.json
-          # Gzip companion (Sep 2026, see toprate_daily.py's
-          # _write_data_json) - must be committed alongside toprate_data.json
-          # itself every time (patch_data_json() writes both together), or
-          # it goes stale relative to the plain file this fast-path cycle
-          # just patched.
-          [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
-          # History half of the split payload (toprate_daily.py _write_payload), same rules as above
-          [ -f toprate_history.json ] && git add toprate_history.json
-          [ -f toprate_history.json.gz ] && git add toprate_history.json.gz
-          # Per-meeting horse form history files - only touched on the rare
-          # full-rebuild path (a real going change forces rebuild_html(), see
-          # CLAUDE.md), but git-tracked and was missing from this staging
-          # list (Sep 2026 bug) same as daily.yml/price_refresh.yml - see
-          # daily.yml's comment for the dirty-tree failure chain this risked.
-          [ -d horse_history ] && git add horse_history
-          # tracker_high_volume.csv/tracker_low_volume.csv - speedmap_jockey_
-          # tracker.py's sjt.main() (called from tab_results_poller.py's
-          # run_once() on every active cycle, see its own comment) reconciles
-          # picks against toprate_data.json and rewrites these two CSVs
-          # in-place, but this step's own git add never staged them (found
-          # 2026-09-17: reconcile logged "reconciled 2 newly-resulted
-          # pick(s)" in this exact job's own output, yet the commit right
-          # after only touched toprate_runners.csv/toprate_data.json - the
-          # reconciled CSV content sat as an uncommitted, unstaged local
-          # change that the NEXT cycle's checkout step (git clean -ffdx +
-          # git reset --hard) silently discarded before anyone ever
-          # committed it, over and over, every cycle, since the day that
-          # reconcile-on-every-cycle fix shipped). tab_results_poller.py's
-          # own commit_and_push() (used when NOT run with --no-push) already
-          # staged these correctly - this workflow's own separate shell
-          # step just never matched it.
-          [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
-          [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
+          stage_generated_files() {
+            git add toprate_runners.csv toprate_data.json
+            # Races older than 60 days (runners_io.py, 1 Oct 2026). Must be staged with the live file: when races
+            # age out, save_runners() moves them from toprate_runners.csv into the archive, so committing one
+            # without the other would drop those rows.
+            [ -f toprate_runners_archive.csv.gz ] && git add toprate_runners_archive.csv.gz
+            # Gzip companion (Sep 2026, see toprate_daily.py's _write_data_json) - must be committed alongside
+            # toprate_data.json every time (patch_data_json() writes both together).
+            [ -f toprate_data.json.gz ] && git add toprate_data.json.gz
+            # History half of the split payload (toprate_daily.py _write_payload), same rules as above
+            [ -f toprate_history.json ] && git add toprate_history.json
+            [ -f toprate_history.json.gz ] && git add toprate_history.json.gz
+            # Per-meeting horse form history files - only touched on the rare full-rebuild path (a real going
+            # change forces rebuild_html()), but git-tracked (Sep 2026 bug, see daily.yml).
+            [ -d horse_history ] && git add horse_history
+            # speedmap_jockey_tracker.py's reconcile rewrites these on every active cycle (2026-09-17 fix: they
+            # were never staged here and the next checkout discarded them).
+            [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
+            [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
+            return 0
+          }
+          stage_generated_files
           git commit -m "TAB live results $(date -u +%Y-%m-%dT%H:%MZ)"
-          # Pull-then-push with retry, same rationale as price_refresh.yml:
-          # the daily workflow, manual pushes, and this job's own frequent
-          # trigger all commit to main, so a plain push often gets rejected.
-          # -X ours (not -X theirs) is deliberate here: --ours/--theirs are
-          # INVERTED in a rebase vs. a merge - in `git pull --rebase`, --ours
-          # is the upstream/incoming commit and --theirs is this job's own
-          # local commit being replayed. The repo's policy is "always take
-          # incoming for these generated files" (see CLAUDE.md's Deploy
-          # section for the real incident this caused when a plain merge's
-          # --theirs got copy-pasted into a rebase context), so -X ours is
-          # the flag that actually means that here.
-          #
-          # Every git call below is wrapped in `timeout` (2026-09-11: this
-          # step was repeatedly observed hanging 5-13 minutes with NO error
-          # in the job log before being externally cancelled - disk space
-          # was ruled out as the cause, but the actual hang was never
-          # pinned down since a cancelled step's log gives no clue which
-          # command was stuck). Bounding each call turns a silent multi-
-          # minute hang into a fast, loud "TIMED OUT" line naming the exact
-          # command, so the next occurrence is actually diagnosable instead
-          # of just another mystery cancellation.
-          # NOTE (2026-09-11): the first version of this used
-          # `timeout 25 git push; push_status=$?`, which is NOT safe under
-          # this step's default `bash -e` - the moment git push fails,
-          # bash exits the whole script right there, before push_status is
-          # even captured, so the retry loop below never ran (confirmed
-          # live: a run failed after exactly ONE rejected push instead of
-          # retrying up to 5 times). `cmd || push_status=$?` is the
-          # -e-safe form - the `||` clause itself absorbs the failure.
+          # Push, and on a rejection REDO this cycle on top of the new main (1 Oct 2026). The old recovery,
+          # `git pull --rebase -X ours`, replayed this job's commit with a 3-way merge of the whole runners file:
+          # after a Daily fetch push (which rewrites much of that file) the rebase took longer than its 25s
+          # timeout, so every poll during a Daily run failed (09:55-10:10 UTC 1 Oct), and when it did complete,
+          # its stale copy of the file could drop rows a Daily run had just added (3 Oct's races, 1 Oct 08:01).
+          # Now: fetch, reset to origin/main (dropping this job's commit), rerun the poll on the fresh files and
+          # commit again. The poll is cheap (well under a minute on the fast path), every write is recomputed
+          # from the latest data, and there is no merge whose cost grows with how much changed upstream.
           for i in 1 2 3 4 5; do
             push_status=0
-            timeout 25 git push || push_status=$?
+            timeout 60 git push || push_status=$?
             if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
             elif [[ $push_status -eq 124 ]]; then
-              echo "git push TIMED OUT after 25s (attempt $i)"
+              echo "git push TIMED OUT after 60s (attempt $i)"
             else
-              echo "git push failed, exit $push_status (attempt $i)"
+              echo "git push rejected, exit $push_status (attempt $i) - redoing the poll on the new main"
             fi
-            pull_status=0
-            timeout 25 git pull --rebase -X ours --no-edit || pull_status=$?
-            if [[ $pull_status -eq 124 ]]; then
-              echo "git pull --rebase TIMED OUT after 25s (attempt $i) - aborting"
-              git rebase --abort 2>/dev/null || true
-            elif [[ $pull_status -ne 0 ]]; then
-              echo "git pull --rebase failed, exit $pull_status (attempt $i) - aborting"
-              git rebase --abort 2>/dev/null || true
+            fetch_status=0
+            timeout 120 git fetch origin main || fetch_status=$?
+            if [[ $fetch_status -ne 0 ]]; then
+              echo "git fetch failed, exit $fetch_status (attempt $i)"
+              sleep 5
+              continue
             fi
-            sleep 3
+            git reset --hard origin/main
+            python tab_results_poller.py --once --no-push
+            if [[ -z "$(git status --porcelain)" ]]; then
+              echo "Nothing to commit after redo (attempt $i) - main already has these results"
+              exit 0
+            fi
+            stage_generated_files
+            git commit -m "TAB live results $(date -u +%Y-%m-%dT%H:%MZ)"
+            sleep 2
           done
           echo "Push failed after retries"
           exit 1
