@@ -163,14 +163,15 @@ VENUE_ALIASES = {
 
 def provider_venue_for(tab_venue):
     """Provider (toprate.au) venue for a TAB meeting name: VENUE_ALIASES first, then a transferred meeting.
-    TAB names a meeting moved to another track "<ORIGINAL> at <NEW TRACK>" (2 Oct 2026: "CRANBOURNE at PAKENHAM")
+    TAB names a meeting moved to another track "<ORIGINAL> at <NEW TRACK>" or "<ORIGINAL> @ <NEW TRACK>" (2 Oct 2026:
+    "CRANBOURNE at PAKENHAM", later "CRANBOURNE @ PAKENHAM")
     while toprate.au lists it under the new track ("Pakenham", meeting_transfer.py), so the part after " at " is
     the provider venue. Matching stays case-insensitive and still logs anything left unmatched."""
     name = str(tab_venue).strip()
     alias = VENUE_ALIASES.get(name.upper())
     if alias:
         return alias
-    parts = re.split(r"\s+at\s+", name, maxsplit=1, flags=re.IGNORECASE)
+    parts = re.split(r"\s+at\s+|\s*@\s*", name, maxsplit=1, flags=re.IGNORECASE)
     return parts[1].strip() if len(parts) == 2 and parts[1].strip() else name
 
 CACHE_FILE = Path(__file__).parent / "tab_poller_terminal_races.json"
