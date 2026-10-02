@@ -16,13 +16,12 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { TrackersTab } from './features/trackers/TrackersTab'
 
-type TopTab = 'race' | 'review' | 'trackers'
+type TopTab = 'race' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'trackers' ? t : 'race'
+  return t === 'review' ? t : 'race'
 }
 
 function App() {
@@ -65,7 +64,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'trackers') {
+    if (tab === 'review') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -149,22 +148,7 @@ function App() {
             {/* Visible "TopRate" wordmark removed (26 Sep 2026 user request); kept for screen readers. */}
             <h1 className="sr-only">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
-              {/* Internal tab id stays 'trackers' (URL state, App.tsx's own
-                  switchTab/useUrlState) - only the visible label changed
-                  (real user feedback, 2026-09-17: it was Race that got
-                  renamed to Summary, corrected - Trackers is Summary, Race
-                  keeps its own name) so existing deep links/bookmarks with
-                  tab=trackers keep working. */}
-              <button
-                type="button"
-                onClick={() => switchTab('trackers')}
-                className={
-                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
-                  (topTab === 'trackers' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Summary
-              </button>
+              {/* Summary (trackers) tab removed 3 Oct 2026 (user request); an old ?tab=trackers link opens Race. */}
               <button
                 type="button"
                 onClick={() => switchTab('race')}
@@ -233,9 +217,6 @@ function App() {
         )}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
-        )}
-        {state.status === 'ready' && topTab === 'trackers' && (
-          <TrackersTab races={state.data.races} onSelectRace={goToRace} />
         )}
         {state.status === 'ready' && topTab === 'race' &&
           (urlState.raceId ? (

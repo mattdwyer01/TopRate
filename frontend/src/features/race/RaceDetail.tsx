@@ -5,8 +5,6 @@ import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
 import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
-import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
-import { evaluateTrackerQualifiers } from '../../lib/trackerRules'
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
@@ -195,15 +193,6 @@ export function RaceDetail({
     [race.runners, effectiveByRunId, effectiveScratched],
   )
 
-  // Live tracker-rule flag (see lib/trackerRules.ts) - evaluated fresh
-  // against this race's CURRENT data on every render, not read from the
-  // slower-to-update CSV log the Trackers tab reads. Real user feedback,
-  // 2026-09-16: "race summary should flag if a horse fits the criteria for
-  // a tracker bet" - this is that flag, shown inline on RunnerRow.
-  const trackerQualifiers = useMemo(
-    () => evaluateTrackerQualifiers(race, bushMeetingKeys(allRaces).has(meetingKey(race))),
-    [race, allRaces],
-  )
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
   // only this race's runners against it, not the set's raw size.
@@ -722,7 +711,6 @@ export function RaceDetail({
                 compact={compact}
                 selected={runner.runId === selectedRunId}
                 effective={effectiveByRunId[runner.runId]}
-                trackerQualifier={trackerQualifiers.get(runner.runId)}
                 onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
               />
               {/* Inner (4) line before the outer (8) line: when no runner sits between them both follow the same row */}
