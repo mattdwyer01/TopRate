@@ -125,7 +125,7 @@ def apply(poller, runners_df, fields):
     if f.empty:
         return runners_df, 0
     f = f[f["weight_carried"].notna()].copy()
-    f["venue_u"] = f["venue"].astype(str).map(lambda v: poller.VENUE_ALIASES.get(v.upper(), v).upper())
+    f["venue_u"] = f["venue"].astype(str).map(lambda v: poller.provider_venue_for(v).upper())
     f["race"] = pd.to_numeric(f["race_no"], errors="coerce")
     f["tab"] = pd.to_numeric(f["tab_number"], errors="coerce")
     f["wc_new"] = pd.to_numeric(f["weight_carried"], errors="coerce")
