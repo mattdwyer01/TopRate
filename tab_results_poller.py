@@ -1134,7 +1134,19 @@ def main():
                                       div_done=done)[-1]
             tab_dividends.append(div)
             if not div:
-                print(f"  no new dividends for {d0}")
+                # what TAB returned for that date (one extra call): meetings and race statuses
+                try:
+                    pl = get(MEETINGS.format(date=d0.isoformat()), {"jurisdiction": "VIC"}, timeout=20)
+                    ms = [m for m in pl.get("meetings", []) if m.get("raceType") == RACE_TYPE
+                          and m.get("location") in AU_STATES]
+                    st = {}
+                    for m in ms:
+                        for rc in m.get("races", []):
+                            st[rc.get("raceStatus")] = st.get(rc.get("raceStatus"), 0) + 1
+                    print(f"  no new dividends for {d0}: VIC list has {len(ms)} AU meetings, race statuses {st}, "
+                          f"top-level keys {sorted(pl)[:8] if isinstance(pl, dict) else type(pl).__name__}")
+                except Exception as e:
+                    print(f"  no new dividends for {d0} (diagnostic failed: {type(e).__name__}: {str(e)[:60]})")
             d0 += timedelta(days=1)
         return 0
 
