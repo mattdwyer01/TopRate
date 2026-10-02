@@ -54,6 +54,11 @@ name: TAB live results (self-hosted)
 #      workflow for anything.
 on:
   workflow_dispatch:   # cron-job.org's real trigger; also allows manual runs
+    inputs:
+      dividends_date:
+        description: 'Optional YYYY-MM-DD: also log TAB dividends for that date (backfill, tab_dividends.py)'
+        required: false
+        type: string
 
 # Avoid concurrent runs - if a poll is still going when the next one fires,
 # skip rather than queue (matches price_refresh.yml's reasoning: the next
@@ -97,9 +102,18 @@ jobs:
       - name: Poll TAB and update results
         # --no-push: this job handles commit/push itself below, same split
         # as price_refresh.yml's own steps.
-        run: python tab_results_poller.py --once --no-push
+        env:
+          DIV_DATE: ${{ inputs.dividends_date }}
+        run: |
+          # Dividend backfill for a past date (manual dispatch input), validated before use
+          if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            python tab_results_poller.py --dividends "$DIV_DATE"
+          fi
+          python tab_results_poller.py --once --no-push
 
       - name: Commit and push if changed
+        env:
+          DIV_DATE: ${{ inputs.dividends_date }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -126,6 +140,8 @@ jobs:
             # were never staged here and the next checkout discarded them).
             [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
             [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
+            # TAB dividends per race, all pools (tab_dividends.py, Oct 2026)
+            [ -f tab_dividends.csv ] && git add tab_dividends.csv
             return 0
           }
           stage_generated_files
@@ -157,6 +173,9 @@ jobs:
               continue
             fi
             git reset --hard origin/main
+            if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              python tab_results_poller.py --dividends "$DIV_DATE"
+            fi
             python tab_results_poller.py --once --no-push
             if [[ -z "$(git status --porcelain)" ]]; then
               echo "Nothing to commit after redo (attempt $i) - main already has these results"
