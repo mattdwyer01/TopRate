@@ -1120,15 +1120,22 @@ def main():
     ap.add_argument("--interval", type=int, default=90,
                     help="seconds between polls in loop mode (default 90)")
     ap.add_argument("--dividends", metavar="YYYY-MM-DD",
-                    help="only log TAB dividends for that date's resulted races (backfill; no other writes)")
+                    help="only log TAB dividends for that date's resulted races, or a range A:B (backfill; no other writes)")
     a = ap.parse_args()
 
     if a.dividends:
-        div = fetch_today_results(a.dividends, terminal_cache=set(), archive=False, fetch_prices=False,
-                                  div_done=tab_dividends.done_keys())[-1]
-        tab_dividends.append(div)
-        if not div:
-            print(f"  no new dividends for {a.dividends}")
+        # one date, or a range "YYYY-MM-DD:YYYY-MM-DD" (inclusive); each date is appended as it finishes, so a
+        # timed-out run keeps what it got and a rerun skips the races already logged
+        lo, _, hi = a.dividends.partition(":")
+        d0, d1 = date.fromisoformat(lo), date.fromisoformat(hi or lo)
+        done = tab_dividends.done_keys()
+        while d0 <= d1:
+            div = fetch_today_results(d0.isoformat(), terminal_cache=set(), archive=False, fetch_prices=False,
+                                      div_done=done)[-1]
+            tab_dividends.append(div)
+            if not div:
+                print(f"  no new dividends for {d0}")
+            d0 += timedelta(days=1)
         return 0
 
     if a.diagnose:

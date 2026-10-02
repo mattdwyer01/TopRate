@@ -56,7 +56,7 @@ on:
   workflow_dispatch:   # cron-job.org's real trigger; also allows manual runs
     inputs:
       dividends_date:
-        description: 'Optional YYYY-MM-DD: also log TAB dividends for that date (backfill, tab_dividends.py)'
+        description: 'Optional YYYY-MM-DD or YYYY-MM-DD:YYYY-MM-DD: also log TAB dividends for that date / range (backfill, tab_dividends.py)'
         required: false
         type: string
 
@@ -106,7 +106,7 @@ jobs:
           DIV_DATE: ${{ inputs.dividends_date }}
         run: |
           # Dividend backfill for a past date (manual dispatch input), validated before use
-          if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+          if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then
             python tab_results_poller.py --dividends "$DIV_DATE"
           fi
           python tab_results_poller.py --once --no-push
@@ -173,7 +173,7 @@ jobs:
               continue
             fi
             git reset --hard origin/main
-            if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then
               python tab_results_poller.py --dividends "$DIV_DATE"
             fi
             python tab_results_poller.py --once --no-push
