@@ -304,7 +304,10 @@ const PFM_POP_STD = 30.88
 // Lines on the WPR scale (25 Sep 2026, racing-model tools/combo_lines_test.py, 1,027 races Apr to Sep 2026,
 // pre-race values): within 10 WPR holds 90% of winners, outside it A/E 0.86 and ROI -46%. Inner line 4 WPR holds
 // 58% of winners in 2.8 runners a race (A/E 1.04 inside); 5 was slightly weaker (A/E 1.02).
-export const COMPOSITE_MAX_GAP_FROM_TOP = 10
+// Outer line 10 -> 8 (2 Oct 2026, user decision): quaddie test on pre-race dashboard values (304 quaddies 22 Aug to
+// 30 Sep, dividends estimated from SP): within 4 + 4-8 not speed-map-unfavoured, no first starters, est ROI -12% vs
+// -39% with the 10 line (-47% with first starters); outer 8 beat outer 10 at every inner cutoff (2 to 6).
+export const COMPOSITE_MAX_GAP_FROM_TOP = 8
 export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
