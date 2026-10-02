@@ -400,6 +400,11 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
     fetch_prices=False skips this tier entirely (used by callers that only
     want results/conditions, e.g. tests).
 
+    start_times: a list of dicts {date, venue, race_no, start_time} (UTC ISO, the payload's format) for every
+    race not yet Paying/Abandoned, read off the same meeting-list response (raceStartTime on each race stub, no
+    extra call). TAB moves a race's time when a meeting is delayed or reshuffled; apply_start_times() writes it
+    over the toprate.au time captured by the Daily fetch, so the dashboard's countdown / next-to-jump stay right.
+
     Mutates terminal_cache in place with any race that reached
     Paying/Abandoned.
     """
@@ -408,6 +413,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
     conditions = []
     prices = []
     unplaced_races = []
+    start_times = []
     seen_meetings = set()
 
     # Circuit breaker: if TAB starts blocking/degrading this IP again (see
@@ -486,6 +492,11 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                 status = rc.get("raceStatus")
                 if status in FINAL_STATUSES:
                     terminal_cache.add(rkey)
+                else:
+                    st = _parse_tab_time(rc.get("raceStartTime"))
+                    if st is not None and race_no is not None:
+                        start_times.append(dict(date=target_date, venue=venue, race_no=race_no,
+                                                start_time=st.isoformat()))
 
                 # Price drill-down: independent of whether results[] exists
                 # yet -- this is exactly for races that HAVEN'T run, so it
@@ -562,7 +573,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
 
         time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
-    return out, conditions, prices, terminal_cache, unplaced_races
+    return out, conditions, prices, terminal_cache, unplaced_races, start_times
 
 
 def _archive_raw(target_date, jurisdiction, payload):
@@ -755,6 +766,44 @@ def apply_conditions(runners_df, conditions):
     return runners_df, n_written, changes, changed_venues, unmatched_venues
 
 
+def apply_start_times(runners_df, start_times):
+    """Write TAB's race start time (fetch_today_results' `start_times`) to start_time for every runner of the
+    matching (date, provider-venue, race), when it differs from the stored time by a minute or more. Returns
+    (updated_df, n_races_changed, race_patches {race_id: start_time}, changes, unmatched_venues); race_patches
+    lets patch_data_json() update the payload without a full rebuild."""
+    unmatched_venues = set()
+    race_patches = {}
+    changes = []
+    if not start_times or "start_time" not in runners_df.columns:
+        return runners_df, 0, race_patches, changes, unmatched_venues
+    if "start_time_src" not in runners_df.columns:
+        runners_df["start_time_src"] = pd.NA
+    runner_venue_upper = runners_df["venue"].astype(str).str.upper()
+    race_no = pd.to_numeric(runners_df["race"], errors="coerce")
+    for t in start_times:
+        mask = ((runners_df["date"] == t["date"]) &
+                (runner_venue_upper == provider_venue_for(t["venue"]).upper()) &
+                (race_no == t["race_no"]))
+        if not mask.any():
+            unmatched_venues.add(t["venue"])
+            continue
+        new = pd.Timestamp(t["start_time"])
+        old = pd.to_datetime(runners_df.loc[mask, "start_time"], errors="coerce", utc=True)
+        if old.notna().all() and (old - new).abs().max() < pd.Timedelta(minutes=1):
+            continue
+        rows = runners_df.loc[mask]
+        runners_df.loc[mask, "start_time"] = t["start_time"]
+        # marks a TAB-set time so a same-day Daily re-fetch keeps it (toprate_daily.fetch_todays_races)
+        runners_df.loc[mask, "start_time_src"] = "tab"
+        for rid in rows["race_id"].dropna().astype(str).unique():
+            race_patches[rid] = t["start_time"]
+        first_old = old.dropna()
+        changes.append(f"{rows['venue'].iloc[0]} R{t['race_no']}: "
+                       f"{first_old.iloc[0].strftime('%H:%M') if len(first_old) else 'none'} -> "
+                       f"{new.strftime('%H:%M')} UTC")
+    return runners_df, len(changes), race_patches, changes, unmatched_venues
+
+
 def apply_prices(runners_df, prices):
     """
     Write fixed_win_price/scratched from TAB's per-race fixedOdds drill-down
@@ -868,7 +917,7 @@ def run_once(push=True):
     _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
 
-    results, conditions, prices, terminal_cache, unplaced_races = fetch_today_results(
+    results, conditions, prices, terminal_cache, unplaced_races, start_times = fetch_today_results(
         target_date, terminal_cache=terminal_cache)
     save_terminal_cache(terminal_cache)
     tab_price_log.append(prices)  # before any early return, so every read is kept
@@ -876,7 +925,7 @@ def run_once(push=True):
     # (re)applied to weight_carried (best-effort, see tab_fields.py)
     n_read = tab_fields.maybe_fetch(sys.modules[__name__])
 
-    if not results and not conditions and not prices and not unplaced_races and not n_read:
+    if not results and not conditions and not prices and not unplaced_races and not start_times and not n_read:
         print("  No new TAB results, conditions, or prices this cycle")
         return
 
@@ -915,7 +964,16 @@ def run_once(push=True):
             if "scr" in patch:
                 scratch_patches[rid] = patch["scr"]
 
-    if n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0 and n_weighted == 0:
+    n_time_races, time_patches = 0, {}
+    if start_times:
+        runners_df, n_time_races, time_patches, time_changes, unmatched = apply_start_times(runners_df, start_times)
+        if unmatched:
+            print(f"  UNMATCHED VENUE(S) for start times, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+        for c in time_changes:
+            print(f"  Start time update: {c}")
+
+    if (n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0 and n_weighted == 0
+            and n_time_races == 0):
         print("  Nothing matched this cycle")
         return
 
@@ -958,7 +1016,7 @@ def run_once(push=True):
     # weights alone do not force a full rebuild (3-4 min): toprate_runners.csv carries them now and the next
     # daily / conditions rebuild puts them in toprate_data.json. Forcing it every cycle the weights were re-applied
     # made cycles 7-10 min and their pushes collide (25 Sep 2026).
-    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches):
+    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
@@ -1002,12 +1060,12 @@ def run_once(push=True):
         commit_and_push()
 
 
-def patch_data_json_safe(price_patches, result_patches, scratch_patches):
+def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches=None):
     """Thin wrapper around toprate_daily.patch_data_json() -- treats any
     exception as "unsafe, fall back to full rebuild" rather than letting a
     patching bug take down the whole cycle."""
     try:
-        return td.patch_data_json(price_patches, result_patches, scratch_patches)
+        return td.patch_data_json(price_patches, result_patches, scratch_patches, time_patches)
     except Exception as e:
         print(f"  patch_data_json failed ({type(e).__name__}: {e}), falling back to full rebuild")
         return False
