@@ -725,15 +725,7 @@ export function RaceDetail({
                 trackerQualifier={trackerQualifiers.get(runner.runId)}
                 onClick={() => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId)}
               />
-              {showGapLine && (
-                <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
-                  <span className="h-[2px] flex-1 bg-indigo" />
-                  <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
-                  </span>
-                  <span className="h-[2px] flex-1 bg-indigo" />
-                </div>
-              )}
+              {/* Inner (4) line before the outer (8) line: when no runner sits between them both follow the same row */}
               {showComboInnerGapLine && (
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
@@ -741,6 +733,15 @@ export function RaceDetail({
                     {COMPOSITE_INNER_GAP_FROM_TOP} pts (Combo) from top rated
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
+                </div>
+              )}
+              {showGapLine && (
+                <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
+                  <span className="h-[2px] flex-1 bg-indigo" />
+                  <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
+                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
+                  </span>
+                  <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
               )}
             </Fragment>
