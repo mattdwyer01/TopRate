@@ -31,6 +31,7 @@ Requirements:
 
 import requests
 import pandas as pd
+import meeting_transfer
 import runners_io
 import numpy as np
 import argparse
@@ -2597,6 +2598,8 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
     if len(pending_today) and "weight_carried" in pending_today.columns and "run_id" in pending_today.columns:
         _w = pd.to_numeric(pending_today["weight_carried"], errors="coerce")
         _removed_wc = _w[_w.notna()].groupby(pending_today.loc[_w.notna(), "run_id"]).last()
+    # Carried values of a transferred meeting's rows (meeting_transfer.py), restored onto the re-fetched rows
+    _removed_tr = meeting_transfer.removed_values(pending_today)
     if target_date_str is not None and len(pending_today) > 0:
         # Remove pending rows only, keep resulted
         n_remove = len(pending_today)
@@ -2950,6 +2953,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
 
     if new_rows:
         new_df = pd.DataFrame(new_rows)
+        # A meeting moved to another track on race day comes back twice (old venue + new venue, 2 Oct 2026
+        # Cranbourne -> Pakenham) and the new copy has no TopRate rating / prices / some jockeys: fill it from the
+        # old copy and drop the old one (meeting_transfer.py).
+        new_df = meeting_transfer.restore(new_df, _removed_tr)
+        new_df, _ = meeting_transfer.merge_transfers(new_df)
         # Freeze wpr_nett at its FIRST capture per run_id, before the
         # keep-last dedup below. wpr_nett is meant to be the horse's
         # PRE-RACE rating - but TopRate revises a horse's own rating for

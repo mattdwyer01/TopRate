@@ -160,6 +160,19 @@ VENUE_ALIASES = {
     "ILLAWARRA GRANGE": "Kembla Grange",
 }
 
+
+def provider_venue_for(tab_venue):
+    """Provider (toprate.au) venue for a TAB meeting name: VENUE_ALIASES first, then a transferred meeting.
+    TAB names a meeting moved to another track "<ORIGINAL> at <NEW TRACK>" (2 Oct 2026: "CRANBOURNE at PAKENHAM")
+    while toprate.au lists it under the new track ("Pakenham", meeting_transfer.py), so the part after " at " is
+    the provider venue. Matching stays case-insensitive and still logs anything left unmatched."""
+    name = str(tab_venue).strip()
+    alias = VENUE_ALIASES.get(name.upper())
+    if alias:
+        return alias
+    parts = re.split(r"\s+at\s+", name, maxsplit=1, flags=re.IGNORECASE)
+    return parts[1].strip() if len(parts) == 2 and parts[1].strip() else name
+
 CACHE_FILE = Path(__file__).parent / "tab_poller_terminal_races.json"
 RAW_ARCHIVE_DIR = Path(__file__).parent / "tab_raw"  # gitignored; raw JSON, per field notes point 4
 
@@ -631,8 +644,7 @@ def apply_results(runners_df, tab_results, unplaced_races=None):
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for res in tab_results:
-        tab_venue_upper = res["venue"].upper()
-        provider_venue = VENUE_ALIASES.get(tab_venue_upper, res["venue"])
+        provider_venue = provider_venue_for(res["venue"])
         mask = (
             (runners_df["date"] == res["date"]) &
             (runner_venue_upper == provider_venue.upper()) &
@@ -659,8 +671,7 @@ def apply_results(runners_df, tab_results, unplaced_races=None):
             patches[str(run_id)] = {"f": finish, "won": won}
 
     for race in (unplaced_races or []):
-        tab_venue_upper = race["venue"].upper()
-        provider_venue = VENUE_ALIASES.get(tab_venue_upper, race["venue"])
+        provider_venue = provider_venue_for(race["venue"])
         mask = (
             (runners_df["date"] == race["date"]) &
             (runner_venue_upper == provider_venue.upper()) &
@@ -714,8 +725,7 @@ def apply_conditions(runners_df, conditions):
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for cond in conditions:
-        tab_venue_upper = cond["venue"].upper()
-        provider_venue = VENUE_ALIASES.get(tab_venue_upper, cond["venue"])
+        provider_venue = provider_venue_for(cond["venue"])
         mask = (
             (runners_df["date"] == cond["date"]) &
             (runner_venue_upper == provider_venue.upper())
@@ -769,8 +779,7 @@ def apply_prices(runners_df, prices):
     runner_venue_upper = runners_df["venue"].astype(str).str.upper()
 
     for p in prices:
-        tab_venue_upper = p["venue"].upper()
-        provider_venue = VENUE_ALIASES.get(tab_venue_upper, p["venue"])
+        provider_venue = provider_venue_for(p["venue"])
         mask = (
             (runners_df["date"] == p["date"]) &
             (runner_venue_upper == provider_venue.upper()) &
