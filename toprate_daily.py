@@ -2598,6 +2598,13 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
     if len(pending_today) and "weight_carried" in pending_today.columns and "run_id" in pending_today.columns:
         _w = pd.to_numeric(pending_today["weight_carried"], errors="coerce")
         _removed_wc = _w[_w.notna()].groupby(pending_today.loc[_w.notna(), "run_id"]).last()
+    # Start times TAB moved (tab_results_poller.apply_start_times, start_time_src = "tab"): toprate.au can still
+    # send the old time, so a re-fetch keeps TAB's until the next poll says otherwise
+    _removed_st = pd.DataFrame()
+    if len(pending_today) and "start_time_src" in pending_today.columns:
+        _removed_st = (pending_today[pending_today["start_time_src"].astype(str) == "tab"]
+                       .assign(_r=lambda x: x["run_id"].astype(str)).drop_duplicates("_r", keep="last")
+                       .set_index("_r")[["start_time", "start_time_src"]])
     # Carried values of a transferred meeting's rows (meeting_transfer.py), restored onto the re-fetched rows
     _removed_tr = meeting_transfer.removed_values(pending_today)
     if target_date_str is not None and len(pending_today) > 0:
@@ -2957,6 +2964,10 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         # Cranbourne -> Pakenham) and the new copy has no TopRate rating / prices / some jockeys: fill it from the
         # old copy and drop the old one (meeting_transfer.py).
         new_df = meeting_transfer.restore(new_df, _removed_tr)
+        if len(_removed_st):
+            _m = new_df["run_id"].astype(str).isin(_removed_st.index)
+            new_df.loc[_m, "start_time"] = new_df.loc[_m, "run_id"].astype(str).map(_removed_st["start_time"])
+            new_df.loc[_m, "start_time_src"] = "tab"
         new_df, _ = meeting_transfer.merge_transfers(new_df)
         # Freeze wpr_nett at its FIRST capture per run_id, before the
         # keep-last dedup below. wpr_nett is meant to be the horse's
@@ -3174,7 +3185,7 @@ def _write_payload(data, out_dir):
                      json.dumps({**data, "RACES": current, "HISTORY_ISO": iso}, separators=(",", ":")))
 
 
-def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None):
+def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None, start_time_updates=None):
     """Lightweight, fast alternative to --rebuild-only for a cycle that only
     touched fixed_win_price/finish_position/won/scratched (TAB's live
     prices + fast results, see tab_results_poller.py) - NOT going/
@@ -3213,8 +3224,10 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     price_updates = price_updates or {}
     result_updates = result_updates or {}
     scratch_updates = scratch_updates or {}
+    # start_time_updates: race_id -> start_time (TAB moved the race, tab_results_poller.apply_start_times)
+    start_time_updates = {str(k): v for k, v in (start_time_updates or {}).items()}
     touched = set(price_updates) | set(result_updates) | set(scratch_updates)
-    if not touched:
+    if not touched and not start_time_updates:
         return True
 
     data_path = OUTPUT_HTML.parent / "toprate_data.json"
@@ -3273,6 +3286,16 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
 
     remaining = set(touched)
     _patch(races, remaining)
+    races_left = set(start_time_updates)
+    for race in races:
+        rid = str(race.get("race_id"))
+        if rid in start_time_updates:
+            race["start_time"] = start_time_updates[rid]
+            races_left.discard(rid)
+    if races_left:
+        # a race not in the current payload yet (e.g. tomorrow's, before its first full rebuild) - the runners
+        # file has the new time and the next full rebuild carries it, so this is not a reason to fall back
+        print(f"  patch_data_json: start time for {len(races_left)} race(s) not in the current payload, skipped")
     # A touched runner not in the current file (e.g. a late result for yesterday) is looked for in the
     # history file (split payload, see _write_payload)
     hist, hist_hit = None, False
