@@ -116,6 +116,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
 import speedmap_jockey_tracker as sjt  # reconcile tracker CSVs on the fast cycle too, see run_once()
+import tab_dividends  # TAB dividends per race, all pools incl. quaddies (racing-model exotics tests)
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
 import tab_fields  # twice-daily TAB race cards -> weight_carried (toprate.au no longer supplies weights)
 
@@ -358,7 +359,7 @@ def _within_price_window(start_dt):
 
 
 def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=None,
-                        archive=True, fetch_prices=True):
+                        archive=True, fetch_prices=True, div_done=None):
     """
     Returns (results, conditions, prices, terminal_cache, unplaced_races).
 
@@ -405,6 +406,10 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
     extra call). TAB moves a race's time when a meeting is delayed or reshuffled; apply_start_times() writes it
     over the toprate.au time captured by the Daily fetch, so the dashboard's countdown / next-to-jump stay right.
 
+    dividends: rows for tab_dividends.append() -- every pool dividend of each race that is Paying and not yet in
+    div_done (tab_dividends.done_keys(); None skips this tier). One race-detail call per race, once: a race whose
+    detail has no dividends yet is retried next cycle; an Abandoned race gets a single "(abandoned)" marker row.
+
     Mutates terminal_cache in place with any race that reached
     Paying/Abandoned.
     """
@@ -414,6 +419,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
     prices = []
     unplaced_races = []
     start_times = []
+    dividends = []
     seen_meetings = set()
 
     # Circuit breaker: if TAB starts blocking/degrading this IP again (see
@@ -486,6 +492,37 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                     break
                 race_no = rc.get("raceNumber")
                 rkey = f"{target_date}|{venue}|{race_no}"
+                # Dividends (tab_dividends.py): once per race, when it is first seen Paying. Before the
+                # terminal_cache skip below, which would otherwise hide a race that turned Paying last cycle.
+                rstatus = rc.get("raceStatus")
+                dkey = tab_dividends.key(target_date, venue, race_no) if race_no is not None else None
+                if (div_done is not None and dkey and dkey not in div_done and rstatus in FINAL_STATUSES
+                        and not aborted):
+                    base = dict(date=target_date, venue=venue, race_no=race_no, jurisdiction=jurisdiction,
+                                status=rstatus)
+                    if rstatus != "Paying":
+                        dividends.append({**base, "product": "(abandoned)"})
+                        div_done.add(dkey)
+                    elif venue_mnemonic:
+                        try:
+                            detail = get(RACE_DETAIL.format(date=target_date, venue_mnemonic=venue_mnemonic,
+                                                            race_no=race_no),
+                                         {"jurisdiction": jurisdiction}, timeout=FAST_FAIL_TIMEOUT)
+                            consecutive_failures = 0
+                            found = tab_dividends.parse(detail)
+                            if found:
+                                dividends.extend({**base, "product": pr, "selections": se, "amount": am, "raw": raw}
+                                                 for pr, se, am, raw in found)
+                                div_done.add(dkey)
+                            else:
+                                keys = sorted(detail)[:15] if isinstance(detail, dict) else type(detail).__name__
+                                print(f"  no dividends in TAB payload yet for {venue} R{race_no} (keys: {keys})")
+                        except Exception as e:
+                            print(f"  dividend fetch failed for {venue} R{race_no}: {type(e).__name__}: {str(e)[:60]}")
+                            consecutive_failures += 1
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                                aborted = True
+                        time.sleep(0.15)
                 if rkey in terminal_cache:
                     continue  # Paying/Abandoned already -- never changes again
 
@@ -573,7 +610,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
 
         time.sleep(0.3)  # polite spacing between the (at most 8) state calls
 
-    return out, conditions, prices, terminal_cache, unplaced_races, start_times
+    return out, conditions, prices, terminal_cache, unplaced_races, start_times, dividends
 
 
 def _archive_raw(target_date, jurisdiction, payload):
@@ -917,10 +954,11 @@ def run_once(push=True):
     _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
 
-    results, conditions, prices, terminal_cache, unplaced_races, start_times = fetch_today_results(
-        target_date, terminal_cache=terminal_cache)
+    results, conditions, prices, terminal_cache, unplaced_races, start_times, dividends = fetch_today_results(
+        target_date, terminal_cache=terminal_cache, div_done=tab_dividends.done_keys())
     save_terminal_cache(terminal_cache)
     tab_price_log.append(prices)  # before any early return, so every read is kept
+    tab_dividends.append(dividends)  # same: committed by tab_results.yml whatever else this cycle does
     # Twice a day: TAB race cards for today + tomorrow -> the fields log; every cycle the logged weights are
     # (re)applied to weight_carried (best-effort, see tab_fields.py)
     n_read = tab_fields.maybe_fetch(sys.modules[__name__])
@@ -1081,7 +1119,17 @@ def main():
     ap.add_argument("--no-push", action="store_true", help="write the CSV but skip git commit/push")
     ap.add_argument("--interval", type=int, default=90,
                     help="seconds between polls in loop mode (default 90)")
+    ap.add_argument("--dividends", metavar="YYYY-MM-DD",
+                    help="only log TAB dividends for that date's resulted races (backfill; no other writes)")
     a = ap.parse_args()
+
+    if a.dividends:
+        div = fetch_today_results(a.dividends, terminal_cache=set(), archive=False, fetch_prices=False,
+                                  div_done=tab_dividends.done_keys())[-1]
+        tab_dividends.append(div)
+        if not div:
+            print(f"  no new dividends for {a.dividends}")
+        return 0
 
     if a.diagnose:
         return diagnose()
