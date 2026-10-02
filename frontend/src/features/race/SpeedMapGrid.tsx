@@ -347,8 +347,13 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
   // mobile (compact, single sub-column, fills its 1/6-width grid cell)
   // layouts below - see each layout's own comment for why they differ.
   function renderCard(u: Runner, compact: boolean, gridPos?: { row: number; col: number }) {
-    const displaySpeedMap = (model ? model.tone.get(u.runId) : displaySpeedMapByRunId.get(u.runId)) ?? null
-    const tone = threatTone(displaySpeedMap, model?.toneThreshold)
+    // Tint = the race table's SM column (same demeaned number, same +/-0.5 threshold), so a tile and its row
+    // always agree (3 Oct 2026, user report: Litzdeel SM +1.0 but a red tile - the tile used the Racing Model's
+    // separate position value). Position value is kept as a small corner dot when it is outside +/- its threshold.
+    const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
+    const tone = threatTone(displaySpeedMap)
+    const posValue = model ? (model.tone.get(u.runId) ?? null) : null
+    const pvTone = model ? threatTone(posValue, model.toneThreshold) : 'neutral'
     const rating = model ? (model.rating.get(u.runId) ?? null) : u.projectedWpr
     const drawFrac = drawFracOf(u, fieldSize)
     const caution = cautionRunIds.has(u.runId)
@@ -361,7 +366,10 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
       `${u.tabNumber}. ${u.horse}`,
       u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
       displaySpeedMap != null
-        ? `${model ? 'Position value (WPR pts vs this race)' : "speed_map vs this field's average"}: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
+        ? `SM adj vs this field: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
+        : null,
+      posValue != null
+        ? `Position value (separate model, WPR pts vs this race): ${posValue > 0 ? '+' : ''}${posValue.toFixed(1)}`
         : null,
       caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
     ].filter(Boolean)
@@ -398,6 +406,14 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
             style={{ height: `${Math.max(8, drawFrac * 100)}%` }}
           />
         </div>
+        {pvTone !== 'neutral' && (
+          // Position value (Racing Model, separate from SM): green / red dot when it is outside +/-0.5
+          <span
+            className={`absolute bottom-0.5 left-0.5 rounded-full ${pvTone === 'help' ? 'bg-emerald' : 'bg-rose'} ${
+              compact ? 'h-1.5 w-1.5' : 'h-2 w-2'
+            }`}
+          />
+        )}
         {caution && (
           // Positioned INSIDE the card (not overflowing outside it) -
           // an earlier version used a negative offset that overflowed
@@ -461,7 +477,7 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
         <span className="text-sm font-semibold text-ink">{model ? 'Speed map · Racing Model' : 'Speed map'}</span>
         <span className="text-xs text-ink-faint">
           {model
-            ? 'Projected position at the 800m · tint = position value vs THIS field (green favoured, red hurt) · number = projected rating'
+            ? 'Projected position at the 800m · tint = SM adj vs THIS field (green favoured, red hurt), as in the table · corner dot = position value (separate model) · number = projected rating'
             : 'Predicted running position · tint = vs the rest of THIS field (green favoured, red hurt)'}{' '}
           &middot; side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
         </span>
