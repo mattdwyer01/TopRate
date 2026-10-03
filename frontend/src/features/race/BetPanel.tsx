@@ -1,4 +1,4 @@
-import type { QuadBet, QuinBet, Sel, TriBet, WinBet } from '../../lib/betRules'
+import { EARLY_QUAD_STAKE, QUAD_STAKE, QUIN_STAKE, TRI_STAKE, type QuadBet, type QuinBet, type Sel, type TriBet, type WinBet } from '../../lib/betRules'
 import type { LoggedBet, LoggedKind } from '../../lib/betsLog'
 
 
@@ -171,7 +171,7 @@ export function BetPanel({
     loggedRows.reduce((t, b) => t + b.stake, 0) +
     (win?.stake ?? 0) + (tri && !tri.skip ? tri.stake : 0) + (quin && !quin.skip ? quin.stake : 0) + (quad && !quad.skip ? quad.stake : 0) + (earlyQuad && !earlyQuad.skip ? earlyQuad.stake : 0)
   const halved = [
-    ...loggedRows.map((b) => (b.bet === 'Win' ? b.price != null && Math.abs(b.stake * b.price - 100) < 1 : b.stake < { Quinella: 15, Trifecta: 10, Quaddie: 25, EarlyQuaddie: 25 }[b.bet])),win?.target === 100, tri && !tri.skip && tri.stake < 10, quin && !quin.skip && quin.stake < 15, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
+    ...loggedRows.map((b) => (b.bet === 'Win' ? b.price != null && Math.abs(b.stake * b.price - 100) < 1 : b.stake < { Quinella: QUIN_STAKE, Trifecta: TRI_STAKE, Quaddie: QUAD_STAKE, EarlyQuaddie: EARLY_QUAD_STAKE }[b.bet])),win?.target === 100, tri && !tri.skip && tri.stake < TRI_STAKE, quin && !quin.skip && quin.stake < QUIN_STAKE, quad && !quad.skip && quad.stake < QUAD_STAKE, earlyQuad && !earlyQuad.skip && earlyQuad.stake < EARLY_QUAD_STAKE].some(Boolean)
   const fmt = (v: number) => (Number.isInteger(v) ? `$${v}` : `$${v.toFixed(2)}`)
 
   const loggedRow = (b: LoggedBet | null) =>
