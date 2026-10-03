@@ -6,8 +6,8 @@ frontend/src/lib/betRules.ts):
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); at least one
              within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $10 flexi.
-  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +0.5; first
-             starters allowed; $15 flexi.
+  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +0.5; no first
+             starter in the race (user rule 3 Oct 2026; the test showed no harm); $15 flexi.
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
              <= 400 combinations; $25 flexi.
   Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $25 flexi.
@@ -165,13 +165,13 @@ def new_bets(runners, rm, now, logged_ids):
                              "runner_ids": "|".join([",".join(a["run_id"].astype(str)), ",".join(b["run_id"].astype(str))]),
                              "combos": combos, "stake": stake, "price": np.nan,
                              "flexi_pct": round(100 * stake / combos, 1)})
-        # quinella (no first-starter filter): box of the within-4 runners
+        # quinella: box of the within-4 runners, no first starter in the race
         for n, g in races.items():
             if not soon(n):
                 continue
             f = frame(n)
             bid = f"{g['race_id'].iloc[0]}:Quinella"
-            if f is None or bid in logged_ids:
+            if f is None or bid in logged_ids or _fs(g):
                 continue
             a = f[f["inner"]]
             combos = len(a) * (len(a) - 1) // 2
