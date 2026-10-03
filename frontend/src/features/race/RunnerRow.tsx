@@ -10,8 +10,6 @@ interface RunnerRowProps {
   compact: boolean
   selected: boolean
   effective?: EffectiveRunner
-  // Betting-rule tag (lib/betRules.ts), e.g. 'WIN' on the race's win bet
-  betTag?: string
   onClick: () => void
 }
 
@@ -56,7 +54,6 @@ export function RunnerRow({
   compact,
   selected,
   effective,
-  betTag,
   onClick,
 }: RunnerRowProps) {
   const rowPadding = compact ? 'py-1.5' : 'py-2.5'
@@ -329,14 +326,6 @@ export function RunnerRow({
               className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white"
             >
               SCR
-            </span>
-          )}
-          {betTag && !scratched && (
-            <span
-              title="Fits the win bet rule: Combo top pick 4+ clear, SM green, no first starter in the race"
-              className="flex-none rounded bg-emerald px-1 text-[10px] font-semibold text-white"
-            >
-              {betTag}
             </span>
           )}
         </span>

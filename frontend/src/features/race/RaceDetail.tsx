@@ -11,10 +11,6 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
-import { BetPanel } from './BetPanel'
-import { quaddie, quinella, raceSets, setsForRace, trifecta, winBet } from '../../lib/betRules'
-import { betsForRace, useBetsLog } from '../../lib/betsLog'
-import { bushMeetingKeys, meetingKey } from '../../lib/meetings'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
@@ -196,33 +192,6 @@ export function RaceDetail({
     () => computeCompositeGaps(race.runners, effectiveByRunId, effectiveScratched),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-
-  // Betting rules (lib/betRules.ts): this race's win / trifecta bet and, on a main-quaddie leg, the quaddie ticket.
-  const betSets = useMemo(
-    () => raceSets(race.runners, compositeGapByRunId, effectiveByRunId, effectiveScratched),
-    [race.runners, compositeGapByRunId, effectiveByRunId, effectiveScratched],
-  )
-  // bush meetings (top race prize <= $20k, the meetings grid's bush filter) get no bets (user rule 3 Oct 2026)
-  const bush = useMemo(() => bushMeetingKeys(allRaces).has(meetingKey(race)), [allRaces, race])
-  const win = useMemo(() => (bush ? null : winBet(race, betSets)), [bush, race, betSets])
-  const tri = useMemo(() => (bush ? null : trifecta(race, betSets)), [bush, race, betSets])
-  const quin = useMemo(() => (bush ? null : quinella(race, betSets)), [bush, race, betSets])
-  const [quad, earlyQuad] = useMemo(() => {
-    if (bush) return [null, null]
-    const key = meetingKey(race)
-    const meeting = allRaces
-      .filter((r) => meetingKey(r) === key)
-      .map((r) => (r.raceId === race.raceId ? race : { ...r, runners: withModelAdjustments(r.runners, racingModel) }))
-    const setsFor = (r: (typeof meeting)[number]) =>
-      r.raceId === race.raceId ? betSets : setsForRace(r, deltas, bases, priceBeta, scratched)
-    return [quaddie(race, meeting, setsFor, 'main'), quaddie(race, meeting, setsFor, 'early')]
-  }, [bush, race, allRaces, racingModel, betSets, deltas, bases, priceBeta, scratched])
-
-  // logged bets (bets_log.json) for this race, with results; after the jump the card shows only these
-  const { bets: betsLog } = useBetsLog()
-  const loggedBets = useMemo(() => betsForRace(betsLog, race), [betsLog, race])
-  const nowMs = Date.now()
-  const started = ['interim', 'resulted'].includes(raceStatus(race, nowMs)) || nowMs >= new Date(race.startTime).getTime()
 
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
@@ -448,17 +417,6 @@ export function RaceDetail({
         )}
       </div>
 
-      <BetPanel
-        win={win}
-        tri={tri}
-        quin={quin}
-        quad={quad}
-        earlyQuad={earlyQuad}
-        raceNumber={race.raceNumber}
-        logged={loggedBets}
-        started={started}
-        bush={bush}
-      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">
@@ -750,7 +708,6 @@ export function RaceDetail({
             <Fragment key={runner.runId}>
               <RunnerRow
                 runner={runner}
-                betTag={win?.sel.runner.runId === runner.runId ? 'WIN' : undefined}
                 raceDate={race.date}
                 compact={compact}
                 selected={runner.runId === selectedRunId}
