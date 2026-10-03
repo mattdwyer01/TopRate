@@ -16,13 +16,12 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
-import { BetsTab } from './features/bets/BetsTab'
 
-type TopTab = 'race' | 'bets' | 'review'
+type TopTab = 'race' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' || t === 'bets' ? t : 'race'
+  return t === 'review' ? t : 'race'
 }
 
 function App() {
@@ -65,7 +64,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review' || tab === 'bets') {
+    if (tab === 'review') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -149,7 +148,7 @@ function App() {
             {/* Visible "TopRate" wordmark removed (26 Sep 2026 user request); kept for screen readers. */}
             <h1 className="sr-only">TopRate</h1>
             <nav className="flex rounded-md border border-line bg-bg p-0.5">
-              {/* Summary (trackers) tab removed 3 Oct 2026 (user request); an old ?tab=trackers link opens Race. */}
+              {/* Summary (trackers) and Bets tabs removed 3 Oct 2026 (user request); old ?tab=trackers / ?tab=bets links open Race. */}
               <button
                 type="button"
                 onClick={() => switchTab('race')}
@@ -159,16 +158,6 @@ function App() {
                 }
               >
                 Race
-              </button>
-              <button
-                type="button"
-                onClick={() => switchTab('bets')}
-                className={
-                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
-                  (topTab === 'bets' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
-                }
-              >
-                Bets
               </button>
               <button
                 type="button"
@@ -226,7 +215,6 @@ function App() {
         {state.status === 'error' && (
           <ErrorState message={state.message} onRetry={retry} />
         )}
-        {topTab === 'bets' && <BetsTab onSelectRace={(raceId, date) => goToRace(raceId, date)} />}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
