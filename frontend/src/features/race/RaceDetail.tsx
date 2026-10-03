@@ -11,6 +11,9 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
+import { BetPanel } from './BetPanel'
+import { mainQuaddie, raceSets, setsForRace, trifecta, winBet } from '../../lib/betRules'
+import { meetingKey } from '../../lib/meetings'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
@@ -192,6 +195,23 @@ export function RaceDetail({
     () => computeCompositeGaps(race.runners, effectiveByRunId, effectiveScratched),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
+
+  // Betting rules (lib/betRules.ts): this race's win / trifecta bet and, on a main-quaddie leg, the quaddie ticket.
+  const betSets = useMemo(
+    () => raceSets(race.runners, compositeGapByRunId, effectiveByRunId, effectiveScratched),
+    [race.runners, compositeGapByRunId, effectiveByRunId, effectiveScratched],
+  )
+  const win = useMemo(() => winBet(race, betSets), [race, betSets])
+  const tri = useMemo(() => trifecta(race, betSets), [race, betSets])
+  const quad = useMemo(() => {
+    const key = meetingKey(race)
+    const meeting = allRaces
+      .filter((r) => meetingKey(r) === key)
+      .map((r) => (r.raceId === race.raceId ? race : { ...r, runners: withModelAdjustments(r.runners, racingModel) }))
+    return mainQuaddie(race, meeting, (r) =>
+      r.raceId === race.raceId ? betSets : setsForRace(r, deltas, bases, priceBeta, scratched),
+    )
+  }, [race, allRaces, racingModel, betSets, deltas, bases, priceBeta, scratched])
 
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
@@ -416,6 +436,8 @@ export function RaceDetail({
           </div>
         )}
       </div>
+
+      <BetPanel win={win} tri={tri} quad={quad} raceNumber={race.raceNumber} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">
@@ -707,6 +729,7 @@ export function RaceDetail({
             <Fragment key={runner.runId}>
               <RunnerRow
                 runner={runner}
+                betTag={win?.sel.runner.runId === runner.runId ? 'WIN' : undefined}
                 raceDate={race.date}
                 compact={compact}
                 selected={runner.runId === selectedRunId}
