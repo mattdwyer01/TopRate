@@ -16,12 +16,13 @@ import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { ReviewTab } from './features/review/ReviewTab'
+import { BetsTab } from './features/bets/BetsTab'
 
-type TopTab = 'race' | 'review'
+type TopTab = 'race' | 'bets' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' ? t : 'race'
+  return t === 'review' || t === 'bets' ? t : 'race'
 }
 
 function App() {
@@ -64,7 +65,7 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review') {
+    if (tab === 'review' || tab === 'bets') {
       const q = `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
@@ -161,6 +162,16 @@ function App() {
               </button>
               <button
                 type="button"
+                onClick={() => switchTab('bets')}
+                className={
+                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
+                  (topTab === 'bets' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Bets
+              </button>
+              <button
+                type="button"
                 onClick={() => switchTab('review')}
                 className={
                   'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
@@ -215,6 +226,7 @@ function App() {
         {state.status === 'error' && (
           <ErrorState message={state.message} onRetry={retry} />
         )}
+        {topTab === 'bets' && <BetsTab onSelectRace={(raceId, date) => goToRace(raceId, date)} />}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}

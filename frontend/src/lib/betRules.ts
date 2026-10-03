@@ -2,7 +2,7 @@
 // reports/dashboard_review.md, exotics_test.md; rules page https://claude.ai/artifact/9uJiHLuBBBqQXDeQJdRZuz).
 // Evaluated live on the race page from the same numbers the table shows: Combo gap from the top pick
 // (computeCompositeGaps) and the SM column (EffectiveRunner.speedMapAdj, demeaned, +/-0.5 = green / red).
-//   Win:      Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race; to win $200.
+//   Win:      Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race; stake so it returns $200.
 //   Trifecta: 1st / 2nd from within 4, 3rd from the 8 line (within 4, or 4-8 back with SM > -0.5); no first
 //             starter in the race; skip over 36 combinations; $20 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
@@ -15,7 +15,8 @@ import { computeCompositeGaps, computeEffectiveRace, type EffectiveRunner } from
 export const INNER = 4
 export const OUTER = 8
 export const SM_T = 0.5
-export const WIN_TARGET = 200
+// Win stake: the bet RETURNS $200 at the fixed price (stake x price = 200), same as bet_log.py
+export const WIN_RETURN = 200
 export const TRI_CAP = 36
 export const TRI_STAKE = 20
 export const QUAD_CAP = 400
@@ -53,14 +54,14 @@ export function raceSets(
 export interface WinBet {
   sel: Sel
   price: number | null
-  stake: number | null // to win WIN_TARGET at the current fixed price
+  stake: number | null // returns WIN_RETURN at the current fixed price
 }
 
 export function winBet(race: Race, s: RaceSets): WinBet | null {
   if (race.hasFirstStarter || !s.top || s.clear == null || s.clear < INNER) return null
   if (s.top.sm == null || s.top.sm < SM_T) return null
   const price = s.top.runner.fixedWinPrice
-  return { sel: s.top, price, stake: price != null && price > 1 ? WIN_TARGET / (price - 1) : null }
+  return { sel: s.top, price, stake: price != null && price > 1 ? WIN_RETURN / price : null }
 }
 
 export interface TriBet {
