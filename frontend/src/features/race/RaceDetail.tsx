@@ -13,6 +13,7 @@ import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustment
 import { ModelRunnerRow } from './ModelRunnerRow'
 import { BetPanel } from './BetPanel'
 import { quaddie, quinella, raceSets, setsForRace, trifecta, winBet } from '../../lib/betRules'
+import { betsForRace, useBetsLog } from '../../lib/betsLog'
 import { meetingKey } from '../../lib/meetings'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
@@ -213,6 +214,12 @@ export function RaceDetail({
       r.raceId === race.raceId ? betSets : setsForRace(r, deltas, bases, priceBeta, scratched)
     return [quaddie(race, meeting, setsFor, 'main'), quaddie(race, meeting, setsFor, 'early')]
   }, [race, allRaces, racingModel, betSets, deltas, bases, priceBeta, scratched])
+
+  // logged bets (bets_log.json) for this race, with results; after the jump the card shows only these
+  const { bets: betsLog } = useBetsLog()
+  const loggedBets = useMemo(() => betsForRace(betsLog, race), [betsLog, race])
+  const nowMs = Date.now()
+  const started = ['interim', 'resulted'].includes(raceStatus(race, nowMs)) || nowMs >= new Date(race.startTime).getTime()
 
   // effectiveScratched still carries the manual set's OTHER-race run_ids
   // (it's a global set with this race's data-scratches merged in) - count
@@ -438,7 +445,16 @@ export function RaceDetail({
         )}
       </div>
 
-      <BetPanel win={win} tri={tri} quin={quin} quad={quad} earlyQuad={earlyQuad} raceNumber={race.raceNumber} />
+      <BetPanel
+        win={win}
+        tri={tri}
+        quin={quin}
+        quad={quad}
+        earlyQuad={earlyQuad}
+        raceNumber={race.raceNumber}
+        logged={loggedBets}
+        started={started}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">

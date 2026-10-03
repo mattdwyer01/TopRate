@@ -1,31 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { StatTile } from '../../components/StatTile'
 import { formatTimeOfDay } from '../../lib/countdown'
+import { useBetsLog, type LoggedBet } from '../../lib/betsLog'
 
 // Bets tab: every bet the betting rules made for a day and how it went. Reads bets_log.json, written by the TAB poller
 // (bet_log.py): each bet is frozen ~10 minutes before its race (a quaddie before its first leg) from the data as it
 // was then, and settled from TAB's real dividends (exotics return dividend x stake / combinations, i.e. the flexi %).
-
-interface LoggedBet {
-  bet_id: string
-  date: string
-  venue: string
-  race: number
-  race_id: string
-  start_utc: string
-  bet: 'Win' | 'Trifecta' | 'Quinella' | 'Quaddie' | 'EarlyQuaddie'
-  legs: string
-  selection: string
-  combos: number
-  stake: number
-  price: number | null
-  flexi_pct: number
-  status: 'pending' | 'won' | 'lost' | 'refund' | 'void'
-  winners: string | null
-  dividend: number | null
-  return: number | null
-  profit: number | null
-}
 
 const LABEL: Record<LoggedBet['bet'], string> = { Win: 'WIN', Trifecta: 'TRI', Quinella: 'QUIN', Quaddie: 'QUAD', EarlyQuaddie: 'EARLY' }
 const TAG: Record<LoggedBet['bet'], string> = {
@@ -59,24 +39,8 @@ function shiftDay(d: string, n: number): string {
 }
 
 export function BetsTab({ onSelectRace }: { onSelectRace: (raceId: string, date: string) => void }) {
-  const [bets, setBets] = useState<LoggedBet[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { bets, error } = useBetsLog()
   const [day, setDay] = useState(melbourneToday())
-
-  useEffect(() => {
-    let alive = true
-    const load = () =>
-      fetch(`bets_log.json?t=${Date.now()}`, { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((j) => alive && setBets(j.bets ?? []))
-        .catch((e) => alive && setError(e instanceof Error && e.message === 'HTTP 404' ? 'No bets logged yet.' : 'Could not load the bets log.'))
-    load()
-    const id = window.setInterval(load, 60_000)
-    return () => {
-      alive = false
-      window.clearInterval(id)
-    }
-  }, [])
 
   const dayBets = useMemo(
     () =>
