@@ -35,6 +35,8 @@ const TAG: Record<LoggedBet['bet'], string> = {
   Quaddie: 'bg-amber text-white',
   EarlyQuaddie: 'bg-amber-bg text-amber border border-amber-line',
 }
+// within a race: win first, then quinella, trifecta, quaddies
+const ORDER: Record<LoggedBet['bet'], number> = { Win: 0, Quinella: 1, Trifecta: 2, EarlyQuaddie: 3, Quaddie: 4 }
 const STATUS: Record<LoggedBet['status'], string> = {
   pending: 'text-ink-faint',
   won: 'text-emerald font-semibold',
@@ -77,7 +79,10 @@ export function BetsTab({ onSelectRace }: { onSelectRace: (raceId: string, date:
   }, [])
 
   const dayBets = useMemo(
-    () => (bets ?? []).filter((b) => b.date === day).sort((a, b) => a.start_utc.localeCompare(b.start_utc)),
+    () =>
+      (bets ?? [])
+        .filter((b) => b.date === day)
+        .sort((a, b) => a.start_utc.localeCompare(b.start_utc) || ORDER[a.bet] - ORDER[b.bet]),
     [bets, day],
   )
   const settled = dayBets.filter((b) => b.status !== 'pending')
@@ -85,7 +90,7 @@ export function BetsTab({ onSelectRace }: { onSelectRace: (raceId: string, date:
   const returned = settled.reduce((s, b) => s + (b.return ?? 0), 0)
   const profit = returned - staked
   const pending = dayBets.filter((b) => b.status === 'pending')
-  const byType = (['Win', 'Trifecta', 'Quinella', 'EarlyQuaddie', 'Quaddie'] as const).map((t) => {
+  const byType = (['Win', 'Quinella', 'Trifecta', 'EarlyQuaddie', 'Quaddie'] as const).map((t) => {
     const g = settled.filter((b) => b.bet === t)
     const st = g.reduce((s, b) => s + b.stake, 0)
     const rt = g.reduce((s, b) => s + (b.return ?? 0), 0)
