@@ -545,3 +545,11 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-03T00:44:19+00:00,2026-10-03,MURTOA,6,VIC,Abandoned,(abandoned),,,
 2026-10-03T00:44:19+00:00,2026-10-03,MURTOA,7,VIC,Abandoned,(abandoned),,,
 2026-10-03T00:44:19+00:00,2026-10-03,MURTOA,8,VIC,Abandoned,(abandoned),,,
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Win,2,3,"{""selections"":[2],""amount"":3}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Place,2,1.7,"{""selections"":[2],""amount"":1.7}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Place,1,1.3,"{""selections"":[1],""amount"":1.3}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Quinella,2/1,3.5,"{""selections"":[2,1],""amount"":3.5}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Exacta,2/1,6.9,"{""selections"":[2,1],""amount"":6.9}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Duet,F/F,0,"{""selections"":[""F"",""F""],""amount"":0}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,Trifecta,2/1/5,13.8,"{""selections"":[2,1,5],""amount"":13.8}"
+2026-10-03T01:55:28+00:00,2026-10-03,EAGLE FARM,1,VIC,Paying,FirstFour,2/1/5/6,19.7,"{""selections"":[2,1,5,6],""amount"":19.7}"
