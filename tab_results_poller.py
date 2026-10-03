@@ -160,6 +160,9 @@ VENUE_ALIASES = {
     # venue) while the provider CSV says "Kembla Grange" - same track,
     # same mismatch pattern as CAULFIELD HEATH above.
     "ILLAWARRA GRANGE": "Kembla Grange",
+    # TAB "MURRAY BRIDGE" is the provider's "Murray Bridge GH" (Gifford Hill; every provider date since Aug 2026 uses
+    # the GH name). User report 3 Oct 2026: results, prices and times not updating.
+    "MURRAY BRIDGE": "Murray Bridge GH",
 }
 
 
