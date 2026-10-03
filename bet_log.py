@@ -45,9 +45,11 @@ DIVIDENDS = DIR / "tab_dividends.csv"
 LOCK_MINUTES = 12
 INNER, OUTER, SM_T = 4.0, 8.0, 0.5
 WIN_RETURN = 200.0
-TRI_CAP, TRI_STAKE = 36, 10.0
-QUIN_CAP, QUIN_STAKE = 6, 15.0
-QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 25.0, 25.0
+# exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
+# full stakes were trifecta 10, quinella 15, quaddies 25
+TRI_CAP, TRI_STAKE = 36, 5.0
+QUIN_CAP, QUIN_STAKE = 6, 7.5
+QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 12.5, 12.5
 # bush meetings (top race prize <= $20k, the dashboard's BUSH_TRACK_THRESHOLD) get no bets (user rule 3 Oct 2026)
 BUSH_PRIZE = 20000
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71

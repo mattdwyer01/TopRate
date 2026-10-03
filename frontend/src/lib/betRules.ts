@@ -23,12 +23,13 @@ export const SM_T = 0.5
 // Win stake: the bet RETURNS $200 at the fixed price (stake x price = 200), same as bet_log.py
 export const WIN_RETURN = 200
 export const TRI_CAP = 36
-export const TRI_STAKE = 10
+// exotic stakes halved from 4 Oct 2026 until the ~23 Oct review (full: trifecta 10, quinella 15, quaddies 25)
+export const TRI_STAKE = 5
 export const QUIN_CAP = 6
-export const QUIN_STAKE = 15
+export const QUIN_STAKE = 7.5
 export const QUAD_CAP = 400
-export const QUAD_STAKE = 25
-export const EARLY_QUAD_STAKE = 25
+export const QUAD_STAKE = 12.5
+export const EARLY_QUAD_STAKE = 12.5
 
 // Heavy track: halve every stake
 export function isHeavy(race: Race): boolean {
