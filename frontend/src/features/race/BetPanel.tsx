@@ -60,8 +60,8 @@ export function BetPanel({
 }) {
   const skipped: string[] = []
   if (!win) skipped.push('Win')
-  if (!tri || tri.skip) skipped.push(`Trifecta (${tri?.skip ?? 'fewer than 2 within 4'})`)
   if (!quin || quin.skip) skipped.push(`Quinella (${quin?.skip ?? 'fewer than 2 within 4'})`)
+  if (!tri || tri.skip) skipped.push(`Trifecta (${tri?.skip ?? 'fewer than 2 within 4'})`)
   for (const [name, q] of [['Early quaddie', earlyQuad], ['Quaddie', quad]] as const) {
     if (q?.skip) skipped.push(`${name} R${q.legs[0].race.raceNumber}-R${q.legs[q.legs.length - 1].race.raceNumber} (${q.skip})`)
   }
@@ -115,6 +115,14 @@ export function BetPanel({
             {win.stake == null && <span className="text-ink-faint"> · stake = {win.target} ÷ price</span>}
           </Row>
         )}
+        {quin && !quin.skip && (
+          <Row tag="QUIN" stake={fmt(quin.stake)} note={pct(quin.stake, quin.combos)}>
+            <div className="flex items-center gap-1.5">
+              <span className="w-7 flex-none text-[11px] text-ink-mute">box</span>
+              <Chips sel={quin.box} />
+            </div>
+          </Row>
+        )}
         {tri && !tri.skip && (
           <Row tag="TRI" stake={fmt(tri.stake)} note={pct(tri.stake, tri.combos)}>
             <div className="flex flex-col gap-0.5">
@@ -126,14 +134,6 @@ export function BetPanel({
                 <span className="w-7 flex-none text-[11px] text-ink-mute">3rd</span>
                 <Chips sel={tri.third} />
               </div>
-            </div>
-          </Row>
-        )}
-        {quin && !quin.skip && (
-          <Row tag="QUIN" stake={fmt(quin.stake)} note={pct(quin.stake, quin.combos)}>
-            <div className="flex items-center gap-1.5">
-              <span className="w-7 flex-none text-[11px] text-ink-mute">box</span>
-              <Chips sel={quin.box} />
             </div>
           </Row>
         )}
