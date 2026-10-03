@@ -7,7 +7,7 @@
 //             within-4 runner with SM >= +0.5 (without one: 107 races +4% vs +26%); no first starter in the race;
 //             skip over 36 combinations; $10 flexi.
 //   Quinella: box the within-4 runners when there are 2 to 4 of them (<= 6 combinations); first starters allowed
-//             (they did not hurt quinellas in the test); $10 flexi.
+//             (they did not hurt quinellas in the test); $15 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
 //             starter or the ticket is over 400 combinations; $25 flexi. Early quaddie: the 4 races before the main
 //             quaddie (races 1-4, overlapping the main, at meetings of 7 races or fewer); same rule, $25 flexi.
@@ -24,7 +24,7 @@ export const WIN_RETURN = 200
 export const TRI_CAP = 36
 export const TRI_STAKE = 10
 export const QUIN_CAP = 6
-export const QUIN_STAKE = 10
+export const QUIN_STAKE = 15
 export const QUAD_CAP = 400
 export const QUAD_STAKE = 25
 export const EARLY_QUAD_STAKE = 25

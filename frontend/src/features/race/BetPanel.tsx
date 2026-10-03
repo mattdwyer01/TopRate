@@ -69,7 +69,7 @@ export function BetPanel({
     (win ? 1 : 0) + (tri && !tri.skip ? 1 : 0) + (quin && !quin.skip ? 1 : 0) + (quad && !quad.skip ? 1 : 0) + (earlyQuad && !earlyQuad.skip ? 1 : 0)
   const total =
     (win?.stake ?? 0) + (tri && !tri.skip ? tri.stake : 0) + (quin && !quin.skip ? quin.stake : 0) + (quad && !quad.skip ? quad.stake : 0) + (earlyQuad && !earlyQuad.skip ? earlyQuad.stake : 0)
-  const halved = [win?.target === 100, tri && !tri.skip && tri.stake < 10, quin && !quin.skip && quin.stake < 10, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
+  const halved = [win?.target === 100, tri && !tri.skip && tri.stake < 10, quin && !quin.skip && quin.stake < 15, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
   const fmt = (v: number) => (Number.isInteger(v) ? `$${v}` : `$${v.toFixed(2)}`)
 
   const quadRow = (tag: string, q: QuadBet) => (
