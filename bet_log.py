@@ -8,6 +8,7 @@ frontend/src/lib/betRules.ts):
              within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $10 flexi.
   Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +0.5; no first
              starter in the race (user rule 3 Oct 2026; the test showed no harm); $15 flexi.
+  Bush       no bets at bush meetings (top race prize $20k or less, the dashboard's bush filter).
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
              <= 400 combinations; $25 flexi.
   Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $25 flexi.
@@ -47,6 +48,8 @@ WIN_RETURN = 200.0
 TRI_CAP, TRI_STAKE = 36, 10.0
 QUIN_CAP, QUIN_STAKE = 6, 15.0
 QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 25.0, 25.0
+# bush meetings (top race prize <= $20k, the dashboard's BUSH_TRACK_THRESHOLD) get no bets (user rule 3 Oct 2026)
+BUSH_PRIZE = 20000
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71
 JSON_DAYS = 60
 
@@ -122,6 +125,8 @@ def new_bets(runners, rm, now, logged_ids):
     today["race_n"] = pd.to_numeric(today["race"], errors="coerce")
     stamp = now.isoformat(timespec="seconds")
     for (day, venue), meet in today.groupby([today["date"].astype(str).str[:10], "venue"]):
+        if pd.to_numeric(meet["prize_money"], errors="coerce").fillna(0).max() <= BUSH_PRIZE:
+            continue
         races = {int(n): g for n, g in meet.groupby("race_n")}
         frames = {}
 
