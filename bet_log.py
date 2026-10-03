@@ -226,9 +226,7 @@ def settle(log, runners, dividends, venue_of):
     for i, b in log[log["status"] == "pending"].iterrows():
         if b["bet"] == "Win":
             rid = str(b["runner_ids"])
-            if rid not in run.index:
-                continue
-            row = run.loc[rid]
+            row = run.loc[rid] if rid in run.index else pd.Series(dtype=object)
             row = row.iloc[0] if isinstance(row, pd.DataFrame) else row
             if pd.to_numeric(pd.Series([row.get("scratched")]), errors="coerce").fillna(0).iloc[0] == 1:
                 log.loc[i, ["status", "return"]] = ["refund", b["stake"]]
@@ -238,6 +236,17 @@ def settle(log, runners, dividends, venue_of):
                     won = int(fp) == 1
                     log.loc[i, ["status", "winners", "return"]] = [
                         "won" if won else "lost", str(int(fp)), round(b["stake"] * b["price"], 2) if won else 0.0]
+                else:
+                    # finish positions reach the runners file later than TAB's dividends: settle from the Win pool's
+                    # winner (selection "4", dead heat "2+5" -> half the return each)
+                    rows = divs.get((str(b["date"]), str(b["venue"]).upper(), int(b["race"]), "Win"))
+                    if rows:
+                        w = _winner_sets(rows[0].selections)[0]
+                        tab = str(b["selection"]).split()[0]
+                        won = tab in w
+                        log.loc[i, ["status", "winners", "return"]] = [
+                            "won" if won else "lost", '+'.join(sorted(w)),
+                            round(b["stake"] * b["price"] / len(w), 2) if won else 0.0]
         else:
             key = (str(b["date"]), str(b["venue"]).upper(), int(b["race"]), b["bet"])
             rows = divs.get(key)
