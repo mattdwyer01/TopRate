@@ -268,8 +268,12 @@ export function computeEffectiveRace(
 // barely moves (73.2% -> 72.5%, matched margin 10.08 -> 9.82) - real
 // user decision to leave COMPOSITE_MAX_GAP_FROM_TOP at 10 regardless
 // (see that constant's own comment).
-export const COMPOSITE_WEIGHT_WPR = 0.50
-export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.25
+// Reweighted 3 Oct 2026 (user decision; racing-model tools/combo_strike_test.py, reports/combo_strike_test.md, 1,753
+// races 22 Aug to 3 Oct on pre-race values): TopRate rating share 1/3 -> 0.7 lifts the top pick's strike rate
+// 30.7% -> 33.0% (both halves of the window, every state group), top pick ROI at SP -14% -> -11%; where the top pick is
+// not the SP favourite, A/E price-matched 1.10 -> 1.18. Combo is now WPR projection 0.3 + TopRate rating 0.7.
+export const COMPOSITE_WEIGHT_WPR = 0.30
+export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.70
 // Form factor dropped from Combo (25 Sep 2026): on PRE-RACE TopRate values (racing-model
 // tools/combo_redesign_test.py, 22 Aug to 23 Sep 2026) Combo without it scored -0.019 log loss alone
 // (95% -0.036 to -0.003) and +0.0026 with SP (n.s.). Combo is now WPR projection 2/3 + TopRate rating 1/3.
@@ -307,8 +311,11 @@ const PFM_POP_STD = 30.88
 // Outer line 10 -> 8 (2 Oct 2026, user decision): quaddie test on pre-race dashboard values (304 quaddies 22 Aug to
 // 30 Sep, dividends estimated from SP): within 4 + 4-8 not speed-map-unfavoured, no first starters, est ROI -12% vs
 // -39% with the 10 line (-47% with first starters); outer 8 beat outer 10 at every inner cutoff (2 to 6).
-export const COMPOSITE_MAX_GAP_FROM_TOP = 8
-export const COMPOSITE_INNER_GAP_FROM_TOP = 4
+// Lines 4 / 8 -> 5 / 10 with the 0.7 rating weight (3 Oct 2026): the reweighted Combo spreads runners further apart;
+// 5 / 10 keep the old coverage (2.51 runners and 61% of winners inside the inner line vs 2.51 / 57.5%; 4.57 runners
+// and 82% of winners inside the outer vs 4.61 / 80%; quinella / trifecta hit A/E vs SP 1.21 / 1.33 vs 1.23 / 1.32).
+export const COMPOSITE_MAX_GAP_FROM_TOP = 10
+export const COMPOSITE_INNER_GAP_FROM_TOP = 5
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
