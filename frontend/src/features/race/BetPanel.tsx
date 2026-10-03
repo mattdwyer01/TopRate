@@ -1,5 +1,5 @@
 import type { QuadBet, Sel, TriBet, WinBet } from '../../lib/betRules'
-import { EARLY_QUAD_STAKE, QUAD_STAKE, TRI_STAKE, WIN_RETURN } from '../../lib/betRules'
+
 
 // "Bets" card on the race page: which betting rules (lib/betRules.ts) this race fits, live from the Combo gaps and SM.
 // Bets that apply get a row each (tag, selections as number chips, stake on the right); the ones that don't are
@@ -64,13 +64,12 @@ export function BetPanel({
   const active =
     (win ? 1 : 0) + (tri && !tri.skip ? 1 : 0) + (quad && !quad.skip ? 1 : 0) + (earlyQuad && !earlyQuad.skip ? 1 : 0)
   const total =
-    (win?.stake ?? 0) +
-    (tri && !tri.skip ? TRI_STAKE : 0) +
-    (quad && !quad.skip ? QUAD_STAKE : 0) +
-    (earlyQuad && !earlyQuad.skip ? EARLY_QUAD_STAKE : 0)
+    (win?.stake ?? 0) + (tri && !tri.skip ? tri.stake : 0) + (quad && !quad.skip ? quad.stake : 0) + (earlyQuad && !earlyQuad.skip ? earlyQuad.stake : 0)
+  const halved = [win?.target === 100, tri && !tri.skip && tri.stake < 20, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
+  const fmt = (v: number) => (Number.isInteger(v) ? `$${v}` : `$${v.toFixed(2)}`)
 
-  const quadRow = (tag: string, q: QuadBet, stake: number) => (
-    <Row tag={tag} stake={`$${stake}`} note={pct(stake, q.combos)}>
+  const quadRow = (tag: string, q: QuadBet) => (
+    <Row tag={tag} stake={fmt(q.stake)} note={pct(q.stake, q.combos)}>
       <div className="flex flex-col gap-0.5">
         {q.legs.map((l) => (
           <div key={l.race.raceId} className="flex items-center gap-1.5">
@@ -98,21 +97,22 @@ export function BetPanel({
           )}
         </span>
       </div>
+      {halved && <div className="pt-1 text-[11px] font-medium text-amber">Heavy track: stakes halved</div>}
       <div className="divide-y divide-line-soft">
         {win && (
           <Row
             tag="WIN"
             stake={win.stake != null ? `$${win.stake.toFixed(0)}` : '-'}
-            note={win.price != null ? `@ $${win.price.toFixed(2)} → $${WIN_RETURN}` : `returns $${WIN_RETURN}`}
+            note={win.price != null ? `@ $${win.price.toFixed(2)} → $${win.target}` : `returns $${win.target}`}
           >
             <span className="font-semibold">
               {win.sel.runner.tabNumber}. {win.sel.runner.horse}
             </span>
-            {win.stake == null && <span className="text-ink-faint"> · stake = {WIN_RETURN} ÷ price</span>}
+            {win.stake == null && <span className="text-ink-faint"> · stake = {win.target} ÷ price</span>}
           </Row>
         )}
         {tri && !tri.skip && (
-          <Row tag="TRI" stake={`$${TRI_STAKE}`} note={pct(TRI_STAKE, tri.combos)}>
+          <Row tag="TRI" stake={fmt(tri.stake)} note={pct(tri.stake, tri.combos)}>
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1.5">
                 <span className="w-7 flex-none text-[11px] text-ink-mute">1-2</span>
@@ -125,8 +125,8 @@ export function BetPanel({
             </div>
           </Row>
         )}
-        {earlyQuad && !earlyQuad.skip && quadRow('EARLY', earlyQuad, EARLY_QUAD_STAKE)}
-        {quad && !quad.skip && quadRow('QUAD', quad, QUAD_STAKE)}
+        {earlyQuad && !earlyQuad.skip && quadRow('EARLY', earlyQuad)}
+        {quad && !quad.skip && quadRow('QUAD', quad)}
       </div>
       {skipped.length > 0 && (
         <div className="mt-1 border-t border-line-soft pt-1.5 text-[11px] leading-snug text-ink-faint">
