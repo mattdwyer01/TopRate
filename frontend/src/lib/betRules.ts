@@ -5,7 +5,9 @@
 //   Win:      Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race; stake so it returns $200.
 //   Trifecta: 1st / 2nd from within 4, 3rd from the 8 line (within 4, or 4-8 back with SM > -0.5); at least one
 //             within-4 runner with SM >= +0.5 (without one: 107 races +4% vs +26%); no first starter in the race;
-//             skip over 36 combinations; $20 flexi.
+//             skip over 36 combinations; $10 flexi.
+//   Quinella: box the within-4 runners when there are 2 to 4 of them (<= 6 combinations); first starters allowed
+//             (they did not hurt quinellas in the test); $10 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
 //             starter or the ticket is over 400 combinations; $25 flexi. Early quaddie: the 4 races before the main
 //             quaddie (races 1-4, overlapping the main, at meetings of 7 races or fewer); same rule, $25 flexi.
@@ -20,7 +22,9 @@ export const SM_T = 0.5
 // Win stake: the bet RETURNS $200 at the fixed price (stake x price = 200), same as bet_log.py
 export const WIN_RETURN = 200
 export const TRI_CAP = 36
-export const TRI_STAKE = 20
+export const TRI_STAKE = 10
+export const QUIN_CAP = 6
+export const QUIN_STAKE = 10
 export const QUAD_CAP = 400
 export const QUAD_STAKE = 25
 export const EARLY_QUAD_STAKE = 25
@@ -94,6 +98,20 @@ export function trifecta(race: Race, s: RaceSets): TriBet | null {
   else if (s.outer.length < 3) skip = 'fewer than 3 runners in the 8 line set'
   else if (combos > TRI_CAP) skip = `${combos} combinations, over the ${TRI_CAP} cap`
   return { firstSecond: s.inner, third: s.outer, combos, stake: TRI_STAKE * stakeFactor([race]), skip }
+}
+
+export interface QuinBet {
+  box: Sel[]
+  combos: number
+  stake: number
+  skip: string | null
+}
+
+export function quinella(race: Race, s: RaceSets): QuinBet | null {
+  if (s.inner.length < 2) return null
+  const combos = (s.inner.length * (s.inner.length - 1)) / 2
+  const skip = combos > QUIN_CAP ? `${s.inner.length} runners within 4, over the box-of-4 cap` : null
+  return { box: s.inner, combos, stake: QUIN_STAKE * stakeFactor([race]), skip }
 }
 
 export interface QuadLeg {

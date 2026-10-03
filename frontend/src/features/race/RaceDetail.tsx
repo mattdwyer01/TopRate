@@ -12,7 +12,7 @@ import { SpeedMapGrid } from './SpeedMapGrid'
 import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
 import { BetPanel } from './BetPanel'
-import { quaddie, raceSets, setsForRace, trifecta, winBet } from '../../lib/betRules'
+import { quaddie, quinella, raceSets, setsForRace, trifecta, winBet } from '../../lib/betRules'
 import { meetingKey } from '../../lib/meetings'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
@@ -203,6 +203,7 @@ export function RaceDetail({
   )
   const win = useMemo(() => winBet(race, betSets), [race, betSets])
   const tri = useMemo(() => trifecta(race, betSets), [race, betSets])
+  const quin = useMemo(() => quinella(race, betSets), [race, betSets])
   const [quad, earlyQuad] = useMemo(() => {
     const key = meetingKey(race)
     const meeting = allRaces
@@ -437,7 +438,7 @@ export function RaceDetail({
         )}
       </div>
 
-      <BetPanel win={win} tri={tri} quad={quad} earlyQuad={earlyQuad} raceNumber={race.raceNumber} />
+      <BetPanel win={win} tri={tri} quin={quin} quad={quad} earlyQuad={earlyQuad} raceNumber={race.raceNumber} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">
