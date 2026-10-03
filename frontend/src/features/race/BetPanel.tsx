@@ -127,6 +127,7 @@ export function BetPanel({
   raceNumber,
   logged,
   started,
+  bush,
 }: {
   win: WinBet | null
   tri: TriBet | null
@@ -136,6 +137,7 @@ export function BetPanel({
   raceNumber: number
   logged: LoggedBet[] // bets_log.json entries covering this race
   started: boolean
+  bush: boolean // bush meeting: no bets
 }) {
   const log = (k: LoggedKind) => logged.find((b) => b.bet === k) ?? null
   const lw = log('Win')
@@ -151,7 +153,7 @@ export function BetPanel({
   if (started || lm) quad = null
 
   const skipped: string[] = []
-  if (!started) {
+  if (!started && !bush) {
     if (!win && !lw) skipped.push('Win')
     if (!lq && (!quin || quin.skip)) skipped.push(`Quinella (${quin?.skip ?? 'fewer than 2 within 4'})`)
     if (!lt && (!tri || tri.skip)) skipped.push(`Trifecta (${tri?.skip ?? 'fewer than 2 within 4'})`)
@@ -219,7 +221,7 @@ export function BetPanel({
               )}
             </>
           ) : (
-            started ? 'no bets logged for this race' : 'no bets in this race'
+            bush ? 'bush meeting: no bets' : started ? 'no bets logged for this race' : 'no bets in this race'
           )}
         </span>
       </div>
