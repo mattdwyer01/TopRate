@@ -6,7 +6,8 @@ frontend/src/lib/betRules.ts):
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); at least one
              within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $10 flexi.
-  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations); first starters allowed; $15 flexi.
+  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +0.5; first
+             starters allowed; $15 flexi.
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
              <= 400 combinations; $25 flexi.
   Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $25 flexi.
@@ -27,6 +28,7 @@ Settling: win from finish_position (refund if the horse is scratched after loggi
 (committed) and bets_log.json (what the dashboard's Bets tab reads).
 """
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -100,7 +102,7 @@ def _fs(race_rows):
 
 def _factor(*race_rows):
     """0.5 on a heavy track (any of the races), else 1."""
-    return 0.5 if any("heavy" in str(g["going"].iloc[0]).lower() for g in race_rows) else 1.0
+    return 0.5 if any(re.search(r"\bh(ea)?vy", str(g["going"].iloc[0]), re.I) for g in race_rows) else 1.0
 
 
 def _quad_legs(nos, kind):
@@ -173,7 +175,7 @@ def new_bets(runners, rm, now, logged_ids):
                 continue
             a = f[f["inner"]]
             combos = len(a) * (len(a) - 1) // 2
-            if len(a) >= 2 and combos <= QUIN_CAP:
+            if len(a) >= 2 and combos <= QUIN_CAP and (a["sm"] >= SM_T).any():
                 stake = QUIN_STAKE * _factor(g)
                 rows.append(dict(bet_id=bid, date=day, venue=venue, race=n, race_id=str(g["race_id"].iloc[0]),
                                  start_utc=g["start"].iloc[0].isoformat(), logged_utc=stamp, status="pending",

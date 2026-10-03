@@ -6,8 +6,8 @@
 //   Trifecta: 1st / 2nd from within 4, 3rd from the 8 line (within 4, or 4-8 back with SM > -0.5); at least one
 //             within-4 runner with SM >= +0.5 (without one: 107 races +4% vs +26%); no first starter in the race;
 //             skip over 36 combinations; $10 flexi.
-//   Quinella: box the within-4 runners when there are 2 to 4 of them (<= 6 combinations); first starters allowed
-//             (they did not hurt quinellas in the test); $15 flexi.
+//   Quinella: box the within-4 runners when there are 2 to 4 of them (<= 6 combinations), at least one of them with
+//             SM >= +0.5 (without one: 155 races -5% vs +7%); first starters allowed; $15 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
 //             starter or the ticket is over 400 combinations; $25 flexi. Early quaddie: the 4 races before the main
 //             quaddie (races 1-4, overlapping the main, at meetings of 7 races or fewer); same rule, $25 flexi.
@@ -31,7 +31,8 @@ export const EARLY_QUAD_STAKE = 25
 
 // Heavy track: halve every stake
 export function isHeavy(race: Race): boolean {
-  return /heavy/i.test(race.going ?? '')
+  // TopRate writes it 'Heavy 10' or 'Hvy 10' (Flemington, 3 Oct 2026)
+  return /\bh(ea)?vy/i.test(race.going ?? '')
 }
 export function stakeFactor(races: Race[]): number {
   return races.some(isHeavy) ? 0.5 : 1
@@ -110,7 +111,12 @@ export interface QuinBet {
 export function quinella(race: Race, s: RaceSets): QuinBet | null {
   if (s.inner.length < 2) return null
   const combos = (s.inner.length * (s.inner.length - 1)) / 2
-  const skip = combos > QUIN_CAP ? `${s.inner.length} runners within 4, over the box-of-4 cap` : null
+  const skip =
+    combos > QUIN_CAP
+      ? `${s.inner.length} runners within 4, over the box-of-4 cap`
+      : !s.inner.some((x) => x.sm != null && x.sm >= SM_T)
+        ? 'no green SM within 4'
+        : null
   return { box: s.inner, combos, stake: QUIN_STAKE * stakeFactor([race]), skip }
 }
 
