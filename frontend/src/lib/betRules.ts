@@ -7,7 +7,8 @@
 //             within-4 runner with SM >= +0.5 (without one: 107 races +4% vs +26%); no first starter in the race;
 //             skip over 36 combinations; $10 flexi.
 //   Quinella: box the within-4 runners when there are 2 to 4 of them (<= 6 combinations), at least one of them with
-//             SM >= +0.5 (without one: 155 races -5% vs +7%); first starters allowed; $15 flexi.
+//             SM >= +0.5 (without one: 155 races -5% vs +7%); no first starter in the race (user rule
+//             3 Oct 2026; the test showed no harm); $15 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
 //             starter or the ticket is over 400 combinations; $25 flexi. Early quaddie: the 4 races before the main
 //             quaddie (races 1-4, overlapping the main, at meetings of 7 races or fewer); same rule, $25 flexi.
@@ -111,8 +112,9 @@ export interface QuinBet {
 export function quinella(race: Race, s: RaceSets): QuinBet | null {
   if (s.inner.length < 2) return null
   const combos = (s.inner.length * (s.inner.length - 1)) / 2
-  const skip =
-    combos > QUIN_CAP
+  const skip = race.hasFirstStarter
+    ? 'first starter in the race'
+    : combos > QUIN_CAP
       ? `${s.inner.length} runners within 4, over the box-of-4 cap`
       : !s.inner.some((x) => x.sm != null && x.sm >= SM_T)
         ? 'no green SM within 4'
