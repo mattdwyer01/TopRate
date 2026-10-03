@@ -4,11 +4,12 @@ Rules (racing-model tests on pre-race dashboard values, 3 Oct 2026; same rules a
 frontend/src/lib/betRules.ts):
   Win        Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
-  Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); no first starter
-             in the race; <= 36 combinations; $20 flexi.
+  Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); at least one
+             within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $20 flexi.
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
-             <= 400 combinations; $30 flexi.
-  Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $15 flexi.
+             <= 400 combinations; $25 flexi.
+  Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $25 flexi.
+  Heavy      going Heavy (any leg for a quaddie): every stake halved (win returns $100).
 
 Why a log: the race page recomputes from CURRENT data, and TopRate rewrites its rating after the jump (look-ahead), so a
 results page built from it would flatter the rules. Each bet is frozen once, the first poll that finds its race (for a
@@ -41,7 +42,7 @@ LOCK_MINUTES = 12
 INNER, OUTER, SM_T = 4.0, 8.0, 0.5
 WIN_RETURN = 200.0
 TRI_CAP, TRI_STAKE = 36, 20.0
-QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 30.0, 15.0
+QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 25.0, 25.0
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71
 JSON_DAYS = 60
 
@@ -95,6 +96,11 @@ def _fs(race_rows):
     return str(race_rows["has_first_starter"].iloc[0]).strip().lower() in ("true", "1", "1.0")
 
 
+def _factor(*race_rows):
+    """0.5 on a heavy track (any of the races), else 1."""
+    return 0.5 if any("heavy" in str(g["going"].iloc[0]).lower() for g in race_rows) else 1.0
+
+
 def _quad_legs(nos, kind):
     nos = sorted(nos)
     if kind == "Quaddie":
@@ -140,18 +146,21 @@ def new_bets(runners, rm, now, logged_ids):
                 if second["gap"] >= INNER and top["sm"] >= SM_T and pd.notna(price) and price > 1:
                     rows.append({**base, "bet_id": bid, "bet": "Win", "legs": str(n),
                                  "selection": f"{int(float(top['tab_number']))} {top['horse']}",
-                                 "runner_ids": str(top["run_id"]), "combos": 1, "stake": round(WIN_RETURN / price, 2),
+                                 "runner_ids": str(top["run_id"]), "combos": 1,
+                                 "stake": round(WIN_RETURN * _factor(g) / price, 2),
                                  "price": float(price), "flexi_pct": 100.0})
             # trifecta
             bid = f"{base['race_id']}:Trifecta"
             a, b = f[f["inner"]], f[f["outer"]]
             combos = len(a) * (len(a) - 1) * max(0, len(b) - 2)
-            if bid not in logged_ids and len(a) >= 2 and len(b) >= 3 and combos <= TRI_CAP:
+            if (bid not in logged_ids and len(a) >= 2 and len(b) >= 3 and combos <= TRI_CAP
+                    and (a["sm"] >= SM_T).any()):
+                stake = TRI_STAKE * _factor(g)
                 rows.append({**base, "bet_id": bid, "bet": "Trifecta", "legs": str(n),
                              "selection": f"{_nums(a)} / {_nums(a)} / {_nums(b)}",
                              "runner_ids": "|".join([",".join(a["run_id"].astype(str)), ",".join(b["run_id"].astype(str))]),
-                             "combos": combos, "stake": TRI_STAKE, "price": np.nan,
-                             "flexi_pct": round(100 * TRI_STAKE / combos, 1)})
+                             "combos": combos, "stake": stake, "price": np.nan,
+                             "flexi_pct": round(100 * stake / combos, 1)})
         # quaddies: locked when their first leg is about to start
         for kind, stake in (("EarlyQuaddie", EARLY_QUAD_STAKE), ("Quaddie", QUAD_STAKE)):
             legs = _quad_legs(list(races), kind)
@@ -169,6 +178,7 @@ def new_bets(runners, rm, now, logged_ids):
             if combos > QUAD_CAP:
                 continue
             first = races[legs[0]]
+            stake = stake * _factor(*[races[l] for l in legs])
             rows.append(dict(bet_id=bid, date=day, venue=venue, race=legs[-1], race_id=str(last["race_id"].iloc[0]),
                              start_utc=first["start"].iloc[0].isoformat(), logged_utc=stamp, status="pending",
                              bet=kind, legs=f"{legs[0]}-{legs[-1]}",
