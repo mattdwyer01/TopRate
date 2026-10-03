@@ -5,7 +5,8 @@ frontend/src/lib/betRules.ts):
   Win        Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); at least one
-             within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $20 flexi.
+             within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $10 flexi.
+  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations); first starters allowed; $10 flexi.
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
              <= 400 combinations; $25 flexi.
   Early quad the 4 races before the main quaddie (races 1-4 at meetings of 7 races or fewer); same rule; $25 flexi.
@@ -41,7 +42,8 @@ DIVIDENDS = DIR / "tab_dividends.csv"
 LOCK_MINUTES = 12
 INNER, OUTER, SM_T = 4.0, 8.0, 0.5
 WIN_RETURN = 200.0
-TRI_CAP, TRI_STAKE = 36, 20.0
+TRI_CAP, TRI_STAKE = 36, 10.0
+QUIN_CAP, QUIN_STAKE = 6, 10.0
 QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 25.0, 25.0
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71
 JSON_DAYS = 60
@@ -161,6 +163,23 @@ def new_bets(runners, rm, now, logged_ids):
                              "runner_ids": "|".join([",".join(a["run_id"].astype(str)), ",".join(b["run_id"].astype(str))]),
                              "combos": combos, "stake": stake, "price": np.nan,
                              "flexi_pct": round(100 * stake / combos, 1)})
+        # quinella (no first-starter filter): box of the within-4 runners
+        for n, g in races.items():
+            if not soon(n):
+                continue
+            f = frame(n)
+            bid = f"{g['race_id'].iloc[0]}:Quinella"
+            if f is None or bid in logged_ids:
+                continue
+            a = f[f["inner"]]
+            combos = len(a) * (len(a) - 1) // 2
+            if len(a) >= 2 and combos <= QUIN_CAP:
+                stake = QUIN_STAKE * _factor(g)
+                rows.append(dict(bet_id=bid, date=day, venue=venue, race=n, race_id=str(g["race_id"].iloc[0]),
+                                 start_utc=g["start"].iloc[0].isoformat(), logged_utc=stamp, status="pending",
+                                 bet="Quinella", legs=str(n), selection=f"box {_nums(a)}",
+                                 runner_ids=",".join(a["run_id"].astype(str)), combos=combos, stake=stake,
+                                 price=np.nan, flexi_pct=round(100 * stake / combos, 1)))
         # quaddies: locked when their first leg is about to start
         for kind, stake in (("EarlyQuaddie", EARLY_QUAD_STAKE), ("Quaddie", QUAD_STAKE)):
             legs = _quad_legs(list(races), kind)
@@ -223,7 +242,11 @@ def settle(log, runners, dividends, venue_of):
             if not rows:
                 continue
             # Trifecta selection "a / a / b" (numbers); quaddie "R5: x,y / R6: ..." -> strip the "n:" prefix
-            tab_sets = [set(p.split(":")[-1].strip().split(",")) for p in str(b["selection"]).split(" / ")]
+            if b["bet"] == "Quinella":         # "box 3,1,10": both placegetters in the box, any order
+                box = set(str(b["selection"]).replace("box", "").strip().split(","))
+                tab_sets = [box, box]
+            else:
+                tab_sets = [set(p.split(":")[-1].strip().split(",")) for p in str(b["selection"]).split(" / ")]
             ret, winners = 0.0, rows[0].selections
             for x in rows:
                 w = _winner_sets(x.selections)

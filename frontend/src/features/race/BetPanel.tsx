@@ -1,4 +1,4 @@
-import type { QuadBet, Sel, TriBet, WinBet } from '../../lib/betRules'
+import type { QuadBet, QuinBet, Sel, TriBet, WinBet } from '../../lib/betRules'
 
 
 // "Bets" card on the race page: which betting rules (lib/betRules.ts) this race fits, live from the Combo gaps and SM.
@@ -23,6 +23,7 @@ function Chips({ sel }: { sel: Sel[] }) {
 const TAG: Record<string, string> = {
   WIN: 'bg-emerald text-white',
   TRI: 'bg-indigo text-white',
+  QUIN: 'bg-indigo-bg text-indigo border border-indigo',
   QUAD: 'bg-amber text-white',
   EARLY: 'bg-amber-bg text-amber border border-amber-line',
 }
@@ -45,12 +46,14 @@ const pct = (stake: number, combos: number) => `${combos} combos · ${Math.round
 export function BetPanel({
   win,
   tri,
+  quin,
   quad,
   earlyQuad,
   raceNumber,
 }: {
   win: WinBet | null
   tri: TriBet | null
+  quin: QuinBet | null
   quad: QuadBet | null
   earlyQuad: QuadBet | null
   raceNumber: number
@@ -58,14 +61,15 @@ export function BetPanel({
   const skipped: string[] = []
   if (!win) skipped.push('Win')
   if (!tri || tri.skip) skipped.push(`Trifecta (${tri?.skip ?? 'fewer than 2 within 4'})`)
+  if (!quin || quin.skip) skipped.push(`Quinella (${quin?.skip ?? 'fewer than 2 within 4'})`)
   for (const [name, q] of [['Early quaddie', earlyQuad], ['Quaddie', quad]] as const) {
     if (q?.skip) skipped.push(`${name} R${q.legs[0].race.raceNumber}-R${q.legs[q.legs.length - 1].race.raceNumber} (${q.skip})`)
   }
   const active =
-    (win ? 1 : 0) + (tri && !tri.skip ? 1 : 0) + (quad && !quad.skip ? 1 : 0) + (earlyQuad && !earlyQuad.skip ? 1 : 0)
+    (win ? 1 : 0) + (tri && !tri.skip ? 1 : 0) + (quin && !quin.skip ? 1 : 0) + (quad && !quad.skip ? 1 : 0) + (earlyQuad && !earlyQuad.skip ? 1 : 0)
   const total =
-    (win?.stake ?? 0) + (tri && !tri.skip ? tri.stake : 0) + (quad && !quad.skip ? quad.stake : 0) + (earlyQuad && !earlyQuad.skip ? earlyQuad.stake : 0)
-  const halved = [win?.target === 100, tri && !tri.skip && tri.stake < 20, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
+    (win?.stake ?? 0) + (tri && !tri.skip ? tri.stake : 0) + (quin && !quin.skip ? quin.stake : 0) + (quad && !quad.skip ? quad.stake : 0) + (earlyQuad && !earlyQuad.skip ? earlyQuad.stake : 0)
+  const halved = [win?.target === 100, tri && !tri.skip && tri.stake < 10, quin && !quin.skip && quin.stake < 10, quad && !quad.skip && quad.stake < 25, earlyQuad && !earlyQuad.skip && earlyQuad.stake < 25].some(Boolean)
   const fmt = (v: number) => (Number.isInteger(v) ? `$${v}` : `$${v.toFixed(2)}`)
 
   const quadRow = (tag: string, q: QuadBet) => (
@@ -122,6 +126,14 @@ export function BetPanel({
                 <span className="w-7 flex-none text-[11px] text-ink-mute">3rd</span>
                 <Chips sel={tri.third} />
               </div>
+            </div>
+          </Row>
+        )}
+        {quin && !quin.skip && (
+          <Row tag="QUIN" stake={fmt(quin.stake)} note={pct(quin.stake, quin.combos)}>
+            <div className="flex items-center gap-1.5">
+              <span className="w-7 flex-none text-[11px] text-ink-mute">box</span>
+              <Chips sel={quin.box} />
             </div>
           </Row>
         )}

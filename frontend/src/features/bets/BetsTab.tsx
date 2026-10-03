@@ -13,7 +13,7 @@ interface LoggedBet {
   race: number
   race_id: string
   start_utc: string
-  bet: 'Win' | 'Trifecta' | 'Quaddie' | 'EarlyQuaddie'
+  bet: 'Win' | 'Trifecta' | 'Quinella' | 'Quaddie' | 'EarlyQuaddie'
   legs: string
   selection: string
   combos: number
@@ -27,10 +27,11 @@ interface LoggedBet {
   profit: number | null
 }
 
-const LABEL: Record<LoggedBet['bet'], string> = { Win: 'WIN', Trifecta: 'TRI', Quaddie: 'QUAD', EarlyQuaddie: 'EARLY' }
+const LABEL: Record<LoggedBet['bet'], string> = { Win: 'WIN', Trifecta: 'TRI', Quinella: 'QUIN', Quaddie: 'QUAD', EarlyQuaddie: 'EARLY' }
 const TAG: Record<LoggedBet['bet'], string> = {
   Win: 'bg-emerald text-white',
   Trifecta: 'bg-indigo text-white',
+  Quinella: 'bg-indigo-bg text-indigo border border-indigo',
   Quaddie: 'bg-amber text-white',
   EarlyQuaddie: 'bg-amber-bg text-amber border border-amber-line',
 }
@@ -84,7 +85,7 @@ export function BetsTab({ onSelectRace }: { onSelectRace: (raceId: string, date:
   const returned = settled.reduce((s, b) => s + (b.return ?? 0), 0)
   const profit = returned - staked
   const pending = dayBets.filter((b) => b.status === 'pending')
-  const byType = (['Win', 'Trifecta', 'EarlyQuaddie', 'Quaddie'] as const).map((t) => {
+  const byType = (['Win', 'Trifecta', 'Quinella', 'EarlyQuaddie', 'Quaddie'] as const).map((t) => {
     const g = settled.filter((b) => b.bet === t)
     const st = g.reduce((s, b) => s + b.stake, 0)
     const rt = g.reduce((s, b) => s + (b.return ?? 0), 0)
@@ -150,7 +151,7 @@ export function BetsTab({ onSelectRace }: { onSelectRace: (raceId: string, date:
                 className="min-w-0 flex-1 truncate text-left text-sm font-medium text-ink hover:underline"
                 onClick={() => onSelectRace(b.race_id, b.date)}
               >
-                {b.venue} R{b.bet === 'Win' || b.bet === 'Trifecta' ? b.race : b.legs.replace('-', '-R')}
+                {b.venue} R{b.bet === 'Win' || b.bet === 'Trifecta' || b.bet === 'Quinella' ? b.race : b.legs.replace('-', '-R')}
               </button>
               <span
                 className={`flex-none font-mono text-sm font-semibold ${
