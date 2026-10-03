@@ -6,7 +6,8 @@
 //   Trifecta: 1st / 2nd from within 4, 3rd from the 8 line (within 4, or 4-8 back with SM > -0.5); no first
 //             starter in the race; skip over 36 combinations; $20 flexi.
 //   Quaddie:  main quaddie (last 4 races of the meeting); each leg = the 8 line set; skip if any leg has a first
-//             starter or the ticket is over 400 combinations; $30 flexi.
+//             starter or the ticket is over 400 combinations; $30 flexi. Early quaddie: the 4 races before the main
+//             quaddie (races 1-4, overlapping the main, at meetings of 7 races or fewer); same rule, $15 flexi.
 // First starters come from the race-level flag (hasFirstStarter, set when the field was fetched).
 import type { Race, Runner } from '../types/domain'
 import { computeCompositeGaps, computeEffectiveRace, type EffectiveRunner } from './raceModel'
@@ -19,6 +20,7 @@ export const TRI_CAP = 36
 export const TRI_STAKE = 20
 export const QUAD_CAP = 400
 export const QUAD_STAKE = 30
+export const EARLY_QUAD_STAKE = 15 // half stake until real early quaddie dividends confirm it
 
 export interface Sel {
   runner: Runner
@@ -90,17 +92,23 @@ export interface QuadBet {
   skip: string | null
 }
 
-// Main quaddie = the last 4 races of the meeting (TAB's layout on 2 Oct 2026). Returns null when this race is not
-// one of its legs.
-export function mainQuaddie(
+// Main quaddie = the last 4 races of the meeting. Early quaddie = the 4 races before it, or races 1-4 (overlapping
+// the main) when the meeting has 7 races or fewer. Returns null when this race is not one of the legs.
+export function quaddieLegNumbers(meetingRaces: Race[], kind: 'main' | 'early'): number[] | null {
+  const nos = [...new Set(meetingRaces.map((r) => r.raceNumber))].sort((a, b) => a - b)
+  if (kind === 'main') return nos.length >= 4 ? nos.slice(-4) : null
+  if (nos.length >= 8) return nos.slice(-8, -4)
+  return nos.length >= 5 ? nos.slice(0, 4) : null
+}
+
+export function quaddie(
   race: Race,
   meetingRaces: Race[],
   setsFor: (r: Race) => RaceSets,
+  kind: 'main' | 'early' = 'main',
 ): QuadBet | null {
-  const nos = [...new Set(meetingRaces.map((r) => r.raceNumber))].sort((a, b) => a - b)
-  if (nos.length < 4) return null
-  const legNos = nos.slice(-4)
-  if (!legNos.includes(race.raceNumber)) return null
+  const legNos = quaddieLegNumbers(meetingRaces, kind)
+  if (!legNos || !legNos.includes(race.raceNumber)) return null
   const legs: QuadLeg[] = []
   for (const n of legNos) {
     const r = n === race.raceNumber ? race : meetingRaces.find((x) => x.raceNumber === n)

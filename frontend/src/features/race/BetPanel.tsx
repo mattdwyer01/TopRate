@@ -1,5 +1,5 @@
 import type { QuadBet, Sel, TriBet, WinBet } from '../../lib/betRules'
-import { QUAD_STAKE, TRI_STAKE, WIN_TARGET } from '../../lib/betRules'
+import { EARLY_QUAD_STAKE, QUAD_STAKE, TRI_STAKE, WIN_TARGET } from '../../lib/betRules'
 
 // "Bets" box on the race page: which of the betting rules (lib/betRules.ts) this race fits, with the selections,
 // combinations and stake. Shown for every race; a rule that does not apply says why in one short line.
@@ -16,11 +16,13 @@ export function BetPanel({
   win,
   tri,
   quad,
+  earlyQuad,
   raceNumber,
 }: {
   win: WinBet | null
   tri: TriBet | null
   quad: QuadBet | null
+  earlyQuad: QuadBet | null
   raceNumber: number
 }) {
   const row = 'flex flex-wrap items-baseline gap-x-2 gap-y-0.5'
@@ -57,26 +59,32 @@ export function BetPanel({
             <span className={skip}>no bet{tri?.skip ? ` (${tri.skip})` : ' (fewer than 2 within 4)'}</span>
           )}
         </div>
-        {quad && (
-          <div className={row}>
-            <span className={label}>Quaddie</span>
-            {!quad.skip ? (
-              <span className="text-ink">
-                {quad.legs.map((l, i) => (
-                  <span key={l.race.raceId} className={l.race.raceNumber === raceNumber ? 'font-semibold' : ''}>
-                    {i > 0 && ' / '}R{l.race.raceNumber}: {nums(l.outer)}
-                  </span>
-                ))}{' '}
-                &middot; {quad.combos} combos &middot; <b>${QUAD_STAKE}</b> flexi ({flexi(QUAD_STAKE, quad.combos)})
-              </span>
-            ) : (
-              <span className={skip}>
-                main quaddie R{quad.legs[0].race.raceNumber}-R{quad.legs[quad.legs.length - 1].race.raceNumber}: no bet ({quad.skip})
-              </span>
-            )}
-          </div>
-        )}
+        {earlyQuad && <QuadRow name="Early quad" q={earlyQuad} stake={EARLY_QUAD_STAKE} raceNumber={raceNumber} />}
+        {quad && <QuadRow name="Quaddie" q={quad} stake={QUAD_STAKE} raceNumber={raceNumber} />}
       </div>
+    </div>
+  )
+}
+
+function QuadRow({ name, q, stake, raceNumber }: { name: string; q: QuadBet; stake: number; raceNumber: number }) {
+  const span = `R${q.legs[0].race.raceNumber}-R${q.legs[q.legs.length - 1].race.raceNumber}`
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span className="w-16 flex-none font-semibold text-ink">{name}</span>
+      {!q.skip ? (
+        <span className="text-ink">
+          {q.legs.map((l, i) => (
+            <span key={l.race.raceId} className={l.race.raceNumber === raceNumber ? 'font-semibold' : ''}>
+              {i > 0 && ' / '}R{l.race.raceNumber}: {nums(l.outer)}
+            </span>
+          ))}{' '}
+          &middot; {q.combos} combos &middot; <b>${stake}</b> flexi ({flexi(stake, q.combos)})
+        </span>
+      ) : (
+        <span className="text-ink-faint">
+          {span}: no bet ({q.skip})
+        </span>
+      )}
     </div>
   )
 }
