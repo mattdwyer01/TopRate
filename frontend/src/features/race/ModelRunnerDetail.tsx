@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { RMBlend, RMRunner } from '../../lib/racingModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { signalList, VALUE_CUT, VALUE_MAX_PRICE } from '../../lib/signals'
 
 // Racing Model parts of the runner detail popup (RunnerDetailModal), used whenever the race has a Racing Model
 // projection: the headline rating block and the rating breakdown (WPR points vs the field, from
@@ -73,6 +74,7 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
           {m.g != null && <Stat label="m extra ground (proj.)" value={signed(m.g)} />}
         </div>
       )}
+      {!scratched && <SignalsBlock runner={runner} />}
       <p className="mt-2 border-t border-line-soft pt-2 text-xs text-ink-faint">
         Projected WPR = the WPR the horse should run, +/- its typical miss (two runs in three land inside). Model $ is the
         Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
@@ -112,6 +114,42 @@ export function ModelBreakdown({ detail }: { detail: ModelDetail }) {
           <div className="w-9 flex-none text-right font-mono text-xs">{signed(detail.m.v)}</div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Market signals (lib/signals.ts) and the value model's verdict at the current fixed price.
+function SignalsBlock({ runner }: { runner: Runner }) {
+  const list = signalList(runner.signals)
+  const v = runner.valueNow
+  if (!list.length && v == null) return null
+  const isValue = v != null && v >= VALUE_CUT && (runner.fixedWinPrice ?? 0) <= VALUE_MAX_PRICE
+  return (
+    <div className="mt-2 border-t border-line-soft pt-2">
+      <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs">
+        <span className="font-semibold text-ink">Market signals</span>
+        {v != null && (
+          <span className={isValue ? 'font-semibold text-emerald-deep' : 'text-ink-mute'}>
+            value {v.toFixed(2)} at {fmtPrice(runner.fixedWinPrice)}
+            {isValue ? ' (value bet)' : ' (needs 1.00)'}
+          </span>
+        )}
+      </div>
+      {list.length > 0 && (
+        <ul className="space-y-0.5">
+          {list.map(({ code, info }) => (
+            <li key={code} className="flex items-baseline gap-1.5 text-xs">
+              <span className={`inline-block h-1.5 w-1.5 flex-none translate-y-[-1px] rounded-full ${info.effect > 0 ? 'bg-emerald' : 'bg-rose'}`} />
+              <span className="text-ink">{info.label}</span>
+              <span className="text-ink-faint">{info.detail}</span>
+              <span className={`ml-auto font-mono font-semibold ${info.effect > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
+                {info.effect > 0 ? '+' : ''}
+                {Math.round(info.effect * 100)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
