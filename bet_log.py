@@ -303,10 +303,10 @@ def settle(log, runners, dividends, venue_of):
 
 # Value log (logged only, no stake on the bets card): the Racing Model's value model (racing-model model/value_live.py,
 # walk-forward 2024 to Sep 2026: value >= 1.0 and SP <= $21 made +5.7% over 1,916 bets at SP). Every runner whose
-# value at the fixed price 12 min before the jump is >= 1.0 (price <= $21, VIC / SA / QLD, not bush) is frozen with a
+# value at the fixed price 12 min before the jump is >= 1.0 (price <= $51, VIC / SA / QLD, bush included) is frozen with a
 # notional $10, then settled like a win bet. win chance p = softmax(vs x log p_fixed + vu) over the field.
 VALUE_STATES = ("VIC", "SA", "QLD")
-VALUE_CUT, VALUE_MAX_PRICE, VALUE_STAKE = 1.0, 21.0, 10.0
+VALUE_CUT, VALUE_MAX_PRICE, VALUE_STAKE = 1.0, 51.0, 10.0   # cap $51 (5 Oct: +6.3% vs +5.7% at $21)
 VALUE_FIELDS = ["bet_id", "date", "venue", "race", "race_id", "start_utc", "logged_utc", "run_id", "selection", "price",
                 "p_value", "value", "combo_gap", "sm", "stake", "status", "finish", "return", "profit"]
 
@@ -320,8 +320,8 @@ def value_bets(runners, rm, now, logged_ids):
         t = t[t["state"].astype(str).str.upper().isin(VALUE_STATES)]
     stamp = now.isoformat(timespec="seconds")
     for (day, venue), meet in t.groupby([t["date"].astype(str).str[:10], "venue"]):
-        if pd.to_numeric(meet["prize_money"], errors="coerce").fillna(0).max() <= BUSH_PRIZE:
-            continue
+        # bush meetings included (5 Oct 2026): the backtest covered every VIC/SA/QLD race, and country races were
+        # among its best (+8.8%, provincial +11.5%, metro -7.4%)
         for n, g in meet.groupby(pd.to_numeric(meet["race"], errors="coerce")):
             g = g[pd.to_numeric(g["scratched"], errors="coerce").fillna(0) == 0].copy()
             g["price"] = pd.to_numeric(g["fixed_win_price"], errors="coerce")
