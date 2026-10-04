@@ -276,27 +276,8 @@ export function computeEffectiveRace(
 // Racing Model 0.15 taken from the projection (4 Oct 2026, user decision; racing-model reports/projection_improve.md,
 // 1,753 pre-race races): top pick level (29.3% vs 29.7%, n.s.), win rule level (+5.8% vs +6.9%), +1.2 winners per 100
 // races inside the 4 line at the same runner count (+0.3 to +2.2). Without a Racing Model figure the projection keeps 0.45.
-export const COMPOSITE_WEIGHT_WPR = 0.30
-export const COMPOSITE_WEIGHT_WPR_NO_RM = 0.45
-export const COMPOSITE_WEIGHT_RACING_MODEL = 0.15
-export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.10
-export const COMPOSITE_WEIGHT_WPR_NETT = 0.35
-export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.10
-// Population mean/std (toprate_runners.csv, all non-scratched rows, see
-// wpr_composite_score_capture_test.py's own printed stats) used to
-// rescale toprateRating/formFactor onto projectedWpr's own natural scale
-// before blending - without this, toprateRating's tiny 2.71 std or
-// formFactor's wide 30.88 std would dominate/underweight the blend by
-// pure scale accident, not by the weights actually chosen. Fixed
-// constants, not recomputed live per race - a per-race z-score would be
-// a materially different, unvalidated calculation from what the backtest
-// above actually tested.
-const WPR_POP_MEAN = 72.57
-const WPR_POP_STD = 10.48
-const TRR_POP_MEAN = 96.26
-const TRR_POP_STD = 2.71
-const PFM_POP_MEAN = 38.35
-const PFM_POP_STD = 30.88
+// Combo REMOVED 5 Oct 2026 (user decision): the column (key compositeScore, label Rating) is now the Racing Model
+// rating, see compositeScore below. The old weights and TopRate rating / form factor rescaling are gone.
 
 // Margin threshold for the composite score's own "X from top rated"
 // divider, analogous to OVERLAY_MAX_GAP_FROM_TOP but NOT the same units -
@@ -321,8 +302,10 @@ const PFM_POP_STD = 30.88
 // Lines 5 / 10 -> 4 / 8 with the 4 Oct mix (it spreads runners less than the 0.7-rating Combo): same coverage as
 // before (2.48 runners / 54% of winners inside 4, 4.86 / 80% inside 8). Quinella / trifecta hit A/E vs SP fall
 // (1.21 / 1.33 -> 1.11 / 1.22) with this mix.
-export const COMPOSITE_MAX_GAP_FROM_TOP = 8
-export const COMPOSITE_INNER_GAP_FROM_TOP = 4
+// Lines 4 / 8 -> 4.5 / 9.5 with the Racing Model rating (5 Oct 2026): same runners inside as Combo's 4 / 8 (54% / 79% of
+// winners; racing-model reports/rating_replace_test.md).
+export const COMPOSITE_MAX_GAP_FROM_TOP = 9.5
+export const COMPOSITE_INNER_GAP_FROM_TOP = 4.5
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -338,32 +321,15 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 // was complete-case only) - it's a deliberate, conservative choice that
 // never does worse than falling back toward plain WPR when data's thin.
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
+  // Rating (5 Oct 2026, user decision: Combo removed): the Racing Model's chance, WPR Nett layer included, on the WPR
+  // scale (runner.rmWpr, lib/racingModel.ts withModelAdjustments). A manual projection override moves it by the same
+  // amount. Without a Racing Model figure the (adjusted) projection is shown.
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
-  if (wpr == null) return null
-  const wWpr = runner.rmWpr != null ? COMPOSITE_WEIGHT_WPR : COMPOSITE_WEIGHT_WPR_NO_RM
-  let weightedSum = wWpr * wpr
-  let weightTotal = wWpr
   if (runner.rmWpr != null) {
-    // Racing Model chance on the WPR scale (lib/racingModel.ts withModelAdjustments)
-    weightedSum += COMPOSITE_WEIGHT_RACING_MODEL * runner.rmWpr
-    weightTotal += COMPOSITE_WEIGHT_RACING_MODEL
+    const shift = wpr != null && runner.projectedWpr != null ? wpr - runner.projectedWpr : 0
+    return runner.rmWpr + shift
   }
-  if (runner.toprateRating != null) {
-    const trrRescaled = WPR_POP_MEAN + ((runner.toprateRating - TRR_POP_MEAN) / TRR_POP_STD) * WPR_POP_STD
-    weightedSum += COMPOSITE_WEIGHT_TOPRATE_RATING * trrRescaled
-    weightTotal += COMPOSITE_WEIGHT_TOPRATE_RATING
-  }
-  if (runner.formFactor != null) {
-    const pfmRescaled = WPR_POP_MEAN + ((runner.formFactor - PFM_POP_MEAN) / PFM_POP_STD) * WPR_POP_STD
-    weightedSum += COMPOSITE_WEIGHT_FORM_FACTOR * pfmRescaled
-    weightTotal += COMPOSITE_WEIGHT_FORM_FACTOR
-  }
-  if (runner.wprNett != null) {
-    // wpr_nett is already on the WPR scale
-    weightedSum += COMPOSITE_WEIGHT_WPR_NETT * runner.wprNett
-    weightTotal += COMPOSITE_WEIGHT_WPR_NETT
-  }
-  return weightedSum / weightTotal
+  return wpr ?? null
 }
 
 // Per-runner gap from the race's own top composite score - independent of

@@ -171,7 +171,11 @@ function modelPart(m: RMRunner): number {
 export const TOPRATE_PARTS_OUT = ['speed_map', 'track_barrier', 'own_going', 'own_trend', 'own_distance'] as const
 
 // WPR points per unit of log win chance (racing-model gap-from-top fit: gap WPR = 6.843 x ln(p_top / p))
-const RM_WPR_PER_LOG_P = 6.843
+// Rating = Racing Model chance (with the wpr_nett layer, racing_model.json `p`) on the WPR scale (5 Oct 2026, replaces
+// Combo): 6.843 WPR per unit of the base model's log chance; the layered chance is 0.834 x that log chance + the
+// WPR Nett term, so 6.843 / 0.834 = 8.205 WPR per unit of log p here. racing-model tools/rating_replace_test.py
+// (1,753 pre-race races): top pick 29.5% vs Combo 29.3%, winners inside equal-size lines 54.4% / 79.2% vs 54.9% / 80.6%.
+const RM_WPR_PER_LOG_P = 8.205
 
 export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): Runner[] {
   if (!rm) return runners
@@ -180,7 +184,7 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
   const tpOf = (r: Runner) => TOPRATE_PARTS_OUT.reduce((s, k) => s + (r.adjustmentBreakdown?.[k] ?? 0), 0)
   const tpMean = has.reduce((s, r) => s + tpOf(r), 0) / has.length
   const ourMean = has.reduce((s, r) => s + modelPart(rm.runners[r.runId]), 0) / has.length
-  // Racing Model chance on the WPR scale for Combo (4 Oct 2026): field mean projection + 6.843 x (ln p - mean ln p)
+  // Racing Model rating on the WPR scale: field mean projection + 8.205 x (ln p - mean ln p)
   const withP = has.filter((r) => (rm.runners[r.runId].p ?? 0) > 0)
   const lnP = (r: Runner) => Math.log(Math.max(rm.runners[r.runId].p ?? 0, 1e-4))
   const lnMean = withP.length >= 2 ? withP.reduce((s, r) => s + lnP(r), 0) / withP.length : 0
