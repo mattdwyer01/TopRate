@@ -78,6 +78,7 @@ export interface Runner {
   wprPeakRank1Yr: number | null
   wprNett: number | null
   rmWpr?: number | null // Racing Model chance on the WPR scale (set by lib/racingModel.ts withModelAdjustments)
+  projSd?: number | null // spread of the Racing Model WPR projection (sd, WPR points)
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null
