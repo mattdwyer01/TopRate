@@ -39,6 +39,7 @@ import pandas as pd
 DIR = Path(__file__).parent
 LOG_CSV = DIR / "bets_log.csv"
 LOG_JSON = DIR / "bets_log.json"
+VALUE_CSV = DIR / "value_log.csv"
 RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
@@ -300,6 +301,99 @@ def settle(log, runners, dividends, venue_of):
     return log
 
 
+# Value log (logged only, no stake on the bets card): the Racing Model's value model (racing-model model/value_live.py,
+# walk-forward 2024 to Sep 2026: value >= 1.0 and SP <= $21 made +5.7% over 1,916 bets at SP). Every runner whose
+# value at the fixed price 12 min before the jump is >= 1.0 (price <= $21, VIC / SA / QLD, not bush) is frozen with a
+# notional $10, then settled like a win bet. win chance p = softmax(vs x log p_fixed + vu) over the field.
+VALUE_STATES = ("VIC", "SA", "QLD")
+VALUE_CUT, VALUE_MAX_PRICE, VALUE_STAKE = 1.0, 21.0, 10.0
+VALUE_FIELDS = ["bet_id", "date", "venue", "race", "race_id", "start_utc", "logged_utc", "run_id", "selection", "price",
+                "p_value", "value", "combo_gap", "sm", "stake", "status", "finish", "return", "profit"]
+
+
+def value_bets(runners, rm, now, logged_ids):
+    rows = []
+    t = runners[runners["date"].astype(str).str[:10] >= (now - timedelta(days=1)).date().isoformat()].copy()
+    t["start"] = pd.to_datetime(t["start_time"], utc=True, errors="coerce")
+    t = t[(t["start"] > now) & (t["start"] <= now + timedelta(minutes=LOCK_MINUTES))]
+    if "state" in t:
+        t = t[t["state"].astype(str).str.upper().isin(VALUE_STATES)]
+    stamp = now.isoformat(timespec="seconds")
+    for (day, venue), meet in t.groupby([t["date"].astype(str).str[:10], "venue"]):
+        if pd.to_numeric(meet["prize_money"], errors="coerce").fillna(0).max() <= BUSH_PRIZE:
+            continue
+        for n, g in meet.groupby(pd.to_numeric(meet["race"], errors="coerce")):
+            g = g[pd.to_numeric(g["scratched"], errors="coerce").fillna(0) == 0].copy()
+            g["price"] = pd.to_numeric(g["fixed_win_price"], errors="coerce")
+            m = [rm.get(str(i)) or {} for i in g["run_id"].astype(str)]
+            g["vu"] = [x.get("vu") for x in m]
+            g["vs"] = [x.get("vs") for x in m]
+            if len(g) < 2 or g["price"].isna().any() or (g["price"] <= 1).any() or g["vu"].isna().any():
+                continue
+            inv = 1 / g["price"]
+            lp = np.log(inv / inv.sum())
+            u = g["vs"].astype(float) * lp + g["vu"].astype(float)
+            p = np.exp(u - u.max())
+            g["p"] = p / p.sum()
+            g["value"] = g["p"] * g["price"]
+            f = race_frame(g, rm)
+            gap = f.set_index(f["run_id"].astype(str))[["gap", "sm"]] if f is not None else pd.DataFrame(columns=["gap", "sm"])
+            for _, x in g[(g["value"] >= VALUE_CUT) & (g["price"] <= VALUE_MAX_PRICE)].iterrows():
+                rid = str(x["run_id"])
+                bid = f"{rid}:Value"
+                if bid in logged_ids:
+                    continue
+                rows.append(dict(bet_id=bid, date=day, venue=venue, race=int(n), race_id=str(x["race_id"]),
+                                 start_utc=x["start"].isoformat(), logged_utc=stamp, run_id=rid,
+                                 selection=f"{int(float(x['tab_number']))} {x['horse']}", price=float(x["price"]),
+                                 p_value=round(float(x["p"]), 4), value=round(float(x["value"]), 3),
+                                 combo_gap=round(float(gap["gap"].get(rid)), 2) if rid in gap.index else None,
+                                 sm=round(float(gap["sm"].get(rid)), 2) if rid in gap.index else None,
+                                 stake=VALUE_STAKE, status="pending"))
+    return rows
+
+
+def settle_value(log, runners):
+    run = runners.assign(run_id=runners["run_id"].astype(str)).drop_duplicates("run_id").set_index("run_id")
+    for i, b in log[log["status"] == "pending"].iterrows():
+        row = run.loc[b["run_id"]] if b["run_id"] in run.index else pd.Series(dtype=object)
+        if pd.to_numeric(pd.Series([row.get("scratched")]), errors="coerce").fillna(0).iloc[0] == 1:
+            log.loc[i, ["status", "return"]] = ["refund", b["stake"]]
+            continue
+        fp = pd.to_numeric(pd.Series([row.get("finish_position")]), errors="coerce").iloc[0]
+        if pd.notna(fp):
+            won = int(fp) == 1
+            log.loc[i, ["status", "finish", "return"]] = ["won" if won else "lost", str(int(fp)),
+                                                          round(float(b["stake"]) * float(b["price"]), 2) if won else 0.0]
+    stale = (log["status"] == "pending") & (pd.to_datetime(log["start_utc"], utc=True, errors="coerce")
+                                           < pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=48))
+    log.loc[stale, ["status", "return"]] = ["void", VALUE_STAKE]
+    done = log["status"] != "pending"
+    log.loc[done, "profit"] = (pd.to_numeric(log.loc[done, "return"], errors="coerce").fillna(0)
+                               - pd.to_numeric(log.loc[done, "stake"], errors="coerce"))
+    return log
+
+
+def update_value(runners, rm, now):
+    """Value log: freeze value >= 1.0 runners before the jump, settle from finish positions. Never raises."""
+    try:
+        log = pd.read_csv(VALUE_CSV, dtype={"race_id": str, "run_id": str, "bet_id": str, "finish": str}) \
+            if VALUE_CSV.exists() else pd.DataFrame(columns=VALUE_FIELDS)
+        new = value_bets(runners, rm, now, set(log["bet_id"].astype(str)))
+        if new:
+            log = pd.concat([log, pd.DataFrame(new)], ignore_index=True)
+            print("  Value logged: " + ", ".join(f"{r['venue']} R{r['race']} {r['selection']} ${r['price']}" for r in new))
+        log = log.reindex(columns=VALUE_FIELDS)
+        for c in ("status", "finish", "selection", "run_id", "bet_id", "race_id"):
+            log[c] = log[c].astype("object")
+        before = (log["status"] != "pending").sum()
+        log = settle_value(log, runners)
+        if new or (log["status"] != "pending").sum() != before or not VALUE_CSV.exists():
+            log.to_csv(VALUE_CSV, index=False)
+    except Exception as e:  # noqa: BLE001
+        print(f"  value log failed (non-fatal): {type(e).__name__}: {e}")
+
+
 def update(runners, venue_of, now=None):
     """Log new bets, settle pending ones, write bets_log.csv / .json. Best-effort: never raises."""
     try:
@@ -330,3 +424,5 @@ def update(runners, venue_of, now=None):
                                             "bets": recent.to_dict(orient="records")}, separators=(",", ":")))
     except Exception as e:  # noqa: BLE001
         print(f"  bet log failed (non-fatal): {type(e).__name__}: {e}")
+    rm = json.loads(RM_JSON.read_text()).get("runners", {}) if RM_JSON.exists() else {}
+    update_value(runners, rm, now or datetime.now(timezone.utc))
