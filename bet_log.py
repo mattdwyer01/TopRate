@@ -53,6 +53,7 @@ QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 12.5, 12.5
 # bush meetings (top race prize <= $20k, the dashboard's BUSH_TRACK_THRESHOLD) get no bets (user rule 3 Oct 2026)
 BUSH_PRIZE = 20000
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71
+TOPRATE_PARTS_OUT = ("speed_map", "track_barrier", "own_going", "own_trend", "own_distance")
 JSON_DAYS = 60
 
 FIELDS = ["bet_id", "date", "venue", "race", "race_id", "start_utc", "logged_utc", "bet", "legs", "selection",
@@ -74,7 +75,9 @@ def race_frame(r, rm):
     r = r[r["proj"].notna()]
     if len(r) < 2:
         return None
-    r["tp"] = r["wprp_contrib"].map(lambda v: _contrib(v, "speed_map") + _contrib(v, "track_barrier"))
+    # TopRate terms taken out (as lib/racingModel.ts TOPRATE_PARTS_OUT): speed map / barrier (replaced by the Racing
+    # Model's part) and own going / trend / distance (noise, 4 Oct 2026)
+    r["tp"] = r["wprp_contrib"].map(lambda v: sum(_contrib(v, k) for k in TOPRATE_PARTS_OUT))
     ours = []
     for rid in r["run_id"].astype(str):
         m = rm.get(rid)

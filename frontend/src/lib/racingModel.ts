@@ -164,11 +164,17 @@ function modelPart(m: RMRunner): number {
   )
 }
 
+// TopRate projection terms taken out of the projection: speed_map / track_barrier (replaced by the Racing Model's
+// race-day part), and own_going / own_trend / own_distance (4 Oct 2026: noise on pre-race values, racing-model
+// tools/wprp_component_test.py, 1,530 races 25 Aug to 2 Oct: projection without them -0.0060 log loss alone
+// (-0.0115 to -0.0009), with SP -0.0003 n.s.; with track_barrier also out -0.0073 / -0.0010).
+export const TOPRATE_PARTS_OUT = ['speed_map', 'track_barrier', 'own_going', 'own_trend', 'own_distance'] as const
+
 export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): Runner[] {
   if (!rm) return runners
   const has = runners.filter((r) => r.projectedWpr != null && rm.runners[r.runId])
   if (has.length < 2) return runners
-  const tpOf = (r: Runner) => (r.adjustmentBreakdown?.speed_map ?? 0) + (r.adjustmentBreakdown?.track_barrier ?? 0)
+  const tpOf = (r: Runner) => TOPRATE_PARTS_OUT.reduce((s, k) => s + (r.adjustmentBreakdown?.[k] ?? 0), 0)
   const tpMean = has.reduce((s, r) => s + tpOf(r), 0) / has.length
   const ourMean = has.reduce((s, r) => s + modelPart(rm.runners[r.runId]), 0) / has.length
   return runners.map((r) => {
@@ -179,7 +185,11 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
       ...r,
       projectedWpr: r.projectedWpr - (tpOf(r) - tpMean) + ours,
       // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
-      adjustmentBreakdown: { ...(r.adjustmentBreakdown ?? {}), speed_map: ours, track_barrier: 0 },
+      adjustmentBreakdown: {
+        ...(r.adjustmentBreakdown ?? {}),
+        ...Object.fromEntries(TOPRATE_PARTS_OUT.map((k) => [k, 0])),
+        speed_map: ours,
+      },
     }
   })
 }
