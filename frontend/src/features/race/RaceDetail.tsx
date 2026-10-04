@@ -63,7 +63,8 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
   { key: 'toprateRating', label: 'TopRate' },
   { key: 'formFactor', label: 'Form' },
-  { key: 'jockeyWinPct', label: 'Jky Win%' },
+  // WPR Nett (TopRate wpr_nett) in place of Jky Win% (4 Oct 2026, user request)
+  { key: 'wprNett', label: 'WPR Nett' },
   // speed_map ADJ_TERM, demeaned against this race (2026-09-19, real user
   // request: "add a column for speed map adj, with green and red colour")
   // - the same number SpeedMapGrid's own tile tint is built from (see
@@ -103,7 +104,7 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'compositeScore', label: 'Cb' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'formFactor', label: 'Fm' },
-  { key: 'jockeyWinPct', label: 'J%' },
+  { key: 'wprNett', label: 'Nett' },
   // SM Adj (2026-09-19, direct follow-up: "not seeing it" on mobile - see
   // RunnerRow.tsx's SM Adj cell for why it's shown on Full but not
   // Compact). Short label, matches Fm/J%'s own brevity in this cramped a
