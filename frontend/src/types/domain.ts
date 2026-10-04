@@ -79,6 +79,8 @@ export interface Runner {
   wprNett: number | null
   rmWpr?: number | null // Racing Model chance on the WPR scale (set by lib/racingModel.ts withModelAdjustments)
   projSd?: number | null // spread of the Racing Model WPR projection (sd, WPR points)
+  signals?: string[] // market signal codes (lib/signals.ts)
+  valueNow?: number | null // value model: win chance x current fixed price (lib/signals.ts)
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null

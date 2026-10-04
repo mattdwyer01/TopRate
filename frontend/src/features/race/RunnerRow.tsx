@@ -1,3 +1,4 @@
+import { signalList, VALUE_CUT, VALUE_MAX_PRICE } from '../../lib/signals'
 import type { Runner } from '../../types/domain'
 import { compositeScore, SPEED_MAP_TINT_THRESHOLD, type EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
@@ -11,6 +12,34 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   onClick: () => void
+}
+
+// Market signals (lib/signals.ts): a green dot per under-rated signal, a red dot per over-rated one, and a "V" badge
+// when the value model rates the runner a value bet at the current fixed price. Hover / tap the row for detail.
+function SignalDots({ runner }: { runner: Runner }) {
+  const list = signalList(runner.signals)
+  const v = runner.valueNow
+  const isValue = v != null && v >= VALUE_CUT && (runner.fixedWinPrice ?? 0) <= VALUE_MAX_PRICE
+  if (!list.length && !isValue) return null
+  const title = [
+    ...(isValue ? [`Value bet: ${v!.toFixed(2)} at $${runner.fixedWinPrice}`] : []),
+    ...list.map(({ info }) => `${info.effect > 0 ? '+' : ''}${Math.round(info.effect * 100)}% ${info.label}`),
+  ].join('\n')
+  const greens = list.filter((x) => x.info.effect > 0).length
+  const reds = list.length - greens
+  return (
+    <span className="flex flex-none items-center gap-[2px]" title={title} aria-label={title}>
+      {isValue && (
+        <span className="mr-0.5 rounded bg-emerald-deep px-1 text-[10px] font-bold leading-4 text-white">V</span>
+      )}
+      {Array.from({ length: Math.min(greens, 4) }).map((_, i) => (
+        <span key={`g${i}`} className="inline-block h-1.5 w-1.5 rounded-full bg-emerald" />
+      ))}
+      {Array.from({ length: Math.min(reds, 3) }).map((_, i) => (
+        <span key={`r${i}`} className="inline-block h-1.5 w-1.5 rounded-full bg-rose" />
+      ))}
+    </span>
+  )
 }
 
 function fmtNett(v: number | null): string {
@@ -315,6 +344,7 @@ export function RunnerRow({
               {spell.label}
             </span>
           )}
+          {!scratched && <SignalDots runner={runner} />}
           {runner.dataScratched && (
             // A real, data-confirmed scratch (see toprate_price_refresh.py) -
             // not a toggle, just a fact. The manual what-if toggle used to

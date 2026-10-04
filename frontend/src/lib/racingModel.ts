@@ -25,6 +25,9 @@ export interface RMRunner {
   gb?: Record<string, number> // rating breakdown by part, WPR points vs the field (sums to v)
   wp?: number | null // WPR projection v2: the WPR this horse should run (racing-model model/wpr_model.py)
   ws?: number | null // its spread (sd, WPR points)
+  vu?: number | null // value model utility (model/value_live.py)
+  vs?: number | null // value model price slope
+  sg?: string | null // market signal codes, '|'-joined (lib/signals.ts)
 }
 
 export interface RMRace {
@@ -196,6 +199,19 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
     (r.projectedWpr ?? 0) - (tpOf(r) - tpMean) + (modelPart(rm.runners[r.runId]) - ourMean)
   const newProj = (r: Runner) => rm.runners[r.runId]?.wp ?? tpAdj(r)
   const projMean = has.reduce((s, r) => s + newProj(r), 0) / has.length
+  // value at the current fixed price over the live field (every runner needs a price and a value score)
+  const live = runners.filter((r) => !r.dataScratched)
+  const valueOf: Record<string, number> = {}
+  const priced = live.every((r) => (r.fixedWinPrice ?? 0) > 1 && rm.runners[r.runId]?.vu != null && rm.runners[r.runId]?.vs != null)
+  if (priced && live.length >= 2) {
+    const inv = live.map((r) => 1 / (r.fixedWinPrice as number))
+    const tot = inv.reduce((a, b) => a + b, 0)
+    const u = live.map((r, i) => (rm.runners[r.runId].vs as number) * Math.log(inv[i] / tot) + (rm.runners[r.runId].vu as number))
+    const mx = Math.max(...u)
+    const e = u.map((x) => Math.exp(x - mx))
+    const se = e.reduce((a, b) => a + b, 0)
+    live.forEach((r, i) => (valueOf[r.runId] = (e[i] / se) * (r.fixedWinPrice as number)))
+  }
   return runners.map((r) => {
     const m = rm.runners[r.runId]
     if (!m || r.projectedWpr == null) return r
@@ -207,6 +223,8 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
       // keep Base + Adj = Proj in the table (Adj = everything beyond TopRate's base)
       wprAdjustment: r.baseWpr != null ? proj - r.baseWpr : r.wprAdjustment,
       projSd: m.ws ?? null,
+      signals: m.sg ? m.sg.split('|') : [],
+      valueNow: valueOf[r.runId] ?? null,
       rmWpr: withP.length >= 2 && (m.p ?? 0) > 0 ? projMean + RM_WPR_PER_LOG_P * (lnP(r) - lnMean) : null,
       // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
       adjustmentBreakdown: {
