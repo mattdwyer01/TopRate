@@ -43,7 +43,7 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 5.0, 10.0, 0.5   # Combo lines (3 Oct 2026: 4 / 8 -> 5 / 10 with the 0.7 rating weight)
+INNER, OUTER, SM_T = 4.0, 8.0, 0.5   # Combo lines (4 Oct 2026 mix: 4 / 8; were 5 / 10 with the 0.7-rating Combo)
 WIN_RETURN = 200.0
 # exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
 # full stakes were trifecta 10, quinella 15, quaddies 25
@@ -92,8 +92,14 @@ def race_frame(r, rm):
         sm = r["wprp_contrib"].map(lambda v: _contrib(v, "speed_map"))
         r["sm"] = sm - sm.mean()
     trr = pd.to_numeric(r["toprate_rating"], errors="coerce")
-    # Combo = 0.3 WPR projection + 0.7 TopRate rating (3 Oct 2026; was 2/3 + 1/3), as lib/raceModel.ts compositeScore
-    r["combo"] = np.where(trr.notna(), 0.3 * r["proj"] + 0.7 * (WPR_M + (trr - TRR_M) / TRR_S * WPR_S), r["proj"])
+    # Combo (4 Oct 2026), as lib/raceModel.ts compositeScore: 0.45 projection + 0.10 TopRate rating + 0.10 form factor +
+    # 0.35 wpr_nett; a missing part is dropped and the weights renormalised
+    parts = [(0.45, r["proj"]), (0.10, WPR_M + (trr - TRR_M) / TRR_S * WPR_S),
+             (0.10, WPR_M + (pd.to_numeric(r.get("pfm_score"), errors="coerce") - 38.35) / 30.88 * WPR_S),
+             (0.35, pd.to_numeric(r.get("wpr_nett"), errors="coerce"))]
+    num = sum((w * v).fillna(0) for w, v in parts)
+    den = sum(w * v.notna() for w, v in parts)
+    r["combo"] = num / den
     r["gap"] = r["combo"].max() - r["combo"]
     r = r.sort_values("gap")
     r["inner"] = r["gap"] <= INNER
