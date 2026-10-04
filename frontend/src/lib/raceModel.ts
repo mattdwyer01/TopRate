@@ -71,7 +71,8 @@ export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number |
 // own "SM Adj" column) so the table's colour and the Speed Map tile's tint
 // agree on what counts as neutral, rather than the table using a plain
 // sign check that would colour a value the tile itself still shows white.
-export const SPEED_MAP_TINT_THRESHOLD = 0.5
+// Raised to +/-1.0 (4 Oct 2026, user request: favoured 1, unfavoured -1; SM >= 1 within 4 ran A/E 1.10 vs 1.07 at 0.5).
+export const SPEED_MAP_TINT_THRESHOLD = 1.0
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
