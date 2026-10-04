@@ -35,9 +35,9 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
         {scratched ? (
           <span className="font-mono text-2xl font-bold text-rose">SCR</span>
         ) : (
-          <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(m.r)}</span>
+          <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(runner.rmWpr ?? m.r)}</span>
         )}
-        <span className="text-xs text-ink-mute">Racing Model rating (projected WPR)</span>
+        <span className="text-xs text-ink-mute">Rating (Racing Model win chance on the WPR scale)</span>
         {rank != null && !scratched && (
           <span className="text-xs text-ink-mute">
             rank <span className="font-mono font-semibold text-ink">{rank}</span> of {fieldSize}
@@ -51,6 +51,9 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
       </div>
       {!scratched && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {m.wp != null && (
+            <Stat label="projected WPR" value={`${fmtWpr(m.wp)}${m.ws != null ? ` \u00b1 ${Math.round(m.ws)}` : ''}`} />
+          )}
           <Stat label="vs field" value={signed(m.v)} className={tone(m.v)} />
           <Stat label="model" value={fmtPrice(m.p ? 1 / m.p : null)} />
           <Stat label="blend" value={fmtPrice(blend?.blendPrice)} />
@@ -71,7 +74,8 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
         </div>
       )}
       <p className="mt-2 border-t border-line-soft pt-2 text-xs text-ink-faint">
-        Model $ is the Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
+        Projected WPR = the WPR the horse should run, +/- its typical miss (two runs in three land inside). Model $ is the
+        Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
         fixed price - 1. Settle = projected position at the 800m.
       </p>
     </div>
