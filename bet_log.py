@@ -301,7 +301,8 @@ def settle(log, runners, dividends, venue_of):
 # notional $10, then settled like a win bet. win chance p = softmax(vs x log p_fixed + vu) over the field.
 # NSW added 5 Oct 2026 (racing-model value_model --five-states: VIC/SA/QLD-fitted model on NSW 536 bets +2.5%, -14 to +19;
 # WA 122 bets -23%, left out)
-VALUE_STATES = ("VIC", "SA", "QLD", "NSW")
+# WA and TAS added 5 Oct 2026 (user decision, logged only): WA lost 23% over 122 backtest bets; TAS was not backtested
+VALUE_STATES = ("VIC", "SA", "QLD", "NSW", "WA", "TAS")
 VALUE_CUT, VALUE_MAX_PRICE, VALUE_STAKE = 1.0, 51.0, 10.0   # cap $51 (5 Oct: +6.3% vs +5.7% at $21)
 VALUE_FIELDS = ["bet_id", "date", "venue", "race", "race_id", "start_utc", "logged_utc", "run_id", "selection", "price",
                 "p_value", "value", "combo_gap", "sm", "stake", "status", "finish", "return", "profit"]
