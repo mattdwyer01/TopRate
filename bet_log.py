@@ -2,11 +2,11 @@
 
 Rules (racing-model tests on pre-race dashboard values, 3 Oct 2026; same rules as the race page's Bets box,
 frontend/src/lib/betRules.ts):
-  Win        Combo top pick 4+ points clear of the 2nd, SM >= +0.5, no first starter in the race.
+  Win        Combo top pick 4+ points clear of the 2nd, SM >= +1, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
-  Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -0.5); at least one
-             within-4 runner with SM >= +0.5; no first starter in the race; <= 36 combinations; $10 flexi.
-  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +0.5; no first
+  Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -1); at least one
+             within-4 runner with SM >= +1; no first starter in the race; <= 36 combinations; $10 flexi.
+  Quinella   box the within-4 runners when there are 2 to 4 (<= 6 combinations), one of them with SM >= +1; no first
              starter in the race (user rule 3 Oct 2026; the test showed no harm); $15 flexi.
   Bush       no bets at bush meetings (top race prize $20k or less, the dashboard's bush filter).
   Quaddie    main quaddie = last 4 races of the meeting; each leg the 8 line set; no first starter in any leg;
@@ -43,7 +43,7 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 4.0, 8.0, 0.5   # Combo lines (4 Oct 2026 mix: 4 / 8; were 5 / 10 with the 0.7-rating Combo)
+INNER, OUTER, SM_T = 4.0, 8.0, 1.0   # SM favoured / unfavoured at +/-1 (4 Oct 2026, was 0.5). Combo lines (4 Oct 2026 mix: 4 / 8; were 5 / 10 with the 0.7-rating Combo)
 WIN_RETURN = 200.0
 # exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
 # full stakes were trifecta 10, quinella 15, quaddies 25

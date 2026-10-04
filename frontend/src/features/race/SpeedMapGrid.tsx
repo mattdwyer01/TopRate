@@ -347,7 +347,7 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
   // mobile (compact, single sub-column, fills its 1/6-width grid cell)
   // layouts below - see each layout's own comment for why they differ.
   function renderCard(u: Runner, compact: boolean, gridPos?: { row: number; col: number }) {
-    // Tint = the race table's SM column (same demeaned number, same +/-0.5 threshold), so a tile and its row
+    // Tint = the race table's SM column (same demeaned number, same +/-1.0 threshold), so a tile and its row
     // always agree (3 Oct 2026, user report: Litzdeel SM +1.0 but a red tile - the tile used the Racing Model's
     // separate position value). Position value is kept as a small corner dot when it is outside +/- its threshold.
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
