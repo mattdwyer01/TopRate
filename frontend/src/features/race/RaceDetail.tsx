@@ -59,7 +59,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   // (2026-09-19, direct follow-up: "combo should be the bold number, not
   // proj... have combo to the left of proj") - it's the headline figure
   // now; Proj demoted to the plain style below it in RunnerRow.tsx.
-  { key: 'compositeScore', label: 'Combo' },
+  { key: 'compositeScore', label: 'Rating' },
   { key: 'projectedWpr', label: 'Proj', showCompact: true },
   { key: 'toprateRating', label: 'TopRate' },
   // WPR Nett (TopRate wpr_nett) in place of Jky Win% (4 Oct 2026, user request; left of Form, same day)
@@ -101,7 +101,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 // numbers.
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'compositeScore', label: 'Cb' },
+  { key: 'compositeScore', label: 'Rt' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'wprNett', label: 'Nett' },
   { key: 'formFactor', label: 'Fm' },
@@ -126,7 +126,7 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 // COLUMN_LABELS/sm:grid-cols above).
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
-  { key: 'compositeScore', label: 'Cb' },
+  { key: 'compositeScore', label: 'Rt' },
   { key: 'projectedWpr', label: 'Proj' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
@@ -720,7 +720,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                    {COMPOSITE_INNER_GAP_FROM_TOP} pts (Combo) from top rated
+                    {COMPOSITE_INNER_GAP_FROM_TOP} pts (Rating) from top rated
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
@@ -729,7 +729,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {gapThreshold} {usingComposite ? 'pts (Combo)' : 'WPR'} from top rated
+                    {gapThreshold} {usingComposite ? 'pts (Rating)' : 'WPR'} from top rated
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>
