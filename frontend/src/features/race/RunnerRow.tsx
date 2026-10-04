@@ -15,7 +15,7 @@ interface RunnerRowProps {
 
 function fmtNett(v: number | null): string {
   if (v == null) return '—'
-  return v.toFixed(1)
+  return v.toFixed(0)
 }
 
 function fmtAdj(v: number | null): string {
