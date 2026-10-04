@@ -1,28 +1,25 @@
-// Market signals (5 Oct 2026): pre-race facts the market has consistently under-rated (green) or over-rated (red) in
-// 2023-2026 (racing-model reports/filter_screen*.md). Codes and effects come from the value model's fitted weights
-// (racing-model model/value_params.json, |weight| >= 0.015; racing_model.json runners[].sg). Effect = how much the
-// signal moves the horse's win chance vs its price, other things equal.
+// Market signals (5 Oct 2026, the user's chosen set): pre-race facts the market has consistently under-rated (green) or
+// over-rated (red). Effect = wins vs what the price implies, among runners within 4 of the top pick at $2+ with no first
+// starter, averaged over 2023-24 and 2025-26 (racing-model reports/filter_screen*.md). Codes: racing_model.json sg
+// (racing-model model/value_live.SIGNALS). The V badge is separate (the value model).
 export interface SignalInfo {
   label: string
   detail: string
-  effect: number // fractional change in win chance vs the price, e.g. 0.08 = +8%
+  effect: number // fractional change in wins vs the price, e.g. 0.10 = 10% more winners than priced
 }
 
 export const SIGNAL_INFO: Record<string, SignalInfo> = {
-  f_vet: { label: 'Vet issue last start', detail: 'lame, bled, heart or soreness reported last start', effect: 0.11 },
-  f_gps_ground: { label: 'Covered extra ground last start', detail: 'GPS: top 20% for extra metres vs that field', effect: 0.08 },
-  f_wide: { label: 'Raced wide last start', detail: 'stewards: wide / without cover', effect: 0.07 },
-  f_barrier10: { label: 'Barrier 10+', detail: 'wide draws are over-penalised by the market', effect: 0.05 },
-  f_4thup: { label: '4th+ run this prep', detail: 'fit and racing; under-bet vs first and second up', effect: 0.05 },
-  f_dist_up: { label: 'Up 200m+ in distance', detail: 'stepping up from last start', effect: 0.03 },
-  f_age6: { label: 'Age 6+', detail: 'older horses are under-bet', effect: 0.02 },
-  f_laid: { label: 'Laid in / hung / shifted last start', detail: 'an excuse the market marks down too far', effect: 0.02 },
-  f_sm: { label: 'Speed map favoured', detail: "race-day projection in the field's top 18%", effect: 0.02 },
-  f_back14: { label: 'Back within 14 days', detail: 'quick backup', effect: 0.02 },
-  f_weak_jockey: { label: 'Low-strike jockey', detail: 'under 7% wins in the last year; the market over-penalises', effect: 0.02 },
-  n_every_chance: { label: "'Every chance' last start", detail: 'ran to its mark with no excuse; over-bet next time', effect: -0.09 },
-  n_stay_poor_sire: { label: 'Staying trip, weak staying sire', detail: "1600m+ and the sire's progeny win less over it", effect: -0.06 },
-  n_top_jockey: { label: 'Top jockey', detail: '18%+ strike rate; the market over-bets them', effect: -0.02 },
+  f_wide: { label: 'Raced wide last start', detail: 'stewards: wide / without cover', effect: 0.1 },
+  f_vet: { label: 'Vet issue last start', detail: 'lame, bled, heart or soreness reported', effect: 0.09 },
+  f_laid: { label: 'Laid in / hung / shifted last start', detail: 'an excuse the market marks down too far', effect: 0.05 },
+  f_heldup: { label: 'Held up / checked last start', detail: 'held up, checked, hampered or crowded', effect: 0.04 },
+  f_sm: { label: 'Speed map favoured', detail: "race-day projection in the field's top 18%", effect: 0.04 },
+  f_bias: { label: 'Track bias helps', detail: "projected track bias in the field's top 20% for this runner", effect: 0.04 },
+  f_back14: { label: 'Back within 14 days', detail: 'quick backup', effect: 0.04 },
+  f_4thup: { label: '4th+ run this prep', detail: 'fit and racing', effect: 0.03 },
+  n_apprentice: { label: 'Apprentice rider', detail: 'claiming rider; the market over-rates the claim', effect: -0.08 },
+  n_stay_poor_sire: { label: 'Staying trip, weak staying sire', detail: "1600m+ and the sire's progeny win less over it", effect: -0.07 },
+  n_every_chance: { label: "'Every chance' last start", detail: 'ran to its mark with no excuse; over-bet next time', effect: -0.03 },
 }
 
 export function signalList(codes: string[] | undefined): { code: string; info: SignalInfo }[] {
