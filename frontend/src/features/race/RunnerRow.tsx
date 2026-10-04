@@ -384,7 +384,13 @@ export function RunnerRow({
             {/* Whole number (2026-09-19, real user request: "change proj
                 to be a whole number") - Combo above keeps its own decimal
                 (fmtWpr), this is Proj-specific. */}
-            {scratched ? <span className="text-ink-faint">SCR</span> : fmtInt(displayProj)}
+            {scratched ? (
+              <span className="text-ink-faint">SCR</span>
+            ) : (
+              <span title={runner.projSd != null ? `Projected WPR ${fmtInt(displayProj)} \u00b1 ${Math.round(runner.projSd)}` : undefined}>
+                {fmtInt(displayProj)}
+              </span>
+            )}
             {overridden && (
               <span className="ml-0.5 text-amber" title="Manually adjusted">
                 *

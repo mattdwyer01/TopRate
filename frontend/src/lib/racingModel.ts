@@ -23,6 +23,8 @@ export interface RMRunner {
   pv?: number | null // position value: expected worth of the projected position and width (WPR points vs race)
   pf?: number // 1 = position value in the top 10% (the group the market has underrated in testing)
   gb?: Record<string, number> // rating breakdown by part, WPR points vs the field (sums to v)
+  wp?: number | null // WPR projection v2: the WPR this horse should run (racing-model model/wpr_model.py)
+  ws?: number | null // its spread (sd, WPR points)
 }
 
 export interface RMRace {
@@ -188,14 +190,23 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
   const withP = has.filter((r) => (rm.runners[r.runId].p ?? 0) > 0)
   const lnP = (r: Runner) => Math.log(Math.max(rm.runners[r.runId].p ?? 0, 1e-4))
   const lnMean = withP.length >= 2 ? withP.reduce((s, r) => s + lnP(r), 0) / withP.length : 0
-  const projMean = has.reduce((s, r) => s + (r.projectedWpr ?? 0), 0) / has.length
+  // Proj (5 Oct 2026): the Racing Model's WPR projection v2 (`wp`, the WPR the horse should run; walk-forward MAE 6.0
+  // vs TopRate's 6.5, unbiased vs +1.9) where it exists, else TopRate's projection with the Racing Model's race-day part
+  const tpAdj = (r: Runner) =>
+    (r.projectedWpr ?? 0) - (tpOf(r) - tpMean) + (modelPart(rm.runners[r.runId]) - ourMean)
+  const newProj = (r: Runner) => rm.runners[r.runId]?.wp ?? tpAdj(r)
+  const projMean = has.reduce((s, r) => s + newProj(r), 0) / has.length
   return runners.map((r) => {
     const m = rm.runners[r.runId]
     if (!m || r.projectedWpr == null) return r
     const ours = modelPart(m) - ourMean
+    const proj = newProj(r)
     return {
       ...r,
-      projectedWpr: r.projectedWpr - (tpOf(r) - tpMean) + ours,
+      projectedWpr: proj,
+      // keep Base + Adj = Proj in the table (Adj = everything beyond TopRate's base)
+      wprAdjustment: r.baseWpr != null ? proj - r.baseWpr : r.wprAdjustment,
+      projSd: m.ws ?? null,
       rmWpr: withP.length >= 2 && (m.p ?? 0) > 0 ? projMean + RM_WPR_PER_LOG_P * (lnP(r) - lnMean) : null,
       // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
       adjustmentBreakdown: {
