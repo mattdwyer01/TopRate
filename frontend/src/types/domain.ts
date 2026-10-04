@@ -77,6 +77,7 @@ export interface Runner {
   wprTrend: number | null
   wprPeakRank1Yr: number | null
   wprNett: number | null
+  rmWpr?: number | null // Racing Model chance on the WPR scale (set by lib/racingModel.ts withModelAdjustments)
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null

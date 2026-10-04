@@ -170,6 +170,9 @@ function modelPart(m: RMRunner): number {
 // (-0.0115 to -0.0009), with SP -0.0003 n.s.; with track_barrier also out -0.0073 / -0.0010).
 export const TOPRATE_PARTS_OUT = ['speed_map', 'track_barrier', 'own_going', 'own_trend', 'own_distance'] as const
 
+// WPR points per unit of log win chance (racing-model gap-from-top fit: gap WPR = 6.843 x ln(p_top / p))
+const RM_WPR_PER_LOG_P = 6.843
+
 export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): Runner[] {
   if (!rm) return runners
   const has = runners.filter((r) => r.projectedWpr != null && rm.runners[r.runId])
@@ -177,6 +180,11 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
   const tpOf = (r: Runner) => TOPRATE_PARTS_OUT.reduce((s, k) => s + (r.adjustmentBreakdown?.[k] ?? 0), 0)
   const tpMean = has.reduce((s, r) => s + tpOf(r), 0) / has.length
   const ourMean = has.reduce((s, r) => s + modelPart(rm.runners[r.runId]), 0) / has.length
+  // Racing Model chance on the WPR scale for Combo (4 Oct 2026): field mean projection + 6.843 x (ln p - mean ln p)
+  const withP = has.filter((r) => (rm.runners[r.runId].p ?? 0) > 0)
+  const lnP = (r: Runner) => Math.log(Math.max(rm.runners[r.runId].p ?? 0, 1e-4))
+  const lnMean = withP.length >= 2 ? withP.reduce((s, r) => s + lnP(r), 0) / withP.length : 0
+  const projMean = has.reduce((s, r) => s + (r.projectedWpr ?? 0), 0) / has.length
   return runners.map((r) => {
     const m = rm.runners[r.runId]
     if (!m || r.projectedWpr == null) return r
@@ -184,6 +192,7 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
     return {
       ...r,
       projectedWpr: r.projectedWpr - (tpOf(r) - tpMean) + ours,
+      rmWpr: withP.length >= 2 && (m.p ?? 0) > 0 ? projMean + RM_WPR_PER_LOG_P * (lnP(r) - lnMean) : null,
       // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
       adjustmentBreakdown: {
         ...(r.adjustmentBreakdown ?? {}),

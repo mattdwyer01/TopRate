@@ -273,7 +273,12 @@ export function computeEffectiveRace(
 // grid on pre-race values (1,753 races 22 Aug to 3 Oct): 0.45 projection + 0.10 TopRate rating + 0.10 form factor +
 // 0.35 wpr_nett: top pick wins 29.8% (0.7-rating Combo 33.0%), top pick = SP favourite 53% (68%), non-favourite top
 // picks A/E price-matched 1.15, ROI at SP -10%. Previously 0.3 projection + 0.7 rating (3 Oct), 2/3 + 1/3 before.
-export const COMPOSITE_WEIGHT_WPR = 0.45
+// Racing Model 0.15 taken from the projection (4 Oct 2026, user decision; racing-model reports/projection_improve.md,
+// 1,753 pre-race races): top pick level (29.3% vs 29.7%, n.s.), win rule level (+5.8% vs +6.9%), +1.2 winners per 100
+// races inside the 4 line at the same runner count (+0.3 to +2.2). Without a Racing Model figure the projection keeps 0.45.
+export const COMPOSITE_WEIGHT_WPR = 0.30
+export const COMPOSITE_WEIGHT_WPR_NO_RM = 0.45
+export const COMPOSITE_WEIGHT_RACING_MODEL = 0.15
 export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.10
 export const COMPOSITE_WEIGHT_WPR_NETT = 0.35
 export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.10
@@ -335,8 +340,14 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
   if (wpr == null) return null
-  let weightedSum = COMPOSITE_WEIGHT_WPR * wpr
-  let weightTotal = COMPOSITE_WEIGHT_WPR
+  const wWpr = runner.rmWpr != null ? COMPOSITE_WEIGHT_WPR : COMPOSITE_WEIGHT_WPR_NO_RM
+  let weightedSum = wWpr * wpr
+  let weightTotal = wWpr
+  if (runner.rmWpr != null) {
+    // Racing Model chance on the WPR scale (lib/racingModel.ts withModelAdjustments)
+    weightedSum += COMPOSITE_WEIGHT_RACING_MODEL * runner.rmWpr
+    weightTotal += COMPOSITE_WEIGHT_RACING_MODEL
+  }
   if (runner.toprateRating != null) {
     const trrRescaled = WPR_POP_MEAN + ((runner.toprateRating - TRR_POP_MEAN) / TRR_POP_STD) * WPR_POP_STD
     weightedSum += COMPOSITE_WEIGHT_TOPRATE_RATING * trrRescaled

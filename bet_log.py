@@ -53,6 +53,7 @@ QUAD_CAP, QUAD_STAKE, EARLY_QUAD_STAKE = 400, 12.5, 12.5
 # bush meetings (top race prize <= $20k, the dashboard's BUSH_TRACK_THRESHOLD) get no bets (user rule 3 Oct 2026)
 BUSH_PRIZE = 20000
 WPR_M, WPR_S, TRR_M, TRR_S = 72.57, 10.48, 96.26, 2.71
+RM_WPR = 6.843   # WPR points per unit of log win chance (racing-model gap-from-top fit)
 TOPRATE_PARTS_OUT = ("speed_map", "track_barrier", "own_going", "own_trend", "own_distance")
 JSON_DAYS = 60
 
@@ -92,9 +93,14 @@ def race_frame(r, rm):
         sm = r["wprp_contrib"].map(lambda v: _contrib(v, "speed_map"))
         r["sm"] = sm - sm.mean()
     trr = pd.to_numeric(r["toprate_rating"], errors="coerce")
-    # Combo (4 Oct 2026), as lib/raceModel.ts compositeScore: 0.45 projection + 0.10 TopRate rating + 0.10 form factor +
-    # 0.35 wpr_nett; a missing part is dropped and the weights renormalised
-    parts = [(0.45, r["proj"]), (0.10, WPR_M + (trr - TRR_M) / TRR_S * WPR_S),
+    # Racing Model chance on the WPR scale (as lib/racingModel.ts rmWpr): field mean projection + 6.843 x (ln p - mean ln p)
+    lp = np.log(pd.Series([(rm.get(str(i)) or {}).get("p") for i in r["run_id"]], index=r.index, dtype=float).clip(lower=1e-4))
+    r["rmw"] = r["proj"].mean() + RM_WPR * (lp - lp.mean()) if lp.notna().sum() >= 2 else np.nan
+    w_proj = 0.30 if r["rmw"].notna().any() else 0.45
+    # Combo (4 Oct 2026), as lib/raceModel.ts compositeScore: 0.30 projection + 0.15 Racing Model + 0.10 TopRate rating +
+    # 0.10 form factor + 0.35 wpr_nett (0.45 projection when there is no Racing Model); a missing part is dropped and the
+    # weights renormalised
+    parts = [(w_proj, r["proj"]), (0.15, r["rmw"]), (0.10, WPR_M + (trr - TRR_M) / TRR_S * WPR_S),
              (0.10, WPR_M + (pd.to_numeric(r.get("pfm_score"), errors="coerce") - 38.35) / 30.88 * WPR_S),
              (0.35, pd.to_numeric(r.get("wpr_nett"), errors="coerce"))]
     num = sum((w * v).fillna(0) for w, v in parts)
