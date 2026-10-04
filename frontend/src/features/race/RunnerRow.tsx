@@ -32,18 +32,9 @@ function SignalDots({ runner }: { runner: Runner }) {
       {isValue && (
         <span className="mr-0.5 rounded bg-emerald-deep px-1 text-[10px] font-bold leading-4 text-white">V</span>
       )}
-      {/* Desktop: one dot per signal (up to 4 green / 3 red). Mobile: a count badge per colour, fixed width however
-          many signals there are, so long names keep their room (5 Oct 2026, user: "6+ dots won't work on mobile"). */}
-      <span className="hidden items-center gap-[2px] sm:flex">
-        {Array.from({ length: Math.min(greens, 4) }).map((_, i) => (
-          <span key={`g${i}`} className="inline-block h-1.5 w-1.5 rounded-full bg-emerald" />
-        ))}
-        {greens > 4 && <span className="text-[10px] leading-none text-emerald-deep">+</span>}
-        {Array.from({ length: Math.min(reds, 3) }).map((_, i) => (
-          <span key={`r${i}`} className="inline-block h-1.5 w-1.5 rounded-full bg-rose" />
-        ))}
-      </span>
-      <span className="flex items-center gap-[2px] sm:hidden">
+      {/* A count badge per colour on every screen size (5 Oct 2026, user: desktop should look the same as mobile):
+          fixed width however many signals there are. */}
+      <span className="flex items-center gap-[2px]">
         {greens > 0 && (
           <span className="inline-flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-emerald px-[3px] text-[9px] font-bold leading-none text-white">
             {greens}
