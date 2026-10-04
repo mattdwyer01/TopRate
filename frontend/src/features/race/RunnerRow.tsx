@@ -13,9 +13,9 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-function fmtJockeyWin(v: number | null): string {
+function fmtNett(v: number | null): string {
   if (v == null) return '—'
-  return `${Math.round(v)}%`
+  return v.toFixed(1)
 }
 
 function fmtAdj(v: number | null): string {
@@ -405,7 +405,7 @@ export function RunnerRow({
         {scratched ? 'SCR' : fmtInt(runner.formFactor)}
       </span>
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
-        {scratched ? 'SCR' : fmtJockeyWin(runner.jockeyWinPct90d)}
+        {scratched ? 'SCR' : fmtNett(runner.wprNett)}
       </span>
       {/* Speed Map ADJ_TERM, demeaned against this race (2026-09-19, real
           user request: "add a column for speed map adj, with green and red
