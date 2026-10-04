@@ -132,7 +132,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_44px_56px_60px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_56px_44px_60px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -271,7 +271,7 @@ export function RunnerRow({
         // fixed" - was originally right after Horse).
         compact
           ? 'gap-x-1 grid-cols-[40px_minmax(80px,1fr)_40px_40px_76px_20px]'
-          : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_36px_36px_29px_31px_30px_76px_20px]'
+          : 'gap-x-[3px] grid-cols-[40px_minmax(38px,1fr)_36px_36px_31px_29px_30px_76px_20px]'
       } ${rowPadding} ${
         // Overlay/drift/backed-in row tint removed (real user feedback,
         // 2026-09-16) - the tooltip above still explains a row's overlay
@@ -401,11 +401,12 @@ export function RunnerRow({
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}
       </span>
-      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
-        {scratched ? 'SCR' : fmtInt(runner.formFactor)}
-      </span>
+      {/* Nett left of Form (4 Oct 2026, user request) */}
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
         {scratched ? 'SCR' : fmtNett(runner.wprNett)}
+      </span>
+      <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>
+        {scratched ? 'SCR' : fmtInt(runner.formFactor)}
       </span>
       {/* Speed Map ADJ_TERM, demeaned against this race (2026-09-19, real
           user request: "add a column for speed map adj, with green and red
