@@ -17,7 +17,6 @@ export const SIGNAL_INFO: Record<string, SignalInfo> = {
   f_bias: { label: 'Track bias helps', detail: "projected track bias in the field's top 20% for this runner", effect: 0.04 },
   f_back14: { label: 'Back within 14 days', detail: 'quick backup', effect: 0.04 },
   f_4thup: { label: '4th+ run this prep', detail: 'fit and racing', effect: 0.03 },
-  n_apprentice: { label: 'Apprentice rider', detail: 'claiming rider; the market over-rates the claim', effect: -0.08 },
   n_stay_poor_sire: { label: 'Staying trip, weak staying sire', detail: "1600m+ and the sire's progeny win less over it", effect: -0.07 },
   n_every_chance: { label: "'Every chance' last start", detail: 'ran to its mark with no excuse; over-bet next time', effect: -0.03 },
 }
