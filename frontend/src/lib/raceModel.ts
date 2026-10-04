@@ -268,16 +268,14 @@ export function computeEffectiveRace(
 // barely moves (73.2% -> 72.5%, matched margin 10.08 -> 9.82) - real
 // user decision to leave COMPOSITE_MAX_GAP_FROM_TOP at 10 regardless
 // (see that constant's own comment).
-// Reweighted 3 Oct 2026 (user decision; racing-model tools/combo_strike_test.py, reports/combo_strike_test.md, 1,753
-// races 22 Aug to 3 Oct on pre-race values): TopRate rating share 1/3 -> 0.7 lifts the top pick's strike rate
-// 30.7% -> 33.0% (both halves of the window, every state group), top pick ROI at SP -14% -> -11%; where the top pick is
-// not the SP favourite, A/E price-matched 1.10 -> 1.18. Combo is now WPR projection 0.3 + TopRate rating 0.7.
-export const COMPOSITE_WEIGHT_WPR = 0.30
-export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.70
-// Form factor dropped from Combo (25 Sep 2026): on PRE-RACE TopRate values (racing-model
-// tools/combo_redesign_test.py, 22 Aug to 23 Sep 2026) Combo without it scored -0.019 log loss alone
-// (95% -0.036 to -0.003) and +0.0026 with SP (n.s.). Combo is now WPR projection 2/3 + TopRate rating 1/3.
-export const COMPOSITE_WEIGHT_FORM_FACTOR = 0
+// Reweighted 4 Oct 2026 (user decision: keep the TopRate rating low, it largely tracks the market price). racing-model
+// grid on pre-race values (1,753 races 22 Aug to 3 Oct): 0.45 projection + 0.10 TopRate rating + 0.10 form factor +
+// 0.35 wpr_nett: top pick wins 29.8% (0.7-rating Combo 33.0%), top pick = SP favourite 53% (68%), non-favourite top
+// picks A/E price-matched 1.15, ROI at SP -10%. Previously 0.3 projection + 0.7 rating (3 Oct), 2/3 + 1/3 before.
+export const COMPOSITE_WEIGHT_WPR = 0.45
+export const COMPOSITE_WEIGHT_TOPRATE_RATING = 0.10
+export const COMPOSITE_WEIGHT_WPR_NETT = 0.35
+export const COMPOSITE_WEIGHT_FORM_FACTOR = 0.10
 // Population mean/std (toprate_runners.csv, all non-scratched rows, see
 // wpr_composite_score_capture_test.py's own printed stats) used to
 // rescale toprateRating/formFactor onto projectedWpr's own natural scale
@@ -314,8 +312,11 @@ const PFM_POP_STD = 30.88
 // Lines 4 / 8 -> 5 / 10 with the 0.7 rating weight (3 Oct 2026): the reweighted Combo spreads runners further apart;
 // 5 / 10 keep the old coverage (2.51 runners and 61% of winners inside the inner line vs 2.51 / 57.5%; 4.57 runners
 // and 82% of winners inside the outer vs 4.61 / 80%; quinella / trifecta hit A/E vs SP 1.21 / 1.33 vs 1.23 / 1.32).
-export const COMPOSITE_MAX_GAP_FROM_TOP = 10
-export const COMPOSITE_INNER_GAP_FROM_TOP = 5
+// Lines 5 / 10 -> 4 / 8 with the 4 Oct mix (it spreads runners less than the 0.7-rating Combo): same coverage as
+// before (2.48 runners / 54% of winners inside 4, 4.86 / 80% inside 8). Quinella / trifecta hit A/E vs SP fall
+// (1.21 / 1.33 -> 1.11 / 1.22) with this mix.
+export const COMPOSITE_MAX_GAP_FROM_TOP = 8
+export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -344,6 +345,11 @@ export function compositeScore(runner: Runner, effectiveWpr?: number | null): nu
     const pfmRescaled = WPR_POP_MEAN + ((runner.formFactor - PFM_POP_MEAN) / PFM_POP_STD) * WPR_POP_STD
     weightedSum += COMPOSITE_WEIGHT_FORM_FACTOR * pfmRescaled
     weightTotal += COMPOSITE_WEIGHT_FORM_FACTOR
+  }
+  if (runner.wprNett != null) {
+    // wpr_nett is already on the WPR scale
+    weightedSum += COMPOSITE_WEIGHT_WPR_NETT * runner.wprNett
+    weightTotal += COMPOSITE_WEIGHT_WPR_NETT
   }
   return weightedSum / weightTotal
 }
