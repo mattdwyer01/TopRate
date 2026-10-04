@@ -304,7 +304,7 @@ def settle(log, runners, dividends, venue_of):
 # WA and TAS added 5 Oct 2026 (user decision, logged only): WA lost 23% over 122 backtest bets; TAS was not backtested
 VALUE_STATES = ("VIC", "SA", "QLD", "NSW", "WA", "TAS")
 VALUE_CUT, VALUE_MAX_PRICE, VALUE_STAKE = 1.0, 51.0, 10.0   # cap $51 (5 Oct: +6.3% vs +5.7% at $21)
-VALUE_FIELDS = ["bet_id", "date", "venue", "race", "race_id", "start_utc", "logged_utc", "run_id", "selection", "price",
+VALUE_FIELDS = ["bet_id", "date", "state", "venue", "race", "race_id", "start_utc", "logged_utc", "run_id", "selection", "price",
                 "p_value", "value", "combo_gap", "sm", "stake", "status", "finish", "return", "profit"]
 
 
@@ -340,7 +340,8 @@ def value_bets(runners, rm, now, logged_ids):
                 bid = f"{rid}:Value"
                 if bid in logged_ids:
                     continue
-                rows.append(dict(bet_id=bid, date=day, venue=venue, race=int(n), race_id=str(x["race_id"]),
+                rows.append(dict(bet_id=bid, date=day, state=str(x.get("state", "")), venue=venue, race=int(n),
+                                 race_id=str(x["race_id"]),
                                  start_utc=x["start"].isoformat(), logged_utc=stamp, run_id=rid,
                                  selection=f"{int(float(x['tab_number']))} {x['horse']}", price=float(x["price"]),
                                  p_value=round(float(x["p"]), 4), value=round(float(x["value"]), 3),
