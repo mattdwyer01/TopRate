@@ -25,6 +25,8 @@ export interface RMRunner {
   gb?: Record<string, number> // rating breakdown by part, WPR points vs the field (sums to v)
   wp?: number | null // WPR projection v2: the WPR this horse should run (racing-model model/wpr_model.py)
   ws?: number | null // its spread (sd, WPR points)
+  pb?: number | null // Proj base: the form-only projected WPR (racing-model wpr_model)
+  pa?: Record<string, number> | null // race-day adjustments to the base, WPR points vs the race mean (sum + pb = wp)
   wr?: number | null // race-day part of wp (speed map cost, leader value, wet settle; fitted, vs the race mean)
   vu?: number | null // value model utility (model/value_live.py)
   vs?: number | null // value model price slope

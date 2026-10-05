@@ -9,7 +9,7 @@ import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { PriceMovementChart } from './PriceMovementChart'
-import { ModelBreakdown, ModelHeadline, type ModelDetail } from './ModelRunnerDetail'
+import { ModelHeadline, type ModelDetail } from './ModelRunnerDetail'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -362,7 +362,7 @@ export function RunnerDetailModal({
                 bigger share of this row instead of squeezing both of its
                 own sub-tables just to stay even with cards that didn't grow. */}
             <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
-              <CareerStats runner={runner} race={race} breakdown={model ? <ModelBreakdown detail={model} /> : undefined} />
+              <CareerStats runner={runner} race={race} />
             </div>
             <div className="flex w-full gap-3 sm:contents">
               {hasPriceInfo && (
