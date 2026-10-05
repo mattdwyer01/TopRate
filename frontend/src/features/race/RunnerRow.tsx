@@ -413,7 +413,7 @@ export function RunnerRow({
         {scratched ? (
           'SCR'
         ) : (
-          <span title={`Form projection ${fmtWpr(displayComposite != null ? displayComposite - (runner.mktAdj ?? 0) : null)}${runner.projSd != null ? ` \u00b1 ${Math.round(runner.projSd)}` : ''}${runner.mktAdj != null ? `, price ${runner.mktAdj >= 0 ? '+' : ''}${runner.mktAdj.toFixed(1)}` : ''}`}>
+          <span title={`Form projection ${fmtWpr(displayComposite != null ? displayComposite - (runner.mktAdj ?? 0) : null)}${runner.projSd != null ? ` \u00b1 ${Math.round(runner.projSd)}` : ''}${runner.rdAdj != null ? ` (race-day ${runner.rdAdj >= 0 ? '+' : ''}${runner.rdAdj.toFixed(1)})` : ''}${runner.mktAdj != null ? `, price ${runner.mktAdj >= 0 ? '+' : ''}${runner.mktAdj.toFixed(1)}` : ''}`}>
             {fmtWpr(displayComposite)}
           </span>
         )}
