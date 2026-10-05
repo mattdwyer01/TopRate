@@ -304,8 +304,11 @@ export function computeEffectiveRace(
 // (1.21 / 1.33 -> 1.11 / 1.22) with this mix.
 // Lines 4 / 8 -> 4.5 / 9.5 with the Racing Model rating (5 Oct 2026): same runners inside as Combo's 4 / 8 (54% / 79% of
 // winners; racing-model reports/rating_replace_test.md).
-export const COMPOSITE_MAX_GAP_FROM_TOP = 9.5
-export const COMPOSITE_INNER_GAP_FROM_TOP = 4.5
+// Lines 4.5 / 9.5 -> 2.3 / 5 with Proj as the headline (6 Oct 2026, user decision): same runners inside as the Rating's
+// 4.5 / 9.5 (2.45 / 4.69 a race; racing-model reports/proj_rebuild_test.md, 38,310 races 2023-26 walk-forward:
+// 52.9% / 77.6% of winners inside vs the Rating's 54.2% / 78.1%).
+export const COMPOSITE_MAX_GAP_FROM_TOP = 5
+export const COMPOSITE_INNER_GAP_FROM_TOP = 2.3
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -321,14 +324,9 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 4.5
 // was complete-case only) - it's a deliberate, conservative choice that
 // never does worse than falling back toward plain WPR when data's thin.
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
-  // Rating (5 Oct 2026, user decision: Combo removed): the Racing Model's chance, WPR Nett layer included, on the WPR
-  // scale (runner.rmWpr, lib/racingModel.ts withModelAdjustments). A manual projection override moves it by the same
-  // amount. Without a Racing Model figure the (adjusted) projection is shown.
+  // Headline = Proj (6 Oct 2026, user decision): the projected WPR from prior form (racing-model model/wpr_model.py,
+  // front-weighted), manual override included. The Racing Model rating moved to the second column (runner.rmWpr).
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
-  if (runner.rmWpr != null) {
-    const shift = wpr != null && runner.projectedWpr != null ? wpr - runner.projectedWpr : 0
-    return runner.rmWpr + shift
-  }
   return wpr ?? null
 }
 

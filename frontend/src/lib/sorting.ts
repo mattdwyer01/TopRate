@@ -15,6 +15,7 @@ export type SortKey =
   | 'speedMapAdj'
   | 'projectedWpr'
   | 'compositeScore'
+  | 'rmRating'
   | 'toprateRating'
   | 'formFactor'
   | 'wprNett'
@@ -42,6 +43,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   speedMapAdj: 'desc',
   projectedWpr: 'desc',
   compositeScore: 'desc',
+  rmRating: 'desc',
   toprateRating: 'desc',
   formFactor: 'desc',
   wprNett: 'desc',
@@ -83,6 +85,8 @@ function sortValue(
       return effective?.speedMapAdj ?? -Infinity
     case 'projectedWpr':
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
+    case 'rmRating':
+      return runner.rmWpr ?? -Infinity
     case 'compositeScore':
       return compositeScore(runner, effective?.effectiveProjectedWpr) ?? -Infinity
     case 'toprateRating':

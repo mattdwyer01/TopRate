@@ -111,7 +111,6 @@ export function RunnerRow({
   // more, it shouldn't look like it's still rated just because
   // effective.effectiveProjectedWpr is explicitly null (which ?? would
   // otherwise treat the same as "no override, use the raw value").
-  const displayProj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const displayComposite = scratched ? null : compositeScore(runner, effective?.effectiveProjectedWpr)
   const overridden = effective?.hasOverride ?? false
   const priceMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
@@ -408,39 +407,24 @@ export function RunnerRow({
           override asterisk here - those are specifically about the raw
           WPR projection's own model confidence/override, not the blend,
           so they stay attached to the Proj cell they've always described. */}
+      {/* Proj leads (6 Oct 2026, user decision): projected WPR from prior form, spread in the tooltip; the Racing
+          Model rating (its win chance on the WPR scale) is the plain second column. */}
       <span className="text-right font-mono font-semibold text-emerald-deep">
-        {scratched ? 'SCR' : fmtWpr(displayComposite)}
+        {scratched ? (
+          'SCR'
+        ) : (
+          <span title={runner.projSd != null ? `Projected WPR ${fmtWpr(displayComposite)} \u00b1 ${Math.round(runner.projSd)}` : undefined}>
+            {fmtWpr(displayComposite)}
+          </span>
+        )}
+        {overridden && !scratched && (
+          <span className="ml-0.5 text-amber" title="Manually adjusted">
+            *
+          </span>
+        )}
       </span>
       <span className="text-right font-mono text-ink-mute">
-        {/* sm:contents on mobile-only stack: confidence sits under the WPR
-            figure (not inline after it) to keep this column narrow on
-            small screens - at sm+ the wrapper disappears (display:contents)
-            so the two lines rejoin the parent's inline flow exactly as
-            before, unstacked. */}
-        <span className="flex flex-col items-end gap-0.5 sm:contents">
-          <span>
-            {/* Whole number (2026-09-19, real user request: "change proj
-                to be a whole number") - Combo above keeps its own decimal
-                (fmtWpr), this is Proj-specific. */}
-            {scratched ? (
-              <span className="text-ink-faint">SCR</span>
-            ) : (
-              <span title={runner.projSd != null ? `Projected WPR ${fmtInt(displayProj)} \u00b1 ${Math.round(runner.projSd)}` : undefined}>
-                {fmtInt(displayProj)}
-              </span>
-            )}
-            {overridden && (
-              <span className="ml-0.5 text-amber" title="Manually adjusted">
-                *
-              </span>
-            )}
-          </span>
-          {runner.projectionConfidence !== null && !compact && (
-            <span className="text-[10px] font-normal leading-none text-ink-faint sm:ml-1 sm:text-xs">
-              {fmtInt(runner.projectionConfidence)}%
-            </span>
-          )}
-        </span>
+        {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(runner.rmWpr ?? null)}
       </span>
       <span className="hidden text-right font-mono text-ink-mute sm:inline">
         {scratched ? 'SCR' : fmtInt(runner.toprateRating)}

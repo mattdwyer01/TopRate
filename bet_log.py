@@ -2,7 +2,7 @@
 
 Rules (racing-model tests on pre-race dashboard values, 3 Oct 2026; same rules as the race page's Bets box,
 frontend/src/lib/betRules.ts):
-  Win        Combo top pick 4+ points clear of the 2nd, SM >= +1, no first starter in the race.
+  Win        Proj top pick 2.3+ WPR clear of the 2nd, SM >= +1, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -1); at least one
              within-4 runner with SM >= +1; no first starter in the race; <= 36 combinations; $10 flexi.
@@ -44,7 +44,7 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 4.5, 9.5, 1.0   # Rating lines 4.5 / 9.5 (5 Oct 2026, same coverage as Combo 4 / 8); SM favoured at +/-1
+INNER, OUTER, SM_T = 2.3, 5.0, 1.0   # Proj lines 2.3 / 5 (6 Oct 2026, same runners inside as the Rating 4.5 / 9.5); SM favoured at +/-1
 WIN_RETURN = 200.0
 # exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
 # full stakes were trifecta 10, quinella 15, quaddies 25
@@ -93,14 +93,10 @@ def race_frame(r, rm):
     else:
         sm = r["wprp_contrib"].map(lambda v: _contrib(v, "speed_map"))
         r["sm"] = sm - sm.mean()
-    # Rating (5 Oct 2026, replaces Combo; lib/raceModel.ts compositeScore): the Racing Model's chance (WPR Nett layer
-    # included) on the WPR scale, field mean projection + 8.205 x (ln p - mean ln p); the projection when the race has
-    # no Racing Model figures
-    lp = np.log(pd.Series([(rm.get(str(i)) or {}).get("p") for i in r["run_id"]], index=r.index, dtype=float).clip(lower=1e-4))
-    if lp.notna().sum() >= 2:
-        r["combo"] = (r["proj"].mean() + RM_WPR * (lp - lp.mean())).fillna(r["proj"])
-    else:
-        r["combo"] = r["proj"]
+    # Proj (6 Oct 2026, user decision; lib/raceModel.ts compositeScore): the Racing Model's projected WPR from prior form
+    # (racing_model.json wp, front-weighted WPR model); TopRate's adjusted projection when the runner has none
+    wp = pd.Series([(rm.get(str(i)) or {}).get("wp") for i in r["run_id"]], index=r.index, dtype=float)
+    r["combo"] = wp.fillna(r["proj"]) if wp.notna().sum() >= 2 else r["proj"]
     r["gap"] = r["combo"].max() - r["combo"]
     r = r.sort_values("gap")
     r["inner"] = r["gap"] <= INNER
