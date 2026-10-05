@@ -25,6 +25,7 @@ export interface RMRunner {
   gb?: Record<string, number> // rating breakdown by part, WPR points vs the field (sums to v)
   wp?: number | null // WPR projection v2: the WPR this horse should run (racing-model model/wpr_model.py)
   ws?: number | null // its spread (sd, WPR points)
+  wr?: number | null // race-day part of wp (speed map cost, leader value, wet settle; fitted, vs the race mean)
   vu?: number | null // value model utility (model/value_live.py)
   vs?: number | null // value model price slope
   sg?: string | null // market signal codes, '|'-joined (lib/signals.ts)
@@ -233,6 +234,7 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
       // keep Base + Adj = Proj in the table (Adj = everything beyond TopRate's base)
       wprAdjustment: r.baseWpr != null ? proj - r.baseWpr : r.wprAdjustment,
       projSd: m.ws ?? null,
+      rdAdj: m.wr ?? null,
       signals: m.sg ? m.sg.split('|') : [],
       valueNow: valueOf[r.runId] ?? null,
       mktAdj: mktOf[r.runId] ?? null,
