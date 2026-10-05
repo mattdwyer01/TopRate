@@ -44,7 +44,7 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 2.0, 5.0, 1.0   # Proj lines 2 / 5 (6 Oct 2026, user choice; lib/raceModel.ts); SM favoured at +/-1
+INNER, OUTER, SM_T = 3.0, 5.0, 1.0   # Proj lines 3 / 5 (6 Oct 2026, user decision; lib/raceModel.ts); SM favoured at +/-1
 # win rule: Proj top pick 3+ clear (walk-forward, no first starter, SP $2+: 3 clear -7.6% at SP over 3,695 bets, -7.9% /
 # -7.3% in 2023-24 / 2025-26; 2 clear -11.3%, 2.3 clear -8.8%)
 WIN_CLEAR = 3.0

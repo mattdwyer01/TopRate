@@ -311,7 +311,8 @@ export function computeEffectiveRace(
 // front-weighted Proj, SP): inside 2 = 2.25 runners, 50% of winners, A/E 1.065; the 2-3 band adds 0.77 runners at A/E
 // 1.01 (market level). Outer 5 kept: the 5-6 band is A/E 0.97 (over-bet) and outer 6 adds ~15% trifecta combos.
 export const COMPOSITE_MAX_GAP_FROM_TOP = 5
-export const COMPOSITE_INNER_GAP_FROM_TOP = 2
+// Inner 2 -> 3 (6 Oct 2026, user decision): inside 3 = 3.03 runners, 60.5% of winners, A/E 1.056.
+export const COMPOSITE_INNER_GAP_FROM_TOP = 3
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
