@@ -2,7 +2,7 @@
 
 Rules (racing-model tests on pre-race dashboard values, 3 Oct 2026; same rules as the race page's Bets box,
 frontend/src/lib/betRules.ts):
-  Win        Proj top pick 2.3+ WPR clear of the 2nd, SM >= +1, no first starter in the race.
+  Win        Proj top pick 3+ WPR clear of the 2nd, SM >= +1, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -1); at least one
              within-4 runner with SM >= +1; no first starter in the race; <= 36 combinations; $10 flexi.
@@ -44,7 +44,10 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 2.3, 5.0, 1.0   # Proj lines 2.3 / 5 (6 Oct 2026, same runners inside as the Rating 4.5 / 9.5); SM favoured at +/-1
+INNER, OUTER, SM_T = 2.0, 5.0, 1.0   # Proj lines 2 / 5 (6 Oct 2026, user choice; lib/raceModel.ts); SM favoured at +/-1
+# win rule: Proj top pick 3+ clear (walk-forward, no first starter, SP $2+: 3 clear -7.6% at SP over 3,695 bets, -7.9% /
+# -7.3% in 2023-24 / 2025-26; 2 clear -11.3%, 2.3 clear -8.8%)
+WIN_CLEAR = 3.0
 WIN_RETURN = 200.0
 # exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
 # full stakes were trifecta 10, quinella 15, quaddies 25
@@ -161,7 +164,7 @@ def new_bets(runners, rm, now, logged_ids):
             if bid not in logged_ids and len(f) >= 2:
                 top, second = f.iloc[0], f.iloc[1]
                 price = pd.to_numeric(pd.Series([top["fixed_win_price"]]), errors="coerce").iloc[0]
-                if second["gap"] >= INNER and top["sm"] >= SM_T and pd.notna(price) and price > 1:
+                if second["gap"] >= WIN_CLEAR and top["sm"] >= SM_T and pd.notna(price) and price > 1:
                     rows.append({**base, "bet_id": bid, "bet": "Win", "legs": str(n),
                                  "selection": f"{int(float(top['tab_number']))} {top['horse']}",
                                  "runner_ids": str(top["run_id"]), "combos": 1,
