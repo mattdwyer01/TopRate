@@ -222,7 +222,8 @@ export function CareerStats({ runner, race, breakdown }: CareerStatsProps & { br
           <CareerConditionTable runner={runner} race={race} />
         </div>
         <div className="min-w-0 flex-1">
-          {breakdown ?? <AdjustmentBreakdown runner={runner} />}
+          {/* null = hide (the popup shows the Proj breakdown instead); undefined = TopRate's adjustment list */}
+          {breakdown !== undefined ? breakdown : <AdjustmentBreakdown runner={runner} />}
         </div>
       </div>
     </div>
