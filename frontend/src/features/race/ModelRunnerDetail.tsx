@@ -1,12 +1,13 @@
+import { useState } from 'react'
 import type { Runner } from '../../types/domain'
 import type { RMBlend, RMRunner } from '../../lib/racingModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { signalList, VALUE_CUT, VALUE_MAX_PRICE } from '../../lib/signals'
 import { compositeScore } from '../../lib/raceModel'
 
-// Racing Model parts of the runner detail popup (RunnerDetailModal), used whenever the race has a Racing Model
-// projection: the headline rating block and the rating breakdown (WPR points vs the field, from
-// racing_model.json runners[].gb; the parts sum to "vs field").
+// Racing Model part of the runner detail popup (RunnerDetailModal), used whenever the race has Racing Model data
+// (6 Oct 2026 layout, user request): headline strip (Proj, rank, fixed price), "How Proj is built" as a waterfall
+// (base, race-day adjustments, form subtotal, price adjustment, Proj), running and price tiles, and the explanation
+// behind an info toggle. No model / blend / edge figures and no signals (user decision).
 
 export interface ModelDetail {
   m: RMRunner
@@ -17,14 +18,15 @@ export interface ModelDetail {
 }
 
 const signed = (v: number | null | undefined, d = 1) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(d)}`)
-const tone = (v: number | null | undefined, t = 0) =>
-  v == null ? 'text-ink' : v > t ? 'text-emerald-deep' : v < -t ? 'text-rose' : 'text-ink'
+const tone = (v: number | null | undefined, t = 0.05) =>
+  v == null ? 'text-ink' : v > t ? 'text-emerald-deep' : v < -t ? 'text-rose' : 'text-ink-faint'
 
-function Stat({ label, value, className = 'text-ink' }: { label: string; value: string; className?: string }) {
+function Tile({ label, value, className = 'text-ink' }: { label: string; value: string; className?: string }) {
   return (
-    <span className="text-xs text-ink-mute">
-      <span className={`font-mono font-semibold ${className}`}>{value}</span> {label}
-    </span>
+    <div className="rounded-md bg-panel px-2 py-1.5 text-center">
+      <div className={`font-mono text-base font-semibold leading-tight ${className}`}>{value}</div>
+      <div className="text-[11px] leading-tight text-ink-faint">{label}</div>
+    </div>
   )
 }
 
@@ -39,132 +41,152 @@ export function ModelHeadline({
   scratched: boolean
   effectiveWpr?: number | null
 }) {
-  const { m, blend, settleRank, rank, fieldSize } = detail
-  const edge = scratched ? null : (blend?.edge ?? null)
+  const { m, settleRank, rank, fieldSize } = detail
+  const [info, setInfo] = useState(false)
   const proj = scratched ? null : compositeScore(runner, effectiveWpr)
+  const open = runner.openFixedPrice
+  const now = runner.fixedWinPrice
+  const move = open != null && now != null && open > 1 ? (now / open - 1) * 100 : null
+  const flat = move == null || Math.abs(move) < 0.5
   return (
     <div className="rounded-lg bg-bg p-2.5">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {scratched ? (
-          <span className="font-mono text-2xl font-bold text-rose">SCR</span>
+          <span className="font-mono text-3xl font-bold text-rose">SCR</span>
         ) : (
-          <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(proj)}</span>
+          <span className="font-mono text-3xl font-bold text-emerald-deep">{fmtWpr(proj)}</span>
         )}
-        <span className="text-xs text-ink-mute">Proj (projected WPR + race-day adjustments + price)</span>
-        {rank != null && !scratched && (
-          <span className="text-xs text-ink-mute">
-            rank <span className="font-mono font-semibold text-ink">{rank}</span> of {fieldSize}
+        <span className="text-sm text-ink-mute">
+          Proj
+          {rank != null && !scratched && (
+            <>
+              {' '}
+              · rank <span className="font-semibold text-ink">{rank}</span> of {fieldSize}
+            </>
+          )}
+        </span>
+        {now != null && !scratched && (
+          <span className="ml-auto rounded-full bg-panel px-2.5 py-0.5 font-mono text-sm font-semibold text-ink">
+            {fmtPrice(now)}
           </span>
         )}
-        {m.pf === 1 && !scratched && (
-          <span className="rounded-full bg-indigo-bg px-2 py-0.5 text-xs font-medium text-indigo" title="Position value in the top 10%">
-            ◆ position value
-          </span>
-        )}
+        <button
+          type="button"
+          onClick={() => setInfo((v) => !v)}
+          className={`${now != null && !scratched ? '' : 'ml-auto '}flex h-6 w-6 items-center justify-center rounded-full border border-line text-xs text-ink-mute hover:text-ink`}
+          aria-label="How this works"
+          title="How this works"
+        >
+          i
+        </button>
       </div>
+      {info && (
+        <p className="mt-2 rounded-md bg-panel p-2 text-xs text-ink-mute">
+          Base = the WPR the horse should run on form alone. Each race-day adjustment is WPR points vs this field, learned
+          from past races. Form Proj = base + adjustments; the price adjustment is 2 x log price vs the field. Spread = the
+          typical miss (two runs in three land inside). Settle = projected position at the 800m.
+        </p>
+      )}
       {!scratched && <ProjBreakdown runner={runner} m={m} effectiveWpr={effectiveWpr} />}
       {!scratched && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <Stat label="Racing Model rating" value={fmtWpr(runner.rmWpr ?? m.r)} />
-          <Stat label="model" value={fmtPrice(m.p ? 1 / m.p : null)} />
-          <Stat label="blend" value={fmtPrice(blend?.blendPrice)} />
-          <Stat label="fixed" value={fmtPrice(runner.fixedWinPrice)} />
-          <Stat
-            label="edge"
-            value={edge == null ? '—' : `${edge > 0 ? '+' : ''}${Math.round(edge * 100)}%`}
-            className={edge != null && edge > 0 ? 'text-emerald-deep' : 'text-ink'}
-          />
+        <div className="mt-2.5">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Running</div>
+          <div className="grid grid-cols-4 gap-1.5">
+            <Tile label={`settle of ${fieldSize}`} value={settleRank == null ? '—' : String(settleRank)} />
+            <Tile label="lead chance" value={m.l == null ? '—' : `${Math.round(m.l * 100)}%`} />
+            <Tile label="position value" value={signed(m.pv)} className={tone(m.pv, 0.5)} />
+            <Tile label="extra ground m" value={signed(m.g)} />
+          </div>
+          {now != null && (
+            <>
+              <div className="mb-1 mt-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Price</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <Tile label="fixed now" value={fmtPrice(now)} />
+                <Tile label="open" value={fmtPrice(open)} />
+                <Tile
+                  label="move"
+                  value={flat ? 'none' : `${(move as number) > 0 ? '+' : ''}${Math.round(move as number)}%`}
+                  className={flat ? 'text-ink-faint' : (move as number) < 0 ? 'text-emerald-deep' : 'text-rose'}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
-      {!scratched && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <Stat label={`settle (of ${fieldSize})`} value={settleRank == null ? '—' : String(settleRank)} />
-          <Stat label="chance of leading" value={m.l == null ? '—' : `${Math.round(m.l * 100)}%`} />
-          <Stat label="position value" value={signed(m.pv)} className={tone(m.pv, 0.5)} />
-          {m.g != null && <Stat label="m extra ground (proj.)" value={signed(m.g)} />}
-        </div>
-      )}
-      {!scratched && <SignalsBlock runner={runner} />}
-      <p className="mt-2 border-t border-line-soft pt-2 text-xs text-ink-faint">
-        Base = the WPR the horse should run on form alone (+/- its typical miss: two runs in three land inside). Each
-        race-day adjustment is WPR points vs this field, learned from past races; the price adjustment is 2 x log price vs
-        the field. Model $ is the Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
-        fixed price - 1. Settle = projected position at the 800m.
-      </p>
     </div>
   )
 }
 
-// How Proj is built (6 Oct 2026, user request): base (form-only projected WPR) + each race-day adjustment + the price
-// adjustment = the headline figure. racing_model.json pb / pa (racing-model model/wpr_model.py), runner.mktAdj.
+function Bar({ v, maxAbs }: { v: number; maxAbs: number }) {
+  return (
+    <div className="relative h-1.5 w-16 flex-none rounded-full bg-line-soft">
+      <div
+        className={`absolute top-0 bottom-0 rounded-full ${v > 0 ? 'left-1/2 bg-emerald-deep' : 'right-1/2 bg-rose'}`}
+        style={{ width: `${Math.min(50, (Math.abs(v) / maxAbs) * 50)}%` }}
+      />
+    </div>
+  )
+}
+
+function AdjRow({ label, v, maxAbs }: { label: string; v: number; maxAbs: number }) {
+  return (
+    <div className="flex items-center gap-2 py-0.5 text-xs">
+      <span className="min-w-0 flex-1 truncate text-ink-mute">{label}</span>
+      <Bar v={v} maxAbs={maxAbs} />
+      <span className={`w-10 flex-none text-right font-mono font-semibold ${tone(v)}`}>{signed(v)}</span>
+    </div>
+  )
+}
+
+function SubRow({ label, v, total }: { label: string; v: number | null; total?: boolean }) {
+  return (
+    <div className={`flex items-baseline gap-2 py-0.5 text-xs ${total ? 'mt-0.5 border-t border-line-soft pt-1' : ''}`}>
+      <span className={`flex-1 ${total ? 'font-semibold text-ink' : 'text-ink'}`}>{label}</span>
+      <span className={`font-mono font-semibold ${total ? 'text-sm text-emerald-deep' : 'text-ink'}`}>{fmtWpr(v)}</span>
+    </div>
+  )
+}
+
+// How Proj is built: base (form-only projected WPR) + each race-day adjustment = Form Proj, + price adjustment = Proj.
+// racing_model.json pb / pa (racing-model model/wpr_model.py), runner.mktAdj. Adjustments under 0.05 fold into one row.
 function ProjBreakdown({ runner, m, effectiveWpr }: { runner: Runner; m: RMRunner; effectiveWpr?: number | null }) {
+  const [showZero, setShowZero] = useState(false)
   const adj = Object.entries(m.pa ?? {})
+  const base = m.pb ?? (m.wp != null ? m.wp - adj.reduce((s, [, v]) => s + v, 0) : null)
+  if (base == null) return null
   const own = effectiveWpr ?? runner.projectedWpr
   const override = own != null && m.wp != null ? own - m.wp : 0
-  const rows: [string, number | null, boolean?][] = [
-    ['Base: projected WPR on form', m.pb ?? (m.wp != null ? m.wp - adj.reduce((s, [, v]) => s + v, 0) : null), true],
-    ...adj.map(([k, v]) => [k, v] as [string, number]),
-  ]
+  const rows: [string, number][] = adj.map(([k, v]) => [k, v])
   if (Math.abs(override) >= 0.05) rows.push(['Manual override', override])
-  if (runner.mktAdj != null) rows.push(['Price adjustment', runner.mktAdj])
+  const live = rows.filter(([, v]) => Math.abs(v) >= 0.05).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+  const zero = rows.filter(([, v]) => Math.abs(v) < 0.05)
+  const form = own ?? base + rows.reduce((s, [, v]) => s + v, 0)
   const total = compositeScore(runner, effectiveWpr)
-  if (rows[0][1] == null) return null
+  const maxAbs = Math.max(1, ...rows.map(([, v]) => Math.abs(v)), Math.abs(runner.mktAdj ?? 0))
   return (
-    <div className="mt-2 border-t border-line-soft pt-2">
-      <div className="mb-1 text-xs font-semibold text-ink">How Proj is built</div>
-      <div className="space-y-0.5">
-        {rows.map(([k, v, isBase]) => (
-          <div key={k} className="flex items-baseline gap-1.5 text-xs">
-            <span className={isBase ? 'text-ink' : 'text-ink-mute'}>{k}</span>
-            <span
-              className={`ml-auto font-mono font-semibold ${isBase ? 'text-ink' : v != null && Math.abs(v) >= 0.05 ? tone(v) : 'text-ink-faint'}`}
-            >
-              {isBase ? fmtWpr(v) : signed(v)}
-            </span>
-          </div>
-        ))}
-        <div className="flex items-baseline gap-1.5 border-t border-line-soft pt-1 text-xs font-semibold text-ink">
-          <span>Proj</span>
-          <span className="ml-auto font-mono">{fmtWpr(total)}</span>
-        </div>
-        {m.ws != null && <div className="text-[11px] text-ink-faint">spread +/- {Math.round(m.ws)} WPR</div>}
-      </div>
-    </div>
-  )
-}
-
-// Market signals (lib/signals.ts) and the value model's verdict at the current fixed price.
-function SignalsBlock({ runner }: { runner: Runner }) {
-  const list = signalList(runner.signals)
-  const v = runner.valueNow
-  if (!list.length && v == null) return null
-  const isValue = v != null && v >= VALUE_CUT && (runner.fixedWinPrice ?? 0) <= VALUE_MAX_PRICE
-  return (
-    <div className="mt-2 border-t border-line-soft pt-2">
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs">
-        <span className="font-semibold text-ink">Market signals</span>
-        {v != null && (
-          <span className={isValue ? 'font-semibold text-emerald-deep' : 'text-ink-mute'}>
-            value {v.toFixed(2)} at {fmtPrice(runner.fixedWinPrice)}
-            {isValue ? ' (value bet)' : ' (needs 1.00)'}
+    <div className="mt-2 rounded-md bg-panel px-2.5 py-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">How Proj is built</div>
+      <SubRow label="Base: projected WPR on form" v={base} />
+      {live.map(([k, v]) => (
+        <AdjRow key={k} label={k} v={v} maxAbs={maxAbs} />
+      ))}
+      {zero.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowZero((s) => !s)}
+          className="flex w-full items-center gap-2 py-0.5 text-left text-xs text-ink-faint hover:text-ink-mute"
+        >
+          <span className="flex-1">
+            {showZero ? '▾' : '▸'} {zero.length} other{zero.length > 1 ? 's' : ''} at 0
           </span>
-        )}
-      </div>
-      {list.length > 0 && (
-        <ul className="space-y-0.5">
-          {list.map(({ code, info }) => (
-            <li key={code} className="flex items-baseline gap-1.5 text-xs">
-              <span className={`inline-block h-1.5 w-1.5 flex-none translate-y-[-1px] rounded-full ${info.effect > 0 ? 'bg-emerald' : 'bg-rose'}`} />
-              <span className="text-ink">{info.label}</span>
-              <span className="text-ink-faint">{info.detail}</span>
-              <span className={`ml-auto font-mono font-semibold ${info.effect > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
-                {info.effect > 0 ? '+' : ''}
-                {Math.round(info.effect * 100)}%
-              </span>
-            </li>
-          ))}
-        </ul>
+          <span className="w-10 text-right font-mono">0.0</span>
+        </button>
       )}
+      {showZero && zero.map(([k, v]) => <AdjRow key={k} label={k} v={v} maxAbs={maxAbs} />)}
+      <SubRow label="Form Proj" v={form} />
+      {runner.mktAdj != null && <AdjRow label="Price adjustment" v={runner.mktAdj} maxAbs={maxAbs} />}
+      <SubRow label="Proj" v={total} total />
+      {m.ws != null && <div className="text-[11px] text-ink-faint">spread ± {Math.round(m.ws)} WPR</div>}
     </div>
   )
 }

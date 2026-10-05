@@ -474,7 +474,7 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold text-ink">{model ? 'Speed map · Racing Model' : 'Speed map'}</span>
+        <span className="text-sm font-semibold text-ink">Speed map</span>
         <span className="text-xs text-ink-faint">
           {model
             ? 'Projected position at the 800m · tint = SM adj vs THIS field (green favoured, red hurt), as in the table · corner dot = position value (separate model) · number = projected rating'
