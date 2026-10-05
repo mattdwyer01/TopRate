@@ -6,7 +6,7 @@ import { compositeScore } from '../../lib/raceModel'
 
 // Racing Model part of the runner detail popup (RunnerDetailModal), used whenever the race has Racing Model data
 // (6 Oct 2026 layout, user request): headline strip (Proj, rank, fixed price), "How Proj is built" as a waterfall
-// (base, race-day adjustments, form subtotal, price adjustment, Proj), running and price tiles, and the explanation
+// (base, race-day adjustments, Proj), running and price tiles, and the explanation
 // behind an info toggle. No model / blend / edge figures and no signals (user decision).
 
 export interface ModelDetail {
@@ -83,8 +83,8 @@ export function ModelHeadline({
       {info && (
         <p className="mt-2 rounded-md bg-panel p-2 text-xs text-ink-mute">
           Base = the WPR the horse should run on form alone. Each race-day adjustment is WPR points vs this field, learned
-          from past races. Form Proj = base + adjustments; the price adjustment is 2 x log price vs the field. Spread = the
-          typical miss (two runs in three land inside). Settle = projected position at the 800m.
+          from past races. Proj = base + adjustments: the WPR the horse should run today, the same figure the result is
+          compared with. Spread = the typical miss (two runs in three land inside). Settle = projected position at the 800m.
         </p>
       )}
       {!scratched && <ProjBreakdown runner={runner} m={m} effectiveWpr={effectiveWpr} />}
@@ -147,8 +147,8 @@ function SubRow({ label, v, total }: { label: string; v: number | null; total?: 
   )
 }
 
-// How Proj is built: base (form-only projected WPR) + each race-day adjustment = Form Proj, + price adjustment = Proj.
-// racing_model.json pb / pa (racing-model model/wpr_model.py), runner.mktAdj. Adjustments under 0.05 fold into one row.
+// How Proj is built: base (form-only projected WPR) + each race-day adjustment (+ any manual override) = Proj.
+// racing_model.json pb / pa (racing-model model/wpr_model.py). Adjustments under 0.05 fold into one row.
 function ProjBreakdown({ runner, m, effectiveWpr }: { runner: Runner; m: RMRunner; effectiveWpr?: number | null }) {
   const [showZero, setShowZero] = useState(false)
   const adj = Object.entries(m.pa ?? {})
@@ -160,9 +160,8 @@ function ProjBreakdown({ runner, m, effectiveWpr }: { runner: Runner; m: RMRunne
   if (Math.abs(override) >= 0.05) rows.push(['Manual override', override])
   const live = rows.filter(([, v]) => Math.abs(v) >= 0.05).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
   const zero = rows.filter(([, v]) => Math.abs(v) < 0.05)
-  const form = own ?? base + rows.reduce((s, [, v]) => s + v, 0)
-  const total = compositeScore(runner, effectiveWpr)
-  const maxAbs = Math.max(1, ...rows.map(([, v]) => Math.abs(v)), Math.abs(runner.mktAdj ?? 0))
+  const total = compositeScore(runner, effectiveWpr) ?? base + rows.reduce((s, [, v]) => s + v, 0)
+  const maxAbs = Math.max(1, ...rows.map(([, v]) => Math.abs(v)))
   return (
     <div className="mt-2 rounded-md bg-panel px-2.5 py-2">
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">How Proj is built</div>
@@ -183,8 +182,6 @@ function ProjBreakdown({ runner, m, effectiveWpr }: { runner: Runner; m: RMRunne
         </button>
       )}
       {showZero && zero.map(([k, v]) => <AdjRow key={k} label={k} v={v} maxAbs={maxAbs} />)}
-      <SubRow label="Form Proj" v={form} />
-      {runner.mktAdj != null && <AdjRow label="Price adjustment" v={runner.mktAdj} maxAbs={maxAbs} />}
       <SubRow label="Proj" v={total} total />
       {m.ws != null && <div className="text-[11px] text-ink-faint">spread ± {Math.round(m.ws)} WPR</div>}
     </div>

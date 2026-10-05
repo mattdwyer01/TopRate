@@ -310,10 +310,11 @@ export function computeEffectiveRace(
 // Inner 2.3 -> 2 (6 Oct 2026, user choice of 2 or 3 / 5 or 6; racing-model proj_rebuild_oos, 38,310 races walk-forward,
 // front-weighted Proj, SP): inside 2 = 2.25 runners, 50% of winners, A/E 1.065; the 2-3 band adds 0.77 runners at A/E
 // 1.01 (market level). Outer 5 kept: the 5-6 band is A/E 0.97 (over-bet) and outer 6 adds ~15% trifecta combos.
-export const COMPOSITE_MAX_GAP_FROM_TOP = 8
-// Lines 3 / 5 -> 4 / 8 with the price adjustment (6 Oct 2026, user decision; racing-model walk-forward, SP): inside 4 =
-// 2.77 runners, 62.1% of winners, A/E 1.062; inside 8 = 4.95 runners, 83.3%, A/E 1.034.
-export const COMPOSITE_INNER_GAP_FROM_TOP = 4
+// Lines 3 / 5 (6 Oct 2026): the price adjustment (with lines 4 / 8) was removed the same day (user decision: Proj must
+// be the projected WPR, consistent with the actual WPR it is compared with). Inside 3 = 3.03 runners, 60.5% of
+// winners, A/E 1.056; inside 5 = 4.62 runners, 77%.
+export const COMPOSITE_MAX_GAP_FROM_TOP = 5
+export const COMPOSITE_INNER_GAP_FROM_TOP = 3
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -331,9 +332,8 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
   // Headline = Proj (6 Oct 2026, user decision): the projected WPR from prior form (racing-model model/wpr_model.py,
   // front-weighted), manual override included. The Racing Model rating moved to the second column (runner.rmWpr).
-  // + the price adjustment (runner.mktAdj, 2 WPR per unit of log fixed price vs the field) when every runner is priced
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
-  return wpr != null ? wpr + (runner.mktAdj ?? 0) : null
+  return wpr ?? null
 }
 
 // Per-runner gap from the race's own top composite score - independent of

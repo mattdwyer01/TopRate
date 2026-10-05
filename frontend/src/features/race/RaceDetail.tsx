@@ -325,7 +325,7 @@ export function RaceDetail({
   const selectedModel = useMemo(() => {
     const row = modelRows.find((x) => x.runner.runId === selectedRunId)
     if (!row || !row.m) return null
-    // rank by the table's headline figure (Proj + price, compositeScore), the same number the popup shows
+    // rank by the table's headline figure (Proj, compositeScore), the same number the popup shows
     const score = (x: ModelRow) => compositeScore(x.runner, effectiveByRunId[x.runner.runId]?.effectiveProjectedWpr)
     const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && score(x) != null)
     const mine = score(row)
@@ -723,7 +723,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                    {COMPOSITE_INNER_GAP_FROM_TOP} pts (Proj + price) from top
+                    {COMPOSITE_INNER_GAP_FROM_TOP} WPR (Proj) from top
                   </span>
                   <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
                 </div>
@@ -732,7 +732,7 @@ export function RaceDetail({
                 <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
                   <span className="h-[2px] flex-1 bg-indigo" />
                   <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                    {gapThreshold} {usingComposite ? 'pts (Proj + price)' : 'WPR'} from top
+                    {gapThreshold} {usingComposite ? 'WPR (Proj)' : 'WPR'} from top
                   </span>
                   <span className="h-[2px] flex-1 bg-indigo" />
                 </div>

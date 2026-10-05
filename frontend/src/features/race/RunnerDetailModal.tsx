@@ -378,7 +378,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} model={model ? { projected: model.m.wp ?? model.m.r, rank: model.rank } : undefined} />
+                <ResultVsProjection runner={runner} model={model ? { projected: compositeScore(runner, effective?.effectiveProjectedWpr) ?? model.m.wp ?? null, rank: model.rank } : undefined} />
               </div>
             </div>
           </div>

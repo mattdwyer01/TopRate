@@ -78,7 +78,6 @@ export interface Runner {
   wprPeakRank1Yr: number | null
   wprNett: number | null
   rdAdj?: number | null // race-day part of Proj (racing_model.json wr)
-  mktAdj?: number | null // price adjustment on Proj: 2 x (ln(1/fixed) - field mean), lib/racingModel.ts
   rmWpr?: number | null // Racing Model chance on the WPR scale (set by lib/racingModel.ts withModelAdjustments)
   projSd?: number | null // spread of the Racing Model WPR projection (sd, WPR points)
   signals?: string[] // market signal codes (lib/signals.ts)

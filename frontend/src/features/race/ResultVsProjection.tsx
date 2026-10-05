@@ -71,7 +71,7 @@ export function ResultVsProjection({ runner, model }: ResultVsProjectionProps) {
       <div className="mb-1.5 text-xs font-semibold text-ink">Result vs projection</div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <div className="text-[11px] text-ink-faint">{model ? 'Form Proj' : 'Predicted'}</div>
+          <div className="text-[11px] text-ink-faint">{model ? 'Proj' : 'Predicted'}</div>
           <div className="font-mono text-lg font-semibold text-ink">{fmt(projected)}</div>
           <div className="text-xs text-ink-mute">{model ? 'Proj' : 'WPR'} rank {projRank ?? '—'}</div>
         </div>
