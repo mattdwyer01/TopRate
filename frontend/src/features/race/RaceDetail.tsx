@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
+import { compositeScore, computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -325,10 +325,13 @@ export function RaceDetail({
   const selectedModel = useMemo(() => {
     const row = modelRows.find((x) => x.runner.runId === selectedRunId)
     if (!row || !row.m) return null
-    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && x.m?.r != null)
-    const rank = active.filter((x) => (x.m?.r ?? -1e9) > (row.m?.r ?? -1e9)).length + 1
-    return { m: row.m, blend: row.b, settleRank: row.settleRank, rank: row.m.r == null ? null : rank, fieldSize: active.length }
-  }, [modelRows, selectedRunId, effectiveScratched])
+    // rank by the table's headline figure (Proj + price, compositeScore), the same number the popup shows
+    const score = (x: ModelRow) => compositeScore(x.runner, effectiveByRunId[x.runner.runId]?.effectiveProjectedWpr)
+    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && score(x) != null)
+    const mine = score(row)
+    const rank = active.filter((x) => (score(x) as number) > (mine ?? -1e9)).length + 1
+    return { m: row.m, blend: row.b, settleRank: row.settleRank, rank: mine == null ? null : rank, fieldSize: active.length }
+  }, [modelRows, selectedRunId, effectiveScratched, effectiveByRunId])
   const bias = biasText(modelMeta?.bias)
 
   function onSort(key: SortKey) {
@@ -776,7 +779,9 @@ export function RaceDetail({
           onClose={() => setSelectedRunId(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
-          model={useModel ? selectedModel : null}
+          // the popup always uses the Racing Model detail when the race has it (Proj headline and breakdown), whichever
+          // table is shown (6 Oct 2026: it had kept TopRate's own rating block, inconsistent with the Proj column)
+          model={selectedModel}
         />
       )}
     </div>

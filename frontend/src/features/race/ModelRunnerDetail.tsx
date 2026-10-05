@@ -28,10 +28,20 @@ function Stat({ label, value, className = 'text-ink' }: { label: string; value: 
   )
 }
 
-export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; detail: ModelDetail; scratched: boolean }) {
+export function ModelHeadline({
+  runner,
+  detail,
+  scratched,
+  effectiveWpr,
+}: {
+  runner: Runner
+  detail: ModelDetail
+  scratched: boolean
+  effectiveWpr?: number | null
+}) {
   const { m, blend, settleRank, rank, fieldSize } = detail
   const edge = scratched ? null : (blend?.edge ?? null)
-  const proj = scratched ? null : compositeScore(runner)
+  const proj = scratched ? null : compositeScore(runner, effectiveWpr)
   return (
     <div className="rounded-lg bg-bg p-2.5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -52,7 +62,7 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
           </span>
         )}
       </div>
-      {!scratched && <ProjBreakdown runner={runner} m={m} />}
+      {!scratched && <ProjBreakdown runner={runner} m={m} effectiveWpr={effectiveWpr} />}
       {!scratched && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <Stat label="Racing Model rating" value={fmtWpr(runner.rmWpr ?? m.r)} />
@@ -87,16 +97,17 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
 
 // How Proj is built (6 Oct 2026, user request): base (form-only projected WPR) + each race-day adjustment + the price
 // adjustment = the headline figure. racing_model.json pb / pa (racing-model model/wpr_model.py), runner.mktAdj.
-function ProjBreakdown({ runner, m }: { runner: Runner; m: RMRunner }) {
+function ProjBreakdown({ runner, m, effectiveWpr }: { runner: Runner; m: RMRunner; effectiveWpr?: number | null }) {
   const adj = Object.entries(m.pa ?? {})
-  const override = runner.projectedWpr != null && m.wp != null ? runner.projectedWpr - m.wp : 0
+  const own = effectiveWpr ?? runner.projectedWpr
+  const override = own != null && m.wp != null ? own - m.wp : 0
   const rows: [string, number | null, boolean?][] = [
     ['Base: projected WPR on form', m.pb ?? (m.wp != null ? m.wp - adj.reduce((s, [, v]) => s + v, 0) : null), true],
     ...adj.map(([k, v]) => [k, v] as [string, number]),
   ]
   if (Math.abs(override) >= 0.05) rows.push(['Manual override', override])
   if (runner.mktAdj != null) rows.push(['Price adjustment', runner.mktAdj])
-  const total = compositeScore(runner)
+  const total = compositeScore(runner, effectiveWpr)
   if (rows[0][1] == null) return null
   return (
     <div className="mt-2 border-t border-line-soft pt-2">

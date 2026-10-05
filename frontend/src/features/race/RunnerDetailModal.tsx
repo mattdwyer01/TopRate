@@ -185,7 +185,7 @@ export function RunnerDetailModal({
 
         <div className="flex flex-col gap-3 p-3">
           {model ? (
-            <ModelHeadline runner={runner} detail={model} scratched={scratched} />
+            <ModelHeadline runner={runner} detail={model} scratched={scratched} effectiveWpr={effective?.effectiveProjectedWpr} />
           ) : (
             <>
           {runner.projectedWpr == null && (
@@ -376,7 +376,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} model={model ? { projected: model.m.r, rank: model.rank } : undefined} />
+                <ResultVsProjection runner={runner} model={model ? { projected: model.m.wp ?? model.m.r, rank: model.rank } : undefined} />
               </div>
             </div>
           </div>
