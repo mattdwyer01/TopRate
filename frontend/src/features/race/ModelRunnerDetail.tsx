@@ -122,40 +122,6 @@ function ProjBreakdown({ runner, m }: { runner: Runner; m: RMRunner }) {
   )
 }
 
-export function ModelBreakdown({ detail }: { detail: ModelDetail }) {
-  const rows = Object.entries(detail.m.gb ?? {})
-    .filter(([, v]) => Math.abs(v) >= 0.05)
-    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-  if (!rows.length) return null
-  const maxAbs = Math.max(1, ...rows.map(([, v]) => Math.abs(v)))
-  return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold text-ink">What&apos;s driving the Racing Model rating</div>
-      <div className="space-y-0.5">
-        {rows.map(([key, v]) => (
-          <div key={key} className="flex items-center gap-1.5 border-b border-line-soft/60 py-1 last:border-0">
-            <div className="min-w-0 flex-1 text-xs text-ink">{key}</div>
-            <div className="relative h-1.5 w-10 flex-none rounded-full bg-line-soft">
-              <div
-                className={`absolute top-0 bottom-0 rounded-full ${v > 0 ? 'left-1/2 bg-emerald-deep' : 'right-1/2 bg-rose'}`}
-                style={{ width: `${Math.min(48, (Math.abs(v) / maxAbs) * 48)}%` }}
-              />
-            </div>
-            <div className={`w-9 flex-none text-right font-mono text-xs font-semibold ${v > 0 ? 'text-emerald-deep' : 'text-rose'}`}>
-              {signed(v)}
-            </div>
-          </div>
-        ))}
-        <div className="flex items-center gap-1.5 border-t border-line-soft pt-1.5 font-semibold text-ink">
-          <div className="flex-1 text-xs">vs field (WPR points)</div>
-          <div className="w-10 flex-none" />
-          <div className="w-9 flex-none text-right font-mono text-xs">{signed(detail.m.v)}</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // Market signals (lib/signals.ts) and the value model's verdict at the current fixed price.
 function SignalsBlock({ runner }: { runner: Runner }) {
   const list = signalList(runner.signals)
