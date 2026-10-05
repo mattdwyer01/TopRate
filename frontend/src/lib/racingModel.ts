@@ -181,6 +181,7 @@ export const TOPRATE_PARTS_OUT = ['speed_map', 'track_barrier', 'own_going', 'ow
 // WPR Nett term, so 6.843 / 0.834 = 8.205 WPR per unit of log p here. racing-model tools/rating_replace_test.py
 // (1,753 pre-race races): top pick 29.5% vs Combo 29.3%, winners inside equal-size lines 54.4% / 79.2% vs 54.9% / 80.6%.
 const RM_WPR_PER_LOG_P = 8.205
+const MKT_WPR_PER_LOG_PRICE = 2
 
 export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): Runner[] {
   if (!rm) return runners
@@ -212,6 +213,15 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
     const se = e.reduce((a, b) => a + b, 0)
     live.forEach((r, i) => (valueOf[r.runId] = (e[i] / se) * (r.fixedWinPrice as number)))
   }
+  // Price adjustment on Proj (6 Oct 2026, user decision): 2 WPR per unit of log price vs the live field, every live
+  // runner priced. racing-model walk-forward (38,310 races, SP): top pick 28.3% -> 31.6%, 4 / 8 lines hold 2.77 / 4.95
+  // runners and 62% / 83% of winners (Proj alone: 3 / 5 lines, 3.03 / 4.62 runners, 60.5% / 77%).
+  const mktOf: Record<string, number> = {}
+  if (live.length >= 2 && live.every((r) => (r.fixedWinPrice ?? 0) > 1)) {
+    const lp = live.map((r) => -Math.log(r.fixedWinPrice as number))
+    const m = lp.reduce((a, b) => a + b, 0) / lp.length
+    live.forEach((r, i) => (mktOf[r.runId] = MKT_WPR_PER_LOG_PRICE * (lp[i] - m)))
+  }
   return runners.map((r) => {
     const m = rm.runners[r.runId]
     if (!m || r.projectedWpr == null) return r
@@ -225,6 +235,7 @@ export function withModelAdjustments(runners: Runner[], rm: RMPayload | null): R
       projSd: m.ws ?? null,
       signals: m.sg ? m.sg.split('|') : [],
       valueNow: valueOf[r.runId] ?? null,
+      mktAdj: mktOf[r.runId] ?? null,
       rmWpr: withP.length >= 2 && (m.p ?? 0) > 0 ? projMean + RM_WPR_PER_LOG_P * (lnP(r) - lnMean) : null,
       // the SM Adj column and the popup's adjustment list show the Racing Model's part in place of TopRate's
       adjustmentBreakdown: {

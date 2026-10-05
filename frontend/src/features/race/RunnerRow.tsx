@@ -413,7 +413,7 @@ export function RunnerRow({
         {scratched ? (
           'SCR'
         ) : (
-          <span title={runner.projSd != null ? `Projected WPR ${fmtWpr(displayComposite)} \u00b1 ${Math.round(runner.projSd)}` : undefined}>
+          <span title={`Form projection ${fmtWpr(displayComposite != null ? displayComposite - (runner.mktAdj ?? 0) : null)}${runner.projSd != null ? ` \u00b1 ${Math.round(runner.projSd)}` : ''}${runner.mktAdj != null ? `, price ${runner.mktAdj >= 0 ? '+' : ''}${runner.mktAdj.toFixed(1)}` : ''}`}>
             {fmtWpr(displayComposite)}
           </span>
         )}

@@ -2,7 +2,7 @@
 
 Rules (racing-model tests on pre-race dashboard values, 3 Oct 2026; same rules as the race page's Bets box,
 frontend/src/lib/betRules.ts):
-  Win        Proj top pick 3+ WPR clear of the 2nd, SM >= +1, no first starter in the race.
+  Win        Proj + price top pick 4+ clear of the 2nd, SM >= +1, no first starter in the race.
              Stake so the bet RETURNS $200 at the fixed price: stake = 200 / price.
   Trifecta   1st / 2nd from within 4, 3rd from the 8 line set (within 4, or 4-8 back with SM > -1); at least one
              within-4 runner with SM >= +1; no first starter in the race; <= 36 combinations; $10 flexi.
@@ -44,10 +44,11 @@ RM_JSON = DIR / "racing_model.json"
 DIVIDENDS = DIR / "tab_dividends.csv"
 
 LOCK_MINUTES = 12
-INNER, OUTER, SM_T = 3.0, 5.0, 1.0   # Proj lines 3 / 5 (6 Oct 2026, user decision; lib/raceModel.ts); SM favoured at +/-1
+INNER, OUTER, SM_T = 4.0, 8.0, 1.0   # Proj + price lines 4 / 8 (6 Oct 2026, user decision; lib/raceModel.ts); SM favoured at +/-1
 # win rule: Proj top pick 3+ clear (walk-forward, no first starter, SP $2+: 3 clear -7.6% at SP over 3,695 bets, -7.9% /
 # -7.3% in 2023-24 / 2025-26; 2 clear -11.3%, 2.3 clear -8.8%)
-WIN_CLEAR = 3.0
+WIN_CLEAR = 4.0   # with the price adjustment: 3,554 bets, 34.7%, -8.1% at SP (2025-26 -5.3%)
+MKT_WPR = 2.0     # price adjustment: WPR per unit of log fixed price vs the field (lib/racingModel.ts)
 WIN_RETURN = 200.0
 # exotic stakes halved from 4 Oct 2026 until the ~23 Oct review on real dividends (user decision after a -32% day);
 # full stakes were trifecta 10, quinella 15, quaddies 25
@@ -100,6 +101,11 @@ def race_frame(r, rm):
     # (racing_model.json wp, front-weighted WPR model); TopRate's adjusted projection when the runner has none
     wp = pd.Series([(rm.get(str(i)) or {}).get("wp") for i in r["run_id"]], index=r.index, dtype=float)
     r["combo"] = wp.fillna(r["proj"]) if wp.notna().sum() >= 2 else r["proj"]
+    # + price adjustment when every live runner has a fixed price (6 Oct 2026, as the dashboard)
+    fx = pd.to_numeric(r["fixed_win_price"], errors="coerce")
+    if (fx > 1).all():
+        lp = -np.log(fx)
+        r["combo"] = r["combo"] + MKT_WPR * (lp - lp.mean())
     r["gap"] = r["combo"].max() - r["combo"]
     r = r.sort_values("gap")
     r["inner"] = r["gap"] <= INNER
