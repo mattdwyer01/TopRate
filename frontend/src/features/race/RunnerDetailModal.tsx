@@ -362,7 +362,7 @@ export function RunnerDetailModal({
                 bigger share of this row instead of squeezing both of its
                 own sub-tables just to stay even with cards that didn't grow. */}
             <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
-              <CareerStats runner={runner} race={race} />
+              <CareerStats runner={runner} race={race} breakdown={model ? null : undefined} />
             </div>
             <div className="flex w-full gap-3 sm:contents">
               {hasPriceInfo && (
