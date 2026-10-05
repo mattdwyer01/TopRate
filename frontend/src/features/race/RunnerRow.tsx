@@ -168,7 +168,7 @@ export function RunnerRow({
               ? 'Overlay: market price is longer than our fair price'
               : undefined
       }
-      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_56px_44px_60px_68px_52px] ${
+      className={`group grid min-w-full cursor-pointer items-center gap-y-0.5 border-b border-line-soft px-2 text-left text-sm transition-colors sm:gap-x-2 sm:grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_56px_44px_60px_68px_52px] ${
         // Neither mobile density ever shows Base/Adj (desktop-only, see
         // sm:grid-cols above - real user feedback, 2026-09-16: "remove base
         // from mobile race summary, re-add adj to desktop"). Compact drops
@@ -423,11 +423,10 @@ export function RunnerRow({
           </span>
         )}
       </span>
+      {/* TopRate rating second (6 Oct 2026, user request: Racing Model rating removed from the table, TR shown on
+          mobile too) */}
       <span className="text-right font-mono text-ink-mute">
-        {scratched ? <span className="text-ink-faint">SCR</span> : fmtWpr(runner.rmWpr ?? null)}
-      </span>
-      <span className="hidden text-right font-mono text-ink-mute sm:inline">
-        {scratched ? 'SCR' : fmtInt(runner.toprateRating)}
+        {scratched ? <span className="text-ink-faint">SCR</span> : fmtInt(runner.toprateRating)}
       </span>
       {/* Nett left of Form (4 Oct 2026, user request) */}
       <span className={`text-right font-mono text-ink-mute ${compact ? 'hidden sm:inline' : ''}`}>

@@ -61,8 +61,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
   // now; Proj demoted to the plain style below it in RunnerRow.tsx.
   // Proj leads, Rating second (6 Oct 2026, user decision)
   { key: 'compositeScore', label: 'Proj' },
-  { key: 'rmRating', label: 'Rating', showCompact: true },
-  { key: 'toprateRating', label: 'TopRate' },
+  { key: 'toprateRating', label: 'TopRate', showCompact: true },
   // WPR Nett (TopRate wpr_nett) in place of Jky Win% (4 Oct 2026, user request; left of Form, same day)
   { key: 'wprNett', label: 'WPR Nett' },
   { key: 'formFactor', label: 'Form' },
@@ -103,7 +102,7 @@ const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = 
 const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'compositeScore', label: 'Proj' },
-  { key: 'rmRating', label: 'Rt' },
+  { key: 'toprateRating', label: 'TR' },
   { key: 'wprNett', label: 'Nett' },
   { key: 'formFactor', label: 'Fm' },
   // SM Adj (2026-09-19, direct follow-up: "not seeing it" on mobile - see
@@ -128,7 +127,7 @@ const MOBILE_COLUMN_LABELS_FULL: { key: SortKey; label: string }[] = [
 const MOBILE_COLUMN_LABELS_COMPACT: { key: SortKey; label: string }[] = [
   { key: 'horse', label: 'Horse' },
   { key: 'compositeScore', label: 'Proj' },
-  { key: 'rmRating', label: 'Rt' },
+  { key: 'toprateRating', label: 'TR' },
   { key: 'fixedPrice', label: 'Fixed $' },
   { key: 'finish', label: 'FP' },
 ]
@@ -645,7 +644,7 @@ export function RaceDetail({
             </button>
           ))}
         </div>
-        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_56px_52px_56px_44px_60px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
+        <div className="hidden min-w-full grid-cols-[44px_36px_1fr_56px_56px_60px_60px_52px_56px_44px_60px_68px_52px] gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid">
           <span />
           {COLUMN_LABELS.map((col) => {
             const align = col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-center'
