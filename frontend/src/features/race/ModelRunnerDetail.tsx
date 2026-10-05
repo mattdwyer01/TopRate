@@ -2,6 +2,7 @@ import type { Runner } from '../../types/domain'
 import type { RMBlend, RMRunner } from '../../lib/racingModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { signalList, VALUE_CUT, VALUE_MAX_PRICE } from '../../lib/signals'
+import { compositeScore } from '../../lib/raceModel'
 
 // Racing Model parts of the runner detail popup (RunnerDetailModal), used whenever the race has a Racing Model
 // projection: the headline rating block and the rating breakdown (WPR points vs the field, from
@@ -30,15 +31,16 @@ function Stat({ label, value, className = 'text-ink' }: { label: string; value: 
 export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; detail: ModelDetail; scratched: boolean }) {
   const { m, blend, settleRank, rank, fieldSize } = detail
   const edge = scratched ? null : (blend?.edge ?? null)
+  const proj = scratched ? null : compositeScore(runner)
   return (
     <div className="rounded-lg bg-bg p-2.5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         {scratched ? (
           <span className="font-mono text-2xl font-bold text-rose">SCR</span>
         ) : (
-          <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(runner.rmWpr ?? m.r)}</span>
+          <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(proj)}</span>
         )}
-        <span className="text-xs text-ink-mute">Rating (Racing Model win chance on the WPR scale)</span>
+        <span className="text-xs text-ink-mute">Proj (projected WPR + race-day adjustments + price)</span>
         {rank != null && !scratched && (
           <span className="text-xs text-ink-mute">
             rank <span className="font-mono font-semibold text-ink">{rank}</span> of {fieldSize}
@@ -50,12 +52,10 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
           </span>
         )}
       </div>
+      {!scratched && <ProjBreakdown runner={runner} m={m} />}
       {!scratched && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          {m.wp != null && (
-            <Stat label="projected WPR" value={`${fmtWpr(m.wp)}${m.ws != null ? ` \u00b1 ${Math.round(m.ws)}` : ''}`} />
-          )}
-          <Stat label="vs field" value={signed(m.v)} className={tone(m.v)} />
+          <Stat label="Racing Model rating" value={fmtWpr(runner.rmWpr ?? m.r)} />
           <Stat label="model" value={fmtPrice(m.p ? 1 / m.p : null)} />
           <Stat label="blend" value={fmtPrice(blend?.blendPrice)} />
           <Stat label="fixed" value={fmtPrice(runner.fixedWinPrice)} />
@@ -76,10 +76,48 @@ export function ModelHeadline({ runner, detail, scratched }: { runner: Runner; d
       )}
       {!scratched && <SignalsBlock runner={runner} />}
       <p className="mt-2 border-t border-line-soft pt-2 text-xs text-ink-faint">
-        Projected WPR = the WPR the horse should run, +/- its typical miss (two runs in three land inside). Model $ is the
-        Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
+        Base = the WPR the horse should run on form alone (+/- its typical miss: two runs in three land inside). Each
+        race-day adjustment is WPR points vs this field, learned from past races; the price adjustment is 2 x log price vs
+        the field. Model $ is the Racing Model alone; blend combines it with the current fixed price; edge = blend chance x
         fixed price - 1. Settle = projected position at the 800m.
       </p>
+    </div>
+  )
+}
+
+// How Proj is built (6 Oct 2026, user request): base (form-only projected WPR) + each race-day adjustment + the price
+// adjustment = the headline figure. racing_model.json pb / pa (racing-model model/wpr_model.py), runner.mktAdj.
+function ProjBreakdown({ runner, m }: { runner: Runner; m: RMRunner }) {
+  const adj = Object.entries(m.pa ?? {})
+  const override = runner.projectedWpr != null && m.wp != null ? runner.projectedWpr - m.wp : 0
+  const rows: [string, number | null, boolean?][] = [
+    ['Base: projected WPR on form', m.pb ?? (m.wp != null ? m.wp - adj.reduce((s, [, v]) => s + v, 0) : null), true],
+    ...adj.map(([k, v]) => [k, v] as [string, number]),
+  ]
+  if (Math.abs(override) >= 0.05) rows.push(['Manual override', override])
+  if (runner.mktAdj != null) rows.push(['Price adjustment', runner.mktAdj])
+  const total = compositeScore(runner)
+  if (rows[0][1] == null) return null
+  return (
+    <div className="mt-2 border-t border-line-soft pt-2">
+      <div className="mb-1 text-xs font-semibold text-ink">How Proj is built</div>
+      <div className="space-y-0.5">
+        {rows.map(([k, v, isBase]) => (
+          <div key={k} className="flex items-baseline gap-1.5 text-xs">
+            <span className={isBase ? 'text-ink' : 'text-ink-mute'}>{k}</span>
+            <span
+              className={`ml-auto font-mono font-semibold ${isBase ? 'text-ink' : v != null && Math.abs(v) >= 0.05 ? tone(v) : 'text-ink-faint'}`}
+            >
+              {isBase ? fmtWpr(v) : signed(v)}
+            </span>
+          </div>
+        ))}
+        <div className="flex items-baseline gap-1.5 border-t border-line-soft pt-1 text-xs font-semibold text-ink">
+          <span>Proj</span>
+          <span className="ml-auto font-mono">{fmtWpr(total)}</span>
+        </div>
+        {m.ws != null && <div className="text-[11px] text-ink-faint">spread +/- {Math.round(m.ws)} WPR</div>}
+      </div>
     </div>
   )
 }
@@ -92,7 +130,7 @@ export function ModelBreakdown({ detail }: { detail: ModelDetail }) {
   const maxAbs = Math.max(1, ...rows.map(([, v]) => Math.abs(v)))
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold text-ink">What&apos;s driving the rating</div>
+      <div className="mb-1.5 text-xs font-semibold text-ink">What&apos;s driving the Racing Model rating</div>
       <div className="space-y-0.5">
         {rows.map(([key, v]) => (
           <div key={key} className="flex items-center gap-1.5 border-b border-line-soft/60 py-1 last:border-0">
