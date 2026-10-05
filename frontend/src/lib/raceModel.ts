@@ -307,8 +307,11 @@ export function computeEffectiveRace(
 // Lines 4.5 / 9.5 -> 2.3 / 5 with Proj as the headline (6 Oct 2026, user decision): same runners inside as the Rating's
 // 4.5 / 9.5 (2.45 / 4.69 a race; racing-model reports/proj_rebuild_test.md, 38,310 races 2023-26 walk-forward:
 // 52.9% / 77.6% of winners inside vs the Rating's 54.2% / 78.1%).
+// Inner 2.3 -> 2 (6 Oct 2026, user choice of 2 or 3 / 5 or 6; racing-model proj_rebuild_oos, 38,310 races walk-forward,
+// front-weighted Proj, SP): inside 2 = 2.25 runners, 50% of winners, A/E 1.065; the 2-3 band adds 0.77 runners at A/E
+// 1.01 (market level). Outer 5 kept: the 5-6 band is A/E 0.97 (over-bet) and outer 6 adds ~15% trifecta combos.
 export const COMPOSITE_MAX_GAP_FROM_TOP = 5
-export const COMPOSITE_INNER_GAP_FROM_TOP = 2.3
+export const COMPOSITE_INNER_GAP_FROM_TOP = 2
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
