@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import type { EffectiveRunner } from '../../lib/raceModel'
+import { compositeScore, type EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
@@ -121,8 +121,10 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-                <span className="text-ink-faint">effective WPR</span>
+                <span className="font-mono font-bold text-emerald-deep">
+                  {fmtWpr(model ? compositeScore(runner, effective?.effectiveProjectedWpr) : effectiveWpr)}
+                </span>
+                <span className="text-ink-faint">{model ? 'Proj' : 'effective WPR'}</span>
               </div>
             ) : (
               <div className="truncate text-xs text-ink-faint">
@@ -376,7 +378,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} model={model ? { projected: model.m.wp ?? model.m.r, rank: model.rank } : undefined} />
+                <ResultVsProjection runner={runner} model={model ? { projected: compositeScore(runner, effective?.effectiveProjectedWpr) ?? model.m.wp ?? null, rank: model.rank } : undefined} />
               </div>
             </div>
           </div>

@@ -34,7 +34,8 @@ const PAD = 5
 // recent capture, or a payload from before price history was committed).
 export function PriceMovementChart({ runner, priceBitsBefore, priceBitsAfter, fixedMove }: PriceMovementChartProps) {
   const pts = runner.priceSeries
-  const hasChart = pts.length >= 2
+  // a flat line says nothing: 'No move' text instead (6 Oct 2026 popup layout)
+  const hasChart = pts.length >= 2 && pts.some((p) => p.price !== pts[0].price)
   const bits = [...priceBitsBefore, ...priceBitsAfter].join('  ·  ')
 
   return (
@@ -46,7 +47,7 @@ export function PriceMovementChart({ runner, priceBitsBefore, priceBitsAfter, fi
       ) : (
         runner.fixedWinPrice != null && (
           <div className="text-xs text-ink-mute">
-            Fixed {fmtPrice(runner.fixedWinPrice)}
+            {pts.length >= 2 ? `No move: ${fmtPrice(runner.fixedWinPrice)} since open` : `Fixed ${fmtPrice(runner.fixedWinPrice)}`}
             {fixedMove && (
               <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
                 {' '}
