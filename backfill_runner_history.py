@@ -224,6 +224,16 @@ def fill_blanks(fields_by_key, commit, backup=True):
         for col in FILLABLE_COLS:
             if col not in df.columns:
                 df[col] = None
+            elif df[col].dtype == "float64":
+                # A blank/sparse column defaults to float64 (pandas' dtype
+                # for an all-NaN column), which silently rejects non-numeric
+                # fill values like is_letup=False, gear_changes='["..."]',
+                # or horse_colour='ch' (raises TypeError/ValueError on
+                # assignment, counted as "skipped" below, but should
+                # instead actually be filled). Upcast to object first so
+                # any FILLABLE_COLS value type can be written; existing
+                # numeric values round-trip through to_csv unchanged.
+                df[col] = df[col].astype(object)
 
         dates = df["date"].astype(str).str[:10]
         idx_by_key = {}
