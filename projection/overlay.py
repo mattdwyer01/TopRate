@@ -27,8 +27,11 @@ def _beta():
 
 def _describe(r):
     if r.model == 'light':
-        return f"New model, light-history ({int(r.nruns)} prior run{'s' if int(r.nruns) != 1 else ''}): projected {r.proj:.1f} WPR, typical error about {r.sd:.1f}."
+        w = f" Weight carried {r.wtadj:+.1f}." if abs(r.wtadj) >= 0.05 else ''
+        return f"New model, light-history ({int(r.nruns)} prior run{'s' if int(r.nruns) != 1 else ''}): projected {r.proj:.1f} WPR.{w} Typical error about {r.sd:.1f}."
     adj = '' if pd.isna(r.adj) else f" Suitability adjustment {r.adj:+.1f}."
+    if abs(r.wtadj) >= 0.05:
+        adj += f" Weight carried {r.wtadj:+.1f}."
     return f"New model ({int(r.nruns)} prior runs): base {r.base:.1f} WPR.{adj} Typical error about {r.sd:.1f}."
 
 
@@ -61,17 +64,18 @@ def apply(runners_df, path=None):
     idx = df.index[hit]
     df.loc[idx, 'wprp_proj'] = m.proj.values
     df.loc[idx, 'wprp_base'] = m.base.values
-    df.loc[idx, 'wprp_adj'] = m.adj.values
+    df.loc[idx, 'wprp_adj'] = (m.proj - m.base).round(2).values   # suitability + weight carried, so Base + Adj = Proj
     df.loc[idx, 'wprp_sd'] = m.sd.values
     df.loc[idx, 'wprp_model'] = m.model.values
     # confidence on the old 0-100 scale, from the error estimate: sd 8 -> 90, sd 12 -> 70 (display only)
     df.loc[idx, 'wprp_conf'] = np.clip(np.round(130 - 5 * m.sd.values), 40, 95)
     df.loc[idx, 'wprp_desc'] = [_describe(r) for r in m.itertuples()]
     smi = sm.loc[idx]
-    def _contrib(s, a, mod):
-        d = {**({'speed_map': float(s)} if pd.notna(s) else {}), **({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {})}
+    def _contrib(s, a, w, mod):
+        d = {**({'speed_map': float(s)} if pd.notna(s) else {}), **({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {}),
+             **({'weight': float(w)} if pd.notna(w) and abs(w) >= 0.005 else {})}
         return json.dumps(d) if d else None
-    df.loc[idx, 'wprp_contrib'] = [_contrib(s, a, mod) for s, a, mod in zip(smi.values, m.adj.values, m.model.values)]
+    df.loc[idx, 'wprp_contrib'] = [_contrib(s, a, w, mod) for s, a, w, mod in zip(smi.values, m.adj.values, m.wtadj.values, m.model.values)]
     # fair price and rank within the race (same softmax convention as before; scratched runners excluded)
     beta = _beta()
     sub = df.loc[idx, ['race_id', 'wprp_proj']].copy()

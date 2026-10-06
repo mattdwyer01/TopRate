@@ -78,7 +78,10 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             a small suitability adjustment, usually within one WPR point, added to runners on the main model. It looks at how
             often the horse has been held up, raced wide or started slowly, how the track has played earlier on the card,
             the horse's late versus early sectional profile, and whether its jockey and trainer ride it further forward or back
-            than its usual style. Light-history runners have no adjustment.
+            than its usual style (light-history runners have no suitability adjustment). <span className="font-mono text-ink">Adj</span> also
+            includes weight carried: the model's ratings are weight-free, so each kilo above the field average takes about 0.6
+            WPR off, and each kilo below adds the same. That figure was measured on the model's own out-of-sample projections
+            (541 races, plausible range 0.4 to 0.8) and it improved how well the projection ranks winners.
           </p>
         </Section>
 

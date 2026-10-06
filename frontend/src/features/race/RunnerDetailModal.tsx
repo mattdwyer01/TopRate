@@ -299,7 +299,18 @@ export function RunnerDetailModal({
             <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
               <div className="mb-3">
                 <Row label="Base (form, conditions, connections)" value={fmtWpr(runner.baseWpr)} />
-                <Row label="Suitability adjustment" value={fmtAdj(runner.wprAdjustment)} className={adjClass(runner.wprAdjustment)} />
+                {runner.adjustmentBreakdown && (runner.adjustmentBreakdown.suitability != null || runner.adjustmentBreakdown.weight != null) ? (
+                  <>
+                    {runner.adjustmentBreakdown.suitability != null && (
+                      <Row label="Suitability adjustment" value={fmtAdj(runner.adjustmentBreakdown.suitability)} className={adjClass(runner.adjustmentBreakdown.suitability)} />
+                    )}
+                    {runner.adjustmentBreakdown.weight != null && (
+                      <Row label="Weight carried (vs field average)" value={fmtAdj(runner.adjustmentBreakdown.weight)} className={adjClass(runner.adjustmentBreakdown.weight)} />
+                    )}
+                  </>
+                ) : (
+                  <Row label="Adjustments" value={fmtAdj(runner.wprAdjustment)} className={adjClass(runner.wprAdjustment)} />
+                )}
                 {deltaValue != null && deltaValue !== 0 && <Row label="Your adjustment" value={fmtAdj(deltaValue)} className="text-amber" />}
                 <Row label="Projected WPR" value={<span className="font-semibold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>} />
               </div>

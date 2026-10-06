@@ -28,6 +28,7 @@ export const ADJUSTMENT_LABELS: Record<string, string> = {
   track_barrier: 'Barrier draw',
   pace_shape: 'Predicted race shape fit',
   speed_map: 'Speed map (pace, barrier & field context)',
+  weight: 'Weight carried (vs the field average)',
   suitability: 'Suitability (comments, day-of bias, finishing profile, jockey/trainer)',
   closing_merit: 'Closing vs race pace',
   gear_change: 'Gear change today',

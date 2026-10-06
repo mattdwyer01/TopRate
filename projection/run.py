@@ -30,6 +30,9 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache')
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
+WT_K = 0.6   # WPR per kg of weight carried above the field average
+
+
 def au_today():
     return (datetime.now(timezone.utc) + timedelta(hours=10)).strftime('%Y-%m-%d')
 
@@ -175,7 +178,10 @@ def main():
     Z['adj'] = sm.predict(Z[sfeats])
     R = R.merge(Z[['race_id', 'horse_id', 'adj']], on=['race_id', 'horse_id'], how='left')
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
-    R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0)
+    # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.6 WPR of
+    # winning chance (90% interval 0.44 to 0.82, 541 races), beyond anything the base model learned from wt/wt_rel
+    R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
+    R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
     R['sd'] = [sd_main(p) if m == 'main' else light_info['stage_sd'].get(str(int(n)), 11.0) for p, m, n in zip(R.proj, R.routed, R.nruns)]
     races = {}
@@ -183,12 +189,12 @@ def main():
         first = z.iloc[0]
         races[str(rid)] = dict(venue=first.track, date=str(first.date.date()), going=None if pd.isna(first.going) else str(first.going), fs=int(len(z)),
                                runners={str(int(r.run_id)): dict(p=None if pd.isna(r.proj) else round(float(r.proj), 1), base=None if pd.isna(r.p0) else round(float(r.p0), 1),
-                                                                  adj=None if (r.routed != 'main' or pd.isna(r.adj)) else round(float(r.adj), 2), sd=round(float(r.sd), 1),
+                                                                  adj=None if (r.routed != 'main' or pd.isna(r.adj)) else round(float(r.adj), 2), wt=round(float(r.wtadj), 2), sd=round(float(r.sd), 1),
                                                                   m=r.routed, n=int(r.nruns)) for r in z.itertuples() if pd.notna(r.run_id)})
     made = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     rows = R[R.proj.notna() & R.run_id.notna()].copy()
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sd=rows.sd, model=rows.routed, nruns=rows.nruns, src='backfill' if a.backfill_days else 'live', made=made))
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, src='backfill' if a.backfill_days else 'live', made=made))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainThrough=main_info.get('train_through'), races=races)

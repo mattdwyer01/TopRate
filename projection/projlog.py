@@ -3,7 +3,7 @@
 One row per run_id: the latest projection made before the race. The dashboard payload, the trackers and the Review tab read this
 log (via overlay.py), so past races keep the projection that was made before they ran and are never re-scored in-sample.
 
-Columns: run_id, race_id, date, proj, base, adj, sd, model, nruns, src ('live' = made by run.py before the race,
+Columns: run_id, race_id, date, proj, base, adj (suitability), wtadj (weight carried), sd, model, nruns, src ('live' = made by run.py before the race,
 'oof' = out-of-sample back-fill from the research evaluation, used to seed the log), made (UTC timestamp).
 """
 import os
@@ -12,7 +12,7 @@ import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 PATH = os.path.join(ROOT, 'wpr_projection_log.csv.gz')
-COLS = ['run_id', 'race_id', 'date', 'proj', 'base', 'adj', 'sd', 'model', 'nruns', 'src', 'made']
+COLS = ['run_id', 'race_id', 'date', 'proj', 'base', 'adj', 'wtadj', 'sd', 'model', 'nruns', 'src', 'made']
 
 
 def load(path=PATH):
@@ -20,6 +20,8 @@ def load(path=PATH):
         return pd.DataFrame(columns=COLS)
     d = pd.read_csv(path, dtype={'run_id': 'int64', 'race_id': 'int64'})
     d['date'] = pd.to_datetime(d['date'])
+    if 'wtadj' not in d.columns:
+        d['wtadj'] = 0.0
     return d
 
 

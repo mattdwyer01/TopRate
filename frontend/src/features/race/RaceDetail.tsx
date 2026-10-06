@@ -38,7 +38,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)' },
-  { key: 'baseWpr', label: 'Base', align: 'right', title: 'Main-model projection before the suitability adjustment' },
+  { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments' },
   { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)' },
   { key: 'compositeScore', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
   { key: 'toprateRating', label: 'TopRate', align: 'right' },
