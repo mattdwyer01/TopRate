@@ -1,0 +1,85 @@
+name: GPS sectionals (daily)
+
+# Triple S GPS for the Racing Model, kept in this repo at data/gps/{rq,rc}_gps_{runs,sections}_{year}.parquet
+# (one file per year, so a daily commit only rewrites the current year). QLD from Racing Queensland's meeting
+# ZIPs, VIC/SA from racing.com's API. Re-reads the last 10 / 7 days because both sites publish a few days after
+# the race; duplicates are merged away. The scraper code lives in mattdwyer01/racing-model (public, checked out
+# read-only); this job writes here with its own GITHUB_TOKEN.
+#
+# Needs secrets RACINGCOM_API_KEY (form API) and RACINGCOM_CAL_API_KEY (calendar API) for VIC/SA: the
+# x-api-key values racing.com's own pages send. Without them VIC/SA is skipped and the job goes red.
+# Set repo variable SCRAPER_RUNNER (e.g. self-hosted) if either site blocks GitHub's IP ranges.
+
+on:
+  schedule:
+    - cron: "0 20 * * *"      # 06:00 AEST / 07:00 AEDT
+  workflow_dispatch:
+    inputs:
+      rc_days:
+        description: "racing.com days to re-read (catch-up after a gap)"
+        default: "7"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gps-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 120
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+      RC_DAYS: ${{ github.event.inputs.rc_days || '7' }}
+    steps:
+      - name: Check out this repo (data/gps only)
+        uses: actions/checkout@v4
+        with:
+          path: toprate
+          fetch-depth: 1
+          sparse-checkout: data/gps/
+          sparse-checkout-cone-mode: false
+
+      - name: Check out the scrapers (racing-model)
+        uses: actions/checkout@v4
+        with:
+          repository: mattdwyer01/racing-model
+          path: rm
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install pandas pyarrow requests
+
+      - name: Racing Queensland (last 10 days)
+        id: rq
+        continue-on-error: true
+        working-directory: rm
+        run: |
+          python ingest/rq_sectionals.py download --since "$(date -u -d '10 days ago' +%F)" --zip-dir work/rq_zip
+          python ingest/rq_sectionals.py parse --zip-dir work/rq_zip --out-dir work/new
+
+      - name: racing.com VIC/SA
+        id: rc
+        continue-on-error: true
+        working-directory: rm
+        run: |
+          python ingest/racingcom_sectionals.py fetch --recent-days "$RC_DAYS" --raw-dir work/rc_raw
+          python ingest/racingcom_sectionals.py parse --raw-dir work/rc_raw --out-dir work/new
+
+      - name: Merge into data/gps and push
+        working-directory: rm
+        env:
+          TOPRATE_DIR: ../toprate
+        run: bash pipeline/update_gps.sh
+
+      - name: Fail if a source failed
+        if: steps.rq.outcome == 'failure' || steps.rc.outcome == 'failure'
+        run: |
+          echo "::error::RQ ${{ steps.rq.outcome }}, racing.com ${{ steps.rc.outcome }} (racing.com needs RACINGCOM_API_KEY / RACINGCOM_CAL_API_KEY secrets)"
+          exit 1
