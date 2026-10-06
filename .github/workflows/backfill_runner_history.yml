@@ -126,12 +126,26 @@ jobs:
           # fresh set of 8 large .pre_runner_backfill_* backup copies on
           # the runner's disk with nothing ever cleaning them up, and a
           # 3000-horse run exhausted 40+ minutes without ever landing.
+          #
+          # --no-backup: the backup copies this script can make (before
+          # overwriting each year file) only ever protected an UNCOMMITTED
+          # working tree - nothing is committed until every file in the
+          # batch writes successfully, so a mid-write crash is recoverable
+          # via a plain 'git checkout -- race_results_*.csv.gz' against the
+          # last commit. At full --all scale those backups (8 large files,
+          # repeated on every genuine-rebase-failure fallback run_merge
+          # call), combined with git objects pulled in by the catch-up
+          # fetches above, exhausted the runner's disk entirely (confirmed
+          # live, 6 Oct 2026: "No space left on device", ~95,700-horse run,
+          # ~1h44m before failing).
+          df -h . || true
           run_merge() {
-            python backfill_runner_history.py --merge-only backfill_runner_history.json --commit
+            python backfill_runner_history.py --merge-only backfill_runner_history.json --commit --no-backup
             git add race_results_*.csv.gz backfill_runner_history.checkpoint 2>/dev/null || true
           }
 
           run_merge
+          df -h . || true
           if [[ -z "$(git status --porcelain -- race_results_*.csv.gz backfill_runner_history.checkpoint)" ]]; then
             echo "No changes to commit"
             pushed=true
@@ -158,6 +172,7 @@ jobs:
             # each attempt silently failing with no git error text before the
             # timeout, i.e. genuinely out of time, not a real git failure).
             timeout 300 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            df -h . || true
             if timeout 180 git rebase "origin/${{ github.ref_name }}"; then
               # Rebase succeeded (the common case - no real content conflict),
               # loop back around to retry the push with this same commit;
