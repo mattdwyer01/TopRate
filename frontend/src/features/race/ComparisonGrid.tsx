@@ -109,7 +109,6 @@ export function ComparisonGrid({ runner, race, allRunners }: ComparisonGridProps
 
   return (
     <div>
-      <div className="mb-1 text-sm font-semibold text-ink">How today's shape suits this horse</div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CompTable
           title="Race speed"

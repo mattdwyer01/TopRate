@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { TripRace } from '../../lib/tripMap'
 import { computeCareerStats } from '../../lib/careerStats'
@@ -56,7 +56,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   const W = 420
   const X = (v: number) => 6 + ((v - lo) / (hi - lo)) * (W - 12)
   return (
-    <svg viewBox={`0 0 ${W} 58`} className="h-auto w-full" role="img" aria-label="Likely range of this projection against the field">
+    <svg viewBox={`0 0 ${W} 58`} className="h-auto w-full max-h-12 sm:max-h-none" role="img" aria-label="Likely range of this projection against the field">
       {low != null && top != null && <rect x={X(low)} y={25} width={Math.max(2, X(top) - X(low))} height={6} rx={3} fill="var(--color-line-soft)" />}
       {half > 0 && <rect x={X(proj - half)} y={19} width={Math.max(4, X(proj + half) - X(proj - half))} height={18} rx={9} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
       {top != null && (
@@ -99,9 +99,9 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         ? 'Scratched.'
         : ''
   return (
-    <section className="rounded-lg border border-line bg-panel p-4">
-      <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
-        <div className="min-w-[210px] flex-1">
+    <section className="rounded-lg border border-line bg-panel p-3 sm:p-4">
+      <div className="flex items-start gap-x-4 sm:gap-x-6">
+        <div className="min-w-0 flex-1 sm:min-w-[210px]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Projected WPR</span>
             {valuePct != null && valuePct >= 5 && !scratched && <span className="rounded-full bg-emerald-bg px-2 py-0.5 text-[11px] font-semibold text-emerald-deep">OVERLAY +{Math.round(valuePct)}%</span>}
@@ -111,7 +111,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {scratched ? (
             <div className="font-mono text-4xl font-bold leading-tight text-rose">SCR</div>
           ) : (
-            <div className="font-mono text-4xl font-bold leading-tight text-emerald-deep">{fmtWpr(proj)}</div>
+            <div className="font-mono text-3xl font-bold leading-tight text-emerald-deep sm:text-4xl">{fmtWpr(proj)}</div>
           )}
           <p className="mt-1 max-w-[46ch] text-sm text-ink-soft">
             {verdict}
@@ -119,9 +119,9 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
             {reasons.length > 0 && !scratched && <> {reasons[0][0].toUpperCase() + reasons[0].slice(1)}{reasons.length > 1 ? `, ${reasons.slice(1).join(', ')}` : ''}.</>}
           </p>
         </div>
-        <div className="text-right">
+        <div className="flex-none text-right">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / fair</div>
-          <div className="font-mono text-2xl font-semibold text-ink">
+          <div className="font-mono text-xl font-semibold text-ink sm:text-2xl">
             {fmtPrice(market)} <span className="text-base font-normal text-ink-faint">/ {fair != null && !scratched ? fmtPrice(fair) : '-'}</span>
           </div>
           <div className="text-xs text-ink-mute">
@@ -138,30 +138,27 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
       {proj != null && !scratched && (
         <div className="mt-2 max-w-xl">
           <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
-          <div className="text-[11px] text-ink-faint">Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.</div>
+          <div className="hidden text-[11px] text-ink-faint sm:block">Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.</div>
         </div>
       )}
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line-soft pt-3 text-sm md:grid-cols-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-ink-faint">TopRate</div>
-          <div className="font-mono font-semibold text-ink-soft">{fmtInt(runner.toprateRating)}</div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-ink-faint">Form</div>
-          <div className="font-mono font-semibold text-ink-soft">{fmtInt(runner.formFactor)}</div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-ink-faint">Nett</div>
-          <div className="font-mono font-semibold text-ink-soft">{fmtInt(runner.wprNett)}</div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-ink-faint">Today</div>
-          <div className="font-semibold text-ink">
-            Barrier {runner.barrier ?? '-'}
-            {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
-            {race.distance ? <span className="font-normal text-ink-mute"> &middot; {race.distance}m</span> : null}
-          </div>
-        </div>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-t border-line-soft pt-2 text-sm">
+        <span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-faint">TopRate </span>
+          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.toprateRating)}</span>
+        </span>
+        <span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-faint">Form </span>
+          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.formFactor)}</span>
+        </span>
+        <span>
+          <span className="text-[11px] uppercase tracking-wide text-ink-faint">Nett </span>
+          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.wprNett)}</span>
+        </span>
+        <span className="font-semibold text-ink">
+          Barrier {runner.barrier ?? '-'}
+          {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
+          {race.distance ? <span className="font-normal text-ink-mute"> &middot; {race.distance}m</span> : null}
+        </span>
       </div>
     </section>
   )
@@ -185,8 +182,8 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
   ]
   const steps: { label: string; v: number | null }[] = []
   if (b && (b.suitability != null || b.weight != null)) {
-    if (b.suitability != null) steps.push({ label: 'Suitability (comments, day-of bias, profile, connections)', v: b.suitability })
-    if (b.weight != null) steps.push({ label: 'Weight carried vs field average', v: b.weight })
+    if (b.suitability != null) steps.push({ label: 'Suitability', v: b.suitability })
+    if (b.weight != null) steps.push({ label: 'Weight carried', v: b.weight })
   } else if (runner.wprAdjustment != null) {
     steps.push({ label: 'Adjustments', v: runner.wprAdjustment })
   }
@@ -273,7 +270,7 @@ export function HorseTripMini({ trip, runnerId, excluded }: { trip: TripRace; ru
       <line x1={X(0)} x2={mx} y1={H - 16} y2={H - 16} stroke="var(--color-ink)" strokeWidth={1} />
       <line x1={X(0)} x2={X(0)} y1={H - 20} y2={H - 12} stroke="var(--color-ink)" strokeWidth={1} />
       <line x1={mx} x2={mx} y1={H - 20} y2={H - 12} stroke="var(--color-ink)" strokeWidth={1} />
-      <text x={(X(0) + mx) / 2} y={H - 20} textAnchor="middle" fontSize={10} fill="var(--color-ink)">
+      <text x={Math.min(Math.max((X(0) + mx) / 2, 62), W - 62)} y={H - 20} textAnchor="middle" fontSize={10} fill="var(--color-ink)">
         {gx(me).toFixed(1)}L behind leader
       </text>
       <ellipse cx={mx} cy={my} rx={11} ry={5} fill="var(--color-emerald-deep)" />
@@ -301,7 +298,7 @@ export function RunTimeline({ runner, proj, raceDate }: { runner: Runner; proj: 
   }, [runner.formHistory, runner.recentRuns])
   if (dots.length < 2) return <p className="text-sm text-ink-mute">Fewer than two rated runs, so there is no timeline yet.</p>
   const W = 480
-  const H = 150
+  const H = 128
   const padL = 30
   const padR = 52
   const t = (d: string) => new Date(d).getTime()
@@ -387,7 +384,7 @@ export function TimelineLegend() {
         <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-line align-middle" />
         compromised run
       </span>
-      <span>Height is WPR; gaps between dots are real time (spells).</span>
+      <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
     </div>
   )
 }
@@ -398,8 +395,10 @@ export function TimelineLegend() {
 export function ConditionsScorecard({ runner, race }: { runner: Runner; race: Race }) {
   const rows = useMemo(() => computeCareerStats(runner, race), [runner, race])
   const career = rows.find((r) => r.label === 'Career')
-  const picked = rows.filter((r) => r.label !== 'Career' && r.label !== 'Last 6mo')
-  const heading = (label: string, i: number) => (i === 0 ? `Today's distance (${label})` : i === 1 ? `Going (${label})` : label)
+  const allPicked = rows.filter((r) => r.label !== 'Career' && r.label !== 'Last 6mo')
+  const picked = allPicked.filter((r) => r.runs > 0)
+  const empty = allPicked.filter((r) => r.runs === 0)
+  const heading = (label: string) => (label === rows[1]?.label ? `Today's distance (${label})` : label === rows[2]?.label ? `Going (${label})` : label)
   return (
     <div>
       {career && (
@@ -408,30 +407,31 @@ export function ConditionsScorecard({ runner, race }: { runner: Runner; race: Ra
           <span className="font-mono font-semibold">{fmtWpr(career.peak)}</span>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-        {picked.map((r, i) => {
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 sm:gap-2">
+        {picked.map((r) => {
           const d = r.vsCareerAvg
           return (
-            <div key={r.label} className="rounded-lg bg-bg p-2.5">
-              <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint" title={heading(r.label, i)}>
-                {heading(r.label, i)}
+            <div key={r.label} className="flex items-baseline justify-between gap-2 rounded-lg bg-bg px-2.5 py-1.5 text-sm sm:block sm:p-2.5">
+              <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint" title={heading(r.label)}>
+                {heading(r.label)}
               </div>
               {r.runs === 0 ? (
-                <div className="mt-1 text-sm text-ink-mute">no runs</div>
+                <div className="text-ink-mute sm:mt-1">no runs</div>
               ) : (
-                <>
-                  <div className="mt-1 font-mono text-base font-semibold text-ink">
+                <div className="text-right sm:mt-1 sm:text-left">
+                  <span className="font-mono font-semibold text-ink">
                     {r.runs} run{r.runs === 1 ? '' : 's'} <span className="text-ink-faint">&middot;</span> avg {fmtWpr(r.avg)}
-                  </div>
-                  <div className={`font-mono text-xs ${d == null ? 'text-ink-mute' : d > 0.5 ? 'text-emerald-deep' : d < -0.5 ? 'text-rose' : 'text-ink-mute'}`}>
-                    {d == null ? 'no career comparison' : `${fmtAdj(d)} vs career`}
-                  </div>
-                </>
+                  </span>
+                  <span className={`ml-2 font-mono text-xs sm:ml-0 sm:block ${d == null ? 'text-ink-mute' : d > 0.5 ? 'text-emerald-deep' : d < -0.5 ? 'text-rose' : 'text-ink-mute'}`}>
+                    {d == null ? 'no comparison' : `${fmtAdj(d)} vs career`}
+                  </span>
+                </div>
               )}
             </div>
           )
         })}
       </div>
+      {empty.length > 0 && <div className="mt-1.5 text-xs text-ink-mute">No runs at: {empty.map((r) => heading(r.label).toLowerCase()).join(', ')}.</div>}
     </div>
   )
 }
@@ -470,7 +470,7 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
     )
   }
   const W = 420
-  const H = 120
+  const H = 96
   const padL = 40
   const padR = 10
   const lo = Math.min(...vals)
@@ -558,6 +558,24 @@ export function ResultCard({ runner }: { runner: Runner }) {
         {actual == null ? 'The actual rating settles a few days after the race.' : miss != null && big ? `Ran ${Math.abs(miss).toFixed(1)} ${miss >= 0 ? 'better' : 'worse'} than projected, more than the typical error of ${sd!.toFixed(0)}.` : miss != null ? 'Within the typical error of the projection.' : ''}
         {runner.missReason ? ` ${runner.missReason}` : ''}
       </p>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------ collapsible */
+
+// A section that starts open on tablets and desktops and closed on phones, where vertical room is the scarce thing.
+export function Collapsible({ title, note, defaultOpenWide = true, children }: { title: string; note?: React.ReactNode; defaultOpenWide?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => (typeof window === 'undefined' ? true : defaultOpenWide && window.matchMedia('(min-width: 768px)').matches))
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-baseline justify-between gap-2 text-left">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+          {open ? '▾' : '▸'} {title}
+        </span>
+        {note && <span className="text-[11px] text-ink-faint">{note}</span>}
+      </button>
+      {open && <div className="mt-1.5">{children}</div>}
     </div>
   )
 }
