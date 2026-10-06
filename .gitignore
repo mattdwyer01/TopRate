@@ -46,3 +46,4 @@ tab_raw/
 # train_wpr_projection() during ad-hoc held-out comparisons) - never the
 # live wpr_models/ directory, never meant to ship as-is.
 wpr_models_*_experiment/
+projection/cache/
