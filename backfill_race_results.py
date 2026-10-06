@@ -180,6 +180,18 @@ _CORE_KEYS = cap.CORE_COLS
 # "starters" (intended for field_size) confirmed ABSENT anywhere on this
 # endpoint by --diagnose-one - field_size is instead computed directly as
 # len(runners) in extract_race_results, not looked up here.
+#
+# isLetup/isSpell/blinkersOn/timeLast600m confirmed GENUINELY ABSENT from
+# this bulk endpoint at every level (runner/race/meeting) - not a mapping
+# bug (Sep 2026, --scan-keys against 10 real finalized meetings/623
+# runners/72 races: 0% key presence at any level for all four). They
+# simply never make it into race_results_*.csv.gz's is_letup/is_spell/
+# blinkers_on/time_last600m columns from this source; getting them would
+# need the per-runner /runners/{id}/__data.json endpoint instead (see
+# toprate_json_capture.py), at a per-horse rather than per-meeting request
+# cost - not attempted here, see chat for why. gearChanges IS present
+# (100% of runners) but needs special handling below (it's a list, not a
+# scalar) - see extract_race_results.
 _EXTRA_RUNNER_KEYS = {
     "class":           "race_class",
     "isLetup":         "is_letup",
@@ -198,6 +210,14 @@ _EXTRA_RUNNER_KEYS = {
 # from the per-runner endpoint; reused here with the same runner-then-
 # race fallback backfill_bulk_meeting_fields.py already established for
 # these exact same source keys on this exact same bulk endpoint.
+#
+# RUN_COLS' priceOpening/priceMid confirmed GENUINELY ABSENT from this
+# bulk endpoint too, same --scan-keys check as isLetup/isSpell/
+# blinkersOn/timeLast600m above (0% presence at runner/race/meeting
+# level) - price_opening/price_mid stay null in race_results_*.csv.gz
+# from this source for the same reason. priceTop/priceStarting (also in
+# RUN_COLS/runner-level) are unaffected - those were already confirmed
+# present and populating correctly before this check.
 _FALLBACK_KEYS = {**cap.HORSE_COLS, **cap.RUN_COLS}
 
 
@@ -353,7 +373,21 @@ def extract_race_results(meeting_result, deref):
             for key in _CORE_KEYS:
                 row[key] = cap._scalar(deref(_lookup(runner, race, meeting_result, key)))
             for src_key, col in _EXTRA_RUNNER_KEYS.items():
-                row[col] = cap._scalar(deref(_lookup(runner, race, meeting_result, src_key)))
+                raw_v = deref(_lookup(runner, race, meeting_result, src_key))
+                if src_key == "gearChanges":
+                    # gearChanges is a JSON list (confirmed present on
+                    # 100% of runners via --scan-keys, Sep 2026 - see
+                    # chat), not a scalar - cap._scalar() unconditionally
+                    # turns any list into None, which was silently
+                    # discarding every real gear-change announcement.
+                    # Matches toprate_json_capture.py's own handling of
+                    # this exact field so gear_change ADJ_TERM's
+                    # _gear_change_bucket() (which expects a JSON-list
+                    # string) reads the same shape from either source.
+                    row[col] = (json.dumps([deref(x) for x in raw_v])
+                                if isinstance(raw_v, list) else None)
+                else:
+                    row[col] = cap._scalar(raw_v)
             for src_key, col in _FALLBACK_KEYS.items():
                 row[col] = cap._scalar(deref(_lookup(runner, race, meeting_result, src_key)))
             rows.append(row)
