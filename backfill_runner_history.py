@@ -323,6 +323,16 @@ def main():
                      help="Fetch phase only: write results here, never touch the CSVs")
     ap.add_argument("--merge-only", metavar="IN.json", default=None,
                      help="Merge phase only: read results from here, no network calls")
+    ap.add_argument("--no-backup", action="store_true",
+                     help="Skip writing .pre_runner_backfill_* copies before overwriting a "
+                          "year file. Safe to skip: nothing is committed until every file in "
+                          "the batch writes successfully, so a mid-write crash is recoverable "
+                          "via 'git checkout -- race_results_*.csv.gz' against the last commit "
+                          "- the backup only ever protected an UNCOMMITTED working tree. "
+                          "Confirmed needed live (6 Oct 2026): a ~95,700-horse --all run "
+                          "exhausted the GitHub Actions runner's disk (backup copies of all 8 "
+                          "year files, repeated on every retry, plus git objects from "
+                          "concurrent large commits elsewhere in the repo).")
     args = ap.parse_args()
 
     if args.merge_only:
@@ -332,7 +342,7 @@ def main():
         attempted = payload.get("attempted_horse_ids", [])
         print(f"Loaded {len(fields_by_key):,} horse|date entries "
               f"({len(attempted):,} attempted horses) from {args.merge_only}")
-        fill_blanks(fields_by_key, commit=args.commit, backup=True)
+        fill_blanks(fields_by_key, commit=args.commit, backup=not args.no_backup)
         if args.commit:
             write_checkpoint(attempted)
         return
@@ -361,7 +371,7 @@ def main():
     # results. Fine for a local manual run; the split mode above is what
     # the GitHub Action uses, same reasoning as every other backfill
     # script in this project.
-    fill_blanks(fields_by_key, commit=args.commit)
+    fill_blanks(fields_by_key, commit=args.commit, backup=not args.no_backup)
     if args.commit:
         write_checkpoint(attempted)
 
