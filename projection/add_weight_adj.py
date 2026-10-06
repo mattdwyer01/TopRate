@@ -20,10 +20,11 @@ def main():
     r = pd.read_csv(os.path.join(projlog.ROOT, 'toprate_runners.csv'), usecols=['run_id', 'weight_carried'], low_memory=False).dropna().drop_duplicates('run_id').set_index('run_id').weight_carried
     lg['wt'] = lg.run_id.map(w).fillna(lg.run_id.map(r))
     lg.loc[~lg.wt.between(40, 80), 'wt'] = np.nan
-    todo = lg.wtadj.fillna(0).eq(0)
+    # idempotent: removes any weight term already applied, then applies the current WT_K
+    todo = lg.wt.notna()
     rel = lg.wt - lg.groupby('race_id').wt.transform('mean')
     new = (-WT_K * rel).fillna(0.0)
-    lg.loc[todo, 'proj'] = lg.loc[todo, 'proj'] + new[todo]
+    lg.loc[todo, 'proj'] = lg.loc[todo, 'proj'] - lg.loc[todo, 'wtadj'].fillna(0) + new[todo]
     lg.loc[todo, 'wtadj'] = new[todo]
     print('rows', len(lg), 'adjusted', int(todo.sum()), 'with weight', int(lg.wt.notna().sum()), 'wtadj sd', round(float(lg.wtadj.std()), 2))
     lg = lg.drop(columns=['wt'])

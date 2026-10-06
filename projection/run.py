@@ -30,7 +30,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache')
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
-WT_K = 0.6   # WPR per kg of weight carried above the field average
+WT_K = 0.5   # WPR per kg of weight carried above the field average (atw-target fit 0.38, winner-ranking fit 0.62, both within error of 0.5)
 
 
 def au_today():
@@ -178,8 +178,8 @@ def main():
     Z['adj'] = sm.predict(Z[sfeats])
     R = R.merge(Z[['race_id', 'horse_id', 'adj']], on=['race_id', 'horse_id'], how='left')
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
-    # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.6 WPR of
-    # winning chance (90% interval 0.44 to 0.82, 541 races), beyond anything the base model learned from wt/wt_rel
+    # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
+    # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
