@@ -110,16 +110,38 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          pushed=false
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+
+          # The python merge (read+fill+backup+write all 8 year files) is
+          # expensive - minutes, not seconds, once a batch touches tens of
+          # thousands of rows - so it runs ONCE here, outside the retry
+          # loop below. tab_results.yml commits to main every ~5 min, which
+          # is often faster than that, so a push WILL get rejected under
+          # real contention; the loop's job is only to get this ALREADY-
+          # MADE commit onto the new tip via a cheap rebase (normally just
+          # a pointer move, since race_results_*.csv.gz/the checkpoint
+          # aren't touched by anything else), never to redo the python work
+          # on every retry. Redoing it every iteration (an earlier version
+          # of this step, Sep-Oct 2026) was confirmed live to make things
+          # WORSE under contention, not better: each iteration piled up a
+          # fresh set of 8 large .pre_runner_backfill_* backup copies on
+          # the runner's disk with nothing ever cleaning them up, and a
+          # 3000-horse run exhausted 40+ minutes without ever landing.
+          run_merge() {
             python backfill_runner_history.py --merge-only backfill_runner_history.json --commit
             git add race_results_*.csv.gz backfill_runner_history.checkpoint 2>/dev/null || true
-            if [[ -z "$(git status --porcelain -- race_results_*.csv.gz backfill_runner_history.checkpoint)" ]]; then
-              echo "No changes to commit"
-              pushed=true
-              break
-            fi
+          }
+
+          run_merge
+          if [[ -z "$(git status --porcelain -- race_results_*.csv.gz backfill_runner_history.checkpoint)" ]]; then
+            echo "No changes to commit"
+            pushed=true
+          else
             git commit -m "Backfill runner history $(date -u +%Y-%m-%dT%H:%MZ)"
+            pushed=false
+          fi
+
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            [ "$pushed" = "true" ] && break
             if timeout 90 git push; then
               echo "Pushed on attempt $i"
               pushed=true
@@ -127,24 +149,27 @@ jobs:
             fi
             echo "Push rejected or timed out (attempt $i) - replaying this commit onto the fresh base"
             timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
-            # Cheap path first (same fix as backfill_race_results.yml, Sep 2026):
-            # race_results_*.csv.gz/the checkpoint aren't touched by anything else,
-            # so a rebase onto the new tip is normally just a pointer move - no
-            # re-merge. tab_results.yml commits every ~5 min, and a full re-merge
-            # of all 8 year files (read+fill+backup+write) can take long enough
-            # that going straight to reset+redo-from-scratch loses that race on
-            # every attempt (confirmed live, 6 Oct 2026: a 3000-horse run's merge
-            # step was still retrying 28+ min in under this exact contention).
             if timeout 120 git rebase "origin/${{ github.ref_name }}"; then
-              if timeout 90 git push; then
-                echo "Pushed on attempt $i (after rebase)"
-                pushed=true
-                break
-              fi
-            else
-              git rebase --abort 2>/dev/null || true
+              # Rebase succeeded (the common case - no real content conflict),
+              # loop back around to retry the push with this same commit;
+              # no need to touch the python merge at all.
+              sleep $((5 + RANDOM % 10))
+              continue
             fi
+            # Rebase genuinely failed (shouldn't happen given no content
+            # overlap, but if it does, there's no cheap way forward) - only
+            # NOW pay the expensive cost of resetting and redoing the merge
+            # from the fresh base.
+            git rebase --abort 2>/dev/null || true
             git reset --hard "origin/${{ github.ref_name }}" || true
+            rm -f race_results_*.csv.gz.pre_runner_backfill_* 2>/dev/null || true
+            run_merge
+            if [[ -z "$(git status --porcelain -- race_results_*.csv.gz backfill_runner_history.checkpoint)" ]]; then
+              echo "No changes to commit"
+              pushed=true
+              break
+            fi
+            git commit -m "Backfill runner history $(date -u +%Y-%m-%dT%H:%MZ)"
             sleep $((10 + RANDOM % 20))
           done
           # Same incident as backfill_race_results.yml/backfill_bulk_meeting_fields.yml
