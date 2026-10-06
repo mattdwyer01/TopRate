@@ -128,11 +128,8 @@ export function RaceDetail({
     [race.runners, effectiveByRunId, effectiveScratched],
   )
   const bandOf = useMemo(() => {
-    const m = new Map<string, { band: 'inner' | 'outer' | 'none'; frac: number | null }>()
-    if (!ranked.length) return m
-    const top = ranked[0].proj
-    const low = ranked[ranked.length - 1].proj
-    for (const r of ranked) m.set(r.runner.runId, { band: r.inner ? 'inner' : r.outer ? 'outer' : 'none', frac: top > low ? (r.proj - low) / (top - low) : 1 })
+    const m = new Map<string, { band: 'inner' | 'outer' | 'none' }>()
+    for (const r of ranked) m.set(r.runner.runId, { band: r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
     return m
   }, [ranked])
 
@@ -189,7 +186,6 @@ export function RaceDetail({
       selected: runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
-      barFrac: b?.frac ?? null,
       onClick: () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
     }
   }
@@ -285,7 +281,7 @@ export function RaceDetail({
         </div>
 
         {/* Phone and tablet cards */}
-        <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:hidden">
+        <div className="flex flex-col gap-1.5 md:grid md:grid-cols-2 lg:hidden">
           {sortedRunners.map((r, i) => (
             <Fragment key={r.runId}>
               <RunnerCard {...rowProps(r)} />
