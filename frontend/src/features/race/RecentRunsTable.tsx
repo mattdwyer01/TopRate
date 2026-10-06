@@ -318,6 +318,7 @@ export function RecentRunsTable({
   raceDate,
   raceVenue,
 }: RecentRunsTableProps) {
+  const [showFilters, setShowFilters] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 640px)').matches)
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
   const [filterCamp, setFilterCamp] = useState<CampLabel | null>(null)
@@ -432,7 +433,10 @@ export function RecentRunsTable({
         </span>
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      <button type="button" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters} className="mb-1.5 text-[11px] text-ink-mute underline sm:hidden">
+        {showFilters ? 'Hide filters' : `Filters${anyFilterActive ? ' (on)' : ''}`}
+      </button>
+      <div className={`mb-2 flex-wrap items-center gap-1.5 ${showFilters ? 'flex' : 'hidden sm:flex'}`}>
         <span className="text-[11px] text-ink-faint">Filter:</span>
         <FilterButton active={filterDistance} onClick={() => setFilterDistance((v) => !v)}>
           Dist &plusmn;10%

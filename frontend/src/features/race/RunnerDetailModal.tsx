@@ -13,7 +13,7 @@ import { ResultVsProjection } from './ResultVsProjection'
 import { FormLine } from './FormLine'
 import { ratingSuffix } from './rowParts'
 import { typicalSd } from './raceFacts'
-import { ConditionsScorecard, HorseHero, HorseTripMini, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { Collapsible, ConditionsScorecard, HorseHero, HorseTripMini, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -39,7 +39,7 @@ interface RunnerDetailModalProps {
 
 function Card({ title, note, children, className = '' }: { title: string; note?: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`rounded-lg border border-line bg-panel p-3.5 ${className}`}>
+    <section className={`rounded-lg border border-line bg-panel p-3 sm:p-3.5 ${className}`}>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-sm font-semibold text-ink">{title}</h3>
         {note && <span className="text-[11px] text-ink-faint">{note}</span>}
@@ -51,9 +51,22 @@ function Card({ title, note, children, className = '' }: { title: string; note?:
 
 function Row({ label, value, className = '' }: { label: string; value: React.ReactNode; className?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft py-1.5 text-sm last:border-0">
+    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft py-1 text-sm last:border-0 sm:py-1.5">
       <span className="text-ink-mute">{label}</span>
       <span className={`font-mono text-ink ${className}`}>{value}</span>
+    </div>
+  )
+}
+
+function AdjustmentToggle({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(active)
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between text-left text-sm text-ink-soft">
+        <span>{open ? '▾' : '▸'} Your adjustment</span>
+        {active && <span className="text-xs text-amber">set</span>}
+      </button>
+      {open && <div className="mt-2">{children}</div>}
     </div>
   )
 }
@@ -175,7 +188,7 @@ export function RunnerDetailModal({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 p-3 sm:p-4">
+        <div className="flex flex-col gap-2 p-2 sm:gap-3 sm:p-4">
           {runner.projectedWpr == null && baseValue == null && (
             <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-sm text-amber">
               No projection for this runner. {runner.projectionDescription || 'There is not enough form history to project it; enter your own base WPR below to rate it.'}
@@ -200,8 +213,10 @@ export function RunnerDetailModal({
             daysSince={spell.daysSince}
           />
 
-          {/* Manual adjustment */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-3.5 py-2.5">
+          {/* Manual adjustment: a rarely used control, so a phone gets it as a one-line toggle (open when a value is set) */}
+          <div className="rounded-lg border border-line bg-panel px-3 py-2 sm:hidden">
+            <AdjustmentToggle active={deltaValue != null || baseValue != null}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-2 text-sm text-ink-soft">
               Your adjustment
               <input
@@ -241,13 +256,60 @@ export function RunnerDetailModal({
             <span className="text-xs text-ink-faint">Moves this horse and re-prices the whole field. Saved on this device.</span>
           </div>
 
+            </AdjustmentToggle>
+          </div>
+          <div className="hidden sm:block">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-3 py-2">
+            <label className="flex items-center gap-2 text-sm text-ink-soft">
+              Your adjustment
+              <input
+                type="number"
+                step="0.1"
+                value={deltaValue ?? ''}
+                onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
+                placeholder="0.0"
+                className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+              />
+            </label>
+            {runner.projectedWpr == null && (
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
+                Base WPR
+                <input
+                  type="number"
+                  step="0.1"
+                  value={baseValue ?? ''}
+                  onChange={(e) => onSetBase(e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="e.g. 72.0"
+                  className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+                />
+              </label>
+            )}
+            {(deltaValue != null || baseValue != null) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSetDelta(null)
+                  onSetBase(null)
+                }}
+                className="text-xs text-ink-mute underline hover:text-ink"
+              >
+                Clear
+              </button>
+            )}
+            <span className="text-xs text-ink-faint">Moves this horse and re-prices the whole field. Saved on this device.</span>
+          </div>
+
+          </div>
+
           <div className="grid gap-3 lg:grid-cols-2">
             <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
               <div className="mb-3">
                 <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} />
               </div>
-              <FormLine runs={runner.recentRuns} projected={effectiveWpr} sd={sd} />
-              {runner.projectionDescription && <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">{runner.projectionDescription}</p>}
+              <div className="hidden sm:block">
+                <FormLine runs={runner.recentRuns} projected={effectiveWpr} sd={sd} />
+              </div>
+              {runner.projectionDescription && <p className="mt-2 hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
             </Card>
 
             <Card title="Expected run" note={tripKind === '800m' ? 'about 800m from home' : 'running line through the race'}>
@@ -257,7 +319,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               {tripRunner && tripRunner.gap != null ? (
-                <div className="mb-2 grid grid-cols-2 gap-2">
+                <div className="mb-2 hidden grid-cols-2 gap-2 sm:grid">
                   <div className="rounded-md bg-bg p-2.5">
                     <div className="text-[11px] uppercase tracking-wide text-ink-faint">Behind the leader</div>
                     <div className="font-mono text-xl font-semibold text-ink">{tripRunner.gap.toFixed(1)}L</div>
@@ -268,6 +330,11 @@ export function RunnerDetailModal({
                   </div>
                 </div>
               ) : null}
+              {tripRunner && tripRunner.gap != null && (
+                <div className="sm:hidden">
+                  <Row label="Off the rail" value={`${tripRunner.lane.toFixed(1)}m${tripKind === '800m' ? ' at 800m' : ' on average'}`} />
+                </div>
+              )}
               <Row label="Settling position" value={runner.predictedSettlingBand ?? '-'} />
               {runner.againstShapeTendency && <Row label="Against the expected shape" value={runner.againstShapeTendency} />}
               {tripRunner && (
@@ -283,7 +350,7 @@ export function RunnerDetailModal({
               {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
-            <Card title="Result against projection">
+            <Card title="Result against projection" className={runner.resultKnown || runner.finishPosition != null ? '' : 'hidden sm:block'}>
               <ResultCard runner={runner} />
               {runner.missCategory === 'unexplained' && (
                 <div className="mt-2 border-t border-line-soft pt-2">
@@ -316,7 +383,9 @@ export function RunnerDetailModal({
               raceVenue={race.venue}
             />
             <div className="mt-3">
-              <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+              <Collapsible title="How today's shape suits this horse" defaultOpenWide>
+                <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
+              </Collapsible>
             </div>
           </Card>
         </div>
