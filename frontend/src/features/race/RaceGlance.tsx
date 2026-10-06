@@ -3,7 +3,7 @@ import type { Runner } from '../../types/domain'
 import type { TripRace } from '../../lib/tripMap'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
-import type { Ranked } from './raceFacts'
+import { typicalSd, type Ranked } from './raceFacts'
 
 interface RaceGlanceProps {
   ranked: Ranked[]
@@ -34,11 +34,18 @@ function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 
   }, [])
 
   const top = ranked[0].proj
-  const lo = Math.max(ranked[ranked.length - 1].proj - 2, top - 24)
-  const hi = top + 1.5
+  // Likely range = the middle half of outcomes (about +-0.67 typical error), so a thin-history horse reads visibly wider than a settled one.
+  const half = (r: Ranked) => {
+    const sd = typicalSd(r.runner, r.proj)
+    return sd != null ? 0.67 * sd : null
+  }
+  const lows = ranked.map((r) => r.proj - (half(r) ?? 0))
+  const highs = ranked.map((r) => r.proj + (half(r) ?? 0))
+  const lo = Math.max(Math.min(...lows) - 1, top - 34)
+  const hi = Math.max(...highs) + 1.5
   const narrow = width < 480
   const labelW = narrow ? 112 : LABEL_W
-  const rightW = narrow ? 52 : RIGHT_W
+  const rightW = narrow ? 52 : RIGHT_W + 56
   const x0 = labelW
   const x1 = width - rightW
   const X = (v: number) => x0 + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (x1 - x0)
@@ -74,16 +81,24 @@ function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 
           const maxChars = narrow ? 15 : 20
           return (
             <g key={r.runner.runId} onClick={() => onSelect(r.runner.runId)} style={{ cursor: 'pointer' }}>
-              <title>{`${name}: ${fmtWpr(r.proj)} projected${r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
+              <title>{`${name}: ${fmtWpr(r.proj)} projected${half(r) != null ? `, likely range ${Math.round(r.proj - half(r)!)} to ${Math.round(r.proj + half(r)!)}` : ''}${r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
               <rect x={0} y={y - ROW_H / 2} width={width} height={ROW_H} fill="transparent" />
               <text x={0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={r.inner ? 600 : 400}>
                 {name.length > maxChars ? `${name.slice(0, maxChars - 1)}…` : name}
               </text>
+              {half(r) != null && (
+                <rect x={X(r.proj - half(r)!)} y={y - 5} width={Math.max(2, X(r.proj + half(r)!) - X(r.proj - half(r)!))} height={10} rx={5} fill={tone} fillOpacity={0.16} />
+              )}
               <line x1={X(top)} x2={X(r.proj)} y1={y} y2={y} stroke={tone} strokeWidth={2} strokeOpacity={0.35} strokeLinecap="round" />
               <circle cx={X(r.proj)} cy={y} r={r.inner ? 6 : 5} fill={tone} stroke="#fff" strokeWidth={1.5} />
               <text x={width} y={y + 4} textAnchor="end" fontSize={12} fontFamily="var(--font-mono)" fill="var(--color-ink-soft)">
                 {fmtWpr(r.proj)}
               </text>
+              {!narrow && half(r) != null && (
+                <text x={width - 100} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
+                  {Math.round(r.proj - half(r)!)}-{Math.round(r.proj + half(r)!)}
+                </text>
+              )}
               {!narrow && price != null && (
                 <text x={width - 44} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
                   {fmtPrice(price)}
@@ -97,17 +112,8 @@ function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 
   )
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="border-b border-line-soft py-2 last:border-0">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{label}</div>
-      <div className="mt-0.5 text-sm text-ink">{children}</div>
-    </div>
-  )
-}
-
-export function RaceGlance({ ranked, allRunners, scratched, innerGap, outerGap, trip, onSelect }: RaceGlanceProps) {
-  const facts = useMemo(() => {
+function useGlanceFacts({ ranked, allRunners, scratched, trip }: Pick<RaceGlanceProps, 'ranked' | 'allRunners' | 'scratched' | 'trip'>) {
+  return useMemo(() => {
     const inner = ranked.filter((r) => r.inner)
     const outer = ranked.filter((r) => r.inner || r.outer)
     const value = outer
@@ -122,7 +128,10 @@ export function RaceGlance({ ranked, allRunners, scratched, innerGap, outerGap, 
     let leader: string | null = null
     if (trip) {
       const lead = trip.runners.filter((t) => t.gap != null && !scratched.has(t.rid)).sort((a, b) => (a.gap as number) - (b.gap as number))[0]
-      if (lead) leader = `${lead.barrier}. ${lead.name}`
+      if (lead) {
+        const r = allRunners.find((x) => x.runId === lead.rid)
+        leader = `${r ? r.tabNumber : lead.barrier}. ${lead.name}`
+      }
     }
     if (!leader) {
       const lead = ranked.map((r) => r.runner).filter((r) => r.predictedRelSettle != null).sort((a, b) => (a.predictedRelSettle as number) - (b.predictedRelSettle as number))[0]
@@ -131,60 +140,76 @@ export function RaceGlance({ ranked, allRunners, scratched, innerGap, outerGap, 
     const thin = ranked.filter((r) => r.runner.projectionModel === 'light').length
     return { inner, outer, value, moves, leader, thin }
   }, [ranked, allRunners, scratched, trip])
+}
 
+// One line under the header: the answers a reader wants before opening the table.
+export function RaceSummaryLine(props: Pick<RaceGlanceProps, 'ranked' | 'allRunners' | 'scratched' | 'innerGap' | 'outerGap' | 'trip' | 'onSelect'>) {
+  const { ranked, onSelect, innerGap } = props
+  const facts = useGlanceFacts(props)
   if (!ranked.length) return null
   const top = ranked[0]
+  const link = 'font-semibold text-ink hover:underline'
   return (
-    <section className="grid gap-4 rounded-lg border border-line bg-panel p-4 shadow-[var(--shadow-1)] lg:grid-cols-[minmax(0,1.7fr)_minmax(260px,1fr)]">
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ink">Projection ladder</h3>
-          <span className="text-xs text-ink-faint">Projected WPR, best first &middot; tap a runner for detail</span>
-        </div>
-        <Ladder ranked={ranked} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} />
-      </div>
-      <div className="min-w-0 lg:border-l lg:border-line-soft lg:pl-4">
-        <h3 className="mb-1 text-sm font-semibold text-ink">At a glance</h3>
-        <Fact label="Top rated">
-          <button type="button" onClick={() => onSelect(top.runner.runId)} className="text-left font-semibold hover:underline">
-            {top.runner.tabNumber}. {top.runner.horse}
+    <section className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm shadow-[var(--shadow-1)]">
+      <span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Top rated </span>
+        <button type="button" onClick={() => onSelect(top.runner.runId)} className={link}>
+          {top.runner.tabNumber}. {top.runner.horse}
+        </button>{' '}
+        <span className="font-mono text-ink-soft">{fmtWpr(top.proj)}</span>
+      </span>
+      <span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Inside {innerGap} </span>
+        <span className="font-semibold">{facts.inner.length}</span> of {ranked.length}
+      </span>
+      {facts.value && (
+        <span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Best overlay </span>
+          <button type="button" onClick={() => onSelect(facts.value.r.runner.runId)} className={link}>
+            {facts.value.r.runner.tabNumber}. {facts.value.r.runner.horse}
           </button>{' '}
-          <span className="font-mono text-ink-soft">{fmtWpr(top.proj)}</span>
-          {top.runner.fixedWinPrice != null && <span className="font-mono text-ink-faint"> &middot; {fmtPrice(top.runner.fixedWinPrice)}</span>}
-        </Fact>
-        <Fact label={`Inside ${innerGap} · inside ${outerGap}`}>
-          <span className="font-semibold">{facts.inner.length}</span> and <span className="font-semibold">{facts.outer.length}</span> of {ranked.length} runners
-          <div className="mt-0.5 text-xs text-ink-mute">{facts.inner.map((r) => r.runner.horse).join(', ')}</div>
-        </Fact>
-        {facts.value && (
-          <Fact label="Best value inside the line">
-            <button type="button" onClick={() => onSelect(facts.value.r.runner.runId)} className="text-left font-semibold hover:underline">
-              {facts.value.r.runner.tabNumber}. {facts.value.r.runner.horse}
-            </button>{' '}
-            <span className="font-mono text-emerald-deep">{fmtPrice(facts.value.r.runner.fixedWinPrice)}</span>
-            <span className="text-xs text-ink-mute"> vs fair {fmtPrice(facts.value.r.eff!.effectivePrice)} ({Math.round(facts.value.pct)}% over)</span>
-          </Fact>
-        )}
-        {facts.moves && (
-          <Fact label="Biggest market move">
-            <button type="button" onClick={() => onSelect(facts.moves!.r.runId)} className="text-left font-semibold hover:underline">
-              {facts.moves.r.tabNumber}. {facts.moves.r.horse}
-            </button>{' '}
-            <span className={`font-mono ${facts.moves.m.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}`}>
-              {facts.moves.m.direction === 'firmed' ? 'firmed' : 'drifted'} {Math.round(facts.moves.m.pctChange)}%
-            </span>
-            <span className="text-xs text-ink-mute"> from {fmtPrice(facts.moves.r.openFixedPrice)}</span>
-          </Fact>
-        )}
-        {facts.leader && <Fact label="Likely to lead">{facts.leader}</Fact>}
-        {facts.thin > 0 && (
-          <Fact label="Limited form">
-            <span className="text-ink-soft">
-              {facts.thin} runner{facts.thin === 1 ? '' : 's'} projected by the light-history model (0-2 prior runs), so wider error.
-            </span>
-          </Fact>
-        )}
-      </div>
+          <span className="font-mono text-emerald-deep">{fmtPrice(facts.value.r.runner.fixedWinPrice)}</span>
+          <span className="text-xs text-ink-mute"> vs fair {fmtPrice(facts.value.r.eff!.effectivePrice)}</span>
+        </span>
+      )}
+      {facts.moves && (
+        <span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Mover </span>
+          <button type="button" onClick={() => onSelect(facts.moves!.r.runId)} className={link}>
+            {facts.moves.r.tabNumber}. {facts.moves.r.horse}
+          </button>{' '}
+          <span className={`font-mono ${facts.moves.m.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}`}>
+            {facts.moves.m.direction === 'firmed' ? 'firmed' : 'drifted'} {Math.round(facts.moves.m.pctChange)}%
+          </span>
+        </span>
+      )}
+      {facts.leader && (
+        <span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Likely to lead </span>
+          {facts.leader}
+        </span>
+      )}
+    </section>
+  )
+}
+
+// The ladder sits under the field table. Open by default on desktop, collapsed on phones (where the cards already give the order).
+export function RaceLadder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
+  const [open, setOpen] = useState(() => (typeof window === 'undefined' ? true : window.matchMedia('(min-width: 768px)').matches))
+  if (!ranked.length) return null
+  return (
+    <section className="rounded-lg border border-line bg-panel p-4 shadow-[var(--shadow-1)]">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full flex-wrap items-baseline justify-between gap-2 text-left">
+        <h3 className="text-sm font-semibold text-ink">
+          Projection ladder <span className="font-normal text-ink-faint">{open ? '▾' : '▸'}</span>
+        </h3>
+        <span className="text-xs text-ink-faint">Projected WPR, best first &middot; shaded bar is the likely range &middot; tap a runner for detail</span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          <Ladder ranked={ranked} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} />
+        </div>
+      )}
     </section>
   )
 }

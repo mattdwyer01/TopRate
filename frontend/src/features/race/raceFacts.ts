@@ -65,3 +65,12 @@ export function rankField(
     return { ...x, gap, inner: gap <= innerGap, outer: gap > innerGap && gap <= outerGap }
   })
 }
+
+// Typical error of a projection (WPR points). Uses the payload's own value; when it is missing, the model's documented out-of-sample error
+// for its kind of runner (main model by projection level, light model by number of prior runs).
+export function typicalSd(runner: Runner, proj: number | null): number | null {
+  if (runner.projectionSd != null) return runner.projectionSd
+  if (proj == null) return null
+  if (runner.projectionModel === 'light') return ({ 0: 11.8, 1: 10.5, 2: 10.0 } as Record<number, number>)[Math.min(2, runner.formHistory.length)] ?? 11
+  return proj >= 70 ? 7.96 : proj >= 60 ? 9.43 : 11.9
+}

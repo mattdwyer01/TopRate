@@ -108,7 +108,7 @@ function runningLine(r: FormRun): string {
   return parts.map((p) => (p != null ? p : '-')).join('-')
 }
 
-function RunRow({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
+function RunRow({ run, isPeak, delta, days }: { run: FormRun; isPeak: boolean; delta: number | null; days: number | null }) {
   return (
     <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
       <td className="px-2 py-1 whitespace-nowrap">{run.date ?? ''}</td>
@@ -151,6 +151,10 @@ function RunRow({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
       <td className="px-2 py-1 text-right font-mono font-semibold text-ink">
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
+      <td className={`px-2 py-1 text-right font-mono ${delta == null ? 'text-ink-faint' : delta > 1 ? 'text-emerald-deep' : delta < -1 ? 'text-rose' : 'text-ink-mute'}`} title="WPR change from the run before">
+        {delta == null ? '—' : delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
+      </td>
+      <td className="px-2 py-1 text-right font-mono text-ink-faint" title="Days since the run before">{days ?? '—'}</td>
     </tr>
   )
 }
@@ -391,6 +395,15 @@ export function RecentRunsTable({
     ? entries.filter((e) => e.kind === 'run' && !isDimmed(e.run))
     : entries
 
+  // WPR change and days since the run before, for every run that has an older rated run to compare with.
+  const extraOf = (run: FormRun): { delta: number | null; days: number | null } => {
+    const i = runs.indexOf(run)
+    const prev = i >= 0 ? runs[i + 1] : undefined
+    if (!prev) return { delta: null, days: null }
+    const d = run.date && prev.date ? Math.round((new Date(run.date).getTime() - new Date(prev.date).getTime()) / 86_400_000) : null
+    return { delta: run.wpr != null && prev.wpr != null ? run.wpr - prev.wpr : null, days: d }
+  }
+
   const countWord = live ? 'all' : 'last'
   // Distinguish "still loading" from "tried, couldn't get the rest" - these
   // used to look identical once loading finished (both just said "last N,
@@ -462,7 +475,7 @@ export function RecentRunsTable({
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
-        <table className="w-full min-w-[860px] border-collapse text-xs">
+        <table className="w-full min-w-[940px] border-collapse text-xs">
           <thead>
             <tr className="border-b border-line bg-bg text-ink-mute">
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Date</th>
@@ -478,6 +491,8 @@ export function RecentRunsTable({
               <th colSpan={3} className="border-l border-line-soft px-2 py-1 text-center font-medium">Race</th>
               <th colSpan={3} className="border-l border-line-soft px-2 py-1 text-center font-medium">Individual</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">WPR</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
             </tr>
             <tr className="border-b border-line bg-bg text-ink-faint">
               <th className="border-l border-line-soft px-2 py-0.5 text-right font-normal">Early</th>
@@ -493,7 +508,7 @@ export function RecentRunsTable({
               e.kind === 'separator' ? (
                 <SeparatorRow key={e.key} label={e.label} />
               ) : (
-                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} />
+                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} delta={extraOf(e.run).delta} days={extraOf(e.run).days} />
               ),
             )}
           </tbody>

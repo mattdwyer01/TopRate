@@ -74,3 +74,14 @@ export const BAND_BORDER: Record<'inner' | 'outer' | 'none', string> = {
   outer: 'border-l-amber',
   none: 'border-l-transparent',
 }
+
+// 'FU' -> 'first-up', '2U' -> '2nd-up', 'FS' -> 'first start' for the runner row's detail line.
+export function spellWord(label: string): string {
+  if (label === 'FU') return 'first-up'
+  if (label === 'FS') return 'first start'
+  const m = /^(\d+)U$/.exec(label)
+  if (!m) return label
+  const n = Number(m[1])
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${suffix}-up`
+}
