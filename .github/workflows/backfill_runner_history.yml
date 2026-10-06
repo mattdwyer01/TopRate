@@ -16,9 +16,16 @@ name: TopRate Backfill Runner History
 #
 # race_results_*.csv.gz is not touched by price_refresh.yml/
 # tab_results.yml (confirmed in backfill_race_results.py's own
-# docstring), so a push conflict here is far less likely than on
-# wpr_form_history.csv.gz - still retries against a freshly re-fetched
-# base rather than assuming, same as backfill_race_results.yml.
+# docstring), so there's no CONTENT conflict with those jobs - but a
+# push to main is still rejected (non-fast-forward) by ANY other job's
+# commit in between, regardless of which files it touched, since it's
+# the same branch tip. tab_results.yml commits every ~5 min, which is
+# often faster than this script's own multi-minute merge cycle at
+# scale, so the retry loop below tries a cheap rebase onto the fresh
+# tip first (normally just a pointer move here) before falling back to
+# a full reset + redo-from-scratch, same fix as backfill_race_results.yml
+# (confirmed needed live, 6 Oct 2026: a 3000-horse run exhausted all 12
+# retries and failed over ~57 min without this).
 
 on:
   workflow_dispatch:
