@@ -180,6 +180,18 @@ if __name__ == "__main__":
                 print(f"  form[0].{k:24s} = {_describe(rv)}{flag}")
         print()
 
+        print("=" * 70)
+        print(f"ALL {len(form)} form entries' dates (oldest to newest), to see "
+              "whether 'form' is a full career or a capped recent window:")
+        print("=" * 70)
+        dates = []
+        for fp in form:
+            fe2 = deref(fp)
+            if isinstance(fe2, dict):
+                dates.append(str(deref(fe2.get("date"))))
+        print(" ", sorted(dates))
+        print()
+
     print("=" * 70)
     print("Recursive scan of any nested dict/list values (depth 2), "
           "looking specifically for age/sex/sire/dam/gelding/breeding "
