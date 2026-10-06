@@ -300,8 +300,6 @@ export function RaceDetail({
         </div>
       </section>
 
-      <RaceLadder ranked={ranked} innerGap={COMPOSITE_INNER_GAP_FROM_TOP} outerGap={COMPOSITE_MAX_GAP_FROM_TOP} onSelect={setSelectedRunId} />
-
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Race shape</h3>
@@ -329,6 +327,8 @@ export function RaceDetail({
           <SpeedMapGrid race={race} runners={activeRunners} />
         )}
       </section>
+
+      <RaceLadder ranked={ranked} innerGap={COMPOSITE_INNER_GAP_FROM_TOP} outerGap={COMPOSITE_MAX_GAP_FROM_TOP} onSelect={setSelectedRunId} />
 
       {selectedRunner && (
         <RunnerDetailModal
