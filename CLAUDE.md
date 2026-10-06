@@ -47,6 +47,12 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `describe()` (the plain-English projection explanation shown in the
   dashboard's runner detail panel).
 - `toprate_json_capture.py` — rich per-runner form capture (SvelteKit __data.json).
+- `projection/` (Oct 2026) - the WPR projection model the dashboard shows. `features.py` builds as-of features for past and
+  upcoming runs; `run.py` projects declared races (main model for 3+ prior rated runs, light-history model for 0-2, plus a small
+  suitability adjustment) and appends to `wpr_projection_log.csv.gz`; `overlay.py` copies the log into the runner rows' `wprp_*`
+  columns (called from `toprate_daily.apply_new_projection`, at the daily/poller projection step and on every `rebuild_html`).
+  `.github/workflows/projection_daily.yml` runs it (daily full run incl. `analysis/trip_map/build_trip_map.py`, plus `fast` mode
+  from cron-job.org or after a going change). See `projection/README.md`.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
   runs. There is a duplicate `daily.yml` in the repo ROOT that is NOT used —
   ignore it (or delete it); only `.github/workflows/daily.yml` matters.
@@ -2279,6 +2285,18 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   hover-based reveal specifically needs its own explicit touch-device
   check, not just a narrower viewport.
 
+- **New projection model replaced the previous Proj and the Racing Model layer (Oct 2026)**: the dashboard's Proj, Base, Adj,
+  fair price, rank and edge columns now come from `projection/` (LightGBM on 10 years of results: main model 139 features, 5 seeds,
+  RMSE 9.1 out of sample, bias about 0 incl. heavy going; light-history model for 0-2 prior runs, RMSE 11.8 / 10.5 / 10.0 for debut /
+  2nd / 3rd start). Past races show the projection that was logged before they ran (`wpr_projection_log.csv.gz`, seeded from out-of-sample
+  back-fill for 1 Jul to 5 Oct 2026, then live), never an in-sample re-score. `racing_model.json` and the whole Racing Model code path
+  in `frontend/` are gone (the racing-model repo's `dashboard.yml` still commits the file; nothing reads it). The previous model's
+  `compute_wpr_projection` still runs (`_compute_wpr_projection_previous_model`) ONLY to refresh `wprp_contrib.speed_map`, the speed-map
+  signal behind the Speed Map tint, the SM Adj column and the trackers' favoured/unfavoured tags; overlay.py carries that one term through
+  and clears every other old projection field. A going change makes `tab_results_poller.py` dispatch `projection_daily.yml` in fast mode.
+  NOT re-validated on the new scale (user chose to skip): Proj gap lines (COMPOSITE_MAX/INNER_GAP_FROM_TOP 5 / 3), tracker GAP_MAX 5,
+  price softmax beta. The new Proj averages about 3 WPR below the previous one.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
@@ -2292,3 +2310,4 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   extracting from it into `toprate_daily.py` directly.
 - OneDrive (the repo lives in a OneDrive folder locally) can lock files during
   git operations. Not relevant in the cloud VM, but noted.
+- **Race tab and runner detail rebuilt, gap lines 4/6 (2026-10-06)**: `features/race/` now has `RaceHeader`, `RaceGlance` (projection ladder SVG plus at-a-glance facts), `RunnerRow` (desktop table, ≥lg), `RunnerCard` (cards below lg), `rowParts`, `raceFacts`, `FormLine`, and a rewritten `RunnerDetailModal` (hero tiles, why this projection, expected run, conditions, market, result, form). Shared density hook no longer used on the Race page. `COMPOSITE_INNER_GAP_FROM_TOP=4` / `COMPOSITE_MAX_GAP_FROM_TOP=6` in `raceModel.ts` (new model: inside 4 = 3.3 runners/race, 64% of winners; inside 6 = 4.8, 78%; the old 3/5 only captured 55%/71% on the new scale). Tracker GAP_MAX (5) and price softmax beta were not re-validated on the new scale.

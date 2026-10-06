@@ -109,6 +109,8 @@ export interface RawRunner {
   wpjadj: number | null
   wpjcb: Record<string, number> | null
   wpjc: number | null
+  wpjsd?: number | null // typical error of the projection (new model)
+  wpjm?: string | null // main / light
   wpjpr: number | null
   wpjr: number | null
   wpjpk: number | null

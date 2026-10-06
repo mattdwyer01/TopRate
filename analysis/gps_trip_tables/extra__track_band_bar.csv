@@ -1,0 +1,669 @@
+track,band,bg,n,mean
+Balaklava,1200-1400,1-3,120,6.533
+Balaklava,1200-1400,10-12,60,8.4
+Balaklava,1200-1400,13+,13,13.231
+Balaklava,1200-1400,4-6,120,6.9
+Balaklava,1200-1400,7-9,108,7.87
+Balaklava,1500-1800,1-3,45,6.467
+Balaklava,1500-1800,10-12,23,9.435
+Balaklava,1500-1800,13+,14,11.0
+Balaklava,1500-1800,4-6,45,7.578
+Balaklava,1500-1800,7-9,39,8.744
+Balaklava,2000+,1-3,36,12.611
+Balaklava,2000+,10-12,16,16.375
+Balaklava,2000+,13+,5,19.2
+Balaklava,2000+,4-6,38,12.474
+Balaklava,2000+,7-9,31,14.452
+Balaklava,sprint<=1100,1-3,68,3.0
+Balaklava,sprint<=1100,10-12,35,4.4
+Balaklava,sprint<=1100,13+,2,4.5
+Balaklava,sprint<=1100,4-6,69,3.609
+Balaklava,sprint<=1100,7-9,68,3.897
+Ballarat,1200-1400,1-3,168,1.685
+Ballarat,1200-1400,10-12,71,2.437
+Ballarat,1200-1400,13+,12,2.167
+Ballarat,1200-1400,4-6,166,2.373
+Ballarat,1200-1400,7-9,142,2.486
+Ballarat,1500-1800,1-3,69,2.449
+Ballarat,1500-1800,10-12,21,4.905
+Ballarat,1500-1800,13+,2,9.0
+Ballarat,1500-1800,4-6,69,3.0
+Ballarat,1500-1800,7-9,52,2.962
+Ballarat,2000+,1-3,48,5.417
+Ballarat,2000+,10-12,28,7.393
+Ballarat,2000+,13+,10,8.8
+Ballarat,2000+,4-6,46,6.174
+Ballarat,2000+,7-9,45,6.578
+Ballarat,sprint<=1100,1-3,98,1.102
+Ballarat,sprint<=1100,10-12,30,2.533
+Ballarat,sprint<=1100,13+,4,2.5
+Ballarat,sprint<=1100,4-6,99,1.818
+Ballarat,sprint<=1100,7-9,80,2.512
+Ballarat Synthetic,1200-1400,1-3,173,6.017
+Ballarat Synthetic,1200-1400,10-12,88,10.42
+Ballarat Synthetic,1200-1400,4-6,174,7.839
+Ballarat Synthetic,1200-1400,7-9,153,9.373
+Ballarat Synthetic,1500-1800,1-3,73,6.438
+Ballarat Synthetic,1500-1800,10-12,47,10.064
+Ballarat Synthetic,1500-1800,4-6,73,8.397
+Ballarat Synthetic,1500-1800,7-9,67,9.224
+Ballarat Synthetic,2000+,1-3,42,9.857
+Ballarat Synthetic,2000+,10-12,15,14.067
+Ballarat Synthetic,2000+,4-6,42,11.167
+Ballarat Synthetic,2000+,7-9,37,14.0
+Ballarat Synthetic,sprint<=1100,1-3,95,4.663
+Ballarat Synthetic,sprint<=1100,10-12,32,8.094
+Ballarat Synthetic,sprint<=1100,4-6,96,6.708
+Ballarat Synthetic,sprint<=1100,7-9,73,7.37
+Bendigo,1200-1400,1-3,129,4.442
+Bendigo,1200-1400,10-12,74,8.0
+Bendigo,1200-1400,13+,13,8.231
+Bendigo,1200-1400,4-6,128,5.711
+Bendigo,1200-1400,7-9,121,6.727
+Bendigo,1500-1800,1-3,84,4.881
+Bendigo,1500-1800,10-12,48,6.896
+Bendigo,1500-1800,13+,9,8.667
+Bendigo,1500-1800,4-6,84,5.452
+Bendigo,1500-1800,7-9,72,5.986
+Bendigo,2000+,1-3,21,4.286
+Bendigo,2000+,10-12,18,6.389
+Bendigo,2000+,13+,3,8.333
+Bendigo,2000+,4-6,21,6.429
+Bendigo,2000+,7-9,21,7.81
+Bendigo,sprint<=1100,1-3,120,2.833
+Bendigo,sprint<=1100,10-12,52,5.923
+Bendigo,sprint<=1100,13+,8,7.875
+Bendigo,sprint<=1100,4-6,120,3.9
+Bendigo,sprint<=1100,7-9,99,4.525
+Cairns,1200-1400,1-3,622,2.958
+Cairns,1200-1400,10-12,171,7.193
+Cairns,1200-1400,13+,12,8.5
+Cairns,1200-1400,4-6,629,4.814
+Cairns,1200-1400,7-9,457,6.195
+Cairns,1500-1800,1-3,123,3.496
+Cairns,1500-1800,10-12,42,7.048
+Cairns,1500-1800,13+,11,9.818
+Cairns,1500-1800,4-6,123,5.675
+Cairns,1500-1800,7-9,81,6.926
+Cairns,2000+,1-3,66,5.894
+Cairns,2000+,10-12,32,9.75
+Cairns,2000+,13+,12,11.833
+Cairns,2000+,4-6,65,7.969
+Cairns,2000+,7-9,49,8.551
+Cairns,sprint<=1100,1-3,452,4.392
+Cairns,sprint<=1100,10-12,101,7.594
+Cairns,sprint<=1100,4-6,436,5.677
+Cairns,sprint<=1100,7-9,320,7.138
+Caulfield,1200-1400,1-3,1112,3.753
+Caulfield,1200-1400,10-12,528,7.581
+Caulfield,1200-1400,13+,180,8.722
+Caulfield,1200-1400,4-6,1113,5.537
+Caulfield,1200-1400,7-9,965,6.69
+Caulfield,1500-1800,1-3,492,5.128
+Caulfield,1500-1800,10-12,261,8.862
+Caulfield,1500-1800,13+,104,10.096
+Caulfield,1500-1800,4-6,493,6.88
+Caulfield,1500-1800,7-9,417,7.952
+Caulfield,2000+,1-3,458,6.367
+Caulfield,2000+,10-12,240,11.146
+Caulfield,2000+,13+,120,12.742
+Caulfield,2000+,4-6,455,8.505
+Caulfield,2000+,7-9,405,9.946
+Caulfield,sprint<=1100,1-3,568,3.482
+Caulfield,sprint<=1100,10-12,231,6.775
+Caulfield,sprint<=1100,13+,60,7.633
+Caulfield,sprint<=1100,4-6,564,4.603
+Caulfield,sprint<=1100,7-9,476,5.618
+Caulfield Heath,1200-1400,1-3,142,3.465
+Caulfield Heath,1200-1400,10-12,28,7.214
+Caulfield Heath,1200-1400,13+,1,5.0
+Caulfield Heath,1200-1400,4-6,144,4.361
+Caulfield Heath,1200-1400,7-9,112,5.652
+Caulfield Heath,1500-1800,1-3,280,5.746
+Caulfield Heath,1500-1800,10-12,50,10.36
+Caulfield Heath,1500-1800,4-6,281,7.064
+Caulfield Heath,1500-1800,7-9,193,8.705
+Caulfield Heath,sprint<=1100,1-3,185,3.562
+Caulfield Heath,sprint<=1100,10-12,40,6.0
+Caulfield Heath,sprint<=1100,4-6,184,4.967
+Caulfield Heath,sprint<=1100,7-9,120,5.767
+Cranbourne,1200-1400,1-3,749,3.527
+Cranbourne,1200-1400,10-12,148,6.723
+Cranbourne,1200-1400,13+,16,7.625
+Cranbourne,1200-1400,4-6,750,4.885
+Cranbourne,1200-1400,7-9,570,5.844
+Cranbourne,1500-1800,1-3,327,3.107
+Cranbourne,1500-1800,10-12,85,6.0
+Cranbourne,1500-1800,13+,11,7.091
+Cranbourne,1500-1800,4-6,332,4.608
+Cranbourne,1500-1800,7-9,253,5.221
+Cranbourne,2000+,1-3,248,7.702
+Cranbourne,2000+,10-12,75,12.64
+Cranbourne,2000+,13+,6,11.5
+Cranbourne,2000+,4-6,248,10.782
+Cranbourne,2000+,7-9,205,11.824
+Cranbourne,sprint<=1100,1-3,357,3.081
+Cranbourne,sprint<=1100,10-12,37,7.946
+Cranbourne,sprint<=1100,4-6,359,5.05
+Cranbourne,sprint<=1100,7-9,243,6.119
+Dalby,1200-1400,1-3,134,3.493
+Dalby,1200-1400,10-12,24,5.667
+Dalby,1200-1400,4-6,131,5.069
+Dalby,1200-1400,7-9,115,5.157
+Dalby,2000+,1-3,12,10.167
+Dalby,2000+,10-12,1,12.0
+Dalby,2000+,4-6,12,10.0
+Dalby,2000+,7-9,12,11.083
+Dalby,sprint<=1100,1-3,108,2.269
+Dalby,sprint<=1100,10-12,22,4.545
+Dalby,sprint<=1100,4-6,107,2.897
+Dalby,sprint<=1100,7-9,100,3.52
+Doomben,1200-1400,1-3,2004,1.838
+Doomben,1200-1400,10-12,901,3.838
+Doomben,1200-1400,13+,172,4.273
+Doomben,1200-1400,4-6,2033,2.865
+Doomben,1200-1400,7-9,1813,3.436
+Doomben,1500-1800,1-3,743,1.834
+Doomben,1500-1800,10-12,289,4.917
+Doomben,1500-1800,13+,54,5.389
+Doomben,1500-1800,4-6,784,3.473
+Doomben,1500-1800,7-9,674,4.325
+Doomben,2000+,1-3,340,3.512
+Doomben,2000+,10-12,189,4.026
+Doomben,2000+,13+,67,6.493
+Doomben,2000+,4-6,371,4.42
+Doomben,2000+,7-9,333,4.276
+Doomben,sprint<=1100,1-3,637,1.691
+Doomben,sprint<=1100,10-12,204,5.471
+Doomben,sprint<=1100,13+,37,6.135
+Doomben,sprint<=1100,4-6,643,3.126
+Doomben,sprint<=1100,7-9,525,3.914
+Eagle Farm,1200-1400,1-3,1739,5.319
+Eagle Farm,1200-1400,10-12,825,9.005
+Eagle Farm,1200-1400,13+,298,11.121
+Eagle Farm,1200-1400,4-6,1734,6.741
+Eagle Farm,1200-1400,7-9,1537,7.779
+Eagle Farm,1500-1800,1-3,976,6.751
+Eagle Farm,1500-1800,10-12,422,10.863
+Eagle Farm,1500-1800,13+,119,13.067
+Eagle Farm,1500-1800,4-6,985,8.942
+Eagle Farm,1500-1800,7-9,868,10.028
+Eagle Farm,2000+,1-3,291,10.055
+Eagle Farm,2000+,10-12,138,15.413
+Eagle Farm,2000+,13+,83,16.988
+Eagle Farm,2000+,4-6,292,12.233
+Eagle Farm,2000+,7-9,252,14.397
+Eagle Farm,sprint<=1100,1-3,630,3.029
+Eagle Farm,sprint<=1100,10-12,152,7.783
+Eagle Farm,sprint<=1100,4-6,632,4.91
+Eagle Farm,sprint<=1100,7-9,479,6.292
+Flemington,1200-1400,1-3,1061,3.597
+Flemington,1200-1400,10-12,695,6.001
+Flemington,1200-1400,13+,298,5.829
+Flemington,1200-1400,4-6,1062,4.623
+Flemington,1200-1400,7-9,985,5.365
+Flemington,1500-1800,1-3,693,7.278
+Flemington,1500-1800,10-12,421,11.252
+Flemington,1500-1800,13+,169,13.124
+Flemington,1500-1800,4-6,691,9.311
+Flemington,1500-1800,7-9,636,9.984
+Flemington,2000+,1-3,573,8.417
+Flemington,2000+,10-12,376,12.08
+Flemington,2000+,13+,220,13.455
+Flemington,2000+,4-6,579,10.136
+Flemington,2000+,7-9,537,11.51
+Flemington,sprint<=1100,1-3,636,0.384
+Flemington,sprint<=1100,10-12,332,0.304
+Flemington,sprint<=1100,13+,159,0.377
+Flemington,sprint<=1100,4-6,632,0.331
+Flemington,sprint<=1100,7-9,567,0.333
+Gatton,1200-1400,1-3,136,6.566
+Gatton,1200-1400,10-12,73,11.356
+Gatton,1200-1400,4-6,137,8.964
+Gatton,1200-1400,7-9,124,10.927
+Gatton,1500-1800,1-3,54,6.685
+Gatton,1500-1800,10-12,25,11.04
+Gatton,1500-1800,4-6,54,9.259
+Gatton,1500-1800,7-9,48,11.021
+Gatton,2000+,1-3,21,15.19
+Gatton,2000+,10-12,14,14.643
+Gatton,2000+,4-6,20,15.25
+Gatton,2000+,7-9,21,15.905
+Gatton,sprint<=1100,1-3,196,4.76
+Gatton,sprint<=1100,10-12,67,8.866
+Gatton,sprint<=1100,4-6,192,7.292
+Gatton,sprint<=1100,7-9,162,8.556
+Gawler,1200-1400,1-3,233,3.442
+Gawler,1200-1400,10-12,125,8.24
+Gawler,1200-1400,13+,16,11.375
+Gawler,1200-1400,4-6,232,5.392
+Gawler,1200-1400,7-9,218,6.679
+Gawler,1500-1800,1-3,311,4.823
+Gawler,1500-1800,10-12,175,9.869
+Gawler,1500-1800,13+,28,9.357
+Gawler,1500-1800,4-6,314,6.984
+Gawler,1500-1800,7-9,299,8.977
+Gawler,2000+,1-3,81,5.481
+Gawler,2000+,10-12,17,9.118
+Gawler,2000+,13+,2,15.0
+Gawler,2000+,4-6,80,8.225
+Gawler,2000+,7-9,66,9.167
+Gawler,sprint<=1100,1-3,130,3.1
+Gawler,sprint<=1100,10-12,41,7.854
+Gawler,sprint<=1100,4-6,135,4.874
+Gawler,sprint<=1100,7-9,115,5.957
+Geelong,1200-1400,1-3,252,4.968
+Geelong,1200-1400,10-12,67,9.448
+Geelong,1200-1400,13+,4,11.0
+Geelong,1200-1400,4-6,250,6.788
+Geelong,1200-1400,7-9,210,7.862
+Geelong,1500-1800,1-3,155,5.516
+Geelong,1500-1800,10-12,69,9.768
+Geelong,1500-1800,13+,13,11.308
+Geelong,1500-1800,4-6,156,7.667
+Geelong,1500-1800,7-9,141,8.071
+Geelong,2000+,1-3,72,6.778
+Geelong,2000+,10-12,30,10.5
+Geelong,2000+,13+,7,6.571
+Geelong,2000+,4-6,72,6.889
+Geelong,2000+,7-9,61,8.148
+Geelong,sprint<=1100,1-3,126,5.079
+Geelong,sprint<=1100,10-12,29,8.828
+Geelong,sprint<=1100,13+,1,12.0
+Geelong,sprint<=1100,4-6,124,6.629
+Geelong,sprint<=1100,7-9,91,7.989
+Gold Coast,1200-1400,1-3,956,2.556
+Gold Coast,1200-1400,10-12,471,4.841
+Gold Coast,1200-1400,13+,220,5.982
+Gold Coast,1200-1400,4-6,970,3.573
+Gold Coast,1200-1400,7-9,833,4.259
+Gold Coast,1500-1800,1-3,311,5.235
+Gold Coast,1500-1800,10-12,125,8.88
+Gold Coast,1500-1800,13+,21,9.714
+Gold Coast,1500-1800,4-6,312,6.686
+Gold Coast,1500-1800,7-9,269,8.126
+Gold Coast,2000+,1-3,119,6.941
+Gold Coast,2000+,10-12,41,8.976
+Gold Coast,2000+,13+,12,12.75
+Gold Coast,2000+,4-6,121,8.364
+Gold Coast,2000+,7-9,106,8.84
+Gold Coast,sprint<=1100,1-3,527,2.326
+Gold Coast,sprint<=1100,10-12,119,7.496
+Gold Coast,sprint<=1100,13+,9,7.444
+Gold Coast,sprint<=1100,4-6,519,3.755
+Gold Coast,sprint<=1100,7-9,397,6.035
+Gold Coast Poly,1200-1400,1-3,393,4.031
+Gold Coast Poly,1200-1400,10-12,78,8.449
+Gold Coast Poly,1200-1400,4-6,387,6.388
+Gold Coast Poly,1200-1400,7-9,255,8.247
+Gold Coast Poly,1500-1800,1-3,514,5.776
+Gold Coast Poly,1500-1800,10-12,126,12.063
+Gold Coast Poly,1500-1800,4-6,504,8.718
+Gold Coast Poly,1500-1800,7-9,362,10.89
+Gold Coast Poly,2000+,1-3,330,7.061
+Gold Coast Poly,2000+,10-12,62,12.71
+Gold Coast Poly,2000+,4-6,325,10.363
+Gold Coast Poly,2000+,7-9,211,10.957
+Gold Coast Poly,sprint<=1100,1-3,571,4.182
+Gold Coast Poly,sprint<=1100,10-12,73,10.178
+Gold Coast Poly,sprint<=1100,4-6,558,7.016
+Gold Coast Poly,sprint<=1100,7-9,351,9.085
+Ipswich,1200-1400,1-3,1589,1.661
+Ipswich,1200-1400,10-12,622,3.664
+Ipswich,1200-1400,13+,89,4.112
+Ipswich,1200-1400,4-6,1651,2.514
+Ipswich,1200-1400,7-9,1417,2.893
+Ipswich,1500-1800,1-3,667,1.846
+Ipswich,1500-1800,10-12,265,4.906
+Ipswich,1500-1800,13+,39,3.128
+Ipswich,1500-1800,4-6,689,2.801
+Ipswich,1500-1800,7-9,573,3.761
+Ipswich,2000+,1-3,277,3.325
+Ipswich,2000+,10-12,123,5.203
+Ipswich,2000+,13+,29,7.207
+Ipswich,2000+,4-6,316,3.788
+Ipswich,2000+,7-9,269,4.398
+Ipswich,sprint<=1100,1-3,1039,-0.117
+Ipswich,sprint<=1100,10-12,198,2.97
+Ipswich,sprint<=1100,13+,6,4.167
+Ipswich,sprint<=1100,4-6,1047,0.931
+Ipswich,sprint<=1100,7-9,767,1.983
+Kilcoy,1200-1400,1-3,131,5.321
+Kilcoy,1200-1400,10-12,49,9.633
+Kilcoy,1200-1400,4-6,132,7.098
+Kilcoy,1200-1400,7-9,106,9.028
+Kilcoy,1500-1800,1-3,78,8.808
+Kilcoy,1500-1800,10-12,14,13.929
+Kilcoy,1500-1800,4-6,81,9.926
+Kilcoy,1500-1800,7-9,70,12.029
+Kilcoy,2000+,1-3,44,8.886
+Kilcoy,2000+,10-12,19,15.211
+Kilcoy,2000+,4-6,45,11.578
+Kilcoy,2000+,7-9,43,13.791
+Kilcoy,sprint<=1100,1-3,39,2.462
+Kilcoy,sprint<=1100,10-12,3,5.0
+Kilcoy,sprint<=1100,4-6,38,4.0
+Kilcoy,sprint<=1100,7-9,32,4.875
+Mackay,1200-1400,1-3,637,3.005
+Mackay,1200-1400,10-12,196,7.199
+Mackay,1200-1400,13+,28,7.857
+Mackay,1200-1400,4-6,640,4.986
+Mackay,1200-1400,7-9,480,6.204
+Mackay,1500-1800,1-3,396,6.735
+Mackay,1500-1800,10-12,87,10.575
+Mackay,1500-1800,13+,13,13.462
+Mackay,1500-1800,4-6,387,8.78
+Mackay,1500-1800,7-9,268,9.437
+Mackay,2000+,1-3,38,7.342
+Mackay,2000+,10-12,18,10.0
+Mackay,2000+,13+,6,10.5
+Mackay,2000+,4-6,38,8.368
+Mackay,2000+,7-9,27,8.074
+Mackay,sprint<=1100,1-3,483,2.629
+Mackay,sprint<=1100,10-12,122,6.492
+Mackay,sprint<=1100,13+,9,5.889
+Mackay,sprint<=1100,4-6,474,4.426
+Mackay,sprint<=1100,7-9,372,5.578
+Moonee Valley,1200-1400,1-3,747,5.671
+Moonee Valley,1200-1400,10-12,194,10.33
+Moonee Valley,1200-1400,13+,15,11.733
+Moonee Valley,1200-1400,4-6,754,7.7
+Moonee Valley,1200-1400,7-9,580,8.629
+Moonee Valley,1500-1800,1-3,639,7.454
+Moonee Valley,1500-1800,10-12,148,12.182
+Moonee Valley,1500-1800,13+,24,12.875
+Moonee Valley,1500-1800,4-6,639,9.56
+Moonee Valley,1500-1800,7-9,491,10.982
+Moonee Valley,2000+,1-3,547,8.907
+Moonee Valley,2000+,10-12,175,15.246
+Moonee Valley,2000+,13+,21,18.238
+Moonee Valley,2000+,4-6,546,12.057
+Moonee Valley,2000+,7-9,454,13.011
+Moonee Valley,sprint<=1100,1-3,468,4.581
+Moonee Valley,sprint<=1100,10-12,89,8.831
+Moonee Valley,sprint<=1100,13+,4,10.75
+Moonee Valley,sprint<=1100,4-6,466,6.17
+Moonee Valley,sprint<=1100,7-9,325,7.415
+Mornington,1200-1400,1-3,150,4.56
+Mornington,1200-1400,10-12,45,10.311
+Mornington,1200-1400,13+,3,10.0
+Mornington,1200-1400,4-6,149,6.745
+Mornington,1200-1400,7-9,121,8.463
+Mornington,1500-1800,1-3,97,5.196
+Mornington,1500-1800,10-12,42,8.952
+Mornington,1500-1800,13+,2,9.0
+Mornington,1500-1800,4-6,99,7.394
+Mornington,1500-1800,7-9,82,8.744
+Mornington,2000+,1-3,66,6.545
+Mornington,2000+,10-12,26,11.577
+Mornington,2000+,13+,5,11.0
+Mornington,2000+,4-6,66,9.03
+Mornington,2000+,7-9,50,10.7
+Mornington,sprint<=1100,1-3,105,3.457
+Mornington,sprint<=1100,10-12,15,7.4
+Mornington,sprint<=1100,4-6,105,5.552
+Mornington,sprint<=1100,7-9,81,7.333
+Morphettville,1200-1400,1-3,383,2.721
+Morphettville,1200-1400,10-12,261,6.061
+Morphettville,1200-1400,13+,107,7.009
+Morphettville,1200-1400,4-6,384,3.956
+Morphettville,1200-1400,7-9,363,5.292
+Morphettville,1500-1800,1-3,525,4.962
+Morphettville,1500-1800,10-12,299,9.565
+Morphettville,1500-1800,13+,110,10.0
+Morphettville,1500-1800,4-6,526,6.778
+Morphettville,1500-1800,7-9,472,8.119
+Morphettville,2000+,1-3,210,7.205
+Morphettville,2000+,10-12,118,12.246
+Morphettville,2000+,13+,57,15.947
+Morphettville,2000+,4-6,209,9.589
+Morphettville,2000+,7-9,183,10.995
+Morphettville,sprint<=1100,1-3,488,2.227
+Morphettville,sprint<=1100,10-12,263,5.859
+Morphettville,sprint<=1100,13+,68,7.618
+Morphettville,sprint<=1100,4-6,487,3.292
+Morphettville,sprint<=1100,7-9,428,4.664
+Morphettville Parks,1200-1400,1-3,708,4.343
+Morphettville Parks,1200-1400,10-12,335,8.54
+Morphettville Parks,1200-1400,13+,63,9.206
+Morphettville Parks,1200-1400,4-6,710,5.9
+Morphettville Parks,1200-1400,7-9,625,7.464
+Morphettville Parks,1500-1800,1-3,210,5.138
+Morphettville Parks,1500-1800,10-12,83,8.0
+Morphettville Parks,1500-1800,13+,10,11.5
+Morphettville Parks,1500-1800,4-6,209,6.55
+Morphettville Parks,1500-1800,7-9,186,7.339
+Morphettville Parks,2000+,1-3,216,8.292
+Morphettville Parks,2000+,10-12,81,14.901
+Morphettville Parks,2000+,13+,2,20.0
+Morphettville Parks,2000+,4-6,215,11.442
+Morphettville Parks,2000+,7-9,183,13.082
+Morphettville Parks,sprint<=1100,1-3,372,2.602
+Morphettville Parks,sprint<=1100,10-12,153,5.699
+Morphettville Parks,sprint<=1100,13+,17,7.765
+Morphettville Parks,sprint<=1100,4-6,372,4.003
+Morphettville Parks,sprint<=1100,7-9,317,5.309
+Murray Bridge GH,1200-1400,1-3,604,6.863
+Murray Bridge GH,1200-1400,10-12,450,11.129
+Murray Bridge GH,1200-1400,13+,171,12.287
+Murray Bridge GH,1200-1400,4-6,606,8.5
+Murray Bridge GH,1200-1400,7-9,577,9.771
+Murray Bridge GH,1500-1800,1-3,272,8.989
+Murray Bridge GH,1500-1800,10-12,186,12.962
+Murray Bridge GH,1500-1800,13+,81,13.741
+Murray Bridge GH,1500-1800,4-6,272,10.857
+Murray Bridge GH,1500-1800,7-9,255,11.769
+Murray Bridge GH,2000+,1-3,137,11.204
+Murray Bridge GH,2000+,10-12,80,15.762
+Murray Bridge GH,2000+,13+,20,17.45
+Murray Bridge GH,2000+,4-6,138,13.261
+Murray Bridge GH,2000+,7-9,121,13.967
+Murray Bridge GH,sprint<=1100,1-3,410,4.968
+Murray Bridge GH,sprint<=1100,10-12,262,8.588
+Murray Bridge GH,sprint<=1100,13+,53,9.604
+Murray Bridge GH,sprint<=1100,4-6,412,6.342
+Murray Bridge GH,sprint<=1100,7-9,379,7.615
+Pakenham,1200-1400,1-3,910,1.951
+Pakenham,1200-1400,10-12,295,3.749
+Pakenham,1200-1400,13+,10,4.2
+Pakenham,1200-1400,4-6,904,2.795
+Pakenham,1200-1400,7-9,746,3.349
+Pakenham,1500-1800,1-3,317,2.467
+Pakenham,1500-1800,10-12,96,5.021
+Pakenham,1500-1800,4-6,320,3.416
+Pakenham,1500-1800,7-9,257,4.226
+Pakenham,2000+,1-3,197,6.091
+Pakenham,2000+,10-12,96,10.052
+Pakenham,2000+,13+,5,10.2
+Pakenham,2000+,4-6,195,7.4
+Pakenham,2000+,7-9,165,8.873
+Pakenham,sprint<=1100,1-3,259,1.332
+Pakenham,sprint<=1100,10-12,77,2.831
+Pakenham,sprint<=1100,4-6,261,2.057
+Pakenham,sprint<=1100,7-9,197,2.695
+Pakenham Synthetic,1200-1400,1-3,464,3.414
+Pakenham Synthetic,1200-1400,10-12,284,7.095
+Pakenham Synthetic,1200-1400,4-6,466,4.738
+Pakenham Synthetic,1200-1400,7-9,425,6.118
+Pakenham Synthetic,1500-1800,1-3,218,6.982
+Pakenham Synthetic,1500-1800,10-12,107,12.103
+Pakenham Synthetic,1500-1800,4-6,218,9.147
+Pakenham Synthetic,1500-1800,7-9,211,11.261
+Pakenham Synthetic,2000+,1-3,101,15.713
+Pakenham Synthetic,2000+,10-12,41,21.78
+Pakenham Synthetic,2000+,4-6,100,18.97
+Pakenham Synthetic,2000+,7-9,80,20.275
+Pakenham Synthetic,sprint<=1100,1-3,192,3.12
+Pakenham Synthetic,sprint<=1100,10-12,80,7.762
+Pakenham Synthetic,sprint<=1100,4-6,191,5.026
+Pakenham Synthetic,sprint<=1100,7-9,166,6.922
+Rockhampton,1200-1400,1-3,851,2.398
+Rockhampton,1200-1400,10-12,238,5.664
+Rockhampton,1200-1400,13+,30,7.0
+Rockhampton,1200-1400,4-6,835,3.901
+Rockhampton,1200-1400,7-9,584,4.459
+Rockhampton,1500-1800,1-3,273,3.15
+Rockhampton,1500-1800,10-12,60,5.133
+Rockhampton,1500-1800,13+,20,6.3
+Rockhampton,1500-1800,4-6,272,4.599
+Rockhampton,1500-1800,7-9,179,4.888
+Rockhampton,2000+,1-3,3,2.333
+Rockhampton,2000+,4-6,4,2.75
+Rockhampton,2000+,7-9,5,1.4
+Rockhampton,sprint<=1100,1-3,552,2.344
+Rockhampton,sprint<=1100,10-12,88,6.568
+Rockhampton,sprint<=1100,13+,6,8.5
+Rockhampton,sprint<=1100,4-6,537,3.667
+Rockhampton,sprint<=1100,7-9,325,5.64
+Sandown-Hillside,1200-1400,1-3,959,2.65
+Sandown-Hillside,1200-1400,10-12,367,6.643
+Sandown-Hillside,1200-1400,13+,97,6.794
+Sandown-Hillside,1200-1400,4-6,955,4.399
+Sandown-Hillside,1200-1400,7-9,789,5.322
+Sandown-Hillside,1500-1800,1-3,723,3.755
+Sandown-Hillside,1500-1800,10-12,347,6.798
+Sandown-Hillside,1500-1800,13+,113,7.531
+Sandown-Hillside,1500-1800,4-6,728,5.291
+Sandown-Hillside,1500-1800,7-9,626,6.109
+Sandown-Hillside,2000+,1-3,220,5.373
+Sandown-Hillside,2000+,10-12,82,9.146
+Sandown-Hillside,2000+,13+,24,8.958
+Sandown-Hillside,2000+,4-6,220,7.341
+Sandown-Hillside,2000+,7-9,189,7.397
+Sandown-Hillside,sprint<=1100,1-3,501,1.812
+Sandown-Hillside,sprint<=1100,10-12,135,4.119
+Sandown-Hillside,sprint<=1100,13+,25,4.16
+Sandown-Hillside,sprint<=1100,4-6,494,2.656
+Sandown-Hillside,sprint<=1100,7-9,361,3.327
+Sandown-Lakeside,1200-1400,1-3,995,7.398
+Sandown-Lakeside,1200-1400,10-12,304,10.99
+Sandown-Lakeside,1200-1400,13+,51,12.725
+Sandown-Lakeside,1200-1400,4-6,1005,9.003
+Sandown-Lakeside,1200-1400,7-9,771,9.914
+Sandown-Lakeside,1500-1800,1-3,305,7.616
+Sandown-Lakeside,1500-1800,10-12,100,11.26
+Sandown-Lakeside,1500-1800,13+,13,12.923
+Sandown-Lakeside,1500-1800,4-6,309,8.725
+Sandown-Lakeside,1500-1800,7-9,255,9.886
+Sandown-Lakeside,2000+,1-3,288,11.722
+Sandown-Lakeside,2000+,10-12,111,15.955
+Sandown-Lakeside,2000+,13+,27,18.333
+Sandown-Lakeside,2000+,4-6,290,13.772
+Sandown-Lakeside,2000+,7-9,248,15.016
+Sandown-Lakeside,sprint<=1100,1-3,45,1.422
+Sandown-Lakeside,sprint<=1100,10-12,15,2.6
+Sandown-Lakeside,sprint<=1100,13+,5,2.0
+Sandown-Lakeside,sprint<=1100,4-6,45,2.089
+Sandown-Lakeside,sprint<=1100,7-9,36,2.417
+Strathalbyn,1200-1400,1-3,132,6.848
+Strathalbyn,1200-1400,10-12,68,10.868
+Strathalbyn,1200-1400,13+,15,9.133
+Strathalbyn,1200-1400,4-6,132,8.136
+Strathalbyn,1200-1400,7-9,118,9.271
+Strathalbyn,1500-1800,1-3,72,9.764
+Strathalbyn,1500-1800,10-12,43,15.326
+Strathalbyn,1500-1800,13+,6,17.833
+Strathalbyn,1500-1800,4-6,72,12.111
+Strathalbyn,1500-1800,7-9,68,14.515
+Strathalbyn,2000+,1-3,48,7.562
+Strathalbyn,2000+,10-12,29,11.379
+Strathalbyn,2000+,13+,4,12.25
+Strathalbyn,2000+,4-6,48,9.979
+Strathalbyn,2000+,7-9,46,11.478
+Strathalbyn,sprint<=1100,1-3,33,6.152
+Strathalbyn,sprint<=1100,10-12,2,13.0
+Strathalbyn,sprint<=1100,4-6,33,8.091
+Strathalbyn,sprint<=1100,7-9,29,9.517
+Sunshine Coast,1200-1400,1-3,1890,4.759
+Sunshine Coast,1200-1400,10-12,967,7.488
+Sunshine Coast,1200-1400,13+,280,8.304
+Sunshine Coast,1200-1400,4-6,1876,6.072
+Sunshine Coast,1200-1400,7-9,1644,6.872
+Sunshine Coast,1500-1800,1-3,1080,8.229
+Sunshine Coast,1500-1800,10-12,438,11.824
+Sunshine Coast,1500-1800,13+,95,13.495
+Sunshine Coast,1500-1800,4-6,1079,10.032
+Sunshine Coast,1500-1800,7-9,861,10.911
+Sunshine Coast,2000+,1-3,197,9.401
+Sunshine Coast,2000+,10-12,72,12.569
+Sunshine Coast,2000+,13+,22,16.773
+Sunshine Coast,2000+,4-6,191,11.817
+Sunshine Coast,2000+,7-9,151,12.94
+Sunshine Coast,sprint<=1100,1-3,1484,2.787
+Sunshine Coast,sprint<=1100,10-12,455,6.213
+Sunshine Coast,sprint<=1100,13+,90,7.589
+Sunshine Coast,sprint<=1100,4-6,1466,4.282
+Sunshine Coast,sprint<=1100,7-9,1072,5.21
+Sunshine Coast Poly,1200-1400,1-3,112,4.946
+Sunshine Coast Poly,1200-1400,10-12,21,10.619
+Sunshine Coast Poly,1200-1400,4-6,112,6.321
+Sunshine Coast Poly,1200-1400,7-9,76,8.947
+Sunshine Coast Poly,1500-1800,1-3,59,4.729
+Sunshine Coast Poly,1500-1800,10-12,9,13.111
+Sunshine Coast Poly,1500-1800,4-6,58,8.276
+Sunshine Coast Poly,1500-1800,7-9,32,11.344
+Sunshine Coast Poly,2000+,1-3,30,5.8
+Sunshine Coast Poly,2000+,10-12,3,8.333
+Sunshine Coast Poly,2000+,4-6,29,8.034
+Sunshine Coast Poly,2000+,7-9,22,9.136
+Sunshine Coast Poly,sprint<=1100,1-3,194,2.923
+Sunshine Coast Poly,sprint<=1100,10-12,25,7.76
+Sunshine Coast Poly,sprint<=1100,4-6,192,4.99
+Sunshine Coast Poly,sprint<=1100,7-9,114,6.754
+Toowoomba,1200-1400,1-3,1269,4.51
+Toowoomba,1200-1400,10-12,418,7.897
+Toowoomba,1200-1400,13+,26,8.615
+Toowoomba,1200-1400,4-6,1271,6.485
+Toowoomba,1200-1400,7-9,1090,7.412
+Toowoomba,1500-1800,1-3,583,5.731
+Toowoomba,1500-1800,10-12,98,12.439
+Toowoomba,1500-1800,4-6,584,8.435
+Toowoomba,1500-1800,7-9,473,9.909
+Toowoomba,2000+,1-3,373,6.756
+Toowoomba,2000+,10-12,94,12.234
+Toowoomba,2000+,13+,13,12.538
+Toowoomba,2000+,4-6,374,8.893
+Toowoomba,2000+,7-9,294,10.779
+Toowoomba,sprint<=1100,1-3,1173,3.12
+Toowoomba,sprint<=1100,10-12,241,8.963
+Toowoomba,sprint<=1100,13+,12,8.667
+Toowoomba,sprint<=1100,4-6,1177,5.133
+Toowoomba,sprint<=1100,7-9,851,6.86
+Townsville,1200-1400,1-3,1067,3.781
+Townsville,1200-1400,10-12,499,7.439
+Townsville,1200-1400,13+,178,9.084
+Townsville,1200-1400,4-6,1079,5.271
+Townsville,1200-1400,7-9,908,6.368
+Townsville,1500-1800,1-3,240,7.071
+Townsville,1500-1800,10-12,77,11.948
+Townsville,1500-1800,13+,20,14.5
+Townsville,1500-1800,4-6,240,9.038
+Townsville,1500-1800,7-9,176,10.767
+Townsville,2000+,1-3,39,14.923
+Townsville,2000+,10-12,24,18.542
+Townsville,2000+,13+,19,20.316
+Townsville,2000+,4-6,37,16.216
+Townsville,2000+,7-9,29,18.828
+Townsville,sprint<=1100,1-3,643,2.328
+Townsville,sprint<=1100,10-12,277,5.574
+Townsville,sprint<=1100,13+,79,6.494
+Townsville,sprint<=1100,4-6,655,3.562
+Townsville,sprint<=1100,7-9,519,4.9
+Warwick,1200-1400,1-3,125,4.304
+Warwick,1200-1400,10-12,68,7.353
+Warwick,1200-1400,13+,20,8.95
+Warwick,1200-1400,4-6,125,5.0
+Warwick,1200-1400,7-9,112,6.143
+Warwick,1500-1800,1-3,36,4.278
+Warwick,1500-1800,10-12,26,6.962
+Warwick,1500-1800,13+,9,9.889
+Warwick,1500-1800,4-6,36,6.444
+Warwick,1500-1800,7-9,35,6.886
+Warwick,2000+,1-3,3,11.667
+Warwick,2000+,4-6,3,13.333
+Warwick,2000+,7-9,2,12.5
+Warwick,sprint<=1100,1-3,87,2.621
+Warwick,sprint<=1100,10-12,28,6.0
+Warwick,sprint<=1100,13+,2,5.0
+Warwick,sprint<=1100,4-6,86,3.942
+Warwick,sprint<=1100,7-9,74,5.338

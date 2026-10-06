@@ -77,11 +77,8 @@ export interface Runner {
   wprTrend: number | null
   wprPeakRank1Yr: number | null
   wprNett: number | null
-  rdAdj?: number | null // race-day part of Proj (racing_model.json wr)
-  rmWpr?: number | null // Racing Model chance on the WPR scale (set by lib/racingModel.ts withModelAdjustments)
-  projSd?: number | null // spread of the Racing Model WPR projection (sd, WPR points)
-  signals?: string[] // market signal codes (lib/signals.ts)
-  valueNow?: number | null // value model: win chance x current fixed price (lib/signals.ts)
+  projectionSd: number | null // typical error of the projection (WPR points), from the new model
+  projectionModel: 'main' | 'light' | null // which model projected the runner (light = 0-2 prior runs)
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null

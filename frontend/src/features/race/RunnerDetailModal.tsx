@@ -1,20 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { compositeScore, type EffectiveRunner } from '../../lib/raceModel'
-import { fmtPrice, fmtWpr } from '../../lib/format'
+import type { TripRunner } from '../../lib/tripMap'
+import type { EffectiveRunner } from '../../lib/raceModel'
+import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
+import { spellPosition } from '../../lib/spellPosition'
 import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { PriceMovementChart } from './PriceMovementChart'
-import { ModelHeadline, type ModelDetail } from './ModelRunnerDetail'
+import { FormLine } from './FormLine'
+import { adjClass, fmtAdj, ratingSuffix } from './rowParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
   race: Race
   effective?: EffectiveRunner
+  rank: number | null
+  fieldSize: number
+  gapFromTop: number | null
+  tripRunner: TripRunner | null
+  tripKind: 'avg' | '800m' | null
   deltaValue: number | null
   baseValue: number | null
   onSetDelta: (v: number | null) => void
@@ -23,22 +31,51 @@ interface RunnerDetailModalProps {
   onClose: () => void
   onPrev: () => void
   onNext: () => void
-  // Racing Model projection for this runner: when present it replaces TopRate's rating block, adjustment
-  // breakdown and predicted WPR (the race page shows the Racing Model only)
-  model?: ModelDetail | null
 }
 
-// Full-screen overlay for a runner's projection detail. Replaces the old
-// inline-below-table panel so it doesn't push the rest of the table around,
-// and adds prev/next navigation plus the manual-override controls
-// (adjustment delta always; a base-WPR entry when the model has no
-// projection at all). Both write through to lib/wprOverrides and feed
-// lib/raceModel's field-wide effective recompute, so a change here
-// immediately shows up in every other runner's price too.
+function Card({ title, note, children, className = '' }: { title: string; note?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-lg border border-line bg-panel p-3.5 ${className}`}>
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
+        {note && <span className="text-[11px] text-ink-faint">{note}</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Tile({ label, children, sub, className = '' }: { label: string; children: React.ReactNode; sub?: React.ReactNode; className?: string }) {
+  return (
+    <div className={`min-w-0 rounded-lg bg-bg p-3 ${className}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{label}</div>
+      <div className="mt-1">{children}</div>
+      {sub && <div className="mt-1 text-xs text-ink-mute">{sub}</div>}
+    </div>
+  )
+}
+
+function Row({ label, value, className = '' }: { label: string; value: React.ReactNode; className?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft py-1.5 text-sm last:border-0">
+      <span className="text-ink-mute">{label}</span>
+      <span className={`font-mono text-ink ${className}`}>{value}</span>
+    </div>
+  )
+}
+
+// The runner's page. Top: the projection and what it rests on. Then why (base, adjustment, form line), where the horse is expected to
+// be in the run, how it goes in today's conditions, the market, and the full form. Prev/next and arrow keys move through the field;
+// the manual adjustment writes through lib/wprOverrides and re-prices the whole field.
 export function RunnerDetailModal({
   runner,
   race,
   effective,
+  rank,
+  fieldSize,
+  gapFromTop,
+  tripRunner,
+  tripKind,
   deltaValue,
   baseValue,
   onSetDelta,
@@ -47,7 +84,6 @@ export function RunnerDetailModal({
   onClose,
   onPrev,
   onNext,
-  model,
 }: RunnerDetailModalProps) {
   const scratched = effective?.scratched ?? false
   const [scrolled, setScrolled] = useState(false)
@@ -58,6 +94,8 @@ export function RunnerDetailModal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
       if (e.key === 'Escape') onClose()
       else if (e.key === 'ArrowLeft') onPrev()
       else if (e.key === 'ArrowRight') onNext()
@@ -66,208 +104,171 @@ export function RunnerDetailModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, onPrev, onNext])
 
-  // Reset scroll position (and the mini-header state riding on it) when
-  // navigating to a different runner - the scrollable panel element
-  // persists across prev/next, so without this a scrolled-down view would
-  // carry over to the next horse.
+  // The scrollable panel persists across prev/next, so reset it for the next horse.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
     setScrolled(false)
   }, [runner.runId])
 
-  // Scratched: force to null rather than falling back to the model's
-  // raw (pre-scratch) value - same reasoning as RunnerRow's displayProj
-  // (effective.effectiveProjectedWpr is explicitly null once scratched,
-  // and ?? would otherwise treat that the same as "no override").
-  const priceBitsBefore: string[] = []
-  const priceBitsAfter: string[] = []
-  priceBitsAfter.push(runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race')
-  // Fixed price gets its own bit below (not folded into the plain-text
-  // arrays above) so the raceday move vs open_price can be colour-coded.
-  const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const hasOverride = effective?.hasOverride ?? false
-  const hasPriceInfo =
-    runner.priceSeries.length >= 2 ||
-    runner.fixedWinPrice != null ||
-    runner.topratePrice != null ||
-    runner.startingPrice != null
+  const spell = spellPosition(runner.formHistory, race.date)
+  const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
+  const fair = effective?.effectivePrice ?? null
+  const market = runner.fixedWinPrice
+  const valuePct = fair != null && market != null && fair > 0 ? (market / fair - 1) * 100 : null
+  const sd = runner.projectionSd
+  const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
+  const priceBitsAfter = [runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race']
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/60 p-3 sm:items-center sm:p-6"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/60 p-0 sm:items-center sm:p-6" onClick={onClose}>
       <div
         ref={scrollRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${runner.horse} detail`}
         tabIndex={-1}
-        className="flex max-h-full w-full max-w-6xl flex-col overflow-y-auto rounded-lg bg-panel shadow-[var(--shadow-2)] outline-none"
+        className="flex h-full max-h-full w-full max-w-6xl flex-col overflow-y-auto bg-bg shadow-[var(--shadow-2)] outline-none sm:h-auto sm:rounded-lg"
         onClick={(e) => e.stopPropagation()}
-        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 120)}
+        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 110)}
       >
         <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-line bg-panel px-3 py-2.5">
-          {runner.silkUrl ? (
-            <img src={runner.silkUrl} alt="" className="h-10 w-10 shrink-0 rounded-sm object-contain" />
-          ) : (
-            <div className="h-10 w-10 shrink-0 rounded-sm bg-bg" />
-          )}
+          {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm object-contain" /> : <div className="h-11 w-11 shrink-0 rounded-sm bg-bg" />}
           <div className="min-w-0 flex-1">
             <div className={`truncate text-base font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
               {runner.tabNumber}. {runner.horse}
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">
-                  {fmtWpr(model ? compositeScore(runner, effective?.effectiveProjectedWpr) : effectiveWpr)}
-                </span>
-                <span className="text-ink-faint">{model ? 'Proj' : 'effective WPR'}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                <span className="text-ink-faint">projected WPR</span>
+                {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
             ) : (
-              <div className="truncate text-xs text-ink-faint">
-                {runner.jockey}
-                {runner.jockeyRating != null ? ` (${Math.round(runner.jockeyRating)})` : ''} / {runner.trainer}
-                {runner.trainerRating != null ? ` (${Math.round(runner.trainerRating)})` : ''}
+              <div className="truncate text-xs text-ink-mute">
+                {race.venue} R{race.raceNumber} &middot; {runner.jockey}
+                {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
+                {ratingSuffix(runner.trainerRating)}
               </div>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {runner.dataScratched ? (
-              // Real, data-confirmed scratch - not a toggle (nothing to
-              // undo here, see RaceDetail's effectiveScratched), solid fill
-              // so it reads as a fact rather than the manual what-if toggle.
-              <span
-                title="Scratched (confirmed by TopRate)"
-                className="rounded-md bg-rose px-2 py-1 text-xs font-semibold text-white"
-              >
+              <span title="Scratched (confirmed by TopRate)" className="rounded-md bg-rose px-2 py-1 text-xs font-semibold text-white">
                 Scratched
               </span>
             ) : (
               <button
                 type="button"
                 onClick={onToggleScratch}
-                className={`rounded-md border px-2 text-xs font-semibold transition-colors ${
-                  scratched
-                    ? 'border-rose-line bg-rose-bg text-rose'
-                    : 'border-line text-ink-mute hover:bg-bg hover:text-ink'
-                }`}
+                className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${scratched ? 'border-rose-line bg-rose-bg text-rose' : 'border-line text-ink-mute hover:bg-bg hover:text-ink'}`}
               >
                 {scratched ? 'Scratched' : 'Scratch'}
               </button>
             )}
-            <button
-              type="button"
-              onClick={onPrev}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-              aria-label="Previous runner"
-            >
-              ‹
+            <button type="button" onClick={onPrev} className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Previous runner">
+              &lsaquo;
             </button>
-            <button
-              type="button"
-              onClick={onNext}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-              aria-label="Next runner"
-            >
-              ›
+            <button type="button" onClick={onNext} className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Next runner">
+              &rsaquo;
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-1 flex h-8 w-8 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-              aria-label="Close"
-            >
-              ✕
+            <button type="button" onClick={onClose} className="ml-1 flex h-8 w-8 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Close">
+              &#10005;
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 p-3">
-          {model ? (
-            <ModelHeadline runner={runner} detail={model} scratched={scratched} effectiveWpr={effective?.effectiveProjectedWpr} />
-          ) : (
-            <>
-          {runner.projectedWpr == null && (
-            <div className="rounded-lg border border-amber-line bg-amber-bg p-2.5 text-sm text-amber">
-              No projection for this runner.{' '}
-              {runner.projectionDescription || 'Insufficient form history (under 3 prior runs).'}
+        <div className="flex flex-col gap-3 p-3 sm:p-4">
+          {runner.projectedWpr == null && baseValue == null && (
+            <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-sm text-amber">
+              No projection for this runner. {runner.projectionDescription || 'There is not enough form history to project it; enter your own base WPR below to rate it.'}
             </div>
           )}
 
-          <div className="rounded-lg bg-bg p-2.5">
-            {/* Your adjustment (always-editable) plus $WPR/rank sit to the
-                right of the headline number on the same row - previously
-                each was its own line below, costing vertical space this
-                row has spare width for. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                {scratched ? (
-                  <span className="font-mono text-2xl font-bold text-rose">SCR</span>
+          {/* Headline numbers */}
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <Tile
+              label="Projected WPR"
+              className="col-span-2 md:col-span-1"
+              sub={
+                scratched ? (
+                  runner.dataScratched ? 'confirmed scratched' : 'manually scratched'
                 ) : (
-                  <span className="font-mono text-2xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-                )}
-                <span className="text-xs text-ink-mute">
-                  {scratched
-                    ? runner.dataScratched
-                      ? 'confirmed scratched - out of the field pricing'
-                      : 'manually scratched - out of the field pricing'
-                    : 'effective WPR'}
-                </span>
-                {hasOverride && (
-                  <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
-                    manually adjusted
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <label className="flex items-center gap-2 text-sm text-ink-soft">
-                  Your adjustment
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={deltaValue ?? ''}
-                    onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder="0.0"
-                    className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-                  />
-                  {(deltaValue != null || baseValue != null) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSetDelta(null)
-                        onSetBase(null)
-                      }}
-                      className="text-xs text-ink-mute underline hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </label>
-                {runner.wprRank != null && (
-                  <span className="text-xs text-ink-mute">
-                    rank <span className="font-mono font-semibold text-ink">{runner.wprRank}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-            {hasOverride && (
-              <div className="mt-1 text-xs text-ink-mute">
-                model {fmtWpr(runner.projectedWpr ?? baseValue)}
-                {deltaValue != null && deltaValue !== 0 && (
                   <>
-                    {' '}
-                    {deltaValue > 0 ? '+' : ''}
-                    {deltaValue.toFixed(1)} your adjustment
+                    {sd != null && <span>&plusmn;{sd.toFixed(1)} typical error</span>}
+                    {runner.projectionModel === 'light' && <span> &middot; light-history model</span>}
+                    {hasOverride && <span className="text-amber"> &middot; manually adjusted</span>}
                   </>
-                )}
-              </div>
-            )}
+                )
+              }
+            >
+              {scratched ? (
+                <span className="font-mono text-3xl font-bold text-rose">SCR</span>
+              ) : (
+                <span className="font-mono text-3xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+              )}
+              {!scratched && rank != null && (
+                <div className="mt-1 text-xs text-ink-soft">
+                  <span className="font-semibold">Rank {rank}</span> of {fieldSize}
+                  {gapFromTop != null && gapFromTop > 0 ? <span className="text-ink-mute"> &middot; {gapFromTop.toFixed(1)} behind the top</span> : <span className="text-emerald-deep"> &middot; top rated</span>}
+                </div>
+              )}
+            </Tile>
+            <Tile
+              label="Market"
+              sub={
+                fixedMove ? (
+                  <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+                    {fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)}
+                  </span>
+                ) : (
+                  'no move since open'
+                )
+              }
+            >
+              <span className="font-mono text-2xl font-semibold text-ink">{fmtPrice(market)}</span>
+              {fair != null && !scratched && (
+                <div className="mt-1 text-xs text-ink-soft">
+                  fair <span className="font-mono">{fmtPrice(fair)}</span>
+                  {valuePct != null && (
+                    <span className={valuePct >= 0 ? 'text-emerald-deep' : 'text-ink-mute'}>
+                      {' '}
+                      &middot; {valuePct >= 0 ? 'overlay' : 'underlay'} {Math.abs(Math.round(valuePct))}%
+                    </span>
+                  )}
+                </div>
+              )}
+            </Tile>
+            <Tile label="Ratings" sub="TopRate / Form / Nett">
+              <span className="font-mono text-lg font-semibold text-ink-soft">
+                {fmtInt(runner.toprateRating)} <span className="text-ink-faint">/</span> {fmtInt(runner.formFactor)} <span className="text-ink-faint">/</span> {fmtInt(runner.wprNett)}
+              </span>
+            </Tile>
+            <Tile label="Today" sub={spell.daysSince != null ? `${spell.daysSince} days since last run` : 'no previous run'}>
+              <span className="text-sm text-ink">
+                <span className="font-semibold">Barrier {runner.barrier ?? '-'}</span>
+                {runner.weightCarried != null && <span> &middot; {runner.weightCarried}kg</span>}
+                <span className="font-mono text-amber"> &middot; {spell.label === 'FS' ? 'first start' : spell.label}</span>
+              </span>
+            </Tile>
+          </div>
 
+          {/* Manual adjustment */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-3.5 py-2.5">
+            <label className="flex items-center gap-2 text-sm text-ink-soft">
+              Your adjustment
+              <input
+                type="number"
+                step="0.1"
+                value={deltaValue ?? ''}
+                onChange={(e) => onSetDelta(e.target.value === '' ? null : Number(e.target.value))}
+                placeholder="0.0"
+                className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
+              />
+            </label>
             {runner.projectedWpr == null && (
-              <label className="mt-2 flex items-center gap-2 text-sm text-ink-soft">
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
                 Base WPR
                 <input
                   type="number"
@@ -277,133 +278,102 @@ export function RunnerDetailModal({
                   placeholder="e.g. 72.0"
                   className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
                 />
-                <span className="text-xs text-ink-faint">no model projection - enter your own to rate this horse</span>
               </label>
             )}
-
-            {/* One line instead of 4 boxed tiles - Base+Adjustment=Model
-                projection is simple arithmetic that doesn't need a box each,
-                and "Model projection" duplicated the big headline number
-                above whenever there's no manual override (the common case;
-                the hasOverride block above already surfaces the model's own
-                number separately for the case where it doesn't). */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-mute">
-              <span>
-                <span className="font-mono font-semibold text-ink">{fmtWpr(runner.baseWpr)}</span> base
-              </span>
-              {runner.wprAdjustment != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">
-                    {runner.wprAdjustment > 0 ? '+' : ''}
-                    {runner.wprAdjustment.toFixed(1)}
-                  </span>{' '}
-                  adjustment
-                </span>
-              )}
-              {runner.projectionConfidence != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">{runner.projectionConfidence}%</span>{' '}
-                  confidence
-                </span>
-              )}
-              {runner.toprateRating != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">{fmtWpr(runner.toprateRating)}</span> TopRate
-                </span>
-              )}
-              {runner.formFactor != null && (
-                <span>
-                  <span className="font-mono font-semibold text-ink">{Math.round(runner.formFactor)}</span> form
-                </span>
-              )}
-            </div>
-            {runner.projectionDescription && runner.projectedWpr != null && (
-              <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">
-                {runner.projectionDescription}
-              </p>
+            {(deltaValue != null || baseValue != null) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSetDelta(null)
+                  onSetBase(null)
+                }}
+                className="text-xs text-ink-mute underline hover:text-ink"
+              >
+                Clear
+              </button>
             )}
+            <span className="text-xs text-ink-faint">Moves this horse and re-prices the whole field. Saved on this device.</span>
           </div>
-            </>
-          )}
 
-          {/* ResultVsProjection and/or PriceMovementChart ride alongside
-              CareerStats from the sm breakpoint up (fills the space that
-              would otherwise sit blank beside CareerStats's natural,
-              not-stretched table width). Below sm (every phone - even a
-              430px-wide one has only ~380px left here after modal/card
-              padding), CareerStats goes full-width on its own row:
-              its 6-column table needs ~300px+ to show Peak/Avg/vs Career/
-              Adj/Trend without squeezing, which doesn't fit next to
-              Price/Result on a phone however thin those two are shrunk.
-              Price and Result, in contrast, have no such width floor
-              (a price figure, a slider, a predicted/actual pair - all
-              shrink cleanly), so they share ONE row 50/50 on mobile
-              instead of each also going full-width and stacking - full
-              stacking for all three burned too much vertical scroll
-              (user feedback, Aug 2026) for two cards that don't need it.
-              The `sm:contents` wrapper drops its own box at sm and up so
-              its children rejoin CareerStats in a single flex row, same
-              as before.
-              ResultVsProjection is now always rendered (not conditional on
-              having a result) - it shows its own empty/placeholder state
-              pre-race, so this row's layout doesn't reflow once a race
-              results (user feedback: pre-race and post-race should look
-              the same). PriceMovementChart is the ONE place a runner's
-              price information lives (folds in TR $/SP too) - no
-              more separate Price line further down, pre-race or post-race.
-              ComparisonGrid always lives under Recent runs now (moved
-              there per feedback), not paired up here, so its position
-              doesn't move around depending on whether the race has
-              resulted. */}
-          <div className="flex flex-wrap items-start gap-3">
-            {/* min-width and flex share both bumped (Sep 2026): CareerStats
-                now fits its Career table and Adjustment breakdown side by
-                side internally (see CareerStats) rather than stacked, so it
-                needs noticeably more width than when it held one table at a
-                time - flex-[1.6] (vs Price/Result's flex-1 each) claims a
-                bigger share of this row instead of squeezing both of its
-                own sub-tables just to stay even with cards that didn't grow. */}
-            <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
-              <CareerStats runner={runner} race={race} breakdown={model ? null : undefined} />
-            </div>
-            <div className="flex w-full gap-3 sm:contents">
-              {hasPriceInfo && (
-                <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                  <PriceMovementChart
-                    runner={runner}
-                    priceBitsBefore={priceBitsBefore}
-                    priceBitsAfter={priceBitsAfter}
-                    fixedMove={fixedMove}
-                  />
-                </div>
-              )}
-              <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} model={model ? { projected: compositeScore(runner, effective?.effectiveProjectedWpr) ?? model.m.wp ?? null, rank: model.rank } : undefined} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
+              <div className="mb-3">
+                <Row label="Base (form, conditions, connections)" value={fmtWpr(runner.baseWpr)} />
+                {runner.adjustmentBreakdown && (runner.adjustmentBreakdown.suitability != null || runner.adjustmentBreakdown.weight != null) ? (
+                  <>
+                    {runner.adjustmentBreakdown.suitability != null && (
+                      <Row label="Suitability adjustment" value={fmtAdj(runner.adjustmentBreakdown.suitability)} className={adjClass(runner.adjustmentBreakdown.suitability)} />
+                    )}
+                    {runner.adjustmentBreakdown.weight != null && (
+                      <Row label="Weight carried (vs field average)" value={fmtAdj(runner.adjustmentBreakdown.weight)} className={adjClass(runner.adjustmentBreakdown.weight)} />
+                    )}
+                  </>
+                ) : (
+                  <Row label="Adjustments" value={fmtAdj(runner.wprAdjustment)} className={adjClass(runner.wprAdjustment)} />
+                )}
+                {deltaValue != null && deltaValue !== 0 && <Row label="Your adjustment" value={fmtAdj(deltaValue)} className="text-amber" />}
+                <Row label="Projected WPR" value={<span className="font-semibold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>} />
               </div>
+              <FormLine runs={runner.recentRuns} projected={effectiveWpr} sd={sd} />
+              {runner.projectionDescription && <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">{runner.projectionDescription}</p>}
+            </Card>
+
+            <Card title="Expected run" note="where it is likely to be about 800m from home">
+              {tripRunner && tripRunner.gap != null ? (
+                <div className="mb-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-bg p-2.5">
+                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">Behind the leader</div>
+                    <div className="font-mono text-xl font-semibold text-ink">{tripRunner.gap.toFixed(1)}L</div>
+                  </div>
+                  <div className="rounded-md bg-bg p-2.5">
+                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">{tripKind === '800m' ? 'Off the rail at 800m' : 'Average off the rail'}</div>
+                    <div className="font-mono text-xl font-semibold text-ink">{tripRunner.lane.toFixed(1)}m</div>
+                  </div>
+                </div>
+              ) : null}
+              <Row label="Settling position" value={runner.predictedSettlingBand ?? '-'} />
+              {runner.againstShapeTendency && <Row label="Against the expected shape" value={runner.againstShapeTendency} />}
+              {tripRunner && (
+                <Row
+                  label="GPS history"
+                  value={tripRunner.last ? `${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}` : 'none (forecast from barrier and track)'}
+                />
+              )}
+              {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs a VIC, SA or QLD GPS course with barriers declared).</p>}
+            </Card>
+
+            <Card title="Conditions and record" className="lg:col-span-2">
+              <CareerStats runner={runner} race={race} breakdown={null} />
+            </Card>
+
+            <Card title="Market">
+              {hasPriceInfo ? (
+                <PriceMovementChart runner={runner} priceBitsBefore={[]} priceBitsAfter={priceBitsAfter} fixedMove={fixedMove} />
+              ) : (
+                <p className="text-xs text-ink-faint">No price information yet.</p>
+              )}
+            </Card>
+
+            <Card title="Result against projection">
+              <ResultVsProjection runner={runner} />
+            </Card>
+          </div>
+
+          <Card title="Form" note="newest first">
+            <RecentRunsTable
+              horseName={runner.horse}
+              runs={runner.recentRuns}
+              peakRun={runner.peakRun}
+              formHistory={runner.formHistory}
+              raceDistance={race.distance}
+              raceGoing={race.going}
+              raceDate={race.date}
+              raceVenue={race.venue}
+            />
+            <div className="mt-3">
+              <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
             </div>
-          </div>
-
-          <RecentRunsTable
-            horseName={runner.horse}
-            runs={runner.recentRuns}
-            peakRun={runner.peakRun}
-            formHistory={runner.formHistory}
-            raceDistance={race.distance}
-            raceGoing={race.going}
-            raceDate={race.date}
-            raceVenue={race.venue}
-          />
-
-          <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
-
-          {/* Jockey/trainer names and their ratings are already in the
-              header subtitle - only barrier is new information here. */}
-          <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">
-            Barrier {runner.barrier ?? '—'}
-            <span className="ml-1.5 italic">
-              {model ? '(used in the settle, width and track-bias projection)' : '(not used by the projection)'}
-            </span>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

@@ -1257,8 +1257,11 @@ def compute_race_speed(runners_df, target_date_str=None):
     return runners_df
 
 
-def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None):
-    """Add wprp_proj, wprp_conf, wprp_price, wprp_rank, wprp_peak, wprp_desc
+def _compute_wpr_projection_previous_model(runners_df, target_date_str=None, target_venues=None):
+    """The previous projection model. Its projections are NO LONGER SHOWN (apply_new_projection overwrites them); it is still run, via
+    compute_wpr_projection below, only to refresh the speed-map signal in wprp_contrib that the trackers and the Speed Map use.
+
+    Add wprp_proj, wprp_conf, wprp_price, wprp_rank, wprp_peak, wprp_desc
     columns to the runners DataFrame.
 
     Only processes races for target_date_str (the date just fetched). The
@@ -1587,6 +1590,35 @@ def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None)
           f"{fallback} fallback (too few runs), across {races} races "
           f"in {_time.time()-t0:.0f}s")
     return runners_df
+
+
+def apply_new_projection(runners_df, recompute_edges=True):
+    """Fill every wprp_* projection column from the new model's projection log (projection/overlay.py) and clear it everywhere
+    else, so no projection from the previous model reaches the payload, the trackers or the accuracy stats. Then (optionally)
+    recompute the edge columns from the new projections for every date in the recent window. Fail-safe: returns runners_df
+    unchanged on any error."""
+    try:
+        from projection import overlay
+        runners_df = overlay.apply(runners_df)
+        if recompute_edges:
+            dates = runners_df["date"].astype(str).str[:10]
+            cut = (datetime.now() - timedelta(days=32)).strftime("%Y-%m-%d")
+            for d in sorted(dates[dates >= cut].unique()):
+                runners_df = compute_edge_score(runners_df, d)
+        n = int(pd.to_numeric(runners_df["wprp_proj"], errors="coerce").notna().sum())
+        print(f"  New-model projections applied: {n:,} runners carry one")
+    except Exception as e:
+        print(f"  New-model projection overlay skipped ({e})")
+    return runners_df
+
+
+def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None):
+    """Step 2c. The WPR projections come from the new model (projection/run.py: daily, plus a fast refresh after a going change),
+    logged to wpr_projection_log.csv.gz, and are applied here. The previous model's compute still runs, scoped as before, ONLY to refresh
+    the speed-map signal (wprp_contrib.speed_map) that the trackers' tags and the Speed Map are built on; apply_new_projection then
+    overwrites every projection column with the new model's."""
+    runners_df = _compute_wpr_projection_previous_model(runners_df, target_date_str, target_venues)
+    return apply_new_projection(runners_df, recompute_edges=False)
 
 
 def compute_edge_score(runners_df, target_date_str=None):
@@ -3459,6 +3491,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
     except Exception as _e:
         print(f"  runners_df windowing skipped ({_e})")
     _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
+    # New-model projections (projection/): re-applied on every rebuild so a fresh wpr_projection_log.csv.gz reaches the payload within
+    # one price-refresh cycle. Works on this windowed copy only; the persisted CSV is written by the daily/poller paths.
+    runners_df = apply_new_projection(runners_df.copy())
 
     _FORM_RUNS_SHOWN = 10  # rows kept per horse for the detail-panel form table
 
@@ -4114,7 +4149,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # wpj* keys deliberately distinct from existing "wprp"
                 # (wpr_peak_rank_1yr) and "w"/"wpra" to avoid collisions.
                 # None on fallback runners (under 3 prior runs).
-                "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR
+                "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR (new model)
+                "wpjsd": sf(row.get("wprp_sd")),      # typical error of the projection (WPR points)
+                "wpjm":  (str(row.get("wprp_model")) if row.get("wprp_model") not in (None, "", "nan") and str(row.get("wprp_model")) != "nan" else None),  # main / light
                 "wpjb":  sf(row.get("wprp_base")),    # base WPR (pre-adjustment)
                 "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)
                 "wpjcb": contrib_parsed,              # adjustment breakdown by feature

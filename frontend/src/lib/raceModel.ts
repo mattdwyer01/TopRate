@@ -313,8 +313,10 @@ export function computeEffectiveRace(
 // Lines 3 / 5 (6 Oct 2026): the price adjustment (with lines 4 / 8) was removed the same day (user decision: Proj must
 // be the projected WPR, consistent with the actual WPR it is compared with). Inside 3 = 3.03 runners, 60.5% of
 // winners, A/E 1.056; inside 5 = 4.62 runners, 77%.
-export const COMPOSITE_MAX_GAP_FROM_TOP = 5
-export const COMPOSITE_INNER_GAP_FROM_TOP = 3
+// Lines 3 / 5 -> 4 / 6 with the new projection model (user decision, 7 Oct 2026): it spreads runners slightly wider than the previous
+// Proj, so 4 / 6 restore the old coverage: 3.3 / 4.8 runners a race holding 64% / 78% of winners (4,566 races, 1 Jul to 5 Oct 2026, pre-race projections), where 3 / 5 held 2.6 / 4.1 runners and 55% / 71%.
+export const COMPOSITE_MAX_GAP_FROM_TOP = 6
+export const COMPOSITE_INNER_GAP_FROM_TOP = 4
 
 // Blends projectedWpr with toprateRating/formFactor per the validated
 // weights above. effectiveWpr (optional): pass computeEffectiveRace's own
@@ -330,8 +332,7 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 3
 // was complete-case only) - it's a deliberate, conservative choice that
 // never does worse than falling back toward plain WPR when data's thin.
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
-  // Headline = Proj (6 Oct 2026, user decision): the projected WPR from prior form (racing-model model/wpr_model.py,
-  // front-weighted), manual override included. The Racing Model rating moved to the second column (runner.rmWpr).
+  // Headline = Proj: the new model's projected WPR (projection/), manual override included.
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
   return wpr ?? null
 }
