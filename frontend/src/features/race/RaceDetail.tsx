@@ -285,7 +285,7 @@ export function RaceDetail({
         </div>
 
         {/* Phone and tablet cards */}
-        <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:hidden">
+        <div className="flex flex-col gap-1.5 md:grid md:grid-cols-2 lg:hidden">
           {sortedRunners.map((r, i) => (
             <Fragment key={r.runId}>
               <RunnerCard {...rowProps(r)} />

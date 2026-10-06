@@ -157,7 +157,7 @@ export function RaceMiniBar({
       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TILE_TONE[paceTone]}`}>{pace.display.replace(' (predicted)', '')}</span>
       <span className="font-mono text-sm font-semibold text-emerald-deep">{formatCountdown(race.startTime) || ''}</span>
       <span className="flex-1" />
-      <span className="flex flex-wrap gap-1">
+      <span className="hidden flex-wrap gap-1 sm:flex">
         {meeting.map((r) => (
           <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]} onClick={() => onSelectRace(r.raceId, r.date)}>
             R{r.raceNumber}
