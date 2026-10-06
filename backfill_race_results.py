@@ -471,6 +471,85 @@ def diagnose_one(meeting_id):
                 print("  tracks[0] has no usable 'history' list")
 
 
+def scan_key_presence(meeting_ids):
+    """Across EVERY runner in EVERY race of each given meeting_id, report
+    whether each of a target set of fields (ones backfill_race_results.py
+    maps via _EXTRA_RUNNER_KEYS/_FALLBACK_KEYS/RUN_COLS, which came back
+    100% null in a real production run) ever appears as a key at all, and
+    with a non-null value, at runner/race/meeting level. diagnose_one()
+    only samples races[0].runners[0] of ONE meeting - too thin a sample to
+    conclude a field is genuinely absent from this endpoint (a key could
+    be conditionally present, e.g. only serialized for a runner the field
+    actually applies to) - this scans every runner instead."""
+    targets = ["isLetup", "isSpell", "blinkersOn", "timeLast600m",
+               "raceName", "name", "priceOpening", "priceMid", "gearChanges"]
+    counts = {t: {"runner_present": 0, "runner_nonnull": 0,
+                  "race_present": 0, "race_nonnull": 0,
+                  "meeting_present": 0, "meeting_nonnull": 0}
+              for t in targets}
+    n_runners = 0
+    n_races = 0
+    sample_values = {t: [] for t in targets}
+
+    for mid in meeting_ids:
+        mr, deref = fetch_meeting_full(mid)
+        if mr in (None, "ERROR"):
+            print(f"  meeting {mid}: not finalized/empty/error, skipping")
+            continue
+        for t in targets:
+            if t in mr:
+                counts[t]["meeting_present"] += 1
+                if deref(mr.get(t)) is not None:
+                    counts[t]["meeting_nonnull"] += 1
+        races = deref(mr.get("races"))
+        if not isinstance(races, list):
+            continue
+        for rp in races:
+            race = deref(rp)
+            if not isinstance(race, dict):
+                continue
+            n_races += 1
+            for t in targets:
+                if t in race:
+                    counts[t]["race_present"] += 1
+                    if deref(race.get(t)) is not None:
+                        counts[t]["race_nonnull"] += 1
+            runners = deref(race.get("runners"))
+            if not isinstance(runners, list):
+                continue
+            for rup in runners:
+                runner = deref(rup)
+                if not isinstance(runner, dict):
+                    continue
+                n_runners += 1
+                for t in targets:
+                    if t in runner:
+                        counts[t]["runner_present"] += 1
+                        v = deref(runner.get(t))
+                        if v is not None:
+                            counts[t]["runner_nonnull"] += 1
+                            if len(sample_values[t]) < 5:
+                                sample_values[t].append(v)
+
+    print(f"\nScanned {len(meeting_ids)} meeting(s), {n_runners:,} runner rows total.\n")
+    print(f"{'field':<14} {'runner key%':>12} {'runner nonnull':>15} "
+          f"{'race key%':>10} {'race nonnull':>13} "
+          f"{'mtg key%':>9} {'mtg nonnull':>12}")
+    for t in targets:
+        c = counts[t]
+        rn = n_runners or 1
+        rc = n_races or 1
+        nm = len(meeting_ids) or 1
+        print(f"{t:<14} "
+              f"{100*c['runner_present']/rn:>11.1f}% {c['runner_nonnull']:>15,} "
+              f"{100*c['race_present']/rc:>9.1f}% {c['race_nonnull']:>13,} "
+              f"{100*c['meeting_present']/nm:>8.1f}% {c['meeting_nonnull']:>12,}")
+    print()
+    for t in targets:
+        if sample_values[t]:
+            print(f"  sample non-null {t} values: {sample_values[t]}")
+
+
 def _select_meeting_ids(args):
     """Same scoping source as backfill_bulk_meeting_fields.py (every
     meeting_id/date pair on file), but this script's OWN checkpoint -
@@ -669,6 +748,13 @@ def main():
     ap.add_argument("--diagnose-one", metavar="MEETING_ID", default=None,
                      help="Print the raw schema for one meeting and exit. "
                           "Run this first (see module docstring).")
+    ap.add_argument("--scan-keys", metavar="MEETING_ID,MEETING_ID,...", default=None,
+                     help="Scan every runner in every race of the given "
+                          "comma-separated meeting_ids for whether "
+                          "isLetup/isSpell/blinkersOn/timeLast600m/raceName/"
+                          "priceOpening/priceMid/gearChanges ever appear as "
+                          "keys, with a non-null value, anywhere - broader "
+                          "than --diagnose-one's single-runner sample.")
     ap.add_argument("--limit", type=int, default=None,
                      help="Only process the first N meetings (most recent first)")
     ap.add_argument("--since", default=None,
@@ -686,6 +772,10 @@ def main():
 
     if args.diagnose_one:
         diagnose_one(args.diagnose_one)
+        return
+
+    if args.scan_keys:
+        scan_key_presence([m.strip() for m in args.scan_keys.split(",") if m.strip()])
         return
 
     if args.merge_only:
