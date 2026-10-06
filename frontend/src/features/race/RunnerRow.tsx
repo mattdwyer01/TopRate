@@ -13,8 +13,6 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Market signals (lib/signals.ts): a green dot per under-rated signal, a red dot per over-rated one, and a "V" badge
-// when the value model rates the runner a value bet at the current fixed price. Hover / tap the row for detail.
 function fmtNett(v: number | null): string {
   if (v == null) return '—'
   return v.toFixed(0)
@@ -377,7 +375,7 @@ export function RunnerRow({
         {scratched ? (
           'SCR'
         ) : (
-          <span title={`Projected WPR ${fmtWpr(displayComposite)}${runner.projSd != null ? ` \u00b1 ${Math.round(runner.projSd)}` : ''}${runner.rdAdj != null ? ` (race-day ${runner.rdAdj >= 0 ? '+' : ''}${runner.rdAdj.toFixed(1)})` : ''}`}>
+          <span title={`Projected WPR ${fmtWpr(displayComposite)}${runner.projectionSd != null ? ` \u00b1 ${Math.round(runner.projectionSd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model, 0-2 prior runs)' : ''}`}>
             {fmtWpr(displayComposite)}
           </span>
         )}

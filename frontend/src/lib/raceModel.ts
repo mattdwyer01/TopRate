@@ -330,8 +330,7 @@ export const COMPOSITE_INNER_GAP_FROM_TOP = 3
 // was complete-case only) - it's a deliberate, conservative choice that
 // never does worse than falling back toward plain WPR when data's thin.
 export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
-  // Headline = Proj (6 Oct 2026, user decision): the projected WPR from prior form (racing-model model/wpr_model.py,
-  // front-weighted), manual override included. The Racing Model rating moved to the second column (runner.rmWpr).
+  // Headline = Proj: the new model's projected WPR (projection/), manual override included.
   const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
   return wpr ?? null
 }

@@ -953,6 +953,27 @@ def commit_and_push():
 
 
 # --------------------------------------------------------------------- main
+def dispatch_projection_refresh(venues):
+    """Best-effort: after a real going change, trigger projection_daily.yml in fast mode so the new model re-scores the remaining races.
+    Needs GITHUB_TOKEN (with actions: write) and GITHUB_REPOSITORY in the environment, as set by tab_results.yml; silently skipped otherwise
+    (a missed dispatch just means the next scheduled projection run picks the new going up)."""
+    import os
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        print("  Projection refresh not dispatched (no GITHUB_TOKEN / GITHUB_REPOSITORY)")
+        return
+    try:
+        import requests
+        r = requests.post(
+            f"https://api.github.com/repos/{repo}/actions/workflows/projection_daily.yml/dispatches",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+            json={"ref": "main", "inputs": {"mode": "fast"}}, timeout=20)
+        print(f"  Projection refresh dispatched for {venues}: HTTP {r.status_code}")
+    except Exception as e:
+        print(f"  Projection refresh dispatch failed ({e})")
+
+
+
 def run_once(push=True):
     target_date = date.today().isoformat()
     _prune_raw_archive(target_date)
@@ -1031,6 +1052,9 @@ def run_once(push=True):
         # here. Best-effort: compute_wpr_projection() itself is fail-safe
         # (returns runners_df unchanged on any internal error).
         t0 = time.time()
+        # The projections now come from the new model (projection/run.py), not from this recompute: ask GitHub to re-score from cache
+        # (projection_daily.yml, mode=fast, about 4 min); the next rebuild after it pushes puts the new numbers in the payload.
+        dispatch_projection_refresh(sorted(changed_venues))
         runners_df = td.compute_wpr_projection(runners_df, target_date, target_venues=changed_venues)
         print(f"  WPR recompute for {sorted(changed_venues)} took {time.time()-t0:.1f}s")
 

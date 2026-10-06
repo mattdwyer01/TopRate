@@ -104,6 +104,8 @@ jobs:
         # as price_refresh.yml's own steps.
         env:
           DIV_DATE: ${{ inputs.dividends_date }}
+          # lets the poller trigger projection_daily.yml (fast) after a real going change
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Dividend backfill for a past date (manual dispatch input), validated before use
           if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then

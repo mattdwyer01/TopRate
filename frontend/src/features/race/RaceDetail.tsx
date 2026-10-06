@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useTableDensity } from '../../lib/density'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { compositeScore, computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeEffectiveRace, computeCompositeGaps, OVERLAY_MAX_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP, COMPOSITE_INNER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { sortRunners, DEFAULT_DIRECTION, type SortKey, type SortDirection } from '../../lib/sorting'
 import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -11,9 +11,6 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { useTripMap } from '../../lib/tripMap'
-import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
-import { ModelRunnerRow } from './ModelRunnerRow'
-import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
 import { formatCountdown } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 
@@ -41,9 +38,6 @@ interface RaceDetailProps {
 // entirely per the same request. Order here drives both header rows'
 // column order below and RunnerRow's matching grid-template order - keep
 // all three in sync if this ever changes again.
-const MODEL_GAP_INNER = 4
-const MODEL_GAP_OUTER = 8
-
 const COLUMN_LABELS: { key: SortKey; label: string; showCompact?: boolean }[] = [
   { key: 'tab', label: '#' },
   { key: 'horse', label: 'Horse', showCompact: true },
@@ -159,16 +153,7 @@ export function RaceDetail({
   const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid' | 'trip'>('grid')
   // Trip map (lib/tripMap.ts): projected running line at GPS-tracked courses, offered only for races it covers
   const tripMap = useTripMap()
-  // The race page shows the Racing Model (lib/racingModel.ts) whenever it has projected the race; TopRate's own
-  // rating table and speed map remain only as the fallback for races it has not.
-  const [modelSort, setModelSort] = useState<{ key: ModelSortKey; dir: 'asc' | 'desc' }>({ key: 'r', dir: 'desc' })
-  const racingModel = useRacingModel()
-  // TopRate Combo view with the Racing Model's race-day adjustments swapped in (lib/racingModel.ts
-  // withModelAdjustments): everything below reads the adjusted runners.
-  const race = useMemo(
-    () => ({ ...rawRace, runners: withModelAdjustments(rawRace.runners, racingModel) }),
-    [rawRace, racingModel],
-  )
+  const race = rawRace
   const tripRace = tripMap?.races[race.raceId] ?? null
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
@@ -222,39 +207,7 @@ export function RaceDetail({
     return [...active, ...scratchedRunners]
   }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
 
-  // Racing Model view of the table: every runner (scratched last, as above) with the model's figures and
-  // the blend recomputed from the current fixed prices.
-  const hasModel = racingModel != null && race.runners.some((r) => racingModel.runners[r.runId])
-  // TopRate Combo table is the race view (Sep 2026 user decision); the Racing Model table code stays for reference
-  const useModel = false
-  const modelRows = useMemo((): ModelRow[] => {
-    if (!racingModel || !hasModel) return []
-    const blend = blendRace(race, racingModel, effectiveScratched)
-    const active = race.runners.filter((r) => !effectiveScratched.has(r.runId))
-    const settleRank = new Map(
-      active
-        .filter((r) => racingModel.runners[r.runId]?.s != null)
-        .sort((a, b) => (racingModel.runners[a.runId].s as number) - (racingModel.runners[b.runId].s as number))
-        .map((r, i) => [r.runId, i + 1] as const),
-    )
-    const rows = race.runners.map((r) => ({
-      runner: r,
-      m: racingModel.runners[r.runId],
-      b: blend[r.runId],
-      settleRank: settleRank.get(r.runId) ?? null,
-    }))
-    const cmp = (x: ModelRow, y: ModelRow) => {
-      const a = modelSortValue(x, modelSort.key, race.date)
-      const b = modelSortValue(y, modelSort.key, race.date)
-      if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1
-      const d = typeof a === 'string' || typeof b === 'string' ? String(a).localeCompare(String(b)) : a - b
-      return modelSort.dir === 'asc' ? d : -d
-    }
-    const act = rows.filter((x) => !effectiveScratched.has(x.runner.runId)).sort(cmp)
-    if (!showScratched) return act
-    return [...act, ...rows.filter((x) => effectiveScratched.has(x.runner.runId)).sort(cmp)]
-  }, [race, racingModel, hasModel, effectiveScratched, modelSort, showScratched])
-  const shownRunners = useModel ? modelRows.map((x) => x.runner) : sortedRunners
+  const shownRunners = sortedRunners
   const selectedIndex = shownRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? shownRunners[selectedIndex] : null
 
@@ -293,51 +246,6 @@ export function RaceDetail({
         .sort((a, b) => a.raceNumber - b.raceNumber),
     [allRaces, race.venue, race.date],
   )
-
-  const modelMap = useMemo(
-    () => (racingModel ? modelSpeedMap(race, racingModel, effectiveScratched) : null),
-    [race, racingModel, effectiveScratched],
-  )
-  const useModelMap = modelMap != null
-
-  // Racing Model gap lines (shown when sorted by rating, best first), from 4,061 VIC/SA/QLD races Apr to Sep
-  // 2026 scored out of sample: runners within 4 WPR of the top rated won 8% more often than their SP implied
-  // (A/E 1.08, 2.6 runners a race, 56% of winners) - the ones to pick from first; beyond 8 WPR they won 14%
-  // less often than their SP implied (A/E 0.86, lose 43% at SP; 79% of winners are inside it).
-  const modelGapLines = useMemo(() => {
-    const none = { inner: -1, outer: -1 }
-    if (!useModel || modelSort.key !== 'r' || modelSort.dir !== 'desc') return none
-    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && x.m?.r != null)
-    if (active.length < 3) return none
-    const top = active[0].m!.r as number
-    let inner = -1
-    let outer = -1
-    modelRows.forEach((x, i) => {
-      if (effectiveScratched.has(x.runner.runId) || x.m?.r == null) return
-      const gap = top - (x.m.r as number)
-      if (gap <= MODEL_GAP_INNER) inner = i
-      if (gap <= MODEL_GAP_OUTER) outer = i
-    })
-    const last = modelRows.reduce((l, x, i) => (!effectiveScratched.has(x.runner.runId) && x.m?.r != null ? i : l), -1)
-    return { inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
-  }, [useModel, modelSort, modelRows, effectiveScratched])
-
-  function onModelSort(key: ModelSortKey) {
-    const col = MODEL_COLUMNS.find((c) => c.key === key)
-    setModelSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: col?.dir ?? 'desc' }))
-  }
-  const modelMeta = racingModel?.races[race.raceId]
-  const selectedModel = useMemo(() => {
-    const row = modelRows.find((x) => x.runner.runId === selectedRunId)
-    if (!row || !row.m) return null
-    // rank by the table's headline figure (Proj, compositeScore), the same number the popup shows
-    const score = (x: ModelRow) => compositeScore(x.runner, effectiveByRunId[x.runner.runId]?.effectiveProjectedWpr)
-    const active = modelRows.filter((x) => !effectiveScratched.has(x.runner.runId) && score(x) != null)
-    const mine = score(row)
-    const rank = active.filter((x) => (score(x) as number) > (mine ?? -1e9)).length + 1
-    return { m: row.m, blend: row.b, settleRank: row.settleRank, rank: mine == null ? null : rank, fieldSize: active.length }
-  }, [modelRows, selectedRunId, effectiveScratched, effectiveByRunId])
-  const bias = biasText(modelMeta?.bias)
 
   function onSort(key: SortKey) {
     if (key === sortKey) {
@@ -410,20 +318,6 @@ export function RaceDetail({
           </span>
           {race.hasFirstStarter && <span className="text-amber">First starter in field</span>}
         </div>
-        {bias && (
-          <div
-            className={`mt-2 rounded-md border px-2 py-1 text-xs ${
-              bias.tone === 'strong'
-                ? 'border-amber-line bg-amber-bg text-amber'
-                : bias.tone === 'mild'
-                  ? 'border-line bg-indigo-bg text-indigo'
-                  : 'border-line-soft bg-bg text-ink-mute'
-            }`}
-            title="Racing Model's projected track bias for this race: how much its track-bias term favours a leader over a backmarker and an inside draw over a wide one, from past meetings at this track (long-run and recent meetings on the same rail). Tested: an in-day update from earlier races on the card added nothing, so it is not used."
-          >
-            <span className="font-semibold">Projected track bias:</span> {bias.pos} · {bias.draw}
-          </div>
-        )}
       </div>
 
 
@@ -442,137 +336,31 @@ export function RaceDetail({
             own way to change sort - otherwise it's stuck on whatever was
             last set, with no visible way to change it. */}
         <div className="flex items-center gap-1.5 sm:hidden">
-          {useModel ? (
-            <select
-              value={modelSort.key}
-              onChange={(e) => onModelSort(e.target.value as ModelSortKey)}
-              aria-label="Sort by"
-              className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
-            >
-              {MODEL_COLUMNS.map((col) => (
-                <option key={col.key} value={col.key}>
-                  Sort: {col.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              value={sortKey}
-              onChange={(e) => onSort(e.target.value as SortKey)}
-              aria-label="Sort by"
-              className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
-            >
-              {COLUMN_LABELS.map((col) => (
-                <option key={col.key} value={col.key}>
-                  Sort: {col.label}
-                </option>
-              ))}
-            </select>
-          )}
+                    <select
+            value={sortKey}
+            onChange={(e) => onSort(e.target.value as SortKey)}
+            aria-label="Sort by"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
+          >
+            {COLUMN_LABELS.map((col) => (
+              <option key={col.key} value={col.key}>
+                Sort: {col.label}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
-            onClick={() =>
-              useModel
-                ? setModelSort((s) => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))
-                : setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-            }
-            aria-label={(useModel ? modelSort.dir : sortDir) === 'asc' ? 'Sort ascending' : 'Sort descending'}
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
             className="flex h-6 w-6 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
           >
-            {(useModel ? modelSort.dir : sortDir) === 'asc' ? '↑' : '↓'}
+            {sortDir === 'asc' ? '↑' : '↓'}
           </button>
         </div>
       </div>
 
-      {useModel && (
-        <div className="-mt-1 flex flex-wrap gap-x-3 px-1 text-[11px] text-ink-faint">
-          <span>Racing Model projected {modelMeta?.on ?? '-'}, trained to {racingModel?.trainEnd}</span>
-          {modelMeta?.pace && (
-            <span>
-              Pace slow {Math.round(modelMeta.pace[0] * 100)}% · even {Math.round(modelMeta.pace[1] * 100)}% · fast{' '}
-              {Math.round(modelMeta.pace[2] * 100)}%
-            </span>
-          )}
-          <span>Blend $ and Edge update with the fixed price; ◆ = position value top 10%</span>
-        </div>
-      )}
-
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-        {useModel ? (
-          <>
-            {/* Racing Model view: same header styling as TopRate's below, its own columns (ModelRunnerRow). */}
-            <div
-              className={`grid min-w-full border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:hidden ${
-                compact ? MODEL_GRID.compact : MODEL_GRID.full
-              }`}
-            >
-              <span className="sticky left-0 z-10 -ml-2 bg-bg pl-2" />
-              {MODEL_COLUMNS.filter((c) => c.short && (compact ? c.compact : c.full !== false)).map((col, i) => (
-                <button
-                  key={col.key}
-                  type="button"
-                  title={col.title}
-                  onClick={() => onModelSort(col.key)}
-                  className={`block min-w-0 truncate transition-colors hover:text-ink ${
-                    i === 0 ? 'sticky left-12 z-10 bg-bg text-left' : 'text-right'
-                  } ${modelSort.key === col.key ? 'text-emerald-deep' : ''}`}
-                >
-                  {col.short}
-                  {modelSort.key === col.key && (modelSort.dir === 'asc' ? ' ↑' : ' ↓')}
-                </button>
-              ))}
-            </div>
-            <div
-              className={`hidden min-w-full gap-x-2 border-b border-line bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute sm:grid ${MODEL_GRID.desktop}`}
-            >
-              <span />
-              {MODEL_COLUMNS.map((col) => (
-                <button
-                  key={col.key}
-                  type="button"
-                  title={col.title}
-                  onClick={() => onModelSort(col.key)}
-                  className={`${col.key === 'horse' || col.key === 'tab' ? 'text-left' : 'text-right'} transition-colors hover:text-ink ${
-                    modelSort.key === col.key ? 'text-emerald-deep' : ''
-                  }`}
-                >
-                  {col.label}
-                  {modelSort.key === col.key && (modelSort.dir === 'asc' ? ' ↑' : ' ↓')}
-                </button>
-              ))}
-            </div>
-            {modelRows.map((row, i) => (
-              <Fragment key={row.runner.runId}>
-                <ModelRunnerRow
-                  row={row}
-                  raceDate={race.date}
-                  compact={compact}
-                  selected={row.runner.runId === selectedRunId}
-                  scratched={effectiveScratched.has(row.runner.runId)}
-                  onClick={() => setSelectedRunId(row.runner.runId === selectedRunId ? null : row.runner.runId)}
-                />
-                {i === modelGapLines.inner && (
-                  <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5">
-                    <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
-                    <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">
-                      {MODEL_GAP_INNER} WPR from top rated
-                    </span>
-                    <span className="h-0 flex-1 border-t-2 border-dotted border-amber" />
-                  </div>
-                )}
-                {i === modelGapLines.outer && (
-                  <div className="flex w-full items-center gap-2 bg-indigo-bg px-2 py-0.5">
-                    <span className="h-[2px] flex-1 bg-indigo" />
-                    <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-indigo">
-                      {MODEL_GAP_OUTER} WPR from top rated
-                    </span>
-                    <span className="h-[2px] flex-1 bg-indigo" />
-                  </div>
-                )}
-              </Fragment>
-            ))}
-          </>
-        ) : (
+        {(
           <>
         {/* Mobile header: matches RunnerRow's mobile grid-cols exactly for
             the current density - Base/Adj never show on mobile in either
@@ -752,7 +540,7 @@ export function RaceDetail({
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <Pill active={(speedMapView === 'grid' || useModelMap) && !(speedMapView === 'trip' && tripRace)} onClick={() => setSpeedMapView('grid')}>
+        <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
           Grid
         </Pill>
         {tripRace && (
@@ -760,19 +548,16 @@ export function RaceDetail({
             Trip map
           </Pill>
         )}
-        {!useModelMap && (
-          <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
-            Bar
-          </Pill>
-        )}
+        <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
+          Bar
+        </Pill>
       </div>
       {speedMapView === 'trip' && tripRace && tripMap ? (
         <TripMap trip={tripRace} excluded={effectiveScratched} generated={tripMap.generated} />
-      ) : speedMapView === 'grid' || useModelMap ? (
+      ) : speedMapView === 'grid' || speedMapView === 'trip' ? (
         <SpeedMapGrid
           race={race}
           runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))}
-          model={useModelMap ? modelMap : null}
         />
       ) : (
         <SpeedMap race={race} runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))} />
@@ -791,9 +576,6 @@ export function RaceDetail({
           onClose={() => setSelectedRunId(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
-          // the popup always uses the Racing Model detail when the race has it (Proj headline and breakdown), whichever
-          // table is shown (6 Oct 2026: it had kept TopRate's own rating block, inconsistent with the Proj column)
-          model={selectedModel}
         />
       )}
     </div>

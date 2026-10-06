@@ -134,7 +134,8 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
   if (!breakdown || runner.wprAdjustment == null) return null
 
   const rows = Object.entries(breakdown).filter(
-    ([key, v]) => key !== 'baseline' && Math.abs(v) >= MIN_ADJ_SHOWN,
+    // speed_map is the speed-map signal (Speed Map tint, SM Adj column, trackers), not part of the projection's adjustment
+    ([key, v]) => key !== 'baseline' && key !== 'speed_map' && v != null && Math.abs(v) >= MIN_ADJ_SHOWN,
   )
   if (!rows.length) return null
 

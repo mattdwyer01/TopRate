@@ -23,6 +23,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 import features as F  # noqa: E402
+import projlog  # noqa: E402
 
 ROOT, M = F.ROOT, F.MODELS
 CACHE = os.path.join(os.path.dirname(__file__), 'cache')
@@ -42,16 +43,25 @@ def clean_name(s):
     return s.astype(str).str.lower().str.replace(r'\s*\([a-z]{2,3}\)\s*$', '', regex=True).str.replace(r'[^a-z0-9 ]', '', regex=True).str.strip()
 
 
-def load_upcoming(today, hist):
+def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
             'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted']
     u = pd.read_csv(os.path.join(ROOT, 'toprate_runners.csv'), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
-    u = u[u.date >= pd.Timestamp(today)].copy()
+    lo = pd.Timestamp(today) - pd.Timedelta(days=backfill_days)
+    u = u[u.date >= lo].copy()
     run = u.groupby('race_id').apply(lambda z: ((z.interim_resulted.fillna(0) == 1) | (z.resulted.fillna(0) == 1)).any()).rename('ran')
     u = u.join(run, on='race_id')
-    done = u[u.ran & (u.scratched.fillna(0) != 1)].copy()          # races already run today: only used for day-of bias
-    u = u[(~u.ran) & (u.scratched.fillna(0) != 1) & (u.barrier > 0)].copy()
+    done = u[u.ran & (u.scratched.fillna(0) != 1) & (u.date >= pd.Timestamp(today))].copy()   # races already run today: only used for day-of bias
+    if backfill_days:
+        # runners of races that have already run but are NOT in the rated history yet (their WPR has not settled), so projecting them is
+        # still out of sample; anything already in the history is skipped (it would see its own result)
+        keys = set(zip(hist.race_id.astype('int64'), hist.horse_id.astype('int64')))
+        u = u[(u.date < pd.Timestamp(today)) & (u.scratched.fillna(0) != 1) & (u.barrier > 0) & u.horse_id.notna()].copy()
+        u = u[[(int(r), int(h)) not in keys for r, h in zip(u.race_id, u.horse_id)]]
+        done = done.iloc[0:0]
+    else:
+        u = u[(~u.ran) & (u.scratched.fillna(0) != 1) & (u.barrier > 0)].copy()
     for c in ('jockey', 'trainer'):
         u[c] = u[c].where(u[c].astype(str).str.lower() != 'nan')
     # identify horses without an id by name
@@ -82,6 +92,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--today', default=os.environ.get('PROJECTION_TODAY') or au_today())
     ap.add_argument('--out', default=os.path.join(ROOT, 'wpr_projection_new.json'))
+    ap.add_argument('--backfill-days', type=int, default=0, help='also project runners of races from the last N days that ran before the log existed and whose WPR has not settled yet (still out of sample)')
     ap.add_argument('--fast', action='store_true', help='re-score using cached jockey/trainer/field tables (run after a going change); needs --build-cache first')
     ap.add_argument('--build-cache', action='store_true', help='build the cached tables from full history (run once a day after the authoritative results)')
     a = ap.parse_args()
@@ -101,7 +112,7 @@ def main():
         print('cache built through', store['built_through'])
         return
     tables = pd.read_pickle(os.path.join(CACHE, 'tables.pkl')) if a.fast else None
-    T, done, raw = load_upcoming(a.today, H)
+    T, done, raw = load_upcoming(a.today, H, a.backfill_days)
     print('upcoming runners', len(T), 'races', T.race_id.nunique(), flush=True)
     if T.empty:
         json.dump(dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), races={}), open(a.out, 'w'))
@@ -147,8 +158,9 @@ def main():
                                barrier=done.barrier, field_size=done.groupby('race_id').run_id.transform('size'), positionFinish=pd.to_numeric(done.finish_position, errors='coerce')))
         yt = pd.concat([yt, d2], ignore_index=True)
     Y2 = pd.concat([Y, yt], ignore_index=True)
-    S = F.build_suit(Y2, ph, bias_since=pd.Timestamp(a.today) - pd.Timedelta(days=2), tables=tables)
-    S = S[S.date >= pd.Timestamp(a.today)].drop_duplicates(['race_id', 'horse_id'])
+    lo = pd.Timestamp(a.today) - pd.Timedelta(days=a.backfill_days)
+    S = F.build_suit(Y2, ph, bias_since=lo - pd.Timedelta(days=2), tables=tables)
+    S = S[S.date >= lo].drop_duplicates(['race_id', 'horse_id'])
     Z = R[['race_id', 'horse_id', 'bf', 'field_size', 'dist', 'going_num']].merge(S, on=['race_id', 'horse_id'], how='left', suffixes=('', '_s'))
     Z = Z.merge(ph[['race_id', 'horse_id', 'm800_hist3', 'own_rel']], on=['race_id', 'horse_id'], how='left')
     Z['sty'] = Z.pos_hist3 - 0.5
@@ -173,6 +185,12 @@ def main():
                                runners={str(int(r.run_id)): dict(p=None if pd.isna(r.proj) else round(float(r.proj), 1), base=None if pd.isna(r.p0) else round(float(r.p0), 1),
                                                                   adj=None if (r.routed != 'main' or pd.isna(r.adj)) else round(float(r.adj), 2), sd=round(float(r.sd), 1),
                                                                   m=r.routed, n=int(r.nruns)) for r in z.itertuples() if pd.notna(r.run_id)})
+    made = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    rows = R[R.proj.notna() & R.run_id.notna()].copy()
+    rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sd=rows.sd, model=rows.routed, nruns=rows.nruns, src='backfill' if a.backfill_days else 'live', made=made))
+    if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
+        projlog.update(rows)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainThrough=main_info.get('train_through'), races=races)
     with open(a.out, 'w') as f:
         json.dump(payload, f, separators=(',', ':'))

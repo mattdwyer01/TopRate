@@ -2,23 +2,9 @@ import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
 import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 
-// Racing Model source (lib/racingModel.ts): the independent model's own settle projection placed on this
-// same grid. Positions come from its settle share (same 0 = leads, 1 = last scale as predictedRelSettle),
-// the tint from its position value (WPR points vs this race, already relative to the field), the number
-// under each name is its projected rating, and the tempo chip is its own pace forecast.
-export interface ModelSpeedMap {
-  relSettle: Map<string, number>
-  rating: Map<string, number | null>
-  tone: Map<string, number | null>
-  toneThreshold: number
-  tempoBucket: string
-  paceLabel: string
-}
-
 interface SpeedMapGridProps {
   race: Race
   runners: Runner[]
-  model?: ModelSpeedMap | null
 }
 
 // 10 tactical columns, Backmarker (left) -> Leader (right) - originally 6,
@@ -302,9 +288,9 @@ function railToBottomLayout<T>(ascending: T[], subCols: number): GridPlacement<T
 // within that spot" (sub-column position) read visually, the same way
 // Racing NSW's own speed maps spread a crowded tactical slot sideways
 // rather than stacking it into one long single-file column.
-export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
+export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
   const pace = estimatePace(race, runners)
-  const tempoBucket = model ? model.tempoBucket : pace.tempoBucket
+  const tempoBucket = pace.tempoBucket
 
   if (!runners.length) {
     return (
@@ -318,7 +304,7 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
   const columns: Runner[][] = COLUMNS.map(() => [])
   const columnIdxByRunId = new Map<string, number>()
   for (const u of runners) {
-    const idx = columnIndexOf(model?.relSettle.get(u.runId) ?? relSettleOf(u))
+    const idx = columnIndexOf(relSettleOf(u))
     columns[idx].push(u)
     columnIdxByRunId.set(u.runId, idx)
   }
@@ -352,9 +338,7 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
     // separate position value). Position value is kept as a small corner dot when it is outside +/- its threshold.
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
     const tone = threatTone(displaySpeedMap)
-    const posValue = model ? (model.tone.get(u.runId) ?? null) : null
-    const pvTone = model ? threatTone(posValue, model.toneThreshold) : 'neutral'
-    const rating = model ? (model.rating.get(u.runId) ?? null) : u.projectedWpr
+    const rating = u.projectedWpr
     const drawFrac = drawFracOf(u, fieldSize)
     const caution = cautionRunIds.has(u.runId)
     const titleParts = [
@@ -367,9 +351,6 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
       u.barrier != null ? `Barrier ${u.barrier} of ${fieldSize}` : null,
       displaySpeedMap != null
         ? `SM adj vs this field: ${displaySpeedMap > 0 ? '+' : ''}${displaySpeedMap.toFixed(1)}`
-        : null,
-      posValue != null
-        ? `Position value (separate model, WPR pts vs this race): ${posValue > 0 ? '+' : ''}${posValue.toFixed(1)}`
         : null,
       caution ? "Wide gate for how forward this position is - needs early speed or a hot pace to be plausible" : null,
     ].filter(Boolean)
@@ -406,14 +387,6 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
             style={{ height: `${Math.max(8, drawFrac * 100)}%` }}
           />
         </div>
-        {pvTone !== 'neutral' && (
-          // Position value (Racing Model, separate from SM): green / red dot when it is outside +/-0.5
-          <span
-            className={`absolute bottom-0.5 left-0.5 rounded-full ${pvTone === 'help' ? 'bg-emerald' : 'bg-rose'} ${
-              compact ? 'h-1.5 w-1.5' : 'h-2 w-2'
-            }`}
-          />
-        )}
         {caution && (
           // Positioned INSIDE the card (not overflowing outside it) -
           // an earlier version used a negative offset that overflowed
@@ -476,13 +449,11 @@ export function SpeedMapGrid({ race, runners, model }: SpeedMapGridProps) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Speed map</span>
         <span className="text-xs text-ink-faint">
-          {model
-            ? 'Projected position at the 800m · tint = SM adj vs THIS field (green favoured, red hurt), as in the table · corner dot = position value (separate model) · number = projected rating'
-            : 'Predicted running position · tint = vs the rest of THIS field (green favoured, red hurt)'}{' '}
+          Predicted running position &middot; tint = vs the rest of THIS field (green favoured, red hurt){' '}
           &middot; side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
         </span>
         <span className="rounded-full bg-bg px-2 py-0.5 font-mono text-xs text-ink-mute">
-          {model ? model.paceLabel : pace.display}
+          {pace.display}
         </span>
       </div>
 

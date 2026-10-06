@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { compositeScore, type EffectiveRunner } from '../../lib/raceModel'
+import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
@@ -9,7 +9,6 @@ import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { PriceMovementChart } from './PriceMovementChart'
-import { ModelHeadline, type ModelDetail } from './ModelRunnerDetail'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -23,9 +22,6 @@ interface RunnerDetailModalProps {
   onClose: () => void
   onPrev: () => void
   onNext: () => void
-  // Racing Model projection for this runner: when present it replaces TopRate's rating block, adjustment
-  // breakdown and predicted WPR (the race page shows the Racing Model only)
-  model?: ModelDetail | null
 }
 
 // Full-screen overlay for a runner's projection detail. Replaces the old
@@ -47,7 +43,6 @@ export function RunnerDetailModal({
   onClose,
   onPrev,
   onNext,
-  model,
 }: RunnerDetailModalProps) {
   const scratched = effective?.scratched ?? false
   const [scrolled, setScrolled] = useState(false)
@@ -122,9 +117,9 @@ export function RunnerDetailModal({
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
                 <span className="font-mono font-bold text-emerald-deep">
-                  {fmtWpr(model ? compositeScore(runner, effective?.effectiveProjectedWpr) : effectiveWpr)}
+                  {fmtWpr(effectiveWpr)}
                 </span>
-                <span className="text-ink-faint">{model ? 'Proj' : 'effective WPR'}</span>
+                <span className="text-ink-faint">effective WPR</span>
               </div>
             ) : (
               <div className="truncate text-xs text-ink-faint">
@@ -186,9 +181,7 @@ export function RunnerDetailModal({
         </div>
 
         <div className="flex flex-col gap-3 p-3">
-          {model ? (
-            <ModelHeadline runner={runner} detail={model} scratched={scratched} effectiveWpr={effective?.effectiveProjectedWpr} />
-          ) : (
+          {(
             <>
           {runner.projectedWpr == null && (
             <div className="rounded-lg border border-amber-line bg-amber-bg p-2.5 text-sm text-amber">
@@ -255,7 +248,7 @@ export function RunnerDetailModal({
             </div>
             {hasOverride && (
               <div className="mt-1 text-xs text-ink-mute">
-                model {fmtWpr(runner.projectedWpr ?? baseValue)}
+                projection {fmtWpr(runner.projectedWpr ?? baseValue)}
                 {deltaValue != null && deltaValue !== 0 && (
                   <>
                     {' '}
@@ -300,10 +293,10 @@ export function RunnerDetailModal({
                   adjustment
                 </span>
               )}
-              {runner.projectionConfidence != null && (
+              {runner.projectionSd != null && (
                 <span>
-                  <span className="font-mono font-semibold text-ink">{runner.projectionConfidence}%</span>{' '}
-                  confidence
+                  <span className="font-mono font-semibold text-ink">&plusmn;{runner.projectionSd.toFixed(1)}</span>{' '}
+                  typical error{runner.projectionModel === 'light' ? ' (light-history model)' : ''}
                 </span>
               )}
               {runner.toprateRating != null && (
@@ -364,7 +357,7 @@ export function RunnerDetailModal({
                 bigger share of this row instead of squeezing both of its
                 own sub-tables just to stay even with cards that didn't grow. */}
             <div className="w-full sm:min-w-[420px] sm:w-auto sm:flex-[1.6]">
-              <CareerStats runner={runner} race={race} breakdown={model ? null : undefined} />
+              <CareerStats runner={runner} race={race} />
             </div>
             <div className="flex w-full gap-3 sm:contents">
               {hasPriceInfo && (
@@ -378,7 +371,7 @@ export function RunnerDetailModal({
                 </div>
               )}
               <div className="min-w-0 flex-1 sm:min-w-[220px] sm:w-auto sm:flex-1">
-                <ResultVsProjection runner={runner} model={model ? { projected: compositeScore(runner, effective?.effectiveProjectedWpr) ?? model.m.wp ?? null, rank: model.rank } : undefined} />
+                <ResultVsProjection runner={runner} />
               </div>
             </div>
           </div>
@@ -401,7 +394,7 @@ export function RunnerDetailModal({
           <div className="border-t border-line-soft pt-2 text-xs text-ink-faint">
             Barrier {runner.barrier ?? '—'}
             <span className="ml-1.5 italic">
-              {model ? '(used in the settle, width and track-bias projection)' : '(not used by the projection)'}
+              (used by the projection through draw and field size only)
             </span>
           </div>
         </div>
