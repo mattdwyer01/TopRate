@@ -39,6 +39,10 @@ on:
         description: 'Print the raw schema for one meeting and exit (no CSV writes). Run this first.'
         required: false
         type: string
+      scan_keys_meeting_ids:
+        description: 'Comma-separated meeting_ids: scan every runner in every race for isLetup/isSpell/blinkersOn/timeLast600m/raceName/priceOpening/priceMid/gearChanges key presence (no CSV writes). Broader than diagnose_meeting_id''s single-runner sample.'
+        required: false
+        type: string
       limit:
         description: 'Only fetch the first N meetings (most recent first). Good for a first test run.'
         required: false
@@ -97,8 +101,21 @@ jobs:
         run: |
           python backfill_race_results.py --diagnose-one "${{ inputs.diagnose_meeting_id }}"
 
+      # ─────────────────────────────────────────────────────────
+      # Scan-keys mode: scan every runner in every race of the given
+      # meetings for the target fields' presence/non-null rate, then
+      # stop. No CSV writes, nothing to commit.
+      # ─────────────────────────────────────────────────────────
+      - name: Scan key presence
+        if: ${{ inputs.scan_keys_meeting_ids }}
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python backfill_race_results.py --scan-keys "${{ inputs.scan_keys_meeting_ids }}"
+
       - name: Validate inputs
-        if: ${{ !inputs.diagnose_meeting_id }}
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.scan_keys_meeting_ids }}
         run: |
           if [ -z "${{ inputs.limit }}" ] && [ -z "${{ inputs.since }}" ] && [ "${{ inputs.all }}" != "true" ]; then
             echo "::error::One of limit, since, or all must be set - refusing to guess the scope."
@@ -112,7 +129,7 @@ jobs:
       # moved out of the fetch phase).
       # ─────────────────────────────────────────────────────────
       - name: Fetch race results
-        if: ${{ !inputs.diagnose_meeting_id }}
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.scan_keys_meeting_ids }}
         env:
           TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
           TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
@@ -137,7 +154,7 @@ jobs:
       # re-fetched base rather than assuming.
       # ─────────────────────────────────────────────────────────
       - name: Merge into race_results_*.csv.gz / track_codes.csv
-        if: ${{ !inputs.diagnose_meeting_id && inputs.commit }}
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.scan_keys_meeting_ids && inputs.commit }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -173,7 +190,7 @@ jobs:
           fi
 
       - name: Dry-run report
-        if: ${{ !inputs.diagnose_meeting_id && !inputs.commit }}
+        if: ${{ !inputs.diagnose_meeting_id && !inputs.scan_keys_meeting_ids && !inputs.commit }}
         run: |
           echo "Dry run requested (commit was left off) - reporting what WOULD change, nothing written."
           python backfill_race_results.py --merge-only backfill_race_results.json
