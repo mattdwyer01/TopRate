@@ -59,9 +59,11 @@ jobs:
       - name: Python packages
         run: |
           if [ "${{ runner.environment }}" = "github-hosted" ]; then pip install pandas pyarrow requests; exit 0; fi
-          # self-hosted (Vultr): system Python, as tab_results.yml uses; add what is missing for the current user
+          # self-hosted (Vultr): system Python, as tab_results.yml uses; add what is missing
           python -c "import pandas, pyarrow, requests" 2>/dev/null && exit 0
-          python -m pip install --user pandas pyarrow requests \
+          # the runner's Python is a virtualenv (no --user installs); plain pip first, --user for a system Python
+          python -m pip install pandas pyarrow requests \
+            || python -m pip install --user pandas pyarrow requests \
             || python -m pip install --user --break-system-packages pandas pyarrow requests
 
       - name: Racing Queensland (last 10 days)
