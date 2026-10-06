@@ -1,7 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtWpr } from '../../lib/format'
-import { adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
+import { spellWord, adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
   runner: Runner
@@ -19,6 +19,10 @@ export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_1
 export function RunnerRow({ runner, raceDate, selected, effective, band, barFrac, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
+  const overlayPct =
+    effective?.isOverlay && runner.fixedWinPrice != null && effective.effectivePrice != null
+      ? Math.round((runner.fixedWinPrice / effective.effectivePrice - 1) * 100)
+      : null
   const barTone = band === 'inner' ? 'bg-emerald' : band === 'outer' ? 'bg-amber' : 'bg-line'
   return (
     <div
@@ -47,14 +51,27 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, barFrac
               light
             </span>
           )}
-          {effective?.isOverlay && !f.scratched && !effective.driftedToOverlay && <span className="flex-none text-[10px] font-semibold text-emerald-deep">OVERLAY</span>}
+          {effective?.isOverlay && !f.scratched && !effective.driftedToOverlay && (
+            <span className="flex-none rounded bg-emerald-bg px-1 text-[10px] font-semibold text-emerald-deep" title="Market price vs the model's fair price">
+              OVERLAY{overlayPct != null ? ` +${overlayPct}%` : ''}
+            </span>
+          )}
           {effective?.driftedToOverlay && !f.scratched && <span className="flex-none text-[10px] font-semibold text-amber">DRIFTED</span>}
         </span>
         <span className="block truncate text-xs text-ink-faint">
           {runner.jockey}
           {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
           {ratingSuffix(runner.trainerRating)}
-          {runner.barrier != null ? ` · barrier ${runner.barrier}` : ''}
+        </span>
+        <span className="block truncate text-xs text-ink-mute">
+          {[
+            runner.barrier != null ? `barrier ${runner.barrier}` : null,
+            runner.weightCarried != null ? `${runner.weightCarried}kg` : null,
+            f.spell.daysSince != null || f.spell.label === 'FS' ? spellWord(f.spell.label) : null,
+            runner.predictedSettlingBand ? runner.predictedSettlingBand.toLowerCase() : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </span>
       </span>
       <span className={`text-right font-mono ${f.rtsClass}`} title={f.rtsTitle}>

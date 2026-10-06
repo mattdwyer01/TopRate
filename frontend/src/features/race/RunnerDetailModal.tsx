@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import type { TripRunner } from '../../lib/tripMap'
+import type { TripRace, TripRunner } from '../../lib/tripMap'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { spellPosition } from '../../lib/spellPosition'
@@ -10,9 +10,10 @@ import { RecentRunsTable } from './RecentRunsTable'
 import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
-import { PriceMovementChart } from './PriceMovementChart'
 import { FormLine } from './FormLine'
-import { adjClass, fmtAdj, ratingSuffix } from './rowParts'
+import { ratingSuffix } from './rowParts'
+import { typicalSd } from './raceFacts'
+import { ConditionsScorecard, HorseHero, HorseTripMini, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -20,7 +21,10 @@ interface RunnerDetailModalProps {
   effective?: EffectiveRunner
   rank: number | null
   fieldSize: number
-  gapFromTop: number | null
+  fieldTop: number | null
+  fieldLow: number | null
+  scratchedSet: Set<string>
+  tripRace: TripRace | null
   tripRunner: TripRunner | null
   tripKind: 'avg' | '800m' | null
   deltaValue: number | null
@@ -45,16 +49,6 @@ function Card({ title, note, children, className = '' }: { title: string; note?:
   )
 }
 
-function Tile({ label, children, sub, className = '' }: { label: string; children: React.ReactNode; sub?: React.ReactNode; className?: string }) {
-  return (
-    <div className={`min-w-0 rounded-lg bg-bg p-3 ${className}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{label}</div>
-      <div className="mt-1">{children}</div>
-      {sub && <div className="mt-1 text-xs text-ink-mute">{sub}</div>}
-    </div>
-  )
-}
-
 function Row({ label, value, className = '' }: { label: string; value: React.ReactNode; className?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-line-soft py-1.5 text-sm last:border-0">
@@ -73,7 +67,10 @@ export function RunnerDetailModal({
   effective,
   rank,
   fieldSize,
-  gapFromTop,
+  fieldTop,
+  fieldLow,
+  scratchedSet,
+  tripRace,
   tripRunner,
   tripKind,
   deltaValue,
@@ -117,9 +114,8 @@ export function RunnerDetailModal({
   const fair = effective?.effectivePrice ?? null
   const market = runner.fixedWinPrice
   const valuePct = fair != null && market != null && fair > 0 ? (market / fair - 1) * 100 : null
-  const sd = runner.projectionSd
+  const sd = typicalSd(runner, effectiveWpr)
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
-  const priceBitsAfter = [runner.startingPrice != null ? `SP ${fmtPrice(runner.startingPrice)}` : 'SP post-race']
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/60 p-0 sm:items-center sm:p-6" onClick={onClose}>
@@ -186,73 +182,23 @@ export function RunnerDetailModal({
             </div>
           )}
 
-          {/* Headline numbers */}
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <Tile
-              label="Projected WPR"
-              className="col-span-2 md:col-span-1"
-              sub={
-                scratched ? (
-                  runner.dataScratched ? 'confirmed scratched' : 'manually scratched'
-                ) : (
-                  <>
-                    {sd != null && <span>&plusmn;{sd.toFixed(1)} typical error</span>}
-                    {runner.projectionModel === 'light' && <span> &middot; light-history model</span>}
-                    {hasOverride && <span className="text-amber"> &middot; manually adjusted</span>}
-                  </>
-                )
-              }
-            >
-              {scratched ? (
-                <span className="font-mono text-3xl font-bold text-rose">SCR</span>
-              ) : (
-                <span className="font-mono text-3xl font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
-              )}
-              {!scratched && rank != null && (
-                <div className="mt-1 text-xs text-ink-soft">
-                  <span className="font-semibold">Rank {rank}</span> of {fieldSize}
-                  {gapFromTop != null && gapFromTop > 0 ? <span className="text-ink-mute"> &middot; {gapFromTop.toFixed(1)} behind the top</span> : <span className="text-emerald-deep"> &middot; top rated</span>}
-                </div>
-              )}
-            </Tile>
-            <Tile
-              label="Market"
-              sub={
-                fixedMove ? (
-                  <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
-                    {fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)}
-                  </span>
-                ) : (
-                  'no move since open'
-                )
-              }
-            >
-              <span className="font-mono text-2xl font-semibold text-ink">{fmtPrice(market)}</span>
-              {fair != null && !scratched && (
-                <div className="mt-1 text-xs text-ink-soft">
-                  fair <span className="font-mono">{fmtPrice(fair)}</span>
-                  {valuePct != null && (
-                    <span className={valuePct >= 0 ? 'text-emerald-deep' : 'text-ink-mute'}>
-                      {' '}
-                      &middot; {valuePct >= 0 ? 'overlay' : 'underlay'} {Math.abs(Math.round(valuePct))}%
-                    </span>
-                  )}
-                </div>
-              )}
-            </Tile>
-            <Tile label="Ratings" sub="TopRate / Form / Nett">
-              <span className="font-mono text-lg font-semibold text-ink-soft">
-                {fmtInt(runner.toprateRating)} <span className="text-ink-faint">/</span> {fmtInt(runner.formFactor)} <span className="text-ink-faint">/</span> {fmtInt(runner.wprNett)}
-              </span>
-            </Tile>
-            <Tile label="Today" sub={spell.daysSince != null ? `${spell.daysSince} days since last run` : 'no previous run'}>
-              <span className="text-sm text-ink">
-                <span className="font-semibold">Barrier {runner.barrier ?? '-'}</span>
-                {runner.weightCarried != null && <span> &middot; {runner.weightCarried}kg</span>}
-                <span className="font-mono text-amber"> &middot; {spell.label === 'FS' ? 'first start' : spell.label}</span>
-              </span>
-            </Tile>
-          </div>
+          <HorseHero
+            runner={runner}
+            race={race}
+            proj={effectiveWpr}
+            scratched={scratched}
+            rank={rank}
+            fieldSize={fieldSize}
+            fieldTop={fieldTop}
+            fieldLow={fieldLow}
+            fair={fair}
+            market={market}
+            valuePct={valuePct}
+            fixedMove={fixedMove}
+            hasOverride={hasOverride}
+            spellLabel={spell.label}
+            daysSince={spell.daysSince}
+          />
 
           {/* Manual adjustment */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-3.5 py-2.5">
@@ -298,27 +244,18 @@ export function RunnerDetailModal({
           <div className="grid gap-3 lg:grid-cols-2">
             <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
               <div className="mb-3">
-                <Row label="Base (form, conditions, connections)" value={fmtWpr(runner.baseWpr)} />
-                {runner.adjustmentBreakdown && (runner.adjustmentBreakdown.suitability != null || runner.adjustmentBreakdown.weight != null) ? (
-                  <>
-                    {runner.adjustmentBreakdown.suitability != null && (
-                      <Row label="Suitability adjustment" value={fmtAdj(runner.adjustmentBreakdown.suitability)} className={adjClass(runner.adjustmentBreakdown.suitability)} />
-                    )}
-                    {runner.adjustmentBreakdown.weight != null && (
-                      <Row label="Weight carried (vs field average)" value={fmtAdj(runner.adjustmentBreakdown.weight)} className={adjClass(runner.adjustmentBreakdown.weight)} />
-                    )}
-                  </>
-                ) : (
-                  <Row label="Adjustments" value={fmtAdj(runner.wprAdjustment)} className={adjClass(runner.wprAdjustment)} />
-                )}
-                {deltaValue != null && deltaValue !== 0 && <Row label="Your adjustment" value={fmtAdj(deltaValue)} className="text-amber" />}
-                <Row label="Projected WPR" value={<span className="font-semibold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>} />
+                <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} />
               </div>
               <FormLine runs={runner.recentRuns} projected={effectiveWpr} sd={sd} />
               {runner.projectionDescription && <p className="mt-2 border-t border-line-soft pt-2 text-sm text-ink-soft">{runner.projectionDescription}</p>}
             </Card>
 
-            <Card title="Expected run" note="where it is likely to be about 800m from home">
+            <Card title="Expected run" note={tripKind === '800m' ? 'about 800m from home' : 'running line through the race'}>
+              {tripRace && tripRunner && tripRunner.gap != null && (
+                <div className="mb-2">
+                  <HorseTripMini trip={tripRace} runnerId={runner.runId} excluded={scratchedSet} />
+                </div>
+              )}
               {tripRunner && tripRunner.gap != null ? (
                 <div className="mb-2 grid grid-cols-2 gap-2">
                   <div className="rounded-md bg-bg p-2.5">
@@ -342,24 +279,32 @@ export function RunnerDetailModal({
               {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs a VIC, SA or QLD GPS course with barriers declared).</p>}
             </Card>
 
-            <Card title="Conditions and record" className="lg:col-span-2">
-              <CareerStats runner={runner} race={race} breakdown={null} />
-            </Card>
-
-            <Card title="Market">
-              {hasPriceInfo ? (
-                <PriceMovementChart runner={runner} priceBitsBefore={[]} priceBitsAfter={priceBitsAfter} fixedMove={fixedMove} />
-              ) : (
-                <p className="text-xs text-ink-faint">No price information yet.</p>
-              )}
+            <Card title="Market" note="price against the model's fair price">
+              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
             <Card title="Result against projection">
-              <ResultVsProjection runner={runner} />
+              <ResultCard runner={runner} />
+              {runner.missCategory === 'unexplained' && (
+                <div className="mt-2 border-t border-line-soft pt-2">
+                  <ResultVsProjection runner={runner} />
+                </div>
+              )}
             </Card>
           </div>
 
-          <Card title="Form" note="newest first">
+          <Card title="Form and record" note="timeline, then today's conditions, then every run">
+            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} />
+            <TimelineLegend />
+            <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
+            <ConditionsScorecard runner={runner} race={race} />
+            <details className="mt-2 text-sm">
+              <summary className="cursor-pointer text-xs text-ink-mute hover:text-ink">Full condition table</summary>
+              <div className="mt-2">
+                <CareerStats runner={runner} race={race} breakdown={null} />
+              </div>
+            </details>
+            <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Every run, newest first</h4>
             <RecentRunsTable
               horseName={runner.horse}
               runs={runner.recentRuns}

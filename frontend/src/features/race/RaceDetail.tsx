@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
@@ -6,14 +6,15 @@ import { computeCompositeGaps, computeEffectiveRace, COMPOSITE_INNER_GAP_FROM_TO
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
-import { RaceHeader } from './RaceHeader'
-import { RaceGlance } from './RaceGlance'
+import { RaceHeader, RaceMiniBar } from './RaceHeader'
+import { RaceLadder, RaceSummaryLine } from './RaceGlance'
 import { RunnerRow, ROW_GRID } from './RunnerRow'
 import { RunnerCard } from './RunnerCard'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
+import { PaceStrip } from './PaceStrip'
 import { rankField } from './raceFacts'
 
 interface RaceDetailProps {
@@ -96,9 +97,12 @@ export function RaceDetail({
   const [sortKey, setSortKey] = useState<SortKey>('compositeScore')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
-  const [speedMapView, setSpeedMapView] = useState<'grid' | 'bar' | 'trip'>('grid')
+  const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
   const tripMap = useTripMap()
   const tripRace = tripMap?.races[race.raceId] ?? null
+  // The to-scale trip map is the default view when this race has one; the column speed map otherwise.
+  const speedMapView = speedMapChoice ?? (tripRace ? 'trip' : 'grid')
 
   // scratched (prop) is the manual, this-device-only toggle set; merge in each runner's real data-driven scratch so a late scratch the
   // pipeline detected takes effect here too. Toggling in the UI still only writes to the manual set (setScratched).
@@ -205,9 +209,12 @@ export function RaceDetail({
         </div>
       </div>
 
-      <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} />
+      <div ref={headerRef}>
+        <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} />
+      </div>
+      <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
-      <RaceGlance
+      <RaceSummaryLine
         ranked={ranked}
         allRunners={race.runners}
         scratched={effectiveScratched}
@@ -297,24 +304,27 @@ export function RaceDetail({
         </div>
       </section>
 
+      <RaceLadder ranked={ranked} innerGap={COMPOSITE_INNER_GAP_FROM_TOP} outerGap={COMPOSITE_MAX_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Race shape</h3>
           {/* Scratched runners are left off, not just dimmed: the map shows who is actually going to run. */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
-              Speed map
-            </Pill>
             {tripRace && (
               <Pill active={speedMapView === 'trip'} onClick={() => setSpeedMapView('trip')}>
                 Trip map
               </Pill>
             )}
+            <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
+              Speed map
+            </Pill>
             <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
               Bars
             </Pill>
           </div>
         </div>
+        <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
         {speedMapView === 'trip' && tripRace && tripMap ? (
           <TripMap trip={tripRace} excluded={effectiveScratched} generated={tripMap.generated} />
         ) : speedMapView === 'bar' ? (
@@ -331,7 +341,10 @@ export function RaceDetail({
           effective={effectiveByRunId[selectedRunner.runId]}
           rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
           fieldSize={ranked.length}
-          gapFromTop={compositeGapByRunId[selectedRunner.runId] ?? null}
+          fieldTop={ranked.length ? ranked[0].proj : null}
+          fieldLow={ranked.length ? ranked[ranked.length - 1].proj : null}
+          scratchedSet={effectiveScratched}
+          tripRace={tripRace}
           tripRunner={tripRace?.runners.find((t) => t.rid === selectedRunner.runId) ?? null}
           tripKind={tripRace?.laneKind ?? null}
           deltaValue={deltas[selectedRunner.runId] ?? null}
