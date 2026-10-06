@@ -9,6 +9,8 @@ import { RunnerRow } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
+import { TripMap } from './TripMap'
+import { useTripMap } from '../../lib/tripMap'
 import { biasText, blendRace, modelSpeedMap, useRacingModel, withModelAdjustments } from '../../lib/racingModel'
 import { ModelRunnerRow } from './ModelRunnerRow'
 import { MODEL_COLUMNS, MODEL_GRID, modelSortValue, type ModelRow, type ModelSortKey } from '../../lib/modelTable'
@@ -154,7 +156,9 @@ export function RaceDetail({
   const [sortKey, setSortKey] = useState<SortKey>('compositeScore')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
-  const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid'>('grid')
+  const [speedMapView, setSpeedMapView] = useState<'bar' | 'grid' | 'trip'>('grid')
+  // Trip map (lib/tripMap.ts): projected running line at GPS-tracked courses, offered only for races it covers
+  const tripMap = useTripMap()
   // The race page shows the Racing Model (lib/racingModel.ts) whenever it has projected the race; TopRate's own
   // rating table and speed map remain only as the fallback for races it has not.
   const [modelSort, setModelSort] = useState<{ key: ModelSortKey; dir: 'asc' | 'desc' }>({ key: 'r', dir: 'desc' })
@@ -165,6 +169,7 @@ export function RaceDetail({
     () => ({ ...rawRace, runners: withModelAdjustments(rawRace.runners, racingModel) }),
     [rawRace, racingModel],
   )
+  const tripRace = tripMap?.races[race.raceId] ?? null
 
   // scratched (prop) is the manual, this-device-only toggle set - merge in
   // each runner's real data-driven scratch (see toprate_price_refresh.py)
@@ -747,16 +752,23 @@ export function RaceDetail({
       {/* Scratched runners are excluded, not just visually - the speed map
           plots who's actually going to run, not the original field. */}
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <Pill active={speedMapView === 'grid' || useModelMap} onClick={() => setSpeedMapView('grid')}>
+        <Pill active={(speedMapView === 'grid' || useModelMap) && !(speedMapView === 'trip' && tripRace)} onClick={() => setSpeedMapView('grid')}>
           Grid
         </Pill>
+        {tripRace && (
+          <Pill active={speedMapView === 'trip'} onClick={() => setSpeedMapView('trip')}>
+            Trip map
+          </Pill>
+        )}
         {!useModelMap && (
           <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
             Bar
           </Pill>
         )}
       </div>
-      {speedMapView === 'grid' || useModelMap ? (
+      {speedMapView === 'trip' && tripRace && tripMap ? (
+        <TripMap trip={tripRace} excluded={effectiveScratched} generated={tripMap.generated} />
+      ) : speedMapView === 'grid' || useModelMap ? (
         <SpeedMapGrid
           race={race}
           runners={race.runners.filter((r) => !effectiveScratched.has(r.runId))}
