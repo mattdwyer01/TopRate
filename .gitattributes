@@ -46,3 +46,6 @@ toprate_data.json.gz binary
 # _write_payload), same single-line / compressed reasoning as above.
 toprate_history.json binary
 toprate_history.json.gz binary
+
+# GPS parquets (data/gps, written by gps_daily.yml)
+*.parquet binary
