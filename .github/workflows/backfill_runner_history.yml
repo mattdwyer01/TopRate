@@ -140,16 +140,25 @@ jobs:
             pushed=false
           fi
 
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          for i in $(seq 1 20); do
             [ "$pushed" = "true" ] && break
-            if timeout 90 git push; then
+            if timeout 180 git push; then
               echo "Pushed on attempt $i"
               pushed=true
               break
             fi
             echo "Push rejected or timed out (attempt $i) - replaying this commit onto the fresh base"
-            timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
-            if timeout 120 git rebase "origin/${{ github.ref_name }}"; then
+            # 300s, not the original 120s: toprate_data.json (price_refresh.yml/
+            # tab_results.yml, ~5 min cadence) is ~30MB and toprate_history.json
+            # is ~80MB, both rewritten whole-file per commit. A single missed
+            # fetch snowballs - the NEXT fetch has to catch up on an even bigger
+            # backlog of such commits - and 120s wasn't enough even to catch up
+            # on ONE cycle under real load (confirmed live, 6 Oct 2026: a
+            # ~95,700-horse --all run's fetch timed out on all 12/12 attempts,
+            # each attempt silently failing with no git error text before the
+            # timeout, i.e. genuinely out of time, not a real git failure).
+            timeout 300 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            if timeout 180 git rebase "origin/${{ github.ref_name }}"; then
               # Rebase succeeded (the common case - no real content conflict),
               # loop back around to retry the push with this same commit;
               # no need to touch the python merge at all.
