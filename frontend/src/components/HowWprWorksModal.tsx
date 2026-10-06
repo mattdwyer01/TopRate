@@ -79,9 +79,9 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             often the horse has been held up, raced wide or started slowly, how the track has played earlier on the card,
             the horse's late versus early sectional profile, and whether its jockey and trainer ride it further forward or back
             than its usual style (light-history runners have no suitability adjustment). <span className="font-mono text-ink">Adj</span> also
-            includes weight carried: the model's ratings are weight-free, so each kilo above the field average takes about 0.5
+            includes weight carried: the model's ratings are weight-free, so each kilo above the field average takes about 0.4
             WPR off, and each kilo below adds the same. That figure was measured on the model's own out-of-sample projections
-            (plausible range 0.4 to 0.6 on ATW, up to 0.8 for ranking winners).
+            (measured on 4,551 out-of-sample races, 90% range 0.35 to 0.47).
           </p>
         </Section>
 

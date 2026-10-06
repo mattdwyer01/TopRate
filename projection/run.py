@@ -30,7 +30,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache')
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
-WT_K = 0.5   # WPR per kg of weight carried above the field average (atw-target fit 0.38, winner-ranking fit 0.62, both within error of 0.5)
+WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
 
 def au_today():
