@@ -9,21 +9,19 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   band: 'inner' | 'outer' | 'none'
-  barFrac: number | null // 0..1 position of the projection between the field's lowest and highest
   onClick: () => void
 }
 
 // Desktop table row (lg and up). Phones and tablets use RunnerCard instead, so nothing here has to squeeze into a narrow screen.
 export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_100px_50px_46px_46px_52px_84px_30px]'
 
-export function RunnerRow({ runner, raceDate, selected, effective, band, barFrac, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, band, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const overlayPct =
     effective?.isOverlay && runner.fixedWinPrice != null && effective.effectivePrice != null
       ? Math.round((runner.fixedWinPrice / effective.effectivePrice - 1) * 100)
       : null
-  const barTone = band === 'inner' ? 'bg-emerald' : band === 'outer' ? 'bg-amber' : 'bg-line'
   return (
     <div
       role="button"
@@ -82,11 +80,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, barFrac
           <span title={`Projected WPR ${fmtWpr(f.proj)}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
             <span className="font-mono text-[15px] font-semibold leading-tight text-emerald-deep">{fmtWpr(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
-            {barFrac != null && (
-              <span className="mt-0.5 block h-[3px] w-full overflow-hidden rounded-full bg-line-soft">
-                <span className={`block h-full rounded-full ${barTone}`} style={{ width: `${Math.max(6, barFrac * 100)}%` }} />
-              </span>
-            )}
           </span>
         )}
       </span>

@@ -9,7 +9,6 @@ interface RunnerCardProps {
   selected: boolean
   effective?: EffectiveRunner
   band: 'inner' | 'outer' | 'none'
-  barFrac: number | null
   onClick: () => void
 }
 
@@ -23,11 +22,10 @@ function Kv({ k, v, className = 'text-ink-soft' }: { k: string; v: string; class
 }
 
 // Phone and tablet card for one runner, kept to three short lines: name with projection and price, then connections, then the small stats
-// on one line. The projection bar is a thin strip along the bottom edge. Nothing scrolls sideways.
-export function RunnerCard({ runner, raceDate, selected, effective, band, barFrac, onClick }: RunnerCardProps) {
+// on one line. Nothing scrolls sideways.
+export function RunnerCard({ runner, raceDate, selected, effective, band, onClick }: RunnerCardProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
-  const barTone = band === 'inner' ? 'bg-emerald' : band === 'outer' ? 'bg-amber' : 'bg-line'
   const overlayPct =
     effective?.isOverlay && runner.fixedWinPrice != null && effective.effectivePrice != null
       ? Math.round((runner.fixedWinPrice / effective.effectivePrice - 1) * 100)
@@ -44,7 +42,7 @@ export function RunnerCard({ runner, raceDate, selected, effective, band, barFra
         }
       }}
       title={f.marketNote}
-      className={`relative flex cursor-pointer gap-2 overflow-hidden rounded-lg border border-l-4 border-line bg-panel px-2.5 pb-2 pt-1.5 text-left transition-colors ${BAND_BORDER[band]} ${
+      className={`flex cursor-pointer gap-2 overflow-hidden rounded-lg border border-l-4 border-line bg-panel px-2.5 py-1.5 text-left transition-colors ${BAND_BORDER[band]} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
@@ -120,11 +118,6 @@ export function RunnerCard({ runner, raceDate, selected, effective, band, barFra
           </div>
         )}
       </div>
-      {!f.scratched && barFrac != null && (
-        <span className="absolute inset-x-0 bottom-0 block h-[3px] bg-line-soft">
-          <span className={`block h-full ${barTone}`} style={{ width: `${Math.max(4, barFrac * 100)}%` }} />
-        </span>
-      )}
     </div>
   )
 }
