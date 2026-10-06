@@ -54,8 +54,16 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `.github/workflows/projection_daily.yml` runs it (daily full run incl. `analysis/trip_map/build_trip_map.py`, plus `fast` mode
   from cron-job.org or after a going change). See `projection/README.md`.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
-  runs. There is a duplicate `daily.yml` in the repo ROOT that is NOT used —
-  ignore it (or delete it); only `.github/workflows/daily.yml` matters.
+  runs. (The old duplicate `daily.yml` that sat in the repo root is now
+  `archive/workflows/root_daily.yml`.)
+- `archive/` (Oct 2026) — everything no longer in use, moved with `git mv`:
+  about 230 one-off experiment/backtest scripts (`archive/analysis/`), old-model
+  backfills, probes, disabled workflows, and frontend components no longer
+  reachable (Trackers tab, `PriceMovementChart`, `density.ts`). See
+  `archive/README.md` for how to run one. Older entries in this file name those
+  scripts without the `archive/<folder>/` prefix. The Python trackers
+  (`speedmap_jockey_tracker.py`) still run; only the frontend Trackers tab and
+  its `trackerRules.ts` mirror are archived.
 - `.github/workflows/price_refresh.yml` — runs every 5 min during AU racing
   hours, refreshes prices and `toprate_data.json` only (via
   `toprate_price_refresh.py` → `toprate_daily.py`'s `rebuild_html()`). Never
