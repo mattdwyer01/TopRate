@@ -8,7 +8,8 @@ name: GPS sectionals (daily)
 #
 # Needs secrets RACINGCOM_API_KEY (form API) and RACINGCOM_CAL_API_KEY (calendar API) for VIC/SA: the
 # x-api-key values racing.com's own pages send. Without them VIC/SA is skipped and the job goes red.
-# Set repo variable SCRAPER_RUNNER (e.g. self-hosted) if either site blocks GitHub's IP ranges.
+# Repo variable SCRAPER_RUNNER=self-hosted runs it on the Vultr AU box (racing.com crawls from GitHub's runners:
+# a 16-day catch-up ran 55+ min there). That box also runs tab_results.yml, so keep this job short.
 
 on:
   schedule:
@@ -51,10 +52,17 @@ jobs:
           fetch-depth: 1
 
       - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
         with:
           python-version: "3.11"
 
-      - run: pip install pandas pyarrow requests
+      - name: Python packages
+        run: |
+          if [ "${{ runner.environment }}" = "github-hosted" ]; then pip install pandas pyarrow requests; exit 0; fi
+          # self-hosted (Vultr): system Python, as tab_results.yml uses; add what is missing for the current user
+          python -c "import pandas, pyarrow, requests" 2>/dev/null && exit 0
+          python -m pip install --user pandas pyarrow requests \
+            || python -m pip install --user --break-system-packages pandas pyarrow requests
 
       - name: Racing Queensland (last 10 days)
         id: rq
