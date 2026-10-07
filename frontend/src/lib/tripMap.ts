@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 // Trip map (Oct 2026): projected running line at about 800m from home for upcoming races at GPS-tracked
-// courses (VIC, SA, QLD), produced by analysis/trip_map/build_trip_map.py and committed as trip_map.json.
+// courses (VIC, SA, QLD) and, from the results data alone, tracks without GPS (state OTHER, width estimated), produced by analysis/trip_map/build_trip_map.py and committed as trip_map.json.
 // Optional: if the file is missing or a race is not in it, the Race tab simply does not offer the view.
 
 export interface TripRunner {
@@ -21,8 +21,8 @@ export interface TripRace {
   distance: number
   going: string | null
   rail: string | null
-  state: 'VICSA' | 'QLD'
-  laneKind: 'avg' | '800m' // VIC/SA GPS only has whole-run average width; QLD has width at 800m from home
+  state: 'VICSA' | 'QLD' | 'OTHER'
+  laneKind: 'avg' | '800m' | 'est' // VIC/SA GPS only has whole-run average width; QLD has width at 800m from home; 'est' (tracks with no GPS) is an estimate, not measured
   fs: number
   err: { gap: number; lane: number }
   runners: TripRunner[]

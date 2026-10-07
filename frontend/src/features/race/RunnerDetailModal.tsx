@@ -26,7 +26,7 @@ interface RunnerDetailModalProps {
   scratchedSet: Set<string>
   tripRace: TripRace | null
   tripRunner: TripRunner | null
-  tripKind: 'avg' | '800m' | null
+  tripKind: 'avg' | '800m' | 'est' | null
   deltaValue: number | null
   baseValue: number | null
   onSetDelta: (v: number | null) => void
@@ -316,7 +316,7 @@ export function RunnerDetailModal({
               {runner.projectionDescription && <p className="mt-2 hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
             </Card>
 
-            <Card title="Expected run" note={tripKind === '800m' ? 'about 800m from home' : 'running line through the race'}>
+            <Card title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : 'running line through the race'}>
               {tripRace && tripRunner && tripRunner.gap != null && (
                 <div className="mb-2">
                   <HorseTripMini trip={tripRace} runnerId={runner.runId} excluded={scratchedSet} />
@@ -329,25 +329,25 @@ export function RunnerDetailModal({
                     <div className="font-mono text-xl font-semibold text-ink">{tripRunner.gap.toFixed(1)}L</div>
                   </div>
                   <div className="rounded-md bg-bg p-2.5">
-                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">{tripKind === '800m' ? 'Off the rail at 800m' : 'Average off the rail'}</div>
+                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">{tripKind === 'est' ? 'Off the rail at 800m (est.)' : tripKind === '800m' ? 'Off the rail at 800m' : 'Average off the rail'}</div>
                     <div className="font-mono text-xl font-semibold text-ink">{tripRunner.lane.toFixed(1)}m</div>
                   </div>
                 </div>
               ) : null}
               {tripRunner && tripRunner.gap != null && (
                 <div className="sm:hidden">
-                  <Row label="Off the rail" value={`${tripRunner.lane.toFixed(1)}m${tripKind === '800m' ? ' at 800m' : ' on average'}`} />
+                  <Row label="Off the rail" value={`${tripRunner.lane.toFixed(1)}m${tripKind === 'est' ? ' at 800m (estimate)' : tripKind === '800m' ? ' at 800m' : ' on average'}`} />
                 </div>
               )}
               <Row label="Settling position" value={runner.predictedSettlingBand ?? '-'} />
               {runner.againstShapeTendency && <Row label="Against the expected shape" value={runner.againstShapeTendency} />}
               {tripRunner && (
                 <Row
-                  label="GPS history"
+                  label={tripKind === 'est' ? 'Result history' : 'GPS history'}
                   value={tripRunner.last ? `${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}` : 'none (forecast from barrier and track)'}
                 />
               )}
-              {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs a VIC, SA or QLD GPS course with barriers declared).</p>}
+              {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs barriers declared and some results history at the course).</p>}
             </Card>
           </div>
 

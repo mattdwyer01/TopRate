@@ -118,7 +118,8 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
   for (let g = 0; g <= maxG; g += 2) gridG.push(g)
   const gridL: number[] = []
   for (let l = 0; l <= maxL; l += 2) gridL.push(l)
-  const laneLabel = trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
+  const noGps = trip.laneKind === 'est'
+  const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
   const hist = items.filter((r) => r.nHist === 0).length
 
   return (
@@ -217,9 +218,13 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
               Projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
             </div>
             <div className="opacity-75">
-              {hov.last
-                ? `Last GPS run ${hov.last.track}, ${hov.last.date} (${hov.nHist} on record)`
-                : 'No GPS run on record: forecast from the barrier and track only'}
+              {noGps
+                ? hov.last
+                  ? `Last result ${hov.last.track}, ${hov.last.date} (${hov.nHist} on record). Width is an estimate.`
+                  : 'No earlier result on record: forecast from the barrier and track only. Width is an estimate.'
+                : hov.last
+                  ? `Last GPS run ${hov.last.track}, ${hov.last.date} (${hov.nHist} on record)`
+                  : 'No GPS run on record: forecast from the barrier and track only'}
             </div>
           </div>
         )}
@@ -230,16 +235,17 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
           front of field to back
         </span>
         <span>Typical error about {trip.err.gap} lengths and {trip.err.lane}m{narrow ? ' (tap a runner)' : ' (hover a runner to see it)'}</span>
-        {hist > 0 && <span>{hist} runner{hist === 1 ? '' : 's'} with no GPS history</span>}
+        {hist > 0 && <span>{hist} runner{hist === 1 ? '' : 's'} with no {noGps ? 'earlier result' : 'GPS'} history</span>}
+        {noGps && <span className="text-amber">No GPS at this track: gap is forecast from past 800m positions, width is estimated</span>}
       </div>
       <details className="mt-2 text-xs text-ink-faint sm:hidden">
         <summary className="cursor-pointer text-ink-mute">How this is built</summary>
         <p className="mt-1 leading-relaxed">
-          The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last GPS runs, then places the runners using the spread real fields show, so each exact position is uncertain. Width is {laneLabel}. It does not feed Proj or Combo. Updated {generated.slice(0, 16).replace('T', ' ')} UTC.
+          The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last {noGps ? 'results' : 'GPS runs'}, then places the runners using the spread real fields show, so each exact position is uncertain. Width is {laneLabel}. It does not feed Proj or Combo. Updated {generated.slice(0, 16).replace('T', ' ')} UTC.
         </p>
       </details>
       <p className="mt-2 hidden max-w-3xl text-xs leading-relaxed text-ink-faint sm:block">
-        The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last GPS runs, then places the
+        The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last {noGps ? 'results' : 'GPS runs'}, then places the
         runners using the spread real fields show, so the order is the forecast and each exact position is uncertain. It does
         not feed Proj or Combo; in testing it added nothing to winner selection beyond the market. Updated {generated.slice(0, 16).replace('T', ' ')} UTC.
       </p>

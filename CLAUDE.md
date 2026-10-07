@@ -2314,8 +2314,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   - Fair price: softmax `beta` in `wpr_models/config.json` is now 0.20. Overlay/value were backtested (30-39% loss at every threshold,
     model weight 0.08 vs market 1.11), so the dashboard makes NO value or overlay claims. Fair price is the model view only.
   - Gap lines are `COMPOSITE_INNER_GAP_FROM_TOP=4` / `COMPOSITE_MAX_GAP_FROM_TOP=6` (`raceModel.ts`).
-  - `bet_log.py` (run by `tab_results.yml`) still reads `racing_model.json` and the old 3/5 lines. `racing_model.json` is still committed by
-    the racing-model repo; do not delete it until `bet_log.py` is retired or ported to the new model (open decision).
+  - `bet_log.py`, its logs and `racing_model.json` were retired (moved to `archive/bet_log/`, see its README); `tab_results_poller.py` and
+    `tab_results.yml` no longer call or stage them. The racing-model repo's `dashboard.yml` may still commit a `racing_model.json`; nothing reads it.
   - Layouts: Race page and horse detail were rebuilt compact (`features/race/`). Horse detail order: hero, Why this projection + Expected run,
     Form and record (timeline, conditions, every run with Wt/SP), then Market and Result (Result shows at the top on phones once known).
     Verify every layout change at 360/400/1300px for overflow.
