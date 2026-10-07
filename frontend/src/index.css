@@ -64,6 +64,12 @@
   --color-slate: #475569;
   --color-slate-bg: #f1f5f9;
 
+  /* The inside-2 band (race table line, row bar, ladder shading). */
+  --color-blue: #2563eb;
+  --color-blue-deep: #1d4ed8;
+  --color-blue-tint: #dbeafe;
+  --color-blue-bg: #eff6ff;
+
   --color-indigo: #4338ca;
   --color-indigo-bg: #eef2ff;
 

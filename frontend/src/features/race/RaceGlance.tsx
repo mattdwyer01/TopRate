@@ -79,8 +79,8 @@ export function Ladder({
       <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected WPR for each runner, with the inside-4 and inside-6 bands shaded">
         <rect x={X(top - outerGap)} y={topPad - 4} width={X(top - innerGap) - X(top - outerGap)} height={H - topPad - 14} fill="var(--color-amber-tint)" />
         <rect x={X(top - innerGap)} y={topPad - 4} width={X(hi) - X(top - innerGap)} height={H - topPad - 14} fill="var(--color-emerald-tint)" />
-        <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-emerald-tint-hover)" />
-        <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
+        <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-blue-tint)" />
+        <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-blue-deep)">
           inside {coreGap}
         </text>
         <text x={(X(top - innerGap) + X(top - coreGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
