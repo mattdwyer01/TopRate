@@ -84,8 +84,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
 
 export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw }: HeroProps) {
   const sd = typicalSd(runner, proj)
-  // The whole hero is at today's weight (ATW), the scale of the form table. The gauge shifts the field by this horse's own offset, so gaps are unchanged.
-  const shift = projAtw != null && proj != null ? projAtw - proj : 0
+  // The whole hero is at today's weight (ATW): proj, the field top and low all come from the race's effective (ATW) ratings.
   const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
   const recentAvg = projAtw != null && last3.length >= 2 ? last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length : null
   const priorRuns = runner.formHistory.length
@@ -129,7 +128,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         </div>
         {proj != null && !scratched && (
           <div className="order-last col-span-2 min-w-0 lg:order-none lg:col-span-1" title="Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.">
-            <RangeGauge proj={proj + shift} sd={sd} top={fieldTop != null ? fieldTop + shift : null} low={fieldLow != null ? fieldLow + shift : null} />
+            <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
           </div>
         )}
         <div className="flex-none text-right">

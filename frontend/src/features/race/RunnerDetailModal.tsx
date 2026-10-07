@@ -110,9 +110,11 @@ export function RunnerDetailModal({
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   // The panel shows the projection at today's weight (ATW, as the Recent runs table does): the model's rating plus this horse's own offset. Ranking,
   // the range bar and the gap to the top stay on the model's rating, which is what the gap lines and fair prices were validated on.
-  // The payload carries the offset the projection was made with (frozen in the projection log), or the horse's latest for a race still to run.
-  const atwOff = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 ? runner.atwOffset : null
-  const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr + atwOff : null
+  // effectiveWpr is at today's weight (ATW) already: model rating + manual adjustment + the horse's own offset (frozen in the projection log, or its latest
+  // for a race still to run). The waterfall and chart add the offset themselves, so they take the model-scale figure.
+  const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
+  const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr : null
+  const modelProj = effectiveWpr != null ? effectiveWpr - (atwOff ?? 0) : null
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
@@ -299,7 +301,7 @@ export function RunnerDetailModal({
 
           <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
             <div className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-              <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
+              <ProjectionWaterfall runner={runner} proj={modelProj} deltaValue={deltaValue} atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
               <div className="flex flex-col gap-2 md:border-l md:border-line-soft md:pl-6">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
                   Expected run <span className="font-normal normal-case">{tripKind === '800m' || tripKind === 'est' ? '(about 800m from home)' : ''}</span>
@@ -325,7 +327,7 @@ export function RunnerDetailModal({
                 </p>
                 {atwOff != null && effectiveWpr != null && (
                   <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">
-                    Projected {fmtWpr(effectiveWpr + atwOff)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, the scale of the Recent runs table. Typical error about {typicalSd(runner, effectiveWpr)?.toFixed(1) ?? '-'}.
+                    Projected {fmtWpr(effectiveWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, the scale of the Recent runs table. Typical error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
                   </p>
                 )}
                 {runner.projectionDescription && !(atwOff != null && effectiveWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
@@ -334,7 +336,7 @@ export function RunnerDetailModal({
           </Card>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
-            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} atwOffset={atwOff} />
+            <RunTimeline runner={runner} proj={modelProj} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} atwOffset={atwOff} />
             <TimelineLegend atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
             <ConditionsScorecard runner={runner} race={race} />

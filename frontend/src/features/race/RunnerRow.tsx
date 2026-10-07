@@ -66,8 +66,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
         ) : (
-          <span title={`Projected WPR ${fmtWpr(f.projAtw)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"} (model rating ${fmtWpr(f.proj)})` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.projAtw)}</span>
+          <span title={`Projected WPR ${fmtWpr(f.proj)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"} (model rating ${fmtWpr(f.proj != null ? f.proj - f.atwOff : null)})` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
+            <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}

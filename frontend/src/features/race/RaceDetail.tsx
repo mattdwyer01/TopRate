@@ -43,7 +43,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
   { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)', lgOnly: true },
-  { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR at the weight carried today (the scale of the form table). Rows are ordered by the model rating, so numbers can sit slightly out of order.' },
+  { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR at the weight carried today (the scale of the form table)' },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Adj)' },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
@@ -133,7 +133,7 @@ export function RaceDetail({
     [race.runners, effectiveByRunId, effectiveScratched],
   )
   const expectedWinWpr = useMemo(() => {
-    const typical = expectedWinningWpr(ranked.map((r) => r.proj))
+    const typical = expectedWinningWpr(ranked.map((r) => r.proj - (r.eff?.atwOff ?? 0)))
     return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
   }, [ranked])
   const bandOf = useMemo(() => {

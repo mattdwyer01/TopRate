@@ -1,7 +1,10 @@
 import type { Runner } from '../types/domain'
 
 export interface EffectiveRunner {
+  // The projection at the weight carried today (ATW): model rating + manual delta + this horse's own offset. Ranking, gaps and fair prices use it.
   effectiveProjectedWpr: number | null
+  // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
+  atwOff: number
   effectivePrice: number | null
   effectiveRank: number | null
   hasOverride: boolean
@@ -64,18 +67,20 @@ export function computeEffectiveRace(
     const delta = deltas[r.runId] ?? 0
     const hasOverride = deltas[r.runId] != null || (r.projectedWpr == null && r.runId in bases)
     const isScratched = scratched.has(r.runId)
+    const atwOff = r.atwOffset != null && Math.abs(r.atwOffset) >= 0.05 ? r.atwOffset : 0
     return {
       runId: r.runId,
+      atwOff,
       // A scratched runner has no wpr for softmax purposes - excluded from
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
-      wpr: !isScratched && modelBase != null ? modelBase + delta : null,
+      wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
       hasOverride,
       scratched: isScratched,
     }
   })
 
-  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean }[]
+  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
@@ -107,6 +112,7 @@ export function computeEffectiveRace(
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
+      atwOff: r.atwOff,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
