@@ -15,6 +15,7 @@ Width means different things by state: VIC/SA GPS only has each horse's average 
 width every 200m so QLD uses width at the 800m mark.
 
 Run after the daily GPS job:   python analysis/trip_map/build_trip_map.py
+Also covers tracks with no GPS via nongps.py (gap from results, width estimated).
 Writes trip_map.json at the repo root (read by frontend/src/lib/tripMap.ts).
 """
 import glob
@@ -302,6 +303,15 @@ def main():
                               nHist=int(r.n_hist) if pd.notna(r.n_hist) else 0,
                               last=(dict(date=str(last.loc[r.horse_id, 'date'].date()), track=last.loc[r.horse_id, 'track'], lane=round(float(last.loc[r.horse_id, 'lane']), 1) if 'lane' in last.columns else None)
                                     if r.horse_id in last.index else None)) for r in z.sort_values('barrier').itertuples()])
+    # ---- tracks without GPS: results-based gap forecast, estimated width (see nongps.py)
+    try:
+        import nongps
+        o_races, o_err = nongps.build(res, a, TODAY, up)
+        races.update(o_races)
+        err['OTHER'] = o_err
+        print('non-GPS races:', len(o_races), flush=True)
+    except Exception as e:  # never lose the GPS maps because of this extension
+        print('non-GPS trip map skipped:', repr(e), flush=True)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainEnd=str(a.date.max().date()), error=err, races=races)
     with open(OUT, 'w') as f:
         json.dump(payload, f, separators=(',', ':'))

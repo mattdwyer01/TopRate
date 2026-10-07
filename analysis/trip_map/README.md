@@ -15,3 +15,13 @@ Typical single-horse error about 2.6 lengths; width error 1.6m (QLD) and 3.5m (V
 
 What it is not: it does not feed Proj or Combo. In testing, the position forecasts added nothing to the rating model
 beyond a tiny gain, and nothing to winner selection beyond the market price.
+
+## Tracks without GPS (`nongps.py`)
+
+NSW, WA, TAS, ACT, NT and any VIC/SA/QLD course with no GPS history get a Trip map too (state `OTHER`, laneKind `est`).
+Gap behind the leader at 800m comes from each horse's last 3 / 8 results (position and margin at 800m, in `race_results_*.csv.gz`)
+plus track, distance, going, rail, barrier and field size. Held-out (train before 2025, score non-GPS tracks 2025 onward, fields of 8+,
+14,978 races): within-race correlation 0.54, typical single-horse error 2.6 lengths, as good as the GPS states.
+Width is NOT measured at these tracks. It is estimated from barrier, field size, rail and forecast settle by a model fitted on the QLD
+width-at-800m runs (held-out QLD correlation 0.70, error 1.4m); at non-QLD tracks this is an extrapolation, so the page labels it an estimate.
+`build_trip_map.py` calls it at the end and skips it (keeping the GPS maps) if it errors.
