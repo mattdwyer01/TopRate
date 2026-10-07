@@ -13,8 +13,8 @@ concurrency:
 jobs:
   probe:
     runs-on: [self-hosted]
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Run probe
-        run: python -u sky_frame_probe.py 2>&1 | tee probe_output.txt
+        run: python -u replay_codes_bootstrap.py 2>&1 | tee probe_output.txt
