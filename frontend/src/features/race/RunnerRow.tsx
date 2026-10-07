@@ -13,12 +13,12 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row, same columns on every screen. Below lg the RTS, Base and Rated $ columns drop out (their tracks collapse to nothing via
-// `hidden`) so Horse, Adj, Proj, SM, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
+// Table row, same columns on every screen. Below lg the RTS, Base and Adj columns drop out (their tracks collapse to nothing via
+// `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
 const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_28px_36px_28px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_28px_36px_28px_60px]'} ${DESKTOP_GRID}`
+  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, onClick }: RunnerRowProps) {
@@ -62,7 +62,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         {f.spell.label}
       </span>
       <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`}>{fmtWpr(runner.baseWpr)}</span>
-      <span className={`text-right font-mono ${adjClass(runner.wprAdjustment)}`}>{fmtAdj(runner.wprAdjustment)}</span>
+      <span className={`text-right font-mono ${LG_ONLY} ${adjClass(runner.wprAdjustment)}`}>{fmtAdj(runner.wprAdjustment)}</span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
@@ -74,7 +74,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         )}
       </span>
       <span className={`text-right font-mono ${smClass(effective?.speedMapAdj)}`}>{f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}</span>
-      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`} title="Fair price from the projection (softmax over the field)">
+      <span className={`text-right font-mono text-ink-mute`} title="Fair price from the projection (softmax over the field)">
         {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? runner.wprPrice)}
       </span>
       <span className="text-right text-ink-mute">
