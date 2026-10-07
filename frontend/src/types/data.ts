@@ -33,6 +33,9 @@ export interface RawFormRun {
   // relativeSettlePosition client-side without a second, formAll-shaped
   // copy of the same rows. Absent on the embedded payload's formRuns.
   fs?: number | null
+  // weight carried (kg) and starting price for that run - only in horse_history/*.json
+  wt?: number | null
+  sp?: number | null
 }
 
 export interface RawFormAllEntry {

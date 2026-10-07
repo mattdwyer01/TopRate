@@ -23,6 +23,8 @@ export interface FormRun {
   jockey: string | null
   isPeakRun: boolean
   date?: string
+  weight?: number | null
+  startingPrice?: number | null
 }
 
 export interface FormHistoryEntry {

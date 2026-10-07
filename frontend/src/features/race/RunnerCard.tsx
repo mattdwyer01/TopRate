@@ -26,10 +26,6 @@ function Kv({ k, v, className = 'text-ink-soft' }: { k: string; v: string; class
 export function RunnerCard({ runner, raceDate, selected, effective, band, onClick }: RunnerCardProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
-  const overlayPct =
-    effective?.isOverlay && runner.fixedWinPrice != null && effective.effectivePrice != null
-      ? Math.round((runner.fixedWinPrice / effective.effectivePrice - 1) * 100)
-      : null
   return (
     <div
       role="button"
@@ -57,10 +53,6 @@ export function RunnerCard({ runner, raceDate, selected, effective, band, onClic
               light
             </span>
           )}
-          {effective?.isOverlay && !f.scratched && !effective.driftedToOverlay && (
-            <span className="flex-none rounded bg-emerald-bg px-1 text-[9px] font-semibold leading-4 text-emerald-deep">OVER{overlayPct != null ? ` +${overlayPct}%` : ''}</span>
-          )}
-          {effective?.driftedToOverlay && !f.scratched && <span className="flex-none rounded bg-amber-bg px-1 text-[9px] font-semibold leading-4 text-amber">DRIFT</span>}
         </div>
         <div className="truncate text-[11px] leading-snug text-ink-faint">
           {runner.jockey} / {runner.trainer}

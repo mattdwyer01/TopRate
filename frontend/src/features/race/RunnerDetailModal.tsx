@@ -126,7 +126,6 @@ export function RunnerDetailModal({
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const fair = effective?.effectivePrice ?? null
   const market = runner.fixedWinPrice
-  const valuePct = fair != null && market != null && fair > 0 ? (market / fair - 1) * 100 : null
   const sd = typicalSd(runner, effectiveWpr)
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
 
@@ -206,7 +205,6 @@ export function RunnerDetailModal({
             fieldLow={fieldLow}
             fair={fair}
             market={market}
-            valuePct={valuePct}
             fixedMove={fixedMove}
             hasOverride={hasOverride}
             spellLabel={spell.label}

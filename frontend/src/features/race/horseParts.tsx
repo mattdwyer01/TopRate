@@ -40,7 +40,6 @@ interface HeroProps {
   fieldLow: number | null
   fair: number | null
   market: number | null
-  valuePct: number | null
   fixedMove: PriceMove | null
   hasOverride: boolean
   spellLabel: string
@@ -82,7 +81,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, valuePct, fixedMove, hasOverride, spellLabel, daysSince }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince }: HeroProps) {
   const sd = typicalSd(runner, proj)
   const priorRuns = runner.formHistory.length
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
@@ -104,8 +103,6 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         <div className="min-w-0 flex-1 sm:min-w-[210px]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Projected WPR</span>
-            {valuePct != null && valuePct >= 5 && !scratched && <span className="rounded-full bg-emerald-bg px-2 py-0.5 text-[11px] font-semibold text-emerald-deep">OVERLAY +{Math.round(valuePct)}%</span>}
-            {valuePct != null && valuePct <= -5 && !scratched && <span className="rounded-full bg-bg px-2 py-0.5 text-[11px] font-semibold text-ink-mute">UNDERLAY {Math.round(valuePct)}%</span>}
             {hasOverride && <span className="rounded-full bg-amber-bg px-2 py-0.5 text-[11px] font-semibold text-amber">manually adjusted</span>}
           </div>
           {scratched ? (
@@ -444,7 +441,7 @@ function fmtMin(m: number): string {
   return `+${(m / 60).toFixed(m % 60 === 0 ? 0 : 1)}h`
 }
 
-// The price over time with the model's fair price as a dashed line: above the line is an overlay, below an underlay.
+// The price over time with the model's fair price as a dashed line. The fair price is the model's own view; in testing it has not beaten the market.
 export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | null }) {
   const pts = runner.priceSeries
   const market = runner.fixedWinPrice
@@ -483,7 +480,6 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
   const Y = (v: number) => 10 + (1 - (v - yl) / (yh - yl)) * (H - 34)
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.minutesSinceOpen).toFixed(1)},${Y(p.price).toFixed(1)}`).join(' ')
   const last = pts[pts.length - 1]
-  const over = fair != null && last.price > fair
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-xl" role="img" aria-label="Price over time against the model's fair price">
@@ -516,7 +512,7 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
       <div className="text-xs text-ink-mute">
         {fair != null ? (
           <>
-            Dashed line is the model's fair price. Currently <span className={over ? 'font-semibold text-emerald-deep' : 'font-semibold text-ink-soft'}>{over ? 'above it (overlay)' : 'below it (underlay)'}</span>.
+            Dashed line is the model's fair price (its view only). Backing runners the model rates above the market has not made money in testing.
           </>
         ) : (
           'No fair price for this runner.'

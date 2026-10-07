@@ -127,11 +127,13 @@ function RunRow({ run, isPeak, delta, days }: { run: FormRun; isPeak: boolean; d
         </span>
       </td>
       <td className="px-2 py-1 text-right font-mono">{run.barrier ?? '—'}</td>
+      <td className="px-2 py-1 text-right font-mono text-ink-soft">{run.weight != null ? run.weight : '—'}</td>
       <td className="px-2 py-1 whitespace-nowrap">{run.raceClass ?? '—'}</td>
       <td className="max-w-[8rem] truncate px-2 py-1" title={run.jockey ?? ''}>
         {run.jockey ?? '—'}
       </td>
       <td className="px-2 py-1 text-right font-mono">{run.finishPosition ?? '—'}</td>
+      <td className="px-2 py-1 text-right font-mono text-ink-soft">{run.startingPrice != null ? `$${run.startingPrice.toFixed(run.startingPrice >= 10 ? 0 : 2)}` : '—'}</td>
       <td className="px-2 py-1 text-right font-mono">
         {run.margin != null ? run.margin.toFixed(1) : '—'}
       </td>
@@ -204,7 +206,7 @@ function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
       </div>
       <div className="flex items-center gap-2 text-[11px] text-ink-faint">
         <span className="min-w-0 flex-1 truncate">
-          {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'} &middot; {run.raceClass ?? '—'}
+          {run.distance}m &middot; {run.going || '—'} &middot; Bar {run.barrier ?? '—'}{run.weight != null ? ` · ${run.weight}kg` : ''}{run.startingPrice != null ? ` · SP $${run.startingPrice.toFixed(run.startingPrice >= 10 ? 0 : 2)}` : ''} &middot; {run.raceClass ?? '—'}
         </span>
         <span className="shrink-0 font-mono">
           Fin {run.finishPosition ?? '—'}
@@ -479,7 +481,7 @@ export function RecentRunsTable({
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
-        <table className="w-full min-w-[940px] border-collapse text-xs">
+        <table className="w-full min-w-[1020px] border-collapse text-xs">
           <thead>
             <tr className="border-b border-line bg-bg text-ink-mute">
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Date</th>
@@ -487,9 +489,11 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Dist</th>
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Going</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Bar</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Weight carried (kg)">Wt</th>
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Class</th>
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Jockey</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Fin</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Starting price">SP</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Mgn</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Pos</th>
               <th colSpan={3} className="border-l border-line-soft px-2 py-1 text-center font-medium">Race</th>

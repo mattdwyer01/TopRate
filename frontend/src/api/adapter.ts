@@ -51,6 +51,8 @@ export function toFormRun(r: RawFormRun): FormRun {
     jockey: r.jck,
     isPeakRun: r.pk === 1,
     date: r.d,
+    weight: r.wt ?? null,
+    startingPrice: r.sp ?? null,
   }
 }
 
