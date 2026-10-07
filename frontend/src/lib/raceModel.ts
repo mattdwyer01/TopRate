@@ -124,11 +124,10 @@ export function computeEffectiveRace(
   return result
 }
 
-// Gap lines on the Proj scale at today's weight (ATW), re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026) with modelled offsets:
-// 3.5 holds 3.6 runners a race and 64% of winners, 5.4 holds 5.2 and 80%. They are sized to hold as many runners as the old 4 / 6 lines did on the plain
-// scale (3.6 / 5.2 runners, 67% / 82% of winners); the plain scale captured about 3 points more winners at the same size.
-export const OUTER_GAP_FROM_TOP = 5.4
-export const INNER_GAP_FROM_TOP = 3.5
+// Gap lines on the Proj scale at today's weight (ATW), 7 Oct 2026, set by the user and checked on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
+// inside 2.4 holds 2.6 runners a race and 53% of winners, inside 6 holds 5.7 and 84%.
+export const OUTER_GAP_FROM_TOP = 6
+export const INNER_GAP_FROM_TOP = 2.4
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.
