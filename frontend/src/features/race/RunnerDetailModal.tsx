@@ -20,6 +20,7 @@ interface RunnerDetailModalProps {
   fieldSize: number
   fieldTop: number | null
   fieldLow: number | null
+  expectedWinWpr: number | null
   tripRunner: TripRunner | null
   tripKind: 'avg' | '800m' | 'est' | null
   deltaValue: number | null
@@ -41,15 +42,6 @@ function Card({ title, note, children, className = '' }: { title: string; note?:
       </div>
       {children}
     </section>
-  )
-}
-
-function Row({ label, value, className = '' }: { label: string; value: React.ReactNode; className?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft py-1 text-sm last:border-0 sm:py-1.5">
-      <span className="text-ink-mute">{label}</span>
-      <span className={`font-mono text-ink ${className}`}>{value}</span>
-    </div>
   )
 }
 
@@ -77,6 +69,7 @@ export function RunnerDetailModal({
   fieldSize,
   fieldTop,
   fieldLow,
+  expectedWinWpr,
   tripRunner,
   tripKind,
   deltaValue,
@@ -297,45 +290,39 @@ export function RunnerDetailModal({
 
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
-              <div className="mb-3">
-                <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} />
+          <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
+            <div className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+              <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} />
+              <div className="flex flex-col gap-2 md:border-l md:border-line-soft md:pl-6">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Expected run <span className="font-normal normal-case">{tripKind === '800m' || tripKind === 'est' ? '(about 800m from home)' : ''}</span>
+                </div>
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+                  <span className="text-ink-mute">Settling</span>
+                  <span className="text-right font-mono text-ink">{runner.predictedSettlingBand ?? '-'}</span>
+                  {tripRunner && tripRunner.gap != null && (
+                    <>
+                      <span className="text-ink-mute">Behind leader</span>
+                      <span className="text-right font-mono text-ink">{tripRunner.gap.toFixed(1)}L</span>
+                      <span className="text-ink-mute">{tripKind === 'est' ? 'Off rail at 800m (est.)' : tripKind === '800m' ? 'Off rail at 800m' : 'Off rail (avg)'}</span>
+                      <span className="text-right font-mono text-ink">{tripRunner.lane.toFixed(1)}m</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-ink-faint">
+                  {tripRunner
+                    ? tripRunner.last
+                      ? `${tripKind === 'est' ? 'Result history' : 'GPS history'}: ${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}`
+                      : 'No GPS history, forecast from barrier and track.'
+                    : 'No trip forecast for this course.'}
+                </p>
+                {runner.projectionDescription && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
               </div>
-              {runner.projectionDescription && <p className="mt-2 hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
-            </Card>
-
-            <Card title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : 'running line through the race'}>
-              {tripRunner && tripRunner.gap != null ? (
-                <div className="mb-2 hidden grid-cols-2 gap-2 sm:grid">
-                  <div className="rounded-md bg-bg p-2.5">
-                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">Behind the leader</div>
-                    <div className="font-mono text-xl font-semibold text-ink">{tripRunner.gap.toFixed(1)}L</div>
-                  </div>
-                  <div className="rounded-md bg-bg p-2.5">
-                    <div className="text-[11px] uppercase tracking-wide text-ink-faint">{tripKind === 'est' ? 'Off the rail at 800m (est.)' : tripKind === '800m' ? 'Off the rail at 800m' : 'Average off the rail'}</div>
-                    <div className="font-mono text-xl font-semibold text-ink">{tripRunner.lane.toFixed(1)}m</div>
-                  </div>
-                </div>
-              ) : null}
-              {tripRunner && tripRunner.gap != null && (
-                <div className="sm:hidden">
-                  <Row label="Off the rail" value={`${tripRunner.lane.toFixed(1)}m${tripKind === 'est' ? ' at 800m (estimate)' : tripKind === '800m' ? ' at 800m' : ' on average'}`} />
-                </div>
-              )}
-              <Row label="Settling position" value={runner.predictedSettlingBand ?? '-'} />
-              {tripRunner && (
-                <Row
-                  label={tripKind === 'est' ? 'Result history' : 'GPS history'}
-                  value={tripRunner.last ? `${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}` : 'none (forecast from barrier and track)'}
-                />
-              )}
-              {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs barriers declared and some results history at the course).</p>}
-            </Card>
-          </div>
+            </div>
+          </Card>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
-            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} />
+            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} />
             <TimelineLegend />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
             <ConditionsScorecard runner={runner} race={race} />

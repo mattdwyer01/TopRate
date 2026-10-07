@@ -2348,6 +2348,19 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   its training script is not in the repo. `--fast` needs a cache built after this change (`run.py` exits with a message if `prk` is missing from
   `cache/tables.pkl`); the daily full run rebuilds it. The projection full run is slower by the new feature build (not yet timed on a hosted runner).
 
+- **Horse detail rework: true waterfall, compact Expected run, expected winning rating line (Oct 2026)**: in `features/race/horseParts.tsx`,
+  `ProjectionWaterfall` is now a real floating waterfall on one WPR axis (recent-form anchor, then each factor floats from the previous
+  running total with connector lines, then Model base, Suitability, Weight, Projected WPR as totals). The axis is cut above zero so small
+  steps show (caption states where it starts). Top 4 factors are listed, the rest fold into one "N other factors" step so bars always sum.
+  "Expected run" lost its own card and sits beside the waterfall (stacks under it below `md`). `RunTimeline` measures its container
+  (ResizeObserver, wrapper always rendered so the observer attaches even when the first horse has no timeline) and fills the card. Its dotted
+  amber line is `expectedWinningWpr()` (`raceFacts.ts`): expected best performance across the field, simulating each runner around its
+  projection with `WIN_RATING_ERROR_SHARE = 0.6` of its typical error (errors are mostly shared within a race; the full error overshot
+  winners by 4.7 WPR, 0.6 gives zero bias on 2,821 resulted races 1 Jul to 6 Oct 2026, error sd about 3.9). It is a typical figure, not a
+  threshold. `RaceDetail.tsx` computes it from `ranked` and passes `expectedWinWpr` to `RunnerDetailModal`. `RecentRunsTable.tsx` rows
+  are no-wrap and tighter (about 25px, were about 60px from Pos/Going/peak wrapping); separator `colSpan` fixed 17 to 21. Verified in
+  Chromium on real data at 390/1000/1300px, no overflow.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
