@@ -16,7 +16,8 @@ _seen = {}
 
 
 def note(venue, race):
-    """Remember the code from one TAB race stub. venue is the meeting name as TAB gives it."""
+    """Remember the code from one TAB race stub. venue must be the PROVIDER venue (provider_venue_for(), e.g. "Randwick" not TAB's
+    "RANDWICK KENSINGTON"), because that is the name the dashboard has for the race and for past runs."""
     url = (race.get("skyRacing") or {}).get("video")
     m = url and _RX.search(url)
     if m and venue:
