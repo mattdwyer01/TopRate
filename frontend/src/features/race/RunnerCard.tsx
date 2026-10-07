@@ -1,6 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtInt, fmtWpr } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
 import { adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
 interface RunnerCardProps {
@@ -76,15 +76,10 @@ export function RunnerCard({ runner, raceDate, selected, effective, band, onClic
               <Kv k="SM" v={fmtAdj(effective.speedMapAdj)} className={smClass(effective.speedMapAdj)} />
             </>
           )}
-          {runner.toprateRating != null && (
+          {(effective?.effectivePrice ?? runner.wprPrice) != null && !f.scratched && (
             <>
-              <Kv k="TR" v={fmtInt(runner.toprateRating)} />
+              <Kv k="Rated" v={fmtPrice(effective?.effectivePrice ?? runner.wprPrice)} />
             </>
-          )}
-          {runner.formFactor != null && (
-            <span className="max-[379px]:hidden">
-              <Kv k="F" v={fmtInt(runner.formFactor)} />
-            </span>
           )}
         </div>
       </div>

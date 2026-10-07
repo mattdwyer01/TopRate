@@ -1,7 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtInt, fmtWpr } from '../../lib/format'
-import { spellWord, adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
+import { fmtPrice, fmtWpr } from '../../lib/format'
+import { adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
   runner: Runner
@@ -13,7 +13,7 @@ interface RunnerRowProps {
 }
 
 // Desktop table row (lg and up). Phones and tablets use RunnerCard instead, so nothing here has to squeeze into a narrow screen.
-export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_100px_50px_46px_46px_52px_84px_30px]'
+export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_64px_52px_84px_30px]'
 
 export function RunnerRow({ runner, raceDate, selected, effective, band, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
@@ -51,7 +51,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
             `${runner.jockey} / ${runner.trainer}`,
             runner.barrier != null ? `barrier ${runner.barrier}` : null,
             runner.weightCarried != null ? `${runner.weightCarried}kg` : null,
-            f.spell.daysSince != null || f.spell.label === 'FS' ? spellWord(f.spell.label) : null,
             runner.predictedSettlingBand ? runner.predictedSettlingBand.toLowerCase() : null,
           ]
             .filter(Boolean)
@@ -73,9 +72,9 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
           </span>
         )}
       </span>
-      <span className="text-right font-mono text-ink-mute">{f.scratched ? '' : fmtInt(runner.toprateRating)}</span>
-      <span className="text-right font-mono text-ink-mute">{f.scratched ? '' : fmtInt(runner.wprNett)}</span>
-      <span className="text-right font-mono text-ink-mute">{f.scratched ? '' : fmtInt(runner.formFactor)}</span>
+      <span className="text-right font-mono text-ink-mute" title="Fair price from the projection (softmax over the field)">
+        {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? runner.wprPrice)}
+      </span>
       <span className={`text-right font-mono ${smClass(effective?.speedMapAdj)}`}>{f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}</span>
       <span className="text-right text-ink-mute">
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
