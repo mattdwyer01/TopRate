@@ -2302,8 +2302,9 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `compute_wpr_projection` still runs (`_compute_wpr_projection_previous_model`) ONLY to refresh `wprp_contrib.speed_map`, the speed-map
   signal behind the Speed Map tint, the SM Adj column and the trackers' favoured/unfavoured tags; overlay.py carries that one term through
   and clears every other old projection field. A going change makes `tab_results_poller.py` dispatch `projection_daily.yml` in fast mode.
-  NOT re-validated on the new scale (user chose to skip): Proj gap lines (COMPOSITE_MAX/INNER_GAP_FROM_TOP 5 / 3), tracker GAP_MAX 5,
-  price softmax beta. The new Proj averages about 3 WPR below the previous one.
+  Re-validated 7 Oct 2026 on 4,201 pre-race-logged races (4 Jul to 6 Oct, weight term included): softmax beta 0.20 (MLE 0.202, calibrated within about 2 points per band);
+  gap lines 4 / 6 hold 3.62 / 5.20 runners and 67% / 82% of winners (A/E vs SP 1.06 / 1.05; the 6 to 10 band is 0.86); both halves of the window agree.
+  Tracker GAP_MAX is moot (trackers retired). The new Proj averages about 3 WPR below the previous one.
 
 - **Oct 2026 state after the projection cutover (read this first)**:
   - Trackers are retired: `speedmap_jockey_tracker.py`, its CSVs and the Trackers tab live in `archive/trackers/`; `daily.yml`,
@@ -2332,7 +2333,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
     splits the correction per feature (TreeSHAP) into groups (`GROUPS`: form pattern, spell and trials, class, going, distance and track, jockey and
     trainer, weight/age, field and barrier, comments); anchor + groups = base exactly. Stored as JSON in the log's `grp` column and passed to the page as
     `wpjcb.g_*` (overlay.py). Runs logged before 8 Oct 2026 and light-history runners have no split and show base, suitability and weight only. The typical
-    ranges drawn behind each bar (`GROUPS` in `horseParts.tsx`) are from one 677-runner day, not a training-wide figure. TopRate rating is NOT a model input
+    ranges drawn behind each bar (`GROUPS` in `horseParts.tsx`) are the 5th to 95th percentile over 23,820 runs in 2,947 races (6 Aug to 6 Oct 2026, main model, features as of each race). TopRate rating is NOT a model input
     (the old waterfall bar was misleading). The horse-level trip mini-map, the "against the expected shape" row and "How today's shape suits this horse"
     (ComparisonGrid, now in `archive/frontend/`) were removed.
 
