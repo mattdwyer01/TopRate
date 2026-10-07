@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { replayUrl, useReplayCodes } from '../../lib/replay'
+import { PlayIcon } from '../../components/PlayIcon'
 
 // "Replay" pill plus an inline player, shown once the race has a result. The file only exists after the race has run, and
 // a venue we have not seen yet has no code, so anything missing just hides the button or shows a short note.
@@ -10,14 +11,14 @@ export function ReplayPanel({ venue, date, raceNumber, hasResult }: { venue: str
   const url = hasResult ? replayUrl(codes, venue, date, raceNumber) : null
   if (!url) return null
   return (
-    <div className="mt-3">
+    <div className="mt-2.5">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-1)] transition-opacity hover:opacity-90 sm:inline-flex sm:w-auto"
+        className="inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 max-sm:w-full"
       >
-        <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] text-ink">&#9654;</span>
+        <PlayIcon className="h-3 w-3" />
         {open ? 'Hide replay' : 'Watch race replay'}
       </button>
       {open &&
