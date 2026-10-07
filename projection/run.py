@@ -64,6 +64,21 @@ def group_of(feat):
     return 'form'
 
 
+def calibrate(R, cal):
+    """Post-hoc calibration measured on the log's 44,297 out-of-sample projections (1 Jul to 5 Oct 2026, fit Jul-Aug, checked Sep-Oct; models/calibration.json):
+    the main model under-projects the top of the range (actual above projected by about 0.12 WPR per point above 85) and the light-history model runs low by
+    0.8 to 1.3 WPR depending on the number of prior runs (intercepts shrunk by a quarter). The correction is added to the base so base + suitability + weight = projection
+    still holds on the horse page. Returns the per-runner correction."""
+    top, light = cal['top'], cal['light']
+    c = np.zeros(len(R))
+    main = (R.routed == 'main').values
+    c[main] = top['slope'] * np.maximum(R.proj.values[main] - top['knot'], 0)
+    for n, p in light.items():
+        s = ((R.routed == 'light') & (R.nruns == int(n))).values
+        c[s] = p['a'] + p['b'] * (R.proj.values[s] - 70)
+    return np.where(np.isnan(R.proj.values), 0.0, c)
+
+
 def au_today():
     return (datetime.now(timezone.utc) + timedelta(hours=10)).strftime('%Y-%m-%d')
 
@@ -207,7 +222,13 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
+    R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
+    R['proj'] = R.proj + R.cal
+    R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
+    m = R.grp.notna()
+    if m.any():     # keep anchor + groups = base: the calibration rides on the anchor
+        R.loc[m, 'grp'] = [json.dumps({k: (round(v + c, 2) if k == 'anchor' else v) for k, v in json.loads(g).items()}) for g, c in zip(R.loc[m, 'grp'], R.loc[m, 'cal'])]
     return R
 
 

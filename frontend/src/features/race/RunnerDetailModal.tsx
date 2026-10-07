@@ -11,7 +11,7 @@ import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
 import { typicalSd } from './raceFacts'
-import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -204,6 +204,8 @@ export function RunnerDetailModal({
             daysSince={spell.daysSince}
             projAtw={projAtw}
           />
+
+          {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projAtw ?? effectiveWpr} />}
 
           {(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">

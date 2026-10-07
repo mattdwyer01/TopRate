@@ -28,3 +28,5 @@ Known gaps in live use
   finishing-order part is available.
 - Light-history projections run slightly low on average (about +0.5 to +1.1 WPR actual above projected); the stage-wise bias is
   written to `models/light_info.json` and is not applied.
+
+- Calibration (Oct 2026): `run.py calibrate()` reads `models/calibration.json` (top-of-range slope for the main model, stage intercepts for the light model; measured on 44k out-of-sample log rows) and adds the correction to the base. The earlier note above that light projections run low and the bias is "not applied" is superseded.
