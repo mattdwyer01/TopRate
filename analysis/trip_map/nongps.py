@@ -78,6 +78,22 @@ def lane_model(qld_rows):
     return lgb.train(dict(B.PARAMS, min_data_in_leaf=150), lgb.Dataset(z[LANE_FEATS], z.lane), 250)
 
 
+def respread_lane(sc, lane_q, lane_q_all):
+    """The width model predicts each horse's conditional mean, which squeezes a field into a band far narrower than real fields
+    (non-GPS races had a within-race sd of 0.4 to 0.8m against about 2m measured in VIC/SA GPS fields; 13 horses inside 2.5m is not
+    physically possible). Keep the model's ORDER within each race and give it the measured spread instead: rank -> quantile of the
+    real within-race deviation from the race mean, the same method the GPS states already use for width."""
+    out = sc.lane.copy()
+    for rid, z in sc.groupby('race_id'):
+        n = len(z)
+        fsb = B.fs_band(pd.Series([n])).iloc[0]
+        q = lane_q.get(int(fsb)) if pd.notna(fsb) else None
+        q = lane_q_all if q is None else q
+        p = (z.lane.rank(method='first') - 0.5) / n
+        out.loc[z.index] = z.lane.mean() + np.interp(p, B.Q, q)
+    return np.clip(out, 0.3, None)
+
+
 def build(res, a_gps, TODAY, up, cats_note=None):
     """res: load_results(); a_gps: GPS run table from main (needs QLD rows with 'lane'); up: upcoming-runner frame prepared in main.
     Returns (races dict, err dict)."""
@@ -123,6 +139,11 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     qd_all['pred_gap'] = m.predict(qd_all[FEATS])
     qd_all['pred_settle'] = ms.predict(qd_all[FEATS])
     lm = lane_model(qd_all)
+    # Measured within-race spread of QLD width at 800m, by field-size band (same template the GPS states use in build_trip_map.scenario).
+    qd_all['dev'] = qd_all.lane - qd_all.groupby('race_id').lane.transform('mean')
+    big = qd_all[qd_all.fs >= 8]
+    lane_q_all = np.quantile(big.dev, B.Q)
+    lane_q = {int(f): np.quantile(z.dev, B.Q) for f, z in big.groupby(B.fs_band(big.fs)) if len(z) > 200}
 
     races = {}
     u = up[~up.track.isin(gps_tracks)].copy()
@@ -137,7 +158,8 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     u = u.merge(feat, on=['race_id', 'horse_id'], how='left')
     u['trk'] = pd.Categorical(u.track, categories=cats)
     sc = place(u, m, ms, tab)
-    sc['lane'] = np.clip(lm.predict(sc.assign(settle_h3=sc.settle_h3, gap800_h3=sc.gap800_h3)[LANE_FEATS]), 0.3, None)
+    sc['lane'] = lm.predict(sc.assign(settle_h3=sc.settle_h3, gap800_h3=sc.gap800_h3)[LANE_FEATS])
+    sc['lane'] = respread_lane(sc, lane_q, lane_q_all)
     last = hist.sort_values('date').drop_duplicates('horse_id', keep='last').set_index('horse_id')
     for rid, z in sc.groupby('race_id'):
         z = z.copy()
