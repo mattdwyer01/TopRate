@@ -8,7 +8,7 @@ interface RunnerRowProps {
   raceDate: string
   selected: boolean
   effective?: EffectiveRunner
-  band: 'inner' | 'outer' | 'none'
+  band: 'core' | 'inner' | 'outer' | 'none'
   showFp: boolean
   onClick: () => void
 }

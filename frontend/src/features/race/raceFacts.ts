@@ -1,3 +1,4 @@
+import { CORE_GAP_FROM_TOP } from '../../lib/raceModel'
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 
@@ -31,6 +32,7 @@ export interface Ranked {
   proj: number
   gap: number
   eff: EffectiveRunner | undefined
+  core: boolean // inside the core line (a subset of inner)
   inner: boolean
   outer: boolean // inside the outer line but outside the inner one
 }
@@ -42,6 +44,7 @@ export function rankField(
   scratched: Set<string>,
   innerGap: number,
   outerGap: number,
+  coreGap = CORE_GAP_FROM_TOP,
 ): Ranked[] {
   type Row = { runner: Runner; proj: number; eff: EffectiveRunner | undefined }
   const rows: Row[] = []
@@ -55,7 +58,7 @@ export function rankField(
   const top = rows.length ? rows[0].proj : 0
   return rows.map((x) => {
     const gap = top - x.proj
-    return { ...x, gap, inner: gap <= innerGap, outer: gap > innerGap && gap <= outerGap }
+    return { ...x, gap, core: gap <= coreGap, inner: gap <= innerGap, outer: gap > innerGap && gap <= outerGap }
   })
 }
 

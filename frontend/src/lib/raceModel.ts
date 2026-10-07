@@ -124,10 +124,12 @@ export function computeEffectiveRace(
   return result
 }
 
-// Gap lines on the Proj scale at today's weight (ATW), 7 Oct 2026, set by the user and checked on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
-// inside 2.4 holds 2.6 runners a race and 53% of winners, inside 6 holds 5.7 and 84%.
+// Three gap lines on the Proj scale at today's weight (ATW), 7 Oct 2026, set by the user and checked on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
+// inside 2 holds 2.3 runners a race and 49% of winners, inside 4 holds 4.0 and 69%, inside 6 holds 5.7 and 84%. The core line (2) is table and ladder only;
+// the quaddie view, Compare shortcuts and counts keep using the inner (4) and outer (6) lines.
+export const CORE_GAP_FROM_TOP = 2
 export const OUTER_GAP_FROM_TOP = 6
-export const INNER_GAP_FROM_TOP = 2.4
+export const INNER_GAP_FROM_TOP = 4
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.

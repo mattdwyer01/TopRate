@@ -2,7 +2,7 @@ import { Fragment, useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP } from '../../lib/raceModel'
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
@@ -50,7 +50,15 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
 
-function LineDivider({ kind, n }: { kind: 'inner' | 'outer'; n: number }) {
+function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number }) {
+  if (kind === 'core')
+    return (
+      <div className="flex w-full items-center gap-2 bg-emerald-tint px-2 py-0.5" aria-hidden="true">
+        <span className="h-[2px] flex-1 bg-emerald-deep" />
+        <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-deep">{n} WPR from top</span>
+        <span className="h-[2px] flex-1 bg-emerald-deep" />
+      </div>
+    )
   return kind === 'inner' ? (
     <div className="flex w-full items-center gap-2 bg-emerald-bg px-2 py-0.5" aria-hidden="true">
       <span className="h-0 flex-1 border-t-2 border-dotted border-emerald" />
@@ -137,8 +145,8 @@ export function RaceDetail({
     return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
   }, [ranked])
   const bandOf = useMemo(() => {
-    const m = new Map<string, { band: 'inner' | 'outer' | 'none' }>()
-    for (const r of ranked) m.set(r.runner.runId, { band: r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
+    const m = new Map<string, { band: 'core' | 'inner' | 'outer' | 'none' }>()
+    for (const r of ranked) m.set(r.runner.runId, { band: r.core ? 'core' : r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
     return m
   }, [ranked])
 
@@ -155,18 +163,20 @@ export function RaceDetail({
 
   // The two gap lines are only meaningful while the list is sorted best-projection-first.
   const lines = useMemo(() => {
-    const none = { inner: -1, outer: -1 }
+    const none = { core: -1, inner: -1, outer: -1 }
     if (!(sortKey === 'projectedWpr' && sortDir === 'desc')) return none
+    let core = -1
     let inner = -1
     let outer = -1
     sortedRunners.forEach((r, i) => {
       const g = gapByRunId[r.runId]
       if (g == null) return
+      if (g <= CORE_GAP_FROM_TOP) core = i
       if (g <= INNER_GAP_FROM_TOP) inner = i
       if (g <= OUTER_GAP_FROM_TOP) outer = i
     })
     const last = sortedRunners.reduce((l, r, i) => (gapByRunId[r.runId] != null ? i : l), -1)
-    return { inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
+    return { core: core < last ? core : -1, inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
   }, [sortedRunners, gapByRunId, sortKey, sortDir])
 
   const meetingRaces = useMemo(
@@ -262,6 +272,7 @@ export function RaceDetail({
           {sortedRunners.map((r, i) => (
             <Fragment key={r.runId}>
               <RunnerRow {...rowProps(r)} />
+              {i === lines.core && <LineDivider kind="core" n={CORE_GAP_FROM_TOP} />}
               {i === lines.inner && <LineDivider kind="inner" n={INNER_GAP_FROM_TOP} />}
               {i === lines.outer && <LineDivider kind="outer" n={OUTER_GAP_FROM_TOP} />}
             </Fragment>
@@ -272,6 +283,9 @@ export function RaceDetail({
             <span>{compareIds.length < 2 ? 'Tap 2 to 6 runners above, or use a shortcut:' : 'Shortcuts:'}</span>
             <Pill active={false} onClick={() => setCompareIds(ranked.slice(0, 4).map((r) => r.runner.runId))}>
               Top 4
+            </Pill>
+            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.core).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+              Inside {CORE_GAP_FROM_TOP} line
             </Pill>
             <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
               Inside {INNER_GAP_FROM_TOP} line
@@ -326,7 +340,7 @@ export function RaceDetail({
         )}
       </section>
 
-      <RaceLadder ranked={ranked} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+      <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
 
       {selectedRunner && (
         <RunnerDetailModal
