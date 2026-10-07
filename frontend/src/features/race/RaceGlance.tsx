@@ -6,11 +6,13 @@ import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMov
 import { SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 import { fmtAdj } from './rowParts'
 import { typicalSd, type Ranked } from './raceFacts'
+import { CORE_GAP_FROM_TOP } from '../../lib/raceModel'
 
 interface RaceGlanceProps {
   ranked: Ranked[]
   allRunners: Runner[]
   scratched: Set<string>
+  coreGap?: number
   innerGap: number
   outerGap: number
   trip: TripRace | null
@@ -24,18 +26,19 @@ const ROW_H = 26
 const LABEL_W = 150
 const RIGHT_W = 74
 
-// The projection ladder: every runner on one WPR axis, best at the top, with the inside-4 and inside-6 bands shaded, so the shape of the
+// The projection ladder: every runner on one WPR axis, best at the top, with the inside-2, inside-4 and inside-6 bands shaded, so the shape of the
 // field (a standout, a pack, a long tail) reads before any number does.
 // showSm adds a speed map adjustment column (green at +0.5 or better, red at -0.5 or worse, the same cut-offs as the race table) and rings
 // runners outside the outer line whose adjustment is favourable, the ones the quaddie view adds back to its pool.
 export function Ladder({
   ranked,
+  coreGap = CORE_GAP_FROM_TOP,
   innerGap,
   outerGap,
   onSelect,
   showSm = false,
   selected,
-}: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean; selected?: Set<string> }) {
+}: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean; selected?: Set<string> }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -76,7 +79,11 @@ export function Ladder({
       <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected WPR for each runner, with the inside-4 and inside-6 bands shaded">
         <rect x={X(top - outerGap)} y={topPad - 4} width={X(top - innerGap) - X(top - outerGap)} height={H - topPad - 14} fill="var(--color-amber-tint)" />
         <rect x={X(top - innerGap)} y={topPad - 4} width={X(hi) - X(top - innerGap)} height={H - topPad - 14} fill="var(--color-emerald-tint)" />
-        <text x={(X(top - innerGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
+        <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-emerald-tint-hover)" />
+        <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
+          inside {coreGap}
+        </text>
+        <text x={(X(top - innerGap) + X(top - coreGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
           inside {innerGap}
         </text>
         <text x={(X(top - outerGap) + X(top - innerGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-amber)">
@@ -247,7 +254,7 @@ export function RaceSummaryLine(props: Pick<RaceGlanceProps, 'ranked' | 'allRunn
 }
 
 // The ladder sits under the field table. Open by default on desktop, collapsed on phones (where the cards already give the order).
-export function RaceLadder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
+export function RaceLadder({ ranked, coreGap, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'>) {
   const [open, setOpen] = useState(() => (typeof window === 'undefined' ? true : window.matchMedia('(min-width: 768px)').matches))
   if (!ranked.length) return null
   return (
@@ -260,7 +267,7 @@ export function RaceLadder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGl
       </button>
       {open && (
         <div className="mt-2">
-          <Ladder ranked={ranked} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} />
+          <Ladder ranked={ranked} coreGap={coreGap} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} />
         </div>
       )}
     </section>

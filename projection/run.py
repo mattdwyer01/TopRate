@@ -27,7 +27,6 @@ import projlog  # noqa: E402
 
 sys.path.append(F.ROOT)
 import atw_offsets  # noqa: E402
-import atw_offset_model  # noqa: E402
 
 ROOT, M = F.ROOT, F.MODELS
 CACHE = os.path.join(os.path.dirname(__file__), 'cache')
@@ -272,13 +271,10 @@ def main():
     # each horse's ATW offset (form feed rating minus results rating) at the time of projecting, frozen in the log so the result card and Review can put the
     # projection on the scale of the feed's actual rating for a race that has since run
     off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
-    # a runner with no measured offset (debutant, one prior run, inconsistent gap) gets the modelled one from weight, age, sex and distance
-    Tm = T[T.run_id.notna()]
-    atwo_modelled = dict(zip(Tm.run_id.astype('int64'), atw_offset_model.predict(Tm.weightCarried, Tm.distance, Tm.date, Tm.horse_age, Tm.horse_sex)))
     atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
                              adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
-                             atwo=rows.run_id.map(atwo_by_run).fillna(rows.run_id.map(atwo_modelled))))
+                             atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainThrough=main_info.get('train_through'), races=races)

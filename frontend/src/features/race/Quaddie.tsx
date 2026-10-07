@@ -164,7 +164,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
           {races[0]?.venue} {kind} quaddie
         </h2>
         <p className="mb-2 text-xs text-ink-faint">
-          {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {OUTER_GAP_FROM_TOP} held about 80% of winners in testing, so a leg
+          {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {OUTER_GAP_FROM_TOP} held about 84% of winners in testing, so a leg
           is rarely safe with fewer. Runners outside the {OUTER_GAP_FROM_TOP} line are added back when their speed map adjustment is +{SPEED_MAP_TINT_THRESHOLD} or better (the green figure in the race table); they show a green ring on the ladder. Counts only, not tips.
         </p>
         <div className="overflow-x-auto">

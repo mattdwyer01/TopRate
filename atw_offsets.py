@@ -11,8 +11,8 @@ def compute_atw_offsets(fh):
     to the weight carried in the horse's upcoming race. The results files (race_results_*.csv.gz, what the projection model trains on and
     predicts) hold the plain WPR. For one scrape the gap is the same constant on every run of a horse (about -0.65 WPR per kg above 57.7kg), so
     the median over the horse's runs that appear in both is its offset. Used by the frontend to draw the projection and the winning line on the
-    chart's own (ATW) scale. Only the horse's latest scrape is used (older scrapes carry an older weight); a horse needs 2 matched runs and a
-    consistent gap (std <= 0.6) or gets no offset and the chart stays as it was. Fail-safe: any error returns {} (no shift).
+    chart's own (ATW) scale. Only the horse's latest scrape is used (older scrapes carry an older weight); a horse with no matched run gets no
+    offset (nothing to adjust, it stays on the plain rating). Fail-safe: any error returns {} (no shift).
     """
     try:
         files = sorted(Path(__file__).parent.glob("race_results_20*.csv.gz"))[-2:]
@@ -28,7 +28,12 @@ def compute_atw_offsets(fh):
         m = f.merge(res, on=["horse_id", "date"], suffixes=("_form", "_res"))
         m["d"] = m["wpr_form"] - m["wpr_res"]
         g = m.groupby("horse_lc")["d"].agg(["median", "std", "count"])
-        g = g[(g["count"] >= 2) & (g["std"].fillna(0) <= 0.6)]
+        # One matched run is a real measurement (the gap is one constant per horse per scrape). Two or more with a steady gap use the median. Two or
+        # more whose gap moves (about 1%) differ because the weight-for-age scale depends on the horse's age, the time of year and the distance, so
+        # the offset for today is the gap of the horse's most recent matched run, the closest in time.
+        latest = m.sort_values("date").groupby("horse_lc")["d"].last()
+        steady = (g["count"] == 1) | (g["std"].fillna(0) <= 0.6)
+        g["median"] = g["median"].where(steady, latest)
         return {h: round(float(v), 1) for h, v in g["median"].items()}
     except Exception as e:
         print(f"  ATW offsets skipped: {e}")
