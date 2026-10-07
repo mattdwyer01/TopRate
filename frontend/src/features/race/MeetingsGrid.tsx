@@ -1,3 +1,4 @@
+import { projectedAtActualScale } from '../../lib/atw'
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
@@ -105,9 +106,9 @@ export function MeetingsGrid({
         if (st === 'resulted' || st === 'interim') continue
         const rated = race.runners
           .filter((r) => !r.dataScratched && r.projectedWpr != null)
-          .sort((a, b) => (b.projectedWpr as number) - (a.projectedWpr as number))
+          .sort((a, b) => (projectedAtActualScale(b) as number) - (projectedAtActualScale(a) as number))
         if (rated.length < 5) continue
-        out.push({ race, top: rated[0], lead: (rated[0].projectedWpr as number) - (rated[1].projectedWpr as number) })
+        out.push({ race, top: rated[0], lead: (projectedAtActualScale(rated[0]) as number) - (projectedAtActualScale(rated[1]) as number) })
       }
     }
     return out.sort((a, b) => b.lead - a.lead).slice(0, 5)

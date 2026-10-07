@@ -1,7 +1,10 @@
 import type { Runner } from '../types/domain'
 
 export interface EffectiveRunner {
+  // The projection at the weight carried today (ATW): model rating + manual delta + this horse's own offset. Ranking, gaps and fair prices use it.
   effectiveProjectedWpr: number | null
+  // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
+  atwOff: number
   effectivePrice: number | null
   effectiveRank: number | null
   hasOverride: boolean
@@ -36,7 +39,7 @@ export const SPEED_MAP_TINT_THRESHOLD = 0.5
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
 // since beyond that the exact number is meaningless.
-const PRICE_CAP = 999
+export const PRICE_CAP = 999
 
 // Backend's own fallback when config.json doesn't carry a beta (see
 // wpr_projection.py's get_price_beta) - practically never hit once
@@ -64,18 +67,20 @@ export function computeEffectiveRace(
     const delta = deltas[r.runId] ?? 0
     const hasOverride = deltas[r.runId] != null || (r.projectedWpr == null && r.runId in bases)
     const isScratched = scratched.has(r.runId)
+    const atwOff = r.atwOffset != null && Math.abs(r.atwOffset) >= 0.05 ? r.atwOffset : 0
     return {
       runId: r.runId,
+      atwOff,
       // A scratched runner has no wpr for softmax purposes - excluded from
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
-      wpr: !isScratched && modelBase != null ? modelBase + delta : null,
+      wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
       hasOverride,
       scratched: isScratched,
     }
   })
 
-  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean }[]
+  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
   const priceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
@@ -107,6 +112,7 @@ export function computeEffectiveRace(
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
+      atwOff: r.atwOff,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
@@ -118,10 +124,11 @@ export function computeEffectiveRace(
   return result
 }
 
-// Gap lines on the Proj (WPR) scale, re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
-// inside 4 holds 3.3 runners a race and 64% of winners, inside 6 holds 4.8 and 78%.
-export const OUTER_GAP_FROM_TOP = 6
-export const INNER_GAP_FROM_TOP = 4
+// Gap lines on the Proj scale at today's weight (ATW), re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026) with modelled offsets:
+// 3.5 holds 3.6 runners a race and 64% of winners, 5.4 holds 5.2 and 80%. They are sized to hold as many runners as the old 4 / 6 lines did on the plain
+// scale (3.6 / 5.2 runners, 67% / 82% of winners); the plain scale captured about 3 points more winners at the same size.
+export const OUTER_GAP_FROM_TOP = 5.4
+export const INNER_GAP_FROM_TOP = 3.5
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.

@@ -1,3 +1,4 @@
+import { projectedAtActualScale } from '../../lib/atw'
 import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
 import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
@@ -338,7 +339,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     // separate position value). Position value is kept as a small corner dot when it is outside +/- its threshold.
     const displaySpeedMap = displaySpeedMapByRunId.get(u.runId) ?? null
     const tone = threatTone(displaySpeedMap)
-    const rating = u.projectedWpr
+    const rating = projectedAtActualScale(u)
     const drawFrac = drawFracOf(u, fieldSize)
     const caution = cautionRunIds.has(u.runId)
     const titleParts = [
