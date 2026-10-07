@@ -99,6 +99,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # This runner's workspace is shared with any other self-hosted job. A sparse checkout left behind by one
+      # (the one-off replay probe, 7 Oct 2026) makes the `git add` below fail with "outside of your sparse-checkout
+      # definition" and stalls every results/price cycle, so always start from a full tree.
+      - name: Ensure full (non-sparse) checkout
+        run: |
+          git sparse-checkout disable || true
+          git config core.sparseCheckout false || true
+          git checkout -- . || true
+
       - name: Poll TAB and update results
         # --no-push: this job handles commit/push itself below, same split
         # as price_refresh.yml's own steps.
