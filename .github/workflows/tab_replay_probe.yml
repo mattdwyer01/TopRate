@@ -27,7 +27,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Run probe
         run: |
-          python tab_media_history_check.py 2>&1 | tee probe_output.txt
+          python -u tab_media_history_check.py 2>&1 | tee probe_output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

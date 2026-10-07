@@ -6,7 +6,7 @@ import tab_results_poller as tp
 
 def probe(url):
     try:
-        r = requests.get(url, headers={"Range": "bytes=0-255"}, timeout=15, stream=True)
+        r = requests.get(url, headers={"Range": "bytes=0-255"}, timeout=8, stream=True)
         s = r.status_code; r.close(); return s
     except Exception:
         return "ERR"
@@ -24,13 +24,13 @@ for j in ("VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT"):
             if mm: codes[mm.group(1)] = m.get("meetingName")
 print(f"{len(codes)} codes today:", codes)
 
-for back in (1, 2, 3, 7, 14, 30, 60, 90, 180, 365, 730):
+from concurrent.futures import ThreadPoolExecutor
+def one(url):
+    return url, probe(url)
+for back in (1, 2, 3, 7, 14, 30, 60, 90, 180, 365):
     d = date.today() - timedelta(days=back)
-    hits = tried = 0; ex = None
-    for code in codes:
-        for rn in (1, 2):
-            url = f"https://mediatabs.skyracing.com.au/Race_Replay/{d:%Y}/{d:%m}/{d:%Y%m%d}{code}{rn:02d}_V.mp4"
-            tried += 1
-            if probe(url) in (200, 206):
-                hits += 1; ex = ex or url
-    print(f"-{back}d {d}: tried={tried} hits={hits} e.g. {ex}")
+    urls = [f"https://mediatabs.skyracing.com.au/Race_Replay/{d:%Y}/{d:%m}/{d:%Y%m%d}{code}01_V.mp4" for code in codes]
+    with ThreadPoolExecutor(16) as ex:
+        res = list(ex.map(one, urls))
+    hits = [u for u, st in res if st in (200, 206)]
+    print(f"-{back}d {d}: tried={len(urls)} hits={len(hits)} e.g. {hits[:1]}", flush=True)
