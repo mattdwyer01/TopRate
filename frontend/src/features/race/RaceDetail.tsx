@@ -33,6 +33,8 @@ interface RaceDetailProps {
   onSelectRace: (raceId: string, date: string) => void
 }
 
+const MAX_COMPARE = 6
+
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
 const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean }[] = [
   { key: null, label: '', align: 'left', lgOnly: true },
@@ -82,8 +84,23 @@ export function RaceDetail({
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
-  // Compare mode: clicking rows picks up to 4 runners for a side-by-side table instead of opening the detail panel.
-  const [compareMode, setCompareMode] = useState(false)
+  // Compare mode: clicking rows picks up to 6 runners for a side-by-side table instead of opening the detail panel.
+  // Compare mode is remembered for the browser session, so stepping through a meeting's races keeps it on.
+  const [compareMode, setCompareModeState] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('toprate_compare_mode') === '1'
+    } catch {
+      return false
+    }
+  })
+  function setCompareMode(on: boolean) {
+    setCompareModeState(on)
+    try {
+      window.sessionStorage.setItem('toprate_compare_mode', on ? '1' : '0')
+    } catch {
+      // Session storage can be blocked; the mode just will not carry over.
+    }
+  }
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -176,7 +193,7 @@ export function RaceDetail({
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
       onClick: compareMode
-        ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= 4 ? ids : [...ids, runner.runId]))
+        ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
         : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
     }
   }
@@ -222,7 +239,7 @@ export function RaceDetail({
                 setSelectedRunId(null)
               }}
             >
-              {compareMode ? `Comparing (${compareIds.length}/4)` : 'Compare runners'}
+              {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
             </Pill>
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
           </div>
@@ -256,8 +273,19 @@ export function RaceDetail({
             </Fragment>
           ))}
         </div>
-        {compareMode && compareIds.length < 2 && (
-          <p className="text-xs text-ink-faint">Compare mode: tap 2 to 4 runners above to see them side by side.</p>
+        {compareMode && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+            <span>{compareIds.length < 2 ? 'Tap 2 to 6 runners above, or use a shortcut:' : 'Shortcuts:'}</span>
+            <Pill active={false} onClick={() => setCompareIds(ranked.slice(0, 4).map((r) => r.runner.runId))}>
+              Top 4
+            </Pill>
+            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+              Inside {INNER_GAP_FROM_TOP} line
+            </Pill>
+            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner || r.outer).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+              Inside {OUTER_GAP_FROM_TOP} line
+            </Pill>
+          </div>
         )}
       </section>
 

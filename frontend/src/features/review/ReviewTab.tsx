@@ -21,6 +21,7 @@ import {
 } from '../../lib/accuracyStats'
 import { goingBand } from '../../lib/pace'
 import { fmtWpr } from '../../lib/format'
+import { DayByDay, WeeklyTrend } from './DayReview'
 import { StatTile } from '../../components/StatTile'
 import { PredictedVsActualChart } from '../../components/PredictedVsActualChart'
 import { useScrollShadow } from '../../lib/useScrollShadow'
@@ -267,6 +268,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             )}
           </div>
 
+          <WeeklyTrend races={races} excludeBush={excludeBush} />
+
           <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - depth behind the strike rates above, including the model's typical WPR miss">
             <div className="flex flex-col gap-4">
               <div>
@@ -409,6 +412,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               </div>
             </div>
           </Disclosure>
+
+          <DayByDay races={races} excludeBush={excludeBush} onSelectRace={onSelectRace} />
 
           {(distBreakdown.length > 0 || goingBreakdown.length > 0 || venueBreakdown.length > 0) && (
             <Disclosure
