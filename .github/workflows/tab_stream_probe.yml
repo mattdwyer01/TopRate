@@ -17,4 +17,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run probe
-        run: python -u tab_stream_probe.py 2>&1 | tee probe_output.txt
+        run: python -u sky_frame_probe.py 2>&1 | tee probe_output.txt
