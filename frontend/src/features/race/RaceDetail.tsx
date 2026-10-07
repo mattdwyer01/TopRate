@@ -14,7 +14,7 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { expectedWinningWpr, rankField, typicalSd } from './raceFacts'
+import { expectedWinningWpr, rankField } from './raceFacts'
 
 interface RaceDetailProps {
   race: Race
@@ -111,7 +111,7 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, COMPOSITE_INNER_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => ({ proj: r.proj, sd: typicalSd(r.runner, r.proj) ?? 9 }))), [ranked])
+  const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => r.proj)), [ranked])
   const bandOf = useMemo(() => {
     const m = new Map<string, { band: 'inner' | 'outer' | 'none' }>()
     for (const r of ranked) m.set(r.runner.runId, { band: r.inner ? 'inner' : r.outer ? 'outer' : 'none' })

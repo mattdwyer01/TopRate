@@ -56,10 +56,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
           <span className={`font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label} · </span>
           {runner.jockey} / {runner.trainer}
           {runner.barrier != null && <> &middot; barrier {runner.barrier}</>}
-          <span className="hidden lg:inline">
-            {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
-            {runner.predictedSettlingBand && <> &middot; {runner.predictedSettlingBand.toLowerCase()}</>}
-          </span>
         </span>
       </span>
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
