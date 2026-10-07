@@ -1,4 +1,4 @@
-import { projectedAtActualScale } from '../../lib/atw'
+import { Standouts } from './Standouts'
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
@@ -96,24 +96,7 @@ export function MeetingsGrid({
   }, [races, date])
   const now = Date.now()
 
-  // Upcoming races where the top projection leads the second by the most WPR: a quick way to find the races where the
-  // model sees a clear standout. A separation ranking only; it says nothing about price or value.
-  const standouts = useMemo(() => {
-    const out: { race: Race; top: Race['runners'][number]; lead: number }[] = []
-    for (const m of visibleMeetings) {
-      for (const race of m.races) {
-        const st = raceStatus(race, now)
-        if (st === 'resulted' || st === 'interim') continue
-        const rated = race.runners
-          .filter((r) => !r.dataScratched && r.projectedWpr != null)
-          .sort((a, b) => (projectedAtActualScale(b) as number) - (projectedAtActualScale(a) as number))
-        if (rated.length < 5) continue
-        out.push({ race, top: rated[0], lead: (projectedAtActualScale(rated[0]) as number) - (projectedAtActualScale(rated[1]) as number) })
-      }
-    }
-    return out.sort((a, b) => b.lead - a.lead).slice(0, 5)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleMeetings])
+  const standoutRaces = useMemo(() => visibleMeetings.flatMap((m) => m.races), [visibleMeetings])
   const { ref: scrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
   return (
@@ -307,29 +290,7 @@ export function MeetingsGrid({
             </div>
           )}
         </div>
-          {standouts.length > 0 && (
-            <div className="rounded-lg border border-line bg-panel p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Clearest standouts still to run</div>
-              <p className="mb-2 text-[11px] text-ink-faint">Top projection leads the second by the most WPR. A ranking of separation only, not a tip.</p>
-              <ul className="flex flex-col divide-y divide-line-soft text-sm">
-                {standouts.map(({ race, top, lead }) => (
-                  <li key={race.raceId}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectRace(race.raceId, race.date)}
-                      className="flex w-full items-baseline justify-between gap-2 py-1.5 text-left hover:text-emerald-deep"
-                    >
-                      <span>
-                        <span className="font-mono text-xs text-ink-mute">{race.venue} R{race.raceNumber} {formatTimeOfDay(race.startTime)}</span>{' '}
-                        {top.tabNumber}. {top.horse}
-                      </span>
-                      <span className="flex-none font-mono text-xs text-ink-soft">+{lead.toFixed(1)} WPR</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <Standouts races={standoutRaces} now={now} onSelectRace={onSelectRace} />
         </>
       )}
     </div>
