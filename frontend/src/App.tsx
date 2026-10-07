@@ -6,7 +6,7 @@ import { useBetaOverride } from './lib/priceBetaOverride'
 import { useWprOverrides } from './lib/wprOverrides'
 import { useShowBushMeetings } from './lib/bushMeetings'
 import { useHiddenVenues } from './lib/hiddenVenues'
-import { bushMeetingKeys, distinctVenues, meetingKey } from './lib/meetings'
+import { bushMeetingKeys, distinctVenues, meetingKey, todayIso } from './lib/meetings'
 import { MeetingsGrid } from './features/race/MeetingsGrid'
 import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
@@ -303,7 +303,8 @@ function App() {
           ) : (
             <MeetingsGrid
               races={state.data.races}
-              initialDate={urlState.date}
+              date={urlState.date ?? todayIso()}
+              onDateChange={(d) => pushUrlState({ date: d, raceId: null, runId: null })}
               onSelectRace={goToRace}
               showBush={showBush}
               onShowBushChange={setShowBush}

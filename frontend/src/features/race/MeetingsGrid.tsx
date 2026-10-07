@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
@@ -14,7 +14,9 @@ import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../l
 interface MeetingsGridProps {
   races: Race[]
   onSelectRace: (raceId: string, date: string) => void
-  initialDate?: string | null
+  // The day shown. Owned by the URL (?date=), so it survives reload, back/forward and sharing.
+  date: string
+  onDateChange: (date: string) => void
   showBush: boolean
   onShowBushChange: (value: boolean) => void
   hiddenVenues: Set<string>
@@ -37,13 +39,14 @@ function shiftDate(iso: string, days: number): string {
 export function MeetingsGrid({
   races,
   onSelectRace,
-  initialDate,
+  date,
+  onDateChange,
   showBush,
   onShowBushChange,
   hiddenVenues,
   onHideVenue,
 }: MeetingsGridProps) {
-  const [date, setDate] = useState(() => initialDate ?? todayIso())
+  const setDate = onDateChange
 
   const meetings = useMemo(() => groupIntoMeetings(races, date), [races, date])
   // Total bush meetings for the day, independent of the current toggle
