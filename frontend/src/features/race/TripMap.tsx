@@ -58,7 +58,7 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
     const minGap = runners.length ? Math.min(...runners.map((r) => r.gap as number)) : 0
     const rows = runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap }))
     const maxG = Math.max(8, Math.ceil((Math.max(0, ...rows.map((r) => r.gx)) + 1.2) / 2) * 2)
-    const maxL = Math.max(6, Math.ceil((Math.max(0, ...rows.map((r) => r.lane)) + 1.2) / 2) * 2)
+    const maxL = Math.max(3, Math.ceil(Math.max(0, ...rows.map((r) => r.lane)) + 0.8)) // cut off just past the widest runner
     const GM = -1.2
     const pxm = iw / ((maxG - GM) * LEN_M)
     const hh = CHIP_H / 2
@@ -129,7 +129,8 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
   const gridG: number[] = []
   for (let g = 0; g <= maxG; g += 2) gridG.push(g)
   const gridL: number[] = []
-  for (let l = 0; l <= maxL; l += 2) gridL.push(l)
+  const stepL = maxL > 8 ? 2 : 1
+  for (let l = 0; l <= maxL; l += stepL) gridL.push(l)
   const noGps = trip.laneKind === 'est'
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
   const hist = items.filter((r) => r.nHist === 0).length
