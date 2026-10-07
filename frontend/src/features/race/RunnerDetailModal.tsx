@@ -211,6 +211,12 @@ export function RunnerDetailModal({
             daysSince={spell.daysSince}
           />
 
+          {(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">
+              <ResultCard runner={runner} />
+            </div>
+          )}
+
           {/* Manual adjustment: a rarely used control, so a phone gets it as a one-line toggle (open when a value is set) */}
           <div className="rounded-lg border border-line bg-panel px-3 py-2 sm:hidden">
             <AdjustmentToggle active={deltaValue != null || baseValue != null}>
@@ -368,7 +374,7 @@ export function RunnerDetailModal({
               raceVenue={race.venue}
             />
             <div className="mt-3">
-              <Collapsible title="How today's shape suits this horse" defaultOpenWide>
+              <Collapsible title="How today's shape suits this horse" defaultOpenWide={false}>
                 <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
               </Collapsible>
             </div>
@@ -379,7 +385,7 @@ export function RunnerDetailModal({
               {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
-            <Card title="Result against projection" className={runner.resultKnown || runner.finishPosition != null ? '' : 'hidden sm:block'}>
+            <Card title="Result against projection" className="hidden sm:block">
               <ResultCard runner={runner} />
               {runner.missCategory === 'unexplained' && (
                 <div className="mt-2 border-t border-line-soft pt-2">

@@ -2305,6 +2305,24 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   NOT re-validated on the new scale (user chose to skip): Proj gap lines (COMPOSITE_MAX/INNER_GAP_FROM_TOP 5 / 3), tracker GAP_MAX 5,
   price softmax beta. The new Proj averages about 3 WPR below the previous one.
 
+- **Oct 2026 state after the projection cutover (read this first)**:
+  - Trackers are retired: `speedmap_jockey_tracker.py`, its CSVs and the Trackers tab live in `archive/trackers/`; `daily.yml`,
+    `tab_results.yml` and `tab_results_poller.py` no longer run or stage them. The tracker history entries above are record only.
+  - The new model is weight-free; a separate weight term (`WT_K = 0.4` WPR per kg above field average, `wtadj` in
+    `wpr_projection_log.csv.gz`, set `WT_K = 0` and rerun `projection/add_weight_adj.py` to disable) was kept because a 4,551-race test
+    supported it. Form data captured for upcoming races is already weight-adjusted by toprate.au, so no further ATW conversion is needed.
+  - Fair price: softmax `beta` in `wpr_models/config.json` is now 0.20. Overlay/value were backtested (30-39% loss at every threshold,
+    model weight 0.08 vs market 1.11), so the dashboard makes NO value or overlay claims. Fair price is the model view only.
+  - Gap lines are `COMPOSITE_INNER_GAP_FROM_TOP=4` / `COMPOSITE_MAX_GAP_FROM_TOP=6` (`raceModel.ts`).
+  - `bet_log.py` (run by `tab_results.yml`) still reads `racing_model.json` and the old 3/5 lines. `racing_model.json` is still committed by
+    the racing-model repo; do not delete it until `bet_log.py` is retired or ported to the new model (open decision).
+  - Layouts: Race page and horse detail were rebuilt compact (`features/race/`). Horse detail order: hero, Why this projection + Expected run,
+    Form and record (timeline, conditions, every run with Wt/SP), then Market and Result (Result shows at the top on phones once known).
+    Verify every layout change at 360/400/1300px for overflow.
+  - `projection_daily.yml` full run takes about 28 min on a hosted runner (fast ~4 min). A fast-vs-full comparison was run to see if the
+    full step can become `--build-cache` then `--fast`; not adopted unless that comparison matched. External cron-job.org triggers for the
+    projection and results workflows are still a user action.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
