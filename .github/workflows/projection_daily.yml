@@ -101,15 +101,18 @@ jobs:
           fi
           git commit -m "Projection ${{ steps.mode.outputs.mode }} $(date -u +%Y-%m-%dT%H:%MZ)"
           # Same recovery as daily.yml: take the new tip (reset --mixed keeps our freshly generated files) and re-commit, no rebase.
-          for i in 1 2 3 4 5; do
+          # 7 Oct 2026: a 120s fetch timed out on all 5 attempts (every cycle brings in the ~30MB data and ~70MB history files the live
+          # poller rewrites every ~5 min), so the push was never retried on a fresh tip and the whole full run (trip map + log) was lost.
+          # Same fix as backfill_race_results.yml: longer timeouts, only this branch, more attempts.
+          for i in $(seq 1 20); do
             push_status=0
-            timeout 60 git push || push_status=$?
+            timeout 180 git push || push_status=$?
             if [[ $push_status -eq 0 ]]; then
               echo "Pushed on attempt $i"
               exit 0
             fi
             echo "git push failed, exit $push_status (attempt $i)"
-            timeout 120 git fetch origin main || { sleep 3; continue; }
+            timeout 300 git fetch --no-tags origin main || { echo "fetch timed out/failed, retrying loop anyway"; sleep 3; continue; }
             git reset --mixed origin/main
             stage_outputs
             if git diff --cached --quiet; then
@@ -119,5 +122,5 @@ jobs:
             git commit -m "Projection ${{ steps.mode.outputs.mode }} $(date -u +%Y-%m-%dT%H:%MZ)"
             sleep 3
           done
-          echo "Giving up after 5 push attempts"
+          echo "Giving up after 20 push attempts"
           exit 1
