@@ -83,8 +83,15 @@ def lane_model(qld_rows):
 # is a requested adjustment, not a measured correction. Every width at or past EST_RAIL_FLOOR + 2 * EST_RAIL_SHIFT_M moves in by
 # EST_RAIL_SHIFT_M; nearer the rail the shift tapers linearly to zero at EST_RAIL_FLOOR, so order is kept and nobody is pushed through the rail
 # or stacked on one value. Set EST_RAIL_SHIFT_M = 0 to remove it.
-EST_RAIL_SHIFT_M = 1.0
+EST_RAIL_SHIFT_M = 1.25
 EST_RAIL_FLOOR = 0.4
+# Second requested adjustment (7 Oct 2026, "they should be nearer the fence"): the projected front third of each field (by forecast gap) is
+# pulled further toward the rail, so leaders sit about 0.5 to 1.0m off it instead of 1.1 to 1.8m. A runner's distance beyond EST_RAIL_FLOOR is
+# scaled by EST_FRONT_PULL (0.3) for the leader, rising linearly to 1.0 (no change) at the front-third mark. Measured QLD leaders at 800m
+# have a median width of about 1.7m (a quarter are under 0.9m), so this puts typical leaders nearer the fence than measured fields do.
+# Set EST_FRONT_PULL = 1 to remove it.
+EST_FRONT_PULL = 0.3
+EST_FRONT_FRACTION = 1 / 3
 
 
 def shift_to_rail(x):
@@ -94,6 +101,23 @@ def shift_to_rail(x):
         return x
     x1 = f + 2 * s
     return np.maximum(0.3, np.where(x >= x1, x - s, f + (x - f) * (x1 - s - f) / (x1 - f)))
+
+
+def pull_front_to_rail(sc, lane):
+    """lane: Series of widths aligned to sc (needs sc.race_id and sc.gap, forecast lengths behind the leader). Front runners move toward the rail."""
+    if EST_FRONT_PULL >= 1:
+        return lane
+    out = pd.Series(np.asarray(lane, float), index=sc.index)
+    f = EST_RAIL_FLOOR
+    for rid, z in sc.groupby('race_id'):
+        n = len(z)
+        if n < 2:
+            continue
+        q = (z.gap.rank(method='first') - 1) / (n - 1)  # 0 = projected leader, 1 = last
+        keep = (EST_FRONT_PULL + (1 - EST_FRONT_PULL) * np.minimum(1.0, q / EST_FRONT_FRACTION)).fillna(1.0)  # no forecast gap: unchanged
+        x = out.loc[z.index]
+        out.loc[z.index] = np.where(x > f, f + (x - f) * keep, x)
+    return out
 
 
 def respread_lane(sc, lane_q, lane_q_all, lane_cal=None):
@@ -182,7 +206,7 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     u['trk'] = pd.Categorical(u.track, categories=cats)
     sc = place(u, m, ms, tab)
     sc['lane'] = lm.predict(sc.assign(settle_h3=sc.settle_h3, gap800_h3=sc.gap800_h3)[LANE_FEATS])
-    sc['lane'] = shift_to_rail(respread_lane(sc, lane_q, lane_q_all, lane_cal))
+    sc['lane'] = pull_front_to_rail(sc, shift_to_rail(respread_lane(sc, lane_q, lane_q_all, lane_cal)))
     last = hist.sort_values('date').drop_duplicates('horse_id', keep='last').set_index('horse_id')
     for rid, z in sc.groupby('race_id'):
         z = z.copy()
