@@ -2361,6 +2361,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   are no-wrap and tighter (about 25px, were about 60px from Pos/Going/peak wrapping); separator `colSpan` fixed 17 to 21. Verified in
   Chromium on real data at 390/1000/1300px, no overflow.
 
+- **Back-to-back entries now projected (7 Oct 2026)**: a horse entered in two races before the first has run (e.g. Jackand, Geelong 7 Oct then Kyneton 8 Oct) had a blank previous-run rating (`w1`) for the later entry, so neither the main model (needs all base features) nor the light model (0-2 runs) fired and it got no projection (65 of 1,757 upcoming runners). `projection/run.py` `score()` now runs again for those runners with the earlier entry's own projection standing in as that run's rating (up to 3 passes, only unrouted runners are replaced). The runner detail banner no longer claims "not enough form history" for a horse with 3+ runs.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
