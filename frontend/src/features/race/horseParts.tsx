@@ -83,6 +83,10 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
 
 export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw }: HeroProps) {
   const sd = typicalSd(runner, proj)
+  // The whole hero is at today's weight (ATW), the scale of the form table. The gauge shifts the field by this horse's own offset, so gaps are unchanged.
+  const shift = projAtw != null && proj != null ? projAtw - proj : 0
+  const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
+  const recentAvg = projAtw != null && last3.length >= 2 ? last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length : null
   const priorRuns = runner.formHistory.length
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
   const reasons: string[] = []
@@ -110,9 +114,10 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           ) : (
             <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(projAtw ?? proj)}</div>
           )}
-          {projAtw != null && proj != null && !scratched && (
-            <p className="mt-0.5 text-[11px] text-ink-mute" title="The Recent runs table and the form chart show each run rated at the weight carried today (against the weight-for-age scale). The projection is shown on the same scale: the model's rating plus the same adjustment. Ranking and the range bar use the model's rating.">
-              at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"} &middot; model rating {fmtWpr(proj)} {projAtw - proj >= 0 ? '+' : '-'} {Math.abs(projAtw - proj).toFixed(1)} for weight
+          {!scratched && (projAtw ?? proj) != null && (
+            <p className="mt-0.5 text-[11px] text-ink-mute" title="Every rating on this page is at the weight carried today (ATW), the scale of the Recent runs table, the chart and the waterfall. Ranking, the gap to the top and the field range use the same rating shifted together, so they are unchanged.">
+              {projAtw != null ? <>at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}</> : null}
+              {recentAvg != null && <>{projAtw != null ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
             </p>
           )}
           <p className="mt-1 text-xs text-ink-soft">
@@ -123,7 +128,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         </div>
         {proj != null && !scratched && (
           <div className="order-last col-span-2 min-w-0 lg:order-none lg:col-span-1" title="Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.">
-            <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
+            <RangeGauge proj={proj + shift} sd={sd} top={fieldTop != null ? fieldTop + shift : null} low={fieldLow != null ? fieldLow + shift : null} />
           </div>
         )}
         <div className="flex-none text-right">
@@ -225,11 +230,14 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
   const rest = steps.filter((g) => !lead.includes(g))
   const restSum = rest.reduce((a, g) => a + g.v, 0)
 
+  // Everything is drawn at today's weight (ATW), the scale of the Recent runs table: the starting bar carries the horse's own offset, the steps are
+  // differences and need no conversion, and the total is the projection on the same scale.
+  const off = atwOffset ?? 0
   const rows: WfRow[] = []
   let run = 0
   if (anchor != null) {
-    rows.push({ key: 'anchor', label: 'Recent form', kind: 'total', from: 0, to: anchor, title: "Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" })
-    run = anchor
+    rows.push({ key: 'anchor', label: off !== 0 ? `Recent form at ${weightKg != null ? weightKg + 'kg' : 'today\'s weight'}` : 'Recent form', kind: 'total', from: 0, to: anchor + off, title: "Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" + (off !== 0 ? ", on the same scale as the Recent runs table (every run rated at today's weight)" : '') })
+    run = anchor + off
     for (const g of lead) {
       rows.push({ key: g.key, label: g.label, kind: 'step', from: run, to: run + g.v, title: g.title })
       run += g.v
@@ -247,8 +255,8 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
       last.forEach((e, i) => rows.push({ key: 'ref' + i, label: i === 0 ? 'Last run' : 'Run before', kind: 'total', from: 0, to: e.wpr as number, title: `${e.date.slice(0, 10)}: for reference only. The light-history model reads the runner's price and a few other signals rather than starting from recent form.` }))
     }
     if (runner.baseWpr != null) {
-      rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr, title: 'The model\'s projection before the suitability and weight steps (no split by factor for this runner)' })
-      run = runner.baseWpr
+      rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr + off, title: 'The model\'s projection before the suitability and weight steps (no split by factor for this runner)' })
+      run = runner.baseWpr + off
     }
     const tail = b && (b.suitability != null || b.weight != null)
       ? [
@@ -266,10 +274,6 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
   if (deltaValue != null && deltaValue !== 0) {
     rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + deltaValue })
     run += deltaValue
-  }
-  if (proj != null && atwOffset != null) {
-    rows.push({ key: 'atw', label: weightKg != null ? `At ${weightKg}kg` : "At today's weight", kind: 'step', from: run, to: run + atwOffset, title: "The Recent runs table rates every run at the weight carried today, against the weight-for-age scale. The same adjustment is added here so the projection sits on that scale. The steps above are on the model's own rating." })
-    run += atwOffset
   }
   if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj + (atwOffset ?? 0), strong: true })
 
@@ -296,7 +300,7 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
       )}
       {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor. Last-run bars are for reference, not a step.</p>}
       <p className="mt-1.5 text-xs text-ink-faint">
-        Each bar starts where the one above ended. Scale starts at {lo} WPR. Hover a row for what it covers.
+        Each bar starts where the one above ended. {off !== 0 ? `Rated at ${weightKg != null ? weightKg + 'kg' : "today's weight"}, the same scale as the Recent runs table. ` : ''}Scale starts at {lo}. Hover a row for what it covers.
       </p>
     </div>
   )
@@ -424,7 +428,7 @@ export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winR
   )
 }
 
-export function TimelineLegend({ atwOffset, weightKg, projRaw }: { atwOffset: number | null; weightKg: number | null; projRaw: number | null }) {
+export function TimelineLegend({ atwOffset, weightKg }: { atwOffset: number | null; weightKg: number | null }) {
   const shifted = atwOffset != null && Math.abs(atwOffset) >= 0.05
   return (
     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-mute">
@@ -451,8 +455,7 @@ export function TimelineLegend({ atwOffset, weightKg, projRaw }: { atwOffset: nu
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
       {shifted && (
         <span className="basis-full">
-          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)`: ''}, the same as the Recent runs table. The projection dot and winning line carry the same {atwOffset > 0 ? '+' : ''}
-          {atwOffset.toFixed(1)} adjustment{projRaw != null ? ` (model rating ${fmtWpr(projRaw)})` : ''}.
+          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)`: ''}, the same as the Recent runs table. The projection dot and winning line are on that scale too.
         </span>
       )}
     </div>
