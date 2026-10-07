@@ -235,6 +235,11 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
   } else {
     // Older logged runs and light-history runners have no split by factor, so they start from the model's own base and take the same
     // suitability and weight steps.
+    // A light-history runner's last one or two ratings are shown as plain reference bars (the light model does not build its base from them).
+    if (runner.projectionModel === 'light') {
+      const last = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 2)
+      last.forEach((e, i) => rows.push({ key: 'ref' + i, label: i === 0 ? 'Last run' : 'Run before', kind: 'total', from: 0, to: e.wpr as number, title: `${e.date.slice(0, 10)}: for reference only. The light-history model reads the runner's price and a few other signals rather than starting from recent form.` }))
+    }
     if (runner.baseWpr != null) {
       rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr, title: 'The model\'s projection before the suitability and weight steps (no split by factor for this runner)' })
       run = runner.baseWpr
@@ -279,7 +284,7 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
           Show fewer
         </button>
       )}
-      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor.</p>}
+      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor. Last-run bars are for reference, not a step.</p>}
       <p className="mt-1.5 text-xs text-ink-faint">
         Each bar starts where the one above ended. Scale starts at {lo} WPR. Hover a row for what it covers.
       </p>
