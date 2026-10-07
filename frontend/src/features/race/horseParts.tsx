@@ -43,6 +43,7 @@ interface HeroProps {
   hasOverride: boolean
   spellLabel: string
   daysSince: number | null
+  projAtw: number | null
 }
 
 // A likely range drawn against the whole field: the pale track is the field from lowest to highest projection, the bar is this horse's
@@ -80,7 +81,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw }: HeroProps) {
   const sd = typicalSd(runner, proj)
   const priorRuns = runner.formHistory.length
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
@@ -107,7 +108,12 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {scratched ? (
             <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
-            <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(proj)}</div>
+            <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(projAtw ?? proj)}</div>
+          )}
+          {projAtw != null && proj != null && !scratched && (
+            <p className="mt-0.5 text-[11px] text-ink-mute" title="The Recent runs table and the form chart show each run rated at the weight carried today (against the weight-for-age scale). The projection is shown on the same scale: the model's rating plus the same adjustment. Ranking and the range bar use the model's rating.">
+              at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"} &middot; model rating {fmtWpr(proj)} {projAtw - proj >= 0 ? '+' : '-'} {Math.abs(projAtw - proj).toFixed(1)} for weight
+            </p>
           )}
           <p className="mt-1 text-xs text-ink-soft">
             {verdict}
@@ -201,7 +207,7 @@ function WaterfallRow({ row, lo, hi, last }: { row: WfRow; lo: number; hi: numbe
 // From the recent-form anchor to the projection. The main model starts from a weighted average of recent form and corrects it for the
 // factors in GROUPS. The biggest few are listed, the rest are folded into one step so the bars always add up. Runners from before the
 // breakdown was logged, and light-history runners, get base, suitability and weight only.
-export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runner; proj: number | null; deltaValue: number | null }) {
+export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weightKg }: { runner: Runner; proj: number | null; deltaValue: number | null; atwOffset: number | null; weightKg: number | null }) {
   const [all, setAll] = useState(false)
   const b = runner.adjustmentBreakdown
   const anchor = b?.g_anchor
@@ -261,7 +267,11 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
     rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + deltaValue })
     run += deltaValue
   }
-  if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj, strong: true })
+  if (proj != null && atwOffset != null) {
+    rows.push({ key: 'atw', label: weightKg != null ? `At ${weightKg}kg` : "At today's weight", kind: 'step', from: run, to: run + atwOffset, title: "The Recent runs table rates every run at the weight carried today, against the weight-for-age scale. The same adjustment is added here so the projection sits on that scale. The steps above are on the model's own rating." })
+    run += atwOffset
+  }
+  if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj + (atwOffset ?? 0), strong: true })
 
   const levels = rows.filter((r) => r.kind === 'step').flatMap((r) => [r.from, r.to]).concat(rows.filter((r) => r.kind === 'total').map((r) => r.to))
   const min = levels.length ? Math.min(...levels) : 0
@@ -441,8 +451,8 @@ export function TimelineLegend({ atwOffset, weightKg, projRaw }: { atwOffset: nu
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
       {shifted && (
         <span className="basis-full">
-          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)` : ''}. The projection dot and winning line are moved {atwOffset > 0 ? '+' : ''}
-          {atwOffset.toFixed(1)} to match the runs{projRaw != null ? `, so the dot reads ${fmtWpr(projRaw + atwOffset)} here against ${fmtWpr(projRaw)} in the summary` : ''}.
+          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)`: ''}, the same as the Recent runs table. The projection dot and winning line carry the same {atwOffset > 0 ? '+' : ''}
+          {atwOffset.toFixed(1)} adjustment{projRaw != null ? ` (model rating ${fmtWpr(projRaw)})` : ''}.
         </span>
       )}
     </div>
@@ -597,12 +607,12 @@ export function ResultCard({ runner }: { runner: Runner }) {
   const miss = actual != null && proj != null ? actual - proj : null
   const big = miss != null && sd != null && Math.abs(miss) > sd
   if (fin == null && actual == null && !runner.resultKnown) {
-    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race. Projection to beat: <span className="font-mono font-semibold text-ink">{fmtWpr(proj)}</span>.</p>
+    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race. Model rating to beat: <span className="font-mono font-semibold text-ink">{fmtWpr(proj)}</span>.</p>
   }
   return (
     <div>
       <div className="grid grid-cols-3 gap-2">
-        <Tile label="Projected">
+        <Tile label="Model rating">
           <span className="font-mono text-xl font-semibold text-ink">{fmtWpr(proj)}</span>
         </Tile>
         <Tile label="Actual (ATW)">
