@@ -78,11 +78,30 @@ def lane_model(qld_rows):
     return lgb.train(dict(B.PARAMS, min_data_in_leaf=150), lgb.Dataset(z[LANE_FEATS], z.lane), 250)
 
 
-def respread_lane(sc, lane_q, lane_q_all):
+# Non-GPS fields looked about 1m too far off the rail to the user (7 Oct 2026). The measured QLD fields this estimate is fitted to do not
+# show a flat offset (race-mean width at 800m about 2.4m, median about 1.9m, matching the estimates for front and middle runners), so this
+# is a requested adjustment, not a measured correction. Every width at or past EST_RAIL_FLOOR + 2 * EST_RAIL_SHIFT_M moves in by
+# EST_RAIL_SHIFT_M; nearer the rail the shift tapers linearly to zero at EST_RAIL_FLOOR, so order is kept and nobody is pushed through the rail
+# or stacked on one value. Set EST_RAIL_SHIFT_M = 0 to remove it.
+EST_RAIL_SHIFT_M = 1.0
+EST_RAIL_FLOOR = 0.4
+
+
+def shift_to_rail(x):
+    x = np.asarray(x, float)
+    s, f = EST_RAIL_SHIFT_M, EST_RAIL_FLOOR
+    if s <= 0:
+        return x
+    x1 = f + 2 * s
+    return np.maximum(0.3, np.where(x >= x1, x - s, f + (x - f) * (x1 - s - f) / (x1 - f)))
+
+
+def respread_lane(sc, lane_q, lane_q_all, lane_cal=None):
     """The width model predicts each horse's conditional mean, which squeezes a field into a band far narrower than real fields
     (non-GPS races had a within-race sd of 0.4 to 0.8m against about 2m measured in VIC/SA GPS fields; 13 horses inside 2.5m is not
     physically possible). Keep the model's ORDER within each race and give it the measured spread instead: rank -> quantile of the
-    real within-race deviation from the race mean, the same method the GPS states already use for width."""
+    real within-race deviation from the race mean, as the GPS states do for width, then B.blend_lane_dev moves it part of the way to the
+    held-out measured mean for that rank (the placement alone overstates the widest and narrowest runners)."""
     out = sc.lane.copy()
     for rid, z in sc.groupby('race_id'):
         n = len(z)
@@ -90,7 +109,7 @@ def respread_lane(sc, lane_q, lane_q_all):
         q = lane_q.get(int(fsb)) if pd.notna(fsb) else None
         q = lane_q_all if q is None else q
         p = (z.lane.rank(method='first') - 0.5) / n
-        out.loc[z.index] = z.lane.mean() + np.interp(p, B.Q, q)
+        out.loc[z.index] = z.lane.mean() + B.blend_lane_dev(np.interp(p, B.Q, q), p.values, lane_cal)
     return np.clip(out, 0.3, None)
 
 
@@ -129,6 +148,10 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     pl = lm.predict(qd_te[LANE_FEATS])
     yl = qd_te.lane - qd_te.groupby('race_id').lane.transform('mean')
     pw = pd.Series(pl, index=qd_te.index)
+    # held-out measured mean deviation by predicted-width rank tenth (QLD, the data the width model is fitted on)
+    p_q = (pw.groupby(qd_te.race_id).rank(method='first') - 0.5) / pw.groupby(qd_te.race_id).transform('size')
+    lane_cal = B.lane_rank_table(p_q, qd_te.lane - qd_te.groupby('race_id').lane.transform('mean'))
+    print('non-GPS width calibration, measured mean deviation by predicted-rank tenth (m):', np.round(lane_cal[1], 2).tolist(), flush=True)
     err['lane'] = round(float(np.sqrt(((qd_te.lane - pw) ** 2).mean())), 2)
     err['lane_corr'] = round(float(np.corrcoef(pw - pw.groupby(qd_te.race_id).transform('mean'), yl)[0, 1]), 2)
     print('width estimate vs measured QLD width at 800m (2025+):', {k: err[k] for k in ('lane', 'lane_corr')}, flush=True)
@@ -159,7 +182,7 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     u['trk'] = pd.Categorical(u.track, categories=cats)
     sc = place(u, m, ms, tab)
     sc['lane'] = lm.predict(sc.assign(settle_h3=sc.settle_h3, gap800_h3=sc.gap800_h3)[LANE_FEATS])
-    sc['lane'] = respread_lane(sc, lane_q, lane_q_all)
+    sc['lane'] = shift_to_rail(respread_lane(sc, lane_q, lane_q_all, lane_cal))
     last = hist.sort_values('date').drop_duplicates('horse_id', keep='last').set_index('horse_id')
     for rid, z in sc.groupby('race_id'):
         z = z.copy()
