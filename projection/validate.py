@@ -19,7 +19,7 @@ import features as F  # noqa: E402
 def build(X, levels, tf, svd):
     r = F.build_main(X, levels)
     need = r.date >= r.date.max()
-    parts = [r, F.build_field(r), F.build_trials(r), F.build_trials3(r), F.build_light(r), F.text_features(r, need, tf, svd)]
+    parts = [r, F.build_field(r), F.build_trials(r), F.build_trials3(r), F.build_light(r), F.build_ladder(r), F.text_features(r, need, tf, svd)]
     return pd.concat(parts, axis=1).loc[:, lambda d: ~d.columns.duplicated()]
 
 
@@ -31,7 +31,8 @@ def main():
     seen = build(H, levels, tf, svd)
     X = H.copy()
     day = X.date >= last
-    for c in ['wpr', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m']:
+    for c in ['wpr', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m', 'comments_steward', 'sect_i_time', 'sect_i_early', 'sect_i_l200', 'sect_i_l400',
+              'raceShapeEarly', 'raceShapeLate']:
         X.loc[day, c] = np.nan
     X.loc[day, 'is_target'] = 1
     hidden = build(X, levels, tf, svd)
@@ -40,7 +41,8 @@ def main():
     b = b.reindex(a.index)
     bad = []
     for c in a.columns:
-        if c in ('wpr', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m', 'is_target', 'ff', 'mg', 's', 'sex', 'gb', 'lvl'):
+        if c in ('wpr', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m', 'comments_steward', 'sect_i_time', 'sect_i_early', 'sect_i_l200', 'sect_i_l400',
+                 'raceShapeEarly', 'raceShapeLate', 'sire_id', 'is_target', 'ff', 'mg', 's', 'sex', 'gb', 'lvl'):
             continue
         x, y = pd.to_numeric(a[c], errors='coerce'), pd.to_numeric(b[c], errors='coerce')
         if x.isna().all() and y.isna().all():

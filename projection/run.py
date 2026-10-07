@@ -39,14 +39,15 @@ GROUPS = {
     'form': ['exp', 'w1', 'w2', 'w3', 'm5', 'cm', 'ff3', 'mg3', 'std5', 'max5', 'peak', 'd12', 'd13', 'nruns', 'jh_n'],
     'rest': ['gap', 'run_in_prep', 'trial_days', 'trial_fin_frac', 'trial_margin', 'trial_n90', 'trial_since_run', 'fu_adv', 'fu_adv_n'],
     'class': ['cls_level', 'cls_level_prev', 'class_chg', 'grade', 'grade_chg', 'track_level'],
-    'going': ['going_num', 'going_chg', 'going_adv', 'going_adv_n'],
-    'dist_track': ['dist', 'dist_chg', 'dist_adv', 'dist_adv_n', 'track_adv', 'track_adv_n'],
+    'going': ['going_num', 'going_chg', 'going_adv', 'going_adv_n', 'lad_r25_going', 'lad_r25_going_rel'],
+    'dist_track': ['dist', 'dist_chg', 'dist_adv', 'dist_adv_n', 'track_adv', 'track_adv_n', 'lad_r25_dist', 'lad_r25_dist_rel', 'lad_r25_both', 'lad_r25_both_rel'],
     'connections': ['jock_eff', 'jock_eff_n', 'trn_eff', 'trn_eff_n', 'jock_chg', 'jd_eff', 'jd_eff_n', 'jt_eff', 'jt_eff_n', 'jock_form', 'jock_form_n',
-                    'td_eff', 'td_eff_n', 'tfu_eff', 'tfu_eff_n', 'trn_form', 'trn_form_n'],
-    'weight_age': ['wt', 'wt_chg', 'wt_rel', 'weight_allowance', 'horse_age', 'sex'],
-    'field': ['barrier', 'bf', 'field_size', 'f_exp', 'exp_rel', 'exp_rank', 'top_exp', 'exp_gap_top'],   # plus every fs_* feature
+                    'td_eff', 'td_eff_n', 'tfu_eff', 'tfu_eff_n', 'trn_form', 'trn_form_n', 'lad_r26_stable_chg'],
+    'weight_age': ['wt', 'wt_chg', 'wt_rel', 'weight_allowance', 'horse_age', 'sex', 'lad_r27_sire', 'lad_r27_sire_n', 'lad_r27_sire_d', 'lad_r27_sire_g'],
+    'field': ['barrier', 'bf', 'field_size', 'f_exp', 'exp_rel', 'exp_rank', 'top_exp', 'exp_gap_top', 'lad_r30_pos3', 'lad_r30_own_rel', 'lad_r30_m800',
+              'lad_r22_n_leaders', 'lad_r22_n_onpace', 'lad_r22_min', 'lad_r22_std', 'lad_r22_rank', 'lad_r22_lead_x_n'],   # plus every fs_* feature
     'comments': [],                                                                                            # every last_tx* / m3_tx* feature
-}
+}   # every other lad_* feature (recency base, placings, sectionals, job, past prices) falls into 'form'
 
 
 def group_of(feat):
@@ -75,7 +76,7 @@ def clean_name(s):
 
 def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
-            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted']
+            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp']
     u = pd.read_csv(os.path.join(ROOT, 'toprate_runners.csv'), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
     lo = pd.Timestamp(today) - pd.Timedelta(days=backfill_days)
@@ -113,7 +114,8 @@ def load_upcoming(today, hist, backfill_days=0):
     X = pd.DataFrame(dict(race_id=u.race_id, horse_id=u.horse_id, date=u.date, track=u.venue, distance=u.distance, going=u.going, wpr=np.nan,
                           weightCarried=u.weight_carried, weight_allowance=np.nan, barrier=u.barrier, field_size=u.field_size, race_class=u.race_class,
                           trackGrading=pd.to_numeric(u.track_grading, errors='coerce'), horse_age=u.horse_age, horse_sex=u.horse_sex, jockey=u.jockey,
-                          trainer=u.trainer, positionFinish=np.nan, marginFinish=np.nan, priceStarting=np.nan, position800m=np.nan, margin800m=np.nan,
+                          trainer=u.trainer, positionFinish=np.nan, marginFinish=np.nan,
+                          priceStarting=pd.to_numeric(u.starting_price_sp, errors='coerce').where(lambda v: v > 1).fillna(pd.to_numeric(u.fixed_win_price, errors='coerce').where(lambda v: v > 1)), position800m=np.nan, margin800m=np.nan,
                           is_target=1, run_id=u.run_id))
     return X, done, u
 
@@ -135,6 +137,7 @@ def main():
         store = {}
         rr = F.build_main(H, levels, store=store)
         F.build_light(rr, store=store)
+        F.build_ladder(rr, store=store)
         F.build_suit(F.load_results_all(), F.build_pos_hist(rr), bias_since='2100-01-01', store=store)
         store['built_through'] = str(H.date.max().date())
         os.makedirs(CACHE, exist_ok=True)
@@ -155,10 +158,14 @@ def main():
     fld = F.build_field(r)
     tri = F.build_trials(r)
     t3 = F.build_trials3(r)
+    if a.fast and 'prk' not in tables:
+        sys.exit('cache predates the ladder features: run --build-cache first')
+    lad = F.build_ladder(r, ph=ph, tables=tables)
     lt = F.build_light(r, tables=tables)
     tf, svd = F.load_text(os.path.join(M, 'text_svd.joblib'))
     txt = F.text_features(r, tg, tf, svd)
-    R = pd.concat([r, fld, tri, t3, lt, txt], axis=1)
+    R = pd.concat([r, fld, tri, t3, lt, txt, lad], axis=1)
+    R['lp'] = np.log(R.priceStarting.where(R.priceStarting > 1))     # live win price (fixed price, or SP for a backfilled race): read by the light model only
     R['sex'] = pd.Categorical(R.horse_sex, categories=levels['sex'])
     R = R[tg.values].copy()
     R = R.merge(T[['race_id', 'horse_id', 'run_id']], on=['race_id', 'horse_id'], how='left')
@@ -182,10 +189,14 @@ def main():
         R.loc[use_main, 'grp'] = [json.dumps({k: round(float(v), 2) for k, v in row.items()}) for row in grp.to_dict('records')]
     # ---- light model
     lb = [booster(os.path.join(M, f'light_seed{i}.txt.gz')) for i in range(1, 6)]
+    lnp = [booster(os.path.join(M, f'light_np_seed{i}.txt.gz')) for i in range(1, 6)]
     use_light = (R.nruns <= 2)
-    if use_light.any():
-        pl = np.mean([b.predict(R.loc[use_light, light_info['features']]) for b in lb], axis=0)
-        R.loc[use_light, 'p0'] = pl
+    R['light_priced'] = False
+    for priced, models, info in [(True, lb, light_info), (False, lnp, light_info['np'])]:
+        sel = use_light & (R.lp.notna() if priced else R.lp.isna())
+        if sel.any():
+            R.loc[sel, 'p0'] = np.mean([b.predict(R.loc[sel, info['features']]) for b in models], axis=0)
+            R.loc[sel, 'light_priced'] = priced
     # ---- suitability adjustment (main-model runners only)
     Y = F.load_results_all()
     if a.fast:
@@ -218,7 +229,7 @@ def main():
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
-    R['sd'] = [sd_main(p) if m == 'main' else light_info['stage_sd'].get(str(int(n)), 11.0) for p, m, n in zip(R.proj, R.routed, R.nruns)]
+    R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
     races = {}
     for rid, z in R.groupby('race_id'):
         first = z.iloc[0]

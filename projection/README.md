@@ -6,6 +6,7 @@ anything on the dashboard yet: nothing reads this file until the cutover.
 - `features.py` builds every feature as of the race date, for past runs and for races that have not run, with the same code.
   Ported from the research scripts and checked against them (`validate.py`): features match exactly for past runs and for runs
   whose outcome is hidden, and end-to-end predictions agree to under 0.01 WPR.
+- `features.build_ladder` adds the 40 `lad_*` features (Factor Ladder Review, Oct 2026); `train_main.py` / `train_light.py` retrain the models, `setup_ladder.py` writes the frozen going slope and expected-finish model.
 - `run.py` routes each runner: three or more prior rated runs use the main model (139 features, 5 seeds), 0-2 prior runs use the
   light-history model. Main-model projections get a small suitability adjustment (about +-1 WPR). The file records the model, the
   number of prior runs, an error estimate (sd) and the going the race was projected on.

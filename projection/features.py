@@ -19,7 +19,9 @@ MODELS = os.path.join(os.path.dirname(__file__), 'models')
 
 HIST_COLS = ['race_id', 'horse_id', 'date', 'track', 'distance', 'going', 'wpr', 'weightCarried', 'weight_allowance', 'barrier', 'field_size',
              'race_class', 'trackGrading', 'horse_age', 'horse_sex', 'jockey', 'trainer', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m',
-             'isBarrierTrial', 'is_jumpout']
+             'isBarrierTrial', 'is_jumpout',
+             # ladder-review features (Oct 2026): breeding, steward comments, sectionals, race-shape reads of past runs
+             'sire_id', 'comments_steward', 'sect_i_time', 'sect_i_early', 'sect_i_l200', 'sect_i_l400', 'raceShapeEarly', 'raceShapeLate']
 
 
 def load_history():
@@ -556,3 +558,139 @@ def build_suit(Y, pos_hist, bias_since=None, tables=None, store=None):
     bias = pd.concat(rows).rename(columns={'rn': 'raceNumber'})
     x = x.merge(bias[['date', 'track', 'raceNumber', 'fa_cum', 'oa_cum', 'fa_last', 'oa_last', 'n_prev']], on=['date', 'track', 'raceNumber'], how='left')
     return x
+
+
+# ------------------------------------------------------------------ ladder-review features (Oct 2026)
+# One block per rung of the Factor Ladder Review that a held-out test (train < 2025, score 2025-01 onward) showed helping the main model;
+# R3 (bad-run trim) and R14 (weight over WFA) did not help and are left out. Every feature is as-of: it reads only runs before the target.
+LADDER_FEATURES = ['lad_r2', 'lad_r4', 'lad_r5', 'lad_r6', 'lad_r7', 'lad_r9',                       # recency base, then drift, going, wide, lead-in, pre-spell trim
+                   'lad_r8_ff', 'lad_r8_win', 'lad_r8_top3',                                       # past placings
+                   'lad_r10_job3', 'lad_r11_pvj3', 'lad_r11_pvj1',                                 # job difficulty, performance vs job
+                   'lad_r12_l400', 'lad_r12_l200', 'lad_r12_early', 'lad_r12_time',                # sectional speed
+                   'lad_r22_n_leaders', 'lad_r22_n_onpace', 'lad_r22_min', 'lad_r22_std', 'lad_r22_rank', 'lad_r22_lead_x_n',   # race shape
+                   'lad_r25_dist', 'lad_r25_dist_rel', 'lad_r25_going', 'lad_r25_going_rel', 'lad_r25_both', 'lad_r25_both_rel',  # best rating at today's conditions
+                   'lad_r26_stable_chg', 'lad_r27_sire', 'lad_r27_sire_n', 'lad_r27_sire_d', 'lad_r27_sire_g',
+                   'lad_r29_pe1', 'lad_r29_pe3', 'lad_c2_lp1', 'lad_c2_lp3',                       # market expectation / price level at past starts
+                   'lad_r30_pos3', 'lad_r30_own_rel', 'lad_r30_m800']                              # settle map
+
+
+def _shifts(g, col, n=10):
+    return np.column_stack([g[col].shift(k).values for k in range(1, n + 1)])
+
+
+def _wavg(A, w=None, minn=2):
+    n = A.shape[1]
+    base = 1.0 / np.arange(1, n + 1)
+    W = np.broadcast_to(base, A.shape) if w is None else w * base
+    ok = ~np.isnan(A)
+    num = np.nansum(np.where(ok, A, 0.0) * W, axis=1)
+    den = (ok * W).sum(1)
+    return np.where(ok.sum(1) >= minn, num / np.where(den > 0, den, 1.0), np.nan)
+
+
+def _nanmean(A, minn=1):
+    ok = (~np.isnan(A)).sum(1)
+    return np.where(ok >= minn, np.nansum(A, axis=1) / np.maximum(ok, 1), np.nan)
+
+
+def build_ladder(x, ph=None, tables=None, store=None):
+    """The ladder-review features (needs build_main output; x carries the history columns added to HIST_COLS). Indexed like x."""
+    info = json.load(open(os.path.join(MODELS, 'ladder.json')))
+    out = pd.DataFrame(index=x.index)
+    g = x.groupby('horse_id')
+    ds = (x.date - pd.Timestamp('2000-01-01')).dt.days.astype(float)
+    today = ds.values
+    W = _shifts(g, 'wpr')
+    D = _shifts(x.assign(_d=ds).groupby('horse_id'), '_d')
+    nxt = np.column_stack([today] + [D[:, k] for k in range(9)])
+    spell_after = (nxt - D) > 60                                    # run followed by a spell (gap to the next run, or to today, over 60 days)
+    # ---- R2 recency, R4 drift, R5 going, R6 wide-run credit, R7 lead-in credit, R9 pre-spell trim (cumulative, as in the ladder, without R3)
+    out['lad_r2'] = _wavg(W)
+    A = W + 0.005 * (today[:, None] - D)
+    out['lad_r4'] = _wavg(A)
+    A = A + info['going_slope'] * (x.going_num.values[:, None] - _shifts(g, 'going_num'))
+    out['lad_r5'] = _wavg(A)
+    wide = x.comments_steward.fillna('').str.contains(COMMENT_PATTERNS['wide'], case=False, regex=True).astype(float)
+    A = A + 2.19 * np.nan_to_num(np.column_stack([wide.groupby(x.horse_id).shift(k).values for k in range(1, 11)]))
+    out['lad_r6'] = _wavg(A)
+    RP = _shifts(g, 'run_in_prep')
+    A = A + np.where(RP == 1, 1.5, np.where(RP == 2, 0.75, 0.0))
+    out['lad_r7'] = _wavg(A)
+    usual = _wavg(A)[:, None]
+    out['lad_r9'] = _wavg(A, np.where(spell_after & (A <= usual - 3.0), 0.5, 1.0))
+    # ---- past finishing / margin / price reads
+    ff = ((x.positionFinish - 1) / (x.field_size - 1).clip(lower=1)).clip(0, 1)
+    ffg = ff.groupby(x.horse_id)
+    FF = np.column_stack([ffg.shift(k).values for k in range(1, 11)])
+    PF = _shifts(g, 'positionFinish')
+    out['lad_r8_ff'] = _wavg(FF)
+    out['lad_r8_win'] = _wavg(np.where(np.isnan(PF), np.nan, (PF == 1).astype(float)))
+    out['lad_r8_top3'] = _wavg(np.where(np.isnan(PF), np.nan, (PF <= 3).astype(float)))
+    for c, nm in [('sect_i_l400', 'l400'), ('sect_i_l200', 'l200'), ('sect_i_early', 'early'), ('sect_i_time', 'time')]:
+        out['lad_r12_' + nm] = _nanmean(_shifts(g, c, 4), 2)
+    # ---- best rating at today's distance / going band (cummax of earlier runs), relative to the career mean
+    w = x.wpr.fillna(-np.inf)
+    for nm, keys in [('dist', ['db']), ('going', ['gb']), ('both', ['db', 'gb'])]:
+        kk = [x.horse_id] + [x[k] for k in keys]
+        best = w.groupby(kk, dropna=False).cummax().groupby(kk, dropna=False).shift(1).replace(-np.inf, np.nan)
+        out['lad_r25_' + nm] = best
+        out['lad_r25_' + nm + '_rel'] = best - x.cm
+    # ---- stable change
+    pt = g.trainer.shift(1)
+    out['lad_r26_stable_chg'] = np.where(pt.notna() & x.trainer.notna(), (pt != x.trainer).astype(float), np.nan)
+    # ---- sire (a horse's sire is constant: runners with no sire on the row take it from their earlier runs)
+    smap = x.dropna(subset=['sire_id']).drop_duplicates('horse_id', keep='last').set_index('horse_id').sire_id
+    Rs = x[['horse_id', 'date', 'race_id', 'db', 'gb', 's', 'nruns']].copy()
+    Rs['sire_id'] = x.sire_id.fillna(x.horse_id.map(smap)).astype(float)
+    _eff(Rs, ['sire_id'], 'sire_eff', 30, 3000, tables=tables, store=store)
+    _eff(Rs, ['sire_id', 'db'], 'sire_d_eff', 20, 1000, tables=tables, store=store)
+    _eff(Rs, ['sire_id', 'gb'], 'sire_g_eff', 20, 1000, tables=tables, store=store)
+    fade = 1.0 - 0.5 * (Rs.nruns.clip(upper=30) / 30.0)
+    out['lad_r27_sire'] = Rs.sire_eff * fade
+    out['lad_r27_sire_n'] = Rs.sire_eff_n
+    out['lad_r27_sire_d'] = Rs.sire_d_eff * fade
+    out['lad_r27_sire_g'] = Rs.sire_g_eff * fade
+    # ---- market expectation and price level at the last starts (price rank within each past race: from the cache when only some runners are loaded)
+    sp = x.priceStarting.where(x.priceStarting > 1)
+    if tables is not None and 'prk' in tables:
+        prk = pd.Series(tables['prk'].reindex(pd.MultiIndex.from_arrays([x.race_id.values, x.horse_id.values])).values, index=x.index)
+    else:
+        prk = (1.0 / sp).groupby(x.race_id).rank(ascending=False, pct=True)         # 0 = shortest price in the race
+        if store is not None:
+            store['prk'] = prk[x.is_target.eq(0)].set_axis(pd.MultiIndex.from_arrays([x.race_id[x.is_target.eq(0)].values, x.horse_id[x.is_target.eq(0)].values]))
+    lpg = np.log(sp).groupby(x.horse_id)
+    LP = np.column_stack([lpg.shift(k).values for k in range(1, 4)])
+    PR = np.column_stack([prk.groupby(x.horse_id).shift(k).values for k in range(1, 4)])
+    FF3 = FF[:, :3]
+    out['lad_c2_lp1'] = LP[:, 0]
+    out['lad_c2_lp3'] = _nanmean(LP)
+    out['lad_r29_pe1'] = FF3[:, 0] - PR[:, 0]            # positive = finished further back than its price said
+    out['lad_r29_pe3'] = _nanmean(FF3 - PR)
+    # ---- settle map and race shape from the field's own settling history
+    if ph is None:
+        ph = build_pos_hist(x)
+    p = ph.pos_hist3
+    out['lad_r30_pos3'] = p
+    out['lad_r30_own_rel'] = ph.own_rel
+    out['lad_r30_m800'] = ph.m800_hist3
+    pg = p.groupby(x.race_id)
+    out['lad_r22_n_leaders'] = (p < 0.25).groupby(x.race_id).transform('sum')
+    out['lad_r22_n_onpace'] = (p < 0.40).groupby(x.race_id).transform('sum')
+    out['lad_r22_min'] = pg.transform('min')
+    out['lad_r22_std'] = pg.transform('std')
+    out['lad_r22_rank'] = pg.rank(pct=True)
+    out['lad_r22_lead_x_n'] = (p < 0.25).astype(float) * out.lad_r22_n_leaders
+    # ---- job difficulty and performance vs job of past runs (tempo and position; the 'expected finish' model is frozen in models/pvj_model.txt)
+    front = 1 - ((x.position800m - 1) / (x.field_size - 1).clip(lower=1))
+    jd = (x.raceShapeEarly * front)
+    out['lad_r10_job3'] = _nanmean(np.column_stack([jd.groupby(x.horse_id).shift(k).values for k in range(1, 4)]))
+    Z = pd.DataFrame({'p8': 1 - front, 'm8': x.margin800m.clip(0, 40), 'se': x.raceShapeEarly, 'sl': x.raceShapeLate, 'bf': x.bf})
+    okz = Z.notna().all(axis=1) & ff.notna()
+    import lightgbm as lgb
+    pe = pd.Series(np.nan, index=x.index)
+    if okz.any():
+        pe[okz] = lgb.Booster(model_file=os.path.join(MODELS, 'pvj_model.txt')).predict(Z[okz]) - ff[okz]    # positive = finished ahead of what the job predicted
+    PE = np.column_stack([pe.groupby(x.horse_id).shift(k).values for k in range(1, 4)])
+    out['lad_r11_pvj3'] = _nanmean(PE)
+    out['lad_r11_pvj1'] = PE[:, 0]
+    return out[LADDER_FEATURES]

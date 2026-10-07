@@ -2331,6 +2331,22 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
     ranges drawn behind each bar (`GROUPS` in `horseParts.tsx`) are the 5th to 95th percentile over 23,820 runs in 2,947 races (6 Aug to 6 Oct 2026, main model, features as of each race). TopRate rating is NOT a model input
     (the old waterfall bar was misleading). The horse-level trip mini-map, the "against the expected shape" row and "How today's shape suits this horse"
     (ComparisonGrid, now in `archive/frontend/`) were removed.
+- **Factor Ladder Review features added to the projection model (Oct 2026)**: a ladder review (SPM rating engine, 30 rungs) was tested rung by rung
+  on our own data (train before 2025, score 2025-01 onward, 265k runs, baseline RMSE 9.080, seed noise about 0.0005). Almost nothing moved the
+  main model: the best single rungs were worth 0.004 to 0.006 RMSE (sectional speed, past market expectation, last-start price, settle position, race
+  shape, performance vs job, sire), the rest were inside noise. R3 (bad-run trim) and R14 (weight over WFA) did not help and are NOT in the model.
+  A first R14 test showed a -0.93 gain that was a leak: the results column `atw` is the weight-adjusted rating of the same run (0.98 correlation with
+  wpr), never use it as a feature. The one clear win is R24, the debutant's own market price in the light model (debut RMSE 11.82 -> 11.34, 2025-07+).
+  Shipped: `features.build_ladder()` (40 `lad_*` features, `LADDER_FEATURES`, 179 main features total), a frozen going slope and expected-finish
+  model (`models/ladder.json`, `models/pvj_model.txt`, fitted before 2025 by `setup_ladder.py`), `train_main.py` (new: the main model had no training
+  script in the repo), and `train_light.py` now trains two light sets: `light_seed*` reads log(win price) and `light_np_seed*` is the fallback for a
+  runner with no price yet. Live price is `starting_price_sp`, else `fixed_win_price` (training used the starting price, so the live gain is somewhat
+  smaller). Held-out main RMSE 9.0908 (139 features) -> 9.0597 (179), 2025-07+, same production settings, so about 0.3%: treat as a small refinement,
+  not a new model. Out of the 40 features the chain `lad_r2..r9` is the ladder's recency base with drift, going, wide-run and lead-in credits and a
+  pre-spell trim, built without R3. `validate.py` leak check covers the new block (LEAK-FREE). Not re-tested: the suitability adjustment
+  (`suitability_model.txt`) was fitted against the OLD main model's residuals and may now partly double count the new settle/sectional features, and
+  its training script is not in the repo. `--fast` needs a cache built after this change (`run.py` exits with a message if `prk` is missing from
+  `cache/tables.pkl`); the daily full run rebuilds it. The projection full run is slower by the new feature build (not yet timed on a hosted runner).
 
 ## What to be careful about
 
