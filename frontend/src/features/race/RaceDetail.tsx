@@ -7,16 +7,16 @@ import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
-import { RaceLadder, RaceSummaryLine } from './RaceGlance'
+import { RaceLadder } from './RaceGlance'
 import { MultiRace } from './MultiRace'
 import { RunnerCompare } from './RunnerCompare'
-import { RunnerRow, ROW_GRID } from './RunnerRow'
+import { RunnerRow, rowGrid } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { expectedWinningWpr, rankField, typicalSd } from './raceFacts'
+import { expectedWinningWpr, rankField } from './raceFacts'
 
 interface RaceDetailProps {
   race: Race
@@ -38,15 +38,15 @@ const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
 const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean }[] = [
-  { key: null, label: '', align: 'left', lgOnly: true },
+  { key: null, label: '', align: 'left' },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
-  { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)' },
+  { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)', lgOnly: true },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Adj)' },
-  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price", lgOnly: true },
+  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -134,7 +134,7 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => ({ proj: r.proj, sd: typicalSd(r.runner, r.proj) ?? 9 }))), [ranked])
+  const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => r.proj)), [ranked])
   const bandOf = useMemo(() => {
     const m = new Map<string, { band: 'inner' | 'outer' | 'none' }>()
     for (const r of ranked) m.set(r.runner.runId, { band: r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
@@ -194,6 +194,7 @@ export function RaceDetail({
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
+      showFp: hasAnyResult,
       onClick: compareMode
         ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
         : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
@@ -240,16 +241,6 @@ export function RaceDetail({
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
-      <RaceSummaryLine
-        ranked={ranked}
-        allRunners={race.runners}
-        scratched={effectiveScratched}
-        innerGap={INNER_GAP_FROM_TOP}
-        outerGap={OUTER_GAP_FROM_TOP}
-        trip={tripRace}
-        onSelect={setSelectedRunId}
-      />
-
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Runners</h3>
@@ -268,10 +259,10 @@ export function RaceDetail({
         </div>
 
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
-          <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${ROW_GRID}`}>
+          <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
             {COLUMNS.map((c, i) =>
               c.key == null ? (
-                <span key={i} className="hidden lg:block" />
+                <span key={i} />
               ) : (
                 <button
                   key={c.key}
@@ -279,7 +270,7 @@ export function RaceDetail({
                   title={c.title}
                   aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                   onClick={() => onSort(c.key as SortKey)}
-                  className={`transition-colors hover:text-ink ${c.lgOnly ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                  className={`transition-colors hover:text-ink ${c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
                   {c.label}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
