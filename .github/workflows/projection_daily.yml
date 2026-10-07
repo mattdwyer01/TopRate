@@ -101,25 +101,37 @@ jobs:
           fi
           git commit -m "Projection ${{ steps.mode.outputs.mode }} $(date -u +%Y-%m-%dT%H:%MZ)"
           # Same recovery as daily.yml: take the new tip (reset --mixed keeps our freshly generated files) and re-commit, no rebase.
-          # 7 Oct 2026: a 120s fetch timed out on all 5 attempts (every cycle brings in the ~30MB data and ~70MB history files the live
-          # poller rewrites every ~5 min), so the push was never retried on a fresh tip and the whole full run (trip map + log) was lost.
-          # Same fix as backfill_race_results.yml: longer timeouts, only this branch, more attempts.
+          # 7 Oct 2026: with a plain `git fetch` + `git reset`, a full run lost its whole output twice (run 14: every 120s fetch timed out; run 15: still
+          # stuck after 30 min), because each retry had to download the large payload files the live poller rewrites every ~5 min. The retry
+          # now never touches them: a blob-less shallow fetch moves only the tip commit and trees (about 1s, about 200KB), then plumbing builds a
+          # commit of OUR outputs on that tip with a temporary index (read-tree, add, write-tree --missing-ok, commit-tree), and only that commit
+          # is pushed. Working tree and real index are untouched; the poller's files on the new tip are kept exactly as they are.
+          if timeout 180 git push; then
+            echo "Pushed on attempt 0"
+            exit 0
+          fi
           for i in $(seq 1 20); do
-            push_status=0
-            timeout 180 git push || push_status=$?
-            if [[ $push_status -eq 0 ]]; then
-              echo "Pushed on attempt $i"
-              exit 0
+            if ! timeout 120 git fetch --no-tags --depth=1 --filter=blob:none origin +refs/heads/main:refs/remotes/origin/main; then
+              echo "shallow fetch failed (attempt $i), retrying"
+              sleep 5
+              continue
             fi
-            echo "git push failed, exit $push_status (attempt $i)"
-            timeout 300 git fetch --no-tags origin main || { echo "fetch timed out/failed, retrying loop anyway"; sleep 3; continue; }
-            git reset --mixed origin/main
+            tip=$(git rev-parse origin/main)
+            export GIT_INDEX_FILE="$(mktemp -u)"
+            git read-tree "$tip"
             stage_outputs
-            if git diff --cached --quiet; then
+            tree=$(git write-tree --missing-ok)
+            unset GIT_INDEX_FILE
+            if [[ "$tree" == "$(git rev-parse "$tip^{tree}")" ]]; then
               echo "Remote already has these outputs"
               exit 0
             fi
-            git commit -m "Projection ${{ steps.mode.outputs.mode }} $(date -u +%Y-%m-%dT%H:%MZ)"
+            commit=$(git commit-tree "$tree" -p "$tip" -m "Projection ${{ steps.mode.outputs.mode }} $(date -u +%Y-%m-%dT%H:%MZ)")
+            if timeout 180 git push origin "$commit:refs/heads/main"; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "git push failed (attempt $i)"
             sleep 3
           done
           echo "Giving up after 20 push attempts"
