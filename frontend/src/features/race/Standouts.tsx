@@ -14,12 +14,17 @@ const BANDS: Band[] = [2, 4, 6]
 const MAP_LIST_LIMIT = 8
 const LEADER_LIST_LIMIT = 5
 
+// Map value a runner needs to be listed. 1.0 rather than the tint threshold (0.5): tested 8 Oct 2026, +0.5 lifted the win rate by 1 to 2 points
+// (intervals mostly spanning zero), +1.0 by 6 to 8 points with both halves of the window agreeing, at about 3 to 6 runners a day.
+const MAP_MIN = 1.0
+
 // Logged projections, 1 Jul to 5 Oct 2026 (2,863 races of 5+ runners, rated on the same scale as this list): win rate of runners inside the band
-// with a positive map vs every runner inside it. A small edge in who wins, with no edge against the price (flat ROI stayed negative in every cell).
+// with a map of +1.0 or better vs every runner inside it. The ROI of this group was positive but did not survive removing its 3 biggest winners
+// in 2 of 3 bands, so no price edge is claimed.
 const MAP_HISTORY: Record<Band, { withMap: number; all: number }> = {
-  2: { withMap: 23.0, all: 22.6 },
-  4: { withMap: 19.8, all: 18.5 },
-  6: { withMap: 17.7, all: 15.8 },
+  2: { withMap: 29.6, all: 22.6 },
+  4: { withMap: 26.7, all: 18.5 },
+  6: { withMap: 24.0, all: 15.8 },
 }
 
 interface Entry {
@@ -84,7 +89,7 @@ export function Standouts({ races, now, onSelectRace }: { races: Race[]; now: nu
       const top = ranked[0].score
       for (const x of ranked) {
         if (top - x.score > band) break
-        if (x.sm != null && x.sm >= SPEED_MAP_TINT_THRESHOLD) out.push({ race, runner: x.runner, gap: top - x.score, sm: x.sm, lead: 0 })
+        if (x.sm != null && x.sm >= MAP_MIN) out.push({ race, runner: x.runner, gap: top - x.score, sm: x.sm, lead: 0 })
       }
     }
     // Jumping order, so the next chance is at the top.
@@ -134,10 +139,10 @@ export function Standouts({ races, now, onSelectRace }: { races: Race[]; now: nu
             <span className="text-[11px] text-ink-faint">of the top rated</span>
           </div>
           <p className="mb-1 text-[11px] text-ink-faint">
-            Runners with a positive speed map (+{SPEED_MAP_TINT_THRESHOLD} or better against their own field), in jumping order. {mapEntries.length} runners in {racesWithMap} races.
+            Runners with a positive speed map (+{MAP_MIN.toFixed(1)} or better against their own field), in jumping order. {mapEntries.length} runners in {racesWithMap} races.
           </p>
           {mapEntries.length === 0 ? (
-            <p className="py-2 text-sm text-ink-mute">None inside {band} WPR with a positive map.</p>
+            <p className="py-2 text-sm text-ink-mute">None inside {band} WPR with a map of +{MAP_MIN.toFixed(1)} or better.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-line-soft">
               {shownMap.map((e) =>
@@ -151,7 +156,7 @@ export function Standouts({ races, now, onSelectRace }: { races: Race[]; now: nu
             </button>
           )}
           <p className="mt-2 text-[11px] text-ink-faint">
-            Past results (1 Jul to 5 Oct): inside {band} WPR, runners with a positive map won {MAP_HISTORY[band].withMap}% against {MAP_HISTORY[band].all}% for everyone inside. A small edge in who wins, none against the price. A filter, not a tip.
+            Past results (1 Jul to 5 Oct): inside {band} WPR, runners with a map of +{MAP_MIN.toFixed(1)} or better won {MAP_HISTORY[band].withMap}% against {MAP_HISTORY[band].all}% for everyone inside. A real lift in who wins, but a price edge is not proven. A filter, not a tip.
           </p>
         </>
       )}
