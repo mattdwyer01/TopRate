@@ -10,14 +10,15 @@ export function ReplayPanel({ venue, date, raceNumber, hasResult }: { venue: str
   const url = hasResult ? replayUrl(codes, venue, date, raceNumber) : null
   if (!url) return null
   return (
-    <div className="mt-2">
+    <div className="mt-3">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-bg px-2.5 py-0.5 text-xs font-medium text-ink-soft hover:border-emerald-line hover:text-emerald-deep"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-1)] transition-opacity hover:opacity-90 sm:inline-flex sm:w-auto"
       >
-        <span aria-hidden>&#9654;</span> {open ? 'Hide replay' : 'Race replay'}
+        <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] text-ink">&#9654;</span>
+        {open ? 'Hide replay' : 'Watch race replay'}
       </button>
       {open &&
         (failed ? (
