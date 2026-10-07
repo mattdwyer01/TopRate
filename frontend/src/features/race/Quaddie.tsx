@@ -9,9 +9,8 @@ import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { Ladder } from './RaceGlance'
 import { rankField, type Ranked } from './raceFacts'
 
-interface MultiRaceProps {
+interface QuaddieProps {
   meeting: Race[] // the meeting's races, in race order
-  startRaceId: string
   deltas: Record<string, number>
   bases: Record<string, number>
   scratched: Set<string>
@@ -21,6 +20,20 @@ interface MultiRaceProps {
 }
 
 const WINDOW = 4
+
+export type QuaddieKind = 'late' | 'early'
+
+// The late quaddie is the last four races. The early quaddie is the four before it; with 7 races or fewer there are not eight to split,
+// so it is the first four and the two overlap. A meeting of exactly four has one quaddie only.
+export function quaddieRaces(meeting: Race[], kind: QuaddieKind): Race[] {
+  const n = meeting.length
+  if (kind === 'late') return meeting.slice(Math.max(0, n - WINDOW))
+  return n >= 8 ? meeting.slice(n - 8, n - 4) : meeting.slice(0, WINDOW)
+}
+
+export function hasQuaddie(meeting: Race[]): boolean {
+  return meeting.length >= WINDOW
+}
 
 function rankRace(race: Race, deltas: Record<string, number>, bases: Record<string, number>, scratched: Set<string>, priceBeta: number | null): Ranked[] {
   const eff = new Set(scratched)
@@ -35,13 +48,12 @@ const inPool = (x: Ranked) => x.inner || x.outer || mapAdded(x)
 
 const product = (ns: number[]) => ns.reduce((a, b) => a * b, 1)
 
-// Four consecutive races at one meeting side by side (the last four make the quaddie): each race's projection ladder with the inside-4 and
+// A meeting's late (last four races) or early (the four before) quaddie side by side: each race's projection ladder with the inside-4 and
 // inside-6 lines, and how many runners sit inside each line. The combination counts are plain arithmetic on those counts, not a selection.
-export function MultiRace({ meeting, startRaceId, deltas, bases, scratched, priceBeta, onSelectRace, onBack }: MultiRaceProps) {
-  const startIdx0 = Math.max(0, meeting.findIndex((r) => r.raceId === startRaceId))
-  const maxStart = Math.max(0, meeting.length - WINDOW)
-  const [start, setStart] = useState(Math.min(startIdx0, maxStart))
-  const races = useMemo(() => meeting.slice(start, start + WINDOW), [meeting, start])
+export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelectRace, onBack }: QuaddieProps) {
+  const [kind, setKind] = useState<QuaddieKind>('late')
+  const hasEarly = meeting.length > WINDOW
+  const races = useMemo(() => quaddieRaces(meeting, kind), [meeting, kind])
 
   const ranked = useMemo(() => races.map((r) => rankRace(r, deltas, bases, scratched, priceBeta)), [races, deltas, bases, scratched, priceBeta])
   const inner = ranked.map((rk) => rk.filter((x) => x.inner).length)
@@ -49,43 +61,42 @@ export function MultiRace({ meeting, startRaceId, deltas, bases, scratched, pric
   const pool = ranked.map((rk) => rk.filter(inPool).length)
   const complete = races.length === WINDOW && inner.every((n) => n > 0)
 
+  if (races.length === 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <button type="button" onClick={onBack} className="w-fit text-sm text-emerald hover:underline">
+          &larr; Back to meetings
+        </button>
+        <p className="text-sm text-ink-mute">No quaddie found for this meeting and date.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button type="button" onClick={onBack} className="w-fit text-sm text-emerald hover:underline">
-          &larr; Back to race
+          &larr; Back to meetings
         </button>
-        <div className="flex items-center gap-1.5 text-sm">
-          <button
-            type="button"
-            aria-label="Earlier races"
-            disabled={start <= 0}
-            onClick={() => setStart((s) => Math.max(0, s - 1))}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-ink-mute enabled:hover:text-ink disabled:opacity-40"
-          >
-            &lsaquo;
-          </button>
-          <span className="font-mono text-xs text-ink-soft">
-            {races[0] ? `R${races[0].raceNumber} to R${races[races.length - 1].raceNumber}` : ''}
-          </span>
-          <button
-            type="button"
-            aria-label="Later races"
-            disabled={start >= maxStart}
-            onClick={() => setStart((s) => Math.min(maxStart, s + 1))}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-ink-mute enabled:hover:text-ink disabled:opacity-40"
-          >
-            &rsaquo;
-          </button>
+        <div className="flex items-center gap-1.5">
+          <Pill active={kind === 'late'} onClick={() => setKind('late')}>
+            Late quaddie
+          </Pill>
+          {hasEarly && (
+            <Pill active={kind === 'early'} onClick={() => setKind('early')}>
+              Early quaddie
+            </Pill>
+          )}
+          <span className="font-mono text-xs text-ink-soft">{races[0] ? `R${races[0].raceNumber} to R${races[races.length - 1].raceNumber}` : ''}</span>
         </div>
       </div>
 
       <section className="rounded-lg border border-line bg-panel p-3 sm:p-4">
         <h2 className="text-sm font-semibold text-ink">
-          {races[0]?.venue}: {races.length} races side by side
+          {races[0]?.venue} {kind} quaddie
         </h2>
         <p className="mb-2 text-xs text-ink-faint">
-          Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {OUTER_GAP_FROM_TOP} held about 78% of winners in testing, so a leg
+          {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {OUTER_GAP_FROM_TOP} held about 78% of winners in testing, so a leg
           is rarely safe with fewer. Runners outside the {OUTER_GAP_FROM_TOP} line are added back when their speed map adjustment is +{SPEED_MAP_TINT_THRESHOLD} or better (the green figure in the race table). Counts only, not tips.
         </p>
         <div className="overflow-x-auto">
