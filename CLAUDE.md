@@ -61,9 +61,9 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   backfills, probes, disabled workflows, and frontend components no longer
   reachable (Trackers tab, `PriceMovementChart`, `density.ts`). See
   `archive/README.md` for how to run one. Older entries in this file name those
-  scripts without the `archive/<folder>/` prefix. The Python trackers
-  (`speedmap_jockey_tracker.py`) still run; only the frontend Trackers tab and
-  its `trackerRules.ts` mirror are archived.
+  scripts without the `archive/<folder>/` prefix. Also archived (Oct 2026): the
+  trackers (`archive/trackers/`, retired, no longer run) and `bet_log.py` with its
+  logs and `racing_model.json` (`archive/bet_log/`).
 - `.github/workflows/price_refresh.yml` — runs every 5 min during AU racing
   hours, refreshes prices and `toprate_data.json` only (via
   `toprate_price_refresh.py` → `toprate_daily.py`'s `rebuild_html()`). Never
@@ -140,12 +140,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `price_refresh.yml`/`tab_results.yml` cycles don't churn ~200 unchanged
   files every run.
 
-- `racing_model.json` (Sep 2026) - the Racing Model layer: an independent model's projections (rating,
-  model win probability, v4 settle, P(leads), extra ground, pace chances) from the private
-  mattdwyer01/racing-model repo, committed here by its daily `dashboard.yml` job (05:45 and 11:15 AEST).
-  Read by `frontend/src/lib/racingModel.ts` and shown as the Racing Model panel in race detail; the blend
-  with the market and the edge are recomputed in the browser from the live fixed price. Optional: if the
-  file is missing the panel simply doesn't render. Never edit it by hand; it is overwritten each run.
+- `racing_model.json` - RETIRED (Oct 2026), moved to `archive/bet_log/`. The Racing Model layer was replaced by `projection/`
+  and the racing-model repo's `dashboard.yml` is disabled, so nothing writes or reads it any more.
 
 ## Conventions (follow these)
 
