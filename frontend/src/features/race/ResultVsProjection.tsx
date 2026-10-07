@@ -1,3 +1,4 @@
+import { projectedAtActualScale } from '../../lib/atw'
 import type { Runner } from '../../types/domain'
 import { useMissNotes } from '../../lib/missNotes'
 
@@ -36,7 +37,7 @@ interface ResultVsProjectionProps {
 // happening to coincide (e.g. both landing on "8") made read as one
 // repeated figure in an earlier layout.
 export function ResultVsProjection({ runner }: ResultVsProjectionProps) {
-  const projected = runner.projectedWpr
+  const projected = projectedAtActualScale(runner)
   const projRank = runner.wprRank
   // Two independent facts, not one: the race RESULT (finish position, won)
   // is known the moment the race resolves, but the settled actual WPR

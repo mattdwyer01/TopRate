@@ -110,8 +110,8 @@ export function RunnerDetailModal({
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   // The panel shows the projection at today's weight (ATW, as the Recent runs table does): the model's rating plus this horse's own offset. Ranking,
   // the range bar and the gap to the top stay on the model's rating, which is what the gap lines and fair prices were validated on.
-  // The offset is the horse's latest one (its weight in its next race), so it only fits a race still to run.
-  const atwOff = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 && !runner.resultKnown && runner.finishPosition == null ? runner.atwOffset : null
+  // The payload carries the offset the projection was made with (frozen in the projection log), or the horse's latest for a race still to run.
+  const atwOff = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 ? runner.atwOffset : null
   const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr + atwOff : null
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)

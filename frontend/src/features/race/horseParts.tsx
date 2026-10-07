@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
+import { projectedAtActualScale } from '../../lib/atw'
 import { computeCareerStats } from '../../lib/careerStats'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
@@ -603,19 +604,19 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
 
 // After the race: projected against actual (ATW) with the miss sized against the horse's own typical error.
 export function ResultCard({ runner }: { runner: Runner }) {
-  const proj = runner.projectedWpr
+  const proj = projectedAtActualScale(runner)
   const actual = runner.actualWpr
   const fin = runner.finishPosition
   const sd = runner.projectionSd
   const miss = actual != null && proj != null ? actual - proj : null
   const big = miss != null && sd != null && Math.abs(miss) > sd
   if (fin == null && actual == null && !runner.resultKnown) {
-    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race. Model rating to beat: <span className="font-mono font-semibold text-ink">{fmtWpr(proj)}</span>.</p>
+    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race. Projected rating to beat: <span className="font-mono font-semibold text-ink">{fmtWpr(proj)}</span>.</p>
   }
   return (
     <div>
       <div className="grid grid-cols-3 gap-2">
-        <Tile label="Model rating">
+        <Tile label="Projected (ATW)">
           <span className="font-mono text-xl font-semibold text-ink">{fmtWpr(proj)}</span>
         </Tile>
         <Tile label="Actual (ATW)">
