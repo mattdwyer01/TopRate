@@ -41,8 +41,9 @@ export interface EffectiveRunner {
   speedMapAdj: number | null
 }
 
-// speed_map ADJ_TERM (own history + today's field/barrier/pace context,
-// see wpr_projection.py's _SPEED_MAP_FEATURES docstring), demeaned against
+// Oct 2026: SOURCE CHANGED from the previous model's speed_map term to the new LightGBM projection's suitability adjustment
+// (projection/run.py: settle history, barrier fraction, field size, comments, day-of bias; main-model runners only, null for light-history).
+// The two lines below describe the old source and are kept for context. Demeaned against
 // THIS race's own runners for display purposes only - never fed back into
 // any WPR number. Two of speed_map's own inputs (track_bias_score,
 // pace_score) are shared/near-shared across a race's whole field by
@@ -54,11 +55,11 @@ export interface EffectiveRunner {
 // and the race table's own "SM Adj" column can't independently drift -
 // both call this same function rather than each computing it inline.
 export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number | null> {
-  const raw = runners.map((u) => u.adjustmentBreakdown?.speed_map).filter((v): v is number => v != null)
+  const raw = runners.map((u) => u.adjustmentBreakdown?.suitability).filter((v): v is number => v != null)
   const mean = raw.length ? raw.reduce((a, b) => a + b, 0) / raw.length : 0
   const result = new Map<string, number | null>()
   for (const u of runners) {
-    const v = u.adjustmentBreakdown?.speed_map
+    const v = u.adjustmentBreakdown?.suitability
     result.set(u.runId, v != null ? v - mean : null)
   }
   return result
@@ -72,7 +73,7 @@ export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number |
 // agree on what counts as neutral, rather than the table using a plain
 // sign check that would colour a value the tile itself still shows white.
 // Raised to +/-1.0 (4 Oct 2026, user request: favoured 1, unfavoured -1; SM >= 1 within 4 ran A/E 1.10 vs 1.07 at 0.5).
-export const SPEED_MAP_TINT_THRESHOLD = 1.0
+export const SPEED_MAP_TINT_THRESHOLD = 0.5   // Oct 2026: the suitability term is narrower (demeaned sd about 0.5, 24% of runners beyond 0.5, 4% beyond 1.0), so 0.5 tints about the same share as 1.0 did on the old speed_map term
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
