@@ -115,7 +115,6 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
-import bet_log  # betting rules: bets frozen before the jump, settled on real dividends (bets_log.csv / .json)
 import tab_dividends  # TAB dividends per race, all pools incl. quaddies (racing-model exotics tests)
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
 import tab_fields  # twice-daily TAB race cards -> weight_carried (toprate.au no longer supplies weights)
@@ -987,8 +986,6 @@ def run_once(push=True):
         return
 
     runners_df, n_weighted = tab_fields.apply_logged(sys.modules[__name__], td.load_runners())
-    # Betting rules card: freeze bets ~10 min before the jump, settle them on real TAB dividends (bet_log.py)
-    bet_log.update(runners_df, provider_venue_for)
     n_result_rows = 0
     n_condition_rows = 0
     n_priced = 0
