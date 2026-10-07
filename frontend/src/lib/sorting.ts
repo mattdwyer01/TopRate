@@ -19,6 +19,7 @@ export type SortKey =
   | 'formFactor'
   | 'wprNett'
   | 'fixedPrice'
+  | 'ratedPrice'
   | 'finish'
   | 'actualWpr'
 
@@ -46,6 +47,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   formFactor: 'desc',
   wprNett: 'desc',
   fixedPrice: 'asc',
+  ratedPrice: 'asc',
   finish: 'asc',
   actualWpr: 'desc',
 }
@@ -93,6 +95,8 @@ function sortValue(
       return runner.wprNett ?? -Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
+    case 'ratedPrice':
+      return effective?.effectivePrice ?? runner.wprPrice ?? Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
     case 'actualWpr':

@@ -760,6 +760,17 @@ def apply_results(runners_df, tab_results, unplaced_races=None):
     return runners_df, n_written, unmatched_venues, patches
 
 
+# TAB and toprate.au name the same synthetic surface differently (7 Oct 2026: TAB "Awt" vs the provider's "Synthetic" at Gold Coast, once the
+# "GOLD COAST POLY" alias let it match). Without this every Daily fetch (which writes the provider's name) was undone by the next poll as a
+# "going change", forcing a full rebuild and a projection dispatch each time and keeping the runner busy for minutes a cycle.
+_SYNTHETIC_GOING = {"awt", "all weather", "all-weather", "synthetic", "poly", "polytrack", "tapeta"}
+
+
+def _same_going(old, new):
+    a, b = str(old).strip().lower(), str(new).strip().lower()
+    return a == b or (a in _SYNTHETIC_GOING and b in _SYNTHETIC_GOING)
+
+
 def apply_conditions(runners_df, conditions):
     """
     Update going/track_grading/rail_position for every runner at a meeting,
@@ -794,14 +805,17 @@ def apply_conditions(runners_df, conditions):
 
         if cond.get("going"):
             old_going = rows["going"].iloc[0] if "going" in rows.columns else None
-            if str(old_going) != str(cond["going"]):
+            if _same_going(old_going, cond["going"]):
+                pass   # same surface under another name: keep the provider's, no change
+            elif str(old_going) != str(cond["going"]):
                 # Log using the CSV's own venue casing (Title Case), not
                 # provider_venue's TAB-cased fallback when there's no alias
                 # entry - reads properly in the Action log either way.
                 csv_venue = rows["venue"].iloc[0]
                 changes.append(f"{csv_venue}: going {old_going!r} -> {cond['going']!r}")
                 changed_venues.add(csv_venue)
-            runners_df.loc[mask, "going"] = cond["going"]
+            if not _same_going(old_going, cond["going"]):
+                runners_df.loc[mask, "going"] = cond["going"]
         if cond.get("track_grading") is not None:
             runners_df.loc[mask, "track_grading"] = cond["track_grading"]
         if cond.get("rail_position"):
