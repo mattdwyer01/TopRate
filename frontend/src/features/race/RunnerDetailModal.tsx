@@ -10,6 +10,7 @@ import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
+import { typicalSd } from './raceFacts'
 import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
@@ -109,7 +110,8 @@ export function RunnerDetailModal({
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   // The panel shows the projection at today's weight (ATW, as the Recent runs table does): the model's rating plus this horse's own offset. Ranking,
   // the range bar and the gap to the top stay on the model's rating, which is what the gap lines and fair prices were validated on.
-  const atwOff = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 ? runner.atwOffset : null
+  // The offset is the horse's latest one (its weight in its next race), so it only fits a race still to run.
+  const atwOff = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 && !runner.resultKnown && runner.finishPosition == null ? runner.atwOffset : null
   const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr + atwOff : null
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)
@@ -321,14 +323,19 @@ export function RunnerDetailModal({
                       : 'No GPS history, forecast from barrier and track.'
                     : 'No trip forecast for this course.'}
                 </p>
-                {runner.projectionDescription && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
+                {atwOff != null && effectiveWpr != null && (
+                  <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">
+                    Projected {fmtWpr(effectiveWpr + atwOff)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, the scale of the Recent runs table. Typical error about {typicalSd(runner, effectiveWpr)?.toFixed(1) ?? '-'}.
+                  </p>
+                )}
+                {runner.projectionDescription && !(atwOff != null && effectiveWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
               </div>
             </div>
           </Card>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
             <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} atwOffset={atwOff} />
-            <TimelineLegend atwOffset={atwOff} weightKg={runner.weightCarried ?? null} projRaw={effectiveWpr} />
+            <TimelineLegend atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
             <ConditionsScorecard runner={runner} race={race} />
             <details className="mt-2 text-sm">
