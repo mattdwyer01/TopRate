@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import { computeCareerStats } from '../../lib/careerStats'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
@@ -174,84 +174,99 @@ const GROUPS: { key: string; label: string; what: string; p5: number; p95: numbe
   { key: 'field', label: 'Field and barrier', what: 'Barrier, field size, and how today\'s rivals rate against this horse', p5: -1.98, p95: 2.51, min: -4.11, max: 11.01 },
   { key: 'comments', label: 'Run comments', what: 'What the race comments said about the last runs (checked, wide, held up and so on)', p5: -0.93, p95: 0.87, min: -3.48, max: 2.89 },
 ]
-const SCALE = 3 // WPR points either side of zero drawn on the adjustment rows
+// A real waterfall on one WPR axis: the first bar is the recent-form anchor, every factor then floats from where the one before it ended
+// (green up, red down, a thin line carries the running total across), the model base and the projection are full bars. The axis does not
+// start at zero (a bar from 0 to 87 would hide a +0.8), so it is cut near the lowest total and the cut is stated underneath.
+type WfRow = { key: string; label: string; kind: 'total' | 'step'; from: number; to: number; title?: string; strong?: boolean }
 
-function Level({ label, v, lo, hi, strong, title }: { label: string; v: number; lo: number; hi: number; strong?: boolean; title?: string }) {
-  const pct = Math.max(2, Math.min(100, ((v - lo) / (hi - lo)) * 100))
+function WaterfallRow({ row, lo, hi, last }: { row: WfRow; lo: number; hi: number; last: boolean }) {
+  const pos = (v: number) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100))
+  const total = row.kind === 'total'
+  const a = total ? 0 : Math.min(pos(row.from), pos(row.to))
+  const b = total ? pos(row.to) : Math.max(pos(row.from), pos(row.to))
+  const delta = row.to - row.from
+  const tone = total ? (row.strong ? 'bg-slate' : 'bg-line') : delta >= 0 ? 'bg-emerald' : 'bg-rose'
   return (
-    <div title={title} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2">
-      <span className={strong ? 'font-semibold text-ink' : 'text-ink-mute'}>{label}</span>
-      <span className="h-2 overflow-hidden rounded-full bg-line-soft">
-        <span className={`block h-full rounded-full ${strong ? 'bg-slate' : 'bg-line'}`} style={{ width: `${pct}%` }} />
+    <div title={row.title} className="grid h-[22px] grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_3rem] items-center gap-2 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_3.25rem]">
+      <span className={`truncate ${total && row.strong ? 'font-semibold text-ink' : 'text-ink-mute'}`}>{row.label}</span>
+      <span className="relative block h-full">
+        <span className={`absolute top-[4px] h-[14px] rounded-[3px] ${tone}`} style={{ left: `${a}%`, width: `${Math.max(0.8, b - a)}%` }} />
+        {!last && <span className="absolute top-[18px] h-[10px] w-px bg-ink-faint/60" style={{ left: `${pos(row.to)}%` }} />}
       </span>
-      <span className={`text-right font-mono ${strong ? 'font-semibold text-ink' : 'text-ink-mute'}`}>{fmtWpr(v)}</span>
-    </div>
-  )
-}
-
-// A signed step about a centre line. When a typical range is given it is drawn as a pale band behind the bar, so a +1.2 reads as small
-// for a group that often moves 2 and large for one that rarely moves 0.5.
-function Step({ label, v, range, title }: { label: string; v: number; range?: { p5: number; p95: number }; title?: string }) {
-  const w = (x: number) => Math.min(50, (Math.abs(x) / SCALE) * 50)
-  return (
-    <div title={title} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2">
-      <span className="text-ink-mute">{label}</span>
-      <span className="relative h-2 rounded-full bg-line-soft">
-        <span className="absolute left-1/2 top-[-2px] h-3 w-px bg-line" />
-        {range && <span className="absolute top-[-1px] h-[10px] rounded-full bg-line/60" style={{ left: `${50 + (Math.max(-SCALE, range.p5) / SCALE) * 50}%`, width: `${((Math.min(SCALE, range.p95) - Math.max(-SCALE, range.p5)) / SCALE) * 50}%` }} />}
-        <span className={`absolute top-0 h-full rounded-full ${v >= 0 ? 'bg-emerald' : 'bg-rose'}`} style={v >= 0 ? { left: '50%', width: `${w(v)}%` } : { right: '50%', width: `${w(v)}%` }} />
-      </span>
-      <span className={`text-right font-mono ${adjClass(v)}`}>{fmtAdj(v)}</span>
+      <span className={`text-right font-mono ${total ? (row.strong ? 'font-semibold text-ink' : 'text-ink-mute') : adjClass(delta)}`}>{total ? fmtWpr(row.to) : fmtAdj(delta)}</span>
     </div>
   )
 }
 
 // From the recent-form anchor to the projection. The main model starts from a weighted average of recent form and corrects it for the
-// factors in GROUPS; the shaded band behind each bar is how far that factor typically moves a rating. Runners from before the breakdown was
-// logged, and light-history runners, get base, suitability and weight only.
+// factors in GROUPS. The biggest few are listed, the rest are folded into one step so the bars always add up. Runners from before the
+// breakdown was logged, and light-history runners, get base, suitability and weight only.
 export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runner; proj: number | null; deltaValue: number | null }) {
   const [all, setAll] = useState(false)
   const b = runner.adjustmentBreakdown
   const anchor = b?.g_anchor
   const groups = anchor != null ? GROUPS.map((g) => ({ ...g, v: b?.['g_' + g.key] ?? 0 })).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)) : []
-  const shown = groups.filter((g) => Math.abs(g.v) >= 0.15)
-  const small = groups.filter((g) => Math.abs(g.v) < 0.15)
-  const lead = all ? shown : shown.slice(0, 4)
-  const hiddenCount = shown.length - lead.length + (small.length ? 1 : 0)
-  const steps: { label: string; v: number; title?: string }[] = []
-  if (b && (b.suitability != null || b.weight != null)) {
-    if (b.suitability != null) steps.push({ label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' })
-    if (b.weight != null) steps.push({ label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' })
-  } else if (runner.wprAdjustment != null) {
-    steps.push({ label: 'Adjustments', v: runner.wprAdjustment })
+  const lead = all ? groups.filter((g) => Math.abs(g.v) >= 0.15) : groups.slice(0, 4)
+  const rest = groups.filter((g) => !lead.includes(g))
+  const restSum = rest.reduce((a, g) => a + g.v, 0)
+
+  const rows: WfRow[] = []
+  let run = 0
+  if (anchor != null) {
+    rows.push({ key: 'anchor', label: 'Recent form', kind: 'total', from: 0, to: anchor, title: "Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" })
+    run = anchor
+    for (const g of lead) {
+      rows.push({ key: g.key, label: g.label, kind: 'step', from: run, to: run + g.v, title: `${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.` })
+      run += g.v
+    }
+    if (rest.length > 0) {
+      rows.push({ key: 'rest', label: `${rest.length} other factor${rest.length === 1 ? '' : 's'}`, kind: 'step', from: run, to: run + restSum, title: rest.map((g) => `${g.label} ${fmtAdj(g.v)}`).join(', ') })
+      run += restSum
+    }
   }
-  if (deltaValue != null && deltaValue !== 0) steps.push({ label: 'Your adjustment', v: deltaValue })
-  const levels = [anchor, runner.baseWpr, proj].filter((v): v is number => v != null)
-  const lo = levels.length ? Math.min(...levels) - 8 : 0
-  const hi = levels.length ? Math.max(...levels) + 2 : 100
+  if (runner.baseWpr != null) {
+    rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr, strong: true })
+    run = runner.baseWpr
+  }
+  const extra: { key: string; label: string; v: number; title?: string }[] = []
+  if (b && (b.suitability != null || b.weight != null)) {
+    if (b.suitability != null) extra.push({ key: 'suit', label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' })
+    if (b.weight != null) extra.push({ key: 'wt', label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' })
+  } else if (runner.wprAdjustment != null) {
+    extra.push({ key: 'adj', label: 'Adjustments', v: runner.wprAdjustment })
+  }
+  if (deltaValue != null && deltaValue !== 0) extra.push({ key: 'you', label: 'Your adjustment', v: deltaValue })
+  for (const e of extra) {
+    rows.push({ key: e.key, label: e.label, kind: 'step', from: run, to: run + e.v, title: e.title })
+    run += e.v
+  }
+  if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj, strong: true })
+
+  const levels = rows.filter((r) => r.kind === 'step').flatMap((r) => [r.from, r.to]).concat(rows.filter((r) => r.kind === 'total').map((r) => r.to))
+  const min = levels.length ? Math.min(...levels) : 0
+  const max = levels.length ? Math.max(...levels) : 100
+  const span = Math.max(3, max - min)
+  const lo = Math.floor(min - span * 0.6)
+  const hi = Math.ceil(max + span * 0.12)
   return (
-    <div className="flex flex-col gap-1.5 text-sm">
-      {anchor != null && <Level label="Recent form" v={anchor} lo={lo} hi={hi} title="Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" />}
-      {lead.map((g) => (
-        <Step key={g.key} label={g.label} v={g.v} range={g} title={`${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.`} />
+    <div className="flex flex-col text-sm">
+      {rows.map((r, i) => (
+        <WaterfallRow key={r.key} row={r} lo={lo} hi={hi} last={i === rows.length - 1} />
       ))}
-      {anchor != null && all && small.length > 0 && <Step label="Other factors" v={small.reduce((a, g) => a + g.v, 0)} title={`Smaller than 0.15 each: ${small.map((g) => g.label).join(', ')}`} />}
-      {anchor != null && hiddenCount > 0 && !all && (
-        <button type="button" onClick={() => setAll(true)} className="text-left text-xs text-ink-mute underline hover:text-ink">
-          Show {hiddenCount} more factor{hiddenCount === 1 ? '' : 's'}
+      {anchor != null && !all && rest.some((g) => Math.abs(g.v) >= 0.15) && (
+        <button type="button" onClick={() => setAll(true)} className="mt-1 w-fit text-left text-xs text-ink-mute underline hover:text-ink">
+          Show each of the {rest.length} other factors
         </button>
       )}
-      {runner.baseWpr != null && <Level label="Model base" v={runner.baseWpr} lo={lo} hi={hi} strong />}
-      {steps.map((s) => (
-        <Step key={s.label} label={s.label} v={s.v} title={s.title} />
-      ))}
-      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2 border-t border-line-soft pt-1.5">
-        <span className="font-semibold text-ink">Projected WPR</span>
-        <span className="h-2 overflow-hidden rounded-full bg-line-soft">{proj != null && <span className="block h-full rounded-full bg-emerald" style={{ width: `${Math.max(2, Math.min(100, ((proj - lo) / (hi - lo)) * 100))}%` }} />}</span>
-        <span className="text-right font-mono font-semibold text-emerald-deep">{fmtWpr(proj)}</span>
-      </div>
-      {anchor == null && runner.projectionModel === 'light' && <p className="text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor.</p>}
-      {anchor != null && <p className="text-xs text-ink-faint">Shaded band behind each bar: how far that factor typically moves a rating. Hover a row for what it covers.</p>}
+      {anchor != null && all && (
+        <button type="button" onClick={() => setAll(false)} className="mt-1 w-fit text-left text-xs text-ink-mute underline hover:text-ink">
+          Show fewer
+        </button>
+      )}
+      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor.</p>}
+      <p className="mt-1.5 text-xs text-ink-faint">
+        Each bar starts where the one above ended. Scale starts at {lo} WPR. Hover a row for what it covers.
+      </p>
     </div>
   )
 }
@@ -259,8 +274,20 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
 /* ----------------------------------------------------------- timeline */
 
 // Every recent run as a dot: height is WPR, spacing is real time (so spells show as gaps), dot size and colour show how it finished.
-// The projection for today sits at the right with its likely range.
-export function RunTimeline({ runner, proj, raceDate }: { runner: Runner; proj: number | null; raceDate: string }) {
+// The projection for today sits at the right with its likely range, and the dotted line is the rating a winner is expected to run in
+// this race (raceFacts.expectedWinningWpr), so a horse's runs read against what it takes to win. Drawn at the container's own width so
+// the text stays crisp and the chart fills the card.
+export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: Runner; proj: number | null; raceDate: string; expectedWin: number | null }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(640)
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setWidth(Math.max(300, Math.round(el.clientWidth))))
+    ro.observe(el)
+    setWidth(Math.max(300, Math.round(el.clientWidth)))
+    return () => ro.disconnect()
+  }, [])
   const sd = typicalSd(runner, proj)
   const dots = useMemo(() => {
     const byDate = new Map<string, Runner['recentRuns'][number]>()
@@ -271,19 +298,28 @@ export function RunTimeline({ runner, proj, raceDate }: { runner: Runner; proj: 
       .sort((a, b) => a.e.date.localeCompare(b.e.date))
       .slice(-14)
   }, [runner.formHistory, runner.recentRuns])
-  if (dots.length < 2) return <p className="text-sm text-ink-mute">Fewer than two rated runs, so there is no timeline yet.</p>
-  const W = 480
-  const H = 128
-  const padL = 30
-  const padR = 52
+  // The measuring wrapper is always rendered, so the observer attaches even when the first horse shown has no timeline.
+  if (dots.length < 2)
+    return (
+      <div ref={wrapRef} className="w-full">
+        <p className="text-sm text-ink-mute">Fewer than two rated runs, so there is no timeline yet.</p>
+      </div>
+    )
+  const narrow = width < 480
+  const W = width
+  const H = narrow ? 160 : 190
+  const padL = 34
+  const padR = narrow ? 56 : 76
+  const padT = 14
+  const padB = 24
   const t = (d: string) => new Date(d).getTime()
   const t0 = t(dots[0].e.date)
   const t1 = Math.max(t(raceDate), t(dots[dots.length - 1].e.date))
-  const vals = [...dots.map((d) => d.e.wpr as number), ...(proj != null ? [proj - (sd ?? 0) * HALF, proj + (sd ?? 0) * HALF] : [])]
-  const lo = Math.floor((Math.min(...vals) - 3) / 5) * 5
-  const hi = Math.ceil((Math.max(...vals) + 3) / 5) * 5
-  const X = (ms: number) => padL + ((ms - t0) / Math.max(1, t1 - t0)) * (W - padL - padR)
-  const Y = (v: number) => 12 + (1 - (v - lo) / (hi - lo)) * (H - 40)
+  const vals = [...dots.map((d) => d.e.wpr as number), ...(proj != null ? [proj - (sd ?? 0) * HALF, proj + (sd ?? 0) * HALF] : []), ...(expectedWin != null ? [expectedWin] : [])]
+  const lo = Math.floor((Math.min(...vals) - 2) / 5) * 5
+  const hi = Math.ceil((Math.max(...vals) + 2) / 5) * 5
+  const X = (ms: number) => padL + 8 + ((ms - t0) / Math.max(1, t1 - t0)) * (W - padL - padR - 8)
+  const Y = (v: number) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB)
   const ticks: number[] = []
   for (let v = lo; v <= hi; v += 5) ticks.push(v)
   const path = dots.map((d, i) => `${i ? 'L' : 'M'}${X(t(d.e.date)).toFixed(1)},${Y(d.e.wpr as number).toFixed(1)}`).join(' ')
@@ -293,50 +329,62 @@ export function RunTimeline({ runner, proj, raceDate }: { runner: Runner; proj: 
   cur.setDate(1)
   cur.setMonth(cur.getMonth() + 1)
   while (cur.getTime() < t1) {
-    months.push({ ms: cur.getTime(), label: cur.toLocaleString('en-AU', { month: 'short' }) })
+    months.push({ ms: cur.getTime(), label: cur.toLocaleString('en-AU', { month: 'short' }) + (cur.getMonth() === 0 ? ` ${cur.getFullYear()}` : '') })
     cur.setMonth(cur.getMonth() + 1)
   }
-  const step = Math.ceil(months.length / 8)
+  const step = Math.ceil(months.length / (narrow ? 5 : 10))
+  const halo = { stroke: 'var(--color-panel)', strokeWidth: 3, paintOrder: 'stroke' } as const
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-2xl" role="img" aria-label="Recent runs over time, with today's projection">
-      {ticks.map((v) => (
-        <g key={v}>
-          <line x1={padL} x2={W - padR + 10} y1={Y(v)} y2={Y(v)} stroke="var(--color-line-soft)" />
-          <text x={padL - 4} y={Y(v) + 3} textAnchor="end" fontSize={10} fill="var(--color-ink-faint)">
-            {v}
-          </text>
-        </g>
-      ))}
-      {months.map((m, i) =>
-        i % step ? null : (
-          <text key={m.ms} x={X(m.ms)} y={H - 6} textAnchor="middle" fontSize={10} fill="var(--color-ink-faint)">
-            {m.label}
-          </text>
-        ),
-      )}
-      <path d={path} fill="none" stroke="var(--color-slate)" strokeWidth={1.5} strokeOpacity={0.45} />
-      {proj != null && (
-        <>
-          {sd != null && <rect x={px - 7} y={Y(proj + sd * HALF)} width={14} height={Math.max(3, Y(proj - sd * HALF) - Y(proj + sd * HALF))} rx={4} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
-          <line x1={X(t(dots[dots.length - 1].e.date))} y1={Y(dots[dots.length - 1].e.wpr as number)} x2={px} y2={Y(proj)} stroke="var(--color-emerald-deep)" strokeDasharray="4 3" strokeWidth={1.5} />
-          <circle cx={px} cy={Y(proj)} r={6} fill="var(--color-emerald-deep)" />
-          <text x={px + 10} y={Y(proj) + 4} fontSize={11} fontWeight={600} fill="var(--color-emerald-deep)">
-            {fmtWpr(proj)}
-          </text>
-        </>
-      )}
-      {dots.map((d) => {
-        const fin = d.run?.finishPosition ?? null
-        const r = fin === 1 ? 6.5 : fin != null && fin <= 3 ? 5.5 : 4.5
-        const fill = d.e.isVoid ? 'var(--color-line)' : fin === 1 ? 'var(--color-amber)' : fin != null && fin <= 3 ? 'var(--color-emerald)' : 'var(--color-slate)'
-        return (
-          <g key={d.e.date}>
-            <title>{`${d.e.date}${d.run ? ` ${d.run.track} ${d.run.distance}m` : ` ${d.e.distance}m`} ${d.e.going}: WPR ${fmtWpr(d.e.wpr)}${fin != null ? `, finished ${fin}` : ''}${d.e.isVoid ? ' (compromised run)' : ''}`}</title>
-            <circle cx={X(t(d.e.date))} cy={Y(d.e.wpr as number)} r={r} fill={fill} stroke="#fff" strokeWidth={1.2} />
+    <div ref={wrapRef} className="w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Recent runs over time, with today's projection and the rating expected to win">
+        {ticks.map((v) => (
+          <g key={v}>
+            <line x1={padL} x2={W - padR + 14} y1={Y(v)} y2={Y(v)} stroke="var(--color-line-soft)" />
+            <text x={padL - 6} y={Y(v) + 3} textAnchor="end" fontSize={10} fill="var(--color-ink-faint)">
+              {v}
+            </text>
           </g>
-        )
-      })}
-    </svg>
+        ))}
+        {months.map((m, i) =>
+          i % step ? null : (
+            <text key={m.ms} x={X(m.ms)} y={H - 7} textAnchor="middle" fontSize={10} fill="var(--color-ink-faint)">
+              {m.label}
+            </text>
+          ),
+        )}
+        {expectedWin != null && (
+          <g>
+            <title>{`Expected winning rating ${fmtWpr(expectedWin)}: the best performance expected across this field, from each runner's projection and typical error.`}</title>
+            <line x1={padL} x2={W - padR + 14} y1={Y(expectedWin)} y2={Y(expectedWin)} stroke="var(--color-amber)" strokeWidth={1.5} strokeDasharray="2 4" strokeLinecap="round" />
+            <text x={padL + 4} y={Y(expectedWin) - 5} fontSize={10} fontWeight={600} fill="var(--color-amber)" {...halo}>
+              expected to win ~{Math.round(expectedWin)}
+            </text>
+          </g>
+        )}
+        <path d={path} fill="none" stroke="var(--color-slate)" strokeWidth={1.5} strokeOpacity={0.45} strokeLinejoin="round" />
+        {proj != null && (
+          <>
+            {sd != null && <rect x={px - 7} y={Y(proj + sd * HALF)} width={14} height={Math.max(3, Y(proj - sd * HALF) - Y(proj + sd * HALF))} rx={4} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
+            <line x1={X(t(dots[dots.length - 1].e.date))} y1={Y(dots[dots.length - 1].e.wpr as number)} x2={px} y2={Y(proj)} stroke="var(--color-emerald-deep)" strokeDasharray="4 3" strokeWidth={1.5} />
+            <circle cx={px} cy={Y(proj)} r={6} fill="var(--color-emerald-deep)" />
+            <text x={px + 11} y={Y(proj) + 4} fontSize={12} fontWeight={700} fill="var(--color-emerald-deep)">
+              {fmtWpr(proj)}
+            </text>
+          </>
+        )}
+        {dots.map((d) => {
+          const fin = d.run?.finishPosition ?? null
+          const r = fin === 1 ? 6.5 : fin != null && fin <= 3 ? 5.5 : 4.5
+          const fill = d.e.isVoid ? 'var(--color-line)' : fin === 1 ? 'var(--color-amber)' : fin != null && fin <= 3 ? 'var(--color-emerald)' : 'var(--color-slate)'
+          return (
+            <g key={d.e.date}>
+              <title>{`${d.e.date}${d.run ? ` ${d.run.track} ${d.run.distance}m` : ` ${d.e.distance}m`} ${d.e.going}: WPR ${fmtWpr(d.e.wpr)}${fin != null ? `, finished ${fin}` : ''}${d.e.isVoid ? ' (compromised run)' : ''}`}</title>
+              <circle cx={X(t(d.e.date))} cy={Y(d.e.wpr as number)} r={r} fill={fill} stroke="#fff" strokeWidth={1.2} />
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }
 
@@ -358,6 +406,10 @@ export function TimelineLegend() {
       <span>
         <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-line align-middle" />
         compromised run
+      </span>
+      <span>
+        <span className="mr-1 inline-block w-4 border-t-2 border-dotted border-amber align-middle" />
+        rating expected to win
       </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
     </div>

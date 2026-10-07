@@ -111,52 +111,52 @@ function runningLine(r: FormRun): string {
 function RunRow({ run, isPeak, delta, days }: { run: FormRun; isPeak: boolean; delta: number | null; days: number | null }) {
   return (
     <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
-      <td className="px-2 py-1 whitespace-nowrap">{run.date ?? ''}</td>
-      <td className="px-2 py-1 whitespace-nowrap">
+      <td className="px-2 py-0.5 whitespace-nowrap">{run.date ?? ''}</td>
+      <td className="px-2 py-0.5 whitespace-nowrap">
         {run.track}
         {isPeak && (
-          <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
+          <span className="ml-1 rounded-full bg-amber/20 px-1.5 text-[10px] font-medium leading-4 text-amber">
             peak
           </span>
         )}
       </td>
-      <td className="px-2 py-1 text-right font-mono">{run.distance}m</td>
-      <td className="px-2 py-1">
-        <span className={`rounded-full px-1.5 py-0.5 text-xs ${goingClass(run.going)}`}>
+      <td className="px-2 py-0.5 text-right font-mono">{run.distance}m</td>
+      <td className="px-2 py-0.5">
+        <span className={`whitespace-nowrap rounded-full px-1.5 text-[11px] leading-4 ${goingClass(run.going)}`}>
           {run.going || '—'}
         </span>
       </td>
-      <td className="px-2 py-1 text-right font-mono">{run.barrier ?? '—'}</td>
-      <td className="px-2 py-1 text-right font-mono text-ink-soft">{run.weight != null ? run.weight : '—'}</td>
-      <td className="px-2 py-1 whitespace-nowrap">{run.raceClass ?? '—'}</td>
-      <td className="max-w-[8rem] truncate px-2 py-1" title={run.jockey ?? ''}>
+      <td className="px-2 py-0.5 text-right font-mono">{run.barrier ?? '—'}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-soft">{run.weight != null ? run.weight : '—'}</td>
+      <td className="px-2 py-0.5 whitespace-nowrap">{run.raceClass ?? '—'}</td>
+      <td className="max-w-[8rem] truncate px-2 py-0.5" title={run.jockey ?? ''}>
         {run.jockey ?? '—'}
       </td>
-      <td className="px-2 py-1 text-right font-mono">{run.finishPosition ?? '—'}</td>
-      <td className="px-2 py-1 text-right font-mono text-ink-soft">{run.startingPrice != null ? `$${run.startingPrice.toFixed(run.startingPrice >= 10 ? 0 : 2)}` : '—'}</td>
-      <td className="px-2 py-1 text-right font-mono">
+      <td className="px-2 py-0.5 text-right font-mono">{run.finishPosition ?? '—'}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-soft">{run.startingPrice != null ? `$${run.startingPrice.toFixed(run.startingPrice >= 10 ? 0 : 2)}` : '—'}</td>
+      <td className="px-2 py-0.5 text-right font-mono">
         {run.margin != null ? run.margin.toFixed(1) : '—'}
       </td>
-      <td className="px-2 py-1 text-right font-mono text-xs text-ink-faint">{runningLine(run)}</td>
-      <td className="px-2 py-1 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeEarly)}</td>
-      <td className="px-2 py-1 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeMid)}</td>
-      <td className="px-2 py-1 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeLate)}</td>
-      <td className={`px-2 py-1 text-right font-mono ${sectClass(run.sectionalEarly, run.raceShapeEarly)}`}>
+      <td className="whitespace-nowrap px-2 py-0.5 text-right font-mono text-xs text-ink-faint">{runningLine(run)}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeEarly)}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeMid)}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeLate)}</td>
+      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalEarly, run.raceShapeEarly)}`}>
         {fmtSect(run.sectionalEarly)}
       </td>
-      <td className={`px-2 py-1 text-right font-mono ${sectClass(run.sectionalTo800, run.raceShapeMid)}`}>
+      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalTo800, run.raceShapeMid)}`}>
         {fmtSect(run.sectionalTo800)}
       </td>
-      <td className={`px-2 py-1 text-right font-mono ${sectClass(run.sectionalLate600, run.raceShapeLate)}`}>
+      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalLate600, run.raceShapeLate)}`}>
         {fmtSect(run.sectionalLate600)}
       </td>
-      <td className="px-2 py-1 text-right font-mono font-semibold text-ink">
+      <td className="px-2 py-0.5 text-right font-mono font-semibold text-ink">
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
-      <td className={`px-2 py-1 text-right font-mono ${delta == null ? 'text-ink-faint' : delta > 1 ? 'text-emerald-deep' : delta < -1 ? 'text-rose' : 'text-ink-mute'}`} title="WPR change from the run before">
+      <td className={`px-2 py-0.5 text-right font-mono ${delta == null ? 'text-ink-faint' : delta > 1 ? 'text-emerald-deep' : delta < -1 ? 'text-rose' : 'text-ink-mute'}`} title="WPR change from the run before">
         {delta == null ? '—' : delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
       </td>
-      <td className="px-2 py-1 text-right font-mono text-ink-faint" title="Days since the run before">{days ?? '—'}</td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-faint" title="Days since the run before">{days ?? '—'}</td>
     </tr>
   )
 }
@@ -164,7 +164,7 @@ function RunRow({ run, isPeak, delta, days }: { run: FormRun; isPeak: boolean; d
 function SeparatorRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={17} className="px-2 py-1 text-center text-xs text-ink-faint">
+      <td colSpan={21} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
         &mdash; {label} &mdash;
       </td>
     </tr>
@@ -481,7 +481,7 @@ export function RecentRunsTable({
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
-        <table className="w-full min-w-[1020px] border-collapse text-xs">
+        <table className="w-full min-w-[1020px] border-collapse text-xs leading-5">
           <thead>
             <tr className="border-b border-line bg-bg text-ink-mute">
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Date</th>
