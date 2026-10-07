@@ -71,6 +71,11 @@ const WIN_FIT = { intercept: 16.5838, top: 0.2874, second: 0.3066, mean: 0.2514,
 // figure itself is beaten by about half). Raise it to make the line lower and easier to clear.
 export const MIN_WINNING_STANDARD_OFFSET = 1.7
 
+// A runner counts as "within range of the winning standard" when its projection is at most this far below that line. On 2,821 resulted races
+// (8 Aug to 6 Oct 2026, pre-race projections) the winner was within 6 of the line 58% of the time, with about 2.9 runners per race inside it
+// (about the same shortlist as within 3 of the top projection). Shown on the horse detail only, the 4 and 6 gap lines are unchanged.
+export const WINNING_LINE_WINDOW = 6
+
 export function expectedWinningWpr(projs: number[]): number | null {
   if (projs.length < 2) return null
   const sorted = [...projs].sort((a, b) => b - a)
