@@ -21,7 +21,7 @@ const RIGHT_W = 74
 
 // The projection ladder: every runner on one WPR axis, best at the top, with the inside-4 and inside-6 bands shaded, so the shape of the
 // field (a standout, a pack, a long tail) reads before any number does.
-function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
+export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {

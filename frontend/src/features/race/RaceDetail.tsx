@@ -8,6 +8,7 @@ import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { RaceLadder, RaceSummaryLine } from './RaceGlance'
+import { MultiRace } from './MultiRace'
 import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, ROW_GRID } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -30,7 +31,7 @@ interface RaceDetailProps {
   // A runner to pre-select on mount (search, Review-tab cross-linking). Only read once: App.tsx keys RaceDetail on race.raceId.
   initialRunId?: string | null
   onBack: () => void
-  onSelectRace: (raceId: string, date: string) => void
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
 
 const MAX_COMPARE = 6
@@ -101,6 +102,7 @@ export function RaceDetail({
       // Session storage can be blocked; the mode just will not carry over.
     }
   }
+  const [multiView, setMultiView] = useState(false)
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -198,6 +200,21 @@ export function RaceDetail({
     }
   }
 
+  if (multiView) {
+    return (
+      <MultiRace
+        meeting={meetingRaces}
+        startRaceId={race.raceId}
+        deltas={deltas}
+        bases={bases}
+        scratched={scratched}
+        priceBeta={priceBeta}
+        onSelectRace={onSelectRace}
+        onBack={() => setMultiView(false)}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -205,6 +222,11 @@ export function RaceDetail({
           &larr; Back to meetings
         </button>
         <div className="flex flex-wrap gap-1.5">
+          {meetingRaces.length >= 4 && (
+            <Pill active={false} onClick={() => setMultiView(true)}>
+              4 races side by side
+            </Pill>
+          )}
           {meetingRaces.map((r) => (
             <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]} onClick={() => onSelectRace(r.raceId, r.date)}>
               R{r.raceNumber}
