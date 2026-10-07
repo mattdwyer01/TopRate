@@ -51,6 +51,8 @@ export interface AccuracyRow {
   // model either way - see collectAccuracyRows' excludeVoid filter.
   voided: boolean
   voidReason: string
+  // True when the projection was logged before the race started. False for back-filled projections.
+  live: boolean
 }
 
 export type Period = 'all' | '90' | '30' | 'live'
@@ -58,6 +60,17 @@ export type Period = 'all' | '90' | '30' | 'live'
 // First race date whose projections were logged BEFORE the race ran. Earlier history (1 Jul to 5 Oct 2026) was seeded
 // from an out-of-sample back-fill (see projection/README.md): honest, but not what was live at the time.
 export const LIVE_LOGGING_START = '2026-10-06'
+
+/** Was this runner's projection logged before its race started? Uses the payload's logged time when present; older payloads fall back to the
+ * first live race date. */
+export function loggedBeforeRace(race: Race, runner: Race['runners'][number]): boolean {
+  if (runner.projectionMade) {
+    const made = Date.parse(runner.projectionMade)
+    const start = Date.parse(race.startTime)
+    if (!Number.isNaN(made) && !Number.isNaN(start)) return made <= start
+  }
+  return race.date >= LIVE_LOGGING_START
+}
 
 export interface AccuracyFilters {
   period: Period
@@ -76,10 +89,11 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
   const rows: AccuracyRow[] = []
   for (const race of races) {
     if (cutoff != null && new Date(race.date).getTime() < cutoff) continue
-    if (filters.period === 'live' && race.date < LIVE_LOGGING_START) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
     for (const r of race.runners) {
       if (r.projectedWpr == null || r.actualWpr == null) continue
+      const live = loggedBeforeRace(race, r)
+      if (filters.period === 'live' && !live) continue
       const miss = r.actualWpr - r.projectedWpr
       const voidResult = isVoid(miss, r.commentsVideo, r.commentsSteward)
       rows.push({
@@ -101,6 +115,7 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         marketPrice: r.startingPrice ?? r.postRaceTopPrice,
         voided: voidResult.isVoid,
         voidReason: voidResult.reason,
+        live,
       })
     }
   }
@@ -641,4 +656,56 @@ export function computeReliability(rows: AccuracyRow[]): ReliabilityBin[] {
       meanModelPct: b.sumP / b.n,
       actualPct: (b.wins / b.n) * 100,
     }))
+}
+
+export interface CalibrationWeek {
+  weekStart: string // Monday, YYYY-MM-DD
+  n: number // runners with a model win chance and a result
+  expectedWins: number
+  wins: number
+  topN: number // runners the model gave 15% or better
+  topModelPct: number | null
+  topActualPct: number | null
+}
+
+function mondayOfIso(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+  return d.toISOString().slice(0, 10)
+}
+
+const TOP_BAND_PCT = 15
+
+/** Calibration by week: all runners' expected wins (sum of model win chances) against actual wins, and the 15%-plus band on its own,
+ * oldest week first. Weeks with fewer than 200 runners are left out as too thin to read. */
+export function computeCalibrationByWeek(rows: AccuracyRow[], minRunners = 200): CalibrationWeek[] {
+  const weeks = new Map<string, { n: number; exp: number; wins: number; topN: number; topP: number; topWins: number }>()
+  for (const r of rows) {
+    if (r.wprPrice == null || r.wprPrice <= 0 || r.finishPosition == null) continue
+    const p = 100 / r.wprPrice
+    const key = mondayOfIso(r.date)
+    const w = weeks.get(key) ?? { n: 0, exp: 0, wins: 0, topN: 0, topP: 0, topWins: 0 }
+    const won = r.finishPosition === 1
+    w.n++
+    w.exp += p / 100
+    if (won) w.wins++
+    if (p >= TOP_BAND_PCT) {
+      w.topN++
+      w.topP += p
+      if (won) w.topWins++
+    }
+    weeks.set(key, w)
+  }
+  return [...weeks.entries()]
+    .filter(([, w]) => w.n >= minRunners)
+    .map(([weekStart, w]) => ({
+      weekStart,
+      n: w.n,
+      expectedWins: w.exp,
+      wins: w.wins,
+      topN: w.topN,
+      topModelPct: w.topN ? w.topP / w.topN : null,
+      topActualPct: w.topN ? (w.topWins / w.topN) * 100 : null,
+    }))
+    .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
 }

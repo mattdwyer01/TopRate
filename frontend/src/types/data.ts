@@ -36,6 +36,8 @@ export interface RawFormRun {
   // weight carried (kg) and starting price for that run - only in horse_history/*.json
   wt?: number | null
   sp?: number | null
+  // race number of that run - only in horse_history/*.json, used to link its Sky replay
+  rn?: number | null
 }
 
 export interface RawFormAllEntry {
@@ -113,6 +115,7 @@ export interface RawRunner {
   wpjcb: Record<string, number> | null
   wpjc: number | null
   wpjsd?: number | null // typical error of the projection (new model)
+  wpjmd?: string | null // when the logged projection was made (ISO); after the race start means back-filled
   wpjm?: string | null // main / light
   wpjpr: number | null
   wpjr: number | null

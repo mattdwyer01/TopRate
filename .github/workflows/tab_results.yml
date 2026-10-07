@@ -140,6 +140,7 @@ jobs:
             [ -d horse_history ] && git add horse_history
             # TAB dividends per race, all pools (tab_dividends.py, Oct 2026)
             [ -f tab_dividends.csv ] && git add tab_dividends.csv
+            [ -f replay_codes.json ] && git add replay_codes.json
             return 0
           }
           stage_generated_files

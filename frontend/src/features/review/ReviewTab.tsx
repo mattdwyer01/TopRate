@@ -6,6 +6,7 @@ import {
   computeAccuracyStats,
   computeBreakdown,
   computeCalibrationBins,
+  computeCalibrationByWeek,
   computeMarketBenchmark,
   computeReliability,
   wilsonInterval,
@@ -21,7 +22,7 @@ import {
 } from '../../lib/accuracyStats'
 import { goingBand } from '../../lib/pace'
 import { fmtWpr } from '../../lib/format'
-import { DayByDay, WeeklyTrend } from './DayReview'
+import { CalibrationOverTime, DayByDay, QuaddieScorecardSection, WeeklyTrend } from './DayReview'
 import { StatTile } from '../../components/StatTile'
 import { PredictedVsActualChart } from '../../components/PredictedVsActualChart'
 import { useScrollShadow } from '../../lib/useScrollShadow'
@@ -32,7 +33,7 @@ interface ReviewTabProps {
 }
 
 const PERIODS: { value: Period; label: string; sentence: string }[] = [
-  { value: 'live', label: 'Live-logged (since 6 Oct)', sentence: 'Since live logging began on 6 Oct' },
+  { value: 'live', label: 'Logged before the race', sentence: 'On projections logged before the race' },
   { value: '30', label: 'Last 30 days', sentence: 'Over the last 30 days' },
   { value: '90', label: 'Last 90 days', sentence: 'Over the last 90 days' },
   { value: 'all', label: 'All time', sentence: 'Across all time' },
@@ -97,15 +98,21 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   // themselves keep using every row so the other groups stay visible.
   const scoped = useMemo(() => rows.filter((r) => matchesGroupFilter(r, groupFilter)), [rows, groupFilter])
 
+  // Win-rate and calibration views keep compromised runs in. Dropping a loser that had trouble but never a winner would lift the strike rate of
+  // the top pick and tilt actual wins above expected. The void filter is only for the rating-miss measures.
+  const scopedAll = useMemo(() => allRows.filter((r) => matchesGroupFilter(r, groupFilter)), [allRows, groupFilter])
+
   const stats = useMemo(() => computeAccuracyStats(scoped), [scoped])
-  const outcome = useMemo(() => computeOutcomeStats(scoped), [scoped])
-  const strikeRates = useMemo(() => computeStrikeRates(scoped), [scoped])
+  const outcome = useMemo(() => computeOutcomeStats(scopedAll), [scopedAll])
+  const strikeRates = useMemo(() => computeStrikeRates(scopedAll), [scopedAll])
   const rankStats = useMemo(() => computeRankStats(scoped), [scoped])
   const winnerRankStats = useMemo(() => computeWinnerRankStats(scoped), [scoped])
   const marginStats = useMemo(() => computeMarginStats(scoped), [scoped])
   const calibration = useMemo(() => computeCalibrationBins(scoped), [scoped])
-  const marketBenchmark = useMemo(() => computeMarketBenchmark(scoped), [scoped])
-  const reliability = useMemo(() => computeReliability(scoped), [scoped])
+  const marketBenchmark = useMemo(() => computeMarketBenchmark(scopedAll), [scopedAll])
+  const reliability = useMemo(() => computeReliability(scopedAll), [scopedAll])
+  const calibrationWeeks = useMemo(() => computeCalibrationByWeek(scopedAll), [scopedAll])
+  const liveRunners = useMemo(() => allRows.filter((r) => r.live).length, [allRows])
   const distBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => distanceBand(r.distance)),
     [rows]
@@ -196,8 +203,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
         </div>
       )}
       <p className="text-xs text-ink-faint">
-        Races before 6 Oct 2026 show out-of-sample back-filled projections (the model had not seen those races); from 6 Oct
-        every projection was logged before the race. Use &quot;Live-logged&quot; for the strictest view.
+        Some history is back-filled: the projection was made after the race, from a model that had not seen it. {liveRunners.toLocaleString()} of{' '}
+        {allRows.length.toLocaleString()} runners here were logged before the race. Choose &quot;Logged before the race&quot; for the strictest view.
       </p>
 
       {stats.n === 0 ? (
@@ -269,6 +276,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           </div>
 
           <WeeklyTrend races={races} excludeBush={excludeBush} />
+
+          <div className="rounded-lg border border-line bg-panel p-4">
+            <h3 className="text-sm font-semibold text-ink">Calibration over time</h3>
+            <p className="mb-2 text-xs text-ink-faint">
+              Do the model&apos;s win chances keep matching reality week to week? Uses the period and filters above and keeps compromised runs in (dropping them would flatter the result), so pick a longer period to see more weeks.
+            </p>
+            <CalibrationOverTime weeks={calibrationWeeks} />
+          </div>
 
           <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - depth behind the strike rates above, including the model's typical WPR miss">
             <div className="flex flex-col gap-4">
@@ -412,6 +427,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               </div>
             </div>
           </Disclosure>
+
+          <QuaddieScorecardSection races={races} period={period} excludeBush={excludeBush} />
 
           <DayByDay races={races} excludeBush={excludeBush} onSelectRace={onSelectRace} />
 

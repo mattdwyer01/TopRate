@@ -22,11 +22,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            tab_replay_probe.py
-            tab_results_poller.py
+            /*.py
+            /projection/
           sparse-checkout-cone-mode: false
       - name: Run probe
-        run: python tab_replay_probe.py ${{ inputs.args }} 2>&1 | tee probe_output.txt
+        run: |
+          python -u tab_media_history_check.py 2>&1 | tee probe_output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

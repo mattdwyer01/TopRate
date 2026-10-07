@@ -28,7 +28,14 @@ const RIGHT_W = 74
 // field (a standout, a pack, a long tail) reads before any number does.
 // showSm adds a speed map adjustment column (green at +0.5 or better, red at -0.5 or worse, the same cut-offs as the race table) and rings
 // runners outside the outer line whose adjustment is favourable, the ones the quaddie view adds back to its pool.
-export function Ladder({ ranked, innerGap, outerGap, onSelect, showSm = false }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean }) {
+export function Ladder({
+  ranked,
+  innerGap,
+  outerGap,
+  onSelect,
+  showSm = false,
+  selected,
+}: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean; selected?: Set<string> }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -110,10 +117,22 @@ export function Ladder({ ranked, innerGap, outerGap, onSelect, showSm = false }:
               style={{ cursor: 'pointer' }}
             >
               <title>{`${name}: ${fmtWpr(r.proj)} projected${half(r) != null ? `, likely range ${Math.round(r.proj - half(r)!)} to ${Math.round(r.proj + half(r)!)}` : ''}${r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
-              <rect x={0} y={y - ROW_H / 2} width={width} height={ROW_H} fill="transparent" />
-              <text x={0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={r.inner ? 600 : 400}>
+              <rect
+                x={0}
+                y={y - ROW_H / 2}
+                width={width}
+                height={ROW_H}
+                fill={selected?.has(r.runner.runId) ? 'var(--color-emerald-bg)' : 'transparent'}
+                stroke={selected?.has(r.runner.runId) ? 'var(--color-emerald-line)' : 'none'}
+              />
+              <text x={selected ? 14 : 0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={r.inner || selected?.has(r.runner.runId) ? 600 : 400}>
                 {name.length > maxChars ? `${name.slice(0, maxChars - 1)}…` : name}
               </text>
+              {selected?.has(r.runner.runId) && (
+                <text x={2} y={y + 4} fontSize={12} fontWeight={700} fill="var(--color-emerald-deep)">
+                  ✓
+                </text>
+              )}
               {half(r) != null && (
                 <rect x={X(r.proj - half(r)!)} y={y - 5} width={Math.max(2, X(r.proj + half(r)!) - X(r.proj - half(r)!))} height={10} rx={5} fill={tone} fillOpacity={0.16} />
               )}

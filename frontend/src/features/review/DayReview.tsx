@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { computeDays, computeWeeklyTrend, type DayRace, type DaySummary } from '../../lib/dayResults'
+import type { CalibrationWeek, Period } from '../../lib/accuracyStats'
+import { computeQuaddieScorecard, POOL_LABEL } from '../race/quaddiePools'
 import { fmtPrice } from '../../lib/format'
 
 interface DayReviewProps {
@@ -166,6 +168,122 @@ export function DayByDay({ races, excludeBush, onSelectRace }: DayReviewProps) {
       {days.map((d, i) => (
         <DayBlock key={d.date} day={d} defaultOpen={i === 0} onSelectRace={onSelectRace} />
       ))}
+    </div>
+  )
+}
+
+// Calibration by week: do the model's win chances keep matching how often runners actually win? Solid line is what the model said for
+// runners it gave 15% or better, dashed is how often they won. The table adds expected against actual wins over every runner.
+export function CalibrationOverTime({ weeks }: { weeks: CalibrationWeek[] }) {
+  const usable = weeks.filter((w) => w.topModelPct != null && w.topActualPct != null)
+  if (usable.length < 2) {
+    return <p className="text-xs text-ink-faint">Needs at least two weeks with 200 or more runners with a result in this window.</p>
+  }
+  const W = 320
+  const H = 110
+  const padX = 24
+  const padY = 12
+  const vals = usable.flatMap((w) => [w.topModelPct as number, w.topActualPct as number])
+  const lo = Math.max(0, Math.floor(Math.min(...vals) / 5) * 5 - 5)
+  const hi = Math.min(100, Math.ceil(Math.max(...vals) / 5) * 5 + 5)
+  const x = (i: number) => padX + (i * (W - padX * 2)) / (usable.length - 1)
+  const y = (v: number) => padY + ((hi - v) * (H - padY * 2)) / (hi - lo || 1)
+  const line = (get: (w: CalibrationWeek) => number) => usable.map((w, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(get(w)).toFixed(1)}`).join(' ')
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-xl" role="img" aria-label="Weekly calibration: model win chance against actual win rate for runners rated 15 percent or better">
+        {[lo, (lo + hi) / 2, hi].map((v) => (
+          <g key={v}>
+            <line x1={padX} x2={W - padX} y1={y(v)} y2={y(v)} stroke="var(--color-line-soft)" />
+            <text x={padX - 4} y={y(v) + 3} textAnchor="end" fontSize={9} fill="var(--color-ink-faint)">{Math.round(v)}%</text>
+          </g>
+        ))}
+        <path d={line((w) => w.topModelPct as number)} fill="none" stroke="var(--color-emerald-deep)" strokeWidth={2} />
+        <path d={line((w) => w.topActualPct as number)} fill="none" stroke="var(--color-slate)" strokeWidth={2} strokeDasharray="4 3" />
+        {usable.map((w, i) => (
+          <g key={w.weekStart}>
+            <circle cx={x(i)} cy={y(w.topModelPct as number)} r={3} fill="var(--color-emerald-deep)" />
+            <circle cx={x(i)} cy={y(w.topActualPct as number)} r={3} fill="var(--color-slate)" />
+          </g>
+        ))}
+      </svg>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-left text-ink-mute">
+            <tr>
+              <th className="py-1 font-medium">Week from</th>
+              <th className="py-1 text-right font-medium">Runners</th>
+              <th className="py-1 text-right font-medium">Wins: expected</th>
+              <th className="py-1 text-right font-medium">actual</th>
+              <th className="py-1 text-right font-medium">15%+ model</th>
+              <th className="py-1 text-right font-medium">actual</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line-soft">
+            {weeks.map((w) => (
+              <tr key={w.weekStart}>
+                <td className="py-1">{fmtDay(w.weekStart)}</td>
+                <td className="py-1 text-right font-mono">{w.n.toLocaleString()}</td>
+                <td className="py-1 text-right font-mono">{w.expectedWins.toFixed(0)}</td>
+                <td className="py-1 text-right font-mono">{w.wins}</td>
+                <td className="py-1 text-right font-mono">{w.topModelPct != null ? `${w.topModelPct.toFixed(0)}%` : '-'}</td>
+                <td className="py-1 text-right font-mono">{w.topActualPct != null ? `${w.topActualPct.toFixed(0)}% (${w.topN})` : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// How the quaddie pools did on past quaddies: per leg, was the winner inside the pool, and did all four legs land. The pool is what the
+// dashboard shows (inside 4, inside 6, inside 6 plus favoured speed map), using the projection logged for each race.
+export function QuaddieScorecardSection({ races, period, excludeBush }: { races: Race[]; period: Period; excludeBush: boolean }) {
+  const cards = useMemo(() => computeQuaddieScorecard(races, { period, excludeBush }), [races, period, excludeBush])
+  const any = cards.some((c) => c.rows.some((r) => r.quaddies > 0))
+  return (
+    <div className="rounded-lg border border-line bg-panel p-4">
+      <h3 className="text-sm font-semibold text-ink">Quaddie scorecard</h3>
+      <p className="mb-2 text-xs text-ink-faint">
+        For finished quaddies (late = last four races, early = the four before it): how often each leg&apos;s winner sat inside the pool, and how often all four legs did.
+        Per leg is the average pool size and Combos the pool sizes multiplied together. It says how often a pool would have been live, not what it paid.
+      </p>
+      {!any ? (
+        <p className="text-xs text-ink-faint">No finished quaddies in this window yet.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {cards.map((c) =>
+            c.rows[0].quaddies === 0 ? null : (
+              <div key={c.kind} className="overflow-x-auto">
+                <div className="text-xs font-semibold text-ink">{c.kind === 'late' ? 'Late' : 'Early'} quaddie ({c.rows[0].quaddies} meetings)</div>
+                <table className="mt-1 w-full min-w-[300px] text-xs">
+                  <thead className="text-left text-ink-mute">
+                    <tr>
+                      <th className="py-1 font-medium">Pool</th>
+                      <th className="py-1 text-right font-medium">Legs won</th>
+                      <th className="py-1 text-right font-medium">All four</th>
+                      <th className="py-1 text-right font-medium">Per leg</th>
+                      <th className="py-1 text-right font-medium">Combos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line-soft">
+                    {c.rows.map((r) => (
+                      <tr key={r.pool}>
+                        <td className="py-1">{POOL_LABEL[r.pool]}</td>
+                        <td className="py-1 text-right font-mono">{r.legs ? `${((r.legsHit / r.legs) * 100).toFixed(0)}%` : '-'} <span className="text-ink-faint">({r.legsHit}/{r.legs})</span></td>
+                        <td className="py-1 text-right font-mono">{r.quaddies ? `${((r.allFour / r.quaddies) * 100).toFixed(0)}%` : '-'} <span className="text-ink-faint">({r.allFour}/{r.quaddies})</span></td>
+                        <td className="py-1 text-right font-mono">{r.avgPerLeg.toFixed(1)}</td>
+                        <td className="py-1 text-right font-mono">{Math.round(r.avgCombos).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ),
+          )}
+        </div>
+      )}
     </div>
   )
 }

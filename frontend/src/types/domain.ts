@@ -25,6 +25,7 @@ export interface FormRun {
   date?: string
   weight?: number | null
   startingPrice?: number | null
+  raceNumber?: number | null
 }
 
 export interface FormHistoryEntry {
@@ -80,6 +81,7 @@ export interface Runner {
   wprPeakRank1Yr: number | null
   wprNett: number | null
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
+  projectionMade: string | null // when the logged projection was made (ISO), null on older payloads
   projectionModel: 'main' | 'light' | null // which model projected the runner (light = 0-2 prior runs)
   weightCarried: number | null
   jockeyWinPct90d: number | null

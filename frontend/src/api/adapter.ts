@@ -53,6 +53,7 @@ export function toFormRun(r: RawFormRun): FormRun {
     date: r.d,
     weight: r.wt ?? null,
     startingPrice: r.sp ?? null,
+    raceNumber: r.rn ?? null,
   }
 }
 
@@ -141,6 +142,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     adjustmentBreakdown: r.wpjcb,
     projectionConfidence: r.wpjc,
     projectionSd: r.wpjsd ?? null,
+    projectionMade: r.wpjmd ?? null,
     projectionModel: r.wpjm === 'main' || r.wpjm === 'light' ? r.wpjm : null,
     wprPrice: r.wpjpr,
     wprRank: r.wpjr,

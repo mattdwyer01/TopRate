@@ -114,6 +114,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
+import replay_codes
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
 import tab_dividends  # TAB dividends per race, all pools incl. quaddies (racing-model exotics tests)
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
@@ -499,6 +500,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                 if aborted:
                     break
                 race_no = rc.get("raceNumber")
+                replay_codes.note(venue, rc)
                 rkey = f"{target_date}|{venue}|{race_no}"
                 # Dividends (tab_dividends.py): once per race, when it is first seen Paying. Before the
                 # terminal_cache skip below, which would otherwise hide a race that turned Paying last cycle.
@@ -950,6 +952,7 @@ def commit_and_push():
     tracked += [f for f in ("toprate_data.json.gz", "toprate_history.json", "toprate_history.json.gz",
                             "toprate_runners_archive.csv.gz")
                 if Path(f).exists()]
+    tracked += [f for f in ("replay_codes.json",) if Path(f).exists()]
     subprocess.run(["git", "add", *tracked], check=True)
     subprocess.run(["git", "commit", "-m",
                     f"TAB live results {datetime.utcnow().strftime('%Y-%m-%dT%H:%MZ')}"], check=True)
@@ -997,6 +1000,7 @@ def run_once(push=True):
     save_terminal_cache(terminal_cache)
     tab_price_log.append(prices)  # before any early return, so every read is kept
     tab_dividends.append(dividends)  # same: committed by tab_results.yml whatever else this cycle does
+    replay_codes.flush()  # venue -> Sky replay code, committed by tab_results.yml whatever else this cycle does
     # Twice a day: TAB race cards for today + tomorrow -> the fields log; every cycle the logged weights are
     # (re)applied to weight_carried (best-effort, see tab_fields.py)
     n_read = tab_fields.maybe_fetch(sys.modules[__name__])

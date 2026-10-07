@@ -4,6 +4,8 @@ import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
 import type { TempoBucket } from '../../lib/pace'
 import { fetchMeetingFormHistory } from '../../lib/meetingFormHistory'
+import { replayUrl, useReplayCodes } from '../../lib/replay'
+import type { ReplayCodes } from '../../lib/replay'
 
 interface RecentRunsTableProps {
   horseName: string
@@ -108,10 +110,29 @@ function runningLine(r: FormRun): string {
   return parts.map((p) => (p != null ? p : '-')).join('-')
 }
 
-function RunRow({ run, isPeak, delta, days }: { run: FormRun; isPeak: boolean; delta: number | null; days: number | null }) {
+// Small play link to that run's Sky replay (opens the video in a new tab). Hidden when the run has no race number
+// (older cached rows) or its venue has no known Sky code yet.
+function ReplayLink({ run, codes }: { run: FormRun; codes: ReplayCodes | null }) {
+  const url = replayUrl(codes, run.track, run.date, run.raceNumber)
+  if (!url) return null
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Watch this run (Sky Racing replay)"
+      aria-label={`Watch replay of the run on ${run.date}`}
+      className="ml-1 text-[10px] text-ink-faint hover:text-emerald-deep"
+    >
+      &#9654;
+    </a>
+  )
+}
+
+function RunRow({ run, isPeak, delta, days, codes }: { run: FormRun; isPeak: boolean; delta: number | null; days: number | null; codes: ReplayCodes | null }) {
   return (
     <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
-      <td className="px-2 py-0.5 whitespace-nowrap">{run.date ?? ''}</td>
+      <td className="px-2 py-0.5 whitespace-nowrap">{run.date ?? ''}<ReplayLink run={run} codes={codes} /></td>
       <td className="px-2 py-0.5 whitespace-nowrap">
         {run.track}
         {isPeak && (
@@ -185,12 +206,13 @@ function SeparatorRow({ label }: { label: string }) {
 // dropped. The condition line's left segment is the one that truncates
 // under real width pressure (least critical of the two lines' contents to
 // lose a character or two of, vs a WPR figure or a sectional).
-function MobileRunCard({ run, isPeak }: { run: FormRun; isPeak: boolean }) {
+function MobileRunCard({ run, isPeak, codes }: { run: FormRun; isPeak: boolean; codes: ReplayCodes | null }) {
   return (
     <div className={`px-2 py-1 ${isPeak ? 'bg-amber/10' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
           {run.date ?? ''} &middot; {run.track}
+          <ReplayLink run={run} codes={codes} />
           {isPeak && (
             <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
               peak
@@ -320,6 +342,7 @@ export function RecentRunsTable({
   raceDate,
   raceVenue,
 }: RecentRunsTableProps) {
+  const replayCodes = useReplayCodes()
   const [showFilters, setShowFilters] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 640px)').matches)
   const [filterDistance, setFilterDistance] = useState(false)
   const [filterGoing, setFilterGoing] = useState(false)
@@ -516,7 +539,7 @@ export function RecentRunsTable({
               e.kind === 'separator' ? (
                 <SeparatorRow key={e.key} label={e.label} />
               ) : (
-                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} delta={extraOf(e.run).delta} days={extraOf(e.run).days} />
+                <RunRow key={e.key} run={e.run} isPeak={e.isPeak} delta={extraOf(e.run).delta} days={extraOf(e.run).days} codes={replayCodes} />
               ),
             )}
           </tbody>
@@ -533,7 +556,7 @@ export function RecentRunsTable({
           e.kind === 'separator' ? (
             <MobileSeparator key={e.key} label={e.label} />
           ) : (
-            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} />
+            <MobileRunCard key={e.key} run={e.run} isPeak={e.isPeak} codes={replayCodes} />
           ),
         )}
         {anyFilterActive && visibleEntries.length === 0 && (
