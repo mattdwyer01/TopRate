@@ -9,6 +9,7 @@ import {
 } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
+import { hasQuaddie } from './Quaddie'
 import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
@@ -17,6 +18,7 @@ interface MeetingsGridProps {
   // The day shown. Owned by the URL (?date=), so it survives reload, back/forward and sharing.
   date: string
   onDateChange: (date: string) => void
+  onOpenQuaddie: (venue: string) => void
   showBush: boolean
   onShowBushChange: (value: boolean) => void
   hiddenVenues: Set<string>
@@ -41,6 +43,7 @@ export function MeetingsGrid({
   onSelectRace,
   date,
   onDateChange,
+  onOpenQuaddie,
   showBush,
   onShowBushChange,
   hiddenVenues,
@@ -211,6 +214,16 @@ export function MeetingsGrid({
                         <div>
                           <div className="font-semibold text-ink">{meeting.venue}</div>
                           <div className="text-xs text-ink-mute">{meeting.state}</div>
+                          {hasQuaddie(meeting.races) && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenQuaddie(meeting.venue)}
+                              className="mt-0.5 text-xs font-medium text-emerald hover:underline"
+                              aria-label={`Quaddie for ${meeting.venue}`}
+                            >
+                              Quaddie &rsaquo;
+                            </button>
+                          )}
                         </div>
                         <button
                           type="button"

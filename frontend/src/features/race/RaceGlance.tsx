@@ -51,8 +51,10 @@ export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlance
   const X = (v: number) => x0 + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (x1 - x0)
   const topPad = 22
   const H = topPad + ranked.length * ROW_H + 22
+  // Label spacing grows as the plot narrows (two ladders side by side), so tick labels never run together.
+  const tickStep = [2, 4, 5, 10, 20].find((st) => (hi - lo) / st <= (x1 - x0) / 34) ?? 20
   const ticks: number[] = []
-  for (let t = Math.ceil(lo / 2) * 2; t <= hi; t += 2) ticks.push(t)
+  for (let t = Math.ceil(lo / tickStep) * tickStep; t <= hi; t += tickStep) ticks.push(t)
 
   return (
     <div ref={wrapRef} className="w-full">
