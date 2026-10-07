@@ -3261,7 +3261,7 @@ def refresh_projection(runners_df):
 
 # payload key -> (runners column, kind) for the projection fields a refresh rewrites (same mapping as rebuild_html's runner dict)
 _PROJ_PAYLOAD_FIELDS = {
-    "wpjp": ("wprp_proj", "f"), "wpjsd": ("wprp_sd", "f"), "wpjm": ("wprp_model", "s"), "wpjb": ("wprp_base", "f"), "wpjadj": ("wprp_adj", "f"),
+    "wpjp": ("wprp_proj", "f"), "wpjsd": ("wprp_sd", "f"), "wpjmd": ("wprp_made", "s"), "wpjm": ("wprp_model", "s"), "wpjb": ("wprp_base", "f"), "wpjadj": ("wprp_adj", "f"),
     "wpjcb": ("wprp_contrib", "j"), "wpjc": ("wprp_conf", "i"), "wpjpr": ("wprp_price", "f"), "wpjr": ("wprp_rank", "i"),
     "wpjbp": ("wprp_blend_prob", "f"), "wpjbr": ("wprp_blend_rank", "i"), "wpjbpr": ("wprp_blend_price", "f"),
     "wpje": ("wprp_edge", "f"), "wpjep": ("wprp_edge_prob", "f"), "wpjem": ("wprp_edge_mkt_prob", "f"), "wpjd": ("wprp_desc", "s"),
@@ -4256,6 +4256,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # None on fallback runners (under 3 prior runs).
                 "wpjp":  sf(row.get("wprp_proj")),    # projected run-day WPR (new model)
                 "wpjsd": sf(row.get("wprp_sd")),      # typical error of the projection (WPR points)
+                "wpjmd": (str(row.get("wprp_made")) if row.get("wprp_made") not in (None, "", "nan") and str(row.get("wprp_made")) != "nan" else None),  # when the logged projection was made (after the race = back-filled)
                 "wpjm":  (str(row.get("wprp_model")) if row.get("wprp_model") not in (None, "", "nan") and str(row.get("wprp_model")) != "nan" else None),  # main / light
                 "wpjb":  sf(row.get("wprp_base")),    # base WPR (pre-adjustment)
                 "wpjadj": sf(row.get("wprp_adj")),    # adjustment (base -> projected)

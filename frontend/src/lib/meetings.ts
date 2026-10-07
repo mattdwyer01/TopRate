@@ -104,3 +104,25 @@ export function todayIso(offsetDays = 0): string {
   d.setUTCDate(d.getUTCDate() + offsetDays)
   return d.toISOString().slice(0, 10)
 }
+
+export interface MeetingConditions {
+  going: string | null
+  rail: string | null
+  // The going the meeting started on, set only when it has since changed.
+  goingFrom: string | null
+}
+
+/** Track condition for a meeting: the going of the next race still to run (the last race if all have run), the rail position, and what
+ * the going was at the first race when it has changed. `done` says whether a race has run. */
+export function meetingConditions(meeting: Meeting, done: (race: Race) => boolean): MeetingConditions {
+  const races = meeting.races
+  const current = races.find((r) => !done(r)) ?? races[races.length - 1]
+  const first = races[0]
+  const going = current?.going || null
+  const firstGoing = first?.going || null
+  return {
+    going,
+    rail: current?.rail || null,
+    goingFrom: going && firstGoing && firstGoing !== going ? firstGoing : null,
+  }
+}

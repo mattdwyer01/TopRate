@@ -1,11 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
-import { computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
+import { INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
+import {
+  firstFourBox,
+  firstFourKey,
+  fmtMoney,
+  hasEarlyQuaddie,
+  product,
+  quaddieRaces,
+  quinellaBox,
+  trifectaBox,
+  trifectaKey,
+  type QuaddieKind,
+} from '../../lib/quaddie'
 import { Ladder } from './RaceGlance'
-import { rankField, type Ranked } from './raceFacts'
+import { inPool, POOL_LABEL, poolMembers, rankRace, type PoolKey } from './quaddiePools'
 
 interface QuaddieProps {
   meeting: Race[] // the meeting's races, in race order
@@ -18,46 +30,87 @@ interface QuaddieProps {
 }
 
 const WINDOW = 4
+const PICKS_KEY = 'toprate_quaddie_picks_v1'
+const UNIT_KEY = 'toprate_quaddie_unit_v1'
 
-export type QuaddieKind = 'late' | 'early'
-
-// The late quaddie is the last four races. The early quaddie is the four before it; with 7 races or fewer there are not eight to split,
-// so it is the first four and the two overlap. A meeting of exactly four has one quaddie only.
-export function quaddieRaces(meeting: Race[], kind: QuaddieKind): Race[] {
-  const n = meeting.length
-  if (kind === 'late') return meeting.slice(Math.max(0, n - WINDOW))
-  return n >= 8 ? meeting.slice(n - 8, n - 4) : meeting.slice(0, WINDOW)
+function readPicks(): Record<string, string[]> {
+  try {
+    const raw = window.localStorage.getItem(PICKS_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, string[]>) : {}
+  } catch {
+    return {}
+  }
 }
 
-export function hasQuaddie(meeting: Race[]): boolean {
-  return meeting.length >= WINDOW
+function readUnit(): number {
+  try {
+    const v = Number(window.localStorage.getItem(UNIT_KEY))
+    return Number.isFinite(v) && v > 0 ? v : 0.5
+  } catch {
+    return 0.5
+  }
 }
-
-function rankRace(race: Race, deltas: Record<string, number>, bases: Record<string, number>, scratched: Set<string>, priceBeta: number | null): Ranked[] {
-  const eff = new Set(scratched)
-  for (const r of race.runners) if (r.dataScratched) eff.add(r.runId)
-  const effective = computeEffectiveRace(race.runners, deltas, bases, priceBeta, eff)
-  return rankField(race.runners, effective, eff, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP)
-}
-
-// A runner outside the outer line is added back when its speed-map adjustment is clearly favourable (the green threshold in the table and map).
-const mapAdded = (x: Ranked) => !x.inner && !x.outer && (x.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
-const inPool = (x: Ranked) => x.inner || x.outer || mapAdded(x)
-
-const product = (ns: number[]) => ns.reduce((a, b) => a * b, 1)
 
 // A meeting's late (last four races) or early (the four before) quaddie side by side: each race's projection ladder with the inside-4 and
-// inside-6 lines, and how many runners sit inside each line. The combination counts are plain arithmetic on those counts, not a selection.
+// inside-6 lines and the speed map adjustment. Counts and costs are plain arithmetic on the pools or on the runners you tick, not tips.
 export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelectRace, onBack }: QuaddieProps) {
   const [kind, setKind] = useState<QuaddieKind>('late')
-  const hasEarly = meeting.length > WINDOW
+  const hasEarly = hasEarlyQuaddie(meeting)
   const races = useMemo(() => quaddieRaces(meeting, kind), [meeting, kind])
+
+  const [pickMode, setPickMode] = useState(false)
+  const [picks, setPicks] = useState<Record<string, string[]>>(readPicks)
+  const [unit, setUnit] = useState<number>(readUnit)
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PICKS_KEY, JSON.stringify(picks))
+    } catch {
+      // Storage can be blocked; picks just will not survive a reload.
+    }
+  }, [picks])
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(UNIT_KEY, String(unit))
+    } catch {
+      // As above.
+    }
+  }, [unit])
 
   const ranked = useMemo(() => races.map((r) => rankRace(r, deltas, bases, scratched, priceBeta)), [races, deltas, bases, scratched, priceBeta])
   const inner = ranked.map((rk) => rk.filter((x) => x.inner).length)
   const outer = ranked.map((rk) => rk.filter((x) => x.inner || x.outer).length)
   const pool = ranked.map((rk) => rk.filter(inPool).length)
-  const complete = races.length === WINDOW && inner.every((n) => n > 0)
+  const full = races.length === WINDOW
+
+  // Only ticks that still point at a runner in the field count (a scratching drops out of the picks).
+  const pickedIds = races.map((r, i) => new Set((picks[r.raceId] ?? []).filter((id) => ranked[i].some((x) => x.runner.runId === id))))
+  const pickCounts = pickedIds.map((s) => s.size)
+  const myCombos = full && pickCounts.every((n) => n > 0) ? product(pickCounts) : 0
+
+  function toggle(raceId: string, runId: string) {
+    setPicks((prev) => {
+      const cur = new Set(prev[raceId] ?? [])
+      if (cur.has(runId)) cur.delete(runId)
+      else cur.add(runId)
+      return { ...prev, [raceId]: [...cur] }
+    })
+  }
+  function fill(poolKey: PoolKey) {
+    setPicks((prev) => {
+      const next = { ...prev }
+      races.forEach((r, i) => {
+        next[r.raceId] = poolMembers(ranked[i], poolKey).map((x) => x.runner.runId)
+      })
+      return next
+    })
+  }
+  function clear() {
+    setPicks((prev) => {
+      const next = { ...prev }
+      for (const r of races) delete next[r.raceId]
+      return next
+    })
+  }
 
   if (races.length === 0) {
     return (
@@ -69,6 +122,23 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
       </div>
     )
   }
+
+  const unitInput = (
+    <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+      Unit stake $
+      <input
+        type="number"
+        min={0.01}
+        step={0.05}
+        value={unit}
+        onChange={(e) => {
+          const v = Number(e.target.value)
+          if (Number.isFinite(v) && v > 0) setUnit(v)
+        }}
+        className="w-20 rounded-md border border-line bg-panel px-2 py-1 font-mono text-xs"
+      />
+    </label>
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,38 +176,68 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
                   <th key={r.raceId} className="py-1 text-right font-medium">R{r.raceNumber}</th>
                 ))}
                 <th className="py-1 text-right font-medium">Combos</th>
+                <th className="py-1 text-right font-medium">Cost</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line-soft">
-              <tr>
-                <td className="py-1">Inside {INNER_GAP_FROM_TOP}</td>
-                {inner.map((n, i) => (
-                  <td key={i} className="py-1 text-right font-mono">{n}</td>
-                ))}
-                <td className="py-1 text-right font-mono font-semibold">{complete ? product(inner).toLocaleString() : '-'}</td>
-              </tr>
-              <tr>
-                <td className="py-1">Inside {OUTER_GAP_FROM_TOP}</td>
-                {outer.map((n, i) => (
-                  <td key={i} className="py-1 text-right font-mono">{n}</td>
-                ))}
-                <td className="py-1 text-right font-mono font-semibold">{outer.every((n) => n > 0) && races.length === WINDOW ? product(outer).toLocaleString() : '-'}</td>
-              </tr>
-              <tr>
-                <td className="py-1">Inside {OUTER_GAP_FROM_TOP} + favoured map</td>
-                {pool.map((n, i) => (
-                  <td key={i} className="py-1 text-right font-mono">{n}</td>
-                ))}
-                <td className="py-1 text-right font-mono font-semibold">{pool.every((n) => n > 0) && races.length === WINDOW ? product(pool).toLocaleString() : '-'}</td>
-              </tr>
+              {(
+                [
+                  ['inner', inner],
+                  ['outer', outer],
+                  ['map', pool],
+                ] as [PoolKey, number[]][]
+              ).map(([key, counts]) => {
+                const ok = full && counts.every((n) => n > 0)
+                const combos = ok ? product(counts) : 0
+                return (
+                  <tr key={key}>
+                    <td className="py-1">{POOL_LABEL[key]}</td>
+                    {counts.map((n, i) => (
+                      <td key={i} className="py-1 text-right font-mono">{n}</td>
+                    ))}
+                    <td className="py-1 text-right font-mono font-semibold">{ok ? combos.toLocaleString() : '-'}</td>
+                    <td className="py-1 text-right font-mono text-ink-mute">{ok ? fmtMoney(combos * unit) : '-'}</td>
+                  </tr>
+                )
+              })}
+              {pickCounts.some((n) => n > 0) && (
+                <tr>
+                  <td className="py-1 font-medium text-emerald-deep">My ticks</td>
+                  {pickCounts.map((n, i) => (
+                    <td key={i} className="py-1 text-right font-mono">{n}</td>
+                  ))}
+                  <td className="py-1 text-right font-mono font-semibold">{myCombos ? myCombos.toLocaleString() : '-'}</td>
+                  <td className="py-1 text-right font-mono text-ink-mute">{myCombos ? fmtMoney(myCombos * unit) : '-'}</td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-soft pt-3">
+          {unitInput}
+          <span className="text-[11px] text-ink-faint">Cost is combinations times unit stake. Flexi payouts scale with the stake percentage, not shown here.</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Pill active={pickMode} onClick={() => setPickMode(!pickMode)}>
+            {pickMode ? 'Ticking runners' : 'Tick my runners'}
+          </Pill>
+          {pickMode && (
+            <>
+              <span className="text-xs text-ink-faint">Tap runners on the ladders. Fill from:</span>
+              <Pill active={false} onClick={() => fill('inner')}>Inside {INNER_GAP_FROM_TOP}</Pill>
+              <Pill active={false} onClick={() => fill('outer')}>Inside {OUTER_GAP_FROM_TOP}</Pill>
+              <Pill active={false} onClick={() => fill('map')}>+ favoured map</Pill>
+              <Pill active={false} onClick={clear}>Clear</Pill>
+            </>
+          )}
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {races.map((race, i) => {
           const status = raceStatus(race, Date.now())
+          const n = outer[i]
+          const a = inner[i]
           return (
             <section key={race.raceId} className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
               <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -152,9 +252,46 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
                 {race.distance}m · {race.going || 'going n/a'} · {ranked[i].length} runners · inside {INNER_GAP_FROM_TOP}: {inner[i]} · inside {OUTER_GAP_FROM_TOP}: {outer[i]} · with map: {pool[i]}
               </div>
               {ranked[i].length >= 2 ? (
-                <Ladder showSm ranked={ranked[i]} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={(runId) => onSelectRace(race.raceId, race.date, runId)} />
+                <Ladder
+                  showSm
+                  ranked={ranked[i]}
+                  innerGap={INNER_GAP_FROM_TOP}
+                  outerGap={OUTER_GAP_FROM_TOP}
+                  selected={pickMode || pickedIds[i].size > 0 ? pickedIds[i] : undefined}
+                  onSelect={(runId) => (pickMode ? toggle(race.raceId, runId) : onSelectRace(race.raceId, race.date, runId))}
+                />
               ) : (
                 <p className="py-4 text-center text-xs text-ink-faint">No projections yet for this race.</p>
+              )}
+              {ranked[i].length >= 3 && (
+                <details className="mt-2 border-t border-line-soft pt-2 text-xs">
+                  <summary className="cursor-pointer text-ink-mute">Exotics counts and cost for this race</summary>
+                  <table className="mt-1.5 w-full">
+                    <thead className="text-left text-ink-mute">
+                      <tr>
+                        <th className="py-0.5 font-medium">Structure</th>
+                        <th className="py-0.5 text-right font-medium">Combos</th>
+                        <th className="py-0.5 text-right font-medium">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line-soft">
+                      {[
+                        [`Quinella box, inside ${OUTER_GAP_FROM_TOP}`, quinellaBox(n)],
+                        [`Trifecta box, inside ${OUTER_GAP_FROM_TOP}`, trifectaBox(n)],
+                        [`Trifecta: 1st inside ${INNER_GAP_FROM_TOP}, 2nd and 3rd inside ${OUTER_GAP_FROM_TOP}`, trifectaKey(a, n)],
+                        [`First four box, inside ${OUTER_GAP_FROM_TOP}`, firstFourBox(n)],
+                        [`First four: 1st inside ${INNER_GAP_FROM_TOP}, rest inside ${OUTER_GAP_FROM_TOP}`, firstFourKey(a, n)],
+                      ].map(([label, combos]) => (
+                        <tr key={label as string}>
+                          <td className="py-0.5">{label}</td>
+                          <td className="py-0.5 text-right font-mono">{combos ? (combos as number).toLocaleString() : '-'}</td>
+                          <td className="py-0.5 text-right font-mono text-ink-mute">{combos ? fmtMoney((combos as number) * unit) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-1 text-[11px] text-ink-faint">Unit stake from above. Keying the first-place runner to the tighter pool cuts the combinations against a full box. The capture trade-off was tested on an earlier scoring, not on these exact lines.</p>
+                </details>
               )}
             </section>
           )

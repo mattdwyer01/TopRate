@@ -4,12 +4,13 @@ import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import {
   groupIntoMeetings,
+  meetingConditions,
   isBushMeeting,
   todayIso,
 } from '../../lib/meetings'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
-import { hasQuaddie } from './Quaddie'
+import { hasQuaddie } from '../../lib/quaddie'
 import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
@@ -214,6 +215,25 @@ export function MeetingsGrid({
                         <div>
                           <div className="font-semibold text-ink">{meeting.venue}</div>
                           <div className="text-xs text-ink-mute">{meeting.state}</div>
+                          {(() => {
+                            const c = meetingConditions(meeting, (r) => {
+                              const st = raceStatus(r, now)
+                              return st === 'resulted' || st === 'interim'
+                            })
+                            if (!c.going && !c.rail) return null
+                            return (
+                              <div className="max-w-[9.5rem] truncate text-[11px] leading-snug text-ink-mute" title={[c.going, c.rail ? `Rail: ${c.rail}` : null].filter(Boolean).join(' · ')}>
+                                {c.going && (
+                                  <span className={c.goingFrom ? 'font-semibold text-amber' : undefined} title={c.goingFrom ? `Changed from ${c.goingFrom}` : undefined}>
+                                    {c.going}
+                                    {c.goingFrom ? ` (was ${c.goingFrom})` : ''}
+                                  </span>
+                                )}
+                                {c.going && c.rail ? ' · ' : ''}
+                                {c.rail && <span>{`Rail ${c.rail}`}</span>}
+                              </div>
+                            )
+                          })()}
                           {hasQuaddie(meeting.races) && (
                             <button
                               type="button"
