@@ -161,18 +161,18 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
 
 /* ------------------------------------------------------------- waterfall */
 
-// What each correction group is made of, and how far it typically moves a rating (5th to 95th percentile, and the extremes, over a
-// 677-runner day, 7 Oct 2026). The groups are TreeSHAP sums of the main model's correction on top of the recent-form anchor.
+// What each correction group is made of, and how far it typically moves a rating (5th to 95th percentile, and the extremes, over the
+// last 60 days of runs, 23,820 runs in 2,947 races, scored as of each race). The groups are TreeSHAP sums of the main model's correction on top of the recent-form anchor.
 const GROUPS: { key: string; label: string; what: string; p5: number; p95: number; min: number; max: number }[] = [
-  { key: 'form', label: 'Form pattern', what: 'Shape of the recent WPRs: consistency, best and worst of the last 5, change from the run before', p5: -1.17, p95: 1.09, min: -2.97, max: 8.06 },
-  { key: 'rest', label: 'Spell and trials', what: 'Days since the last run, run number in the prep, trials, first-up and second-up record', p5: -0.65, p95: 1.47, min: -2.15, max: 4.01 },
-  { key: 'class', label: 'Class and grade', what: 'Class and grade today against the last run, and the level of the track', p5: -0.66, p95: 0.33, min: -1.1, max: 0.8 },
-  { key: 'going', label: 'Going', what: 'Today\'s going, the change from the last run, and the horse\'s record on it', p5: -1.05, p95: 0.52, min: -1.56, max: 1.13 },
-  { key: 'dist_track', label: 'Distance and track', what: 'Today\'s distance and its change, and the horse\'s record at the distance and the track', p5: -0.91, p95: 1.41, min: -2.86, max: 2.48 },
-  { key: 'connections', label: 'Jockey and trainer', what: 'Jockey and trainer effect, their form, the combination, and a jockey change', p5: -2.55, p95: 1.46, min: -7.91, max: 2.33 },
-  { key: 'weight_age', label: 'Weight, age, sex', what: 'Weight carried and allowance in the model\'s own features, age and sex (the separate weight step comes after the base)', p5: -1.23, p95: 0.73, min: -2.67, max: 1.21 },
-  { key: 'field', label: 'Field and barrier', what: 'Barrier, field size, and how today\'s rivals rate against this horse', p5: -2.61, p95: 2.26, min: -4.1, max: 6.68 },
-  { key: 'comments', label: 'Run comments', what: 'What the race comments said about the last runs (checked, wide, held up and so on)', p5: -0.95, p95: 0.9, min: -1.82, max: 1.84 },
+  { key: 'form', label: 'Form pattern', what: 'Shape of the recent WPRs: consistency, best and worst of the last 5, change from the run before', p5: -1.25, p95: 1.75, min: -4.74, max: 14.54 },
+  { key: 'rest', label: 'Spell and trials', what: 'Days since the last run, run number in the prep, trials, first-up and second-up record', p5: -0.7, p95: 1.35, min: -4.55, max: 5.69 },
+  { key: 'class', label: 'Class and grade', what: 'Class and grade today against the last run, and the level of the track', p5: -1.41, p95: 0.87, min: -5.32, max: 1.8 },
+  { key: 'going', label: 'Going', what: 'Today\'s going, the change from the last run, and the horse\'s record on it', p5: -1.27, p95: 0.7, min: -3.62, max: 1.44 },
+  { key: 'dist_track', label: 'Distance and track', what: 'Today\'s distance and its change, and the horse\'s record at the distance and the track', p5: -1.06, p95: 1.34, min: -12.81, max: 3.42 },
+  { key: 'connections', label: 'Jockey and trainer', what: 'Jockey and trainer effect, their form, the combination, and a jockey change', p5: -2.07, p95: 1.55, min: -9.55, max: 3.26 },
+  { key: 'weight_age', label: 'Weight, age, sex', what: 'Weight carried and allowance in the model\'s own features, age and sex (the separate weight step comes after the base)', p5: -1.31, p95: 0.83, min: -3.46, max: 2.62 },
+  { key: 'field', label: 'Field and barrier', what: 'Barrier, field size, and how today\'s rivals rate against this horse', p5: -1.98, p95: 2.51, min: -4.11, max: 11.01 },
+  { key: 'comments', label: 'Run comments', what: 'What the race comments said about the last runs (checked, wide, held up and so on)', p5: -0.93, p95: 0.87, min: -3.48, max: 2.89 },
 ]
 const SCALE = 3 // WPR points either side of zero drawn on the adjustment rows
 
