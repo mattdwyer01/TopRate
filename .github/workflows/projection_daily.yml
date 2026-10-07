@@ -91,7 +91,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           stage_outputs() {
             [ -f wpr_projection_new.json ] && git add wpr_projection_new.json
-            [ -f trip_map.json ] && git add trip_map.json
+            # Only a full run regenerates the trip map. A fast run's working copy is whatever it checked out at the start, so staging it
+            # on a retry (new tip) would put an older trip_map.json back over a full run's newer one (7 Oct 2026: 07:39 fast run did this).
+            [ "${{ steps.mode.outputs.mode }}" = "full" ] && [ -f trip_map.json ] && git add trip_map.json
             [ -f wpr_projection_log.csv.gz ] && git add wpr_projection_log.csv.gz
           }
           stage_outputs

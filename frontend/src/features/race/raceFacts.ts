@@ -12,13 +12,6 @@ export function goingTone(going: string | null | undefined): GoingTone {
   return n <= 4 ? 'dry' : n <= 7 ? 'soft' : 'heavy'
 }
 
-export const GOING_TONE_CLASS: Record<GoingTone, string> = {
-  dry: 'border-emerald-line bg-emerald-bg text-emerald-deep',
-  soft: 'border-amber-line bg-amber-bg text-amber',
-  heavy: 'border-rose-line bg-rose-bg text-rose',
-  other: 'border-line bg-bg text-ink-mute',
-}
-
 // The going this race had changed from, taken from the nearest earlier race at the same meeting that was on different going.
 export function goingChange(race: Race, meeting: Race[]): { from: string; race: number } | null {
   const earlier = meeting.filter((r) => r.raceNumber < race.raceNumber).sort((a, b) => b.raceNumber - a.raceNumber)

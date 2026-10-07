@@ -2,12 +2,14 @@ import { Fragment, useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeCompositeGaps, computeEffectiveRace, COMPOSITE_INNER_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { RaceLadder } from './RaceGlance'
+import { MultiRace } from './MultiRace'
+import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, rowGrid } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
@@ -29,8 +31,10 @@ interface RaceDetailProps {
   // A runner to pre-select on mount (search, Review-tab cross-linking). Only read once: App.tsx keys RaceDetail on race.raceId.
   initialRunId?: string | null
   onBack: () => void
-  onSelectRace: (raceId: string, date: string) => void
+  onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
+
+const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
 const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean }[] = [
@@ -39,10 +43,10 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
-  { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)' },
-  { key: 'compositeScore', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Speed-map adjustment vs this field' },
-  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price", lgOnly: true },
+  { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)', lgOnly: true },
+  { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
+  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Adj)' },
+  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -78,9 +82,28 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
-  const [sortKey, setSortKey] = useState<SortKey>('compositeScore')
-  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
+  const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
+  // Compare mode: clicking rows picks up to 6 runners for a side-by-side table instead of opening the detail panel.
+  // Compare mode is remembered for the browser session, so stepping through a meeting's races keeps it on.
+  const [compareMode, setCompareModeState] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('toprate_compare_mode') === '1'
+    } catch {
+      return false
+    }
+  })
+  function setCompareMode(on: boolean) {
+    setCompareModeState(on)
+    try {
+      window.sessionStorage.setItem('toprate_compare_mode', on ? '1' : '0')
+    } catch {
+      // Session storage can be blocked; the mode just will not carry over.
+    }
+  }
+  const [multiView, setMultiView] = useState(false)
+  const [compareIds, setCompareIds] = useState<string[]>([])
   const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const tripMap = useTripMap()
@@ -100,7 +123,7 @@ export function RaceDetail({
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
     [race.runners, deltas, bases, priceBeta, effectiveScratched],
   )
-  const compositeGapByRunId = useMemo(() => computeCompositeGaps(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
+  const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
@@ -108,7 +131,7 @@ export function RaceDetail({
   const activeRunners = useMemo(() => race.runners.filter((r) => !effectiveScratched.has(r.runId)), [race.runners, effectiveScratched])
 
   const ranked = useMemo(
-    () => rankField(race.runners, effectiveByRunId, effectiveScratched, COMPOSITE_INNER_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP),
+    () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
   const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => r.proj)), [ranked])
@@ -132,18 +155,18 @@ export function RaceDetail({
   // The two gap lines are only meaningful while the list is sorted best-projection-first.
   const lines = useMemo(() => {
     const none = { inner: -1, outer: -1 }
-    if (!((sortKey === 'compositeScore' || sortKey === 'projectedWpr') && sortDir === 'desc')) return none
+    if (!(sortKey === 'projectedWpr' && sortDir === 'desc')) return none
     let inner = -1
     let outer = -1
     sortedRunners.forEach((r, i) => {
-      const g = compositeGapByRunId[r.runId]
+      const g = gapByRunId[r.runId]
       if (g == null) return
-      if (g <= COMPOSITE_INNER_GAP_FROM_TOP) inner = i
-      if (g <= COMPOSITE_MAX_GAP_FROM_TOP) outer = i
+      if (g <= INNER_GAP_FROM_TOP) inner = i
+      if (g <= OUTER_GAP_FROM_TOP) outer = i
     })
-    const last = sortedRunners.reduce((l, r, i) => (compositeGapByRunId[r.runId] != null ? i : l), -1)
+    const last = sortedRunners.reduce((l, r, i) => (gapByRunId[r.runId] != null ? i : l), -1)
     return { inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
-  }, [sortedRunners, compositeGapByRunId, sortKey, sortDir])
+  }, [sortedRunners, gapByRunId, sortKey, sortDir])
 
   const meetingRaces = useMemo(
     () => allRaces.filter((r) => r.venue === race.venue && r.date === race.date).sort((a, b) => a.raceNumber - b.raceNumber),
@@ -168,12 +191,29 @@ export function RaceDetail({
     return {
       runner,
       raceDate: race.date,
-      selected: runner.runId === selectedRunId,
+      selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
-      onClick: () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
+      onClick: compareMode
+        ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
+        : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
     }
+  }
+
+  if (multiView) {
+    return (
+      <MultiRace
+        meeting={meetingRaces}
+        startRaceId={race.raceId}
+        deltas={deltas}
+        bases={bases}
+        scratched={scratched}
+        priceBeta={priceBeta}
+        onSelectRace={onSelectRace}
+        onBack={() => setMultiView(false)}
+      />
+    )
   }
 
   return (
@@ -183,6 +223,11 @@ export function RaceDetail({
           &larr; Back to meetings
         </button>
         <div className="flex flex-wrap gap-1.5">
+          {meetingRaces.length >= 4 && (
+            <Pill active={false} onClick={() => setMultiView(true)}>
+              4 races side by side
+            </Pill>
+          )}
           {meetingRaces.map((r) => (
             <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]} onClick={() => onSelectRace(r.raceId, r.date)}>
               R{r.raceNumber}
@@ -200,6 +245,15 @@ export function RaceDetail({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Runners</h3>
           <div className="flex flex-wrap items-center gap-2">
+            <Pill
+              active={compareMode}
+              onClick={() => {
+                setCompareMode(!compareMode)
+                setSelectedRunId(null)
+              }}
+            >
+              {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
+            </Pill>
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
           </div>
         </div>
@@ -214,6 +268,7 @@ export function RaceDetail({
                   key={c.key}
                   type="button"
                   title={c.title}
+                  aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                   onClick={() => onSort(c.key as SortKey)}
                   className={`transition-colors hover:text-ink ${c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
@@ -226,12 +281,41 @@ export function RaceDetail({
           {sortedRunners.map((r, i) => (
             <Fragment key={r.runId}>
               <RunnerRow {...rowProps(r)} />
-              {i === lines.inner && <LineDivider kind="inner" n={COMPOSITE_INNER_GAP_FROM_TOP} />}
-              {i === lines.outer && <LineDivider kind="outer" n={COMPOSITE_MAX_GAP_FROM_TOP} />}
+              {i === lines.inner && <LineDivider kind="inner" n={INNER_GAP_FROM_TOP} />}
+              {i === lines.outer && <LineDivider kind="outer" n={OUTER_GAP_FROM_TOP} />}
             </Fragment>
           ))}
         </div>
+        {compareMode && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+            <span>{compareIds.length < 2 ? 'Tap 2 to 6 runners above, or use a shortcut:' : 'Shortcuts:'}</span>
+            <Pill active={false} onClick={() => setCompareIds(ranked.slice(0, 4).map((r) => r.runner.runId))}>
+              Top 4
+            </Pill>
+            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+              Inside {INNER_GAP_FROM_TOP} line
+            </Pill>
+            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner || r.outer).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+              Inside {OUTER_GAP_FROM_TOP} line
+            </Pill>
+          </div>
+        )}
       </section>
+
+      {compareMode && compareIds.length >= 2 && (
+        <RunnerCompare
+          race={race}
+          runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
+          effectiveByRunId={effectiveByRunId}
+          gapByRunId={gapByRunId}
+          onRemove={(id) => setCompareIds((ids) => ids.filter((x) => x !== id))}
+          onOpen={(id) => {
+            setCompareMode(false)
+            setSelectedRunId(id)
+          }}
+          onClear={() => setCompareIds([])}
+        />
+      )}
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -261,7 +345,7 @@ export function RaceDetail({
         )}
       </section>
 
-      <RaceLadder ranked={ranked} innerGap={COMPOSITE_INNER_GAP_FROM_TOP} outerGap={COMPOSITE_MAX_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+      <RaceLadder ranked={ranked} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
 
       {selectedRunner && (
         <RunnerDetailModal

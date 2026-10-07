@@ -33,8 +33,7 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
   const rtsTitle = spell.label === 'FS' ? 'First starter - no prior race starts' : spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined
   const scratched = effective?.scratched ?? false
   const proj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const marketNote: string | undefined = undefined
-  return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, overridden: effective?.hasOverride ?? false, marketNote }
+  return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, overridden: effective?.hasOverride ?? false }
 }
 
 export function PriceCell({ runner, scratched, move, showMove }: { runner: Runner; scratched: boolean; move: ReturnType<typeof computePriceMove>; showMove: boolean }) {

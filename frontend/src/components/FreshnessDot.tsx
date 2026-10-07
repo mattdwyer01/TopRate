@@ -22,9 +22,19 @@ interface FreshnessDotProps {
   // Set when no race is within the poller's window (it reads prices and results only for races from 30 min ago to 2 h ahead), so the
   // file legitimately stops changing: the age is not a fault. Holds the next jump time.
   quietNext?: Date | null
+  // A background poll failed since the last good load: the data on screen may be out of date.
+  pollFailed?: boolean
 }
 
-export function FreshnessDot({ level, runIso, now, quietNext }: FreshnessDotProps) {
+export function FreshnessDot({ level, runIso, now, quietNext, pollFailed }: FreshnessDotProps) {
+  if (pollFailed) {
+    return (
+      <div className="flex items-center gap-1.5" role="status" title="Could not reach the server on the last refresh. Showing the last data loaded.">
+        <span className="h-2 w-2 flex-none rounded-full bg-rose" />
+        <span className="whitespace-nowrap font-mono text-xs text-rose">Offline</span>
+      </div>
+    )
+  }
   if (quietNext !== undefined && level !== 'fresh') {
     const at = quietNext ? quietNext.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null
     const local0 = new Date(runIso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -43,7 +53,7 @@ export function FreshnessDot({ level, runIso, now, quietNext }: FreshnessDotProp
   // date/time (not the backend's raw UTC string) is still one hover away.
   const local = new Date(runIso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   return (
-    <div className="flex items-center gap-1.5" title={`${levelLabels[level]} - last run ${local}`}>
+    <div className="flex items-center gap-1.5" role="img" aria-label={`${levelLabels[level]}, updated ${formatRelativeAge(runIso, now)}`} title={`${levelLabels[level]} - last run ${local}`}>
       <span className={`h-2 w-2 flex-none rounded-full ${levelClasses[level]}`} />
       {/* Hidden below sm: at phone widths this text wraps onto a second line
           right next to the search/settings icons (the header row has no
