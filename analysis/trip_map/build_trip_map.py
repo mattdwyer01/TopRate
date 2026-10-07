@@ -33,6 +33,30 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'trip_map.json')
 TODAY = pd.Timestamp(os.environ.get('TRIP_MAP_TODAY') or datetime.now(timezone.utc).strftime('%Y-%m-%d'))
 Q = np.linspace(0.01, 0.99, 99)
+
+# Width placement. Ranking runners by predicted width and giving each the matching quantile of the real within-race spread assumes the
+# ranking is perfect; it is not (held-out correlation 0.4), so the widest-ranked runner is placed far wider than such runners really run
+# (7 Oct 2026, held-out 2025+: VIC/SA widest-ranked tenth placed +4.05m from the race mean, measured +1.37m; QLD +2.05m vs +0.83m; the
+# narrowest tenth likewise overshoots). The measured table below is the mean realized deviation by predicted-rank tenth. LANE_CAL_BLEND is how
+# far the placement moves toward it: 0 = old placement, 1 = fully calibrated (accurate on average but squeezes a field to a sd of about 1m
+# on VIC/SA and 0.6m on QLD). Halfway was chosen by the user as the compromise between accuracy and a field that looks like a field.
+LANE_CAL_BLEND = 0.5
+LANE_CAL_CENTERS = np.linspace(0.05, 0.95, 10)
+
+
+def lane_rank_table(p, true_dev):
+    """Mean realized lane deviation (m from the race mean) for each tenth of predicted-width rank percentile p (0 narrowest, 1 widest)."""
+    idx = np.clip((np.asarray(p, float) * 10).astype(int), 0, 9)
+    d = np.asarray(true_dev, float)
+    tab = np.array([np.nanmean(d[idx == i]) if (idx == i).any() else 0.0 for i in range(10)])
+    return LANE_CAL_CENTERS, tab
+
+
+def blend_lane_dev(placed, p, cal):
+    """Move the placed deviation part of the way (LANE_CAL_BLEND) to the measured conditional mean for that rank."""
+    if cal is None:
+        return np.asarray(placed, float)
+    return (1 - LANE_CAL_BLEND) * np.asarray(placed, float) + LANE_CAL_BLEND * np.interp(np.asarray(p, float), cal[0], cal[1])
 PARAMS = dict(objective='regression', learning_rate=0.04, num_leaves=31, min_data_in_leaf=80, feature_fraction=0.8, verbose=-1, num_threads=4)
 ROUNDS = 400
 
@@ -197,7 +221,7 @@ def fit_state(train):
     return models, tabs
 
 
-def scenario(df, models, tabs):
+def scenario(df, models, tabs, lane_cal=None):
     """Forecast ranks -> placed positions with real-race spread. df needs FEATS, race_id, distance, fs."""
     out = df.copy()
     out['raw_gap'] = models['gap800'].predict(out[FEATS])
@@ -214,7 +238,7 @@ def scenario(df, models, tabs):
         qd = tabs['lane'].get(int(row.fsb)) if pd.notna(row.fsb) else None
         lane.append(np.interp(row.p_lane, Q, qd) if qd is not None else 0.0)
     out['gap'] = gap
-    out['lane_dev'] = lane
+    out['lane_dev'] = blend_lane_dev(lane, out.p_lane.values, lane_cal)
     out['lane'] = out.groupby('race_id').raw_lane.transform('mean') + out.lane_dev
     return out
 
@@ -233,11 +257,17 @@ def main():
 
     # ---- held-out check (2025+) to size the typical error
     err = {}
+    cal = {}
     for state, z in a.groupby('state'):
         tr, te = z[z.date < '2025-01-01'], z[(z.date >= '2025-01-01') & (z.fs >= 8)].copy()
         te = te[te.race_id.map(te.groupby('race_id').size()) >= 6]
         m, t = fit_state(tr)
         sc = scenario(te, m, t)
+        # held-out width calibration (true lane is te.lane; sc.lane is the placed lane), then score the calibrated placement
+        okc = te.lane.notna()
+        cal[state] = lane_rank_table(sc.p_lane[okc], (te.lane - te.groupby('race_id').lane.transform('mean'))[okc])
+        print(state, 'width calibration, measured mean deviation by predicted-rank tenth (m):', np.round(cal[state][1], 2).tolist(), flush=True)
+        sc = scenario(te, m, t, cal[state])
         okg = sc.gap800.notna() & sc.gap.notna()
         okl = sc.lane.notna() & sc.lane_dev.notna()
         yc = lambda col: te[col] - te.groupby('race_id')[col].transform('mean')
@@ -287,7 +317,7 @@ def main():
         u['race_id'] = u.race_id.astype(str)
         u = u.merge(feat, on=['race_id', 'horse_id'], how='left')
         u['trk'] = pd.Categorical(u.track, categories=cats)
-        sc = scenario(u, models, tabs)
+        sc = scenario(u, models, tabs, cal.get(state))
         # last GPS run per horse for the tooltip
         last = hist_rows.sort_values('date').drop_duplicates('horse_id', keep='last').set_index('horse_id')
         for rid, z in sc.groupby('race_id'):
@@ -312,7 +342,8 @@ def main():
         print('non-GPS races:', len(o_races), flush=True)
     except Exception as e:  # never lose the GPS maps because of this extension
         print('non-GPS trip map skipped:', repr(e), flush=True)
-    payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainEnd=str(a.date.max().date()), error=err, races=races)
+    payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainEnd=str(a.date.max().date()), error=err,
+                   laneCal=dict(blend=LANE_CAL_BLEND, tenths={k: [round(float(x), 2) for x in v[1]] for k, v in cal.items()}), races=races)
     with open(OUT, 'w') as f:
         json.dump(payload, f, separators=(',', ':'))
     print('wrote', OUT, len(races), 'races', os.path.getsize(OUT) // 1024, 'KB')
