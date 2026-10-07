@@ -205,9 +205,18 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
   const [all, setAll] = useState(false)
   const b = runner.adjustmentBreakdown
   const anchor = b?.g_anchor
-  const groups = anchor != null ? GROUPS.map((g) => ({ ...g, v: b?.['g_' + g.key] ?? 0 })).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)) : []
-  const lead = all ? groups.filter((g) => Math.abs(g.v) >= 0.15) : groups.slice(0, 4)
-  const rest = groups.filter((g) => !lead.includes(g))
+  // One list of steps from the recent-form anchor to the projection: the model's factor groups plus the suitability and weight steps that
+  // come after its base. Biggest first; the smallest fold into one "other" step so the bars always add up.
+  const steps: { key: string; label: string; v: number; title: string }[] =
+    anchor != null
+      ? [
+          ...GROUPS.map((g) => ({ key: g.key, label: g.label, v: b?.['g_' + g.key] ?? 0, title: `${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.` })),
+          ...(b?.suitability != null ? [{ key: 'suit', label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' }] : []),
+          ...(b?.weight != null ? [{ key: 'wt', label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' }] : []),
+        ].sort((x, y) => Math.abs(y.v) - Math.abs(x.v))
+      : []
+  const lead = all ? steps.filter((g) => Math.abs(g.v) >= 0.15) : steps.slice(0, 4)
+  const rest = steps.filter((g) => !lead.includes(g))
   const restSum = rest.reduce((a, g) => a + g.v, 0)
 
   const rows: WfRow[] = []
@@ -216,29 +225,27 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
     rows.push({ key: 'anchor', label: 'Recent form', kind: 'total', from: 0, to: anchor, title: "Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" })
     run = anchor
     for (const g of lead) {
-      rows.push({ key: g.key, label: g.label, kind: 'step', from: run, to: run + g.v, title: `${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.` })
+      rows.push({ key: g.key, label: g.label, kind: 'step', from: run, to: run + g.v, title: g.title })
       run += g.v
     }
     if (rest.length > 0) {
       rows.push({ key: 'rest', label: `${rest.length} other factor${rest.length === 1 ? '' : 's'}`, kind: 'step', from: run, to: run + restSum, title: rest.map((g) => `${g.label} ${fmtAdj(g.v)}`).join(', ') })
       run += restSum
     }
+  } else {
+    // Older logged runs and light-history runners have no split by factor: base, then the combined adjustments.
+    if (runner.baseWpr != null) {
+      rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr, strong: true })
+      run = runner.baseWpr
+    }
+    if (runner.wprAdjustment != null) {
+      rows.push({ key: 'adj', label: 'Adjustments', kind: 'step', from: run, to: run + runner.wprAdjustment })
+      run += runner.wprAdjustment
+    }
   }
-  if (runner.baseWpr != null) {
-    rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr, strong: true })
-    run = runner.baseWpr
-  }
-  const extra: { key: string; label: string; v: number; title?: string }[] = []
-  if (b && (b.suitability != null || b.weight != null)) {
-    if (b.suitability != null) extra.push({ key: 'suit', label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' })
-    if (b.weight != null) extra.push({ key: 'wt', label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' })
-  } else if (runner.wprAdjustment != null) {
-    extra.push({ key: 'adj', label: 'Adjustments', v: runner.wprAdjustment })
-  }
-  if (deltaValue != null && deltaValue !== 0) extra.push({ key: 'you', label: 'Your adjustment', v: deltaValue })
-  for (const e of extra) {
-    rows.push({ key: e.key, label: e.label, kind: 'step', from: run, to: run + e.v, title: e.title })
-    run += e.v
+  if (deltaValue != null && deltaValue !== 0) {
+    rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + deltaValue })
+    run += deltaValue
   }
   if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj, strong: true })
 
@@ -333,7 +340,6 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
     cur.setMonth(cur.getMonth() + 1)
   }
   const step = Math.ceil(months.length / (narrow ? 5 : 10))
-  const halo = { stroke: 'var(--color-panel)', strokeWidth: 3, paintOrder: 'stroke' } as const
   return (
     <div ref={wrapRef} className="w-full">
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Recent runs over time, with today's projection and the rating expected to win">
@@ -354,10 +360,11 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
         )}
         {expectedWin != null && (
           <g>
-            <title>{`Expected winning rating ${fmtWpr(expectedWin)}: the best performance expected across this field, from each runner's projection and typical error.`}</title>
+            <title>{`Typical winning rating ${fmtWpr(expectedWin)}: the best performance expected across this field. Every runner can run above or below its projection, so the best of the field usually beats even the top projection.`}</title>
             <line x1={padL} x2={W - padR + 14} y1={Y(expectedWin)} y2={Y(expectedWin)} stroke="var(--color-amber)" strokeWidth={1.5} strokeDasharray="2 4" strokeLinecap="round" />
-            <text x={padL + 4} y={Y(expectedWin) - 5} fontSize={10} fontWeight={600} fill="var(--color-amber)" {...halo}>
-              expected to win ~{Math.round(expectedWin)}
+            <rect x={padL + 2} y={Y(expectedWin) - 19} width={96} height={16} rx={8} fill="var(--color-amber-bg)" stroke="var(--color-amber-line)" />
+            <text x={padL + 50} y={Y(expectedWin) - 7.5} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-amber)">
+              {`winner ~${Math.round(expectedWin)}`}
             </text>
           </g>
         )}
@@ -409,7 +416,7 @@ export function TimelineLegend() {
       </span>
       <span>
         <span className="mr-1 inline-block w-4 border-t-2 border-dotted border-amber align-middle" />
-        rating expected to win
+        typical winning rating (best of the field, above the top projection)
       </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
     </div>

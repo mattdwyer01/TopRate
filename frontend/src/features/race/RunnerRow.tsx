@@ -9,16 +9,19 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   band: 'inner' | 'outer' | 'none'
+  showFp: boolean
   onClick: () => void
 }
 
-// Table row, same columns on every screen. Below lg the silk, RTS, Base and Rated $ columns drop out (their tracks collapse to nothing via
+// Table row, same columns on every screen. Below lg the RTS, Base and Rated $ columns drop out (their tracks collapse to nothing via
 // `hidden`) so Horse, Adj, Proj, SM, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-export const ROW_GRID =
-  'grid-cols-[18px_minmax(0,1fr)_32px_40px_32px_58px_22px] lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
+// The FP column only takes room on a phone once there is a result to show.
+export const rowGrid = (showFp: boolean) =>
+  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_28px_36px_28px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_28px_36px_28px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
-export function RunnerRow({ runner, raceDate, selected, effective, band, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -33,11 +36,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
         }
       }}
       title={f.marketNote}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1.5 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${ROW_GRID} ${BAND_BORDER[band]} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1.5 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${BAND_BORDER[band]} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className={`h-6 w-6 rounded-sm object-contain ${LG_ONLY}`} /> : <span className={`h-6 w-6 ${LG_ONLY}`} />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-[22px] w-[22px] rounded-sm object-contain lg:h-6 lg:w-6" /> : <span className="h-6 w-6" />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -51,14 +54,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
         </span>
         <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey}${ratingSuffix(runner.jockeyRating)} / ${runner.trainer}${ratingSuffix(runner.trainerRating)}`}>
           <span className={`font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label} · </span>
-          {[
-            `${runner.jockey} / ${runner.trainer}`,
-            runner.barrier != null ? `barrier ${runner.barrier}` : null,
-            runner.weightCarried != null ? `${runner.weightCarried}kg` : null,
-            runner.predictedSettlingBand ? runner.predictedSettlingBand.toLowerCase() : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
+          {runner.jockey} / {runner.trainer}
+          {runner.barrier != null && <> &middot; barrier {runner.barrier}</>}
+          <span className="hidden lg:inline">
+            {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
+            {runner.predictedSettlingBand && <> &middot; {runner.predictedSettlingBand.toLowerCase()}</>}
+          </span>
         </span>
       </span>
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
@@ -83,7 +84,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
       <span className="text-right text-ink-mute">
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>
-      <span className="text-right">
+      <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
         <FinishBadge pos={runner.finishPosition} />
       </span>
     </div>

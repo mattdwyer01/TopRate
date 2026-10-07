@@ -22,18 +22,8 @@ const TILE_TONE: Record<Tone, string> = {
   plain: 'border-line bg-bg text-ink',
 }
 
-function Tile({ label, value, sub, tone, title }: { label: string; value: string; sub?: string | null; tone: Tone; title?: string }) {
-  return (
-    <div title={title} className={`min-w-0 rounded-lg border px-3 py-2 ${TILE_TONE[tone]}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
-      <div className="truncate text-base font-semibold leading-tight">{value}</div>
-      {sub && <div className="truncate text-xs opacity-80">{sub}</div>}
-    </div>
-  )
-}
-
-function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${className || 'border-line bg-bg text-ink-soft'}`}>{children}</span>
+function Chip({ children, className = '', title }: { children: React.ReactNode; className?: string; title?: string }) {
+  return <span title={title} className={`inline-flex min-w-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${className || 'border-line bg-bg text-ink-soft'}`}>{children}</span>
 }
 
 function useConditions(race: Race, meeting: Race[], activeRunners: Race['runners']) {
@@ -54,14 +44,14 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
   const prize = fmtPrize(race.prizeMoney)
   const time = formatTimeOfDay(race.startTime)
   return (
-    <section className="rounded-lg border border-line bg-panel p-4 shadow-[var(--shadow-1)]">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4">
+      <div className="flex items-start justify-between gap-x-3">
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            {race.venue} &middot; {race.state} &middot; Race {race.raceNumber} &middot; {race.distance}m
+          <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            {race.venue} &middot; {race.state} &middot; R{race.raceNumber} &middot; {race.distance}m
             {prize ? ` · ${prize}` : ''}
           </div>
-          <h2 className="mt-0.5 text-xl font-semibold leading-tight text-ink sm:text-2xl">{race.raceName}</h2>
+          <h2 className="text-lg font-semibold leading-tight text-ink sm:text-xl">{race.raceName}</h2>
         </div>
         <div className="flex-none text-right">
           {race.allResulted && !race.provisional ? (
@@ -75,39 +65,36 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
             </span>
           ) : (
             <div>
-              <div className="font-mono text-2xl font-semibold leading-none text-emerald-deep">{formatCountdown(race.startTime) || '-'}</div>
-              <div className="mt-1 text-[11px] uppercase tracking-wide text-ink-faint">to jump{time ? ` · ${time}` : ''}</div>
+              <div className="font-mono text-xl font-semibold leading-none text-emerald-deep">{formatCountdown(race.startTime) || '-'}</div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">to jump{time ? ` · ${time}` : ''}</div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {race.going && (
-          <Tile
-            label="Track"
-            value={race.going}
-            sub={change ? `was ${change.from} at R${change.race}` : null}
-            tone={change ? 'bad' : goingTileTone}
-            title="Going the projections for this race are made on"
-          />
+          <Chip className={TILE_TONE[change ? 'bad' : goingTileTone]} title={change ? `Going the projections are made on (was ${change.from} at R${change.race})` : 'Going the projections for this race are made on'}>
+            <b className="mr-1 text-[10px] uppercase opacity-70">Track</b>
+            {race.going}
+            {change && <span className="ml-1 font-normal opacity-80">(was {change.from})</span>}
+          </Chip>
         )}
-        <Tile
-          label="Pace"
-          value={pace.display.replace(' (predicted)', '')}
-          sub={pace.fromShape ? 'measured' : leaders > 0 ? `${leaders} likely leader${leaders === 1 ? '' : 's'}` : 'predicted'}
-          tone={paceTone}
-          title={pace.fromShape ? 'Measured early pace' : 'Predicted early pace'}
-        />
-        {rail && <Tile label="Rail" value={rail.replace(/\.\s*$/, '')} tone="plain" title="Rail position" />}
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Chip className={TILE_TONE[paceTone]} title={pace.fromShape ? 'Measured early pace' : `Predicted early pace${leaders > 0 ? `, ${leaders} likely leader${leaders === 1 ? '' : 's'}` : ''}`}>
+          <b className="mr-1 text-[10px] uppercase opacity-70">Pace</b>
+          {pace.display.replace(' (predicted)', '')}
+        </Chip>
+        {rail && (
+          <Chip className={`max-w-full ${TILE_TONE.plain}`} title={rail}>
+            <b className="mr-1 flex-none text-[10px] uppercase opacity-70">Rail</b>
+            <span className="truncate">{rail.replace(/\.\s*$/, '')}</span>
+          </Chip>
+        )}
         <Chip>
           {race.runners.length} runners
-          {scratchedInRace > 0 && <span className="text-rose">&nbsp;({scratchedInRace} scratched)</span>}
+          {scratchedInRace > 0 && <span className="text-rose">&nbsp;({scratchedInRace} scr)</span>}
         </Chip>
-        {race.hasFirstStarter && <Chip className="border-amber-line bg-amber-bg text-amber">First starter in field</Chip>}
+        {race.hasFirstStarter && <Chip className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
       </div>
     </section>
   )
