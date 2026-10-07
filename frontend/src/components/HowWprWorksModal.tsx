@@ -69,7 +69,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
-            <li><span className="font-mono text-ink">4 / 6 WPR from top</span>: the dotted lines show runners within 4 and 6 WPR of the top projection. Inside 6 held about 78% of winners in testing.</li>
+            <li><span className="font-mono text-ink">3.5 / 5.4 WPR from top</span>: the dotted lines show runners within 3.5 and 5.4 WPR of the top projection (at today's weight). Inside 5.4 held about 80% of winners in testing.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
         </Section>

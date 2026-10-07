@@ -1,4 +1,4 @@
-import { projectedAtActualScale } from './atw'
+import { atwFieldByRunId, projectedAtActualScale } from './atw'
 import type { Race } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
 import { isVoid } from './wprVoid'
@@ -91,6 +91,8 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
   for (const race of races) {
     if (cutoff != null && new Date(race.date).getTime() < cutoff) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
+    // Rank and fair price on the same ATW scale the race page uses (offsets are frozen in the projection log; modelled where none was measured).
+    const field = atwFieldByRunId(race.runners)
     for (const r of race.runners) {
       if (r.projectedWpr == null || r.actualWpr == null) continue
       const live = loggedBeforeRace(race, r)
@@ -109,11 +111,11 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         predicted: projAtActual,
         actual: r.actualWpr,
         miss,
-        predictedRank: r.wprRank,
+        predictedRank: field.get(r.runId)?.rank ?? r.wprRank,
         actualRank: r.actualWprRank,
         finishPosition: r.finishPosition,
         won: r.won,
-        wprPrice: r.wprPrice,
+        wprPrice: field.get(r.runId)?.price ?? r.wprPrice,
         marketPrice: r.startingPrice ?? r.postRaceTopPrice,
         voided: voidResult.isVoid,
         voidReason: voidResult.reason,

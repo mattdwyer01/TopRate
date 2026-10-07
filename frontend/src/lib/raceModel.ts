@@ -39,7 +39,7 @@ export const SPEED_MAP_TINT_THRESHOLD = 0.5
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
 // since beyond that the exact number is meaningless.
-const PRICE_CAP = 999
+export const PRICE_CAP = 999
 
 // Backend's own fallback when config.json doesn't carry a beta (see
 // wpr_projection.py's get_price_beta) - practically never hit once
@@ -124,10 +124,11 @@ export function computeEffectiveRace(
   return result
 }
 
-// Gap lines on the Proj (WPR) scale, re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
-// inside 4 holds 3.3 runners a race and 64% of winners, inside 6 holds 4.8 and 78%.
-export const OUTER_GAP_FROM_TOP = 6
-export const INNER_GAP_FROM_TOP = 4
+// Gap lines on the Proj scale at today's weight (ATW), re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026) with modelled offsets:
+// 3.5 holds 3.6 runners a race and 64% of winners, 5.4 holds 5.2 and 80%. They are sized to hold as many runners as the old 4 / 6 lines did on the plain
+// scale (3.6 / 5.2 runners, 67% / 82% of winners); the plain scale captured about 3 points more winners at the same size.
+export const OUTER_GAP_FROM_TOP = 5.4
+export const INNER_GAP_FROM_TOP = 3.5
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.
