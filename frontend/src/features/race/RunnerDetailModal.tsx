@@ -322,8 +322,8 @@ export function RunnerDetailModal({
           </Card>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
-            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} />
-            <TimelineLegend />
+            <RunTimeline runner={runner} proj={effectiveWpr} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} atwOffset={runner.atwOffset} />
+            <TimelineLegend atwOffset={runner.atwOffset} weightKg={runner.weightCarried ?? null} projRaw={effectiveWpr} />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
             <ConditionsScorecard runner={runner} race={race} />
             <details className="mt-2 text-sm">
