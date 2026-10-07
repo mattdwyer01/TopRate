@@ -211,6 +211,12 @@ export function RunnerDetailModal({
             daysSince={spell.daysSince}
           />
 
+          {(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">
+              <ResultCard runner={runner} />
+            </div>
+          )}
+
           {/* Manual adjustment: a rarely used control, so a phone gets it as a one-line toggle (open when a value is set) */}
           <div className="rounded-lg border border-line bg-panel px-3 py-2 sm:hidden">
             <AdjustmentToggle active={deltaValue != null || baseValue != null}>
@@ -343,19 +349,6 @@ export function RunnerDetailModal({
               )}
               {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs a VIC, SA or QLD GPS course with barriers declared).</p>}
             </Card>
-
-            <Card title="Market" note="price against the model's fair price">
-              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
-            </Card>
-
-            <Card title="Result against projection" className={runner.resultKnown || runner.finishPosition != null ? '' : 'hidden sm:block'}>
-              <ResultCard runner={runner} />
-              {runner.missCategory === 'unexplained' && (
-                <div className="mt-2 border-t border-line-soft pt-2">
-                  <ResultVsProjection runner={runner} />
-                </div>
-              )}
-            </Card>
           </div>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
@@ -381,11 +374,26 @@ export function RunnerDetailModal({
               raceVenue={race.venue}
             />
             <div className="mt-3">
-              <Collapsible title="How today's shape suits this horse" defaultOpenWide>
+              <Collapsible title="How today's shape suits this horse" defaultOpenWide={false}>
                 <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
               </Collapsible>
             </div>
           </Card>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card title="Market" note="price against the model's fair price">
+              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
+            </Card>
+
+            <Card title="Result against projection" className="hidden sm:block">
+              <ResultCard runner={runner} />
+              {runner.missCategory === 'unexplained' && (
+                <div className="mt-2 border-t border-line-soft pt-2">
+                  <ResultVsProjection runner={runner} />
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
     </div>
