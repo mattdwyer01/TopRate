@@ -19,7 +19,10 @@ export function LiveVisionSettings() {
         const bad = value.trim() !== '' && !isStreamUrl(value)
         return (
           <label key={key} className="flex flex-col gap-1 text-xs text-ink-soft">
-            {label}
+            <span className="flex items-center gap-2">
+              {label}
+              {streams[key] && !bad && <span className="font-semibold text-emerald-deep">Saved</span>}
+            </span>
             <input
               type="url"
               inputMode="url"
@@ -28,7 +31,12 @@ export function LiveVisionSettings() {
               spellCheck={false}
               placeholder="https://.../index.m3u8"
               value={value}
-              onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value
+                setDrafts((d) => ({ ...d, [key]: v }))
+                // save as soon as the address is valid (a phone paste + closing Settings never blurs the box)
+                if (isStreamUrl(v)) setStream(key, v)
+              }}
               onBlur={() => {
                 const v = (drafts[key] ?? streams[key] ?? '').trim()
                 // an invalid address stays in the box with its error so it can be fixed; a valid or empty one is saved
