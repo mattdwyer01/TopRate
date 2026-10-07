@@ -4,7 +4,7 @@ import { computeCareerStats } from '../../lib/careerStats'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { adjClass, fmtAdj, spellWord } from './rowParts'
-import { WINNING_LINE_WINDOW, typicalSd } from './raceFacts'
+import { typicalSd } from './raceFacts'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -43,7 +43,6 @@ interface HeroProps {
   hasOverride: boolean
   spellLabel: string
   daysSince: number | null
-  winLine: number | null
 }
 
 // A likely range drawn against the whole field: the pale track is the field from lowest to highest projection, the bar is this horse's
@@ -81,7 +80,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, winLine }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince }: HeroProps) {
   const sd = typicalSd(runner, proj)
   const priorRuns = runner.formHistory.length
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
@@ -109,19 +108,6 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
             <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
             <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(proj)}</div>
-          )}
-          {proj != null && winLine != null && !scratched && (
-            <div
-              className="mt-1"
-              title={`The minimum winning standard for this race is ${fmtWpr(winLine)}. Over past races the winner was projected within ${WINNING_LINE_WINDOW} of this line about 58% of the time, with about 2.9 runners a race inside it.`}
-            >
-              <span
-                className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${winLine - proj <= WINNING_LINE_WINDOW ? 'border-emerald-line bg-emerald-tint text-emerald-deep' : 'border-line bg-bg text-ink-mute'}`}
-              >
-                {proj >= winLine ? `${(proj - winLine).toFixed(1)} above` : `${(winLine - proj).toFixed(1)} below`} the winning standard
-                {winLine - proj <= WINNING_LINE_WINDOW ? `, within ${WINNING_LINE_WINDOW}` : `, more than ${WINNING_LINE_WINDOW} out`}
-              </span>
-            </div>
           )}
           <p className="mt-1 text-xs text-ink-soft">
             {verdict}
@@ -388,7 +374,7 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
         )}
         {expectedWin != null && (
           <g>
-            <title>{`Minimum winning standard ${fmtWpr(expectedWin)}: about 2 in 3 winners have run this rating or better. It sits a little below the typical winning rating (what winners have actually run in past races, given this field's top, runner-up and average projection and its size), so most winners clear it.`}</title>
+            <title>{`Minimum winning standard ${fmtWpr(expectedWin)}: about 19 in 20 winners have run this rating or better. It sits well below the typical winning rating (what winners have actually run in past races, given this field's top, runner-up and average projection and its size), so almost every winner clears it.`}</title>
             <line x1={padL} x2={W - padR + 14} y1={Y(expectedWin)} y2={Y(expectedWin)} stroke="var(--color-amber)" strokeWidth={1.5} strokeDasharray="2 4" strokeLinecap="round" />
             <rect x={padL + 2} y={Y(expectedWin) - 19} width={150} height={16} rx={8} fill="var(--color-amber-bg)" stroke="var(--color-amber-line)" />
             <text x={padL + 77} y={Y(expectedWin) - 7.5} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--color-amber)">
@@ -444,7 +430,7 @@ export function TimelineLegend() {
       </span>
       <span>
         <span className="mr-1 inline-block w-4 border-t-2 border-dotted border-amber align-middle" />
-        minimum winning standard (about 2 in 3 winners reach it)
+        minimum winning standard (about 19 in 20 winners reach it)
       </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
     </div>

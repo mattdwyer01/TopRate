@@ -194,7 +194,6 @@ export function RunnerDetailModal({
             hasOverride={hasOverride}
             spellLabel={spell.label}
             daysSince={spell.daysSince}
-            winLine={expectedWinWpr}
           />
 
           {(runner.resultKnown || runner.finishPosition != null) && (
