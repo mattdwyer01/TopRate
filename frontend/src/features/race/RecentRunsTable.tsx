@@ -6,6 +6,7 @@ import type { TempoBucket } from '../../lib/pace'
 import { fetchMeetingFormHistory } from '../../lib/meetingFormHistory'
 import { replayUrl, useReplayCodes } from '../../lib/replay'
 import type { ReplayCodes } from '../../lib/replay'
+import { PlayIcon } from '../../components/PlayIcon'
 
 interface RecentRunsTableProps {
   horseName: string
@@ -122,9 +123,9 @@ function ReplayLink({ run, codes }: { run: FormRun; codes: ReplayCodes | null })
       rel="noopener noreferrer"
       title="Watch this run (Sky Racing replay)"
       aria-label={`Watch replay of the run on ${run.date}`}
-      className="ml-1 text-[10px] text-ink-faint hover:text-emerald-deep"
+      className="ml-1 inline-flex align-middle text-ink-faint hover:text-emerald-deep"
     >
-      &#9654;
+      <PlayIcon className="h-2.5 w-2.5" />
     </a>
   )
 }
