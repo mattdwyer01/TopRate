@@ -161,6 +161,12 @@ VENUE_ALIASES = {
     # TAB "MURRAY BRIDGE" is the provider's "Murray Bridge GH" (Gifford Hill; every provider date since Aug 2026 uses
     # the GH name). User report 3 Oct 2026: results, prices and times not updating.
     "MURRAY BRIDGE": "Murray Bridge GH",
+    # 7 Oct 2026: three of today's five meetings were silently skipped for results, conditions, prices and start times, because TAB's
+    # names differ from the provider's: TAB "MOUNT GAMBIER" vs "Mt Gambier", "RANDWICK KENSINGTON" (space, not the hyphen above) vs
+    # "Randwick", and "GOLD COAST POLY" (the synthetic track) vs "Gold Coast".
+    "MOUNT GAMBIER": "Mt Gambier",
+    "RANDWICK KENSINGTON": "Randwick",
+    "GOLD COAST POLY": "Gold Coast",
 }
 
 
