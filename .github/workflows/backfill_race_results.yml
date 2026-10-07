@@ -173,7 +173,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           pushed=false
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          for i in $(seq 1 20); do
             REFRESH=""
             if [ "${{ inputs.refresh_preliminary }}" = "true" ] || [ "${{ github.event_name }}" = "schedule" ]; then REFRESH="--refresh-preliminary"; fi
             python backfill_race_results.py --merge-only backfill_race_results.json --commit $REFRESH
@@ -184,20 +184,22 @@ jobs:
               break
             fi
             git commit -m "Backfill race results $(date -u +%Y-%m-%dT%H:%MZ)"
-            if timeout 90 git push; then
+            if timeout 180 git push; then
               echo "Pushed on attempt $i"
               pushed=true
               break
             fi
             echo "Push rejected or timed out (attempt $i) - replaying this commit onto the fresh base"
-            timeout 120 git fetch origin || echo "fetch timed out/failed, retrying loop anyway"
+            # 6 Oct 2026: a 120s fetch timed out on every attempt (each cycle brings in the ~30MB data and ~70MB history files the live poller
+            # rewrites every ~5 min), losing the whole run. Same fix as backfill_runner_history.yml: longer timeouts, only this branch, more attempts.
+            timeout 300 git fetch --no-tags origin "${{ github.ref_name }}" || echo "fetch timed out/failed, retrying loop anyway"
             # Cheap path first (Sep 2026): this commit only touches race_results_*.csv.gz / track_codes.csv /
             # the checkpoint, which nothing else writes, so a rebase onto the new tip is a pointer move - no
             # re-merge. The live-results poller commits every ~5 min, and a full re-merge of four year files took
             # long enough that all 12 attempts lost that race (25 Sep 2026). Fall back to reset + re-merge if the
             # rebase does not apply cleanly.
-            if timeout 120 git rebase "origin/${{ github.ref_name }}"; then
-              if timeout 90 git push; then
+            if timeout 180 git rebase "origin/${{ github.ref_name }}"; then
+              if timeout 180 git push; then
                 echo "Pushed on attempt $i (after rebase)"
                 pushed=true
                 break

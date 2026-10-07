@@ -24,6 +24,22 @@ function readTopTab(): TopTab {
   return t === 'review' ? t : 'race'
 }
 
+// The live poller only reads prices and results for races from 30 minutes ago to 2 hours ahead (tab_results_poller.py), so with none in that
+// window the payload does not change and its age says nothing about health. Returns undefined while a race is in the window (the normal
+// age colours apply), otherwise the next jump time (null when none is left today).
+const POLL_BEHIND_MS = 30 * 60_000
+const POLL_AHEAD_MS = 2 * 60 * 60_000
+function quietNextJump(races: { startTime: string }[], now: number): Date | null | undefined {
+  let next: number | null = null
+  for (const r of races) {
+    const t = new Date(r.startTime).getTime()
+    if (Number.isNaN(t)) continue
+    if (t >= now - POLL_BEHIND_MS && t <= now + POLL_AHEAD_MS) return undefined
+    if (t > now && (next == null || t < next)) next = t
+  }
+  return next == null ? null : new Date(next)
+}
+
 function App() {
   const { state, retry } = useDashboardData()
   const now = useNow()
@@ -177,6 +193,7 @@ function App() {
                 level={freshnessLevel(state.data.runIso, new Date(now))}
                 runIso={state.data.runIso}
                 now={now}
+                quietNext={quietNextJump(state.data.races, now)}
               />
             )}
             <button

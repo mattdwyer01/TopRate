@@ -19,9 +19,25 @@ interface FreshnessDotProps {
   level: FreshnessLevel
   runIso: string
   now: number
+  // Set when no race is within the poller's window (it reads prices and results only for races from 30 min ago to 2 h ahead), so the
+  // file legitimately stops changing: the age is not a fault. Holds the next jump time.
+  quietNext?: Date | null
 }
 
-export function FreshnessDot({ level, runIso, now }: FreshnessDotProps) {
+export function FreshnessDot({ level, runIso, now, quietNext }: FreshnessDotProps) {
+  if (quietNext !== undefined && level !== 'fresh') {
+    const at = quietNext ? quietNext.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null
+    const local0 = new Date(runIso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    return (
+      <div
+        className="flex items-center gap-1.5"
+        title={`Up to date. No race is within 2 hours, so prices and results are not polled and the data has not changed. Last change ${local0}.`}
+      >
+        <span className="h-2 w-2 flex-none rounded-full bg-emerald" />
+        <span className="hidden whitespace-nowrap font-mono text-xs text-ink-mute sm:inline">{at ? `quiet, next ${at}` : 'quiet, no more races'}</span>
+      </div>
+    )
+  }
   // The visible text is relative ("3m ago") so it's meaningful at a glance
   // without doing UTC-to-local arithmetic in your head; the full local
   // date/time (not the backend's raw UTC string) is still one hover away.
