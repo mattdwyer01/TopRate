@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
-// Live vision stream addresses (HLS .m3u8), entered by the user in Settings and kept ONLY in this browser's localStorage.
-// Nothing here ships with a stream address: the app is a public page, so any address in the code or repo would hand a
-// login-gated feed to everyone who opens it. Not part of the cross-device sync either, on purpose.
+// Live vision stream addresses (HLS .m3u8). Built-in defaults below (hard-coded at the owner's explicit request, Oct 2026, knowing
+// the app is a public page and these addresses are visible to anyone). A user can still override a channel in Settings (kept in this
+// browser's localStorage, not part of the cross-device sync).
 export type LiveChannel = 'sky1' | 'sky2' | 'tc'
 export const LIVE_CHANNELS: { key: LiveChannel; label: string }[] = [
   { key: 'sky1', label: 'Sky 1' },
@@ -10,6 +10,12 @@ export const LIVE_CHANNELS: { key: LiveChannel; label: string }[] = [
   { key: 'tc', label: 'Thoroughbred Central' },
 ]
 export type LiveStreams = Partial<Record<LiveChannel, string>>
+
+const DEFAULT_STREAMS: Record<LiveChannel, string> = {
+  sky1: 'https://skylivetab-new.akamaized.net/hls/live/2038780/sky1/index.m3u8',
+  sky2: 'https://skylivetab-new.akamaized.net/hls/live/2038781/sky2/index.m3u8',
+  tc: 'https://skylivetab-new.akamaized.net/hls/live/2038782/stcsd/index.m3u8',
+}
 
 const STORAGE_KEY = 'toprate_live_streams_v1'
 const EVENT = 'toprate-live-streams-changed'
@@ -24,15 +30,15 @@ export function isStreamUrl(s: string): boolean {
 }
 
 function read(): LiveStreams {
+  const out: LiveStreams = { ...DEFAULT_STREAMS }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     const obj = raw ? JSON.parse(raw) : {}
-    const out: LiveStreams = {}
     for (const { key } of LIVE_CHANNELS) if (typeof obj[key] === 'string' && isStreamUrl(obj[key])) out[key] = obj[key]
-    return out
   } catch {
-    return {}
+    // fall back to the defaults
   }
+  return out
 }
 
 export function useLiveStreams(): [LiveStreams, (channel: LiveChannel, url: string) => void] {
