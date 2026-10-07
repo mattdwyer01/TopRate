@@ -17,4 +17,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run probe
-        run: python -u sky_watch_probe.py 2>&1 | tee probe_output.txt
+        run: python -u m3u8_probe.py 2>&1 | tee probe_output.txt
