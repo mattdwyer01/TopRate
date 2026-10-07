@@ -15,6 +15,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
+import { Quaddie } from './features/race/Quaddie'
 import { ReviewTab } from './features/review/ReviewTab'
 
 type TopTab = 'race' | 'review'
@@ -300,11 +301,28 @@ function App() {
               onBack={() => pushUrlState({ date: urlState.date, raceId: null, runId: null })}
               onSelectRace={goToRace}
             />
+          ) : urlState.quaddie ? (
+            <Quaddie
+              key={`${urlState.date}-${urlState.quaddie}`}
+              meeting={state.data.races
+                .filter((r) => r.venue === urlState.quaddie && r.date === (urlState.date ?? todayIso()))
+                .sort((a, b) => a.raceNumber - b.raceNumber)}
+              priceBeta={betaOverride ?? state.data.priceBeta}
+              deltas={deltas}
+              bases={bases}
+              scratched={scratched}
+              onSelectRace={goToRace}
+              onBack={() => pushUrlState({ date: urlState.date, raceId: null, runId: null })}
+            />
           ) : (
             <MeetingsGrid
               races={state.data.races}
               date={urlState.date ?? todayIso()}
               onDateChange={(d) => pushUrlState({ date: d, raceId: null, runId: null })}
+              onOpenQuaddie={(venue) => {
+                window.scrollTo(0, 0)
+                pushUrlState({ date: urlState.date ?? todayIso(), raceId: null, runId: null, quaddie: venue })
+              }}
               onSelectRace={goToRace}
               showBush={showBush}
               onShowBushChange={setShowBush}

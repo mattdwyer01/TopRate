@@ -20,6 +20,8 @@ export interface RaceUrlState {
   // initial selection, not kept in sync while the modal is open/closed -
   // see App.tsx's key={race.raceId} on RaceDetail for why that's enough.
   runId: string | null
+  // Venue whose quaddie view is open (with date). Cleared by anything that opens a race.
+  quaddie?: string | null
 }
 
 function readFromLocation(): RaceUrlState {
@@ -29,6 +31,7 @@ function readFromLocation(): RaceUrlState {
     date: params.get('date'),
     raceId: params.get('race'),
     runId: params.get('run'),
+    quaddie: params.get('quaddie'),
   }
 }
 
@@ -38,6 +41,7 @@ function buildSearch(state: RaceUrlState): string {
   if (state.date) params.set('date', state.date)
   if (state.raceId) params.set('race', state.raceId)
   if (state.runId) params.set('run', state.runId)
+  if (state.quaddie) params.set('quaddie', state.quaddie)
   return `?${params.toString()}`
 }
 
