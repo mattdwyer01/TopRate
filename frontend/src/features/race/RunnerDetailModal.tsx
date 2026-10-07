@@ -343,19 +343,6 @@ export function RunnerDetailModal({
               )}
               {!tripRunner && <p className="mt-1 text-xs text-ink-faint">No trip forecast for this course (needs a VIC, SA or QLD GPS course with barriers declared).</p>}
             </Card>
-
-            <Card title="Market" note="price against the model's fair price">
-              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
-            </Card>
-
-            <Card title="Result against projection" className={runner.resultKnown || runner.finishPosition != null ? '' : 'hidden sm:block'}>
-              <ResultCard runner={runner} />
-              {runner.missCategory === 'unexplained' && (
-                <div className="mt-2 border-t border-line-soft pt-2">
-                  <ResultVsProjection runner={runner} />
-                </div>
-              )}
-            </Card>
           </div>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
@@ -386,6 +373,21 @@ export function RunnerDetailModal({
               </Collapsible>
             </div>
           </Card>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card title="Market" note="price against the model's fair price">
+              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
+            </Card>
+
+            <Card title="Result against projection" className={runner.resultKnown || runner.finishPosition != null ? '' : 'hidden sm:block'}>
+              <ResultCard runner={runner} />
+              {runner.missCategory === 'unexplained' && (
+                <div className="mt-2 border-t border-line-soft pt-2">
+                  <ResultVsProjection runner={runner} />
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
     </div>
