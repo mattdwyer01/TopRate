@@ -2343,9 +2343,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   runner with no price yet. Live price is `starting_price_sp`, else `fixed_win_price` (training used the starting price, so the live gain is somewhat
   smaller). Held-out main RMSE 9.0908 (139 features) -> 9.0597 (179), 2025-07+, same production settings, so about 0.3%: treat as a small refinement,
   not a new model. Out of the 40 features the chain `lad_r2..r9` is the ladder's recency base with drift, going, wide-run and lead-in credits and a
-  pre-spell trim, built without R3. `validate.py` leak check covers the new block (LEAK-FREE). Not re-tested: the suitability adjustment
-  (`suitability_model.txt`) was fitted against the OLD main model's residuals and may now partly double count the new settle/sectional features, and
-  its training script is not in the repo. `--fast` needs a cache built after this change (`run.py` exits with a message if `prk` is missing from
+  pre-spell trim, built without R3. `validate.py` leak check covers the new block (LEAK-FREE). Suitability adjustment re-tested 7 Oct 2026 (it was fitted on
+  the OLD main model's residuals, 2024-07 to about 12 Sep 2026, so only the last 3 weeks are out of sample for it): it still helps the new model and
+  is kept as is. Out of sample (8,529 runs from 13 Sep): RMSE 8.706 -> 8.673 with the new main (old main: 8.722 -> 8.681); residual-on-adj slope
+  1.37, so it is if anything under-sized, not double counted. Clean month-fold retrain of the same model type on each model's own residuals: gain
+  0.016 RMSE on the old main's residuals but 0.0099 (90% interval 0.0082 to 0.0117) on the new main's, so the new settle, sectional and
+  race-shape features absorbed about 40% of what it added. Not retrained (its training script is not in the repo; a retrain on the new residuals
+  would be expected to add little beyond the 0.0099). `--fast` needs a cache built after this change (`run.py` exits with a message if `prk` is missing from
   `cache/tables.pkl`); the daily full run rebuilds it. The projection full run is slower by the new feature build (not yet timed on a hosted runner).
 
 ## What to be careful about
