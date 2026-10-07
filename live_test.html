@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Live vision frame test</title>
+<style>
+  :root { --bg:#f6f7f9; --panel:#fff; --ink:#0f1729; --mute:#6b7280; --line:#e5e7eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b1020; --panel:#141b2e; --ink:#e8ecf5; --mute:#9aa4b8; --line:#26304a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif; padding:16px; }
+  main { max-width:760px; margin:0 auto; display:grid; gap:14px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:15px; margin:0 0 8px; }
+  p, li { color:var(--mute); margin:6px 0; } ul { padding-left:20px; margin:6px 0; }
+  b { color:var(--ink); }
+  button, a.btn { font:inherit; font-weight:600; border:0; border-radius:999px; background:var(--ink); color:var(--bg); padding:8px 16px; text-decoration:none; display:inline-block; cursor:pointer; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  iframe { width:100%; height:70vh; min-height:420px; border:1px solid var(--line); border-radius:10px; background:#000; margin-top:10px; display:block; }
+  .note { font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Live vision frame test</h1>
+    <p>A one-off check of whether TAB's live-vision page can be shown inside another page, and whether your TAB login carries across.
+       Nothing here reads, stores or sends your login. The frame is TAB's own page running in your own browser. Not linked from the dashboard.</p>
+    <p><b>Before you start:</b> log in to tab.com.au in this same browser (open it in another tab first and check you are logged in).</p>
+  </section>
+
+  <section>
+    <h2>Test 1: TAB live vision inside this page</h2>
+    <div class="row"><button id="go1" type="button">Load TAB live vision here</button>
+      <a class="btn" href="https://www.tab.com.au/racing/live-vision" target="_blank" rel="noopener">Open it in a new tab instead</a></div>
+    <div id="out1"></div>
+    <p class="note">What you see tells us the answer:</p>
+    <ul>
+      <li><b>TAB page, logged in, with a race or video:</b> framing works and your login carries. An integrated player is possible.</li>
+      <li><b>TAB page asking you to log in:</b> the page frames, but the browser blocks the login cookie inside a frame. Not workable on this device.</li>
+      <li><b>Blank, or a "refused to connect" message:</b> TAB blocks being framed. Not possible.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Test 2 (control): Sky Racing inside this page</h2>
+    <p>Expected blank, because Sky's site sends X-Frame-Options: DENY. Here only to confirm the test setup works.</p>
+    <div class="row"><button id="go2" type="button">Load Sky Racing here</button></div>
+    <div id="out2"></div>
+  </section>
+</main>
+<script>
+  function load(id, out, url) {
+    document.getElementById(id).addEventListener('click', function () {
+      var box = document.getElementById(out);
+      box.textContent = '';
+      var f = document.createElement('iframe');
+      f.src = url;
+      f.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+      f.setAttribute('allowfullscreen', '');
+      f.title = 'Frame test';
+      box.appendChild(f);
+    });
+  }
+  load('go1', 'out1', 'https://www.tab.com.au/racing/live-vision');
+  load('go2', 'out2', 'https://www.skyracing.com.au/');
+</script>
+</body>
+</html>
