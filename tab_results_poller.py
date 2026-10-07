@@ -1075,8 +1075,8 @@ def run_once(push=True):
         # The projections now come from the new model (projection/run.py), not from this recompute: ask GitHub to re-score from cache
         # (projection_daily.yml, mode=fast, about 4 min); the next rebuild after it pushes puts the new numbers in the payload.
         dispatch_projection_refresh(sorted(changed_venues))
-        runners_df = td.compute_wpr_projection(runners_df, target_date, target_venues=changed_venues)
-        print(f"  WPR recompute for {sorted(changed_venues)} took {time.time()-t0:.1f}s")
+        runners_df = td.compute_wpr_projection(runners_df, target_date, target_venues=changed_venues)   # re-applies the projection log only (old model retired)
+        print(f"  Projection re-applied for {sorted(changed_venues)} in {time.time()-t0:.1f}s")
 
     td.save_runners(runners_df)
     if n_result_rows:
