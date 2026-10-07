@@ -89,3 +89,27 @@ export function loadHls(): Promise<HlsStatic> {
   }
   return hlsPromise
 }
+
+// One-time setup link: opening <page>#live=<base64url of {"sky1":"https://...m3u8", ...}> saves those addresses in this browser and
+// removes the fragment from the address bar. The fragment is never sent to a server, and the link is shared privately (the addresses
+// are not in the code or repo). Only valid https .m3u8 addresses for the known channels are kept.
+export function importLiveStreamsFromHash(): void {
+  try {
+    const m = /^#live=([A-Za-z0-9_-]+)$/.exec(window.location.hash)
+    if (!m) return
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/')
+    const json = decodeURIComponent(escape(window.atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))))
+    const obj = JSON.parse(json)
+    const next = { ...read() }
+    for (const { key } of LIVE_CHANNELS) if (typeof obj[key] === 'string' && isStreamUrl(obj[key])) next[key] = obj[key].trim()
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  } catch {
+    // a malformed link is ignored
+  } finally {
+    try {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    } catch {
+      // ignore
+    }
+  }
+}
