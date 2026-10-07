@@ -104,6 +104,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     distanceWins: r.dw,
     distancePlaces: r.dp,
     wprAtDistance: r.wd,
+    atwOffset: r.atwo ?? null,
     goingBreakdown: toGoingBreakdown(r.gb),
     formString: r.fm,
     marginFinish: r.mgnL,

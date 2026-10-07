@@ -3457,6 +3457,37 @@ def _slugify_venue(venue):
     return s or "venue"
 
 
+def _compute_atw_offsets(fh):
+    """Per-horse ATW offset: how far the form feed's rating sits above the results files' rating for the same runs.
+
+    The form feed (wpr_form_history.csv.gz, what the dashboard's Recent runs table and form chart show) is ATW, each run's rating adjusted
+    to the weight carried in the horse's upcoming race. The results files (race_results_*.csv.gz, what the projection model trains on and
+    predicts) hold the plain WPR. For one scrape the gap is the same constant on every run of a horse (about -0.65 WPR per kg above 57.7kg), so
+    the median over the horse's runs that appear in both is its offset. Used by the frontend to draw the projection and the winning line on the
+    chart's own (ATW) scale. Only the horse's latest scrape is used (older scrapes carry an older weight); a horse needs 2 matched runs and a
+    consistent gap (std <= 0.6) or gets no offset and the chart stays as it was. Fail-safe: any error returns {} (no shift).
+    """
+    try:
+        files = sorted(Path(__file__).parent.glob("race_results_20*.csv.gz"))[-2:]
+        res = pd.concat([pd.read_csv(p, usecols=["horse_id", "date", "wpr"], low_memory=False) for p in files], ignore_index=True)
+        res["wpr"] = pd.to_numeric(res["wpr"], errors="coerce")
+        res["date"] = pd.to_datetime(res["date"], errors="coerce")
+        res["horse_id"] = pd.to_numeric(res["horse_id"], errors="coerce")
+        res = res.dropna(subset=["horse_id", "date", "wpr"]).drop_duplicates(["horse_id", "date"], keep="last")
+        f = fh[["horse_lc", "horse_id", "date", "wpr", "scrape_date"]].copy()
+        f["horse_id"] = pd.to_numeric(f["horse_id"], errors="coerce")
+        f = f[f["date"] >= res["date"].min()]
+        f = f[f["scrape_date"] == f.groupby("horse_lc")["scrape_date"].transform("max")]
+        m = f.merge(res, on=["horse_id", "date"], suffixes=("_form", "_res"))
+        m["d"] = m["wpr_form"] - m["wpr_res"]
+        g = m.groupby("horse_lc")["d"].agg(["median", "std", "count"])
+        g = g[(g["count"] >= 2) & (g["std"].fillna(0) <= 0.6)]
+        return {h: round(float(v), 1) for h, v in g["median"].items()}
+    except Exception as e:
+        print(f"  ATW offsets skipped: {e}")
+        return {}
+
+
 def build_horse_history_files(runners_df, full_runs_lookup):
     """Write horse_history/<date>_<venue-slug>.json, one per (date, venue)
     meeting in runners_df (already windowed to the same range as the RACES
@@ -3614,6 +3645,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _peak_run_lookup = {}
     _tend_lookup = {}
     _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
+    _atw_off_lookup = {}  # horse_lc -> ATW offset (see _compute_atw_offsets)
     try:
         if WPR_FORM_HISTORY_CSV.exists():
             _today_horses = set(
@@ -3660,6 +3692,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 _fh = _fh.sort_values("scrape_date", kind="stable")
             _fh = _fh.drop_duplicates(subset=_dedup_keys, keep="last")
             _fh = _fh.sort_values(["horse_lc", "date"])
+            if "scrape_date" in _fh.columns and "horse_id" in _fh.columns:
+                _atw_off_lookup = _compute_atw_offsets(_fh)
             # formAll derived columns - computed VECTORISED on the whole
             # frame ONCE, before the per-horse loop. The earlier version
             # used iterrows() over all ~90k rows, which was the rebuild
@@ -3901,6 +3935,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         _peak_run_lookup = {}
         _tend_lookup = {}
         _full_runs_lookup = {}
+        _atw_off_lookup = {}
 
     build_horse_history_files(runners_df, _full_runs_lookup)
 
@@ -4190,6 +4225,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "dw":   si(row.get("wins_at_dist")),
                 "dp":   si(row.get("places_at_dist")),
                 "wd":   sf(row.get("wpr_dist")),
+                # ATW offset (Oct 2026): form-feed rating minus results-file rating for this horse (see _compute_atw_offsets). The chart adds it
+                # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
+                "atwo": _atw_off_lookup.get(str(row.get("horse", "")).strip().lower()),
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")

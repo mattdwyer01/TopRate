@@ -70,6 +70,7 @@ export interface Runner {
   distanceWins: number | null
   distancePlaces: number | null
   wprAtDistance: number | null
+  atwOffset: number | null // add to a results-scale rating to put it on the ATW scale the recent runs and form chart use (the horse's weight today)
   goingBreakdown: GoingBreakdown[]
   formString: string | null
   marginFinish: number | null

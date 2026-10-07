@@ -298,7 +298,7 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
 // The projection for today sits at the right with its likely range, and the dotted line is the minimum winning standard for
 // this race: the expected winning rating (raceFacts.expectedWinningWpr) less MIN_WINNING_STANDARD_OFFSET, so a horse's runs read against what it takes to win. Drawn at the container's own width so
 // the text stays crisp and the chart fills the card.
-export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: Runner; proj: number | null; raceDate: string; expectedWin: number | null }) {
+export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winRaw, atwOffset }: { runner: Runner; proj: number | null; raceDate: string; expectedWin: number | null; atwOffset: number | null }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -309,7 +309,12 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
     setWidth(Math.max(300, Math.round(el.clientWidth)))
     return () => ro.disconnect()
   }, [])
-  const sd = typicalSd(runner, proj)
+  const sd = typicalSd(runner, projRaw)
+  // The runs are ATW (each rating adjusted to the weight carried today), the projection and winning line are plain WPR, so both are shifted by
+  // the horse's own ATW offset to sit on the same scale as the runs. No offset known (older payload, too little history): drawn as before.
+  const off = atwOffset ?? 0
+  const proj = projRaw != null ? projRaw + off : null
+  const expectedWin = winRaw != null ? winRaw + off : null
   const dots = useMemo(() => {
     const byDate = new Map<string, Runner['recentRuns'][number]>()
     for (const r of runner.recentRuns) if (r.date) byDate.set(r.date.slice(0, 10), r)
@@ -409,7 +414,8 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
   )
 }
 
-export function TimelineLegend() {
+export function TimelineLegend({ atwOffset, weightKg, projRaw }: { atwOffset: number | null; weightKg: number | null; projRaw: number | null }) {
+  const shifted = atwOffset != null && Math.abs(atwOffset) >= 0.05
   return (
     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-mute">
       <span>
@@ -433,6 +439,12 @@ export function TimelineLegend() {
         minimum winning standard (about 19 in 20 winners reach it)
       </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
+      {shifted && (
+        <span className="basis-full">
+          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)` : ''}. The projection dot and winning line are moved {atwOffset > 0 ? '+' : ''}
+          {atwOffset.toFixed(1)} to match the runs{projRaw != null ? `, so the dot reads ${fmtWpr(projRaw + atwOffset)} here against ${fmtWpr(projRaw)} in the summary` : ''}.
+        </span>
+      )}
     </div>
   )
 }
