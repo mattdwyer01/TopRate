@@ -205,6 +205,11 @@ export function RunnerDetailModal({
             projAtw={projAtw}
           />
 
+          {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+              Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
+            </div>
+          )}
           {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projAtw ?? effectiveWpr} />}
 
           {(runner.resultKnown || runner.finishPosition != null) && (

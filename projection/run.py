@@ -64,6 +64,31 @@ def group_of(feat):
     return 'form'
 
 
+# Runners whose jockey is not declared yet have every jockey feature at its "never seen" value (effect 0 on 0 rides, no jockey change), which the
+# model learned to read as an obscure rider: on the 8 Oct live set blank-jockey runners carried a connections step of -3.5 WPR against +0.2 for the
+# declared ones (Lady Shenandoah, Waller, 13th of 15 off 100-rated form). An undeclared jockey is unknown, not poor, so the main model's jockey features are
+# set to typical values (an average jockey, no change of rider) until the jockey is declared. Blanking a random half of the declared jockeys on the 8 Oct
+# live set: main-model shift -3.70 (rmse 3.84) without the fix, -0.02 (rmse 1.02) with it. The light model is left alone (shift -0.35 without the fix, +0.42 with).
+JOCKEY_MAIN = ['jock_eff', 'jock_eff_n', 'jd_eff', 'jd_eff_n', 'jt_eff', 'jt_eff_n', 'jock_form', 'jock_form_n', 'jh_n']
+IMPUTE_BLANK_JOCKEY = True
+
+
+def impute_blank_jockey(R):
+    """Replaces the jockey features of runners with no declared jockey by typical values (models/jockey_impute.json, medians over the declared runners
+    of a live scoring pass; falls back to the declared runners of this pass). Returns the blank mask."""
+    blank = R.jockey.isna().values
+    if not IMPUTE_BLANK_JOCKEY or not blank.any():
+        return blank
+    path = os.path.join(M, 'jockey_impute.json')
+    med = json.load(open(path)) if os.path.exists(path) else {c: R.loc[~blank, c].median() for c in JOCKEY_MAIN if c in R.columns and (~blank).sum() >= 20}
+    for c, v in med.items():
+        if c in R.columns and pd.notna(v):
+            R.loc[blank, c] = v
+    if 'jock_chg' in R.columns:
+        R.loc[blank, 'jock_chg'] = 0.0
+    return blank
+
+
 def calibrate(R, cal):
     """Post-hoc calibration measured on the log's 44,297 out-of-sample projections (1 Jul to 5 Oct 2026, fit Jul-Aug, checked Sep-Oct; models/calibration.json):
     the main model under-projects the top of the range (actual above projected by about 0.12 WPR per point above 85) and the light-history model runs low by
@@ -162,6 +187,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     R['sex'] = pd.Categorical(R.horse_sex, categories=levels['sex'])
     R = R[tg.values].copy()
     R = R.merge(T[['race_id', 'horse_id', 'run_id']], on=['race_id', 'horse_id'], how='left')
+    impute_blank_jockey(R)
 
     # ---- main model
     boosters = [booster(os.path.join(M, f'main_seed{i}.txt.gz')) for i in range(1, 6)]
