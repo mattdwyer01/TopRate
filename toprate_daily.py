@@ -3217,7 +3217,93 @@ def _write_payload(data, out_dir):
                      json.dumps({**data, "RACES": current, "HISTORY_ISO": iso}, separators=(",", ":")))
 
 
-def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None, start_time_updates=None):
+def projection_stale():
+    """True when the projection log holds a projection made after the newest one applied to toprate_runners.csv (its wprp_made column).
+    Cheap (the log is small and only one CSV column is read), so tab_results_poller.py checks it every cycle: projection_daily.yml commits
+    the log but nothing else carries it into the payload between full rebuilds."""
+    try:
+        from projection import projlog
+        lg = projlog.load()
+        if lg.empty or "made" not in lg.columns:
+            return False
+        if not RUNNERS_CSV.exists():
+            return False
+        head = pd.read_csv(RUNNERS_CSV, nrows=0).columns
+        if "wprp_made" not in head:
+            return True
+        cur = pd.read_csv(RUNNERS_CSV, usecols=["run_id", "wprp_made"], dtype=str)
+        # only log rows for runners in the live file count (the log also holds runners that are no longer in it, which would
+        # keep this true forever)
+        ids = set(pd.to_numeric(cur["run_id"], errors="coerce").dropna().astype("int64"))
+        lg = lg[lg["run_id"].isin(ids)]
+        if lg.empty:
+            return False
+        applied = cur["wprp_made"].dropna()
+        return len(applied) == 0 or str(lg["made"].dropna().astype(str).max()) > str(applied.max())
+    except Exception as e:
+        print(f"  projection_stale check failed ({e}); not refreshing")
+        return False
+
+
+def refresh_projection(runners_df):
+    """Re-apply the projection log to runners_df (every wprp_* projection column, fair price and rank), then recompute the edge columns for
+    today and later only (past dates keep theirs). Returns the updated frame."""
+    runners_df = apply_new_projection(runners_df, recompute_edges=False)
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        dates = runners_df["date"].astype(str).str[:10]
+        for d in sorted(dates[dates >= today].unique()):
+            runners_df = compute_edge_score(runners_df, d)
+    except Exception as e:
+        print(f"  Edge recompute after projection refresh skipped ({e})")
+    return runners_df
+
+
+# payload key -> (runners column, kind) for the projection fields a refresh rewrites (same mapping as rebuild_html's runner dict)
+_PROJ_PAYLOAD_FIELDS = {
+    "wpjp": ("wprp_proj", "f"), "wpjsd": ("wprp_sd", "f"), "wpjm": ("wprp_model", "s"), "wpjb": ("wprp_base", "f"), "wpjadj": ("wprp_adj", "f"),
+    "wpjcb": ("wprp_contrib", "j"), "wpjc": ("wprp_conf", "i"), "wpjpr": ("wprp_price", "f"), "wpjr": ("wprp_rank", "i"),
+    "wpjbp": ("wprp_blend_prob", "f"), "wpjbr": ("wprp_blend_rank", "i"), "wpjbpr": ("wprp_blend_price", "f"),
+    "wpje": ("wprp_edge", "f"), "wpjep": ("wprp_edge_prob", "f"), "wpjem": ("wprp_edge_mkt_prob", "f"), "wpjd": ("wprp_desc", "s"),
+}
+
+
+def _proj_payload_value(v, kind):
+    if kind in ("f", "i"):
+        try:
+            f = float(v)
+        except Exception:
+            return None
+        if math.isnan(f):
+            return None
+        return round(f, 3) if kind == "f" else int(f)
+    if v is None or (isinstance(v, float) and math.isnan(v)) or str(v) in ("", "nan", "None"):
+        return None
+    if kind == "j":
+        if isinstance(v, dict):
+            return v
+        try:
+            return json.loads(v)
+        except Exception:
+            return None
+    return str(v)
+
+
+def _patch_projection_fields(race_list, proj_rows):
+    """Rewrite the projection fields of every runner in race_list that has a row in proj_rows (run_id -> row). Returns how many changed."""
+    n = 0
+    for race in race_list:
+        for run in race.get("runners") or []:
+            row = proj_rows.get(run.get("rid"))
+            if row is None:
+                continue
+            for key, (col, kind) in _PROJ_PAYLOAD_FIELDS.items():
+                run[key] = _proj_payload_value(row.get(col), kind)
+            n += 1
+    return n
+
+
+def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None, start_time_updates=None, proj_df=None):
     """Lightweight, fast alternative to --rebuild-only for a cycle that only
     touched fixed_win_price/finish_position/won/scratched (TAB's live
     prices + fast results, see tab_results_poller.py) - NOT going/
@@ -3259,7 +3345,7 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     # start_time_updates: race_id -> start_time (TAB moved the race, tab_results_poller.apply_start_times)
     start_time_updates = {str(k): v for k, v in (start_time_updates or {}).items()}
     touched = set(price_updates) | set(result_updates) | set(scratch_updates)
-    if not touched and not start_time_updates:
+    if not touched and not start_time_updates and proj_df is None:
         return True
 
     data_path = OUTPUT_HTML.parent / "toprate_data.json"
@@ -3342,6 +3428,16 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
         print(f"  patch_data_json: {len(remaining)} touched runner(s) not found in current "
               f"payload, falling back to full rebuild")
         return False
+
+    if proj_df is not None:
+        # projection_daily.yml committed a newer projection log: carry it into the runners in this file (today and later;
+        # earlier days are in the history file and keep the projection they were made with)
+        cols = [col for col, _ in _PROJ_PAYLOAD_FIELDS.values()]
+        sub = proj_df[["run_id"] + [c for c in cols if c in proj_df.columns]].copy()
+        sub["run_id"] = sub["run_id"].astype(str)
+        rows = {r["run_id"]: r for r in sub.to_dict("records")}
+        n_proj = _patch_projection_fields(races, rows)
+        print(f"  patch_data_json: refreshed the projection on {n_proj} runner(s)")
 
     now_utc = datetime.now(timezone.utc)
     data["RUN_ISO"] = now_utc.isoformat()
