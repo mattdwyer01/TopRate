@@ -41,6 +41,8 @@ export function groupIntoMeetings(races: Race[], date: string): Meeting[] {
 }
 
 export function isBushMeeting(meeting: Meeting): boolean {
+  // No prize data at all means unknown, not bush: never hide a meeting on missing data.
+  if (!meeting.races.some((r) => r.prizeMoney != null)) return false
   return meeting.topRacePrizeMoney <= BUSH_TRACK_THRESHOLD
 }
 
@@ -57,8 +59,9 @@ export function meetingKey(race: Race): string {
 export function bushMeetingKeys(races: Race[]): Set<string> {
   const topPrizeByMeeting = new Map<string, number>()
   for (const race of races) {
+    if (race.prizeMoney == null) continue // unknown prize: never counts a meeting as bush
     const key = meetingKey(race)
-    const prize = race.prizeMoney ?? 0
+    const prize = race.prizeMoney
     topPrizeByMeeting.set(key, Math.max(topPrizeByMeeting.get(key) ?? 0, prize))
   }
   const bush = new Set<string>()

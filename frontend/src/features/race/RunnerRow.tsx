@@ -35,7 +35,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
           onClick()
         }
       }}
-      title={f.marketNote}
       className={`group grid min-w-full cursor-pointer items-center gap-x-1.5 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${BAND_BORDER[band]} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
@@ -74,7 +73,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         )}
       </span>
       <span className={`text-right font-mono ${smClass(effective?.speedMapAdj)}`}>{f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}</span>
-      <span className={`text-right font-mono text-ink-mute`} title="Fair price from the projection (softmax over the field)">
+      <span className="text-right font-mono text-ink-mute" title="Fair price from the projection: the price the model would pay, not a market price">
         {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? runner.wprPrice)}
       </span>
       <span className="text-right text-ink-mute">

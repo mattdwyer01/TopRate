@@ -2361,6 +2361,18 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   are no-wrap and tighter (about 25px, were about 60px from Pos/Going/peak wrapping); separator `colSpan` fixed 17 to 21. Verified in
   Chromium on real data at 390/1000/1300px, no overflow.
 
+- **Dashboard review fixes (7 Oct 2026)**: deep links to older races now wait for the history file (`historyPending` in `useDashboardData`);
+  polls with an unchanged `RUN_ISO` no longer re-render; header gained a refresh button, a "?" help button (column glossary in
+  `HowWprWorksModal`) and an Offline state in `FreshnessDot`; `document.title` follows the race. Meetings with no prize data are no longer
+  treated as bush. Settings beta box no longer clamps mid-keystroke; Fetch data no longer falls back to the first workflow. Gist sync no longer
+  carries strategy picks or density. Review tab: "Live-logged (since 6 Oct)" period (`LIVE_LOGGING_START`), Wilson 95% ranges and small-sample
+  flags on strike rates, an "Against the market" card (model #1 vs favourite), a win-probability reliability table, breakdown filters now narrow
+  the headline stats. Meetings grid: previous/next day, a clearer empty state, a "clearest standouts" list (separation only, not a tip).
+  Removed: Signal watch (it used the old edge/value signal), `strategyPicks`, `jtComboStrategy`, `FormLine`, overlay/value fields in `raceModel`,
+  Combo naming (`compositeScore` is gone; gap lines are `INNER_GAP_FROM_TOP`/`OUTER_GAP_FROM_TOP` = 4/6). First reading of the new market card
+  (90 days): model #1 33.0% vs market favourite 38.5% on 851 races, so the model does not beat the favourite at picking winners.
+  Runner comparison added (`RunnerCompare.tsx`, "Compare runners" pill on the race page, 2 to 6 runners). The grid date now lives in the URL (`?date=`). Review tab also has a week-by-week model-vs-favourite trend and a day-by-day race review (`features/review/DayReview.tsx`, `lib/dayResults.ts`; favourite price falls back to the last fixed price for same-day races). Compare mode takes up to 6 runners, has Top 4 / inside-4 / inside-6 shortcuts and stays on for the browser session. Multi-race view (`MultiRace.tsx`, "4 races side by side" pill on the race page): four consecutive races at a meeting with each projection ladder and the count of runners inside the 4 and 6 lines (counts and their product only, not selections; runners outside the 6 line with SM Adj of +0.5 or better are added as a third row, and each race lists its pool with Proj, gap and SM). Not built: a payload marker for live-vs-backfilled rows (the Review cutoff is a constant).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

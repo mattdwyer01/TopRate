@@ -84,6 +84,14 @@ export function SettingsModal({
     onSetBetaOverride(clamped)
   }
 
+  // The number box edits free text and only commits a valid value, so typing "0" on the way to "0.15" is not clamped mid-keystroke.
+  const [typed, setTyped] = useState<string | null>(null)
+  function onTyped(raw: string) {
+    setTyped(raw)
+    const v = Number(raw)
+    if (raw.trim() !== '' && Number.isFinite(v) && v >= MIN_BETA && v <= MAX_BETA) commit(v)
+  }
+
   function updateCfg(patch: Partial<typeof cfg>) {
     const next = { ...cfg, ...patch }
     setCfg(next)
@@ -175,7 +183,10 @@ export function SettingsModal({
               max={MAX_BETA}
               step={STEP}
               value={draft}
-              onChange={(e) => commit(Number(e.target.value))}
+              onChange={(e) => {
+                setTyped(null)
+                commit(Number(e.target.value))
+              }}
               className="w-full accent-emerald"
             />
 
@@ -187,8 +198,9 @@ export function SettingsModal({
                   min={MIN_BETA}
                   max={MAX_BETA}
                   step={STEP}
-                  value={draft}
-                  onChange={(e) => commit(Number(e.target.value))}
+                  value={typed ?? draft}
+                  onChange={(e) => onTyped(e.target.value)}
+                  onBlur={() => setTyped(null)}
                   className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
                 />
               </label>
@@ -306,8 +318,7 @@ export function SettingsModal({
             <p className="text-xs text-ink-mute">
               Permanently hide specific venues from the meetings grid and the next-to-jump ticker (separate from the
               "Hide bush meetings" toggle, which is automatic and based on prize money) - useful for a venue you
-              never want to see regardless of its race quality. Hidden venues stay fully visible in search, Review
-              and Trackers.
+              never want to see regardless of its race quality. Hidden venues stay fully visible in search and Review.
             </p>
             {hiddenList.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -360,7 +371,7 @@ export function SettingsModal({
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Cross-device sync</span>
             <p className="text-xs text-ink-mute">
-              Syncs manual WPR overrides, view preferences, and tracked Strategy picks between devices via a
+              Syncs manual WPR overrides, and view preferences between devices via a
               private Gist. Create one on your first device, then paste the same Gist ID on the others.
             </p>
             <label className="flex items-center gap-2 text-xs text-ink-soft">
