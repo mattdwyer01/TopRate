@@ -2371,7 +2371,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   Removed: Signal watch (it used the old edge/value signal), `strategyPicks`, `jtComboStrategy`, `FormLine`, overlay/value fields in `raceModel`,
   Combo naming (`compositeScore` is gone; gap lines are `INNER_GAP_FROM_TOP`/`OUTER_GAP_FROM_TOP` = 4/6). First reading of the new market card
   (90 days): model #1 33.0% vs market favourite 38.5% on 851 races, so the model does not beat the favourite at picking winners.
-  Not built: side-by-side runner comparison, URL-synced grid date, a payload marker for live-vs-backfilled rows (the Review cutoff is a constant).
+  Runner comparison added (`RunnerCompare.tsx`, "Compare runners" pill on the race page, 2 to 4 runners). Not built: URL-synced grid date, a payload marker for live-vs-backfilled rows (the Review cutoff is a constant).
 
 ## What to be careful about
 

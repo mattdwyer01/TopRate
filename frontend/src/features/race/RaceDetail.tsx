@@ -8,6 +8,7 @@ import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { RaceLadder, RaceSummaryLine } from './RaceGlance'
+import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, ROW_GRID } from './RunnerRow'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
@@ -81,6 +82,9 @@ export function RaceDetail({
   const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
+  // Compare mode: clicking rows picks up to 4 runners for a side-by-side table instead of opening the detail panel.
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareIds, setCompareIds] = useState<string[]>([])
   const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const tripMap = useTripMap()
@@ -168,10 +172,12 @@ export function RaceDetail({
     return {
       runner,
       raceDate: race.date,
-      selected: runner.runId === selectedRunId,
+      selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
-      onClick: () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
+      onClick: compareMode
+        ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= 4 ? ids : [...ids, runner.runId]))
+        : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
     }
   }
 
@@ -209,6 +215,15 @@ export function RaceDetail({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Runners</h3>
           <div className="flex flex-wrap items-center gap-2">
+            <Pill
+              active={compareMode}
+              onClick={() => {
+                setCompareMode(!compareMode)
+                setSelectedRunId(null)
+              }}
+            >
+              {compareMode ? `Comparing (${compareIds.length}/4)` : 'Compare runners'}
+            </Pill>
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
           </div>
         </div>
@@ -241,7 +256,25 @@ export function RaceDetail({
             </Fragment>
           ))}
         </div>
+        {compareMode && compareIds.length < 2 && (
+          <p className="text-xs text-ink-faint">Compare mode: tap 2 to 4 runners above to see them side by side.</p>
+        )}
       </section>
+
+      {compareMode && compareIds.length >= 2 && (
+        <RunnerCompare
+          race={race}
+          runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
+          effectiveByRunId={effectiveByRunId}
+          gapByRunId={gapByRunId}
+          onRemove={(id) => setCompareIds((ids) => ids.filter((x) => x !== id))}
+          onOpen={(id) => {
+            setCompareMode(false)
+            setSelectedRunId(id)
+          }}
+          onClear={() => setCompareIds([])}
+        />
+      )}
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
