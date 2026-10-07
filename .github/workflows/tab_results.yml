@@ -138,10 +138,6 @@ jobs:
             # Per-meeting horse form history files - only touched on the rare full-rebuild path (a real going
             # change forces rebuild_html()), but git-tracked (Sep 2026 bug, see daily.yml).
             [ -d horse_history ] && git add horse_history
-            # speedmap_jockey_tracker.py's reconcile rewrites these on every active cycle (2026-09-17 fix: they
-            # were never staged here and the next checkout discarded them).
-            [ -f tracker_high_volume.csv ] && git add tracker_high_volume.csv
-            [ -f tracker_low_volume.csv ] && git add tracker_low_volume.csv
             # TAB dividends per race, all pools (tab_dividends.py, Oct 2026)
             [ -f tab_dividends.csv ] && git add tab_dividends.csv
             # Betting rules log (bet_log.py, Oct 2026): bets frozen before the jump, settled on real dividends

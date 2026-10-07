@@ -115,7 +115,6 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps schema identical
-import speedmap_jockey_tracker as sjt  # reconcile tracker CSVs on the fast cycle too, see run_once()
 import bet_log  # betting rules: bets frozen before the jump, settled on real dividends (bets_log.csv / .json)
 import tab_dividends  # TAB dividends per race, all pools incl. quaddies (racing-model exotics tests)
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
@@ -919,10 +918,10 @@ def rebuild_data_json():
 
 
 def commit_and_push():
-    """Commit + push toprate_runners.csv/toprate_data.json (and the tracker
-    CSVs, now that run_once() can rewrite them too - see sjt.main() call
-    above), same way price_refresh.yml does: pull --rebase first, retry a
-    few times, take theirs on conflicts in generated files (never code)."""
+    """Commit + push toprate_runners.csv/toprate_data.json (and the other
+    generated payload files), same way price_refresh.yml does: pull --rebase
+    first, retry a few times, take theirs on conflicts in generated files
+    (never code)."""
     status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
     if not status.stdout.strip():
         print("  No changes to commit")
@@ -931,11 +930,6 @@ def commit_and_push():
     tracked = ["toprate_runners.csv", "toprate_data.json"]
     tracked += [f for f in ("toprate_data.json.gz", "toprate_history.json", "toprate_history.json.gz",
                             "toprate_runners_archive.csv.gz")
-                if Path(f).exists()]
-    # Only add these if they actually exist -- a fresh checkout before
-    # daily.yml/speedmap_jockey_tracker.py has ever written them would make
-    # `git add` fail on a missing pathspec and abort the whole commit.
-    tracked += [f for f in (str(sjt.TRACKER_A_CSV.name), str(sjt.TRACKER_B_CSV.name))
                 if Path(f).exists()]
     subprocess.run(["git", "add", *tracked], check=True)
     subprocess.run(["git", "commit", "-m",
@@ -1088,41 +1082,6 @@ def run_once(push=True):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
-
-    # speedmap_jockey_tracker.py's own reconcile/capture (main()) otherwise
-    # only runs on daily.yml's fixed daytime slots (hours apart during
-    # racing hours, see CLAUDE.md). Two distinct gaps that leaves:
-    #   1. RECONCILE lag - a pick whose horse resulted (including via the
-    #      "assume unplaced" rule above) sat showing "pending" on the
-    #      Trackers/Summary tab until the next slot, sometimes hours later
-    #      (real user report, Coco Dior, 2026-09-17). Fixed first by only
-    #      running this when n_result_rows > 0.
-    #   2. CAPTURE lag - a runner that only becomes newly solo-qualifying
-    #      partway through the day (e.g. a rival's own WPR gap drifts past
-    #      GAP_MAX as projections refine, same mechanism as the Albert
-    #      Palais/Hozumi case worked through 2026-09-17) can have its whole
-    #      qualifying window open and close between two daily.yml slots,
-    #      permanently missing the durable CSV log even though the live
-    #      Race tab already shows it via lib/trackerRules.ts's
-    #      liveTrackerCandidates(). Fixed by running this on every cycle
-    #      that did ANY work (results/conditions/prices/scratches), not
-    #      just a result-writing one - real user feedback (2026-09-17,
-    #      "then the tracker should be updated" - capture more often was
-    #      the confirmed intent, not re-evaluating an already-logged pick).
-    # toprate_data.json is ~85MB, so this is a real, deliberate per-cycle
-    # cost, not free - accepted because a plain price cycle already reads/
-    # writes that same file once via patch_data_json_safe() above, and the
-    # self-hosted runner has room under tab_results.yml's 15-min timeout.
-    # A genuinely no-op cycle (nothing at all changed) already returned
-    # above, before this point, so this doesn't run on those.
-    # Read-only against toprate_data.json/toprate_runners.csv, writes only
-    # its own two tracker CSVs (see its own module docstring) - best-effort,
-    # like compute_wpr_projection() above, so a bug in it never takes down
-    # the rest of this cycle.
-    try:
-        sjt.main()
-    except Exception as e:
-        print(f"  speedmap_jockey_tracker reconcile/capture failed (non-fatal): {type(e).__name__}: {e}")
 
     if push:
         commit_and_push()

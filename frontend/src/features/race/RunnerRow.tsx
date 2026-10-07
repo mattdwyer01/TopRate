@@ -18,10 +18,6 @@ export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_1
 export function RunnerRow({ runner, raceDate, selected, effective, band, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
-  const overlayPct =
-    effective?.isOverlay && runner.fixedWinPrice != null && effective.effectivePrice != null
-      ? Math.round((runner.fixedWinPrice / effective.effectivePrice - 1) * 100)
-      : null
   return (
     <div
       role="button"
@@ -49,12 +45,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
               light
             </span>
           )}
-          {effective?.isOverlay && !f.scratched && !effective.driftedToOverlay && (
-            <span className="flex-none rounded bg-emerald-bg px-1 text-[10px] font-semibold text-emerald-deep" title="Market price vs the model's fair price">
-              OVERLAY{overlayPct != null ? ` +${overlayPct}%` : ''}
-            </span>
-          )}
-          {effective?.driftedToOverlay && !f.scratched && <span className="flex-none text-[10px] font-semibold text-amber">DRIFTED</span>}
         </span>
         <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey}${ratingSuffix(runner.jockeyRating)} / ${runner.trainer}${ratingSuffix(runner.trainerRating)}`}>
           {[

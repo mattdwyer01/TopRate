@@ -11,6 +11,7 @@ Files that nothing live depends on any more. Moved here (with `git mv`, so histo
 | `probes/` | Field probes and ad-hoc checks. |
 | `tools/` | Misc helpers (`_typecheck.py`). |
 | `workflows/` | Disabled or one-off workflows: the unused root `daily.yml`, the disabled `toprate_daily.yml`, `joint_model_kfold_eval.yml`, `settle_shape_check.yml`. To bring one back, copy it to `.github/workflows/`. |
+| `trackers/` | The High Volume / Low Volume speed-map and jockey trackers retired 7 Oct 2026: `speedmap_jockey_tracker.py`, `tracker_history_cleanup.py` and their two CSV logs. The jobs were removed from `daily.yml`, `tab_results.yml` and `tab_results_poller.py`. Scripts in `analysis/` that import the tracker need `archive/trackers` on `PYTHONPATH`. |
 | `frontend/` | Components no longer reachable from `main.tsx`: the Trackers tab (`TrackersTab.tsx`, `trackerRules.ts`), `PriceMovementChart.tsx`, `density.ts`. |
 
 ## Running an archived script

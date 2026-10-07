@@ -3647,7 +3647,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # uncapped per-meeting export (rebuild_html's caller) - same
             # shape either way, so the frontend's toFormRun() mapper works
             # unmodified on both sources.
-            def _run_record(_r, _peak_wpr):
+            def _run_record(_r, _peak_wpr, _extra=False):
                 _w = float(_r["wpr"])
                 # NOTE on sectionals - two different things, both kept:
                 #  - se/sm/sl  = raceShapeEarly/Mid/Late: the RACE-WIDE
@@ -3656,7 +3656,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 #    THIS HORSE's own early/mid/late sectional figures.
                 # Keeping both lets the panel show the horse's run and
                 # (future work) compare it against the race shape.
-                return {
+                _rec = {
                     "d":  str(_r["date"].date()),
                     "trk": str(_r.get("track", "")) if _r.get("track") else "",
                     "dist": int(_r["distance"]) if pd.notna(_r.get("distance")) else None,
@@ -3693,6 +3693,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     # run just to carry that one extra derived value.
                     "fs": int(_r["field_size"]) if pd.notna(_r.get("field_size")) else None,
                 }
+                if _extra:
+                    # Weight carried and starting price per run (Oct 2026): only on the
+                    # uncapped horse_history/ export, NOT the embedded payload, whose
+                    # history file is already close to GitHub's 100MB limit.
+                    _wt = pd.to_numeric(_r.get("weightCarried"), errors="coerce")
+                    _sp = pd.to_numeric(_r.get("priceStarting"), errors="coerce")
+                    _rec["wt"] = round(float(_wt), 1) if pd.notna(_wt) and 40 <= _wt <= 80 else None
+                    _rec["sp"] = round(float(_sp), 2) if pd.notna(_sp) and _sp > 1 else None
+                return _rec
 
             for _hlc, _g in _fh.groupby("horse_lc"):
                 _last = _g.tail(_FORM_RUNS_SHOWN)
@@ -3713,7 +3722,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # build_horse_history_files() below, never the embedded
                 # payload (which stays capped at _FORM_RUNS_SHOWN).
                 _full_runs_lookup[_hlc] = [
-                    _run_record(_r, _peak_wpr) for _, _r in _g.iloc[::-1].iterrows()  # newest first
+                    _run_record(_r, _peak_wpr, _extra=True) for _, _r in _g.iloc[::-1].iterrows()  # newest first
                 ]
                 # peakRun: a single rich record for the most recent
                 # career-peak run that falls OUTSIDE the visible-runs window.
@@ -4510,17 +4519,13 @@ def publish():
     # working-tree change after this function returns - the same failure
     # mode (a later `git pull --rebase` refuses to run at all with
     # unstaged changes present) as the automated bug, just triggered
-    # locally instead of every 5 minutes. tracker_high_volume.csv/
-    # tracker_low_volume.csv included too even though nothing in deploy.bat
-    # currently calls speedmap_jockey_tracker.py - defensive, in case that
-    # ever changes or this function is invoked from a workflow that does.
+    # locally instead of every 5 minutes.
     files_to_push = []
     for f in ["toprate_live.html", "toprate_data.json", "toprate_data.json.gz",
               "toprate_history.json", "toprate_history.json.gz",
               "toprate_runners.csv",
               "toprate_model_picks.csv", "toprate_price_history.csv",
-              "wpr_form_history.csv.gz", "horse_history",
-              "tracker_high_volume.csv", "tracker_low_volume.csv"]:
+              "wpr_form_history.csv.gz", "horse_history"]:
         if (script_dir / f).exists():
             files_to_push.append(f)
 

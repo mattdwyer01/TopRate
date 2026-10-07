@@ -162,16 +162,6 @@ export function RaceSummaryLine(props: Pick<RaceGlanceProps, 'ranked' | 'allRunn
         <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Inside {innerGap} </span>
         <span className="font-semibold">{facts.inner.length}</span> of {ranked.length}
       </span>
-      {facts.value && (
-        <span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Best overlay </span>
-          <button type="button" onClick={() => onSelect(facts.value.r.runner.runId)} className={link}>
-            {facts.value.r.runner.tabNumber}. {facts.value.r.runner.horse}
-          </button>{' '}
-          <span className="font-mono text-emerald-deep">{fmtPrice(facts.value.r.runner.fixedWinPrice)}</span>
-          <span className="text-xs text-ink-mute"> vs fair {fmtPrice(facts.value.r.eff!.effectivePrice)}</span>
-        </span>
-      )}
       {facts.moves && (
         <span>
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Mover </span>

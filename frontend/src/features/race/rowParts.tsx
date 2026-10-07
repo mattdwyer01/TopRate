@@ -33,10 +33,7 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
   const rtsTitle = spell.label === 'FS' ? 'First starter - no prior race starts' : spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined
   const scratched = effective?.scratched ?? false
   const proj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  let marketNote: string | undefined
-  if (effective?.driftedToOverlay) marketNote = "Was a material underlay at today's open price, has since drifted into an overlay: a possible bad sign, not a validated buy signal"
-  else if (effective?.firmedToUnderlay) marketNote = 'Was a material overlay at open and has been backed into an underlay'
-  else if (effective?.isOverlay) marketNote = 'Overlay: the market price is longer than the fair price'
+  const marketNote: string | undefined = undefined
   return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, overridden: effective?.hasOverride ?? false, marketNote }
 }
 
