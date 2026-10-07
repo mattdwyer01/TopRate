@@ -143,3 +143,69 @@ for k in G:
 imp=pd.Series(b.feature_importance('gain'),index=allF).sort_values(ascending=False);print((imp/imp.sum()).head(15).round(3).to_string())
 te=te.assign(pred=p,err=te.RS-p);te.to_pickle(S+'RS_test_pred.pkl')
 print(te.groupby(pd.cut(te.dist,[0,1100,1300,1600,2000,2600])).err.agg(['mean','std','count']).round(2))
+
+# ---- stage 5: time-to-rating offsets, same-card ratings, huber, quarterly walk-forward retrain
+# (quarterly expanding-window retrain: RMSE ~2.01, MAE ~1.49, 74% within 2; a 2-year window is worse)
+R=R.reset_index() if 'race_id' not in R.columns else R
+R=R.sort_values(['date','race_id']).reset_index(drop=True)
+R['k']=np.maximum(2750/R.dist,1.5)
+R['ks']=R.k*R.w_sect_i_time
+R['off']=R.RS-R.ks                     # true time->rating offset (known for past races only)
+R['imp_off']=R.p3_med-R.ks;R['imp_off1']=R.p1_med-R.ks;R['imp_offm']=R.p3_mkt-R.ks
+R['bias']=R.RS-R.p3_med                # true RS minus ratings-implied (past only)
+# history of true offsets / biases (strictly earlier races)
+def lag(keycols,col,n,name):
+    g=R.groupby(keycols)[col]
+    R[name]=g.transform(lambda s:s.shift().rolling(n,min_periods=3).mean())
+R['mtg']=R.track+'|'+R.date
+lag('track','off',40,'h_off_trk40');lag('track','off',10,'h_off_trk10');lag('track','bias',40,'h_bias_trk40')
+R['key2']=R.track+'|'+R.dist.astype(str);lag('key2','off',15,'h_off_key15')
+lag('mtg','off',20,'h_off_mtg');lag('mtg','bias',20,'h_bias_mtg')
+R['h_mtg_n']=R.groupby('mtg').cumcount()
+# same-card other races, ratings-only (no target)
+for c in ['imp_off','imp_off1']:
+    sm=R.groupby('mtg')[c].transform('sum');kc=R.groupby('mtg')[c].transform('count')
+    R['o_'+c]=(sm-R[c].fillna(0))/(kc-R[c].notna()).replace(0,np.nan)
+R['est_off_hist']=R.h_off_mtg.fillna(R.h_off_trk10)
+R['pred_hist']=R.ks+R.est_off_hist
+NEW=['imp_off','imp_off1','imp_offm','h_off_trk40','h_off_trk10','h_bias_trk40','h_off_key15','h_off_mtg','h_bias_mtg','h_mtg_n','o_imp_off','o_imp_off1','est_off_hist','pred_hist','ks']
+cut=int((R.date<'2025-03-01').sum());tr,te=R.iloc[:cut],R.iloc[cut:]
+P=dict(objective='regression',learning_rate=0.03,num_leaves=15,min_data_in_leaf=40,bagging_fraction=0.8,bagging_freq=1,feature_fraction=0.7,lambda_l2=5,verbose=-1)
+def fit(F,target='RS',seeds=(1,),ret=False):
+    v=tr.iloc[-int(len(tr)*.12):];t=tr.iloc[:-int(len(tr)*.12)]
+    def y(df): return df.RS-(df.ks if target=='off' else 0)
+    ps=[]
+    for sd in seeds:
+        b=lgb.train({**P,'seed':sd},lgb.Dataset(t[F],y(t)),3000,valid_sets=[lgb.Dataset(v[F],y(v))],callbacks=[lgb.early_stopping(100,verbose=False)])
+        ps.append(b.predict(te[F],num_iteration=b.best_iteration))
+    p=np.mean(ps,0)+(te.ks if target=='off' else 0);e=te.RS-p
+    r=(np.sqrt(np.nanmean(e**2)),np.nanmean(np.abs(e)))
+    return (r,p,b) if ret else r
+base=[c for k in G for c in G[k]]
+
+nohist=[c for c in NEW if not c.startswith(('h_','est_','pred_'))]
+F=base+nohist
+P.update(objective='huber',alpha=3.0,num_leaves=31,min_data_in_leaf=25,learning_rate=0.03)
+R['q']=pd.PeriodIndex(R.date,freq='Q').astype(str)
+qs=sorted(R.q[R.date>='2025-03-01'].unique())
+def run(window=None,seeds=(1,2,3)):
+    out=[]
+    for q in qs:
+        tst=R[R.q==q]
+        if q=='2025Q1': tst=tst[tst.date>='2025-03-01']
+        trn=R[R.date<tst.date.min()]
+        if window: trn=trn[trn.date>=(pd.Timestamp(tst.date.min())-pd.Timedelta(days=window)).strftime('%Y-%m-%d')]
+        v=trn.iloc[-int(len(trn)*.1):];t=trn.iloc[:-int(len(trn)*.1)]
+        ps=[]
+        for sd in seeds:
+            b=lgb.train({**P,'seed':sd},lgb.Dataset(t[F],t.RS),3000,valid_sets=[lgb.Dataset(v[F],v.RS)],callbacks=[lgb.early_stopping(100,verbose=False)])
+            ps.append(b.predict(tst[F],num_iteration=b.best_iteration))
+        out.append(tst.assign(p=np.mean(ps,0)))
+    o=pd.concat(out);e=o.RS-o.p
+    return o,np.sqrt((e**2).mean()),e.abs().mean()
+for w in (None,730):
+    o,r,m=run(w);print('walk-forward quarterly, window',w,'RMSE %.3f MAE %.3f  n=%d  mean err %.2f'%(r,m,len(o),(o.RS-o.p).mean()))
+    print((o.RS-o.p).groupby(o.q).mean().round(2).to_dict())
+    e=o.RS-o.p;print('within 1/2/3: %.1f/%.1f/%.1f%%'%tuple(100*(e.abs()<=t).mean() for t in(1,2,3)))
+o.to_pickle(S+'RS_walkfwd.pkl')
+R.to_pickle(S+'RS_full2.pkl')
