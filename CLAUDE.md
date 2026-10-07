@@ -2360,6 +2360,15 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   threshold. `RaceDetail.tsx` computes it from `ranked` and passes `expectedWinWpr` to `RunnerDetailModal`. `RecentRunsTable.tsx` rows
   are no-wrap and tighter (about 25px, were about 60px from Pos/Going/peak wrapping); separator `colSpan` fixed 17 to 21. Verified in
   Chromium on real data at 390/1000/1300px, no overflow.
+- **Medium-term project: own WPR ratings, replace the TopRate data source (planned Oct 2026, not started)**: WPR is reproducible from
+  `ATW = RS - max(2750/distance, 1.5) * margin_lengths` and `WPR = ATW + 0.8 * (weight + 2*[filly/mare] - WFA(age, month, distance))`
+  (`analysis/wpr_recreate.py`, `analysis/wpr_wfa_table.csv`; WPR from ATW is within 0.5 for 97% of held-out runs). Only RS (race strength)
+  is hand-reviewed by TopRate; `analysis/wpr_race_strength.py` predicts it to RMSE 2.0 / MAE 1.5 with a quarterly walk-forward retrain, but it leans on
+  TopRate's own `sect_i_*` time index (without sectionals RMSE is about 3.3) and only works after a race has run. Plan: (1) audit where official
+  times, margins and sectionals can come from (repo `pf_*` fields look like Punting Form; unknown for TAB); (2) build our own time index and check it against
+  `sect_i_time`; (3) shadow-run our RS next to TopRate's and compare per quarter; (4) cut over only after months within about 2 points, keeping the last
+  TopRate ratings as frozen history. Risk: with no TopRate labels we cannot retrain or detect drift (the model over-predicted by 0.6 to 1.1 in 2026).
+  Branch `claude/wpr-recreate` holds the research scripts.
 
 ## What to be careful about
 
