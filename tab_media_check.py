@@ -5,8 +5,9 @@ from datetime import datetime
 import zoneinfo
 
 def main():
-    d = datetime.now(zoneinfo.ZoneInfo("Australia/Melbourne")).strftime("%Y-%m-%d")
-    data = tp.get(tp.MEETINGS.format(date=d)) if "{date}" in tp.MEETINGS else tp.get(tp.MEETINGS)
+    from datetime import date
+    d = date.today().isoformat()
+    data = tp.get(tp.MEETINGS.format(date=d), {"jurisdiction": "VIC"})
     urls, chan, n_races = [], {}, 0
     for m in data.get("meetings", []):
         for r in m.get("races", []):
