@@ -33,6 +33,33 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
 
+# Main-model projection = recent-form anchor (the linear part) + a gradient-boosted correction. The correction is split per feature with
+# TreeSHAP and summed into these groups for the horse page's "why this projection" breakdown; anchor + groups equals the main-model base exactly.
+GROUPS = {
+    'form': ['exp', 'w1', 'w2', 'w3', 'm5', 'cm', 'ff3', 'mg3', 'std5', 'max5', 'peak', 'd12', 'd13', 'nruns', 'jh_n'],
+    'rest': ['gap', 'run_in_prep', 'trial_days', 'trial_fin_frac', 'trial_margin', 'trial_n90', 'trial_since_run', 'fu_adv', 'fu_adv_n'],
+    'class': ['cls_level', 'cls_level_prev', 'class_chg', 'grade', 'grade_chg', 'track_level'],
+    'going': ['going_num', 'going_chg', 'going_adv', 'going_adv_n'],
+    'dist_track': ['dist', 'dist_chg', 'dist_adv', 'dist_adv_n', 'track_adv', 'track_adv_n'],
+    'connections': ['jock_eff', 'jock_eff_n', 'trn_eff', 'trn_eff_n', 'jock_chg', 'jd_eff', 'jd_eff_n', 'jt_eff', 'jt_eff_n', 'jock_form', 'jock_form_n',
+                    'td_eff', 'td_eff_n', 'tfu_eff', 'tfu_eff_n', 'trn_form', 'trn_form_n'],
+    'weight_age': ['wt', 'wt_chg', 'wt_rel', 'weight_allowance', 'horse_age', 'sex'],
+    'field': ['barrier', 'bf', 'field_size', 'f_exp', 'exp_rel', 'exp_rank', 'top_exp', 'exp_gap_top'],   # plus every fs_* feature
+    'comments': [],                                                                                            # every last_tx* / m3_tx* feature
+}
+
+
+def group_of(feat):
+    if feat.startswith('last_tx') or feat.startswith('m3_tx'):
+        return 'comments'
+    if feat.startswith('fs_'):
+        return 'field'
+    for g, fs in GROUPS.items():
+        if feat in fs:
+            return g
+    return 'form'
+
+
 def au_today():
     return (datetime.now(timezone.utc) + timedelta(hours=10)).strftime('%Y-%m-%d')
 
@@ -141,10 +168,18 @@ def main():
     base, coef, feats = main_info['base_cols'], np.array(main_info['linear_coefs']), main_info['features']
     use_main = (R.nruns >= 3) & R[base].notna().all(axis=1)
     R['p0'] = np.nan
+    R['grp'] = None
     if use_main.any():
         D = R.loc[use_main, feats]
         lin = np.c_[np.ones(use_main.sum()), R.loc[use_main, base].values] @ coef
         R.loc[use_main, 'p0'] = lin + np.mean([b.predict(D) for b in boosters], axis=0)
+        C = np.mean([b.predict(D, pred_contrib=True) for b in boosters], axis=0)
+        gcols = {}
+        for j, f in enumerate(feats):
+            gcols.setdefault(group_of(f), []).append(j)
+        grp = pd.DataFrame({g: C[:, js].sum(axis=1) for g, js in gcols.items()}, index=D.index)
+        grp['anchor'] = lin + C[:, -1]    # linear part plus the booster's constant, so anchor + sum(groups) = base
+        R.loc[use_main, 'grp'] = [json.dumps({k: round(float(v), 2) for k, v in row.items()}) for row in grp.to_dict('records')]
     # ---- light model
     lb = [booster(os.path.join(M, f'light_seed{i}.txt.gz')) for i in range(1, 6)]
     use_light = (R.nruns <= 2)
@@ -194,7 +229,7 @@ def main():
     made = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     rows = R[R.proj.notna() & R.run_id.notna()].copy()
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, src='backfill' if a.backfill_days else 'live', made=made))
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainThrough=main_info.get('train_through'), races=races)

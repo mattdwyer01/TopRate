@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import type { TripRace, TripRunner } from '../../lib/tripMap'
+import type { TripRunner } from '../../lib/tripMap'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { spellPosition } from '../../lib/spellPosition'
 import { RecentRunsTable } from './RecentRunsTable'
-import { ComparisonGrid } from './ComparisonGrid'
 import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
-import { FormLine } from './FormLine'
 import { ratingSuffix } from './rowParts'
-import { typicalSd } from './raceFacts'
-import { Collapsible, ConditionsScorecard, HorseHero, HorseTripMini, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -23,8 +20,6 @@ interface RunnerDetailModalProps {
   fieldSize: number
   fieldTop: number | null
   fieldLow: number | null
-  scratchedSet: Set<string>
-  tripRace: TripRace | null
   tripRunner: TripRunner | null
   tripKind: 'avg' | '800m' | 'est' | null
   deltaValue: number | null
@@ -82,8 +77,6 @@ export function RunnerDetailModal({
   fieldSize,
   fieldTop,
   fieldLow,
-  scratchedSet,
-  tripRace,
   tripRunner,
   tripKind,
   deltaValue,
@@ -126,7 +119,6 @@ export function RunnerDetailModal({
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const fair = effective?.effectivePrice ?? null
   const market = runner.fixedWinPrice
-  const sd = typicalSd(runner, effectiveWpr)
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
 
   return (
@@ -310,18 +302,10 @@ export function RunnerDetailModal({
               <div className="mb-3">
                 <ProjectionWaterfall runner={runner} proj={effectiveWpr} deltaValue={deltaValue} />
               </div>
-              <div className="hidden sm:block">
-                <FormLine runs={runner.recentRuns} projected={effectiveWpr} sd={sd} />
-              </div>
               {runner.projectionDescription && <p className="mt-2 hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
             </Card>
 
             <Card title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : 'running line through the race'}>
-              {tripRace && tripRunner && tripRunner.gap != null && (
-                <div className="mb-2">
-                  <HorseTripMini trip={tripRace} runnerId={runner.runId} excluded={scratchedSet} />
-                </div>
-              )}
               {tripRunner && tripRunner.gap != null ? (
                 <div className="mb-2 hidden grid-cols-2 gap-2 sm:grid">
                   <div className="rounded-md bg-bg p-2.5">
@@ -340,7 +324,6 @@ export function RunnerDetailModal({
                 </div>
               )}
               <Row label="Settling position" value={runner.predictedSettlingBand ?? '-'} />
-              {runner.againstShapeTendency && <Row label="Against the expected shape" value={runner.againstShapeTendency} />}
               {tripRunner && (
                 <Row
                   label={tripKind === 'est' ? 'Result history' : 'GPS history'}
@@ -373,11 +356,6 @@ export function RunnerDetailModal({
               raceDate={race.date}
               raceVenue={race.venue}
             />
-            <div className="mt-3">
-              <Collapsible title="How today's shape suits this horse" defaultOpenWide={false}>
-                <ComparisonGrid runner={runner} race={race} allRunners={race.runners} />
-              </Collapsible>
-            </div>
           </Card>
 
           <div className="grid gap-3 lg:grid-cols-2">

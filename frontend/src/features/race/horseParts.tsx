@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import type { TripRace } from '../../lib/tripMap'
 import { computeCareerStats } from '../../lib/careerStats'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
@@ -55,7 +54,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   const W = 420
   const X = (v: number) => 6 + ((v - lo) / (hi - lo)) * (W - 12)
   return (
-    <svg viewBox={`0 0 ${W} 58`} className="h-auto w-full max-h-12 sm:max-h-none" role="img" aria-label="Likely range of this projection against the field">
+    <svg viewBox={`0 0 ${W} 58`} className="h-auto w-full max-h-12" role="img" aria-label="Likely range of this projection against the field">
       {low != null && top != null && <rect x={X(low)} y={25} width={Math.max(2, X(top) - X(low))} height={6} rx={3} fill="var(--color-line-soft)" />}
       {half > 0 && <rect x={X(proj - half)} y={19} width={Math.max(4, X(proj + half) - X(proj - half))} height={18} rx={9} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
       {top != null && (
@@ -98,27 +97,32 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         ? 'Scratched.'
         : ''
   return (
-    <section className="rounded-lg border border-line bg-panel p-3 sm:p-4">
-      <div className="flex items-start gap-x-4 sm:gap-x-6">
-        <div className="min-w-0 flex-1 sm:min-w-[210px]">
+    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 sm:px-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 lg:grid-cols-[minmax(150px,auto)_minmax(0,1fr)_auto] lg:gap-x-6">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Projected WPR</span>
             {hasOverride && <span className="rounded-full bg-amber-bg px-2 py-0.5 text-[11px] font-semibold text-amber">manually adjusted</span>}
           </div>
           {scratched ? (
-            <div className="font-mono text-4xl font-bold leading-tight text-rose">SCR</div>
+            <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
-            <div className="font-mono text-3xl font-bold leading-tight text-emerald-deep sm:text-4xl">{fmtWpr(proj)}</div>
+            <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(proj)}</div>
           )}
-          <p className="mt-1 max-w-[46ch] text-sm text-ink-soft">
+          <p className="mt-1 text-xs text-ink-soft">
             {verdict}
-            {sd != null && !scratched && <> Typical error &plusmn;{sd.toFixed(0)}.</>}
+            {sd != null && !scratched && <> Error &plusmn;{sd.toFixed(0)}.</>}
             {reasons.length > 0 && !scratched && <> {reasons[0][0].toUpperCase() + reasons[0].slice(1)}{reasons.length > 1 ? `, ${reasons.slice(1).join(', ')}` : ''}.</>}
           </p>
         </div>
+        {proj != null && !scratched && (
+          <div className="order-last col-span-2 min-w-0 lg:order-none lg:col-span-1" title="Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.">
+            <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
+          </div>
+        )}
         <div className="flex-none text-right">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / fair</div>
-          <div className="font-mono text-xl font-semibold text-ink sm:text-2xl">
+          <div className="font-mono text-xl font-semibold leading-tight text-ink">
             {fmtPrice(market)} <span className="text-base font-normal text-ink-faint">/ {fair != null && !scratched ? fmtPrice(fair) : '-'}</span>
           </div>
           <div className="text-xs text-ink-mute">
@@ -132,23 +136,17 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           </div>
         </div>
       </div>
-      {proj != null && !scratched && (
-        <div className="mt-2 max-w-xl">
-          <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
-          <div className="hidden text-[11px] text-ink-faint sm:block">Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.</div>
-        </div>
-      )}
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-t border-line-soft pt-2 text-sm">
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-t border-line-soft pt-1.5 text-xs">
         <span>
-          <span className="text-[11px] uppercase tracking-wide text-ink-faint">TopRate </span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-faint">TopRate </span>
           <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.toprateRating)}</span>
         </span>
         <span>
-          <span className="text-[11px] uppercase tracking-wide text-ink-faint">Form </span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-faint">Form </span>
           <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.formFactor)}</span>
         </span>
         <span>
-          <span className="text-[11px] uppercase tracking-wide text-ink-faint">Nett </span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-faint">Nett </span>
           <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.wprNett)}</span>
         </span>
         <span className="font-semibold text-ink">
@@ -163,118 +161,98 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
 
 /* ------------------------------------------------------------- waterfall */
 
-function mean(xs: number[]): number | null {
-  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null
-}
+// What each correction group is made of, and how far it typically moves a rating (5th to 95th percentile, and the extremes, over a
+// 677-runner day, 7 Oct 2026). The groups are TreeSHAP sums of the main model's correction on top of the recent-form anchor.
+const GROUPS: { key: string; label: string; what: string; p5: number; p95: number; min: number; max: number }[] = [
+  { key: 'form', label: 'Form pattern', what: 'Shape of the recent WPRs: consistency, best and worst of the last 5, change from the run before', p5: -1.17, p95: 1.09, min: -2.97, max: 8.06 },
+  { key: 'rest', label: 'Spell and trials', what: 'Days since the last run, run number in the prep, trials, first-up and second-up record', p5: -0.65, p95: 1.47, min: -2.15, max: 4.01 },
+  { key: 'class', label: 'Class and grade', what: 'Class and grade today against the last run, and the level of the track', p5: -0.66, p95: 0.33, min: -1.1, max: 0.8 },
+  { key: 'going', label: 'Going', what: 'Today\'s going, the change from the last run, and the horse\'s record on it', p5: -1.05, p95: 0.52, min: -1.56, max: 1.13 },
+  { key: 'dist_track', label: 'Distance and track', what: 'Today\'s distance and its change, and the horse\'s record at the distance and the track', p5: -0.91, p95: 1.41, min: -2.86, max: 2.48 },
+  { key: 'connections', label: 'Jockey and trainer', what: 'Jockey and trainer effect, their form, the combination, and a jockey change', p5: -2.55, p95: 1.46, min: -7.91, max: 2.33 },
+  { key: 'weight_age', label: 'Weight, age, sex', what: 'Weight carried and allowance in the model\'s own features, age and sex (the separate weight step comes after the base)', p5: -1.23, p95: 0.73, min: -2.67, max: 1.21 },
+  { key: 'field', label: 'Field and barrier', what: 'Barrier, field size, and how today\'s rivals rate against this horse', p5: -2.61, p95: 2.26, min: -4.1, max: 6.68 },
+  { key: 'comments', label: 'Run comments', what: 'What the race comments said about the last runs (checked, wide, held up and so on)', p5: -0.95, p95: 0.9, min: -1.82, max: 1.84 },
+]
+const SCALE = 3 // WPR points either side of zero drawn on the adjustment rows
 
-// Every step from the evidence to the projection as its own row: levels as bars on one WPR scale, adjustments as signed bars about a
-// centre line.
-export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runner; proj: number | null; deltaValue: number | null }) {
-  const b = runner.adjustmentBreakdown
-  const recent = mean(runner.formHistory.filter((e) => e.wpr != null && !e.isVoid).slice(-5).map((e) => e.wpr as number))
-  const levels: { label: string; v: number | null; strong?: boolean }[] = [
-    { label: 'Last 5 runs average', v: recent },
-    { label: 'TopRate rating', v: runner.toprateRating },
-    { label: 'Model base', v: runner.baseWpr, strong: true },
-  ]
-  const steps: { label: string; v: number | null }[] = []
-  if (b && (b.suitability != null || b.weight != null)) {
-    if (b.suitability != null) steps.push({ label: 'Suitability', v: b.suitability })
-    if (b.weight != null) steps.push({ label: 'Weight carried', v: b.weight })
-  } else if (runner.wprAdjustment != null) {
-    steps.push({ label: 'Adjustments', v: runner.wprAdjustment })
-  }
-  if (deltaValue != null && deltaValue !== 0) steps.push({ label: 'Your adjustment', v: deltaValue })
-  const all = [...levels.map((l) => l.v), proj].filter((v): v is number => v != null)
-  const lo = all.length ? Math.min(...all) - 8 : 0
-  const hi = all.length ? Math.max(...all) + 2 : 100
-  const pct = (v: number) => Math.max(2, Math.min(100, ((v - lo) / (hi - lo)) * 100))
+function Level({ label, v, lo, hi, strong, title }: { label: string; v: number; lo: number; hi: number; strong?: boolean; title?: string }) {
+  const pct = Math.max(2, Math.min(100, ((v - lo) / (hi - lo)) * 100))
   return (
-    <div className="flex flex-col gap-1.5 text-sm">
-      {levels.map((l) =>
-        l.v == null ? null : (
-          <div key={l.label} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_44px] items-center gap-2">
-            <span className={l.strong ? 'font-semibold text-ink' : 'text-ink-mute'}>{l.label}</span>
-            <span className="h-2 overflow-hidden rounded-full bg-line-soft">
-              <span className={`block h-full rounded-full ${l.strong ? 'bg-slate' : 'bg-line'}`} style={{ width: `${pct(l.v)}%` }} />
-            </span>
-            <span className={`text-right font-mono ${l.strong ? 'font-semibold text-ink' : 'text-ink-mute'}`}>{fmtWpr(l.v)}</span>
-          </div>
-        ),
-      )}
-      {steps.map((s) => (
-        <div key={s.label} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_44px] items-center gap-2">
-          <span className="text-ink-mute">{s.label}</span>
-          <span className="relative h-2 rounded-full bg-line-soft">
-            <span className="absolute left-1/2 top-[-2px] h-3 w-px bg-line" />
-            {s.v != null && (
-              <span
-                className={`absolute top-0 h-full rounded-full ${s.v >= 0 ? 'bg-emerald' : 'bg-rose'}`}
-                style={s.v >= 0 ? { left: '50%', width: `${Math.min(50, Math.abs(s.v) * 8)}%` } : { right: '50%', width: `${Math.min(50, Math.abs(s.v) * 8)}%` }}
-              />
-            )}
-          </span>
-          <span className={`text-right font-mono ${adjClass(s.v)}`}>{fmtAdj(s.v)}</span>
-        </div>
-      ))}
-      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_44px] items-center gap-2 border-t border-line-soft pt-1.5">
-        <span className="font-semibold text-ink">Projected WPR</span>
-        <span className="h-2 overflow-hidden rounded-full bg-line-soft">{proj != null && <span className="block h-full rounded-full bg-emerald" style={{ width: `${pct(proj)}%` }} />}</span>
-        <span className="text-right font-mono font-semibold text-emerald-deep">{fmtWpr(proj)}</span>
-      </div>
+    <div title={title} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2">
+      <span className={strong ? 'font-semibold text-ink' : 'text-ink-mute'}>{label}</span>
+      <span className="h-2 overflow-hidden rounded-full bg-line-soft">
+        <span className={`block h-full rounded-full ${strong ? 'bg-slate' : 'bg-line'}`} style={{ width: `${pct}%` }} />
+      </span>
+      <span className={`text-right font-mono ${strong ? 'font-semibold text-ink' : 'text-ink-mute'}`}>{fmtWpr(v)}</span>
     </div>
   )
 }
 
-/* ------------------------------------------------------- mini trip map */
-
-// This horse among its rivals at about 800m from home: lengths behind the leader across, metres off the rail down.
-export function HorseTripMini({ trip, runnerId, excluded }: { trip: TripRace; runnerId: string; excluded: Set<string> }) {
-  const rows = trip.runners.filter((r) => r.gap != null && (!excluded.has(r.rid) || r.rid === runnerId))
-  const me = rows.find((r) => r.rid === runnerId)
-  if (!me || rows.length < 2) return null
-  const minG = Math.min(...rows.map((r) => r.gap as number))
-  const gx = (r: (typeof rows)[number]) => (r.gap as number) - minG
-  const maxG = Math.max(6, ...rows.map(gx)) + 1
-  const maxL = Math.max(10, ...rows.map((r) => r.lane)) + 1.5
-  const W = 420
-  const H = 124
-  const l = 8
-  const rr = 8
-  const X = (g: number) => W - rr - (g / maxG) * (W - l - rr)
-  const Y = (m: number) => 14 + (m / maxL) * (H - 34)
-  const mx = X(gx(me))
-  const my = Y(me.lane)
+// A signed step about a centre line. When a typical range is given it is drawn as a pale band behind the bar, so a +1.2 reads as small
+// for a group that often moves 2 and large for one that rarely moves 0.5.
+function Step({ label, v, range, title }: { label: string; v: number; range?: { p5: number; p95: number }; title?: string }) {
+  const w = (x: number) => Math.min(50, (Math.abs(x) / SCALE) * 50)
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full rounded-md bg-bg" role="img" aria-label="This horse's projected position among the field">
-      <line x1={0} x2={W} y1={10} y2={10} stroke="var(--color-ink-faint)" strokeWidth={3} />
-      <text x={W - 4} y={H - 4} textAnchor="end" fontSize={10} fill="var(--color-ink-mute)">
-        front of the field
-      </text>
-      <text x={4} y={H - 4} fontSize={10} fill="var(--color-ink-mute)">
-        further back
-      </text>
-      {rows
-        .filter((r) => r.rid !== runnerId)
-        .map((r) => (
-          <g key={r.rid}>
-            <ellipse cx={X(gx(r))} cy={Y(r.lane)} rx={9} ry={4} fill="var(--color-line)" />
-            <text x={X(gx(r))} y={Y(r.lane) - 6} textAnchor="middle" fontSize={9} fill="var(--color-ink-faint)">
-              {r.barrier}
-            </text>
-          </g>
-        ))}
-      <line x1={X(0)} x2={mx} y1={H - 16} y2={H - 16} stroke="var(--color-ink)" strokeWidth={1} />
-      <line x1={X(0)} x2={X(0)} y1={H - 20} y2={H - 12} stroke="var(--color-ink)" strokeWidth={1} />
-      <line x1={mx} x2={mx} y1={H - 20} y2={H - 12} stroke="var(--color-ink)" strokeWidth={1} />
-      <text x={Math.min(Math.max((X(0) + mx) / 2, 62), W - 62)} y={H - 20} textAnchor="middle" fontSize={10} fill="var(--color-ink)">
-        {gx(me).toFixed(1)}L behind leader
-      </text>
-      <ellipse cx={mx} cy={my} rx={11} ry={5} fill="var(--color-emerald-deep)" />
-      <text x={Math.min(mx, W - 50)} y={my - 8} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--color-ink)">
-        {me.barrier}. {me.name.length > 16 ? `${me.name.slice(0, 15)}…` : me.name}
-      </text>
-    </svg>
+    <div title={title} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2">
+      <span className="text-ink-mute">{label}</span>
+      <span className="relative h-2 rounded-full bg-line-soft">
+        <span className="absolute left-1/2 top-[-2px] h-3 w-px bg-line" />
+        {range && <span className="absolute top-[-1px] h-[10px] rounded-full bg-line/60" style={{ left: `${50 + (Math.max(-SCALE, range.p5) / SCALE) * 50}%`, width: `${((Math.min(SCALE, range.p95) - Math.max(-SCALE, range.p5)) / SCALE) * 50}%` }} />}
+        <span className={`absolute top-0 h-full rounded-full ${v >= 0 ? 'bg-emerald' : 'bg-rose'}`} style={v >= 0 ? { left: '50%', width: `${w(v)}%` } : { right: '50%', width: `${w(v)}%` }} />
+      </span>
+      <span className={`text-right font-mono ${adjClass(v)}`}>{fmtAdj(v)}</span>
+    </div>
+  )
+}
+
+// From the recent-form anchor to the projection. The main model starts from a weighted average of recent form and corrects it for the
+// factors in GROUPS; the shaded band behind each bar is how far that factor typically moves a rating. Runners from before the breakdown was
+// logged, and light-history runners, get base, suitability and weight only.
+export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runner; proj: number | null; deltaValue: number | null }) {
+  const [all, setAll] = useState(false)
+  const b = runner.adjustmentBreakdown
+  const anchor = b?.g_anchor
+  const groups = anchor != null ? GROUPS.map((g) => ({ ...g, v: b?.['g_' + g.key] ?? 0 })).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)) : []
+  const shown = groups.filter((g) => Math.abs(g.v) >= 0.15)
+  const small = groups.filter((g) => Math.abs(g.v) < 0.15)
+  const lead = all ? shown : shown.slice(0, 4)
+  const hiddenCount = shown.length - lead.length + (small.length ? 1 : 0)
+  const steps: { label: string; v: number; title?: string }[] = []
+  if (b && (b.suitability != null || b.weight != null)) {
+    if (b.suitability != null) steps.push({ label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' })
+    if (b.weight != null) steps.push({ label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' })
+  } else if (runner.wprAdjustment != null) {
+    steps.push({ label: 'Adjustments', v: runner.wprAdjustment })
+  }
+  if (deltaValue != null && deltaValue !== 0) steps.push({ label: 'Your adjustment', v: deltaValue })
+  const levels = [anchor, runner.baseWpr, proj].filter((v): v is number => v != null)
+  const lo = levels.length ? Math.min(...levels) - 8 : 0
+  const hi = levels.length ? Math.max(...levels) + 2 : 100
+  return (
+    <div className="flex flex-col gap-1.5 text-sm">
+      {anchor != null && <Level label="Recent form" v={anchor} lo={lo} hi={hi} title="Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" />}
+      {lead.map((g) => (
+        <Step key={g.key} label={g.label} v={g.v} range={g} title={`${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.`} />
+      ))}
+      {anchor != null && all && small.length > 0 && <Step label="Other factors" v={small.reduce((a, g) => a + g.v, 0)} title={`Smaller than 0.15 each: ${small.map((g) => g.label).join(', ')}`} />}
+      {anchor != null && hiddenCount > 0 && !all && (
+        <button type="button" onClick={() => setAll(true)} className="text-left text-xs text-ink-mute underline hover:text-ink">
+          Show {hiddenCount} more factor{hiddenCount === 1 ? '' : 's'}
+        </button>
+      )}
+      {runner.baseWpr != null && <Level label="Model base" v={runner.baseWpr} lo={lo} hi={hi} strong />}
+      {steps.map((s) => (
+        <Step key={s.label} label={s.label} v={s.v} title={s.title} />
+      ))}
+      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-2 border-t border-line-soft pt-1.5">
+        <span className="font-semibold text-ink">Projected WPR</span>
+        <span className="h-2 overflow-hidden rounded-full bg-line-soft">{proj != null && <span className="block h-full rounded-full bg-emerald" style={{ width: `${Math.max(2, Math.min(100, ((proj - lo) / (hi - lo)) * 100))}%` }} />}</span>
+        <span className="text-right font-mono font-semibold text-emerald-deep">{fmtWpr(proj)}</span>
+      </div>
+      {anchor == null && runner.projectionModel === 'light' && <p className="text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor.</p>}
+      {anchor != null && <p className="text-xs text-ink-faint">Shaded band behind each bar: how far that factor typically moves a rating. Hover a row for what it covers.</p>}
+    </div>
   )
 }
 

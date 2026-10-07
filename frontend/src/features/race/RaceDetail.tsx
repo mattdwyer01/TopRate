@@ -339,8 +339,6 @@ export function RaceDetail({
           fieldSize={ranked.length}
           fieldTop={ranked.length ? ranked[0].proj : null}
           fieldLow={ranked.length ? ranked[ranked.length - 1].proj : null}
-          scratchedSet={effectiveScratched}
-          tripRace={tripRace}
           tripRunner={tripRace?.runners.find((t) => t.rid === selectedRunner.runId) ?? null}
           tripKind={tripRace?.laneKind ?? null}
           deltaValue={deltas[selectedRunner.runId] ?? null}
