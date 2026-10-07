@@ -24,4 +24,5 @@ plus track, distance, going, rail, barrier and field size. Held-out (train befor
 14,978 races): within-race correlation 0.54, typical single-horse error 2.6 lengths, as good as the GPS states.
 Width is NOT measured at these tracks. It is estimated from barrier, field size, rail and forecast settle by a model fitted on the QLD
 width-at-800m runs (held-out QLD correlation 0.70, error 1.4m); at non-QLD tracks this is an extrapolation, so the page labels it an estimate.
+The model's raw output is each horse's conditional mean, which squeezes a field into a band far too narrow (within-race sd 0.4 to 0.8m). `nongps.respread_lane` keeps the model's order within each race and replaces the values with the measured QLD within-race width spread (rank to quantile, by field size), as the GPS states already do.
 `build_trip_map.py` calls it at the end and skips it (keeping the GPS maps) if it errors.
