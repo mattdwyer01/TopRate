@@ -25,6 +25,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 import features as F  # noqa: E402
 import projlog  # noqa: E402
 
+sys.path.append(F.ROOT)
+import atw_offsets  # noqa: E402
+
 ROOT, M = F.ROOT, F.MODELS
 CACHE = os.path.join(os.path.dirname(__file__), 'cache')
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
@@ -265,8 +268,13 @@ def main():
                                                                   m=r.routed, n=int(r.nruns)) for r in z.itertuples() if pd.notna(r.run_id)})
     made = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     rows = R[R.proj.notna() & R.run_id.notna()].copy()
+    # each horse's ATW offset (form feed rating minus results rating) at the time of projecting, frozen in the log so the result card and Review can put the
+    # projection on the scale of the feed's actual rating for a race that has since run
+    off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
+    atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made))
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
+                             atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainThrough=main_info.get('train_through'), races=races)

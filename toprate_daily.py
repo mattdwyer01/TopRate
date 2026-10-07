@@ -32,6 +32,7 @@ Requirements:
 import requests
 import pandas as pd
 import meeting_transfer
+import atw_offsets as _atw_offsets_mod
 import runners_io
 import numpy as np
 import argparse
@@ -3458,34 +3459,8 @@ def _slugify_venue(venue):
 
 
 def _compute_atw_offsets(fh):
-    """Per-horse ATW offset: how far the form feed's rating sits above the results files' rating for the same runs.
-
-    The form feed (wpr_form_history.csv.gz, what the dashboard's Recent runs table and form chart show) is ATW, each run's rating adjusted
-    to the weight carried in the horse's upcoming race. The results files (race_results_*.csv.gz, what the projection model trains on and
-    predicts) hold the plain WPR. For one scrape the gap is the same constant on every run of a horse (about -0.65 WPR per kg above 57.7kg), so
-    the median over the horse's runs that appear in both is its offset. Used by the frontend to draw the projection and the winning line on the
-    chart's own (ATW) scale. Only the horse's latest scrape is used (older scrapes carry an older weight); a horse needs 2 matched runs and a
-    consistent gap (std <= 0.6) or gets no offset and the chart stays as it was. Fail-safe: any error returns {} (no shift).
-    """
-    try:
-        files = sorted(Path(__file__).parent.glob("race_results_20*.csv.gz"))[-2:]
-        res = pd.concat([pd.read_csv(p, usecols=["horse_id", "date", "wpr"], low_memory=False) for p in files], ignore_index=True)
-        res["wpr"] = pd.to_numeric(res["wpr"], errors="coerce")
-        res["date"] = pd.to_datetime(res["date"], errors="coerce")
-        res["horse_id"] = pd.to_numeric(res["horse_id"], errors="coerce")
-        res = res.dropna(subset=["horse_id", "date", "wpr"]).drop_duplicates(["horse_id", "date"], keep="last")
-        f = fh[["horse_lc", "horse_id", "date", "wpr", "scrape_date"]].copy()
-        f["horse_id"] = pd.to_numeric(f["horse_id"], errors="coerce")
-        f = f[f["date"] >= res["date"].min()]
-        f = f[f["scrape_date"] == f.groupby("horse_lc")["scrape_date"].transform("max")]
-        m = f.merge(res, on=["horse_id", "date"], suffixes=("_form", "_res"))
-        m["d"] = m["wpr_form"] - m["wpr_res"]
-        g = m.groupby("horse_lc")["d"].agg(["median", "std", "count"])
-        g = g[(g["count"] >= 2) & (g["std"].fillna(0) <= 0.6)]
-        return {h: round(float(v), 1) for h, v in g["median"].items()}
-    except Exception as e:
-        print(f"  ATW offsets skipped: {e}")
-        return {}
+    """Moved to atw_offsets.py (shared with projection/run.py)."""
+    return _atw_offsets_mod.compute_atw_offsets(fh)
 
 
 def build_horse_history_files(runners_df, full_runs_lookup):
@@ -3646,6 +3621,18 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _tend_lookup = {}
     _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
     _atw_off_lookup = {}  # horse_lc -> ATW offset (see _compute_atw_offsets)
+
+    def _atwo_for_row(row):
+        """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
+        Without one, only a race still to run takes the horse's latest offset (it is for its next start, so it would be wrong for a past race)."""
+        try:
+            v = float(row.get("wprp_atwo"))
+            if v == v:
+                return round(v, 1)
+        except (TypeError, ValueError):
+            pass
+        ran = any(str(row.get(c)) in ("1", "1.0") for c in ("resulted", "interim_resulted"))
+        return None if ran else _atw_off_lookup.get(str(row.get("horse", "")).strip().lower())
     try:
         if WPR_FORM_HISTORY_CSV.exists():
             _today_horses = set(
@@ -4227,7 +4214,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wd":   sf(row.get("wpr_dist")),
                 # ATW offset (Oct 2026): form-feed rating minus results-file rating for this horse (see _compute_atw_offsets). The chart adds it
                 # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
-                "atwo": _atw_off_lookup.get(str(row.get("horse", "")).strip().lower()),
+                "atwo": _atwo_for_row(row),
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
