@@ -26,7 +26,8 @@ jobs:
             /projection/
           sparse-checkout-cone-mode: false
       - name: Run probe
-        run: python tab_replay_probe.py ${{ inputs.args }} 2>&1 | tee probe_output.txt
+        run: |
+          python tab_media_check.py 2>&1 | tee probe_output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
