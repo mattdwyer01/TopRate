@@ -12,6 +12,7 @@ import { ErrorState, EmptyState } from './components/EmptyState'
 import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { SettingsModal } from './components/SettingsModal'
+import { LiveHeaderButton } from './components/LiveHeaderButton'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
@@ -242,6 +243,7 @@ function App() {
             >
               ?
             </button>
+            <LiveHeaderButton />
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
