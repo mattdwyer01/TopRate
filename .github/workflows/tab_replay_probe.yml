@@ -1,0 +1,34 @@
+name: TAB replay probe (self-hosted, read-only)
+
+# One-off, manual. Runs tab_replay_probe.py from the AU runner to see whether
+# TAB's race JSON carries any replay/video/stream field. Writes nothing to the repo.
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: 'Optional: "YYYY-MM-DD VENUEMNEMONIC RACENO" for one race; blank = auto'
+        required: false
+        type: string
+
+concurrency:
+  group: tab-replay-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tab_replay_probe.py
+            tab_results_poller.py
+          sparse-checkout-cone-mode: false
+      - name: Run probe
+        run: python tab_replay_probe.py ${{ inputs.args }} 2>&1 | tee probe_output.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-output
+          path: probe_output.txt
