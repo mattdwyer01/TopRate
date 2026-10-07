@@ -33,7 +33,10 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
   const rtsTitle = spell.label === 'FS' ? 'First starter - no prior race starts' : spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined
   const scratched = effective?.scratched ?? false
   const proj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, overridden: effective?.hasOverride ?? false }
+  // The row shows the projection at the weight carried today (ATW), the scale of the form table and the runner page. Ranking, the order of the rows,
+  // the gap lines, the ladder and fair prices stay on the model's own rating, so a row's number can sit a little out of order against its neighbours.
+  const off = runner.atwOffset != null && Math.abs(runner.atwOffset) >= 0.05 ? runner.atwOffset : 0
+  return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, projAtw: proj != null ? proj + off : null, atwOff: off, overridden: effective?.hasOverride ?? false }
 }
 
 export function PriceCell({ runner, scratched, move, showMove }: { runner: Runner; scratched: boolean; move: ReturnType<typeof computePriceMove>; showMove: boolean }) {

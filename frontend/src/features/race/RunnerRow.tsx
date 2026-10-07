@@ -60,14 +60,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`}>{fmtWpr(runner.baseWpr)}</span>
+      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`}>{fmtWpr(runner.baseWpr != null ? runner.baseWpr + f.atwOff : null)}</span>
       <span className={`text-right font-mono ${LG_ONLY} ${adjClass(runner.wprAdjustment)}`}>{fmtAdj(runner.wprAdjustment)}</span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
         ) : (
-          <span title={`Projected WPR ${fmtWpr(f.proj)}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.proj)}</span>
+          <span title={`Projected WPR ${fmtWpr(f.projAtw)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"} (model rating ${fmtWpr(f.proj)})` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
+            <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.projAtw)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
