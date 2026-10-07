@@ -295,8 +295,8 @@ export function ProjectionWaterfall({ runner, proj, deltaValue }: { runner: Runn
 /* ----------------------------------------------------------- timeline */
 
 // Every recent run as a dot: height is WPR, spacing is real time (so spells show as gaps), dot size and colour show how it finished.
-// The projection for today sits at the right with its likely range, and the dotted line is the rating a winner is expected to run in
-// this race (raceFacts.expectedWinningWpr), so a horse's runs read against what it takes to win. Drawn at the container's own width so
+// The projection for today sits at the right with its likely range, and the dotted line is the minimum winning standard for
+// this race: the expected winning rating (raceFacts.expectedWinningWpr) less MIN_WINNING_STANDARD_OFFSET, so a horse's runs read against what it takes to win. Drawn at the container's own width so
 // the text stays crisp and the chart fills the card.
 export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: Runner; proj: number | null; raceDate: string; expectedWin: number | null }) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -374,11 +374,11 @@ export function RunTimeline({ runner, proj, raceDate, expectedWin }: { runner: R
         )}
         {expectedWin != null && (
           <g>
-            <title>{`Typical winning rating ${fmtWpr(expectedWin)} (give or take about 4): what winners have actually run in past races, given this field's top, runner-up and average projection and its size. Winners usually run a few points above the top projection.`}</title>
+            <title>{`Minimum winning standard ${fmtWpr(expectedWin)}: about 2 in 3 winners have run this rating or better. It sits a little below the typical winning rating (what winners have actually run in past races, given this field's top, runner-up and average projection and its size), so most winners clear it.`}</title>
             <line x1={padL} x2={W - padR + 14} y1={Y(expectedWin)} y2={Y(expectedWin)} stroke="var(--color-amber)" strokeWidth={1.5} strokeDasharray="2 4" strokeLinecap="round" />
             <rect x={padL + 2} y={Y(expectedWin) - 19} width={150} height={16} rx={8} fill="var(--color-amber-bg)" stroke="var(--color-amber-line)" />
             <text x={padL + 77} y={Y(expectedWin) - 7.5} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--color-amber)">
-              {`typical winning rating ~${Math.round(expectedWin)}`}
+              {`min winning rating ~${Math.round(expectedWin)}`}
             </text>
           </g>
         )}
@@ -430,7 +430,7 @@ export function TimelineLegend() {
       </span>
       <span>
         <span className="mr-1 inline-block w-4 border-t-2 border-dotted border-amber align-middle" />
-        typical winning rating
+        minimum winning standard (about 2 in 3 winners reach it)
       </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
     </div>
