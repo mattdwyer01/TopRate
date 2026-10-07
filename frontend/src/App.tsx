@@ -41,7 +41,8 @@ function quietNextJump(races: { startTime: string }[], now: number): Date | null
 }
 
 function App() {
-  const { state, retry } = useDashboardData()
+  const { state, retry, refresh, historyPending, pollFailed } = useDashboardData()
+  const [refreshing, setRefreshing] = useState(false)
   const now = useNow()
   const { urlState, pushUrlState } = useUrlState()
   const { betaOverride, setBetaOverride } = useBetaOverride()
@@ -68,15 +69,18 @@ function App() {
   // against firing while the user is already typing in some other field.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== '/') return
-      const tag = (e.target as HTMLElement | null)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      // Not while a modal is open or before there is anything to search.
+      if (document.querySelector('[role="dialog"]') || state.status !== 'ready') return
       e.preventDefault()
       setSearchOpen(true)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [state.status])
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
@@ -118,14 +122,28 @@ function App() {
     if (state.status !== 'ready') return
     if (!urlState.raceId) return
     const raceExists = state.data.races.some((r) => r.raceId === urlState.raceId)
-    if (!raceExists) {
+    // Earlier days arrive in a second file: wait for it before calling the link stale.
+    if (!raceExists && !historyPending) {
       // Stale/invalid link - fall back to the meetings view rather than
       // getting stuck on a race that no longer resolves.
       pushUrlState({ date: urlState.date, raceId: null, runId: null })
     }
-    // Only needs to run once data becomes ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status])
+  }, [state.status, historyPending])
+
+  const currentRace =
+    state.status === 'ready' && urlState.raceId
+      ? state.data.races.find((r) => r.raceId === urlState.raceId)
+      : undefined
+
+  // Tab title follows the race so bookmarks and shared links are tellable apart.
+  useEffect(() => {
+    document.title = currentRace
+      ? `${currentRace.venue} R${currentRace.raceNumber} - TopRate`
+      : topTab === 'review'
+        ? 'Review - TopRate'
+        : 'TopRate'
+  }, [currentRace, topTab])
 
   return (
     <div className="min-h-screen bg-bg text-ink">
@@ -168,6 +186,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => switchTab('race')}
+                aria-current={topTab === 'race' ? 'page' : undefined}
                 className={
                   'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
                   (topTab === 'race' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
@@ -178,6 +197,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => switchTab('review')}
+                aria-current={topTab === 'review' ? 'page' : undefined}
                 className={
                   'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
                   (topTab === 'review' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
@@ -194,8 +214,33 @@ function App() {
                 runIso={state.data.runIso}
                 now={now}
                 quietNext={quietNextJump(state.data.races, now)}
+                pollFailed={pollFailed}
               />
             )}
+            {state.status === 'ready' && (
+              <button
+                type="button"
+                aria-label="Refresh data"
+                title="Refresh data now"
+                disabled={refreshing}
+                onClick={() => {
+                  setRefreshing(true)
+                  void refresh().finally(() => setRefreshing(false))
+                }}
+                className={`rounded p-1 text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${refreshing ? 'animate-spin' : ''}`}
+              >
+                <span aria-hidden="true">↻</span>
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="How WPR works and what the columns mean"
+              title="How WPR works and what the columns mean"
+              onClick={() => setMethodologyOpen(true)}
+              className="rounded p-1 text-sm font-semibold text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
+            >
+              ?
+            </button>
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
@@ -235,11 +280,14 @@ function App() {
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />
         )}
-        {state.status === 'ready' && topTab === 'race' &&
-          (urlState.raceId ? (
+        {state.status === 'ready' && topTab === 'race' && urlState.raceId && !currentRace && historyPending && (
+          <EmptyState message="Loading earlier races..." progress={null} />
+        )}
+        {state.status === 'ready' && topTab === 'race' && !(urlState.raceId && !currentRace && historyPending) &&
+          (currentRace ? (
             <RaceDetail
               key={urlState.raceId}
-              race={state.data.races.find((r) => r.raceId === urlState.raceId)!}
+              race={currentRace}
               allRaces={state.data.races}
               priceBeta={betaOverride ?? state.data.priceBeta}
               deltas={deltas}

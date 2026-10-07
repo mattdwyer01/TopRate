@@ -51,14 +51,25 @@ export function useDashboardData() {
   const historyRef = useRef<History | null>(null)
   const historyLoading = useRef<string | null>(null)
   const currentRef = useRef<DashboardData | null>(null)
+  // True while the earlier-days history file is still on its way (deep links to older races wait for it).
+  const [historyPending, setHistoryPending] = useState(false)
+  // True after a background poll fails, cleared by the next success: lets the header say the data may be stale.
+  const [pollFailed, setPollFailed] = useState(false)
 
   // Show the current payload now (with any history already held), then fetch history if it changed.
   const accept = useCallback((data: DashboardData) => {
+    setPollFailed(false)
+    // An unchanged payload (same RUN_ISO) needs no state update, so the whole app does not re-render every poll.
+    const unchanged = currentRef.current?.runIso === data.runIso
     currentRef.current = data
-    setState({ status: 'ready', data: withHistory(data, historyRef.current) })
+    if (!unchanged) setState({ status: 'ready', data: withHistory(data, historyRef.current) })
     const iso = data.historyIso
-    if (!iso || historyRef.current?.iso === iso || historyLoading.current === iso) return
+    if (!iso || historyRef.current?.iso === iso || historyLoading.current === iso) {
+      if (!iso) setHistoryPending(false)
+      return
+    }
     historyLoading.current = iso
+    setHistoryPending(true)
     fetchHistoryRaces()
       .then((races) => {
         historyRef.current = { iso, races }
@@ -67,8 +78,16 @@ export function useDashboardData() {
       .catch(() => {})       // history is best effort: the current races stay usable; retried on the next poll
       .finally(() => {
         if (historyLoading.current === iso) historyLoading.current = null
+        setHistoryPending(false)
       })
   }, [])
+
+  // Manual refresh: same fetch as a poll, no loading flash.
+  const refresh = useCallback(() => {
+    return fetchDashboardData()
+      .then(accept)
+      .catch(() => setPollFailed(true))
+  }, [accept])
 
   const retry = useCallback(() => {
     setState({ status: 'loading', progress: null })
@@ -101,7 +120,7 @@ export function useDashboardData() {
     const poll = () => {
       fetchDashboardData()
         .then(accept)
-        .catch(() => {})
+        .catch(() => setPollFailed(true))
     }
     const id = setInterval(poll, REFRESH_INTERVAL_MS)
     // Browsers throttle/suspend setInterval in a backgrounded tab, so the
@@ -119,5 +138,5 @@ export function useDashboardData() {
     }
   }, [accept])
 
-  return { state, retry }
+  return { state, retry, refresh, historyPending, pollFailed }
 }

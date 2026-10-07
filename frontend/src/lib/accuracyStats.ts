@@ -53,7 +53,11 @@ export interface AccuracyRow {
   voidReason: string
 }
 
-export type Period = 'all' | '90' | '30'
+export type Period = 'all' | '90' | '30' | 'live'
+
+// First race date whose projections were logged BEFORE the race ran. Earlier history (1 Jul to 5 Oct 2026) was seeded
+// from an out-of-sample back-fill (see projection/README.md): honest, but not what was live at the time.
+export const LIVE_LOGGING_START = '2026-10-06'
 
 export interface AccuracyFilters {
   period: Period
@@ -68,10 +72,11 @@ export function distanceBand(distance: number): string {
 }
 
 export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): AccuracyRow[] {
-  const cutoff = filters.period === 'all' ? null : Date.now() - Number(filters.period) * 86_400_000
+  const cutoff = filters.period === 'all' || filters.period === 'live' ? null : Date.now() - Number(filters.period) * 86_400_000
   const rows: AccuracyRow[] = []
   for (const race of races) {
     if (cutoff != null && new Date(race.date).getTime() < cutoff) continue
+    if (filters.period === 'live' && race.date < LIVE_LOGGING_START) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
     for (const r of race.runners) {
       if (r.projectedWpr == null || r.actualWpr == null) continue
@@ -547,4 +552,93 @@ export function buildHeadlineSummary(
     )
   }
   return lines
+}
+
+/** 95% Wilson score interval for a win rate, in percent. Returns null for n = 0. */
+export function wilsonInterval(wins: number, n: number): { lo: number; hi: number } | null {
+  if (n <= 0) return null
+  const z = 1.96
+  const p = wins / n
+  const denom = 1 + (z * z) / n
+  const centre = (p + (z * z) / (2 * n)) / denom
+  const half = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denom
+  return { lo: Math.max(0, centre - half) * 100, hi: Math.min(1, centre + half) * 100 }
+}
+
+export interface MarketBenchmark {
+  races: number
+  modelTopWins: number
+  favouriteWins: number
+  // Races where the model's top pick is also the market favourite, and how often that runner won.
+  agreeRaces: number
+  agreeWins: number
+  // Races where they differ: how often each side's pick won.
+  disagreeRaces: number
+  disagreeModelWins: number
+  disagreeFavouriteWins: number
+}
+
+/** The model's #1 pick against the market favourite (shortest settled price), on races where both exist and the
+ * race has a winner. This is the comparison that matters: beating a random runner is easy, beating the market is not. */
+export function computeMarketBenchmark(rows: AccuracyRow[]): MarketBenchmark {
+  const byRace = new Map<string, AccuracyRow[]>()
+  for (const r of rows) {
+    const g = byRace.get(r.raceId)
+    if (g) g.push(r)
+    else byRace.set(r.raceId, [r])
+  }
+  const out: MarketBenchmark = { races: 0, modelTopWins: 0, favouriteWins: 0, agreeRaces: 0, agreeWins: 0, disagreeRaces: 0, disagreeModelWins: 0, disagreeFavouriteWins: 0 }
+  for (const group of byRace.values()) {
+    if (!group.some((r) => r.finishPosition === 1)) continue
+    const top = group.find((r) => r.predictedRank === 1)
+    if (!top || top.marketPrice == null) continue
+    const priced = group.filter((r) => r.marketPrice != null)
+    const fav = priced.reduce((a, b) => (b.marketPrice! < a.marketPrice! ? b : a))
+    // Joint favourites make "the favourite" ambiguous: skip the race rather than pick one arbitrarily.
+    if (priced.filter((r) => r.marketPrice === fav.marketPrice).length > 1) continue
+    out.races++
+    const topWon = top.finishPosition === 1
+    const favWon = fav.finishPosition === 1
+    if (topWon) out.modelTopWins++
+    if (favWon) out.favouriteWins++
+    if (top.runId === fav.runId) {
+      out.agreeRaces++
+      if (topWon) out.agreeWins++
+    } else {
+      out.disagreeRaces++
+      if (topWon) out.disagreeModelWins++
+      if (favWon) out.disagreeFavouriteWins++
+    }
+  }
+  return out
+}
+
+export interface ReliabilityBin {
+  label: string
+  n: number
+  meanModelPct: number
+  actualPct: number
+}
+
+const RELIABILITY_EDGES = [0, 5, 10, 15, 20, 30, 100]
+
+/** Model win probability (1 / fair price) against how often runners in that band actually won. */
+export function computeReliability(rows: AccuracyRow[]): ReliabilityBin[] {
+  const bins = RELIABILITY_EDGES.slice(0, -1).map((lo, i) => ({ lo, hi: RELIABILITY_EDGES[i + 1], n: 0, sumP: 0, wins: 0 }))
+  for (const r of rows) {
+    if (r.wprPrice == null || r.wprPrice <= 0 || r.finishPosition == null) continue
+    const p = 100 / r.wprPrice
+    const b = bins.find((x) => p >= x.lo && p < x.hi) ?? bins[bins.length - 1]
+    b.n++
+    b.sumP += p
+    if (r.finishPosition === 1) b.wins++
+  }
+  return bins
+    .filter((b) => b.n > 0)
+    .map((b) => ({
+      label: b.hi >= 100 ? `${b.lo}%+` : `${b.lo}-${b.hi}%`,
+      n: b.n,
+      meanModelPct: b.sumP / b.n,
+      actualPct: (b.wins / b.n) * 100,
+    }))
 }

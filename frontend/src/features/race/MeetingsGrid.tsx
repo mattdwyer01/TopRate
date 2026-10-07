@@ -27,6 +27,13 @@ const DATE_QUICK_BUTTONS: { label: string; offset: number }[] = [
   { label: 'Tomorrow', offset: 1 },
 ]
 
+// Moves an ISO date (YYYY-MM-DD) by whole days, in UTC so daylight saving cannot shift it.
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 export function MeetingsGrid({
   races,
   onSelectRace,
@@ -65,7 +72,40 @@ export function MeetingsGrid({
     () => Array.from({ length: maxRaceNumber }, (_, i) => i + 1),
     [maxRaceNumber],
   )
+  // The closest other date in the loaded window that has any races, for the empty state.
+  const nearestDate = useMemo(() => {
+    const target = new Date(`${date}T00:00:00Z`).getTime()
+    let best: string | null = null
+    let bestDist = Infinity
+    for (const d of new Set(races.map((r) => r.date))) {
+      const dist = Math.abs(new Date(`${d}T00:00:00Z`).getTime() - target)
+      if (d !== date && dist < bestDist) {
+        best = d
+        bestDist = dist
+      }
+    }
+    return best
+  }, [races, date])
   const now = Date.now()
+
+  // Upcoming races where the top projection leads the second by the most WPR: a quick way to find the races where the
+  // model sees a clear standout. A separation ranking only; it says nothing about price or value.
+  const standouts = useMemo(() => {
+    const out: { race: Race; top: Race['runners'][number]; lead: number }[] = []
+    for (const m of visibleMeetings) {
+      for (const race of m.races) {
+        const st = raceStatus(race, now)
+        if (st === 'resulted' || st === 'interim') continue
+        const rated = race.runners
+          .filter((r) => !r.dataScratched && r.projectedWpr != null)
+          .sort((a, b) => (b.projectedWpr as number) - (a.projectedWpr as number))
+        if (rated.length < 5) continue
+        out.push({ race, top: rated[0], lead: (rated[0].projectedWpr as number) - (rated[1].projectedWpr as number) })
+      }
+    }
+    return out.sort((a, b) => b.lead - a.lead).slice(0, 5)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMeetings])
   const { ref: scrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
   return (
@@ -79,12 +119,30 @@ export function MeetingsGrid({
             </Pill>
           )
         })}
+        <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Previous day"
+          onClick={() => setDate(shiftDate(date, -1))}
+          className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink"
+        >
+          &lsaquo;
+        </button>
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono"
         />
+        <button
+          type="button"
+          aria-label="Next day"
+          onClick={() => setDate(shiftDate(date, 1))}
+          className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink"
+        >
+          &rsaquo;
+        </button>
+        </div>
         {bushCount > 0 && (
           <Pill active={showBush} onClick={() => onShowBushChange(!showBush)}>
             {showBush ? 'Hide' : 'Show'} {bushCount} bush meeting{bushCount === 1 ? '' : 's'}
@@ -104,8 +162,26 @@ export function MeetingsGrid({
       )}
 
       {visibleMeetings.length === 0 ? (
-        <EmptyState message={`No races on ${date}.`} />
+        <>
+        <EmptyState
+          message={
+            meetings.length > 0
+              ? `${meetings.length} meeting${meetings.length === 1 ? ' is' : 's are'} hidden by the bush or hidden-venue filters on ${date}.`
+              : nearestDate
+                ? `No races on ${date}. Nearest day with racing: ${nearestDate}.`
+                : `No races on ${date}.`
+          }
+        />
+        {nearestDate && meetings.length === 0 && (
+          <div>
+            <Pill active={false} onClick={() => setDate(nearestDate)}>
+              Go to {nearestDate}
+            </Pill>
+          </div>
+        )}
+        </>
       ) : (
+        <>
         <div className="relative">
           <div ref={scrollRef} className="overflow-x-auto rounded-lg border border-line bg-panel">
             <table className="w-full border-collapse">
@@ -168,6 +244,7 @@ export function MeetingsGrid({
                           <button
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
+                            aria-label={`${meeting.venue} race ${n}, ${status === 'resulted' || status === 'interim' ? 'result ' + (finishers?.join(' ') ?? '') : formatTimeOfDay(race.startTime)}`}
                             title={finishers && finishers.length > 0
                               ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}`
                               : undefined}
@@ -193,6 +270,30 @@ export function MeetingsGrid({
             </div>
           )}
         </div>
+          {standouts.length > 0 && (
+            <div className="rounded-lg border border-line bg-panel p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Clearest standouts still to run</div>
+              <p className="mb-2 text-[11px] text-ink-faint">Top projection leads the second by the most WPR. A ranking of separation only, not a tip.</p>
+              <ul className="flex flex-col divide-y divide-line-soft text-sm">
+                {standouts.map(({ race, top, lead }) => (
+                  <li key={race.raceId}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectRace(race.raceId, race.date)}
+                      className="flex w-full items-baseline justify-between gap-2 py-1.5 text-left hover:text-emerald-deep"
+                    >
+                      <span>
+                        <span className="font-mono text-xs text-ink-mute">{race.venue} R{race.raceNumber} {formatTimeOfDay(race.startTime)}</span>{' '}
+                        {top.tabNumber}. {top.horse}
+                      </span>
+                      <span className="flex-none font-mono text-xs text-ink-soft">+{lead.toFixed(1)} WPR</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

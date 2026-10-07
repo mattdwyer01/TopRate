@@ -61,6 +61,19 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
           </p>
         </Section>
 
+        <Section title="Column and label guide">
+          <ul className="list-disc space-y-1 pl-5">
+            <li><span className="font-mono text-ink">Proj</span>: projected WPR for today's race (the headline figure). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = Proj.</li>
+            <li><span className="font-mono text-ink">SM</span>: the suitability part of Adj, relative to this field. It is already inside Adj, not added again.</li>
+            <li><span className="font-mono text-ink">Rated $</span>: the price the model would pay, from Proj. It is a model view, not a market price and not a tip.</li>
+            <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
+            <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
+            <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
+            <li><span className="font-mono text-ink">4 / 6 WPR from top</span>: the dotted lines show runners within 4 and 6 WPR of the top projection. Inside 6 held about 78% of winners in testing.</li>
+            <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
+          </ul>
+        </Section>
+
         <Section title="What goes in">
           <ul className="list-disc space-y-1 pl-5">
             <li>The horse's recent WPRs (last run, last three, last five, career average, peak, how much it varies) and how long since it last ran.</li>

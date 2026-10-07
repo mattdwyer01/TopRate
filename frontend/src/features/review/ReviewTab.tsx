@@ -6,6 +6,9 @@ import {
   computeAccuracyStats,
   computeBreakdown,
   computeCalibrationBins,
+  computeMarketBenchmark,
+  computeReliability,
+  wilsonInterval,
   computeMarginStats,
   computeOutcomeStats,
   computeRankStats,
@@ -21,7 +24,6 @@ import { fmtWpr } from '../../lib/format'
 import { StatTile } from '../../components/StatTile'
 import { PredictedVsActualChart } from '../../components/PredictedVsActualChart'
 import { useScrollShadow } from '../../lib/useScrollShadow'
-import { collectSignalWatchRows, computeSignalWatchStats, SIGNAL_WATCH_RULE } from '../../lib/signalWatch'
 
 interface ReviewTabProps {
   races: Race[]
@@ -29,6 +31,7 @@ interface ReviewTabProps {
 }
 
 const PERIODS: { value: Period; label: string; sentence: string }[] = [
+  { value: 'live', label: 'Live-logged (since 6 Oct)', sentence: 'Since live logging began on 6 Oct' },
   { value: '30', label: 'Last 30 days', sentence: 'Over the last 30 days' },
   { value: '90', label: 'Last 90 days', sentence: 'Over the last 90 days' },
   { value: 'all', label: 'All time', sentence: 'Across all time' },
@@ -89,14 +92,19 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   // Kept, not discarded: the toggle below can bring them back into view.
   const { clean, voided } = useMemo(() => splitVoided(allRows), [allRows])
   const rows = excludeVoid ? clean : allRows
+  // Clicking a breakdown row narrows the headline numbers too (not just the runner list); the breakdown tables
+  // themselves keep using every row so the other groups stay visible.
+  const scoped = useMemo(() => rows.filter((r) => matchesGroupFilter(r, groupFilter)), [rows, groupFilter])
 
-  const stats = useMemo(() => computeAccuracyStats(rows), [rows])
-  const outcome = useMemo(() => computeOutcomeStats(rows), [rows])
-  const strikeRates = useMemo(() => computeStrikeRates(rows), [rows])
-  const rankStats = useMemo(() => computeRankStats(rows), [rows])
-  const winnerRankStats = useMemo(() => computeWinnerRankStats(rows), [rows])
-  const marginStats = useMemo(() => computeMarginStats(rows), [rows])
-  const calibration = useMemo(() => computeCalibrationBins(rows), [rows])
+  const stats = useMemo(() => computeAccuracyStats(scoped), [scoped])
+  const outcome = useMemo(() => computeOutcomeStats(scoped), [scoped])
+  const strikeRates = useMemo(() => computeStrikeRates(scoped), [scoped])
+  const rankStats = useMemo(() => computeRankStats(scoped), [scoped])
+  const winnerRankStats = useMemo(() => computeWinnerRankStats(scoped), [scoped])
+  const marginStats = useMemo(() => computeMarginStats(scoped), [scoped])
+  const calibration = useMemo(() => computeCalibrationBins(scoped), [scoped])
+  const marketBenchmark = useMemo(() => computeMarketBenchmark(scoped), [scoped])
+  const reliability = useMemo(() => computeReliability(scoped), [scoped])
   const distBreakdown = useMemo(
     () => computeBreakdown(rows, (r) => distanceBand(r.distance)),
     [rows]
@@ -114,17 +122,6 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   // from cluttering the table with noisy single-digit-n rows.
   const venueBreakdown = useMemo(() => computeBreakdown(rows, (r) => r.venue), [rows])
 
-  // Signal watch: tracks one specific candidate rule found via offline
-  // backtesting (not a proven edge - see lib/signalWatch.ts's own comment
-  // for the full caveat). Uses the raw races prop directly, independent
-  // of the accuracy pipeline above, so this experimental addition can
-  // never affect the established accuracy numbers.
-  const signalWatchRows = useMemo(
-    () => collectSignalWatchRows(races, { period, excludeBush }),
-    [races, period, excludeBush]
-  )
-  const signalWatchStats = useMemo(() => computeSignalWatchStats(signalWatchRows), [signalWatchRows])
-
   // The hero number: how much better than a coin-flip-against-the-field is
   // the model's top pick, in a single multiplier a non-statistician reads
   // instantly. null when there isn't a sane field average to divide by.
@@ -139,10 +136,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
     [periodSentence, strikeRates, rankStats, marginStats, voided.length, allRows.length]
   )
 
-  const filteredRows = useMemo(
-    () => rows.filter((r) => matchesGroupFilter(r, groupFilter)),
-    [rows, groupFilter]
-  )
+  const filteredRows = scoped
   const detailRows = useMemo(() => {
     const sorted = [...filteredRows]
     if (sortBy === 'miss') sorted.sort((a, b) => Math.abs(b.miss) - Math.abs(a.miss))
@@ -192,6 +186,19 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
         </label>
       </div>
 
+      {groupFilter && (
+        <div className="flex items-center gap-2 text-xs text-ink-soft">
+          Showing only {groupFilter.kind}: <span className="font-semibold">{groupFilter.value}</span>
+          <button type="button" onClick={() => setGroupFilter(null)} className="rounded border border-line px-1.5 py-0.5 text-ink-mute hover:text-ink">
+            Clear
+          </button>
+        </div>
+      )}
+      <p className="text-xs text-ink-faint">
+        Races before 6 Oct 2026 show out-of-sample back-filled projections (the model had not seen those races); from 6 Oct
+        every projection was logged before the race. Use &quot;Live-logged&quot; for the strictest view.
+      </p>
+
       {stats.n === 0 ? (
         <div className="rounded-lg border border-line bg-panel p-6 text-center text-sm text-ink-mute">
           No resulted, projected races in this window yet.
@@ -212,7 +219,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                       {winMultiplier.toFixed(1)}&times; field avg ({fmtPct(outcome.fieldAvgWinPct)})
                     </div>
                   )}
-                  <div className="text-[11px] text-ink-faint">n={s.n.toLocaleString()}</div>
+                  <div className="text-[11px] text-ink-faint">
+                    n={s.n.toLocaleString()}
+                    {(() => {
+                      const ci = wilsonInterval(s.wins, s.n)
+                      return ci ? ` · 95% range ${ci.lo.toFixed(0)}-${ci.hi.toFixed(0)}%` : ''
+                    })()}
+                  </div>
+                  {s.n > 0 && s.n < 100 && <div className="text-[11px] font-medium text-amber">small sample</div>}
                 </div>
               ))}
             </div>
@@ -222,6 +236,34 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                   <p key={i}>{line}</p>
                 ))}
               </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-line bg-panel p-4">
+            <h3 className="text-sm font-semibold text-ink">Against the market</h3>
+            {marketBenchmark.races === 0 ? (
+              <p className="mt-1 text-xs text-ink-faint">Not enough races with settled prices in this window.</p>
+            ) : (
+              <>
+                <p className="mb-2 text-xs text-ink-faint">
+                  Winner strike rate of the model&apos;s #1 pick against the market favourite (shortest settled price) on the same{' '}
+                  {marketBenchmark.races.toLocaleString()} races. Beating a random runner is easy; this is the real yardstick.
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <StatTile label="Model #1 pick" value={fmtPct((marketBenchmark.modelTopWins / marketBenchmark.races) * 100)} />
+                  <StatTile label="Market favourite" value={fmtPct((marketBenchmark.favouriteWins / marketBenchmark.races) * 100)} />
+                  <StatTile
+                    label="Pick = favourite"
+                    value={fmtPct((marketBenchmark.agreeRaces / marketBenchmark.races) * 100)}
+                    sublabel={marketBenchmark.agreeRaces ? `won ${fmtPct((marketBenchmark.agreeWins / marketBenchmark.agreeRaces) * 100)}` : undefined}
+                  />
+                  <StatTile
+                    label="When they differ"
+                    value={marketBenchmark.disagreeRaces ? `${fmtPct((marketBenchmark.disagreeModelWins / marketBenchmark.disagreeRaces) * 100)} vs ${fmtPct((marketBenchmark.disagreeFavouriteWins / marketBenchmark.disagreeRaces) * 100)}` : '-'}
+                    sublabel={`model vs favourite, n=${marketBenchmark.disagreeRaces}`}
+                  />
+                </div>
+              </>
             )}
           </div>
 
@@ -243,7 +285,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                   <StatTile
                     label="Bias"
                     value={fmtSigned(stats.bias)}
-                    sublabel={stats.bias != null && stats.bias > 0 ? 'under-projects' : 'over-projects'}
+                    sublabel={stats.bias == null || Math.abs(stats.bias) < 0.05 ? 'no consistent lean' : stats.bias > 0 ? 'under-projects' : 'over-projects'}
                     tone={stats.bias != null && Math.abs(stats.bias) >= 1 ? 'negative' : 'default'}
                   />
                   <StatTile label="Within 3 pts" value={fmtPct(stats.within3Pct)} tone="positive" />
@@ -252,6 +294,38 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               </div>
 
               <PredictedVsActualChart bins={calibration} />
+
+              {reliability.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-ink">Win probability check</h3>
+                  <p className="mb-2 text-xs text-ink-faint">
+                    The model&apos;s win chance for each runner (from its fair price) against how often runners in that band
+                    actually won. Close columns mean the fair prices are well calibrated.
+                  </p>
+                  <div className="overflow-x-auto rounded-lg border border-line">
+                    <table className="w-full text-xs">
+                      <thead className="bg-panel text-left text-ink-mute">
+                        <tr>
+                          <th className="px-3 py-1.5 font-medium">Model chance</th>
+                          <th className="px-3 py-1.5 text-right font-medium">Runners</th>
+                          <th className="px-3 py-1.5 text-right font-medium">Model avg</th>
+                          <th className="px-3 py-1.5 text-right font-medium">Actually won</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line-soft">
+                        {reliability.map((b) => (
+                          <tr key={b.label}>
+                            <td className="px-3 py-1.5">{b.label}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">{b.n.toLocaleString()}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">{fmtPct(b.meanModelPct)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">{fmtPct(b.actualPct)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <h3 className="text-sm font-semibold text-ink">Rank accuracy</h3>
@@ -370,81 +444,6 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             </Disclosure>
           )}
 
-          <Disclosure
-            title="Signal watch: jockey/trainer form (experimental)"
-            subtitle="One candidate rule from offline backtesting, tracked here against real results - not a proven edge, not a bet recommendation"
-          >
-            <p className="mb-3 text-xs text-ink-faint">
-              Backtested rule: WPR edge &ge; {(SIGNAL_WATCH_RULE.edgeThreshold * 100).toFixed(0)}pp vs the
-              market, price &le; ${SIGNAL_WATCH_RULE.priceCap}, and the jockey's 90-day strike rate &ge;{' '}
-              {SIGNAL_WATCH_RULE.jockeyWinPctCut}% or the trainer's 365-day strike rate &ge;{' '}
-              {SIGNAL_WATCH_RULE.trainerWinPctCut}%. In offline K-fold backtesting this was the ONE rule (out
-              of dozens tried - price caps, market-rank agreement, barrier, distance, class move, and more)
-              that came back positive rather than negative, holding up across all 4 held-out folds - but it
-              was not statistically significant (t=1.58, short of the usual 1.96 bar) and came from a wide
-              search, so real forward results here are the actual test, not the backtest number.
-            </p>
-            {signalWatchStats.n === 0 ? (
-              <div className="rounded-lg border border-line bg-panel p-4 text-center text-sm text-ink-mute">
-                No runners have matched this rule in this window yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StatTile label="Matches" value={String(signalWatchStats.n)} />
-                <StatTile label="Strike rate" value={fmtPct(signalWatchStats.strikePct)} />
-                <StatTile
-                  label="ROI"
-                  value={fmtSigned(signalWatchStats.roiPct, 1) + '%'}
-                  tone={signalWatchStats.roiPct != null && signalWatchStats.roiPct > 0 ? 'positive' : 'negative'}
-                />
-                <StatTile
-                  label="Avg price"
-                  value={signalWatchStats.avgPrice != null ? `$${signalWatchStats.avgPrice.toFixed(2)}` : '-'}
-                />
-              </div>
-            )}
-            {signalWatchRows.length > 0 && (
-              <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-line">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-panel">
-                    <tr className="text-left text-ink-mute">
-                      <th className="px-3 py-1.5 font-medium">Date</th>
-                      <th className="px-3 py-1.5 font-medium">Track</th>
-                      <th className="px-3 py-1.5 font-medium">Horse</th>
-                      <th className="px-3 py-1.5 text-right font-medium">Price</th>
-                      <th className="px-3 py-1.5 text-right font-medium">Edge</th>
-                      <th className="px-3 py-1.5 text-right font-medium">Result</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line-soft">
-                    {[...signalWatchRows]
-                      .sort((a, b) => b.date.localeCompare(a.date))
-                      .slice(0, MAX_DETAIL_ROWS)
-                      .map((r, i) => (
-                        <tr
-                          key={`${r.raceId}-${r.horse}-${i}`}
-                          onClick={() => onSelectRace(r.raceId, r.date, r.runId)}
-                          className="cursor-pointer hover:bg-bg"
-                        >
-                          <td className="whitespace-nowrap px-3 py-1 text-ink-mute">{r.date}</td>
-                          <td className="whitespace-nowrap px-3 py-1">{r.venue}</td>
-                          <td className="px-3 py-1 font-medium">{r.horse}</td>
-                          <td className="px-3 py-1 text-right font-mono">${r.price.toFixed(2)}</td>
-                          <td className="px-3 py-1 text-right font-mono">{fmtSigned(r.edge * 100, 1)}pp</td>
-                          <td className="px-3 py-1 text-right">
-                            {r.won ? (
-                              <span className="font-semibold text-emerald-deep">Won</span>
-                            ) : (
-                              <span className="text-ink-mute">Lost</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Disclosure>
 
           <Disclosure
             title="Explore individual results"

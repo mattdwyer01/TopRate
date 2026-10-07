@@ -2,7 +2,7 @@ import { Fragment, useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
-import { computeCompositeGaps, computeEffectiveRace, COMPOSITE_INNER_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP } from '../../lib/raceModel'
+import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP } from '../../lib/raceModel'
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
@@ -40,8 +40,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
   { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)' },
-  { key: 'compositeScore', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Speed-map adjustment vs this field' },
+  { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
+  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Adj)' },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price", lgOnly: true },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
@@ -78,8 +78,8 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
-  const [sortKey, setSortKey] = useState<SortKey>('compositeScore')
-  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.compositeScore)
+  const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -100,7 +100,7 @@ export function RaceDetail({
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
     [race.runners, deltas, bases, priceBeta, effectiveScratched],
   )
-  const compositeGapByRunId = useMemo(() => computeCompositeGaps(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
+  const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
@@ -108,7 +108,7 @@ export function RaceDetail({
   const activeRunners = useMemo(() => race.runners.filter((r) => !effectiveScratched.has(r.runId)), [race.runners, effectiveScratched])
 
   const ranked = useMemo(
-    () => rankField(race.runners, effectiveByRunId, effectiveScratched, COMPOSITE_INNER_GAP_FROM_TOP, COMPOSITE_MAX_GAP_FROM_TOP),
+    () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
   const expectedWinWpr = useMemo(() => expectedWinningWpr(ranked.map((r) => ({ proj: r.proj, sd: typicalSd(r.runner, r.proj) ?? 9 }))), [ranked])
@@ -132,18 +132,18 @@ export function RaceDetail({
   // The two gap lines are only meaningful while the list is sorted best-projection-first.
   const lines = useMemo(() => {
     const none = { inner: -1, outer: -1 }
-    if (!((sortKey === 'compositeScore' || sortKey === 'projectedWpr') && sortDir === 'desc')) return none
+    if (!(sortKey === 'projectedWpr' && sortDir === 'desc')) return none
     let inner = -1
     let outer = -1
     sortedRunners.forEach((r, i) => {
-      const g = compositeGapByRunId[r.runId]
+      const g = gapByRunId[r.runId]
       if (g == null) return
-      if (g <= COMPOSITE_INNER_GAP_FROM_TOP) inner = i
-      if (g <= COMPOSITE_MAX_GAP_FROM_TOP) outer = i
+      if (g <= INNER_GAP_FROM_TOP) inner = i
+      if (g <= OUTER_GAP_FROM_TOP) outer = i
     })
-    const last = sortedRunners.reduce((l, r, i) => (compositeGapByRunId[r.runId] != null ? i : l), -1)
+    const last = sortedRunners.reduce((l, r, i) => (gapByRunId[r.runId] != null ? i : l), -1)
     return { inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
-  }, [sortedRunners, compositeGapByRunId, sortKey, sortDir])
+  }, [sortedRunners, gapByRunId, sortKey, sortDir])
 
   const meetingRaces = useMemo(
     () => allRaces.filter((r) => r.venue === race.venue && r.date === race.date).sort((a, b) => a.raceNumber - b.raceNumber),
@@ -199,8 +199,8 @@ export function RaceDetail({
         ranked={ranked}
         allRunners={race.runners}
         scratched={effectiveScratched}
-        innerGap={COMPOSITE_INNER_GAP_FROM_TOP}
-        outerGap={COMPOSITE_MAX_GAP_FROM_TOP}
+        innerGap={INNER_GAP_FROM_TOP}
+        outerGap={OUTER_GAP_FROM_TOP}
         trip={tripRace}
         onSelect={setSelectedRunId}
       />
@@ -223,6 +223,7 @@ export function RaceDetail({
                   key={c.key}
                   type="button"
                   title={c.title}
+                  aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                   onClick={() => onSort(c.key as SortKey)}
                   className={`transition-colors hover:text-ink ${c.lgOnly ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
@@ -235,8 +236,8 @@ export function RaceDetail({
           {sortedRunners.map((r, i) => (
             <Fragment key={r.runId}>
               <RunnerRow {...rowProps(r)} />
-              {i === lines.inner && <LineDivider kind="inner" n={COMPOSITE_INNER_GAP_FROM_TOP} />}
-              {i === lines.outer && <LineDivider kind="outer" n={COMPOSITE_MAX_GAP_FROM_TOP} />}
+              {i === lines.inner && <LineDivider kind="inner" n={INNER_GAP_FROM_TOP} />}
+              {i === lines.outer && <LineDivider kind="outer" n={OUTER_GAP_FROM_TOP} />}
             </Fragment>
           ))}
         </div>
@@ -270,7 +271,7 @@ export function RaceDetail({
         )}
       </section>
 
-      <RaceLadder ranked={ranked} innerGap={COMPOSITE_INNER_GAP_FROM_TOP} outerGap={COMPOSITE_MAX_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+      <RaceLadder ranked={ranked} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
 
       {selectedRunner && (
         <RunnerDetailModal
