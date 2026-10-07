@@ -21,7 +21,7 @@ const RIGHT_W = 74
 
 // The projection ladder: every runner on one WPR axis, best at the top, with the inside-4 and inside-6 bands shaded, so the shape of the
 // field (a standout, a pack, a long tail) reads before any number does.
-function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
+export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -80,7 +80,20 @@ function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 
           const name = `${r.runner.tabNumber}. ${r.runner.horse}`
           const maxChars = narrow ? 15 : 20
           return (
-            <g key={r.runner.runId} onClick={() => onSelect(r.runner.runId)} style={{ cursor: 'pointer' }}>
+            <g
+              key={r.runner.runId}
+              role="button"
+              tabIndex={0}
+              aria-label={`${name}, projected ${fmtWpr(r.proj)}. Open runner detail`}
+              onClick={() => onSelect(r.runner.runId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(r.runner.runId)
+                }
+              }}
+              style={{ cursor: 'pointer' }}
+            >
               <title>{`${name}: ${fmtWpr(r.proj)} projected${half(r) != null ? `, likely range ${Math.round(r.proj - half(r)!)} to ${Math.round(r.proj + half(r)!)}` : ''}${r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
               <rect x={0} y={y - ROW_H / 2} width={width} height={ROW_H} fill="transparent" />
               <text x={0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={r.inner ? 600 : 400}>
@@ -112,18 +125,17 @@ function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 
   )
 }
 
+// The 'Mover' chip only names a clear move: three times the threshold at which a price move is shown at all.
+const MOVER_CHIP_MIN_PCT = MOVE_DISPLAY_THRESHOLD_PCT * 3
+
 function useGlanceFacts({ ranked, allRunners, scratched, trip }: Pick<RaceGlanceProps, 'ranked' | 'allRunners' | 'scratched' | 'trip'>) {
   return useMemo(() => {
     const inner = ranked.filter((r) => r.inner)
     const outer = ranked.filter((r) => r.inner || r.outer)
-    const value = outer
-      .filter((r) => r.eff?.isOverlay && r.runner.fixedWinPrice != null && r.eff.effectivePrice != null)
-      .map((r) => ({ r, pct: (r.runner.fixedWinPrice! / r.eff!.effectivePrice! - 1) * 100 }))
-      .sort((a, b) => b.pct - a.pct)[0]
     const moves = allRunners
       .filter((r) => !scratched.has(r.runId))
       .map((r) => ({ r, m: computePriceMove(r.openFixedPrice, r.fixedWinPrice) }))
-      .filter((x): x is { r: Runner; m: NonNullable<ReturnType<typeof computePriceMove>> } => x.m != null && x.m.pctChange >= MOVE_DISPLAY_THRESHOLD_PCT * 3)
+      .filter((x): x is { r: Runner; m: NonNullable<ReturnType<typeof computePriceMove>> } => x.m != null && x.m.pctChange >= MOVER_CHIP_MIN_PCT)
       .sort((a, b) => b.m.pctChange - a.m.pctChange)[0]
     let leader: string | null = null
     if (trip) {
@@ -138,7 +150,7 @@ function useGlanceFacts({ ranked, allRunners, scratched, trip }: Pick<RaceGlance
       if (lead) leader = `${lead.tabNumber}. ${lead.horse}`
     }
     const thin = ranked.filter((r) => r.runner.projectionModel === 'light').length
-    return { inner, outer, value, moves, leader, thin }
+    return { inner, outer, moves, leader, thin }
   }, [ranked, allRunners, scratched, trip])
 }
 

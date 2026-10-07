@@ -9,51 +9,15 @@ export interface EffectiveRunner {
   // WPR points behind the field's top-rated (effective) runner - null for a
   // scratched runner or one with no effective wpr. 0 for the top pick itself.
   gapFromTop: number | null
-  // true when the market's own price is longer than our fair (effectivePrice)
-  // price - i.e. wpr_projection.py's compute_edge_scores() "has_edge" case,
-  // model_prob > market_prob. Mirrors that backend definition exactly rather
-  // than reading its output, same reasoning as effectivePrice itself: this
-  // needs to reflect manual overrides and live market price, not whatever
-  // was true whenever the backend last computed it.
-  isOverlay: boolean
-  // true when this runner was a MATERIAL underlay at today's open price
-  // (market shorter than our fair price by a real margin) and has since
-  // drifted into being an overlay right now. Flagged, not excluded (user
-  // decision, Sep 2026) - anecdotal and small-sample evidence (22 cases,
-  // not yet statistically significant) suggests this specific pattern is a
-  // bad sign, not a buying opportunity: the market often knows something
-  // (gear, vet, stable mood) the model doesn't. See chat for the backing
-  // analysis (price_drift_analysis.py).
-  driftedToOverlay: boolean
-  // The mirror case: a MATERIAL overlay at open that's since been backed
-  // into an underlay right now - never shows up as an overlay itself (by
-  // definition it's now priced shorter than our fair value), so it needs
-  // its own flag to be visible at all. Informational, not a warning - the
-  // one real example checked in chat (Headley Grange, Sep 2026) won.
-  firmedToUnderlay: boolean
-  // speed_map ADJ_TERM, demeaned against this race's own runners - see
-  // speedMapDemeanedByRunId's own comment for why (2026-09-19, real user
-  // request: "add a column for speed map adj, with green and red colour" -
-  // surfaces the same number SpeedMapGrid.tsx's tint is already built
-  // from, as its own sortable race-table column). null for a scratched
-  // runner (matches SpeedMapGrid, which excludes scratched runners from
-  // the map entirely) or one with no speed_map value.
+  // The suitability adjustment demeaned against this race's own runners (see speedMapDemeanedByRunId). null for a scratched
+  // runner or one with no value (light-history runners).
   speedMapAdj: number | null
 }
 
-// Oct 2026: SOURCE CHANGED from the previous model's speed_map term to the new LightGBM projection's suitability adjustment
-// (projection/run.py: settle history, barrier fraction, field size, comments, day-of bias; main-model runners only, null for light-history).
-// The two lines below describe the old source and are kept for context. Demeaned against
-// THIS race's own runners for display purposes only - never fed back into
-// any WPR number. Two of speed_map's own inputs (track_bias_score,
-// pace_score) are shared/near-shared across a race's whole field by
-// construction, which would otherwise make every runner in a race look
-// uniformly positive or negative; subtracting the race's own mean removes
-// exactly that shared part and leaves the genuinely relational signal
-// (see SpeedMapGrid.tsx's own long comment on this, where the demeaning
-// was first introduced). Shared here (2026-09-19) so SpeedMapGrid's tint
-// and the race table's own "SM Adj" column can't independently drift -
-// both call this same function rather than each computing it inline.
+// The new projection model's suitability adjustment (projection/run.py: settle history, barrier fraction, field size,
+// comments, day-of bias; main-model runners only, null for light-history), demeaned against THIS race's own runners.
+// For display only, never fed back into any WPR number. Subtracting the race mean removes the part shared by the whole
+// field and leaves the relational signal. Shared by the Speed Map tint and the race table's SM column so they cannot drift.
 export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number | null> {
   const raw = runners.map((u) => u.adjustmentBreakdown?.suitability).filter((v): v is number => v != null)
   const mean = raw.length ? raw.reduce((a, b) => a + b, 0) / raw.length : 0
@@ -65,15 +29,9 @@ export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number |
   return result
 }
 
-// The demeaned speed_map value at which SpeedMapGrid.tsx's own tile tint
-// switches from neutral to favoured/hurt (its own THREAT_THRESHOLD,
-// originally a local constant there). Exported (2026-09-19, real user
-// request: "green and red colours should be +/- 0.5" for the race table's
-// own "SM Adj" column) so the table's colour and the Speed Map tile's tint
-// agree on what counts as neutral, rather than the table using a plain
-// sign check that would colour a value the tile itself still shows white.
-// Raised to +/-1.0 (4 Oct 2026, user request: favoured 1, unfavoured -1; SM >= 1 within 4 ran A/E 1.10 vs 1.07 at 0.5).
-export const SPEED_MAP_TINT_THRESHOLD = 0.5   // Oct 2026: the suitability term is narrower (demeaned sd about 0.5, 24% of runners beyond 0.5, 4% beyond 1.0), so 0.5 tints about the same share as 1.0 did on the old speed_map term
+// Demeaned suitability value at which a Speed Map tile tint and the SM column colour switch from neutral to favoured/hurt.
+// 0.5 tints about 24% of runners (the term's demeaned sd is about 0.5).
+export const SPEED_MAP_TINT_THRESHOLD = 0.5
 
 // The wpr_price cap in wpr_projection.py's project_race() - a no-hope
 // runner's raw softmax price can blow out to 5-6 figures; capped at 999
@@ -84,52 +42,6 @@ const PRICE_CAP = 999
 // wpr_projection.py's get_price_beta) - practically never hit once
 // PRICE_BETA is always populated, kept only for defensiveness.
 const DEFAULT_BETA = 0.4
-
-// An overlay far behind the top-rated runner isn't a useful highlight - it's
-// asking to back a horse the model itself doesn't rate as a real chance just
-// because the market's price on it happens to be even longer. User decision
-// (Sep 2026) to cap the highlight at the same WPR marker line shown in the
-// table, rather than surfacing every overlay regardless of how unlikely.
-// Raised from 4 to 5 (Sep 2026) after a backtest showed the extra gap-4-to-5
-// bets are statistically indistinguishable from the existing gap<=4 bucket
-// (n=903, ROI -7.6%, p=0.35, vs the baseline's own -8.9%, p=0.10) - moving
-// the line to 5 costs nothing and gains a modest amount of coverage.
-// Raised again 5 -> 6 (Sep 2026) to align with speedmap_jockey_tracker.py's
-// own GAP_MAX, itself picked from an exact-pipeline sweep of gap<=2 through
-// uncapped against the tracker's real solo-only rule - 6 was the clear
-// proportional-ROI peak (+14.5%, vs +5-9% for 2-5 and a steady decline past
-// 7), not an arbitrary round number, so this UI threshold now matches the
-// one the tracker actually validated rather than the dashboard and the
-// tracker quietly disagreeing about where the cutoff sits.
-// (The race-wide "top pick must clear 80 WPR" suppression that used to sit
-// alongside this was removed Sep 2026 - user decision - so gap-from-top is
-// now the only threshold gating the overlay highlight.)
-// Lowered 6 -> 4 (Sep 2026), re-aligning with speedmap_jockey_tracker.py's
-// own GAP_MAX after ITS re-sweep post the solo-only-before-price fix (see
-// that file's own comment) - 4 gave both a higher solo-pick win rate and
-// more solo picks than 6 on the corrected rule, a different answer than
-// the earlier 6-picking sweep because that one predates the price-after-
-// solo fix entirely (its own qualifying population was different).
-// Exported so RaceDetail.tsx's own "X WPR from top rated" divider line can
-// read the live value instead of carrying a second hardcoded copy that has
-// drifted out of sync with this one before.
-// Raised again 4 -> 5 (Sep 2026), re-aligning with speedmap_jockey_
-// tracker.py's own GAP_MAX after a real user decision made explicitly
-// against wpr_tracker_strike_rate_sweep.py's own recommendation (that
-// sweep found 5 neutral-to-slightly-worse than 4 once combined with the
-// tracker's new, higher JW_MIN - see that file's comment for the numbers).
-export const OVERLAY_MAX_GAP_FROM_TOP = 5
-
-// "Material" thresholds for the open-vs-now price-drift flags below: the
-// open price has to be at least 15% away from our fair price in the
-// relevant direction, not just noise-level movement. Chosen to comfortably
-// catch the two real examples checked in chat (Private Eye: open $3.80 vs
-// fair $4.71, ratio 0.807; Headley Grange: open $4.80 vs fair $4.06, ratio
-// 1.182) without needing to match the Python backtest's probability-edge
-// threshold exactly - this is a separate, price-based heuristic for a live
-// UI flag, not the same computation.
-const MATERIAL_UNDERLAY_AT_OPEN_RATIO = 0.85
-const MATERIAL_OVERLAY_AT_OPEN_RATIO = 1.15
 
 // Replicates wpr_projection.py's project_race() price/rank softmax
 // EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
@@ -183,10 +95,6 @@ export function computeEffectiveRace(
       .forEach((r, i) => rankByRunId.set(r.runId, i + 1))
   }
 
-  const marketPriceByRunId = new Map<string, number | null>(
-    runners.map((r) => [r.runId, r.fixedWinPrice ?? r.startingPrice ?? null]),
-  )
-  const openPriceByRunId = new Map<string, number | null>(runners.map((r) => [r.runId, r.openFixedPrice ?? null]))
   // Same non-scratched population SpeedMapGrid.tsx's own caller filters to
   // (RaceDetail.tsx passes it race.runners.filter(!effectiveScratched)) -
   // matches this function's own `scratched` param exactly, so the race
@@ -196,17 +104,7 @@ export function computeEffectiveRace(
   const result: Record<string, EffectiveRunner> = {}
   for (const r of withEffectiveWpr) {
     const effectivePrice = r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null
-    const marketPrice = marketPriceByRunId.get(r.runId) ?? null
-    const openPrice = openPriceByRunId.get(r.runId) ?? null
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
-    const isOverlay =
-      !r.scratched &&
-      effectivePrice != null &&
-      marketPrice != null &&
-      marketPrice > 1 &&
-      marketPrice > effectivePrice &&
-      gapFromTop != null &&
-      gapFromTop <= OVERLAY_MAX_GAP_FROM_TOP
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
       effectivePrice,
@@ -214,139 +112,20 @@ export function computeEffectiveRace(
       hasOverride: r.hasOverride,
       scratched: r.scratched,
       gapFromTop,
-      isOverlay,
-      driftedToOverlay:
-        isOverlay &&
-        openPrice != null &&
-        effectivePrice != null &&
-        openPrice <= effectivePrice * MATERIAL_UNDERLAY_AT_OPEN_RATIO,
-      firmedToUnderlay:
-        !r.scratched &&
-        openPrice != null &&
-        effectivePrice != null &&
-        marketPrice != null &&
-        openPrice >= effectivePrice * MATERIAL_OVERLAY_AT_OPEN_RATIO &&
-        marketPrice < effectivePrice,
       speedMapAdj: r.scratched ? null : (speedMapByRunId.get(r.runId) ?? null),
     }
   }
   return result
 }
 
-// Composite ranking score (Sep 2026) - real user question: "can we order
-// race tab by a different score (perhaps a combo of wpr, form factor &
-// toprate rating), so that we are getting as many winners as possible
-// within [a margin]". wpr_composite_score_capture_test.py (backtest,
-// 1,994 complete-case resulted races, 56 dates - a much bigger sample
-// than the tracker's own sweeps, since this isn't gated by speed_map) grid
-// searched every weight triple with all three weights > 0 (so all three
-// genuinely contribute, per the user's own follow-up request) at matched
-// selectivity (same average shortlist size as the existing 5-WPR
-// OVERLAY_MAX_GAP_FROM_TOP threshold produces). Initially landed on
-// 0.20/0.70/0.10 (wpr/trr/pfm) - 75.1% winner capture rate vs projectedWpr
-// alone's 65.5% at the same selectivity, the single best triple found.
-//
-// REWEIGHTED (2026-09-19, direct follow-up): real user observation that
-// Combo tracked the market price too closely because of the heavy 0.70
-// toprateRating weight - toprateRating correlates closely with how the
-// market itself prices a runner, so leaning that hard on it pulled Combo
-// toward being a proxy for market favouritism rather than an independent
-// signal. The backtest's own trr-weight-cap curve (see that script) shows
-// a smooth, gentle tradeoff, not a cliff: capping trr at 0.30 (well under
-// half its original weight) only cost 1.8pp of capture rate (73.3% vs
-// 75.1%), and pfm's own weight had real slack at that cap too - doubling
-// it from 0.10 to 0.20-0.25 cost essentially nothing further (73.1-73.2%).
-// Landed on 0.45/0.30/0.25, a real user decision balancing all three
-// factors (wpr now the plurality driver again, trr cut to well under
-// half its original weight, pfm given a genuinely meaningful voice) for
-// 73.2% capture rate - down from the original triple's 75.1%, but a
-// deliberate trade for a less market-mirroring score, not a correction.
-//
-// BOOSTED AGAIN (2026-09-19, same day): real user request, "boost wpr to
-// 0.5 in combo" - took the +0.05 from trr (0.30 -> 0.25), not pfm, since
-// trr is the component that was market-aligned in the first place;
-// pfm stayed at the 0.25 it was specifically given a genuinely
-// meaningful voice at just above. Checked before shipping: capture rate
-// barely moves (73.2% -> 72.5%, matched margin 10.08 -> 9.82) - real
-// user decision to leave COMPOSITE_MAX_GAP_FROM_TOP at 10 regardless
-// (see that constant's own comment).
-// Reweighted 4 Oct 2026 (user decision: keep the TopRate rating low, it largely tracks the market price). racing-model
-// grid on pre-race values (1,753 races 22 Aug to 3 Oct): 0.45 projection + 0.10 TopRate rating + 0.10 form factor +
-// 0.35 wpr_nett: top pick wins 29.8% (0.7-rating Combo 33.0%), top pick = SP favourite 53% (68%), non-favourite top
-// picks A/E price-matched 1.15, ROI at SP -10%. Previously 0.3 projection + 0.7 rating (3 Oct), 2/3 + 1/3 before.
-// Racing Model 0.15 taken from the projection (4 Oct 2026, user decision; racing-model reports/projection_improve.md,
-// 1,753 pre-race races): top pick level (29.3% vs 29.7%, n.s.), win rule level (+5.8% vs +6.9%), +1.2 winners per 100
-// races inside the 4 line at the same runner count (+0.3 to +2.2). Without a Racing Model figure the projection keeps 0.45.
-// Combo REMOVED 5 Oct 2026 (user decision): the column (key compositeScore, label Rating) is now the Racing Model
-// rating, see compositeScore below. The old weights and TopRate rating / form factor rescaling are gone.
+// Gap lines on the Proj (WPR) scale, re-validated 7 Oct 2026 on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
+// inside 4 holds 3.3 runners a race and 64% of winners, inside 6 holds 4.8 and 78%.
+export const OUTER_GAP_FROM_TOP = 6
+export const INNER_GAP_FROM_TOP = 4
 
-// Margin threshold for the composite score's own "X from top rated"
-// divider, analogous to OVERLAY_MAX_GAP_FROM_TOP but NOT the same units -
-// blending compresses the scale (see the backtest's own matched-margin
-// section), so "5" doesn't carry over. History: the original 0.20/0.70/
-// 0.10 weighting's matched-margin search landed on 9.99, rounded to an
-// even 10; the 0.45/0.30/0.25 reweight's own matched margin came out at
-// 10.08 (left at 10, too close to bother re-rounding); the current
-// 0.50/0.25/0.25 weighting's own matched margin is 9.82 - still left at
-// 10, a real user decision (2026-09-19: "leave at 10, boost wpr to 0.5
-// in combo") after being shown the margin/threshold analysis
-// (wpr_combo_race_tab_capture_analysis.py) that motivated it.
-// Lines on the WPR scale (25 Sep 2026, racing-model tools/combo_lines_test.py, 1,027 races Apr to Sep 2026,
-// pre-race values): within 10 WPR holds 90% of winners, outside it A/E 0.86 and ROI -46%. Inner line 4 WPR holds
-// 58% of winners in 2.8 runners a race (A/E 1.04 inside); 5 was slightly weaker (A/E 1.02).
-// Outer line 10 -> 8 (2 Oct 2026, user decision): quaddie test on pre-race dashboard values (304 quaddies 22 Aug to
-// 30 Sep, dividends estimated from SP): within 4 + 4-8 not speed-map-unfavoured, no first starters, est ROI -12% vs
-// -39% with the 10 line (-47% with first starters); outer 8 beat outer 10 at every inner cutoff (2 to 6).
-// Lines 4 / 8 -> 5 / 10 with the 0.7 rating weight (3 Oct 2026): the reweighted Combo spreads runners further apart;
-// 5 / 10 keep the old coverage (2.51 runners and 61% of winners inside the inner line vs 2.51 / 57.5%; 4.57 runners
-// and 82% of winners inside the outer vs 4.61 / 80%; quinella / trifecta hit A/E vs SP 1.21 / 1.33 vs 1.23 / 1.32).
-// Lines 5 / 10 -> 4 / 8 with the 4 Oct mix (it spreads runners less than the 0.7-rating Combo): same coverage as
-// before (2.48 runners / 54% of winners inside 4, 4.86 / 80% inside 8). Quinella / trifecta hit A/E vs SP fall
-// (1.21 / 1.33 -> 1.11 / 1.22) with this mix.
-// Lines 4 / 8 -> 4.5 / 9.5 with the Racing Model rating (5 Oct 2026): same runners inside as Combo's 4 / 8 (54% / 79% of
-// winners; racing-model reports/rating_replace_test.md).
-// Lines 4.5 / 9.5 -> 2.3 / 5 with Proj as the headline (6 Oct 2026, user decision): same runners inside as the Rating's
-// 4.5 / 9.5 (2.45 / 4.69 a race; racing-model reports/proj_rebuild_test.md, 38,310 races 2023-26 walk-forward:
-// 52.9% / 77.6% of winners inside vs the Rating's 54.2% / 78.1%).
-// Inner 2.3 -> 2 (6 Oct 2026, user choice of 2 or 3 / 5 or 6; racing-model proj_rebuild_oos, 38,310 races walk-forward,
-// front-weighted Proj, SP): inside 2 = 2.25 runners, 50% of winners, A/E 1.065; the 2-3 band adds 0.77 runners at A/E
-// 1.01 (market level). Outer 5 kept: the 5-6 band is A/E 0.97 (over-bet) and outer 6 adds ~15% trifecta combos.
-// Lines 3 / 5 (6 Oct 2026): the price adjustment (with lines 4 / 8) was removed the same day (user decision: Proj must
-// be the projected WPR, consistent with the actual WPR it is compared with). Inside 3 = 3.03 runners, 60.5% of
-// winners, A/E 1.056; inside 5 = 4.62 runners, 77%.
-// Lines 3 / 5 -> 4 / 6 with the new projection model (user decision, 7 Oct 2026): it spreads runners slightly wider than the previous
-// Proj, so 4 / 6 restore the old coverage: 3.3 / 4.8 runners a race holding 64% / 78% of winners (4,566 races, 1 Jul to 5 Oct 2026, pre-race projections), where 3 / 5 held 2.6 / 4.1 runners and 55% / 71%.
-export const COMPOSITE_MAX_GAP_FROM_TOP = 6
-export const COMPOSITE_INNER_GAP_FROM_TOP = 4
-
-// Blends projectedWpr with toprateRating/formFactor per the validated
-// weights above. effectiveWpr (optional): pass computeEffectiveRace's own
-// effectiveProjectedWpr so a manual override shifts the composite too,
-// same as it already does for projectedWpr itself - omit to use the raw
-// model figure. Missing toprateRating/formFactor gracefully DROPS that
-// component and renormalizes the remaining weights (matches this
-// codebase's existing convention for partial data, e.g. wpr_projection.
-// py's own base fallback chain) rather than returning null outright - a
-// null projectedWpr is the only thing that makes a composite meaningless
-// (that's the dominant, always-required term). This graceful-degradation
-// behaviour was NOT itself backtested in isolation (the backtest above
-// was complete-case only) - it's a deliberate, conservative choice that
-// never does worse than falling back toward plain WPR when data's thin.
-export function compositeScore(runner: Runner, effectiveWpr?: number | null): number | null {
-  // Headline = Proj: the new model's projected WPR (projection/), manual override included.
-  const wpr = effectiveWpr !== undefined ? effectiveWpr : runner.projectedWpr
-  return wpr ?? null
-}
-
-// Per-runner gap from the race's own top composite score - independent of
-// computeEffectiveRace's WPR-based gapFromTop (that one is calibrated
-// against real WPR for pricing/overlay detection; the composite score
-// has a different scale and must never feed into that price math). Same
-// "need 2+ rated runners, exclude scratched" shape as computeEffectiveRace
-// for consistency, but scratched here means client-side-toggled OR
-// data-driven (caller passes the merged set, same as elsewhere in
-// RaceDetail.tsx).
-export function computeCompositeGaps(
+// Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
+// Needs 2+ rated runners, otherwise every gap is null.
+export function computeGapsFromTop(
   runners: Runner[],
   effectiveByRunId: Record<string, EffectiveRunner>,
   scratched: Set<string>,
@@ -355,10 +134,7 @@ export function computeCompositeGaps(
   for (const r of runners) gaps[r.runId] = null
   const scored = runners
     .filter((r) => !scratched.has(r.runId))
-    .map((r) => ({
-      runId: r.runId,
-      score: compositeScore(r, effectiveByRunId[r.runId]?.effectiveProjectedWpr),
-    }))
+    .map((r) => ({ runId: r.runId, score: effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? null }))
     .filter((r): r is { runId: string; score: number } => r.score != null)
   if (scored.length < 2) return gaps
   const top = Math.max(...scored.map((r) => r.score))

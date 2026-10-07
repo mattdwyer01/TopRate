@@ -24,7 +24,7 @@ interface RecentRunsTableProps {
 // Same campaign-reset gap the backend's own_first_up/own_second_up ADJ_TERMS
 // and lib/spellPosition.ts use, so "FU"/"2U" here means the same thing they
 // do everywhere else in the app.
-const _SPELL_GAP_DAYS = 60
+const SPELL_GAP_DAYS = 60
 
 type CampLabel = 'FU' | '2U' | '3U' | '4U+'
 
@@ -46,7 +46,7 @@ function buildCampByDate(formHistory: FormHistoryEntry[]): Map<string, CampLabel
   for (const entry of formHistory) {
     const d = parseISO(entry.date)
     const gap = daysBetween(d, prevDate)
-    n = prevDate == null || gap == null || gap > _SPELL_GAP_DAYS ? 1 : n + 1
+    n = prevDate == null || gap == null || gap > SPELL_GAP_DAYS ? 1 : n + 1
     if (entry.date) map.set(entry.date, campLabelForN(n))
     prevDate = d
   }

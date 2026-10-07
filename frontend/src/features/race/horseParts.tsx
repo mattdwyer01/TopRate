@@ -608,21 +608,3 @@ export function ResultCard({ runner }: { runner: Runner }) {
     </div>
   )
 }
-
-/* ------------------------------------------------------------ collapsible */
-
-// A section that starts open on tablets and desktops and closed on phones, where vertical room is the scarce thing.
-export function Collapsible({ title, note, defaultOpenWide = true, children }: { title: string; note?: React.ReactNode; defaultOpenWide?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(() => (typeof window === 'undefined' ? true : defaultOpenWide && window.matchMedia('(min-width: 768px)').matches))
-  return (
-    <div>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-baseline justify-between gap-2 text-left">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-          {open ? '▾' : '▸'} {title}
-        </span>
-        {note && <span className="text-[11px] text-ink-faint">{note}</span>}
-      </button>
-      {open && <div className="mt-1.5">{children}</div>}
-    </div>
-  )
-}
