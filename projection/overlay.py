@@ -42,17 +42,8 @@ def apply(runners_df, path=None):
     for c in OLD_COLS + NEW_COLS:
         if c not in df.columns:
             df[c] = None
-    # The speed-map signal (wpjcb.speed_map: the pace/settle/barrier term the trackers' favoured/unfavoured tags and the Speed Map tint
-    # are built on) is not a WPR projection: it is carried through so those keep working. Everything else from the previous model is cleared.
-    def _sm(v):
-        try:
-            return json.loads(v).get('speed_map') if isinstance(v, str) and v else None
-        except Exception:
-            return None
-    sm = df['wprp_contrib'].map(_sm)
+    # Every column from the previous model is cleared (its speed_map term was retired on 8 Oct 2026; the Speed Map / SM Adj now read suitability).
     df[OLD_COLS + NEW_COLS] = None
-    keep = sm.notna()
-    df.loc[keep, 'wprp_contrib'] = [json.dumps({'speed_map': float(v)}) for v in sm[keep]]
     if lg.empty or 'run_id' not in df.columns:
         return df
     lg = lg.drop_duplicates('run_id', keep='last').set_index('run_id')
@@ -71,17 +62,16 @@ def apply(runners_df, path=None):
     # confidence on the old 0-100 scale, from the error estimate: sd 8 -> 90, sd 12 -> 70 (display only)
     df.loc[idx, 'wprp_conf'] = np.clip(np.round(130 - 5 * m.sd.values), 40, 95)
     df.loc[idx, 'wprp_desc'] = [_describe(r) for r in m.itertuples()]
-    smi = sm.loc[idx]
     def _grp(g):
         try:
             return {'g_' + k: float(v) for k, v in json.loads(g).items()} if isinstance(g, str) and g else {}
         except Exception:
             return {}
-    def _contrib(s, a, w, mod, g):
-        d = {**({'speed_map': float(s)} if pd.notna(s) else {}), **({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {}),
+    def _contrib(a, w, mod, g):
+        d = {**({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {}),
              **({'weight': float(w)} if pd.notna(w) and abs(w) >= 0.005 else {}), **(_grp(g) if mod == 'main' else {})}
         return json.dumps(d) if d else None
-    df.loc[idx, 'wprp_contrib'] = [_contrib(s, a, w, mod, g) for s, a, w, mod, g in zip(smi.values, m.adj.values, m.wtadj.values, m.model.values, m.grp.values)]
+    df.loc[idx, 'wprp_contrib'] = [_contrib(a, w, mod, g) for a, w, mod, g in zip(m.adj.values, m.wtadj.values, m.model.values, m.grp.values)]
     # fair price and rank within the race (same softmax convention as before; scratched runners excluded)
     beta = _beta()
     sub = df.loc[idx, ['race_id', 'wprp_proj']].copy()

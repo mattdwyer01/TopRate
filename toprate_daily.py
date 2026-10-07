@@ -1614,10 +1614,10 @@ def apply_new_projection(runners_df, recompute_edges=True):
 
 def compute_wpr_projection(runners_df, target_date_str=None, target_venues=None):
     """Step 2c. The WPR projections come from the new model (projection/run.py: daily, plus a fast refresh after a going change),
-    logged to wpr_projection_log.csv.gz, and are applied here. The previous model's compute still runs, scoped as before, ONLY to refresh
-    the speed-map signal (wprp_contrib.speed_map) that the trackers' tags and the Speed Map are built on; apply_new_projection then
-    overwrites every projection column with the new model's."""
-    runners_df = _compute_wpr_projection_previous_model(runners_df, target_date_str, target_venues)
+    logged to wpr_projection_log.csv.gz, and are applied here. The previous model (_compute_wpr_projection_previous_model) was RETIRED on
+    8 Oct 2026: it only supplied wprp_contrib.speed_map, and the SM Adj column and Speed Map tint now read the new model's suitability
+    adjustment instead. The function is kept for reference but no longer called. target_date_str/target_venues are accepted for call-site
+    compatibility and unused."""
     return apply_new_projection(runners_df, recompute_edges=False)
 
 

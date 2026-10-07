@@ -2294,10 +2294,9 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   RMSE 9.1 out of sample, bias about 0 incl. heavy going; light-history model for 0-2 prior runs, RMSE 11.8 / 10.5 / 10.0 for debut /
   2nd / 3rd start). Past races show the projection that was logged before they ran (`wpr_projection_log.csv.gz`, seeded from out-of-sample
   back-fill for 1 Jul to 5 Oct 2026, then live), never an in-sample re-score. `racing_model.json` and the whole Racing Model code path
-  in `frontend/` are gone (the racing-model repo's `dashboard.yml` still commits the file; nothing reads it). The previous model's
-  `compute_wpr_projection` still runs (`_compute_wpr_projection_previous_model`) ONLY to refresh `wprp_contrib.speed_map`, the speed-map
-  signal behind the Speed Map tint, the SM Adj column and the trackers' favoured/unfavoured tags; overlay.py carries that one term through
-  and clears every other old projection field. A going change makes `tab_results_poller.py` dispatch `projection_daily.yml` in fast mode.
+  in `frontend/` are gone (the racing-model repo's `dashboard.yml` still commits the file; nothing reads it). The previous model (`_compute_wpr_projection_previous_model`) was RETIRED 8 Oct 2026: it only supplied `wprp_contrib.speed_map`, and the
+  SM Adj column and Speed Map tint now read the new model's suitability adjustment (`speedMapDemeanedByRunId`, tint threshold 0.5, light-history runners blank).
+  `overlay.py` clears every old projection field and `compute_wpr_projection` just applies the log. A going change still dispatches `projection_daily.yml` in fast mode.
   Re-validated 7 Oct 2026 on 4,201 pre-race-logged races (4 Jul to 6 Oct, weight term included): softmax beta 0.20 (MLE 0.202, calibrated within about 2 points per band);
   gap lines 4 / 6 hold 3.62 / 5.20 runners and 67% / 82% of winners (A/E vs SP 1.06 / 1.05; the 6 to 10 band is 0.86); both halves of the window agree.
   Tracker GAP_MAX is moot (trackers retired). The new Proj averages about 3 WPR below the previous one.
