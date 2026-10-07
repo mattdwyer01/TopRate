@@ -139,7 +139,7 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Trip map</span>
-        <span className="text-xs text-ink-faint">{narrow ? 'Projected running line' : `Projected running line · ${laneLabel}`}</span>
+        <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Average width, whole run') : `Projected running line · ${laneLabel}`}</span>
       </div>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
