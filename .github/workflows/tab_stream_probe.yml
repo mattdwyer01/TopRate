@@ -1,0 +1,20 @@
+name: TAB stream probe (self-hosted, read-only)
+
+# One-off, manual, writes nothing. Looks for any live stream / video field in TAB's race detail from the AU runner.
+# Full checkout on purpose: the runner workspace is shared with tab_results.yml and a sparse checkout left behind
+# there stalled it once (7 Oct 2026).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: tab-stream-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run probe
+        run: python -u tab_stream_probe.py 2>&1 | tee probe_output.txt
