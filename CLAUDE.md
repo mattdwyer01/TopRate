@@ -2322,6 +2322,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   - `projection_daily.yml` full run takes about 28 min on a hosted runner (fast ~4 min). A fast-vs-full comparison was run to see if the
     full step can become `--build-cache` then `--fast`; not adopted unless that comparison matched. External cron-job.org triggers for the
     projection and results workflows are still a user action.
+  - Horse detail "Why this projection" (Oct 2026): the main model's base is a recent-form anchor (linear part) plus a LightGBM correction. `projection/run.py`
+    splits the correction per feature (TreeSHAP) into groups (`GROUPS`: form pattern, spell and trials, class, going, distance and track, jockey and
+    trainer, weight/age, field and barrier, comments); anchor + groups = base exactly. Stored as JSON in the log's `grp` column and passed to the page as
+    `wpjcb.g_*` (overlay.py). Runs logged before 8 Oct 2026 and light-history runners have no split and show base, suitability and weight only. The typical
+    ranges drawn behind each bar (`GROUPS` in `horseParts.tsx`) are from one 677-runner day, not a training-wide figure. TopRate rating is NOT a model input
+    (the old waterfall bar was misleading). The horse-level trip mini-map, the "against the expected shape" row and "How today's shape suits this horse"
+    (ComparisonGrid, now in `archive/frontend/`) were removed.
 
 ## What to be careful about
 

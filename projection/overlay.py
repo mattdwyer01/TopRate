@@ -71,11 +71,16 @@ def apply(runners_df, path=None):
     df.loc[idx, 'wprp_conf'] = np.clip(np.round(130 - 5 * m.sd.values), 40, 95)
     df.loc[idx, 'wprp_desc'] = [_describe(r) for r in m.itertuples()]
     smi = sm.loc[idx]
-    def _contrib(s, a, w, mod):
+    def _grp(g):
+        try:
+            return {'g_' + k: float(v) for k, v in json.loads(g).items()} if isinstance(g, str) and g else {}
+        except Exception:
+            return {}
+    def _contrib(s, a, w, mod, g):
         d = {**({'speed_map': float(s)} if pd.notna(s) else {}), **({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {}),
-             **({'weight': float(w)} if pd.notna(w) and abs(w) >= 0.005 else {})}
+             **({'weight': float(w)} if pd.notna(w) and abs(w) >= 0.005 else {}), **(_grp(g) if mod == 'main' else {})}
         return json.dumps(d) if d else None
-    df.loc[idx, 'wprp_contrib'] = [_contrib(s, a, w, mod) for s, a, w, mod in zip(smi.values, m.adj.values, m.wtadj.values, m.model.values)]
+    df.loc[idx, 'wprp_contrib'] = [_contrib(s, a, w, mod, g) for s, a, w, mod, g in zip(smi.values, m.adj.values, m.wtadj.values, m.model.values, m.grp.values)]
     # fair price and rank within the race (same softmax convention as before; scratched runners excluded)
     beta = _beta()
     sub = df.loc[idx, ['race_id', 'wprp_proj']].copy()
