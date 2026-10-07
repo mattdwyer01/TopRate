@@ -500,7 +500,7 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                 if aborted:
                     break
                 race_no = rc.get("raceNumber")
-                replay_codes.note(venue, rc)
+                replay_codes.note(provider_venue_for(venue), rc)
                 rkey = f"{target_date}|{venue}|{race_no}"
                 # Dividends (tab_dividends.py): once per race, when it is first seen Paying. Before the
                 # terminal_cache skip below, which would otherwise hide a race that turned Paying last cycle.
