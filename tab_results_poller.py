@@ -987,11 +987,20 @@ def run_once(push=True):
     # (re)applied to weight_carried (best-effort, see tab_fields.py)
     n_read = tab_fields.maybe_fetch(sys.modules[__name__])
 
-    if not results and not conditions and not prices and not unplaced_races and not start_times and not n_read:
+    # projection_daily.yml commits wpr_projection_log.csv.gz but nothing else carries it into the payload between full rebuilds
+    # (7 Oct 2026 gap: a fast re-score after a going change or a new declaration only showed at the next Daily fetch). When the log
+    # holds a newer projection than the one applied to toprate_runners.csv, re-apply it here and patch it into the payload.
+    proj_stale = td.projection_stale()
+    if proj_stale:
+        print("  Projection log is newer than the runners file: refreshing projections this cycle")
+
+    if not results and not conditions and not prices and not unplaced_races and not start_times and not n_read and not proj_stale:
         print("  No new TAB results, conditions, or prices this cycle")
         return
 
     runners_df, n_weighted = tab_fields.apply_logged(sys.modules[__name__], td.load_runners())
+    if proj_stale:
+        runners_df = td.refresh_projection(runners_df)
     n_result_rows = 0
     n_condition_rows = 0
     n_priced = 0
@@ -1035,7 +1044,7 @@ def run_once(push=True):
             print(f"  Start time update: {c}")
 
     if (n_result_rows == 0 and n_condition_rows == 0 and n_priced == 0 and n_scratched == 0 and n_weighted == 0
-            and n_time_races == 0):
+            and n_time_races == 0 and not proj_stale):
         print("  Nothing matched this cycle")
         return
 
@@ -1081,7 +1090,8 @@ def run_once(push=True):
     # weights alone do not force a full rebuild (3-4 min): toprate_runners.csv carries them now and the next
     # daily / conditions rebuild puts them in toprate_data.json. Forcing it every cycle the weights were re-applied
     # made cycles 7-10 min and their pushes collide (25 Sep 2026).
-    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches):
+    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches,
+                                                  proj_df=runners_df if proj_stale else None):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
@@ -1090,12 +1100,12 @@ def run_once(push=True):
         commit_and_push()
 
 
-def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches=None):
+def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches=None, proj_df=None):
     """Thin wrapper around toprate_daily.patch_data_json() -- treats any
     exception as "unsafe, fall back to full rebuild" rather than letting a
     patching bug take down the whole cycle."""
     try:
-        return td.patch_data_json(price_patches, result_patches, scratch_patches, time_patches)
+        return td.patch_data_json(price_patches, result_patches, scratch_patches, time_patches, proj_df=proj_df)
     except Exception as e:
         print(f"  patch_data_json failed ({type(e).__name__}: {e}), falling back to full rebuild")
         return False
