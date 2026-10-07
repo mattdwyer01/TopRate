@@ -175,7 +175,7 @@ export function RunnerDetailModal({
         <div className="flex flex-col gap-2 p-2 sm:gap-3 sm:p-4">
           {runner.projectedWpr == null && baseValue == null && (
             <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-sm text-amber">
-              No projection for this runner. {runner.projectionDescription || 'There is not enough form history to project it; enter your own base WPR below to rate it.'}
+              No projection for this runner. {runner.projectionDescription || (tripRunner && tripRunner.nHist >= 3 ? 'It has plenty of form, but is entered in another race before this one has run, so its latest rating is not known yet. The projection appears once that run is rated; enter your own base WPR below to rate it meanwhile.' : 'There is not enough form history to project it; enter your own base WPR below to rate it.')}
             </div>
           )}
 

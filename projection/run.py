@@ -120,38 +120,13 @@ def load_upcoming(today, hist, backfill_days=0):
     return X, done, u
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--today', default=os.environ.get('PROJECTION_TODAY') or au_today())
-    ap.add_argument('--out', default=os.path.join(ROOT, 'wpr_projection_new.json'))
-    ap.add_argument('--backfill-days', type=int, default=0, help='also project runners of races from the last N days that ran before the log existed and whose WPR has not settled yet (still out of sample)')
-    ap.add_argument('--fast', action='store_true', help='re-score using cached jockey/trainer/field tables (run after a going change); needs --build-cache first')
-    ap.add_argument('--build-cache', action='store_true', help='build the cached tables from full history (run once a day after the authoritative results)')
-    a = ap.parse_args()
-    levels = json.load(open(os.path.join(M, 'levels.json')))
-    main_info = json.load(open(os.path.join(M, 'main_info.json')))
-    light_info = json.load(open(os.path.join(M, 'light_info.json')))
-    print('loading history ...', flush=True)
-    H = F.load_history()
-    if a.build_cache:
-        store = {}
-        rr = F.build_main(H, levels, store=store)
-        F.build_light(rr, store=store)
-        F.build_ladder(rr, store=store)
-        F.build_suit(F.load_results_all(), F.build_pos_hist(rr), bias_since='2100-01-01', store=store)
-        store['built_through'] = str(H.date.max().date())
-        os.makedirs(CACHE, exist_ok=True)
-        pd.to_pickle(store, os.path.join(CACHE, 'tables.pkl'))
-        print('cache built through', store['built_through'])
-        return
-    tables = pd.read_pickle(os.path.join(CACHE, 'tables.pkl')) if a.fast else None
-    T, done, raw = load_upcoming(a.today, H, a.backfill_days)
-    print('upcoming runners', len(T), 'races', T.race_id.nunique(), flush=True)
-    if T.empty:
-        json.dump(dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), races={}), open(a.out, 'w'))
-        return
+def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
+    """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
-    X = pd.concat([Hu, T.drop(columns=['run_id'])], ignore_index=True)
+    Tx = T.drop(columns=['run_id'])
+    if standin:
+        Tx['wpr'] = T.run_id.map(standin)
+    X = pd.concat([Hu, Tx], ignore_index=True)
     r = F.build_main(X, levels, tables=tables)
     tg = r.is_target == 1
     ph = F.build_pos_hist(r)
@@ -230,6 +205,57 @@ def main():
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
+    return R
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--today', default=os.environ.get('PROJECTION_TODAY') or au_today())
+    ap.add_argument('--out', default=os.path.join(ROOT, 'wpr_projection_new.json'))
+    ap.add_argument('--backfill-days', type=int, default=0, help='also project runners of races from the last N days that ran before the log existed and whose WPR has not settled yet (still out of sample)')
+    ap.add_argument('--fast', action='store_true', help='re-score using cached jockey/trainer/field tables (run after a going change); needs --build-cache first')
+    ap.add_argument('--build-cache', action='store_true', help='build the cached tables from full history (run once a day after the authoritative results)')
+    a = ap.parse_args()
+    levels = json.load(open(os.path.join(M, 'levels.json')))
+    main_info = json.load(open(os.path.join(M, 'main_info.json')))
+    light_info = json.load(open(os.path.join(M, 'light_info.json')))
+    print('loading history ...', flush=True)
+    H = F.load_history()
+    if a.build_cache:
+        store = {}
+        rr = F.build_main(H, levels, store=store)
+        F.build_light(rr, store=store)
+        F.build_ladder(rr, store=store)
+        F.build_suit(F.load_results_all(), F.build_pos_hist(rr), bias_since='2100-01-01', store=store)
+        store['built_through'] = str(H.date.max().date())
+        os.makedirs(CACHE, exist_ok=True)
+        pd.to_pickle(store, os.path.join(CACHE, 'tables.pkl'))
+        print('cache built through', store['built_through'])
+        return
+    tables = pd.read_pickle(os.path.join(CACHE, 'tables.pkl')) if a.fast else None
+    T, done, raw = load_upcoming(a.today, H, a.backfill_days)
+    print('upcoming runners', len(T), 'races', T.race_id.nunique(), flush=True)
+    if T.empty:
+        json.dump(dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), races={}), open(a.out, 'w'))
+        return
+    R = score(a, H, T, done, levels, main_info, light_info, tables)
+    # a horse entered twice before its first entry has run has no rated previous run for the later entry: stand in the earlier entry's own
+    # projection as that run's rating and score again, keeping the second pass only for the runners the first pass could not route
+    for _ in range(3):
+        todo = R.routed.eq('none')
+        if not todo.any():
+            break
+        pr = R[R.proj.notna() & R.run_id.notna()]
+        standin = dict(zip(pr.run_id.astype('int64'), pr.proj))
+        R2 = score(a, H, T, done, levels, main_info, light_info, tables, standin).set_index(['race_id', 'horse_id'])
+        keys = R.loc[todo, ['race_id', 'horse_id']].itertuples(index=False, name=None)
+        fix = [k for k in keys if k in R2.index and R2.loc[k, 'routed'] != 'none']
+        if not fix:
+            break
+        idx = R.index[todo & pd.Series([(r, h) in set(fix) for r, h in zip(R.race_id, R.horse_id)], index=R.index)]
+        for c in R.columns:
+            if c in R2.columns:
+                R.loc[idx, c] = [R2.loc[(r, h), c] for r, h in zip(R.loc[idx, 'race_id'], R.loc[idx, 'horse_id'])]
     races = {}
     for rid, z in R.groupby('race_id'):
         first = z.iloc[0]
