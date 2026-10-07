@@ -19,7 +19,7 @@ interface TripMapProps {
 const LEN_M = 2.4 // one length in metres
 const CHIP_H = 22
 const SILK = 18
-const NAME_CHARS = 12
+const NAME_CHARS = 16
 
 interface Placed extends TripRunner {
   gx: number // gap in lengths, leader = 0
@@ -58,11 +58,11 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
     const minGap = runners.length ? Math.min(...runners.map((r) => r.gap as number)) : 0
     const rows = runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap }))
     const maxG = Math.max(8, Math.ceil((Math.max(0, ...rows.map((r) => r.gx)) + 1.2) / 2) * 2)
-    const maxL = Math.max(12, Math.ceil((Math.max(0, ...rows.map((r) => r.lane)) + 1.2) / 2) * 2)
+    const maxL = Math.max(6, Math.ceil((Math.max(0, ...rows.map((r) => r.lane)) + 1.2) / 2) * 2)
     const GM = -1.2
     const pxm = iw / ((maxG - GM) * LEN_M)
     const hh = CHIP_H / 2
-    const hw = narrow ? 24 : 70
+    const hw = narrow ? 24 : 82
     // Compact vertical scale; grows only when a big field needs the room to avoid stacking chips on each other.
     const need = Math.ceil(rows.length * 0.7) * (CHIP_H + 3)
     const ih = Math.max(Math.round(maxL * (narrow ? 11 : 14)), need)
