@@ -25,6 +25,7 @@ export interface FormRun {
   date?: string
   weight?: number | null
   startingPrice?: number | null
+  raceNumber?: number | null
 }
 
 export interface FormHistoryEntry {

@@ -3797,6 +3797,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     _sp = pd.to_numeric(_r.get("priceStarting"), errors="coerce")
                     _rec["wt"] = round(float(_wt), 1) if pd.notna(_wt) and 40 <= _wt <= 80 else None
                     _rec["sp"] = round(float(_sp), 2) if pd.notna(_sp) and _sp > 1 else None
+                    # race number, so the dashboard can link that run's Sky replay (replay_codes.py)
+                    _rn = pd.to_numeric(_r.get("raceNumber"), errors="coerce")
+                    _rec["rn"] = int(_rn) if pd.notna(_rn) and 1 <= _rn <= 15 else None
                 return _rec
 
             for _hlc, _g in _fh.groupby("horse_lc"):

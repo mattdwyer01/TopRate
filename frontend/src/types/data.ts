@@ -36,6 +36,8 @@ export interface RawFormRun {
   // weight carried (kg) and starting price for that run - only in horse_history/*.json
   wt?: number | null
   sp?: number | null
+  // race number of that run - only in horse_history/*.json, used to link its Sky replay
+  rn?: number | null
 }
 
 export interface RawFormAllEntry {

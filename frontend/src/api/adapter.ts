@@ -53,6 +53,7 @@ export function toFormRun(r: RawFormRun): FormRun {
     date: r.d,
     weight: r.wt ?? null,
     startingPrice: r.sp ?? null,
+    raceNumber: r.rn ?? null,
   }
 }
 

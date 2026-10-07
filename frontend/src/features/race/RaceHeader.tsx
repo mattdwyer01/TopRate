@@ -5,6 +5,7 @@ import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
 import { Pill } from '../../components/Pill'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { fmtPrize, goingChange, goingTone } from './raceFacts'
+import { ReplayPanel } from './ReplayPanel'
 
 interface RaceHeaderProps {
   race: Race
@@ -96,6 +97,7 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
         </Chip>
         {race.hasFirstStarter && <Chip className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
       </div>
+      <ReplayPanel venue={race.venue} date={race.date} raceNumber={race.raceNumber} hasResult={hasAnyResult || race.allResulted} />
     </section>
   )
 }
