@@ -316,7 +316,7 @@ export function RaceDetail({
         </div>
         <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
         {speedMapView === 'trip' && tripRace && tripMap ? (
-          <TripMap trip={tripRace} excluded={effectiveScratched} generated={tripMap.generated} />
+          <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} />
         ) : speedMapView === 'bar' ? (
           <SpeedMap race={race} runners={activeRunners} />
         ) : (

@@ -1,35 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TripRace, TripRunner } from '../../lib/tripMap'
+import type { Runner } from '../../types/domain'
 
 // Trip map: where each runner is projected to be about 800m from home. Horizontal axis = lengths behind the
 // leader (front of the field at the right), vertical axis = metres from the inside rail (rail at the top).
-// Horses are drawn to scale (about 2.4m nose to tail, 0.75m wide) on one metric scale for both axes, with the
-// nose at the projected position. Positions come from analysis/trip_map/build_trip_map.py: a model trained on
+// Each runner is a compact chip (silk, TAB number, name) with its right edge at the projected position. Lengths behind
+// the leader are to scale along the bottom axis; the width axis is stretched to keep the chart short, so it is a diagram
+// of order and rough width, not an exact plan. Positions come from analysis/trip_map/build_trip_map.py: a model trained on
 // every GPS-tracked run ranks the field, then runners are placed using the spread real fields show.
 
 interface TripMapProps {
   trip: TripRace
   excluded: Set<string> // scratched runners (runId), left off the map
+  runners: Runner[] // for TAB number and silks (matched on runId)
   generated: string
 }
 
 const LEN_M = 2.4 // one length in metres
-const HORSE_W = 0.75 // metres of width a running horse occupies
-const FRONT = [4, 120, 87] // emerald-deep
-const BACK = [209, 250, 229] // light emerald
-
-function mix(t: number): string {
-  return `rgb(${FRONT.map((v, i) => Math.round(v + (BACK[i] - v) * t)).join(',')})`
-}
+const CHIP_H = 22
+const SILK = 18
+const NAME_CHARS = 12
 
 interface Placed extends TripRunner {
   gx: number // gap in lengths, leader = 0
-  t: number // 0 front .. 1 back
+  num: number | string
+  silk: string | null
+  label: string
   px: number
   py: number
 }
 
-export function TripMap({ trip, excluded, generated }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, generated }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -47,6 +48,7 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
     return () => ro.disconnect()
   }, [])
 
+  const byRid = useMemo(() => new Map(field.map((f) => [f.runId, f])), [field])
   const runners = useMemo(() => trip.runners.filter((r) => !excluded.has(r.rid) && r.gap != null), [trip, excluded])
 
   const layout = useMemo(() => {
@@ -59,18 +61,28 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
     const maxL = Math.max(12, Math.ceil((Math.max(0, ...rows.map((r) => r.lane)) + 1.2) / 2) * 2)
     const GM = -1.2
     const pxm = iw / ((maxG - GM) * LEN_M)
-    // On a phone the true scale makes a horse about 8px tall, too small to read its number, so the vertical scale and the horse size
-    // have a floor there (the map is then a diagram of order and gaps, not exact to scale).
-    const ky = narrow ? Math.max(pxm, 12) : pxm
-    const ih = Math.round(maxL * ky)
+    const hh = CHIP_H / 2
+    const hw = narrow ? 24 : 70
+    // Compact vertical scale; grows only when a big field needs the room to avoid stacking chips on each other.
+    const need = Math.ceil(rows.length * 0.7) * (CHIP_H + 3)
+    const ih = Math.max(Math.round(maxL * (narrow ? 11 : 14)), need)
+    const ky = ih / maxL
     const H = m.t + ih + m.b
     const X = (g: number) => m.l + iw - (g - GM) * LEN_M * pxm
     const Y = (l: number) => m.t + l * ky
-    const hw = narrow ? Math.max((LEN_M * pxm) / 2, 11) : (LEN_M * pxm) / 2
-    const hh = narrow ? Math.max((HORSE_W * pxm) / 2, 6.5) : (HORSE_W * pxm) / 2
-    const order = [...rows].sort((a, b) => a.gx - b.gx)
-    const tOf = new Map(order.map((r, i) => [r.rid, order.length > 1 ? i / (order.length - 1) : 0]))
-    const items: Placed[] = rows.map((r) => ({ ...r, t: tOf.get(r.rid) ?? 0, px: X(r.gx) - hw, py: Y(r.lane) }))
+    const items: Placed[] = rows.map((r) => {
+      const f = byRid.get(r.rid)
+      const num = f?.tabNumber ?? r.barrier
+      const nm = f?.horse ?? r.name
+      return {
+        ...r,
+        num,
+        silk: f?.silkUrl ?? null,
+        label: nm.length > NAME_CHARS ? nm.slice(0, NAME_CHARS - 1) + '…' : nm,
+        px: X(r.gx) - hw,
+        py: Y(r.lane),
+      }
+    })
     // nudge overlapping horses apart: sideways first, then lengthwise
     for (let it = 0; it < 80; it++) {
       let moved = false
@@ -103,7 +115,7 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
       if (!moved) break
     }
     return { m, iw, ih, H, maxG, maxL, pxm, ky, X, Y, hw, hh, items }
-  }, [runners, width])
+  }, [runners, width, byRid])
 
   if (!runners.length) {
     return (
@@ -126,11 +138,11 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Trip map</span>
-        <span className="text-xs text-ink-faint">{narrow ? 'Projected running line' : `Projected running line · ${laneLabel} · horses drawn to scale`}</span>
+        <span className="text-xs text-ink-faint">{narrow ? 'Projected running line' : `Projected running line · ${laneLabel}`}</span>
       </div>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
-          <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-emerald-tint)" />
+          <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
           {gridG.map((g) => (
             <g key={`g${g}`}>
               <line x1={X(g)} x2={X(g)} y1={m.t} y2={m.t + ih} stroke="var(--color-line)" />
@@ -155,7 +167,7 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
             front of field &rarr;
           </text>
           <text x={m.l} y={H - 6} fontSize={10} fill="var(--color-ink-mute)">
-            {narrow ? '← further back (lengths behind the leader)' : `← further back (lengths behind the leader, 1 length = ${LEN_M}m, drawn to scale)`}
+            {narrow ? '← further back (lengths behind the leader)' : `← further back (lengths behind the leader, 1 length = ${LEN_M}m)`}
           </text>
           {hov && (
             <ellipse
@@ -163,45 +175,37 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
               cy={Y(hov.lane)}
               rx={trip.err.gap * LEN_M * pxm}
               ry={trip.err.lane * ky}
-              fill={mix(hov.t)}
-              fillOpacity={0.25}
-              stroke={mix(hov.t)}
+              fill="var(--color-amber)"
+              fillOpacity={0.15}
+              stroke="var(--color-amber)"
             />
           )}
           {items.map((r) => {
-            const dark = r.t < 0.55
             const on = r.rid === hover
+            const x = r.px - hw
+            const y = r.py - hh
+            const tx = x + SILK + 8
             return (
               <g key={r.rid} onMouseEnter={() => setHover(r.rid)} onMouseLeave={() => setHover(null)} onClick={() => setHover(on ? null : r.rid)} style={{ cursor: 'pointer' }}>
                 <rect
-                  x={r.px - hw}
-                  y={r.py - hh}
+                  x={x}
+                  y={y}
                   width={2 * hw}
-                  height={2 * hh}
-                  rx={Math.min(hh, 6)}
-                  fill={mix(r.t)}
-                  stroke={on ? 'var(--color-amber)' : '#ffffff'}
-                  strokeWidth={on ? 2.5 : 1.5}
+                  height={CHIP_H}
+                  rx={5}
+                  fill="var(--color-panel)"
+                  stroke={on ? 'var(--color-amber)' : 'var(--color-ink-faint)'}
+                  strokeWidth={on ? 2 : 1}
                 />
-                <rect
-                  x={r.px + hw - hh * 1.3}
-                  y={r.py - hh * 0.7}
-                  width={hh * 1.3}
-                  height={hh * 1.4}
-                  rx={hh * 0.6}
-                  fill="none"
-                  stroke={dark ? 'rgba(255,255,255,.55)' : 'rgba(15,23,41,.4)'}
-                />
-                <text
-                  x={r.px - hh * 0.4}
-                  y={r.py + 4}
-                  textAnchor="middle"
-                  fontSize={Math.max(10, Math.min(12, hh * 1.5))}
-                  fontWeight={600}
-                  fill={dark ? '#ffffff' : '#0f1729'}
-                >
-                  {r.barrier}
+                {r.silk && <image href={r.silk} x={x + 3} y={y + (CHIP_H - SILK) / 2} width={SILK} height={SILK} preserveAspectRatio="xMidYMid meet" />}
+                <text x={tx} y={r.py + 4} fontSize={11} fontWeight={700} fill="var(--color-ink)">
+                  {r.num}
                 </text>
+                {!narrow && (
+                  <text x={tx + 16} y={r.py + 4} fontSize={11} fill="var(--color-ink-mute)">
+                    {r.label}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -209,13 +213,13 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
         {hov && (
           <div
             className="pointer-events-none absolute z-10 max-w-[260px] rounded-md bg-ink px-2.5 py-2 text-xs leading-snug text-white shadow-[var(--shadow-2)]"
-            style={{ left: Math.min(Math.max(hov.px - 60, 0), width - 270), top: hov.py + hh + 8 }}
+            style={{ left: Math.min(Math.max(hov.px - 60, 0), Math.max(0, width - 270)), top: hov.py + hh + 8 }}
           >
             <div className="font-semibold">
-              {hov.barrier}. {hov.name}
+              {byRid.get(hov.rid)?.tabNumber ?? hov.barrier}. {hov.name}
             </div>
             <div>
-              Projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
+              Barrier {hov.barrier} · projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
             </div>
             <div className="opacity-75">
               {noGps
@@ -231,8 +235,7 @@ export function TripMap({ trip, excluded, generated }: TripMapProps) {
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mute">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-28 rounded-sm" style={{ background: `linear-gradient(90deg, ${mix(0)}, ${mix(1)})` }} />
-          front of field to back
+          Number shown is the TAB number (barrier in the tooltip)
         </span>
         <span>Typical error about {trip.err.gap} lengths and {trip.err.lane}m{narrow ? ' (tap a runner)' : ' (hover a runner to see it)'}</span>
         {hist > 0 && <span>{hist} runner{hist === 1 ? '' : 's'} with no {noGps ? 'earlier result' : 'GPS'} history</span>}
