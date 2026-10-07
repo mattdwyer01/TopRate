@@ -3,6 +3,8 @@ import type { Runner } from '../../types/domain'
 import type { TripRace } from '../../lib/tripMap'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
+import { SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
+import { fmtAdj } from './rowParts'
 import { typicalSd, type Ranked } from './raceFacts'
 
 interface RaceGlanceProps {
@@ -15,13 +17,18 @@ interface RaceGlanceProps {
   onSelect: (runId: string) => void
 }
 
+const smFill = (v: number | null | undefined) =>
+  v != null && v >= SPEED_MAP_TINT_THRESHOLD ? 'var(--color-emerald-deep)' : v != null && v <= -SPEED_MAP_TINT_THRESHOLD ? 'var(--color-rose)' : 'var(--color-ink-faint)'
+
 const ROW_H = 26
 const LABEL_W = 150
 const RIGHT_W = 74
 
 // The projection ladder: every runner on one WPR axis, best at the top, with the inside-4 and inside-6 bands shaded, so the shape of the
 // field (a standout, a pack, a long tail) reads before any number does.
-export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'>) {
+// showSm adds a speed map adjustment column (green at +0.5 or better, red at -0.5 or worse, the same cut-offs as the race table) and rings
+// runners outside the outer line whose adjustment is favourable, the ones the quaddie view adds back to its pool.
+export function Ladder({ ranked, innerGap, outerGap, onSelect, showSm = false }: Pick<RaceGlanceProps, 'ranked' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -45,7 +52,8 @@ export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlance
   const hi = Math.max(...highs) + 1.5
   const narrow = width < 480
   const labelW = narrow ? 112 : LABEL_W
-  const rightW = narrow ? 52 : RIGHT_W + 56
+  const smW = showSm ? 36 : 0
+  const rightW = (narrow ? 52 : RIGHT_W + 56) + smW
   const x0 = labelW
   const x1 = width - rightW
   const X = (v: number) => x0 + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (x1 - x0)
@@ -67,6 +75,11 @@ export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlance
         <text x={(X(top - outerGap) + X(top - innerGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-amber)">
           inside {outerGap}
         </text>
+        {showSm && (
+          <text x={width - 40} y={11} textAnchor="end" fontSize={10} fontWeight={600} fill="var(--color-ink-mute)">
+            SM
+          </text>
+        )}
         {ticks.map((t) => (
           <g key={t}>
             <line x1={X(t)} x2={X(t)} y1={topPad - 4} y2={H - 18} stroke="var(--color-line)" strokeWidth={1} />
@@ -105,17 +118,34 @@ export function Ladder({ ranked, innerGap, outerGap, onSelect }: Pick<RaceGlance
                 <rect x={X(r.proj - half(r)!)} y={y - 5} width={Math.max(2, X(r.proj + half(r)!) - X(r.proj - half(r)!))} height={10} rx={5} fill={tone} fillOpacity={0.16} />
               )}
               <line x1={X(top)} x2={X(r.proj)} y1={y} y2={y} stroke={tone} strokeWidth={2} strokeOpacity={0.35} strokeLinecap="round" />
-              <circle cx={X(r.proj)} cy={y} r={r.inner ? 6 : 5} fill={tone} stroke="#fff" strokeWidth={1.5} />
+              {(() => {
+                const mapAdded = showSm && !r.inner && !r.outer && (r.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
+                return (
+                  <circle
+                    cx={X(r.proj)}
+                    cy={y}
+                    r={r.inner ? 6 : 5}
+                    fill={tone}
+                    stroke={mapAdded ? 'var(--color-emerald)' : '#fff'}
+                    strokeWidth={mapAdded ? 2.5 : 1.5}
+                  />
+                )
+              })()}
               <text x={width} y={y + 4} textAnchor="end" fontSize={12} fontFamily="var(--font-mono)" fill="var(--color-ink-soft)">
                 {fmtWpr(r.proj)}
               </text>
+              {showSm && (
+                <text x={width - 40} y={y + 4} textAnchor="end" fontSize={12} fontFamily="var(--font-mono)" fill={smFill(r.eff?.speedMapAdj)}>
+                  {fmtAdj(r.eff?.speedMapAdj)}
+                </text>
+              )}
               {!narrow && half(r) != null && (
-                <text x={width - 100} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
+                <text x={width - 100 - smW} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
                   {Math.round(r.proj - half(r)!)}-{Math.round(r.proj + half(r)!)}
                 </text>
               )}
               {!narrow && price != null && (
-                <text x={width - 44} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
+                <text x={width - 44 - smW} y={y + 4} textAnchor="end" fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-ink-faint)">
                   {fmtPrice(price)}
                 </text>
               )}
