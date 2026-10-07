@@ -12,8 +12,11 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Desktop table row (lg and up). Phones and tablets use RunnerCard instead, so nothing here has to squeeze into a narrow screen.
-export const ROW_GRID = 'grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
+// Table row, same columns on every screen. Below lg the silk, RTS, Base and Rated $ columns drop out (their tracks collapse to nothing via
+// `hidden`) so Horse, Adj, Proj, SM, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
+export const ROW_GRID =
+  'grid-cols-[18px_minmax(0,1fr)_32px_40px_32px_58px_22px] lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
+const LG_ONLY = 'hidden lg:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, band, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
@@ -30,11 +33,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
         }
       }}
       title={f.marketNote}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-2 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm transition-colors ${ROW_GRID} ${BAND_BORDER[band]} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1.5 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${ROW_GRID} ${BAND_BORDER[band]} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-6 w-6 rounded-sm object-contain" /> : <span className="h-6 w-6" />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className={`h-6 w-6 rounded-sm object-contain ${LG_ONLY}`} /> : <span className={`h-6 w-6 ${LG_ONLY}`} />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -47,6 +50,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
           )}
         </span>
         <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey}${ratingSuffix(runner.jockeyRating)} / ${runner.trainer}${ratingSuffix(runner.trainerRating)}`}>
+          <span className={`font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label} · </span>
           {[
             `${runner.jockey} / ${runner.trainer}`,
             runner.barrier != null ? `barrier ${runner.barrier}` : null,
@@ -57,23 +61,23 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, onClick
             .join(' · ')}
         </span>
       </span>
-      <span className={`text-right font-mono ${f.rtsClass}`} title={f.rtsTitle}>
+      <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      <span className="text-right font-mono text-ink-mute">{fmtWpr(runner.baseWpr)}</span>
+      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`}>{fmtWpr(runner.baseWpr)}</span>
       <span className={`text-right font-mono ${adjClass(runner.wprAdjustment)}`}>{fmtAdj(runner.wprAdjustment)}</span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
         ) : (
           <span title={`Projected WPR ${fmtWpr(f.proj)}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-[15px] font-semibold leading-tight text-emerald-deep">{fmtWpr(f.proj)}</span>
+            <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
       </span>
       <span className={`text-right font-mono ${smClass(effective?.speedMapAdj)}`}>{f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}</span>
-      <span className="text-right font-mono text-ink-mute" title="Fair price from the projection (softmax over the field)">
+      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`} title="Fair price from the projection (softmax over the field)">
         {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? runner.wprPrice)}
       </span>
       <span className="text-right text-ink-mute">

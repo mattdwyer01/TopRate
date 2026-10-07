@@ -9,7 +9,6 @@ import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { RaceLadder, RaceSummaryLine } from './RaceGlance'
 import { RunnerRow, ROW_GRID } from './RunnerRow'
-import { RunnerCard } from './RunnerCard'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
@@ -33,30 +32,19 @@ interface RaceDetailProps {
   onSelectRace: (raceId: string, date: string) => void
 }
 
-// Desktop column headers, in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
-const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string }[] = [
-  { key: null, label: '', align: 'left' },
+// Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
+const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean }[] = [
+  { key: null, label: '', align: 'left', lgOnly: true },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
-  { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)' },
-  { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments' },
+  { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
+  { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
   { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)' },
   { key: 'compositeScore', label: 'Proj', align: 'right', title: 'Projected WPR (new model)' },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Speed-map adjustment vs this field' },
-  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
+  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price", lgOnly: true },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
-]
-
-const MOBILE_SORTS: { key: SortKey; label: string }[] = [
-  { key: 'compositeScore', label: 'Proj' },
-  { key: 'tab', label: 'Number' },
-  { key: 'fixedPrice', label: 'Price' },
-  { key: 'speedMapAdj', label: 'Speed map' },
-  { key: 'ratedPrice', label: 'Rated price' },
-  { key: 'adjustment', label: 'Adj' },
-  { key: 'daysSince', label: 'RTS' },
-  { key: 'finish', label: 'Finish' },
 ]
 
 function LineDivider({ kind, n }: { kind: 'inner' | 'outer'; n: number }) {
@@ -222,45 +210,21 @@ export function RaceDetail({
           <h3 className="text-sm font-semibold text-ink">Runners</h3>
           <div className="flex flex-wrap items-center gap-2">
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
-            {/* Phones and tablets have no column headers (cards), so sorting lives here */}
-            <div className="flex items-center gap-1.5 lg:hidden">
-              <select
-                value={MOBILE_SORTS.some((s) => s.key === sortKey) ? sortKey : 'compositeScore'}
-                onChange={(e) => onSort(e.target.value as SortKey)}
-                aria-label="Sort by"
-                className="rounded-md border border-line bg-panel px-2 py-1 text-xs"
-              >
-                {MOBILE_SORTS.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    Sort: {s.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-                aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
-                className="flex h-6 w-6 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink"
-              >
-                {sortDir === 'asc' ? '↑' : '↓'}
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* Desktop table */}
-        <div className="hidden overflow-hidden rounded-lg border border-line bg-panel lg:block">
-          <div className={`grid min-w-full gap-x-2 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-xs font-medium text-ink-mute ${ROW_GRID}`}>
+        <div className="overflow-hidden rounded-lg border border-line bg-panel">
+          <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${ROW_GRID}`}>
             {COLUMNS.map((c, i) =>
               c.key == null ? (
-                <span key={i} />
+                <span key={i} className="hidden lg:block" />
               ) : (
                 <button
                   key={c.key}
                   type="button"
                   title={c.title}
                   onClick={() => onSort(c.key as SortKey)}
-                  className={`transition-colors hover:text-ink ${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                  className={`transition-colors hover:text-ink ${c.lgOnly ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
                   {c.label}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
@@ -273,25 +237,6 @@ export function RaceDetail({
               <RunnerRow {...rowProps(r)} />
               {i === lines.inner && <LineDivider kind="inner" n={COMPOSITE_INNER_GAP_FROM_TOP} />}
               {i === lines.outer && <LineDivider kind="outer" n={COMPOSITE_MAX_GAP_FROM_TOP} />}
-            </Fragment>
-          ))}
-        </div>
-
-        {/* Phone and tablet cards */}
-        <div className="flex flex-col gap-1.5 md:grid md:grid-cols-2 lg:hidden">
-          {sortedRunners.map((r, i) => (
-            <Fragment key={r.runId}>
-              <RunnerCard {...rowProps(r)} />
-              {i === lines.inner && (
-                <div className="md:col-span-2">
-                  <LineDivider kind="inner" n={COMPOSITE_INNER_GAP_FROM_TOP} />
-                </div>
-              )}
-              {i === lines.outer && (
-                <div className="md:col-span-2">
-                  <LineDivider kind="outer" n={COMPOSITE_MAX_GAP_FROM_TOP} />
-                </div>
-              )}
             </Fragment>
           ))}
         </div>
