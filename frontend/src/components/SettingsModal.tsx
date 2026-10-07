@@ -10,6 +10,7 @@ import {
   writeSyncConfig,
 } from '../lib/githubSync'
 import { todayIso } from '../lib/meetings'
+import { LiveVisionSettings } from './LiveVisionSettings'
 
 interface SettingsModalProps {
   serverBeta: number | null
@@ -367,6 +368,8 @@ export function SettingsModal({
               </button>
             </div>
           </div>
+
+          <LiveVisionSettings />
 
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Cross-device sync</span>
