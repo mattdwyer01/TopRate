@@ -2315,13 +2315,19 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
     model weight 0.08 vs market 1.11), so the dashboard makes NO value or overlay claims. Fair price is the model view only.
   - Gap lines are `COMPOSITE_INNER_GAP_FROM_TOP=4` / `COMPOSITE_MAX_GAP_FROM_TOP=6` (`raceModel.ts`).
   - `bet_log.py`, its logs and `racing_model.json` were retired (moved to `archive/bet_log/`, see its README); `tab_results_poller.py` and
-    `tab_results.yml` no longer call or stage them. The racing-model repo's `dashboard.yml` may still commit a `racing_model.json`; nothing reads it.
+    `tab_results.yml` no longer call or stage them. The racing-model repo's `dashboard.yml` was disabled on 7 Oct 2026, so nothing commits `racing_model.json` any more.
   - Layouts: Race page and horse detail were rebuilt compact (`features/race/`). Horse detail order: hero, Why this projection + Expected run,
     Form and record (timeline, conditions, every run with Wt/SP), then Market and Result (Result shows at the top on phones once known).
     Verify every layout change at 360/400/1300px for overflow.
   - `projection_daily.yml` full run takes about 28 min on a hosted runner (fast ~4 min). A fast-vs-full comparison was run to see if the
     full step can become `--build-cache` then `--fast`; not adopted unless that comparison matched. External cron-job.org triggers for the
     projection and results workflows are still a user action.
+  - Freshness label: the header's age counts from `RUN_ISO`, which only changes when the payload is written. With no race in the poller's window
+    (30 min ago to 2 h ahead, so prices and results are not read) the payload legitimately stops changing, so `App.tsx` `quietNextJump()` shows
+    "quiet, next HH:MM" in green instead of an ageing colour. The poller also re-applies the projection log to the runners file and payload when it
+    is newer (`toprate_daily.projection_stale()`, `refresh_projection()`, `patch_data_json(proj_df=...)`, runner column `wprp_made`).
+  - `backfill_race_results.yml` push loop now matches `backfill_runner_history.yml` (fetch 300s, push/rebase 180s, 20 attempts, fetch only the branch):
+    run #30 on 6 Oct lost its whole merge because 120s fetches timed out against the live poller's ~5-minute commits of the large payload files.
   - Horse detail "Why this projection" (Oct 2026): the main model's base is a recent-form anchor (linear part) plus a LightGBM correction. `projection/run.py`
     splits the correction per feature (TreeSHAP) into groups (`GROUPS`: form pattern, spell and trials, class, going, distance and track, jockey and
     trainer, weight/age, field and barrier, comments); anchor + groups = base exactly. Stored as JSON in the log's `grp` column and passed to the page as
