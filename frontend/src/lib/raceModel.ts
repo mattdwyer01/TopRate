@@ -13,21 +13,33 @@ export interface EffectiveRunner {
   // scratched runner or one with no effective wpr. 0 for the top pick itself.
   gapFromTop: number | null
   // The suitability adjustment demeaned against this race's own runners (see speedMapDemeanedByRunId). null for a scratched
-  // runner or one with no value (light-history runners).
+  // runner or one with no value.
   speedMapAdj: number | null
+  // True when speedMapAdj comes from the light-history estimate (sm_light), which is lower confidence than a main-model value.
+  speedMapLight: boolean
 }
 
 // The new projection model's suitability adjustment (projection/run.py: settle history, barrier fraction, field size,
 // comments, day-of bias; main-model runners only, null for light-history), demeaned against THIS race's own runners.
 // For display only, never fed back into any WPR number. Subtracting the race mean removes the part shared by the whole
 // field and leaves the relational signal. Shared by the Speed Map tint and the race table's SM column so they cannot drift.
+// A light-history runner (0-2 prior runs) has no suitability term in its projection, but the suitability model can still be run on its barrier, the
+// day-of bias, field size and jockey/trainer tendencies (the history inputs stay blank). projection/run.py logs that value as `sadj`, overlay.py passes it as
+// `sm_light`. Tested 9 Oct 2026 on 6,215 light runners: the value tracks the light model's miss (slope 0.69), so it is shown, but it is lower confidence.
+export function hasLightSpeedMap(u: Runner): boolean {
+  const b = u.adjustmentBreakdown
+  return b?.suitability == null && b?.sm_light != null
+}
+
 export function speedMapDemeanedByRunId(runners: Runner[]): Map<string, number | null> {
+  // The race mean is taken over main-model runners only, as before light runners were shown, so every main runner's figure is unchanged.
   const raw = runners.map((u) => u.adjustmentBreakdown?.suitability).filter((v): v is number => v != null)
   const mean = raw.length ? raw.reduce((a, b) => a + b, 0) / raw.length : 0
   const result = new Map<string, number | null>()
   for (const u of runners) {
     const v = u.adjustmentBreakdown?.suitability
-    result.set(u.runId, v != null ? v - mean : null)
+    const light = raw.length ? u.adjustmentBreakdown?.sm_light : null   // no main runner to measure against: no light value either
+    result.set(u.runId, v != null ? v - mean : light != null ? light - mean : null)
   }
   return result
 }
@@ -105,6 +117,7 @@ export function computeEffectiveRace(
   // matches this function's own `scratched` param exactly, so the race
   // mean this demeans against is identical either way.
   const speedMapByRunId = speedMapDemeanedByRunId(runners.filter((r) => !scratched.has(r.runId)))
+  const lightIds = new Set(runners.filter(hasLightSpeedMap).map((r) => r.runId))
 
   const result: Record<string, EffectiveRunner> = {}
   for (const r of withEffectiveWpr) {
@@ -119,6 +132,7 @@ export function computeEffectiveRace(
       scratched: r.scratched,
       gapFromTop,
       speedMapAdj: r.scratched ? null : (speedMapByRunId.get(r.runId) ?? null),
+      speedMapLight: !r.scratched && lightIds.has(r.runId),
     }
   }
   return result
