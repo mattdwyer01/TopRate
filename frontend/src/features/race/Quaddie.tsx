@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
-import { INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
+import { INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM } from '../../lib/raceModel'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import {
@@ -164,8 +164,8 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
           {races[0]?.venue} {kind} quaddie
         </h2>
         <p className="mb-2 text-xs text-ink-faint">
-          {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {OUTER_GAP_FROM_TOP} held about 84% of winners in testing, so a leg
-          is rarely safe with fewer. Runners outside the {OUTER_GAP_FROM_TOP} line are added back when their speed map adjustment is +{SPEED_MAP_TINT_THRESHOLD} or better (the green figure in the race table); they show a green ring on the ladder. Counts only, not tips.
+          {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {INNER_GAP_FROM_TOP} held about 70% of winners and inside {OUTER_GAP_FROM_TOP} about 93% in testing, so a leg
+          is rarely safe with fewer than {INNER_GAP_FROM_TOP}. The map pool is everything inside {INNER_GAP_FROM_TOP} plus runners from {INNER_GAP_FROM_TOP} to {OUTER_GAP_FROM_TOP} whose speed map adjustment is +{MAP_POOL_MIN_SM} or better (the green figure in the race table). That held about 74% of winners a leg in testing (inside {INNER_GAP_FROM_TOP} alone 70%). Added runners show a green ring on the ladder, thicker at +{MAP_VALUE_MIN_SM} or better, the group that did best between {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} as a win bet. Counts only, not tips.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-xs">
@@ -226,7 +226,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
               <span className="text-xs text-ink-faint">Tap runners on the ladders. Fill from:</span>
               <Pill active={false} onClick={() => fill('inner')}>Inside {INNER_GAP_FROM_TOP}</Pill>
               <Pill active={false} onClick={() => fill('outer')}>Inside {OUTER_GAP_FROM_TOP}</Pill>
-              <Pill active={false} onClick={() => fill('map')}>+ favoured map</Pill>
+              <Pill active={false} onClick={() => fill('map')}>Inside {INNER_GAP_FROM_TOP} + map +{MAP_POOL_MIN_SM}</Pill>
               <Pill active={false} onClick={clear}>Clear</Pill>
             </>
           )}

@@ -138,12 +138,20 @@ export function computeEffectiveRace(
   return result
 }
 
-// Three gap lines on the Proj scale at today's weight (ATW), 7 Oct 2026, set by the user and checked on 4,566 pre-race-logged races (1 Jul to 5 Oct 2026):
-// inside 2 holds 2.3 runners a race and 49% of winners, inside 4 holds 4.0 and 69%, inside 6 holds 5.7 and 84%. The core line (2) is table and ladder only;
-// the quaddie view, Compare shortcuts and counts keep using the inner (4) and outer (6) lines.
+// Three gap lines on the Proj scale at today's weight (ATW), set by the user. The outer line moved from 6 to 8 on 9 Oct 2026 after a 15-month
+// out-of-sample check (14,438 races, main model trained before 2025): inside 2 holds 2.2 runners a race and 50% of winners, inside 4 holds 3.9 and 70%,
+// inside 6 held 5.6 and 84%, inside 8 holds 6.9 and 93%. The core line (2) is table and ladder only; the quaddie view, Compare shortcuts and counts use
+// the inner (4) and outer (8) lines. Nothing here is a betting claim: 4 to 6 and 6 to 8 lose money without a favourable speed map.
 export const CORE_GAP_FROM_TOP = 2
-export const OUTER_GAP_FROM_TOP = 6
+export const OUTER_GAP_FROM_TOP = 8
 export const INNER_GAP_FROM_TOP = 4
+// A runner between the inner and outer lines (4 to 8) joins the "map" quaddie pool when its SM Adj is at least MAP_POOL_MIN_SM (main-model runners only).
+// 15-month out-of-sample test (14,438 races): inside 4 plus SM +0.5 holds 74.3% of winners with 4.25 runners a leg (inside 4 alone 70.0% with 3.88), so
+// a four-leg quaddie lands about 31% against 24% for about 43% more combinations, at nearly the same winners per runner (17.5% vs 18.0%). SM +1.0 or better
+// (MAP_VALUE_MIN_SM) adds only 0.06 runners but is the group that returned +20.9% flat on the win between 4 and 8 (777 bets, +10.0% without the 3 biggest
+// winners); the 0.5 to 1.0 runners return about -3%. So +0.5 is the coverage rule and +1.0 is the value marker (thicker ring on the ladder).
+export const MAP_POOL_MIN_SM = 0.5
+export const MAP_VALUE_MIN_SM = 1.0
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.
