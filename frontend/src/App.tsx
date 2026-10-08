@@ -18,12 +18,13 @@ import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { Quaddie } from './features/race/Quaddie'
 import { ReviewTab } from './features/review/ReviewTab'
+import { PlaysTab } from './features/plays/PlaysTab'
 
-type TopTab = 'race' | 'review'
+type TopTab = 'race' | 'plays' | 'review'
 
 function readTopTab(): TopTab {
   const t = new URLSearchParams(window.location.search).get('tab')
-  return t === 'review' ? t : 'race'
+  return t === 'review' || t === 'plays' ? t : 'race'
 }
 
 // The live poller only reads prices and results for races from 30 minutes ago to 2 hours ahead (tab_results_poller.py), so with none in that
@@ -55,6 +56,12 @@ function App() {
   const [methodologyOpen, setMethodologyOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [topTab, setTopTabState] = useState<TopTab>(() => readTopTab())
+  const [playsDate, setPlaysDateState] = useState<string>(() => new URLSearchParams(window.location.search).get('date') ?? todayIso())
+  function setPlaysDate(d: string) {
+    setPlaysDateState(d)
+    const q = `?tab=plays&date=${d}`
+    if (window.location.search !== q) window.history.replaceState(null, '', q)
+  }
 
   // Keep topTab in sync with back/forward navigation - separate from
   // useUrlState's own popstate handling (that hook only tracks the Race
@@ -86,8 +93,8 @@ function App() {
 
   function switchTab(tab: TopTab) {
     setTopTabState(tab)
-    if (tab === 'review') {
-      const q = `?tab=${tab}`
+    if (tab === 'review' || tab === 'plays') {
+      const q = tab === 'plays' ? `?tab=plays&date=${playsDate}` : `?tab=${tab}`
       if (window.location.search !== q) {
         window.history.pushState(null, '', q)
       }
@@ -198,6 +205,17 @@ function App() {
               </button>
               <button
                 type="button"
+                onClick={() => switchTab('plays')}
+                aria-current={topTab === 'plays' ? 'page' : undefined}
+                className={
+                  'rounded px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ' +
+                  (topTab === 'plays' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
+                }
+              >
+                Plays
+              </button>
+              <button
+                type="button"
                 onClick={() => switchTab('review')}
                 aria-current={topTab === 'review' ? 'page' : undefined}
                 className={
@@ -279,6 +297,21 @@ function App() {
         )}
         {state.status === 'error' && (
           <ErrorState message={state.message} onRetry={retry} />
+        )}
+        {state.status === 'ready' && topTab === 'plays' && (
+          <PlaysTab
+            races={state.data.races}
+            date={playsDate}
+            onDateChange={setPlaysDate}
+            onOpen={goToRace}
+            priceBeta={betaOverride ?? state.data.priceBeta}
+            deltas={deltas}
+            bases={bases}
+            scratched={scratched}
+            showBush={showBush}
+            hiddenVenues={hiddenVenues}
+            historyPending={historyPending}
+          />
         )}
         {state.status === 'ready' && topTab === 'review' && (
           <ReviewTab races={state.data.races} onSelectRace={goToRace} />

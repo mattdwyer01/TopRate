@@ -69,6 +69,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
+            <li><span className="font-mono text-ink">Plays tab</span>: every runner the dashboard flags (the clear #1, speed map +0.5 within 4, speed map +1.0 from 4 to 8 off), in race order, kept after the race has run, with a scoreboard of how each flag has done. Filters, not tips: none has shown a robust profit.</li>
             <li><span className="font-mono text-ink">2 / 4 / 8 WPR from top</span>: the lines show runners within 2, 4 and 8 WPR of the top projection (at today's weight). In a 15-month out-of-sample test inside 2 held about 50% of winners (2.2 runners a race), inside 4 about 70% (3.9) and inside 8 about 93% (6.9). They show where the winners are, not where the value is: runners 4 to 8 off the top lose money unless their speed map (SM) is +1.0 or better.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
