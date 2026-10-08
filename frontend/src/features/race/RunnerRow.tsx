@@ -73,7 +73,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         )}
       </span>
       <span
-        className={`text-right font-mono ${smClass(effective?.speedMapAdj)}${effective?.speedMapLight ? ' italic opacity-70' : ''}`}
+        className={`text-right font-mono ${smClass(effective?.speedMapAdj)}${effective?.speedMapLight ? ' opacity-70' : ''}`}
         title={effective?.speedMapLight ? 'Light-history runner: estimated without its own run history, lower confidence' : undefined}
       >
         {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
