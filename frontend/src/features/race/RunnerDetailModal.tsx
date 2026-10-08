@@ -11,7 +11,7 @@ import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
 import { typicalSd } from './raceFacts'
-import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -204,6 +204,18 @@ export function RunnerDetailModal({
             daysSince={spell.daysSince}
             projAtw={projAtw}
           />
+
+          {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+              Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
+            </div>
+          )}
+          {!scratched && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+              Going not known yet. The projection assumes Good 4 and updates when the track is rated.
+            </div>
+          )}
+          {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projAtw ?? effectiveWpr} />}
 
           {(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">

@@ -6,6 +6,7 @@ import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { adjClass, fmtAdj, spellWord } from './rowParts'
 import { typicalSd } from './raceFacts'
+import { isVoid } from '../../lib/wprVoid'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -167,6 +168,52 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         </span>
       </div>
     </section>
+  )
+}
+
+/* ------------------------------------------------------- rating sanity check */
+
+// Flags a projection that sits well away from the horse's own recent ratings, both at today's weight (ATW), so the reader knows to look at why.
+// Past check (38,240 main-model projections, 1 Jul to 5 Oct 2026, as of each race): 4,928 sat 5 or more below the last three runs and came in
+// 0.3 above projection on average; 2,748 sat 5 or more above and came in 0.0 away. So a gap is usually real (a class rise, a poor draw, a jockey
+// drop), not a model slip, and the banner states that instead of asking for an override.
+export const SANITY_GAP = 5
+const SANITY_BIG = 10
+
+export function ratingSanity(runner: Runner, projAtw: number | null) {
+  if (projAtw == null) return null
+  const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
+  if (last3.length < 2) return null
+  const avg = last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length
+  const diff = projAtw - avg
+  if (Math.abs(diff) < SANITY_GAP) return null
+  const b = runner.adjustmentBreakdown
+  const parts = b
+    ? [
+        ...GROUPS.map((g) => ({ label: g.label, v: b['g_' + g.key] ?? 0 })),
+        { label: 'Suitability', v: b.suitability ?? 0 },
+        { label: 'Weight carried', v: b.weight ?? 0 },
+      ]
+    : []
+  // the factors pulling the same way as the gap, biggest first
+  const drivers = parts.filter((p) => Math.sign(p.v) === Math.sign(diff) && Math.abs(p.v) >= 0.5).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 3)
+  const anchor = b?.g_anchor != null ? b.g_anchor + (runner.atwOffset ?? 0) : null
+  return { avg, diff, n: last3.length, drivers, anchor, big: Math.abs(diff) >= SANITY_BIG }
+}
+
+export function RatingSanity({ runner, projAtw }: { runner: Runner; projAtw: number | null }) {
+  const s = ratingSanity(runner, projAtw)
+  if (!s) return null
+  const below = s.diff < 0
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-sm ${s.big ? 'border-rose-line bg-rose-bg text-rose' : 'border-amber-line bg-amber-bg text-amber'}`} role="note">
+      <span className="font-semibold">Rating check: </span>
+      projection {fmtWpr(projAtw)} is {Math.abs(s.diff).toFixed(1)} {below ? 'below' : 'above'} the last {s.n} runs ({fmtWpr(s.avg)}).
+      {s.anchor != null && Math.abs(s.anchor - s.avg) >= 2 && <> The model starts from {fmtWpr(s.anchor)} (recency-weighted form, {fmtAdj(s.anchor - s.avg)} on the last {s.n}).</>}
+      {s.drivers.length > 0 && <> Main {below ? 'drags' : 'lifts'}: {s.drivers.map((d) => `${d.label} ${fmtAdj(d.v)}`).join(', ')}.</>}
+      {runner.projectionModel === 'light' && <> Light-history model: it leans on the horse&apos;s price and class signals more than its few ratings.</>}
+      <span className="text-ink-soft"> {runner.projectionModel === 'light' ? '' : 'In past races a gap this size was usually real (actual landed within a point of the projection on average), so use your own adjustment only if you know something the model cannot.'}</span>
+    </div>
   )
 }
 
@@ -601,6 +648,43 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
 
 /* -------------------------------------------------------- result card */
 
+// What the race itself says about the result: the market against the finish, the model's rank against the finish, a compromised-run flag from the
+// stewards' and video comments (lib/wprVoid, the same test Review uses to leave a run out of the accuracy numbers) and the comments themselves.
+function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }) {
+  const fin = runner.finishPosition
+  const sp = runner.startingPrice
+  const open = runner.openFixedPrice
+  const lines: string[] = []
+  if (sp != null) {
+    const move = open != null && open > 1 ? (sp - open) / open : null
+    const trend = move == null || Math.abs(move) < 0.1 ? '' : move < 0 ? `, firmed from ${fmtPrice(open)}` : `, eased from ${fmtPrice(open)}`
+    lines.push(`Starting price ${fmtPrice(sp)}${trend}.`)
+  }
+  if (runner.wprRank != null && fin != null) {
+    const d = fin - runner.wprRank
+    lines.push(`Model rank ${runner.wprRank}, finished ${ordinal(fin)}${Math.abs(d) <= 1 ? ', in line with the rank' : d < 0 ? `, ${-d} places better than ranked` : `, ${d} places worse than ranked`}.`)
+  }
+  const v = isVoid(miss, runner.commentsVideo, runner.commentsSteward)
+  const hasText = (runner.commentsSteward ?? '').trim() !== '' || (runner.commentsVideo ?? '').trim() !== ''
+  if (lines.length === 0 && !hasText) return null
+  return (
+    <div className="mt-2 space-y-1 border-t border-line-soft pt-2 text-sm text-ink-soft">
+      {lines.map((l) => (
+        <p key={l}>{l}</p>
+      ))}
+      {v.isVoid && <p className="text-amber">The run looks compromised ({v.reason}), so the miss is not a fair test of the rating. Review leaves it out of the accuracy numbers.</p>}
+      {hasText && (
+        <details className="text-xs text-ink-mute">
+          <summary className="cursor-pointer hover:text-ink">Race comments</summary>
+          {runner.commentsSteward && <p className="mt-1"><span className="font-semibold">Stewards:</span> {runner.commentsSteward}</p>}
+          {runner.commentsVideo && <p className="mt-1"><span className="font-semibold">Video:</span> {runner.commentsVideo}</p>}
+        </details>
+      )}
+    </div>
+  )
+}
+
+
 // After the race: projected against actual (ATW) with the miss sized against the horse's own typical error.
 export function ResultCard({ runner }: { runner: Runner }) {
   const proj = projectedAtActualScale(runner)
@@ -625,6 +709,7 @@ export function ResultCard({ runner }: { runner: Runner }) {
           <span className={`font-mono text-xl font-semibold ${miss == null ? 'text-ink-mute' : big ? 'text-amber' : miss >= 0 ? 'text-emerald-deep' : 'text-ink-soft'}`}>{miss != null ? fmtAdj(miss) : '-'}</span>
         </Tile>
       </div>
+      <ResultContext runner={runner} miss={miss} />
       <p className="mt-2 text-sm text-ink-soft">
         {fin != null ? <>Finished {ordinal(fin)}{runner.marginFinish != null && fin > 1 ? `, ${runner.marginFinish.toFixed(1)}L` : ''}. </> : runner.won ? 'Won. ' : runner.resultKnown ? 'Unplaced. ' : ''}
         {actual == null ? 'The actual rating settles a few days after the race.' : miss != null && big ? `Ran ${Math.abs(miss).toFixed(1)} ${miss >= 0 ? 'better' : 'worse'} than projected, more than the typical error of ${sd!.toFixed(0)}.` : miss != null ? 'Within the typical error of the projection.' : ''}

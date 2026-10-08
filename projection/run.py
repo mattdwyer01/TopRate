@@ -64,6 +64,50 @@ def group_of(feat):
     return 'form'
 
 
+# Runners whose jockey is not declared yet have every jockey feature at its "never seen" value (effect 0 on 0 rides, no jockey change), which the
+# model learned to read as an obscure rider: on the 8 Oct live set blank-jockey runners carried a connections step of -3.5 WPR against +0.2 for the
+# declared ones (Lady Shenandoah, Waller, 13th of 15 off 100-rated form). An undeclared jockey is unknown, not poor, so the main model's jockey features are
+# set to typical values (an average jockey, no change of rider) until the jockey is declared. Blanking a random half of the declared jockeys on the 8 Oct
+# live set: main-model shift -3.70 (rmse 3.84) without the fix, -0.02 (rmse 1.02) with it. The light model is left alone (shift -0.35 without the fix, +0.42 with).
+JOCKEY_MAIN = ['jock_eff', 'jock_eff_n', 'jd_eff', 'jd_eff_n', 'jt_eff', 'jt_eff_n', 'jock_form', 'jock_form_n', 'jh_n']
+IMPUTE_BLANK_JOCKEY = True
+# Going and track grading are blank for races more than a day or two out (60% of the 8 Oct upcoming runners). A blank went through the model as an
+# unusual track (going step -0.8 and class step -1.0 against +0.2 and 0.0 for races with a known going), lowering every runner in the race together.
+ASSUME_GOING = True
+ASSUMED_GOING, ASSUMED_GRADE = 'Good 4', 4.0
+
+
+def impute_blank_jockey(R):
+    """Replaces the jockey features of runners with no declared jockey by typical values (models/jockey_impute.json, medians over the declared runners
+    of a live scoring pass; falls back to the declared runners of this pass). Returns the blank mask."""
+    blank = R.jockey.isna().values
+    if not IMPUTE_BLANK_JOCKEY or not blank.any():
+        return blank
+    path = os.path.join(M, 'jockey_impute.json')
+    med = json.load(open(path)) if os.path.exists(path) else {c: R.loc[~blank, c].median() for c in JOCKEY_MAIN if c in R.columns and (~blank).sum() >= 20}
+    for c, v in med.items():
+        if c in R.columns and pd.notna(v):
+            R.loc[blank, c] = v
+    if 'jock_chg' in R.columns:
+        R.loc[blank, 'jock_chg'] = 0.0
+    return blank
+
+
+def calibrate(R, cal):
+    """Post-hoc calibration measured on the log's 44,297 out-of-sample projections (1 Jul to 5 Oct 2026, fit Jul-Aug, checked Sep-Oct; models/calibration.json):
+    the main model under-projects the top of the range (actual above projected by about 0.12 WPR per point above 85) and the light-history model runs low by
+    0.8 to 1.3 WPR depending on the number of prior runs (intercepts shrunk by a quarter). The correction is added to the base so base + suitability + weight = projection
+    still holds on the horse page. Returns the per-runner correction."""
+    top, light = cal['top'], cal['light']
+    c = np.zeros(len(R))
+    main = (R.routed == 'main').values
+    c[main] = top['slope'] * np.maximum(R.proj.values[main] - top['knot'], 0)
+    for n, p in light.items():
+        s = ((R.routed == 'light') & (R.nruns == int(n))).values
+        c[s] = p['a'] + p['b'] * (R.proj.values[s] - 70)
+    return np.where(np.isnan(R.proj.values), 0.0, c)
+
+
 def au_today():
     return (datetime.now(timezone.utc) + timedelta(hours=10)).strftime('%Y-%m-%d')
 
@@ -127,6 +171,10 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
     Tx = T.drop(columns=['run_id'])
+    assumed = set(Tx.race_id[Tx.going.isna()]) if ASSUME_GOING else set()
+    if assumed:     # going and track grading are not known until a day or two out: project on a typical track, not on a blank
+        Tx['going'] = Tx.going.fillna(ASSUMED_GOING)
+        Tx['trackGrading'] = Tx.trackGrading.fillna(ASSUMED_GRADE)
     if standin:
         Tx['wpr'] = T.run_id.map(standin)
     X = pd.concat([Hu, Tx], ignore_index=True)
@@ -147,6 +195,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     R['sex'] = pd.Categorical(R.horse_sex, categories=levels['sex'])
     R = R[tg.values].copy()
     R = R.merge(T[['race_id', 'horse_id', 'run_id']], on=['race_id', 'horse_id'], how='left')
+    impute_blank_jockey(R)
 
     # ---- main model
     boosters = [booster(os.path.join(M, f'main_seed{i}.txt.gz')) for i in range(1, 6)]
@@ -201,13 +250,20 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
             Z[c] = np.nan
     Z['adj'] = sm.predict(Z[sfeats])
     R = R.merge(Z[['race_id', 'horse_id', 'adj']], on=['race_id', 'horse_id'], how='left')
+    R['going_assumed'] = R.race_id.isin(assumed)
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
     # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
+    R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
+    R['proj'] = R.proj + R.cal
+    R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
+    m = R.grp.notna()
+    if m.any():     # keep anchor + groups = base: the calibration rides on the anchor
+        R.loc[m, 'grp'] = [json.dumps({k: (round(v + c, 2) if k == 'anchor' else v) for k, v in json.loads(g).items()}) for g, c in zip(R.loc[m, 'grp'], R.loc[m, 'cal'])]
     return R
 
 
@@ -262,7 +318,7 @@ def main():
     races = {}
     for rid, z in R.groupby('race_id'):
         first = z.iloc[0]
-        races[str(rid)] = dict(venue=first.track, date=str(first.date.date()), going=None if pd.isna(first.going) else str(first.going), fs=int(len(z)),
+        races[str(rid)] = dict(venue=first.track, date=str(first.date.date()), going=None if (pd.isna(first.going) or first.going_assumed) else str(first.going), fs=int(len(z)),
                                runners={str(int(r.run_id)): dict(p=None if pd.isna(r.proj) else round(float(r.proj), 1), base=None if pd.isna(r.p0) else round(float(r.p0), 1),
                                                                   adj=None if (r.routed != 'main' or pd.isna(r.adj)) else round(float(r.adj), 2), wt=round(float(r.wtadj), 2), sd=round(float(r.sd), 1),
                                                                   m=r.routed, n=int(r.nruns)) for r in z.itertuples() if pd.notna(r.run_id)})
