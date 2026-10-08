@@ -1,5 +1,5 @@
 import type { Race } from '../../types/domain'
-import { computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
+import { computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, MAP_ADD_MIN_SM } from '../../lib/raceModel'
 import { BUSH_TRACK_THRESHOLD } from '../../lib/meetings'
 import { loggedBeforeRace, type Period } from '../../lib/accuracyStats'
 import { hasEarlyQuaddie, hasQuaddie, product, quaddieRaces, type QuaddieKind } from '../../lib/quaddie'
@@ -12,13 +12,13 @@ export function rankRace(race: Race, deltas: Record<string, number>, bases: Reco
   return rankField(race.runners, effective, eff, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP)
 }
 
-// A runner outside the outer line is added back when its speed-map adjustment is clearly favourable (the green threshold in the table and map).
+// The map pool is everything inside the inner line plus runners between the inner and outer lines (4 to 8) whose speed-map adjustment is +1.0 or better.
 // Light-history values are shown but not used to add runners to a pool (lower confidence, not yet tested for that).
-export const mapAdded = (x: Ranked) => !x.inner && !x.outer && !x.eff?.speedMapLight && (x.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
-export const inPool = (x: Ranked) => x.inner || x.outer || mapAdded(x)
+export const mapAdded = (x: Ranked) => !x.inner && x.outer && !x.eff?.speedMapLight && (x.eff?.speedMapAdj ?? -Infinity) >= MAP_ADD_MIN_SM
+export const inPool = (x: Ranked) => x.inner || mapAdded(x)
 
 export type PoolKey = 'inner' | 'outer' | 'map'
-export const POOL_LABEL: Record<PoolKey, string> = { inner: 'Inside 4', outer: 'Inside 6', map: 'Inside 6 + favoured map' }
+export const POOL_LABEL: Record<PoolKey, string> = { inner: 'Inside 4', outer: 'Inside 8', map: 'Inside 4 + map +1 (4 to 8)' }
 const POOL_TEST: Record<PoolKey, (x: Ranked) => boolean> = { inner: (x) => x.inner, outer: (x) => x.inner || x.outer, map: inPool }
 export const poolMembers = (rk: Ranked[], pool: PoolKey) => rk.filter(POOL_TEST[pool])
 
