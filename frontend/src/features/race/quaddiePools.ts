@@ -13,7 +13,8 @@ export function rankRace(race: Race, deltas: Record<string, number>, bases: Reco
 }
 
 // A runner outside the outer line is added back when its speed-map adjustment is clearly favourable (the green threshold in the table and map).
-export const mapAdded = (x: Ranked) => !x.inner && !x.outer && (x.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
+// Light-history values are shown but not used to add runners to a pool (lower confidence, not yet tested for that).
+export const mapAdded = (x: Ranked) => !x.inner && !x.outer && !x.eff?.speedMapLight && (x.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
 export const inPool = (x: Ranked) => x.inner || x.outer || mapAdded(x)
 
 export type PoolKey = 'inner' | 'outer' | 'map'

@@ -4,7 +4,7 @@ import { Pill } from '../../components/Pill'
 import { projectedAtActualScale } from '../../lib/atw'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { raceStatus } from '../../lib/raceStatus'
-import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
+import { speedMapDemeanedByRunId, hasLightSpeedMap, SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 
 type Runner = Race['runners'][number]
 type Mode = 'leader' | 'map'
@@ -65,7 +65,7 @@ export function Standouts({ races, now, onSelectRace }: { races: Race[]; now: nu
       const sm = speedMapDemeanedByRunId(live)
       const ranked = live
         .filter((r) => r.projectedWpr != null)
-        .map((r) => ({ runner: r, score: projectedAtActualScale(r) as number, sm: sm.get(r.runId) ?? null }))
+        .map((r) => ({ runner: r, score: projectedAtActualScale(r) as number, sm: hasLightSpeedMap(r) ? null : (sm.get(r.runId) ?? null) }))
         .sort((a, b) => b.score - a.score)
       if (ranked.length < 5) continue
       out.push({ race, ranked })

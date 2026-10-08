@@ -72,7 +72,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
           </span>
         )}
       </span>
-      <span className={`text-right font-mono ${smClass(effective?.speedMapAdj)}`}>{f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}</span>
+      <span
+        className={`text-right font-mono ${smClass(effective?.speedMapAdj)}${effective?.speedMapLight ? ' opacity-70' : ''}`}
+        title={effective?.speedMapLight ? 'Light-history runner: estimated without its own run history, lower confidence' : undefined}
+      >
+        {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
+      </span>
       <span className="text-right font-mono text-ink-mute" title="Fair price from the projection: the price the model would pay, not a market price">
         {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? runner.wprPrice)}
       </span>

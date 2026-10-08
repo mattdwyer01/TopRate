@@ -145,7 +145,7 @@ export function Ladder({
               )}
               <line x1={X(top)} x2={X(r.proj)} y1={y} y2={y} stroke={tone} strokeWidth={2} strokeOpacity={0.35} strokeLinecap="round" />
               {(() => {
-                const mapAdded = showSm && !r.inner && !r.outer && (r.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
+                const mapAdded = showSm && !r.inner && !r.outer && !r.eff?.speedMapLight && (r.eff?.speedMapAdj ?? -Infinity) >= SPEED_MAP_TINT_THRESHOLD
                 return (
                   <circle
                     cx={X(r.proj)}
