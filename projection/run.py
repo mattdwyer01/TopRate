@@ -71,6 +71,10 @@ def group_of(feat):
 # live set: main-model shift -3.70 (rmse 3.84) without the fix, -0.02 (rmse 1.02) with it. The light model is left alone (shift -0.35 without the fix, +0.42 with).
 JOCKEY_MAIN = ['jock_eff', 'jock_eff_n', 'jd_eff', 'jd_eff_n', 'jt_eff', 'jt_eff_n', 'jock_form', 'jock_form_n', 'jh_n']
 IMPUTE_BLANK_JOCKEY = True
+# Going and track grading are blank for races more than a day or two out (60% of the 8 Oct upcoming runners). A blank went through the model as an
+# unusual track (going step -0.8 and class step -1.0 against +0.2 and 0.0 for races with a known going), lowering every runner in the race together.
+ASSUME_GOING = True
+ASSUMED_GOING, ASSUMED_GRADE = 'Good 4', 4.0
 
 
 def impute_blank_jockey(R):
@@ -167,6 +171,10 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
     Tx = T.drop(columns=['run_id'])
+    assumed = set(Tx.race_id[Tx.going.isna()]) if ASSUME_GOING else set()
+    if assumed:     # going and track grading are not known until a day or two out: project on a typical track, not on a blank
+        Tx['going'] = Tx.going.fillna(ASSUMED_GOING)
+        Tx['trackGrading'] = Tx.trackGrading.fillna(ASSUMED_GRADE)
     if standin:
         Tx['wpr'] = T.run_id.map(standin)
     X = pd.concat([Hu, Tx], ignore_index=True)
@@ -242,6 +250,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
             Z[c] = np.nan
     Z['adj'] = sm.predict(Z[sfeats])
     R = R.merge(Z[['race_id', 'horse_id', 'adj']], on=['race_id', 'horse_id'], how='left')
+    R['going_assumed'] = R.race_id.isin(assumed)
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
     # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
@@ -309,7 +318,7 @@ def main():
     races = {}
     for rid, z in R.groupby('race_id'):
         first = z.iloc[0]
-        races[str(rid)] = dict(venue=first.track, date=str(first.date.date()), going=None if pd.isna(first.going) else str(first.going), fs=int(len(z)),
+        races[str(rid)] = dict(venue=first.track, date=str(first.date.date()), going=None if (pd.isna(first.going) or first.going_assumed) else str(first.going), fs=int(len(z)),
                                runners={str(int(r.run_id)): dict(p=None if pd.isna(r.proj) else round(float(r.proj), 1), base=None if pd.isna(r.p0) else round(float(r.p0), 1),
                                                                   adj=None if (r.routed != 'main' or pd.isna(r.adj)) else round(float(r.adj), 2), wt=round(float(r.wtadj), 2), sd=round(float(r.sd), 1),
                                                                   m=r.routed, n=int(r.nruns)) for r in z.itertuples() if pd.notna(r.run_id)})

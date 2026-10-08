@@ -210,6 +210,11 @@ export function RunnerDetailModal({
               Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
             </div>
           )}
+          {!scratched && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+              Going not known yet. The projection assumes Good 4 and updates when the track is rated.
+            </div>
+          )}
           {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projAtw ?? effectiveWpr} />}
 
           {(runner.resultKnown || runner.finishPosition != null) && (
