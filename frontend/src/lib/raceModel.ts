@@ -145,10 +145,13 @@ export function computeEffectiveRace(
 export const CORE_GAP_FROM_TOP = 2
 export const OUTER_GAP_FROM_TOP = 8
 export const INNER_GAP_FROM_TOP = 4
-// A runner between the inner and outer lines joins the "map" quaddie pool when its SM Adj is at least this (main-model runners only). On the same
-// 15-month test, SM +1.0 or better between 4 and 8 returned +20.9% flat on the win (777 bets, both halves positive, +10.0% without the 3 biggest winners);
-// +0.5 or better did not (+0.6%). Adds 0.06 runners a race and under 1 point of winner capture, so it is a value-leaning pool, not a safer one.
-export const MAP_ADD_MIN_SM = 1.0
+// A runner between the inner and outer lines (4 to 8) joins the "map" quaddie pool when its SM Adj is at least MAP_POOL_MIN_SM (main-model runners only).
+// 15-month out-of-sample test (14,438 races): inside 4 plus SM +0.5 holds 74.3% of winners with 4.25 runners a leg (inside 4 alone 70.0% with 3.88), so
+// a four-leg quaddie lands about 31% against 24% for about 43% more combinations, at nearly the same winners per runner (17.5% vs 18.0%). SM +1.0 or better
+// (MAP_VALUE_MIN_SM) adds only 0.06 runners but is the group that returned +20.9% flat on the win between 4 and 8 (777 bets, +10.0% without the 3 biggest
+// winners); the 0.5 to 1.0 runners return about -3%. So +0.5 is the coverage rule and +1.0 is the value marker (thicker ring on the ladder).
+export const MAP_POOL_MIN_SM = 0.5
+export const MAP_VALUE_MIN_SM = 1.0
 
 // Per-runner gap from the race's top effective Proj, scratched runners (client toggle or data) excluded.
 // Needs 2+ rated runners, otherwise every gap is null.

@@ -238,7 +238,7 @@ export function CalibrationOverTime({ weeks }: { weeks: CalibrationWeek[] }) {
 }
 
 // How the quaddie pools did on past quaddies: per leg, was the winner inside the pool, and did all four legs land. The pool is what the
-// dashboard shows (inside 4, inside 8, inside 4 plus map +1 from 4 to 8), using the projection logged for each race.
+// dashboard shows (inside 4, inside 8, inside 4 plus map +0.5 from 4 to 8), using the projection logged for each race.
 export function QuaddieScorecardSection({ races, period, excludeBush }: { races: Race[]; period: Period; excludeBush: boolean }) {
   const cards = useMemo(() => computeQuaddieScorecard(races, { period, excludeBush }), [races, period, excludeBush])
   const any = cards.some((c) => c.rows.some((r) => r.quaddies > 0))

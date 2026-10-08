@@ -3,7 +3,7 @@ import type { Runner } from '../../types/domain'
 import type { TripRace } from '../../lib/tripMap'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
-import { SPEED_MAP_TINT_THRESHOLD, MAP_ADD_MIN_SM } from '../../lib/raceModel'
+import { SPEED_MAP_TINT_THRESHOLD, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM } from '../../lib/raceModel'
 import { fmtAdj } from './rowParts'
 import { typicalSd, type Ranked } from './raceFacts'
 import { CORE_GAP_FROM_TOP } from '../../lib/raceModel'
@@ -145,7 +145,7 @@ export function Ladder({
               )}
               <line x1={X(top)} x2={X(r.proj)} y1={y} y2={y} stroke={tone} strokeWidth={2} strokeOpacity={0.35} strokeLinecap="round" />
               {(() => {
-                const mapAdded = showSm && !r.inner && r.outer && !r.eff?.speedMapLight && (r.eff?.speedMapAdj ?? -Infinity) >= MAP_ADD_MIN_SM
+                const mapAdded = showSm && !r.inner && r.outer && !r.eff?.speedMapLight && (r.eff?.speedMapAdj ?? -Infinity) >= MAP_POOL_MIN_SM
                 return (
                   <circle
                     cx={X(r.proj)}
@@ -153,7 +153,7 @@ export function Ladder({
                     r={r.inner ? 6 : 5}
                     fill={tone}
                     stroke={mapAdded ? 'var(--color-emerald)' : '#fff'}
-                    strokeWidth={mapAdded ? 2.5 : 1.5}
+                    strokeWidth={mapAdded ? ((r.eff?.speedMapAdj ?? 0) >= MAP_VALUE_MIN_SM ? 3.5 : 2) : 1.5}
                   />
                 )
               })()}
