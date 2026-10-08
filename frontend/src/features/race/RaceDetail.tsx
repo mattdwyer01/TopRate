@@ -50,26 +50,22 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
 
+// A hairline under the last runner inside each gap line, in the same colour as the row's left band.
+// No tinted bar: the band already colours the rows, so this only has to say where each group ends.
+const LINE_STYLE: Record<'core' | 'inner' | 'outer', { line: string; text: string }> = {
+  core: { line: 'bg-blue', text: 'text-blue-deep' },
+  inner: { line: 'bg-emerald', text: 'text-emerald-deep' },
+  outer: { line: 'bg-amber-line', text: 'text-amber' },
+}
+
 function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number }) {
-  if (kind === 'core')
-    return (
-      <div className="flex w-full items-center gap-2 bg-blue-bg px-2 py-0.5" aria-hidden="true">
-        <span className="h-0 flex-1 border-t-2 border-dotted border-blue" />
-        <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-blue-deep">{n} WPR from top</span>
-        <span className="h-0 flex-1 border-t-2 border-dotted border-blue" />
-      </div>
-    )
-  return kind === 'inner' ? (
-    <div className="flex w-full items-center gap-2 bg-emerald-bg px-2 py-0.5" aria-hidden="true">
-      <span className="h-0 flex-1 border-t-2 border-dotted border-emerald" />
-      <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-deep">{n} WPR from top</span>
-      <span className="h-0 flex-1 border-t-2 border-dotted border-emerald" />
-    </div>
-  ) : (
-    <div className="flex w-full items-center gap-2 bg-amber-bg px-2 py-0.5" aria-hidden="true">
-      <span className="h-[2px] flex-1 bg-amber-line" />
-      <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-amber">{n} WPR from top</span>
-      <span className="h-[2px] flex-1 bg-amber-line" />
+  const st = LINE_STYLE[kind]
+  return (
+    <div className="relative h-0 w-full" aria-hidden="true">
+      <span className={`absolute inset-x-0 top-0 h-px ${st.line}`} />
+      <span className={`absolute right-2 top-0 z-10 -translate-y-1/2 rounded-full border border-line bg-panel px-1.5 font-mono text-[9px] font-semibold leading-4 ${st.text}`}>
+        {'≤'}{n} from top
+      </span>
     </div>
   )
 }
