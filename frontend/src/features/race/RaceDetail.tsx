@@ -53,10 +53,10 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
 function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number }) {
   if (kind === 'core')
     return (
-      <div className="flex w-full items-center gap-2 bg-emerald-tint px-2 py-0.5" aria-hidden="true">
-        <span className="h-0 flex-1 border-t-2 border-dotted border-emerald-deep" />
-        <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-deep">{n} WPR from top</span>
-        <span className="h-0 flex-1 border-t-2 border-dotted border-emerald-deep" />
+      <div className="flex w-full items-center gap-2 bg-blue-bg px-2 py-0.5" aria-hidden="true">
+        <span className="h-0 flex-1 border-t-2 border-dotted border-blue" />
+        <span className="flex-none font-mono text-[10px] font-semibold uppercase tracking-wide text-blue-deep">{n} WPR from top</span>
+        <span className="h-0 flex-1 border-t-2 border-dotted border-blue" />
       </div>
     )
   return kind === 'inner' ? (

@@ -68,7 +68,7 @@ export function FinishBadge({ pos }: { pos: number | null }) {
 }
 
 export const BAND_BORDER: Record<'core' | 'inner' | 'outer' | 'none', string> = {
-  core: 'border-l-emerald-deep',
+  core: 'border-l-blue',
   inner: 'border-l-emerald',
   outer: 'border-l-amber',
   none: 'border-l-transparent',
