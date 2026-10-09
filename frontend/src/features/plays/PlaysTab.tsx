@@ -118,21 +118,12 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr : null
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-  const tone =
-    play.outcome === 'won' ? 'border-emerald bg-emerald-bg' : play.outcome === 'placed' ? 'border-amber bg-amber-bg' : 'border-ink-faint/60 bg-panel'
+  const tone = play.outcome === 'won' ? 'bg-emerald-bg' : play.outcome === 'placed' ? 'bg-amber-bg' : 'bg-panel'
   return (
-    <article className={`flex flex-col gap-1 rounded-lg border-2 p-1 shadow-md ${tone}`}>
+    <div className={`flex flex-col gap-1 rounded-md p-1 ${tone}`}>
       <button type="button" onClick={onOpen} className="flex w-full items-start gap-2.5 rounded-md px-1.5 py-0.5 text-left hover:bg-bg">
         {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="h-8 w-8 shrink-0 rounded-sm bg-bg" />}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
-            <span className="text-xs text-ink-mute">
-              {race.venue} R{race.raceNumber}
-              {race.distance ? ` · ${race.distance}m` : ''}
-              {race.going ? ` · ${race.going}` : ''}
-            </span>
-          </div>
           <div className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
             {runner.tabNumber}. {runner.horse}
           </div>
@@ -176,6 +167,31 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
           {play.isFavourite ? `${play.rank === 1 ? ' · ' : ''}favourite` : ''}
           {runner.startingPrice != null && runner.fixedWinPrice != null && runner.startingPrice !== runner.fixedWinPrice ? ` · SP ${fmtPrice(runner.startingPrice)}` : ''}
         </span>
+      </div>
+    </div>
+  )
+}
+
+function RaceGroup({ plays, onOpen }: { plays: Play[]; onOpen: (p: Play) => void }) {
+  const race = plays[0].race
+  return (
+    <article className="overflow-hidden rounded-lg border-2 border-ink-faint/60 bg-panel shadow-md">
+      <div className="flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1.5">
+        <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
+        <span className="text-sm font-medium text-ink">
+          {race.venue} R{race.raceNumber}
+        </span>
+        <span className="text-xs text-ink-mute">
+          {race.distance ? `${race.distance}m` : ''}
+          {race.going ? ` · ${race.going}` : ''}
+          {` · ${plays[0].fieldSize} runners`}
+        </span>
+        {plays.length > 1 && <span className="ml-auto text-xs font-semibold text-emerald-deep">{plays.length} plays</span>}
+      </div>
+      <div className="flex flex-col divide-y divide-line">
+        {plays.map((p) => (
+          <PlayCard key={p.key} play={p} onOpen={() => onOpen(p)} />
+        ))}
       </div>
     </article>
   )
@@ -245,6 +261,12 @@ export function PlaysTab({
     [dayPlays, kindFilter],
   )
 
+  const groups = useMemo(() => {
+    const m = new Map<string, Play[]>()
+    for (const p of listed) m.set(p.race.raceId, [...(m.get(p.race.raceId) ?? []), p])
+    return [...m.values()]
+  }, [listed])
+
   const dayTally = tally(dayPlays)
 
   return (
@@ -284,8 +306,8 @@ export function PlaysTab({
         <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match this filter.'} progress={null} />
       ) : (
         <div className="flex flex-col gap-3">
-          {listed.map((p) => (
-            <PlayCard key={p.key} play={p} onOpen={() => onOpen(p.race.raceId, p.race.date, p.runner.runId)} />
+          {groups.map((g) => (
+            <RaceGroup key={g[0].race.raceId} plays={g} onOpen={(p) => onOpen(p.race.raceId, p.race.date, p.runner.runId)} />
           ))}
         </div>
       )}
