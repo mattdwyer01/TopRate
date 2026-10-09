@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { formatTimeOfDay } from '../../lib/countdown'
+import { computePriceMove } from '../../lib/priceMove'
+import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { computePlays, PLAY_KINDS, TRACK_ROWS, tally, type Play, type PlayKind } from '../../lib/plays'
 
@@ -98,9 +99,8 @@ function ResultStrip({ play }: { play: Play }) {
     <span>
       <span className={`font-semibold ${tone}`}>{label}</span>
       {price != null && (
-        <span className="text-ink-mute">
-          {' '}
-          at {fmtPrice(price)} &middot; <span className={`font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}</span>
+        <span className={`ml-1 font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`} title={`At ${fmtPrice(price)} on $1 to win`}>
+          {ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}
         </span>
       )}
     </span>
@@ -113,17 +113,15 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   const proj = scratched ? null : (eff?.effectiveProjectedWpr ?? runner.projectedWpr)
   const sm = eff?.speedMapAdj ?? null
   const tone = play.outcome === 'won' ? 'bg-emerald-bg' : play.outcome === 'placed' ? 'bg-amber-bg' : 'bg-panel'
+  const move = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const smTone = sm == null ? 'text-ink-faint' : sm >= 0.5 ? 'text-emerald-deep' : sm <= -0.5 ? 'text-rose' : 'text-ink-mute'
   return (
     <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-bg ${tone}`}>
       {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-8 w-8 shrink-0 rounded-sm bg-bg" />}
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
+        <div className="truncate pr-1">
+          <span className={`text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
             {runner.tabNumber}. {runner.horse}
-          </span>
-          <span className="shrink-0 text-xs">
-            <ResultStrip play={play} />
           </span>
         </div>
         <div className="truncate text-xs text-ink-mute">
@@ -135,14 +133,12 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
           </span>
           <span className="text-[11px] text-ink-faint">
             {play.rank}/{play.fieldSize}
-            {play.rank === 1 ? ` · lead ${fmtWpr(play.lead)}` : ` · -${fmtWpr(play.gap)}`}
           </span>
-          <span className={`font-mono text-xs ${smTone}`} title="Speed map adjustment relative to the field">
-            SM {sm != null ? `${sm >= 0 ? '+' : ''}${sm.toFixed(1)}` : '-'}
-          </span>
-          <span className="font-mono text-xs text-ink" title="Market / model fair price">
-            {fmtPrice(runner.fixedWinPrice)} <span className="text-ink-faint">/ {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}</span>
-          </span>
+          {!play.kinds.some((k) => k !== 'lead') && (
+            <span className={`font-mono text-xs ${smTone}`} title="Speed map adjustment relative to the field">
+              SM {sm != null ? (Math.abs(sm) < 0.05 ? '0.0' : `${sm > 0 ? '+' : ''}${sm.toFixed(1)}`) : '-'}
+            </span>
+          )}
           {play.isFavourite && <span className="text-[11px] text-ink-faint">favourite</span>}
         </div>
         {(play.kinds.length > 0 || play.droppedKinds.length > 0) && (
@@ -157,15 +153,31 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
           </div>
         )}
       </div>
+      <div className="flex shrink-0 flex-col items-end text-right">
+        <span className="font-mono text-lg font-bold leading-tight text-ink" title="Market price">
+          {move && move.pctChange >= 3 && (
+            <span className={`mr-1 text-[11px] ${move.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}`} title={`${move.direction} ${move.pctChange.toFixed(0)}% from ${fmtPrice(runner.openFixedPrice)}`}>
+              {move.direction === 'firmed' ? '\u25BC' : '\u25B2'}
+            </span>
+          )}
+          {fmtPrice(runner.fixedWinPrice)}
+        </span>
+        <span className="font-mono text-[11px] text-ink-faint" title="Model fair price">
+          fair {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}
+        </span>
+        <span className="mt-1 text-xs">
+          <ResultStrip play={play} />
+        </span>
+      </div>
     </button>
   )
 }
 
-function RaceGroup({ plays, onOpen }: { plays: Play[]; onOpen: (p: Play) => void }) {
+function RaceGroup({ plays, onOpen, stickyTop }: { plays: Play[]; onOpen: (p: Play) => void; stickyTop: number }) {
   const race = plays[0].race
   return (
-    <article className="overflow-hidden rounded-lg border-2 border-ink-faint/60 bg-panel shadow-md">
-      <div className="flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1.5">
+    <article id={`play-race-${race.raceId}`} className="overflow-clip rounded-lg border-2 border-ink-faint/60 bg-panel shadow-md" style={{ scrollMarginTop: Math.max(stickyTop, 0) + 8 }}>
+      <div className={`${stickyTop >= 0 ? 'sticky z-10 ' : ''}flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1.5`} style={stickyTop >= 0 ? { top: stickyTop } : undefined}>
         <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
         <span className="text-sm font-medium text-ink">
           {race.venue} R{race.raceNumber}
@@ -177,7 +189,6 @@ function RaceGroup({ plays, onOpen }: { plays: Play[]; onOpen: (p: Play) => void
         </span>
         {plays.length > 1 && (
           <span
-            title="Races with several plays: a play wins in about 42% of 2-play races and 57% of 3+ (28% with one), at longer prices. Not a profit once the biggest winners are removed."
             className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-semibold ${plays.length >= 3 ? 'border-emerald bg-emerald text-white' : 'border-emerald-line bg-emerald-bg text-emerald-deep'}`}
           >
             {plays.length} plays
@@ -266,6 +277,30 @@ export function PlaysTab({
 
   const dayTally = tally(dayPlays)
 
+  // Keep each race header just under the app's own sticky header, and tick the clock for the next-up pill.
+  const [stickyTop, setStickyTop] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  const wrapRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const measure = () => setStickyTop(Math.round(document.querySelector('header')?.getBoundingClientRect().height ?? 0))
+    measure()
+    window.addEventListener('resize', measure)
+    const t = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.clearInterval(t)
+    }
+  }, [])
+
+  // Races that have all run fold into one row when others are still to come; a past day shows everything.
+  const upcoming = groups.filter((g) => g.some((p) => p.outcome === 'pending'))
+  const finished = upcoming.length > 0 ? groups.filter((g) => g.every((p) => p.outcome !== 'pending')) : []
+  const shown = upcoming.length > 0 ? upcoming : groups
+  const finishedPlays = finished.flat()
+  const finishedWon = finishedPlays.filter((p) => p.outcome === 'won').length
+  const nextGroup = date === todayIso() ? upcoming.find((g) => new Date(g[0].race.startTime).getTime() > now) : undefined
+  const open = (p: Play) => onOpen(p.race.raceId, p.race.date, p.runner.runId)
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -302,10 +337,31 @@ export function PlaysTab({
       {listed.length === 0 ? (
         <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match this filter.'} progress={null} />
       ) : (
-        <div className="flex flex-col gap-3">
-          {groups.map((g) => (
-            <RaceGroup key={g[0].race.raceId} plays={g} onOpen={(p) => onOpen(p.race.raceId, p.race.date, p.runner.runId)} />
+        <div ref={wrapRef} className="flex flex-col gap-3">
+          {nextGroup && (
+            <button
+              type="button"
+              onClick={() => document.getElementById(`play-race-${nextGroup[0].race.raceId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="self-start rounded-full border border-emerald-line bg-emerald-bg px-3 py-1 text-xs font-semibold text-emerald-deep"
+            >
+              Next: {nextGroup[0].race.venue} R{nextGroup[0].race.raceNumber} in {formatCountdown(nextGroup[0].race.startTime, new Date(now))} &darr;
+            </button>
+          )}
+          {shown.map((g) => (
+            <RaceGroup key={g[0].race.raceId} plays={g} onOpen={open} stickyTop={stickyTop} />
           ))}
+          {finished.length > 0 && (
+            <details className="rounded-lg border border-line bg-panel">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-ink">
+                Results so far <span className="font-normal text-ink-mute">({finishedWon} won of {finishedPlays.length} plays in {finished.length} races)</span>
+              </summary>
+              <div className="flex flex-col gap-3 p-2">
+                {finished.map((g) => (
+                  <RaceGroup key={g[0].race.raceId} plays={g} onOpen={open} stickyTop={-1} />
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
 
