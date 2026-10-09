@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Note } from './Note'
 import { useBodyScrollLock, useFocusTrap } from '../lib/modalA11y'
 import {
   applySyncPayload,
@@ -172,10 +173,10 @@ export function SettingsModal({
                 <span className="text-sm font-semibold text-ink">Fair price sharpness (beta)</span>
                 <span className="font-mono text-lg font-semibold text-emerald-deep">{draft.toFixed(2)}</span>
               </div>
-              <p className="text-xs text-ink-mute">
+              <Note short="How much a WPR gap becomes a price gap.">
                 Controls how much a WPR gap between runners shows up as a price gap. Higher = favourites priced
                 shorter and outsiders longer; lower = prices closer together across the field.
-              </p>
+              </Note>
             </div>
 
             <input
@@ -220,20 +221,20 @@ export function SettingsModal({
             </div>
 
             {serverBeta != null && (
-              <p className="text-xs text-ink-faint">
+              <Note short="Display only, on this device.">
                 Pipeline's own current value is {serverBeta.toFixed(2)}. This override only changes what's
                 displayed on this device - it doesn't change the pipeline or the underlying WPR projections, only
                 how they're converted to a price.
-              </p>
+              </Note>
             )}
           </div>
 
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">How WPR is calculated</span>
-            <p className="text-xs text-ink-mute">
+            <Note short="How WPR is built, with a worked example.">
               The full base + adjustment methodology, each term explained, and a worked example using a real
               runner's real numbers.
-            </p>
+            </Note>
             <button
               type="button"
               onClick={onOpenMethodology}
@@ -246,12 +247,12 @@ export function SettingsModal({
           <div className="flex flex-col gap-3 p-4">
             <div>
               <span className="text-sm font-semibold text-ink">GitHub token</span>
-              <p className="text-xs text-ink-mute">
+              <Note short="Needs a GitHub token with Actions and Gist access.">
                 A fine-grained PAT scoped to this repo (Actions: write, Contents: read for fetch; Gists: write for
                 sync), or a classic PAT with the <code className="font-mono">workflow</code> and{' '}
                 <code className="font-mono">gist</code> scopes. Stored in this browser's localStorage only - never
                 sent anywhere but api.github.com, never bundled into the site.
-              </p>
+              </Note>
             </div>
             <input
               type="password"
@@ -274,10 +275,10 @@ export function SettingsModal({
 
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Fetch data</span>
-            <p className="text-xs text-ink-mute">
+            <Note short="Runs the daily fetch. Takes a few minutes.">
               Triggers the daily pipeline (fetches races from toprate.au and rebuilds the data). Takes a few
               minutes to land.
-            </p>
+            </Note>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -316,11 +317,11 @@ export function SettingsModal({
 
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Hidden meetings</span>
-            <p className="text-xs text-ink-mute">
+            <Note short="Hide venues from the grid and ticker.">
               Permanently hide specific venues from the meetings grid and the next-to-jump ticker (separate from the
               "Hide bush meetings" toggle, which is automatic and based on prize money) - useful for a venue you
               never want to see regardless of its race quality. Hidden venues stay fully visible in search and Review.
-            </p>
+            </Note>
             {hiddenList.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {hiddenList.map((v) => (
@@ -373,10 +374,10 @@ export function SettingsModal({
 
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Cross-device sync</span>
-            <p className="text-xs text-ink-mute">
+            <Note short="Syncs your overrides and settings via a private Gist.">
               Syncs manual WPR overrides, and view preferences between devices via a
               private Gist. Create one on your first device, then paste the same Gist ID on the others.
-            </p>
+            </Note>
             <label className="flex items-center gap-2 text-xs text-ink-soft">
               Gist ID
               <input

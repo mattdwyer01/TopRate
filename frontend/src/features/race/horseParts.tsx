@@ -346,9 +346,12 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
           Show fewer
         </button>
       )}
-      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint">Few prior runs, so the light-history model gives the base directly with no split by factor. Last-run bars are for reference, not a step.</p>}
-      <p className="mt-1.5 text-xs text-ink-faint">
-        Each bar starts where the one above ended. {off !== 0 ? `Rated at ${weightKg != null ? weightKg + 'kg' : "today's weight"}, the same scale as the Recent runs table. ` : ''}Scale starts at {lo}. Hover a row for what it covers.
+      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint" title="Last-run bars are for reference, not a step.">Light-history model: base given directly, no split by factor.</p>}
+      <p
+        className="mt-1.5 text-xs text-ink-faint"
+        title={`Each bar starts where the one above ended. ${off !== 0 ? `Rated at ${weightKg != null ? weightKg + 'kg' : "today's weight"}, the same scale as the Recent runs table. ` : ''}Hover a row for what it covers.`}
+      >
+        Scale starts at {lo}.
       </p>
     </div>
   )

@@ -339,7 +339,7 @@ export function RunnerDetailModal({
                 </p>
                 {atwOff != null && effectiveWpr != null && (
                   <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">
-                    Projected {fmtWpr(effectiveWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, the scale of the Recent runs table. Typical error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
+                    {fmtWpr(effectiveWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
                   </p>
                 )}
                 {runner.projectionDescription && !(atwOff != null && effectiveWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
