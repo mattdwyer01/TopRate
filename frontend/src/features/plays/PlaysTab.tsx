@@ -4,11 +4,8 @@ import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { formatTimeOfDay } from '../../lib/countdown'
-import { computePriceMove } from '../../lib/priceMove'
-import { spellPosition } from '../../lib/spellPosition'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { computePlays, PLAY_KINDS, TRACK_ROWS, tally, type Play, type PlayKind } from '../../lib/plays'
-import { HorseHero } from '../race/horseParts'
 
 // The Plays tab (replaces "Standouts still to run" on the meetings page): every runner the dashboard flags for the day, in race order, in the
 // same hero layout as the runner page, and kept after the race has run with how it went. A collapsed scoreboard below follows how each flag has done.
@@ -92,7 +89,7 @@ function ResultStrip({ play }: { play: Play }) {
   const { outcome, price, runner } = play
   const fin = runner.finishPosition
   if (outcome === 'pending') {
-    return <span className="text-ink-mute">To run &middot; {formatTimeOfDay(play.race.startTime)}</span>
+    return <span className="text-ink-faint">To run</span>
   }
   const ret = outcome === 'won' && price != null ? price - 1 : -1
   const label = outcome === 'won' ? 'Won' : outcome === 'placed' ? `Placed ${fin != null ? ordinal(fin) : ''}` : fin != null ? `${ordinal(fin)}` : 'Unplaced'
@@ -103,7 +100,7 @@ function ResultStrip({ play }: { play: Play }) {
       {price != null && (
         <span className="text-ink-mute">
           {' '}
-          at {fmtPrice(price)} &middot; <span className={`font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}</span> on $1 to win
+          at {fmtPrice(price)} &middot; <span className={`font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}</span>
         </span>
       )}
     </span>
@@ -111,64 +108,56 @@ function ResultStrip({ play }: { play: Play }) {
 }
 
 function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
-  const { race, runner, eff } = play
+  const { runner, eff } = play
   const scratched = eff?.scratched ?? false
-  const effectiveWpr = scratched ? null : (eff?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const atwOff = eff != null && Math.abs(eff.atwOff) >= 0.05 ? eff.atwOff : null
-  const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr : null
-  const spell = spellPosition(runner.formHistory, race.date)
-  const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
+  const proj = scratched ? null : (eff?.effectiveProjectedWpr ?? runner.projectedWpr)
+  const sm = eff?.speedMapAdj ?? null
   const tone = play.outcome === 'won' ? 'bg-emerald-bg' : play.outcome === 'placed' ? 'bg-amber-bg' : 'bg-panel'
+  const smTone = sm == null ? 'text-ink-faint' : sm >= 0.5 ? 'text-emerald-deep' : sm <= -0.5 ? 'text-rose' : 'text-ink-mute'
   return (
-    <div className={`flex flex-col gap-1 rounded-md p-1 ${tone}`}>
-      <button type="button" onClick={onOpen} className="flex w-full items-start gap-2.5 rounded-md px-1.5 py-0.5 text-left hover:bg-bg">
-        {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="h-8 w-8 shrink-0 rounded-sm bg-bg" />}
-        <div className="min-w-0 flex-1">
-          <div className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
+    <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-bg ${tone}`}>
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-8 w-8 shrink-0 rounded-sm bg-bg" />}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
             {runner.tabNumber}. {runner.horse}
-          </div>
-          <div className="truncate text-xs text-ink-mute">
-            {runner.jockey || 'Jockey TBA'} / {runner.trainer}
-          </div>
+          </span>
+          <span className="shrink-0 text-xs">
+            <ResultStrip play={play} />
+          </span>
         </div>
-        <span className="mt-0.5 shrink-0 text-ink-faint">&rsaquo;</span>
-      </button>
-      <div className="flex flex-wrap items-center gap-1.5 px-1.5">
-        {play.kinds.map((k) => (
-          <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
-        ))}
-        {play.droppedKinds.map((k) => (
-          <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
-        ))}
-        {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
+        <div className="truncate text-xs text-ink-mute">
+          {runner.jockey || 'Jockey TBA'} / {runner.trainer}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-mono text-base font-bold leading-none text-emerald-deep" title="Projected WPR">
+            {fmtWpr(proj)}
+          </span>
+          <span className="text-[11px] text-ink-faint">
+            {play.rank}/{play.fieldSize}
+            {play.rank === 1 ? ` · lead ${fmtWpr(play.lead)}` : ` · -${fmtWpr(play.gap)}`}
+          </span>
+          <span className={`font-mono text-xs ${smTone}`} title="Speed map adjustment relative to the field">
+            SM {sm != null ? `${sm >= 0 ? '+' : ''}${sm.toFixed(1)}` : '-'}
+          </span>
+          <span className="font-mono text-xs text-ink" title="Market / model fair price">
+            {fmtPrice(runner.fixedWinPrice)} <span className="text-ink-faint">/ {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}</span>
+          </span>
+          {play.isFavourite && <span className="text-[11px] text-ink-faint">favourite</span>}
+        </div>
+        {(play.kinds.length > 0 || play.droppedKinds.length > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {play.kinds.map((k) => (
+              <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
+            ))}
+            {play.droppedKinds.map((k) => (
+              <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
+            ))}
+            {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
+          </div>
+        )}
       </div>
-      <HorseHero
-        runner={runner}
-        race={race}
-        proj={effectiveWpr}
-        scratched={scratched}
-        rank={play.rank}
-        fieldSize={play.fieldSize}
-        fieldTop={play.fieldTop}
-        fieldLow={play.fieldLow}
-        fair={eff?.effectivePrice ?? null}
-        market={runner.fixedWinPrice}
-        fixedMove={fixedMove}
-        hasOverride={eff?.hasOverride ?? false}
-        spellLabel={spell.label}
-        daysSince={spell.daysSince}
-        projAtw={projAtw}
-        compact
-      />
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 px-2 pb-1 text-xs">
-        <ResultStrip play={play} />
-        <span className="text-ink-faint">
-          {play.rank === 1 ? `lead ${fmtWpr(play.lead)} WPR` : ''}
-          {play.isFavourite ? `${play.rank === 1 ? ' · ' : ''}favourite` : ''}
-          {runner.startingPrice != null && runner.fixedWinPrice != null && runner.startingPrice !== runner.fixedWinPrice ? ` · SP ${fmtPrice(runner.startingPrice)}` : ''}
-        </span>
-      </div>
-    </div>
+    </button>
   )
 }
 
@@ -195,7 +184,7 @@ function RaceGroup({ plays, onOpen }: { plays: Play[]; onOpen: (p: Play) => void
           </span>
         )}
       </div>
-      <div className="flex flex-col divide-y divide-line">
+      <div className="flex flex-col divide-y divide-line-soft">
         {plays.map((p) => (
           <PlayCard key={p.key} play={p} onOpen={() => onOpen(p)} />
         ))}
