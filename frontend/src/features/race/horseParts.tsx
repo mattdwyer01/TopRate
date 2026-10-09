@@ -31,6 +31,7 @@ export function Tile({ label, children, sub, className = '' }: { label: string; 
 /* ------------------------------------------------------------------ hero */
 
 interface HeroProps {
+  compact?: boolean
   runner: Runner
   race: Race
   proj: number | null
@@ -83,7 +84,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw, compact }: HeroProps) {
   const sd = typicalSd(runner, proj)
   // The whole hero is at today's weight (ATW): proj, the field top and low all come from the race's effective (ATW) ratings.
   const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
@@ -103,8 +104,8 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         ? 'Scratched.'
         : ''
   return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 sm:px-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 lg:grid-cols-[minmax(150px,auto)_minmax(0,1fr)_auto] lg:gap-x-6">
+    <section className={compact ? 'rounded-md border border-line-soft bg-bg px-2.5 py-1.5' : 'rounded-lg border border-line bg-panel px-3 py-2.5 sm:px-4'}>
+      <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 ${compact ? '' : 'lg:grid-cols-[minmax(150px,auto)_minmax(0,1fr)_auto] lg:gap-x-6'}`}>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Projected WPR</span>
@@ -113,9 +114,9 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {scratched ? (
             <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
-            <div className="font-mono text-3xl font-bold leading-none text-emerald-deep">{fmtWpr(projAtw ?? proj)}</div>
+            <div className={`font-mono font-bold leading-none text-emerald-deep ${compact ? 'text-2xl' : 'text-3xl'}`}>{fmtWpr(projAtw ?? proj)}</div>
           )}
-          {!scratched && (projAtw ?? proj) != null && (
+          {!compact && !scratched && (projAtw ?? proj) != null && (
             <p className="mt-0.5 text-[11px] text-ink-mute" title="Every rating on this page is at the weight carried today (ATW), the scale of the Recent runs table, the chart and the waterfall. Ranking, the gap to the top and the field range use the same rating shifted together, so they are unchanged.">
               {projAtw != null ? <>at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}</> : null}
               {recentAvg != null && <>{projAtw != null ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
@@ -127,14 +128,14 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
             {reasons.length > 0 && !scratched && <> {reasons[0][0].toUpperCase() + reasons[0].slice(1)}{reasons.length > 1 ? `, ${reasons.slice(1).join(', ')}` : ''}.</>}
           </p>
         </div>
-        {proj != null && !scratched && (
+        {!compact && proj != null && !scratched && (
           <div className="order-last col-span-2 min-w-0 lg:order-none lg:col-span-1" title="Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.">
             <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
           </div>
         )}
         <div className="flex-none text-right">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / fair</div>
-          <div className="font-mono text-xl font-semibold leading-tight text-ink">
+          <div className={`font-mono font-semibold leading-tight text-ink ${compact ? 'text-lg' : 'text-xl'}`}>
             {fmtPrice(market)} <span className="text-base font-normal text-ink-faint">/ {fair != null && !scratched ? fmtPrice(fair) : '-'}</span>
           </div>
           <div className="text-xs text-ink-mute">

@@ -119,11 +119,11 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const tone =
-    play.outcome === 'won' ? 'border-emerald bg-emerald-bg/40' : play.outcome === 'placed' ? 'border-amber-line bg-amber-bg/40' : play.outcome === 'unplaced' ? 'border-line bg-bg' : 'border-line bg-bg'
+    play.outcome === 'won' ? 'border-emerald bg-emerald-bg' : play.outcome === 'placed' ? 'border-amber bg-amber-bg' : 'border-ink-faint/60 bg-panel'
   return (
-    <article className={`flex flex-col gap-1.5 rounded-lg border p-1.5 ${tone}`}>
-      <button type="button" onClick={onOpen} className="flex w-full items-start gap-2.5 rounded-md px-1.5 py-1 text-left hover:bg-panel/60">
-        {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-10 w-10 shrink-0 rounded-sm object-contain" /> : <div className="h-10 w-10 shrink-0 rounded-sm bg-panel" />}
+    <article className={`flex flex-col gap-1 rounded-lg border-2 p-1 shadow-md ${tone}`}>
+      <button type="button" onClick={onOpen} className="flex w-full items-start gap-2.5 rounded-md px-1.5 py-0.5 text-left hover:bg-bg">
+        {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="h-8 w-8 shrink-0 rounded-sm bg-bg" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
@@ -133,7 +133,7 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
               {race.going ? ` · ${race.going}` : ''}
             </span>
           </div>
-          <div className={`truncate text-base font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
+          <div className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
             {runner.tabNumber}. {runner.horse}
           </div>
           <div className="truncate text-xs text-ink-mute">
@@ -167,12 +167,13 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
         spellLabel={spell.label}
         daysSince={spell.daysSince}
         projAtw={projAtw}
+        compact
       />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 px-2 pb-1 text-xs">
         <ResultStrip play={play} />
         <span className="text-ink-faint">
-          {play.rank === 1 ? `lead ${fmtWpr(play.lead)} WPR` : `${fmtWpr(play.gap)} off the top`}
-          {play.isFavourite ? ' · favourite' : ''}
+          {play.rank === 1 ? `lead ${fmtWpr(play.lead)} WPR` : ''}
+          {play.isFavourite ? `${play.rank === 1 ? ' · ' : ''}favourite` : ''}
           {runner.startingPrice != null && runner.fixedWinPrice != null && runner.startingPrice !== runner.fixedWinPrice ? ` · SP ${fmtPrice(runner.startingPrice)}` : ''}
         </span>
       </div>
