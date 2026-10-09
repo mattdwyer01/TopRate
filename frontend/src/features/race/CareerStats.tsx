@@ -135,7 +135,7 @@ function AdjustmentBreakdown({ runner }: { runner: Runner }) {
 
   const rows = Object.entries(breakdown).filter(
     // speed_map is the speed-map signal (Speed Map tint, SM Adj column, trackers), not part of the projection's adjustment
-    ([key, v]) => key !== 'baseline' && key !== 'speed_map' && key !== 'sm_light' && !key.startsWith('g_') && v != null && Math.abs(v) >= MIN_ADJ_SHOWN,
+    ([key, v]) => key !== 'baseline' && key !== 'speed_map' && key !== 'sm_light' && key !== 'bias' && !key.startsWith('g_') && v != null && Math.abs(v) >= MIN_ADJ_SHOWN,
   )
   if (!rows.length) return null
 

@@ -7,6 +7,7 @@ import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
+import { BiasNote } from './BiasNote'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, rowGrid } from './RunnerRow'
@@ -227,6 +228,8 @@ export function RaceDetail({
         <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} />
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
+
+      <BiasNote ranked={ranked} race={race} allRaces={allRaces} />
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

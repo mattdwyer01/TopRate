@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
@@ -45,6 +46,15 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
           {runner.dataScratched && <span className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white">SCR</span>}
+          {hasRunnerBias(runner) && !f.scratched && (
+            <span
+              className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
+              title="Moved by the track bias read from earlier races at this meeting (already inside Proj and SM)"
+            >
+              <span className="lg:hidden">{runnerBias(runner) >= 0 ? '\u25B2' : '\u25BC'}{Math.abs(runnerBias(runner)).toFixed(1)}</span>
+              <span className="hidden lg:inline">bias {fmtBias(runnerBias(runner))}</span>
+            </span>
+          )}
           {runner.projectionModel === 'light' && !f.scratched && (
             <span className="flex-none rounded border border-line px-1 text-[10px] text-ink-faint" title="Light-history model (0-2 prior runs): wider error">
               light

@@ -1,6 +1,7 @@
 import type { Race, Runner } from '../types/domain'
 import { computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM, type EffectiveRunner } from './raceModel'
 import { rankField } from '../features/race/raceFacts'
+import { runnerBias, withoutBias } from './bias'
 
 // The Plays tab: the runners the dashboard flags, kept for the day (and after the race has run) with how they went.
 // Everything is read from the projections the page already holds (the log's pre-race projection for a race that has run), so a play never
@@ -27,6 +28,11 @@ export interface Play {
   kinds: PlayKind[]
   // Kinds this runner qualified for earlier today but no longer does (a late projection or price change). Kept so a play does not vanish.
   droppedKinds: PlayKind[]
+  // Kinds it qualifies for only because of the day-of track bias (it would not without it), and kinds it lost only because of it.
+  biasGained: PlayKind[]
+  biasLost: PlayKind[]
+  // How far the track bias moved this runner's projection (WPR), 0 when none was read.
+  bias: number
   rank: number
   fieldSize: number
   fieldTop: number
@@ -55,6 +61,17 @@ function outcomeOf(runner: Runner, starters: number): Outcome {
 
 export const playPrice = (r: Runner): number | null => r.startingPrice ?? r.fixedWinPrice
 
+function kindsFor(main: boolean, light: boolean, isTop: boolean, lead: number, gap: number, sm: number | null): PlayKind[] {
+  const kinds: PlayKind[] = []
+  if (!main) return kinds
+  if (isTop && lead >= PLAY_LEAD_MIN) kinds.push('lead')
+  if (!light && sm != null) {
+    if (gap <= INNER_GAP_FROM_TOP && sm >= MAP_POOL_MIN_SM) kinds.push('map4')
+    if (gap > INNER_GAP_FROM_TOP && gap <= OUTER_GAP_FROM_TOP && sm >= MAP_VALUE_MIN_SM) kinds.push('value')
+  }
+  return kinds
+}
+
 /**
  * Plays for the given races, in race order. `seen` holds kinds a runner qualified for earlier (raceId|runId -> kinds), so a play that stopped
  * qualifying before the jump still shows, marked as dropped.
@@ -80,21 +97,26 @@ export function computePlays(
       const p = playPrice(x.runner)
       if (p != null && p < minPrice) minPrice = p
     }
+    // The same race as it stood before the earlier races at the meeting ran (track bias taken out), to say which flags the bias created or removed.
+    const nb = withoutBias(ranked)
+    const nbRows = ranked.map((x) => ({ x, proj: nb.get(x.runner.runId)?.proj ?? x.proj, sm: nb.get(x.runner.runId)?.sm ?? null })).sort((p, q) => q.proj - p.proj)
+    const nbTop = nbRows[0].proj
+    const nbLead = nbTop - nbRows[1].proj
+    const nbKinds = new Map<string, PlayKind[]>()
+    nbRows.forEach((row, i) => {
+      const m = row.x.runner.projectionModel === 'main'
+      nbKinds.set(row.x.runner.runId, kindsFor(m, row.x.eff?.speedMapLight ?? false, i === 0, nbLead, nbTop - row.proj, row.sm))
+    })
     ranked.forEach((x, i) => {
-      const kinds: PlayKind[] = []
-      // Main-model runners only (3+ prior runs): that is what the tests covered. A first or second starter can rank #1, but its error is wider and
-      // the rule was not tested on it.
       const main = x.runner.projectionModel === 'main'
-      if (main && i === 0 && lead >= PLAY_LEAD_MIN) kinds.push('lead')
       const sm = x.eff?.speedMapAdj ?? null
-      const light = x.eff?.speedMapLight ?? false
-      if (main && !light && sm != null) {
-        if (x.inner && sm >= MAP_POOL_MIN_SM) kinds.push('map4')
-        if (x.outer && sm >= MAP_VALUE_MIN_SM) kinds.push('value')
-      }
+      const kinds = kindsFor(main, x.eff?.speedMapLight ?? false, i === 0, lead, x.gap, sm)
+      const without = nbKinds.get(x.runner.runId) ?? []
+      const biasGained = kinds.filter((k) => !without.includes(k))
+      const biasLost = without.filter((k) => !kinds.includes(k))
       const key = `${race.raceId}|${x.runner.runId}`
       const before = seen?.get(key) ?? []
-      if (kinds.length === 0 && before.length === 0) return
+      if (kinds.length === 0 && before.length === 0 && biasLost.length === 0) return
       const price = playPrice(x.runner)
       out.push({
         key,
@@ -102,7 +124,10 @@ export function computePlays(
         runner: x.runner,
         eff: x.eff,
         kinds,
-        droppedKinds: before.filter((k) => !kinds.includes(k)),
+        droppedKinds: [...new Set([...before.filter((k) => !kinds.includes(k)), ...biasLost])],
+        biasGained,
+        biasLost,
+        bias: runnerBias(x.runner),
         rank: i + 1,
         fieldSize: ranked.length,
         fieldTop: top,

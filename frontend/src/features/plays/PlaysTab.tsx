@@ -9,6 +9,7 @@ import { spellPosition } from '../../lib/spellPosition'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { computePlays, PLAY_KINDS, TRACK_ROWS, tally, type Play, type PlayKind } from '../../lib/plays'
 import { HorseHero } from '../race/horseParts'
+import { fmtBias, hasRunnerBias } from '../../lib/bias'
 
 // The Plays tab (replaces "Standouts still to run" on the meetings page): every runner the dashboard flags for the day, in race order, in the
 // same hero layout as the runner page, and kept after the race has run with how it went. A scoreboard above follows how each flag has done.
@@ -76,13 +77,14 @@ const KIND_CHIP: Record<PlayKind, string> = {
   value: 'border-amber-line bg-amber-bg text-amber',
 }
 
-function Chip({ kind, play, dropped }: { kind: PlayKind; play: Play; dropped?: boolean }) {
+function Chip({ kind, play, dropped, byBias }: { kind: PlayKind; play: Play; dropped?: boolean; byBias?: boolean }) {
   const meta = PLAY_KINDS.find((k) => k.kind === kind)!
   const detail =
     kind === 'lead' ? `${meta.short} +${play.lead.toFixed(1)}` : `${meta.short} (${play.sm != null ? (play.sm >= 0 ? '+' : '') + play.sm.toFixed(1) : '-'}), ${play.gap < 0.05 ? 'top' : `-${play.gap.toFixed(1)}`}`
   return (
     <span title={meta.help} className={`rounded-full border px-2 py-0.5 font-mono text-[11px] ${dropped ? 'border-line bg-bg text-ink-faint line-through' : KIND_CHIP[kind]}`}>
       {detail}
+      {byBias && <span className="ml-1 font-sans font-semibold text-amber">{dropped ? 'lost to track bias' : 'from track bias'}</span>}
     </span>
   )
 }
@@ -143,12 +145,17 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
       </button>
       <div className="flex flex-wrap items-center gap-1.5 px-1.5">
         {play.kinds.map((k) => (
-          <Chip key={k} kind={k} play={play} />
+          <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
         ))}
         {play.droppedKinds.map((k) => (
-          <Chip key={'d' + k} kind={k} play={play} dropped />
+          <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
         ))}
-        {play.droppedKinds.length > 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
+        {hasRunnerBias(play.runner) && (
+          <span title="How far the track bias read from earlier races at this meeting moved this runner's projection (already inside Proj and SM)" className="rounded-full border border-amber-line bg-amber-bg px-2 py-0.5 font-mono text-[11px] font-semibold text-amber">
+            bias {fmtBias(play.bias)}
+          </span>
+        )}
+        {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
         {(play.price ?? 0) > 5 && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">over $5</span>}
         {play.isFavourite && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">favourite</span>}
         {play.fieldSize >= 10 && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">{play.fieldSize} runners</span>}

@@ -68,12 +68,13 @@ def apply(runners_df, path=None):
             return {'g_' + k: float(v) for k, v in json.loads(g).items()} if isinstance(g, str) and g else {}
         except Exception:
             return {}
-    def _contrib(a, w, mod, g, sa):
+    def _contrib(a, w, mod, g, sa, ba):
         # sm_light: the suitability model's value for a light-history runner (history inputs blank). Display only (SM column, speed map), not part of Base + Adj = Proj.
         d = {**({'suitability': float(a)} if mod == 'main' and pd.notna(a) else {}), **({'sm_light': float(sa)} if mod == 'light' and pd.notna(sa) else {}),
+             **({'bias': float(ba)} if mod == 'main' and pd.notna(ba) and abs(ba) >= 0.005 else {}),
              **({'weight': float(w)} if pd.notna(w) and abs(w) >= 0.005 else {}), **(_grp(g) if mod == 'main' else {})}
         return json.dumps(d) if d else None
-    df.loc[idx, 'wprp_contrib'] = [_contrib(a, w, mod, g, sa) for a, w, mod, g, sa in zip(m.adj.values, m.wtadj.values, m.model.values, m.grp.values, m.sadj.values)]
+    df.loc[idx, 'wprp_contrib'] = [_contrib(a, w, mod, g, sa, ba) for a, w, mod, g, sa, ba in zip(m.adj.values, m.wtadj.values, m.model.values, m.grp.values, m.sadj.values, m.badj.values)]
     # fair price and rank within the race (same softmax convention as before; scratched runners excluded)
     beta = _beta()
     sub = df.loc[idx, ['race_id', 'wprp_proj']].copy()
