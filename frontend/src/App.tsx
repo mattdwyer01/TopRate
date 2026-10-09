@@ -310,7 +310,6 @@ function App() {
             scratched={scratched}
             showBush={showBush}
             hiddenVenues={hiddenVenues}
-            historyPending={historyPending}
           />
         )}
         {state.status === 'ready' && topTab === 'review' && (

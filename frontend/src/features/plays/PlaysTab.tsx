@@ -199,7 +199,6 @@ export function PlaysTab({
   scratched,
   showBush,
   hiddenVenues,
-  historyPending,
 }: {
   races: Race[]
   date: string
@@ -211,7 +210,6 @@ export function PlaysTab({
   scratched: Set<string>
   showBush: boolean
   hiddenVenues: Set<string>
-  historyPending: boolean
 }) {
   const [period, setPeriod] = useState<Period>('day')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
@@ -329,11 +327,6 @@ export function PlaysTab({
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[11px] text-ink-faint">
-          A play is kept from the moment it qualifies and stays after the race has run. Placed counts the paying places (3 for 8+ runners, 2 for 5 to 7). $1 win is a flat
-          $1 to win at SP, else the last fixed price. Out of sample (15 months) none of these showed a robust profit and the live speed map is flatter than the one tested,
-          so this table is how that gets checked. A filter, not a tip.{historyPending && period !== 'day' ? ' Earlier days are still loading.' : ''}
-        </p>
       </section>
 
       <div className="flex flex-wrap items-center gap-1.5">
