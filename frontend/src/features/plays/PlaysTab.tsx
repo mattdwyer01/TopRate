@@ -264,7 +264,8 @@ export function PlaysTab({
   const groups = useMemo(() => {
     const m = new Map<string, Play[]>()
     for (const p of listed) m.set(p.race.raceId, [...(m.get(p.race.raceId) ?? []), p])
-    return [...m.values()]
+    // Within a race, best projected rating first.
+    return [...m.values()].map((g) => g.sort((a, b) => a.rank - b.rank))
   }, [listed])
 
   const dayTally = tally(dayPlays)
