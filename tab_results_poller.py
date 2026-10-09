@@ -100,6 +100,7 @@ cycle (a real going change, or patch_data_json falling back to a full
 rebuild) overlapping the next trigger.
 """
 import argparse
+import os
 import json
 import re
 import shutil
@@ -1044,7 +1045,13 @@ def run_once(push=True):
     # projection_daily.yml commits wpr_projection_log.csv.gz but nothing else carries it into the payload between full rebuilds
     # (7 Oct 2026 gap: a fast re-score after a going change or a new declaration only showed at the next Daily fetch). When the log
     # holds a newer projection than the one applied to toprate_runners.csv, re-apply it here and patch it into the payload.
-    proj_stale = td.projection_stale()
+    # Fast projection runs (dispatched after each newly run race) commit the log every 5 to 10 minutes, so an unthrottled
+    # refresh made nearly every cycle do the heavy runners rewrite and payload patch (9 Oct 2026: cycles of 6+ minutes, pushes
+    # rejected and the whole poll redone, results stalled). Refresh in one 5-minute window in every 20 only, never on a redo
+    # (TOPRATE_SKIP_PROJ_REFRESH), so results and prices stay the fast path.
+    proj_stale = (td.projection_stale()
+                  and not os.environ.get("TOPRATE_SKIP_PROJ_REFRESH")
+                  and datetime.now(timezone.utc).minute % 20 < 5)
     if proj_stale:
         print("  Projection log is newer than the runners file: refreshing projections this cycle")
 
