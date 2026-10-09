@@ -9,6 +9,10 @@ import type { Ranked } from '../features/race/raceFacts'
 // A runner is flagged when the bias moved its projection by at least this many WPR (about half the typical suitability spread).
 export const BIAS_FLAG_MIN = 0.3
 
+// Bias is only flagged once this many earlier races at the meeting have run. Backtest (190,000 runners): after one race the finishing-order bias cut the
+// suitability error by 0.08%, noisy and about half the gain; from the second race on it settles at about 0.16 to 0.19%.
+export const MIN_BIAS_RACES = 2
+
 export const runnerBias = (r: Runner): number => r.adjustmentBreakdown?.bias ?? 0
 
 export const hasRunnerBias = (r: Runner): boolean => Math.abs(runnerBias(r)) >= BIAS_FLAG_MIN

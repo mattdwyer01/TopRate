@@ -1,7 +1,7 @@
 import type { Race, Runner } from '../types/domain'
 import { computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM, type EffectiveRunner } from './raceModel'
 import { rankField } from '../features/race/raceFacts'
-import { runnerBias, withoutBias } from './bias'
+import { MIN_BIAS_RACES, racesRunBefore, runnerBias, withoutBias, type NoBias } from './bias'
 
 // The Plays tab: the runners the dashboard flags, kept for the day (and after the race has run) with how they went.
 // Everything is read from the projections the page already holds (the log's pre-race projection for a race that has run), so a play never
@@ -100,8 +100,9 @@ export function computePlays(
       if (p != null && p < minPrice) minPrice = p
     }
     // The same race as it stood before the earlier races at the meeting ran (track bias taken out), to say which flags the bias created or removed.
-    const nb = withoutBias(ranked)
-    const nbRows = ranked.map((x) => ({ x, proj: nb.get(x.runner.runId)?.proj ?? x.proj, sm: nb.get(x.runner.runId)?.sm ?? null })).sort((p, q) => q.proj - p.proj)
+    const biasShown = racesRunBefore(race, races) >= MIN_BIAS_RACES
+    const nb = biasShown ? withoutBias(ranked) : new Map<string, NoBias>()
+    const nbRows = ranked.map((x) => ({ x, proj: nb.get(x.runner.runId)?.proj ?? x.proj, sm: nb.has(x.runner.runId) ? (nb.get(x.runner.runId)?.sm ?? null) : (x.eff?.speedMapAdj ?? null) })).sort((p, q) => q.proj - p.proj)
     const nbTop = nbRows[0].proj
     const nbLead = nbTop - nbRows[1].proj
     const nbKinds = new Map<string, PlayKind[]>()
@@ -129,7 +130,7 @@ export function computePlays(
         droppedKinds: [...new Set([...before.filter((k) => !kinds.includes(k)), ...biasLost])],
         biasGained,
         biasLost,
-        bias: runnerBias(x.runner),
+        bias: biasShown ? runnerBias(x.runner) : 0,
         rank: i + 1,
         fieldSize: ranked.length,
         fieldTop: top,
