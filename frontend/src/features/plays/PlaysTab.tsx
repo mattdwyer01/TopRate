@@ -9,10 +9,9 @@ import { spellPosition } from '../../lib/spellPosition'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
 import { computePlays, PLAY_KINDS, TRACK_ROWS, tally, type Play, type PlayKind } from '../../lib/plays'
 import { HorseHero } from '../race/horseParts'
-import { fmtBias, hasRunnerBias } from '../../lib/bias'
 
 // The Plays tab (replaces "Standouts still to run" on the meetings page): every runner the dashboard flags for the day, in race order, in the
-// same hero layout as the runner page, and kept after the race has run with how it went. A scoreboard above follows how each flag has done.
+// same hero layout as the runner page, and kept after the race has run with how it went. A collapsed scoreboard below follows how each flag has done.
 // Nothing here is a tip: out-of-sample no flag has shown a robust profit, the scoreboard is how that gets checked going forward.
 
 type Period = 'day' | '7' | 'all'
@@ -150,15 +149,7 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
         {play.droppedKinds.map((k) => (
           <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
         ))}
-        {hasRunnerBias(play.runner) && (
-          <span title="How far the track bias read from earlier races at this meeting moved this runner's projection (already inside Proj and SM)" className="rounded-full border border-amber-line bg-amber-bg px-2 py-0.5 font-mono text-[11px] font-semibold text-amber">
-            bias {fmtBias(play.bias)}
-          </span>
-        )}
         {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
-        {(play.price ?? 0) > 5 && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">over $5</span>}
-        {play.isFavourite && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">favourite</span>}
-        {play.fieldSize >= 10 && <span className="rounded-full border border-line bg-panel px-2 py-0.5 font-mono text-[11px] text-ink-soft">{play.fieldSize} runners</span>}
       </div>
       <HorseHero
         runner={runner}
@@ -181,6 +172,7 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
         <ResultStrip play={play} />
         <span className="text-ink-faint">
           {play.rank === 1 ? `lead ${fmtWpr(play.lead)} WPR` : `${fmtWpr(play.gap)} off the top`}
+          {play.isFavourite ? ' · favourite' : ''}
           {runner.startingPrice != null && runner.fixedWinPrice != null && runner.startingPrice !== runner.fixedWinPrice ? ` · SP ${fmtPrice(runner.startingPrice)}` : ''}
         </span>
       </div>
@@ -199,7 +191,6 @@ export function PlaysTab({
   scratched,
   showBush,
   hiddenVenues,
-  historyPending,
 }: {
   races: Race[]
   date: string
@@ -211,11 +202,9 @@ export function PlaysTab({
   scratched: Set<string>
   showBush: boolean
   hiddenVenues: Set<string>
-  historyPending: boolean
 }) {
   const [period, setPeriod] = useState<Period>('day')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
-  const [overFive, setOverFive] = useState(false)
   const [seenTick, setSeenTick] = useState(0)
 
   const visible = useMemo(() => {
@@ -251,39 +240,58 @@ export function PlaysTab({
   }, [period, dayPlays, visible, date, ctx])
 
   const listed = useMemo(
-    () => dayPlays.filter((p) => (kindFilter === 'all' || p.kinds.includes(kindFilter) || p.droppedKinds.includes(kindFilter)) && (!overFive || (p.price ?? 0) > 5)),
-    [dayPlays, kindFilter, overFive],
+    () => dayPlays.filter((p) => kindFilter === 'all' || p.kinds.includes(kindFilter) || p.droppedKinds.includes(kindFilter)),
+    [dayPlays, kindFilter],
   )
 
   const dayTally = tally(dayPlays)
-  const quickDates = [
-    { label: 'Yesterday', d: todayIso(-1) },
-    { label: 'Today', d: todayIso() },
-    { label: 'Tomorrow', d: todayIso(1) },
-  ]
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {quickDates.map((b) => (
-          <Pill key={b.label} active={date === b.d} onClick={() => onDateChange(b.d)}>
-            {b.label}
+        <button type="button" aria-label="Previous day" onClick={() => onDateChange(shiftDate(date, -1))} className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink">
+          &lsaquo;
+        </button>
+        <input type="date" value={date} onChange={(e) => e.target.value && onDateChange(e.target.value)} className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono" />
+        <button type="button" aria-label="Next day" onClick={() => onDateChange(shiftDate(date, 1))} className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink">
+          &rsaquo;
+        </button>
+        {date !== todayIso() && (
+          <Pill active={false} onClick={() => onDateChange(todayIso())}>
+            Today
           </Pill>
-        ))}
-        <div className="flex items-center gap-1">
-          <button type="button" aria-label="Previous day" onClick={() => onDateChange(shiftDate(date, -1))} className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink">
-            &lsaquo;
-          </button>
-          <input type="date" value={date} onChange={(e) => e.target.value && onDateChange(e.target.value)} className="rounded-md border border-line bg-panel px-2 py-1 text-sm font-mono" />
-          <button type="button" aria-label="Next day" onClick={() => onDateChange(shiftDate(date, 1))} className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink">
-            &rsaquo;
-          </button>
-        </div>
+        )}
+        {dayTally.run > 0 && (
+          <span className="ml-auto text-xs text-ink-mute">
+            {dayTally.wins} won, {dayTally.places} placed of {dayTally.run} run
+          </span>
+        )}
       </div>
 
-      <section className="rounded-lg border border-line bg-panel p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-ink">Scoreboard</h2>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Pill active={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
+          All ({dayPlays.length})
+        </Pill>
+        {PLAY_KINDS.map((k) => (
+          <Pill key={k.kind} active={kindFilter === k.kind} onClick={() => setKindFilter(k.kind)}>
+            {k.label} ({dayPlays.filter((p) => p.kinds.includes(k.kind)).length})
+          </Pill>
+        ))}
+      </div>
+
+      {listed.length === 0 ? (
+        <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match this filter.'} progress={null} />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {listed.map((p) => (
+            <PlayCard key={p.key} play={p} onOpen={() => onOpen(p.race.raceId, p.race.date, p.runner.runId)} />
+          ))}
+        </div>
+      )}
+
+      <details className="rounded-lg border border-line bg-panel p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">Scoreboard: how each flag has done</summary>
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
           <div className="flex gap-1.5">
             <Pill active={period === 'day'} onClick={() => setPeriod('day')}>
               This day
@@ -301,12 +309,9 @@ export function PlaysTab({
             <thead className="text-left text-ink-mute">
               <tr>
                 <th className="py-1 pr-2 font-medium">Flag</th>
-                <th className="hidden px-1 text-right font-medium sm:table-cell">Plays</th>
                 <th className="px-1 text-right font-medium">Run</th>
                 <th className="px-1 text-right font-medium">Won</th>
                 <th className="px-1 text-right font-medium">Strike</th>
-                <th className="px-1 text-right font-medium">Placed</th>
-                <th className="hidden px-1 text-right font-medium sm:table-cell">Avg $</th>
                 <th className="pl-1 text-right font-medium">$1 win</th>
               </tr>
             </thead>
@@ -316,12 +321,9 @@ export function PlaysTab({
                 return (
                   <tr key={row.id} className="border-t border-line-soft">
                     <td className="py-1 pr-2 text-ink" title={row.label}><span className="sm:hidden">{row.short}</span><span className="hidden sm:inline">{row.label}</span></td>
-                    <td className="hidden px-1 text-right font-mono sm:table-cell">{t.plays}</td>
                     <td className="px-1 text-right font-mono">{t.run}</td>
                     <td className="px-1 text-right font-mono">{t.wins}</td>
                     <td className="px-1 text-right font-mono">{pct(t.wins, t.run)}</td>
-                    <td className="px-1 text-right font-mono">{pct(t.places, t.run)}</td>
-                    <td className="hidden px-1 text-right font-mono sm:table-cell">{t.avgPrice != null ? `$${t.avgPrice.toFixed(2)}` : '-'}</td>
                     <td className={`pl-1 text-right font-mono ${t.roi == null ? '' : t.roi >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{fmtRoi(t.roi)}</td>
                   </tr>
                 )
@@ -329,41 +331,7 @@ export function PlaysTab({
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[11px] text-ink-faint">
-          A play is kept from the moment it qualifies and stays after the race has run. Placed counts the paying places (3 for 8+ runners, 2 for 5 to 7). $1 win is a flat
-          $1 to win at SP, else the last fixed price. Out of sample (15 months) none of these showed a robust profit and the live speed map is flatter than the one tested,
-          so this table is how that gets checked. A filter, not a tip.{historyPending && period !== 'day' ? ' Earlier days are still loading.' : ''}
-        </p>
-      </section>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Pill active={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
-          All ({dayPlays.length})
-        </Pill>
-        {PLAY_KINDS.map((k) => (
-          <Pill key={k.kind} active={kindFilter === k.kind} onClick={() => setKindFilter(k.kind)}>
-            {k.label} ({dayPlays.filter((p) => p.kinds.includes(k.kind)).length})
-          </Pill>
-        ))}
-        <Pill active={overFive} onClick={() => setOverFive(!overFive)}>
-          Over $5
-        </Pill>
-        {dayTally.run > 0 && (
-          <span className="ml-auto text-xs text-ink-mute">
-            {dayTally.wins} won, {dayTally.places} placed of {dayTally.run} run
-          </span>
-        )}
-      </div>
-
-      {listed.length === 0 ? (
-        <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match these filters.'} progress={null} />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {listed.map((p) => (
-            <PlayCard key={p.key} play={p} onOpen={() => onOpen(p.race.raceId, p.race.date, p.runner.runId)} />
-          ))}
-        </div>
-      )}
+      </details>
     </div>
   )
 }
