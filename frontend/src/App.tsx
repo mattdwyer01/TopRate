@@ -303,7 +303,7 @@ function App() {
             races={state.data.races}
             date={playsDate}
             onDateChange={setPlaysDate}
-            onOpen={goToRace}
+            onOpen={(raceId, date) => goToRace(raceId, date)}
             priceBeta={betaOverride ?? state.data.priceBeta}
             deltas={deltas}
             bases={bases}

@@ -83,6 +83,8 @@ export function computePlays(
 ): Play[] {
   const out: Play[] = []
   for (const race of races) {
+    // Races with a first starter are left out: the rules were not tested where a debutant is in the field.
+    if (race.runners.some((r) => !r.dataScratched && !ctx.scratched.has(r.runId) && r.formHistory.length === 0)) continue
     const eff = new Set(ctx.scratched)
     for (const r of race.runners) if (r.dataScratched) eff.add(r.runId)
     const effective = computeEffectiveRace(race.runners, ctx.deltas, ctx.bases, ctx.priceBeta, eff)
