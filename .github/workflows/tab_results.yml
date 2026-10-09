@@ -184,7 +184,7 @@ jobs:
             if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then
               python tab_results_poller.py --dividends "$DIV_DATE"
             fi
-            python tab_results_poller.py --once --no-push
+            TOPRATE_SKIP_PROJ_REFRESH=1 python tab_results_poller.py --once --no-push
             if [[ -z "$(git status --porcelain)" ]]; then
               echo "Nothing to commit after redo (attempt $i) - main already has these results"
               exit 0
