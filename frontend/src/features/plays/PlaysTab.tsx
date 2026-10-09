@@ -98,9 +98,8 @@ function ResultStrip({ play }: { play: Play }) {
     <span>
       <span className={`font-semibold ${tone}`}>{label}</span>
       {price != null && (
-        <span className="text-ink-mute">
-          {' '}
-          at {fmtPrice(price)} &middot; <span className={`font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}</span>
+        <span className={`ml-1 font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`} title={`At ${fmtPrice(price)} on $1 to win`}>
+          {ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}
         </span>
       )}
     </span>
@@ -118,12 +117,9 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
     <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-bg ${tone}`}>
       {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-8 w-8 shrink-0 rounded-sm bg-bg" />}
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className={`truncate text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
+        <div className="truncate pr-1">
+          <span className={`text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
             {runner.tabNumber}. {runner.horse}
-          </span>
-          <span className="shrink-0 text-xs">
-            <ResultStrip play={play} />
           </span>
         </div>
         <div className="truncate text-xs text-ink-mute">
@@ -140,9 +136,6 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
           <span className={`font-mono text-xs ${smTone}`} title="Speed map adjustment relative to the field">
             SM {sm != null ? `${sm >= 0 ? '+' : ''}${sm.toFixed(1)}` : '-'}
           </span>
-          <span className="font-mono text-xs text-ink" title="Market / model fair price">
-            {fmtPrice(runner.fixedWinPrice)} <span className="text-ink-faint">/ {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}</span>
-          </span>
           {play.isFavourite && <span className="text-[11px] text-ink-faint">favourite</span>}
         </div>
         {(play.kinds.length > 0 || play.droppedKinds.length > 0) && (
@@ -156,6 +149,17 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
             {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
           </div>
         )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end text-right">
+        <span className="font-mono text-lg font-bold leading-tight text-ink" title="Market price">
+          {fmtPrice(runner.fixedWinPrice)}
+        </span>
+        <span className="font-mono text-[11px] text-ink-faint" title="Model fair price">
+          fair {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}
+        </span>
+        <span className="mt-1 text-xs">
+          <ResultStrip play={play} />
+        </span>
       </div>
     </button>
   )
