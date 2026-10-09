@@ -116,8 +116,8 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   const move = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const smTone = sm == null ? 'text-ink-faint' : sm >= 0.5 ? 'text-emerald-deep' : sm <= -0.5 ? 'text-rose' : 'text-ink-mute'
   return (
-    <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-bg ${tone}`}>
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-8 w-8 shrink-0 rounded-sm bg-bg" />}
+    <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-1.5 text-left hover:bg-bg ${tone}`}>
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-7 w-7 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-7 w-7 shrink-0 rounded-sm bg-bg" />}
       <div className="min-w-0 flex-1">
         <div className="truncate pr-1">
           <span className={`text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
@@ -127,7 +127,7 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
         <div className="truncate text-xs text-ink-mute">
           {runner.jockey || 'Jockey TBA'} / {runner.trainer}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <span className="font-mono text-base font-bold leading-none text-emerald-deep" title="Projected WPR">
             {fmtWpr(proj)}
           </span>
@@ -139,19 +139,14 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
               SM {sm != null ? (Math.abs(sm) < 0.05 ? '0.0' : `${sm > 0 ? '+' : ''}${sm.toFixed(1)}`) : '-'}
             </span>
           )}
-          {play.isFavourite && <span className="text-[11px] text-ink-faint">favourite</span>}
+          {play.kinds.map((k) => (
+            <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
+          ))}
+          {play.droppedKinds.map((k) => (
+            <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
+          ))}
+          {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
         </div>
-        {(play.kinds.length > 0 || play.droppedKinds.length > 0) && (
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {play.kinds.map((k) => (
-              <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
-            ))}
-            {play.droppedKinds.map((k) => (
-              <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
-            ))}
-            {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
-          </div>
-        )}
       </div>
       <div className="flex shrink-0 flex-col items-end text-right">
         <span className="font-mono text-lg font-bold leading-tight text-ink" title="Market price">
@@ -165,9 +160,12 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
         <span className="font-mono text-[11px] text-ink-faint" title="Model fair price">
           fair {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}
         </span>
-        <span className="mt-1 text-xs">
-          <ResultStrip play={play} />
-        </span>
+        {play.isFavourite && play.outcome === 'pending' && <span className="text-[11px] font-semibold text-ink-mute">favourite</span>}
+        {play.outcome !== 'pending' && (
+          <span className="mt-0.5 text-xs">
+            <ResultStrip play={play} />
+          </span>
+        )}
       </div>
     </button>
   )
@@ -177,7 +175,7 @@ function RaceGroup({ plays, onOpen, stickyTop }: { plays: Play[]; onOpen: (p: Pl
   const race = plays[0].race
   return (
     <article id={`play-race-${race.raceId}`} className="overflow-clip rounded-lg border-2 border-ink-faint/60 bg-panel shadow-md" style={{ scrollMarginTop: Math.max(stickyTop, 0) + 8 }}>
-      <div className={`${stickyTop >= 0 ? 'sticky z-10 ' : ''}flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1.5`} style={stickyTop >= 0 ? { top: stickyTop } : undefined}>
+      <div className={`${stickyTop >= 0 ? 'sticky z-10 ' : ''}flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1`} style={stickyTop >= 0 ? { top: stickyTop } : undefined}>
         <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
         <span className="text-sm font-medium text-ink">
           {race.venue} R{race.raceNumber}
@@ -327,7 +325,7 @@ export function PlaysTab({
         <Pill active={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
           All ({dayPlays.length})
         </Pill>
-        {PLAY_KINDS.map((k) => (
+        {PLAY_KINDS.filter((k) => dayPlays.some((p) => p.kinds.includes(k.kind))).map((k) => (
           <Pill key={k.kind} active={kindFilter === k.kind} onClick={() => setKindFilter(k.kind)}>
             {k.label} ({dayPlays.filter((p) => p.kinds.includes(k.kind)).length})
           </Pill>
@@ -337,7 +335,7 @@ export function PlaysTab({
       {listed.length === 0 ? (
         <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match this filter.'} progress={null} />
       ) : (
-        <div ref={wrapRef} className="flex flex-col gap-3">
+        <div ref={wrapRef} className="flex flex-col gap-2">
           {nextGroup && (
             <button
               type="button"
