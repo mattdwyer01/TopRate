@@ -68,6 +68,8 @@ export function Ladder({
   const x1 = width - rightW
   const X = (v: number) => x0 + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (x1 - x0)
   const topPad = 22
+  // A band label that does not fit its band drops to a short form so the three never run together on a phone.
+  const bandLabel = (n: number, w: number) => (w < 56 ? `\u2264${n}` : `inside ${n}`)
   const H = topPad + ranked.length * ROW_H + 22
   // Label spacing grows as the plot narrows (two ladders side by side), so tick labels never run together.
   const tickStep = [2, 4, 5, 10, 20].find((st) => (hi - lo) / st <= (x1 - x0) / 34) ?? 20
@@ -81,13 +83,13 @@ export function Ladder({
         <rect x={X(top - innerGap)} y={topPad - 4} width={X(hi) - X(top - innerGap)} height={H - topPad - 14} fill="var(--color-emerald-tint)" />
         <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-blue-tint)" />
         <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-blue-deep)">
-          inside {coreGap}
+          {bandLabel(coreGap, X(hi) - X(top - coreGap))}
         </text>
         <text x={(X(top - innerGap) + X(top - coreGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
-          inside {innerGap}
+          {bandLabel(innerGap, X(top - coreGap) - X(top - innerGap))}
         </text>
         <text x={(X(top - outerGap) + X(top - innerGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-amber)">
-          inside {outerGap}
+          {bandLabel(outerGap, X(top - innerGap) - X(top - outerGap))}
         </text>
         {showSm && (
           <text x={width - 40} y={11} textAnchor="end" fontSize={10} fontWeight={600} fill="var(--color-ink-mute)">
