@@ -8,6 +8,7 @@ import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { BiasNote } from './BiasNote'
+import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, rowGrid } from './RunnerRow'
@@ -192,6 +193,7 @@ export function RaceDetail({
     setSelectedRunId(sortedRunners[(selectedIndex + delta + sortedRunners.length) % sortedRunners.length].runId)
   }
 
+  const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
   function rowProps(runner: Race['runners'][number]) {
     const b = bandOf.get(runner.runId)
     return {
@@ -201,6 +203,7 @@ export function RaceDetail({
       effective: effectiveByRunId[runner.runId],
       band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
+      showBias,
       onClick: compareMode
         ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
         : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),

@@ -1,5 +1,5 @@
 import type { Race } from '../../types/domain'
-import { computeRaceBias, fmtBias, BIAS_FLAG_MIN } from '../../lib/bias'
+import { computeRaceBias, fmtBias, BIAS_FLAG_MIN, MIN_BIAS_RACES } from '../../lib/bias'
 import type { Ranked } from './raceFacts'
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`
@@ -9,7 +9,7 @@ export function BiasNote({ ranked, race, allRaces }: { ranked: Ranked[]; race: R
   const done = race.runners.some((r) => r.resultKnown || r.finishPosition != null)
   if (done) return null
   const b = computeRaceBias(ranked, race, allRaces)
-  if (b.racesRun === 0) return null
+  if (b.racesRun < MIN_BIAS_RACES) return null
   // Nothing moved: say nothing. Otherwise one line, the biggest movers inline.
   if (b.movers.length === 0) return null
   const shown = b.movers.slice(0, 3)

@@ -11,6 +11,8 @@ interface RunnerRowProps {
   effective?: EffectiveRunner
   band: 'core' | 'inner' | 'outer' | 'none'
   showFp: boolean
+  // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
+  showBias?: boolean
   onClick: () => void
 }
 
@@ -22,7 +24,7 @@ export const rowGrid = (showFp: boolean) =>
   `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
-export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -46,7 +48,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
           {runner.dataScratched && <span className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white">SCR</span>}
-          {hasRunnerBias(runner) && !f.scratched && (
+          {showBias && hasRunnerBias(runner) && !f.scratched && (
             <span
               className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
               title="Moved by the track bias read from earlier races at this meeting (already inside Proj and SM)"
@@ -56,7 +58,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
             </span>
           )}
           {runner.projectionModel === 'light' && !f.scratched && (
-            <span className={`flex-none rounded border border-line px-1 text-[10px] text-ink-faint ${hasRunnerBias(runner) ? 'hidden lg:inline' : ''}`} title="Light-history model (0-2 prior runs): wider error">
+            <span className={`flex-none rounded border border-line px-1 text-[10px] text-ink-faint ${showBias && hasRunnerBias(runner) ? 'hidden lg:inline' : ''}`} title="Light-history model (0-2 prior runs): wider error">
               light
             </span>
           )}
