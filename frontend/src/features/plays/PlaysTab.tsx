@@ -186,7 +186,14 @@ function RaceGroup({ plays, onOpen }: { plays: Play[]; onOpen: (p: Play) => void
           {race.going ? ` · ${race.going}` : ''}
           {` · ${plays[0].fieldSize} runners`}
         </span>
-        {plays.length > 1 && <span className="ml-auto text-xs font-semibold text-emerald-deep">{plays.length} plays</span>}
+        {plays.length > 1 && (
+          <span
+            title="Races with several plays: a play wins in about 42% of 2-play races and 57% of 3+ (28% with one), at longer prices. Not a profit once the biggest winners are removed."
+            className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-semibold ${plays.length >= 3 ? 'border-emerald bg-emerald text-white' : 'border-emerald-line bg-emerald-bg text-emerald-deep'}`}
+          >
+            {plays.length} plays
+          </span>
+        )}
       </div>
       <div className="flex flex-col divide-y divide-line">
         {plays.map((p) => (
