@@ -2,7 +2,7 @@ import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
-import { adjClass, BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
+import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
   runner: Runner
@@ -14,9 +14,9 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row, same columns on every screen. Below lg the RTS, Base and Adj columns drop out (their tracks collapse to nothing via
+// Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
 // `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_52px_52px_58px_52px_64px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
   `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px]'} ${DESKTOP_GRID}`
@@ -70,8 +70,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      <span className={`text-right font-mono text-ink-mute ${LG_ONLY}`}>{fmtWpr(runner.baseWpr != null ? runner.baseWpr + f.atwOff : null)}</span>
-      <span className={`text-right font-mono ${LG_ONLY} ${adjClass(runner.wprAdjustment)}`}>{fmtAdj(runner.wprAdjustment)}</span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
