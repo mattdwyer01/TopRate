@@ -969,7 +969,7 @@ def commit_and_push():
 
 
 # --------------------------------------------------------------------- main
-def dispatch_projection_refresh(venues):
+def dispatch_projection_refresh(venues, throttle=False):
     """Best-effort: after a real going change, trigger projection_daily.yml in fast mode so the new model re-scores the remaining races.
     Needs GITHUB_TOKEN (with actions: write) and GITHUB_REPOSITORY in the environment, as set by tab_results.yml; silently skipped otherwise
     (a missed dispatch just means the next scheduled projection run picks the new going up)."""
@@ -980,6 +980,9 @@ def dispatch_projection_refresh(venues):
         return
     try:
         import requests
+        if throttle and projection_run_queued(token, repo):
+            print(f"  Projection refresh for {venues} skipped (a projection run is already queued and will see these results)")
+            return
         r = requests.post(
             f"https://api.github.com/repos/{repo}/actions/workflows/projection_daily.yml/dispatches",
             headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
@@ -988,6 +991,39 @@ def dispatch_projection_refresh(venues):
     except Exception as e:
         print(f"  Projection refresh dispatch failed ({e})")
 
+
+
+# Re-score the rest of a meeting after each result so the day-of track bias (projection/run.py BIAS_FEATS) fills in as the card runs. A projection run takes
+# about 4 minutes on a hosted runner (free: the repo is public). projection_daily.yml's concurrency group holds one running and one pending run, so a dispatch
+# while a run is going queues exactly one follow-up that checks out the newest data; a dispatch while one is already queued would only replace it and is skipped.
+
+
+def _resulted_race_keys(df, day):
+    if df is None or df.empty or "interim_resulted" not in df.columns:
+        return set()
+    m = (df["date"] == day) & ((pd.to_numeric(df["interim_resulted"], errors="coerce") == 1) | (pd.to_numeric(df.get("resulted"), errors="coerce") == 1))
+    sub = df[m]
+    return set(zip(sub["venue"].astype(str).str.upper(), pd.to_numeric(sub["race"], errors="coerce")))
+
+
+def venues_to_rescore(df, day, newly_run_keys):
+    """Venues (upper case) that had a race newly resulted this cycle and still have a race to run today."""
+    if not newly_run_keys:
+        return set()
+    venues = {v for v, _ in newly_run_keys}
+    open_m = (df["date"] == day) & (pd.to_numeric(df.get("scratched"), errors="coerce").fillna(0) != 1) \
+        & (pd.to_numeric(df["interim_resulted"], errors="coerce").fillna(0) != 1) & (pd.to_numeric(df.get("resulted"), errors="coerce").fillna(0) != 1)
+    still = set(df[open_m]["venue"].astype(str).str.upper())
+    return venues & still
+
+
+def projection_run_queued(token, repo):
+    """True when a projection_daily.yml run is already queued behind the current one (it will start later and see this cycle's results)."""
+    import requests
+    r = requests.get(f"https://api.github.com/repos/{repo}/actions/workflows/projection_daily.yml/runs?status=queued&per_page=1",
+                     headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}, timeout=20)
+    r.raise_for_status()
+    return r.json().get("total_count", 0) > 0
 
 
 def run_once(push=True):
@@ -1028,8 +1064,15 @@ def run_once(push=True):
     scratch_patches = {}
 
     if results or unplaced_races:
+        run_before = _resulted_race_keys(runners_df, target_date)
         runners_df, n_result_rows, unmatched, result_patches = apply_results(
             runners_df, results, unplaced_races)
+        # New races have run at a meeting that still has races to come: re-score so the day-of track bias reaches their projections (about 4 min later).
+        newly_run = _resulted_race_keys(runners_df, target_date) - run_before
+        rescore = venues_to_rescore(runners_df, target_date, newly_run)
+        if rescore:
+            print(f"  New result(s) at {sorted(rescore)} with races still to run: re-scoring for track bias")
+            dispatch_projection_refresh(sorted(rescore), throttle=True)
         if unmatched:
             print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
 

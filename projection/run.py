@@ -74,6 +74,12 @@ IMPUTE_BLANK_JOCKEY = True
 # Going and track grading are blank for races more than a day or two out (60% of the 8 Oct upcoming runners). A blank went through the model as an
 # unusual track (going step -0.8 and class step -1.0 against +0.2 and 0.0 for races with a known going), lowering every runner in the race together.
 ASSUME_GOING = True
+# Day-of track bias. The suitability model reads how the earlier races at the same meeting ran (draw and, when 800m positions exist, front-runner bias). Intraday
+# only the finishing order is known (TAB's interim feed carries positions 1 to 4; the rest are set to the mean of the remaining positions), so only the inside/outside
+# draw bias can be read and the front-bias inputs stay blank until the authoritative results land overnight. BIAS_FEATS are the inputs that carry it; `badj` in the log is
+# the suitability adjustment with them minus the adjustment with them blanked, i.e. what the earlier races at the meeting changed. Display only, it is already inside adj.
+BIAS_FEATS = ['fa_cum', 'oa_cum', 'fa_last', 'oa_last', 'n_prev', 'i_front', 'i_front2', 'i_out', 'i_out2']
+INTRADAY_BIAS = True
 ASSUMED_GOING, ASSUMED_GRADE = 'Good 4', 4.0
 
 
@@ -229,9 +235,15 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     if a.fast:
         Y = Y[Y.horse_id.isin(T.horse_id) | (Y.date >= pd.Timestamp(a.today) - pd.Timedelta(days=3))]
     yt = R[['date', 'track', 'race_id', 'horse_id', 'jockey', 'trainer', 'barrier', 'field_size']].copy()
-    if len(done):
+    if len(done) and INTRADAY_BIAS:
         d2 = pd.DataFrame(dict(date=done.date, track=done.venue, race_id=done.race_id, horse_id=done.horse_id.fillna(-1).astype('int64'), jockey=done.jockey, trainer=done.trainer,
                                barrier=done.barrier, field_size=done.groupby('race_id').run_id.transform('size'), positionFinish=pd.to_numeric(done.finish_position, errors='coerce')))
+        # TAB's interim feed carries positions 1 to 4 only: a race counts once all four are known, and the unplaced runners get the mean of the remaining positions
+        # (the same view the intraday test used, wpr_bias_intraday_test.py), so the draw bias is read over the whole field and not just the placegetters.
+        known4 = d2.groupby('race_id').positionFinish.transform(lambda s: (s <= 4).sum() >= 4 or s.notna().sum() >= 4)
+        d2 = d2[known4].copy()
+        unk = d2.positionFinish.isna() | (d2.positionFinish > 4)
+        d2.loc[unk, 'positionFinish'] = (5 + d2.field_size[unk]) / 2
         yt = pd.concat([yt, d2], ignore_index=True)
     Y2 = pd.concat([Y, yt], ignore_index=True)
     lo = pd.Timestamp(a.today) - pd.Timedelta(days=a.backfill_days)
@@ -249,7 +261,12 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
         if c not in Z.columns:
             Z[c] = np.nan
     Z['adj'] = sm.predict(Z[sfeats])
-    R = R.merge(Z[['race_id', 'horse_id', 'adj']], on=['race_id', 'horse_id'], how='left')
+    Znb = Z.copy()
+    for c in BIAS_FEATS:
+        if c in Znb.columns:
+            Znb[c] = np.nan
+    Z['badj'] = Z.adj - sm.predict(Znb[sfeats])
+    R = R.merge(Z[['race_id', 'horse_id', 'adj', 'badj']], on=['race_id', 'horse_id'], how='left')
     R['going_assumed'] = R.race_id.isin(assumed)
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
     # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
@@ -329,7 +346,7 @@ def main():
     off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
     atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=np.where(rows.routed == 'main', rows.badj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
                              atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)

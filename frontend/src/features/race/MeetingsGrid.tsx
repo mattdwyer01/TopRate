@@ -1,4 +1,3 @@
-import { Standouts } from './Standouts'
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
@@ -96,7 +95,6 @@ export function MeetingsGrid({
   }, [races, date])
   const now = Date.now()
 
-  const standoutRaces = useMemo(() => visibleMeetings.flatMap((m) => m.races), [visibleMeetings])
   const { ref: scrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
   return (
@@ -290,7 +288,6 @@ export function MeetingsGrid({
             </div>
           )}
         </div>
-          <Standouts races={standoutRaces} now={now} onSelectRace={onSelectRace} />
         </>
       )}
     </div>

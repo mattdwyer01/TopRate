@@ -7,6 +7,7 @@ import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from
 import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
+import { BiasNote } from './BiasNote'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, rowGrid } from './RunnerRow'
@@ -41,10 +42,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'baseWpr', label: 'Base', align: 'right', title: 'Model projection before the suitability and weight adjustments', lgOnly: true },
-  { key: 'adjustment', label: 'Adj', align: 'right', title: 'Suitability adjustment (comments, day-of bias, finishing profile, jockey/trainer)', lgOnly: true },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR at the weight carried today (the scale of the form table)' },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Adj)' },
+  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Proj)' },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
@@ -227,6 +226,8 @@ export function RaceDetail({
         <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} />
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
+
+      <BiasNote ranked={ranked} race={race} allRaces={allRaces} />
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
