@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Note } from './Note'
 import { LIVE_CHANNELS, isStreamUrl, useLiveStreams } from '../lib/liveVision'
 import type { LiveChannel } from '../lib/liveVision'
 
@@ -9,11 +10,9 @@ export function LiveVisionSettings() {
   return (
     <div className="flex flex-col gap-2 p-4">
       <span className="text-sm font-semibold text-ink">Live vision</span>
-      <p className="text-xs text-ink-mute">
-        Paste a stream address (an https link ending in .m3u8) for each channel you want. They are kept only in this browser and are not synced
-        or sent anywhere. Once one is saved, a "Watch live" button appears on today's races. You are responsible for having the right to watch
-        what you add.
-      </p>
+      <Note short="Paste your own https .m3u8 address for each channel.">
+        They are kept only in this browser and are not synced or sent anywhere. Once one is saved, a &quot;Watch live&quot; button appears on today&apos;s races. You are responsible for having the right to watch what you add.
+      </Note>
       {LIVE_CHANNELS.map(({ key, label }) => {
         const value = drafts[key] ?? streams[key] ?? ''
         const bad = value.trim() !== '' && !isStreamUrl(value)

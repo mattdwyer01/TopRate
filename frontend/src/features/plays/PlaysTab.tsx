@@ -351,7 +351,7 @@ export function PlaysTab({
           {finished.length > 0 && (
             <details className="rounded-lg border border-line bg-panel">
               <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-ink">
-                Results so far <span className="font-normal text-ink-mute">({finishedWon} won of {finishedPlays.length} plays in {finished.length} races)</span>
+                Results so far <span className="font-normal text-ink-mute">({finishedWon} won of {finishedPlays.length} {finishedPlays.length === 1 ? 'play' : 'plays'} in {finished.length} {finished.length === 1 ? 'race' : 'races'})</span>
               </summary>
               <div className="flex flex-col gap-3 p-2">
                 {finished.map((g) => (
