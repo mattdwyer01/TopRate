@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
 import {
   buildHeadlineSummary,
@@ -202,10 +203,10 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
           </button>
         </div>
       )}
-      <p className="text-xs text-ink-faint">
+      <Note short="Some projections were made after the race.">
         Some history is back-filled: the projection was made after the race, from a model that had not seen it. {liveRunners.toLocaleString()} of{' '}
         {allRows.length.toLocaleString()} runners here were logged before the race. Choose &quot;Logged before the race&quot; for the strictest view.
-      </p>
+      </Note>
 
       {stats.n === 0 ? (
         <div className="rounded-lg border border-line bg-panel p-6 text-center text-sm text-ink-mute">
@@ -239,11 +240,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               ))}
             </div>
             {headline.length > 0 && (
-              <div className="mt-3 flex flex-col gap-1 border-t border-emerald-line pt-3 text-sm text-ink">
-                {headline.map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
-              </div>
+              <details className="mt-3 border-t border-emerald-line pt-2 text-sm text-ink">
+                <summary className="cursor-pointer text-xs font-medium text-ink-mute">In words</summary>
+                <div className="mt-1 flex flex-col gap-1">
+                  {headline.map((line, i) => (
+                    <p key={i}>{line}</p>
+                  ))}
+                </div>
+              </details>
             )}
           </div>
 
@@ -253,10 +257,10 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               <p className="mt-1 text-xs text-ink-faint">Not enough races with settled prices in this window.</p>
             ) : (
               <>
-                <p className="mb-2 text-xs text-ink-faint">
+                <Note short="Model #1 pick against the market favourite." className="mb-2">
                   Winner strike rate of the model&apos;s #1 pick against the market favourite (shortest settled price) on the same{' '}
                   {marketBenchmark.races.toLocaleString()} races. Beating a random runner is easy; this is the real yardstick.
-                </p>
+                </Note>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <StatTile label="Model #1 pick" value={fmtPct((marketBenchmark.modelTopWins / marketBenchmark.races) * 100)} />
                   <StatTile label="Market favourite" value={fmtPct((marketBenchmark.favouriteWins / marketBenchmark.races) * 100)} />
@@ -279,9 +283,9 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
           <div className="rounded-lg border border-line bg-panel p-4">
             <h3 className="text-sm font-semibold text-ink">Calibration over time</h3>
-            <p className="mb-2 text-xs text-ink-faint">
+            <Note short="Do the win chances keep matching reality week to week?" className="mb-2">
               Do the model&apos;s win chances keep matching reality week to week? Uses the period and filters above and keeps compromised runs in (dropping them would flatter the result), so pick a longer period to see more weeks.
-            </p>
+            </Note>
             <CalibrationOverTime weeks={calibrationWeeks} />
           </div>
 
@@ -289,10 +293,10 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             <div className="flex flex-col gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-ink">Point accuracy</h3>
-                <p className="mb-2 text-xs text-ink-faint">
+                <Note short="Each horse's predicted WPR against its own actual." className="mb-2">
                   Each horse's own predicted WPR vs its own actual WPR, in isolation - not whether it beat the
                   others in its race. See rank accuracy below for that.
-                </p>
+                </Note>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <StatTile label="Runners" value={String(stats.n)} />
                   <StatTile
@@ -316,10 +320,10 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               {reliability.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-ink">Win probability check</h3>
-                  <p className="mb-2 text-xs text-ink-faint">
+                  <Note short="Model win chance against how often runners won." className="mb-2">
                     The model&apos;s win chance for each runner (from its fair price) against how often runners in that band
                     actually won. Close columns mean the fair prices are well calibrated.
-                  </p>
+                  </Note>
                   <div className="overflow-x-auto rounded-lg border border-line">
                     <table className="w-full text-xs">
                       <thead className="bg-panel text-left text-ink-mute">
@@ -347,11 +351,11 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
               <div>
                 <h3 className="text-sm font-semibold text-ink">Rank accuracy</h3>
-                <p className="mb-2 text-xs text-ink-faint">
+                <Note short="Did the model order this race correctly?" className="mb-2">
                   Did the model order THIS race correctly - not just whether each horse's own number was close. A
                   horse predicted 95 that runs 95 but finishes 3rd wasn't a bad prediction on its own; the race
                   went to rivals the model under-rated. That's a rank miss, not a point miss.
-                </p>
+                </Note>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <StatTile
                     label="Rank error"
@@ -400,11 +404,11 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
 
               <div>
                 <h3 className="text-sm font-semibold text-ink">Margin accuracy</h3>
-                <p className="mb-2 text-xs text-ink-faint">
+                <Note short="Was the spacing to the leader predicted?" className="mb-2">
                   A horse predicted 5 WPR points behind the top pick, whose actual result also lands about 5
                   points behind the top pick's actual result, had its SPACING to the field leader correctly
                   predicted - a third dimension beyond "was the order right" and "was each number close".
-                </p>
+                </Note>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <StatTile
                     label="Margin error"
@@ -510,9 +514,8 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                 </button>
               </div>
             </div>
-            <p className="mb-2 text-xs text-ink-faint">
-              Miss = actual minus predicted WPR: positive (green) means the horse ran better than projected,
-              negative (red) means it ran worse.{' '}
+            <Note short="Miss = actual minus predicted WPR." className="mb-2">
+              Positive (green) means the horse ran better than projected, negative (red) means it ran worse.{' '}
               {excludeVoid && voided.length > 0
                 ? `Compromised runs (${voided.length}) are hidden - see the toggle above.`
                 : voided.length > 0
@@ -521,7 +524,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               {filteredRows.length > MAX_DETAIL_ROWS
                 ? ` Showing the ${sortBy === 'miss' ? 'worst' : 'most recent'} ${MAX_DETAIL_ROWS}.`
                 : ''}
-            </p>
+            </Note>
             <div className="relative">
               {/* max-h + overflow-y bounds this to one scrollable panel instead of
                   a 100-row page-length table (this section alone used to push the

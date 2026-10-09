@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
 import { computeDays, computeWeeklyTrend, type DayRace, type DaySummary } from '../../lib/dayResults'
 import type { CalibrationWeek, Period } from '../../lib/accuracyStats'
@@ -58,10 +59,10 @@ export function WeeklyTrend({ races, excludeBush }: Omit<DayReviewProps, 'onSele
         <p className="mt-1 text-xs text-ink-faint">Needs at least two weeks with 20 or more resulted races in the loaded window.</p>
       ) : (
         <>
-          <p className="mb-2 text-xs text-ink-faint">
+          <Note short="#1 pick (solid) against the favourite (dashed)." className="mb-2">
             Winner strike rate of the model&apos;s #1 pick (solid) against the market favourite (dashed), same races each week. Only the loaded window (about
             25 days) is covered, so expect a handful of points and wide swings.
-          </p>
+          </Note>
           <TrendChart weeks={weeks} />
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-xs">
@@ -163,7 +164,7 @@ export function DayByDay({ races, excludeBush, onSelectRace }: DayReviewProps) {
     <div className="flex flex-col gap-2">
       <div>
         <h3 className="text-sm font-semibold text-ink">Day by day</h3>
-        <p className="text-xs text-ink-faint">Every resulted race: the winner, the model&apos;s #1 pick and the market favourite. A single day is mostly variance, so read the run of days, not one.</p>
+        <Note short="Every resulted race by day.">The winner, the model&apos;s #1 pick and the market favourite. A single day is mostly variance, so read the run of days, not one.</Note>
       </div>
       {days.map((d, i) => (
         <DayBlock key={d.date} day={d} defaultOpen={i === 0} onSelectRace={onSelectRace} />
@@ -245,10 +246,10 @@ export function QuaddieScorecardSection({ races, period, excludeBush }: { races:
   return (
     <div className="rounded-lg border border-line bg-panel p-4">
       <h3 className="text-sm font-semibold text-ink">Quaddie scorecard</h3>
-      <p className="mb-2 text-xs text-ink-faint">
+      <Note short="How often the quaddie pools held the winners." className="mb-2">
         For finished quaddies (late = last four races, early = the four before it): how often each leg&apos;s winner sat inside the pool, and how often all four legs did.
         Per leg is the average pool size and Combos the pool sizes multiplied together. It says how often a pool would have been live, not what it paid.
-      </p>
+      </Note>
       {!any ? (
         <p className="text-xs text-ink-faint">No finished quaddies in this window yet.</p>
       ) : (

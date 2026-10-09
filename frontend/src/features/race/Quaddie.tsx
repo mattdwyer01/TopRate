@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM } from '../../lib/raceModel'
@@ -163,10 +164,10 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
         <h2 className="text-sm font-semibold text-ink">
           {races[0]?.venue} {kind} quaddie
         </h2>
-        <p className="mb-2 text-xs text-ink-faint">
+        <Note short={`Runners inside ${INNER_GAP_FROM_TOP} and ${OUTER_GAP_FROM_TOP} WPR of the top, plus map runners. Counts only, not tips.`} className="mb-2">
           {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {INNER_GAP_FROM_TOP} held about 70% of winners and inside {OUTER_GAP_FROM_TOP} about 93% in testing, so a leg
           is rarely safe with fewer than {INNER_GAP_FROM_TOP}. The map pool is everything inside {INNER_GAP_FROM_TOP} plus runners from {INNER_GAP_FROM_TOP} to {OUTER_GAP_FROM_TOP} whose speed map adjustment is +{MAP_POOL_MIN_SM} or better (the green figure in the race table). That held about 74% of winners a leg in testing (inside {INNER_GAP_FROM_TOP} alone 70%). Added runners show a green ring on the ladder, thicker at +{MAP_VALUE_MIN_SM} or better, the group that did best between {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} as a win bet. Counts only, not tips.
-        </p>
+                </Note>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-xs">
             <thead className="text-left text-ink-mute">
@@ -290,7 +291,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
                       ))}
                     </tbody>
                   </table>
-                  <p className="mt-1 text-[11px] text-ink-faint">Unit stake from above. Keying the first-place runner to the tighter pool cuts the combinations against a full box. The capture trade-off was tested on an earlier scoring, not on these exact lines.</p>
+                  <Note short="Keying the first-place runner to the tighter pool cuts combinations." className="mt-1 text-[11px]">Unit stake from above. The capture trade-off was tested on an earlier scoring, not on these exact lines.</Note>
                 </details>
               )}
             </section>
