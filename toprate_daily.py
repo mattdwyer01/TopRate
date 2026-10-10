@@ -3304,7 +3304,7 @@ def _patch_projection_fields(race_list, proj_rows):
     return n
 
 
-def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None, start_time_updates=None, proj_df=None):
+def patch_data_json(price_updates=None, result_updates=None, scratch_updates=None, start_time_updates=None, proj_df=None, condition_df=None):
     """Lightweight, fast alternative to --rebuild-only for a cycle that only
     touched fixed_win_price/finish_position/won/scratched (TAB's live
     prices + fast results, see tab_results_poller.py) - NOT going/
@@ -3346,7 +3346,7 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
     # start_time_updates: race_id -> start_time (TAB moved the race, tab_results_poller.apply_start_times)
     start_time_updates = {str(k): v for k, v in (start_time_updates or {}).items()}
     touched = set(price_updates) | set(result_updates) | set(scratch_updates)
-    if not touched and not start_time_updates and proj_df is None:
+    if not touched and not start_time_updates and proj_df is None and condition_df is None:
         return True
 
     data_path = OUTPUT_HTML.parent / "toprate_data.json"
@@ -3439,6 +3439,24 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
         rows = {r["run_id"]: r for r in sub.to_dict("records")}
         n_proj = _patch_projection_fields(races, rows)
         print(f"  patch_data_json: refreshed the projection on {n_proj} runner(s)")
+
+    if condition_df is not None:
+        # going / track grading / rail changed at some meetings: copy them onto those meetings' races (race-level keys),
+        # instead of a 4+ minute full rebuild (the projection now comes from the log, so nothing else depends on going here)
+        cd = condition_df.drop_duplicates("race_id", keep="first")
+        by_race = {str(r["race_id"]): r for r in cd[["race_id", "going", "track_grading", "rail_position"]].to_dict("records")}
+        def _s(v):
+            return "" if v is None or str(v) in ("nan", "None") else str(v)
+        n_cond = 0
+        for race in races:
+            row = by_race.get(str(race.get("race_id")))
+            if row is None:
+                continue
+            new_c = (_s(row["going"]), _s(row["track_grading"]), _s(row["rail_position"]))
+            if new_c != (race.get("going"), race.get("track_grading"), race.get("rail")):
+                race["going"], race["track_grading"], race["rail"] = new_c
+                n_cond += 1
+        print(f"  patch_data_json: updated going/grading/rail on {n_cond} race(s)")
 
     now_utc = datetime.now(timezone.utc)
     data["RUN_ISO"] = now_utc.isoformat()

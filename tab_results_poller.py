@@ -1158,8 +1158,11 @@ def run_once(push=True):
     # weights alone do not force a full rebuild (3-4 min): toprate_runners.csv carries them now and the next
     # daily / conditions rebuild puts them in toprate_data.json. Forcing it every cycle the weights were re-applied
     # made cycles 7-10 min and their pushes collide (25 Sep 2026).
-    if changed_venues or not patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches,
-                                                  proj_df=runners_df if proj_stale else None):
+    # A going change no longer forces the full rebuild (4 to 5 min, and a wet day changes going every few cycles): the
+    # projection is re-applied from the log above and the fast patch copies going/grading/rail onto the races.
+    if not patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches,
+                                proj_df=runners_df if (proj_stale or changed_venues) else None,
+                                condition_df=runners_df if changed_venues else None):
         rebuild_data_json()
         did_full_rebuild = True
     print(f"  {'Full rebuild' if did_full_rebuild else 'Fast JSON patch (no full rebuild)'} this cycle")
@@ -1168,12 +1171,12 @@ def run_once(push=True):
         commit_and_push()
 
 
-def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches=None, proj_df=None):
+def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_patches=None, proj_df=None, condition_df=None):
     """Thin wrapper around toprate_daily.patch_data_json() -- treats any
     exception as "unsafe, fall back to full rebuild" rather than letting a
     patching bug take down the whole cycle."""
     try:
-        return td.patch_data_json(price_patches, result_patches, scratch_patches, time_patches, proj_df=proj_df)
+        return td.patch_data_json(price_patches, result_patches, scratch_patches, time_patches, proj_df=proj_df, condition_df=condition_df)
     except Exception as e:
         print(f"  patch_data_json failed ({type(e).__name__}: {e}), falling back to full rebuild")
         return False
