@@ -30,3 +30,149 @@ jobs:
           if not ok:
               print("body (first 150 chars, no credentials in it):", (r.text or "")[:150].replace("\n", " "))
           PY
+
+      - name: Which TopRate endpoints does Cloudflare block? (no credentials sent)
+        run: |
+          python - <<'PY'
+          import requests, toprate_daily as td
+          def show(name, r):
+              cf = "<!DOCTYPE html" in (r.text or "")[:30] and r.headers.get("server") == "cloudflare"
+              print(f"{name}: HTTP {r.status_code} | cloudflare block page: {cf} | body: {(r.text or '')[:90]!r}")
+          H = {"apikey": td.ANON_KEY, "Content-Type": "application/json"}
+          show("refresh grant, dummy token", requests.post(f"{td.API_BASE}/auth/v1/token?grant_type=refresh_token", headers=H, json={"refresh_token": "dummy"}, timeout=30))
+          show("rpc call, no login          ", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H, json={"rc_id": "1"}, timeout=30))
+          show("auth settings, no login     ", requests.get(f"{td.API_BASE}/auth/v1/settings", headers={"apikey": td.ANON_KEY}, timeout=30))
+          PY
+
+      - name: Which hosts does the toprate.au website call? (public page and scripts, hostnames only)
+        run: |
+          python - <<'PY'
+          import re, requests
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          def get(u):
+              try:
+                  return requests.get(u, headers=UA, timeout=30)
+              except Exception as e:
+                  print("GET", u, "failed:", type(e).__name__); return None
+          r = get("https://toprate.au/")
+          if r is None: raise SystemExit
+          print("site HTTP", r.status_code, "| server:", r.headers.get("server"), "| bytes:", len(r.text))
+          hosts = set(re.findall(r"https?://([A-Za-z0-9.-]+\.[a-z]{2,})", r.text))
+          srcs = set(re.findall(r'(?:src|href)=["\']([^"\']+\.js)["\']', r.text))
+          srcs |= set(re.findall(r'["\'](/_app/immutable/[^"\']+\.js)["\']', r.text))
+          print("script files:", len(srcs))
+          for s in sorted(srcs)[:60]:
+              u = s if s.startswith("http") else "https://toprate.au" + (s if s.startswith("/") else "/" + s)
+              x = get(u)
+              if x is not None and x.status_code == 200:
+                  hosts |= set(re.findall(r"https?://([A-Za-z0-9.-]+\.[a-z]{2,})", x.text))
+          keep = sorted(h for h in hosts if any(k in h for k in ("toprate", "supabase", "api.", "rpc", "cloudfront", "workers.dev")))
+          print("candidate hosts:", keep)
+          PY
+
+      - name: How does the website use gateway.toprate.au? (keys masked) and is it reachable?
+        run: |
+          python - <<'PY'
+          import re, requests
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", re.sub(r"(sb_publishable_|sb_secret_)[A-Za-z0-9_\-]+", r"\1<key>", t))
+          html = requests.get("https://toprate.au/", headers=UA, timeout=30).text
+          for h in ("gateway.toprate.au", "info.toprate.au", "api.toprate.au"):
+              for m in list(re.finditer(re.escape(h), html))[:3]:
+                  print(f"[{h}] ...{mask(html[max(0, m.start()-110): m.end()+110])!r}...")
+          links = set(re.findall(r'href="([^"]+\.(?:js|mjs))"', html)) | set(re.findall(r'import\("([^"]+\.js)"\)', html))
+          print("script links in page:", len(links), sorted(links)[:6])
+          for h in ("gateway.toprate.au", "info.toprate.au"):
+              for path in ("/", "/auth/v1/settings", "/health"):
+                  try:
+                      r = requests.get(f"https://{h}{path}", headers=UA, timeout=20)
+                      print(f"{h}{path}: HTTP {r.status_code} | server: {r.headers.get('server')} | content-type: {r.headers.get('content-type')} | body: {mask(r.text[:100])!r}")
+                  except Exception as e:
+                      print(f"{h}{path}: failed {type(e).__name__}")
+          PY
+
+      - name: Which routes does the website's code use on the gateway? (route strings only)
+        run: |
+          python - <<'PY'
+          import re, requests
+          from urllib.parse import urljoin
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          base = "https://toprate.au/"
+          html = requests.get(base, headers=UA, timeout=30).text
+          todo = [urljoin(base, m) for m in re.findall(r'(?:href|import\()\s*=?\s*["\']([^"\']+\.js)["\']', html)]
+          seen, texts = set(), {}
+          while todo and len(seen) < 120:
+              u = todo.pop(0)
+              if u in seen or not u.startswith("https://toprate.au/"): continue
+              seen.add(u)
+              try:
+                  r = requests.get(u, headers=UA, timeout=30)
+              except Exception:
+                  continue
+              if r.status_code != 200: continue
+              texts[u] = r.text
+              for m in re.findall(r'["\'](\.{1,2}/[A-Za-z0-9_\-\./]+\.js)["\']', r.text):
+                  todo.append(urljoin(u, m))
+          print("script files read:", len(texts))
+          routes = set()
+          for u, t in texts.items():
+              for m in re.findall(r'["`\']((?:/|\$\{[^}]{1,40}\}/?)[A-Za-z0-9_\-/\$\{\}\.\?=&]{3,90})["`\']', t):
+                  if re.search(r"race|runner|meeting|horse|form|result|wpr|stat|login|auth|token|session|account|cache|detail|upcoming|jockey|trainer", m, re.I) and not m.startswith("/_app"):
+                      routes.add(m)
+          for r in sorted(routes)[:120]:
+              print("  ", r)
+          gw = [(u.rsplit("/", 1)[-1], t.count("TOPRATE_API_URL")) for u, t in texts.items() if "TOPRATE_API_URL" in t]
+          print("files mentioning PUBLIC_TOPRATE_API_URL:", gw)
+          PY
+
+      - name: Does a browser-like client get past Cloudflare? (dummy login only, no real credentials)
+        run: |
+          python -m pip install --quiet --user curl_cffi 2>&1 | tail -1 || true
+          python - <<'PY'
+          import json, requests, toprate_daily as td
+          URL = f"{td.API_BASE}/auth/v1/token?grant_type=password"
+          BODY = {"email": "nobody@example.invalid", "password": "not-a-real-password"}
+          CHROME = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/130.0.0.0 Safari/537.36")
+          HDR = {"apikey": td.ANON_KEY, "Authorization": f"Bearer {td.ANON_KEY}", "Content-Type": "application/json",
+                 "User-Agent": CHROME, "Origin": "https://toprate.au", "Referer": "https://toprate.au/",
+                 "Accept": "*/*", "Accept-Language": "en-AU,en;q=0.9", "Sec-Fetch-Mode": "cors",
+                 "Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty",
+                 "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+                 "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+                 "x-client-info": "supabase-js-web/2"}
+          def show(name, r):
+              txt = r.text or ""
+              cf = txt.lstrip().startswith("<!DOCTYPE html") and "cloudflare" in str(r.headers.get("server", "")).lower()
+              print(f"{name}: HTTP {r.status_code} | cloudflare block page: {cf} | body: {txt[:110]!r}")
+          try:
+              show("A  requests + browser headers", requests.post(URL, headers=HDR, json=BODY, timeout=30))
+          except Exception as e:
+              print("A failed:", type(e).__name__)
+          try:
+              from curl_cffi import requests as cr
+              for imp in ("chrome", "chrome124", "safari17_0"):
+                  try:
+                      show(f"B  curl_cffi impersonate={imp}", cr.post(URL, headers=HDR, json=BODY, impersonate=imp, timeout=30))
+                  except Exception as e:
+                      print(f"B {imp} failed:", type(e).__name__, str(e)[:80])
+          except Exception as e:
+              print("curl_cffi not available:", type(e).__name__)
+          PY
+
+      - name: Real login and one data call with the new headers (status and counts only)
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import toprate_daily as td
+          jwt = td.login()
+          print("login ok:", bool(jwt))
+          cal = td.api_calendar_upcoming(jwt)
+          n = len(cal) if hasattr(cal, "__len__") else "?"
+          print("calendar rows:", n, "| type:", type(cal).__name__)
+          sample = cal[0] if isinstance(cal, list) and cal else cal
+          print("first row keys:", sorted(sample.keys())[:12] if isinstance(sample, dict) else str(sample)[:80])
+          PY
+
