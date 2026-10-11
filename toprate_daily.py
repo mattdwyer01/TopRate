@@ -3390,7 +3390,10 @@ def patch_data_json(price_updates=None, result_updates=None, scratch_updates=Non
                     # (finish position), or tab_results_poller.py's "assume
                     # unplaced" rule (won=0 with f still None, for a runner
                     # confirmed outside the reported top 4 - see apply_results()).
-                    if all(rr.get("f") is not None or rr.get("won") is not None for rr in runners):
+                    # A scratched runner never gets a finish or a won value, so it must not hold the race open (11 Oct 2026:
+                    # Seymour R3/R4 had every runner that ran resolved but 3 to 4 scratchings, so done never flipped)
+                    if all(rr.get("f") is not None or rr.get("won") is not None or rr.get("scr") == 1
+                           for rr in runners):
                         race["done"] = 1
                         # This function only ever runs from tab_results_poller.py's
                         # fast path (see its own docstring) - the authoritative
