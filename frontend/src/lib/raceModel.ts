@@ -1,9 +1,10 @@
 import type { Runner } from '../types/domain'
-import { RATING_PER_LN } from './betSignals'
+import { RATING_BET_SHARE, RATING_PER_LN } from './betSignals'
 
 export interface EffectiveRunner {
-  // The rating shown and used for ranking and gaps, at the weight carried today (ATW). Where the race has bet signals it is the bet-signal rating (the model's win
-  // probabilities on the ATW scale, see lib/betSignals.ts RATING_PER_LN), otherwise the WPR projection below. Manual delta included either way.
+  // The rating shown and used for ranking and gaps, at the weight carried today (ATW). Where the race has bet signals it is a blend: RATING_BET_SHARE of the
+  // bet-signal rating (the model's win probabilities on the ATW scale, RATING_PER_LN) and the rest the WPR projection below; otherwise the WPR projection
+  // alone. Manual delta included either way.
   effectiveProjectedWpr: number | null
   // The WPR projection at today's weight (model rating + manual delta + this horse's own offset), whichever the rating above is. The waterfall, the typical
   // winning rating and the track-bias note explain this figure, not the bet-signal rating.
@@ -80,7 +81,7 @@ export function computeEffectiveRace(
   // Bet signals for this race (runId -> model win probability m). When every runner still in the race has one, the rating comes from them.
   signals?: Record<string, { m: number; p: number } | null>,
 ): Record<string, EffectiveRunner> {
-  let beta = priceBeta ?? DEFAULT_BETA
+  const beta = priceBeta ?? DEFAULT_BETA
 
   const withEffectiveWpr = runners.map((r) => {
     const modelBase = r.projectedWpr ?? (r.runId in bases ? bases[r.runId] : null)
@@ -100,8 +101,10 @@ export function computeEffectiveRace(
     }
   })
 
-  // Bet-signal rating: level (the field's mean WPR-projection rating, before manual deltas) + RATING_PER_LN x (ln p - mean ln p), over the runners in
-  // both. Only when every runner still in the race has a signal; otherwise the whole race stays on the projection (never a mix of two scales).
+  // Blended rating: RATING_BET_SHARE x bet-signal rating + (1 - RATING_BET_SHARE) x WPR projection. The bet-signal rating is level (the field's mean
+  // WPR-projection rating, before manual deltas) + RATING_PER_LN x (ln p - mean ln p), so the blend keeps the same field level. Only when every runner still
+  // in the race has a signal; otherwise the whole race stays on the projection alone (never a mix of two scales). A runner with no projection of its own
+  // takes the bet-signal rating as it is.
   const projectionByRunId = new Map<string, number | null>()
   for (const r of withEffectiveWpr) projectionByRunId.set(r.runId, r.wpr)
   let betSource = false
@@ -119,10 +122,10 @@ export function computeEffectiveRace(
       const meanLn = anchor.reduce((a, r) => a + (sig(r.runId) as number), 0) / anchor.length
       for (const r of withEffectiveWpr) {
         if (r.scratched) continue
-        r.wpr = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn) + delta(r.runId)
+        const bet = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn)
+        r.wpr = (r.wpr == null ? bet : RATING_BET_SHARE * bet + (1 - RATING_BET_SHARE) * (r.wpr - delta(r.runId))) + delta(r.runId)
       }
       betSource = true
-      beta = 1 / RATING_PER_LN   // so the price softmax below reproduces the model's own win probabilities
     }
   }
 

@@ -28,8 +28,8 @@ It is a separate model from the WPR projection (`projection/`), which is unchang
   `bet_signal_train.yml` (weekly retrain + manual).
 
 ## The rating (frontend)
-The Race page's Rating is these win probabilities on the ATW scale (`frontend/src/lib/betSignals.ts`, `RATING_PER_LN = 3.66`, level from the field's mean WPR projection);
-see the CLAUDE.md entry for the calibration. A race without full signals uses the WPR projection.
+The Race page's Rating is a 45% blend (`RATING_BET_SHARE` in `frontend/src/lib/betSignals.ts`) of these win probabilities on the ATW scale (`RATING_PER_LN = 3.66`, level from the field's
+mean WPR projection) and the WPR projection itself; the pure probability rating is the market's own order (#1 = favourite in 99.5% of races). See the CLAUDE.md entry for the tests. A race without full signals uses the WPR projection alone.
 
 ## Evidence and caveats (read before trusting it)
 - Backtest 2022 to 2026, walk-forward with the production code (`backtest.py`), at CLOSING SP (6,660 Volume-or-Select bets, 599 Select):

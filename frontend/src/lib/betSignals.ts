@@ -138,12 +138,19 @@ export function useBetSignals(): BetSignals | null {
   return signals
 }
 
-// The bet-signal rating (Oct 2026): the model's win probabilities turned into ratings on the ATW scale. Within a race a runner's rating is
+// The bet-signal rating (Oct 2026): the model's win probabilities turned into ratings on the ATW scale (it is blended with the WPR projection, see RATING_BET_SHARE). Within a race a runner's rating is
 //   level + RATING_PER_LN x (ln p - mean ln p)
 // where level is the field's average WPR-projection rating at today's weight, so the numbers sit on the same scale as the Recent runs table. RATING_PER_LN
 // is not the price beta inverted (5 rating points per ln p at beta 0.20): over 85k races the actual rating moved 0.73 for each point of that raw
 // conversion, so it is shrunk by that factor (5 x 0.73 = 3.66) to make the number a calibrated prediction of the rating the horse will run.
 export const RATING_PER_LN = 3.66
+
+// The rating shown is a BLEND of the bet-signal rating and the WPR projection, not the bet-signal rating alone: the bet-signal rating is the market's own
+// order (its #1 is the market favourite in 99.5% of races, rank correlation 0.99), so it told you little the Fixed $ column did not. 1,692 July to October
+// 2026 races: a 45% share keeps #1 = favourite in 77% of races (rank correlation 0.90), picks the winner as #1 in 32.4% (projection alone 28.4%, bet rating
+// alone 34.3%), has the lowest error against the rating actually run (8.63 against 8.74 projection, 8.78 bet rating) and winner log-loss 1.814 (projection
+// 1.936, bet rating 1.766, market 1.770). 40% to 50% are within noise of each other; below about 40% winner picking drops away, above 60% it is mostly the market.
+export const RATING_BET_SHARE = 0.45
 
 /** Signal per runner for one race: the live pass before the jump, the frozen pass once it has run. Runners with none are null. */
 export function signalsForRace(race: Race, signals: BetSignals | null, now = Date.now()): Record<string, Signal | null> {
