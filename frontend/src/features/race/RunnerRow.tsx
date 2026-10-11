@@ -24,7 +24,7 @@ interface RunnerRowProps {
 const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_56px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px]'} ${DESKTOP_GRID}`
+  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_40px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_40px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, signal, band, showFp, showBias = true, onClick }: RunnerRowProps) {
@@ -101,12 +101,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
         {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
       </span>
       <span
-        className="text-right font-mono text-ink-mute"
+        className={`text-right font-mono text-ink-mute ${LG_ONLY}`}
         title={signal ? `Model price $${(modelPrice(signal.m) ?? 0).toFixed(2)}: what the bet-signal model would pay (win chance ${(signal.m * 100).toFixed(0)}%), judged against $${signal.p.toFixed(2)}. Experimental.` : 'No bet signal for this race (needs the full field, drawn and priced)'}
       >
         {f.scratched || !signal ? '' : fmtPrice(modelPrice(signal.m))}
       </span>
-      <span className={`text-right font-mono ${LG_ONLY} ${signal && signal.e >= 1.05 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`} title="Edge: model win chance x price, minus 1">
+      <span className={`text-right font-mono text-[12px] lg:text-sm ${signal && signal.e >= 1.05 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`} title="Edge: model win chance x price, minus 1">
         {f.scratched || !signal ? '' : fmtEdge(signal.e)}
       </span>
       <span className="text-right text-ink-mute">

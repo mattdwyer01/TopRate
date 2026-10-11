@@ -18,7 +18,7 @@ import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
 import { fmtStake, signalsForRace, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
-import { MIN_WINNING_STANDARD_OFFSET, expectedWinningWpr, rankField } from './raceFacts'
+import { rankField } from './raceFacts'
 
 interface RaceDetailProps {
   race: Race
@@ -48,8 +48,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection, not of the bet-signal rating). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
-  { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.' },
-  { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.', lgOnly: true },
+  { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.', lgOnly: true },
+  { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.' },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -143,15 +143,11 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  // The things that explain the WPR projection (typical winning rating, the track-bias note) stay on the projection, which is what they were fitted on.
+  // The track-bias note stays on the WPR projection, which is what the bias adjustment lives in.
   const rankedProjection = useMemo(
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  const expectedWinWpr = useMemo(() => {
-    const typical = expectedWinningWpr(rankedProjection.map((r) => r.proj - (r.eff?.atwOff ?? 0)))
-    return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
-  }, [rankedProjection])
   const ratingFromBets = useMemo(() => Object.values(effectiveByRunId).some((e) => e.ratingSource === 'bet'), [effectiveByRunId])
   const backfilledAt = useMemo(() => Object.values(signalByRunId).find((x) => x?.bf)?.bf ?? null, [signalByRunId])
   const bandOf = useMemo(() => {
@@ -278,7 +274,7 @@ export function RaceDetail({
 
         <p className="text-[11px] text-ink-faint" data-testid="rating-source">
           {ratingFromBets
-            ? `Rating: bet-signal model on the ATW scale (win chances from the market price and form, so it moves with the price)${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}. Under it the WPR projection still explains each horse.`
+            ? `Rating: bet-signal model on the ATW scale (win chances from the market price and form, so it moves with the price)${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}.`
             : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
         </p>
         {(tierCounts.s > 0 || tierCounts.v > 0) && (
@@ -400,8 +396,6 @@ export function RaceDetail({
           rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
           fieldSize={ranked.length}
           fieldTop={ranked.length ? ranked[0].proj : null}
-          fieldLow={ranked.length ? ranked[ranked.length - 1].proj : null}
-          expectedWinWpr={expectedWinWpr}
           tripRunner={tripRace?.runners.find((t) => t.rid === selectedRunner.runId) ?? null}
           tripKind={tripRace?.laneKind ?? null}
           deltaValue={deltas[selectedRunner.runId] ?? null}

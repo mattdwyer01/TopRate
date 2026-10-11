@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { projectedAtResultsScale } from '../../lib/atw'
 import { computeCareerStats } from '../../lib/careerStats'
+import { fmtAdj } from './rowParts'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
-import { adjClass, fmtAdj, spellWord } from './rowParts'
-import { typicalSd } from './raceFacts'
 import { isVoid } from '../../lib/wprVoid'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
-
-const HALF = 0.67 // likely range = about +-0.67 typical error (the middle half of outcomes)
 
 function ordinal(n: number): string {
   const v = n % 100
@@ -39,67 +35,15 @@ interface HeroProps {
   rank: number | null
   fieldSize: number
   fieldTop: number | null
-  fieldLow: number | null
   fair: number | null
   market: number | null
   fixedMove: PriceMove | null
   hasOverride: boolean
-  spellLabel: string
-  daysSince: number | null
-  projAtw: number | null
-  // True when proj is the bet-signal rating; projectionWpr is then the WPR projection it replaces, shown beneath.
-  ratingFromBets?: boolean
-  projectionWpr?: number | null
 }
 
-// A likely range drawn against the whole field: the pale track is the field from lowest to highest projection, the bar is this horse's
-// likely range, the dot its projection, the line the field's top.
-function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; top: number | null; low: number | null }) {
-  const half = sd != null ? HALF * sd : 0
-  const lo = Math.min(proj - half, low ?? proj) - 3
-  const hi = Math.max(proj + half, top ?? proj) + 3
-  const W = 420
-  const X = (v: number) => 6 + ((v - lo) / (hi - lo)) * (W - 12)
-  return (
-    <svg viewBox={`0 0 ${W} 58`} className="h-auto w-full max-h-12" role="img" aria-label="Likely range of this projection against the field">
-      {low != null && top != null && <rect x={X(low)} y={25} width={Math.max(2, X(top) - X(low))} height={6} rx={3} fill="var(--color-line-soft)" />}
-      {half > 0 && <rect x={X(proj - half)} y={19} width={Math.max(4, X(proj + half) - X(proj - half))} height={18} rx={9} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
-      {top != null && (
-        <>
-          <line x1={X(top)} x2={X(top)} y1={9} y2={45} stroke="var(--color-indigo)" strokeWidth={2} />
-          <text x={Math.min(X(top) + 5, W - 74)} y={13} fontSize={10} fill="var(--color-indigo)">
-            field top {fmtWpr(top)}
-          </text>
-        </>
-      )}
-      <circle cx={X(proj)} cy={28} r={6} fill="var(--color-emerald-deep)" stroke="#fff" strokeWidth={1.5} />
-      {half > 0 && (
-        <>
-          <text x={X(proj - half)} y={54} textAnchor="middle" fontSize={10} fill="var(--color-ink-mute)">
-            {Math.round(proj - half)}
-          </text>
-          <text x={X(proj + half)} y={54} textAnchor="middle" fontSize={10} fill="var(--color-ink-mute)">
-            {Math.round(proj + half)}
-          </text>
-        </>
-      )}
-    </svg>
-  )
-}
-
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw, compact, ratingFromBets = false, projectionWpr = null }: HeroProps) {
-  const sd = typicalSd(runner, proj)
-  // The whole hero is at today's weight (ATW): proj, the field top and low all come from the race's effective (ATW) ratings.
-  const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
-  const recentAvg = projAtw != null && last3.length >= 2 ? last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length : null
-  const priorRuns = runner.formHistory.length
+// The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the bet-signal model's price, and the basics.
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, compact }: HeroProps) {
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
-  const reasons: string[] = []
-  if (runner.projectionModel === 'light') reasons.push(`only ${priorRuns} prior run${priorRuns === 1 ? '' : 's'}, so the error is wider`)
-  if (spellLabel === 'FS') reasons.push('first start')
-  else if (spellLabel === 'FU') reasons.push(`first-up${daysSince != null ? ` after ${daysSince} days` : ''}`)
-  else if (spellLabel !== '—' && /^\dU$/.test(spellLabel)) reasons.push(spellWord(spellLabel))
-  if (sd != null && sd >= 10.5 && runner.projectionModel !== 'light') reasons.push('recent form is patchy')
   const verdict =
     rank != null && !scratched
       ? `${ordinal(rank)} of ${fieldSize}${gap != null && gap > 0.05 ? `, ${gap.toFixed(1)} off the top` : ', top rated'}.`
@@ -108,35 +52,19 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         : ''
   return (
     <section className={compact ? 'rounded-md border border-line-soft bg-bg px-2.5 py-1.5' : 'rounded-lg border border-line bg-panel px-3 py-2.5 sm:px-4'}>
-      <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 ${compact ? '' : 'lg:grid-cols-[minmax(150px,auto)_minmax(0,1fr)_auto] lg:gap-x-6'}`}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{ratingFromBets ? 'Rating' : 'Projected WPR'}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Rating</span>
             {hasOverride && <span className="rounded-full bg-amber-bg px-2 py-0.5 text-[11px] font-semibold text-amber">manually adjusted</span>}
           </div>
           {scratched ? (
             <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
-            <div className={`font-mono font-bold leading-none text-emerald-deep ${compact ? 'text-2xl' : 'text-3xl'}`}>{fmtWpr(projAtw ?? proj)}</div>
+            <div className={`font-mono font-bold leading-none text-emerald-deep ${compact ? 'text-2xl' : 'text-3xl'}`}>{fmtWpr(proj)}</div>
           )}
-          {!compact && !scratched && (projAtw ?? proj) != null && (
-            <p className="mt-0.5 text-[11px] text-ink-mute" title="Every rating on this page is at the weight carried today (ATW), the scale of the Recent runs table, the chart and the waterfall. Ranking, the gap to the top and the field range use the same rating shifted together, so they are unchanged.">
-              {projAtw != null ? <>at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}</> : null}
-              {ratingFromBets && projectionWpr != null && <>{projAtw != null ? ' \u00b7 ' : ''}WPR projection {fmtWpr(projectionWpr)}</>}
-              {recentAvg != null && <>{projAtw != null || (ratingFromBets && projectionWpr != null) ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-ink-soft">
-            {verdict}
-            {sd != null && !scratched && <> Error &plusmn;{sd.toFixed(0)}.</>}
-            {reasons.length > 0 && !scratched && <> {reasons[0][0].toUpperCase() + reasons[0].slice(1)}{reasons.length > 1 ? `, ${reasons.slice(1).join(', ')}` : ''}.</>}
-          </p>
+          {verdict && <p className="mt-1 text-xs text-ink-soft">{verdict}</p>}
         </div>
-        {!compact && proj != null && !scratched && (
-          <div className="order-last col-span-2 min-w-0 lg:order-none lg:col-span-1" title="Shaded bar is the likely range (the middle half of outcomes). Pale track is the whole field.">
-            <RangeGauge proj={proj} sd={sd} top={fieldTop} low={fieldLow} />
-          </div>
-        )}
         <div className="flex-none text-right">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / model</div>
           <div className={`font-mono font-semibold leading-tight text-ink ${compact ? 'text-lg' : 'text-xl'}`}>
@@ -176,231 +104,11 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
   )
 }
 
-/* ------------------------------------------------------- rating sanity check */
-
-// Flags a projection that sits well away from the horse's own recent ratings, both at today's weight (ATW), so the reader knows to look at why.
-// Past check (38,240 main-model projections, 1 Jul to 5 Oct 2026, as of each race): 4,928 sat 5 or more below the last three runs and came in
-// 0.3 above projection on average; 2,748 sat 5 or more above and came in 0.0 away. So a gap is usually real (a class rise, a poor draw, a jockey
-// drop), not a model slip, and the banner states that instead of asking for an override.
-export const SANITY_GAP = 5
-const SANITY_BIG = 10
-
-export function ratingSanity(runner: Runner, projAtw: number | null) {
-  if (projAtw == null) return null
-  const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
-  if (last3.length < 2) return null
-  const avg = last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length
-  const diff = projAtw - avg
-  if (Math.abs(diff) < SANITY_GAP) return null
-  const b = runner.adjustmentBreakdown
-  const parts = b
-    ? [
-        ...GROUPS.map((g) => ({ label: g.label, v: b['g_' + g.key] ?? 0 })),
-        { label: 'Suitability', v: b.suitability ?? 0 },
-        { label: 'Weight carried', v: b.weight ?? 0 },
-      ]
-    : []
-  // the factors pulling the same way as the gap, biggest first
-  const drivers = parts.filter((p) => Math.sign(p.v) === Math.sign(diff) && Math.abs(p.v) >= 0.5).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 3)
-  const anchor = b?.g_anchor != null ? b.g_anchor + (runner.atwOffset ?? 0) : null
-  return { avg, diff, n: last3.length, drivers, anchor, big: Math.abs(diff) >= SANITY_BIG }
-}
-
-export function RatingSanity({ runner, projAtw }: { runner: Runner; projAtw: number | null }) {
-  const s = ratingSanity(runner, projAtw)
-  if (!s) return null
-  const below = s.diff < 0
-  return (
-    <div className={`rounded-lg border px-3 py-2 text-sm ${s.big ? 'border-rose-line bg-rose-bg text-rose' : 'border-amber-line bg-amber-bg text-amber'}`} role="note">
-      <span className="font-semibold">Rating check: </span>
-      projection {fmtWpr(projAtw)} is {Math.abs(s.diff).toFixed(1)} {below ? 'below' : 'above'} the last {s.n} runs ({fmtWpr(s.avg)}).
-      {s.anchor != null && Math.abs(s.anchor - s.avg) >= 2 && <> The model starts from {fmtWpr(s.anchor)} (recency-weighted form, {fmtAdj(s.anchor - s.avg)} on the last {s.n}).</>}
-      {s.drivers.length > 0 && <> Main {below ? 'drags' : 'lifts'}: {s.drivers.map((d) => `${d.label} ${fmtAdj(d.v)}`).join(', ')}.</>}
-      {runner.projectionModel === 'light' && <> Light-history model: it leans on the horse&apos;s price and class signals more than its few ratings.</>}
-      <span className="text-ink-soft"> {runner.projectionModel === 'light' ? '' : 'In past races a gap this size was usually real (actual landed within a point of the projection on average), so use your own adjustment only if you know something the model cannot.'}</span>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------- waterfall */
-
-// What each correction group is made of, and how far it typically moves a rating (5th to 95th percentile, and the extremes, over the
-// last 60 days of runs, 23,820 runs in 2,947 races, scored as of each race). The groups are TreeSHAP sums of the main model's correction on top of the recent-form anchor.
-const GROUPS: { key: string; label: string; what: string; p5: number; p95: number; min: number; max: number }[] = [
-  { key: 'form', label: 'Form pattern', what: 'Shape of the recent WPRs: consistency, best and worst of the last 5, change from the run before', p5: -1.25, p95: 1.75, min: -4.74, max: 14.54 },
-  { key: 'rest', label: 'Spell and trials', what: 'Days since the last run, run number in the prep, trials, first-up and second-up record', p5: -0.7, p95: 1.35, min: -4.55, max: 5.69 },
-  { key: 'class', label: 'Class and grade', what: 'Class and grade today against the last run, and the level of the track', p5: -1.41, p95: 0.87, min: -5.32, max: 1.8 },
-  { key: 'going', label: 'Going', what: 'Today\'s going, the change from the last run, and the horse\'s record on it', p5: -1.27, p95: 0.7, min: -3.62, max: 1.44 },
-  { key: 'dist_track', label: 'Distance and track', what: 'Today\'s distance and its change, and the horse\'s record at the distance and the track', p5: -1.06, p95: 1.34, min: -12.81, max: 3.42 },
-  { key: 'connections', label: 'Jockey and trainer', what: 'Jockey and trainer effect, their form, the combination, and a jockey change', p5: -2.07, p95: 1.55, min: -9.55, max: 3.26 },
-  { key: 'weight_age', label: 'Weight, age, sex', what: 'Weight carried and allowance in the model\'s own features, age and sex (the separate weight step comes after the base)', p5: -1.31, p95: 0.83, min: -3.46, max: 2.62 },
-  { key: 'field', label: 'Field and barrier', what: 'Barrier, field size, and how today\'s rivals rate against this horse', p5: -1.98, p95: 2.51, min: -4.11, max: 11.01 },
-  { key: 'comments', label: 'Run comments', what: 'What the race comments said about the last runs (checked, wide, held up and so on)', p5: -0.93, p95: 0.87, min: -3.48, max: 2.89 },
-]
-// A real waterfall on one WPR axis: the first bar is the recent-form anchor, every factor then floats from where the one before it ended
-// (green up, red down, a thin line carries the running total across), the model base and the projection are full bars. The axis does not
-// start at zero (a bar from 0 to 87 would hide a +0.8), so it is cut near the lowest total and the cut is stated underneath.
-type WfRow = { key: string; label: string; kind: 'total' | 'step'; from: number; to: number; title?: string; strong?: boolean }
-
-function WaterfallRow({ row, lo, hi, last }: { row: WfRow; lo: number; hi: number; last: boolean }) {
-  const pos = (v: number) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100))
-  const total = row.kind === 'total'
-  const a = total ? 0 : Math.min(pos(row.from), pos(row.to))
-  const b = total ? pos(row.to) : Math.max(pos(row.from), pos(row.to))
-  const delta = row.to - row.from
-  const tone = total ? (row.strong ? 'bg-slate' : 'bg-line') : delta >= 0 ? 'bg-emerald' : 'bg-rose'
-  return (
-    <div title={row.title} className="grid h-[22px] grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_3rem] items-center gap-2 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_3.25rem]">
-      <span className={`truncate ${total && row.strong ? 'font-semibold text-ink' : 'text-ink-mute'}`}>{row.label}</span>
-      <span className="relative block h-full">
-        <span className={`absolute top-[4px] h-[14px] rounded-[3px] ${tone}`} style={{ left: `${a}%`, width: `${Math.max(0.8, b - a)}%` }} />
-        {!last && <span className="absolute top-[18px] h-[10px] w-px bg-ink-faint/60" style={{ left: `${pos(row.to)}%` }} />}
-      </span>
-      <span className={`text-right font-mono ${total ? (row.strong ? 'font-semibold text-ink' : 'text-ink-mute') : adjClass(delta)}`}>{total ? fmtWpr(row.to) : fmtAdj(delta)}</span>
-    </div>
-  )
-}
-
-// From the recent-form anchor to the projection. The main model starts from a weighted average of recent form and corrects it for the
-// factors in GROUPS. The biggest few are listed, the rest are folded into one step so the bars always add up. Runners from before the
-// breakdown was logged, and light-history runners, get base, suitability and weight only.
-export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weightKg }: { runner: Runner; proj: number | null; deltaValue: number | null; atwOffset: number | null; weightKg: number | null }) {
-  const [all, setAll] = useState(false)
-  const b = runner.adjustmentBreakdown
-  const anchor = b?.g_anchor
-  // One list of steps from the recent-form anchor to the projection: the model's factor groups plus the suitability and weight steps that
-  // come after its base. Biggest first; the smallest fold into one "other" step so the bars always add up.
-  const steps: { key: string; label: string; v: number; title: string }[] =
-    anchor != null
-      ? [
-          ...GROUPS.map((g) => ({ key: g.key, label: g.label, v: b?.['g_' + g.key] ?? 0, title: `${g.what}. Typical range ${g.p5.toFixed(1)} to +${g.p95.toFixed(1)}; most extreme ${g.min.toFixed(1)} to +${g.max.toFixed(1)}.` })),
-          ...(b?.suitability != null ? [{ key: 'suit', label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' }] : []),
-          ...(b?.weight != null ? [{ key: 'wt', label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' }] : []),
-        ].sort((x, y) => Math.abs(y.v) - Math.abs(x.v))
-      : []
-  const lead = all ? steps.filter((g) => Math.abs(g.v) >= 0.15) : steps.slice(0, 4)
-  const rest = steps.filter((g) => !lead.includes(g))
-  const restSum = rest.reduce((a, g) => a + g.v, 0)
-
-  // Everything is drawn at today's weight (ATW), the scale of the Recent runs table: the starting bar carries the horse's own offset, the steps are
-  // differences and need no conversion, and the total is the projection on the same scale.
-  const off = atwOffset ?? 0
-  const rows: WfRow[] = []
-  let run = 0
-  if (anchor != null) {
-    rows.push({ key: 'anchor', label: off !== 0 ? `Recent form at ${weightKg != null ? weightKg + 'kg' : 'today\'s weight'}` : 'Recent form', kind: 'total', from: 0, to: anchor + off, title: "Weighted average of the last runs, career average, form factor, margins and days since the last run: the model's starting point" + (off !== 0 ? ", on the same scale as the Recent runs table (every run rated at today's weight)" : '') })
-    run = anchor + off
-    for (const g of lead) {
-      rows.push({ key: g.key, label: g.label, kind: 'step', from: run, to: run + g.v, title: g.title })
-      run += g.v
-    }
-    if (rest.length > 0) {
-      rows.push({ key: 'rest', label: `${rest.length} other factor${rest.length === 1 ? '' : 's'}`, kind: 'step', from: run, to: run + restSum, title: rest.map((g) => `${g.label} ${fmtAdj(g.v)}`).join(', ') })
-      run += restSum
-    }
-  } else {
-    // Older logged runs and light-history runners have no split by factor, so they start from the model's own base and take the same
-    // suitability and weight steps.
-    // A light-history runner's last one or two ratings are shown as plain reference bars (the light model does not build its base from them).
-    if (runner.projectionModel === 'light') {
-      const last = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 2)
-      last.forEach((e, i) => rows.push({ key: 'ref' + i, label: i === 0 ? 'Last run' : 'Run before', kind: 'total', from: 0, to: e.wpr as number, title: `${e.date.slice(0, 10)}: for reference only. The light-history model reads the runner's price and a few other signals rather than starting from recent form.` }))
-    }
-    if (runner.baseWpr != null) {
-      rows.push({ key: 'base', label: 'Model base', kind: 'total', from: 0, to: runner.baseWpr + off, title: 'The model\'s projection before the suitability and weight steps (no split by factor for this runner)' })
-      run = runner.baseWpr + off
-    }
-    const tail = b && (b.suitability != null || b.weight != null)
-      ? [
-          ...(b.suitability != null ? [{ key: 'suit', label: 'Suitability', v: b.suitability, title: 'Comment history, day-of bias, finishing profile and jockey/trainer tendencies' }] : []),
-          ...(b.weight != null ? [{ key: 'wt', label: 'Weight carried', v: b.weight, title: 'About 0.4 WPR per kg above the field average' }] : []),
-        ]
-      : runner.wprAdjustment != null
-        ? [{ key: 'adj', label: 'Adjustments', v: runner.wprAdjustment, title: undefined as string | undefined }]
-        : []
-    for (const e of tail) {
-      rows.push({ key: e.key, label: e.label, kind: 'step', from: run, to: run + e.v, title: e.title })
-      run += e.v
-    }
-  }
-  if (deltaValue != null && deltaValue !== 0) {
-    rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + deltaValue })
-    run += deltaValue
-  }
-  if (proj != null) rows.push({ key: 'proj', label: 'Projected WPR', kind: 'total', from: 0, to: proj + (atwOffset ?? 0), strong: true })
-
-  const levels = rows.filter((r) => r.kind === 'step').flatMap((r) => [r.from, r.to]).concat(rows.filter((r) => r.kind === 'total').map((r) => r.to))
-  const min = levels.length ? Math.min(...levels) : 0
-  const max = levels.length ? Math.max(...levels) : 100
-  const span = Math.max(3, max - min)
-  const lo = Math.floor(min - span * 0.6)
-  const hi = Math.ceil(max + span * 0.12)
-  return (
-    <div className="flex flex-col text-sm">
-      {rows.map((r, i) => (
-        <WaterfallRow key={r.key} row={r} lo={lo} hi={hi} last={i === rows.length - 1} />
-      ))}
-      {anchor != null && !all && rest.some((g) => Math.abs(g.v) >= 0.15) && (
-        <button type="button" onClick={() => setAll(true)} className="mt-1 w-fit text-left text-xs text-ink-mute underline hover:text-ink">
-          Show each of the {rest.length} other factors
-        </button>
-      )}
-      {anchor != null && all && (
-        <button type="button" onClick={() => setAll(false)} className="mt-1 w-fit text-left text-xs text-ink-mute underline hover:text-ink">
-          Show fewer
-        </button>
-      )}
-      {anchor == null && runner.projectionModel === 'light' && <p className="mt-1 text-xs text-ink-faint" title="Last-run bars are for reference, not a step.">Light-history model: base given directly, no split by factor.</p>}
-      <p
-        className="mt-1.5 text-xs text-ink-faint"
-        title={`Each bar starts where the one above ended. ${off !== 0 ? `Rated at ${weightKg != null ? weightKg + 'kg' : "today's weight"}, the same scale as the Recent runs table. ` : ''}Hover a row for what it covers.`}
-      >
-        Scale starts at {lo}.
-      </p>
-    </div>
-  )
-}
-
-// From the field's level to the bet-signal rating: the market's own view (what the price says about this horse against the field), the model's correction to
-// it (form, ratings, weight, connections), and any manual adjustment. Same axis style as the projection waterfall; the axis is cut and the cut is stated.
-export function RatingWaterfall({ parts, rating }: { parts: { level: number; market: number; model: number; manual: number }; rating: number }) {
-  const rows: WfRow[] = []
-  let run = parts.level
-  rows.push({ key: 'level', label: 'Field level', kind: 'total', from: 0, to: run, title: "The average WPR-projection rating of this field, at today's weight: where the race sits on the rating scale. The bars below spread the runners around it." })
-  rows.push({ key: 'market', label: 'Market price', kind: 'step', from: run, to: run + parts.market, title: 'What the current price alone says about this horse against the rest of the field (3.66 rating points per unit of log win chance)' })
-  run += parts.market
-  rows.push({ key: 'model', label: 'Model view', kind: 'step', from: run, to: run + parts.model, title: "The bet-signal model's correction to the market: recent ratings and form, weight, barrier, jockey and trainer records measured against the market" })
-  run += parts.model
-  if (Math.abs(parts.manual) >= 0.05) {
-    rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + parts.manual })
-    run += parts.manual
-  }
-  rows.push({ key: 'rating', label: 'Rating', kind: 'total', from: 0, to: rating, strong: true })
-  const levels = rows.filter((r) => r.kind === 'step').flatMap((r) => [r.from, r.to]).concat(rows.filter((r) => r.kind === 'total').map((r) => r.to))
-  const min = Math.min(...levels)
-  const max = Math.max(...levels)
-  const span = Math.max(3, max - min)
-  const lo = Math.floor(min - span * 0.6)
-  const hi = Math.ceil(max + span * 0.12)
-  return (
-    <div className="flex flex-col text-sm">
-      {rows.map((r, i) => (
-        <WaterfallRow key={r.key} row={r} lo={lo} hi={hi} last={i === rows.length - 1} />
-      ))}
-      <p className="mt-1.5 text-xs text-ink-faint">
-        The market step is the price against the field; the model step is how far form and ratings move it. Scale starts at {lo}. Experimental.
-      </p>
-    </div>
-  )
-}
-
 /* ----------------------------------------------------------- timeline */
 
-// Every recent run as a dot: height is WPR, spacing is real time (so spells show as gaps), dot size and colour show how it finished.
-// The projection for today sits at the right with its likely range, and the dotted line is the minimum winning standard for
-// this race: the expected winning rating (raceFacts.expectedWinningWpr) less MIN_WINNING_STANDARD_OFFSET, so a horse's runs read against what it takes to win. Drawn at the container's own width so
-// the text stays crisp and the chart fills the card.
-export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winRaw, atwOffset }: { runner: Runner; proj: number | null; raceDate: string; expectedWin: number | null; atwOffset: number | null }) {
+// Every recent run as a dot: height is WPR, spacing is real time (so spells show as gaps), dot size and colour show how it finished. Drawn at the
+// container's own width so the text stays crisp and the chart fills the card.
+export function RunTimeline({ runner, raceDate }: { runner: Runner; raceDate: string }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -411,12 +119,6 @@ export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winR
     setWidth(Math.max(300, Math.round(el.clientWidth)))
     return () => ro.disconnect()
   }, [])
-  const sd = typicalSd(runner, projRaw)
-  // The runs are ATW (each rating adjusted to the weight carried today), the projection and winning line are plain WPR, so both are shifted by
-  // the horse's own ATW offset to sit on the same scale as the runs. No offset known (older payload, too little history): drawn as before.
-  const off = atwOffset ?? 0
-  const proj = projRaw != null ? projRaw + off : null
-  const expectedWin = winRaw != null ? winRaw + off : null
   const dots = useMemo(() => {
     const byDate = new Map<string, Runner['recentRuns'][number]>()
     for (const r of runner.recentRuns) if (r.date) byDate.set(r.date.slice(0, 10), r)
@@ -443,7 +145,7 @@ export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winR
   const t = (d: string) => new Date(d).getTime()
   const t0 = t(dots[0].e.date)
   const t1 = Math.max(t(raceDate), t(dots[dots.length - 1].e.date))
-  const vals = [...dots.map((d) => d.e.wpr as number), ...(proj != null ? [proj - (sd ?? 0) * HALF, proj + (sd ?? 0) * HALF] : []), ...(expectedWin != null ? [expectedWin] : [])]
+  const vals = dots.map((d) => d.e.wpr as number)
   const lo = Math.floor((Math.min(...vals) - 2) / 5) * 5
   const hi = Math.ceil((Math.max(...vals) + 2) / 5) * 5
   const X = (ms: number) => padL + 8 + ((ms - t0) / Math.max(1, t1 - t0)) * (W - padL - padR - 8)
@@ -451,7 +153,6 @@ export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winR
   const ticks: number[] = []
   for (let v = lo; v <= hi; v += 5) ticks.push(v)
   const path = dots.map((d, i) => `${i ? 'L' : 'M'}${X(t(d.e.date)).toFixed(1)},${Y(d.e.wpr as number).toFixed(1)}`).join(' ')
-  const px = X(t(raceDate))
   const months: { ms: number; label: string }[] = []
   const cur = new Date(t0)
   cur.setDate(1)
@@ -479,27 +180,7 @@ export function RunTimeline({ runner, proj: projRaw, raceDate, expectedWin: winR
             </text>
           ),
         )}
-        {expectedWin != null && (
-          <g>
-            <title>{`Minimum winning standard ${fmtWpr(expectedWin)}: about 19 in 20 winners have run this rating or better. It sits well below the typical winning rating (what winners have actually run in past races, given this field's top, runner-up and average projection and its size), so almost every winner clears it.`}</title>
-            <line x1={padL} x2={W - padR + 14} y1={Y(expectedWin)} y2={Y(expectedWin)} stroke="var(--color-amber)" strokeWidth={1.5} strokeDasharray="2 4" strokeLinecap="round" />
-            <rect x={padL + 2} y={Y(expectedWin) - 19} width={150} height={16} rx={8} fill="var(--color-amber-bg)" stroke="var(--color-amber-line)" />
-            <text x={padL + 77} y={Y(expectedWin) - 7.5} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--color-amber)">
-              {`min winning rating ~${Math.round(expectedWin)}`}
-            </text>
-          </g>
-        )}
         <path d={path} fill="none" stroke="var(--color-slate)" strokeWidth={1.5} strokeOpacity={0.45} strokeLinejoin="round" />
-        {proj != null && (
-          <>
-            {sd != null && <rect x={px - 7} y={Y(proj + sd * HALF)} width={14} height={Math.max(3, Y(proj - sd * HALF) - Y(proj + sd * HALF))} rx={4} fill="var(--color-emerald-tint)" stroke="var(--color-emerald-line)" />}
-            <line x1={X(t(dots[dots.length - 1].e.date))} y1={Y(dots[dots.length - 1].e.wpr as number)} x2={px} y2={Y(proj)} stroke="var(--color-emerald-deep)" strokeDasharray="4 3" strokeWidth={1.5} />
-            <circle cx={px} cy={Y(proj)} r={6} fill="var(--color-emerald-deep)" />
-            <text x={px + 11} y={Y(proj) + 4} fontSize={12} fontWeight={700} fill="var(--color-emerald-deep)">
-              {fmtWpr(proj)}
-            </text>
-          </>
-        )}
         {dots.map((d) => {
           const fin = d.run?.finishPosition ?? null
           const r = fin === 1 ? 6.5 : fin != null && fin <= 3 ? 5.5 : 4.5
@@ -536,14 +217,10 @@ export function TimelineLegend({ atwOffset, weightKg }: { atwOffset: number | nu
         <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-line align-middle" />
         compromised run
       </span>
-      <span>
-        <span className="mr-1 inline-block w-4 border-t-2 border-dotted border-amber align-middle" />
-        minimum winning standard (about 19 in 20 winners reach it)
-      </span>
       <span className="hidden sm:inline">Height is WPR; gaps between dots are real time (spells).</span>
       {shifted && (
         <span className="basis-full">
-          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)`: ''}, the same as the Recent runs table. The projection dot and winning line are on that scale too.
+          Ratings are at today&apos;s weight{weightKg != null ? ` (${weightKg}kg)`: ''}, the same as the Recent runs table.
         </span>
       )}
     </div>
@@ -692,8 +369,7 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
 
 // What the race itself says about the result: the market against the finish, the model's rank against the finish, a compromised-run flag from the
 // stewards' and video comments (lib/wprVoid, the same test Review uses to leave a run out of the accuracy numbers) and the comments themselves.
-function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }) {
-  const fin = runner.finishPosition
+function ResultContext({ runner }: { runner: Runner }) {
   const sp = runner.startingPrice
   const open = runner.openFixedPrice
   const lines: string[] = []
@@ -702,11 +378,7 @@ function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }
     const trend = move == null || Math.abs(move) < 0.1 ? '' : move < 0 ? `, firmed from ${fmtPrice(open)}` : `, eased from ${fmtPrice(open)}`
     lines.push(`Starting price ${fmtPrice(sp)}${trend}.`)
   }
-  if (runner.wprRank != null && fin != null) {
-    const d = fin - runner.wprRank
-    lines.push(`Model rank ${runner.wprRank}, finished ${ordinal(fin)}${Math.abs(d) <= 1 ? ', in line with the rank' : d < 0 ? `, ${-d} places better than ranked` : `, ${d} places worse than ranked`}.`)
-  }
-  const v = isVoid(miss, runner.commentsVideo, runner.commentsSteward)
+  const v = isVoid(null, runner.commentsVideo, runner.commentsSteward)
   const hasText = (runner.commentsSteward ?? '').trim() !== '' || (runner.commentsVideo ?? '').trim() !== ''
   if (lines.length === 0 && !hasText) return null
   return (
@@ -714,7 +386,7 @@ function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }
       {lines.map((l) => (
         <p key={l}>{l}</p>
       ))}
-      {v.isVoid && <p className="text-amber">The run looks compromised ({v.reason}), so the miss is not a fair test of the rating. Review leaves it out of the accuracy numbers.</p>}
+      {v.isVoid && <p className="text-amber">The run looks compromised ({v.reason}). Review leaves it out of the accuracy numbers.</p>}
       {hasText && (
         <details className="text-xs text-ink-mute">
           <summary className="cursor-pointer hover:text-ink">Race comments</summary>
@@ -727,35 +399,27 @@ function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }
 }
 
 
-// After the race: projected against actual (ATW) with the miss sized against the horse's own typical error.
+// After the race: how it finished, the actual rating it ran (ATW) and what the race itself said.
 export function ResultCard({ runner }: { runner: Runner }) {
-  const proj = projectedAtResultsScale(runner)
   const actual = runner.actualWpr
   const fin = runner.finishPosition
-  const sd = runner.projectionSd
-  const miss = actual != null && proj != null ? actual - proj : null
-  const big = miss != null && sd != null && Math.abs(miss) > sd
   if (fin == null && actual == null && !runner.resultKnown) {
-    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race. Projected rating to beat: <span className="font-mono font-semibold text-ink">{fmtWpr(proj)}</span>.</p>
+    return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race.</p>
   }
   return (
     <div>
-      <div className="grid grid-cols-3 gap-2">
-        <Tile label="Projected (ATW)">
-          <span className="font-mono text-xl font-semibold text-ink">{fmtWpr(proj)}</span>
+      <div className="grid grid-cols-2 gap-2">
+        <Tile label="Finish">
+          <span className="font-mono text-xl font-semibold text-ink">{fin != null ? ordinal(fin) : runner.won ? '1st' : runner.resultKnown ? 'Unplaced' : '-'}</span>
         </Tile>
-        <Tile label="Actual (ATW)">
+        <Tile label="Actual rating (ATW)">
           <span className="font-mono text-xl font-semibold text-emerald-deep">{actual != null ? fmtWpr(actual) : '-'}</span>
         </Tile>
-        <Tile label="Miss">
-          <span className={`font-mono text-xl font-semibold ${miss == null ? 'text-ink-mute' : big ? 'text-amber' : miss >= 0 ? 'text-emerald-deep' : 'text-ink-soft'}`}>{miss != null ? fmtAdj(miss) : '-'}</span>
-        </Tile>
       </div>
-      <ResultContext runner={runner} miss={miss} />
+      <ResultContext runner={runner} />
       <p className="mt-2 text-sm text-ink-soft">
-        {fin != null ? <>Finished {ordinal(fin)}{runner.marginFinish != null && fin > 1 ? `, ${runner.marginFinish.toFixed(1)}L` : ''}. </> : runner.won ? 'Won. ' : runner.resultKnown ? 'Unplaced. ' : ''}
-        {actual == null ? 'The actual rating settles a few days after the race.' : miss != null && big ? `Ran ${Math.abs(miss).toFixed(1)} ${miss >= 0 ? 'better' : 'worse'} than projected, more than the typical error of ${sd!.toFixed(0)}.` : miss != null ? 'Within the typical error of the projection.' : ''}
-        {runner.missReason ? ` ${runner.missReason}` : ''}
+        {fin != null && runner.marginFinish != null && fin > 1 ? `Beaten ${runner.marginFinish.toFixed(1)}L. ` : ''}
+        {actual == null ? 'The actual rating settles a few days after the race.' : ''}
       </p>
     </div>
   )

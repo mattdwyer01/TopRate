@@ -55,7 +55,8 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             WPR projection. It is informed by the market price, so it moves when the price moves. Where a race has none yet, Rating is the
             <span className="font-mono text-ink"> WPR projection</span>: a machine-learned estimate of the WPR a horse will run from its past
             runs and the conditions, trained on ten years of Australian results (about 845,000 runs), in the same WPR points shown after the race.
-            The runner page, the Base / Adj figures and the waterfall always explain the WPR projection.
+            The runner page shows the rating, where it ranks, the market against the model's price, form and the result; the WPR projection
+            (Base and Adj below) is the fallback and sets the level.
           </p>
           <p>
             Horses with three or more prior rated runs use the main model. Horses with none, one or two prior runs
@@ -68,7 +69,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
           <ul className="list-disc space-y-1 pl-5">
             <li><span className="font-mono text-ink">Rating</span>: the race's ranking figure at today's weight (bet-signal rating where the race has signals, otherwise the WPR projection; the line under the Race heading says which). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the WPR projection, which the runner page explains.</li>
             <li><span className="font-mono text-ink">SM</span>: the suitability part of the WPR projection's Adj, relative to this field (green +0.5 or better, red -0.5 or worse). Runners at +0.5 or better do win more often (10.5% for the middle band, 13.9% at +0.5 to +1.0, 20% above +1.0), but the market already prices that: win rates matched the market-implied chances at every band, so SM is a reading aid for the map, not a source of value. It is not part of the bet-signal rating.</li>
-            <li><span className="font-mono text-ink">Model $</span> and <span className="font-mono text-ink">Edge</span>: from the experimental bet-signal model (see Bets, below). Model $ is 1 / its win chance. Edge is its win chance times the current price, minus 1. Blank when the race is not fully drawn and priced.</li>
+            <li><span className="font-mono text-ink">Edge</span> and <span className="font-mono text-ink">Model $</span> (Model $ on wider screens): from the experimental bet-signal model (see Bets, below). Edge is its win chance times the current price, minus 1; Model $ is 1 / its win chance. Blank when the race is not fully drawn and priced.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>

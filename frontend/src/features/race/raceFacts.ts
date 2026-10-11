@@ -65,25 +65,6 @@ export function rankField(
   })
 }
 
-// The rating a winner typically runs in this race, fitted on what winners actually ran: 2,823 resulted races (8 Aug to 6 Oct 2026) with their
-// pre-race projections (weight term in), regressing the winner's actual WPR on the field's top projection, runner-up projection, average
-// projection and field size. A winner usually runs above the top projection (about +4 on average) because the winner is whoever has the
-// best day, and a stronger field raises the bar. Typical error of the fit is about 3.8 WPR; fitted on either half of the window and scored
-// on the other, the bias was within 1 WPR.
-const WIN_FIT = { intercept: 16.5838, top: 0.2874, second: 0.3066, mean: 0.2514, size: 0.186 }
-
-// The line shown on the horse timeline is a minimum winning standard, not the typical figure: expectedWinningWpr less this offset. On 2,821
-// resulted races (8 Aug to 6 Oct 2026, pre-race projections) a 6 WPR offset puts the line at a rating 95% of winners reached or beat; the
-// winner's own projection was at or above it 38% of the time, with about 1.5 runners a race projected above it. Raise it to lower the line.
-export const MIN_WINNING_STANDARD_OFFSET = 6
-
-export function expectedWinningWpr(projs: number[]): number | null {
-  if (projs.length < 2) return null
-  const sorted = [...projs].sort((a, b) => b - a)
-  const mean = projs.reduce((a, v) => a + v, 0) / projs.length
-  return WIN_FIT.intercept + WIN_FIT.top * sorted[0] + WIN_FIT.second * sorted[1] + WIN_FIT.mean * mean + WIN_FIT.size * projs.length
-}
-
 // Typical error of a projection (WPR points). Uses the payload's own value; when it is missing, the model's documented out-of-sample error
 // for its kind of runner (main model by projection level, light model by number of prior runs).
 export function typicalSd(runner: Runner, proj: number | null): number | null {

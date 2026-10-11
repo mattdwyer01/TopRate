@@ -13,9 +13,6 @@ export function fmtAdj(v: number | null | undefined): string {
   return v > 0 ? `+${f}` : f
 }
 
-export function adjClass(v: number | null | undefined): string {
-  return v != null && v > 0.05 ? 'text-emerald-deep' : v != null && v < -0.05 ? 'text-rose' : 'text-ink-mute'
-}
 
 export function smClass(v: number | null | undefined): string {
   return v != null && v >= SPEED_MAP_TINT_THRESHOLD ? 'text-emerald-deep' : v != null && v <= -SPEED_MAP_TINT_THRESHOLD ? 'text-rose' : 'text-ink-mute'
@@ -75,12 +72,3 @@ export const BAND_BORDER: Record<'core' | 'inner' | 'outer' | 'none', string> = 
 }
 
 // 'FU' -> 'first-up', '2U' -> '2nd-up', 'FS' -> 'first start' for the runner row's detail line.
-export function spellWord(label: string): string {
-  if (label === 'FU') return 'first-up'
-  if (label === 'FS') return 'first start'
-  const m = /^(\d+)U$/.exec(label)
-  if (!m) return label
-  const n = Number(m[1])
-  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
-  return `${n}${suffix}-up`
-}

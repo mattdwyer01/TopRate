@@ -5,14 +5,11 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
-import { spellPosition } from '../../lib/spellPosition'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
-import { typicalSd } from './raceFacts'
 import { modelPrice, type Signal } from '../../lib/betSignals'
-import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, RatingWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -23,8 +20,6 @@ interface RunnerDetailModalProps {
   rank: number | null
   fieldSize: number
   fieldTop: number | null
-  fieldLow: number | null
-  expectedWinWpr: number | null
   tripRunner: TripRunner | null
   tripKind: 'avg' | '800m' | 'est' | null
   deltaValue: number | null
@@ -73,8 +68,6 @@ export function RunnerDetailModal({
   rank,
   fieldSize,
   fieldTop,
-  fieldLow,
-  expectedWinWpr,
   tripRunner,
   tripKind,
   deltaValue,
@@ -111,17 +104,11 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
-  // effectiveWpr is the RATING at today's weight (ATW): the bet-signal rating where the race has signals, otherwise the WPR projection (model rating + manual
-  // adjustment + the horse's own offset). projWpr is always the WPR projection at today's weight, which the waterfall, chart, range check and
-  // "why this projection" explain; they take the model-scale figure (projection minus the offset).
+  // The rating at today's weight (ATW): the bet-signal rating where the race has signals, otherwise the WPR projection (the fallback for races without them).
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
   const ratingFromBets = effective?.ratingSource === 'bet'
-  const projWpr = scratched ? null : (effective?.projectionWpr ?? runner.projectedWpr)
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
-  const projAtw = effectiveWpr != null && (atwOff != null || ratingFromBets) ? effectiveWpr : null
-  const modelProj = projWpr != null ? projWpr - (atwOff ?? 0) : null
   const hasOverride = effective?.hasOverride ?? false
-  const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const fair = modelPrice(signal?.m)
   const market = runner.fixedWinPrice
@@ -147,8 +134,8 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(projAtw ?? effectiveWpr)}</span>
-                <span className="text-ink-faint">{ratingFromBets ? 'rating' : 'projected WPR'}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                <span className="text-ink-faint">rating</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
             ) : (
@@ -200,30 +187,22 @@ export function RunnerDetailModal({
             rank={rank}
             fieldSize={fieldSize}
             fieldTop={fieldTop}
-            fieldLow={fieldLow}
             fair={fair}
             market={market}
             fixedMove={fixedMove}
             hasOverride={hasOverride}
-            spellLabel={spell.label}
-            daysSince={spell.daysSince}
-            projAtw={projAtw}
-            ratingFromBets={ratingFromBets}
-            projectionWpr={projWpr}
           />
 
-          {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+          {!scratched && !ratingFromBets && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
               Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
             </div>
           )}
-          {!scratched && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+          {!scratched && !ratingFromBets && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
               Going not known yet. The projection assumes Good 4 and updates when the track is rated.
             </div>
           )}
-          {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projWpr} />}
-
           {(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">
               <ResultCard runner={runner} />
@@ -318,50 +297,30 @@ export function RunnerDetailModal({
 
           </div>
 
-          {ratingFromBets && !scratched && effective?.ratingParts && effectiveWpr != null && (
-            <Card title="Why this rating" note="bet-signal model, experimental">
-              <RatingWaterfall parts={effective.ratingParts} rating={effectiveWpr} />
-            </Card>
-          )}
-
-          <Card title={ratingFromBets ? 'The WPR projection (form view)' : 'Why this projection'} note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
-            <div className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-              <ProjectionWaterfall runner={runner} proj={modelProj} deltaValue={deltaValue} atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
-              <div className="flex flex-col gap-2 md:border-l md:border-line-soft md:pl-6">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-                  Expected run <span className="font-normal normal-case">{tripKind === '800m' || tripKind === 'est' ? '(about 800m from home)' : ''}</span>
-                </div>
-                <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
-                  <span className="text-ink-mute">Settling</span>
-                  <span className="text-right font-mono text-ink">{runner.predictedSettlingBand ?? '-'}</span>
-                  {tripRunner && tripRunner.gap != null && (
-                    <>
-                      <span className="text-ink-mute">Behind leader</span>
-                      <span className="text-right font-mono text-ink">{tripRunner.gap.toFixed(1)}L</span>
-                      <span className="text-ink-mute">{tripKind === 'est' ? 'Off rail at 800m (est.)' : tripKind === '800m' ? 'Off rail at 800m' : 'Off rail (avg)'}</span>
-                      <span className="text-right font-mono text-ink">{tripRunner.lane.toFixed(1)}m</span>
-                    </>
-                  )}
-                </div>
-                <p className="text-xs text-ink-faint">
-                  {tripRunner
-                    ? tripRunner.last
-                      ? `${tripKind === 'est' ? 'Result history' : 'GPS history'}: ${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}`
-                      : 'No GPS history, forecast from barrier and track.'
-                    : 'No trip forecast for this course.'}
-                </p>
-                {atwOff != null && projWpr != null && (
-                  <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">
-                    {fmtWpr(projWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
-                  </p>
-                )}
-                {runner.projectionDescription && !(atwOff != null && projWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
-              </div>
+          <Card title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : undefined}>
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm sm:max-w-md">
+              <span className="text-ink-mute">Settling</span>
+              <span className="text-right font-mono text-ink">{runner.predictedSettlingBand ?? '-'}</span>
+              {tripRunner && tripRunner.gap != null && (
+                <>
+                  <span className="text-ink-mute">Behind leader</span>
+                  <span className="text-right font-mono text-ink">{tripRunner.gap.toFixed(1)}L</span>
+                  <span className="text-ink-mute">{tripKind === 'est' ? 'Off rail at 800m (est.)' : tripKind === '800m' ? 'Off rail at 800m' : 'Off rail (avg)'}</span>
+                  <span className="text-right font-mono text-ink">{tripRunner.lane.toFixed(1)}m</span>
+                </>
+              )}
             </div>
+            <p className="mt-1 text-xs text-ink-faint">
+              {tripRunner
+                ? tripRunner.last
+                  ? `${tripKind === 'est' ? 'Result history' : 'GPS history'}: ${tripRunner.nHist} run${tripRunner.nHist === 1 ? '' : 's'}, last ${tripRunner.last.track} ${tripRunner.last.date}`
+                  : 'No GPS history, forecast from barrier and track.'
+                : 'No trip forecast for this course.'}
+            </p>
           </Card>
 
           <Card title="Form and record" note="timeline, then today's conditions, then every run">
-            <RunTimeline runner={runner} proj={modelProj} raceDate={race.date} expectedWin={scratched ? null : expectedWinWpr} atwOffset={atwOff} />
+            <RunTimeline runner={runner} raceDate={race.date} />
             <TimelineLegend atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
             <ConditionsScorecard runner={runner} race={race} />
@@ -389,13 +348,8 @@ export function RunnerDetailModal({
               {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
-            <Card title="Result against projection" className="hidden sm:block">
+            <Card title="Result" className="hidden sm:block">
               <ResultCard runner={runner} />
-              {runner.missCategory === 'unexplained' && (
-                <div className="mt-2 border-t border-line-soft pt-2">
-                  <ResultVsProjection runner={runner} />
-                </div>
-              )}
             </Card>
           </div>
         </div>
