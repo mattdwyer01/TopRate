@@ -133,6 +133,40 @@ def deep_wa():
             print("  %s failed: %s" % (cmd, type(e).__name__))
 
 
+def atc_endpoints():
+    """Plain-HTTP test of the ATC endpoints the browser probe found (no browser needed if these answer)."""
+    base = "https://racing.australianturfclub.com.au"
+    code = "oY3R5qzn"
+    print("\n##### ATC endpoints over plain HTTP")
+    for path in (f"/meeting/sectionals/{code}?meetingId={code}", f"/meeting/acceptances/{code}?meetingId={code}",
+                 f"/meeting/scratchings/{code}?meetingId={code}"):
+        r = fetch(base + path)
+        body = r.text or ""
+        txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body))
+        print(f"  GET {path}: HTTP {r.status_code} {r.headers.get('content-type', '')} len={len(body)} tables={len(re.findall('<table', body, re.I))}")
+        print(f"     text: {txt[:500]}")
+        if "sectionals" in path:
+            (OUT / "atc_sectionals.html").write_text(body)
+            print("     raw start: " + re.sub(r"\s+", " ", body[:900]))
+    for n in (0, 1):
+        r = fetch(f"{base}/latest-racing/{n}")
+        body = r.text or ""
+        anchors = re.findall(r"<a[^>]+href=[\"']([^\"']+)[\"']", body, re.I)
+        meet = [a for a in anchors if "meeting" in a.lower() or "race" in a.lower()]
+        print(f"  /latest-racing/{n}: HTTP {r.status_code} len={len(body)} anchors={len(anchors)} meeting-ish={meet[:6]}")
+        print("     raw: " + re.sub(r"\s+", " ", body[600:1500]))
+    try:
+        from curl_cffi import requests as cr
+        r = cr.post(base + "/cache-calendar", impersonate="chrome", timeout=30, data="", headers={"Accept": "*/*", "X-Requested-With": "XMLHttpRequest"})
+    except Exception as e:
+        print(f"  POST /cache-calendar failed: {type(e).__name__}: {e}")
+        return
+    body = r.text or ""
+    print(f"  POST /cache-calendar (empty body): HTTP {r.status_code} {r.headers.get('content-type', '')} len={len(body)}")
+    print("     start: " + re.sub(r"\s+", " ", body[:900]))
+    (OUT / "atc_cache_calendar.txt").write_text(body)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=0, help="ignored (tab_probe.yml always passes it)")
@@ -149,7 +183,7 @@ def main():
             show_xlsx(r.content)
     except Exception as e:
         print(f"  failed: {type(e).__name__}: {e}")
-    for fn, arg in ((deep_nsw, URLS["nsw_page"]), (deep_wa, None)):
+    for fn, arg in ((atc_endpoints, None),):
         try:
             fn(arg) if arg else fn()
         except Exception as e:
