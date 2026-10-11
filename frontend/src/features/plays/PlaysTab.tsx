@@ -175,7 +175,7 @@ export function PlaysTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-md border border-amber-line bg-amber-bg px-3 py-2 text-xs text-amber">
-        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select (EV above 1.20) about +26%, Volume (EV above 1.05, $3 or more) about -5% on its own (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. Not a tip.
+        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select (EV above 1.20) about +26%, Volume (EV above 1.05, $3 or more) about -5% on its own (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. No bets in races with a first starter. Not a tip.
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

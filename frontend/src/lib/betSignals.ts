@@ -37,9 +37,10 @@ export const TIER_UNITS: Record<'S' | 'V', number> = { S: 2, V: 0.25 }
 export const UNIT_DOLLARS = 50
 
 export const TIER_LABEL: Record<'S' | 'V', string> = { S: 'Select', V: 'Volume' }
+// No bets in a race with a first starter (betsignal/score.py clears the tier there; Model $ and EV still show).
 export const TIER_HELP: Record<'S' | 'V', string> = {
-  S: 'Select: EV above 1.20, any price. Backtested at SP (2022 to 2026): about 285 bets a year, ROI about +26%, positive every year, but under $3 it loses (about -4%) and the profit is at $3 and over.',
-  V: 'Volume: EV above 1.05 at $3 or more, about 9 a Saturday. Backtested at SP these lose about 5% on their own (Select and Volume together about +1%): it is the action tier, so the stake is small.',
+  S: 'Select: EV above 1.20, any price, no first starters in the race. Backtested at SP (2022 to 2026): about 285 bets a year, ROI about +26%, positive every year, but under $3 it loses (about -4%) and the profit is at $3 and over.',
+  V: 'Volume: EV above 1.05 at $3 or more, no first starters in the race, about 9 a Saturday. Backtested at SP these lose about 5% on their own (Select and Volume together about +1%): it is the action tier, so the stake is small.',
 }
 
 export const modelPrice = (m: number | null | undefined): number | null => (m != null && m > 0 ? 1 / m : null)

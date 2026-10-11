@@ -42,6 +42,13 @@ def tier(ev, price=None, rank_m=None):
     return ''
 
 
+def no_first_starter_races(tiers, race_ids, nruns):
+    """No bets in a race that has a first starter (a runner with no prior run): its tier is cleared (user rule, 11 Oct 2026). EV and model price stay."""
+    d = pd.DataFrame({'t': list(tiers), 'r': list(race_ids), 'first': (pd.Series(list(nruns)).fillna(0).values == 0)})
+    d['has'] = d.groupby('r')['first'].transform('any')
+    return ['' if h else t for t, h in zip(d.t, d.has)]
+
+
 def _results_signature():
     """Sizes of the results files: changes exactly when the backfill rewrites them (file times are reset by every checkout, so not used)."""
     import glob
@@ -105,6 +112,7 @@ def score(U, meta, boosters, state):
     X['pmod'] = X.e / X.groupby('race_id').e.transform('sum')
     X['ev'] = X.pmod * X.sp
     X['tier'] = [tier(e, p, r) for e, p, r in zip(X.ev, X.sp, X.rank_m)]
+    X['tier'] = no_first_starter_races(X.tier, X.race_id, X.nruns)
     return X
 
 

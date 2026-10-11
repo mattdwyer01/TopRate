@@ -2479,6 +2479,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Volume $3 floor restored (11 Oct 2026, user choice after a $2-floor check)**: `tier()` is Select = EV > 1.20 at any price, Volume = EV > 1.05 at $3+. Backtest at SP (2022-2026): a $2 floor on Volume barely helped (all EV>1.05: -6.0%, 31.7 a Saturday; Volume-only bands from under $1.50 to $6 all -5% to -10%), the $3 floor takes all EV>1.05 from -6.9% to +1.7% (ex10 -2.2%). Final: Select 285 a year +26.5%, Volume only 1,158 a year (8.9 a Saturday) -5.0%, all bets 10.8 a Saturday +1.2%. Frontend text updated; backfill re-run for the new tiers.
 
+- **No bets in races with a first starter (11 Oct 2026, user rule)**: `betsignal/score.py` `no_first_starter_races()` (used by `score()` and `backfill.py`) clears the tier for all runners in a race where any runner has nruns == 0; EV and Model $ still show. Backtest at SP (2022-2026, 21.6% of races have a first starter): the removed 1,612 bets returned +14.6%, so the rule lowers returns: Select 192 a year +22.3% (was +26.5%), Volume only 928 a year -7.8% (was -5.0%), all bets 8.8 a Saturday -2.6% (was 10.8 a Saturday +1.2%). Done as asked; dropping the rule is the profitable direction in this data.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

@@ -44,6 +44,7 @@ def part_sp(start, end, meta):
     te['pmod'] = e / pd.Series(e, index=te.index).groupby(te.race_id).transform('sum').values
     te['ev'] = te.pmod * te.sp
     te['tier'] = [S.tier(a, b, c) for a, b, c in zip(te.ev, te.sp, te.rank_m)]
+    te['tier'] = S.no_first_starter_races(te.tier, te.race_id, te.nruns)
     return te[['race_id', 'horse_id', 'date', 'sp', 'pmod', 'ev', 'tier', 'rank_m']]
 
 

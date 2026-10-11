@@ -44,3 +44,5 @@ mean WPR projection) and the WPR projection itself; the pure probability rating 
   judges each bet at the price when the last pass was made at least 5 minutes before the jump: that is the real test. It needs months.
 - More features, more seeds and bigger trees did not help (tested): the edge is limited by the information in these inputs.
 - Research notes that preceded this: within-2 WPR win betting was -15.9% ROI at every cut; no filter (price, favourite, speed map, overlay) fixed it.
+
+**No bets in races with a first starter (11 Oct 2026, user rule):** `score.py: no_first_starter_races()` clears the tier for every runner in a race where any runner has no prior run (EV and model price remain). Backtest at SP: first-starter races are 21.6% of races and held 1,612 of the 7,215 bets (ROI +14.6% for those). With the rule: Select 192 a year (1.3 a Saturday) +22.3%, Volume only 928 a year (7.5 a Saturday) -7.8%, all bets 8.8 a Saturday -2.6% (ex10 -6.0%); without: +26.5% / -5.0% / +1.2%.
