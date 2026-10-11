@@ -137,7 +137,7 @@ export function RaceDetail({
     [race.runners, effectiveByRunId, effectiveScratched],
   )
   const expectedWinWpr = useMemo(() => {
-    const typical = expectedWinningWpr(ranked.map((r) => r.proj))
+    const typical = expectedWinningWpr(ranked.map((r) => r.proj - (r.eff?.atwOff ?? 0)))
     return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
   }, [ranked])
   const bandOf = useMemo(() => {

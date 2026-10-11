@@ -33,8 +33,8 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
   const rtsTitle = spell.label === 'FS' ? 'First starter - no prior race starts' : spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined
   const scratched = effective?.scratched ?? false
   const proj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  // proj is the model's plain rating (ranking scale); the runner page shows the same horse at today's weight (ATW) itself.
-  const off = 0
+  // proj is already at the weight carried today (ATW, see computeEffectiveRace), the scale of the form table and the runner page.
+  const off = effective?.atwOff ?? 0
   return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, atwOff: off, overridden: effective?.hasOverride ?? false }
 }
 

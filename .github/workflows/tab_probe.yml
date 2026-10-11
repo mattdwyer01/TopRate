@@ -1,0 +1,55 @@
+name: TAB race field probe (self-hosted, manual)
+
+# One-off, read-only. Runs tab_probe_race_fields.py on the AU self-hosted runner (TAB geo-blocks other hosts) to
+# show what TAB returns for a FINISHED race: margins, race time, sectionals? See CLAUDE.md, "own WPR ratings".
+# Makes a few dozen TAB requests, writes nothing to the repo (tab_raw/ is gitignored), never commits or pushes.
+# The printed field list is in the job log; the raw JSON and the log are uploaded as the "tab-probe" artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'YYYY-MM-DD to probe (blank = yesterday, runner local time)'
+        required: false
+        type: string
+      n:
+        description: 'How many paying races to dump'
+        required: false
+        default: '3'
+        type: string
+
+# own group: must never queue behind or cancel the live results poller
+concurrency:
+  group: tab-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe TAB
+        env:
+          PROBE_DATE: ${{ inputs.date }}
+          PROBE_N: ${{ inputs.n }}
+        run: |
+          args=()
+          if [[ -n "$PROBE_DATE" ]]; then
+            [[ "$PROBE_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "bad date"; exit 1; }
+            args+=(--date "$PROBE_DATE")
+          fi
+          [[ "$PROBE_N" =~ ^[0-9]{1,2}$ ]] || { echo "bad n"; exit 1; }
+          args+=(--n "$PROBE_N")
+          python tab_probe_race_fields.py "${args[@]}" 2>&1 | tee tab_probe_output.txt
+
+      - name: Upload raw JSON and output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tab-probe
+          path: |
+            tab_raw/
+            tab_probe_output.txt
+          if-no-files-found: warn

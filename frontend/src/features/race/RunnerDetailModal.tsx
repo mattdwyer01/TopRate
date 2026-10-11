@@ -107,14 +107,14 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
-  // Ranking, fair prices and the gap lines use the model's plain rating (plainWpr: model + any manual adjustment). This panel shows the horse at
-  // today's weight (ATW, as the Recent runs table does): effectiveWpr = plainWpr + the horse's own offset (frozen in the projection log, or its latest
-  // for a race still to run). The waterfall and chart add the offset themselves, so they take the plain figure.
-  const plainWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  // The panel shows the projection at today's weight (ATW, as the Recent runs table does): the model's rating plus this horse's own offset. Ranking,
+  // the range bar and the gap to the top stay on the model's rating, which is what the gap lines and fair prices were validated on.
+  // effectiveWpr is at today's weight (ATW) already: model rating + manual adjustment + the horse's own offset (frozen in the projection log, or its latest
+  // for a race still to run). The waterfall and chart add the offset themselves, so they take the model-scale figure.
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
-  const effectiveWpr = plainWpr != null ? plainWpr + (atwOff ?? 0) : null
   const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr : null
-  const modelProj = plainWpr
+  const modelProj = effectiveWpr != null ? effectiveWpr - (atwOff ?? 0) : null
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
