@@ -42,6 +42,13 @@ def tier(ev, price=None, rank_m=None):
     return ''
 
 
+def win_probabilities(s, race_ids, index):
+    """Per-runner win probability from the model's log-odds s, BEFORE scaling to sum to 1 within the race. The model is a binary classifier on the
+    log-odds scale, so each runner's probability is sigmoid(s). (Until 11 Oct 2026 this was exp(s), which scales the ODDS to sum to 1 and quietly
+    pushed probability onto favourites even with no model correction: favourites' average win chance 31.5% -> 36.9% with the correction off.)"""
+    return pd.Series(1.0 / (1.0 + np.exp(-np.asarray(s, dtype=float))), index=index)
+
+
 def no_first_starter_races(tiers, race_ids, nruns):
     """No bets in a race that has a first starter (a runner with no prior run): its tier is cleared (user rule, 11 Oct 2026). EV and model price stay."""
     d = pd.DataFrame({'t': list(tiers), 'r': list(race_ids), 'first': (pd.Series(list(nruns)).fillna(0).values == 0)})
@@ -108,7 +115,7 @@ def score(U, meta, boosters, state):
     raw = np.mean([b.predict(X[meta['features']], raw_score=True) for b in boosters], axis=0)
     logit = np.log(X.pm / (1 - X.pm))
     s = raw + logit.values
-    X['e'] = np.exp(s - pd.Series(s, index=X.index).groupby(X.race_id).transform('max').values)
+    X['e'] = win_probabilities(s, X.race_id, X.index)
     X['pmod'] = X.e / X.groupby('race_id').e.transform('sum')
     X['ev'] = X.pmod * X.sp
     X['tier'] = [tier(e, p, r) for e, p, r in zip(X.ev, X.sp, X.rank_m)]

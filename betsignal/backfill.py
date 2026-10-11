@@ -40,7 +40,7 @@ def part_sp(start, end, meta):
         m = lgb.train(dict(PARAMS, seed=sd), lgb.Dataset(tr[F.FEATURES], tr.win, init_score=logit(tr.pm)), meta['rounds'])
         raw = raw + m.predict(te[F.FEATURES], raw_score=True) / len(SEEDS)
     s = raw + logit(te.pm).values
-    e = np.exp(s - pd.Series(s, index=te.index).groupby(te.race_id).transform('max').values)
+    e = S.win_probabilities(s, te.race_id, te.index).values
     te['pmod'] = e / pd.Series(e, index=te.index).groupby(te.race_id).transform('sum').values
     te['ev'] = te.pmod * te.sp
     te['tier'] = [S.tier(a, b, c) for a, b, c in zip(te.ev, te.sp, te.rank_m)]

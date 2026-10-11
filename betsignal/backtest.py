@@ -20,7 +20,8 @@ for ty in range(2022, 2027):
                       valid_sets=[lgb.Dataset(va[F.FEATURES], va.win, init_score=logit(va.pm))], callbacks=[lgb.early_stopping(80, verbose=False)])
         raw = raw + m.predict(te[F.FEATURES], raw_score=True) / len(SEEDS)
     s = raw + logit(te.pm).values
-    e = np.exp(s - pd.Series(s, index=te.index).groupby(te.race_id).transform('max').values)
+    from betsignal.score import win_probabilities
+    e = win_probabilities(s, te.race_id, te.index).values
     te['pmod'] = e / pd.Series(e, index=te.index).groupby(te.race_id).transform('sum').values
     te['ev'] = te.pmod * te.sp
     te['tier'] = [tier(a, b, c) for a, b, c in zip(te.ev, te.sp, te.rank_m)]
@@ -28,7 +29,7 @@ for ty in range(2022, 2027):
     print('done', ty, flush=True)
 T = pd.concat(out)
 T['ret'] = np.where(T.win == 1, T.sp, 0.0)
-T.to_pickle(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backtest_preds.pkl'))
+T.to_pickle(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backtest_preds_norm.pkl' if os.environ.get('NORM_FIX') else 'backtest_preds.pkl'))
 nsat = T[T.dow == 5].date.nunique()
 ll_m, ll_o = -np.log(T.pm[T.win == 1]).mean(), -np.log(T.pmod[T.win == 1]).mean()
 print(f'\nlog-loss market {ll_m:.4f} model {ll_o:.4f}')
