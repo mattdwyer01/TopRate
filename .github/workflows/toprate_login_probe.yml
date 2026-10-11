@@ -30,3 +30,16 @@ jobs:
           if not ok:
               print("body (first 150 chars, no credentials in it):", (r.text or "")[:150].replace("\n", " "))
           PY
+
+      - name: Which TopRate endpoints does Cloudflare block? (no credentials sent)
+        run: |
+          python - <<'PY'
+          import requests, toprate_daily as td
+          def show(name, r):
+              cf = "<!DOCTYPE html" in (r.text or "")[:30] and r.headers.get("server") == "cloudflare"
+              print(f"{name}: HTTP {r.status_code} | cloudflare block page: {cf} | body: {(r.text or '')[:90]!r}")
+          H = {"apikey": td.ANON_KEY, "Content-Type": "application/json"}
+          show("refresh grant, dummy token", requests.post(f"{td.API_BASE}/auth/v1/token?grant_type=refresh_token", headers=H, json={"refresh_token": "dummy"}, timeout=30))
+          show("rpc call, no login          ", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H, json={"rc_id": "1"}, timeout=30))
+          show("auth settings, no login     ", requests.get(f"{td.API_BASE}/auth/v1/settings", headers={"apikey": td.ANON_KEY}, timeout=30))
+          PY
