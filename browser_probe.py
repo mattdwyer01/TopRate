@@ -32,8 +32,14 @@ def new_page(browser):
                               timezone_id="Australia/Perth")
     page = ctx.new_page()
     seen = []
-    page.on("response", lambda r: seen.append((r.request.method, r.status, r.request.resource_type, r.url,
-                                               (r.request.post_data or "")[:300])))
+    def on_response(r):
+        try:
+            req = r.request
+            body = req.post_data_buffer or b""      # raw bytes: post_data raises on gzip bodies
+            seen.append((req.method, r.status, req.resource_type, r.url, body[:300].decode("utf-8", "replace")))
+        except Exception as e:                      # never let a listener error break the page loop
+            seen.append(("?", 0, "?", f"listener error {type(e).__name__}", ""))
+    page.on("response", on_response)
     return page, seen
 
 
