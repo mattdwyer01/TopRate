@@ -24,10 +24,19 @@ HIST_COLS = ['race_id', 'horse_id', 'date', 'track', 'distance', 'going', 'wpr',
              'sire_id', 'comments_steward', 'sect_i_time', 'sect_i_early', 'sect_i_l200', 'sect_i_l400', 'raceShapeEarly', 'raceShapeLate']
 
 
+# Jumps races (hurdles and steeples) are rated on a different scale from the flat and are not projected (11 Oct 2026): their runs are left out of
+# every history, and the projection step skips upcoming jumps races. race_class is 'Hurdle' or 'Steeple' in the results and runners files.
+JUMPS_CLASSES = ('hurdle', 'steeple')
+
+
+def is_jumps(race_class):
+    return race_class.astype('string').str.strip().str.lower().isin(JUMPS_CLASSES).fillna(False)
+
+
 def load_history():
     """Rated, non-trial runs from the results files (the same filter the research scripts used)."""
     x = pd.concat([pd.read_csv(f, usecols=lambda c: c in set(HIST_COLS), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))], ignore_index=True)
-    x = x[(~x.isBarrierTrial.astype(bool)) & (~x.is_jumpout.fillna(False).astype(bool)) & x.wpr.notna()].drop_duplicates(['race_id', 'horse_id']).copy()
+    x = x[(~x.isBarrierTrial.astype(bool)) & (~x.is_jumpout.fillna(False).astype(bool)) & x.wpr.notna() & ~is_jumps(x.race_class)].drop_duplicates(['race_id', 'horse_id']).copy()
     x['date'] = pd.to_datetime(x['date'])
     x = x.drop(columns=['isBarrierTrial', 'is_jumpout'])
     x['is_target'] = 0
@@ -246,8 +255,8 @@ def build_trials(x):
 def _comments(keys=None):
     parts = []
     for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz'))):
-        c = pd.read_csv(f, usecols=['race_id', 'horse_id', 'date', 'wpr', 'isBarrierTrial', 'is_jumpout', 'comments_steward', 'comments_video'], low_memory=False)
-        c = c[(~c.isBarrierTrial.astype(bool)) & (~c.is_jumpout.fillna(False).astype(bool)) & c.wpr.notna()]
+        c = pd.read_csv(f, usecols=['race_id', 'horse_id', 'date', 'wpr', 'isBarrierTrial', 'is_jumpout', 'comments_steward', 'comments_video', 'race_class'], low_memory=False)
+        c = c[(~c.isBarrierTrial.astype(bool)) & (~c.is_jumpout.fillna(False).astype(bool)) & c.wpr.notna() & ~is_jumps(c.race_class)]
         c['txt'] = (c.comments_video.astype('string').fillna('') + ' . ' + c.comments_steward.astype('string').fillna('')).str.lower().astype(str)
         c['date'] = pd.to_datetime(c['date'])
         parts.append(c[['race_id', 'horse_id', 'date', 'txt']])
@@ -462,13 +471,13 @@ COMMENT_PATTERNS = {
     'fell_away': r'weakened|tired|faded|failed to sustain|fell away|ran out of',
     'lug': r'lugg?ed|shifted (in|out)|hung in|hung out|laid in|laid out|tongue'}
 SUIT_COLS = ['date', 'track', 'race_id', 'horse_id', 'jockey', 'trainer', 'barrier', 'field_size', 'position800m', 'positionFinish', 'comments_steward', 'comments_video',
-             'sect_i_l400', 'sect_i_l200', 'sect_i_early', 'sect_i_l600', 'isBarrierTrial', 'is_jumpout']
+             'sect_i_l400', 'sect_i_l200', 'sect_i_early', 'sect_i_l600', 'isBarrierTrial', 'is_jumpout', 'race_class']
 
 
 def load_results_all():
     """All non-trial runs (rated or not) with in-run positions, sectionals and comments, for the suitability features."""
     x = pd.concat([pd.read_csv(f, usecols=lambda c: c in set(SUIT_COLS), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))]).drop_duplicates(['race_id', 'horse_id'])
-    x = x[(x.isBarrierTrial != True) & (x.is_jumpout != True)].drop(columns=['isBarrierTrial', 'is_jumpout']).copy()
+    x = x[(x.isBarrierTrial != True) & (x.is_jumpout != True) & ~is_jumps(x.race_class)].drop(columns=['isBarrierTrial', 'is_jumpout', 'race_class']).copy()
     x['date'] = pd.to_datetime(x.date)
     return x[x.field_size >= 4]
 

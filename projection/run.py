@@ -132,6 +132,7 @@ def load_upcoming(today, hist, backfill_days=0):
             'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp']
     u = pd.read_csv(os.path.join(ROOT, 'toprate_runners.csv'), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
+    u = u[~F.is_jumps(u.race_class)]   # jumps races are not projected
     lo = pd.Timestamp(today) - pd.Timedelta(days=backfill_days)
     u = u[u.date >= lo].copy()
     run = u.groupby('race_id').apply(lambda z: ((z.interim_resulted.fillna(0) == 1) | (z.resulted.fillna(0) == 1)).any()).rename('ran')
