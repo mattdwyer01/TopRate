@@ -2655,15 +2655,6 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                        .set_index("_r")[["start_time", "start_time_src"]])
     # Carried values of a transferred meeting's rows (meeting_transfer.py), restored onto the re-fetched rows
     _removed_tr = meeting_transfer.removed_values(pending_today)
-    if target_date_str is not None and len(pending_today) > 0:
-        # Remove pending rows only, keep resulted
-        n_remove = len(pending_today)
-        runners_df = runners_df[
-            ~((runners_df["date"].astype(str).str[:10] == today_str) & (runners_df["resulted"] != 1))
-        ].copy()
-        n_kept = len(runners_df[runners_df["date"].astype(str).str[:10] == today_str])
-        print(f"Re-fetching {today_str} — removed {n_remove} pending rows, kept {n_kept} resulted")
-
     print(f"Fetching races for {today_str}...")
     calendar = api_calendar_upcoming(jwt)
 
@@ -2702,6 +2693,20 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                 })
 
     print(f"  Found {len(races_today)} TAB races")
+    # Remove the pending rows of a re-fetched day ONLY for races the calendar still returns (they are about to be replaced), keeping resulted
+    # rows. This used to run BEFORE the calendar call and for the whole day: on 11 Oct 2026 a manual daily run at 4pm Melbourne time found
+    # that get_calendar_upcoming no longer listed any of that day's races, so all 575 pending rows of the day (47 races) were deleted and
+    # nothing replaced them (the dashboard lost today's card). A race the calendar does not return keeps its existing rows.
+    if target_date_str is not None and len(pending_today) > 0:
+        _returned = {str(r["raceId"]) for r in races_today}
+        _is_day = runners_df["date"].astype(str).str[:10] == today_str
+        _drop = _is_day & (runners_df["resulted"] != 1) & runners_df["race_id"].astype(str).isin(_returned)
+        n_remove = int(_drop.sum())
+        runners_df = runners_df[~_drop].copy()
+        n_kept = int((runners_df["date"].astype(str).str[:10] == today_str).sum())
+        print(f"Re-fetching {today_str} — removed {n_remove} pending rows for {len(_returned)} returned races, kept {n_kept} other rows of the day")
+        if n_remove == 0 and len(pending_today) > 0:
+            print("  WARNING: the calendar returned none of this day's existing races; nothing removed")
     # Debug: show start time format on first race so we can verify field name
     if races_today:
         sample = races_today[0]
