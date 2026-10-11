@@ -3614,6 +3614,18 @@ def rebuild_html(runners_df, model_pick_rows=None):
     except Exception as _e:
         print(f"  runners_df windowing skipped ({_e})")
     _step(f"Windowed runners_df for HTML build: {_orig_runner_count:,} -> {len(runners_df):,} runners")
+    # The feed sometimes carries no silks for a whole meeting (11 Oct 2026: Halidon, Cairns). A horse's colours rarely change, so a
+    # runner with no silk gets the latest one the same horse had in this window. Payload only: the runners file keeps what the feed gave.
+    try:
+        _sk = runners_df[runners_df["silk_url"].notna() & (runners_df["silk_url"].astype(str) != "")]
+        _last_silk = _sk.sort_values("date").groupby("horse_id")["silk_url"].last()
+        _miss = runners_df["silk_url"].isna() | (runners_df["silk_url"].astype(str) == "")
+        if _miss.any():
+            runners_df = runners_df.copy()
+            runners_df.loc[_miss, "silk_url"] = runners_df.loc[_miss, "horse_id"].map(_last_silk)
+            print(f"  Silks filled from earlier runs for {int((_miss & runners_df['silk_url'].notna()).sum())} of {int(_miss.sum())} runners without one")
+    except Exception as _e:
+        print(f"  silk fallback skipped ({_e})")
     # New-model projections (projection/): re-applied on every rebuild so a fresh wpr_projection_log.csv.gz reaches the payload within
     # one price-refresh cycle. Works on this windowed copy only; the persisted CSV is written by the daily/poller paths.
     runners_df = apply_new_projection(runners_df.copy())
