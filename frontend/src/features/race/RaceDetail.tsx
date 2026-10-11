@@ -17,6 +17,7 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
+import { blendSignals } from '../../lib/blendSignals'
 import { fmtStake, RATING_BET_SHARE, signalsForRace, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
 import { rankField } from './raceFacts'
 
@@ -127,11 +128,13 @@ export function RaceDetail({
   }, [race.runners, scratched])
 
   // Bet signals for this race: the live pass before the jump, the frozen pre-jump pass once it has run. They also set the rating (below).
-  const signalByRunId = useMemo(() => signalsForRace(race, signals), [race, signals])
+  const rawSignalByRunId = useMemo(() => signalsForRace(race, signals), [race, signals])
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched, signalByRunId),
-    [race.runners, deltas, bases, priceBeta, effectiveScratched, signalByRunId],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId),
+    [race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId],
   )
+  // Win chance, Model $, Edge and tier all come from the same blended rating as the Rating column (lib/blendSignals.ts).
+  const signalByRunId = useMemo(() => blendSignals(race, rawSignalByRunId, effectiveByRunId), [race, rawSignalByRunId, effectiveByRunId])
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.

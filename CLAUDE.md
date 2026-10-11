@@ -2469,6 +2469,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   (the results files lag) scored by the production model against the last recorded fixed price (flag `last`; races with a horse that has a run the history lacks are skipped). 7 Select and 83 Volume bets in the window (Select 1 win from 7, Volume 27 from 83): far too few to
   say anything. The Bets tab marks them "backfilled at SP / last price", counts them in separate scoreboard rows from live bets, and the race page line says when a rating is backfilled. They are context, not evidence: judged at SP or a last price, not a price taken before the jump.
 
+- **One consistent blend (11 Oct 2026, EXPERIMENTAL)**: win chance, Model $, Edge and the Select/Volume tiers now come from the same 40% bet-signal / 60% WPR-projection rating as the Rating column (`lib/blendSignals.ts`: softmax of `BLEND_BETA` 0.248 x rating over the runners still in the race, edge = chance x signal price; Bets tab uses `blendedBetSignals`, ignoring manual overrides). Tiers are `BLEND_SELECT_EV` 2.0 / `BLEND_VOLUME_EV` 1.6 at $3+, set high for a short list, NOT validated: on 1,693 Jul-Oct 2026 races blend win-chance log-loss 1.826 (pure 1.776, market 1.770), blend EV>1.2 won 5.0% vs 9.2% predicted, and every threshold tried lost 28-37% flat at SP. The pure-model tiers (+53% Select at SP) are still what `betsignal/score.py` logs and `forward_check.py` judges, so the live scoreboard no longer matches them. Races without a full signal set keep the pure signal.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

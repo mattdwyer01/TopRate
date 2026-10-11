@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { fmtPrice } from '../../lib/format'
 import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
+import { blendedBetSignals } from '../../lib/blendSignals'
 import { computeBets, tally, type Bet } from '../../lib/bets'
 import { fmtEdge, fmtStake, modelPrice, TIER_HELP, TIER_LABEL, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
 
@@ -159,12 +160,13 @@ export function PlaysTab({
     return races.filter((r) => !hiddenVenues.has(r.venue) && !(bush && bush.has(meetingKey(r))))
   }, [races, showBush, hiddenVenues])
 
-  const dayBets = useMemo(() => computeBets(visible.filter((r) => r.date === date), signals, scratched), [visible, date, signals, scratched])
+  const blended = useMemo(() => blendedBetSignals(visible, signals), [visible, signals])
+  const dayBets = useMemo(() => computeBets(visible.filter((r) => r.date === date), blended, scratched), [visible, date, blended, scratched])
   const periodBets = useMemo(() => {
     if (period === 'day') return dayBets
     const from = period === '7' ? shiftDate(date, -6) : '0000-00-00'
-    return computeBets(visible.filter((r) => r.date >= from && r.date <= date), signals, scratched)
-  }, [period, dayBets, visible, date, signals, scratched])
+    return computeBets(visible.filter((r) => r.date >= from && r.date <= date), blended, scratched)
+  }, [period, dayBets, visible, date, blended, scratched])
 
   const select = dayBets.filter((b) => b.tier === 'S')
   const volume = dayBets.filter((b) => b.tier === 'V')
@@ -175,8 +177,9 @@ export function PlaysTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-md border border-amber-line bg-amber-bg px-3 py-2 text-xs text-amber">
-        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select about +53%, Volume about -3% on its own
-        (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. Not a tip.
+        <span className="font-semibold">Experimental, not validated.</span> Win chance, Model $, Edge and these tiers all come from the same blended rating (40% bet-signal model, 60% WPR projection) so they agree with the Rating column.
+        The pure market-residual model backtested at +53% (Select) at closing SP, but the blend did not: on 1,693 July to October 2026 races every edge threshold tried on it lost about 28% to 37% at SP, and its high-edge runners won about half as often as predicted.
+        The thresholds are set high (edge above 100% / 60%) so only a few runners are flagged. The scoreboard below is the only real check. Not a tip.
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -279,7 +282,7 @@ export function PlaysTab({
           </table>
         </div>
         <p className="mt-2 text-[11px] text-ink-faint">
-          Backtest for comparison (SP, 2022 to 2026): Select flat ROI about +53% (about 120 bets a year, 0.7 a Saturday), Volume bets alone about -3% (-13% with a price 10% worse).
+          Pure-model backtest for comparison only (SP, 2022 to 2026): Select about +53%, Volume alone about -3%. The blended tiers shown here have no such backtest and lost money on the one window tested.
           Backfilled rows are out-of-sample but judged at SP / the last recorded price, so they are for context only: the live rows are the real test. A few weeks of live bets cannot separate those from luck: judge it over months.
         </p>
       </details>

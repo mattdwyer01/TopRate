@@ -86,10 +86,9 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             and returns a win chance. Model $ is 1 / that chance and Edge is the chance times the price, minus 1.
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li><span className="font-mono text-ink">Select</span>: edge above 20% (above 30% for the favourite), price $3 or more (non-favourites under $20). Backtested at closing SP over 2022 to 2026 (walk-forward, each year scored by a model trained on earlier years): about 120 bets a year (0.7 a Saturday), ROI about +53%, positive in every year and quarter, about +30% without the 10 biggest winners and still +38% with a price 10% worse. Staked at 2 units.</li>
-            <li><span className="font-mono text-ink">Volume</span>: edge above 5%, price $3 or more. About 10 bets on a Saturday. Backtested at SP: about +2% with the Select bets included, but -3% on its own and -13% with a price 10% worse. Staked at 0.25 units; it is there for action, not profit, and costs a little.</li>
-            <li>1 unit is $50. The thresholds were chosen after looking at the same years they were tested on, so the true figures will be lower.</li>
-            <li>The backtest used the closing SP. Whether the edge holds at a fixed price taken before the jump is not yet known: the scoreboard on the Bets tab judges each bet at the price when the last pass was made, and is the check. Judge it over months, not weeks.</li>
+            <li><span className="font-mono text-ink">Consistent blend</span>: the Rating is 40% bet-signal model and 60% WPR projection. Win chance (a softmax of that rating), Model $, Edge and the tiers all use the same blend, so they agree with the Rating column.</li>
+            <li><span className="font-mono text-ink">Select</span>: edge above 100%, price $3 or more. Staked at 2 units. <span className="font-mono text-ink">Volume</span>: edge above 60%, price $3 or more. Staked at 0.25 units. 1 unit is $50.</li>
+            <li>These blended thresholds are NOT validated. The pure model (no WPR blend) backtested at about +53% for its Select tier at closing SP, but on 1,693 July to October 2026 races every threshold on the blend lost about 28% to 37% at SP, and its high-edge runners won about half as often as predicted. They are set high only to keep the list short. The Bets tab scoreboard is the real check; judge it over months.</li>
             <li>The earlier WPR-based value signal (rated price against market) lost 30 to 39% at every threshold in testing and has been removed.</li>
           </ul>
         </Section>
