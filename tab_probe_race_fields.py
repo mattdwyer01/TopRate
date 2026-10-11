@@ -58,7 +58,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=str(date.today() - timedelta(days=1)))
     ap.add_argument("--n", type=int, default=3)
-    ap.add_argument("--any-status", action="store_true", help="take races of any status (e.g. upcoming ones, to test past-form links)")
+    ap.add_argument("--any-status", action="store_true", help="take races that have NOT finished (upcoming), to test past-form links before the race")
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     taken = 0
@@ -74,7 +74,9 @@ def main():
                 continue
             for rc in m.get("races", []):
                 statuses[rc.get("raceStatus")] = statuses.get(rc.get("raceStatus"), 0) + 1
-                if (rc.get("raceStatus") != "Paying" and not args.any_status) or not m.get("venueMnemonic"):
+                # default: finished races only; --any-status: races that have NOT finished (upcoming, to test pre-race form links)
+                want = (rc.get("raceStatus") not in poller.FINAL_STATUSES) if args.any_status else (rc.get("raceStatus") == "Paying")
+                if not want or not m.get("venueMnemonic"):
                     continue
                 name = f"{args.date}_{m.get('meetingName')}_R{rc.get('raceNumber')}".replace(" ", "-")
                 det = poller.get(poller.RACE_DETAIL.format(date=args.date, venue_mnemonic=m["venueMnemonic"],
