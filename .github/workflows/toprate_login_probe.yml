@@ -91,3 +91,37 @@ jobs:
                       print(f"{h}{path}: failed {type(e).__name__}")
           PY
 
+      - name: Which routes does the website's code use on the gateway? (route strings only)
+        run: |
+          python - <<'PY'
+          import re, requests
+          from urllib.parse import urljoin
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          base = "https://toprate.au/"
+          html = requests.get(base, headers=UA, timeout=30).text
+          todo = [urljoin(base, m) for m in re.findall(r'(?:href|import\()\s*=?\s*["\']([^"\']+\.js)["\']', html)]
+          seen, texts = set(), {}
+          while todo and len(seen) < 120:
+              u = todo.pop(0)
+              if u in seen or not u.startswith("https://toprate.au/"): continue
+              seen.add(u)
+              try:
+                  r = requests.get(u, headers=UA, timeout=30)
+              except Exception:
+                  continue
+              if r.status_code != 200: continue
+              texts[u] = r.text
+              for m in re.findall(r'["\'](\.{1,2}/[A-Za-z0-9_\-\./]+\.js)["\']', r.text):
+                  todo.append(urljoin(u, m))
+          print("script files read:", len(texts))
+          routes = set()
+          for u, t in texts.items():
+              for m in re.findall(r'["`\']((?:/|\$\{[^}]{1,40}\}/?)[A-Za-z0-9_\-/\$\{\}\.\?=&]{3,90})["`\']', t):
+                  if re.search(r"race|runner|meeting|horse|form|result|wpr|stat|login|auth|token|session|account|cache|detail|upcoming|jockey|trainer", m, re.I) and not m.startswith("/_app"):
+                      routes.add(m)
+          for r in sorted(routes)[:120]:
+              print("  ", r)
+          gw = [(u.rsplit("/", 1)[-1], t.count("TOPRATE_API_URL")) for u, t in texts.items() if "TOPRATE_API_URL" in t]
+          print("files mentioning PUBLIC_TOPRATE_API_URL:", gw)
+          PY
+
