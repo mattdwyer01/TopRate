@@ -43,3 +43,30 @@ jobs:
           show("rpc call, no login          ", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H, json={"rc_id": "1"}, timeout=30))
           show("auth settings, no login     ", requests.get(f"{td.API_BASE}/auth/v1/settings", headers={"apikey": td.ANON_KEY}, timeout=30))
           PY
+
+      - name: Which hosts does the toprate.au website call? (public page and scripts, hostnames only)
+        run: |
+          python - <<'PY'
+          import re, requests
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          def get(u):
+              try:
+                  return requests.get(u, headers=UA, timeout=30)
+              except Exception as e:
+                  print("GET", u, "failed:", type(e).__name__); return None
+          r = get("https://toprate.au/")
+          if r is None: raise SystemExit
+          print("site HTTP", r.status_code, "| server:", r.headers.get("server"), "| bytes:", len(r.text))
+          hosts = set(re.findall(r"https?://([A-Za-z0-9.-]+\.[a-z]{2,})", r.text))
+          srcs = set(re.findall(r'(?:src|href)=["\']([^"\']+\.js)["\']', r.text))
+          srcs |= set(re.findall(r'["\'](/_app/immutable/[^"\']+\.js)["\']', r.text))
+          print("script files:", len(srcs))
+          for s in sorted(srcs)[:60]:
+              u = s if s.startswith("http") else "https://toprate.au" + (s if s.startswith("/") else "/" + s)
+              x = get(u)
+              if x is not None and x.status_code == 200:
+                  hosts |= set(re.findall(r"https?://([A-Za-z0-9.-]+\.[a-z]{2,})", x.text))
+          keep = sorted(h for h in hosts if any(k in h for k in ("toprate", "supabase", "api.", "rpc", "cloudfront", "workers.dev")))
+          print("candidate hosts:", keep)
+          PY
+
