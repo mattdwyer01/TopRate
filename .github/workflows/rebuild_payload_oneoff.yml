@@ -1,0 +1,62 @@
+# One-off repair (11 Oct 2026): rebuild toprate_data.json / toprate_history.json / horse_history/ from the CSVs on main (no API fetch) and
+# push ONLY those generated files. The rebuild takes about 5 minutes and projection_daily.yml commits to main every few minutes, so a plain
+# push-and-redo loop (what tab_results.yml does) can livelock; here a rejected push keeps the rebuilt files, resets everything else to
+# the new origin/main and pushes again. Manual only.
+name: Rebuild dashboard payload (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Rebuild from the CSVs (no API fetch)
+        run: python toprate_daily.py --rebuild-only
+
+      - name: Push only the generated payload files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/keep
+          for f in toprate_data.json toprate_data.json.gz toprate_history.json toprate_history.json.gz; do
+            [ -f "$f" ] && cp "$f" /tmp/keep/
+          done
+          rm -rf /tmp/keep/horse_history && cp -r horse_history /tmp/keep/horse_history
+          for i in 1 2 3 4 5 6 7 8; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp /tmp/keep/toprate_data.json* /tmp/keep/toprate_history.json* . 2>/dev/null || true
+            rm -rf horse_history && cp -r /tmp/keep/horse_history horse_history
+            git add toprate_data.json toprate_data.json.gz toprate_history.json toprate_history.json.gz horse_history
+            if git diff --cached --quiet; then
+              echo "Nothing to commit (attempt $i)"
+              exit 0
+            fi
+            git commit -m "Rebuild dashboard payload $(date -u +%Y-%m-%dT%H:%MZ) (one-off, after restoring a dropped race day)"
+            if timeout 120 git push origin HEAD:main; then
+              echo "Pushed on attempt $i"
+              exit 0
+            fi
+            echo "push rejected (attempt $i), retrying on the new main"
+            sleep 3
+          done
+          echo "Push failed after retries"
+          exit 1
