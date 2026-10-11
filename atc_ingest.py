@@ -103,6 +103,8 @@ def parse_results(body, race_date, course, code):
                 continue
             pos = re.search(r"\d+", cell.get("placing", ""))
             tab = re.search(r"\d+", cell.get("tab", ""))
+            if not pos:      # scratched / non-runner rows carry no placing
+                continue
             m = margin_len(cell.get("margin"))
             # the margin column is taken as already cumulative to the winner (MAE vs the time-derived margin is printed at ingest)
             mw = 0.0 if (pos and int(pos.group(0)) == 1) else m
