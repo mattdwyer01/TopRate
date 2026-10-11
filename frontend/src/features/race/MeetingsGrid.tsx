@@ -39,6 +39,9 @@ function shiftDate(iso: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+// Quaddie view link hidden at the user's request (11 Oct 2026); the view and its URL (?quaddie=) still work. Set true to show it again.
+const SHOW_QUADDIE_LINK = false
+
 export function MeetingsGrid({
   races,
   onSelectRace,
@@ -216,7 +219,7 @@ export function MeetingsGrid({
                               </div>
                             )
                           })()}
-                          {hasQuaddie(meeting.races) && (
+                          {SHOW_QUADDIE_LINK && hasQuaddie(meeting.races) && (
                             <button
                               type="button"
                               onClick={() => onOpenQuaddie(meeting.venue)}

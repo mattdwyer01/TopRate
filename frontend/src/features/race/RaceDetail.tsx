@@ -74,6 +74,9 @@ function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number 
   )
 }
 
+// Compare runners hidden at the user's request (11 Oct 2026); the feature is intact. Set true to show the pill again.
+const SHOW_COMPARE = false
+
 export function RaceDetail({
   race,
   allRaces,
@@ -97,7 +100,7 @@ export function RaceDetail({
   // Compare mode is remembered for the browser session, so stepping through a meeting's races keeps it on.
   const [compareMode, setCompareModeState] = useState(() => {
     try {
-      return window.sessionStorage.getItem('toprate_compare_mode') === '1'
+      return SHOW_COMPARE && window.sessionStorage.getItem('toprate_compare_mode') === '1'
     } catch {
       return false
     }
@@ -261,7 +264,7 @@ export function RaceDetail({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ink">Runners</h3>
           <div className="flex flex-wrap items-center gap-2">
-            <Pill
+            {SHOW_COMPARE && <Pill
               active={compareMode}
               onClick={() => {
                 setCompareMode(!compareMode)
@@ -269,7 +272,7 @@ export function RaceDetail({
               }}
             >
               {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
-            </Pill>
+            </Pill>}
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
           </div>
         </div>
