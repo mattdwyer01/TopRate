@@ -70,3 +70,24 @@ jobs:
           print("candidate hosts:", keep)
           PY
 
+      - name: How does the website use gateway.toprate.au? (keys masked) and is it reachable?
+        run: |
+          python - <<'PY'
+          import re, requests
+          UA = {"User-Agent": "Mozilla/5.0 (compatible; TopRate-owner-check)"}
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", re.sub(r"(sb_publishable_|sb_secret_)[A-Za-z0-9_\-]+", r"\1<key>", t))
+          html = requests.get("https://toprate.au/", headers=UA, timeout=30).text
+          for h in ("gateway.toprate.au", "info.toprate.au", "api.toprate.au"):
+              for m in list(re.finditer(re.escape(h), html))[:3]:
+                  print(f"[{h}] ...{mask(html[max(0, m.start()-110): m.end()+110])!r}...")
+          links = set(re.findall(r'href="([^"]+\.(?:js|mjs))"', html)) | set(re.findall(r'import\("([^"]+\.js)"\)', html))
+          print("script links in page:", len(links), sorted(links)[:6])
+          for h in ("gateway.toprate.au", "info.toprate.au"):
+              for path in ("/", "/auth/v1/settings", "/health"):
+                  try:
+                      r = requests.get(f"https://{h}{path}", headers=UA, timeout=20)
+                      print(f"{h}{path}: HTTP {r.status_code} | server: {r.headers.get('server')} | content-type: {r.headers.get('content-type')} | body: {mask(r.text[:100])!r}")
+                  except Exception as e:
+                      print(f"{h}{path}: failed {type(e).__name__}")
+          PY
+
