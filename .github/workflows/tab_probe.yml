@@ -17,7 +17,7 @@ on:
         default: '3'
         type: string
       script:
-        description: 'tab_probe_race_fields.py (field list) or tab_probe_links.py (follow the _links, e.g. past form)'
+        description: 'tab_probe_race_fields.py (field list) or tab_probe_links.py (follow the _links), or tab_form_sample.py (past form for runners in every state)'
         required: false
         default: 'tab_probe_race_fields.py'
         type: string
@@ -56,7 +56,7 @@ jobs:
           args+=(--n "$PROBE_N")
           [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           case "$PROBE_SCRIPT" in
-            tab_probe_race_fields.py|tab_probe_links.py) ;;
+            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py) ;;
             *) echo "unknown script"; exit 1 ;;
           esac
           python "$PROBE_SCRIPT" "${args[@]}" 2>&1 | tee tab_probe_output.txt

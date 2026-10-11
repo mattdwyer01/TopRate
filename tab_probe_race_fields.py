@@ -94,7 +94,7 @@ def main():
                     frm = None
                     for attempt in range(3):
                         try:
-                            frm = poller.get(link, {"jurisdiction": jur}, timeout=20)
+                            frm = poller._cr.get(link, impersonate="chrome", timeout=20, headers={"Accept": "application/json"}).json()  # link already carries ?jurisdiction=; poller.get would append a 2nd one (HTTP 503)
                             break
                         except Exception as e:
                             print(f"form link attempt {attempt + 1} failed for {run.get('runnerName')} "
