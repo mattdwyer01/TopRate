@@ -21,6 +21,11 @@ on:
         required: false
         default: 'tab_probe_race_fields.py'
         type: string
+      setup_playwright:
+        description: 'true = (re)build the one-off Playwright virtualenv at $HOME/pw-venv on the runner before probing (headless Chromium, a few hundred MB)'
+        required: false
+        default: 'false'
+        type: string
       any_status:
         description: 'true = take races of any status (e.g. upcoming), to test past-form links'
         required: false
@@ -35,10 +40,29 @@ concurrency:
 jobs:
   probe:
     runs-on: [self-hosted]
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Playwright (one-off, only when asked)
+        if: ${{ inputs.setup_playwright == 'true' }}
+        run: |
+          set -e
+          # isolated virtualenv under the runner user's home: nothing is installed into system Python,
+          # and removing $HOME/pw-venv (and ~/.cache/ms-playwright) undoes it
+          if [ ! -x "$HOME/pw-venv/bin/python" ]; then python3 -m venv "$HOME/pw-venv"; fi
+          "$HOME/pw-venv/bin/pip" install --quiet playwright
+          "$HOME/pw-venv/bin/python" -m playwright install chromium
+          "$HOME/pw-venv/bin/python" - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              b = p.chromium.launch(headless=True)
+              pg = b.new_page()
+              pg.goto("about:blank")
+              print("playwright ok, chromium", b.version)
+              b.close()
+          PY
 
       - name: Probe TAB
         env:
@@ -56,10 +80,12 @@ jobs:
           args+=(--n "$PROBE_N")
           [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           case "$PROBE_SCRIPT" in
-            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py) ;;
+            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py) ;;
             *) echo "unknown script"; exit 1 ;;
           esac
-          python "$PROBE_SCRIPT" "${args[@]}" 2>&1 | tee tab_probe_output.txt
+          PY=python
+          if [[ "$PROBE_SCRIPT" == "browser_probe.py" ]]; then PY="$HOME/pw-venv/bin/python"; fi
+          "$PY" "$PROBE_SCRIPT" "${args[@]}" 2>&1 | tee tab_probe_output.txt
 
       - name: Upload raw JSON and output
         if: always()
