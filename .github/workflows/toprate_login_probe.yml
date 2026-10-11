@@ -160,3 +160,19 @@ jobs:
               print("curl_cffi not available:", type(e).__name__)
           PY
 
+      - name: Real login and one data call with the new headers (status and counts only)
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import toprate_daily as td
+          jwt = td.login()
+          print("login ok:", bool(jwt))
+          cal = td.api_calendar_upcoming(jwt)
+          n = len(cal) if hasattr(cal, "__len__") else "?"
+          print("calendar rows:", n, "| type:", type(cal).__name__)
+          sample = cal[0] if isinstance(cal, list) and cal else cal
+          print("first row keys:", sorted(sample.keys())[:12] if isinstance(sample, dict) else str(sample)[:80])
+          PY
+
