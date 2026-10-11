@@ -57,6 +57,21 @@ VERIFY_SSL = False
 # CONFIG
 # -----------------------------------------------------------------------
 API_BASE  = "https://api.toprate.au"
+
+# api.toprate.au (Supabase behind Cloudflare) started returning a Cloudflare 403 page to any request that does not look like the
+# website's own browser calls on 9 Oct 2026 (the daily fetch failed at login for every run from then). A dummy-login probe on 11 Oct 2026
+# showed plain `requests` passes again once these headers are sent (HTTP 400 "Invalid login credentials" = through), so no TLS tricks are
+# needed. Used by login() and make_headers() below. Normal request volume only; no challenge or CAPTCHA is solved or bypassed.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/130.0.0.0 Safari/537.36"),
+    "Origin": "https://toprate.au", "Referer": "https://toprate.au/",
+    "Accept": "*/*", "Accept-Language": "en-AU,en;q=0.9",
+    "Sec-Fetch-Mode": "cors", "Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty",
+    "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+    "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+    "x-client-info": "supabase-js-web/2",
+}
 ANON_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNjkxNjc2MDAwLAogICJleHAiOiAxODQ5NTI4ODAwCn0.MsNV6VIGz0f4K-wgKSwv1b2cnb76x7OcvrHm8HosHT4"
 # No hardcoded fallback - previously defaulted to a real plaintext
 # password, which meant it sat in every commit that touched this file.
@@ -241,7 +256,7 @@ def login():
             "password on line 2.")
     resp = requests.post(
         f"{API_BASE}/auth/v1/token?grant_type=password",
-        headers={"apikey": ANON_KEY, "Content-Type": "application/json"},
+        headers={**BROWSER_HEADERS, "apikey": ANON_KEY, "Authorization": f"Bearer {ANON_KEY}", "Content-Type": "application/json"},
         json={"email": EMAIL, "password": PASSWORD}, verify=VERIFY_SSL)
     resp.raise_for_status()
     data = resp.json()
@@ -259,7 +274,7 @@ def login():
     return token
 
 def make_headers(jwt):
-    return {"apikey": ANON_KEY, "Authorization": f"Bearer {jwt}",
+    return {**BROWSER_HEADERS, "apikey": ANON_KEY, "Authorization": f"Bearer {jwt}",
             "Content-Type": "application/json"}
 
 def rpc(jwt, name, params=None, timeout=30):

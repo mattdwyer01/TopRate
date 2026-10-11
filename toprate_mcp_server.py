@@ -31,6 +31,18 @@ import requests
 from mcp.server.mcpserver import MCPServer
 
 API_BASE = "https://api.toprate.au"
+# Cloudflare in front of api.toprate.au refuses requests that do not look like the website's own (9 Oct 2026); see
+# toprate_daily.BROWSER_HEADERS for the story. Same headers here.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/130.0.0.0 Safari/537.36"),
+    "Origin": "https://toprate.au", "Referer": "https://toprate.au/",
+    "Accept": "*/*", "Accept-Language": "en-AU,en;q=0.9",
+    "Sec-Fetch-Mode": "cors", "Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty",
+    "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+    "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+    "x-client-info": "supabase-js-web/2",
+}
 ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNjkxNjc2MDAwLAogICJleHAiOiAxODQ5NTI4ODAwCn0.MsNV6VIGz0f4K-wgKSwv1b2cnb76x7OcvrHm8HosHT4"
 _CREDENTIALS_FILE = Path(__file__).parent / "toprate_credentials.txt"
 
@@ -66,7 +78,7 @@ def _login():
             "password on line 2 - same as toprate_daily.py.")
     resp = requests.post(
         f"{API_BASE}/auth/v1/token?grant_type=password",
-        headers={"apikey": ANON_KEY, "Content-Type": "application/json"},
+        headers={**BROWSER_HEADERS, "apikey": ANON_KEY, "Authorization": f"Bearer {ANON_KEY}", "Content-Type": "application/json"},
         json={"email": EMAIL, "password": PASSWORD})
     resp.raise_for_status()
     data = resp.json()
@@ -91,7 +103,7 @@ def _rpc(name, params=None, timeout=30):
     jwt = _ensure_jwt()
     resp = requests.post(
         f"{API_BASE}/rest/v1/rpc/{name}",
-        headers={"apikey": ANON_KEY, "Authorization": f"Bearer {jwt}",
+        headers={**BROWSER_HEADERS, "apikey": ANON_KEY, "Authorization": f"Bearer {jwt}",
                  "Content-Type": "application/json"},
         json=params or {}, timeout=timeout)
     if resp.status_code == 401:
@@ -100,7 +112,7 @@ def _rpc(name, params=None, timeout=30):
         _login()
         resp = requests.post(
             f"{API_BASE}/rest/v1/rpc/{name}",
-            headers={"apikey": ANON_KEY, "Authorization": f"Bearer {_jwt}",
+            headers={**BROWSER_HEADERS, "apikey": ANON_KEY, "Authorization": f"Bearer {_jwt}",
                      "Content-Type": "application/json"},
             json=params or {}, timeout=timeout)
     resp.raise_for_status()

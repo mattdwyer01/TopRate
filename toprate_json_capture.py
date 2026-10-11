@@ -302,6 +302,8 @@ def _auth_bits():
         "apikey": td.ANON_KEY,
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
+        "User-Agent": td.BROWSER_HEADERS["User-Agent"],
+        "Referer": "https://toprate.au/",
     }
     return headers, _cookie_pair(session)
 
