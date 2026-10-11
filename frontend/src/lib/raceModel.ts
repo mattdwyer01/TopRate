@@ -86,7 +86,7 @@ export function computeEffectiveRace(
       // A scratched runner has no wpr for softmax purposes - excluded from
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
-      wpr: !isScratched && modelBase != null ? modelBase + delta : null, // plain rating: ranking, fair prices and the gap lines are validated on it (atwOff is only for per-horse displays)
+      wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
       hasOverride,
       scratched: isScratched,
     }

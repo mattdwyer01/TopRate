@@ -1,3 +1,4 @@
+import { projectedAtActualScale } from '../../lib/atw'
 import type { Race, Runner } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
 
@@ -94,7 +95,7 @@ export function SpeedMap({ race, runners }: SpeedMapProps) {
                 >
                   <span className="truncate whitespace-nowrap text-xs font-medium text-white">
                     {u.tabNumber}. {u.horse}
-                    {u.projectedWpr != null ? `  ${(u.projectedWpr as number).toFixed(1)}` : ''}
+                    {u.projectedWpr != null ? `  ${(projectedAtActualScale(u) as number).toFixed(1)}` : ''}
                   </span>
                 </div>
               </div>
