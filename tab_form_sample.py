@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--date", default=str(date.today()))
     ap.add_argument("--races", type=int, default=2, help="races per state")
     ap.add_argument("--runners", type=int, default=8, help="runners per race")
+    ap.add_argument("--n", type=int, default=0, help="ignored (tab_probe.yml always passes it)")
+    ap.add_argument("--any-status", action="store_true", help="ignored (tab_probe.yml may pass it)")
     args = ap.parse_args()
     if poller._cr is None:
         print("curl_cffi not installed; cannot run")
