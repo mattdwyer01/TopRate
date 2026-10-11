@@ -142,7 +142,7 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(projAtw ?? effectiveWpr)}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(plainWpr)}</span>
                 <span className="text-ink-faint">projected WPR</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
@@ -190,7 +190,7 @@ export function RunnerDetailModal({
           <HorseHero
             runner={runner}
             race={race}
-            proj={effectiveWpr}
+            proj={plainWpr}
             scratched={scratched}
             rank={rank}
             fieldSize={fieldSize}

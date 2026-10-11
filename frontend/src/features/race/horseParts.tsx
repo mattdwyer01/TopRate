@@ -86,7 +86,8 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
 
 export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw, compact }: HeroProps) {
   const sd = typicalSd(runner, proj)
-  // The whole hero is at today's weight (ATW): proj, the field top and low all come from the race's effective (ATW) ratings.
+  // The headline number is the same rating the race table ranks on (proj, field top and low all come from the race's effective ratings). projAtw is the
+  // same horse at today's weight on the Recent runs scale; it is shown beneath as a second figure, never in place of the headline.
   const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
   const recentAvg = projAtw != null && last3.length >= 2 ? last3.reduce((a, e) => a + (e.wpr as number), 0) / last3.length : null
   const priorRuns = runner.formHistory.length
@@ -114,12 +115,12 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {scratched ? (
             <div className="font-mono text-3xl font-bold leading-none text-rose">SCR</div>
           ) : (
-            <div className={`font-mono font-bold leading-none text-emerald-deep ${compact ? 'text-2xl' : 'text-3xl'}`}>{fmtWpr(projAtw ?? proj)}</div>
+            <div className={`font-mono font-bold leading-none text-emerald-deep ${compact ? 'text-2xl' : 'text-3xl'}`}>{fmtWpr(proj)}</div>
           )}
-          {!compact && !scratched && (projAtw ?? proj) != null && (
-            <p className="mt-0.5 text-[11px] text-ink-mute" title="Every rating on this page is at the weight carried today (ATW), the scale of the Recent runs table, the chart and the waterfall. Ranking, the gap to the top and the field range use the same rating shifted together, so they are unchanged.">
-              {projAtw != null ? <>at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}</> : null}
-              {recentAvg != null && <>{projAtw != null ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
+          {!compact && !scratched && proj != null && (
+            <p className="mt-0.5 text-[11px] text-ink-mute" title="The headline is the rating the race table ranks on. The Recent runs table, the chart and the waterfall restate every run at the weight carried today (ATW), so they sit on the second figure.">
+              {projAtw != null ? <>{fmtWpr(projAtw)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"} (Recent runs scale)</> : null}
+              {recentAvg != null && <>{projAtw != null ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj(projAtw! - recentAvg)})</>}
             </p>
           )}
           <p className="mt-1 text-xs text-ink-soft">
