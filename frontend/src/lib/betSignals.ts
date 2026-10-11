@@ -38,8 +38,8 @@ export const UNIT_DOLLARS = 50
 
 export const TIER_LABEL: Record<'S' | 'V', string> = { S: 'Select', V: 'Volume' }
 export const TIER_HELP: Record<'S' | 'V', string> = {
-  S: 'Select: edge above 100% on the blended rating (40% bet-signal model, 60% WPR projection) at $3 or more. NOT validated: every threshold tried on the blend lost money in testing (about -28% to -37% at SP). The pure model\'s Select tier (+53% at SP) is not this.',
-  V: 'Volume: edge above 60% on the blended rating at $3 or more. NOT validated: blend thresholds lost money in testing. Small stake.',
+  S: 'Select: edge above 100% on the blended rating (40% bet-signal model, 60% WPR projection) at any price. NOT validated: every threshold tried on the blend lost money in testing (about -28% to -37% at SP). The pure model\'s Select tier (+53% at SP) is not this.',
+  V: 'Volume: edge above 60% on the blended rating at any price. NOT validated: blend thresholds lost money in testing. Small stake.',
 }
 
 export const modelPrice = (m: number | null | undefined): number | null => (m != null && m > 0 ? 1 / m : null)

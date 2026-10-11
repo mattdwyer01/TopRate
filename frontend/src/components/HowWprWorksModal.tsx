@@ -87,7 +87,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li><span className="font-mono text-ink">Consistent blend</span>: the Rating is 40% bet-signal model and 60% WPR projection. Win chance (a softmax of that rating), Model $, Edge and the tiers all use the same blend, so they agree with the Rating column.</li>
-            <li><span className="font-mono text-ink">Select</span>: edge above 100%, price $3 or more. Staked at 2 units. <span className="font-mono text-ink">Volume</span>: edge above 60%, price $3 or more. Staked at 0.25 units. 1 unit is $50.</li>
+            <li><span className="font-mono text-ink">Select</span>: edge above 100%, any price. Staked at 2 units. <span className="font-mono text-ink">Volume</span>: edge above 60%, any price. Staked at 0.25 units. 1 unit is $50.</li>
             <li>These blended thresholds are NOT validated. The pure model (no WPR blend) backtested at about +53% for its Select tier at closing SP, but on 1,693 July to October 2026 races every threshold on the blend lost about 28% to 37% at SP, and its high-edge runners won about half as often as predicted. They are set high only to keep the list short. The Bets tab scoreboard is the real check; judge it over months.</li>
             <li>The earlier WPR-based value signal (rated price against market) lost 30 to 39% at every threshold in testing and has been removed.</li>
           </ul>

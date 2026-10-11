@@ -7,16 +7,14 @@ import { signalFor, signalsForRace, type BetSignals, type Signal, type Tier } fr
 // BLEND_BETA 0.248 is the value that calibrated the blended rating to winners on 1,693 July to October 2026 races.
 // NOT VALIDATED AS A BETTING RULE: on those races the blended win chance had a worse log-loss than the pure model (1.826 vs 1.776; market 1.770), it
 // over-predicts the high-edge runners (EV > 1.2 won 5.0% against 9.2% predicted), and every threshold tried lost money (about -28% to -37% flat at SP).
-// The thresholds below are therefore a volume choice, not a backtested edge: they are set high so only about the top 1% to 5% of $3+ runners (blend EV
-// above 2.17 / 1.60 are the 99th / 95th percentiles) are flagged. The pure-model tiers (backtest +53% Select at SP) are still logged by betsignal/score.py
+// No price floor (dropped 11 Oct 2026 at the user's request; the pure model's $3 floor came from favourites returning about 0%). The thresholds below are therefore a volume choice, not a backtested edge: they are set high so only about the top 1% to 5% of $3+ runners (blend EV
+// above 2.17 / 1.60 are the 99th / 95th percentiles of $3+ runners) are flagged. The pure-model tiers (backtest +53% Select at SP) are still logged by betsignal/score.py
 // and judged by betsignal/forward_check.py.
 export const BLEND_BETA = 0.248
 export const BLEND_SELECT_EV = 2.0
 export const BLEND_VOLUME_EV = 1.6
-export const BLEND_MIN_PRICE = 3.0
 
-function blendTier(ev: number, price: number): Tier {
-  if (price < BLEND_MIN_PRICE) return ''
+function blendTier(ev: number): Tier {
   if (ev > BLEND_SELECT_EV) return 'S'
   if (ev > BLEND_VOLUME_EV) return 'V'
   return ''
@@ -43,7 +41,7 @@ export function blendSignals(
     const s = raw[r.runId] as Signal
     const m = exps[i] / sum
     const e = m * s.p
-    out[r.runId] = { ...s, m: Math.round(m * 10000) / 10000, e: Math.round(e * 1000) / 1000, t: blendTier(e, s.p) }
+    out[r.runId] = { ...s, m: Math.round(m * 10000) / 10000, e: Math.round(e * 1000) / 1000, t: blendTier(e) }
   })
   return out
 }
