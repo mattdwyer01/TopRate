@@ -2449,6 +2449,10 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   (below -0.5: 7.1%, middle band 10.5%, +0.5 to +1.0: 13.9%, above +1.0: 20.3% n=158) BUT matches the market-implied chance in every band (7.4 / 10.5 / 14.0 / 16.9), winner log-loss of the bet model tilted by exp(b x SM) was worse at every b,
   and the rating miss moves 1.05 per SM point (corr 0.07; SM is already inside the WPR projection). So it is kept as a reading aid in the table (its tooltip and the help text say the market already prices it) and
   is not part of the bet-signal rating. The quaddie map pool and ladder rings still rest on the old +0.5 / +1.0 findings, which this test does not support (candidate for removal, not done).
+  BACKFILL (11 Oct 2026): `betsignal/backfill.py` wrote `bet_signals_history.json` (0.5 MB, repo root, read once per page load by `lib/betSignals.ts` under the live `bet_signals.json`; a live pass wins over a backfilled one).
+  25 days, 12,192 runners: 14 Sep to 8 Oct scored out of sample by a model trained only on days before 14 Sep (production features and parameters) against the CLOSING STARTING PRICE (flag `sp`; complete priced races only, 1,119 races), and 9 to 11 Oct
+  (the results files lag) scored by the production model against the last recorded fixed price (flag `last`; races with a horse that has a run the history lacks are skipped). 7 Select and 83 Volume bets in the window (Select 1 win from 7, Volume 27 from 83): far too few to
+  say anything. The Bets tab marks them "backfilled at SP / last price", counts them in separate scoreboard rows from live bets, and the race page line says when a rating is backfilled. They are context, not evidence: judged at SP or a last price, not a price taken before the jump.
 
 ## What to be careful about
 
