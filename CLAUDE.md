@@ -2445,10 +2445,10 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   anchors only: field mean 9.33 vs top horse 10.12). Pinning to one horse makes the race level hostage to that horse's noise; the field mean is best, and the form-only field mean is a 0.16 RMSE
   cheaper drop-in if the projection is ever retired. NEW runner-page card "Why this rating" (`RatingWaterfall` in `horseParts.tsx`, `EffectiveRunner.ratingParts`): field level, market price step
   (K x ln of the normalised price vs the field), model view step (the rest: form, ratings, weight, barrier, connections), manual adjustment, rating. The old waterfall stays below as "The WPR projection
-  (form view)". SM COLUMN REMOVED from the Race table, Compare and the sort (and its grid tracks): tested on 1,053 races (Jul to Oct 2026, SM demeaned as the frontend does), winner log-loss of the bet model
-  tilted by exp(b x SM) was worse at every b tried (-0.002 to -0.34 gain), win rate by SM band matched the market (SM below -0.5: 7.1% vs 7.4% implied; +0.5 to +1.0: 13.9% vs 14.0%; above +1.0: 20.3% vs
-  16.9%, n=158), and the rating miss moves 1.05 per SM point (corr 0.07, SM is already inside the WPR projection). SM still tints the speed map tiles and sets the quaddie map pool and ladder rings
-  (those rest on the old +0.5 / +1.0 findings, which this test does not support; candidates for removal, not done).
+  (form view)". SM COLUMN: removed then RESTORED the same day at the user's call ("does positive SM mean more winners? if so, leave it in summary"): tested on 1,053 races (Jul to Oct 2026, SM demeaned as the frontend does), win rate rises with SM
+  (below -0.5: 7.1%, middle band 10.5%, +0.5 to +1.0: 13.9%, above +1.0: 20.3% n=158) BUT matches the market-implied chance in every band (7.4 / 10.5 / 14.0 / 16.9), winner log-loss of the bet model tilted by exp(b x SM) was worse at every b,
+  and the rating miss moves 1.05 per SM point (corr 0.07; SM is already inside the WPR projection). So it is kept as a reading aid in the table (its tooltip and the help text say the market already prices it) and
+  is not part of the bet-signal rating. The quaddie map pool and ladder rings still rest on the old +0.5 / +1.0 findings, which this test does not support (candidate for removal, not done).
 
 ## What to be careful about
 

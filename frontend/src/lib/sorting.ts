@@ -9,6 +9,7 @@ export type SortKey =
   | 'daysSince'
   | 'baseWpr'
   | 'adjustment'
+  | 'speedMapAdj'
   | 'projectedWpr'
   | 'fixedPrice'
   | 'modelPrice'
@@ -27,6 +28,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   daysSince: 'asc',
   baseWpr: 'desc',
   adjustment: 'desc',
+  speedMapAdj: 'desc',
   projectedWpr: 'desc',
   fixedPrice: 'asc',
   modelPrice: 'asc',
@@ -56,6 +58,8 @@ function sortValue(
       return runner.baseWpr ?? -Infinity
     case 'adjustment':
       return runner.wprAdjustment ?? -Infinity
+    case 'speedMapAdj':
+      return effective?.speedMapAdj ?? -Infinity
     case 'projectedWpr':
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
     case 'fixedPrice':
