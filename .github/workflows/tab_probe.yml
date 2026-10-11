@@ -17,7 +17,7 @@ on:
         default: '3'
         type: string
       script:
-        description: 'tab_probe_race_fields.py (field list) or tab_probe_links.py (follow the _links), tab_form_sample.py (past form for runners in every state), or sectional_probe.py (NSW/WA sectional sources, fixed URLs)'
+        description: 'tab_probe_race_fields.py (field list) or tab_probe_links.py (follow the _links), tab_form_sample.py (past form for runners in every state), or sectional_probe.py (NSW/WA sectional sources, fixed URLs), or atc_ingest.py (n = pages of recent ATC meetings to ingest)'
         required: false
         default: 'tab_probe_race_fields.py'
         type: string
@@ -86,7 +86,7 @@ jobs:
           args+=(--n "$PROBE_N")
           [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           case "$PROBE_SCRIPT" in
-            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py) ;;
+            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py|atc_ingest.py) ;;
             *) echo "unknown script"; exit 1 ;;
           esac
           PY=python
