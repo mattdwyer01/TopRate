@@ -3,7 +3,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { fmtEdge, modelPrice, TIER_HELP, TIER_LABEL, type Signal } from '../../lib/betSignals'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
-import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
+import { BAND_BORDER, FinishBadge, PriceCell, ratingSuffix, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
   runner: Runner
@@ -20,11 +20,11 @@ interface RunnerRowProps {
 }
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
-// `hidden`) so Horse, Proj, SM, Model $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_56px_84px_30px]'
+// `hidden`) so Horse, Rating, Model $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_64px_56px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_44px_60px]'} ${DESKTOP_GRID}`
+  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_44px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_44px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, signal, band, showFp, showBias = true, onClick }: RunnerRowProps) {
@@ -63,7 +63,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
           {showBias && hasRunnerBias(runner) && !f.scratched && (
             <span
               className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
-              title="Moved by the track bias read from earlier races at this meeting (already inside Proj and SM)"
+              title="Moved by the track bias read from earlier races at this meeting (already inside the WPR projection)"
             >
               <span className="lg:hidden">{runnerBias(runner) >= 0 ? '\u25B2' : '\u25BC'}{Math.abs(runnerBias(runner)).toFixed(1)}</span>
               <span className="hidden lg:inline">bias {fmtBias(runnerBias(runner))}</span>
@@ -93,12 +93,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
-      </span>
-      <span
-        className={`text-right font-mono ${smClass(effective?.speedMapAdj)}${effective?.speedMapLight ? ' opacity-70' : ''}`}
-        title={effective?.speedMapLight ? 'Light-history runner: estimated without its own run history, lower confidence' : undefined}
-      >
-        {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
       </span>
       <span
         className="text-right font-mono text-ink-mute"

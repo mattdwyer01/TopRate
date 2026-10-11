@@ -361,6 +361,39 @@ export function ProjectionWaterfall({ runner, proj, deltaValue, atwOffset, weigh
   )
 }
 
+// From the field's level to the bet-signal rating: the market's own view (what the price says about this horse against the field), the model's correction to
+// it (form, ratings, weight, connections), and any manual adjustment. Same axis style as the projection waterfall; the axis is cut and the cut is stated.
+export function RatingWaterfall({ parts, rating }: { parts: { level: number; market: number; model: number; manual: number }; rating: number }) {
+  const rows: WfRow[] = []
+  let run = parts.level
+  rows.push({ key: 'level', label: 'Field level', kind: 'total', from: 0, to: run, title: "The average WPR-projection rating of this field, at today's weight: where the race sits on the rating scale. The bars below spread the runners around it." })
+  rows.push({ key: 'market', label: 'Market price', kind: 'step', from: run, to: run + parts.market, title: 'What the current price alone says about this horse against the rest of the field (3.66 rating points per unit of log win chance)' })
+  run += parts.market
+  rows.push({ key: 'model', label: 'Model view', kind: 'step', from: run, to: run + parts.model, title: "The bet-signal model's correction to the market: recent ratings and form, weight, barrier, jockey and trainer records measured against the market" })
+  run += parts.model
+  if (Math.abs(parts.manual) >= 0.05) {
+    rows.push({ key: 'you', label: 'Your adjustment', kind: 'step', from: run, to: run + parts.manual })
+    run += parts.manual
+  }
+  rows.push({ key: 'rating', label: 'Rating', kind: 'total', from: 0, to: rating, strong: true })
+  const levels = rows.filter((r) => r.kind === 'step').flatMap((r) => [r.from, r.to]).concat(rows.filter((r) => r.kind === 'total').map((r) => r.to))
+  const min = Math.min(...levels)
+  const max = Math.max(...levels)
+  const span = Math.max(3, max - min)
+  const lo = Math.floor(min - span * 0.6)
+  const hi = Math.ceil(max + span * 0.12)
+  return (
+    <div className="flex flex-col text-sm">
+      {rows.map((r, i) => (
+        <WaterfallRow key={r.key} row={r} lo={lo} hi={hi} last={i === rows.length - 1} />
+      ))}
+      <p className="mt-1.5 text-xs text-ink-faint">
+        The market step is the price against the field; the model step is how far form and ratings move it. Scale starts at {lo}. Experimental.
+      </p>
+    </div>
+  )
+}
+
 /* ----------------------------------------------------------- timeline */
 
 // Every recent run as a dot: height is WPR, spacing is real time (so spells show as gaps), dot size and colour show how it finished.

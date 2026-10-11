@@ -47,7 +47,6 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Proj)' },
   { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.' },
   { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.', lgOnly: true },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },

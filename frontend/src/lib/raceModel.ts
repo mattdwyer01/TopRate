@@ -9,6 +9,10 @@ export interface EffectiveRunner {
   // winning rating and the track-bias note explain this figure, not the bet-signal rating.
   projectionWpr: number | null
   ratingSource: 'bet' | 'projection'
+  // How a bet-signal rating is made up, in rating points: level (the field's mean WPR-projection rating) + market (what the price alone says relative to
+  // the field) + model (the model's correction to the market: form, ratings, connections) + manual (the user's own adjustment) = effectiveProjectedWpr.
+  // null when the rating is the projection, or a price is missing.
+  ratingParts: { level: number; market: number; model: number; manual: number } | null
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
@@ -78,7 +82,7 @@ export function computeEffectiveRace(
   priceBeta: number | null,
   scratched: Set<string> = new Set(),
   // Bet signals for this race (runId -> model win probability m). When every runner still in the race has one, the rating comes from them.
-  signals?: Record<string, { m: number } | null>,
+  signals?: Record<string, { m: number; p: number } | null>,
 ): Record<string, EffectiveRunner> {
   let beta = priceBeta ?? DEFAULT_BETA
 
@@ -105,6 +109,7 @@ export function computeEffectiveRace(
   const projectionByRunId = new Map<string, number | null>()
   for (const r of withEffectiveWpr) projectionByRunId.set(r.runId, r.wpr)
   let betSource = false
+  const partsByRunId = new Map<string, { level: number; market: number; model: number; manual: number }>()
   if (signals) {
     const active = withEffectiveWpr.filter((r) => !r.scratched)
     const sig = (id: string) => {
@@ -117,9 +122,19 @@ export function computeEffectiveRace(
       const delta = (id: string) => deltas[id] ?? 0
       const level = anchor.reduce((a, r) => a + (r.wpr as number) - delta(r.runId), 0) / anchor.length
       const meanLn = anchor.reduce((a, r) => a + (sig(r.runId) as number), 0) / anchor.length
+      // Split ln p into the market's own view (its normalised price) and the model's correction to it, each centred on the same runners as the level.
+      const priced = active.every((r) => (signals[r.runId]?.p ?? 0) > 1)
+      const sumInv = priced ? active.reduce((a, r) => a + 1 / (signals[r.runId]?.p as number), 0) : 0
+      const lnPm = (id: string) => Math.log(1 / (signals[id]?.p as number) / sumInv)
+      const meanPm = priced ? anchor.reduce((a, r) => a + lnPm(r.runId), 0) / anchor.length : 0
       for (const r of withEffectiveWpr) {
         if (r.scratched) continue
-        r.wpr = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn) + delta(r.runId)
+        const centred = (sig(r.runId) as number) - meanLn
+        r.wpr = level + RATING_PER_LN * centred + delta(r.runId)
+        if (priced) {
+          const mk = RATING_PER_LN * (lnPm(r.runId) - meanPm)
+          partsByRunId.set(r.runId, { level, market: mk, model: RATING_PER_LN * centred - mk, manual: delta(r.runId) })
+        }
       }
       betSource = true
       beta = 1 / RATING_PER_LN   // so the price softmax below reproduces the model's own win probabilities
@@ -161,6 +176,7 @@ export function computeEffectiveRace(
       effectiveProjectedWpr: r.wpr,
       projectionWpr: projectionByRunId.get(r.runId) ?? null,
       ratingSource: betSource ? 'bet' : 'projection',
+      ratingParts: betSource ? (partsByRunId.get(r.runId) ?? null) : null,
       atwOff: r.atwOff,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,

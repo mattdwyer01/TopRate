@@ -2440,6 +2440,15 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   waterfall / "Why this projection" / timeline / RatingSanity / result card, the track-bias note, the typical winning rating line, the Review tab (accuracy, calibration, rating miss: past races have no
   frozen bet signal), the Quaddie scorecard on Review. The runner hero shows Rating with "WPR projection X" beneath. The WPR projection pipeline (`projection/`, `projection_daily.yml`) still runs: it supplies
   the level, the fallback, the waterfall and Review. To go back: pass no `signals` to `computeEffectiveRace` (or return null from `useBetSignals`).
+  Follow-up (same day): ANCHOR tested, field average kept. On 1,680 Jul to Oct 2026 races, absolute RMSE of the rating vs the actual result rating (race-level error sd): level from the field mean of
+  the WPR projection 8.75 (3.57), field mean of recent form (wavg3) 8.91 (3.89), top 3 by probability form 9.10 (4.36), the top horse's recent form 9.83 (5.63) (and 84k races, 2022 to 2026, form
+  anchors only: field mean 9.33 vs top horse 10.12). Pinning to one horse makes the race level hostage to that horse's noise; the field mean is best, and the form-only field mean is a 0.16 RMSE
+  cheaper drop-in if the projection is ever retired. NEW runner-page card "Why this rating" (`RatingWaterfall` in `horseParts.tsx`, `EffectiveRunner.ratingParts`): field level, market price step
+  (K x ln of the normalised price vs the field), model view step (the rest: form, ratings, weight, barrier, connections), manual adjustment, rating. The old waterfall stays below as "The WPR projection
+  (form view)". SM COLUMN REMOVED from the Race table, Compare and the sort (and its grid tracks): tested on 1,053 races (Jul to Oct 2026, SM demeaned as the frontend does), winner log-loss of the bet model
+  tilted by exp(b x SM) was worse at every b tried (-0.002 to -0.34 gain), win rate by SM band matched the market (SM below -0.5: 7.1% vs 7.4% implied; +0.5 to +1.0: 13.9% vs 14.0%; above +1.0: 20.3% vs
+  16.9%, n=158), and the rating miss moves 1.05 per SM point (corr 0.07, SM is already inside the WPR projection). SM still tints the speed map tiles and sets the quaddie map pool and ladder rings
+  (those rest on the old +0.5 / +1.0 findings, which this test does not support; candidates for removal, not done).
 
 ## What to be careful about
 

@@ -12,7 +12,7 @@ import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
 import { typicalSd } from './raceFacts'
 import { modelPrice, type Signal } from '../../lib/betSignals'
-import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, RatingWaterfall, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -318,7 +318,13 @@ export function RunnerDetailModal({
 
           </div>
 
-          <Card title="Why this projection" note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
+          {ratingFromBets && !scratched && effective?.ratingParts && effectiveWpr != null && (
+            <Card title="Why this rating" note="bet-signal model, experimental">
+              <RatingWaterfall parts={effective.ratingParts} rating={effectiveWpr} />
+            </Card>
+          )}
+
+          <Card title={ratingFromBets ? 'The WPR projection (form view)' : 'Why this projection'} note={runner.projectionModel === 'light' ? 'light-history model' : 'main model'}>
             <div className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
               <ProjectionWaterfall runner={runner} proj={modelProj} deltaValue={deltaValue} atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
               <div className="flex flex-col gap-2 md:border-l md:border-line-soft md:pl-6">
