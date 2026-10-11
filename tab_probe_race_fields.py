@@ -19,6 +19,7 @@ import argparse
 import json
 import re
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -57,6 +58,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=str(date.today() - timedelta(days=1)))
     ap.add_argument("--n", type=int, default=3)
+    ap.add_argument("--any-status", action="store_true", help="take races of any status (e.g. upcoming ones, to test past-form links)")
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     taken = 0
@@ -72,7 +74,7 @@ def main():
                 continue
             for rc in m.get("races", []):
                 statuses[rc.get("raceStatus")] = statuses.get(rc.get("raceStatus"), 0) + 1
-                if rc.get("raceStatus") != "Paying" or not m.get("venueMnemonic"):
+                if (rc.get("raceStatus") != "Paying" and not args.any_status) or not m.get("venueMnemonic"):
                     continue
                 name = f"{args.date}_{m.get('meetingName')}_R{rc.get('raceNumber')}".replace(" ", "-")
                 det = poller.get(poller.RACE_DETAIL.format(date=args.date, venue_mnemonic=m["venueMnemonic"],
@@ -87,10 +89,16 @@ def main():
                     link = ((run.get("_links") or {}).get("form"))
                     if not link:
                         continue
-                    try:
-                        frm = poller.get(link, {"jurisdiction": jur}, timeout=20)
-                    except Exception as e:
-                        print(f"form link failed for {run.get('runnerName')}: {type(e).__name__}: {e}")
+                    frm = None
+                    for attempt in range(3):
+                        try:
+                            frm = poller.get(link, {"jurisdiction": jur}, timeout=20)
+                            break
+                        except Exception as e:
+                            print(f"form link attempt {attempt + 1} failed for {run.get('runnerName')} "
+                                  f"(race status {rc.get('raceStatus')}): {type(e).__name__}: {e}")
+                            time.sleep(3)
+                    if frm is None:
                         continue
                     (OUT / f"{name}_form_{run.get('runnerNumber')}.json").write_text(json.dumps(frm, indent=1, default=str))
                     show(f"{name} FORM for runner {run.get('runnerNumber')} {run.get('runnerName')} ({link})", frm)
