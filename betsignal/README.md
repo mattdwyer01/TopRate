@@ -22,6 +22,7 @@ It is a separate model from the WPR projection (`projection/`), which is unchang
 - `score.py`  scores unstarted races, writes `bet_signals.json` (latest pass `now` and frozen pass `fz` per run, 10 days) and the append-only
   `bet_signal_log.csv.gz`. A race is scored only when every runner has a horse id, jockey, trainer, barrier, weight and a fixed price, and no runner
   has a recent run the results files do not hold yet (those lag a few days).
+- `backfill.py`  writes `bet_signals_history.json` (compact, read once by the dashboard under the live file): past days scored out of sample, flagged `sp` (a model trained only on days before the window, against the closing starting price) or `last` (the production model against the last recorded fixed price, for the days after the results files end). Neither is a price taken before the jump, so the Bets scoreboard keeps them apart from live bets. Re-run it by hand (about 8 minutes) to extend the window.
 - `backtest.py`  walk-forward backtest with the production code. `forward_check.py`  the live check from the log.
 - Workflows: `.github/workflows/bet_signal.yml` (score; trigger from cron-job.org every 5 minutes in racing hours, like `price_refresh.yml`),
   `bet_signal_train.yml` (weekly retrain + manual).

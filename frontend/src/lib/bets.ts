@@ -14,6 +14,8 @@ export interface Bet {
   sig: Signal
   // Price the bet is judged at: the fixed price when the pass was made (not SP).
   price: number
+  // Set when the signal was backfilled rather than a live pass: 'sp' (closing starting price) or 'last' (last recorded fixed price).
+  backfilled: 'sp' | 'last' | null
   outcome: Outcome
   // Units won (negative = lost). 0 while pending.
   profit: number
@@ -57,6 +59,7 @@ export function computeBets(races: Race[], signals: BetSignals | null, scratched
         units,
         sig,
         price: sig.p,
+        backfilled: sig.bf ?? null,
         outcome,
         profit: outcome === 'pending' ? 0 : outcome === 'won' ? units * (sig.p - 1) : -units,
         fieldSize: starters,

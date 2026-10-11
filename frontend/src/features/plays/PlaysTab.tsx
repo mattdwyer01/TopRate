@@ -77,6 +77,11 @@ function BetCard({ bet, onOpen }: { bet: Bet; onOpen: () => void }) {
             edge {fmtEdge(sig.e)}
           </span>
           <span className="text-ink-faint">{sig.k === 1 ? 'favourite' : `${ordinal(sig.k)} in market`}</span>
+          {bet.backfilled && (
+            <span className="rounded-full border border-line px-1.5 text-[10px] text-ink-faint" title="Scored after the event by the model as it stood before that day, not a live pass: judged at the closing starting price (or the last recorded fixed price), not a price taken before the jump.">
+              backfilled at {bet.backfilled === 'sp' ? 'SP' : 'last price'}
+            </span>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end text-right">
@@ -217,7 +222,7 @@ export function PlaysTab({
       )}
 
       <details className="rounded-lg border border-line bg-panel p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">Scoreboard: how each tier has done (at the price when the pass was made)</summary>
+        <summary className="cursor-pointer text-sm font-semibold text-ink">Scoreboard: how each tier has done (live: at the price when the pass was made; backfilled: at SP or the last price)</summary>
         <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
           <div className="flex gap-1.5">
             <Pill active={period === 'day'} onClick={() => setPeriod('day')}>
@@ -247,11 +252,18 @@ export function PlaysTab({
               </tr>
             </thead>
             <tbody>
-              {([['S', periodBets.filter((b) => b.tier === 'S')], ['V', periodBets.filter((b) => b.tier === 'V')], ['all', periodBets]] as const).map(([k, list]) => {
+              {([
+                ['S', 'Select, live', periodBets.filter((b) => b.tier === 'S' && !b.backfilled)],
+                ['V', 'Volume, live', periodBets.filter((b) => b.tier === 'V' && !b.backfilled)],
+                ['all', 'Both, live, as staked', periodBets.filter((b) => !b.backfilled)],
+                ['S', 'Select, backfilled', periodBets.filter((b) => b.tier === 'S' && b.backfilled)],
+                ['V', 'Volume, backfilled', periodBets.filter((b) => b.tier === 'V' && b.backfilled)],
+                ['all', 'Both, backfilled, as staked', periodBets.filter((b) => b.backfilled)],
+              ] as const).map(([, label, list]) => {
                 const t = tally(list)
                 return (
-                  <tr key={k} className="border-t border-line-soft">
-                    <td className="py-1 pr-2 text-ink">{k === 'all' ? 'Both, as staked' : TIER_LABEL[k]}</td>
+                  <tr key={label} className={`border-t border-line-soft ${label.includes('backfilled') ? 'text-ink-mute' : ''}`}>
+                    <td className="py-1 pr-2 text-ink">{label}</td>
                     <td className="px-1 text-right font-mono">{t.run}</td>
                     <td className="px-1 text-right font-mono">{t.wins}</td>
                     <td className="px-1 text-right font-mono">{pct(t.wins, t.run)}</td>
@@ -268,7 +280,7 @@ export function PlaysTab({
         </div>
         <p className="mt-2 text-[11px] text-ink-faint">
           Backtest for comparison (SP, 2022 to 2026): Select flat ROI about +53% (about 120 bets a year, 0.7 a Saturday), Volume bets alone about -3% (-13% with a price 10% worse).
-          A few weeks of live bets cannot separate those from luck: judge it over months.
+          Backfilled rows are out-of-sample but judged at SP / the last recorded price, so they are for context only: the live rows are the real test. A few weeks of live bets cannot separate those from luck: judge it over months.
         </p>
       </details>
     </div>

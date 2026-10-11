@@ -14,6 +14,9 @@ export interface Signal {
   t: Tier
   at: string // when this pass was made
   k: number // market rank by price (1 = favourite)
+  // Set on backfilled signals (bet_signals_history.json): 'sp' = scored out of sample against the closing starting price, 'last' = against the last recorded
+  // fixed price. Neither is a price taken before the jump, so they are listed and scored separately from live passes.
+  bf?: 'sp' | 'last'
 }
 
 export interface RunSignal {
@@ -61,6 +64,7 @@ export function signalFor(sig: RunSignal | undefined, jumped: boolean): Signal |
 }
 
 const FILE = 'bet_signals.json'
+const HISTORY_FILE = 'bet_signals_history.json'
 const POLL_MS = 60_000
 
 interface RawFile {
@@ -70,26 +74,58 @@ interface RawFile {
   runs?: Record<string, RunSignal>
 }
 
-export async function fetchBetSignals(): Promise<BetSignals | null> {
-  try {
-    const res = await fetch(FILE, { cache: 'no-cache' })
-    if (!res.ok) return null
-    const raw = (await res.json()) as RawFile
-    if (!raw || typeof raw !== 'object' || !raw.runs) return null
-    return { made: raw.made ?? '', trainedThrough: raw.trained_through ?? '', freezeMins: raw.rules?.freeze_mins ?? 5, runs: raw.runs }
-  } catch {
-    return null // optional layer: the dashboard works without it
-  }
+// Backfilled days (betsignal/backfill.py): runs[run_id] = [price, probability, edge, tier, market rank], days[date] = 'sp' | 'last'.
+interface RawHistory {
+  days?: Record<string, 'sp' | 'last'>
+  runs?: Record<string, [number, number, number, Tier, number, 'sp' | 'last']>
 }
 
-/** Latest bet signals, refreshed every minute. null until loaded, or when the file does not exist. */
+let historyPromise: Promise<Record<string, RunSignal>> | null = null
+
+// Read once per page load: it only changes when the backfill is re-run.
+function fetchHistory(): Promise<Record<string, RunSignal>> {
+  if (!historyPromise) {
+    historyPromise = (async () => {
+      try {
+        const res = await fetch(HISTORY_FILE, { cache: 'no-cache' })
+        if (!res.ok) return {}
+        const raw = (await res.json()) as RawHistory
+        const out: Record<string, RunSignal> = {}
+        for (const [id, v] of Object.entries(raw.runs ?? {})) {
+          out[id] = { d: '', fz: { p: v[0], m: v[1], e: v[2], t: v[3], at: '', k: v[4], bf: v[5] ?? 'sp' } }
+        }
+        return out
+      } catch {
+        return {}
+      }
+    })()
+  }
+  return historyPromise
+}
+
+export async function fetchBetSignals(): Promise<BetSignals | null> {
+  const history = await fetchHistory()
+  let live: RawFile | null = null
+  try {
+    const res = await fetch(FILE, { cache: 'no-cache' })
+    if (res.ok) live = (await res.json()) as RawFile
+  } catch {
+    live = null
+  }
+  const liveRuns = live && typeof live === 'object' && live.runs ? live.runs : {}
+  const runs: Record<string, RunSignal> = { ...history, ...liveRuns }   // a live pass always wins over a backfilled one
+  if (Object.keys(runs).length === 0) return null
+  return { made: live?.made ?? '', trainedThrough: live?.trained_through ?? '', freezeMins: live?.rules?.freeze_mins ?? 5, runs }
+}
+
+/** Latest bet signals (live passes over backfilled history), refreshed every minute. null until loaded, or when neither file exists. */
 export function useBetSignals(): BetSignals | null {
   const [signals, setSignals] = useState<BetSignals | null>(null)
   useEffect(() => {
     let cancelled = false
     const load = () => {
       fetchBetSignals().then((s) => {
-        if (!cancelled && s) setSignals((prev) => (prev && prev.made === s.made ? prev : s))
+        if (!cancelled && s) setSignals((prev) => (prev && prev.made === s.made && Object.keys(prev.runs).length === Object.keys(s.runs).length ? prev : s))
       })
     }
     load()

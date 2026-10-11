@@ -153,6 +153,7 @@ export function RaceDetail({
     return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
   }, [rankedProjection])
   const ratingFromBets = useMemo(() => Object.values(effectiveByRunId).some((e) => e.ratingSource === 'bet'), [effectiveByRunId])
+  const backfilledAt = useMemo(() => Object.values(signalByRunId).find((x) => x?.bf)?.bf ?? null, [signalByRunId])
   const bandOf = useMemo(() => {
     const m = new Map<string, { band: 'core' | 'inner' | 'outer' | 'none' }>()
     for (const r of ranked) m.set(r.runner.runId, { band: r.core ? 'core' : r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
@@ -277,7 +278,7 @@ export function RaceDetail({
 
         <p className="text-[11px] text-ink-faint" data-testid="rating-source">
           {ratingFromBets
-            ? 'Rating: bet-signal model on the ATW scale (win chances from the market price and form, so it moves with the price). Under it the WPR projection still explains each horse.'
+            ? `Rating: bet-signal model on the ATW scale (win chances from the market price and form, so it moves with the price)${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}. Under it the WPR projection still explains each horse.`
             : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
         </p>
         {(tierCounts.s > 0 || tierCounts.v > 0) && (
