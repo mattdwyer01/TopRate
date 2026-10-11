@@ -167,6 +167,39 @@ def atc_endpoints():
     (OUT / "atc_cache_calendar.txt").write_text(body)
 
 
+def atc_structure():
+    """Raw markup of the ATC pieces a parser and a meeting index need."""
+    base = "https://racing.australianturfclub.com.au"
+    code = "oY3R5qzn"
+    def squash(t, n):
+        return re.sub(r"\s+", " ", t)[:n]
+    r = fetch(f"{base}/meeting/sectionals/{code}?meetingId={code}")
+    body = r.text or ""
+    print("\n##### ATC sectionals markup (first race block)")
+    i = body.find("<table")
+    print(squash(body[i:i + 9000], 3600))
+    print("  ... table count per race panel:", [len(re.findall("<table", seg)) for seg in re.split(r'racing-meet-race-panel', body)[1:9]])
+    r = fetch(f"{base}/meeting/{code}")
+    body = r.text or ""
+    print("\n##### ATC meeting page results markup (race 1 block)")
+    j = body.find("Margin")
+    print(squash(body[max(0, j - 1500): j + 3500], 3300))
+    for path in ("/race-calendar/", "/race-index", "/latest-racing/0"):
+        r = fetch(base + path)
+        body = r.text or ""
+        print(f"\n##### ATC {path}: HTTP {r.status_code} len={len(body)}")
+        hits = re.findall(r"[\"'(=\s]((?:https?://racing\.australianturfclub\.com\.au)?/meeting/[A-Za-z0-9]{6,10})", body)
+        print(f"  /meeting/<code> occurrences: {len(hits)} distinct {len(set(hits))}  sample {list(dict.fromkeys(hits))[:5]}")
+        attrs = sorted(set(re.findall(r"(data-[a-z\-]+|onclick|href)=[\"'][^\"']*(?:meeting|month|year|date|calendar)[^\"']{0,80}[\"']", body, re.I)))[:12]
+        print(f"  attribute kinds mentioning meeting/month/year/date: {attrs}")
+        mq = sorted(set(re.findall(r"[?&](?:month|year|date|from|to|page|season)=[^\"'&\s]{1,12}", body, re.I)))[:12]
+        print(f"  query parameters seen: {mq}")
+        if path != "/race-index":
+            print("  raw: " + squash(body[300:2300], 1700))
+    r = fetch(f"{base}/race-calendar/?month=9&year=2025")
+    print(f"\n  /race-calendar/?month=9&year=2025: HTTP {r.status_code} len={len(r.text or '')} meeting links={len(set(re.findall(r'/meeting/[A-Za-z0-9]{6,10}', r.text or '')))}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=0, help="ignored (tab_probe.yml always passes it)")
@@ -183,7 +216,7 @@ def main():
             show_xlsx(r.content)
     except Exception as e:
         print(f"  failed: {type(e).__name__}: {e}")
-    for fn, arg in ((atc_endpoints, None),):
+    for fn, arg in ((atc_structure, None),):
         try:
             fn(arg) if arg else fn()
         except Exception as e:
