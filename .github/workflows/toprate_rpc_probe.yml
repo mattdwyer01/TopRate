@@ -60,3 +60,54 @@ jobs:
               show("results, daily headers", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_results", headers=H, json={"rc_id": rc}, timeout=30))
               show("wpr chart", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_wpr_chart", headers=H, json={"rc_id": rc}, timeout=30))
           PY
+
+  probe_self_hosted:
+    runs-on: [self-hosted]
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q requests pandas numpy || true
+      - name: Probe
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import time, requests, toprate_daily as td
+          def show(name, r):
+              t = (r.text or "")
+              cf = t[:15].lower().startswith("<!doctype") or "cloudflare" in t[:400].lower()
+              print(f"{name}: HTTP {r.status_code} | cloudflare page: {cf} | cf-mitigated: {r.headers.get('cf-mitigated')} | server: {r.headers.get('server')} | len {len(t)}")
+              if r.status_code >= 400 and not cf:
+                  print("   body:", t[:120].replace("\n", " "))
+          jwt = td.login()
+          cal = requests.post(f"{td.API_BASE}/rest/v1/rpc/get_calendar_upcoming", headers=td.make_headers(jwt), json={}, timeout=30)
+          show("calendar", cal)
+          rc = None
+          try:
+              data = cal.json()
+              def walk(o):
+                  global rc
+                  if rc is not None: return
+                  if isinstance(o, dict):
+                      for k, v in o.items():
+                          if k in ("rc_id", "race_id", "raceId") and isinstance(v, (int, str)): rc = v; return
+                          walk(v)
+                  elif isinstance(o, list):
+                      for v in o: walk(v)
+              walk(data)
+          except Exception as e:
+              print("calendar json failed:", type(e).__name__)
+          rc = rc if rc is not None else 1762183
+          print("race id from calendar or fallback used")
+          if rc is not None:
+              H = td.make_headers(jwt)
+              show("detail, daily headers", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H, json={"rc_id": rc}, timeout=30))
+              H2 = dict(H, **{"Accept-Profile": "public", "Content-Profile": "public"})
+              show("detail, + profile headers", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H2, json={"rc_id": rc}, timeout=30))
+              s = requests.Session(); s.headers.update(H)
+              show("detail, session reuse", s.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", json={"rc_id": rc}, timeout=30))
+              time.sleep(3)
+              show("results, daily headers", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_results", headers=H, json={"rc_id": rc}, timeout=30))
+              show("wpr chart", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_wpr_chart", headers=H, json={"rc_id": rc}, timeout=30))
+          PY
