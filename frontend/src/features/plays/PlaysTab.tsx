@@ -175,8 +175,7 @@ export function PlaysTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-md border border-amber-line bg-amber-bg px-3 py-2 text-xs text-amber">
-        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select about +53%, Volume about -3% on its own
-        (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. These are the pure model's tiers, not the blended Rating. Not a tip.
+        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select (EV above 1.20) about +26%, Volume (EV above 1.05) about -7% on its own (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. Not a tip.
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -279,7 +278,7 @@ export function PlaysTab({
           </table>
         </div>
         <p className="mt-2 text-[11px] text-ink-faint">
-          Backtest for comparison (SP, 2022 to 2026): Select flat ROI about +53% (about 120 bets a year, 0.7 a Saturday), Volume bets alone about -3% (-13% with a price 10% worse).
+          Backtest for comparison (SP, 2022 to 2026): Select flat ROI about +26% (about 285 bets a year, 1.9 a Saturday; losing under $3), Volume bets incl. Select about -7% (about 45 a Saturday).
           Backfilled rows are out-of-sample but judged at SP / the last recorded price, so they are for context only: the live rows are the real test. A few weeks of live bets cannot separate those from luck: judge it over months.
         </p>
       </details>

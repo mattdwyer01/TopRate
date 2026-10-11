@@ -38,8 +38,8 @@ export const UNIT_DOLLARS = 50
 
 export const TIER_LABEL: Record<'S' | 'V', string> = { S: 'Select', V: 'Volume' }
 export const TIER_HELP: Record<'S' | 'V', string> = {
-  S: 'Select: EV above 1.20 (above 1.30 for the favourite) at $3 or more. Backtested at SP: about 120 bets a year, ROI about +53%, positive in every year. Not yet shown at a price taken before the jump.',
-  V: 'Volume: EV above 1.05 at $3 or more, about 10 bets a Saturday. Backtested at SP these lose about 3% on their own (13% with a price 10% worse): it is the action tier, so the stake is small.',
+  S: 'Select: EV above 1.20, any price. Backtested at SP (2022 to 2026): about 285 bets a year, ROI about +26%, positive every year, but under $3 it loses (about -4%) and the profit is at $3 and over.',
+  V: 'Volume: EV above 1.05, any price. Backtested at SP these lose about 8% on their own and there are about 45 a Saturday: it is the action tier, so the stake is small.',
 }
 
 export const modelPrice = (m: number | null | undefined): number | null => (m != null && m > 0 ? 1 / m : null)

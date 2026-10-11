@@ -11,7 +11,7 @@ It is a separate model from the WPR projection (`projection/`), which is unchang
    weight, barrier, distance and weight change, going, class, track, age, sex, jockey and trainer win rate and excess over the market
    (measured on results up to the previous day). Heavily regularised, 3 seeds averaged, early stopped on the latest year.
 3. Renormalise within the race: `pmod`. Edge `ev = pmod x price`.
-4. Tiers (`score.py: tier()`): **Select** = non-favourite with ev > 1.20 at $3 to $20, or favourite with ev > 1.30 at $3+. **Volume** = ev > 1.05 at $3+.
+4. Tiers (`score.py: tier()`, simplified 11 Oct 2026): **Select** = ev > 1.20, **Volume** = ev > 1.05, any runner, any price. (Earlier rules: Select = non-favourite ev > 1.20 at $3 to $20 or favourite ev > 1.30 at $3+, Volume = ev > 1.05 at $3+: Select +53% at SP, 120 bets a year. Simplified rules re-scored from `backtest_preds.pkl` at SP: Select 285 a year +26.5% (under $3 -4%, $3 to $10 +37%, $10 to $20 +77%), Volume incl. Select 7,294 a year, 45 a Saturday, -6.9%.)
    Stakes (frontend `lib/betSignals.ts`): Select 2u, Volume 0.25u, 1u = $50.
 
 ## Files

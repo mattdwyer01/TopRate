@@ -29,19 +29,16 @@ KEEP_DAYS = 10
 FREEZE_MINS = 5          # the frozen (scoreboard) pass is the last one made at least this long before the jump
 LOG_WINDOW_MINS = 90     # passes are logged only within this long of the jump
 
-# Tier rules (backtest 2022-2026 at SP, see README). Select is contained in Volume; a runner gets its highest tier.
-SELECT_NONFAV_EV, SELECT_FAV_EV, SELECT_MIN_PRICE, SELECT_NONFAV_MAX_PRICE = 1.20, 1.30, 3.0, 20.0
-VOLUME_EV, VOLUME_MIN_PRICE = 1.05, 3.0
+# Tier rules (simplified 11 Oct 2026: any runner, any price, no favourite rule). Select is contained in Volume; a runner gets its highest tier.
+# The earlier rules (non-favourite EV > 1.20 at $3 to $20, favourite EV > 1.30 at $3+, Volume EV > 1.05 at $3+) backtested +53% for Select at SP; see README.
+SELECT_EV, VOLUME_EV = 1.20, 1.05
 
 
-def tier(ev, price, rank_m):
-    if price >= SELECT_MIN_PRICE:
-        if rank_m >= 2 and ev > SELECT_NONFAV_EV and price < SELECT_NONFAV_MAX_PRICE:
-            return 'S'
-        if rank_m < 2 and ev > SELECT_FAV_EV:
-            return 'S'
-        if ev > VOLUME_EV and price >= VOLUME_MIN_PRICE:
-            return 'V'
+def tier(ev, price=None, rank_m=None):
+    if ev > SELECT_EV:
+        return 'S'
+    if ev > VOLUME_EV:
+        return 'V'
     return ''
 
 
@@ -163,9 +160,7 @@ def main():
         if k not in runs and v.get('d', '') >= cutoff:
             runs[k] = v
     out = dict(v=1, made=now.strftime('%Y-%m-%dT%H:%M:%SZ'), trained_through=meta['trained_through'], experimental=True,
-               rules=dict(select_nonfav_ev=SELECT_NONFAV_EV, select_fav_ev=SELECT_FAV_EV, select_min_price=SELECT_MIN_PRICE,
-                          select_nonfav_max_price=SELECT_NONFAV_MAX_PRICE, volume_ev=VOLUME_EV, volume_min_price=VOLUME_MIN_PRICE,
-                          freeze_mins=FREEZE_MINS), runs=runs)
+               rules=dict(select_ev=SELECT_EV, volume_ev=VOLUME_EV, freeze_mins=FREEZE_MINS), runs=runs)
     with open(OUT_JSON, 'w') as f:
         json.dump(out, f, separators=(',', ':'))
     n_s = sum(1 for v in runs.values() if v.get('now', {}).get('t') == 'S')
