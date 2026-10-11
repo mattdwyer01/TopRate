@@ -1,22 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
-import { fmtPrice, fmtWpr } from '../../lib/format'
-import { computePriceMove } from '../../lib/priceMove'
+import { fmtPrice } from '../../lib/format'
 import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
 import { bushMeetingKeys, meetingKey, todayIso } from '../../lib/meetings'
-import { computePlays, PLAY_KINDS, TRACK_ROWS, tally, type Play, type PlayKind } from '../../lib/plays'
+import { computeBets, tally, type Bet } from '../../lib/bets'
+import { fmtEdge, fmtStake, modelPrice, TIER_HELP, TIER_LABEL, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
 
-// The Plays tab (replaces "Standouts still to run" on the meetings page): every runner the dashboard flags for the day, in race order, in the
-// same hero layout as the runner page, and kept after the race has run with how it went. A collapsed scoreboard below follows how each flag has done.
-// Nothing here is a tip: out-of-sample no flag has shown a robust profit, the scoreboard is how that gets checked going forward.
+// The Plays tab: bets from the bet-signal model (lib/betSignals.ts), EXPERIMENTAL. Select is the tier with a backtested edge; Volume is the
+// near break-even action tier, small stakes. Everything is judged at the fixed price when the pass was made (not SP), and the scoreboard
+// below counts only those, so it is the live check on a backtest that was run against closing SP.
 
 type Period = 'day' | '7' | 'all'
-type KindFilter = 'all' | PlayKind
-
-const SEEN_KEY = 'toprate_plays_seen_v1'
-const SEEN_KEEP_DAYS = 14
 
 function shiftDate(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`)
@@ -30,175 +26,100 @@ function ordinal(n: number): string {
   return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`
 }
 
-// Kinds each runner qualified for today, remembered on this device so a play that drops out before the jump stays listed (marked).
-function readSeen(): Record<string, string[]> {
-  try {
-    const raw = window.localStorage.getItem(SEEN_KEY)
-    const v = raw ? JSON.parse(raw) : {}
-    return v && typeof v === 'object' ? v : {}
-  } catch {
-    return {}
-  }
-}
+const fmtUnits = (u: number) => `${u >= 0 ? '+' : ''}${u.toFixed(1)}u`
+const fmtRoi = (v: number | null) => (v == null ? '-' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`)
+const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '-')
 
-function writeSeen(v: Record<string, string[]>) {
-  try {
-    window.localStorage.setItem(SEEN_KEY, JSON.stringify(v))
-  } catch {
-    // Storage can be blocked; plays just will not be remembered across reloads.
-  }
-}
-
-function seenMapFor(date: string): Map<string, PlayKind[]> {
-  const m = new Map<string, PlayKind[]>()
-  for (const entry of readSeen()[date] ?? []) {
-    const [raceId, runId, kind] = entry.split('|')
-    if (!raceId || !runId || !kind) continue
-    const k = `${raceId}|${runId}`
-    m.set(k, [...(m.get(k) ?? []), kind as PlayKind])
-  }
-  return m
-}
-
-function fmtRoi(v: number | null): string {
-  return v == null ? '-' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`
-}
-
-function pct(a: number, b: number): string {
-  return b > 0 ? `${Math.round((a / b) * 100)}%` : '-'
-}
-
-const KIND_CHIP: Record<PlayKind, string> = {
-  lead: 'border-line bg-indigo-bg text-indigo',
-  map4: 'border-emerald-line bg-emerald-bg text-emerald-deep',
-  value: 'border-amber-line bg-amber-bg text-amber',
-}
-
-function Chip({ kind, play, dropped, byBias }: { kind: PlayKind; play: Play; dropped?: boolean; byBias?: boolean }) {
-  const meta = PLAY_KINDS.find((k) => k.kind === kind)!
-  const detail =
-    kind === 'lead' ? `${meta.short} +${play.lead.toFixed(1)}` : `${meta.short} (${play.sm != null ? (play.sm >= 0 ? '+' : '') + play.sm.toFixed(1) : '-'}), ${play.gap < 0.05 ? 'top' : `-${play.gap.toFixed(1)}`}`
-  return (
-    <span title={meta.help} className={`rounded-full border px-2 py-0.5 font-mono text-[11px] ${dropped ? 'border-line bg-bg text-ink-faint line-through' : KIND_CHIP[kind]}`}>
-      {detail}
-      {byBias && <span className="ml-1 font-sans font-semibold text-amber">{dropped ? 'lost to track bias' : 'from track bias'}</span>}
-    </span>
-  )
-}
-
-function ResultStrip({ play }: { play: Play }) {
-  const { outcome, price, runner } = play
-  const fin = runner.finishPosition
-  if (outcome === 'pending') {
-    return <span className="text-ink-faint">To run</span>
-  }
-  const ret = outcome === 'won' && price != null ? price - 1 : -1
-  const label = outcome === 'won' ? 'Won' : outcome === 'placed' ? `Placed ${fin != null ? ordinal(fin) : ''}` : fin != null ? `${ordinal(fin)}` : 'Unplaced'
-  const tone = outcome === 'won' ? 'text-emerald-deep' : outcome === 'placed' ? 'text-amber' : 'text-rose'
+function Result({ bet }: { bet: Bet }) {
+  const fin = bet.runner.finishPosition
+  if (bet.outcome === 'pending') return <span className="text-ink-faint">To run</span>
+  const label = bet.outcome === 'won' ? 'Won' : bet.outcome === 'placed' ? `Placed ${fin != null ? ordinal(fin) : ''}` : fin != null ? ordinal(fin) : 'Unplaced'
+  const tone = bet.outcome === 'won' ? 'text-emerald-deep' : bet.outcome === 'placed' ? 'text-amber' : 'text-rose'
   return (
     <span>
       <span className={`font-semibold ${tone}`}>{label}</span>
-      {price != null && (
-        <span className={`ml-1 font-mono ${ret >= 0 ? 'text-emerald-deep' : 'text-rose'}`} title={`At ${fmtPrice(price)} on $1 to win`}>
-          {ret >= 0 ? '+' : '-'}${Math.abs(ret).toFixed(2)}
-        </span>
-      )}
+      <span className={`ml-1 font-mono ${bet.profit >= 0 ? 'text-emerald-deep' : 'text-rose'}`} title={`${bet.units}u at ${fmtPrice(bet.price)}`}>
+        {fmtUnits(bet.profit)}
+      </span>
     </span>
   )
 }
 
-function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
-  const { runner, eff } = play
-  const scratched = eff?.scratched ?? false
-  const proj = scratched ? null : (eff?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const sm = eff?.speedMapAdj ?? null
-  const tone = play.outcome === 'won' ? 'bg-emerald-bg' : play.outcome === 'placed' ? 'bg-amber-bg' : 'bg-panel'
-  const move = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-  const smTone = sm == null ? 'text-ink-faint' : sm >= 0.5 ? 'text-emerald-deep' : sm <= -0.5 ? 'text-rose' : 'text-ink-mute'
+function BetCard({ bet, onOpen }: { bet: Bet; onOpen: () => void }) {
+  const { runner, race, sig } = bet
+  const tone = bet.outcome === 'won' ? 'bg-emerald-bg' : bet.outcome === 'placed' ? 'bg-amber-bg' : 'bg-panel'
   return (
-    <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 px-3 py-1.5 text-left hover:bg-bg ${tone}`}>
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-7 w-7 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-7 w-7 shrink-0 rounded-sm bg-bg" />}
+    <button type="button" onClick={onOpen} className={`flex w-full items-start gap-2.5 rounded-lg border border-line px-3 py-2 text-left hover:bg-bg ${tone}`}>
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded-sm object-contain" /> : <div className="mt-0.5 h-8 w-8 shrink-0 rounded-sm bg-bg" />}
       <div className="min-w-0 flex-1">
-        <div className="truncate pr-1">
-          <span className={`text-[15px] font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
-            {runner.tabNumber}. {runner.horse}
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="font-mono text-xs font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
+          <span className="text-xs text-ink-mute">
+            {race.venue} R{race.raceNumber}
+            {race.distance ? ` · ${race.distance}m` : ''}
+            {` · ${bet.fieldSize} runners`}
           </span>
+        </div>
+        <div className="truncate text-[15px] font-semibold text-ink">
+          {runner.tabNumber}. {runner.horse}
         </div>
         <div className="truncate text-xs text-ink-mute">
           {runner.jockey || 'Jockey TBA'} / {runner.trainer}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="font-mono text-base font-bold leading-none text-emerald-deep" title="Projected WPR">
-            {fmtWpr(proj)}
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span className="font-mono text-ink" title="Fixed price when the pass was made">
+            {fmtPrice(bet.price)}
           </span>
-          <span className="text-[11px] text-ink-faint">
-            {play.rank}/{play.fieldSize}
+          <span className="font-mono text-ink-mute" title={`Model win chance ${(sig.m * 100).toFixed(1)}%`}>
+            model {fmtPrice(modelPrice(sig.m))}
           </span>
-          {!play.kinds.some((k) => k !== 'lead') && (
-            <span className={`font-mono text-xs ${smTone}`} title="Speed map adjustment relative to the field">
-              SM {sm != null ? (Math.abs(sm) < 0.05 ? '0.0' : `${sm > 0 ? '+' : ''}${sm.toFixed(1)}`) : '-'}
-            </span>
-          )}
-          {play.kinds.map((k) => (
-            <Chip key={k} kind={k} play={play} byBias={play.biasGained.includes(k)} />
-          ))}
-          {play.droppedKinds.map((k) => (
-            <Chip key={'d' + k} kind={k} play={play} dropped byBias={play.biasLost.includes(k)} />
-          ))}
-          {play.droppedKinds.length > 0 && play.kinds.length === 0 && play.outcome === 'pending' && <span className="text-[11px] text-ink-faint">no longer qualifies</span>}
+          <span className="font-mono font-semibold text-emerald-deep" title="Model win chance x price, minus 1">
+            edge {fmtEdge(sig.e)}
+          </span>
+          <span className="text-ink-faint">{sig.k === 1 ? 'favourite' : `${ordinal(sig.k)} in market`}</span>
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end text-right">
-        <span className="font-mono text-lg font-bold leading-tight text-ink" title="Market price">
-          {move && move.pctChange >= 3 && (
-            <span className={`mr-1 text-[11px] ${move.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}`} title={`${move.direction} ${move.pctChange.toFixed(0)}% from ${fmtPrice(runner.openFixedPrice)}`}>
-              {move.direction === 'firmed' ? '\u25BC' : '\u25B2'}
-            </span>
-          )}
-          {fmtPrice(runner.fixedWinPrice)}
+        <span className="font-mono text-base font-bold text-ink">
+          {bet.units}u
         </span>
-        <span className="font-mono text-[11px] text-ink-faint" title="Model fair price">
-          fair {eff?.effectivePrice != null && !scratched ? fmtPrice(eff.effectivePrice) : '-'}
+        <span className="font-mono text-[11px] text-ink-faint">{fmtStake(bet.units)}</span>
+        <span className="mt-0.5 text-xs">
+          <Result bet={bet} />
         </span>
-        {play.isFavourite && play.outcome === 'pending' && <span className="text-[11px] font-semibold text-ink-mute">favourite</span>}
-        {play.outcome !== 'pending' && (
-          <span className="mt-0.5 text-xs">
-            <ResultStrip play={play} />
-          </span>
-        )}
       </div>
     </button>
   )
 }
 
-function RaceGroup({ plays, onOpen, stickyTop }: { plays: Play[]; onOpen: (p: Play) => void; stickyTop: number }) {
-  const race = plays[0].race
+function Section({ tier, bets, onOpen }: { tier: 'S' | 'V'; bets: Bet[]; onOpen: (b: Bet) => void }) {
+  const units = bets.reduce((s, b) => s + b.units, 0)
+  const t = tally(bets)
   return (
-    <article id={`play-race-${race.raceId}`} className="overflow-clip rounded-lg border-2 border-ink-faint/60 bg-panel shadow-md" style={{ scrollMarginTop: Math.max(stickyTop, 0) + 8 }}>
-      <div className={`${stickyTop >= 0 ? 'sticky z-10 ' : ''}flex flex-wrap items-baseline gap-x-2 border-b border-line bg-bg px-3 py-1`} style={stickyTop >= 0 ? { top: stickyTop } : undefined}>
-        <span className="font-mono text-sm font-semibold text-ink">{formatTimeOfDay(race.startTime)}</span>
-        <span className="text-sm font-medium text-ink">
-          {race.venue} R{race.raceNumber}
-        </span>
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2" title={TIER_HELP[tier]}>
+        <h2 className="text-sm font-semibold text-ink">{TIER_LABEL[tier]}</h2>
         <span className="text-xs text-ink-mute">
-          {race.distance ? `${race.distance}m` : ''}
-          {race.going ? ` · ${race.going}` : ''}
-          {` · ${plays[0].fieldSize} runners`}
+          {bets.length} {bets.length === 1 ? 'bet' : 'bets'} · {TIER_UNITS[tier]}u ({fmtStake(TIER_UNITS[tier])}) each · {units}u staked
         </span>
-        {plays.length > 1 && (
-          <span
-            className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-semibold ${plays.length >= 3 ? 'border-emerald bg-emerald text-white' : 'border-emerald-line bg-emerald-bg text-emerald-deep'}`}
-          >
-            {plays.length} plays
+        {t.run > 0 && (
+          <span className="ml-auto text-xs text-ink-mute">
+            {t.wins} won of {t.run} run, <span className={t.profit >= 0 ? 'text-emerald-deep' : 'text-rose'}>{fmtUnits(t.profit)}</span>
           </span>
         )}
       </div>
-      <div className="flex flex-col divide-y divide-line-soft">
-        {plays.map((p) => (
-          <PlayCard key={p.key} play={p} onOpen={() => onOpen(p)} />
-        ))}
-      </div>
-    </article>
+      {bets.length === 0 ? (
+        <p className="rounded-md border border-line-soft bg-panel px-3 py-2 text-xs text-ink-faint">
+          {tier === 'S' ? 'No Select bets yet. These are rare (under one a Saturday on average) and only appear once a race is drawn and priced.' : 'No Volume bets yet.'}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {bets.map((b) => (
+            <BetCard key={b.key} bet={b} onOpen={() => onOpen(b)} />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -207,9 +128,7 @@ export function PlaysTab({
   date,
   onDateChange,
   onOpen,
-  priceBeta,
-  deltas,
-  bases,
+  signals,
   scratched,
   showBush,
   hiddenVenues,
@@ -218,89 +137,43 @@ export function PlaysTab({
   date: string
   onDateChange: (d: string) => void
   onOpen: (raceId: string, date: string, runId: string) => void
-  priceBeta: number | null
-  deltas: Record<string, number>
-  bases: Record<string, number>
+  signals: BetSignals | null
   scratched: Set<string>
   showBush: boolean
   hiddenVenues: Set<string>
 }) {
   const [period, setPeriod] = useState<Period>('day')
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
-  const [seenTick, setSeenTick] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(t)
+  }, [])
 
   const visible = useMemo(() => {
     const bush = showBush ? null : bushMeetingKeys(races)
     return races.filter((r) => !hiddenVenues.has(r.venue) && !(bush && bush.has(meetingKey(r))))
   }, [races, showBush, hiddenVenues])
 
-  const dayRaces = useMemo(() => visible.filter((r) => r.date === date), [visible, date])
-  const seen = useMemo(() => seenMapFor(date), [date, seenTick]) // eslint-disable-line react-hooks/exhaustive-deps
-  const ctx = useMemo(() => ({ deltas, bases, scratched, priceBeta }), [deltas, bases, scratched, priceBeta])
-  const dayPlays = useMemo(() => computePlays(dayRaces, ctx, seen), [dayRaces, ctx, seen])
-
-  // Remember what qualified before the jump (a race that has run keeps its logged projection, so nothing new is learned from it).
-  useEffect(() => {
-    const fresh = dayPlays.filter((p) => p.outcome === 'pending').flatMap((p) => p.kinds.map((k) => `${p.race.raceId}|${p.runner.runId}|${k}`))
-    if (fresh.length === 0) return
-    const all = readSeen()
-    const have = new Set(all[date] ?? [])
-    const add = fresh.filter((k) => !have.has(k))
-    if (add.length === 0) return
-    all[date] = [...have, ...add]
-    const cutoff = shiftDate(todayIso(), -SEEN_KEEP_DAYS)
-    for (const d of Object.keys(all)) if (d < cutoff) delete all[d]
-    writeSeen(all)
-    setSeenTick((t) => t + 1)
-  }, [dayPlays, date])
-
-  const periodPlays = useMemo(() => {
-    if (period === 'day') return dayPlays
+  const dayBets = useMemo(() => computeBets(visible.filter((r) => r.date === date), signals, scratched), [visible, date, signals, scratched])
+  const periodBets = useMemo(() => {
+    if (period === 'day') return dayBets
     const from = period === '7' ? shiftDate(date, -6) : '0000-00-00'
-    const rs = visible.filter((r) => r.date >= from && r.date <= date)
-    return computePlays(rs, ctx)
-  }, [period, dayPlays, visible, date, ctx])
+    return computeBets(visible.filter((r) => r.date >= from && r.date <= date), signals, scratched)
+  }, [period, dayBets, visible, date, signals, scratched])
 
-  const listed = useMemo(
-    () => dayPlays.filter((p) => kindFilter === 'all' || p.kinds.includes(kindFilter) || p.droppedKinds.includes(kindFilter)),
-    [dayPlays, kindFilter],
-  )
-
-  const groups = useMemo(() => {
-    const m = new Map<string, Play[]>()
-    for (const p of listed) m.set(p.race.raceId, [...(m.get(p.race.raceId) ?? []), p])
-    // Within a race, best projected rating first.
-    return [...m.values()].map((g) => g.sort((a, b) => a.rank - b.rank))
-  }, [listed])
-
-  const dayTally = tally(dayPlays)
-
-  // Keep each race header just under the app's own sticky header, and tick the clock for the next-up pill.
-  const [stickyTop, setStickyTop] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
-  const wrapRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const measure = () => setStickyTop(Math.round(document.querySelector('header')?.getBoundingClientRect().height ?? 0))
-    measure()
-    window.addEventListener('resize', measure)
-    const t = window.setInterval(() => setNow(Date.now()), 30_000)
-    return () => {
-      window.removeEventListener('resize', measure)
-      window.clearInterval(t)
-    }
-  }, [])
-
-  // Races that have all run fold into one row when others are still to come; a past day shows everything.
-  const upcoming = groups.filter((g) => g.some((p) => p.outcome === 'pending'))
-  const finished = upcoming.length > 0 ? groups.filter((g) => g.every((p) => p.outcome !== 'pending')) : []
-  const shown = upcoming.length > 0 ? upcoming : groups
-  const finishedPlays = finished.flat()
-  const finishedWon = finishedPlays.filter((p) => p.outcome === 'won').length
-  const nextGroup = date === todayIso() ? upcoming.find((g) => new Date(g[0].race.startTime).getTime() > now) : undefined
-  const open = (p: Play) => onOpen(p.race.raceId, p.race.date, p.runner.runId)
+  const select = dayBets.filter((b) => b.tier === 'S')
+  const volume = dayBets.filter((b) => b.tier === 'V')
+  const open = (b: Bet) => onOpen(b.race.raceId, b.race.date, b.runner.runId)
+  const dayTally = tally(dayBets)
+  const next = date === todayIso() ? dayBets.find((b) => b.outcome === 'pending' && new Date(b.race.startTime).getTime() > now) : undefined
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="rounded-md border border-amber-line bg-amber-bg px-3 py-2 text-xs text-amber">
+        <span className="font-semibold">Experimental.</span> A model that starts from the market price and corrects it. Backtested against closing SP only (2022 to 2026): Select about +53%, Volume about -3% on its own
+        (it is the action tier, small stakes) and worse if the price you get is 10% below SP. Not yet shown to hold at a price taken before the jump. The scoreboard below is that check. Not a tip.
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" aria-label="Previous day" onClick={() => onDateChange(shiftDate(date, -1))} className="rounded-md border border-line bg-panel px-2 py-1 text-sm text-ink-mute hover:text-ink">
           &lsaquo;
@@ -314,57 +187,37 @@ export function PlaysTab({
             Today
           </Pill>
         )}
-        {dayTally.run > 0 && (
-          <span className="ml-auto text-xs text-ink-mute">
-            {dayTally.wins} won, {dayTally.places} placed of {dayTally.run} run
-          </span>
-        )}
+        <span className="ml-auto text-xs text-ink-mute">
+          {dayBets.length} {dayBets.length === 1 ? 'bet' : 'bets'} · {dayBets.reduce((s, b) => s + b.units, 0)}u staked
+          {dayTally.run > 0 && (
+            <>
+              {' · '}
+              {dayTally.wins} won of {dayTally.run}, <span className={dayTally.profit >= 0 ? 'text-emerald-deep' : 'text-rose'}>{fmtUnits(dayTally.profit)}</span>
+            </>
+          )}
+        </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Pill active={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
-          All ({dayPlays.length})
-        </Pill>
-        {PLAY_KINDS.filter((k) => dayPlays.some((p) => p.kinds.includes(k.kind))).map((k) => (
-          <Pill key={k.kind} active={kindFilter === k.kind} onClick={() => setKindFilter(k.kind)}>
-            {k.label} ({dayPlays.filter((p) => p.kinds.includes(k.kind)).length})
-          </Pill>
-        ))}
-      </div>
-
-      {listed.length === 0 ? (
-        <EmptyState message={dayPlays.length === 0 ? 'No plays for this day yet. They appear once projections are in.' : 'No plays match this filter.'} progress={null} />
+      {!signals ? (
+        <EmptyState message="Bet signals are not available yet. They are written by the scoring step once a race is drawn and priced." progress={null} />
       ) : (
-        <div ref={wrapRef} className="flex flex-col gap-2">
-          {nextGroup && (
+        <>
+          {next && (
             <button
               type="button"
-              onClick={() => document.getElementById(`play-race-${nextGroup[0].race.raceId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              onClick={() => open(next)}
               className="self-start rounded-full border border-emerald-line bg-emerald-bg px-3 py-1 text-xs font-semibold text-emerald-deep"
             >
-              Next: {nextGroup[0].race.venue} R{nextGroup[0].race.raceNumber} in {formatCountdown(nextGroup[0].race.startTime, new Date(now))} &darr;
+              Next: {next.race.venue} R{next.race.raceNumber} in {formatCountdown(next.race.startTime, new Date(now))}
             </button>
           )}
-          {shown.map((g) => (
-            <RaceGroup key={g[0].race.raceId} plays={g} onOpen={open} stickyTop={stickyTop} />
-          ))}
-          {finished.length > 0 && (
-            <details className="rounded-lg border border-line bg-panel">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-ink">
-                Results so far <span className="font-normal text-ink-mute">({finishedWon} won of {finishedPlays.length} {finishedPlays.length === 1 ? 'play' : 'plays'} in {finished.length} {finished.length === 1 ? 'race' : 'races'})</span>
-              </summary>
-              <div className="flex flex-col gap-3 p-2">
-                {finished.map((g) => (
-                  <RaceGroup key={g[0].race.raceId} plays={g} onOpen={open} stickyTop={-1} />
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
+          <Section tier="S" bets={select} onOpen={open} />
+          <Section tier="V" bets={volume} onOpen={open} />
+        </>
       )}
 
       <details className="rounded-lg border border-line bg-panel p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">Scoreboard: how each flag has done</summary>
+        <summary className="cursor-pointer text-sm font-semibold text-ink">Scoreboard: how each tier has done (at the price when the pass was made)</summary>
         <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
           <div className="flex gap-1.5">
             <Pill active={period === 'day'} onClick={() => setPeriod('day')}>
@@ -382,29 +235,41 @@ export function PlaysTab({
           <table className="w-full text-xs">
             <thead className="text-left text-ink-mute">
               <tr>
-                <th className="py-1 pr-2 font-medium">Flag</th>
+                <th className="py-1 pr-2 font-medium">Tier</th>
                 <th className="px-1 text-right font-medium">Run</th>
                 <th className="px-1 text-right font-medium">Won</th>
                 <th className="px-1 text-right font-medium">Strike</th>
-                <th className="pl-1 text-right font-medium">$1 win</th>
+                <th className="px-1 text-right font-medium">Avg $</th>
+                <th className="px-1 text-right font-medium">Staked</th>
+                <th className="px-1 text-right font-medium">Profit</th>
+                <th className="pl-1 text-right font-medium" title="Profit over units staked">ROI</th>
+                <th className="pl-1 text-right font-medium" title="Flat 1u per bet, comparable with the backtest">Flat</th>
               </tr>
             </thead>
             <tbody>
-              {TRACK_ROWS.map((row) => {
-                const t = tally(periodPlays.filter(row.test))
+              {([['S', periodBets.filter((b) => b.tier === 'S')], ['V', periodBets.filter((b) => b.tier === 'V')], ['all', periodBets]] as const).map(([k, list]) => {
+                const t = tally(list)
                 return (
-                  <tr key={row.id} className="border-t border-line-soft">
-                    <td className="py-1 pr-2 text-ink" title={row.label}><span className="sm:hidden">{row.short}</span><span className="hidden sm:inline">{row.label}</span></td>
+                  <tr key={k} className="border-t border-line-soft">
+                    <td className="py-1 pr-2 text-ink">{k === 'all' ? 'Both, as staked' : TIER_LABEL[k]}</td>
                     <td className="px-1 text-right font-mono">{t.run}</td>
                     <td className="px-1 text-right font-mono">{t.wins}</td>
                     <td className="px-1 text-right font-mono">{pct(t.wins, t.run)}</td>
+                    <td className="px-1 text-right font-mono">{t.avgPrice != null ? fmtPrice(t.avgPrice) : '-'}</td>
+                    <td className="px-1 text-right font-mono">{t.staked.toFixed(1)}u</td>
+                    <td className={`px-1 text-right font-mono ${t.profit >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{t.run ? fmtUnits(t.profit) : '-'}</td>
                     <td className={`pl-1 text-right font-mono ${t.roi == null ? '' : t.roi >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{fmtRoi(t.roi)}</td>
+                    <td className={`pl-1 text-right font-mono ${t.flatRoi == null ? '' : t.flatRoi >= 0 ? 'text-emerald-deep' : 'text-rose'}`}>{fmtRoi(t.flatRoi)}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-[11px] text-ink-faint">
+          Backtest for comparison (SP, 2022 to 2026): Select flat ROI about +53% (about 120 bets a year, 0.7 a Saturday), Volume bets alone about -3% (-13% with a price 10% worse).
+          A few weeks of live bets cannot separate those from luck: judge it over months.
+        </p>
       </details>
     </div>
   )

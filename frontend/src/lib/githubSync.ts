@@ -17,13 +17,12 @@ const GIST_FILENAME = 'toprate_sync.json'
 const DEFAULT_REPO = 'mattdwyer01/TopRate'
 
 // The pieces of this device's local state actually worth syncing (see
-// lib/wprOverrides.ts, priceBetaOverride.ts, bushMeetings.ts,
+// lib/wprOverrides.ts, bushMeetings.ts,
 // hiddenVenues.ts). ntj-collapsed (ticker visibility) is left out
 // deliberately - it's display chrome, not a preference or data worth
 // carrying across devices.
 const DELTA_KEY = 'toprate_wpr_overrides_v1'
 const BASE_KEY = 'toprate_manual_base_v1'
-const BETA_KEY = 'toprate_price_beta_override_v1'
 const BUSH_KEY = 'toprate_show_bush_meetings_v1'
 const HIDDEN_VENUES_KEY = 'toprate_hidden_venues_v1'
 
@@ -116,7 +115,6 @@ interface SyncPayload {
   deviceTs: string
   wprDeltas: Record<string, number>
   wprBases: Record<string, number>
-  betaOverride: string | null
   showBush: string | null
   // JSON-stringified array (same wire shape lib/hiddenVenues.ts already
   // uses in localStorage), passed through as-is like the other single-value
@@ -147,7 +145,6 @@ export function buildSyncPayload(): SyncPayload {
     deviceTs: new Date().toISOString(),
     wprDeltas: readMap(DELTA_KEY),
     wprBases: readMap(BASE_KEY),
-    betaOverride: readLocal(BETA_KEY),
     showBush: readLocal(BUSH_KEY),
     hiddenVenues: readLocal(HIDDEN_VENUES_KEY),
   }
@@ -160,7 +157,6 @@ export function applySyncPayload(payload: Partial<SyncPayload>) {
   try {
     if (payload.wprDeltas) window.localStorage.setItem(DELTA_KEY, JSON.stringify(payload.wprDeltas))
     if (payload.wprBases) window.localStorage.setItem(BASE_KEY, JSON.stringify(payload.wprBases))
-    if (payload.betaOverride != null) window.localStorage.setItem(BETA_KEY, payload.betaOverride)
     if (payload.showBush != null) window.localStorage.setItem(BUSH_KEY, payload.showBush)
     if (payload.hiddenVenues != null) window.localStorage.setItem(HIDDEN_VENUES_KEY, payload.hiddenVenues)
   } catch {

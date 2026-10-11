@@ -11,12 +11,15 @@ import { CareerStats } from './CareerStats'
 import { ResultVsProjection } from './ResultVsProjection'
 import { ratingSuffix } from './rowParts'
 import { typicalSd } from './raceFacts'
+import { modelPrice, type Signal } from '../../lib/betSignals'
 import { ConditionsScorecard, HorseHero, PriceVsFair, ProjectionWaterfall, RatingSanity, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
   race: Race
   effective?: EffectiveRunner
+  // Bet-signal model pass for this runner (experimental, lib/betSignals.ts): supplies the model price shown against the market.
+  signal?: Signal | null
   rank: number | null
   fieldSize: number
   fieldTop: number | null
@@ -66,6 +69,7 @@ export function RunnerDetailModal({
   runner,
   race,
   effective,
+  signal = null,
   rank,
   fieldSize,
   fieldTop,
@@ -118,7 +122,7 @@ export function RunnerDetailModal({
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-  const fair = effective?.effectivePrice ?? null
+  const fair = modelPrice(signal?.m)
   const market = runner.fixedWinPrice
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
 
@@ -372,7 +376,7 @@ export function RunnerDetailModal({
           </Card>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <Card title="Market" note="price against the model's fair price">
+            <Card title="Market" note="price against the bet-signal model's price">
               {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 

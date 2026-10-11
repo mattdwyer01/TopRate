@@ -17,11 +17,14 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
+import { fmtStake, signalFor, TIER_UNITS, type BetSignals, type Signal } from '../../lib/betSignals'
 import { MIN_WINNING_STANDARD_OFFSET, expectedWinningWpr, rankField } from './raceFacts'
 
 interface RaceDetailProps {
   race: Race
   allRaces: Race[]
+  // Bet signals (experimental, lib/betSignals.ts); null when the file is missing.
+  signals?: BetSignals | null
   priceBeta: number | null
   deltas: Record<string, number>
   bases: Record<string, number>
@@ -45,7 +48,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR at the weight carried today (the scale of the form table)' },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Proj)' },
-  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Fair price from the projection: what the model would pay the field at, not a market price" },
+  { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.' },
+  { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.', lgOnly: true },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -73,6 +77,7 @@ function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number 
 export function RaceDetail({
   race,
   allRaces,
+  signals = null,
   priceBeta,
   deltas,
   bases,
@@ -146,13 +151,32 @@ export function RaceDetail({
     return m
   }, [ranked])
 
+  // The live pass before the jump, the frozen pre-jump pass once the race has run.
+  const jumped = hasAnyResult || (race.startTime ? new Date(race.startTime).getTime() < Date.now() : false)
+  const signalByRunId = useMemo(() => {
+    const m: Record<string, Signal | null> = {}
+    for (const r of race.runners) m[r.runId] = signalFor(signals?.runs[r.runId], jumped)
+    return m
+  }, [race.runners, signals, jumped])
+  const tierCounts = useMemo(() => {
+    let s = 0
+    let v = 0
+    for (const r of race.runners) {
+      if (effectiveScratched.has(r.runId)) continue
+      const t = signalByRunId[r.runId]?.t
+      if (t === 'S') s++
+      else if (t === 'V') v++
+    }
+    return { s, v }
+  }, [race.runners, signalByRunId, effectiveScratched])
+
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
-    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
+    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, signalByRunId)
     const active = sorted.filter((r) => !effectiveScratched.has(r.runId))
     if (!showScratched) return active
     return [...active, ...sorted.filter((r) => effectiveScratched.has(r.runId))]
-  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, signalByRunId, effectiveScratched, showScratched])
 
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
@@ -201,6 +225,7 @@ export function RaceDetail({
       raceDate: race.date,
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
+      signal: signalByRunId[runner.runId] ?? null,
       band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
       showBias,
@@ -248,6 +273,15 @@ export function RaceDetail({
             {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
           </div>
         </div>
+
+        {(tierCounts.s > 0 || tierCounts.v > 0) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-emerald-line bg-emerald-bg px-3 py-1.5 text-xs text-emerald-deep">
+            <span className="font-semibold">Bet signals (experimental)</span>
+            {tierCounts.s > 0 && <span>{tierCounts.s} Select, {TIER_UNITS.S}u ({fmtStake(TIER_UNITS.S)})</span>}
+            {tierCounts.v > 0 && <span>{tierCounts.v} Volume, {TIER_UNITS.V}u ({fmtStake(TIER_UNITS.V)})</span>}
+            <span className="text-ink-mute">Edge is the model against the current price, not a tip.</span>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
@@ -299,6 +333,7 @@ export function RaceDetail({
 
       {compareMode && compareIds.length >= 2 && (
         <RunnerCompare
+          signalByRunId={signalByRunId}
           race={race}
           runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
           effectiveByRunId={effectiveByRunId}
@@ -347,6 +382,7 @@ export function RaceDetail({
           runner={selectedRunner}
           race={race}
           effective={effectiveByRunId[selectedRunner.runId]}
+          signal={signalByRunId[selectedRunner.runId] ?? null}
           rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
           fieldSize={ranked.length}
           fieldTop={ranked.length ? ranked[0].proj : null}

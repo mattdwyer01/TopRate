@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDashboardData, freshnessLevel } from './hooks/useDashboardData'
 import { useNow } from './hooks/useNow'
 import { useUrlState } from './routing/useUrlState'
-import { useBetaOverride } from './lib/priceBetaOverride'
 import { useWprOverrides } from './lib/wprOverrides'
 import { useShowBushMeetings } from './lib/bushMeetings'
 import { useHiddenVenues } from './lib/hiddenVenues'
@@ -19,6 +18,7 @@ import { RaceDetail } from './features/race/RaceDetail'
 import { Quaddie } from './features/race/Quaddie'
 import { ReviewTab } from './features/review/ReviewTab'
 import { PlaysTab } from './features/plays/PlaysTab'
+import { useBetSignals } from './lib/betSignals'
 
 type TopTab = 'race' | 'plays' | 'review'
 
@@ -45,10 +45,10 @@ function quietNextJump(races: { startTime: string }[], now: number): Date | null
 
 function App() {
   const { state, retry, refresh, historyPending, pollFailed } = useDashboardData()
+  const betSignals = useBetSignals()
   const [refreshing, setRefreshing] = useState(false)
   const now = useNow()
   const { urlState, pushUrlState } = useUrlState()
-  const { betaOverride, setBetaOverride } = useBetaOverride()
   const { deltas, bases, scratched, setDelta, setBase, setScratched } = useWprOverrides()
   const { showBush, setShowBush } = useShowBushMeetings()
   const { hiddenVenues, hideVenue, unhideVenue } = useHiddenVenues()
@@ -212,7 +212,7 @@ function App() {
                   (topTab === 'plays' ? 'bg-panel text-ink shadow-[var(--shadow-1)]' : 'text-ink-mute hover:text-ink')
                 }
               >
-                Plays
+                Bets
               </button>
               <button
                 type="button"
@@ -275,17 +275,11 @@ function App() {
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
-                aria-label={betaOverride != null ? 'Settings (custom price sharpness active)' : 'Settings'}
+                aria-label="Settings"
                 className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
               >
                 ⚙
               </button>
-              {betaOverride != null && (
-                <span
-                  className="pointer-events-none absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber ring-2 ring-panel"
-                  title="Custom fair price sharpness active"
-                />
-              )}
             </div>
           </div>
         </div>
@@ -304,9 +298,7 @@ function App() {
             date={playsDate}
             onDateChange={setPlaysDate}
             onOpen={(raceId, date) => goToRace(raceId, date)}
-            priceBeta={betaOverride ?? state.data.priceBeta}
-            deltas={deltas}
-            bases={bases}
+            signals={betSignals}
             scratched={scratched}
             showBush={showBush}
             hiddenVenues={hiddenVenues}
@@ -324,7 +316,8 @@ function App() {
               key={urlState.raceId}
               race={currentRace}
               allRaces={state.data.races}
-              priceBeta={betaOverride ?? state.data.priceBeta}
+              signals={betSignals}
+              priceBeta={state.data.priceBeta}
               deltas={deltas}
               bases={bases}
               scratched={scratched}
@@ -341,7 +334,7 @@ function App() {
               meeting={state.data.races
                 .filter((r) => r.venue === urlState.quaddie && r.date === (urlState.date ?? todayIso()))
                 .sort((a, b) => a.raceNumber - b.raceNumber)}
-              priceBeta={betaOverride ?? state.data.priceBeta}
+              priceBeta={state.data.priceBeta}
               deltas={deltas}
               bases={bases}
               scratched={scratched}
@@ -368,9 +361,6 @@ function App() {
 
       {settingsOpen && (
         <SettingsModal
-          serverBeta={state.status === 'ready' ? state.data.priceBeta : null}
-          betaOverride={betaOverride}
-          onSetBetaOverride={setBetaOverride}
           venues={state.status === 'ready' ? distinctVenues(state.data.races) : []}
           hiddenVenues={hiddenVenues}
           onHideVenue={hideVenue}

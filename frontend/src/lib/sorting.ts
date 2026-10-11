@@ -1,5 +1,6 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
+import { modelPrice, type Signal } from './betSignals'
 import { spellPosition } from './spellPosition'
 
 export type SortKey =
@@ -11,7 +12,8 @@ export type SortKey =
   | 'speedMapAdj'
   | 'projectedWpr'
   | 'fixedPrice'
-  | 'ratedPrice'
+  | 'modelPrice'
+  | 'edge'
   | 'finish'
 
 export type SortDirection = 'asc' | 'desc'
@@ -29,7 +31,8 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   speedMapAdj: 'desc',
   projectedWpr: 'desc',
   fixedPrice: 'asc',
-  ratedPrice: 'asc',
+  modelPrice: 'asc',
+  edge: 'desc',
   finish: 'asc',
 }
 
@@ -42,6 +45,7 @@ function sortValue(
   key: SortKey,
   effective?: EffectiveRunner,
   raceDate?: string,
+  signal?: Signal | null,
 ): number | string {
   switch (key) {
     case 'tab':
@@ -60,8 +64,10 @@ function sortValue(
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
-    case 'ratedPrice':
-      return effective?.effectivePrice ?? runner.wprPrice ?? Infinity
+    case 'modelPrice':
+      return modelPrice(signal?.m) ?? Infinity
+    case 'edge':
+      return signal?.e ?? -Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
   }
@@ -73,10 +79,11 @@ export function sortRunners(
   direction: SortDirection,
   effectiveByRunId?: Record<string, EffectiveRunner>,
   raceDate?: string,
+  signalByRunId?: Record<string, Signal | null>,
 ): Runner[] {
   const sorted = [...runners].sort((a, b) => {
-    const av = sortValue(a, key, effectiveByRunId?.[a.runId], raceDate)
-    const bv = sortValue(b, key, effectiveByRunId?.[b.runId], raceDate)
+    const av = sortValue(a, key, effectiveByRunId?.[a.runId], raceDate, signalByRunId?.[a.runId])
+    const bv = sortValue(b, key, effectiveByRunId?.[b.runId], raceDate, signalByRunId?.[b.runId])
     if (av < bv) return -1
     if (av > bv) return 1
     return 0

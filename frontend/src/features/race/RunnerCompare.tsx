@@ -2,12 +2,14 @@ import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { spellPosition } from '../../lib/spellPosition'
+import { modelPrice, type Signal } from '../../lib/betSignals'
 
 interface RunnerCompareProps {
   race: Race
   runners: Runner[]
   effectiveByRunId: Record<string, EffectiveRunner>
   gapByRunId: Record<string, number | null>
+  signalByRunId?: Record<string, Signal | null>
   onRemove: (runId: string) => void
   onOpen: (runId: string) => void
   onClear: () => void
@@ -19,7 +21,7 @@ type Row = { label: string; get: (r: Runner) => number | null; fmt: (v: number) 
 const signed = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
 
 // Side-by-side view of 2 to 4 runners from one race. Reads the same effective (override-aware) figures the table shows.
-export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, onRemove, onOpen, onClear }: RunnerCompareProps) {
+export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, signalByRunId, onRemove, onOpen, onClear }: RunnerCompareProps) {
   const eff = (r: Runner) => effectiveByRunId[r.runId]
   const rows: Row[] = [
     { label: 'Proj WPR', get: (r) => eff(r)?.effectiveProjectedWpr ?? null, fmt: fmtWpr, higher: true },
@@ -31,7 +33,8 @@ export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, onR
     { label: 'Last run WPR', get: (r) => r.wprLast1, fmt: fmtWpr, higher: true },
     { label: 'Avg last 3', get: (r) => r.wprAvgLast3, fmt: fmtWpr, higher: true },
     { label: 'Peak WPR', get: (r) => r.peakWpr, fmt: fmtWpr, higher: true },
-    { label: 'Rated $', get: (r) => eff(r)?.effectivePrice ?? r.wprPrice, fmt: fmtPrice },
+    { label: 'Model $', get: (r) => modelPrice(signalByRunId?.[r.runId]?.m), fmt: fmtPrice },
+    { label: 'Edge', get: (r) => { const e = signalByRunId?.[r.runId]?.e; return e != null ? (e - 1) * 100 : null }, fmt: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`, higher: true },
     { label: 'Fixed $', get: (r) => r.fixedWinPrice, fmt: fmtPrice },
     { label: 'Jockey win% (90d)', get: (r) => r.jockeyWinPct90d, fmt: (v) => `${v.toFixed(0)}%`, higher: true },
     { label: 'Trainer win% (1y)', get: (r) => r.trainerWinPct365d, fmt: (v) => `${v.toFixed(0)}%`, higher: true },

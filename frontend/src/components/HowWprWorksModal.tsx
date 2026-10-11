@@ -65,13 +65,28 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
           <ul className="list-disc space-y-1 pl-5">
             <li><span className="font-mono text-ink">Proj</span>: projected WPR for today's race (the headline figure). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = Proj.</li>
             <li><span className="font-mono text-ink">SM</span>: the suitability part of Adj, relative to this field. It is already inside Adj, not added again.</li>
-            <li><span className="font-mono text-ink">Rated $</span>: the price the model would pay, from Proj. It is a model view, not a market price and not a tip.</li>
+            <li><span className="font-mono text-ink">Model $</span> and <span className="font-mono text-ink">Edge</span>: from the experimental bet-signal model (see Bets, below). Model $ is 1 / its win chance. Edge is its win chance times the current price, minus 1. Blank when the race is not fully drawn and priced.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
-            <li><span className="font-mono text-ink">Plays tab</span>: every runner the dashboard flags (the clear #1, speed map +0.5 within 4, speed map +1.0 from 4 to 8 off), in race order, kept after the race has run, with a scoreboard of how each flag has done. Filters, not tips: none has shown a robust profit.</li>
+            <li><span className="font-mono text-ink">SELECT / VOL</span>: the runner is a Select or Volume bet from the bet-signal model. The Bets tab lists them with stakes and a scoreboard.</li>
             <li><span className="font-mono text-ink">2 / 4 / 8 WPR from top</span>: the lines show runners within 2, 4 and 8 WPR of the top projection (at today's weight). In a 15-month out-of-sample test inside 2 held about 50% of winners (2.2 runners a race), inside 4 about 70% (3.9) and inside 8 about 93% (6.9). They show where the winners are, not where the value is: runners 4 to 8 off the top lose money unless their speed map (SM) is +1.0 or better.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
+          </ul>
+        </Section>
+
+        <Section title="Bets (experimental)">
+          <p>
+            The Bets tab and the Model $ / Edge columns come from a separate model that is not the WPR projection. It starts from each runner's
+            current market price, corrects it using form, ratings, weight, barrier, jockey and trainer records (measured against the market),
+            and returns a win chance. Model $ is 1 / that chance and Edge is the chance times the price, minus 1.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li><span className="font-mono text-ink">Select</span>: edge above 20% (above 30% for the favourite), price $3 or more (non-favourites under $20). Backtested at closing SP over 2022 to 2026 (walk-forward, each year scored by a model trained on earlier years): about 120 bets a year (0.7 a Saturday), ROI about +53%, positive in every year and quarter, about +30% without the 10 biggest winners and still +38% with a price 10% worse. Staked at 2 units.</li>
+            <li><span className="font-mono text-ink">Volume</span>: edge above 5%, price $3 or more. About 10 bets on a Saturday. Backtested at SP: about +2% with the Select bets included, but -3% on its own and -13% with a price 10% worse. Staked at 0.25 units; it is there for action, not profit, and costs a little.</li>
+            <li>1 unit is $50. The thresholds were chosen after looking at the same years they were tested on, so the true figures will be lower.</li>
+            <li>The backtest used the closing SP. Whether the edge holds at a fixed price taken before the jump is not yet known: the scoreboard on the Bets tab judges each bet at the price when the last pass was made, and is the check. Judge it over months, not weeks.</li>
+            <li>The earlier WPR-based value signal (rated price against market) lost 30 to 39% at every threshold in testing and has been removed.</li>
           </ul>
         </Section>
 

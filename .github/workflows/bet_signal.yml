@@ -1,0 +1,73 @@
+name: TopRate bet signals
+
+# Scores upcoming races with the market-residual win model (betsignal/, EXPERIMENTAL) and publishes bet_signals.json for the dashboard's Bets
+# tab and the Race table's Model $ / Edge columns. Triggered like price_refresh.yml: by an EXTERNAL cron-job.org schedule calling this
+# workflow's workflow_dispatch endpoint (every 5 minutes, AU racing hours), not GitHub's own `schedule`, which has proven unreliable here.
+# It reads the fixed prices that toprate_runners.csv already holds (kept fresh by tab_results.yml / price_refresh.yml), so it never calls
+# the TopRate or TAB APIs itself.
+on:
+  workflow_dispatch:
+
+# A pass that is still running when the next trigger arrives is skipped, not queued: the next pass is only minutes away.
+concurrency:
+  group: bet-signal
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: betsignal/requirements.txt
+
+      - name: Install deps
+        run: pip install -r betsignal/requirements.txt
+
+      # The history state (13 MB, rebuilt from the results files in a few minutes) is not committed; it is cached by the size of those files, so
+      # it is rebuilt only after the results backfill has actually changed them.
+      - name: Restore history state
+        uses: actions/cache@v4
+        with:
+          path: betsignal/models/state.pkl
+          key: bet-state-${{ hashFiles('race_results_2026.csv.gz', 'race_results_2025.csv.gz') }}
+          restore-keys: bet-state-
+
+      - name: Score upcoming races
+        run: python betsignal/score.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bet_signals.json
+          [ -f bet_signal_log.csv.gz ] && git add bet_signal_log.csv.gz
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Bet signals $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Only these two small files are ours, so on a rejected push take the fresh tip and re-commit them on top (fetch + reset --mixed keeps the
+          # working tree), the same approach daily.yml uses; no rebase over the large generated files other jobs commit.
+          for i in 1 2 3 4 5; do
+            if timeout 60 git push origin HEAD:main; then exit 0; fi
+            echo "push rejected (attempt $i), re-basing our files onto the new tip"
+            timeout 120 git fetch origin main
+            git reset --mixed origin/main
+            git add bet_signals.json
+            [ -f bet_signal_log.csv.gz ] && git add bet_signal_log.csv.gz
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Bet signals $(date -u +%Y-%m-%dT%H:%MZ)"
+            sleep $((i * 3))
+          done
+          echo "could not push after 5 attempts" >&2
+          exit 1

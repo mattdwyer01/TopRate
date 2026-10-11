@@ -14,9 +14,6 @@ import { todayIso } from '../lib/meetings'
 import { LiveVisionSettings } from './LiveVisionSettings'
 
 interface SettingsModalProps {
-  serverBeta: number | null
-  betaOverride: number | null
-  onSetBetaOverride: (v: number | null) => void
   venues: string[]
   hiddenVenues: Set<string>
   onHideVenue: (venue: string) => void
@@ -25,20 +22,13 @@ interface SettingsModalProps {
   onOpenMethodology: () => void
 }
 
-const MIN_BETA = 0.05
-const MAX_BETA = 0.6
-const STEP = 0.01
-
 type Status = { kind: 'idle' | 'busy' | 'ok' | 'err'; text: string }
 const IDLE: Status = { kind: 'idle', text: '' }
 
-// Client-side settings: fair price sharpness, triggering a fresh data
+// Client-side settings: hidden meetings, live vision, triggering a fresh data
 // fetch, and cross-device sync. All per-device (localStorage), reachable
 // from the header gear icon rather than a full settings page/route.
 export function SettingsModal({
-  serverBeta,
-  betaOverride,
-  onSetBetaOverride,
   venues,
   hiddenVenues,
   onHideVenue,
@@ -46,8 +36,6 @@ export function SettingsModal({
   onClose,
   onOpenMethodology,
 }: SettingsModalProps) {
-  const effectiveBeta = betaOverride ?? serverBeta ?? 0.4
-  const [draft, setDraft] = useState(effectiveBeta)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const [cfg, setCfg] = useState(() => readSyncConfig())
@@ -79,20 +67,6 @@ export function SettingsModal({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
-
-  function commit(v: number) {
-    const clamped = Math.min(MAX_BETA, Math.max(MIN_BETA, v))
-    setDraft(clamped)
-    onSetBetaOverride(clamped)
-  }
-
-  // The number box edits free text and only commits a valid value, so typing "0" on the way to "0.15" is not clamped mid-keystroke.
-  const [typed, setTyped] = useState<string | null>(null)
-  function onTyped(raw: string) {
-    setTyped(raw)
-    const v = Number(raw)
-    if (raw.trim() !== '' && Number.isFinite(v) && v >= MIN_BETA && v <= MAX_BETA) commit(v)
-  }
 
   function updateCfg(patch: Partial<typeof cfg>) {
     const next = { ...cfg, ...patch }
@@ -167,68 +141,6 @@ export function SettingsModal({
         </div>
 
         <div className="flex flex-col divide-y divide-line-soft">
-          <div className="flex flex-col gap-3 p-4">
-            <div>
-              <div className="mb-1 flex items-baseline justify-between">
-                <span className="text-sm font-semibold text-ink">Fair price sharpness (beta)</span>
-                <span className="font-mono text-lg font-semibold text-emerald-deep">{draft.toFixed(2)}</span>
-              </div>
-              <Note short="How much a WPR gap becomes a price gap.">
-                Controls how much a WPR gap between runners shows up as a price gap. Higher = favourites priced
-                shorter and outsiders longer; lower = prices closer together across the field.
-              </Note>
-            </div>
-
-            <input
-              type="range"
-              min={MIN_BETA}
-              max={MAX_BETA}
-              step={STEP}
-              value={draft}
-              onChange={(e) => {
-                setTyped(null)
-                commit(Number(e.target.value))
-              }}
-              className="w-full accent-emerald"
-            />
-
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                Exact value
-                <input
-                  type="number"
-                  min={MIN_BETA}
-                  max={MAX_BETA}
-                  step={STEP}
-                  value={typed ?? draft}
-                  onChange={(e) => onTyped(e.target.value)}
-                  onBlur={() => setTyped(null)}
-                  className="w-24 rounded-md border border-line bg-panel px-2 py-1 font-mono text-sm"
-                />
-              </label>
-              {betaOverride != null && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSetBetaOverride(null)
-                    setDraft(serverBeta ?? 0.4)
-                  }}
-                  className="text-xs text-ink-mute underline hover:text-ink"
-                >
-                  Reset to default
-                </button>
-              )}
-            </div>
-
-            {serverBeta != null && (
-              <Note short="Display only, on this device.">
-                Pipeline's own current value is {serverBeta.toFixed(2)}. This override only changes what's
-                displayed on this device - it doesn't change the pipeline or the underlying WPR projections, only
-                how they're converted to a price.
-              </Note>
-            )}
-          </div>
-
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">How WPR is calculated</span>
             <Note short="How WPR is built, with a worked example.">
