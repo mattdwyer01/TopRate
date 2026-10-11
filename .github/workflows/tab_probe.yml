@@ -16,6 +16,16 @@ on:
         required: false
         default: '3'
         type: string
+      script:
+        description: 'tab_probe_race_fields.py (field list) or tab_probe_links.py (follow the _links, e.g. past form)'
+        required: false
+        default: 'tab_probe_race_fields.py'
+        type: string
+      any_status:
+        description: 'true = take races of any status (e.g. upcoming), to test past-form links'
+        required: false
+        default: 'false'
+        type: string
 
 # own group: must never queue behind or cancel the live results poller
 concurrency:
@@ -34,6 +44,8 @@ jobs:
         env:
           PROBE_DATE: ${{ inputs.date }}
           PROBE_N: ${{ inputs.n }}
+          PROBE_ANY: ${{ inputs.any_status }}
+          PROBE_SCRIPT: ${{ inputs.script }}
         run: |
           args=()
           if [[ -n "$PROBE_DATE" ]]; then
@@ -42,7 +54,12 @@ jobs:
           fi
           [[ "$PROBE_N" =~ ^[0-9]{1,2}$ ]] || { echo "bad n"; exit 1; }
           args+=(--n "$PROBE_N")
-          python tab_probe_race_fields.py "${args[@]}" 2>&1 | tee tab_probe_output.txt
+          [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
+          case "$PROBE_SCRIPT" in
+            tab_probe_race_fields.py|tab_probe_links.py) ;;
+            *) echo "unknown script"; exit 1 ;;
+          esac
+          python "$PROBE_SCRIPT" "${args[@]}" 2>&1 | tee tab_probe_output.txt
 
       - name: Upload raw JSON and output
         if: always()
