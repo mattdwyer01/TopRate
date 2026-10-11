@@ -2387,13 +2387,23 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   **Latency limit**: a race's margins and times reach us only when a runner next appears on a card. From TopRate history, the share of a race's field that has raced again is about 0% after
   7 days, 36% after 14, 61% after 21, 72% after 28; 37% of races have 80%+ of the field after 28 days (52% after 42). So whole-field data for a race lags weeks outside VIC/SA/QLD (GPS data is same week
   there), though each horse's own last run is on its next card immediately.
-  **NSW and WA (user, 11 Oct 2026)**: sectionals are available for WA and NSW from a source the user has access to (site, format, margins/times fields, history depth not yet specified). With VIC/SA/QLD from the
-  GPS files, that leaves only TAS, NT and ACT (about 6% of races) without a same-day source; TAB form (age, sex, margins, own times, with the weeks-long latency above) is the fallback for those.
+  **NSW and WA sources (user, 11 Oct 2026; probed from the AU runner with `sectional_probe.py`)**:
+  - WA: `https://static.p.racingwa.com.au/race-files/<meetingId>/0/secttime/<date>-<trk>-<epoch_ms>.xlsx` downloads fine (HTTP 200) from the AU runner. Sheets `Summary` (IVR benchmark figures) and `Data` (tidy,
+    one row per runner): RaceDate, RaceTrack (3 letters), RaceNumber, RaceDistance, Horse_FinalPosition, Horse_FullName, Horse_SaddleNumber, Horse_L1200..L200 (cumulative time over the last N metres),
+    Horse_FinishTime (own time), Horse_POS_L1200..L200 (positions), Horse_Split_* and Horse_Leader_* , TimestampUTC, IsComplete. No beaten margin in lengths: derive it from finish times (a constant 0.163 s per
+    length matched GPS margins to MAE 0.26 lengths, about 0.5 rating points; TAB form margins, when they arrive, are exact). The file name carries a creation timestamp (about 2 h after the sheet's own TimestampUTC),
+    so it cannot be guessed; the static host refuses directory listings (403 AccessDenied) and the meeting pages on racingwa.com.au sit behind a Vercel bot checkpoint (HTTP 429, needs JavaScript), so listing the
+    files needs a headless browser or another route (not Playwright on the runner today; openpyxl is installed).
+  - NSW: `https://racing.australianturfclub.com.au/meeting/<code>` is the Australian Turf Club's meeting page and covers ONLY the four ATC racecourses (Randwick, Rosehill, Canterbury Park, Warwick Farm): 352 of 2,163
+    NSW races in 2026 (16% of NSW, 4.6% of all AU). Country and provincial NSW (Newcastle, Kembla Grange, Hawkesbury, Wagga, Port Macquarie, ...) is NOT on it. The server-rendered HTML already holds, per race, the winner's
+    time, the winner's Last 600, track grade, rail, penetrometer and a runner table (finish position, SP, TAB number, barrier, weight, jockey, cumulative margin in lengths). The per-runner "Sectionals" tab is empty
+    in the HTML and loads through `https://www.australianturfclub.com.au/wp/wp-admin/admin-ajax.php` (action and parameters not yet found); `/race-index` is the likely list of meetings.
+  - Coverage if GPS (VIC/SA/QLD) + WA + ATC are all ingested: about 70% of races. Still without a same-day source: country NSW (24% of all races) and TAS/NT/ACT (6%). TAB form (with the weeks-long latency above) is the fallback.
   **Cost of rating noise (proxy, 11 Oct 2026)**: a last-3-runs forecaster on 576k runs since 2023 has RMSE 10.05 on clean ratings; adding independent race-level noise to every historical run's rating (what an
   own-rating error of about 3.3 would do) raises it to 10.23 against true ratings (+1.8%), and to 10.74 when scored against equally noisy own labels (sigma 2.0: 10.11 / 10.31; sigma 5.0: 10.45 / 11.58). So accuracy
   stats measured against our own labels will look worse than they are. This is a proxy, not the LightGBM projection; and bias or drift in our RS estimates would hurt more than the same-size random noise.
-  **Still unknown**: the NSW/WA source details (fields, access, history for backfill); whether TAS/NT/ACT need a separate source.
-  Plan: (1) ingest the user's NSW/WA sectionals into the same `data/gps/` parquet schema (runs: date, venue, race_no, tab_no, horse, finish, time_s, race_time_s, margin; sections: from_m, to_m, split_s) so one loader serves all five states; (2) fix venue aliases and match GPS rows
+  **Still unknown**: a same-day source for country NSW and TAS/NT/ACT; how to list WA file names; the ATC sectionals AJAX call.
+  Plan: (1) ingest the WA spreadsheets and ATC pages into the same `data/gps/` parquet schema (runs: date, venue, race_no, tab_no, horse, finish, time_s, race_time_s, margin; sections: from_m, to_m, split_s) so one loader serves all five states; (2) fix venue aliases and match GPS rows
   to our runs by (date, venue, race, tab_no); (3) build own ATW from margins, then own RS from the independent-input model (about 3 WPR error, common to every runner in a race,
   so within-race gaps stay exact); (4) shadow-run against the last TopRate ratings while they still arrive; (5) keep TopRate's ratings as frozen history. Risk: with no TopRate
   labels we cannot retrain or detect drift (the RS model over-predicted by 0.6 to 1.1 in 2026). Branch `claude/wpr-recreate` holds the research scripts.
