@@ -1,4 +1,4 @@
-import { atwFieldByRunId, projectedAtActualScale } from './atw'
+import { atwFieldByRunId, projectedAtResultsScale } from './atw'
 import type { Race } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
 import { isVoid } from './wprVoid'
@@ -97,7 +97,7 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
       if (r.projectedWpr == null || r.actualWpr == null) continue
       const live = loggedBeforeRace(race, r)
       if (filters.period === 'live' && !live) continue
-      const projAtActual = projectedAtActualScale(r) as number
+      const projAtActual = projectedAtResultsScale(r) as number
       const miss = r.actualWpr - projAtActual
       const voidResult = isVoid(miss, r.commentsVideo, r.commentsSteward)
       rows.push({

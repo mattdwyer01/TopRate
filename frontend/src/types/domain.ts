@@ -71,6 +71,7 @@ export interface Runner {
   distancePlaces: number | null
   wprAtDistance: number | null
   atwOffset: number | null // add to a results-scale rating to put it on the ATW scale the recent runs and form chart use (the horse's weight today)
+  resultsScaleOffset: number | null // add to the plain projection to compare it with actualWpr (the results-file atw: weight, age, sex and month adjusted); null = unknown
   goingBreakdown: GoingBreakdown[]
   formString: string | null
   marginFinish: number | null

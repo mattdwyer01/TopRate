@@ -80,6 +80,7 @@ export interface RawRunner {
   dp: number | null
   wd: number | null
   atwo?: number | null // ATW offset: form-feed rating minus results-file rating for this horse (absent on older payloads)
+  rso?: number | null // results-scale offset: expected results-file atw minus plain wpr for this run's weight, age, sex and month (absent on older payloads)
   gb: RawGoingBreakdown | null
   fm: string | null
   mgnL: number | null
