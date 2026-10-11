@@ -3621,6 +3621,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _tend_lookup = {}
     _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
     _atw_off_lookup = {}  # horse_lc -> ATW offset (see _compute_atw_offsets)
+    # run_id -> expected (results-file atw minus plain wpr) for this run's weight/age/sex/month (atw_results_scale.py): puts the plain projection on the
+    # scale of wpr_actual so the Review / result-card miss compares like with like. Fail-safe: {} = no shift.
+    try:
+        from atw_results_scale import results_scale_offsets
+        _rso_lookup = results_scale_offsets(runners_df)
+    except Exception as _e:
+        print(f"  results-scale offsets skipped: {_e}")
+        _rso_lookup = {}
 
     def _atwo_for_row(row):
         """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
@@ -4215,6 +4223,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # ATW offset (Oct 2026): form-feed rating minus results-file rating for this horse (see _compute_atw_offsets). The chart adds it
                 # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
                 "atwo": _atwo_for_row(row),
+                # Results-scale offset (Oct 2026): add to the plain projection to compare it with wpr_actual (the results-file atw). See atw_results_scale.py.
+                "rso": _rso_lookup.get(si(row.get("run_id"))),
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
