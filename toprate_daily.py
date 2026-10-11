@@ -3062,6 +3062,44 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
 
     return runners_df
 
+
+def refresh_missing_silks(jwt, runners_df, workers=DEFAULT_FETCH_WORKERS):
+    """Fill silk_url for today's and later races that were fetched before toprate.au had published silks (11 Oct 2026: Halidon and
+    Cairns went out with none, and fetch_todays_races() never re-fetches a day it already has). One detail call per race that has a
+    runner without a silk, silk_url only; every other column is left alone. Best-effort."""
+    try:
+        if "silk_url" not in runners_df.columns or "race_id" not in runners_df.columns:
+            return runners_df
+        today = date.today().strftime("%Y-%m-%d")
+        d = runners_df["date"].astype(str).str[:10]
+        no_silk = runners_df["silk_url"].isna() | (runners_df["silk_url"].astype(str).isin(["", "nan", "None"]))
+        gone = runners_df["scratched"].fillna(0) == 1 if "scratched" in runners_df.columns else False
+        rc_ids = sorted(set(runners_df.loc[(d >= today) & no_silk & ~gone, "race_id"].astype(str)))
+        if not rc_ids:
+            return runners_df
+        from concurrent.futures import ThreadPoolExecutor
+        def _one(rc):
+            try:
+                return rc, api_race_detail(jwt, rc) or []
+            except Exception:
+                return rc, []
+        silks = {}
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            for _rc, detail in pool.map(_one, rc_ids):
+                for x in detail:
+                    if x.get("silksURL") and x.get("runId") is not None:
+                        silks[str(x["runId"])] = x["silksURL"]
+        if silks:
+            m = runners_df["run_id"].astype(str).map(silks)
+            fill = no_silk & m.notna()
+            runners_df.loc[fill, "silk_url"] = m[fill]
+            print(f"  Silks: filled {int(fill.sum())} runners in {len(rc_ids)} races that had none")
+        else:
+            print(f"  Silks: none published yet for {len(rc_ids)} races without them")
+    except Exception as e:
+        print(f"  Silk refresh skipped ({type(e).__name__}: {e})")
+    return runners_df
+
 # -----------------------------------------------------------------------
 # STEP 3: REBUILD HTML
 # -----------------------------------------------------------------------
@@ -4811,6 +4849,7 @@ def main():
     print("── Step 2: Fetching today's races ──")
     runners_df = fetch_todays_races(jwt, runners_df, args.date,
                                     fetch_workers=args.workers)
+    runners_df = refresh_missing_silks(jwt, runners_df, workers=args.workers)
     _main_step("Step 2: Fetching today's races")
     print()
 
