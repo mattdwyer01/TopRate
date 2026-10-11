@@ -335,6 +335,7 @@ function App() {
                 .filter((r) => r.venue === urlState.quaddie && r.date === (urlState.date ?? todayIso()))
                 .sort((a, b) => a.raceNumber - b.raceNumber)}
               priceBeta={state.data.priceBeta}
+              signals={betSignals}
               deltas={deltas}
               bases={bases}
               scratched={scratched}

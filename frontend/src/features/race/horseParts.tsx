@@ -47,6 +47,9 @@ interface HeroProps {
   spellLabel: string
   daysSince: number | null
   projAtw: number | null
+  // True when proj is the bet-signal rating; projectionWpr is then the WPR projection it replaces, shown beneath.
+  ratingFromBets?: boolean
+  projectionWpr?: number | null
 }
 
 // A likely range drawn against the whole field: the pale track is the field from lowest to highest projection, the bar is this horse's
@@ -84,7 +87,7 @@ function RangeGauge({ proj, sd, top, low }: { proj: number; sd: number | null; t
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw, compact }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fieldLow, fair, market, fixedMove, hasOverride, spellLabel, daysSince, projAtw, compact, ratingFromBets = false, projectionWpr = null }: HeroProps) {
   const sd = typicalSd(runner, proj)
   // The whole hero is at today's weight (ATW): proj, the field top and low all come from the race's effective (ATW) ratings.
   const last3 = runner.formHistory.filter((e) => e.wpr != null && e.date && !e.isVoid).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3)
@@ -108,7 +111,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
       <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 ${compact ? '' : 'lg:grid-cols-[minmax(150px,auto)_minmax(0,1fr)_auto] lg:gap-x-6'}`}>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Projected WPR</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{ratingFromBets ? 'Rating' : 'Projected WPR'}</span>
             {hasOverride && <span className="rounded-full bg-amber-bg px-2 py-0.5 text-[11px] font-semibold text-amber">manually adjusted</span>}
           </div>
           {scratched ? (
@@ -119,7 +122,8 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {!compact && !scratched && (projAtw ?? proj) != null && (
             <p className="mt-0.5 text-[11px] text-ink-mute" title="Every rating on this page is at the weight carried today (ATW), the scale of the Recent runs table, the chart and the waterfall. Ranking, the gap to the top and the field range use the same rating shifted together, so they are unchanged.">
               {projAtw != null ? <>at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}</> : null}
-              {recentAvg != null && <>{projAtw != null ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
+              {ratingFromBets && projectionWpr != null && <>{projAtw != null ? ' \u00b7 ' : ''}WPR projection {fmtWpr(projectionWpr)}</>}
+              {recentAvg != null && <>{projAtw != null || (ratingFromBets && projectionWpr != null) ? ' \u00b7 ' : ''}last {last3.length} runs avg {fmtWpr(recentAvg)} ({fmtAdj((projAtw ?? proj!) - recentAvg)})</>}
             </p>
           )}
           <p className="mt-1 text-xs text-ink-soft">

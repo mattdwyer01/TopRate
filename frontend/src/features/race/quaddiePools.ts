@@ -4,11 +4,12 @@ import { BUSH_TRACK_THRESHOLD } from '../../lib/meetings'
 import { loggedBeforeRace, type Period } from '../../lib/accuracyStats'
 import { hasEarlyQuaddie, hasQuaddie, product, quaddieRaces, type QuaddieKind } from '../../lib/quaddie'
 import { rankField, type Ranked } from './raceFacts'
+import { signalsForRace, type BetSignals } from '../../lib/betSignals'
 
-export function rankRace(race: Race, deltas: Record<string, number>, bases: Record<string, number>, scratched: Set<string>, priceBeta: number | null): Ranked[] {
+export function rankRace(race: Race, deltas: Record<string, number>, bases: Record<string, number>, scratched: Set<string>, priceBeta: number | null, signals: BetSignals | null = null): Ranked[] {
   const eff = new Set(scratched)
   for (const r of race.runners) if (r.dataScratched) eff.add(r.runId)
-  const effective = computeEffectiveRace(race.runners, deltas, bases, priceBeta, eff)
+  const effective = computeEffectiveRace(race.runners, deltas, bases, priceBeta, eff, signals ? signalsForRace(race, signals) : undefined)
   return rankField(race.runners, effective, eff, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP)
 }
 

@@ -26,6 +26,10 @@ It is a separate model from the WPR projection (`projection/`), which is unchang
 - Workflows: `.github/workflows/bet_signal.yml` (score; trigger from cron-job.org every 5 minutes in racing hours, like `price_refresh.yml`),
   `bet_signal_train.yml` (weekly retrain + manual).
 
+## The rating (frontend)
+The Race page's Rating is these win probabilities on the ATW scale (`frontend/src/lib/betSignals.ts`, `RATING_PER_LN = 3.66`, level from the field's mean WPR projection);
+see the CLAUDE.md entry for the calibration. A race without full signals uses the WPR projection.
+
 ## Evidence and caveats (read before trusting it)
 - Backtest 2022 to 2026, walk-forward with the production code (`backtest.py`), at CLOSING SP (6,660 Volume-or-Select bets, 599 Select):
   Select 120 bets a year (0.7 a Saturday), win 25.7%, avg $7.11, ROI +53.1%, years +41 +82 +42 +65 +32, quarters +42 +76 +45 +49, +30.4% without the

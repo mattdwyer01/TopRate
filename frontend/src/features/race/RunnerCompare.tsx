@@ -24,7 +24,8 @@ const signed = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
 export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, signalByRunId, onRemove, onOpen, onClear }: RunnerCompareProps) {
   const eff = (r: Runner) => effectiveByRunId[r.runId]
   const rows: Row[] = [
-    { label: 'Proj WPR', get: (r) => eff(r)?.effectiveProjectedWpr ?? null, fmt: fmtWpr, higher: true },
+    { label: 'Rating', get: (r) => eff(r)?.effectiveProjectedWpr ?? null, fmt: fmtWpr, higher: true },
+    { label: 'WPR projection', get: (r) => eff(r)?.projectionWpr ?? null, fmt: fmtWpr, higher: true },
     { label: 'Behind top', get: (r) => gapByRunId[r.runId] ?? null, fmt: (v) => (v === 0 ? 'top' : v.toFixed(1)), higher: false },
     { label: 'Likely range +/-', get: (r) => r.projectionSd, fmt: (v) => (v * 0.67).toFixed(1), higher: false },
     { label: 'Base', get: (r) => r.baseWpr, fmt: fmtWpr, higher: true },

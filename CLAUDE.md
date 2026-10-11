@@ -2427,6 +2427,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `bet_signal.yml` every 5 minutes in racing hours (like `price_refresh.yml`), run `bet_signal_train.yml` once (models are committed; it also refreshes weekly). Until the first scoring run the Bets tab shows
   "Bet signals are not available yet" and the table columns are blank (the dashboard is otherwise unchanged).
 
+- **Rating replaced by the bet-signal rating on the Race page (11 Oct 2026, EXPERIMENTAL, branch claude/bet-signal)**: the Race table's Proj column is now "Rating"
+  (Rtg on phones). Where a race has bet signals for every runner still in it, Rating = the bet model's win probabilities on the ATW scale:
+  `level + RATING_PER_LN x (ln p - mean ln p)` (`lib/betSignals.ts`, applied in `computeEffectiveRace` via `signals`), `level` = the field's mean WPR-projection ATW rating
+  (before manual deltas), `RATING_PER_LN = 3.66`. That is NOT 1/beta (5 per ln p at beta 0.20): over 85k races (2022 to 2026, results wpr) the actual rating moved 0.73 per point of the raw
+  conversion, so it is shrunk (5 x 0.73) to be a calibrated predictor of the rating run. Checked on the 1,693 July to October races where both exist: winner log-loss 1.776 (new) vs 1.9365 (old
+  projection) vs 1.770 (market) so it picks winners far better; within-race RMSE vs actual rating 8.19 (new) vs 7.98 (old), a 50/50 blend 7.85 (best of the three, not shipped; the user asked for a replacement).
+  It is market informed: it moves with the price and no longer an independent view. A race without full signals (needs the whole field drawn and priced, scored by `betsignal/score.py`) falls back to
+  the WPR projection for the WHOLE race (never a mix), and a line above the table says which is in use. Rank, gaps, the 2/4/8 lines, the ladder, Compare, Quaddie (live view) and the
+  sort all use Rating. Lines left at 2 / 4 / 8: on the new rating (85k races) they hold 1.8 / 2.9 / 5.6 runners and about 50% / 67% / 90% of winners (WPR projection: 2.2 / 3.9 / 6.9 and 50% / 70% / 93%).
+  `EffectiveRunner` gained `projectionWpr` (the old ATW projection, kept) and `ratingSource`; `rankField(..., 'projection')` ranks on it. Kept on the WPR projection on purpose: the runner page
+  waterfall / "Why this projection" / timeline / RatingSanity / result card, the track-bias note, the typical winning rating line, the Review tab (accuracy, calibration, rating miss: past races have no
+  frozen bet signal), the Quaddie scorecard on Review. The runner hero shows Rating with "WPR projection X" beneath. The WPR projection pipeline (`projection/`, `projection_daily.yml`) still runs: it supplies
+  the level, the fallback, the waterfall and Review. To go back: pass no `signals` to `computeEffectiveRace` (or return null from `useBetSignals`).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

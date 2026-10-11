@@ -18,6 +18,7 @@ import {
   type QuaddieKind,
 } from '../../lib/quaddie'
 import { Ladder } from './RaceGlance'
+import type { BetSignals } from '../../lib/betSignals'
 import { inPool, POOL_LABEL, poolMembers, rankRace, type PoolKey } from './quaddiePools'
 
 interface QuaddieProps {
@@ -26,6 +27,8 @@ interface QuaddieProps {
   bases: Record<string, number>
   scratched: Set<string>
   priceBeta: number | null
+  // Bet signals (lib/betSignals.ts): where a leg's race has them its ladder and pools use the bet-signal rating, like the race page.
+  signals?: BetSignals | null
   onSelectRace: (raceId: string, date: string, runId?: string) => void
   onBack: () => void
 }
@@ -54,7 +57,7 @@ function readUnit(): number {
 
 // A meeting's late (last four races) or early (the four before) quaddie side by side: each race's projection ladder with the inside-4 and
 // inside-6 lines and the speed map adjustment. Counts and costs are plain arithmetic on the pools or on the runners you tick, not tips.
-export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelectRace, onBack }: QuaddieProps) {
+export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, signals = null, onSelectRace, onBack }: QuaddieProps) {
   const [kind, setKind] = useState<QuaddieKind>('late')
   const hasEarly = hasEarlyQuaddie(meeting)
   const races = useMemo(() => quaddieRaces(meeting, kind), [meeting, kind])
@@ -77,7 +80,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
     }
   }, [unit])
 
-  const ranked = useMemo(() => races.map((r) => rankRace(r, deltas, bases, scratched, priceBeta)), [races, deltas, bases, scratched, priceBeta])
+  const ranked = useMemo(() => races.map((r) => rankRace(r, deltas, bases, scratched, priceBeta, signals)), [races, deltas, bases, scratched, priceBeta, signals])
   const inner = ranked.map((rk) => rk.filter((x) => x.inner).length)
   const outer = ranked.map((rk) => rk.filter((x) => x.inner || x.outer).length)
   const pool = ranked.map((rk) => rk.filter(inPool).length)

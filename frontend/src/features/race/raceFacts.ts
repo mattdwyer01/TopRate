@@ -45,13 +45,16 @@ export function rankField(
   innerGap: number,
   outerGap: number,
   coreGap = CORE_GAP_FROM_TOP,
+  // 'projection' ranks on the WPR projection even where the race's rating is the bet-signal rating: for the things that explain the projection (the track-bias
+  // note, the typical winning rating), which were fitted on it.
+  scale: 'rating' | 'projection' = 'rating',
 ): Ranked[] {
   type Row = { runner: Runner; proj: number; eff: EffectiveRunner | undefined }
   const rows: Row[] = []
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     const eff: EffectiveRunner | undefined = effective[r.runId]
-    const proj = eff?.effectiveProjectedWpr ?? r.projectedWpr
+    const proj = scale === 'projection' ? (eff?.projectionWpr ?? r.projectedWpr) : (eff?.effectiveProjectedWpr ?? r.projectedWpr)
     if (proj != null) rows.push({ runner: r, proj, eff })
   }
   rows.sort((a, b) => b.proj - a.proj)

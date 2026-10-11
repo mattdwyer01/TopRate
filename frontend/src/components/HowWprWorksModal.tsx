@@ -49,10 +49,13 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
 
         <Section title="The short version">
           <p>
-            <span className="font-mono text-ink">Proj</span> is the WPR the model expects a horse to run in today's race.
-            It is a machine-learned estimate from each horse's past runs and the conditions of the race, trained on ten
-            years of Australian results (about 845,000 runs). It is read in WPR points, the same scale as the actual WPR
-            shown after the race.
+            <span className="font-mono text-ink">Rating</span> is the figure each race is ranked on, at the weight carried today (ATW),
+            the same scale as the Recent runs table. Where a race has bet signals (see Bets, below) it is the bet-signal model's win chances
+            turned into ratings: within the race, 3.66 rating points per unit of log win chance, with the field's average level taken from the
+            WPR projection. It is informed by the market price, so it moves when the price moves. Where a race has none yet, Rating is the
+            <span className="font-mono text-ink"> WPR projection</span>: a machine-learned estimate of the WPR a horse will run from its past
+            runs and the conditions, trained on ten years of Australian results (about 845,000 runs), in the same WPR points shown after the race.
+            The runner page, the Base / Adj figures and the waterfall always explain the WPR projection.
           </p>
           <p>
             Horses with three or more prior rated runs use the main model. Horses with none, one or two prior runs
@@ -63,14 +66,14 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
 
         <Section title="Column and label guide">
           <ul className="list-disc space-y-1 pl-5">
-            <li><span className="font-mono text-ink">Proj</span>: projected WPR for today's race (the headline figure). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = Proj.</li>
+            <li><span className="font-mono text-ink">Rating</span>: the race's ranking figure at today's weight (bet-signal rating where the race has signals, otherwise the WPR projection; the line under the Race heading says which). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the WPR projection, which the runner page explains.</li>
             <li><span className="font-mono text-ink">SM</span>: the suitability part of Adj, relative to this field. It is already inside Adj, not added again.</li>
             <li><span className="font-mono text-ink">Model $</span> and <span className="font-mono text-ink">Edge</span>: from the experimental bet-signal model (see Bets, below). Model $ is 1 / its win chance. Edge is its win chance times the current price, minus 1. Blank when the race is not fully drawn and priced.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
             <li><span className="font-mono text-ink">SELECT / VOL</span>: the runner is a Select or Volume bet from the bet-signal model. The Bets tab lists them with stakes and a scoreboard.</li>
-            <li><span className="font-mono text-ink">2 / 4 / 8 WPR from top</span>: the lines show runners within 2, 4 and 8 WPR of the top projection (at today's weight). In a 15-month out-of-sample test inside 2 held about 50% of winners (2.2 runners a race), inside 4 about 70% (3.9) and inside 8 about 93% (6.9). They show where the winners are, not where the value is: runners 4 to 8 off the top lose money unless their speed map (SM) is +1.0 or better.</li>
+            <li><span className="font-mono text-ink">2 / 4 / 8 from top</span>: the lines show runners within 2, 4 and 8 rating points of the top rated (at today's weight). On the bet-signal rating (85,000 races, 2022 to 2026) inside 2 holds 1.8 runners a race and about 50% of winners, inside 4 holds 2.9 and 67%, inside 8 holds 5.6 and 90%. On the WPR projection (15-month out-of-sample test) the same lines held 2.2 runners and 50%, 3.9 and 70%, 6.9 and 93%. They show where the winners are, not where the value is.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
         </Section>

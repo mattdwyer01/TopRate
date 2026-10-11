@@ -17,7 +17,7 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { fmtStake, signalFor, TIER_UNITS, type BetSignals, type Signal } from '../../lib/betSignals'
+import { fmtStake, signalsForRace, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
 import { MIN_WINNING_STANDARD_OFFSET, expectedWinningWpr, rankField } from './raceFacts'
 
 interface RaceDetailProps {
@@ -46,7 +46,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'projectedWpr', label: 'Proj', align: 'right', title: 'Projected WPR at the weight carried today (the scale of the form table)' },
+  { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: 'Suitability adjustment relative to this field (already included in Proj)' },
   { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.' },
   { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.', lgOnly: true },
@@ -126,9 +126,11 @@ export function RaceDetail({
     return merged
   }, [race.runners, scratched])
 
+  // Bet signals for this race: the live pass before the jump, the frozen pre-jump pass once it has run. They also set the rating (below).
+  const signalByRunId = useMemo(() => signalsForRace(race, signals), [race, signals])
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
-    [race.runners, deltas, bases, priceBeta, effectiveScratched],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched, signalByRunId),
+    [race.runners, deltas, bases, priceBeta, effectiveScratched, signalByRunId],
   )
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
@@ -141,23 +143,22 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
+  // The things that explain the WPR projection (typical winning rating, the track-bias note) stay on the projection, which is what they were fitted on.
+  const rankedProjection = useMemo(
+    () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
+    [race.runners, effectiveByRunId, effectiveScratched],
+  )
   const expectedWinWpr = useMemo(() => {
-    const typical = expectedWinningWpr(ranked.map((r) => r.proj - (r.eff?.atwOff ?? 0)))
+    const typical = expectedWinningWpr(rankedProjection.map((r) => r.proj - (r.eff?.atwOff ?? 0)))
     return typical == null ? null : typical - MIN_WINNING_STANDARD_OFFSET
-  }, [ranked])
+  }, [rankedProjection])
+  const ratingFromBets = useMemo(() => Object.values(effectiveByRunId).some((e) => e.ratingSource === 'bet'), [effectiveByRunId])
   const bandOf = useMemo(() => {
     const m = new Map<string, { band: 'core' | 'inner' | 'outer' | 'none' }>()
     for (const r of ranked) m.set(r.runner.runId, { band: r.core ? 'core' : r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
     return m
   }, [ranked])
 
-  // The live pass before the jump, the frozen pre-jump pass once the race has run.
-  const jumped = hasAnyResult || (race.startTime ? new Date(race.startTime).getTime() < Date.now() : false)
-  const signalByRunId = useMemo(() => {
-    const m: Record<string, Signal | null> = {}
-    for (const r of race.runners) m[r.runId] = signalFor(signals?.runs[r.runId], jumped)
-    return m
-  }, [race.runners, signals, jumped])
   const tierCounts = useMemo(() => {
     let s = 0
     let v = 0
@@ -255,7 +256,7 @@ export function RaceDetail({
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
-      <BiasNote ranked={ranked} race={race} allRaces={allRaces} />
+      <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -274,6 +275,11 @@ export function RaceDetail({
           </div>
         </div>
 
+        <p className="text-[11px] text-ink-faint" data-testid="rating-source">
+          {ratingFromBets
+            ? 'Rating: bet-signal model on the ATW scale (win chances from the market price and form, so it moves with the price). Under it the WPR projection still explains each horse.'
+            : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
+        </p>
         {(tierCounts.s > 0 || tierCounts.v > 0) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-emerald-line bg-emerald-bg px-3 py-1.5 text-xs text-emerald-deep">
             <span className="font-semibold">Bet signals (experimental)</span>
@@ -297,7 +303,14 @@ export function RaceDetail({
                   onClick={() => onSort(c.key as SortKey)}
                   className={`transition-colors hover:text-ink ${c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
-                  {c.label}
+                  {c.key === 'projectedWpr' ? (
+                    <>
+                      <span className="lg:hidden">Rtg</span>
+                      <span className="hidden lg:inline">Rating</span>
+                    </>
+                  ) : (
+                    c.label
+                  )}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
                 </button>
               ),

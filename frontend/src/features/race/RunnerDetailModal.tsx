@@ -111,14 +111,15 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
+  // effectiveWpr is the RATING at today's weight (ATW): the bet-signal rating where the race has signals, otherwise the WPR projection (model rating + manual
+  // adjustment + the horse's own offset). projWpr is always the WPR projection at today's weight, which the waterfall, chart, range check and
+  // "why this projection" explain; they take the model-scale figure (projection minus the offset).
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  // The panel shows the projection at today's weight (ATW, as the Recent runs table does): the model's rating plus this horse's own offset. Ranking,
-  // the range bar and the gap to the top stay on the model's rating, which is what the gap lines and fair prices were validated on.
-  // effectiveWpr is at today's weight (ATW) already: model rating + manual adjustment + the horse's own offset (frozen in the projection log, or its latest
-  // for a race still to run). The waterfall and chart add the offset themselves, so they take the model-scale figure.
+  const ratingFromBets = effective?.ratingSource === 'bet'
+  const projWpr = scratched ? null : (effective?.projectionWpr ?? runner.projectedWpr)
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
-  const projAtw = effectiveWpr != null && atwOff != null ? effectiveWpr : null
-  const modelProj = effectiveWpr != null ? effectiveWpr - (atwOff ?? 0) : null
+  const projAtw = effectiveWpr != null && (atwOff != null || ratingFromBets) ? effectiveWpr : null
+  const modelProj = projWpr != null ? projWpr - (atwOff ?? 0) : null
   const hasOverride = effective?.hasOverride ?? false
   const spell = spellPosition(runner.formHistory, race.date)
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
@@ -147,7 +148,7 @@ export function RunnerDetailModal({
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
                 <span className="font-mono font-bold text-emerald-deep">{fmtWpr(projAtw ?? effectiveWpr)}</span>
-                <span className="text-ink-faint">projected WPR</span>
+                <span className="text-ink-faint">{ratingFromBets ? 'rating' : 'projected WPR'}</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
             ) : (
@@ -207,6 +208,8 @@ export function RunnerDetailModal({
             spellLabel={spell.label}
             daysSince={spell.daysSince}
             projAtw={projAtw}
+            ratingFromBets={ratingFromBets}
+            projectionWpr={projWpr}
           />
 
           {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
@@ -219,7 +222,7 @@ export function RunnerDetailModal({
               Going not known yet. The projection assumes Good 4 and updates when the track is rated.
             </div>
           )}
-          {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projAtw ?? effectiveWpr} />}
+          {!scratched && !(runner.resultKnown || runner.finishPosition != null) && <RatingSanity runner={runner} projAtw={projWpr} />}
 
           {(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel p-3 sm:hidden">
@@ -341,12 +344,12 @@ export function RunnerDetailModal({
                       : 'No GPS history, forecast from barrier and track.'
                     : 'No trip forecast for this course.'}
                 </p>
-                {atwOff != null && effectiveWpr != null && (
+                {atwOff != null && projWpr != null && (
                   <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">
-                    {fmtWpr(effectiveWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
+                    {fmtWpr(projWpr)} at {runner.weightCarried != null ? `${runner.weightCarried}kg` : "today's weight"}, error about {typicalSd(runner, modelProj)?.toFixed(1) ?? '-'}.
                   </p>
                 )}
-                {runner.projectionDescription && !(atwOff != null && effectiveWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
+                {runner.projectionDescription && !(atwOff != null && projWpr != null) && <p className="hidden border-t border-line-soft pt-2 text-sm text-ink-soft sm:block">{runner.projectionDescription}</p>}
               </div>
             </div>
           </Card>

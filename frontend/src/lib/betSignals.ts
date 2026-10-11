@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { Race } from '../types/domain'
 
 // Bet signals (Oct 2026, EXPERIMENTAL): a market-residual win model (betsignal/ in the repo). It starts from the current fixed price, corrects it
 // with form, ratings and connections, and returns a win probability. Model price = 1 / probability, edge = probability x price - 1.
@@ -99,4 +100,19 @@ export function useBetSignals(): BetSignals | null {
     }
   }, [])
   return signals
+}
+
+// The bet-signal rating (Oct 2026): the model's win probabilities turned into ratings on the ATW scale. Within a race a runner's rating is
+//   level + RATING_PER_LN x (ln p - mean ln p)
+// where level is the field's average WPR-projection rating at today's weight, so the numbers sit on the same scale as the Recent runs table. RATING_PER_LN
+// is not the price beta inverted (5 rating points per ln p at beta 0.20): over 85k races the actual rating moved 0.73 for each point of that raw
+// conversion, so it is shrunk by that factor (5 x 0.73 = 3.66) to make the number a calibrated prediction of the rating the horse will run.
+export const RATING_PER_LN = 3.66
+
+/** Signal per runner for one race: the live pass before the jump, the frozen pass once it has run. Runners with none are null. */
+export function signalsForRace(race: Race, signals: BetSignals | null, now = Date.now()): Record<string, Signal | null> {
+  const jumped = race.runners.some((r) => r.finishPosition !== null || r.resultKnown) || (race.startTime ? new Date(race.startTime).getTime() < now : false)
+  const m: Record<string, Signal | null> = {}
+  for (const r of race.runners) m[r.runId] = signalFor(signals?.runs[r.runId], jumped)
+  return m
 }

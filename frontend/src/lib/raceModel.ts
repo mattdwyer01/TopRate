@@ -1,8 +1,14 @@
 import type { Runner } from '../types/domain'
+import { RATING_PER_LN } from './betSignals'
 
 export interface EffectiveRunner {
-  // The projection at the weight carried today (ATW): model rating + manual delta + this horse's own offset. Ranking, gaps and fair prices use it.
+  // The rating shown and used for ranking and gaps, at the weight carried today (ATW). Where the race has bet signals it is the bet-signal rating (the model's win
+  // probabilities on the ATW scale, see lib/betSignals.ts RATING_PER_LN), otherwise the WPR projection below. Manual delta included either way.
   effectiveProjectedWpr: number | null
+  // The WPR projection at today's weight (model rating + manual delta + this horse's own offset), whichever the rating above is. The waterfall, the typical
+  // winning rating and the track-bias note explain this figure, not the bet-signal rating.
+  projectionWpr: number | null
+  ratingSource: 'bet' | 'projection'
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
@@ -71,8 +77,10 @@ export function computeEffectiveRace(
   bases: Record<string, number>,
   priceBeta: number | null,
   scratched: Set<string> = new Set(),
+  // Bet signals for this race (runId -> model win probability m). When every runner still in the race has one, the rating comes from them.
+  signals?: Record<string, { m: number } | null>,
 ): Record<string, EffectiveRunner> {
-  const beta = priceBeta ?? DEFAULT_BETA
+  let beta = priceBeta ?? DEFAULT_BETA
 
   const withEffectiveWpr = runners.map((r) => {
     const modelBase = r.projectedWpr ?? (r.runId in bases ? bases[r.runId] : null)
@@ -91,6 +99,32 @@ export function computeEffectiveRace(
       scratched: isScratched,
     }
   })
+
+  // Bet-signal rating: level (the field's mean WPR-projection rating, before manual deltas) + RATING_PER_LN x (ln p - mean ln p), over the runners in
+  // both. Only when every runner still in the race has a signal; otherwise the whole race stays on the projection (never a mix of two scales).
+  const projectionByRunId = new Map<string, number | null>()
+  for (const r of withEffectiveWpr) projectionByRunId.set(r.runId, r.wpr)
+  let betSource = false
+  if (signals) {
+    const active = withEffectiveWpr.filter((r) => !r.scratched)
+    const sig = (id: string) => {
+      const m = signals[id]?.m
+      return m != null && m > 0 ? Math.log(m) : null
+    }
+    const full = active.length >= 5 && active.every((r) => sig(r.runId) != null)
+    const anchor = active.filter((r) => r.wpr != null)
+    if (full && anchor.length >= 2) {
+      const delta = (id: string) => deltas[id] ?? 0
+      const level = anchor.reduce((a, r) => a + (r.wpr as number) - delta(r.runId), 0) / anchor.length
+      const meanLn = anchor.reduce((a, r) => a + (sig(r.runId) as number), 0) / anchor.length
+      for (const r of withEffectiveWpr) {
+        if (r.scratched) continue
+        r.wpr = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn) + delta(r.runId)
+      }
+      betSource = true
+      beta = 1 / RATING_PER_LN   // so the price softmax below reproduces the model's own win probabilities
+    }
+  }
 
   const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
@@ -125,6 +159,8 @@ export function computeEffectiveRace(
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
+      projectionWpr: projectionByRunId.get(r.runId) ?? null,
+      ratingSource: betSource ? 'bet' : 'projection',
       atwOff: r.atwOff,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
