@@ -92,6 +92,10 @@ def probe_atc(browser):
     except Exception:
         pass
     print(f"  title={page.title()!r}")
+    site = [x for x in seen if "australianturfclub" in x[3] and x[2] in ("xhr", "fetch", "document")]
+    print(f"  same-site xhr/fetch/document requests during page load ({len(site)}):")
+    for m, st, rt, url, post in site[:30]:
+        print(f"   {m} {st} {rt} {url[:200]}" + (f"  POST={post[:200]}" if post else ""))
     before = len(seen)
     try:
         page.click("#aSectionals", timeout=8000)
@@ -121,6 +125,17 @@ def probe_atc(browser):
     print(f"  title={page.title()!r}; meeting links: {len(meet)}; first: {meet[:6]}")
     print("  text: " + re.sub(r"\s+", " ", page.inner_text("body"))[:900])
     report_requests(seen, 20)
+    for n in (0, 1, 2, 10, 40):
+        try:
+            r = page.context.request.get(f"https://racing.australianturfclub.com.au/latest-racing/{n}", timeout=20000)
+            body = r.text()
+            codes = re.findall(r"/meeting/([A-Za-z0-9]{6,10})", body)
+            dates = re.findall(r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+[A-Z][a-z]{2}(?:\s+\d{4})?", re.sub(r"<[^>]+>", " ", body))
+            print(f"  /latest-racing/{n}: HTTP {r.status} {r.headers.get('content-type', '')} len={len(body)} meeting codes={len(set(codes))} dates={dates[:4]}")
+            if n == 0:
+                print("   first 400 chars: " + re.sub(r"\s+", " ", body[:400]))
+        except Exception as e:
+            print(f"  /latest-racing/{n}: failed {type(e).__name__}: {str(e)[:100]}")
     page.context.close()
 
 
@@ -135,7 +150,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         print("chromium", browser.version)
-        for fn in (probe_wa, probe_atc):
+        for fn in (probe_atc,):   # WA skipped: Vercel's checkpoint rejects headless browsers (Code 21); not pursued
             try:
                 fn(browser)
             except Exception as e:
