@@ -29,15 +29,15 @@ KEEP_DAYS = 10
 FREEZE_MINS = 5          # the frozen (scoreboard) pass is the last one made at least this long before the jump
 LOG_WINDOW_MINS = 90     # passes are logged only within this long of the jump
 
-# Tier rules (simplified 11 Oct 2026: any runner, any price, no favourite rule). Select is contained in Volume; a runner gets its highest tier.
-# The earlier rules (non-favourite EV > 1.20 at $3 to $20, favourite EV > 1.30 at $3+, Volume EV > 1.05 at $3+) backtested +53% for Select at SP; see README.
-SELECT_EV, VOLUME_EV = 1.20, 1.05
+# Tier rules (11 Oct 2026): Select = any runner with EV > 1.20 at any price; Volume = EV > 1.05 at $3 or more. Select is contained in Volume's EV range;
+# a runner gets its highest tier. Backtest at SP in README (the $3 floor on Volume turns -6.9% into +1.7% for all EV > 1.05 at $3+).
+SELECT_EV, VOLUME_EV, VOLUME_MIN_PRICE = 1.20, 1.05, 3.0
 
 
 def tier(ev, price=None, rank_m=None):
     if ev > SELECT_EV:
         return 'S'
-    if ev > VOLUME_EV:
+    if ev > VOLUME_EV and price is not None and price >= VOLUME_MIN_PRICE:
         return 'V'
     return ''
 
@@ -160,7 +160,7 @@ def main():
         if k not in runs and v.get('d', '') >= cutoff:
             runs[k] = v
     out = dict(v=1, made=now.strftime('%Y-%m-%dT%H:%M:%SZ'), trained_through=meta['trained_through'], experimental=True,
-               rules=dict(select_ev=SELECT_EV, volume_ev=VOLUME_EV, freeze_mins=FREEZE_MINS), runs=runs)
+               rules=dict(select_ev=SELECT_EV, volume_ev=VOLUME_EV, volume_min_price=VOLUME_MIN_PRICE, freeze_mins=FREEZE_MINS), runs=runs)
     with open(OUT_JSON, 'w') as f:
         json.dump(out, f, separators=(',', ':'))
     n_s = sum(1 for v in runs.values() if v.get('now', {}).get('t') == 'S')

@@ -49,7 +49,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection, not of the bet-signal rating). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.', lgOnly: true },
-  { key: 'edge', label: 'EV', align: 'right', title: 'Bet-signal model win chance x current price (1.00 = break-even). Select (above 1.20) and Volume (above 1.05) are flagged on the runner.' },
+  { key: 'edge', label: 'EV', align: 'right', title: 'Bet-signal model win chance x current price (1.00 = break-even). Select (above 1.20) and Volume (above 1.05, $3 or more) are flagged on the runner.' },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]

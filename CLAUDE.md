@@ -2477,6 +2477,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Bet rules simplified (11 Oct 2026, user request)**: `betsignal/score.py` `tier()` is now Select = EV > 1.20, Volume = EV > 1.05, any runner and any price (no $3 floor, $20 cap or favourite rule). Re-scored from `betsignal/backtest_preds.pkl` (closing SP, 2022-2026, 36,470 EV>1.05 runners): Select 1,425 bets (285 a year, 1.9 a Saturday) win 32.1%, avg $7.2, ROI +26.5% (years +19 +65 +26 +11 +8, ex10 +10.5%; under $3 -4.1%, $3-10 +37.3%, $10-20 +76.9%, $20+ +60.4%), against +53% / 120 a year under the old rules; Volume incl. Select 7,294 a year (45 a Saturday), win 42.1%, avg $2.7, ROI -6.9% (Volume only -8.3%), mostly short-priced runners the $3 floor used to drop. Frontend tooltips and help text updated; `bet_signals_history.json` re-run so backfilled tiers follow the new rule.
 
+- **Volume $3 floor restored (11 Oct 2026, user choice after a $2-floor check)**: `tier()` is Select = EV > 1.20 at any price, Volume = EV > 1.05 at $3+. Backtest at SP (2022-2026): a $2 floor on Volume barely helped (all EV>1.05: -6.0%, 31.7 a Saturday; Volume-only bands from under $1.50 to $6 all -5% to -10%), the $3 floor takes all EV>1.05 from -6.9% to +1.7% (ex10 -2.2%). Final: Select 285 a year +26.5%, Volume only 1,158 a year (8.9 a Saturday) -5.0%, all bets 10.8 a Saturday +1.2%. Frontend text updated; backfill re-run for the new tiers.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
