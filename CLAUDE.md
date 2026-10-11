@@ -2375,12 +2375,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   0.5s); RQ times run about 1.9s long (start timing), so calibrate before use. Coverage of races 14+ days old in 2026: VIC 75%, SA 52%, QLD 58%, NSW/WA/TAS/NT/ACT
   0% (35% overall). Part of the VIC/SA/QLD gap is venue naming (sponsor prefixes such as "bet365 Hamilton", "Southside Pakenham", "Sandown Hillside/Lakeside",
   Murray Bridge, Caulfield Heath), which aliases fix. Both sites publish a few days after the race. Carried weights already come from TAB (`tab_fields.py`).
-  **TAB checked (11 Oct 2026, probe run on the AU runner via `tab_probe.yml`, PR #398)**: a finished race's detail carries NO margins, race time, sectionals,
-  or runner age/sex. It has the finishing order (`results[][]`), `handicapWeight`, `claimAmount`, `barrierNumber`, fixed odds and every dividend pool, `raceDistance`,
-  `trackCondition`, `weatherCondition`, TAB's own `earlySpeedRating`/`techFormRating`/`dfsFormRating`, and tipster `raceComments`. Each runner's `_links.form` (past form,
-  which might hold earlier margins/times) returned HTTP 503 on three retries, for finished and upcoming races alike, so it is unusable from our client so far.
-  **Still unknown**: where NSW, WA, TAS, NT and ACT margins and times come from (about 65% of races); age and sex for the WFA table (fallback: foaled date and sex in the form history).
-  Plan: (1) audit sources for the 0% states (Racing Australia results pages are the first candidate, unchecked); (2) fix venue aliases and match GPS rows
+  **TAB checked (11 Oct 2026, probes run on the AU runner through `tab_probe.yml`, PR #398 plus later edits on branch `claude/wpr-recreate`)**: the race DETAIL carries no
+  margins, race time, sectionals or runner age/sex (finishing order, weights, barriers, prices, dividends, `earlySpeedRating` only). The per-runner PAST FORM does:
+  `runners[]._links.form` (`.../races/N/form/RUNNER_NO?jurisdiction=XX`), which must be called exactly as given. Our `poller.get()` appends a second `jurisdiction=` to it
+  and TAB answers HTTP 503 (that was the first probe's "no data" result, not a real absence). It returns `age`, `sex`, `fieldStrength`, `classLevel`, `daysSinceLastRun`, and up to 12
+  `runnerStarts.previousStarts[]` per horse (trials and jump-outs included, class "JO"), each with startDate, venueAbbreviation, raceNumber, distance, finishingPosition, margin
+  (one decimal; the winner's is the winning margin, positive), the horse's OWN finishing time ("m:ss.xx"), positionInRun ("7-7-7"), numberOfStarters, handicap (weight carried),
+  trackCondition (no grade number), class, odds, winnerOrSecond and the steward comment. Sampled 79 runners in VIC, NSW, QLD, WA and SA (TAS, NT, ACT not on that day's cards, unsampled): 560 of
+  567 starts since January matched TopRate's race results by horse and date; finishing position 99.6% equal, weight 100%, starters 100%, distance 100%, margins within 0.05 lengths for
+  all non-winners bar one-decimal rounding, time = that horse's own time (winner's equals `winners_time`). No sectionals, no TopRate ratings.
+  **Latency limit**: a race's margins and times reach us only when a runner next appears on a card. From TopRate history, the share of a race's field that has raced again is about 0% after
+  7 days, 36% after 14, 61% after 21, 72% after 28; 37% of races have 80%+ of the field after 28 days (52% after 42). So whole-field data for a race lags weeks outside VIC/SA/QLD (GPS data is same week
+  there), though each horse's own last run is on its next card immediately.
+  **Still unknown**: a same-day source of margins and times for NSW, WA, TAS, NT and ACT (about 65% of races); how much partial-field data degrades the race strength estimate.
+  Plan: (1) audit a same-day source for the 0% states (Racing Australia results pages are a candidate, unchecked) and measure race strength accuracy when only part of the field is known from TAB form; (2) fix venue aliases and match GPS rows
   to our runs by (date, venue, race, tab_no); (3) build own ATW from margins, then own RS from the independent-input model (about 3 WPR error, common to every runner in a race,
   so within-race gaps stay exact); (4) shadow-run against the last TopRate ratings while they still arrive; (5) keep TopRate's ratings as frozen history. Risk: with no TopRate
   labels we cannot retrain or detect drift (the RS model over-predicted by 0.6 to 1.1 in 2026). Branch `claude/wpr-recreate` holds the research scripts.
