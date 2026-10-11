@@ -2360,15 +2360,27 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   threshold. `RaceDetail.tsx` computes it from `ranked` and passes `expectedWinWpr` to `RunnerDetailModal`. `RecentRunsTable.tsx` rows
   are no-wrap and tighter (about 25px, were about 60px from Pos/Going/peak wrapping); separator `colSpan` fixed 17 to 21. Verified in
   Chromium on real data at 390/1000/1300px, no overflow.
-- **Medium-term project: own WPR ratings, replace the TopRate data source (planned Oct 2026, not started)**: WPR is reproducible from
-  `ATW = RS - max(2750/distance, 1.5) * margin_lengths` and `WPR = ATW + 0.8 * (weight + 2*[filly/mare] - WFA(age, month, distance))`
-  (`analysis/wpr_recreate.py`, `analysis/wpr_wfa_table.csv`; WPR from ATW is within 0.5 for 97% of held-out runs). Only RS (race strength)
-  is hand-reviewed by TopRate; `analysis/wpr_race_strength.py` predicts it to RMSE 2.0 / MAE 1.5 with a quarterly walk-forward retrain, but it leans on
-  TopRate's own `sect_i_*` time index (without sectionals RMSE is about 3.3) and only works after a race has run. Plan: (1) audit where official
-  times, margins and sectionals can come from (repo `pf_*` fields look like Punting Form; unknown for TAB); (2) build our own time index and check it against
-  `sect_i_time`; (3) shadow-run our RS next to TopRate's and compare per quarter; (4) cut over only after months within about 2 points, keeping the last
-  TopRate ratings as frozen history. Risk: with no TopRate labels we cannot retrain or detect drift (the model over-predicted by 0.6 to 1.1 in 2026).
-  Branch `claude/wpr-recreate` holds the research scripts.
+- **Medium-term project: own WPR ratings, replace the TopRate data source (planned Oct 2026, started 11 Oct 2026 after toprate.au began blocking refreshes)**:
+  WPR is reproducible from `ATW = RS - max(2750/distance, 1.5) * margin_lengths` and
+  `WPR = ATW + 0.8 * (weight + 2*[filly/mare] - WFA(age, month, distance))` (`analysis/wpr_recreate.py`, `analysis/wpr_wfa_table.csv`; WPR from ATW is
+  within 0.5 for 97% of held-out runs). Only RS (race strength, the winner's ATW) is hand-reviewed by TopRate.
+  **Correction (11 Oct 2026)**: `analysis/wpr_race_strength.py` reports RMSE 2.0 for RS, but that leans on TopRate's `sect_i_*` time index, which is NOT derived
+  from the real race time (correlation with GPS race time within the same track and distance is -0.004, with time vs par 0.01) and correlates 0.65 with RS
+  itself, so it is probably built from TopRate's own ratings. Treat 2.0 as inflated. With independent inputs only (prior ratings at today's weight, margin spread,
+  market, GPS race time vs par, day variant, GPS sectionals) RS is predicted to about RMSE 3.3 / MAE 2.5 (9,001 races with both, last 20% by date held out; no time
+  information at all gives 3.6). Real time and sectionals add little because RS is mostly the class of the field.
+  **Inputs we already collect**: `data/gps/{rc,rq}_gps_{runs,sections}_YEAR.parquet` (`gps_daily.yml`; racing.com for VIC/SA from Aug 2021, Racing Queensland
+  from Oct 2022). Per runner: finish, tab_no, time_s, beaten margin (rc `beaten_margin_l`, rq `official_margin`) and section splits. Checked against TopRate on
+  314,569 matched runs (33,620 races): margins agree exactly (median difference 0, 90th percentile 0.05 / 0.03 lengths); racing.com winning times agree (99% within
+  0.5s); RQ times run about 1.9s long (start timing), so calibrate before use. Coverage of races 14+ days old in 2026: VIC 75%, SA 52%, QLD 58%, NSW/WA/TAS/NT/ACT
+  0% (35% overall). Part of the VIC/SA/QLD gap is venue naming (sponsor prefixes such as "bet365 Hamilton", "Southside Pakenham", "Sandown Hillside/Lakeside",
+  Murray Bridge, Caulfield Heath), which aliases fix. Both sites publish a few days after the race. Carried weights already come from TAB (`tab_fields.py`).
+  **Still unknown**: whether TAB carries margins, race time or sectionals (nothing in the repo reads them; run `tab_probe_race_fields.py` on the AU runner);
+  where NSW, WA, TAS, NT and ACT margins and times come from; age and sex for the WFA table (fallback: foaled date and sex in the form history).
+  Plan: (1) run the TAB probe and audit sources for the 0% states (Racing Australia results pages are the first candidate, unchecked); (2) fix venue aliases and match GPS rows
+  to our runs by (date, venue, race, tab_no); (3) build own ATW from margins, then own RS from the independent-input model (about 3 WPR error, common to every runner in a race,
+  so within-race gaps stay exact); (4) shadow-run against the last TopRate ratings while they still arrive; (5) keep TopRate's ratings as frozen history. Risk: with no TopRate
+  labels we cannot retrain or detect drift (the RS model over-predicted by 0.6 to 1.1 in 2026). Branch `claude/wpr-recreate` holds the research scripts.
 
 ## What to be careful about
 

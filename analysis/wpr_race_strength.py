@@ -4,6 +4,11 @@ Stages: 1 load results + per-race RS (exact from atw), 2 per-run features (prior
 3 per-race features (ratings, margin spread, time vs par, sectionals, market, incidents), 4 LightGBM + ablation.
 Needs: pandas numpy lightgbm.  Run from repo root: python analysis/wpr_race_strength.py [cache_dir]
 Held-out (races from 2025-03): RMSE ~2.1, MAE ~1.6, 72% within 2 points; RS sd is 6.45.
+
+CAVEAT (11 Oct 2026): those numbers lean on TopRate's sect_i_* columns. They are NOT derived from the real race time
+(correlation with GPS race time within track and distance is -0.004) and correlate 0.65 with RS, so they probably
+carry TopRate's own ratings. With only independent inputs (ratings, margins, market, GPS time and sectionals) RMSE is
+about 3.3 (3.6 with no time at all). See the own-ratings entry in CLAUDE.md.
 """
 import sys, glob, os, numpy as np, pandas as pd, lightgbm as lgb
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
