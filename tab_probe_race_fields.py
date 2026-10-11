@@ -60,6 +60,7 @@ def main():
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     taken = 0
+    statuses = {}
     for jur in poller.TAB_JURISDICTIONS:
         try:
             payload = poller.get(poller.MEETINGS.format(date=args.date), {"jurisdiction": jur}, timeout=20)
@@ -70,6 +71,7 @@ def main():
             if m.get("raceType") != poller.RACE_TYPE or m.get("location") not in poller.AU_STATES:
                 continue
             for rc in m.get("races", []):
+                statuses[rc.get("raceStatus")] = statuses.get(rc.get("raceStatus"), 0) + 1
                 if rc.get("raceStatus") != "Paying" or not m.get("venueMnemonic"):
                     continue
                 name = f"{args.date}_{m.get('meetingName')}_R{rc.get('raceNumber')}".replace(" ", "-")
@@ -80,11 +82,23 @@ def main():
                 (OUT / f"{name}_detail.json").write_text(json.dumps(det, indent=1, default=str))
                 show(f"{name} meeting-list stub (race)", rc)
                 show(f"{name} race detail", det)
+                # past form per runner: runners[]._links.form (does it carry margins / times of earlier runs?)
+                for run in (det.get("runners") or [])[:2]:
+                    link = ((run.get("_links") or {}).get("form"))
+                    if not link:
+                        continue
+                    try:
+                        frm = poller.get(link, {"jurisdiction": jur}, timeout=20)
+                    except Exception as e:
+                        print(f"form link failed for {run.get('runnerName')}: {type(e).__name__}: {e}")
+                        continue
+                    (OUT / f"{name}_form_{run.get('runnerNumber')}.json").write_text(json.dumps(frm, indent=1, default=str))
+                    show(f"{name} FORM for runner {run.get('runnerNumber')} {run.get('runnerName')} ({link})", frm)
                 taken += 1
                 if taken >= args.n:
                     print(f"\nRaw JSON saved under {OUT}. Look for margins, race time and sectionals among the >> lines.")
                     return
-    print(f"\nOnly {taken} paying race(s) found for {args.date}.")
+    print(f"\nOnly {taken} paying race(s) found for {args.date}. raceStatus values seen: {sorted(statuses.items())}")
 
 
 if __name__ == "__main__":
