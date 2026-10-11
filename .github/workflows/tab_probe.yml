@@ -16,6 +16,11 @@ on:
         required: false
         default: '3'
         type: string
+      any_status:
+        description: 'true = take races of any status (e.g. upcoming), to test past-form links'
+        required: false
+        default: 'false'
+        type: string
 
 # own group: must never queue behind or cancel the live results poller
 concurrency:
@@ -34,6 +39,7 @@ jobs:
         env:
           PROBE_DATE: ${{ inputs.date }}
           PROBE_N: ${{ inputs.n }}
+          PROBE_ANY: ${{ inputs.any_status }}
         run: |
           args=()
           if [[ -n "$PROBE_DATE" ]]; then
@@ -42,6 +48,7 @@ jobs:
           fi
           [[ "$PROBE_N" =~ ^[0-9]{1,2}$ ]] || { echo "bad n"; exit 1; }
           args+=(--n "$PROBE_N")
+          [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           python tab_probe_race_fields.py "${args[@]}" 2>&1 | tee tab_probe_output.txt
 
       - name: Upload raw JSON and output
