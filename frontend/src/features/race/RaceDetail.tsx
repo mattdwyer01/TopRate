@@ -17,7 +17,6 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { blendSignals } from '../../lib/blendSignals'
 import { fmtStake, RATING_BET_SHARE, signalsForRace, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
 import { rankField } from './raceFacts'
 
@@ -50,7 +49,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection, not of the bet-signal rating). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.', lgOnly: true },
-  { key: 'edge', label: 'Edge', align: 'right', title: 'Model win chance x current price, minus 1. Select and Volume tiers are flagged on the runner.' },
+  { key: 'edge', label: 'EV', align: 'right', title: 'Bet-signal model win chance x current price (1.00 = break-even). Select (above 1.20, favourites 1.30) and Volume (above 1.05) are flagged on the runner, at $3 or more.' },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -58,7 +57,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
 // A hairline under the last runner inside each gap line, in the same colour as the row's left band.
 // No tinted bar: the band already colours the rows, so this only has to say where each group ends.
 const LINE_STYLE: Record<'core' | 'inner' | 'outer', { line: string; text: string }> = {
-  core: { line: 'bg-blue', text: 'text-blue-deep' },
+  core: { line: 'h-0 border-t border-dotted border-blue', text: 'text-blue-deep' },
   inner: { line: 'bg-emerald', text: 'text-emerald-deep' },
   outer: { line: 'bg-amber-line', text: 'text-amber' },
 }
@@ -67,7 +66,7 @@ function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number 
   const st = LINE_STYLE[kind]
   return (
     <div className="relative h-0 w-full" aria-hidden="true">
-      <span className={`absolute inset-x-0 top-0 h-px ${st.line}`} />
+      <span className={`absolute inset-x-0 top-0 ${st.line.startsWith('h-0') ? '' : 'h-px '}${st.line}`} />
       <span className={`absolute right-2 top-0 z-10 -translate-y-1/2 rounded-full border border-line bg-panel px-1.5 font-mono text-[9px] font-semibold leading-4 ${st.text}`}>
         {'≤'}{n} from top
       </span>
@@ -133,8 +132,8 @@ export function RaceDetail({
     () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId),
     [race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId],
   )
-  // Win chance, Model $, Edge and tier all come from the same blended rating as the Rating column (lib/blendSignals.ts).
-  const signalByRunId = useMemo(() => blendSignals(race, rawSignalByRunId, effectiveByRunId), [race, rawSignalByRunId, effectiveByRunId])
+  // Model $, EV and tiers are the pure bet-signal model's (the only version with a profitable backtest), not the blended Rating.
+  const signalByRunId = rawSignalByRunId
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
@@ -285,7 +284,7 @@ export function RaceDetail({
             <span className="font-semibold">Bet signals (experimental)</span>
             {tierCounts.s > 0 && <span>{tierCounts.s} Select, {TIER_UNITS.S}u ({fmtStake(TIER_UNITS.S)})</span>}
             {tierCounts.v > 0 && <span>{tierCounts.v} Volume, {TIER_UNITS.V}u ({fmtStake(TIER_UNITS.V)})</span>}
-            <span className="text-ink-mute">Edge is the model against the current price, not a tip.</span>
+            <span className="text-ink-mute">EV is the bet-signal model against the current price, not a tip.</span>
           </div>
         )}
 
@@ -321,7 +320,6 @@ export function RaceDetail({
               <RunnerRow {...rowProps(r)} />
               {i === lines.core && <LineDivider kind="core" n={CORE_GAP_FROM_TOP} />}
               {i === lines.inner && <LineDivider kind="inner" n={INNER_GAP_FROM_TOP} />}
-              {i === lines.outer && <LineDivider kind="outer" n={OUTER_GAP_FROM_TOP} />}
             </Fragment>
           ))}
         </div>
@@ -336,9 +334,6 @@ export function RaceDetail({
             </Pill>
             <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
               Inside {INNER_GAP_FROM_TOP} line
-            </Pill>
-            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner || r.outer).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
-              Inside {OUTER_GAP_FROM_TOP} line
             </Pill>
           </div>
         )}

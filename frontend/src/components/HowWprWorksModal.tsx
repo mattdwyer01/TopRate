@@ -50,7 +50,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
         <Section title="The short version">
           <p>
             <span className="font-mono text-ink">Rating</span> is the figure each race is ranked on, at the weight carried today (ATW),
-            the same scale as the Recent runs table. Where a race has bet signals (see Bets, below) it is a 40 / 60 blend of two things:
+            the same scale as the Recent runs table. Where a race has bet signals (see Bets, below) it is a 50 / 50 blend of two things:
             the bet-signal model's win chances turned into ratings (3.66 rating points per unit of log win chance, level taken from the field's average
             WPR projection) and the <span className="font-mono text-ink">WPR projection</span> itself, a machine-learned estimate of the WPR a horse will
             run from its past runs and the conditions, trained on ten years of Australian results (about 845,000 runs). The bet-signal part is informed
@@ -69,26 +69,28 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
           <ul className="list-disc space-y-1 pl-5">
             <li><span className="font-mono text-ink">Rating</span>: the race's ranking figure at today's weight (bet-signal rating where the race has signals, otherwise the WPR projection; the line under the Race heading says which). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the WPR projection, which the runner page explains.</li>
             <li><span className="font-mono text-ink">SM</span>: the suitability part of the WPR projection's Adj, relative to this field (green +0.5 or better, red -0.5 or worse). Runners at +0.5 or better do win more often (10.5% for the middle band, 13.9% at +0.5 to +1.0, 20% above +1.0), but the market already prices that: win rates matched the market-implied chances at every band, so SM is a reading aid for the map, not a source of value. It is not part of the bet-signal rating.</li>
-            <li><span className="font-mono text-ink">Edge</span> and <span className="font-mono text-ink">Model $</span> (Model $ on wider screens): from the experimental bet-signal model (see Bets, below). Edge is its win chance times the current price, minus 1; Model $ is 1 / its win chance. Blank when the race is not fully drawn and priced.</li>
+            <li><span className="font-mono text-ink">EV</span> and <span className="font-mono text-ink">Model $</span> (Model $ on wider screens): from the experimental bet-signal model (see Bets, below). EV is its win chance times the current price (1.00 = break-even); Model $ is 1 / its win chance. Blank when the race is not fully drawn and priced.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
             <li><span className="font-mono text-ink">SELECT / VOL</span>: the runner is a Select or Volume bet from the bet-signal model. The Bets tab lists them with stakes and a scoreboard.</li>
-            <li><span className="font-mono text-ink">2 / 4 / 8 from top</span>: the lines show runners within 2, 4 and 8 rating points of the top rated (at today's weight). On the blended rating (1,692 races, July to October 2026) inside 2 holds 2.0 runners a race and about 52% of winners, inside 4 holds 3.4 and 70%, inside 8 holds 6.3 and 93%. On the WPR projection alone (15-month out-of-sample test) the same lines held 2.2 runners and 50%, 3.9 and 70%, 6.9 and 93%. They show where the winners are, not where the value is.</li>
+            <li><span className="font-mono text-ink">2 / 4 from top</span>: the dotted line marks runners within 2 rating points of the top rated, the solid line within 4 (at today's weight). The 50 / 50 blend was chosen as the share that holds the most winners inside 4 (1,693 races, July to October 2026: inside 4 holds 3.3 runners a race and 70.1% of winners, against 3.6 and 67.6% for the WPR projection alone and 2.8 and 66.2% for the bet-signal rating alone; inside 2 holds 1.9 runners and 52%). They show where the winners are, not where the value is.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
         </Section>
 
         <Section title="Bets (experimental)">
           <p>
-            The Bets tab and the Model $ / Edge columns come from a separate model that is not the WPR projection. It starts from each runner's
+            The Bets tab and the Model $ / EV columns come from a separate model that is not the WPR projection. It starts from each runner's
             current market price, corrects it using form, ratings, weight, barrier, jockey and trainer records (measured against the market),
-            and returns a win chance. Model $ is 1 / that chance and Edge is the chance times the price, minus 1.
+            and returns a win chance. Model $ is 1 / that chance and EV is the chance times the price.
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li><span className="font-mono text-ink">Consistent blend</span>: the Rating is 40% bet-signal model and 60% WPR projection. Win chance (a softmax of that rating), Model $, Edge and the tiers all use the same blend, so they agree with the Rating column.</li>
-            <li><span className="font-mono text-ink">Select</span>: edge above 100%, any price. Staked at 2 units. <span className="font-mono text-ink">Volume</span>: edge above 60%, any price. Staked at 0.25 units. 1 unit is $50.</li>
-            <li>These blended thresholds are NOT validated. The pure model (no WPR blend) backtested at about +53% for its Select tier at closing SP, but on 1,693 July to October 2026 races every threshold on the blend lost about 28% to 37% at SP, and its high-edge runners won about half as often as predicted. They are set high only to keep the list short. The Bets tab scoreboard is the real check; judge it over months.</li>
+            <li><span className="font-mono text-ink">Select</span>: EV above 1.20 (above 1.30 for the favourite), price $3 or more (non-favourites under $20). Backtested at closing SP over 2022 to 2026 (walk-forward, each year scored by a model trained on earlier years): about 120 bets a year (0.7 a Saturday), ROI about +53%, positive in every year and quarter, about +30% without the 10 biggest winners and still +38% with a price 10% worse. Staked at 2 units.</li>
+            <li><span className="font-mono text-ink">Volume</span>: EV above 1.05, price $3 or more. About 10 bets on a Saturday. Backtested at SP: about +2% with the Select bets included, but -3% on its own and -13% with a price 10% worse. Staked at 0.25 units; it is there for action, not profit, and costs a little.</li>
+            <li>EV is win chance times price, so 1.00 is break-even. These tiers come from the pure model, not the blended Rating: the blend's win chances did worse and no threshold on them made money.</li>
+            <li>1 unit is $50. The thresholds were chosen after looking at the same years they were tested on, so the true figures will be lower.</li>
+            <li>The backtest used the closing SP. Whether the edge holds at a fixed price taken before the jump is not yet known: the scoreboard on the Bets tab judges each bet at the price when the last pass was made, and is the check. Judge it over months, not weeks.</li>
             <li>The earlier WPR-based value signal (rated price against market) lost 30 to 39% at every threshold in testing and has been removed.</li>
           </ul>
         </Section>

@@ -38,12 +38,17 @@ export const UNIT_DOLLARS = 50
 
 export const TIER_LABEL: Record<'S' | 'V', string> = { S: 'Select', V: 'Volume' }
 export const TIER_HELP: Record<'S' | 'V', string> = {
-  S: 'Select: edge above 100% on the blended rating (40% bet-signal model, 60% WPR projection) at any price. NOT validated: every threshold tried on the blend lost money in testing (about -28% to -37% at SP). The pure model\'s Select tier (+53% at SP) is not this.',
-  V: 'Volume: edge above 60% on the blended rating at any price. NOT validated: blend thresholds lost money in testing. Small stake.',
+  S: 'Select: EV above 1.20 (above 1.30 for the favourite) at $3 or more. Backtested at SP: about 120 bets a year, ROI about +53%, positive in every year. Not yet shown at a price taken before the jump.',
+  V: 'Volume: EV above 1.05 at $3 or more, about 10 bets a Saturday. Backtested at SP these lose about 3% on their own (13% with a price 10% worse): it is the action tier, so the stake is small.',
 }
 
 export const modelPrice = (m: number | null | undefined): number | null => (m != null && m > 0 ? 1 / m : null)
 export const edgePct = (e: number | null | undefined): number | null => (e != null ? (e - 1) * 100 : null)
+
+/** Expected value: win chance x price, 1.00 = break-even. */
+export function fmtEv(e: number | null | undefined): string {
+  return e == null ? '' : e.toFixed(2)
+}
 
 export function fmtEdge(e: number | null | undefined): string {
   const v = edgePct(e)
@@ -150,7 +155,7 @@ export const RATING_PER_LN = 3.66
 // 2026 races: a 40% share keeps #1 = favourite in 74% of races (rank correlation 0.89), picks the winner as #1 in 32.5% (projection alone 28.4%, bet rating
 // alone 34.3%), has the lowest error against the rating actually run (8.63 against 8.74 projection, 8.78 bet rating) and winner log-loss 1.825 (projection
 // 1.936, bet rating 1.766, market 1.770). 40% to 50% are within noise of each other; below about 40% winner picking drops away, above 60% it is mostly the market.
-export const RATING_BET_SHARE = 0.40
+export const RATING_BET_SHARE = 0.50
 
 /** Signal per runner for one race: the live pass before the jump, the frozen pass once it has run. Runners with none are null. */
 export function signalsForRace(race: Race, signals: BetSignals | null, now = Date.now()): Record<string, Signal | null> {

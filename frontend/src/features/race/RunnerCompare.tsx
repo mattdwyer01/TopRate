@@ -35,7 +35,7 @@ export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, sig
     { label: 'Avg last 3', get: (r) => r.wprAvgLast3, fmt: fmtWpr, higher: true },
     { label: 'Peak WPR', get: (r) => r.peakWpr, fmt: fmtWpr, higher: true },
     { label: 'Model $', get: (r) => modelPrice(signalByRunId?.[r.runId]?.m), fmt: fmtPrice },
-    { label: 'Edge', get: (r) => { const e = signalByRunId?.[r.runId]?.e; return e != null ? (e - 1) * 100 : null }, fmt: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`, higher: true },
+    { label: 'EV', get: (r) => signalByRunId?.[r.runId]?.e ?? null, fmt: (v) => v.toFixed(2), higher: true },
     { label: 'Fixed $', get: (r) => r.fixedWinPrice, fmt: fmtPrice },
     { label: 'Jockey win% (90d)', get: (r) => r.jockeyWinPct90d, fmt: (v) => `${v.toFixed(0)}%`, higher: true },
     { label: 'Trainer win% (1y)', get: (r) => r.trainerWinPct365d, fmt: (v) => `${v.toFixed(0)}%`, higher: true },

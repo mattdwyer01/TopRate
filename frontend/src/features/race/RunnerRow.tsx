@@ -1,7 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { fmtEdge, modelPrice, TIER_HELP, TIER_LABEL, type Signal } from '../../lib/betSignals'
+import { fmtEv, modelPrice, TIER_HELP, TIER_LABEL, type Signal } from '../../lib/betSignals'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
 
@@ -106,8 +106,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
       >
         {f.scratched || !signal ? '' : fmtPrice(modelPrice(signal.m))}
       </span>
-      <span className={`text-right font-mono text-[12px] lg:text-sm ${signal && signal.e >= 1.05 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`} title="Edge: model win chance x price, minus 1">
-        {f.scratched || !signal ? '' : fmtEdge(signal.e)}
+      <span className={`text-right font-mono text-[12px] lg:text-sm ${signal && signal.e >= 1.05 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`} title="EV: bet-signal model win chance x price (1.00 = break-even)">
+        {f.scratched || !signal ? '' : fmtEv(signal.e)}
       </span>
       <span className="text-right text-ink-mute">
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
