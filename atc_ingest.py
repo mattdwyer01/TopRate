@@ -97,7 +97,6 @@ def parse_results(body, race_date, course, code):
         tbl = re.search(r'<table id="race-results-table">(.*?)</table>', pan, re.S)
         if not tbl:
             continue
-        cum_prev = 0.0
         for tr in re.findall(r"<tr>(.*?)</tr>", tbl.group(1).split("<tbody>")[-1], re.S):
             cell = {c: text(v) for c, v in re.findall(r'<td class="([a-z]+)"[^>]*>(.*?)</td>', tr, re.S)}
             if "horse" not in cell:
@@ -105,12 +104,8 @@ def parse_results(body, race_date, course, code):
             pos = re.search(r"\d+", cell.get("placing", ""))
             tab = re.search(r"\d+", cell.get("tab", ""))
             m = margin_len(cell.get("margin"))
-            # the margin column is the gap to the horse in front; cumulate to get the gap to the winner
-            if pos and int(pos.group(0)) == 1:
-                cum_prev, mw = 0.0, 0.0
-            else:
-                cum_prev = cum_prev + m if m is not None else cum_prev
-                mw = cum_prev if m is not None else None
+            # the margin column is taken as already cumulative to the winner (MAE vs the time-derived margin is printed at ingest)
+            mw = 0.0 if (pos and int(pos.group(0)) == 1) else m
             runs.append(dict(source="atc", race_date=race_date, meeting_code=code, course=course, race_no=rno, race_distance=dist,
                              going=wb.get("Track"), rail_text=wb.get("Rail"), race_time_s=race_time,
                              horse=re.sub(r"\s*\([A-Z]{2,3}\)\s*$", "", cell["horse"]).strip(), tab_no=int(tab.group(0)) if tab else None,
@@ -236,9 +231,14 @@ def ingest(code, race_date, course, save_raw=False):
         allr = pd.concat([old, new], ignore_index=True) if old is not None else new
         allr.drop_duplicates(key, keep="last").to_parquet(f, index=False)
     races = {r["race_no"] for r in runs}
+    for rno in sorted(races):
+        rr = [r for r in runs if r["race_no"] == rno]
+        miss = [(r["finish"], r["tab_no"], r["margin_raw"]) for r in rr if not r["time_s"]]
+        if miss and sect:
+            print(f"    R{rno}: {len(rr)} results rows, {sum(1 for k in sect if k[0] == rno)} sectional rows, no time for {miss[:4]}")
     d = [abs(r["margin_l"] - r["margin_t"]) for r in runs if r["margin_l"] is not None and r["margin_t"] is not None]
     if d:
-        print(f"    margin text vs time-derived: n {len(d)} MAE {sum(d) / len(d):.2f} lengths (text read as gap to the horse in front, cumulated)")
+        print(f"    margin text vs time-derived: n {len(d)} MAE {sum(d) / len(d):.2f} lengths (text read as margin to the winner)")
     print(f"  {code} {race_date} {course}: {len(races)} races, {len(runs)} runners, {len(secrows)} splits, with times {sum(1 for r in runs if r['time_s'])}")
     return len(runs)
 
@@ -268,7 +268,7 @@ def selftest():
     sect = parse_sectionals(FIXTURE_SECT, "fix")
     runs, secrows = merge(runs, sect, "fix")
     assert len(runs) == 3 and runs[0]["race_distance"] == 1400 and runs[0]["going"] == "Soft 6" and runs[0]["race_time_s"] == 82.25, runs[0]
-    assert [r["margin_l"] for r in runs[:3]] == [0.0, 3.25, 3.75], [r["margin_l"] for r in runs]
+    assert [r["margin_l"] for r in runs[:3]] == [0.0, 3.25, 0.5], [r["margin_l"] for r in runs]
     assert runs[1]["horse"] == "Iminastate" and runs[1]["time_s"] == 82.8 and runs[2]["time_s"] is None
     assert len(secrows) == 6 and secrows[0]["from_m"] == 1400 and secrows[0]["to_m"] == 1200 and secrows[1]["from_m"] == 1200
     assert margin_len("sh hd") == 0.1 and margin_len("1 1/2 len") == 1.5 and margin_len("x") is None
