@@ -147,10 +147,10 @@ export const RATING_PER_LN = 3.66
 
 // The rating shown is a BLEND of the bet-signal rating and the WPR projection, not the bet-signal rating alone: the bet-signal rating is the market's own
 // order (its #1 is the market favourite in 99.5% of races, rank correlation 0.99), so it told you little the Fixed $ column did not. 1,692 July to October
-// 2026 races: a 45% share keeps #1 = favourite in 77% of races (rank correlation 0.90), picks the winner as #1 in 32.4% (projection alone 28.4%, bet rating
-// alone 34.3%), has the lowest error against the rating actually run (8.63 against 8.74 projection, 8.78 bet rating) and winner log-loss 1.814 (projection
+// 2026 races: a 40% share keeps #1 = favourite in 74% of races (rank correlation 0.89), picks the winner as #1 in 32.5% (projection alone 28.4%, bet rating
+// alone 34.3%), has the lowest error against the rating actually run (8.63 against 8.74 projection, 8.78 bet rating) and winner log-loss 1.825 (projection
 // 1.936, bet rating 1.766, market 1.770). 40% to 50% are within noise of each other; below about 40% winner picking drops away, above 60% it is mostly the market.
-export const RATING_BET_SHARE = 0.45
+export const RATING_BET_SHARE = 0.40
 
 /** Signal per runner for one race: the live pass before the jump, the frozen pass once it has run. Runners with none are null. */
 export function signalsForRace(race: Race, signals: BetSignals | null, now = Date.now()): Record<string, Signal | null> {

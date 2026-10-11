@@ -50,7 +50,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
         <Section title="The short version">
           <p>
             <span className="font-mono text-ink">Rating</span> is the figure each race is ranked on, at the weight carried today (ATW),
-            the same scale as the Recent runs table. Where a race has bet signals (see Bets, below) it is a 45 / 55 blend of two things:
+            the same scale as the Recent runs table. Where a race has bet signals (see Bets, below) it is a 40 / 60 blend of two things:
             the bet-signal model's win chances turned into ratings (3.66 rating points per unit of log win chance, level taken from the field's average
             WPR projection) and the <span className="font-mono text-ink">WPR projection</span> itself, a machine-learned estimate of the WPR a horse will
             run from its past runs and the conditions, trained on ten years of Australian results (about 845,000 runs). The bet-signal part is informed
@@ -74,7 +74,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
             <li><span className="font-mono text-ink">SELECT / VOL</span>: the runner is a Select or Volume bet from the bet-signal model. The Bets tab lists them with stakes and a scoreboard.</li>
-            <li><span className="font-mono text-ink">2 / 4 / 8 from top</span>: the lines show runners within 2, 4 and 8 rating points of the top rated (at today's weight). On the blended rating (1,692 races, July to October 2026) inside 2 holds 1.9 runners a race and about 52% of winners, inside 4 holds 3.3 and 70%, inside 8 holds 6.3 and 93%. On the WPR projection alone (15-month out-of-sample test) the same lines held 2.2 runners and 50%, 3.9 and 70%, 6.9 and 93%. They show where the winners are, not where the value is.</li>
+            <li><span className="font-mono text-ink">2 / 4 / 8 from top</span>: the lines show runners within 2, 4 and 8 rating points of the top rated (at today's weight). On the blended rating (1,692 races, July to October 2026) inside 2 holds 2.0 runners a race and about 52% of winners, inside 4 holds 3.4 and 70%, inside 8 holds 6.3 and 93%. On the WPR projection alone (15-month out-of-sample test) the same lines held 2.2 runners and 50%, 3.9 and 70%, 6.9 and 93%. They show where the winners are, not where the value is.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
         </Section>
