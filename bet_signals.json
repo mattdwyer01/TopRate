@@ -1,1 +1,1 @@
-{"v":1,"made":"2026-10-11T10:31:31Z","trained_through":"2026-10-08","experimental":true,"rules":{"select_nonfav_ev":1.2,"select_fav_ev":1.3,"select_min_price":3.0,"select_nonfav_max_price":20.0,"volume_ev":1.05,"volume_min_price":3.0,"freeze_mins":5},"runs":{}}
+{"v":1,"made":"2026-10-11T11:10:27Z","trained_through":"2026-10-08","experimental":true,"rules":{"select_nonfav_ev":1.2,"select_fav_ev":1.3,"select_min_price":3.0,"select_nonfav_max_price":20.0,"volume_ev":1.05,"volume_min_price":3.0,"freeze_mins":5},"runs":{}}
