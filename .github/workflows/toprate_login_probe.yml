@@ -125,3 +125,38 @@ jobs:
           print("files mentioning PUBLIC_TOPRATE_API_URL:", gw)
           PY
 
+      - name: Does a browser-like client get past Cloudflare? (dummy login only, no real credentials)
+        run: |
+          python -m pip install --quiet --user curl_cffi 2>&1 | tail -1 || true
+          python - <<'PY'
+          import json, requests, toprate_daily as td
+          URL = f"{td.API_BASE}/auth/v1/token?grant_type=password"
+          BODY = {"email": "nobody@example.invalid", "password": "not-a-real-password"}
+          CHROME = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/130.0.0.0 Safari/537.36")
+          HDR = {"apikey": td.ANON_KEY, "Authorization": f"Bearer {td.ANON_KEY}", "Content-Type": "application/json",
+                 "User-Agent": CHROME, "Origin": "https://toprate.au", "Referer": "https://toprate.au/",
+                 "Accept": "*/*", "Accept-Language": "en-AU,en;q=0.9", "Sec-Fetch-Mode": "cors",
+                 "Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty",
+                 "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+                 "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+                 "x-client-info": "supabase-js-web/2"}
+          def show(name, r):
+              txt = r.text or ""
+              cf = txt.lstrip().startswith("<!DOCTYPE html") and "cloudflare" in str(r.headers.get("server", "")).lower()
+              print(f"{name}: HTTP {r.status_code} | cloudflare block page: {cf} | body: {txt[:110]!r}")
+          try:
+              show("A  requests + browser headers", requests.post(URL, headers=HDR, json=BODY, timeout=30))
+          except Exception as e:
+              print("A failed:", type(e).__name__)
+          try:
+              from curl_cffi import requests as cr
+              for imp in ("chrome", "chrome124", "safari17_0"):
+                  try:
+                      show(f"B  curl_cffi impersonate={imp}", cr.post(URL, headers=HDR, json=BODY, impersonate=imp, timeout=30))
+                  except Exception as e:
+                      print(f"B {imp} failed:", type(e).__name__, str(e)[:80])
+          except Exception as e:
+              print("curl_cffi not available:", type(e).__name__)
+          PY
+
