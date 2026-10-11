@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
-import { projectedAtActualScale } from '../../lib/atw'
+import { projectedAtResultsScale } from '../../lib/atw'
 import { computeCareerStats } from '../../lib/careerStats'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
@@ -691,7 +691,7 @@ function ResultContext({ runner, miss }: { runner: Runner; miss: number | null }
 
 // After the race: projected against actual (ATW) with the miss sized against the horse's own typical error.
 export function ResultCard({ runner }: { runner: Runner }) {
-  const proj = projectedAtActualScale(runner)
+  const proj = projectedAtResultsScale(runner)
   const actual = runner.actualWpr
   const fin = runner.finishPosition
   const sd = runner.projectionSd

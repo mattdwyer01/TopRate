@@ -1,4 +1,3 @@
-import { projectedAtActualScale } from './atw'
 import type { Race, Runner } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
 
@@ -41,7 +40,7 @@ export function computeDayRace(race: Race): DayRace | null {
   const live = race.runners.filter((r) => !r.dataScratched)
   const winner = live.find((r) => r.finishPosition === 1) ?? null
   if (!winner) return null
-  const rated = live.filter((r) => r.projectedWpr != null).sort((a, b) => (projectedAtActualScale(b) as number) - (projectedAtActualScale(a) as number))
+  const rated = live.filter((r) => r.projectedWpr != null).sort((a, b) => (b.projectedWpr as number) - (a.projectedWpr as number))
   const modelTop = rated[0] ?? null
   const winnerIdx = rated.findIndex((r) => r.runId === winner.runId)
   const priced = live.filter((r) => price(r) != null)
