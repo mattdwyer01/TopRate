@@ -40,14 +40,15 @@ jobs:
                   if rc is not None: return
                   if isinstance(o, dict):
                       for k, v in o.items():
-                          if k in ("rc_id", "race_id") and isinstance(v, (int, str)): rc = v; return
+                          if k in ("rc_id", "race_id", "raceId") and isinstance(v, (int, str)): rc = v; return
                           walk(v)
                   elif isinstance(o, list):
                       for v in o: walk(v)
               walk(data)
           except Exception as e:
               print("calendar json failed:", type(e).__name__)
-          print("have a race id:", rc is not None)
+          rc = rc if rc is not None else 1762183
+          print("race id from calendar or fallback used")
           if rc is not None:
               H = td.make_headers(jwt)
               show("detail, daily headers", requests.post(f"{td.API_BASE}/rest/v1/rpc/get_race_detail", headers=H, json={"rc_id": rc}, timeout=30))
