@@ -7,7 +7,6 @@ import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { ratingSuffix } from './rowParts'
 import { modelPrice, type Signal } from '../../lib/betSignals'
 import { ConditionsScorecard, HorseHero, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
@@ -112,7 +111,7 @@ export function RunnerDetailModal({
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
   const fair = modelPrice(signal?.m)
   const market = runner.fixedWinPrice
-  const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.topratePrice != null || runner.startingPrice != null
+  const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.startingPrice != null
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/60 p-0 sm:items-center sm:p-6" onClick={onClose}>
@@ -141,14 +140,13 @@ export function RunnerDetailModal({
             ) : (
               <div className="truncate text-xs text-ink-mute">
                 {race.venue} R{race.raceNumber} &middot; {runner.jockey}
-                {ratingSuffix(runner.jockeyRating)} / {runner.trainer}
-                {ratingSuffix(runner.trainerRating)}
+                / {runner.trainer}
               </div>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {runner.dataScratched ? (
-              <span title="Scratched (confirmed by TopRate)" className="rounded-md bg-rose px-2 py-1 text-xs font-semibold text-white">
+              <span title="Scratched" className="rounded-md bg-rose px-2 py-1 text-xs font-semibold text-white">
                 Scratched
               </span>
             ) : (

@@ -57,14 +57,6 @@ export interface Runner {
   tabNumber: number
   barrier: number | null
 
-  toprateRating: number | null
-  formFactor: number | null
-  topratePrice: number | null
-  speedRating: number | null
-  sectionalEarly: number | null
-  sectionalMid: number | null
-  sectionalLate: number | null
-  sectionalTotal: number | null
   weightTrend: number | null
   distanceStarts: number | null
   distanceWins: number | null
@@ -81,7 +73,6 @@ export interface Runner {
   wprAvgLast3: number | null
   wprTrend: number | null
   wprPeakRank1Yr: number | null
-  wprNett: number | null
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
   projectionMade: string | null // when the logged projection was made (ISO), null on older payloads
   projectionModel: 'main' | 'light' | null // which model projected the runner (light = 0-2 prior runs)
@@ -96,8 +87,6 @@ export interface Runner {
   trainerStarts365d: number | null
   jtComboWinPct: number | null
   jtComboRides: number | null
-  jockeyRating: number | null
-  trainerRating: number | null
 
   fixedWinPrice: number | null
   // The fixed price at first capture today (the ~9am AEST daily fetch),

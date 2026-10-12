@@ -3,7 +3,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { fmtEv, modelPrice, TIER_HELP, TIER_LABEL, type Signal } from '../../lib/betSignals'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
-import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, ratingSuffix, smClass, useRowFacts } from './rowParts'
+import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
 interface RunnerRowProps {
   runner: Runner
@@ -75,7 +75,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
             </span>
           )}
         </span>
-        <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey}${ratingSuffix(runner.jockeyRating)} / ${runner.trainer}${ratingSuffix(runner.trainerRating)}`}>
+        <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey} / ${runner.trainer}`}>
           <span className={`font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label} · </span>
           {runner.jockey} / {runner.trainer}
           {runner.barrier != null && <> &middot; barrier {runner.barrier}</>}

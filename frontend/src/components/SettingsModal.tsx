@@ -188,7 +188,7 @@ export function SettingsModal({
           <div className="flex flex-col gap-2 p-4">
             <span className="text-sm font-semibold text-ink">Fetch data</span>
             <Note short="Runs the daily fetch. Takes a few minutes.">
-              Triggers the daily pipeline (fetches races from toprate.au and rebuilds the data). Takes a few
+              Triggers the daily pipeline (fetches the day's fields and rebuilds the data). Takes a few
               minutes to land.
             </Note>
             <div className="flex flex-wrap items-center gap-2">

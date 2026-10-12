@@ -18,10 +18,6 @@ export function smClass(v: number | null | undefined): string {
   return v != null && v >= SPEED_MAP_TINT_THRESHOLD ? 'text-emerald-deep' : v != null && v <= -SPEED_MAP_TINT_THRESHOLD ? 'text-rose' : 'text-ink-mute'
 }
 
-export function ratingSuffix(v: number | null): string {
-  return v == null ? '' : ` (${Math.round(v)})`
-}
-
 export function useRowFacts(runner: Runner, raceDate: string, effective?: EffectiveRunner) {
   const spell = spellPosition(runner.formHistory, raceDate)
   const move = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
