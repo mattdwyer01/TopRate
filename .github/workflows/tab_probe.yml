@@ -76,6 +76,8 @@ jobs:
           PROBE_N: ${{ inputs.n }}
           PROBE_ANY: ${{ inputs.any_status }}
           PROBE_SCRIPT: ${{ inputs.script }}
+          RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+          RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
         run: |
           args=()
           if [[ -n "$PROBE_DATE" ]]; then
@@ -86,7 +88,7 @@ jobs:
           args+=(--n "$PROBE_N")
           [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           case "$PROBE_SCRIPT" in
-            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py|atc_ingest.py|source_probe.py) ;;
+            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py|atc_ingest.py|source_probe.py|rc_probe.py) ;;
             *) echo "unknown script"; exit 1 ;;
           esac
           PY=python
