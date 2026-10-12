@@ -220,9 +220,15 @@ def build_field(x):
     return pd.DataFrame(out, index=x.index)
 
 
+def _read_results(f, cols):
+    """One race_results file with exactly `cols`; a column the file lacks (the own-rated extension has no winners_time or steward comments) is NaN."""
+    keep = set(cols)
+    return pd.read_csv(f, usecols=lambda c: c in keep, low_memory=False).reindex(columns=list(cols))
+
+
 def build_trials(x):
     """Barrier trial / jump-out features: days since the last trial, its result, trials in 90 days, and whether it came after the last run."""
-    tc = pd.concat([pd.read_csv(f, usecols=['race_id', 'horse_id', 'date', 'positionFinish', 'marginFinish', 'field_size', 'isBarrierTrial', 'is_jumpout'], low_memory=False)
+    tc = pd.concat([_read_results(f, ['race_id', 'horse_id', 'date', 'positionFinish', 'marginFinish', 'field_size', 'isBarrierTrial', 'is_jumpout'])
                     for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))])
     tc = tc[(tc.isBarrierTrial.astype(bool)) | (tc.is_jumpout.fillna(False).astype(bool))].copy()
     tc['date'] = pd.to_datetime(tc['date'])
@@ -255,7 +261,7 @@ def build_trials(x):
 def _comments(keys=None):
     parts = []
     for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz'))):
-        c = pd.read_csv(f, usecols=['race_id', 'horse_id', 'date', 'wpr', 'isBarrierTrial', 'is_jumpout', 'comments_steward', 'comments_video', 'race_class'], low_memory=False)
+        c = _read_results(f, ['race_id', 'horse_id', 'date', 'wpr', 'isBarrierTrial', 'is_jumpout', 'comments_steward', 'comments_video', 'race_class'])
         c = c[(~c.isBarrierTrial.astype(bool)) & (~c.is_jumpout.fillna(False).astype(bool)) & c.wpr.notna() & ~is_jumps(c.race_class)]
         c['txt'] = (c.comments_video.astype('string').fillna('') + ' . ' + c.comments_steward.astype('string').fillna('')).str.lower().astype(str)
         c['date'] = pd.to_datetime(c['date'])
@@ -329,7 +335,7 @@ def build_trials3(x):
     """Last barrier trial and last jump-out: normalised speed (winner's speed for the track, distance and going), finish, margin,
     days since, trials in 30/60 days. Prefix t3_ = either kind, bt_ = barrier trial, jo_ = jump-out."""
     cols = ['race_id', 'horse_id', 'date', 'track', 'going', 'distance', 'winners_time', 'positionFinish', 'marginFinish', 'field_size', 'isBarrierTrial', 'is_jumpout']
-    t = pd.concat([pd.read_csv(f, usecols=cols, low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))])
+    t = pd.concat([_read_results(f, cols) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))])
     t['date'] = pd.to_datetime(t['date']).astype('datetime64[ns]')
     t['gnum'] = _num(t.going)
     t['gb'] = pd.cut(t.gnum, [-1, 4, 7, 20], labels=['dry', 'soft', 'heavy']).astype(str)
