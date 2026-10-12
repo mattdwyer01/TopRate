@@ -144,6 +144,16 @@ def fetch_meeting(api, it):
     return rows, n_races, n_with
 
 
+def stored_codes():
+    codes = set()
+    for p in OUT.glob("rc_results_runs_*.parquet"):
+        try:
+            codes |= set(pd.read_parquet(p, columns=["meeting_code"]).meeting_code.astype(str))
+        except Exception:
+            pass
+    return codes
+
+
 def save(df):
     OUT.mkdir(parents=True, exist_ok=True)
     for yr, g in df.groupby(df.race_date.str[:4]):
@@ -161,25 +171,37 @@ def save(df):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date"); ap.add_argument("--days", type=int); ap.add_argument("--n", type=int)
+    ap.add_argument("--since", help="backfill: every local date from SINCE to yesterday")
+    ap.add_argument("--refresh", action="store_true", help="re-fetch meetings already stored")
     ap.add_argument("--selftest", action="store_true"); ap.add_argument("--max-requests", type=int, default=450)
     ap.add_argument("--deadline", type=int, default=900)
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    y = dt.datetime.now(ZoneInfo("Australia/Melbourne")).date() - dt.timedelta(days=1)
     if a.date:
         dates = {dt.date.fromisoformat(a.date)}
+    elif a.since:
+        d0 = dt.date.fromisoformat(a.since)
+        dates = {d0 + dt.timedelta(days=i) for i in range((y - d0).days + 1)}
     else:
         days = a.days or a.n or 1
-        y = dt.datetime.now(ZoneInfo("Australia/Melbourne")).date() - dt.timedelta(days=1)
         dates = {y - dt.timedelta(days=i) for i in range(days)}
     print("dates:", sorted(str(d) for d in dates))
     api = Api(a.max_requests, a.deadline)
     ms = meetings_for(api, dates)
+    have = set() if a.refresh else stored_codes()
+    skipped = [m for m in ms if str(m["race_meet_id"]) in have]
+    ms = [m for m in ms if str(m["race_meet_id"]) not in have]
+    print("already stored (skipped):", len(skipped))
     print("meetings:", len(ms), {s: sum(1 for m in ms if m["state"] == s) for s in STATES})
     rows, stat = [], {}
     try:
         for it in ms:
             r, nr, nw = fetch_meeting(api, it)
+            if nr == 0 or nw < nr:
+                print(f"  incomplete, not saved: {it['state']} {it.get('location_name')} ({nw}/{nr} races with results)")
+                r = []
             rows += r
             s = stat.setdefault(it["state"], [0, 0, 0, 0])
             s[0] += 1; s[1] += nr; s[2] += nw; s[3] += len(r)
