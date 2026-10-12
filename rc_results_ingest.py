@@ -191,6 +191,13 @@ def main():
         df = pd.DataFrame(rows)
         bad = df[(df.finish > 1) & df.margin_l.isna()]
         print("non-winners with unparsed margin:", len(bad), "raw samples:", bad.margin_raw.dropna().unique()[:10].tolist())
+        if len(bad):
+            print("null-margin finish positions:", bad.finish.value_counts().sort_index().head(30).to_dict())
+            print("null-margin finishAbv-like samples (finish, scratched, state):",
+                  bad.groupby(["state", "scratched"]).size().to_dict())
+            print("null-margin share by state:", (bad.groupby("state").size() / df[df.finish > 1].groupby("state").size()).round(2).to_dict())
+            print("max finish per race for null-margin rows (sample):",
+                  bad.groupby(["meeting_code", "race_no"]).finish.agg(["min", "max", "count"]).head(8).to_dict("index"))
         print("margin_l describe:", df.margin_l.describe().round(2).to_dict())
         save(df)
 
