@@ -84,15 +84,29 @@ def racing_australia():
                 print("  around 'margin': " + squash(b[max(0, j - 300): j + 900], 700))
 
 
+def ra_markup():
+    """Second pass: raw markup of one results page that has tables, and what a page without tables says. One request every 4 s (the site shows a human check when hit hard)."""
+    import time
+    for key in ("2026Sep12,WA,Carnarvon", "2026Sep12,NSW,Rosehill", "2026Oct10,WA,Ascot", "2026Oct11,NSW,Coonamble"):
+        b = describe(f"RA results {key}", f"{BASE_RA}/FreeFields/Results.aspx?Key={key}", save=f"ra_{key.replace(',', '_')}.html")
+        time.sleep(4)
+        if not b:
+            continue
+        i = b.find('class="race-title"')
+        j = b.lower().find("<table")
+        print("  page text (first 500 after header): " + squash(b[b.find("Results"):][:3000], 500))
+        print("  first table markup: " + re.sub(r"\s+", " ", b[j:j + 2600]))
+        k = b.lower().find("last 600")
+        print("  around 'last 600': " + re.sub(r"\s+", " ", b[max(0, k - 400): k + 500]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=0)
     ap.add_argument("--date", default="")
     ap.add_argument("--any-status", action="store_true")
     ap.parse_args()
-    for label, url in CANDIDATES[5:]:
-        describe(label, url)
-    racing_australia()
+    ra_markup()
 
 
 if __name__ == "__main__":
