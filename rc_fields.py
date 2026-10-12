@@ -35,9 +35,9 @@ CAL = """query GetCalendarEvents { getCalendarItems(
 RACES = """query{ racesForMeet: getRacesForMeet(meetCode: "%s") {
   raceNumber raceStatus distance name time trackCondition trackRating isTrial isJumpOut rdcClass } }"""
 # runner fields we want, in order of preference; only the ones RaceEntryItem really has are requested
-WANT = ["horseName", "horseCode", "barrierNumber", "weight", "scratched", "saddleNumber", "tabNo", "tabNumber", "number",
-        "jockeyName", "jockey", "riderName", "trainerName", "trainer", "age", "sex", "gear", "apprenticeAllowance", "claim",
-        "startingPrice", "fixedWinPrice", "emergency", "lateScratching", "scratchedReason"]
+WANT = ["horseName", "horseCode", "barrierNumber", "weight", "weightCarried", "scratched", "raceEntryNumber", "jockeyName", "jockeyCode",
+        "trainerName", "trainerCode", "apprentice", "apprenticeAllowedClaim", "emergency", "emergencyNumber", "isLateScratching",
+        "jockeyChanged", "handicapRating", "silkUrl", "startingPrice"]   # scalars only: jockey / trainer / horse are objects and break the query
 
 
 class Api:
@@ -121,6 +121,9 @@ def fetch_meeting(api, it, fields):
             continue
         f = api.q("form", form_q % (it["race_meet_id"], r["raceNumber"]))
         hs = (((f.get("data") or {}).get("f")) or {}).get("Horses") or []
+        if not hs and f.get("errors") and not getattr(fetch_meeting, "_warned", False):
+            fetch_meeting._warned = True
+            print("   graphql errors:", json.dumps(f.get("errors"))[:300])
         runners = []
         for h in hs:
             if not h.get("horseName"):
