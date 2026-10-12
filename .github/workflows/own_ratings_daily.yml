@@ -1,0 +1,89 @@
+name: Own ratings from racing.com results (daily)
+
+# TopRate's ratings stopped on 5 Oct 2026 (toprate.au blocks refreshes). This job rebuilds race_results_2026_rc.csv.gz: every race
+# since then rated by our own chain (own_ratings/), history seeded from TopRate's ratings, each later race chained from racing.com
+# margins and weights (data/gps/rc_results_runs_*.parquet, written by rc_results_daily.yml). The projection code reads every
+# race_results_20*.csv.gz, so the new file is picked up without any change to it (projection_daily.yml runs at 21:40 UTC).
+# The file is rebuilt from scratch each run (deterministic), nothing accumulates. See CLAUDE.md, "Own ratings chained from racing.com".
+#
+# Runs after rc_results_daily.yml finishes (workflow_run, which only fires from the default branch) or by hand.
+
+on:
+  workflow_run:
+    workflows: ["racing.com results, all states (daily)"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: own-ratings
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # on workflow_run only continue when the results job succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            /race_results_20*.csv.gz
+            /toprate_runners.csv
+            /toprate_runners_archive.csv.gz
+            /runners_io.py
+            /own_ratings/
+            /analysis/wpr_wfa_table.csv
+            /data/gps/rc_results_runs_*.parquet
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install pandas numpy pyarrow
+
+      - name: Build race_results_2026_rc.csv.gz
+        run: python -m own_ratings.build_results_ext --out race_results_2026_rc.csv.gz
+
+      - name: Sanity checks
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          d = pd.read_csv("race_results_2026_rc.csv.gz", low_memory=False)
+          assert len(d) > 500, f"too few rows: {len(d)}"
+          assert d.duplicated(["race_id", "horse_id"]).sum() == 0, "duplicate race/horse keys"
+          assert d.wpr.between(0, 140).mean() > 0.99, "ratings out of range"
+          print(len(d), "runs,", d.race_id.nunique(), "races,", d.date.min(), "to", d.date.max(), "mean wpr", round(d.wpr.mean(), 1))
+          PY
+
+      - name: Commit and push (one small file, via git plumbing)
+        env:
+          BRANCH: main
+        run: |
+          set -u
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          f=race_results_2026_rc.csv.gz
+          for attempt in 1 2 3 4 5 6; do
+            timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
+            tip=$(git rev-parse FETCH_HEAD)
+            export GIT_INDEX_FILE="$(mktemp -u)"
+            git read-tree "$tip"
+            blob=$(git hash-object -w "$f")
+            old=$(git rev-parse -q --verify "$tip:$f" || true)
+            if [ "$blob" = "$old" ]; then echo "nothing new"; exit 0; fi
+            git update-index --add --cacheinfo "100644,$blob,$f"
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" -p "$tip" -m "own ratings from racing.com results $(date -u +%F)")
+            rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
+            if timeout 240 git push origin "$commit:refs/heads/$BRANCH"; then echo "pushed $commit"; exit 0; fi
+            echo "push rejected (attempt $attempt), retrying on the new tip"
+            sleep $((attempt * 10))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1
