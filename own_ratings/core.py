@@ -19,13 +19,16 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 WFA_PATH = os.path.join(HERE, "..", "analysis", "wpr_wfa_table.csv")
 
-# forecasting-tuned parameters (11 Oct 2026 tests, VIC/SA/QLD): margin scale by distance band, cap, weight coefficient
-MARGIN_SCALE = (1.0, 1.2, 1.2)        # under 1300m, 1300 to 1800m, over 1800m (times TopRate's K)
+# forecasting-tuned parameters (12 Oct 2026 re-tune on all states: MIN_PRIORS 2 -> 6, weight 0.8 -> 0.5, margin scale (1.0,1.2,1.2) -> (1.1,1.4,1.4); next-run winner log-loss 1.9887 -> 1.9739 vs TopRate 1.9851 on 19,061 races, 1.9848 -> 1.9701 vs 1.9883 on the year before). Earlier: 11 Oct 2026 tests, VIC/SA/QLD: margin scale by distance band, cap, weight coefficient
+MARGIN_SCALE = (1.1, 1.4, 1.4)        # under 1300m, 1300 to 1800m, over 1800m (times TopRate's K)
 MARGIN_CAP = 10.0                      # lengths
 WEIGHT_COEF = 0.3                      # TopRate uses 0.8; the weight term adds almost nothing as a rating input
+CHAIN_WCOEF = 0.5                      # weight coefficient used by the chain (rating points per kg)
+EXP_N = 3                              # a runner's expected ATW is the mean of its last EXP_N own ATWs
+HIST_N = 6                             # own ATWs kept per horse
 RS_BIAS = 0.0                          # calibrated by backtest (see own_ratings/backtest.py)
 TRIM = 0.25                            # trimmed mean drops this share from each end
-MIN_PRIORS = 2                         # runners with fewer own rated runs do not inform RS
+MIN_PRIORS = 6                         # runners with fewer own rated runs do not inform RS
 
 
 def k_per_length(dist):

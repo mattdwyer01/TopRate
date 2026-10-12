@@ -25,7 +25,7 @@ def seed_history(past):
 
 def run_chain(obs, hist, fallback_rs=None):
     """Returns obs with atw, wpr, rs_hat, n_inform added. hist is updated in place."""
-    o = core.add_weight_terms(obs, 0.8).sort_values(["date", "race_id"]).reset_index(drop=True)
+    o = core.add_weight_terms(obs, core.CHAIN_WCOEF).sort_values(["date", "race_id"]).reset_index(drop=True)
     o["m"] = o["margin"].fillna(np.nan).clip(0, core.MARGIN_CAP)
     o["k"] = core.k_per_length(o["distance"]) * core.margin_scale(o["distance"])
     atw = np.full(len(o), np.nan)
@@ -39,7 +39,7 @@ def run_chain(obs, hist, fallback_rs=None):
             hh = hist.get(h)
             m = x["m"].values[j]
             if hh is not None and len(hh) >= core.MIN_PRIORS and not np.isnan(m):
-                imp.append(np.mean(hh[-3:]) + x["k"].values[j] * m)
+                imp.append(np.mean(hh[-core.EXP_N:]) + x["k"].values[j] * m)
         if imp:
             rs = core.trimmed_mean(imp) + core.RS_BIAS
             last_rs = 0.98 * last_rs + 0.02 * rs
@@ -52,7 +52,7 @@ def run_chain(obs, hist, fallback_rs=None):
         for h, av in zip(x["horse_id"].values, a):
             if not np.isnan(av):
                 hist.setdefault(h, []).append(float(av))
-                if len(hist[h]) > 6:
+                if len(hist[h]) > core.HIST_N:
                     del hist[h][0]
     o["atw"] = atw
     o["rs_hat"] = rs_out
