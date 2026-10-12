@@ -3758,7 +3758,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
     def _atwo_for_row(row):
         """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
-        Without one, only a race still to run takes the horse's latest offset (it is for its next start, so it would be wrong for a past race)."""
+        Without one, only a race still to run takes the horse's latest offset (it is for its next start, so it would be wrong for a past race).
+        13 Oct 2026: DISABLED. The form history is now our own plain rating (own_ratings/replace_form_ratings.py), so there is no shift to apply and the
+        values frozen in the projection log (measured against TopRate's form feed) are stale."""
+        return None
         try:
             v = float(row.get("wprp_atwo"))
             if v == v:
