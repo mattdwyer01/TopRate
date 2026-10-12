@@ -130,12 +130,11 @@ def fetch_meeting(api, it, fields):
                 continue
             runners.append({
                 "horse": h.get("horseName"), "horse_code": h.get("horseCode"),
-                "barrier": h.get("barrierNumber"), "weight_kg": parse_weight(h.get("weight")),
-                "tab_number": first(h, "saddleNumber", "tabNo", "tabNumber", "number"),
-                "jockey": first(h, "jockeyName", "jockey", "riderName"), "trainer": first(h, "trainerName", "trainer"),
-                "age": h.get("age"), "sex": h.get("sex"), "gear": h.get("gear"),
-                "claim": first(h, "apprenticeAllowance", "claim"),
-                "scratched": 1 if h.get("scratched") else 0, "emergency": 1 if h.get("emergency") else 0})
+                "barrier": h.get("barrierNumber"), "weight_kg": parse_weight(first(h, "weightCarried", "weight")),
+                "tab_number": h.get("raceEntryNumber"), "jockey": h.get("jockeyName"), "trainer": h.get("trainerName"),
+                "claim": h.get("apprenticeAllowedClaim"), "silk_url": h.get("silkUrl"), "rating": h.get("handicapRating"),
+                "scratched": 1 if (h.get("scratched") or h.get("isLateScratching")) else 0,
+                "emergency": h.get("emergencyNumber") or (1 if h.get("emergency") else 0)})
         races.append({"race_no": r["raceNumber"], "distance": r.get("distance"), "name": r.get("name"), "time": r.get("time"),
                       "going": r.get("trackCondition"), "rating": r.get("trackRating"), "class": r.get("rdcClass"),
                       "status": r.get("raceStatus"), "runners": runners})
@@ -169,6 +168,10 @@ def main():
     names = entry_fields(api)
     if a.probe:
         print("RaceEntryItem fields (%d):" % len(names), ", ".join(names))
+    if a.probe:
+        d = api.q("form", '{ __schema { queryType { fields { name args { name } } } } }')
+        qf = (((d.get("data") or {}).get("__schema") or {}).get("queryType") or {}).get("fields") or []
+        print("Query fields:", "; ".join(f["name"] + "(" + ",".join(x["name"] for x in f.get("args") or []) + ")" for f in qf))
     fields = [w for w in WANT if w in names] or ["horseName", "barrierNumber", "weight", "scratched", "horseCode"]
     print("requesting runner fields:", fields)
     ms = meetings(api, dates)
