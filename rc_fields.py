@@ -194,6 +194,14 @@ def main():
             print(f"  {m['state']} {m['venue']}: races {len(m['races'])}, runners {nr}")
             by_date.setdefault(it["race_date"], []).append(m)
             if a.probe and m["races"]:
+                rn = m["races"][0]["race_no"]
+                q = ('query{ f: getRaceForm(meetCode: "%s", raceNumber:%d) { runnersCount fieldCount hasField raceStatus '
+                     'a: raceEntries { horseName scratched } b: formRaceEntries { horseName scratched } '
+                     'c: raceEntriesByScratched { horseName scratched } } }') % (it["race_meet_id"], rn)
+                f = api.q("form", q)
+                fo = ((f.get("data") or {}).get("f")) or {}
+                print("   counts race", rn, {k: (len(v) if isinstance(v, list) else v) for k, v in fo.items()}, "errors:", json.dumps(f.get("errors"))[:200] if f.get("errors") else None)
+                print("   formRaceEntries sample:", json.dumps((fo.get("b") or [])[:3]))
                 for r in m["races"][:1]:
                     print("   sample:", json.dumps({k: v for k, v in r.items() if k != "runners"}), json.dumps(r["runners"][:2]))
                     print("   all entries of race", r["race_no"], [(x["tab_number"], x["horse"], x["scratched"], x["emergency"]) for x in r["runners"]])
