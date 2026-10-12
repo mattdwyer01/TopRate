@@ -172,6 +172,15 @@ def main():
         d = api.q("form", '{ __schema { queryType { fields { name args { name } } } } }')
         qf = (((d.get("data") or {}).get("__schema") or {}).get("queryType") or {}).get("fields") or []
         print("Query fields:", "; ".join(f["name"] + "(" + ",".join(x["name"] for x in f.get("args") or []) + ")" for f in qf))
+    if a.probe:
+        for tn in ("RaceForm", "Race"):
+            d = api.q("form", '{ __type(name:"%s"){ fields{ name type{ name kind ofType{ name kind } } } } }' % tn)
+            fl = (((d.get("data") or {}).get("__type") or {}).get("fields")) or []
+            print(tn, "fields:", ", ".join(f["name"] + ":" + str((f["type"].get("name") or (f["type"].get("ofType") or {}).get("name"))) for f in fl))
+        d = api.q("form", '{ __type(name:"Query"){ fields{ name type{ name kind ofType{ name } } } } }')
+        for f in (((d.get("data") or {}).get("__type") or {}).get("fields")) or []:
+            if f["name"] in ("getRaceForm", "getRacesForMeet", "GetRacesForMeetGrouped", "Race"):
+                print("return type of", f["name"], "=", f["type"].get("name") or (f["type"].get("ofType") or {}).get("name"))
     fields = [w for w in WANT if w in names] or ["horseName", "barrierNumber", "weight", "scratched", "horseCode"]
     print("requesting runner fields:", fields)
     ms = meetings(api, dates)
@@ -187,6 +196,7 @@ def main():
             if a.probe and m["races"]:
                 for r in m["races"][:1]:
                     print("   sample:", json.dumps({k: v for k, v in r.items() if k != "runners"}), json.dumps(r["runners"][:2]))
+                    print("   all entries of race", r["race_no"], [(x["tab_number"], x["horse"], x["scratched"], x["emergency"]) for x in r["runners"]])
                 if len(by_date.get(it["race_date"], [])) >= 3:
                     break
     except TimeoutError as e:
