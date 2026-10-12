@@ -131,12 +131,14 @@ def fetch_meeting(api, it):
         n_with += 1
         dist = parse_money(r.get("distance"))
         for h in hs:
+            if h.get("scratched"):
+                continue                      # scratched runners carry a placeholder finish (109) and no margin
             rows.append({"source": "rc_entries", "race_date": it["race_date"], "state": it["state"],
                          "meeting_code": it["race_meet_id"], "venue": it.get("location_name") or it.get("name"),
                          "meet_type": it.get("race_meet_type"), "race_no": r["raceNumber"], "race_distance": dist,
                          "going": r.get("trackCondition"), "horse": h.get("horseName"), "horse_code": h.get("horseCode"),
                          "barrier": h.get("barrierNumber"), "weight_kg": parse_money(h.get("weight")),
-                         "sp": parse_money(h.get("startingPrice")), "finish": h.get("finish"),
+                         "sp": parse_money(h.get("startingPrice")), "finish": h["finish"] if (h.get("finish") or 0) < 100 else None,   # 100+ = non-finisher sentinel
                          "margin_l": 0.0 if h.get("finish") == 1 else parse_margin(h.get("beatenMargin")),
                          "margin_raw": h.get("beatenMargin"), "scratched": bool(h.get("scratched"))})
     return rows, n_races, n_with
@@ -190,6 +192,7 @@ def main():
     if rows:
         df = pd.DataFrame(rows)
         bad = df[(df.finish > 1) & df.margin_l.isna()]
+        print("runners:", len(df), "non-finishers (finish null):", int(df.finish.isna().sum()))
         print("non-winners with unparsed margin:", len(bad), "raw samples:", bad.margin_raw.dropna().unique()[:10].tolist())
         if len(bad):
             print("null-margin finish positions:", bad.finish.value_counts().sort_index().head(30).to_dict())
