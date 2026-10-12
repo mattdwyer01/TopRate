@@ -4,7 +4,7 @@ toprate.au no longer answers (403), so update_results() cannot settle races and 
 This step does their job from data we have:
 
   1. runners.csv: for every row of a date racing.com has results for and that is not yet `resulted`, set finish_position, won,
-     placed, starting_price_sp, margin_finish, wpr_actual (our own rating of the run, race_results_2026_rc.csv.gz),
+     placed, starting_price_sp, margin_finish, wpr_actual (our own rating of the run, the own-chain ratings file),
      wpr_actual_rank, resulted = 1 and interim_resulted = 1. Values follow update_results(): the winner's margin_finish is
      minus the margin to the runner-up, everyone else's is the margin to the winner.
   2. wpr_form_history.csv.gz: append one row per rated run (own file, plus TopRate-rated runs of the results files that the form feed
@@ -26,10 +26,8 @@ import numpy as np
 import pandas as pd
 
 import runners_io
-from atw_offsets import compute_atw_offsets
 from own_ratings.rc_join import load_rc_results, match_runners, norm_horse
 
-OWN_FILE = "race_results_2026_rc.csv.gz"
 FORM_FILE = "wpr_form_history.csv.gz"
 FORM_FROM = "2026-10-01"          # form rows are filled from here (the form feed's last full day is 2026-10-07)
 
@@ -96,33 +94,37 @@ def settle_runners(runners: pd.DataFrame, rc: pd.DataFrame, own: pd.DataFrame):
     return out, len(idx), m.rk.nunique()
 
 
-def new_form_rows(own: pd.DataFrame, results_dir: str = ".") -> pd.DataFrame:
-    """Rated runs from FORM_FROM on that the form file does not hold, in the form file's columns (rating on the form feed's scale)."""
-    fh = pd.read_csv(FORM_FILE, low_memory=False)
+def new_form_rows(own: pd.DataFrame, ratings: pd.DataFrame) -> pd.DataFrame:
+    """Rated runs from FORM_FROM on that the form file does not hold, in the form file's columns.
+
+    `ratings` is the own-chain output (rebuild_history: date, horse_id, horse, wpr); the race facts come from the results files. The
+    rating is OUR plain WPR; nothing from TopRate's wpr column is used.
+    """
+    fh = pd.read_csv(FORM_FILE, usecols=["horse", "date"], low_memory=False)
     have = set(zip(fh.horse.astype(str).str.strip().str.lower(), fh.date.astype(str).str[:10]))
-    fh["horse_lc"] = fh.horse.astype(str).str.strip().str.lower()
-    fh["date"] = pd.to_datetime(fh.date, errors="coerce")
-    fh["wpr"] = _num(fh.wpr)
-    offs = compute_atw_offsets(fh)
+    r = ratings.dropna(subset=["wpr"]).copy()
+    r["d"] = r.date.astype(str).str[:10]
+    r["hl"] = r.horse.astype(str).str.strip().str.lower()
+    r = r[r.d >= FORM_FROM]
+    r = r[[(h, d) not in have for h, d in zip(r.hl, r.d)]].drop_duplicates(["hl", "d"], keep="last")
+    if r.empty:
+        return r
     parts = []
     for p in sorted(glob.glob("race_results_20*.csv.gz")):
         d = pd.read_csv(p, low_memory=False)
         d["date"] = d.date.astype(str).str[:10]
         parts.append(d[d.date >= FORM_FROM])
-    res = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-    res = res.dropna(subset=["wpr"])
+    res = pd.concat(parts, ignore_index=True)
     res["hl"] = res.horse.astype(str).str.strip().str.lower()
-    res = res[[(h, d) not in have for h, d in zip(res.hl, res.date)]].drop_duplicates(["hl", "date"], keep="last")
-    if res.empty:
-        return res
+    res = res.drop_duplicates(["hl", "date"], keep="first")
+    res = res.merge(r[["hl", "d", "wpr"]].rename(columns={"wpr": "own_wpr"}), left_on=["hl", "date"], right_on=["hl", "d"], how="inner")
     cols = list(pd.read_csv(FORM_FILE, nrows=0).columns)
     out = pd.DataFrame(index=res.index, columns=cols, dtype=object)
     for c in cols:
         if c in res.columns:
             out[c] = res[c]
-    out["horse"] = res["horse"]
     out["scrape_date"] = res["date"]
-    out["wpr"] = (_num(res["wpr"]) + res.hl.map(offs).fillna(0.0)).round(1)
+    out["wpr"] = res["own_wpr"].round(1)
     out["venue"] = res["track"] if "track" in res else None
     return out.reset_index(drop=True)
 
@@ -131,9 +133,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-form", action="store_true")
+    ap.add_argument("--ratings", default="own_ratings_history.csv.gz", help="own-chain output from rebuild_history (needed for the form rows)")
     a = ap.parse_args()
     rc = load_rc_results()
-    own = pd.read_csv(OWN_FILE, low_memory=False)
+    ratings = pd.read_csv(a.ratings, low_memory=False)      # own chain from rebuild_history: no TopRate rating anywhere in its inputs
+    own = ratings
     path = runners_io.live_path()
     if str(path).endswith("runners.csv"):
         runners = pd.read_csv(path, dtype=str, keep_default_na=False, low_memory=False)
@@ -144,7 +148,7 @@ def main():
     else:
         print("runners.csv not found, nothing to do")
     if not a.no_form:
-        rows = new_form_rows(own)
+        rows = new_form_rows(own, ratings)
         print(f"form history: {len(rows)} new rows ({rows.date.min() if len(rows) else '-'} to {rows.date.max() if len(rows) else '-'})")
         if len(rows) and not a.dry_run:
             fh = pd.read_csv(FORM_FILE, low_memory=False)

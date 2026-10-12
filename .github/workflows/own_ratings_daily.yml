@@ -71,6 +71,12 @@ jobs:
       # Settle the runner rows the TopRate results pass can no longer settle (finish, SP, own actual rating, resulted), add those runs to the
       # horse form history, and give racing.com-built rows a horse_id and an early price. Idempotent. If the runners file or the form history
       # moves on main between the checkout and the push below, the push step redoes this on the new tip.
+      # Our own rating of EVERY past run, chained from an empty history with no TopRate rating in the inputs (rebuild_history.py, a few
+      # minutes). Deterministic and forward-only, so earlier runs never change when races are added. Not committed (about 15 MB a day of
+      # churn); it feeds the form history rows and the settled runners' actual ratings below.
+      - name: Rate every past run with the own chain
+        run: python -m own_ratings.rebuild_history --out own_ratings_history.csv.gz
+
       - name: Settle runners, extend form history, fill ids and prices
         run: |
           python -m own_ratings.apply_results

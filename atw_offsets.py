@@ -13,7 +13,13 @@ def compute_atw_offsets(fh):
     the median over the horse's runs that appear in both (all years of results, so a horse whose only rated runs are old still matches) is its offset. Used by the frontend to draw the projection and the winning line on the
     chart's own (ATW) scale. Only the horse's latest scrape is used (older scrapes carry an older weight); a horse with no matched run gets no
     offset (nothing to adjust, it stays on the plain rating). Fail-safe: any error returns {} (no shift).
+
+    13 Oct 2026: DISABLED. The form history now holds our own plain WPR for every run (own_ratings/replace_form_ratings.py), not TopRate's
+    form-feed rating at the next start's weight, so there is no gap to measure; comparing it with the (still TopRate) results ratings
+    would only measure the difference between the two rating systems. Returns {} (no shift) until the results files are re-rated too.
     """
+    if True:
+        return {}
     try:
         files = sorted(Path(__file__).parent.glob("race_results_20*.csv.gz"))
         res = pd.concat([pd.read_csv(p, usecols=["horse_id", "date", "wpr"], low_memory=False) for p in files], ignore_index=True)
