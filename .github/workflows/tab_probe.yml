@@ -84,6 +84,7 @@ jobs:
           RC_LIST_ONLY: ${{ (inputs.show_hidden == 'list' || inputs.show_hidden == 'list_hidden') && '1' || '' }}
           RC_SHOW_HIDDEN: ${{ inputs.show_hidden == 'list_hidden' && '1' || '' }}
           RC_PROBE_OBJECTS: ${{ inputs.show_hidden == 'objects' && '1' || '' }}
+          RC_PROBE_FILL: ${{ inputs.show_hidden == 'fill' && '1' || '' }}
           RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
           RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
         run: |

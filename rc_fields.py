@@ -190,6 +190,46 @@ def probe_objects(api, date_str):
         print("  ", json.dumps(h)[:900])
 
 
+def probe_fill(api, date_str):
+    """Which RaceEntryItem fields are filled for an UPCOMING race? One line per field: non-null entries / entries, sample value."""
+    d0 = dt.date.fromisoformat(date_str)
+    d = api.q("cal", CAL % ("VIC", d0.year, d0.month))
+    its = [i for i in ((d.get("data") or {}).get("getCalendarItems") or []) if str(i.get("event_start_time", ""))[:10] == date_str]
+    if not its:
+        print("no VIC meeting on", date_str); return
+    code = its[0]["race_meet_id"]
+    fields = type_fields(api, "RaceEntryItem")
+    scal = [n for n, t, k in fields if k in ("SCALAR", "ENUM")]
+    objs = [(n, t) for n, t, k in fields if k not in ("SCALAR", "ENUM")]
+    print("meeting", code, its[0].get("location_name"), "scalar fields", len(scal), "object fields", len(objs))
+
+    def read(sel):
+        q = 'query{ f: getRaceForm(meetCode: "%s", raceNumber: 3) { Horses: formRaceEntries { %s } } }' % (code, sel)
+        r = api.q("form", q)
+        return (((r.get("data") or {}).get("f")) or {}).get("Horses"), r.get("errors")
+
+    hs, err = read(" ".join(scal))
+    if hs is None:
+        print("scalar query failed:", json.dumps(err)[:300]); return
+    print("entries:", len(hs))
+    for n in scal:
+        vals = [h.get(n) for h in hs]
+        have = [v for v in vals if v not in (None, "", [], {})]
+        print(f"  {n}: {len(have)}/{len(hs)}  e.g. {json.dumps(have[0])[:70] if have else '-'}")
+    for n, t in objs:
+        sub = [x for x in type_fields(api, t) if x[2] in ("SCALAR", "ENUM")][:30]
+        if not sub:
+            print(f"  [{n}] {t}: no scalar sub-fields"); continue
+        hs2, err = read(n + " { " + " ".join(x[0] for x in sub) + " }")
+        if hs2 is None:
+            print(f"  [{n}] {t}: query failed {json.dumps(err)[:120]}"); continue
+        vals = [h.get(n) for h in hs2]
+        have = [v for v in vals if v not in (None, "", [], {})]
+        print(f"  [{n}] {t}: {len(have)}/{len(hs2)}  subfields {','.join(x[0] for x in sub)[:160]}")
+        if have:
+            print("      e.g.", json.dumps(have[0])[:260])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", action="append", default=[])
@@ -209,6 +249,8 @@ def main():
         sys.exit("no dates")
     api = Api(a.deadline)
     names = entry_fields(api)
+    if os.environ.get("RC_PROBE_FILL"):
+        probe_fill(api, sorted(dates)[0].isoformat()); return
     if os.environ.get("RC_PROBE_OBJECTS"):
         probe_objects(api, sorted(dates)[0].isoformat()); return
     if a.probe:
