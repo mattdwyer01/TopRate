@@ -39,6 +39,10 @@ jobs:
             /toprate_runners.csv
             /toprate_runners_archive.csv.gz
             /runners_io.py
+            /atw_offsets.py
+            /rc_field_rows.py
+            /wpr_form_history.csv.gz
+            /data/rc_fields/
             /own_ratings/
             /analysis/wpr_wfa_table.csv
             /data/gps/rc_results_runs_*.parquet
@@ -64,25 +68,48 @@ jobs:
           print(len(d), "runs,", d.race_id.nunique(), "races,", d.date.min(), "to", d.date.max(), "mean wpr", round(d.wpr.mean(), 1))
           PY
 
-      - name: Commit and push (one small file, via git plumbing)
+      # Settle the runner rows the TopRate results pass can no longer settle (finish, SP, own actual rating, resulted), add those runs to the
+      # horse form history, and give racing.com-built rows a horse_id and an early price. Idempotent. If the runners file or the form history
+      # moves on main between the checkout and the push below, the push step redoes this on the new tip.
+      # Our own rating of EVERY past run, chained from an empty history with no TopRate rating in the inputs (rebuild_history.py, a few
+      # minutes). Deterministic and forward-only, so earlier runs never change when races are added. Not committed (about 15 MB a day of
+      # churn); it feeds the form history rows and the settled runners' actual ratings below.
+      - name: Rate every past run with the own chain
+        run: python -m own_ratings.rebuild_history --out own_ratings_history.csv.gz
+
+      - name: Settle runners, extend form history, fill ids and prices
+        run: |
+          python -m own_ratings.apply_results
+          python -m own_ratings.fill_runner_ids
+
+      - name: Commit and push (via git plumbing)
         env:
           BRANCH: main
         run: |
           set -u
           export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
           export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-          f=race_results_2026_rc.csv.gz
+          # race_results_2026_rc.csv.gz and wpr_form_history.csv.gz are only written by this job. runners.csv is rewritten by the TAB poller
+          # every few minutes, so on each attempt it is taken from the newest tip and the settle/fill steps are applied to THAT copy.
+          mkdir -p /tmp/keep && cp race_results_2026_rc.csv.gz wpr_form_history.csv.gz /tmp/keep/
           for attempt in 1 2 3 4 5 6; do
             timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
             tip=$(git rev-parse FETCH_HEAD)
+            git show "$tip:runners.csv" > runners.csv
+            python -m own_ratings.apply_results --no-form
+            python -m own_ratings.fill_runner_ids
             export GIT_INDEX_FILE="$(mktemp -u)"
             git read-tree "$tip"
-            blob=$(git hash-object -w "$f")
-            old=$(git rev-parse -q --verify "$tip:$f" || true)
-            if [ "$blob" = "$old" ]; then echo "nothing new"; exit 0; fi
-            git update-index --add --cacheinfo "100644,$blob,$f"
+            changed=0
+            for f in race_results_2026_rc.csv.gz wpr_form_history.csv.gz runners.csv; do
+              src="$f"; [ -f "/tmp/keep/$f" ] && src="/tmp/keep/$f"
+              blob=$(git hash-object -w "$src")
+              old=$(git rev-parse -q --verify "$tip:$f" || true)
+              if [ "$blob" != "$old" ]; then git update-index --add --cacheinfo "100644,$blob,$f"; changed=1; fi
+            done
+            if [ "$changed" = 0 ]; then echo "nothing new"; exit 0; fi
             tree=$(git write-tree)
-            commit=$(git commit-tree "$tree" -p "$tip" -m "own ratings from racing.com results $(date -u +%F)")
+            commit=$(git commit-tree "$tree" -p "$tip" -m "own ratings, settled results and form history from racing.com $(date -u +%F)")
             rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
             if timeout 240 git push origin "$commit:refs/heads/$BRANCH"; then echo "pushed $commit"; exit 0; fi
             echo "push rejected (attempt $attempt), retrying on the new tip"

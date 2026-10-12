@@ -173,12 +173,13 @@ def main():
     ap.add_argument("--date"); ap.add_argument("--days", type=int); ap.add_argument("--n", type=int)
     ap.add_argument("--since", help="backfill: every local date from SINCE to yesterday")
     ap.add_argument("--refresh", action="store_true", help="re-fetch meetings already stored")
+    ap.add_argument("--include-today", action="store_true", help="count today (Melbourne date) as the last day; a meeting is still saved only once every race has results")
     ap.add_argument("--selftest", action="store_true"); ap.add_argument("--max-requests", type=int, default=450)
     ap.add_argument("--deadline", type=int, default=900)
     a = ap.parse_args()
     if a.selftest:
         return selftest()
-    y = dt.datetime.now(ZoneInfo("Australia/Melbourne")).date() - dt.timedelta(days=1)
+    y = dt.datetime.now(ZoneInfo("Australia/Melbourne")).date() - dt.timedelta(days=0 if a.include_today else 1)
     if a.date:
         dates = {dt.date.fromisoformat(a.date)}
     elif a.since:
