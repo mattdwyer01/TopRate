@@ -1,13 +1,13 @@
-"""runners_io.py -- toprate_runners.csv split into a live file + a gzipped archive (Oct 2026).
+"""runners_io.py -- runners.csv (was toprate_runners.csv until 12 Oct 2026) split into a live file + a gzipped archive (Oct 2026).
 
 Why: toprate_runners.csv grows ~20MB a month (every runner since 26 Apr 2026) and reached GitHub's 100MB per-file
 limit on 30 Sep / 1 Oct 2026: every Daily fetch push that added the next day's fields was rejected
 ("GH001: Large files detected", toprate_runners.csv 100.03MB), so tomorrow's races never reached the dashboard.
 
 Layout:
-  toprate_runners.csv              live file: races in the last LIVE_DAYS days (Melbourne date) plus every future
+  runners.csv                      live file: races in the last LIVE_DAYS days (Melbourne date) plus every future
                                    race. This is what the 5-minute jobs rewrite and commit.
-  toprate_runners_archive.csv.gz   older races (same columns), gzipped. Rewritten only when races age past the cutoff
+  runners_archive.csv.gz           older races (same columns), gzipped. Rewritten only when races age past the cutoff
                                    (save_split), so it is committed about once a day, not every few minutes.
 
 Readers that need the whole history (toprate_daily.load_runners, wpr_projection's trainer/jockey and wpr_nett joins)
@@ -22,11 +22,25 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 DIR = Path(__file__).parent
-LIVE_CSV = DIR / "toprate_runners.csv"
-ARCHIVE_CSV = DIR / "toprate_runners_archive.csv.gz"
+LIVE_CSV = DIR / "runners.csv"
+ARCHIVE_CSV = DIR / "runners_archive.csv.gz"
+# toprate_runners.csv / toprate_runners_archive.csv.gz were retired on 12 Oct 2026 (toprate.au no longer supplies the fields; see
+# rc_fields.py). They are frozen history now. Until the first save writes runners.csv, readers fall back to them so the cutover
+# loses nothing: the first save_split() copies the legacy rows (archive + live) into the new pair.
+LEGACY_LIVE_CSV = DIR / "toprate_runners.csv"
+LEGACY_ARCHIVE_CSV = DIR / "toprate_runners_archive.csv.gz"
 LIVE_DAYS = 60
 # deterministic gzip (no timestamp in the header): an unchanged archive rewrites to identical bytes
 GZIP = {"method": "gzip", "mtime": 0}
+
+
+def live_path():
+    """The live runners file to read: runners.csv, or the retired toprate_runners.csv until runners.csv has been written."""
+    return LIVE_CSV if LIVE_CSV.exists() or not LEGACY_LIVE_CSV.exists() else LEGACY_LIVE_CSV
+
+
+def exists():
+    return LIVE_CSV.exists() or ARCHIVE_CSV.exists() or LEGACY_LIVE_CSV.exists() or LEGACY_ARCHIVE_CSV.exists()
 
 
 def archive_for(path):
@@ -40,6 +54,9 @@ def read_runners(path=LIVE_CSV, **kw):
     Rows are archive first, live last, so drop_duplicates(keep="last") prefers the live copy."""
     path = Path(path)
     arc = archive_for(path)
+    if path.name == LIVE_CSV.name and not path.exists() and not arc.exists():
+        # cutover: nothing written to runners.csv yet, read the retired pair that sits next to it
+        path, arc = path.with_name(LEGACY_LIVE_CSV.name), path.with_name(LEGACY_ARCHIVE_CSV.name)
     parts = []
     if arc is not None and arc.exists():
         parts.append(pd.read_csv(arc, **kw))

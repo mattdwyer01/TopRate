@@ -34,6 +34,8 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             /race_results_20*.csv.gz
+            /runners.csv
+            /runners_archive.csv.gz
             /toprate_runners.csv
             /toprate_runners_archive.csv.gz
             /runners_io.py

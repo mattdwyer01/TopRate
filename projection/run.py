@@ -4,7 +4,7 @@ Routing: runners with three or more prior rated runs use the main model (139 fea
 use the light-history model. Main-model projections then get the small suitability adjustment (comment history, day-of
 bias, finishing profile, jockey/trainer tendencies). Writes wpr_projection_new.json at the repo root.
 
-The going each race is projected on is whatever toprate_runners.csv holds for that race when this runs, so a mid-meeting
+The going each race is projected on is whatever runners.csv holds for that race when this runs, so a mid-meeting
 track change is picked up by re-running (see README for the refresh path).
 
 usage: python projection/run.py [--today YYYY-MM-DD] [--out PATH]
@@ -23,6 +23,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 import features as F  # noqa: E402
+sys.path.insert(0, F.ROOT)
+import runners_io  # noqa: E402
 import projlog  # noqa: E402
 
 sys.path.append(F.ROOT)
@@ -130,7 +132,7 @@ def clean_name(s):
 def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
             'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp']
-    u = pd.read_csv(os.path.join(ROOT, 'toprate_runners.csv'), usecols=lambda c: c in set(cols), low_memory=False)
+    u = pd.read_csv(runners_io.live_path(), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
     u = u[~F.is_jumps(u.race_class)]   # jumps races are not projected
     lo = pd.Timestamp(today) - pd.Timedelta(days=backfill_days)

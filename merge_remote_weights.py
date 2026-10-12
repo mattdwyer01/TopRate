@@ -12,17 +12,27 @@ local file takes that value. Every other cell is left byte-for-byte as it was (a
 Best-effort: any error is printed and the file is left untouched.
 """
 import io
+import os
 import subprocess
 import sys
 
 import pandas as pd
 
-CSV = "toprate_runners.csv"
+CSV = "runners.csv"
+LEGACY = "toprate_runners.csv"   # retired 12 Oct 2026; the remote may still only have this one
 
 
 def main(ref):
     try:
-        remote = subprocess.run(["git", "show", f"{ref}:{CSV}"], capture_output=True, check=True, timeout=120).stdout
+        remote = None
+        for name in (CSV, LEGACY):
+            got = subprocess.run(["git", "show", f"{ref}:{name}"], capture_output=True, timeout=120)
+            if got.returncode == 0:
+                remote = got.stdout
+                break
+        if remote is None or not os.path.exists(CSV):
+            print("merge_remote_weights: nothing to merge")
+            return
         r = pd.read_csv(io.BytesIO(remote), dtype=str, keep_default_na=False, usecols=["run_id", "weight_carried"])
         r = r[r["weight_carried"].str.strip() != ""].drop_duplicates("run_id", keep="last")
         if r.empty:

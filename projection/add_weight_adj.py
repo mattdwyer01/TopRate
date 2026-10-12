@@ -17,7 +17,7 @@ def main():
     lg = projlog.load()
     w = pd.concat([pd.read_csv(f, usecols=['run_id', 'race_id', 'weightCarried'], low_memory=False) for f in sorted(glob.glob(os.path.join(projlog.ROOT, 'race_results_20*.csv.gz')))])
     w = w.dropna(subset=['run_id']).drop_duplicates('run_id').set_index('run_id').weightCarried
-    r = pd.read_csv(os.path.join(projlog.ROOT, 'toprate_runners.csv'), usecols=['run_id', 'weight_carried'], low_memory=False).dropna().drop_duplicates('run_id').set_index('run_id').weight_carried
+    r = pd.read_csv(__import__('runners_io').live_path(), usecols=['run_id', 'weight_carried'], low_memory=False).dropna().drop_duplicates('run_id').set_index('run_id').weight_carried
     lg['wt'] = lg.run_id.map(w).fillna(lg.run_id.map(r))
     lg.loc[~lg.wt.between(40, 80), 'wt'] = np.nan
     # idempotent: removes any weight term already applied, then applies the current WT_K

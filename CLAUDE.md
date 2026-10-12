@@ -109,6 +109,17 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 ## Data files
 
+- **`runners.csv` / `runners_archive.csv.gz` (12 Oct 2026) replace `toprate_runners.csv` / `toprate_runners_archive.csv.gz`.** toprate.au no longer
+  supplies runner fields (race-detail calls answer 403), so that file is RETIRED: frozen as history, nothing writes it. Same columns and layout as
+  before, so payload, projection, poller and price jobs only changed path (`runners_io.LIVE_CSV` / `ARCHIVE_CSV`, `runners_io.live_path()`).
+  Until the first job saves `runners.csv`, `runners_io.read_runners()` falls back to the retired pair, and the first `save_split()` copies every legacy row
+  across. Wherever older entries below say `toprate_runners.csv`, read `runners.csv`.
+- `data/rc_fields/<date>.json` (12 Oct 2026) — declared fields of upcoming races from racing.com (`rc_fields.py`, `.github/workflows/rc_fields_daily.yml`):
+  per race the runners with horse, horse_code, barrier, weight, saddle number (`raceEntryNumber`), rider, trainer, claim, silks and scratching. It must
+  read `formRaceEntries`: `raceEntries` only holds scratchings before the race. `rc_field_rows.py` turns a file into runner rows; `toprate_daily.fetch_todays_races()`
+  uses it for any race whose toprate.au detail fetch failed and that has no rows (run_id `rc<meeting>_<race>_<horse code>`, `field_source = racing.com`),
+  and keeps the existing rows of a race whose fetch failed instead of deleting them. Not available from racing.com: age, sex, gear, wpr_nett and the other toprate.au ratings.
+
 - `wpr_form_history.csv.gz` — accumulating per-run form history, gzipped (it
   crossed GitHub's 100MB limit as raw CSV). pandas reads/writes `.gz`
   transparently. Committed to git so it persists across Action runs.
