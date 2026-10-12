@@ -88,7 +88,7 @@ jobs:
           args+=(--n "$PROBE_N")
           [[ "$PROBE_ANY" == "true" ]] && args+=(--any-status)
           case "$PROBE_SCRIPT" in
-            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py|atc_ingest.py|source_probe.py|rc_probe.py|rc_introspect.py|rc_entries.py) ;;
+            tab_probe_race_fields.py|tab_probe_links.py|tab_form_sample.py|sectional_probe.py|browser_probe.py|atc_ingest.py|source_probe.py|rc_probe.py|rc_introspect.py|rc_entries.py|rc_results_ingest.py) ;;
             *) echo "unknown script"; exit 1 ;;
           esac
           PY=python
