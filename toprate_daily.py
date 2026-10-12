@@ -2639,9 +2639,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
                        .set_index("_r")[["start_time", "start_time_src"]])
     # Carried values of a transferred meeting's rows (meeting_transfer.py), restored onto the re-fetched rows
     _removed_tr = meeting_transfer.removed_values(pending_today)
+    _removed_rows = pd.DataFrame()   # pending rows deleted for the re-fetch; put back for races whose fetch fails (12 Oct 2026)
     if target_date_str is not None and len(pending_today) > 0:
         # Remove pending rows only, keep resulted
         n_remove = len(pending_today)
+        _removed_rows = pending_today.copy()
         runners_df = runners_df[
             ~((runners_df["date"].astype(str).str[:10] == today_str) & (runners_df["resulted"] != 1))
         ].copy()
@@ -2692,6 +2694,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         print(f"  Start time sample ({sample['venue']} R{sample['number']}): {sample.get('startTime')!r}")
     new_rows = []
     n_optimal = 0
+    _failed_rids = set()   # races whose detail fetch errored (toprate.au answers 403 since Oct 2026)
 
     # Pre-fetch all races' API responses concurrently (network-bound work).
     # The processing loop below stays sequential - it just reads from this
@@ -2705,6 +2708,7 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
             pf = prefetched.get(rc_id) or {}
             if pf.get("error"):
                 print(f"  Error on {race_meta['venue']} R{race_meta['number']}: {pf['error']}")
+                _failed_rids.add(str(rc_id))
                 continue
             detail    = pf.get("detail") or []
             if not detail:
@@ -3058,6 +3062,19 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         total_races   = len(set(r["race_id"] for r in new_rows))
         print(f"\nAdded {total_runners} runners from {total_races} races for {today_str}")
         print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend≥0 or missing)")
+
+    # Safety net (12 Oct 2026): toprate.au began answering 403 on every race-detail call, and this function deletes the
+    # day's pending rows before re-fetching them, so a failed re-fetch wiped the fields of every race it touched
+    # (the 166 pre-fetched 13 Oct runners, then an empty dashboard). Put back the removed rows of any race whose fetch
+    # errored and that still has no row; races the calendar no longer lists (abandoned) are not restored.
+    if len(_removed_rows) and not races_today:
+        _failed_rids = set(_removed_rows["race_id"].astype(str))   # the calendar itself came back empty: keep everything
+    if len(_removed_rows) and _failed_rids and "race_id" in _removed_rows.columns:
+        _have = set(runners_df["race_id"].astype(str)) if len(runners_df) else set()
+        _back = _removed_rows[_removed_rows["race_id"].astype(str).isin(_failed_rids - _have)]
+        if len(_back):
+            runners_df = pd.concat([runners_df, _back], ignore_index=True)
+            print(f"  Fetch failed for {_back['race_id'].nunique()} races: kept their {len(_back)} existing rows")
 
     return runners_df
 
