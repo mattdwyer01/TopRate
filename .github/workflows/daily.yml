@@ -179,6 +179,12 @@ jobs:
             python toprate_daily.py --date "$TODAY"
           fi
 
+      # Rows built from racing.com fields have no horse_id (the bet-signal scorer skips a race unless every runner has one) and no price
+      # until the TAB poller's 2-hour window: give them both (own_ratings/fill_runner_ids.py, idempotent, never overwrites a TAB price).
+      # Best-effort: a failure here must not block the commit.
+      - name: Fill horse ids and early prices on racing.com-built rows
+        run: python -m own_ratings.fill_runner_ids || echo "fill skipped"
+
       # ─────────────────────────────────────────────────────────
       # Step 2: Commit and push refreshed data + HTML.
       #

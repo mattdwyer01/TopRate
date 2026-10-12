@@ -25,6 +25,9 @@ on:
       max_requests:
         description: "request cap for this run (about 1 per second)"
         default: "1500"
+      include_today:
+        description: "also read today (Melbourne date); meetings with races still to run are skipped until they finish"
+        default: "false"
 
 permissions:
   contents: write
@@ -43,6 +46,7 @@ jobs:
       IN_DAYS: ${{ github.event.inputs.days || '3' }}
       IN_SINCE: ${{ github.event.inputs.since || '' }}
       IN_MAX: ${{ github.event.inputs.max_requests || '1500' }}
+      IN_TODAY: ${{ github.event.inputs.include_today || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,6 +73,7 @@ jobs:
           [[ "$IN_DAYS" =~ ^[0-9]{1,3}$ ]] || { echo "bad days"; exit 1; }
           [[ "$IN_MAX" =~ ^[0-9]{1,5}$ ]] || { echo "bad max_requests"; exit 1; }
           args=(--max-requests "$IN_MAX" --deadline 5000)
+          [[ "$IN_TODAY" == "true" ]] && args+=(--include-today)
           if [[ -n "$IN_SINCE" ]]; then
             [[ "$IN_SINCE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "bad since"; exit 1; }
             args+=(--since "$IN_SINCE")
