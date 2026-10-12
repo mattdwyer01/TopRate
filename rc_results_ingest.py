@@ -25,7 +25,7 @@ TZ = {"NSW": "Australia/Sydney", "VIC": "Australia/Melbourne", "ACT": "Australia
       "QLD": "Australia/Brisbane", "SA": "Australia/Adelaide", "WA": "Australia/Perth", "NT": "Australia/Darwin"}
 CAL = """query GetCalendarEvents { getCalendarItems(
   meetTypes: ["Metro","Provincial","Country","Picnic"], eventTypes: ["Racing"],
-  states: ["%s"], year: %d, month: %d, hideHiddenEvents: true) {
+  states: ["%s"], year: %d, month: %d, hideHiddenEvents: %s) {
   race_meet_id name location_name race_meet_type event_start_time state } }"""
 RACES = """query{ racesForMeet: getRacesForMeet(meetCode: "%s") {
   raceNumber raceStatus distance name trackCondition isTrial isJumpOut hasSectionals } }"""
@@ -99,7 +99,7 @@ def meetings_for(api, dates):
     months = sorted({(d.year, d.month) for d in dates} | {((d + dt.timedelta(days=1)).year, (d + dt.timedelta(days=1)).month) for d in dates})
     for st in STATES:
         for (y, m) in months:
-            d = api.q("cal", CAL % (st, y, m))
+            d = api.q("cal", CAL % (st, y, m, "false" if os.environ.get("RC_SHOW_HIDDEN") else "true"))
             for it in ((d.get("data") or {}).get("getCalendarItems")) or []:
                 try:
                     utc = dt.datetime.fromisoformat(str(it["event_start_time"]).replace("Z", "+00:00"))
@@ -194,6 +194,10 @@ def main():
     skipped = [m for m in ms if str(m["race_meet_id"]) in have]
     ms = [m for m in ms if str(m["race_meet_id"]) not in have]
     print("already stored (skipped):", len(skipped))
+    if os.environ.get("RC_LIST_ONLY"):
+        for m in sorted(ms + skipped, key=lambda m: (m["state"], str(m.get("event_start_time")))):
+            print("  ", m["state"], m.get("location_name"), m.get("race_meet_type"), str(m.get("event_start_time"))[:10], m["race_meet_id"])
+        return
     print("meetings:", len(ms), {s: sum(1 for m in ms if m["state"] == s) for s in STATES})
     rows, stat = [], {}
     try:

@@ -31,6 +31,11 @@ on:
         required: false
         default: 'false'
         type: string
+      show_hidden:
+        description: 'rc_results_ingest.py only: list_only (print the calendar, fetch nothing) and, with hidden, include hidden calendar events. values: off, list, list_hidden'
+        required: false
+        default: 'off'
+        type: string
 
 # own group: must never queue behind or cancel the live results poller
 concurrency:
@@ -76,6 +81,8 @@ jobs:
           PROBE_N: ${{ inputs.n }}
           PROBE_ANY: ${{ inputs.any_status }}
           PROBE_SCRIPT: ${{ inputs.script }}
+          RC_LIST_ONLY: ${{ (inputs.show_hidden == 'list' || inputs.show_hidden == 'list_hidden') && '1' || '' }}
+          RC_SHOW_HIDDEN: ${{ inputs.show_hidden == 'list_hidden' && '1' || '' }}
           RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
           RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
         run: |
