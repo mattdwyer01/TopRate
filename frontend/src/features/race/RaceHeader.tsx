@@ -60,7 +60,7 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
           ) : hasAnyResult ? (
             <span
               className="rounded-full border border-amber-line bg-amber-bg px-2.5 py-1 font-mono text-xs font-semibold text-amber"
-              title="TAB's fast provisional feed - toprate.au's confirmed result lands once the whole meeting finishes"
+              title="Provisional result from TAB's fast feed; the racing.com result and our rating follow overnight"
             >
               Interim result
             </span>

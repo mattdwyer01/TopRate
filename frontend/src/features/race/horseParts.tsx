@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import { computeCareerStats } from '../../lib/careerStats'
 import { fmtAdj } from './rowParts'
-import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
 
@@ -82,18 +82,6 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
         </div>
       </div>
       <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-t border-line-soft pt-1.5 text-xs">
-        <span>
-          <span className="text-[10px] uppercase tracking-wide text-ink-faint">TopRate </span>
-          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.toprateRating)}</span>
-        </span>
-        <span>
-          <span className="text-[10px] uppercase tracking-wide text-ink-faint">Form </span>
-          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.formFactor)}</span>
-        </span>
-        <span>
-          <span className="text-[10px] uppercase tracking-wide text-ink-faint">Nett </span>
-          <span className="font-mono font-semibold text-ink-soft">{fmtInt(runner.wprNett)}</span>
-        </span>
         <span className="font-semibold text-ink">
           Barrier {runner.barrier ?? '-'}
           {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
