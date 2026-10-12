@@ -147,6 +147,49 @@ def melbourne_dates(offsets):
     return {today + dt.timedelta(days=int(o)) for o in offsets}
 
 
+def _unwrap(t):
+    while t and t.get("ofType") and not t.get("name"):
+        t = t["ofType"]
+    return t or {}
+
+
+def type_fields(api, name):
+    d = api.q("form", '{ __type(name:"%s"){ fields{ name type{ name kind ofType{ name kind ofType{ name kind ofType{ name kind } } } } } } }' % name)
+    out = []
+    for f in (((d.get("data") or {}).get("__type") or {}).get("fields")) or []:
+        u = _unwrap(f["type"])
+        out.append((f["name"], u.get("name"), u.get("kind")))
+    return out
+
+
+def probe_objects(api, date_str):
+    """Which sub-fields do the object fields of RaceEntryItem (horse, gear*) have? Then read them for one real race."""
+    sel = {}
+    for fld in ("horse", "gearList", "gearChangeList", "gearChanges", "gearCollection", "gears", "lastGear"):
+        tf = [x for x in type_fields(api, "RaceEntryItem") if x[0] == fld]
+        if not tf:
+            print(" ", fld, ": not a field"); continue
+        tname, kind = tf[0][1], tf[0][2]
+        if kind == "SCALAR":
+            print(" ", fld, "= scalar", tname); sel[fld] = ""; continue
+        sub = type_fields(api, tname)
+        print(" ", fld, "->", tname, ":", ", ".join(f"{n}:{t}({k})" for n, t, k in sub))
+        scal = [n for n, t, k in sub if k in ("SCALAR", "ENUM")]
+        if scal:
+            sel[fld] = " { " + " ".join(scal[:40]) + " }"
+    d = api.q("cal", CAL % ("VIC", dt.date.fromisoformat(date_str).year, dt.date.fromisoformat(date_str).month))
+    its = [i for i in ((d.get("data") or {}).get("getCalendarItems") or []) if str(i.get("event_start_time", ""))[:10] == date_str]
+    if not its:
+        print("no VIC meeting on", date_str); return
+    code = its[0]["race_meet_id"]
+    q = ('query{ f: getRaceForm(meetCode: "%s", raceNumber: 3) { Horses: formRaceEntries { horseName ' % code
+         + " ".join(k + v for k, v in sel.items()) + " } } }")
+    f = api.q("form", q)
+    print("errors:", json.dumps(f.get("errors"))[:300] if f.get("errors") else None)
+    for h in ((((f.get("data") or {}).get("f")) or {}).get("Horses") or [])[:3]:
+        print("  ", json.dumps(h)[:900])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", action="append", default=[])
@@ -166,6 +209,8 @@ def main():
         sys.exit("no dates")
     api = Api(a.deadline)
     names = entry_fields(api)
+    if os.environ.get("RC_PROBE_OBJECTS"):
+        probe_objects(api, sorted(dates)[0].isoformat()); return
     if a.probe:
         print("RaceEntryItem fields (%d):" % len(names), ", ".join(names))
     if a.probe:
