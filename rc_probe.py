@@ -3,8 +3,12 @@
 Uses the same GraphQL queries as the racing-model repo's ingest/racingcom_sectionals.py.
 Few requests (about 30), 1 s apart. Never prints keys. Run via tab_probe.yml (script=rc_probe.py).
 """
-import json, os, sys, time
+import functools, json, os, sys, time
 import requests
+
+print = functools.partial(print, flush=True)
+T0 = time.time()
+DEADLINE = 150
 
 FORM_EP = "https://graphql.rmdprod.racing.com/"
 CAL_EP = "https://graphql.api.racing.com/"
@@ -34,9 +38,11 @@ def client(var, ep, extra):
 
 
 def q(s, ep, query):
+    if time.time() - T0 > DEADLINE:
+        return {"_err": "deadline"}
     time.sleep(1.0)
     try:
-        r = s.get(ep, params={"query": query}, timeout=30)
+        r = s.get(ep, params={"query": query}, timeout=12)
         if r.status_code != 200:
             return {"_http": r.status_code, "_body": r.text[:200]}
         return r.json()
