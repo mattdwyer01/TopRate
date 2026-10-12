@@ -117,8 +117,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - `data/rc_fields/<date>.json` (12 Oct 2026) — declared fields of upcoming races from racing.com (`rc_fields.py`, `.github/workflows/rc_fields_daily.yml`):
   per race the runners with horse, horse_code, barrier, weight, saddle number (`raceEntryNumber`), rider, trainer, claim, silks and scratching. It must
   read `formRaceEntries`: `raceEntries` only holds scratchings before the race. `rc_field_rows.py` turns a file into runner rows; `toprate_daily.fetch_todays_races()`
-  uses it for any race whose toprate.au detail fetch failed and that has no rows (run_id `rc<meeting>_<race>_<horse code>`, `field_source = racing.com`),
-  and keeps the existing rows of a race whose fetch failed instead of deleting them. Not available from racing.com: age, sex, gear, wpr_nett and the other toprate.au ratings.
+  uses it for any race whose toprate.au detail fetch failed and that has no rows (integer run_id `7_000_000_000_000 + meeting*10000 + race*100 + saddle number`, because the projection pipeline casts run_id to int64; `field_source = racing.com`),
+  and keeps the existing rows of a race whose fetch failed instead of deleting them. Also read from racing.com (probed 12 Oct 2026, all filled for
+  an upcoming race): age and sex (`horse { age sex }`), gear (`gearList`, `gearChanges`, `lastGear`), `handicapRating` and its change, `weightPrevious`,
+  `jockeyChanged` and the win price (`odds { providerCode oddsWin updated }`, latest-updated provider). They land in runner columns `horse_age`, `horse_sex`,
+  `gear`, `gear_changes`, `handicap_rating`, `weight_previous`, `rc_win_price` (also `fixed_win_price` / `open_price` until TAB prices overwrite them);
+  `projection/run.py` uses `horse_age` / `horse_sex` for horses with no earlier run. NOT available before the race: sectionals, speed values (`westSpeed*` are 0),
+  positions, price-move history, starting price. Not available at all: wpr_nett and the other toprate.au ratings.
 
 - `wpr_form_history.csv.gz` — accumulating per-run form history, gzipped (it
   crossed GitHub's 100MB limit as raw CSV). pandas reads/writes `.gz`

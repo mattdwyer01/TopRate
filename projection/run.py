@@ -131,9 +131,15 @@ def clean_name(s):
 
 def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
-            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp']
+            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp', 'horse_age', 'horse_sex']
     u = pd.read_csv(runners_io.live_path(), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
+    # age and sex written on the runner row (racing.com fields, Oct 2026): used for horses with no earlier run in the history
+    u = u.rename(columns={'horse_age': 'rc_age', 'horse_sex': 'rc_sex'})
+    for c in ('rc_age', 'rc_sex'):
+        if c not in u.columns:
+            u[c] = np.nan
+    u['rc_age'] = pd.to_numeric(u.rc_age, errors='coerce')
     u = u[~F.is_jumps(u.race_class)]   # jumps races are not projected
     lo = pd.Timestamp(today) - pd.Timedelta(days=backfill_days)
     u = u[u.date >= lo].copy()
@@ -166,7 +172,8 @@ def load_upcoming(today, hist, backfill_days=0):
     la = last[['horse_age', 'horse_sex', 'date']].rename(columns={'date': 'last_date', 'horse_age': 'last_age'})
     u = u.join(la, on='horse_id')
     roll = ((u.date.dt.year - u.last_date.dt.year) * 1 + ((u.date.dt.month >= 8).astype(int) - (u.last_date.dt.month >= 8).astype(int))).clip(lower=0)
-    u['horse_age'] = u.last_age + roll
+    u['horse_age'] = (u.last_age + roll).fillna(u.rc_age)
+    u['horse_sex'] = u.horse_sex.fillna(u.rc_sex.where(u.rc_sex.isin(['C', 'F', 'G', 'H', 'M', 'R'])))
     X = pd.DataFrame(dict(race_id=u.race_id, horse_id=u.horse_id, date=u.date, track=u.venue, distance=u.distance, going=u.going, wpr=np.nan,
                           weightCarried=u.weight_carried, weight_allowance=np.nan, barrier=u.barrier, field_size=u.field_size, race_class=u.race_class,
                           trackGrading=pd.to_numeric(u.track_grading, errors='coerce'), horse_age=u.horse_age, horse_sex=u.horse_sex, jockey=u.jockey,

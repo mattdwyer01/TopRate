@@ -37,7 +37,11 @@ RACES = """query{ racesForMeet: getRacesForMeet(meetCode: "%s") {
 # runner fields we want, in order of preference; only the ones RaceEntryItem really has are requested
 WANT = ["horseName", "horseCode", "barrierNumber", "weight", "weightCarried", "scratched", "raceEntryNumber", "jockeyName", "jockeyCode",
         "trainerName", "trainerCode", "apprentice", "apprenticeAllowedClaim", "emergency", "emergencyNumber", "isLateScratching",
-        "jockeyChanged", "handicapRating", "silkUrl", "startingPrice"]   # scalars only: jockey / trainer / horse are objects and break the query
+        "jockeyChanged", "handicapRating", "silkUrl", "startingPrice",
+        "handicapRatingProgression", "weightPrevious", "gearList", "gearChanges", "lastGear", "lastGearDate"]
+# scalars only above: jockey / trainer / horse / odds are objects and break the query unless they get sub-fields (see HORSE_SUB, ODDS_SEL)
+HORSE_SUB = ("age", "sex")                  # sub-fields of RaceEntryItem.horse we use, when the Horse type has them
+ODDS_SEL = "odds { providerCode oddsWin oddsPlace updated }"
 
 
 class Api:
@@ -76,6 +80,27 @@ class Api:
 def parse_weight(w):
     m = re.search(r"([0-9]+\.?[0-9]*)", str(w or ""))
     return float(m.group(1)) if m else None
+
+
+def parse_age(v):
+    m = re.search(r"(\d+)", str(v or ""))
+    return int(m.group(1)) if m else None
+
+
+def parse_sex(v):
+    """'Gelding' / 'G' -> 'G'; the history table uses C F G H M R."""
+    c = str(v or "").strip()[:1].upper()
+    return c if c in "CFGHMR" and c else None
+
+
+def win_price(odds):
+    """Win price of the provider that updated most recently (racing.com lists one entry per bookmaker)."""
+    best = None
+    for o in odds or []:
+        m = re.search(r"([0-9]+\.?[0-9]*)", str((o or {}).get("oddsWin") or ""))
+        if m and float(m.group(1)) > 1 and (best is None or (o.get("updated") or 0) > best[0]):
+            best = (o.get("updated") or 0, float(m.group(1)))
+    return best[1] if best else None
 
 
 def first(d, *names):
@@ -134,7 +159,12 @@ def fetch_meeting(api, it, fields):
                 "tab_number": h.get("raceEntryNumber"), "jockey": h.get("jockeyName"), "trainer": h.get("trainerName"),
                 "claim": h.get("apprenticeAllowedClaim"), "silk_url": h.get("silkUrl"), "rating": h.get("handicapRating"),
                 "scratched": 1 if (h.get("scratched") or h.get("isLateScratching")) else 0,
-                "emergency": h.get("emergencyNumber") or (1 if h.get("emergency") else 0)})
+                "emergency": h.get("emergencyNumber") or (1 if h.get("emergency") else 0),
+                "age": parse_age((h.get("horse") or {}).get("age")), "sex": parse_sex((h.get("horse") or {}).get("sex")),
+                "gear": ", ".join(h.get("gearList") or []) or None, "gear_changes": h.get("gearChanges") or None,
+                "last_gear": h.get("lastGear"), "weight_prev_kg": parse_weight(h.get("weightPrevious")),
+                "rating_change": h.get("handicapRatingProgression"), "jockey_changed": 1 if h.get("jockeyChanged") else 0,
+                "win_price": win_price(h.get("odds"))})
         races.append({"race_no": r["raceNumber"], "distance": r.get("distance"), "name": r.get("name"), "time": r.get("time"),
                       "going": r.get("trackCondition"), "rating": r.get("trackRating"), "class": r.get("rdcClass"),
                       "status": r.get("raceStatus"), "runners": runners})
@@ -145,6 +175,89 @@ def fetch_meeting(api, it, fields):
 def melbourne_dates(offsets):
     today = dt.datetime.now(MEL).date()
     return {today + dt.timedelta(days=int(o)) for o in offsets}
+
+
+def _unwrap(t):
+    while t and t.get("ofType") and not t.get("name"):
+        t = t["ofType"]
+    return t or {}
+
+
+def type_fields(api, name):
+    d = api.q("form", '{ __type(name:"%s"){ fields{ name type{ name kind ofType{ name kind ofType{ name kind ofType{ name kind } } } } } } }' % name)
+    out = []
+    for f in (((d.get("data") or {}).get("__type") or {}).get("fields")) or []:
+        u = _unwrap(f["type"])
+        out.append((f["name"], u.get("name"), u.get("kind")))
+    return out
+
+
+def probe_objects(api, date_str):
+    """Which sub-fields do the object fields of RaceEntryItem (horse, gear*) have? Then read them for one real race."""
+    sel = {}
+    for fld in ("horse", "gearList", "gearChangeList", "gearChanges", "gearCollection", "gears", "lastGear"):
+        tf = [x for x in type_fields(api, "RaceEntryItem") if x[0] == fld]
+        if not tf:
+            print(" ", fld, ": not a field"); continue
+        tname, kind = tf[0][1], tf[0][2]
+        if kind == "SCALAR":
+            print(" ", fld, "= scalar", tname); sel[fld] = ""; continue
+        sub = type_fields(api, tname)
+        print(" ", fld, "->", tname, ":", ", ".join(f"{n}:{t}({k})" for n, t, k in sub))
+        scal = [n for n, t, k in sub if k in ("SCALAR", "ENUM")]
+        if scal:
+            sel[fld] = " { " + " ".join(scal[:40]) + " }"
+    d = api.q("cal", CAL % ("VIC", dt.date.fromisoformat(date_str).year, dt.date.fromisoformat(date_str).month))
+    its = [i for i in ((d.get("data") or {}).get("getCalendarItems") or []) if str(i.get("event_start_time", ""))[:10] == date_str]
+    if not its:
+        print("no VIC meeting on", date_str); return
+    code = its[0]["race_meet_id"]
+    q = ('query{ f: getRaceForm(meetCode: "%s", raceNumber: 3) { Horses: formRaceEntries { horseName ' % code
+         + " ".join(k + v for k, v in sel.items()) + " } } }")
+    f = api.q("form", q)
+    print("errors:", json.dumps(f.get("errors"))[:300] if f.get("errors") else None)
+    for h in ((((f.get("data") or {}).get("f")) or {}).get("Horses") or [])[:3]:
+        print("  ", json.dumps(h)[:900])
+
+
+def probe_fill(api, date_str):
+    """Which RaceEntryItem fields are filled for an UPCOMING race? One line per field: non-null entries / entries, sample value."""
+    d0 = dt.date.fromisoformat(date_str)
+    d = api.q("cal", CAL % ("VIC", d0.year, d0.month))
+    its = [i for i in ((d.get("data") or {}).get("getCalendarItems") or []) if str(i.get("event_start_time", ""))[:10] == date_str]
+    if not its:
+        print("no VIC meeting on", date_str); return
+    code = its[0]["race_meet_id"]
+    fields = type_fields(api, "RaceEntryItem")
+    scal = [n for n, t, k in fields if k in ("SCALAR", "ENUM")]
+    objs = [(n, t) for n, t, k in fields if k not in ("SCALAR", "ENUM")]
+    print("meeting", code, its[0].get("location_name"), "scalar fields", len(scal), "object fields", len(objs))
+
+    def read(sel):
+        q = 'query{ f: getRaceForm(meetCode: "%s", raceNumber: 3) { Horses: formRaceEntries { %s } } }' % (code, sel)
+        r = api.q("form", q)
+        return (((r.get("data") or {}).get("f")) or {}).get("Horses"), r.get("errors")
+
+    hs, err = read(" ".join(scal))
+    if hs is None:
+        print("scalar query failed:", json.dumps(err)[:300]); return
+    print("entries:", len(hs))
+    for n in scal:
+        vals = [h.get(n) for h in hs]
+        have = [v for v in vals if v not in (None, "", [], {})]
+        print(f"  {n}: {len(have)}/{len(hs)}  e.g. {json.dumps(have[0])[:70] if have else '-'}")
+    for n, t in objs:
+        sub = [x for x in type_fields(api, t) if x[2] in ("SCALAR", "ENUM")][:30]
+        if not sub:
+            print(f"  [{n}] {t}: no scalar sub-fields"); continue
+        hs2, err = read(n + " { " + " ".join(x[0] for x in sub) + " }")
+        if hs2 is None:
+            print(f"  [{n}] {t}: query failed {json.dumps(err)[:120]}"); continue
+        vals = [h.get(n) for h in hs2]
+        have = [v for v in vals if v not in (None, "", [], {})]
+        print(f"  [{n}] {t}: {len(have)}/{len(hs2)}  subfields {','.join(x[0] for x in sub)[:160]}")
+        if have:
+            print("      e.g.", json.dumps(have[0])[:260])
 
 
 def main():
@@ -159,6 +272,8 @@ def main():
     if a.selftest:
         assert parse_weight("55.5kg") == 55.5 and parse_weight(None) is None
         assert first({"a": None, "b": 3}, "a", "b") == 3
+        assert parse_age("4YO") == 4 and parse_sex("Gelding") == "G" and parse_sex("x") is None and parse_sex(None) is None
+        assert win_price([{"oddsWin": "$5.00", "updated": 2}, {"oddsWin": "$4.50", "updated": 9}, {"oddsWin": None}]) == 4.5
         print("selftest ok"); return
     a.probe = a.probe or bool(os.environ.get("RC_LIST_ONLY"))   # tab_probe.yml show_hidden=list
     dates = {dt.date.fromisoformat(d) for d in a.date} | melbourne_dates(a.days_ahead)
@@ -166,6 +281,10 @@ def main():
         sys.exit("no dates")
     api = Api(a.deadline)
     names = entry_fields(api)
+    if os.environ.get("RC_PROBE_FILL"):
+        probe_fill(api, sorted(dates)[0].isoformat()); return
+    if os.environ.get("RC_PROBE_OBJECTS"):
+        probe_objects(api, sorted(dates)[0].isoformat()); return
     if a.probe:
         print("RaceEntryItem fields (%d):" % len(names), ", ".join(names))
     if a.probe:
@@ -182,6 +301,12 @@ def main():
             if f["name"] in ("getRaceForm", "getRacesForMeet", "GetRacesForMeetGrouped", "Race"):
                 print("return type of", f["name"], "=", f["type"].get("name") or (f["type"].get("ofType") or {}).get("name"))
     fields = [w for w in WANT if w in names] or ["horseName", "barrierNumber", "weight", "scratched", "horseCode"]
+    if "horse" in names:
+        hs_ = [x for x in HORSE_SUB if x in {n for n, _, _ in type_fields(api, "Horse")}]
+        if hs_:
+            fields.append("horse { " + " ".join(hs_) + " }")
+    if "odds" in names:
+        fields.append(ODDS_SEL)
     print("requesting runner fields:", fields)
     ms = meetings(api, dates)
     print("dates:", sorted(str(d) for d in dates), "meetings:", len(ms))
