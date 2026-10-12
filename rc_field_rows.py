@@ -85,7 +85,10 @@ def rows_for(race_meta, date_str):
             "run_id": numeric_run_id(m["meeting_code"], r["race_no"], slot), "scratched": 1 if h.get("scratched") else 0,
             "tab_number": h.get("tab_number"), "barrier": h.get("barrier"), "horse": h.get("horse"), "horse_id": None,
             "jockey": h.get("jockey"), "trainer": h.get("trainer"), "weight_carried": h.get("weight_kg"),
-            "silk_url": h.get("silk_url"), "resulted": 0, "interim_resulted": 0, "field_source": "racing.com",
+            "silk_url": h.get("silk_url"),
+            "horse_age": h.get("age"), "horse_sex": h.get("sex"), "gear": h.get("gear"), "gear_changes": h.get("gear_changes"),
+            "handicap_rating": h.get("rating"), "weight_previous": h.get("weight_prev_kg"), "rc_win_price": h.get("win_price"),
+            "fixed_win_price": h.get("win_price"), "open_price": h.get("win_price"), "resulted": 0, "interim_resulted": 0, "field_source": "racing.com",
         })
     return out
 
