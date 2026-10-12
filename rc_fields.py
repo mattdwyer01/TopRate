@@ -113,7 +113,7 @@ def entry_fields(api):
 
 
 def fetch_meeting(api, it, fields):
-    form_q = ('query{ f: getRaceForm(meetCode: "%s", raceNumber:%d) { Horses: raceEntries { ' + " ".join(fields) + " } } }")
+    form_q = ('query{ f: getRaceForm(meetCode: "%s", raceNumber:%d) { Horses: formRaceEntries { ' + " ".join(fields) + " } } }")
     d = api.q("form", RACES % it["race_meet_id"])
     races = []
     for r in ((d.get("data") or {}).get("racesForMeet")) or []:
