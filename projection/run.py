@@ -283,7 +283,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
-    sd_main = lambda p: 7.96 if p >= 70 else 9.43 if p >= 60 else 11.90
+    sd_main = lambda p: 6.75 if p >= 70 else 7.31 if p >= 60 else 7.55
     R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
     R['proj'] = R.proj + R.cal
     R['p0'] = R.p0 + R.cal

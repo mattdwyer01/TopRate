@@ -44,6 +44,7 @@ jobs:
             /wpr_form_history.csv.gz
             /data/rc_fields/
             /own_ratings/
+            /own_ratings_data/
             /analysis/wpr_wfa_table.csv
             /data/gps/rc_results_runs_*.parquet
           sparse-checkout-cone-mode: false
@@ -77,6 +78,17 @@ jobs:
       - name: Rate every past run with the own chain
         run: python -m own_ratings.rebuild_history --out own_ratings_history.csv.gz
 
+      # The rating store the projection and bet-signal code read (own_ratings_data/, one small file per year). A past year never changes, so
+      # normally only the current year's file is rewritten.
+      - name: Write the rating store
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from own_ratings import store
+          d = pd.read_csv("own_ratings_history.csv.gz", low_memory=False)
+          print("store files rewritten:", store.write_by_year(d))
+          PY
+
       - name: Settle runners, extend form history, fill ids and prices
         run: |
           python -m own_ratings.apply_results
@@ -92,6 +104,7 @@ jobs:
           # race_results_2026_rc.csv.gz and wpr_form_history.csv.gz are only written by this job. runners.csv is rewritten by the TAB poller
           # every few minutes, so on each attempt it is taken from the newest tip and the settle/fill steps are applied to THAT copy.
           mkdir -p /tmp/keep && cp race_results_2026_rc.csv.gz wpr_form_history.csv.gz /tmp/keep/
+          for f in own_ratings_data/own_ratings_*.csv.gz; do mkdir -p /tmp/keep/own_ratings_data; cp "$f" /tmp/keep/own_ratings_data/; done
           for attempt in 1 2 3 4 5 6; do
             timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
             tip=$(git rev-parse FETCH_HEAD)
@@ -101,7 +114,7 @@ jobs:
             export GIT_INDEX_FILE="$(mktemp -u)"
             git read-tree "$tip"
             changed=0
-            for f in race_results_2026_rc.csv.gz wpr_form_history.csv.gz runners.csv; do
+            for f in race_results_2026_rc.csv.gz wpr_form_history.csv.gz runners.csv own_ratings_data/own_ratings_*.csv.gz; do
               src="$f"; [ -f "/tmp/keep/$f" ] && src="/tmp/keep/$f"
               blob=$(git hash-object -w "$src")
               old=$(git rev-parse -q --verify "$tip:$f" || true)

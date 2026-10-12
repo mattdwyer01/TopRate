@@ -148,8 +148,9 @@ export function useBetSignals(): BetSignals | null {
 //   level + RATING_PER_LN x (ln p - mean ln p)
 // where level is the field's average WPR-projection rating at today's weight, so the numbers sit on the same scale as the Recent runs table. RATING_PER_LN
 // is not the price beta inverted (5 rating points per ln p at beta 0.20): over 85k races the actual rating moved 0.73 for each point of that raw
-// conversion, so it is shrunk by that factor (5 x 0.73 = 3.66) to make the number a calibrated prediction of the rating the horse will run.
-export const RATING_PER_LN = 3.66
+// conversion, so it is shrunk by that factor (5 x 0.73 = 3.66) to make the number a calibrated prediction of the rating the horse will run. 12 Oct 2026: our own
+// ratings are 18% less spread within a race (sd 8.0 vs 9.8), so the constant is 3.66 x 0.82 = 3.0.
+export const RATING_PER_LN = 3.0
 
 // The rating shown is a BLEND of the bet-signal rating and the WPR projection, not the bet-signal rating alone: the bet-signal rating is the market's own
 // order (its #1 is the market favourite in 99.5% of races, rank correlation 0.99), so it told you little the Fixed $ column did not. 1,692 July to October

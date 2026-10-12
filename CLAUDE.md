@@ -2497,6 +2497,23 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **No bets in races with a first starter (11 Oct 2026, user rule)**: `betsignal/score.py` `no_first_starter_races()` (used by `score()` and `backfill.py`) clears the tier for all runners in a race where any runner has nruns == 0; EV and Model $ still show. Backtest at SP (2022-2026, 21.6% of races have a first starter): the removed 1,612 bets returned +14.6%, so the rule lowers returns: Select 192 a year +22.3% (was +26.5%), Volume only 928 a year -7.8% (was -5.0%), all bets 8.8 a Saturday -2.6% (was 10.8 a Saturday +1.2%). Done as asked; dropping the rule is the profitable direction in this data.
 
+- **Models retrained on our own ratings, TopRate ratings and sectional features removed from the model path (12 Oct 2026)**: ratings live in the rating store
+  `own_ratings_data/own_ratings_<year>.csv.gz` (race_id, horse_id, atw, wpr; `own_ratings/store.py`), written by `own_ratings_daily.yml` after
+  `rebuild_history` (a past year never changes, so a night rewrites only the current year). `projection/features.own_overlay()` and
+  `betsignal/features.own_ratings()` replace the results files' `wpr`/`atw` with the store and blank the columns TopRate authored (`sect_*`, `raceShape*`,
+  `wprStatus`) on every read; the results files themselves still hold TopRate's numbers (history scrub is a separate decision). Chain retuned
+  (`own_ratings/core.py`: MIN_PRIORS 6, CHAIN_WCOEF 0.5, MARGIN_SCALE 1.1/1.4/1.4): next-run winner log-loss 1.9739 vs TopRate 1.9851 (19,061 races from
+  Jul 2025) and 1.9701 vs 1.9883 the year before. Same main model, same 19,500 test races: TopRate ratings 1.8509, our retuned ratings with TopRate
+  features removed 1.8527 (top pick wins 30.3% vs 30.6%); rebuilding the sectional/race-shape features from raw margins added nothing (1.8740 vs 1.8741
+  on the old chain). Retrained: main model (RMSE 7.03 on our scale, was 9.0 on TopRate's), light models, `levels.json`, and a NEW suitability model
+  (`projection/train_suit.py`, fitted on the main model's out-of-sample residual, finishing profile from raw margins via `features.finishing_profile`;
+  holdout RMSE 7.1509 -> 7.1314, residual slope on the adjustment 1.00, adj sd 0.43 vs 0.66 before). `calibration.json` zeroed (the old corrections were
+  measured on TopRate's scale), `sd_main` bands 6.75 / 7.31 / 7.55. Our ratings are 18% less spread within a race (sd 8.0 vs 9.8), so
+  `RATING_PER_LN` 3.66 -> 3.0; gap lines 2 / 4 / 8 kept (they hold 2.0 / 3.4 / 6.3 runners and 49 / 68 / 92% of winners on the new scale, the same as before).
+  Bet model retrained on the new ratings: walk-forward at SP, Select 263 a year +24.9% (was +26.5%), log-loss 1.7916 vs market 1.7862 (unchanged).
+  `wpr_projection_log.csv.gz` was RESTARTED (old rows were on TopRate's scale; they stay in git history), so Review has no past projections until live
+  logging accumulates. A projection back-fill from out-of-sample predictions is not built yet.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

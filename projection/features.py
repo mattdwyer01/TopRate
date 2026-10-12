@@ -11,11 +11,15 @@ import glob
 import json
 import os
 
+import sys
+
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 MODELS = os.path.join(os.path.dirname(__file__), 'models')
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)   # own_ratings (the rating store) lives at the repo root
 
 HIST_COLS = ['race_id', 'horse_id', 'date', 'track', 'distance', 'going', 'wpr', 'weightCarried', 'weight_allowance', 'barrier', 'field_size',
              'race_class', 'trackGrading', 'horse_age', 'horse_sex', 'jockey', 'trainer', 'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'margin800m',
@@ -33,9 +37,30 @@ def is_jumps(race_class):
     return race_class.astype('string').str.strip().str.lower().isin(JUMPS_CLASSES).fillna(False)
 
 
+# Our own ratings replace TopRate's (12 Oct 2026): every read of a results file goes through own_overlay(), which sets `wpr` and `atw` from the
+# rating store (own_ratings_data/, own_ratings/store.py) and blanks the columns TopRate authored (sectional indexes, race-shape reads, status).
+TOPRATE_AUTHORED = ('sect_', 'raceShape', 'wprStatus')
+
+
+def own_overlay(df):
+    from own_ratings import store
+    if 'race_id' in df.columns and 'horse_id' in df.columns and ('wpr' in df.columns or 'atw' in df.columns):
+        o = store.load_overlay().reset_index()
+        k = pd.DataFrame({'race_id': pd.to_numeric(df.race_id, errors='coerce'), 'horse_id': pd.to_numeric(df.horse_id, errors='coerce')}, index=df.index)
+        m = k.merge(o, on=['race_id', 'horse_id'], how='left')
+        for c in ('wpr', 'atw'):
+            if c in df.columns:
+                df[c] = m[c].values
+    for c in df.columns:
+        if c.startswith(TOPRATE_AUTHORED):
+            df[c] = np.nan
+    return df
+
+
 def load_history():
     """Rated, non-trial runs from the results files (the same filter the research scripts used)."""
     x = pd.concat([pd.read_csv(f, usecols=lambda c: c in set(HIST_COLS), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))], ignore_index=True)
+    x = own_overlay(x)
     x = x[(~x.isBarrierTrial.astype(bool)) & (~x.is_jumpout.fillna(False).astype(bool)) & x.wpr.notna() & ~is_jumps(x.race_class)].drop_duplicates(['race_id', 'horse_id']).copy()
     x['date'] = pd.to_datetime(x['date'])
     x = x.drop(columns=['isBarrierTrial', 'is_jumpout'])
@@ -223,7 +248,7 @@ def build_field(x):
 def _read_results(f, cols):
     """One race_results file with exactly `cols`; a column the file lacks (the own-rated extension has no winners_time or steward comments) is NaN."""
     keep = set(cols)
-    return pd.read_csv(f, usecols=lambda c: c in keep, low_memory=False).reindex(columns=list(cols))
+    return own_overlay(pd.read_csv(f, usecols=lambda c: c in keep, low_memory=False).reindex(columns=list(cols)))
 
 
 def build_trials(x):
@@ -477,13 +502,27 @@ COMMENT_PATTERNS = {
     'fell_away': r'weakened|tired|faded|failed to sustain|fell away|ran out of',
     'lug': r'lugg?ed|shifted (in|out)|hung in|hung out|laid in|laid out|tongue'}
 SUIT_COLS = ['date', 'track', 'race_id', 'horse_id', 'jockey', 'trainer', 'barrier', 'field_size', 'position800m', 'positionFinish', 'comments_steward', 'comments_video',
-             'sect_i_l400', 'sect_i_l200', 'sect_i_early', 'sect_i_l600', 'isBarrierTrial', 'is_jumpout', 'race_class']
+             'margin600m', 'margin400m', 'margin200m', 'margin800m', 'marginFinish', 'isBarrierTrial', 'is_jumpout', 'race_class']
+
+
+def finishing_profile(x):
+    """Finishing-profile columns from raw race facts (margins behind the leader at the 800, 600, 400 and 200 and at the post), replacing
+    TopRate's sectional indexes. Lengths gained over the last 600, 400 and 200 (positive = closed on the leader) and lengths behind at the 800.
+    A frame without the margin columns (an upcoming race) gets NaN."""
+    m = {k: pd.to_numeric(x[k], errors='coerce').clip(lower=0) if k in x.columns else pd.Series(np.nan, index=x.index)
+         for k in ('margin800m', 'margin600m', 'margin400m', 'margin200m', 'marginFinish')}
+    x['sect_i_early'] = -m['margin800m']
+    x['sect_i_l600'] = m['margin600m'] - m['marginFinish']
+    x['sect_i_l400'] = m['margin400m'] - m['marginFinish']
+    x['sect_i_l200'] = m['margin200m'] - m['marginFinish']
+    return x
 
 
 def load_results_all():
     """All non-trial runs (rated or not) with in-run positions, sectionals and comments, for the suitability features."""
     x = pd.concat([pd.read_csv(f, usecols=lambda c: c in set(SUIT_COLS), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))]).drop_duplicates(['race_id', 'horse_id'])
     x = x[(x.isBarrierTrial != True) & (x.is_jumpout != True) & ~is_jumps(x.race_class)].drop(columns=['isBarrierTrial', 'is_jumpout', 'race_class']).copy()
+    x = finishing_profile(x).drop(columns=['margin600m', 'margin400m', 'margin200m', 'margin800m', 'marginFinish'])
     x['date'] = pd.to_datetime(x.date)
     return x[x.field_size >= 4]
 
