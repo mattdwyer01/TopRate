@@ -11,9 +11,13 @@ import os
 import re
 
 import numpy as np
+import sys
+
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 USECOLS = ['race_id', 'date', 'raceNumber', 'track', 'horse_id', 'jockey', 'trainer', 'field_size', 'distance', 'going', 'wpr',
            'weightCarried', 'barrier', 'priceStarting', 'positionFinish', 'marginFinish', 'horse_age', 'horse_sex', 'race_class',
@@ -50,10 +54,20 @@ def going_number(s):
     return float(m.group(1)) if m else np.nan
 
 
+def own_ratings(D, root=ROOT):
+    """Replace the results files' `wpr` (TopRate's number) with our own rating from the rating store."""
+    from own_ratings import store
+    o = store.load_overlay(os.path.join(root, 'own_ratings_data')).reset_index()
+    k = pd.DataFrame({'race_id': pd.to_numeric(D.race_id, errors='coerce'), 'horse_id': pd.to_numeric(D.horse_id, errors='coerce')}, index=D.index)
+    D['wpr'] = k.merge(o, on=['race_id', 'horse_id'], how='left')['wpr'].values
+    return D
+
+
 def load_history(root=ROOT):
     """All complete, priced, non-trial races from the results files (2018-06 on), sorted. Same filters the research used."""
     files = sorted(glob.glob(os.path.join(root, 'race_results_20*.csv.gz')))
     D = pd.concat([pd.read_csv(f, usecols=lambda c: c in USECOLS, low_memory=False) for f in files]).drop_duplicates(['race_id', 'horse_id'])
+    D = own_ratings(D, root)
     D = D[(D.isBarrierTrial != True) & (D.is_jumpout != True) & (D.field_size >= 5)].drop(columns=['isBarrierTrial', 'is_jumpout']).copy()
     D['date'] = pd.to_datetime(D.date)
     D['fin'] = pd.to_numeric(D.positionFinish, errors='coerce')
