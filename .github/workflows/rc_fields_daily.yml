@@ -1,0 +1,95 @@
+name: racing.com race fields (runner rows for upcoming races)
+
+# toprate.au no longer supplies runner fields (race-detail calls answer 403, Oct 2026), so the declared field of every
+# upcoming race (horse, barrier, weight, rider, trainer, saddle number, silks, scratchings) is read from racing.com
+# (rc_fields.py) into data/rc_fields/<date>.json. toprate_daily.py turns those files into runner rows in runners.csv for
+# any race whose toprate.au fetch fails (rc_field_rows.py). Re-run it whenever fields change: scratchings, rider changes
+# and weights land on racing.com through the day. About 1 request per race at 1 s spacing.
+#
+# Same secrets and runner variable as rc_results_daily.yml (SCRAPER_RUNNER=self-hosted runs it on the AU box).
+# The schedule is only a fallback (GitHub's own cron is unreliable here); a cron-job.org call to workflow_dispatch is the
+# dependable trigger, same pattern as daily.yml.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      days_ahead:
+        description: "Melbourne days to read, space separated (0 = today)"
+        default: "0 1 2"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rc-fields
+  cancel-in-progress: false
+
+jobs:
+  fields:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 40
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+      IN_DAYS: ${{ github.event.inputs.days_ahead || '0 1 2' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            data/rc_fields/
+            rc_fields.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: "3.11"
+
+      - name: Python packages
+        run: |
+          python -c "import requests" 2>/dev/null && exit 0
+          python -m pip install requests \
+            || python -m pip install --user requests \
+            || python -m pip install --user --break-system-packages requests
+
+      - name: Read the fields
+        run: |
+          [[ "$IN_DAYS" =~ ^[0-3]( [0-3]){0,3}$ ]] || { echo "bad days_ahead"; exit 1; }
+          python rc_fields.py --days-ahead $IN_DAYS --deadline 1800
+
+      - name: Commit and push (small files only)
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -u
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          shopt -s nullglob
+          files=(data/rc_fields/*.json)
+          [ ${#files[@]} -gt 0 ] || { echo "no field files"; exit 0; }
+          # plumbing push on top of the latest tip (see rc_results_daily.yml for why)
+          for attempt in 1 2 3 4 5 6; do
+            timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
+            tip=$(git rev-parse FETCH_HEAD)
+            export GIT_INDEX_FILE="$(mktemp -u)"
+            git read-tree "$tip"
+            changed=0
+            for f in "${files[@]}"; do
+              blob=$(git hash-object -w "$f")
+              old=$(git rev-parse -q --verify "$tip:$f" || true)
+              if [ "$blob" != "$old" ]; then
+                git update-index --add --cacheinfo "100644,$blob,$f"; changed=1
+              fi
+            done
+            if [ "$changed" = 0 ]; then echo "nothing new"; exit 0; fi
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" -p "$tip" -m "racing.com fields $(date -u +%FT%H:%MZ)")
+            rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
+            if timeout 240 git push origin "$commit:refs/heads/$BRANCH"; then echo "pushed $commit"; exit 0; fi
+            echo "push rejected (attempt $attempt), retrying on the new tip"
+            sleep $((attempt * 10))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1

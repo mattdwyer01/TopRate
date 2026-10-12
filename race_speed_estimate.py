@@ -54,7 +54,8 @@ import pandas as pd
 
 _DIR = Path(__file__).parent
 FORM_CSV = _DIR / "wpr_form_history.csv.gz"
-RUNNERS_CSV = _DIR / "toprate_runners.csv"
+import runners_io  # noqa: E402  (runners.csv; falls back to the retired toprate_runners.csv until it exists)
+RUNNERS_CSV = runners_io.live_path()
 MODEL_PATH = _DIR / "race_speed_model.joblib"
 CONFIG_PATH = _DIR / "race_speed_config.json"
 

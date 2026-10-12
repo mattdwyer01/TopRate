@@ -949,10 +949,8 @@ def commit_and_push():
         print("  No changes to commit")
         return
 
-    tracked = ["toprate_runners.csv", "toprate_data.json"]
-    tracked += [f for f in ("toprate_data.json.gz", "toprate_history.json", "toprate_history.json.gz",
-                            "toprate_runners_archive.csv.gz")
-                if Path(f).exists()]
+    tracked = [f for f in ("runners.csv", "runners_archive.csv.gz", "toprate_data.json", "toprate_data.json.gz",
+                           "toprate_history.json", "toprate_history.json.gz") if Path(f).exists()]
     tracked += [f for f in ("replay_codes.json",) if Path(f).exists()]
     subprocess.run(["git", "add", *tracked], check=True)
     subprocess.run(["git", "commit", "-m",

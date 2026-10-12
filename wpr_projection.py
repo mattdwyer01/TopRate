@@ -1207,7 +1207,7 @@ def _fit_simple_adj_model(trn, feats, label):
     return model
 
 
-def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="toprate_runners.csv"):
+def _load_trainer_jockey_by_horse_date(form_history_csv, runners_csv="runners.csv"):
     """trainer_win_pct_365d/jockey_win_pct_90d are NOT part of the per-run
     career archive (form_history_csv) at all - confirmed, that file only
     has the jockey/trainer NAME strings, not their trailing win-rate
@@ -3866,9 +3866,9 @@ def build_training_frame(form_history_csv="wpr_form_history.csv.gz", verbose=Tru
     # captured for it) just gets NaN, filled with the training median same
     # as every other feature.
     if "horse" in fh.columns:
-        _runners_csv = _DIR / "toprate_runners.csv"
-        if _runners_csv.exists():
-            import runners_io  # live file + archive of older races (Oct 2026 split)
+        import runners_io
+        _runners_csv = _DIR / "runners.csv"
+        if runners_io.exists():  # live file + archive of older races (Oct 2026 split)
             _tr = runners_io.read_runners(_runners_csv,
                                           usecols=lambda c: c in ("horse", "date", "wpr_nett"),
                                           low_memory=False)

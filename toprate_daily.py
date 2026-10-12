@@ -101,7 +101,7 @@ EMAIL, PASSWORD = _load_toprate_credentials()
 # until login() has run.
 _SESSION_OBJ = None
 
-RUNNERS_CSV    = Path(__file__).parent / "toprate_runners.csv"
+RUNNERS_CSV    = runners_io.LIVE_CSV     # runners.csv; toprate_runners.csv is retired (runners_io falls back to it until runners.csv exists)
 SELECTIONS_CSV = Path(__file__).parent / "toprate_selections.csv"
 PRICE_HISTORY_CSV = Path(__file__).parent / "toprate_price_history.csv"
 OUTPUT_HTML    = Path(__file__).parent / "toprate_live.html"
@@ -2105,7 +2105,7 @@ TAB_PRIZE_MIN = 20000
 
 def load_runners():
     # Live file + gzipped archive of older races (runners_io.py: split Oct 2026 to stay under GitHub's 100MB limit)
-    if RUNNERS_CSV.exists() or runners_io.ARCHIVE_CSV.exists():
+    if runners_io.exists():
         df = runners_io.read_runners(RUNNERS_CSV, dtype={"run_id": str, "race_id": str})
         for col in RUNNER_COLS:
             if col not in df.columns:
@@ -2697,11 +2697,14 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
     # rows. This used to run BEFORE the calendar call and for the whole day: on 11 Oct 2026 a manual daily run at 4pm Melbourne time found
     # that get_calendar_upcoming no longer listed any of that day's races, so all 575 pending rows of the day (47 races) were deleted and
     # nothing replaced them (the dashboard lost today's card). A race the calendar does not return keeps its existing rows.
+    _removed_rows = pd.DataFrame()   # pending rows deleted for the re-fetch; put back for races whose detail fetch fails (toprate.au 403, Oct 2026)
+    _failed_rids = set()             # races whose detail fetch errored or came back empty
     if target_date_str is not None and len(pending_today) > 0:
         _returned = {str(r["raceId"]) for r in races_today}
         _is_day = runners_df["date"].astype(str).str[:10] == today_str
         _drop = _is_day & (runners_df["resulted"] != 1) & runners_df["race_id"].astype(str).isin(_returned)
         n_remove = int(_drop.sum())
+        _removed_rows = runners_df[_drop].copy()
         runners_df = runners_df[~_drop].copy()
         n_kept = int((runners_df["date"].astype(str).str[:10] == today_str).sum())
         print(f"Re-fetching {today_str} — removed {n_remove} pending rows for {len(_returned)} returned races, kept {n_kept} other rows of the day")
@@ -2726,9 +2729,11 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
             pf = prefetched.get(rc_id) or {}
             if pf.get("error"):
                 print(f"  Error on {race_meta['venue']} R{race_meta['number']}: {pf['error']}")
+                _failed_rids.add(str(rc_id))
                 continue
             detail    = pf.get("detail") or []
             if not detail:
+                _failed_rids.add(str(rc_id))
                 continue
             cache     = pf.get("cache") or {}
             wpr_chart = pf.get("wpr_chart") or []
@@ -3080,6 +3085,35 @@ def fetch_todays_races(jwt, runners_df, target_date_str=None,
         print(f"\nAdded {total_runners} runners from {total_races} races for {today_str}")
         print(f"  {n_optimal} races meet optimal filter (7+ signals, SP≥$2, prize≥$25k, trend≥0 or missing)")
 
+    # toprate.au answers 403 on race-detail calls (Oct 2026), so a race whose detail fetch failed has no fresh rows. Keep the rows the
+    # re-fetch removed for it, and where the race has none at all build the field from racing.com (rc_fields.py -> data/rc_fields/<date>.json).
+    if _failed_rids:
+        _have = set(runners_df["race_id"].astype(str)) if len(runners_df) else set()
+        if len(_removed_rows) and "race_id" in _removed_rows.columns:
+            _back = _removed_rows[_removed_rows["race_id"].astype(str).isin(_failed_rids - _have)]
+            if len(_back):
+                runners_df = pd.concat([runners_df, _back], ignore_index=True)
+                _have |= set(_back["race_id"].astype(str))
+                print(f"  Detail fetch failed for {_back['race_id'].nunique()} races: kept their {len(_back)} existing rows")
+        _missing = _failed_rids - _have
+        if _missing:
+            try:
+                import rc_field_rows
+                _rc = []
+                for _rm in races_today:
+                    if str(_rm["raceId"]) in _missing:
+                        _rc.extend(rc_field_rows.rows_for(_rm, today_str))
+                if _rc:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", category=FutureWarning)
+                        runners_df = pd.concat([runners_df, pd.DataFrame(_rc)], ignore_index=True)
+                    runners_df = runners_df.drop_duplicates(subset=["run_id"], keep="last").reset_index(drop=True)
+                    print(f"  Built {len(_rc)} runners for {len({r['race_id'] for r in _rc})} of {len(_missing)} races from racing.com fields")
+                else:
+                    print(f"  No racing.com fields for the {len(_missing)} races without rows (data/rc_fields/{today_str}.json)")
+            except Exception as e:
+                print(f"  racing.com field fallback failed: {e}")
+
     return runners_df
 
 
@@ -3285,12 +3319,13 @@ def projection_stale():
         lg = projlog.load()
         if lg.empty or "made" not in lg.columns:
             return False
-        if not RUNNERS_CSV.exists():
+        _live = runners_io.live_path()
+        if not _live.exists():
             return False
-        head = pd.read_csv(RUNNERS_CSV, nrows=0).columns
+        head = pd.read_csv(_live, nrows=0).columns
         if "wprp_made" not in head:
             return True
-        cur = pd.read_csv(RUNNERS_CSV, usecols=["run_id", "wprp_made"], dtype=str)
+        cur = pd.read_csv(_live, usecols=["run_id", "wprp_made"], dtype=str)
         # only log rows for runners in the live file count (the log also holds runners that are no longer in it, which would
         # keep this true forever)
         ids = set(pd.to_numeric(cur["run_id"], errors="coerce").dropna().astype("int64"))
@@ -4749,7 +4784,7 @@ def publish():
     files_to_push = []
     for f in ["toprate_live.html", "toprate_data.json", "toprate_data.json.gz",
               "toprate_history.json", "toprate_history.json.gz",
-              "toprate_runners.csv",
+              "runners.csv", "runners_archive.csv.gz",
               "toprate_model_picks.csv", "toprate_price_history.csv",
               "wpr_form_history.csv.gz", "horse_history"]:
         if (script_dir / f).exists():

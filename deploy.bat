@@ -109,7 +109,8 @@ REM Step 7: Commit fresh data + HTML
 REM ─────────────────────────────────────────────────────────
 echo.
 echo   Committing data updates...
-if exist toprate_runners.csv git add toprate_runners.csv
+if exist runners.csv git add runners.csv
+if exist runners_archive.csv.gz git add runners_archive.csv.gz
 if exist toprate_model_picks.csv git add toprate_model_picks.csv
 if exist toprate_price_history.csv git add toprate_price_history.csv
 if exist toprate_live.html git add toprate_live.html
