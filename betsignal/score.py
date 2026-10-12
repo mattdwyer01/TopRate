@@ -88,8 +88,11 @@ def eligible_rows(R, now, stale_horses=frozenset()):
     R['price'] = pd.to_numeric(R.fixed_win_price, errors='coerce')
     R['wt'] = pd.to_numeric(R.weight_carried, errors='coerce').fillna(pd.to_numeric(R.weight_handicap_today, errors='coerce'))
     R['bar'] = pd.to_numeric(R.barrier, errors='coerce')
+    # a rider or trainer not declared yet is scored as unknown (the features go blank, as for an unseen name in training)
+    for c in ('jockey', 'trainer'):
+        R[c] = R[c].replace(r'^\s*$', np.nan, regex=True)
     R['horse_id'] = pd.to_numeric(R.horse_id, errors='coerce')
-    ok_cols = ~R.horse_id.isin(stale_horses) & (R.price > 1) & R.horse_id.notna() & R.jockey.notna() & R.trainer.notna() & (R.bar > 0) & R.wt.notna()
+    ok_cols = ~R.horse_id.isin(stale_horses) & (R.price > 1) & R.horse_id.notna() & (R.bar > 0) & R.wt.notna()
     g = R.assign(ok=ok_cols).groupby('race_id')
     good = g.ok.all() & (g.size() >= 5)
     R = R[R.race_id.isin(good[good].index)].copy()
@@ -125,7 +128,7 @@ def main():
     import runners_io
     R = runners_io.read_runners()
     today = (now + timedelta(hours=10)).strftime('%Y-%m-%d')
-    horizon = (now + timedelta(hours=10) + timedelta(days=1)).strftime('%Y-%m-%d')
+    horizon = (now + timedelta(hours=10) + timedelta(days=3)).strftime('%Y-%m-%d')
     meta, boosters, state = load_model(now)
     through = state['through']
     # horses that have run since the history ends (before today): their last run is not in the state, so their races are not scored
