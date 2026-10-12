@@ -21,8 +21,8 @@ COLS = ["race_id", "date", "horse_id", "horse", "distance", "weightCarried", "ho
 
 
 def load_history():
-    d = pd.concat((pd.read_csv(f, usecols=lambda c: c in COLS, low_memory=False) for f in sorted(glob.glob("race_results_20*.csv.gz"))),
-                  ignore_index=True)
+    files = [f for f in sorted(glob.glob("race_results_20*.csv.gz")) if "_rc" not in f]   # never read our own extension back in
+    d = pd.concat((pd.read_csv(f, usecols=lambda c: c in COLS, low_memory=False) for f in files), ignore_index=True)
     d = d[(d.isBarrierTrial != 1) & (d.is_jumpout.fillna(0) != 1)].drop_duplicates(["race_id", "horse_id"])
     d["h"] = d.horse.map(norm_horse)
     return d
