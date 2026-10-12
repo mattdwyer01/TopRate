@@ -49,11 +49,27 @@ def q(s, ep, query):
         return {"_err": str(e)[:200]}
 
 
+WANT = ["finish", "finishAbv", "beatenMargin", "barrierNumber", "horseName", "name", "saddleNumber", "tabNumber",
+        "number", "runnerNumber", "number_", "scratched", "horseCode", "weight", "startingPrice", "resultState", "finishTime"]
+
+
+def entry_fields(frm):
+    d = q(frm, FORM_EP, '{ __type(name:"RaceEntryItem"){ fields{ name } } }')
+    names = [f["name"] for f in (((d.get("data") or {}).get("__type") or {}).get("fields") or [])]
+    print("RaceEntryItem fields (%d):" % len(names), ", ".join(names))
+    return names
+
+
 def main():
     cal = client("RACINGCOM_CAL_API_KEY", CAL_EP, {"Origin": "https://www.racing.com", "Referer": "https://www.racing.com/"})
     frm = client("RACINGCOM_API_KEY", FORM_EP, {})
     if not cal or not frm:
         return
+    names = entry_fields(frm)
+    use = [w for w in WANT if w in names]
+    print('using:', use)
+    global FORM
+    FORM = 'query{ f: getRaceForm(meetCode: "%s", raceNumber:%d) { Horses: raceEntries { ' + ' '.join(use) + ' } } }'
     meets = {}
     for st in ["NSW", "WA", "TAS", "NT", "ACT", "VIC"]:
         for (y, m) in [(2026, 9)]:
@@ -76,8 +92,8 @@ def main():
                 fo = ((f.get("data") or {}).get("f")) or {}
                 hs = fo.get("Horses") or []
                 print(" entries:", len(hs))
-                for h in sorted(hs, key=lambda x: (x.get('FinalPosition') or 99))[:5]:
-                    print("   ", json.dumps({k: h.get(k) for k in ("FinalPosition", "Abv", "SaddleNumber", "BeatenMargin", "Scratched")}),
+                for h in sorted(hs, key=lambda x: (x.get('finish') or 99))[:5]:
+                    print("   ", json.dumps(h),
                           "")
                 if not hs or f.get('errors'):
                     print(" raw:", str(f)[:400])
