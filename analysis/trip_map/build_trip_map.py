@@ -288,7 +288,9 @@ def main():
 
     # ---- upcoming races
     cols = ['date', 'venue', 'state', 'race_id', 'race', 'distance', 'going', 'rail_position', 'run_id', 'horse_id', 'barrier', 'horse', 'scratched']
-    up = pd.read_csv(os.path.join(ROOT, 'toprate_runners.csv'), usecols=lambda c: c in set(cols), low_memory=False)
+    sys.path.insert(0, ROOT)
+    import runners_io
+    up = runners_io.read_runners(usecols=lambda c: c in set(cols), low_memory=False)   # runners.csv (toprate_runners.csv was retired 12 Oct 2026)
     up['date'] = pd.to_datetime(up.date)
     up = up[(up.date >= TODAY) & (up.barrier > 0) & (up.scratched.fillna(0) != 1)].copy()
     up['track'] = up.venue
