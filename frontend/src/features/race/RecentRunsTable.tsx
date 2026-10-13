@@ -70,21 +70,6 @@ function buildTempoByDate(formHistory: FormHistoryEntry[]): Map<string, TempoBuc
   return map
 }
 
-function fmtSect(v: number | null): string {
-  if (v == null) return '—'
-  return `${v > 0 ? '+' : ''}${v.toFixed(1)}`
-}
-
-// Colour reflects the horse's sectional figure against the race-wide shape
-// for the same checkpoint: green where the horse ran faster than the shape
-// (against-shape running, a form-strength signal), red where slower.
-function sectClass(horse: number | null, race: number | null): string {
-  if (horse == null || race == null) return 'text-ink-mute'
-  if (horse > race) return 'text-emerald-deep font-medium'
-  if (horse < race) return 'text-rose font-medium'
-  return 'text-ink-mute'
-}
-
 function goingClass(going: string | null): string {
   if (!going) return 'bg-bg text-ink-faint'
   const g = going.toLowerCase()
@@ -164,18 +149,6 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
         {run.margin != null ? run.margin.toFixed(1) : '—'}
       </td>
       <td className="whitespace-nowrap px-2 py-0.5 text-right font-mono text-xs text-ink-faint">{runningLine(run)}</td>
-      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeEarly)}</td>
-      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeMid)}</td>
-      <td className="px-2 py-0.5 text-right font-mono text-ink-faint">{fmtSect(run.raceShapeLate)}</td>
-      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalEarly, run.raceShapeEarly)}`}>
-        {fmtSect(run.sectionalEarly)}
-      </td>
-      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalTo800, run.raceShapeMid)}`}>
-        {fmtSect(run.sectionalTo800)}
-      </td>
-      <td className={`px-2 py-0.5 text-right font-mono ${sectClass(run.sectionalLate600, run.raceShapeLate)}`}>
-        {fmtSect(run.sectionalLate600)}
-      </td>
       <td className="px-2 py-0.5 text-right font-mono font-semibold text-ink">
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
@@ -190,7 +163,7 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
 function SeparatorRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={21} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
+      <td colSpan={15} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
         &mdash; {label} &mdash;
       </td>
     </tr>
@@ -238,12 +211,6 @@ function MobileRunCard({ run, isPeak, codes, onReplay }: { run: FormRun; isPeak:
         <span className="shrink-0 font-mono">
           Fin {run.finishPosition ?? '—'}
           {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
-        </span>
-        <span className="flex shrink-0 items-center gap-1 font-mono">
-          <span>Sect</span>
-          <span className={sectClass(run.sectionalEarly, run.raceShapeEarly)}>{fmtSect(run.sectionalEarly)}</span>
-          <span className={sectClass(run.sectionalTo800, run.raceShapeMid)}>{fmtSect(run.sectionalTo800)}</span>
-          <span className={sectClass(run.sectionalLate600, run.raceShapeLate)}>{fmtSect(run.sectionalLate600)}</span>
         </span>
       </div>
     </div>
@@ -456,12 +423,11 @@ export function RecentRunsTable({
         <span className="text-sm font-semibold text-ink">Recent runs</span>
         <span className="hidden text-xs text-ink-faint sm:inline">
           {countWord} {runs.length}, newest first{statusNote} &middot; Pos = settle/800/400/finish
-          &middot; green/red sectionals = horse vs race shape
         </span>
         <span className="text-right text-[11px] text-ink-faint sm:hidden">
           {countWord} {runs.length}, newest first{statusNote}
           <br />
-          Pos = settle/800/400/fin &middot; Sect = horse vs shape
+          Pos = settle/800/400/fin
         </span>
       </div>
 
@@ -526,19 +492,9 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Starting price">SP</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Mgn</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Pos</th>
-              <th colSpan={3} className="border-l border-line-soft px-2 py-1 text-center font-medium">Race</th>
-              <th colSpan={3} className="border-l border-line-soft px-2 py-1 text-center font-medium">Individual</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">WPR</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
-            </tr>
-            <tr className="border-b border-line bg-bg text-ink-faint">
-              <th className="border-l border-line-soft px-2 py-0.5 text-right font-normal">Early</th>
-              <th className="px-2 py-0.5 text-right font-normal">Mid</th>
-              <th className="px-2 py-0.5 text-right font-normal">Late</th>
-              <th className="border-l border-line-soft px-2 py-0.5 text-right font-normal">Early</th>
-              <th className="px-2 py-0.5 text-right font-normal">Mid</th>
-              <th className="px-2 py-0.5 text-right font-normal">Late</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">

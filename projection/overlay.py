@@ -3,7 +3,7 @@
 The payload builder (toprate_daily.py) reads wprp_proj / wprp_base / wprp_adj / wprp_conf / wprp_price / wprp_rank / wprp_peak /
 wprp_desc / wprp_contrib / wprp_proj_alt / wprp_conf_alt from the runner rows. apply() fills those from wpr_projection_log.csv.gz
 (the new model) and clears them everywhere else, so no projection from the previous model can reach the dashboard, the trackers or the
-accuracy stats. Fair prices use the same softmax-over-WPR convention as before (beta from wpr_models/config.json).
+accuracy stats. Fair prices use the same softmax-over-WPR convention as before (beta from projection/models/config.json).
 """
 import json
 import os
@@ -20,7 +20,7 @@ NEW_COLS = ['wprp_sd', 'wprp_model', 'wprp_made', 'wprp_atwo']   # wprp_made: wh
 
 def _beta():
     try:
-        return float(json.load(open(os.path.join(ROOT, 'wpr_models', 'config.json'))).get('beta', 0.4))
+        return float(json.load(open(os.path.join(ROOT, 'projection', 'models', 'config.json'))).get('beta', 0.4))
     except Exception:
         return 0.4
 

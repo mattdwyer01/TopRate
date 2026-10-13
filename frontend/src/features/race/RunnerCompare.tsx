@@ -31,8 +31,6 @@ export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, sig
     { label: 'Base', get: (r) => r.baseWpr, fmt: fmtWpr, higher: true },
     { label: 'Adj', get: (r) => r.wprAdjustment, fmt: signed, higher: true },
     { label: 'SM (vs field)', get: (r) => eff(r)?.speedMapAdj ?? null, fmt: signed, higher: true },
-    { label: 'Last run WPR', get: (r) => r.wprLast1, fmt: fmtWpr, higher: true },
-    { label: 'Avg last 3', get: (r) => r.wprAvgLast3, fmt: fmtWpr, higher: true },
     { label: 'Peak WPR', get: (r) => r.peakWpr, fmt: fmtWpr, higher: true },
     { label: 'Model $', get: (r) => modelPrice(signalByRunId?.[r.runId]?.m), fmt: fmtPrice },
     { label: 'EV', get: (r) => signalByRunId?.[r.runId]?.e ?? null, fmt: (v) => v.toFixed(2), higher: true },

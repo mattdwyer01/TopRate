@@ -93,6 +93,84 @@ def rows_for(race_meta, date_str):
     return out
 
 
+RC_RACE_ID_BASE = 7_500_000_000_000   # race_id for a race no earlier row carries (earlier rows keep the id they were built with)
+
+# Declared-field columns that racing.com is the source of: refreshed on rows that have not been resulted. Prices, weights and start times are
+# only filled when blank (TAB writes those later and wins).
+_REFRESH = ("barrier", "jockey", "trainer", "tab_number", "silk_url", "horse_age", "horse_sex", "gear", "gear_changes", "handicap_rating",
+            "weight_previous", "rc_win_price")
+_FILL_IF_BLANK = ("weight_carried", "start_time", "going", "race_class", "race_name", "fixed_win_price", "open_price", "state")
+
+
+def _set(df, i, c, v):
+    try:
+        df.at[i, c] = v
+    except (TypeError, ValueError):
+        df.at[i, c] = str(v)
+
+
+def merge_rc_fields(runners_df, date_str):
+    """Bring the declared fields of every racing.com race of `date_str` into the runners frame, without deleting anything.
+
+    A race that already has rows (matched on venue and race number) keeps its race_id; its pending rows are refreshed (scratchings only ever
+    set, never cleared) and runners that are new to the field are added. A race with no rows gets rows_for() rows with a race_id from
+    RC_RACE_ID_BASE. Returns (runners_df, n_added, n_updated)."""
+    import pandas as pd
+    day = runners_df["date"].astype(str).str[:10] == date_str if len(runners_df) else pd.Series([], dtype=bool)
+    have = runners_df[day] if len(runners_df) else runners_df
+    key_of = {}
+    if len(have):
+        for (v, n), g in have.groupby([have["venue"].map(norm_venue), have["race"].astype(str)]):
+            key_of[(v, n)] = str(g["race_id"].iloc[0])
+    new_rows, updates = [], {}
+    for m in load(date_str).get("meetings", []):
+        mv = norm_venue(m.get("venue"))
+        for r in m.get("races", []):
+            rid = key_of.get((mv, str(r.get("race_no"))))
+            meta = {"venue": m.get("venue"), "state": m.get("state"), "number": r.get("race_no"), "name": r.get("name"), "distance": r.get("distance"),
+                    "class": r.get("class"), "going": r.get("going"), "startTime": r.get("time"), "prizeMoney": None,
+                    "raceId": rid or RC_RACE_ID_BASE + int(m["meeting_code"]) * 100 + int(r["race_no"])}
+            for row in rows_for(meta, date_str):
+                updates[str(row["run_id"])] = row
+                row["_new_race"] = rid is None
+    if not updates:
+        return runners_df, 0, 0
+    ids = runners_df["run_id"].astype(str) if len(runners_df) else pd.Series([], dtype=str)
+    pos = {rid: i for i, rid in zip(ids.index, ids)} if len(ids) else {}
+    n_up = 0
+    out = runners_df.copy()
+    for rid, row in updates.items():
+        i = pos.get(rid)
+        if i is None:
+            row = {k: v for k, v in row.items() if k != "_new_race"}
+            new_rows.append(row)
+            continue
+        if str(out.at[i, "resulted"]) in ("1", "1.0"):
+            continue
+        changed = False
+        for c in _REFRESH:
+            v = row.get(c)
+            if c in out.columns and v is not None and str(out.at[i, c]) != str(v):
+                _set(out, i, c, v)
+                changed = True
+        for c in _FILL_IF_BLANK:
+            v = row.get(c)
+            cur = out.at[i, c] if c in out.columns else None
+            if c in out.columns and v is not None and (cur is None or str(cur).strip() in ("", "nan", "None")):
+                _set(out, i, c, v)
+                changed = True
+        if row.get("scratched") == 1 and str(out.at[i, "scratched"]) not in ("1", "1.0"):
+            _set(out, i, "scratched", 1)
+            changed = True
+        n_up += changed
+    if new_rows:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
+    return out, len(new_rows), n_up
+
+
 if __name__ == "__main__":
     # selftest: a made-up file in a temp dir
     import tempfile
