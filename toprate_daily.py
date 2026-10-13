@@ -1707,10 +1707,15 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
         # Feeds both "done" and "prov" below - computed once here rather
         # than inline in the dict literal so both can reference it cleanly.
-        _all_resulted = (rdf["resulted"] == 1).all() if rdf["resulted"].notna().any() else False
+        # Scratched runners never run and never get a result row, so only the runners still in the field decide whether the race is done
+        # (12 Oct 2026: races settled by own_ratings/apply_results showed "Interim result" for ever because their scratched rows stayed unresulted).
+        _act = rdf[rdf["scratched"].fillna(0).astype(float) != 1] if "scratched" in rdf.columns else rdf
+        if len(_act) == 0:
+            _act = rdf
+        _all_resulted = (_act["resulted"] == 1).all() if _act["resulted"].notna().any() else False
         _all_interim_resulted = (
-            (rdf.get("interim_resulted") == 1).all()
-            if "interim_resulted" in rdf.columns and rdf["interim_resulted"].notna().any()
+            (_act.get("interim_resulted") == 1).all()
+            if "interim_resulted" in _act.columns and _act["interim_resulted"].notna().any()
             else False
         )
 

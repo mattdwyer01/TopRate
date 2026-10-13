@@ -13,11 +13,11 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 ## File map (the important ones)
 
-- `toprate_daily.py` (~3,100 lines) — the pipeline. Fetches race data, updates
-  results, flushes form history, computes WPR projection, refreshes
-  `toprate_data.json`, publishes. Entry point is `main()`. Run daily by the
-  GitHub Action, and every 5 minutes (prices only) by
-  `.github/workflows/price_refresh.yml`.
+- `toprate_daily.py` (~2,600 lines, was 5,000 before the TopRate removal of 13 Oct 2026): the daily entry point and the dashboard payload builder. `main()` merges the
+  racing.com declared fields (`data/rc_fields/<date>.json`, via `rc_field_rows.merge_rc_fields`) into `runners.csv`, applies the projection log
+  (`compute_wpr_projection` -> `projection/overlay.py`), runs race-speed, comments and miss notes, saves, snapshots prices and rebuilds the payload
+  (`rebuild_html`, which still calls `toprate_html_v3.render_html` for the data JSON). It no longer calls toprate.au in any way. Results, ratings and
+  prices come from other jobs (below). Run daily by `.github/workflows/daily.yml`.
 - `frontend/` — the LIVE dashboard: a React + TypeScript + Vite + Tailwind app.
   `npm run build` (from `frontend/`) produces a single self-contained
   `frontend/dist/index.html` via `vite-plugin-singlefile`; that file is what
@@ -35,18 +35,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `render_html()` is still called by `toprate_daily.py`'s `rebuild_html()` for
   its data-JSON half (the payload the new frontend fetches); its HTML-string
   return value is discarded. Do not build new dashboard features here.
-- `wpr_projection.py` — the WPR projection model: an additive model
-  (`base + sum(ADJ_TERMS)`), where `base` is a 50/50 blend of TopRate's own
-  rating (`wpr_nett`) and recency-weighted recent form (`ewm3`), falling back
-  through recent-form averages. Both base and the summed adjustment go
-  through their own separately-fitted calibration slopes (`_compute_base()`/
-  `_calibrate_base()`, `_CALIB_ADJ_SLOPE`) before being added - the base
-  slope is itself piecewise (bottom 10%/middle 70%/top 20% of raw base each
-  fit separately, since a single global slope under/over-shrinks the tails).
-  `build_training_frame()`, `project_race()`, `train_wpr_projection()`,
-  `describe()` (the plain-English projection explanation shown in the
-  dashboard's runner detail panel).
-- `toprate_json_capture.py` — rich per-runner form capture (SvelteKit __data.json).
+- `wpr_projection.py`: ARCHIVED (13 Oct 2026, `archive/toprate/`): the old TopRate-rating-based WPR model. Nothing imports it; `projection/` replaced it.
+- `toprate_json_capture.py`: ARCHIVED (13 Oct 2026): the rich TopRate form capture. Gone with the TopRate fetch path.
 - `projection/` (Oct 2026) - the WPR projection model the dashboard shows. `features.py` builds as-of features for past and
   upcoming runs; `run.py` projects declared races (main model for 3+ prior rated runs, light-history model for 0-2, plus a small
   suitability adjustment) and appends to `wpr_projection_log.csv.gz`; `overlay.py` copies the log into the runner rows' `wprp_*`
@@ -69,10 +59,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   scripts without the `archive/<folder>/` prefix. Also archived (Oct 2026): the
   trackers (`archive/trackers/`, retired, no longer run) and `bet_log.py` with its
   logs and `racing_model.json` (`archive/bet_log/`).
-- `.github/workflows/price_refresh.yml` — runs every 5 min during AU racing
-  hours, refreshes prices and `toprate_data.json` only (via
-  `toprate_price_refresh.py` → `toprate_daily.py`'s `rebuild_html()`). Never
-  touches `toprate_live.html`.
+- `.github/workflows/price_refresh.yml`: ARCHIVED (13 Oct 2026, `archive/workflows/`) with `toprate_price_refresh.py`: it priced from toprate.au. Prices now come from the TAB poller below (self-hosted AU runner) and, early, from racing.com (`own_ratings/fill_runner_ids.py`).
 - `tab_results_poller.py` / `.github/workflows/tab_results.yml` — fast,
   provisional per-race results, plus track condition/rail updates, from
   TAB's public racing API (see `TAB_API_NOTES.md`). Results close the gap
@@ -128,13 +115,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - `wpr_form_history.csv.gz` — accumulating per-run form history, gzipped (it
   crossed GitHub's 100MB limit as raw CSV). pandas reads/writes `.gz`
   transparently. Committed to git so it persists across Action runs.
-- `toprate_runners.csv` — current runner set (one row per runner per race): races in the last 60 days
-  (Melbourne date) plus every future race. Older races live in `toprate_runners_archive.csv.gz` (same
-  columns, gzipped, rewritten only when races age out). Split 1 Oct 2026 (`runners_io.py`): the single CSV
-  hit GitHub's 100MB file limit and every Daily fetch push adding the next day's fields was rejected (GH001),
-  so tomorrow's races never reached the dashboard. `toprate_daily.load_runners()` and `wpr_projection.py`'s
-  history joins read both via `runners_io.read_runners()`; `save_runners()` writes both. Ad-hoc scripts that
-  need history older than 60 days must use `runners_io.read_runners()` too, not `pd.read_csv` on the live file.
+- `runners.csv` / `runners_archive.csv.gz`: the runner set (one row per runner per race; the last 60 days plus every future race live, older rows in the gzipped archive, `runners_io.py`). The TopRate-authored rating and index columns are kept as headers but BLANK since 13 Oct 2026. `toprate_runners*.csv` are in `archive/toprate/`.
 - `toprate_data.json` — the dashboard's data payload, RACES windowed to the last
   25 days (via `TOPRATE_RACES_WINDOW_DAYS`, reduced from 30 Sep 2026 after the
   30-day payload grew to 94.4MB) to stay under GitHub's 100MB file limit.
@@ -242,6 +223,21 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 - Never print or echo any key, token, or password in output.
 
 ## Current state
+
+- **READ THIS FIRST (13 Oct 2026): TopRate removed from the live system.** toprate.au is no longer used anywhere in production. What replaced it:
+  declared fields from racing.com (`rc_fields_daily.yml`, `rc_field_rows.py`), results from racing.com (`rc_results_daily.yml`) plus the TAB poller (interim
+  results, going, prices), our own ratings (`own_ratings/`: chain, `rebuild_history`, rating store `own_ratings_data/`, nightly `own_ratings_daily.yml`
+  which also settles runners and extends the form history), models trained on those ratings (`projection/`, `betsignal/`), projections logged in
+  `wpr_projection_log.csv.gz`. Retired and moved to `archive/toprate/` and `archive/workflows/`: `wpr_projection.py`, `wpr_models/`, the TopRate login/
+  discovery/backfill scripts and workflows, `toprate_price_refresh.py` and `price_refresh.yml`, the MCP server, the old runners files. Still in the repo
+  and NOT yet cleaned: TopRate's sectional and race-shape columns in the old `race_results_20*.csv.gz` files (blanked on every read by
+  `projection/features.own_overlay`), in `wpr_form_history.csv.gz` and in `horse_history/`; the `TOPRATE_*` repo secrets (nothing reads them; delete
+  in GitHub settings); git history (a scrub is a separate, destructive decision); `toprate_html_v3.py` (still renders the payload JSON); frontend
+  type fields for the retired payload keys (`trr`, `trp`, `ff`, `jrt`, `trt`, `wpr1`, `wpra`, `wprt`, `spd`, `es`...), which the payload now writes as null.
+  The cron-job.org entry for `price_refresh.yml` should be removed. Many entries below describe the TopRate era and are record only: anything about
+  `update_results`, `fetch_todays_races`, the TopRate login, `wpr_nett`, `toprate_rating`, form factor, the trackers, the ATW offset (disabled) or
+  `wpr_projection.py` is history. `TOPRATE_AUDIT.md` has the column-by-column audit. Done-flag note: a race is done when every non-scratched runner is
+  resulted (`rebuild_html`), scratched rows are ignored.
 
 - Supabase was tried as a parallel Postgres copy of `toprate_runners` and
   `wpr_form_history` (with an eye toward eventually repointing the dashboard

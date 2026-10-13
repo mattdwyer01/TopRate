@@ -279,7 +279,7 @@ export function RaceDetail({
 
         <p className="text-[11px] text-ink-faint" data-testid="rating-source">
           {ratingFromBets
-            ? `Rating: ${Math.round(RATING_BET_SHARE * 100)}% bet-signal model (win chances from the market price and form, so it moves with the price) and ${Math.round((1 - RATING_BET_SHARE) * 100)}% WPR projection, at today's weight${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}.`
+            ? `Rating: ${Math.round(RATING_BET_SHARE * 100)}% bet-signal model (win chances from the market price and form, so it moves with the price) and ${Math.round((1 - RATING_BET_SHARE) * 100)}% WPR projection${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}.`
             : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
         </p>
         {(tierCounts.s > 0 || tierCounts.v > 0) && (
