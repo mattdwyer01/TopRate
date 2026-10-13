@@ -32,6 +32,7 @@ def part_sp(start, end, meta):
     H = F.load_history()
     cats = meta['cats']
     D = F.batch_features(H, cats)
+    D = D[D.sp_ok].reset_index(drop=True)
     tr = D[D.date < start]
     te = D[(D.date >= start) & (D.date <= end)].copy()
     print(f'sp part: training on {len(tr):,} runs before {start.date()}, scoring {len(te):,} runs in {te.race_id.nunique()} races', flush=True)

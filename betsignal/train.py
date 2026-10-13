@@ -19,6 +19,7 @@ def main():
     H = F.load_history()
     cats = F.categories(H)
     D = F.batch_features(H, cats)
+    D = D[D.sp_ok].reset_index(drop=True)   # races with a broken closing-SP book are not trained on (see features.load_history)
     last = D.date.max()
     cut = last - pd.Timedelta(days=365)
     tr, va = D[D.date <= cut], D[D.date > cut]
