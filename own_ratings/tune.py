@@ -132,7 +132,7 @@ def fold_eval(D, ty):
                   valid_sets=[lgb.Dataset(va[F.FEATURES], va.win, init_score=logit(va.pm))], callbacks=[lgb.early_stopping(60, verbose=False)])
     s = m.predict(te[F.FEATURES], raw_score=True) + logit(te.pm).values
     te["s"] = s
-    e = np.exp(s - te.groupby("race_id").s.transform("max").values)
+    e = pd.Series(np.exp(s - te.groupby("race_id").s.transform("max").values), index=te.index)
     te["pmod"] = e / e.groupby(te.race_id).transform("sum")
     te["ev"] = te.pmod * te.sp
     w = te[te.win == 1]
