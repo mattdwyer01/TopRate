@@ -83,7 +83,14 @@ def main():
     A = part_sp(start, last_results, meta)
     ids = runners_io.read_runners()[['run_id', 'race_id', 'horse_id']].drop_duplicates('run_id')
     ids['horse_id'] = pd.to_numeric(ids.horse_id, errors='coerce')
+    # racing.com results and fields carry different horse ids; the racing.com results file already holds our run_id per (race, horse), so use that first
+    rcp = os.path.join(ROOT, 'race_results_2026_rc.csv.gz')
     A = A.merge(ids, on=['race_id', 'horse_id'], how='left')
+    if os.path.exists(rcp):
+        rc = pd.read_csv(rcp, usecols=['race_id', 'horse_id', 'run_id'], low_memory=False).dropna(subset=['run_id'])
+        rc = rc.drop_duplicates(['race_id', 'horse_id']).rename(columns={'run_id': 'rc_run_id'})
+        A = A.merge(rc, on=['race_id', 'horse_id'], how='left')
+        A['run_id'] = pd.to_numeric(A.rc_run_id, errors='coerce').fillna(pd.to_numeric(A.run_id, errors='coerce'))
     A = A[A.run_id.notna()]
     B = part_last(last_results, meta)
 
