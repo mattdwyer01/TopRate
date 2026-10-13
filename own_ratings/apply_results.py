@@ -8,8 +8,7 @@ This step does their job from data we have:
      wpr_actual_rank, resulted = 1 and interim_resulted = 1. Values follow update_results(): the winner's margin_finish is
      minus the margin to the runner-up, everyone else's is the margin to the winner.
   2. wpr_form_history.csv.gz: append one row per rated run (own file, plus TopRate-rated runs of the results files that the form feed
-     never captured) so the horse page's Recent runs table and chart show them. The form feed shows each run at the weight of the
-     horse's NEXT start, so the rating is stored as results rating + the horse's ATW offset, the same shift the table already carries.
+     never captured) so the horse page's Recent runs table and chart show them. The rating is OUR plain WPR for the run (no ATW shift).
 
 Idempotent: rows already resulted, and form rows already present for (horse, date), are left alone.
 
@@ -123,6 +122,10 @@ def new_form_rows(own: pd.DataFrame, ratings: pd.DataFrame) -> pd.DataFrame:
     for c in cols:
         if c in res.columns:
             out[c] = res[c]
+    # TopRate's sectional indexes, race-shape reads and rating status are its own analysis: never copied into the form history
+    for c in cols:
+        if c.startswith(("sect_", "raceShape")) or c == "wprStatus":
+            out[c] = None
     out["scrape_date"] = res["date"]
     out["wpr"] = res["own_wpr"].round(1)
     out["venue"] = res["track"] if "track" in res else None

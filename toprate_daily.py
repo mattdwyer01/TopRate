@@ -1355,12 +1355,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     "go": str(_r.get("going", "")) if _r.get("going") else "",
                     "fin": int(_r["positionFinish"]) if pd.notna(_r.get("positionFinish")) else None,
                     "wpr": round(_w, 1),
-                    "se": _shape(_r.get("raceShapeEarly")),  # race shape early
-                    "sm": _shape(_r.get("raceShapeMid")),    # race shape mid
-                    "sl": _shape(_r.get("raceShapeLate")),   # race shape late
-                    "ie": _shape(_r.get("sect_i_early")),    # horse early sectional
-                    "im": _shape(_r.get("sect_i_to800")),    # horse mid sectional
-                    "il": _shape(_r.get("sect_i_l600")),     # horse late sectional
+                    "se": None,  # race shape early
+                    "sm": None,    # race shape mid
+                    "sl": None,   # race shape late
+                    "ie": None,    # horse early sectional
+                    "im": None,    # horse mid sectional
+                    "il": None,     # horse late sectional
                     "bar": int(_r["barrier"]) if pd.notna(_r.get("barrier")) else None,
                     "mgn": _shape(_r.get("marginFinish")),   # finish margin
                     # running line: settled -> 800m -> 400m -> finish.
