@@ -147,10 +147,7 @@ jobs:
       # be active - this step's own commit/push is the one that's
       # actually been working every run.
       # ─────────────────────────────────────────────────────────
-      - name: Fetch TopRate data and rebuild
-        env:
-          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
-          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+      - name: Merge racing.com fields and rebuild the payload
         run: |
           if [ -n "${{ inputs.date }}" ]; then
             python toprate_daily.py --date "${{ inputs.date }}"
@@ -238,9 +235,6 @@ jobs:
             # wpr_form_history.csv.gz above. snapshot_prices() already caps it
             # to a rolling 7 days, bounding its size.
             [ -f toprate_price_history.csv ] && git add toprate_price_history.csv
-            # WPR model artifacts - committed so toprate_daily.py can load them.
-            # Static unless retrained, but staging them is harmless if unchanged.
-            [ -d wpr_models ] && git add wpr_models
             # Per-meeting horse form history files (build_horse_history_files(),
             # called from rebuild_html() above).
             [ -d horse_history ] && git add horse_history
