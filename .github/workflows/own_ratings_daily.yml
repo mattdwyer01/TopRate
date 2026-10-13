@@ -36,8 +36,6 @@ jobs:
             /race_results_20*.csv.gz
             /runners.csv
             /runners_archive.csv.gz
-            /toprate_runners.csv
-            /toprate_runners_archive.csv.gz
             /runners_io.py
             /atw_offsets.py
             /rc_field_rows.py
