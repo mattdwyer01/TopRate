@@ -30,7 +30,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-OUT = os.path.join(ROOT, 'trip_map.json')
+OUT = os.environ.get('TRIP_MAP_OUT') or os.path.join(ROOT, 'trip_map.json')
+KEEP_PAST_DAYS = 30   # forecasts of races already run stay in the file for this long (the dashboard shows 25 days of past races)
 TODAY = pd.Timestamp(os.environ.get('TRIP_MAP_TODAY') or datetime.now(timezone.utc).strftime('%Y-%m-%d'))
 Q = np.linspace(0.01, 0.99, 99)
 
@@ -344,6 +345,16 @@ def main():
         print('non-GPS races:', len(o_races), flush=True)
     except Exception as e:  # never lose the GPS maps because of this extension
         print('non-GPS trip map skipped:', repr(e), flush=True)
+    # keep the forecasts made for races that have already run: each run only forecasts races from TODAY on, so without this a race's forecast
+    # vanishes the day after it runs (13 Oct 2026: past races showed no trip forecast)
+    try:
+        prev = json.load(open(os.path.join(ROOT, 'trip_map.json'))).get('races', {})
+        cut = str((TODAY - pd.Timedelta(days=KEEP_PAST_DAYS)).date())
+        kept = {k: v for k, v in prev.items() if cut <= v.get('date', '') < str(TODAY.date()) and k not in races}
+        races.update(kept)
+        print('kept', len(kept), 'earlier forecasts of races that have run', flush=True)
+    except Exception as e:
+        print('previous trip map not merged:', repr(e), flush=True)
     payload = dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), trainEnd=str(a.date.max().date()), error=err,
                    laneCal=dict(blend=LANE_CAL_BLEND, tenths={k: [round(float(x), 2) for x in v[1]] for k, v in cal.items()}), races=races)
     with open(OUT, 'w') as f:
