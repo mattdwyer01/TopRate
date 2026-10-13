@@ -63,6 +63,9 @@ def own_ratings(D, root=ROOT):
     return D
 
 
+SP_BOOK_MIN, SP_BOOK_MAX = 1.10, 1.35
+
+
 def load_history(root=ROOT):
     """All complete, priced, non-trial races from the results files (2018-06 on), sorted. Same filters the research used."""
     files = sorted(glob.glob(os.path.join(root, 'race_results_20*.csv.gz')))
@@ -76,6 +79,11 @@ def load_history(root=ROOT):
     g = D.groupby('race_id')
     ok = g.sp.apply(lambda s: s.notna().all()) & g.win.sum().eq(1) & g.fin.apply(lambda s: s.notna().all())
     D = D[D.race_id.isin(ok[ok].index)]
+    # A closing-SP book (sum of 1/SP over the field) is about 1.21 in a normal race. About 1.3% of races sit under 1.10 and 6% over 1.35: the recorded
+    # prices there are wrong (the same races' fixed-price books are normal), and the under-1.10 ones produced nearly all of the old Select 'edge'
+    # (13 Oct 2026). Such races stay in the history (form, jockey counts) but carry no market price and are never used for training or testing.
+    book = D.groupby('race_id').sp.transform(lambda s: (1 / s).sum())
+    D['sp_ok'] = (book >= SP_BOOK_MIN) & (book <= SP_BOOK_MAX)
     D = D[D.date >= '2018-06-01'].copy()
     return D.sort_values(['date', 'track', 'raceNumber', 'race_id']).reset_index(drop=True)
 
@@ -95,6 +103,9 @@ def _market(D):
     D['imp'] = 1 / D.sp
     D['pm'] = D.imp / D.groupby('race_id').imp.transform('sum')
     D['rank_m'] = D.groupby('race_id').sp.rank(method='min')
+    if 'sp_ok' in D:
+        bad = ~D.sp_ok.astype(bool)
+        D.loc[bad, ['imp', 'pm', 'rank_m']] = np.nan
     return D
 
 
@@ -165,7 +176,7 @@ def build_state(D):
         'w1': last3.map(lambda v: v[0]), 'w2': last3.map(lambda v: v[1]), 'w3': last3.map(lambda v: v[2]),
         'w_sum': g.wpr.sum(), 'w_cnt': g.wpr.count(), 'w_max': g.wpr.max(),
         'win_sum': g.win.sum(), 'pm_sum': g.pm.sum(), 'pm_cnt': g.pm.count(),
-        'last_date': g.date.last(), 'last_fin': g.fin.last(), 'last_marg': g.marginFinish.last(), 'last_pm': g.pm.last(),
+        'last_date': g.date.last(), 'last_fin': g.fin.last(), 'last_marg': g.marginFinish.last(), 'last_pm': g.pm.apply(lambda s: s.iloc[-1]),
         'last_win': g.win.last(), 'last_dist': g.distance.last(), 'last_wt': g.weightCarried.last(),
         'last_age': g.horse_age.last(), 'last_sex': g.horse_sex.last()})
     D['_ex'] = D.win - D.pm

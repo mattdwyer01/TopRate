@@ -148,6 +148,7 @@
    "Benchmark 78",
    "Benchmark 78+",
    "Benchmark 80",
+   "Benchmark 82",
    "Benchmark 88",
    "CLS1",
    "CLS2",
@@ -589,13 +590,13 @@
    "Young"
   ]
  },
- "rounds": 378,
+ "rounds": 176,
  "seeds": [
   1,
   2,
   3
  ],
- "trained_through": "2026-10-11",
- "rows": 1056066,
- "races": 109673
+ "trained_through": "2026-10-12",
+ "rows": 998303,
+ "races": 102493
 }

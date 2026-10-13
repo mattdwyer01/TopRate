@@ -10,6 +10,7 @@ from betsignal.train import PARAMS, SEEDS, logit
 
 H = F.load_history()
 D = F.batch_features(H, F.categories(H))
+D = D[D.sp_ok].reset_index(drop=True)   # races with a broken closing-SP book are not scored or trained on
 D['dow'] = D.date.dt.dayofweek
 out = []
 for ty in range(2022, 2027):
