@@ -1,6 +1,6 @@
 name: racing.com horse history probe (manual, read-only)
 
-# Finds out whether racing.com can return a horse's past runs by horse code (Perisher, 14 Oct 2026: has a handicap rating but
+# Probe 2: query argument lists plus one call per candidate. Finds out whether racing.com can return a horse's past runs by horse code (Perisher, 14 Oct 2026: has a handicap rating but
 # no run in our results). Prints query and type fields and the shape of a few trial queries. Writes nothing, commits nothing.
 # Same secrets and runner variable as rc_fields_daily.yml.
 
