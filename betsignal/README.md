@@ -31,6 +31,14 @@ It is a separate model from the WPR projection (`projection/`), which is unchang
 The Race page's Rating is a 40% blend (`RATING_BET_SHARE` in `frontend/src/lib/betSignals.ts`) of these win probabilities on the ATW scale (`RATING_PER_LN = 3.66`, level from the field's
 mean WPR projection) and the WPR projection itself; the pure probability rating is the market's own order (#1 = favourite in 99.5% of races). See the CLAUDE.md entry for the tests. A race without full signals uses the WPR projection alone.
 
+## CORRECTION (14 Oct 2026): the backtest figures below are mostly a data artefact
+About 1% of historical races have an impossible starting-price book (sum of 1/SP under 1.05, a price missing or wrong). Every runner in such a race
+looks like value, and 66% of the backtested Select bets (722 of 1,101, from 445 of 68,905 races) came from them. `features.py` now drops races with a book
+outside 1.05 to 2.0 (`BOOK_MIN`, `BOOK_MAX`). Re-run with production code (`backtest.py`, closing SP, 2022 to 2026, clean races only): Select 227 bets
+(45 a year), win 44.5%, avg $2.21, ROI -5.1% (ex10 -16.6%, years +2 -13 +11 -2 -17); Volume incl. Select 4,984 bets (7.7 a Saturday) -5.1% (ex10 -6.2%);
+model log-loss 1.7913 vs market 1.7861 (still worse). Treat the tiers as having NO demonstrated edge until the live log (`forward_check.py`) says otherwise.
+The figures in the section below are kept as the record of the earlier (wrong) result. Checks: `own_ratings/check_select_by_book.py`.
+
 ## Evidence and caveats (read before trusting it)
 - Backtest 2022 to 2026, walk-forward with the production code (`backtest.py`), at CLOSING SP (6,660 Volume-or-Select bets, 599 Select):
   Select 120 bets a year (0.7 a Saturday), win 25.7%, avg $7.11, ROI +53.1%, years +41 +82 +42 +65 +32, quarters +42 +76 +45 +49, +30.4% without the
