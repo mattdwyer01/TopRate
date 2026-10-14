@@ -61,6 +61,48 @@ jobs:
           fi
           python toprate_race_fetch.py "${args[@]}"
 
+      - name: Fetch runner pages (today and tomorrow)
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          start=$(TZ=Australia/Melbourne date +%Y-%m-%d)
+          time python toprate_runner_fetch.py --from "$start" --days 2
+
+      - name: Runner pages summary and merge dry run (writes nothing to the repo)
+        run: |
+          python -m pip install --quiet pandas
+          python - <<'PY'
+          import gzip, json, pathlib
+          import pandas as pd
+          import rc_field_rows, tr_field_rows
+          for p in sorted(pathlib.Path("data/tr_runners").glob("*.json.gz")):
+              rows = json.load(gzip.open(p, "rt"))["rows"]
+              recs = [r for r in rows.values() if not r.get("empty")]
+              has = lambda f: sum(1 for r in recs if f(r))
+              print(f"{p.name}: {len(rows)} records, {len(rows) - len(recs)} empty, with stats {has(lambda r: r.get('stats'))}, "
+                    f"career rating profile {has(lambda r: any((x.get('domain') or {}).get('period') == 'Career' for x in (r.get('rating_profiles') or [])))}, "
+                    f"form list {has(lambda r: r.get('form'))}, owners {has(lambda r: r.get('owners'))}, "
+                    f"avg past runs {sum(len(r.get('form') or []) for r in recs) / max(1, len(recs)):.1f}, size {p.stat().st_size // 1024} KB")
+          sample = next(iter(json.load(gzip.open(sorted(pathlib.Path("data/tr_runners").glob("*.json.gz"))[0], "rt"))["rows"].values()))
+          print("record keys:", sorted(sample.keys()))
+          print("stats blocks:", sorted((sample.get("stats") or {}).keys()))
+          print("rating profile periods:", sorted({(x.get("domain") or {}).get("period") for x in (sample.get("rating_profiles") or [])}),
+                "| categories:", sorted({k for x in (sample.get("rating_profiles") or []) for k in x if k != "domain"}))
+          print("distances sample:", json.dumps((sample.get("distances") or [])[:2])[:200])
+          df = pd.read_csv("runners.csv", low_memory=False)
+          for d in sorted(p.name[:10] for p in pathlib.Path("data/tr_runners").glob("*.json.gz")):
+              df1, s = tr_field_rows.merge_tr_fields(df, d)
+              df2, n_add, n_upd = rc_field_rows.merge_rc_fields(df1, d)
+              df3, fl = tr_field_rows.flag_unlisted(df2, d)
+              df4, rs = tr_field_rows.merge_tr_runners(df3, d)
+              day = df4[(df4.date.astype(str).str[:10] == d) & (df4.scratched.fillna(0).astype(float) == 0)]
+              cov = {c: f"{day[c].notna().mean():.0%}" for c in ["stats_first_up_starts", "stats_track_starts", "tr_stats_distance_starts",
+                                                                  "tr_stats_good_starts", "rating_career_best_wpr", "owners", "dam", "horse_foaled"] if c in day}
+              print(f"{d}: runner merge {rs} | coverage on {len(day)} live runners: {cov}")
+              df = df4
+          PY
+
       - name: Check the output (completeness, blanks, join to runners.csv)
         run: |
           python -m pip install --quiet pandas
@@ -108,5 +150,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tr-fields
-          path: data/tr_fields/
+          path: |
+            data/tr_fields/
+            data/tr_runners/
           retention-days: 14

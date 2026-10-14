@@ -196,6 +196,123 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
     return (runners_df if dry_run else out), stats
 
 
+# --- runner pages (data/tr_runners/<date>.json.gz, toprate_runner_fetch.py) -------------------------------------------------------------
+RUNNER_DIR = Path(__file__).parent / "data" / "tr_runners"
+# TopRate stats block -> runners.csv column prefix (<prefix>_starts / _wins / _places). The first six are the old toprate_json_capture columns.
+STATS_BLOCKS = {
+    "firstUp": "stats_first_up", "secondUp": "stats_second_up", "track": "stats_track", "sireDry": "stats_sire_dry",
+    "sireWet": "stats_sire_wet", "currentJockey": "stats_current_jockey",
+    "career": "tr_stats_career", "distance": "tr_stats_distance", "trackDistance": "tr_stats_track_distance", "firm": "tr_stats_firm",
+    "good": "tr_stats_good", "soft": "tr_stats_soft", "heavy": "tr_stats_heavy", "synthetic": "tr_stats_synthetic", "jumps": "tr_stats_jumps",
+    "sireOfDamDry": "tr_stats_sire_of_dam_dry", "sireOfDamWet": "tr_stats_sire_of_dam_wet",
+}
+BIO_COLUMNS = ("horse_country", "horse_colour", "horse_foaled", "dam", "dam_country", "owners", "training_location", "weight_handicap_today")
+RUNNER_COLUMNS = ([f"{p}_{k}" for p in STATS_BLOCKS.values() for k in ("starts", "wins", "places")]
+                  + ["rating_career_best_wpr", "rating_career_best_rank", "rating_career_next_wpr", "rating_career_next_rank"] + list(BIO_COLUMNS))
+
+
+def _melbourne_today():
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Australia/Melbourne")).date().isoformat()
+
+
+def load_runners(date_str):
+    import gzip
+    try:
+        with gzip.open(RUNNER_DIR / f"{date_str}.json.gz", "rt") as fh:
+            return json.load(fh).get("rows", {})
+    except Exception:
+        return {}
+
+
+def runner_values(rec):
+    """Flat {runners column: value} for one fetched runner record."""
+    out = {}
+    stats = rec.get("stats") or {}
+    for src, prefix in STATS_BLOCKS.items():
+        block = stats.get(src)
+        if isinstance(block, dict):
+            for k in ("starts", "wins", "places"):
+                if block.get(k) is not None:
+                    out[f"{prefix}_{k}"] = block[k]
+    for prof in rec.get("rating_profiles") or []:
+        if not isinstance(prof, dict) or (prof.get("domain") or {}).get("period") != "Career":
+            continue
+        allb = prof.get("all") or {}
+        for which, col in (("best", "rating_career_best"), ("next", "rating_career_next")):
+            b = allb.get(which)
+            if isinstance(b, dict):
+                for k in ("wpr", "rank"):
+                    if b.get(k) is not None:
+                        out[f"{col}_{k}"] = b[k]
+        break
+    for c in BIO_COLUMNS:
+        if rec.get(c) is not None:
+            out[c] = rec[c]
+    return out
+
+
+def _has_run(df, i):
+    """True if this row's race has been run or resulted, by ANY signal: resulted, interim_resulted (TAB poller), a finish/won value, or a start time in the
+    past. TopRate's runner-page stats are current-state aggregates and may already include that run, so such a row is never written."""
+    for col in ("resulted", "interim_resulted"):
+        if col in df.columns and str(df.at[i, col]) in ("1", "1.0"):
+            return True
+    for col in ("won", "finish_position"):
+        if col in df.columns and not _blank(df.at[i, col]):
+            return True
+    if "start_time" in df.columns and not _blank(df.at[i, "start_time"]):
+        try:
+            t = datetime.fromisoformat(str(df.at[i, "start_time"]).replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            return t <= datetime.now(timezone.utc)
+        except ValueError:
+            return False
+    return False
+
+
+def merge_tr_runners(runners_df, date_str, dry_run=False):
+    """Fill the runner-page columns of UPCOMING, unresulted rows. TopRate's stats and rating profiles are current-state aggregates: a row whose
+    race date is before today (Melbourne) or that has a result is never touched, so a past row can never pick up a figure from after its race.
+    Rows are matched on (venue, horse name). Returns (runners_df, stats)."""
+    import pandas as pd
+    recs = load_runners(date_str)
+    stats = {"records": len(recs), "matched": 0, "filled": 0, "skipped_past_or_resulted": 0, "unmatched": 0}
+    if not recs or not len(runners_df):
+        return runners_df, stats
+    if date_str < _melbourne_today():
+        stats["skipped_past_or_resulted"] = len(recs)
+        return runners_df, stats
+    out = runners_df.copy()
+    for c in RUNNER_COLUMNS:
+        if c not in out.columns:
+            out[c] = None
+    day = out["date"].astype(str).str[:10] == date_str
+    idx = {}
+    for i in out.index[day]:
+        if str(out.at[i, "scratched"]) in ("1", "1.0"):
+            continue
+        idx.setdefault((norm_venue(out.at[i, "venue"]), _hn(out.at[i, "horse"])), []).append(i)
+    for rec in recs.values():
+        if rec.get("empty"):
+            continue
+        rows = idx.get((norm_venue(rec.get("venue")), _hn(rec.get("horse"))))
+        if not rows:
+            stats["unmatched"] += 1
+            continue
+        stats["matched"] += 1
+        vals = runner_values(rec)
+        for i in rows[:1]:
+            if _has_run(out, i):
+                stats["skipped_past_or_resulted"] += 1
+                continue
+            for col, v in vals.items():
+                _set(out, i, col, v)
+            stats["filled"] += 1
+    return (runners_df if dry_run else out), stats
+
+
 def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
     """After BOTH merges: in a race TopRate covers, scratch racing.com rows TopRate does not list, and for a horse with several rows at one
     venue keep only the row in the race TopRate puts it in. racing.com's pre-declaration files carry up to 50 nominations per race with the

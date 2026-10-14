@@ -2344,6 +2344,12 @@ def main():
         except Exception as e:
             print(f"  {d}: flag_unlisted failed ({type(e).__name__}: {e}), nominations left as they are")
             fl = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
+        try:       # runner pages (stats splits, rating profiles, pedigree): upcoming, unresulted rows only
+            runners_df, rp = tr_field_rows.merge_tr_runners(runners_df, d)
+        except Exception as e:
+            print(f"  {d}: runner-page merge failed ({type(e).__name__}: {e}), skipped")
+            rp = {"records": 0, "filled": 0}
+        print(f"  {d}: runner pages {rp['records']} records, {rp['filled']} rows filled")
         print(f"  {d}: toprate.au {tr_stats['tr_rows']} rows ({tr_stats['updated']} updated, {tr_stats['added_rows']} added); "
               f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
               f"{fl['duplicate_rows_scratched']} duplicate")

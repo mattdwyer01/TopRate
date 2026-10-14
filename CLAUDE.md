@@ -243,6 +243,12 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   fetch (best effort, `data/tr_fields/` staged) before `toprate_daily.py` Step 1. Runner pages also carry stats splits (first-up, second-up, distance, track-distance, going),
   `ratingProfiles` and pedigree/owners; the old runners columns `stats_*`, `rating_career_*`, `wpr_dist`, `wpr_going` were filled on ~81% of September rows and stopped when the
   RPCs were blocked. Probes that found all this are in `archive/workflows/toprate_*probe*.yml` and `archive/probes/`.
+  Runner pages (14 Oct 2026): `toprate_runner_fetch.py` reads `/runners/{runId}/__data.json` for today's and tomorrow's declared runners (once per runner per UTC day, ~2 min for ~700 runners, 3 in
+  flight with a pause) into `data/tr_runners/<date>.json.gz` (7 days kept, ~1.5 MB a day): pedigree and owners, 17 stats blocks (career, distance, trackDistance, firm/good/soft/heavy/synthetic/jumps,
+  firstUp, secondUp, currentJockey, sire and dam-sire wet/dry), `ratingProfiles` (periods 3 months to Career; categories all/distance/dry/wet/track/jumps), `distances` and the full past-run list
+  (about 19 runs a runner). `tr_field_rows.merge_tr_runners()` writes them into `runners.csv` (existing `stats_*`, `rating_career_*`, `weight_handicap_today` plus new `tr_stats_*`, `horse_country`,
+  `horse_colour`, `horse_foaled`, `dam`, `dam_country`, `owners`, `training_location`) for UPCOMING rows only. These are current-state aggregates, so a row is never written once its race has run by any
+  signal (`resulted`, `interim_resulted`, `won`/`finish_position`, start time passed) and never for a past date: the old capture code had the same rule (stats attached to a past row leak the future).
 
 - **READ THIS FIRST (13 Oct 2026): TopRate removed from the live system.** toprate.au is no longer used anywhere in production. What replaced it:
   declared fields from racing.com (`rc_fields_daily.yml`, `rc_field_rows.py`), results from racing.com (`rc_results_daily.yml`) plus the TAB poller (interim
