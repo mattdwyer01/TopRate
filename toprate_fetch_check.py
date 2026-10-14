@@ -50,3 +50,19 @@ tv, rv = set(t.venue.map(norm)), set(r.venue.map(norm))
 print("  venues only in toprate:", sorted(tv - rv), "| only in live:", sorted(rv - tv))
 um = m[m._merge == "left_only"]
 print("  unmatched toprate by venue:", um.venue.value_counts().head(8).to_dict())
+
+# why are rows unmatched? race absent from the live file entirely, or race present but the horse name differs
+r["rk"] = r.date + "|" + r.venue.map(norm) + "|" + r.race.astype(int).astype(str)
+t["rk"] = t.date + "|" + t.venue.map(norm) + "|" + t.race_no.astype(int).astype(str)
+um = t[~t.k.isin(r.k) & ~t.scratched]
+no_race = um[~um.rk.isin(r.rk)]
+print(f"\nunmatched not-scratched toprate rows: {len(um)}")
+print("  race missing from live file:", len(no_race), "| by date:", no_race.date.value_counts().to_dict(),
+      "| venues:", no_race.venue.value_counts().head(8).to_dict())
+same = um[um.rk.isin(r.rk)]
+print("  race present, horse missing:", len(same))
+for _, x in same.head(8).iterrows():
+    live_names = sorted(r[r.rk == x.rk].horse.tolist())
+    print(f"    {x.date} {x.venue} R{x.race_no}: toprate '{x.horse}' (tab {x.tab_number}) | live: {live_names[:6]}")
+nr = len(r[~r.k.isin(t.k)])
+print(f"live rows with no toprate row: {nr}; of those scratched: {int(r[~r.k.isin(t.k)].scratched.fillna(0).astype(float).gt(0).sum())}")
