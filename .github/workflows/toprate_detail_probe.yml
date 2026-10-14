@@ -64,3 +64,24 @@ jobs:
                       except Exception: pass
                   print(f"rc_id={rc} {name}: HTTP {r.status_code} | server={r.headers.get('server')} cf-ray={cf}{extra} | body={body!r}")
           PY
+
+      - name: SvelteKit __data.json route (runner page and race page), status and shape only
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import re, requests, toprate_daily as td, toprate_json_capture as tjc
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", t or "")
+          td.login()
+          headers, cookies = tjc._auth_bits()
+          urls = [f"{tjc.WEB_BASE}/runners/{rid}/__data.json?x-sveltekit-invalidated=0001" for rid in (14436681, 14460070)]
+          urls += [f"{tjc.WEB_BASE}/races/{rc}/__data.json?x-sveltekit-invalidated=0001" for rc in (1759847,)]
+          for u in urls:
+              r = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+              txt = r.text or ""
+              block = txt.lstrip().startswith("<!DOCTYPE html") and "cloudflare" in str(r.headers.get("server", "")).lower()
+              print(f"{u.split('toprate.au')[1][:48]}: HTTP {r.status_code} | server={r.headers.get('server')} | cloudflare block page: {block}"
+                    f" | location={r.headers.get('location')} | runnerDetail in body: {'runnerDetail' in txt} | bytes={len(txt)} | head={mask(txt)[:100]!r}")
+          PY
