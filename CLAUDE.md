@@ -243,6 +243,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   fetch (best effort, `data/tr_fields/` staged) before `toprate_daily.py` Step 1. Runner pages also carry stats splits (first-up, second-up, distance, track-distance, going),
   `ratingProfiles` and pedigree/owners; the old runners columns `stats_*`, `rating_career_*`, `wpr_dist`, `wpr_going` were filled on ~81% of September rows and stopped when the
   RPCs were blocked. Probes that found all this are in `archive/workflows/toprate_*probe*.yml` and `archive/probes/`.
+  Pull frequency (14 Oct 2026): `daily.yml` runs `toprate_race_fetch.py --min-age-hours 4`, so a date whose `data/tr_fields` file was fetched under 4 h ago is skipped (fields only change at declarations and scratchings); a run for a named date always fetches; the merge's 30 h staleness limit is unaffected. Runner pages were already once per runner per UTC day.
   Runner pages (14 Oct 2026): `toprate_runner_fetch.py` reads `/runners/{runId}/__data.json` for today's and tomorrow's declared runners (once per runner per UTC day, ~2 min for ~700 runners, 3 in
   flight with a pause) into `data/tr_runners/<date>.json.gz` (7 days kept, ~1.5 MB a day): pedigree and owners, 17 stats blocks (career, distance, trackDistance, firm/good/soft/heavy/synthetic/jumps,
   firstUp, secondUp, currentJockey, sire and dam-sire wet/dry), `ratingProfiles` (periods 3 months to Career; categories all/distance/dry/wet/track/jumps), `distances` and the full past-run list
