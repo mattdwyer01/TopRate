@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import features as F  # noqa: E402
-import setup_ladder  # noqa: E402
+import pandas as pd  # noqa: E402
 
 
 def main():
@@ -28,7 +28,15 @@ def main():
     levels = dict(sex=sorted(H.horse_sex.dropna().unique().tolist()), **{'class': cm.to_dict(), 'track': tm.to_dict()})
     json.dump(levels, open(os.path.join(F.MODELS, 'levels.json'), 'w'))
     print('levels written', len(cm), 'classes', len(tm), 'tracks')
-    setup_ladder.main()
+    # ladder going slope on this scale (the expected-finish model pvj_model.txt reads race-shape columns that are blank in both modes, so it is not refitted)
+    Hb = H[H.date < '2025-01-01']
+    t = pd.DataFrame({'h': Hb.horse_id, 'w': Hb.wpr, 'g': F._num(Hb.going)}).dropna()
+    dm = t.groupby('h')[['w', 'g']].transform(lambda s: s - s.mean())
+    slope = float((dm.w * dm.g).sum() / (dm.g ** 2).sum())
+    info = json.load(open(os.path.join(F.MODELS, 'ladder.json')))
+    info['going_slope'] = round(slope, 4)
+    json.dump(info, open(os.path.join(F.MODELS, 'ladder.json'), 'w'), indent=1)
+    print('going slope', slope)
 
 
 if __name__ == '__main__':
