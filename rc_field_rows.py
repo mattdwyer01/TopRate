@@ -119,16 +119,20 @@ def _apply_backup(out, backup, date_str):
     if not backup:
         return 0
     day = out["date"].astype(str).str[:10] == date_str
-    by_name, by_tab = {}, {}
+    by_name, by_tab, by_vname = {}, {}, {}
     for i in out.index[day]:
         v, n = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])
         by_name[(v, n, re.sub(r"[^a-z0-9]", "", str(out.at[i, "horse"]).lower()))] = i
+        by_vname[(v, re.sub(r"[^a-z0-9]", "", str(out.at[i, "horse"]).lower()))] = i
         t = out.at[i, "tab_number"] if "tab_number" in out.columns else None
         if str(t) not in ("None", "nan", "", "0", "0.0"):
             by_tab[(v, n, str(int(float(t))))] = i
     n_ch = 0
     for v, n, row in backup:
-        i = by_name.get((v, n, re.sub(r"[^a-z0-9]", "", str(row.get("horse")).lower())))
+        hn = re.sub(r"[^a-z0-9]", "", str(row.get("horse")).lower())
+        i = by_name.get((v, n, hn))
+        if i is None:
+            i = by_vname.get((v, hn))
         if i is None and row.get("tab_number") is not None:
             i = by_tab.get((v, n, str(row["tab_number"])))
         if i is None or str(out.at[i, "resulted"]) in ("1", "1.0"):
@@ -169,6 +173,10 @@ def merge_rc_fields(runners_df, date_str):
     if len(have) and "field_source" in have.columns:
         for (v, n), g in have[have["field_source"].astype(str) == "toprate.au"].groupby([have["venue"].map(norm_venue), have["race"].astype(str)]):
             tr_owned.add((v, n))
+    tr_names = {}        # normalised venue -> horse names already on toprate.au-owned rows (race numbers can differ between the two sources)
+    if len(have) and "field_source" in have.columns:
+        for _, hr in have[have["field_source"].astype(str) == "toprate.au"].iterrows():
+            tr_names.setdefault(norm_venue(hr["venue"]), set()).add(re.sub(r"[^a-z0-9]", "", str(hr["horse"]).lower()))
     new_rows, updates, backup = [], {}, []
     for m in load(date_str).get("meetings", []):
         mv = norm_venue(m.get("venue"))
@@ -178,7 +186,8 @@ def merge_rc_fields(runners_df, date_str):
                     "class": r.get("class"), "going": r.get("going"), "startTime": r.get("time"), "prizeMoney": None,
                     "raceId": rid or RC_RACE_ID_BASE + int(m["meeting_code"]) * 100 + int(r["race_no"])}
             for row in rows_for(meta, date_str):
-                if (mv, str(r.get("race_no"))) in tr_owned:
+                if (mv, str(r.get("race_no"))) in tr_owned or (
+                        rid is None and re.sub(r"[^a-z0-9]", "", str(row.get("horse")).lower()) in tr_names.get(mv, ())):
                     backup.append((mv, str(r.get("race_no")), row))
                     continue
                 updates[str(row["run_id"])] = row

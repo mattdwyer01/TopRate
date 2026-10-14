@@ -84,41 +84,64 @@ def _new_row(r):
 
 
 def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
-    """Return (runners_df, stats). With dry_run the frame is returned unchanged and only stats are filled."""
+    """Return (runners_df, stats). With dry_run the frame is returned unchanged and only stats are filled.
+
+    Race numbers are NOT trusted as a key (TopRate and racing.com number some meetings differently, found 14 Oct 2026: 75 horses twice at a
+    venue on one day). A horse cannot run twice at a venue on a day, so a runner is matched on (venue, horse name) first, whatever race number
+    either source gives it; the row keeps the race it already has. Only a TopRate race with no runner matched anywhere is created."""
     import pandas as pd
     rows = [r for r in load(date_str, now) if r.get("race_id") and r.get("run_id")]
-    stats = {"tr_rows": len(rows), "updated": 0, "added_rows": 0, "added_races": 0, "unmatched_skipped": 0, "resulted_skipped": 0,
-             "changed": {c: 0 for c in list(NUMBER_COLUMNS) + list(DECLARED_COLUMNS)}}
+    stats = {"tr_rows": len(rows), "updated": 0, "renumbered": 0, "added_rows": 0, "added_races": 0, "unmatched_skipped": 0,
+             "resulted_skipped": 0, "changed": {c: 0 for c in list(NUMBER_COLUMNS) + list(DECLARED_COLUMNS)}}
     if not rows:
         return runners_df, stats
     out = runners_df.copy()
     day = out["date"].astype(str).str[:10] == date_str if len(out) else pd.Series([], dtype=bool)
-    by_name, by_tab, races, taken_ids = {}, {}, set(), set(out["run_id"].astype(str)) if len(out) else set()
+    by_vname, by_tab, races, taken_ids = {}, {}, {}, set(out["run_id"].astype(str)) if len(out) else set()
     for i in out.index[day]:
         v, n = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])
-        races.add((v, n))
-        by_name[(v, n, _hn(out.at[i, "horse"]))] = i
+        races.setdefault((v, n), str(out.at[i, "race_id"]))
+        by_vname[(v, _hn(out.at[i, "horse"]))] = i
         t = out.at[i, "tab_number"] if "tab_number" in out.columns else None
         if not _blank(t) and str(t) not in ("0", "0.0"):
             by_tab[(v, n, str(int(float(t))))] = i
-    new_rows = []
+
+    # which live race (number, race_id) each TopRate race maps to: the one most of its runners already sit in; none -> a race to create
+    live_race = {}
+    tally = {}
     for r in rows:
         v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
-        if (v, n) not in races:                         # a race nobody has rows for: TopRate creates it
-            if str(r["run_id"]) in taken_ids:
-                continue
-            new_rows.append(_new_row(r))
-            taken_ids.add(str(r["run_id"]))
-            stats["added_rows"] += 1
-            continue
-        i = by_name.get((v, n, _hn(r.get("horse"))))
-        if i is None and r.get("tab_number") is not None:
-            i = by_tab.get((v, n, str(r["tab_number"])))
-        if i is None:                                   # late entry: only if its tab number is free in the race
-            if r.get("scratched") or (v, n, str(r.get("tab_number"))) in by_tab or str(r["run_id"]) in taken_ids:
-                stats["unmatched_skipped"] += 1
-                continue
-            new_rows.append(_new_row(r))
+        i = by_vname.get((v, _hn(r.get("horse"))))
+        if i is not None:
+            k = (str(out.at[i, "race"]), str(out.at[i, "race_id"]))
+            tally.setdefault((v, n), {}).setdefault(k, 0)
+            tally[(v, n)][k] += 1
+    for key, cnt in tally.items():
+        live_race[key] = max(cnt, key=cnt.get)
+
+    new_rows = []
+    created = set()
+    for r in rows:
+        v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
+        i = by_vname.get((v, _hn(r.get("horse"))))
+        if i is None and (v, n) in live_race:               # a renamed horse: saddle number inside the race it maps to
+            i = by_tab.get((v, live_race[(v, n)][0], str(r.get("tab_number"))))
+        elif i is None and (v, n) in races:
+            i = by_tab.get((v, n, str(r.get("tab_number"))))
+        if i is None:
+            if (v, n) in live_race or (v, n) in races:     # late entry into an existing race, only if its saddle number is free
+                ln, lid = live_race.get((v, n), (n, races.get((v, n))))
+                if r.get("scratched") or (v, ln, str(r.get("tab_number"))) in by_tab or str(r["run_id"]) in taken_ids:
+                    stats["unmatched_skipped"] += 1
+                    continue
+                row = _new_row(r)
+                row["race"], row["race_id"] = r.get("race_no") if ln == n else int(float(ln)), lid
+                new_rows.append(row)
+            else:                                           # a race nobody has: TopRate creates it with its own ids
+                if str(r["run_id"]) in taken_ids:
+                    continue
+                new_rows.append(_new_row(r))
+                created.add((v, n))
             taken_ids.add(str(r["run_id"]))
             stats["added_rows"] += 1
             continue
@@ -126,6 +149,8 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
             stats["resulted_skipped"] += 1
             continue
         stats["updated"] += 1
+        if str(out.at[i, "race"]) != n:
+            stats["renumbered"] += 1
         for col, key in NUMBER_COLUMNS.items():
             val = r.get(key)
             if val is not None and col in out.columns:
@@ -151,7 +176,7 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
             out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
-        stats["added_races"] = len({(x["venue"], x["race"]) for x in new_rows if (norm_venue(x["venue"]), str(x["race"])) not in races})
+        stats["added_races"] = len(created)
     return (runners_df if dry_run else out), stats
 
 
