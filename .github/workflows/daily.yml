@@ -176,6 +176,8 @@ jobs:
           [ -n "$START" ] || START=$(TZ=Australia/Melbourne date +%Y-%m-%d)
           if [ -n "${{ inputs.date }}" ]; then DAYS=1; else DAYS=4; fi
           python toprate_race_fetch.py --from "$START" --days "$DAYS" --out data/tr_fields
+          # runner pages (pedigree, owners, stats splits, rating profiles, past runs) for today and tomorrow: once per runner per day
+          python toprate_runner_fetch.py --from "$START" --days 2 || echo "runner pages skipped"
 
       - name: Merge racing.com fields and rebuild the payload
         run: |
@@ -242,6 +244,8 @@ jobs:
             [ -d data/rc_fields ] && git add data/rc_fields
             # toprate.au race pages (toprate_race_fetch.py), small per-date files read by the merge in Step 1
             [ -d data/tr_fields ] && git add data/tr_fields
+            # per-runner pages (toprate_runner_fetch.py), gzipped, one file per date, 7 days kept
+            [ -d data/tr_runners ] && git add data/tr_runners
             [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
             # toprate_live.html deliberately not staged: static frontend build, a data run never changes it,
             # and re-staging this job's (older) checkout copy reverted frontend deploys that landed mid-run.
