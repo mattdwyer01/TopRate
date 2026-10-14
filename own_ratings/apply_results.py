@@ -28,7 +28,7 @@ import runners_io
 from own_ratings.rc_join import load_rc_results, match_runners, norm_horse
 
 FORM_FILE = "wpr_form_history.csv.gz"
-FORM_FROM = "2026-10-01"          # form rows are filled from here (the form feed's last full day is 2026-10-07)
+FORM_FROM = "2025-01-01"          # form rows are filled from here (the form feed missed runs before 8 Oct 2026; 103k runs back to Jan 2025 added 14 Oct 2026)
 
 
 def _num(s):
