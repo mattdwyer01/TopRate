@@ -24,6 +24,46 @@ def type_fields(api, name):
     return ((d.get("data") or {}).get("__type") or {}).get("fields") or []
 
 
+CANDIDATES = ("getHorseProfile", "GetHorseFormAll", "GetHorseFormTop10", "GetRaceEntryItemByHorsePaged", "raceDetailsForHorse",
+              "GetHorseRaceStats", "GetRaceEntryTimesByHorseCode")
+
+
+def unwrap(t):
+    while t and not t.get("name") and t.get("ofType"):
+        t = t["ofType"]
+    return t or {}
+
+
+def deep(api, code):
+    """Argument lists of the candidate query fields, then one call each with horseCode filled in and scalar sub-fields chosen."""
+    TREF = "name kind ofType{name kind ofType{name kind ofType{name kind}}}"
+    d = api.q("form", '{ __type(name:"Query"){ fields{ name args{ name type{ %s } } type{ %s } } } }' % (TREF, TREF))
+    fields = {f["name"]: f for f in (((d.get("data") or {}).get("__type") or {}).get("fields") or [])}
+    for name in CANDIDATES:
+        f = fields.get(name)
+        if not f:
+            print(f"== {name}: not found"); continue
+        args = f.get("args") or []
+        print(f"== {name} args:", [(x["name"], (unwrap(x["type"]).get("name")), x["type"].get("kind")) for x in args], "returns", unwrap(f["type"]).get("name"))
+        rt = unwrap(f["type"]).get("name")
+        sub = type_fields(api, rt) if rt else []
+        scal = [x["name"] for x in sub if unwrap(x["type"]).get("name") in ("String", "Int", "Float", "Boolean", "ID", "AWSDate", "AWSDateTime")][:30]
+        print("   scalar fields:", scal)
+        use = []
+        for x in args:
+            n = x["name"]
+            if "horsecode" in n.lower() or n.lower() in ("code", "horse", "horseid"):
+                use.append('%s: "%s"' % (n, code))
+            elif n.lower() in ("first", "limit", "pagesize", "count", "take"):
+                use.append("%s: 10" % n)
+            elif x["type"].get("kind") == "NON_NULL":
+                print(f"   required arg {n} not filled, skipping"); use = None; break
+        if use is None or not scal:
+            continue
+        q = "{ %s(%s) { %s } }" % (name, ", ".join(use), " ".join(scal))
+        show("call " + q[:200], api.q("form", q), 2500)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--code", action="append", default=["5404714"])
@@ -35,6 +75,8 @@ def main():
         fs = type_fields(api, tn)
         print(f"{tn} fields:", [(f["name"], (f["type"].get("name") or (f["type"].get("ofType") or {}).get("name"))) for f in fs])
     for code in dict.fromkeys(a.code):
+        deep(api, code)
+        return
         for qs in ('{ getHorse(horseCode: "%s") { name age sex } }',
                    '{ getHorseByCode(horseCode: "%s") { name age sex } }',
                    '{ horse(horseCode: "%s") { name age sex } }',
