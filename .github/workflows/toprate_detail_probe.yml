@@ -43,14 +43,11 @@ jobs:
           print("calendar type:", type(cal).__name__, "| size:", len(cal) if hasattr(cal, "__len__") else "?")
           # find a race id anywhere in the calendar payload
           ids = []
-          def walk(o):
-              if isinstance(o, dict):
-                  for k, v in o.items():
-                      if k in ("rc_id", "race_id", "id") and isinstance(v, (int, str)) and len(ids) < 3: ids.append(v)
-                      walk(v)
-              elif isinstance(o, list):
-                  for v in o[:200]: walk(v)
-          walk(cal)
+          for day in cal:
+              for m in day.get("meetings", []):
+                  for r in m.get("races", []):
+                      if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial") and len(ids) < 2:
+                          ids.append(r["raceId"])
           print("sample ids:", ids)
           if isinstance(cal, (list, dict)):
               s = cal[0] if isinstance(cal, list) and cal else cal
