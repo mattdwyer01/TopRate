@@ -85,3 +85,35 @@ jobs:
               print(f"{u.split('toprate.au')[1][:48]}: HTTP {r.status_code} | server={r.headers.get('server')} | cloudflare block page: {block}"
                     f" | location={r.headers.get('location')} | runnerDetail in body: {'runnerDetail' in txt} | bytes={len(txt)} | head={mask(txt)[:100]!r}")
           PY
+
+      - name: Race page __data.json structure (names, types, short sample values)
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import json, requests, toprate_daily as td, toprate_json_capture as tjc
+          td.login()
+          headers, cookies = tjc._auth_bits()
+          cal = td.api_calendar_upcoming(td.login())
+          rid = [r["raceId"] for d in cal for m in d.get("meetings", []) for r in m.get("races", []) if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial")][0]
+          u = f"{tjc.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001"
+          p = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False).json()
+          def deref(data, i, depth, seen=()):
+              if depth < 0 or i in seen: return "..."
+              v = data[i]
+              if isinstance(v, dict):
+                  return {k: deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and 0 <= p_ < len(data) else p_ for k, p_ in v.items()}
+              if isinstance(v, list):
+                  return [deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and 0 <= p_ < len(data) else p_ for p_ in v[:2]] + ([f"...(+{len(v)-2})"] if len(v) > 2 else [])
+              return v
+          def shape(o, d=0):
+              if isinstance(o, dict): return {k: shape(v, d+1) for k, v in o.items()}
+              if isinstance(o, list): return [shape(x, d+1) for x in o[:1]] + ([f"[{len(o)} items]"] if len(o) > 1 else [])
+              s = repr(o); return s if len(s) < 40 else s[:37] + "..."
+          for n, node in enumerate(p["nodes"]):
+              if node.get("type") != "data": print("node", n, node.get("type")); continue
+              out = deref(node["data"], 0, 6)
+              print("node", n, "=>", json.dumps(shape(out), default=str)[:6000])
+          PY
