@@ -10,6 +10,9 @@ Records are TopRate's numbers as given: they are history, safe to join to any la
 before it ran.
 
 Usage: python tr_form_store.py [data/tr_runners/<date>.json.gz ...]   (no arguments: ingest every file in data/tr_runners)
+       python tr_form_store.py --merge SRC_DIR   (merge every shard of another store directory into data/tr_form, run on the newest tip)
+
+frame(horses) turns the store into the run table the dashboard's Recent runs / form history is built from (TopRate's numbers only).
 """
 import gzip
 import json
@@ -66,6 +69,10 @@ def upsert(records, store_dir=DIR):
 
 
 def main(argv):
+    if argv[:1] == ["--merge"]:
+        c, w = merge_dir(argv[1])
+        print(f"merged {argv[1]}: {c} runs added or changed, {w} shards written")
+        return [0, c, w]
     files = [Path(a) for a in argv] or sorted(RUNNERS.glob("*.json.gz"))
     total = [0, 0, 0]
     for f in files:
@@ -79,6 +86,50 @@ def main(argv):
         print(f"{f.name}: {s} runs seen, {c} added or changed, {w} shards written")
         total = [total[0] + s, total[1] + c, total[2] + w]
     return total
+
+
+def merge_dir(src_dir, store_dir=DIR):
+    """Merge every shard in src_dir into the store (a run in both: src wins). Used by the backfill workflow on the newest tip so concurrent writers are kept."""
+    changed = written = 0
+    for src in sorted(Path(src_dir).glob("*.json.gz")):
+        new = _read(src)
+        path = store_dir / src.name
+        merged = _read(path)
+        n = 0
+        for k, v in new.items():
+            if merged.get(k) != v:
+                merged[k] = v
+                n += 1
+        if n or not path.exists():
+            _write(path, merged)
+            written += 1
+        changed += n
+    return changed, written
+
+
+def frame(horses=None, store_dir=DIR):
+    """All stored runs as a DataFrame in the column names toprate_daily's form-history code reads (horse, date, wpr, track, distance, going, positionFinish,
+    barrier, marginFinish, positionSettled, position800m, position400m, race_class, jockey, field_size, weightCarried, priceStarting, raceNumber, raceShape*,
+    comments_video/steward). `horses`: optional set of lowercased horse names to keep. wpr is TopRate's rating at the weight of the horse's upcoming race."""
+    import pandas as pd
+    rows = []
+    for f in sorted(store_dir.glob("*.json.gz")):
+        for r in _read(f).values():
+            h = str(r.get("horse") or "").strip().lower()
+            if horses is not None and h not in horses:
+                continue
+            rows.append({
+                "horse": r.get("horse"), "horse_lc": h, "horse_id": r.get("horse_id"), "date": r.get("date"), "wpr": r.get("wpr"),
+                "track": r.get("track") or r.get("venue"), "distance": r.get("distance"), "going": r.get("going"),
+                "positionFinish": r.get("positionFinish"), "barrier": r.get("barrier"), "marginFinish": r.get("marginFinish"),
+                "positionSettled": r.get("positionSettled"), "position800m": r.get("position800m"), "position400m": r.get("position400m"),
+                "race_class": r.get("class"), "jockey": r.get("jockey"), "field_size": r.get("starters"), "weightCarried": r.get("weightCarried"),
+                "priceStarting": r.get("priceStarting"), "raceNumber": r.get("raceNumber"),
+                "raceShapeEarly": r.get("raceShapeEarly"), "raceShapeMid": r.get("raceShapeMid"), "raceShapeLate": r.get("raceShapeLate"),
+                "comments_video": r.get("commentsVideo"), "comments_steward": r.get("commentsSteward"),
+                "isBarrierTrial": 1 if (r.get("isBarrierTrial") or r.get("isJumpout")) else 0,
+            })
+    return pd.DataFrame(rows)
 
 
 if __name__ == "__main__":

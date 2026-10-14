@@ -31,6 +31,7 @@ Requirements:
 
 import requests
 import pandas as pd
+import tr_form_store
 import meeting_transfer
 import atw_offsets as _atw_offsets_mod
 import runners_io
@@ -1272,7 +1273,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         ran = any(str(row.get(c)) in ("1", "1.0") for c in ("resulted", "interim_resulted"))
         return None if ran else _atw_off_lookup.get(str(row.get("horse", "")).strip().lower())
     try:
-        if WPR_FORM_HISTORY_CSV.exists():
+        if tr_form_store.DIR.exists():
             _today_horses = set(
                 str(h).strip().lower() for h in runners_df.get("horse", []) if h)
             # Pending horses only - formAll (the heavy full-history
@@ -1288,10 +1289,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     if h)
             else:
                 _pending_horses = _today_horses
-            _fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                              dtype={"horse": str, "horse_id": str})
-            _fh["horse_lc"] = _fh["horse"].astype(str).str.strip().str.lower()
-            _fh = _fh[_fh["horse_lc"].isin(_today_horses)]
+            # Recent runs / form history now come from TopRate's own past-run store (data/tr_form, 14 Oct 2026), not our wpr_form_history.csv.gz
+            # rating chain: TopRate's wpr (rated at the weight of the horse's upcoming race), positions, margins, race shape, weights, prices, comments.
+            _fh = tr_form_store.frame(_today_horses)
+            if _fh.empty:
+                _fh = pd.DataFrame(columns=["horse", "horse_lc", "date", "wpr"])
             _fh["wpr"] = pd.to_numeric(_fh["wpr"], errors="coerce")
             _fh["date"] = pd.to_datetime(_fh["date"], errors="coerce")
             _fh = _fh.dropna(subset=["date", "wpr"])
