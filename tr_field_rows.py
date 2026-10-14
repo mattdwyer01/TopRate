@@ -211,6 +211,34 @@ RUNNER_COLUMNS = ([f"{p}_{k}" for p in STATS_BLOCKS.values() for k in ("starts",
                   + ["rating_career_best_wpr", "rating_career_best_rank", "rating_career_next_wpr", "rating_career_next_rank"] + list(BIO_COLUMNS))
 
 
+PAST_DIR = Path(__file__).parent / "data" / "tr_past"
+
+
+def merge_tr_past(runners_df):
+    """Fill blank TopRate numbers on rows of races that have already run from data/tr_past/<date>.json (toprate_past_fetch.py), matched on run_id.
+    Only blanks are filled and a value already there is never replaced. Returns (frame, cells filled)."""
+    import pandas as pd
+    if not PAST_DIR.exists() or "run_id" not in runners_df.columns:
+        return runners_df, 0
+    rid = pd.to_numeric(runners_df["run_id"], errors="coerce")
+    pos = {int(v): i for i, v in zip(runners_df.index, rid) if pd.notna(v)}
+    filled = 0
+    for f in sorted(PAST_DIR.glob("*.json")):
+        try:
+            rows = json.loads(f.read_text()).get("rows", {})
+        except Exception:
+            continue
+        for k, vals in rows.items():
+            i = pos.get(int(k))
+            if i is None:
+                continue
+            for c, v in vals.items():
+                if c in runners_df.columns and _blank(runners_df.at[i, c]):
+                    _set(runners_df, i, c, v)
+                    filled += 1
+    return runners_df, filled
+
+
 def _melbourne_today():
     from zoneinfo import ZoneInfo
     return datetime.now(ZoneInfo("Australia/Melbourne")).date().isoformat()

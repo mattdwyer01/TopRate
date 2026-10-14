@@ -1,0 +1,70 @@
+name: toprate.au numbers for races that have already run
+
+# One-off / on demand (14 Oct 2026): toprate_race_fetch.py only reads the calendar of upcoming races, so races before 14 Oct have no wpr_nett on the
+# dashboard. toprate_past_fetch.py reads each past race's page (ids taken from runners.csv) into data/tr_past/<date>.json; the daily run's
+# tr_field_rows.merge_tr_past() then fills blanks in runners.csv. Only data/tr_past is committed, on the newest tip. Needs the same secrets as daily.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back from yesterday"
+        default: "25"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tr-past-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+      TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+      TOPRATE_ANON_KEY: ${{ secrets.TOPRATE_ANON_KEY }}
+      BRANCH: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas
+      - name: Anon key fallback (same as daily.yml)
+        run: |
+          if [ -z "$TOPRATE_ANON_KEY" ]; then
+            d=$(mktemp -d) && git -C "$d" init -q && git -C "$d" remote add origin "https://github.com/${{ github.repository }}.git"
+            git -C "$d" fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+            git -C "$d" show FETCH_HEAD:toprate_daily.py > "$d/old_td.py"
+            KEY=$(python - "$d/old_td.py" <<'PY'
+          import re, sys
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open(sys.argv[1]).read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+            echo "::add-mask::$KEY"
+            echo "TOPRATE_ANON_KEY=$KEY" >> "$GITHUB_ENV"
+          fi
+      - run: python toprate_past_fetch.py --days "${{ inputs.days }}"
+      - name: Commit data/tr_past (only that folder, on the newest tip)
+        run: |
+          set -u
+          [ -d data/tr_past ] || { echo "nothing written"; exit 0; }
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp -r data/tr_past /tmp/tr_past
+          for attempt in 1 2 3 4 5 6; do
+            timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
+            git reset -q --mixed FETCH_HEAD
+            mkdir -p data && rm -rf data/tr_past && cp -r /tmp/tr_past data/tr_past
+            git add data/tr_past
+            git diff --cached --quiet && { echo "nothing new"; exit 0; }
+            git commit -q -m "TopRate numbers for past races $(date -u +%F)"
+            if timeout 240 git push origin "HEAD:refs/heads/$BRANCH"; then echo pushed; exit 0; fi
+            echo "push rejected (attempt $attempt), retrying on the new tip"; sleep $((attempt * 10))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1

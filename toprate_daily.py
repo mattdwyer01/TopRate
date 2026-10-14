@@ -2408,6 +2408,11 @@ def main():
         print(f"  {d}: toprate.au {tr_stats['tr_rows']} rows ({tr_stats['updated']} updated, {tr_stats['added_rows']} added); "
               f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
               f"{fl['duplicate_rows_scratched']} duplicate")
+    try:       # TopRate numbers for races that have already run (data/tr_past, toprate_past_fetch.py): blanks only
+        runners_df, n_past = tr_field_rows.merge_tr_past(runners_df)
+        print(f"  past races: {n_past} TopRate cells filled from data/tr_past")
+    except Exception as e:
+        print(f"  past-race TopRate merge failed ({type(e).__name__}: {e}), skipped")
     _main_step("Step 1: racing.com fields")
     print()
 
