@@ -1,4 +1,4 @@
-"""PART 2 (early speed and closing speed / turn of foot added on top of the speed figure). Part 1 docstring follows.
+"""STANDALONE speed model (14 Oct 2026). Part 1 found speed features add nothing to the market-residual bet model; this tests them as their OWN model:\nno market input, no own WPR, only speed figure (raw and weight-adjusted), early speed, closing speed and basic race context.\nCompared with a ratings-only (own WPR) model built the same way, and judged on value (strike rate vs price, flat ROI at SP by model rank and by EV).\nOlder docstring follows.
 Does a time-based, track-variant-corrected, weight-adjusted speed figure add anything to the bet model? (read-only analysis, 14 Oct 2026)
 Figure: runner speed = distance / (winner's time + 0.146 s x margin), divided by the expected winner speed for track x distance x going
 (fitted on races before 2021 only) and by the day's track variant (shrunk mean of the meeting's winner ratios), in per mille above par.
@@ -134,42 +134,73 @@ D['ret'] = np.where(D.win == 1, D.sp, 0.0)
 print('rows', len(D), 'speed coverage in test years', D[D.year >= 2022].s1.notna().mean().round(3))
 
 
+CTX = ['field_size', 'distance', 'going_n', 'weightCarried', 'wt_rel', 'barrier', 'bar_rel', 'nruns', 'days', 'horse_age', 'sex']
+RATING = ['w1', 'w2', 'w3', 'wavg3', 'wbest', 'wavg_all', 'wavg3_rel', 'wavg3_mean']
+MODELS = {'speed (wt adj) + early/closing': CTX + SPEED + PACE,
+          'speed (NOT wt adj) + early/closing': CTX + SPEED_RAW + PACE,
+          'ratings only (own WPR)': CTX + RATING}
+P2 = dict(PARAMS, num_threads=4)
+
+
 def walk(feats, label):
     out = []
     for ty in range(2022, 2027):
         trn, va, te = D[D.year <= ty - 2], D[D.year == ty - 1], D[D.year == ty].copy()
         raw = 0
         for sd in SEEDS:
-            m = lgb.train(dict(PARAMS, seed=sd, num_threads=4), lgb.Dataset(trn[feats], trn.win, init_score=logit(trn.pm)), 2000,
-                          valid_sets=[lgb.Dataset(va[feats], va.win, init_score=logit(va.pm))], callbacks=[lgb.early_stopping(80, verbose=False)])
+            m = lgb.train(dict(P2, seed=sd), lgb.Dataset(trn[feats], trn.win), 2000, valid_sets=[lgb.Dataset(va[feats], va.win)],
+                          callbacks=[lgb.early_stopping(80, verbose=False)])
             raw = raw + m.predict(te[feats], raw_score=True) / len(SEEDS)
-        s = raw + logit(te.pm).values
-        e = np.exp(s - pd.Series(s, index=te.index).groupby(te.race_id).transform('max').values)
-        te['pmod'] = e / pd.Series(e, index=te.index).groupby(te.race_id).transform('sum').values
-        te['ev'] = te.pmod * te.sp
-        te['tier'] = [tier(a, b, c) for a, b, c in zip(te.ev, te.sp, te.rank_m)]
+        e = np.exp(raw - pd.Series(raw, index=te.index).groupby(te.race_id).transform('max').values)
+        te['p'] = e / pd.Series(e, index=te.index).groupby(te.race_id).transform('sum').values
         out.append(te)
         print(label, 'done', ty, flush=True)
     T = pd.concat(out)
-    ll = -np.log(T.pmod[T.win == 1]).mean()
-    print(f'\n== {label}: log-loss model {ll:.4f} market {-np.log(T.pm[T.win == 1]).mean():.4f}')
-    for name, msk in (('Select', T.tier == 'S'), ('Volume incl S', T.tier != ''), ('Volume only', T.tier == 'V')):
-        x = T[msk]
-        ex10 = x.drop(x[x.win == 1].nlargest(10, 'sp').index)
-        print(f'{name:14} n={len(x):6} /yr {len(x)/5:5.0f} win {x.win.mean()*100:4.1f}% ${x.sp.mean():5.2f} ROI {(x.ret.mean()-1)*100:+6.1f}% ex10 {(ex10.ret.mean()-1)*100:+5.1f}% '
-              'yrs ' + ' '.join(f"{(x[x.year==y].ret.mean()-1)*100:+4.0f}" for y in range(2022, 2027)))
+    T['ev'] = T.p * T.sp
+    T['rk'] = T.groupby('race_id').p.rank(ascending=False, method='first')
     return T
 
 
-R0 = walk(F.FEATURES + SPEED_RAW, 'speed NOT weight adjusted')
-A = walk(F.FEATURES + SPEED, 'speed weight adjusted')
-B = walk(F.FEATURES + SPEED + PACE, 'speed + early/closing')
-mk = A.win == 1
-print('\nlog-loss: raw', round(float(-np.log(R0.pmod[R0.win == 1]).mean()), 4), ' adjusted', round(float(-np.log(A.pmod[mk]).mean()), 4))
-print('\nper-year log-loss gain (speed - speed+pace):', {int(y): round(float(-np.log(A.pmod[mk & (A.year == y)]).mean() + np.log(B.pmod[(B.win == 1) & (B.year == y)]).mean()), 4) for y in range(2022, 2027)})
-# does closing speed matter: runner level win rate vs market by closing rank
-T = B[B.g400_r_a3.notna()].copy()
-T['cq'] = T.groupby('race_id').g400_r_a3.rank(ascending=False, method='min')
-print('\nwin rate / market-implied / flat ROI by closing-speed rank within race (as-of avg of last 3)')
-for q, g in T.groupby(T.cq.clip(upper=5)):
-    print(f'rank {int(q)}: n={len(g)} win {g.win.mean()*100:.1f}% market {g.pm.mean()*100:.1f}% ROI {(g.ret.mean()-1)*100:+.1f}%')
+def line(name, x):
+    if len(x) == 0:
+        print(f'  {name:34} n=0'); return
+    ex10 = x.drop(x[x.win == 1].nlargest(10, 'sp').index)
+    yrs = ' '.join(f"{(x[x.year == y].ret.mean() - 1) * 100:+4.0f}" for y in range(2022, 2027))
+    print(f'  {name:34} n={len(x):6} /yr {len(x)/5:5.0f} win {x.win.mean()*100:5.1f}% mkt-implied {x.pm.mean()*100:5.1f}% avg ${x.sp.mean():6.2f} '
+          f'ROI {(x.ret.mean()-1)*100:+6.1f}% ex10 {(ex10.ret.mean()-1)*100:+6.1f}% yrs {yrs}')
+
+
+results = {}
+for label, feats in MODELS.items():
+    T = walk(feats, label)
+    results[label] = T
+    ll = -np.log(T.p[T.win == 1]).mean()
+    print(f'\n=== {label}: race log-loss {ll:.4f} (market {-np.log(T.pm[T.win == 1]).mean():.4f}, uniform {np.log(T.field_size[T.win == 1]).mean():.4f})')
+    top1 = T[T.rk == 1]
+    print(f'  model #1 is the market favourite in {(top1.rank_m == 1).mean()*100:.1f}% of races; market favourite wins {T[T.rank_m == 1].win.mean()*100:.1f}%')
+    line('model #1', top1)
+    line('model #2', T[T.rk == 2])
+    line('model #1 and not mkt fav', top1[top1.rank_m > 1])
+    line('model top2, mkt rank >= 3', T[(T.rk <= 2) & (T.rank_m >= 3)])
+    line('model top3, mkt rank >= 4', T[(T.rk <= 3) & (T.rank_m >= 4)])
+    line('model #1, price >= $5', top1[top1.sp >= 5])
+    for th in (1.0, 1.1, 1.2, 1.3, 1.5):
+        line(f'EV > {th}', T[T.ev > th])
+    line('EV > 1.2 and model top 3', T[(T.ev > 1.2) & (T.rk <= 3)])
+    line('EV > 1.2, $3-$15', T[(T.ev > 1.2) & T.sp.between(3, 15)])
+    line('all runners (reference)', T)
+
+# closing speed: is the best closer in the field underpriced?
+T = results['speed (wt adj) + early/closing']
+C = T[T.g400_r_a3.notna()].copy()
+C['cq'] = C.groupby('race_id').g400_r_a3.rank(ascending=False, method='min')
+print('\nwin rate / market-implied / flat ROI by closing-speed rank within race (as-of average of the last 3 runs)')
+for q, g in C.groupby(C.cq.clip(upper=5)):
+    line(f'closing rank {int(q)}', g)
+a, b = results['speed (wt adj) + early/closing'], results['ratings only (own WPR)']
+m = a[['race_id', 'horse_id', 'p', 'ev', 'rk', 'win', 'sp', 'pm', 'year', 'ret']].merge(b[['race_id', 'horse_id', 'p', 'ev', 'rk']], on=['race_id', 'horse_id'], suffixes=('', '_r'))
+print('\ncorrelation of speed-model and ratings-model win probability', m[['p', 'p_r']].corr().iloc[0, 1].round(3))
+line('speed #1 and ratings #1 agree', m[(m.rk == 1) & (m.rk_r == 1)])
+line('speed #1, ratings NOT #1', m[(m.rk == 1) & (m.rk_r != 1)])
+line('speed EV>1.2 and ratings EV>1.2', m[(m.ev > 1.2) & (m.ev_r > 1.2)])
+line('speed EV>1.2, ratings EV<1', m[(m.ev > 1.2) & (m.ev_r < 1)])
