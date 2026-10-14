@@ -118,7 +118,10 @@ def frame(horses=None, store_dir=DIR):
             h = str(r.get("horse") or "").strip().lower()
             if horses is not None and h not in horses:
                 continue
+            sr = r.get("sectionalRating") or {}
             rows.append({
+                "sect_early": sr.get("individualEarlySpeed"), "sect_mid": sr.get("individual800mTo400mSpeed"),
+                "sect_l600": sr.get("individualLast600mSpeed"), "sect_l200": sr.get("individualLast200mSpeed"),
                 "horse": r.get("horse"), "horse_lc": h, "horse_id": r.get("horse_id"), "date": r.get("date"), "wpr": r.get("wpr"),
                 "track": r.get("track") or r.get("venue"), "distance": r.get("distance"), "going": r.get("going"),
                 "positionFinish": r.get("positionFinish"), "barrier": r.get("barrier"), "marginFinish": r.get("marginFinish"),

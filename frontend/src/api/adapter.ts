@@ -43,6 +43,7 @@ export function toFormRun(r: RawFormRun): FormRun {
     sectionalEarly: r.ie ?? null,
     sectionalTo800: r.im ?? null,
     sectionalLate600: r.il ?? null,
+    sectionalLate200: r.i2 ?? null,
     barrier: r.bar ?? null,
     margin: r.mgn ?? null,
     positionSettled: r.psl ?? null,
