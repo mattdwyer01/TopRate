@@ -174,7 +174,7 @@ jobs:
           fi
           START="${{ inputs.date }}"
           [ -n "$START" ] || START=$(TZ=Australia/Melbourne date +%Y-%m-%d)
-          if [ -n "${{ inputs.date }}" ]; then DAYS=1; else DAYS=3; fi
+          if [ -n "${{ inputs.date }}" ]; then DAYS=1; else DAYS=4; fi
           python toprate_race_fetch.py --from "$START" --days "$DAYS" --out data/tr_fields
 
       - name: Merge racing.com fields and rebuild the payload
