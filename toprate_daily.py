@@ -2322,16 +2322,31 @@ def main():
 
     # Step 1: declared fields from racing.com (data/rc_fields/<date>.json, written by rc_fields_daily.yml). Results, prices and ratings
     # arrive from other jobs (rc_results_daily + own_ratings_daily, tab_results_poller); nothing here calls toprate.au any more.
-    print("── Step 1: racing.com fields ──")
+    print("── Step 1: declared fields (toprate.au first, racing.com as backup) ──")
     import rc_field_rows
+    import tr_field_rows
     if args.date:
         dates = [args.date]
     else:
         today = _melbourne_today()
-        dates = sorted(f.stem for f in rc_field_rows.DIR.glob("*.json") if f.stem >= today)
+        dates = sorted({f.stem for d_ in (rc_field_rows.DIR, tr_field_rows.DIR) for f in d_.glob("*.json") if f.stem >= today})
     for d in dates:
+        # toprate.au first (data/tr_fields, written by toprate_race_fetch.py; ignored when older than MAX_AGE_HOURS), then racing.com:
+        # in a race toprate.au owns, racing.com only fills gear / previous weight / win price and scratchings; elsewhere it builds the rows.
+        try:
+            runners_df, tr_stats = tr_field_rows.merge_tr_fields(runners_df, d)
+        except Exception as e:                       # never lose the day to a TopRate problem: racing.com carries on
+            print(f"  {d}: toprate.au merge failed ({type(e).__name__}: {e}), racing.com only")
+            tr_stats = {"tr_rows": 0, "updated": 0, "added_rows": 0}
         runners_df, n_add, n_upd = rc_field_rows.merge_rc_fields(runners_df, d)
-        print(f"  {d}: {n_add} runners added, {n_upd} updated")
+        try:       # after both merges: racing.com's pre-declaration nominations that toprate.au does not list are scratched (restorable)
+            runners_df, fl = tr_field_rows.flag_unlisted(runners_df, d)
+        except Exception as e:
+            print(f"  {d}: flag_unlisted failed ({type(e).__name__}: {e}), nominations left as they are")
+            fl = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
+        print(f"  {d}: toprate.au {tr_stats['tr_rows']} rows ({tr_stats['updated']} updated, {tr_stats['added_rows']} added); "
+              f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
+              f"{fl['duplicate_rows_scratched']} duplicate")
     _main_step("Step 1: racing.com fields")
     print()
 

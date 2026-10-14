@@ -1,0 +1,112 @@
+# Read-only trial of toprate_race_fetch.py (14 Oct 2026): logs in to toprate.au, reads the calendar and each race page's __data.json for
+# the chosen days, writes one JSON file per date. Output is uploaded as the "tr-fields" artifact only; NOTHING is committed or pushed, and the
+# live pipeline does not read it. Runs on a GitHub-hosted runner (login and the race pages both answer 200 there; checked 14 Oct 2026).
+name: TopRate race fetch (manual check, read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Days to fetch from the start date'
+        required: false
+        default: '2'
+        type: string
+      start:
+        description: 'First date YYYY-MM-DD (blank = today, UTC)'
+        required: false
+        type: string
+
+concurrency:
+  group: toprate-race-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install requests
+        run: python -m pip install --quiet requests
+
+      - name: Read the site's public key from the last commit that held it (not printed)
+        run: |
+          mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+          git show FETCH_HEAD:toprate_daily.py > old_td.py
+          key=$(python - <<'PY'
+          import re
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open("old_td.py").read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+          [ -n "$key" ] || { echo "could not read the key"; exit 1; }
+          echo "::add-mask::$key"
+          echo "TOPRATE_ANON_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Fetch
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          DAYS: ${{ inputs.days }}
+          START: ${{ inputs.start }}
+        run: |
+          args=(--days "${DAYS:-2}" --out data/tr_fields)
+          if [[ -n "$START" ]]; then
+            [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "bad date"; exit 1; }
+            args+=(--from "$START")
+          fi
+          python toprate_race_fetch.py "${args[@]}"
+
+      - name: Check the output (completeness, blanks, join to runners.csv)
+        run: |
+          python -m pip install --quiet pandas
+          python toprate_fetch_check.py data/tr_fields
+
+      - name: Dry run of the runners.csv merge (writes nothing)
+        run: |
+          python tr_field_rows.py 2026-10-14 2026-10-15
+          python - <<'PY'
+          import pandas as pd, rc_field_rows, tr_field_rows
+          df = pd.read_csv("runners.csv", low_memory=False)
+          for d in ("2026-10-14", "2026-10-15"):
+              before = df[df.date.astype(str).str[:10] == d]
+              df1, s = tr_field_rows.merge_tr_fields(df, d)
+              df2a, n_add, n_upd = rc_field_rows.merge_rc_fields(df1, d)
+              df2, fl = tr_field_rows.flag_unlisted(df2a, d)
+              print(f"   flag_unlisted: {fl}")
+              day = df2[df2.date.astype(str).str[:10] == d]
+              dup = int(day.duplicated(["venue", "race", "horse"]).sum())
+              nonscr = day[day.scratched.fillna(0).astype(float) == 0]
+              cross = int(nonscr.assign(v=nonscr.venue.map(rc_field_rows.norm_venue), h=nonscr.horse.str.lower().str.replace(r"[^a-z0-9]", "", regex=True))
+                                .duplicated(["v", "h"]).sum())
+              print(f"   same horse twice at one venue on the day (any race number): {cross}")
+              def xdups(frame):
+                  x = frame[(frame.date.astype(str).str[:10] == d) & (frame.scratched.fillna(0).astype(float) == 0)].copy()
+                  x["v"] = x.venue.map(rc_field_rows.norm_venue)
+                  x["h"] = x.horse.str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+                  return x[x.duplicated(["v", "h"], keep=False)].sort_values(["v", "h"])
+              print(f"   after toprate stage only: {len(xdups(df1)) // 2} cross-race duplicate horses; after racing.com backup: {len(xdups(df2)) // 2}")
+              for _, g in list(xdups(df2).groupby(["v", "h"]))[:6]:
+                  print("     DUP", [(r.venue, int(r.race), str(r.race_id)[-6:], r.field_source, int(r.run_id) % 100000000) for r in g.itertuples()])
+              new_rc = df2[~df2.run_id.isin(df1.run_id)]
+              new_rc = new_rc[new_rc.date.astype(str).str[:10] == d]
+              print(f"   rows the racing.com backup pass ADDED: {len(new_rc)} | by venue/race: {new_rc.groupby(['venue', 'race']).size().head(8).to_dict()}")
+              src = day.field_source.fillna("none").value_counts().to_dict()
+              print(f"{d}: rows before {len(before)} -> after toprate {len(df1[df1.date.astype(str).str[:10] == d])} -> after racing.com backup {len(day)}"
+                    f" | racing.com added {n_add}, updated {n_upd} | duplicates {dup} | field_source {src}")
+              print(f"   toprate: updated {s['updated']}, added rows {s['added_rows']} (races {s['added_races']}), renumbered vs racing.com {s['renumbered']}, skipped unmatched {s['unmatched_skipped']}")
+              print(f"   nett on non-scratched: {day[day.scratched.fillna(0).astype(float) == 0].wpr_nett.notna().mean():.1%}"
+                    f" | runs with tab_number 0: {int((day.tab_number.fillna(0).astype(float) == 0).sum())}")
+              df = df2
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: tr-fields
+          path: data/tr_fields/
+          retention-days: 14

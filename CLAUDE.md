@@ -224,6 +224,26 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 ## Current state
 
+- **toprate.au is back as the PRIMARY source of declared fields and its own numbers (14 Oct 2026, supersedes the 13 Oct "removed" entry below for fields and
+  TopRate numbers; results, ratings, projection and prices are unchanged).** The race-detail RPCs (`/rest/v1/rpc/get_race_*` on api.toprate.au) are still
+  blocked by Cloudflare (403 on hosted and Australian runners, login and `get_calendar_upcoming` pass). The website's own SvelteKit data route works with the
+  same login: `https://toprate.au/races/{raceId}/__data.json` (and `/runners/{runId}/__data.json`, `/meetings/{id}/__data.json`). `toprate_race_fetch.py`
+  logs in (browser-style headers, Supabase password grant, cookie pair `sb-api-auth-token.0/.1`), reads the calendar and each race page, and writes
+  `data/tr_fields/<date>.json` (a row per runner: declared field, `wpr_nett` = `raceUser.runAdjustments[].defaults.wprBase`, speed, TopRate rating and price, form factor,
+  jockey rating, fixed prices, days since last run, spell flags, last start). Verified 14 Oct: `wprBase` equals the archived `wpr_nett` for all six runners of a
+  resulted race; nett is blank only for first starters (53 of 54 blanks). Needs `TOPRATE_EMAIL`, `TOPRATE_PASSWORD` and `TOPRATE_ANON_KEY` (the site's public key; until
+  the repo secret exists `daily.yml` reads it from commit 774453e). TopRate has confirmed automated access to the account is fine; `/horses` and `/admin` answer 403
+  (plan or admin only, not worked around). `tr_field_rows.py` merges those files into `runners.csv` BEFORE `rc_field_rows.py`: runners are matched on (venue, horse
+  name), never race number (the two sources number some races differently), existing run_id/race_id never change, resulted rows are never touched, a race nobody has is
+  created with TopRate's ids, a file older than 30 h is ignored (racing.com carries on). `rc_field_rows` is the backup: in a race TopRate owns it only fills gear,
+  previous weight, win price and scratchings. `flag_unlisted()` runs after both merges: racing.com's pre-declaration files carry ~50 nominations per race with the same
+  horses repeated across races (15 Oct Warrnambool had 43 cross-race duplicate horses in `runners.csv` already); in a race TopRate covers, a racing.com row TopRate does
+  not list is scratched with `field_source = "racing.com (not in toprate field)"` (restored if TopRate lists it later) and a horse with several rows at one venue keeps
+  the row TopRate owns. Dry run on the real file: 0 live cross-race duplicates on 14 and 15 Oct, nett on 89.7% / 82.9% of non-scratched runners. `daily.yml` runs the
+  fetch (best effort, `data/tr_fields/` staged) before `toprate_daily.py` Step 1. Runner pages also carry stats splits (first-up, second-up, distance, track-distance, going),
+  `ratingProfiles` and pedigree/owners; the old runners columns `stats_*`, `rating_career_*`, `wpr_dist`, `wpr_going` were filled on ~81% of September rows and stopped when the
+  RPCs were blocked. Probes that found all this are in `archive/workflows/toprate_*probe*.yml` and `archive/probes/`.
+
 - **READ THIS FIRST (13 Oct 2026): TopRate removed from the live system.** toprate.au is no longer used anywhere in production. What replaced it:
   declared fields from racing.com (`rc_fields_daily.yml`, `rc_field_rows.py`), results from racing.com (`rc_results_daily.yml`) plus the TAB poller (interim
   results, going, prices), our own ratings (`own_ratings/`: chain, `rebuild_history`, rating store `own_ratings_data/`, nightly `own_ratings_daily.yml`

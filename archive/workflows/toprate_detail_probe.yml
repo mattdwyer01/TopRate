@@ -1,0 +1,169 @@
+# One-off, read-only probe (14 Oct 2026): why do TopRate race-detail calls answer 403? Uses the last commit that still had the
+# TopRate client (774453e, 11 Oct 2026), logs in with the repo secrets, then makes ONE call per race-detail RPC for one upcoming race
+# and prints only status, server/cf-ray headers, a masked body snippet and top-level key counts. Never prints tokens or credentials.
+# Runs on a GitHub-hosted runner and on the Australian self-hosted runner so the two can be compared. Commits nothing.
+name: TopRate race detail probe (read-only, manual)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/toprate-detail-probe]
+    paths: ['.github/workflows/toprate_detail_probe.yml']
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, self-hosted]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Fetch the old client
+        run: |
+          mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+          git checkout -q FETCH_HEAD -- ':(glob)*.py'
+          ls *.py | wc -l
+
+      - name: Login, calendar, then each race-detail RPC once
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python -m pip install --quiet requests pandas numpy 2>&1 | tail -1 || true
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import re, requests, toprate_daily as td
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", t or "")
+          jwt = td.login()
+          print("login ok:", bool(jwt))
+          cal = td.api_calendar_upcoming(jwt)
+          print("calendar type:", type(cal).__name__, "| size:", len(cal) if hasattr(cal, "__len__") else "?")
+          # find a race id anywhere in the calendar payload
+          ids = []
+          for day in cal:
+              for m in day.get("meetings", []):
+                  for r in m.get("races", []):
+                      if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial") and len(ids) < 2:
+                          ids.append(r["raceId"])
+          print("sample ids:", ids)
+          if isinstance(cal, (list, dict)):
+              s = cal[0] if isinstance(cal, list) and cal else cal
+              print("calendar sample keys:", sorted(s.keys())[:15] if isinstance(s, dict) else str(s)[:80])
+          for rc in ids[:2]:
+              for name in ("get_race_detail", "get_race_wpr_chart", "get_race_stats", "get_user_cache_race", "get_race_results"):
+                  r = requests.post(f"{td.API_BASE}/rest/v1/rpc/{name}", headers=td.make_headers(jwt), json={"rc_id": rc}, timeout=30)
+                  cf = r.headers.get("cf-ray") is not None
+                  body = mask(r.text)[:140].replace("\n", " ")
+                  extra = ""
+                  if r.status_code == 200:
+                      try:
+                          j = r.json(); extra = f" | json {type(j).__name__} len={len(j)}"
+                      except Exception: pass
+                  print(f"rc_id={rc} {name}: HTTP {r.status_code} | server={r.headers.get('server')} cf-ray={cf}{extra} | body={body!r}")
+          PY
+
+      - name: SvelteKit __data.json route (runner page and race page), status and shape only
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import re, requests, toprate_daily as td, toprate_json_capture as tjc
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", t or "")
+          td.login()
+          headers, cookies = tjc._auth_bits()
+          urls = [f"{tjc.WEB_BASE}/runners/{rid}/__data.json?x-sveltekit-invalidated=0001" for rid in (14436681, 14460070)]
+          urls += [f"{tjc.WEB_BASE}/races/{rc}/__data.json?x-sveltekit-invalidated=0001" for rc in (1759847,)]
+          for u in urls:
+              r = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+              txt = r.text or ""
+              block = txt.lstrip().startswith("<!DOCTYPE html") and "cloudflare" in str(r.headers.get("server", "")).lower()
+              print(f"{u.split('toprate.au')[1][:48]}: HTTP {r.status_code} | server={r.headers.get('server')} | cloudflare block page: {block}"
+                    f" | location={r.headers.get('location')} | runnerDetail in body: {'runnerDetail' in txt} | bytes={len(txt)} | head={mask(txt)[:100]!r}")
+          PY
+
+      - name: Race page __data.json structure (names, types, short sample values)
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import json, requests, toprate_daily as td, toprate_json_capture as tjc
+          td.login()
+          headers, cookies = tjc._auth_bits()
+          rid = 1759847
+          u = f"{tjc.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001"
+          resp = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+          print("HTTP", resp.status_code, "bytes", len(resp.text))
+          p = resp.json()
+          print("top-level keys:", list(p.keys()) if isinstance(p, dict) else type(p).__name__)
+          if "nodes" not in p:
+              print("no nodes; body head:", resp.text[:200]); raise SystemExit
+          def deref(data, i, depth, seen=()):
+              if depth < 0 or i in seen: return "..."
+              v = data[i]
+              if isinstance(v, dict):
+                  return {k: deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and 0 <= p_ < len(data) else p_ for k, p_ in v.items()}
+              if isinstance(v, list):
+                  return [deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and 0 <= p_ < len(data) else p_ for p_ in v[:2]] + ([f"...(+{len(v)-2})"] if len(v) > 2 else [])
+              return v
+          def shape(o, d=0):
+              if isinstance(o, dict): return {k: shape(v, d+1) for k, v in o.items()}
+              if isinstance(o, list): return [shape(x, d+1) for x in o[:1]] + ([f"[{len(o)} items]"] if len(o) > 1 else [])
+              s = repr(o); return s if len(s) < 40 else s[:37] + "..."
+          for n, node in enumerate(p["nodes"]):
+              if node.get("type") != "data": print("node", n, node.get("type")); continue
+              out = deref(node["data"], 0, 6)
+              print("node", n, "=>", json.dumps(shape(out), default=str)[:6000])
+          PY
+
+      - name: Is wpr_nett the runAdjustments wprBase? Per-runner defaults, resulted and upcoming race
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import json, requests, toprate_daily as td, toprate_json_capture as tjc
+          jwt = td.login()
+          headers, cookies = tjc._auth_bits()
+          def deref(data, i, depth=12, seen=()):
+              if depth < 0 or i in seen: return None
+              v = data[i]
+              ptr = lambda p_: deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and not isinstance(p_, bool) and 0 <= p_ < len(data) else p_
+              if isinstance(v, dict): return {k: ptr(p_) for k, p_ in v.items()}
+              if isinstance(v, list): return [ptr(p_) for p_ in v]
+              return v
+          def page(rid):
+              r = requests.get(f"{tjc.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001", headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+              p = r.json()
+              for n in p["nodes"]:
+                  if n.get("type") == "data": return deref(n["data"], 0)
+          def keys(o, pre="", out=None):
+              out = {} if out is None else out
+              if isinstance(o, dict):
+                  for k, v in o.items(): keys(v, f"{pre}.{k}" if pre else k, out)
+              elif isinstance(o, list):
+                  if o: keys(o[0], pre + "[]", out)
+              else: out[pre] = o
+              return out
+          cal = td.api_calendar_upcoming(jwt)
+          upc = [r["raceId"] for d in cal for m in d.get("meetings", []) for r in m.get("races", [])
+                 if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial") and not r.get("isResulted")][:1]
+          for rid in [1759847] + upc:
+              d = page(rid)
+              print(f"=== race {rid}: keys {list(d.keys())}")
+              adj = (d.get("raceUser") or {}).get("runAdjustments") or []
+              print("runAdjustments:", [(a.get("runId"), (a.get("defaults") or {}).get("wprBase"), (a.get("defaults") or {}).get("speed"), (a.get("defaults") or {}).get("iapValue")) for a in adj])
+              f = d.get("raceFields") or []
+              print("raceFields n:", len(f), "| runner key paths:")
+              if f:
+                  k = keys(f[0])
+                  print("  ", {p: (v if not isinstance(v, str) else v[:25]) for p, v in k.items()})
+              print("rating-like keys anywhere:", sorted({p.split('[]')[-1] for p in keys(d) if any(s in p.lower() for s in ('nett', 'wprbase', 'wpr', 'iap'))})[:40])
+          PY
