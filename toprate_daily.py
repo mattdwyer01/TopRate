@@ -2041,7 +2041,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "state":     str(first.get("state", "")) if first.get("state") else "",
             "race":      int(first.get("race") or 0),
             "race_name": str(first.get("race_name", "")) if first.get("race_name") else "",
-            "distance":  int(first.get("distance") or 0),
+            "distance":  int(pd.to_numeric(first.get("distance"), errors="coerce") if pd.notna(pd.to_numeric(first.get("distance"), errors="coerce")) else 0),
             "going":     str(first.get("going", "")) if first.get("going") and str(first.get("going")) != "nan" else "",
             "track_grading": str(first.get("track_grading", "")) if first.get("track_grading") else "",
             "rail":      str(first.get("rail_position", "")) if first.get("rail_position") and str(first.get("rail_position")) != "nan" else "",
@@ -2408,6 +2408,8 @@ def main():
         print(f"  {d}: toprate.au {tr_stats['tr_rows']} rows ({tr_stats['updated']} updated, {tr_stats['added_rows']} added); "
               f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
               f"{fl['duplicate_rows_scratched']} duplicate")
+    if "distance" in runners_df.columns:       # a source that wrote "1700m" must not reach the payload (14 Oct 2026, daily run #730 failed on it)
+        runners_df["distance"] = pd.to_numeric(runners_df["distance"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
     try:       # TopRate numbers for races that have already run (data/tr_past, toprate_past_fetch.py): blanks only
         runners_df, id_map = tr_field_rows.remap_ids(runners_df)
         if id_map:

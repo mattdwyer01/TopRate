@@ -57,7 +57,12 @@ def load(date_str, now=None):
         if fetched.tzinfo is None:
             fetched = fetched.replace(tzinfo=timezone.utc)
         age = ((now or datetime.now(timezone.utc)) - fetched).total_seconds() / 3600
-        return d.get("rows", []) if age <= MAX_AGE_HOURS else []
+        rows = d.get("rows", []) if age <= MAX_AGE_HOURS else []
+        for r in rows:                    # TopRate writes "1700m"; every other source and the payload want metres as a number
+            if isinstance(r.get("distance"), str):
+                m = re.search(r"\d+", r["distance"])
+                r["distance"] = int(m.group()) if m else None
+        return rows
     except Exception:
         return []
 
