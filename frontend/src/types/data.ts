@@ -11,19 +11,19 @@ export interface RawFormRun {
   trk: string
   dist: number
   go: string
-  fin: number | null
+  fin?: number | null
   wpr: number | null
-  se: number | null
-  sm: number | null
-  sl: number | null
-  ie: number | null
-  im: number | null
-  il: number | null
-  bar: number | null
-  mgn: number | null
-  psl: number | null
-  p8: number | null
-  p4: number | null
+  se?: number | null
+  sm?: number | null
+  sl?: number | null
+  ie?: number | null
+  im?: number | null
+  il?: number | null
+  bar?: number | null
+  mgn?: number | null
+  psl?: number | null
+  p8?: number | null
+  p4?: number | null
   cls: string | null
   jck: string | null
   pk: 0 | 1
@@ -44,8 +44,8 @@ export interface RawFormAllEntry {
   w: number | null
   go: string
   ds: number
-  tmp: string | null
-  rel: number | null
+  tmp?: string | null
+  rel?: number | null
   d: string
   // True if this run was compromised (vet/eased/checked/fell/etc per
   // steward/video comments) - same test wpr_projection.py's own model
@@ -66,40 +66,17 @@ export interface RawRunner {
   tab: number
   t: number
   b: number | null
-  trr: number | null
-  ff: number | null
-  trp: number | null
-  spd: number | null
-  es: number | null
-  ms: number | null
-  ls: number | null
-  ts: number | null
-  wtr: number | null
-  ds: number | null
-  dw: number | null
-  dp: number | null
-  wd: number | null
   atwo?: number | null // ATW offset: form-feed rating minus results-file rating for this horse (absent on older payloads)
   rso?: number | null // results-scale offset: expected results-file atw minus plain wpr for this run's weight, age, sex and month (absent on older payloads)
   gb: RawGoingBreakdown | null
-  fm: string | null
   mgnL: number | null
   asp: number | null
-  wpr1: number | null
-  wpra: number | null
-  wprt: number | null
-  wprp: number | null
-  w: number | null
   wt: number | null
   jw: number | null
   tw: number | null
   jwN: number | null
   wn?: number | null // TopRate wpr_nett, absent on older payloads
   twN: number | null
-  jcp: number | null
-  jcr: number | null
-  jrt: number | null
-  trt: number | null
   fx: number | null
   op: number | null
   sk: string | null
@@ -116,7 +93,6 @@ export interface RawRunner {
   wpjb: number | null
   wpjadj: number | null
   wpjcb: Record<string, number> | null
-  wpjc: number | null
   wpjsd?: number | null // typical error of the projection (new model)
   wpjmd?: string | null // when the logged projection was made (ISO); after the race start means back-filled
   wpjm?: string | null // main / light
@@ -128,24 +104,18 @@ export interface RawRunner {
   // a usable market price exist for this runner (and at least 2 runners in
   // the race qualify).
   wpje: number | null
-  wpjep: number | null
-  wpjem: number | null
-  wpjpA: number | null
-  wpjcA: number | null
   wpjd: string | null
   wpja: number | null
   wpjar: number | null
   cmtV: string | null
   cmtS: string | null
-  wpjmc: string | null
-  wpjmr: string | null
   formRuns: RawFormRun[] | null
   peakRun: RawFormRun | null
   formAll: RawFormAllEntry[] | null
   psBand: string | null
   /** Same estimate as psBand, continuous 0-1 (0 = leads, 1 = settles last). */
   psr: number | null
-  asTend: string | null
+
 }
 
 export interface RawRace {

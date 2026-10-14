@@ -113,8 +113,8 @@ export async function fetchMeetingFormHistory(
       wpr: r.wpr,
       going: r.go,
       distance: r.dist,
-      tempo: tempoOf(r.ie, r.il, r.dist),
-      relativeSettlePosition: relativeSettle(r.psl, r.fs ?? null),
+      tempo: tempoOf(r.ie ?? null, r.il ?? null, r.dist),
+      relativeSettlePosition: relativeSettle(r.psl ?? null, r.fs ?? null),
       date: r.d ?? '',
       // horse_history files don't carry void detection (steward/video
       // comments) - defaults to false (shown as valid) rather than

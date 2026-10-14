@@ -71,16 +71,6 @@ export function estimatePace(race: Race, runners: Runner[]): PaceEstimate {
   return { display: `${label} (est)`, tempoBucket, fromShape: false }
 }
 
-// Settling-position band today's projected settle falls into, matching the
-// bands the backend uses for predictedSettlingBand / formHistory.relativeSettlePosition.
-export function settleBand(relativePosition: number | null): string | null {
-  if (relativePosition == null) return null
-  if (relativePosition <= 0.2) return 'Leader'
-  if (relativePosition <= 0.45) return 'On-pace'
-  if (relativePosition <= 0.7) return 'Midfield'
-  return 'Back'
-}
-
 export function goingBand(going: string | null | undefined): string | null {
   if (!going) return null
   const g = going.toLowerCase()

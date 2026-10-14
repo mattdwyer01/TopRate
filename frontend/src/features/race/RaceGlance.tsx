@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Runner } from '../../types/domain'
 import type { TripRace } from '../../lib/tripMap'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { computePriceMove, MOVE_DISPLAY_THRESHOLD_PCT } from '../../lib/priceMove'
 import { SPEED_MAP_TINT_THRESHOLD, MAP_POOL_MIN_SM, MAP_VALUE_MIN_SM } from '../../lib/raceModel'
 import { fmtAdj } from './rowParts'
 import { typicalSd, type Ranked } from './raceFacts'
@@ -182,76 +181,6 @@ export function Ladder({
         })}
       </svg>
     </div>
-  )
-}
-
-// The 'Mover' chip only names a clear move: three times the threshold at which a price move is shown at all.
-const MOVER_CHIP_MIN_PCT = MOVE_DISPLAY_THRESHOLD_PCT * 3
-
-function useGlanceFacts({ ranked, allRunners, scratched, trip }: Pick<RaceGlanceProps, 'ranked' | 'allRunners' | 'scratched' | 'trip'>) {
-  return useMemo(() => {
-    const inner = ranked.filter((r) => r.inner)
-    const outer = ranked.filter((r) => r.inner || r.outer)
-    const moves = allRunners
-      .filter((r) => !scratched.has(r.runId))
-      .map((r) => ({ r, m: computePriceMove(r.openFixedPrice, r.fixedWinPrice) }))
-      .filter((x): x is { r: Runner; m: NonNullable<ReturnType<typeof computePriceMove>> } => x.m != null && x.m.pctChange >= MOVER_CHIP_MIN_PCT)
-      .sort((a, b) => b.m.pctChange - a.m.pctChange)[0]
-    let leader: string | null = null
-    if (trip) {
-      const lead = trip.runners.filter((t) => t.gap != null && !scratched.has(t.rid)).sort((a, b) => (a.gap as number) - (b.gap as number))[0]
-      if (lead) {
-        const r = allRunners.find((x) => x.runId === lead.rid)
-        leader = `${r ? r.tabNumber : lead.barrier}. ${lead.name}`
-      }
-    }
-    if (!leader) {
-      const lead = ranked.map((r) => r.runner).filter((r) => r.predictedRelSettle != null).sort((a, b) => (a.predictedRelSettle as number) - (b.predictedRelSettle as number))[0]
-      if (lead) leader = `${lead.tabNumber}. ${lead.horse}`
-    }
-    const thin = ranked.filter((r) => r.runner.projectionModel === 'light').length
-    return { inner, outer, moves, leader, thin }
-  }, [ranked, allRunners, scratched, trip])
-}
-
-// One line under the header: the answers a reader wants before opening the table.
-export function RaceSummaryLine(props: Pick<RaceGlanceProps, 'ranked' | 'allRunners' | 'scratched' | 'innerGap' | 'outerGap' | 'trip' | 'onSelect'>) {
-  const { ranked, onSelect, innerGap } = props
-  const facts = useGlanceFacts(props)
-  if (!ranked.length) return null
-  const top = ranked[0]
-  const link = 'font-semibold text-ink hover:underline'
-  return (
-    <section className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm shadow-[var(--shadow-1)]">
-      <span>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Top rated </span>
-        <button type="button" onClick={() => onSelect(top.runner.runId)} className={link}>
-          {top.runner.tabNumber}. {top.runner.horse}
-        </button>{' '}
-        <span className="font-mono text-ink-soft">{fmtWpr(top.proj)}</span>
-      </span>
-      <span>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Inside {innerGap} </span>
-        <span className="font-semibold">{facts.inner.length}</span> of {ranked.length}
-      </span>
-      {facts.moves && (
-        <span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Mover </span>
-          <button type="button" onClick={() => onSelect(facts.moves!.r.runId)} className={link}>
-            {facts.moves.r.tabNumber}. {facts.moves.r.horse}
-          </button>{' '}
-          <span className={`font-mono ${facts.moves.m.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}`}>
-            {facts.moves.m.direction === 'firmed' ? 'firmed' : 'drifted'} {Math.round(facts.moves.m.pctChange)}%
-          </span>
-        </span>
-      )}
-      {facts.leader && (
-        <span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Likely to lead </span>
-          {facts.leader}
-        </span>
-      )}
-    </section>
   )
 }
 

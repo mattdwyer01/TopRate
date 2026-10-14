@@ -59,22 +59,12 @@ export interface Runner {
   tabNumber: number
   barrier: number | null
 
-  weightTrend: number | null
-  distanceStarts: number | null
-  distanceWins: number | null
-  distancePlaces: number | null
-  wprAtDistance: number | null
   atwOffset: number | null // add to a results-scale rating to put it on the ATW scale the recent runs and form chart use (the horse's weight today)
   resultsScaleOffset: number | null // add to the plain projection to compare it with actualWpr (the results-file atw: weight, age, sex and month adjusted); null = unknown
   goingBreakdown: GoingBreakdown[]
-  formString: string | null
   marginFinish: number | null
   avgSettledPos: number | null
 
-  wprLast1: number | null
-  wprAvgLast3: number | null
-  wprTrend: number | null
-  wprPeakRank1Yr: number | null
   nett: number | null // TopRate wpr_nett (its own forward rating), null when TopRate has none
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
   projectionMade: string | null // when the logged projection was made (ISO), null on older payloads
@@ -88,8 +78,6 @@ export interface Runner {
   // shrink, same reasoning applied here for display).
   jockeyStarts90d: number | null
   trainerStarts365d: number | null
-  jtComboWinPct: number | null
-  jtComboRides: number | null
 
   fixedWinPrice: number | null
   // The fixed price at first capture today (the ~9am AEST daily fetch),
@@ -133,7 +121,6 @@ export interface Runner {
   // ADJ_TERM) - values sum to wprAdjustment exactly. Null when there's no
   // projection.
   adjustmentBreakdown: Record<string, number> | null
-  projectionConfidence: number | null
   wprPrice: number | null
   wprRank: number | null
   peakWpr: number | null
@@ -142,10 +129,6 @@ export interface Runner {
   // shorter than the market does). null unless both a projection and a
   // usable market price exist - see wpr_projection.compute_edge_scores.
   edge: number | null
-  edgeModelProb: number | null
-  edgeMarketProb: number | null
-  projectedWprAltGoing: number | null
-  projectionConfidenceAltGoing: number | null
   projectionDescription: string | null
 
   // Populated ~5 days post-race once TopRate's own actual rating settles
@@ -160,8 +143,6 @@ export interface Runner {
   // material or the result hasn't settled yet. missCategory is one of
   // 'comment' | 'ceiling' | 'untried' | 'price' | 'unexplained' - the
   // frontend offers a manual-note fallback specifically for 'unexplained'.
-  missCategory: string | null
-  missReason: string | null
 
   recentRuns: FormRun[]
   peakRun: FormRun | null
@@ -169,7 +150,6 @@ export interface Runner {
   predictedSettlingBand: string | null
   /** Same estimate as predictedSettlingBand, continuous 0-1 (0 = leads, 1 = settles last). */
   predictedRelSettle: number | null
-  againstShapeTendency: string | null
 }
 
 export interface Race {
