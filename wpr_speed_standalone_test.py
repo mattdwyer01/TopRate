@@ -137,7 +137,6 @@ print('rows', len(D), 'speed coverage in test years', D[D.year >= 2022].s1.notna
 CTX = ['field_size', 'distance', 'going_n', 'weightCarried', 'wt_rel', 'barrier', 'bar_rel', 'nruns', 'days', 'horse_age', 'sex']
 RATING = ['w1', 'w2', 'w3', 'wavg3', 'wbest', 'wavg_all', 'wavg3_rel', 'wavg3_mean']
 MODELS = {'speed (wt adj) + early/closing': CTX + SPEED + PACE,
-          'speed (NOT wt adj) + early/closing': CTX + SPEED_RAW + PACE,
           'ratings only (own WPR)': CTX + RATING}
 P2 = dict(PARAMS, num_threads=4)
 
@@ -189,6 +188,10 @@ for label, feats in MODELS.items():
     line('EV > 1.2 and model top 3', T[(T.ev > 1.2) & (T.rk <= 3)])
     line('EV > 1.2, $3-$15', T[(T.ev > 1.2) & T.sp.between(3, 15)])
     line('all runners (reference)', T)
+
+import pickle
+pickle.dump({k: v[['race_id', 'horse_id', 'date', 'year', 'p', 'sp', 'pm', 'win', 'rank_m', 'field_size', 'g400_r_a3']] for k, v in results.items()},
+            open(os.environ.get('PRED_OUT', 'speed_preds.pkl'), 'wb'))
 
 # closing speed: is the best closer in the field underpriced?
 T = results['speed (wt adj) + early/closing']
