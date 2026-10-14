@@ -233,10 +233,58 @@ def merge_tr_past(runners_df):
             if i is None:
                 continue
             for c, v in vals.items():
-                if c in runners_df.columns and _blank(runners_df.at[i, c]):
+                if not c.startswith("_") and c in runners_df.columns and _blank(runners_df.at[i, c]):
                     _set(runners_df, i, c, v)
                     filled += 1
     return runners_df, filled
+
+
+def remap_ids(runners_df):
+    """Replace racing.com / placeholder run_id and race_id with TopRate's own for rows of days scanned by `toprate_past_fetch.py --scan-from` (the
+    "_id" identity in data/tr_past/<date>.json), matched on date, normalised venue and horse name. A row already carrying the TopRate run_id is left
+    alone, so this is idempotent. Returns (frame, {old run_id: (new run_id, new race_id)})."""
+    import pandas as pd
+    mapping = {}
+    if not PAST_DIR.exists() or "run_id" not in runners_df.columns:
+        return runners_df, mapping
+    dcol = runners_df["date"].astype(str).str[:10]
+    for f in sorted(PAST_DIR.glob("*.json")):
+        try:
+            d = json.loads(f.read_text())
+        except Exception:
+            continue
+        ident = {k: v["_id"] for k, v in d.get("rows", {}).items() if isinstance(v.get("_id"), dict)}
+        if not ident:
+            continue
+        key = {(norm_venue(v["venue"]), _hn(v["horse"])): (int(k), int(v["race_id"])) for k, v in ident.items()}
+        have = {int(k) for k in ident}
+        rows = runners_df.index[dcol == d.get("date", f.stem)]
+        for i in rows:
+            old = runners_df.at[i, "run_id"]
+            if pd.isna(old) or int(old) in have:
+                continue
+            new = key.get((norm_venue(runners_df.at[i, "venue"]), _hn(runners_df.at[i, "horse"])))
+            if new:
+                mapping[int(old)] = new
+                runners_df.at[i, "run_id"] = new[0]
+                runners_df.at[i, "race_id"] = new[1]
+    return runners_df, mapping
+
+
+def remap_projection_log(mapping):
+    """Re-key wpr_projection_log.csv.gz rows from the old run_id / race_id to the TopRate ones (same mapping as remap_ids)."""
+    if not mapping:
+        return 0
+    from projection import projlog as plog
+    lg = plog.load()
+    hit = lg.run_id.isin(mapping)
+    if not hit.any():
+        return 0
+    new = lg.loc[hit, "run_id"].map(mapping)
+    lg.loc[hit, "race_id"] = [m[1] for m in new]
+    lg.loc[hit, "run_id"] = [m[0] for m in new]
+    lg.sort_values(["date", "race_id", "run_id"]).to_csv(plog.PATH, index=False, compression="gzip", float_format="%.2f")
+    return int(hit.sum())
 
 
 def _melbourne_today():

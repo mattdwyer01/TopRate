@@ -2409,6 +2409,9 @@ def main():
               f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
               f"{fl['duplicate_rows_scratched']} duplicate")
     try:       # TopRate numbers for races that have already run (data/tr_past, toprate_past_fetch.py): blanks only
+        runners_df, id_map = tr_field_rows.remap_ids(runners_df)
+        if id_map:
+            print(f"  past races: {len(id_map)} runners re-keyed to TopRate ids, {tr_field_rows.remap_projection_log(id_map)} projection-log rows")
         runners_df, n_past = tr_field_rows.merge_tr_past(runners_df)
         print(f"  past races: {n_past} TopRate cells filled from data/tr_past")
     except Exception as e:

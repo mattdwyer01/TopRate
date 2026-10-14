@@ -39,8 +39,57 @@ def race_ids_by_date(dates):
     return {d: v for d, v in out.items() if v}
 
 
+def scan(lo, hi, dates, workers):
+    """Walk TopRate race ids lo..hi (one attempt each, ids that are not a race answer an error) and keep the races on `dates`. Used for days whose rows
+    carry racing.com ids, so there is no TopRate id to look up. Writes data/tr_past/<date>.json with each runner's TopRate identity under "_id"
+    (race_id, horse, venue, race_no) next to its numbers, for tr_field_rows.remap_ids()."""
+    import requests
+    email, password, anon = (os.environ[k].strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
+    session = F.login(email, password, anon)
+    state = {"s": session}
+    found, errs = {}, {}
+
+    def one(rid):
+        if state["s"].get("expires_at", 0) - datetime.now().timestamp() < 300:
+            state["s"] = F.login(email, password, anon)
+        sess = state["s"]
+        F.time.sleep(F.PAUSE)
+        url = f"{F.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001"
+        headers = {"apikey": anon, "Authorization": f"Bearer {sess['access_token']}", "Accept": "application/json",
+                   "User-Agent": F.BROWSER_HEADERS["User-Agent"], "Referer": F.WEB_BASE + "/"}
+        try:
+            r = requests.get(url, headers=headers, cookies=F.cookie_pair(sess), timeout=F.TIMEOUT, allow_redirects=False)
+            if r.status_code != 200:
+                return rid, None, f"HTTP {r.status_code}"
+            return rid, F.parse_page(r.json()), None
+        except (requests.RequestException, ValueError) as e:
+            return rid, None, type(e).__name__
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for n, (rid, page, err) in enumerate(ex.map(one, range(lo, hi + 1))):
+            if err:
+                errs[err] = errs.get(err, 0) + 1
+            if page:
+                for r in F.runner_rows(page):
+                    if r.get("date") in dates and r.get("run_id") is not None:
+                        vals = {c: r.get(k) for c, k in COLS.items() if r.get(k) is not None}
+                        vals["_id"] = {"race_id": r["race_id"], "horse": r["horse"], "venue": r["venue"], "race_no": r["race_no"]}
+                        found.setdefault(r["date"], {})[str(r["run_id"])] = vals
+            if n % 500 == 0:
+                print(f"  scanned {n}/{hi - lo + 1}, {sum(len(v) for v in found.values())} runners on {sorted(found)}", flush=True)
+    print("errors by kind:", errs)
+    OUT.mkdir(parents=True, exist_ok=True)
+    for d, rows in found.items():
+        nett = sum(1 for v in rows.values() if "wpr_nett" in v)
+        print(f"{d}: {len(rows)} runners, {len({v['_id']['race_id'] for v in rows.values()})} races, wpr_nett on {nett}")
+        (OUT / f"{d}.json").write_text(json.dumps({"date": d, "fetched": datetime.utcnow().isoformat() + "Z", "rows": rows}, separators=(",", ":")))
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--scan-from", type=int, default=None, help="scan TopRate race ids from here (with --scan-to and --scan-dates)")
+    ap.add_argument("--scan-to", type=int, default=None)
+    ap.add_argument("--scan-dates", default="2026-10-12,2026-10-13")
     ap.add_argument("--days", type=int, default=25)
     ap.add_argument("--to", default=None, help="last date (default yesterday, Melbourne)")
     ap.add_argument("--workers", type=int, default=3)
@@ -48,6 +97,8 @@ def main():
     email, password, anon = (os.environ.get(k, "").strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
     if not (email and password and anon):
         sys.exit("TOPRATE_EMAIL, TOPRATE_PASSWORD and TOPRATE_ANON_KEY must be set")
+    if a.scan_from is not None:
+        return scan(a.scan_from, a.scan_to, set(a.scan_dates.split(",")), a.workers)
     if a.to:
         last = datetime.strptime(a.to, "%Y-%m-%d").date()
     else:

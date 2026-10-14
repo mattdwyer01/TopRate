@@ -10,6 +10,15 @@ on:
       days:
         description: "How many days back from yesterday"
         default: "25"
+      scan_from:
+        description: "Optional: scan TopRate race ids from here instead (for days whose rows carry racing.com ids, e.g. 1767700)"
+        default: ""
+      scan_to:
+        description: "Scan up to this race id (e.g. 1775300)"
+        default: ""
+      scan_dates:
+        description: "Dates to keep when scanning"
+        default: "2026-10-12,2026-10-13"
 
 permissions:
   contents: write
@@ -50,7 +59,12 @@ jobs:
             echo "::add-mask::$KEY"
             echo "TOPRATE_ANON_KEY=$KEY" >> "$GITHUB_ENV"
           fi
-      - run: python toprate_past_fetch.py --days "${{ inputs.days }}"
+      - name: Fetch past races by runners.csv ids
+        if: ${{ inputs.scan_from == '' }}
+        run: python toprate_past_fetch.py --days "${{ inputs.days }}"
+      - name: Scan TopRate race ids
+        if: ${{ inputs.scan_from != '' }}
+        run: python toprate_past_fetch.py --scan-from "${{ inputs.scan_from }}" --scan-to "${{ inputs.scan_to }}" --scan-dates "${{ inputs.scan_dates }}"
       - name: Commit data/tr_past (only that folder, on the newest tip)
         run: |
           set -u
