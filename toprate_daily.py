@@ -756,6 +756,34 @@ def _melbourne_today():
         return (datetime.now(timezone.utc) + timedelta(hours=10)).date().isoformat()
 
 
+# Payload slimming (14 Oct 2026). toprate_history.json had grown to 77 MB of the 100 MB GitHub limit. Two kinds of dead weight, neither read by the frontend:
+#  1. runner keys nothing in frontend/src reads any more (TopRate-era ratings and speed scores that the payload writes as null, the old projection's alternates,
+#     miss notes, form string, distance stats): _DEAD_RUNNER_KEYS, which frontend/src/types/data.ts no longer declares either;
+#  2. null-valued keys inside the per-run form records (formRuns, peakRun, formAll and the horse_history files): the sectional and race-shape fields are blank
+#     on every run, which was 11.6 MB of '"se":null,...'. The adapter reads every nullable field with ?? null, so an absent key means null.
+_DEAD_RUNNER_KEYS = frozenset((
+    "trr", "trp", "ff", "jrt", "trt", "spd", "es", "ms", "ls", "ts", "cs", "crk", "csc", "w", "wd", "wtr", "ds", "dw", "dp", "fm", "wpr1", "wpra", "wprt", "wprp",
+    "jcp", "jcr", "wpjc", "wpjcA", "wpjpA", "wpjep", "wpjem", "wpjmc", "wpjmr", "wpjbpr", "wpjbp", "wpjbr", "asTend"))
+
+
+def _drop_nulls(rec):
+    return {k: v for k, v in rec.items() if v is not None}
+
+
+def _slim_payload(data):
+    """Return data with dead runner keys and null form-record keys removed (in place on the runner dicts)."""
+    for race in data.get("RACES") or []:
+        for u in race.get("runners") or []:
+            for k in _DEAD_RUNNER_KEYS:
+                u.pop(k, None)
+            for lst in ("formRuns", "formAll"):
+                if u.get(lst):
+                    u[lst] = [_drop_nulls(e) for e in u[lst]]
+            if u.get("peakRun"):
+                u["peakRun"] = _drop_nulls(u["peakRun"])
+    return data
+
+
 def _write_payload(data, out_dir):
     """Write the dashboard payload as two files (Sep 2026, load speed):
       toprate_data.json     every key, RACES = today's and later races (Melbourne date); what the page
@@ -764,6 +792,7 @@ def _write_payload(data, out_dir):
                             background after the page is up and merged in (race_id dedupe, current wins)
     toprate_data.json carries HISTORY_ISO (when the history file was last written) so the frontend only
     refetches history when it changed. Both go through _write_data_json (each with its .gz companion)."""
+    data = _slim_payload(data)
     today = _melbourne_today()
     races = data.get("RACES") or []
     current = [r for r in races if str(r.get("date", "")) >= today]
@@ -814,10 +843,9 @@ def refresh_projection(runners_df):
 # payload key -> (runners column, kind) for the projection fields a refresh rewrites (same mapping as rebuild_html's runner dict)
 _PROJ_PAYLOAD_FIELDS = {
     "wpjp": ("wprp_proj", "f"), "wpjsd": ("wprp_sd", "f"), "wpjmd": ("wprp_made", "s"), "wpjm": ("wprp_model", "s"), "wpjb": ("wprp_base", "f"), "wpjadj": ("wprp_adj", "f"),
-    "wpjcb": ("wprp_contrib", "j"), "wpjc": ("wprp_conf", "i"), "wpjpr": ("wprp_price", "f"), "wpjr": ("wprp_rank", "i"),
-    "wpjbp": ("wprp_blend_prob", "f"), "wpjbr": ("wprp_blend_rank", "i"), "wpjbpr": ("wprp_blend_price", "f"),
-    "wpje": ("wprp_edge", "f"), "wpjep": ("wprp_edge_prob", "f"), "wpjem": ("wprp_edge_mkt_prob", "f"), "wpjd": ("wprp_desc", "s"),
-}
+    "wpjcb": ("wprp_contrib", "j"), "wpjpr": ("wprp_price", "f"), "wpjr": ("wprp_rank", "i"),
+    "wpje": ("wprp_edge", "f"), "wpjd": ("wprp_desc", "s"),
+}   # (14 Oct 2026: wpjc, wpjbp, wpjbr, wpjbpr, wpjep, wpjem dropped, nothing reads them, see _DEAD_RUNNER_KEYS)
 
 
 def _proj_payload_value(v, kind):
@@ -1089,7 +1117,7 @@ def build_horse_history_files(runners_df, full_runs_lookup):
                 runs = full_runs_lookup.get(horse_lc)
                 if not runs:
                     continue
-                blob[horse_lc] = runs
+                blob[horse_lc] = [_drop_nulls(r) for r in runs]
             if not blob:
                 continue
             # sort_keys so identical content always serializes identically -
@@ -1697,6 +1725,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
         if "start_time" in rdf.columns:
             _sst = rdf["start_time"].dropna().astype(str)
             _sst = _sst[_sst != "nan"]
+            # a date-only placeholder (midnight written with seven fractional zeros, 15 Oct 2026 Hawkesbury R8 showed as 'jumping soon' at 13:00)
+            # is not a start time: leave it blank, the page shows no time for the race
+            _sst = _sst[~_sst.str.endswith(".0000000Z")]
             if len(_sst):
                 _race_start_time = _sst.iloc[0]
         # Active (non-scratched) field size - a scratched runner stays in
