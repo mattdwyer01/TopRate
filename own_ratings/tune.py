@@ -129,7 +129,64 @@ PROBE_PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=4, min_da
 PROBE_ROUNDS = 120
 
 
+CL_COLS = ["w1", "wavg3", "wbest", "wavg_all"]
+
+
+def _clogit_fit(X, seg, win, l2=1.0):
+    """Conditional logit: P(runner) = softmax over its race of X @ beta. seg = race boundaries (reduceat starts), rows sorted by race."""
+    from scipy.optimize import minimize
+    sizes = np.diff(np.r_[seg, len(X)])
+    rid = np.repeat(np.arange(len(seg)), sizes)
+
+    def f(b):
+        z = X @ b
+        zm = np.maximum.reduceat(z, seg)
+        e = np.exp(z - zm[rid])
+        den = np.add.reduceat(e, seg)
+        p = e / den[rid]
+        ll = -np.log(p[win == 1]).sum() / len(seg) + l2 * (b @ b) / len(seg)
+        g = -(X[win == 1].sum(0) - (p[:, None] * X).sum(0)) / len(seg) + 2 * l2 * b / len(seg)
+        return ll, g
+    return minimize(f, np.zeros(X.shape[1]), jac=True, method="L-BFGS-B").x
+
+
+def _clogit_X(T, with_ratings):
+    cols = [np.log(T.pm.values)]
+    if with_ratings:
+        g = T.groupby("race_id")
+        for c in CL_COLS:
+            v = T[c]
+            rel = (v - g[c].transform("mean")).fillna(0.0).values
+            cols.append(rel)
+        cols.append((T.nruns.values < 3).astype(float))
+    return np.column_stack(cols)
+
+
+def clogit_eval(D, ty):
+    """Gain over the raw market from ratings, via a race-level conditional logit; also the calibrated-market-only gain for reference."""
+    tr = D[D.year <= ty - 1].sort_values(["race_id"], kind="mergesort")
+    te = D[D.year == ty].sort_values(["race_id"], kind="mergesort")
+    out = {}
+    for name, wr in (("mkt", False), ("rate", True)):
+        Xtr, Xte = _clogit_X(tr, wr), _clogit_X(te, wr)
+        segtr = np.flatnonzero(np.r_[True, tr.race_id.values[1:] != tr.race_id.values[:-1]])
+        segte = np.flatnonzero(np.r_[True, te.race_id.values[1:] != te.race_id.values[:-1]])
+        b = _clogit_fit(Xtr, segtr, tr.win.values)
+        z = Xte @ b
+        sizes = np.diff(np.r_[segte, len(te)])
+        rid = np.repeat(np.arange(len(segte)), sizes)
+        e = np.exp(z - np.maximum.reduceat(z, segte)[rid])
+        p = e / np.add.reduceat(e, segte)[rid]
+        out[name] = float(np.log(p[te.win.values == 1]).mean())
+        out[name + "_b"] = b
+    raw = float(np.log(te.pm.values[te.win.values == 1]).mean())
+    return dict(year=ty, gain=out["rate"] - out["mkt"], mkt_gain=out["mkt"] - raw, beta=[round(x, 4) for x in out["rate_b"]],
+                races=int(te.win.sum()), iters=0, n_sel=0, sel_roi=float("nan")), None
+
+
 def fold_eval(D, ty, mode="probe"):
+    if mode == "clogit":
+        return clogit_eval(D, ty)
     import lightgbm as lgb
     from betsignal import features as F
     from betsignal.score import tier
