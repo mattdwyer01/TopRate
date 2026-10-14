@@ -90,7 +90,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-sm"
-        title={effective?.effectivePrice != null ? `Rated price ${fmtPrice(effective.effectivePrice)}: the price the WPR projection implies for this runner (model view only, not a value claim)` : undefined}
+        title={effective?.effectivePrice != null ? `Rated price ${fmtPrice(effective.effectivePrice)}: the price the WPR projection implies for this runner (model view only, not a value claim)${effective?.effectivePlacePrice != null ? `. Place price ${fmtPrice(effective.effectivePlacePrice)}` : ''}` : undefined}
       >
         {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? null)}
       </span>

@@ -2576,6 +2576,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   stand-in fits beta 0.15 not 0.20 (the real projection was validated at 0.20 on the OLD rating scale; the new own-rating scale is about 18% less spread, so 0.20 is NOT
   re-validated), and a real-projection version needs the live log (`wpr_projection_log.csv.gz`, from 12 Oct 2026) to measure noise by runner type.
 
+- **Rated $ now from a simulation, with place prices (14 Oct 2026, branch claude/projection-only)**: `frontend/src/lib/ratedPrice.ts` replaces the softmax in `computeEffectiveRace`. Each runner's figure is its ATW projection plus normal noise, sd `BASE_SD` 7.9 x (0.2 / beta) x clamp(projectionSd / 7.0, 0.8, 1.8) (missing sd = 1; light-history runners are noisier). 7.9 was chosen so average entropy equals the 0.20 softmax on synthetic fields (it is not tuned on real results). Win chances by quadrature, place chances by seeded Monte Carlo (2,500 draws; 3 places for 8+ runners, 2 for 5 to 7, none below), place >= win. Place price shows in the Rated $ cell tooltip and the runner page market line (no new column). The noise by runner type comes from the stand-in test (`betsignal/rated_price_sim.py`), NOT the live projection log: re-fit the sd scale, the ratio clamp and beta 0.20 once `wpr_projection_log.csv.gz` has a few weeks of live rows. Verified on Rosehill R8 at 1300/390/360px: win chances sum to 1, sorting works, no overflow.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

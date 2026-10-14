@@ -271,7 +271,7 @@ function fmtMin(m: number): string {
 }
 
 // The price over time with the WPR projection's rated price as a dashed line.
-export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | null }) {
+export function PriceVsFair({ runner, fair, placeFair = null }: { runner: Runner; fair: number | null; placeFair?: number | null }) {
   const pts = runner.priceSeries
   const market = runner.fixedWinPrice
   const vals = [...pts.map((p) => p.price), ...(fair != null ? [fair] : []), ...(market != null ? [market] : [])]
@@ -284,6 +284,7 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
             {fair != null && (
               <>
                 , rated <span className="font-mono">{fmtPrice(fair)}</span>
+                {placeFair != null && <> (place <span className="font-mono">{fmtPrice(placeFair)}</span>)</>}
               </>
             )}
             . Not enough price snapshots to draw a line yet.

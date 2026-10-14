@@ -1,4 +1,5 @@
 import type { Runner } from '../types/domain'
+import { simulateRace } from './ratedPrice'
 
 export interface EffectiveRunner {
   // The rating shown and used for ranking and gaps: the WPR projection at the weight carried today (ATW) with any manual delta.
@@ -9,6 +10,8 @@ export interface EffectiveRunner {
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
+  // Place price (1 / place chance) from the same simulation; null below 5 runners.
+  effectivePlacePrice: number | null
   effectiveRank: number | null
   hasOverride: boolean
   scratched: boolean
@@ -61,8 +64,7 @@ export const PRICE_CAP = 999
 // PRICE_BETA is always populated, kept only for defensiveness.
 const DEFAULT_BETA = 0.4
 
-// Replicates wpr_projection.py's project_race() price/rank softmax
-// EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
+// Rated prices come from lib/ratedPrice.ts (simulation, 14 Oct 2026; was a softmax at the same beta), over EFFECTIVE ratings: the
 // model's own projectedWpr, or a manually entered base for a runner the
 // model couldn't project, each with any manual delta added on top. This is
 // what lets a manual override on one runner correctly shift every OTHER
@@ -89,24 +91,26 @@ export function computeEffectiveRace(
       // A scratched runner has no wpr for softmax purposes - excluded from
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
+      sd: r.projectionSd ?? null,
       wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
       hasOverride,
       scratched: isScratched,
     }
   })
 
-  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
+  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; sd: number | null; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
   const priceByRunId = new Map<string, number>()
+  const placePriceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
   if (rated.length >= 2) {
     const maxWpr = Math.max(...rated.map((r) => r.wpr))
-    const exps = rated.map((r) => ({ runId: r.runId, e: Math.exp(beta * (r.wpr - maxWpr)) }))
-    const sumE = exps.reduce((s, x) => s + x.e, 0)
-    for (const x of exps) {
-      priceByRunId.set(x.runId, Math.min(1 / (x.e / sumE), PRICE_CAP))
-    }
+    const sim = simulateRace(rated.map((r) => ({ runId: r.runId, wpr: r.wpr, sd: r.sd })), beta)
+    rated.forEach((r, i) => {
+      priceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].win, 1e-9), PRICE_CAP))
+      if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].place as number, 1e-9), PRICE_CAP))
+    })
     for (const r of rated) {
       gapByRunId.set(r.runId, maxWpr - r.wpr)
     }
@@ -132,6 +136,7 @@ export function computeEffectiveRace(
       ratingSource: 'projection',
       atwOff: r.atwOff,
       effectivePrice,
+      effectivePlacePrice: r.wpr != null ? (placePriceByRunId.get(r.runId) ?? null) : null,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
       scratched: r.scratched,

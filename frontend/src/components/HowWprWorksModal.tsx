@@ -52,7 +52,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <span className="font-mono text-ink">Proj</span> is the WPR projection: a machine-learned estimate of the WPR a horse will run from its
             past runs and the conditions, trained on ten years of Australian results. It is shown at the weight carried today (ATW), the same scale as the
             Recent runs table, and it is the figure each race is ranked on. Base and Adj below describe it. <span className="font-mono text-ink">Rated $</span> is
-            the price that projection implies for each runner.
+            the price that projection implies for each runner, from a simulation of the race in which every runner's true figure is its projection plus noise (larger for horses with little history); hover it for the place price. It is the model's view, not a betting price.
           </p>
           <p>
             Horses with three or more prior rated runs use the main model. Horses with none, one or two prior runs

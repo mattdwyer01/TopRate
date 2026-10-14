@@ -338,7 +338,7 @@ export function RunnerDetailModal({
 
           <div className="grid gap-3 lg:grid-cols-2">
             <Card title="Market" note="price against the rated price">
-              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
+              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} placeFair={scratched ? null : (effective?.effectivePlacePrice ?? null)} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
             <Card title="Result" className="hidden sm:block">
