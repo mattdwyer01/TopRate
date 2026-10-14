@@ -33,6 +33,10 @@ concurrency:
 jobs:
   project:
     runs-on: ubuntu-latest
+    env:
+      # TopRate's own ratings are the model's rating inputs from 14 Oct 2026 (models in projection/models_tr, history from the results files'
+      # raw wpr plus data/tr_form, see projection/features.py). Remove this line to go back to our own ratings (projection/models).
+      PROJECTION_RATINGS: toprate
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -52,16 +56,16 @@ jobs:
         id: cache
         uses: actions/cache/restore@v4
         with:
-          path: projection/cache
-          key: projection-cache-none
-          restore-keys: projection-cache-
+          path: projection/cache_tr
+          key: projection-cache-tr-none
+          restore-keys: projection-cache-tr-
 
       - name: Decide mode
         id: mode
         run: |
           MODE="${{ inputs.mode }}"
           [ -z "$MODE" ] && MODE=full
-          if [ "$MODE" = "fast" ] && [ ! -f projection/cache/tables.pkl ]; then
+          if [ "$MODE" = "fast" ] && [ ! -f projection/cache_tr/tables.pkl ]; then
             echo "No cached tables found, running full instead"
             MODE=full
           fi
@@ -82,8 +86,8 @@ jobs:
         if: steps.mode.outputs.mode == 'full'
         uses: actions/cache/save@v4
         with:
-          path: projection/cache
-          key: projection-cache-${{ github.run_id }}
+          path: projection/cache_tr
+          key: projection-cache-tr-${{ github.run_id }}
 
       - name: Commit and push if changed
         run: |

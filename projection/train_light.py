@@ -47,7 +47,7 @@ def assemble(H, levels):
 
 
 def main():
-    models = os.path.join(os.path.dirname(__file__), 'models')
+    models = F.MODELS
     H = F.load_history()
     levels = json.load(open(os.path.join(models, 'levels.json')))
     L, t3cols = assemble(H, levels)

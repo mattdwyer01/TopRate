@@ -17,7 +17,12 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-MODELS = os.path.join(os.path.dirname(__file__), 'models')
+# Rating source (14 Oct 2026): 'own' = our rating store (default, production), 'toprate' = TopRate's own ratings: the results files' raw wpr/atw up to
+# TR_CUTOFF, then the runner pages' past-run ratings (data/tr_form) with each horse's ATW offset taken off. A source has its own model directory
+# (models/ for own, models_tr/ for toprate) because every artifact is fitted on its scale. Select with PROJECTION_RATINGS=toprate.
+RATINGS_SOURCE = os.environ.get('PROJECTION_RATINGS', 'own').strip().lower()
+TR_CUTOFF = pd.Timestamp('2026-10-09')   # first day whose results come from racing.com (no TopRate rating in the results files)
+MODELS = os.environ.get('PROJECTION_MODELS') or os.path.join(os.path.dirname(__file__), 'models_tr' if RATINGS_SOURCE == 'toprate' else 'models')
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)   # own_ratings (the rating store) lives at the repo root
 
@@ -42,7 +47,61 @@ def is_jumps(race_class):
 TOPRATE_AUTHORED = ('sect_', 'raceShape', 'wprStatus')
 
 
+_TR_CACHE = {}
+
+
+def tr_lookup():
+    """TopRate's rating per (horse_id, date) from the runner pages, on the PLAIN results scale. A runner page rates every past run at the weight of the
+    horse's upcoming race (a per-horse constant, the ATW offset), so the offset is the median gap to the results files' raw wpr over the runs both have, and
+    is taken off. A horse with no run in both has no offset and no rating here. Returns a Series indexed by (horse_id, date)."""
+    if 'v' in _TR_CACHE:
+        return _TR_CACHE['v']
+    import gzip
+    rows = []
+    for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
+        with gzip.open(f, 'rt') as fh:
+            for r in json.load(fh).get('runs', {}).values():
+                if r.get('isBarrierTrial') or r.get('isJumpout') or r.get('wpr') is None:
+                    continue
+                rows.append((r['horse_id'], r['date'], r['wpr']))
+    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'tr'])
+    t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
+    t['date'] = pd.to_datetime(t.date)
+    t['tr'] = pd.to_numeric(t.tr, errors='coerce')
+    t = t.dropna().drop_duplicates(['horse_id', 'date'], keep='last')
+    res = pd.concat([pd.read_csv(f, usecols=lambda c: c in ('horse_id', 'date', 'wpr'), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))])
+    res['date'] = pd.to_datetime(res.date)
+    res = res[res.date < TR_CUTOFF].dropna(subset=['wpr', 'horse_id']).drop_duplicates(['horse_id', 'date'], keep='last')
+    m = t.merge(res, on=['horse_id', 'date'])
+    off = (m.tr - m.wpr).groupby(m.horse_id).median().rename('off')
+    t = t.join(off, on='horse_id').dropna(subset=['off'])
+    t['plain'] = t.tr - t.off
+    _TR_CACHE['v'] = t.set_index(['horse_id', 'date']).plain
+    return _TR_CACHE['v']
+
+
+def toprate_overlay(df):
+    """TopRate rating mode: the results files' own wpr/atw stand; runs from TR_CUTOFF on (racing.com results, no TopRate rating) take the runner-page
+    rating instead, or none. The columns TopRate authored beyond the rating (sectionals, race shape, status) stay blank, as in the own mode."""
+    if 'wpr' in df.columns and 'date' in df.columns and 'horse_id' in df.columns:
+        d = pd.to_datetime(df.date)
+        late = (d >= TR_CUTOFF).values
+        if late.any():
+            lk = tr_lookup()
+            key = pd.MultiIndex.from_arrays([pd.to_numeric(df.horse_id, errors='coerce').values[late], d.values[late]])
+            vals = lk.reindex(key).values
+            df.loc[late, 'wpr'] = vals
+            if 'atw' in df.columns:
+                df.loc[late, 'atw'] = np.nan
+    for c in df.columns:
+        if c.startswith(TOPRATE_AUTHORED):
+            df[c] = np.nan
+    return df
+
+
 def own_overlay(df):
+    if RATINGS_SOURCE == 'toprate':
+        return toprate_overlay(df)
     from own_ratings import store
     if 'race_id' in df.columns and 'horse_id' in df.columns and ('wpr' in df.columns or 'atw' in df.columns):
         o = store.load_overlay().reset_index()
