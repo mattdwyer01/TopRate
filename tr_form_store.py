@@ -1,0 +1,85 @@
+"""Permanent store of every past run TopRate's runner pages list (14 Oct 2026).
+
+toprate_runner_fetch.py keeps each day's runner pages for only 7 days, but a page carries the horse's whole run list (about 19 runs, up to 100+):
+TopRate's own `wpr` for the run, finish, margin, settled position, 200m to 800m positions and margins, sectionals, race shape, opening/starting/top
+price, weight carried, going, class, jockey, trainer, gear changes, days since last run, steward and video comments. This module upserts those runs
+into data/tr_form/<YYYY-MM>.json.gz (month of the RUN date), one record per (horse, date, run), so the history accumulates instead of rolling off.
+
+A run is final once run, so a stored record is replaced by a later copy (TopRate can revise a rating); a shard is rewritten only when its content changed.
+Records are TopRate's numbers as given: they are history, safe to join to any later race by (horse_id, date), never to the race the run belongs to
+before it ran.
+
+Usage: python tr_form_store.py [data/tr_runners/<date>.json.gz ...]   (no arguments: ingest every file in data/tr_runners)
+"""
+import gzip
+import json
+import sys
+from pathlib import Path
+
+DIR = Path(__file__).parent / "data" / "tr_form"
+RUNNERS = Path(__file__).parent / "data" / "tr_runners"
+
+
+def _read(path):
+    try:
+        with gzip.open(path, "rt") as fh:
+            return json.load(fh).get("runs", {})
+    except Exception:
+        return {}
+
+
+def _write(path, runs):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.GzipFile(path, "wb", mtime=0) as gz:
+        gz.write(json.dumps({"runs": runs}, separators=(",", ":"), sort_keys=True, default=str).encode())
+
+
+def upsert(records, store_dir=DIR):
+    """records: runner-page records ({horse_id, horse, form: [...]}). Returns (runs seen, runs added or changed, shards written)."""
+    by_shard = {}
+    seen = 0
+    for rec in records:
+        hid = rec.get("horse_id")
+        if hid is None:
+            continue
+        for run in rec.get("form") or []:
+            if not isinstance(run, dict) or not run.get("date"):
+                continue
+            seen += 1
+            key = f"{hid}|{run['date']}|{run.get('runId') or run.get('raceId') or run.get('raceNumber')}"
+            by_shard.setdefault(str(run["date"])[:7], {})[key] = {"horse_id": hid, "horse": rec.get("horse"), **run}
+    changed = written = 0
+    for month, new in by_shard.items():
+        path = store_dir / f"{month}.json.gz"
+        have = _read(path)
+        merged = dict(have)
+        n = 0
+        for k, v in new.items():
+            if merged.get(k) != v:
+                merged[k] = v
+                n += 1
+        if n:
+            _write(path, merged)
+            changed += n
+            written += 1
+    return seen, changed, written
+
+
+def main(argv):
+    files = [Path(a) for a in argv] or sorted(RUNNERS.glob("*.json.gz"))
+    total = [0, 0, 0]
+    for f in files:
+        try:
+            with gzip.open(f, "rt") as fh:
+                rows = json.load(fh).get("rows", {})
+        except Exception as e:
+            print(f"{f}: unreadable ({type(e).__name__})")
+            continue
+        s, c, w = upsert(rows.values())
+        print(f"{f.name}: {s} runs seen, {c} added or changed, {w} shards written")
+        total = [total[0] + s, total[1] + c, total[2] + w]
+    return total
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

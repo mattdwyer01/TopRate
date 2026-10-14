@@ -4,7 +4,7 @@ track, track+distance, going, jumps, current jockey and sire/dam-sire wet/dry, r
 Source: https://toprate.au/runners/{runId}/__data.json (same login as toprate_race_fetch.py; the race-detail RPCs stay Cloudflare-blocked). One request per
 runner, a few in flight, a short pause between requests. Input: data/tr_fields/<date>.json (written by toprate_race_fetch.py). Output:
 data/tr_runners/<date>.json.gz, one record per runner, rewritten only when a record changed. A runner already fetched today (UTC date) is skipped,
-so the many daily.yml runs in a day cost the requests once and the file changes at most once a day unless a record changed. Files older than --keep-days are removed.
+so the many daily.yml runs in a day cost the requests once and the file changes at most once a day unless a record changed. Files older than --keep-days are removed; every past run on the pages is kept for good by tr_form_store.py (data/tr_form/).
 
 These are TopRate's CURRENT-state aggregates: right for an upcoming race, never to be attached to a race that has already run (tr_field_rows.merge_tr_runners
 enforces that).
@@ -25,6 +25,7 @@ from pathlib import Path
 import requests
 
 import toprate_race_fetch as f
+import tr_form_store
 
 IN_DIR = Path(__file__).parent / "data" / "tr_fields"
 OUT_DIR = Path(__file__).parent / "data" / "tr_runners"
@@ -139,6 +140,11 @@ def main():
             rec["at"] = today_utc
             new[str(r["run_id"])] = rec
         done += len(todo)
+        try:
+            seen, changed, written = tr_form_store.upsert(new[str(r["run_id"])] for r, rd, err in results if rd is not None)
+            print(f"{d}: past runs {seen} seen, {changed} added or changed in data/tr_form ({written} shards written)")
+        except Exception as e:             # the store is an extra; never fail the fetch over it
+            print(f"{d}: past-run store skipped ({type(e).__name__}: {e})")
         empty = sum(1 for v in new.values() if v.get("empty"))
         print(f"{d}: {len(rows)} runners, fetched {len(results) - len(failed)}, skipped fresh {len(rows) - len(todo)}, failed {len(failed)}, empty pages {empty}")
         for rid, err in failed[:5]:
