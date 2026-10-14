@@ -45,7 +45,7 @@ export function rankField(
   innerGap: number,
   outerGap: number,
   coreGap = CORE_GAP_FROM_TOP,
-  // 'projection' ranks on the WPR projection even where the race's rating is the bet-signal rating: for the things that explain the projection (the track-bias
+  // 'projection' ranks on the WPR projection (now the same as the rating): kept for the things that explain the projection (the track-bias
   // note, the typical winning rating), which were fitted on it.
   scale: 'rating' | 'projection' = 'rating',
 ): Ranked[] {

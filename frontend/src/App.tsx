@@ -17,7 +17,6 @@ import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
 import { Quaddie } from './features/race/Quaddie'
 import { ReviewTab } from './features/review/ReviewTab'
-import { useBetSignals } from './lib/betSignals'
 
 type TopTab = 'race' | 'review'
 
@@ -44,7 +43,6 @@ function quietNextJump(races: { startTime: string }[], now: number): Date | null
 
 function App() {
   const { state, retry, refresh, historyPending, pollFailed } = useDashboardData()
-  const betSignals = useBetSignals()
   const [refreshing, setRefreshing] = useState(false)
   const now = useNow()
   const { urlState, pushUrlState } = useUrlState()
@@ -286,7 +284,6 @@ function App() {
               key={urlState.raceId}
               race={currentRace}
               allRaces={state.data.races}
-              signals={betSignals}
               priceBeta={state.data.priceBeta}
               deltas={deltas}
               bases={bases}
@@ -305,7 +302,6 @@ function App() {
                 .filter((r) => r.venue === urlState.quaddie && r.date === (urlState.date ?? todayIso()))
                 .sort((a, b) => a.raceNumber - b.raceNumber)}
               priceBeta={state.data.priceBeta}
-              signals={betSignals}
               deltas={deltas}
               bases={bases}
               scratched={scratched}

@@ -1,15 +1,11 @@
 import type { Runner } from '../types/domain'
-import { RATING_BET_SHARE, RATING_PER_LN } from './betSignals'
 
 export interface EffectiveRunner {
-  // The rating shown and used for ranking and gaps, at the weight carried today (ATW). Where the race has bet signals it is a blend: RATING_BET_SHARE of the
-  // bet-signal rating (the model's win probabilities on the ATW scale, RATING_PER_LN) and the rest the WPR projection below; otherwise the WPR projection
-  // alone. Manual delta included either way.
+  // The rating shown and used for ranking and gaps: the WPR projection at the weight carried today (ATW) with any manual delta.
   effectiveProjectedWpr: number | null
-  // The WPR projection at today's weight (model rating + manual delta + this horse's own offset), whichever the rating above is. The waterfall, the typical
-  // winning rating and the track-bias note explain this figure, not the bet-signal rating.
+  // The same figure again (kept so the track-bias note and rankField(..., 'projection') keep working).
   projectionWpr: number | null
-  ratingSource: 'bet' | 'projection'
+  ratingSource: 'projection'
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
@@ -78,8 +74,6 @@ export function computeEffectiveRace(
   bases: Record<string, number>,
   priceBeta: number | null,
   scratched: Set<string> = new Set(),
-  // Bet signals for this race (runId -> model win probability m). When every runner still in the race has one, the rating comes from them.
-  signals?: Record<string, { m: number; p: number } | null>,
 ): Record<string, EffectiveRunner> {
   const beta = priceBeta ?? DEFAULT_BETA
 
@@ -100,34 +94,6 @@ export function computeEffectiveRace(
       scratched: isScratched,
     }
   })
-
-  // Blended rating: RATING_BET_SHARE x bet-signal rating + (1 - RATING_BET_SHARE) x WPR projection. The bet-signal rating is level (the field's mean
-  // WPR-projection rating, before manual deltas) + RATING_PER_LN x (ln p - mean ln p), so the blend keeps the same field level. Only when every runner still
-  // in the race has a signal; otherwise the whole race stays on the projection alone (never a mix of two scales). A runner with no projection of its own
-  // takes the bet-signal rating as it is.
-  const projectionByRunId = new Map<string, number | null>()
-  for (const r of withEffectiveWpr) projectionByRunId.set(r.runId, r.wpr)
-  let betSource = false
-  if (signals) {
-    const active = withEffectiveWpr.filter((r) => !r.scratched)
-    const sig = (id: string) => {
-      const m = signals[id]?.m
-      return m != null && m > 0 ? Math.log(m) : null
-    }
-    const full = active.length >= 5 && active.every((r) => sig(r.runId) != null)
-    const anchor = active.filter((r) => r.wpr != null)
-    if (full && anchor.length >= 2) {
-      const delta = (id: string) => deltas[id] ?? 0
-      const level = anchor.reduce((a, r) => a + (r.wpr as number) - delta(r.runId), 0) / anchor.length
-      const meanLn = anchor.reduce((a, r) => a + (sig(r.runId) as number), 0) / anchor.length
-      for (const r of withEffectiveWpr) {
-        if (r.scratched) continue
-        const bet = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn)
-        r.wpr = (r.wpr == null ? bet : RATING_BET_SHARE * bet + (1 - RATING_BET_SHARE) * (r.wpr - delta(r.runId))) + delta(r.runId)
-      }
-      betSource = true
-    }
-  }
 
   const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
@@ -162,8 +128,8 @@ export function computeEffectiveRace(
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
-      projectionWpr: projectionByRunId.get(r.runId) ?? null,
-      ratingSource: betSource ? 'bet' : 'projection',
+      projectionWpr: r.wpr,
+      ratingSource: 'projection',
       atwOff: r.atwOff,
       effectivePrice,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,

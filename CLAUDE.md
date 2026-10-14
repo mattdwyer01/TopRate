@@ -47,7 +47,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   corrects it (LightGBM on form, ratings, weight, barrier, jockey/trainer vs market) and returns a win probability, model price (1/p) and edge (p x price - 1),
   with two bet tiers (Select, Volume). `score.py` writes `bet_signals.json` + `bet_signal_log.csv.gz` (workflow `bet_signal.yml`, external cron-job.org trigger
   like `price_refresh.yml`); `train.py` retrains weekly (`bet_signal_train.yml`); `backtest.py`, `forward_check.py`, `check_equivalence.py`. See `betsignal/README.md`
-  and the Current state entry below. Dashboard: Bets tab (`features/plays/PlaysTab.tsx`, `lib/bets.ts`, `lib/betSignals.ts`), Model $ / Edge columns and SELECT/VOL badges on the Race table.
+  and the Current state entry below. Dashboard: NOTHING from it is shown any more (14 Oct 2026, see the last Current state entry): the Bets tab, SELECT/VOL badges, Model $ and EV columns and the Rating blend were removed and `lib/betSignals.ts` / `lib/bets.ts` / `PlaysTab.tsx` are in `archive/frontend/`. The scoring and training workflows still run and nothing reads their output.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
   runs. (The old duplicate `daily.yml` that sat in the repo root is now
   `archive/workflows/root_daily.yml`.)
@@ -2530,6 +2530,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   -7.3% (ex10 -19.9%); favourites flat -10.4% (`betsignal/newinfo_roi.py`). Reading: with SP as the price there is no win-betting edge in anything in
   these files; an edge would need prices obtainable before the jump (opening/mid prices exist for only about 21% of 2026 runs) or new pre-race information
   such as late scratchings and track changes. The ratings stay useful for form analysis, the Review tab and quaddie pools, not as a bet selector.
+
+- **Dashboard back to projection only, EV and Model $ removed, Rated $ restored (14 Oct 2026, branch claude/projection-only, user request)**: after the clean
+  backtest showed no betting edge, the Race page no longer uses the bet-signal model at all. `computeEffectiveRace` lost its `signals` argument and the blend
+  branch (`RATING_BET_SHARE`, `RATING_PER_LN`), so the ranking figure is the WPR projection at today's weight (ATW) plus any manual delta; the column is
+  labelled "Proj" again (was "Rating" / "Rtg"). The Model $ and EV columns are replaced by one **Rated $** column (`effectivePrice`: softmax over the field's
+  projections at `priceBeta` 0.20, sorts as `ratedPrice`; on phones it sits where EV was, 46px). The runner page's market-vs-fair chart, Compare ("Rated $"
+  row) and the help text read the rated price. `rankRace`, `Quaddie`, `RaceDetail`, `RunnerRow`, `RunnerCompare` and `RunnerDetailModal` no longer take
+  signals; `ratingSource` is always 'projection' and `projectionWpr` equals the rating (kept so the bias note and `rankField(..., 'projection')` still
+  work). Gap lines are unchanged (2 dotted / 4 solid), now measured on the projection: about 2.0 / 3.4 runners and 49% / 68% of winners. Verified in
+  Chromium on Rosehill R8 (14 Oct, 16 runners): Rated $ values sum to exactly 1.000 as implied probabilities, sort ascending on click, no overflow or
+  clipping at 1300 / 390 / 360px. Left running and now unread: `bet_signal.yml`, `bet_signal_train.yml`, `bet_signals.json`, `bet_signals_history.json`,
+  `bet_signal_log.csv.gz` (the forward log is still the only valid evidence about the tiers; the cron-job.org trigger for `bet_signal.yml` can be removed
+  if the log is no longer wanted). To bring the bet signals back, restore `archive/frontend/betSignals.ts` to `frontend/src/lib/` and the git history of
+  `RunnerRow.tsx` / `RaceDetail.tsx` / `raceModel.ts` before this change.
 
 ## What to be careful about
 
