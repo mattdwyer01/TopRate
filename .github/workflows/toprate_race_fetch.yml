@@ -85,6 +85,17 @@ jobs:
               cross = int(nonscr.assign(v=nonscr.venue.map(rc_field_rows.norm_venue), h=nonscr.horse.str.lower().str.replace(r"[^a-z0-9]", "", regex=True))
                                 .duplicated(["v", "h"]).sum())
               print(f"   same horse twice at one venue on the day (any race number): {cross}")
+              def xdups(frame):
+                  x = frame[(frame.date.astype(str).str[:10] == d) & (frame.scratched.fillna(0).astype(float) == 0)].copy()
+                  x["v"] = x.venue.map(rc_field_rows.norm_venue)
+                  x["h"] = x.horse.str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+                  return x[x.duplicated(["v", "h"], keep=False)].sort_values(["v", "h"])
+              print(f"   after toprate stage only: {len(xdups(df1)) // 2} cross-race duplicate horses; after racing.com backup: {len(xdups(df2)) // 2}")
+              for _, g in list(xdups(df2).groupby(["v", "h"]))[:6]:
+                  print("     DUP", [(r.venue, int(r.race), str(r.race_id)[-6:], r.field_source, int(r.run_id) % 100000000) for r in g.itertuples()])
+              new_rc = df2[~df2.run_id.isin(df1.run_id)]
+              new_rc = new_rc[new_rc.date.astype(str).str[:10] == d]
+              print(f"   rows the racing.com backup pass ADDED: {len(new_rc)} | by venue/race: {new_rc.groupby(['venue', 'race']).size().head(8).to_dict()}")
               src = day.field_source.fillna("none").value_counts().to_dict()
               print(f"{d}: rows before {len(before)} -> after toprate {len(df1[df1.date.astype(str).str[:10] == d])} -> after racing.com backup {len(day)}"
                     f" | racing.com added {n_add}, updated {n_upd} | duplicates {dup} | field_source {src}")
