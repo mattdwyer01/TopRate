@@ -252,6 +252,26 @@ def runner_values(rec):
     return out
 
 
+def _has_run(df, i):
+    """True if this row's race has been run or resulted, by ANY signal: resulted, interim_resulted (TAB poller), a finish/won value, or a start time in the
+    past. TopRate's runner-page stats are current-state aggregates and may already include that run, so such a row is never written."""
+    for col in ("resulted", "interim_resulted"):
+        if col in df.columns and str(df.at[i, col]) in ("1", "1.0"):
+            return True
+    for col in ("won", "finish_position"):
+        if col in df.columns and not _blank(df.at[i, col]):
+            return True
+    if "start_time" in df.columns and not _blank(df.at[i, "start_time"]):
+        try:
+            t = datetime.fromisoformat(str(df.at[i, "start_time"]).replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            return t <= datetime.now(timezone.utc)
+        except ValueError:
+            return False
+    return False
+
+
 def merge_tr_runners(runners_df, date_str, dry_run=False):
     """Fill the runner-page columns of UPCOMING, unresulted rows. TopRate's stats and rating profiles are current-state aggregates: a row whose
     race date is before today (Melbourne) or that has a result is never touched, so a past row can never pick up a figure from after its race.
@@ -284,7 +304,7 @@ def merge_tr_runners(runners_df, date_str, dry_run=False):
         stats["matched"] += 1
         vals = runner_values(rec)
         for i in rows[:1]:
-            if str(out.at[i, "resulted"]) in ("1", "1.0"):
+            if _has_run(out, i):
                 stats["skipped_past_or_resulted"] += 1
                 continue
             for col, v in vals.items():
