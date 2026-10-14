@@ -21,6 +21,7 @@ from rc_field_rows import norm_venue
 DIR = Path(__file__).parent / "data" / "tr_fields"
 MAX_AGE_HOURS = 30
 SOURCE = "toprate.au"
+DROPPED = "racing.com (not in toprate field)"   # a racing.com nomination TopRate does not list: scratched, restored if TopRate lists it later
 
 # runner column <- fetcher row key. Numbers are always overwritten (TopRate is their only source).
 NUMBER_COLUMNS = {
@@ -101,17 +102,30 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
     for i in out.index[day]:
         v, n = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])
         races.setdefault((v, n), str(out.at[i, "race_id"]))
-        by_vname[(v, _hn(out.at[i, "horse"]))] = i
+        by_vname.setdefault((v, _hn(out.at[i, "horse"])), []).append(i)
         t = out.at[i, "tab_number"] if "tab_number" in out.columns else None
         if not _blank(t) and str(t) not in ("0", "0.0"):
             by_tab[(v, n, str(int(float(t))))] = i
+
+    def pick(v, n, hn):
+        """The live row of this horse at this venue: the one in the race number TopRate gives it, else a row TopRate already owns, else the first."""
+        lst = by_vname.get((v, hn))
+        if not lst:
+            return None
+        for i in lst:
+            if str(out.at[i, "race"]) == n:
+                return i
+        for i in lst:
+            if str(out.at[i, "field_source"]) == SOURCE:
+                return i
+        return lst[0]
 
     # which live race (number, race_id) each TopRate race maps to: the one most of its runners already sit in; none -> a race to create
     live_race = {}
     tally = {}
     for r in rows:
         v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
-        i = by_vname.get((v, _hn(r.get("horse"))))
+        i = pick(v, n, _hn(r.get("horse")))
         if i is not None:
             k = (str(out.at[i, "race"]), str(out.at[i, "race_id"]))
             tally.setdefault((v, n), {}).setdefault(k, 0)
@@ -123,7 +137,7 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
     created = set()
     for r in rows:
         v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
-        i = by_vname.get((v, _hn(r.get("horse"))))
+        i = pick(v, n, _hn(r.get("horse")))
         if i is None and (v, n) in live_race:               # a renamed horse: saddle number inside the race it maps to
             i = by_tab.get((v, live_race[(v, n)][0], str(r.get("tab_number"))))
         elif i is None and (v, n) in races:
@@ -149,6 +163,8 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
             stats["resulted_skipped"] += 1
             continue
         stats["updated"] += 1
+        if str(out.at[i, "field_source"]) == DROPPED and not r.get("scratched"):
+            _set(out, i, "scratched", 0)                    # TopRate lists it after all (a late acceptance)
         if str(out.at[i, "race"]) != n:
             stats["renumbered"] += 1
         for col, key in NUMBER_COLUMNS.items():
@@ -177,6 +193,58 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
             warnings.simplefilter("ignore", category=FutureWarning)
             out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
         stats["added_races"] = len(created)
+    return (runners_df if dry_run else out), stats
+
+
+def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
+    """After BOTH merges: in a race TopRate covers, scratch racing.com rows TopRate does not list, and for a horse with several rows at one
+    venue keep only the row in the race TopRate puts it in. racing.com's pre-declaration files carry up to 50 nominations per race with the
+    same horses repeated across races (15 Oct 2026, Warrnambool), TopRate lists the accepted field. Resulted rows, rows already scratched,
+    rows TopRate owns and races TopRate has no runner in are never touched. Returns (runners_df, stats)."""
+    import pandas as pd
+    rows = load(date_str, now)
+    stats = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
+    if not rows or not len(runners_df):
+        return runners_df, stats
+    out = runners_df.copy()
+    tr_names, tr_venue_n = {}, {}
+    for r in rows:
+        v = norm_venue(r.get("venue"))
+        tr_names.setdefault(v, set()).add(_hn(r.get("horse")))
+        if not r.get("scratched"):
+            tr_venue_n[v] = tr_venue_n.get(v, 0) + 1
+    day = out["date"].astype(str).str[:10] == date_str
+    idx = [i for i in out.index[day] if norm_venue(out.at[i, "venue"]) in tr_venue_n and tr_venue_n[norm_venue(out.at[i, "venue"])] >= 4]
+    covered = set()       # (venue, race number) that holds at least one row TopRate owns (a runner TopRate lists in that race)
+    for i in idx:
+        if str(out.at[i, "field_source"]) == SOURCE:
+            covered.add((norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])))
+    for i in idx:
+        v, n, hn = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"]), _hn(out.at[i, "horse"])
+        if str(out.at[i, "resulted"]) in ("1", "1.0") or str(out.at[i, "scratched"]) in ("1", "1.0"):
+            continue
+        if str(out.at[i, "field_source"]) == SOURCE or (v, n) not in covered or hn in tr_names[v]:
+            continue
+        stats["unlisted_scratched"] += 1
+        _set(out, i, "scratched", 1)
+        _set(out, i, "field_source", DROPPED)
+    # a listed horse with more than one live row at the venue: keep TopRate's row (or the one in the race TopRate says), scratch the rest
+    groups = {}
+    for i in idx:
+        if str(out.at[i, "scratched"]) in ("1", "1.0"):
+            continue
+        groups.setdefault((norm_venue(out.at[i, "venue"]), _hn(out.at[i, "horse"])), []).append(i)
+    for (v, hn), lst in groups.items():
+        if len(lst) < 2 or hn not in tr_names[v]:
+            continue
+        keep = next((i for i in lst if str(out.at[i, "field_source"]) == SOURCE), None)
+        if keep is None:
+            continue
+        for i in lst:
+            if i != keep and str(out.at[i, "resulted"]) not in ("1", "1.0"):
+                stats["duplicate_rows_scratched"] += 1
+                _set(out, i, "scratched", 1)
+                _set(out, i, "field_source", DROPPED)
     return (runners_df if dry_run else out), stats
 
 

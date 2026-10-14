@@ -78,7 +78,9 @@ jobs:
           for d in ("2026-10-14", "2026-10-15"):
               before = df[df.date.astype(str).str[:10] == d]
               df1, s = tr_field_rows.merge_tr_fields(df, d)
-              df2, n_add, n_upd = rc_field_rows.merge_rc_fields(df1, d)
+              df2a, n_add, n_upd = rc_field_rows.merge_rc_fields(df1, d)
+              df2, fl = tr_field_rows.flag_unlisted(df2a, d)
+              print(f"   flag_unlisted: {fl}")
               day = df2[df2.date.astype(str).str[:10] == d]
               dup = int(day.duplicated(["venue", "race", "horse"]).sum())
               nonscr = day[day.scratched.fillna(0).astype(float) == 0]

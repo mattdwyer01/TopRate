@@ -2339,8 +2339,14 @@ def main():
             print(f"  {d}: toprate.au merge failed ({type(e).__name__}: {e}), racing.com only")
             tr_stats = {"tr_rows": 0, "updated": 0, "added_rows": 0}
         runners_df, n_add, n_upd = rc_field_rows.merge_rc_fields(runners_df, d)
+        try:       # after both merges: racing.com's pre-declaration nominations that toprate.au does not list are scratched (restorable)
+            runners_df, fl = tr_field_rows.flag_unlisted(runners_df, d)
+        except Exception as e:
+            print(f"  {d}: flag_unlisted failed ({type(e).__name__}: {e}), nominations left as they are")
+            fl = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
         print(f"  {d}: toprate.au {tr_stats['tr_rows']} rows ({tr_stats['updated']} updated, {tr_stats['added_rows']} added); "
-              f"racing.com {n_add} runners added, {n_upd} updated")
+              f"racing.com {n_add} runners added, {n_upd} updated; nominations scratched: {fl['unlisted_scratched']} unlisted, "
+              f"{fl['duplicate_rows_scratched']} duplicate")
     _main_step("Step 1: racing.com fields")
     print()
 
