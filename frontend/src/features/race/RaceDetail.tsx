@@ -17,7 +17,7 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { fmtStake, RATING_BET_SHARE, signalsForRace, TIER_UNITS, type BetSignals } from '../../lib/betSignals'
+import { RATING_BET_SHARE, signalsForRace, type BetSignals } from '../../lib/betSignals'
 import { rankField } from './raceFacts'
 
 interface RaceDetailProps {
@@ -161,18 +161,6 @@ export function RaceDetail({
     return m
   }, [ranked])
 
-  const tierCounts = useMemo(() => {
-    let s = 0
-    let v = 0
-    for (const r of race.runners) {
-      if (effectiveScratched.has(r.runId)) continue
-      const t = signalByRunId[r.runId]?.t
-      if (t === 'S') s++
-      else if (t === 'V') v++
-    }
-    return { s, v }
-  }, [race.runners, signalByRunId, effectiveScratched])
-
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
     const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, signalByRunId)
@@ -282,15 +270,6 @@ export function RaceDetail({
             ? `Rating: ${Math.round(RATING_BET_SHARE * 100)}% bet-signal model (win chances from the market price and form, so it moves with the price) and ${Math.round((1 - RATING_BET_SHARE) * 100)}% WPR projection${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}.`
             : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
         </p>
-        {(tierCounts.s > 0 || tierCounts.v > 0) && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-emerald-line bg-emerald-bg px-3 py-1.5 text-xs text-emerald-deep">
-            <span className="font-semibold">Bet signals (experimental)</span>
-            {tierCounts.s > 0 && <span>{tierCounts.s} Select, {TIER_UNITS.S}u ({fmtStake(TIER_UNITS.S)})</span>}
-            {tierCounts.v > 0 && <span>{tierCounts.v} Volume, {TIER_UNITS.V}u ({fmtStake(TIER_UNITS.V)})</span>}
-            <span className="text-ink-mute">EV is the bet-signal model against the current price, not a tip.</span>
-          </div>
-        )}
-
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
             {COLUMNS.map((c, i) =>

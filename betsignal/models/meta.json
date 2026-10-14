@@ -51,7 +51,6 @@
    "BM45",
    "BM45+",
    "BM46+",
-   "BM47+",
    "BM48+",
    "BM50",
    "BM50+",
@@ -148,6 +147,7 @@
    "Benchmark 78",
    "Benchmark 78+",
    "Benchmark 80",
+   "Benchmark 82",
    "Benchmark 88",
    "CLS1",
    "CLS2",
@@ -589,13 +589,13 @@
    "Young"
   ]
  },
- "rounds": 378,
+ "rounds": 372,
  "seeds": [
   1,
   2,
   3
  ],
- "trained_through": "2026-10-11",
- "rows": 1056066,
- "races": 109673
+ "trained_through": "2026-10-12",
+ "rows": 1044846,
+ "races": 108397
 }

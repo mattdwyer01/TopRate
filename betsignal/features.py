@@ -29,6 +29,10 @@ FEATURES = ['field_size', 'distance', 'going_n', 'weightCarried', 'wt_rel', 'bar
             'lastpm', 'avgpm', 'last_res_vs_mkt', 'dist_ch', 'wt_ch', 'j_wr', 'j_n', 'j_ex', 't_wr', 't_n', 't_ex', 'rank_m']
 
 JT_PRIOR_RATE, JT_PRIOR_N, JT_EX_K = 0.08, 20, 30
+# A real starting-price book (sum of 1/SP over the field) is about 1.13 to 1.36. About 1% of historical races sum to under 1.05 (a runner's price
+# missing or wrong), which is impossible for a market and made every runner in them look like value: the 14 Oct 2026 check found 66% of the
+# backtested Select bets came from such races (445 of 68,905), and in the rest Select returned +1.4%. Those races are dropped from training and tests.
+BOOK_MIN, BOOK_MAX = 1.05, 2.0
 ASSUME_GOING = 4.0
 
 _CLASS_PATTERNS = [(re.compile(r'^benchmark\s*(\d+)$', re.I), lambda m: f'BM{m.group(1)}'),
@@ -76,6 +80,8 @@ def load_history(root=ROOT):
     g = D.groupby('race_id')
     ok = g.sp.apply(lambda s: s.notna().all()) & g.win.sum().eq(1) & g.fin.apply(lambda s: s.notna().all())
     D = D[D.race_id.isin(ok[ok].index)]
+    book = (1 / D.sp).groupby(D.race_id).transform('sum')
+    D = D[(book >= BOOK_MIN) & (book <= BOOK_MAX)]
     D = D[D.date >= '2018-06-01'].copy()
     return D.sort_values(['date', 'track', 'raceNumber', 'race_id']).reset_index(drop=True)
 

@@ -2510,6 +2510,27 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `wpr_projection_log.csv.gz` was RESTARTED (old rows were on TopRate's scale; they stay in git history), so Review has no past projections until live
   logging accumulates. A projection back-fill from out-of-sample predictions is not built yet.
 
+- **Bet-model SP backtest was inflated by bad price data; ratings tuning and new information sources tested (14 Oct 2026, branch claude/own-ratings-tune)**:
+  asked whether the own-ratings chain could be back-solved to make win betting profitable. Findings, in order. (1) Chain tuning has no lever: the harness
+  `own_ratings/tune.py` (numpy chain, 11s, matches the stored ratings to 0.0025) measured what the ratings add to a calibrated market with a race-level
+  conditional logit; the gain is +0.0001 nats a race and does not move with margin scale, cap, recency, history length or weight coefficient (differences
+  about 0.00003, below noise). Full-model and small-LightGBM probes were tried first and were too noisy or mis-specified (a runner-level binary loss scored
+  on winner log-loss comes out negative), so use the conditional logit for any rating-quality question. (2) Calibrating the market alone (one slope on
+  log price, beta about 1.1, the favourite-longshot bias) is worth about +0.005 nats a race, 50 times what ratings add, but it showed +20% to +40% flat
+  ROI at SP only because of bad data: all those bets sat in races whose SP book (sum of 1/SP) is under 1.0 (real books run 1.13 to 1.36, median 1.21;
+  about 1% of races are under 1.05). With clean books no bet reaches EV 1.10. (3) The same artefact was inside the bet model's backtest: 722 of 1,101
+  Select bets came from the 445 broken-book races; in the 67,958 races with a book of 1.10 or more Select was 167 bets, +1.4%, ex10 -13%, and Volume
+  -7.1%. `betsignal/features.py` `load_history` now drops races with a book outside `BOOK_MIN` 1.05 to `BOOK_MAX` 2.0 (1.2% of races), the models were
+  retrained, and the clean production backtest is Select 227 bets (45 a year) -5.1% (ex10 -16.6%), Volume incl. Select 4,984 bets -5.1%, log-loss 1.7913
+  vs market 1.7861. The "+26% / +53% at SP" figures elsewhere in this file are the artefact and should not be relied on; the live Bets tab never had
+  broken books (real fixed prices) and `bet_signal_log.csv.gz` is the only valid evidence. (4) New information sources (`betsignal/newinfo.py`, clean
+  books, 105k races, 2022 to 2026, gain over calibrated market plus rating form, per race in 1e-4 nats): barrier-trial form -0.3, run-comment flags 0.0,
+  running positions +0.8, GPS ground lost -1.7 (only 26% of runs have GPS, VIC/SA/QLD 2021 on), sire excess over market by distance band and wet
+  track +2.6 (t 4.5, positive 4 of the last 5 years). Sire is real but tiny and does not pay: calibrated market + form + sire at EV > 1.0 is 332 bets,
+  -7.3% (ex10 -19.9%); favourites flat -10.4% (`betsignal/newinfo_roi.py`). Reading: with SP as the price there is no win-betting edge in anything in
+  these files; an edge would need prices obtainable before the jump (opening/mid prices exist for only about 21% of 2026 runs) or new pre-race information
+  such as late scratchings and track changes. The ratings stay useful for form analysis, the Review tab and quaddie pools, not as a bet selector.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
