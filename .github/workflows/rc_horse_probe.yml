@@ -1,0 +1,38 @@
+name: racing.com horse history probe (manual, read-only)
+
+# Finds out whether racing.com can return a horse's past runs by horse code (Perisher, 14 Oct 2026: has a handicap rating but
+# no run in our results). Prints query and type fields and the shape of a few trial queries. Writes nothing, commits nothing.
+# Same secrets and runner variable as rc_fields_daily.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "racing.com horse code"
+        default: "5404714"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+      HORSE_CODE: ${{ github.event.inputs.code || '5404714' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            rc_fields.py
+            rc_horse_probe.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - run: python rc_horse_probe.py --code "$HORSE_CODE"
