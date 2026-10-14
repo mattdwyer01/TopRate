@@ -178,12 +178,23 @@ def race_ids_for(cal, dates):
     return out
 
 
+def file_age_hours(path):
+    """Hours since the file's own `fetched` stamp, or None when it is missing or unreadable."""
+    try:
+        fetched = json.loads(path.read_text())["fetched"].rstrip("Z")
+        return (datetime.utcnow() - datetime.fromisoformat(fetched)).total_seconds() / 3600
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=2, help="how many days from --from (default 2: today and tomorrow)")
     ap.add_argument("--from", dest="start", default=None, help="first date, YYYY-MM-DD (default: today, local time)")
     ap.add_argument("--out", default="data/tr_fields")
     ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--min-age-hours", type=float, default=0.0,
+                    help="skip a date whose file was fetched less than this many hours ago (0 = always fetch)")
     a = ap.parse_args()
     email, password, anon = (os.environ.get(k, "").strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
     if not (email and password and anon):
@@ -196,6 +207,10 @@ def main():
     out_dir = Path(a.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     for d in sorted(ids):
+        age = file_age_hours(out_dir / f"{d}.json")
+        if a.min_age_hours and age is not None and age < a.min_age_hours:
+            print(f"{d}: fetched {age:.1f}h ago, skipped (min age {a.min_age_hours}h)")
+            continue
         with ThreadPoolExecutor(max_workers=a.workers) as ex:
             results = list(ex.map(lambda rid: (rid, *fetch_race(session, rid)), ids[d]))
         rows, failed = [], []
@@ -205,7 +220,8 @@ def main():
             else:
                 failed.append((rid, err))
         nett = sum(1 for r in rows if r["wpr_nett"] is not None)
-        print(f"{d}: {len(ids[d])} races, {len(failed)} failed, {len(rows)} runners, wpr_nett on {nett}")
+        scratched = sum(1 for r in rows if r["scratched"])
+        print(f"{d}: {len(ids[d])} races, {len(failed)} failed, {len(rows)} runners ({scratched} scratched), wpr_nett on {nett}")
         for rid, err in failed[:10]:
             print(f"   race {rid}: {err}")
         (out_dir / f"{d}.json").write_text(json.dumps({"date": d, "fetched": datetime.utcnow().isoformat() + "Z", "rows": rows,
