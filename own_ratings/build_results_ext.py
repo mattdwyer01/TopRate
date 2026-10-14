@@ -48,9 +48,17 @@ def build(start=None, rc=None, hist=None, runners=None):
                  [["meeting_code", "race_no", "h", "run_id", "going_tr"] + [c for c in extra if c not in ("race_id", "going")]])
     o = o.merge(race_lvl, on=["meeting_code", "race_no"], how="left").merge(run_lvl, on=["meeting_code", "race_no", "h"], how="left")
 
+    # race order at the meeting: racing.com's race number, and the start time where the ingest stored it (from 14 Oct 2026 on)
+    if "start_utc" in rc.columns:
+        st = rc.drop_duplicates(["meeting_code", "race_no"])[["meeting_code", "race_no", "start_utc"]]
+        o = o.merge(st, on=["meeting_code", "race_no"], how="left")
+    else:
+        o["start_utc"] = np.nan
     out = pd.DataFrame({
         "race_id": o.race_id_tr.fillna(RACE_BASE + o.meeting_code.astype(float) * 100 + o.race_no.astype(float)).astype("int64"),
         "date": o.date,
+        "raceNumber": o.race_no,
+        "start_utc": o.start_utc,
         "horse_id": [int(x) if not str(x).startswith("rc") else HORSE_BASE + int(str(x)[2:]) for x in o.horse_id],
         "horse": o.horse,
         "track": o.track_tr.fillna(o.venue),

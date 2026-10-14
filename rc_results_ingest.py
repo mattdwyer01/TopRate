@@ -28,7 +28,7 @@ CAL = """query GetCalendarEvents { getCalendarItems(
   states: ["%s"], year: %d, month: %d, hideHiddenEvents: true) {
   race_meet_id name location_name race_meet_type event_start_time state } }"""
 RACES = """query{ racesForMeet: getRacesForMeet(meetCode: "%s") {
-  raceNumber raceStatus distance name trackCondition isTrial isJumpOut hasSectionals } }"""
+  raceNumber raceStatus distance name time trackCondition isTrial isJumpOut hasSectionals } }"""
 FORM = """query{ f: getRaceForm(meetCode: "%s", raceNumber:%d) { Horses: raceEntries {
   finish finishAbv beatenMargin barrierNumber horseName horseCode weight startingPrice scratched } } }"""
 WORDS = {"SH": 0.1, "HD": 0.2, "NK": 0.3, "NS": 0.05, "DH": 0.0}   # short head, head, neck, nose, dead heat
@@ -135,7 +135,7 @@ def fetch_meeting(api, it):
                 continue                      # scratched runners carry a placeholder finish (109) and no margin
             rows.append({"source": "rc_entries", "race_date": it["race_date"], "state": it["state"],
                          "meeting_code": it["race_meet_id"], "venue": it.get("location_name") or it.get("name"),
-                         "meet_type": it.get("race_meet_type"), "race_no": r["raceNumber"], "race_distance": dist,
+                         "meet_type": it.get("race_meet_type"), "race_no": r["raceNumber"], "start_utc": r.get("time"), "race_distance": dist,
                          "going": r.get("trackCondition"), "horse": h.get("horseName"), "horse_code": h.get("horseCode"),
                          "barrier": h.get("barrierNumber"), "weight_kg": parse_money(h.get("weight")),
                          "sp": parse_money(h.get("startingPrice")), "finish": h["finish"] if (h.get("finish") or 0) < 100 else None,   # 100+ = non-finisher sentinel

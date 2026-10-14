@@ -2510,6 +2510,19 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   `wpr_projection_log.csv.gz` was RESTARTED (old rows were on TopRate's scale; they stay in git history), so Review has no past projections until live
   logging accumulates. A projection back-fill from out-of-sample predictions is not built yet.
 
+- **Price log and race order capture (14 Oct 2026)**: the Oct 2026 analyses (clean closing-SP walk-forward, 2019-2026, about 1M runners) found NO win-bet edge:
+  the closing price already holds everything our features carry (ratings, form, GPS, comments, trials, jockey/trainer), a pure form model adds
+  nothing on top of it (stack weight -0.005), and about 95% of the old backtest "Select" profit came from races whose recorded SP book (sum of 1/SP, normally
+  about 1.21) was under 1.10 (wrong SPs; `features.load_history` now flags `sp_ok` 1.10 to 1.35 and training and backtests skip the rest). Any further edge has to come from
+  price behaviour, so two captures started: (1) `rc_price_capture.py` / `rc_price_capture.yml` write a snapshot of every bookmaker's win and place price that racing.com
+  lists (with its `updated` time) for races jumping within 3 hours, to the `price-log` BRANCH only (`price_log/rc/<date>/<HHMMSS>.csv.gz`, never main); trigger it with
+  a cron-job.org call to workflow_dispatch every 5 minutes in racing hours. `tab_price_sync.yml` (self-hosted, daily) copies the AU runner's existing TAB price log
+  (`~/racing-data/tab_prices/<date>.csv.gz`, written every poll cycle by `tab_price_log.py`, never synced before) to `price_log/tab/` on the same branch. (2) Results now carry
+  `raceNumber` and `start_utc` (racing.com race number from `rc_results_ingest.py`, start time stored for meetings ingested from 14 Oct 2026; older results files have no race
+  order, which is why race ids cannot be used as order: they follow it in only 2.5% of meetings). To analyse after about a month: steam and drift against the closing price,
+  best price across bookmakers against a single book, and day-of barrier bias using only earlier races at the meeting (a first test on 18,500 GPS-ordered races gave carry-over
+  about 1.0 but z only 2.1 to 2.8 and inconsistent by year).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

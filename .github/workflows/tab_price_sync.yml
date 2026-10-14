@@ -1,0 +1,65 @@
+name: TAB price log sync (self-hosted, price-log branch)
+
+# tab_results_poller.py already writes every TAB fixed-odds read (win and place, with a timestamp, every 1-2 minutes for races inside 2 hours)
+# to ~/racing-data/tab_prices/<date>.csv[.gz] ON THE AU RUNNER, outside the checkout (tab_price_log.py). Nothing copied them anywhere, so
+# they were invisible to analysis. This job copies each COMPLETED day's file to the `price-log` branch (price_log/tab/<name>), once, daily.
+# It never touches main or tab_results.yml. Runs on the same self-hosted runner because the files live on its disk.
+
+on:
+  schedule:
+    - cron: "40 14 * * *"       # 00:40 AEST / 01:40 AEDT: yesterday's racing is over
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tab-price-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: [self-hosted]
+    timeout-minutes: 20
+    steps:
+      - name: Push finished days to the price-log branch
+        env:
+          GH_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          dir="${PRICE_LOG_DIR:-$HOME/racing-data/tab_prices}"
+          today=$(date +%F)
+          shopt -s nullglob
+          # a finished day is a .csv.gz, or a .csv that is not today's (the logger gzips older days itself, but only on its next write)
+          files=()
+          for f in "$dir"/*.csv.gz; do files+=("$f"); done
+          for f in "$dir"/*.csv; do [ "$(basename "$f" .csv)" != "$today" ] && files+=("$f"); done
+          [ ${#files[@]} -gt 0 ] || { echo "no finished days in $dir"; exit 0; }
+          work=$(mktemp -d); cd "$work"
+          git init -q .; git remote add origin "https://x-access-token:${GH_TOKEN}@${GH_REPO_URL#https://}"
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          for attempt in 1 2 3 4 5 6; do
+            export GIT_INDEX_FILE="$work/idx"; rm -f "$GIT_INDEX_FILE"
+            if git ls-remote --exit-code --heads origin price-log >/dev/null 2>&1; then
+              timeout 240 git fetch -q --depth=1 origin price-log || { sleep 20; continue; }
+              tip=$(git rev-parse FETCH_HEAD); git read-tree "$tip"; parent=(-p "$tip")
+            else
+              git read-tree --empty; parent=()
+            fi
+            changed=0
+            for f in "${files[@]}"; do
+              name=$(basename "$f"); case "$name" in *.gz) ;; *) gzip -c "$f" > "$work/$name.gz"; f="$work/$name.gz"; name="$name.gz" ;; esac
+              blob=$(git hash-object -w "$f"); path="price_log/tab/$name"
+              old=$(git rev-parse -q --verify "${tip:-none}:$path" 2>/dev/null || true)
+              if [ "$blob" != "$old" ]; then git update-index --add --cacheinfo "100644,$blob,$path"; changed=1; fi
+            done
+            [ "$changed" = 0 ] && { echo "nothing new"; exit 0; }
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" "${parent[@]}" -m "tab prices $(date -u +%FT%H:%MZ)")
+            unset GIT_INDEX_FILE
+            if timeout 240 git push -q origin "$commit:refs/heads/price-log"; then echo "pushed $commit"; exit 0; fi
+            echo "push rejected (attempt $attempt)"; sleep $((attempt * 8))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1
