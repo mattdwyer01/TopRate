@@ -1789,6 +1789,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "ls":   None,
                 "ts":   None,
                 "wtr":  sf(row.get("weight_trend")),
+                # TopRate's own forward rating (wpr_nett, from toprate.au race pages since 14 Oct 2026); blended into Proj by computeEffectiveRace
+                "wn":   sf(row.get("wpr_nett")),
                 # Distance performance: starts/wins/places at this distance ±10%
                 "ds":   si(row.get("starts_at_dist")),
                 "dw":   si(row.get("wins_at_dist")),

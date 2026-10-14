@@ -94,6 +94,7 @@ export interface RawRunner {
   jw: number | null
   tw: number | null
   jwN: number | null
+  wn?: number | null // TopRate wpr_nett, absent on older payloads
   twN: number | null
   jcp: number | null
   jcr: number | null

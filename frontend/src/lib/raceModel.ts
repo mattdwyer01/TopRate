@@ -70,6 +70,30 @@ const DEFAULT_BETA = 0.4
 // what lets a manual override on one runner correctly shift every OTHER
 // runner's price too - it's a field-relative softmax, not a per-runner
 // calculation.
+// Nett blend (14 Oct 2026). TopRate's wpr_nett is the weakest single score (winner log-likelihood -1.950 vs -1.882 for our model, 3,729 races 4 Jul to 8 Oct)
+// but it is mostly independent of ours, so an equal blend beats both: ours + nett -1.867, top pick wins 30.4% vs 29.5% (all three scores -1.855). Within a race the
+// nett is put on our scale (same mean and spread over the runners that have both) and averaged with our figure at NETT_SHARE. A race needs nett on at least
+// NETT_MIN_RUNNERS runners and 60% of the rated field, else it stays on our projection alone (a runner with no nett keeps its own figure).
+export const NETT_SHARE = 0.5
+const NETT_MIN_RUNNERS = 4
+
+function blendNett(own: { runId: string; base: number }[], nettById: Map<string, number>): Map<string, number> {
+  const both = own.filter((o) => nettById.has(o.runId))
+  const out = new Map<string, number>()
+  if (both.length < NETT_MIN_RUNNERS || both.length < 0.6 * own.length) return out
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+  const sd = (xs: number[], m: number) => Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length)
+  const ov = both.map((o) => o.base)
+  const nv = both.map((o) => nettById.get(o.runId) as number)
+  const mo = mean(ov), mn = mean(nv), so = sd(ov, mo), sn = sd(nv, mn)
+  if (!(sn > 0) || !(so > 0)) return out
+  both.forEach((o) => {
+    const scaled = mo + ((nettById.get(o.runId) as number) - mn) * (so / sn)
+    out.set(o.runId, (1 - NETT_SHARE) * o.base + NETT_SHARE * scaled)
+  })
+  return out
+}
+
 export function computeEffectiveRace(
   runners: Runner[],
   deltas: Record<string, number>,
@@ -78,6 +102,16 @@ export function computeEffectiveRace(
   scratched: Set<string> = new Set(),
 ): Record<string, EffectiveRunner> {
   const beta = priceBeta ?? DEFAULT_BETA
+
+  const nettById = new Map<string, number>()
+  const ownForBlend: { runId: string; base: number }[] = []
+  for (const r of runners) {
+    if (scratched.has(r.runId) || r.projectedWpr == null) continue
+    const off = r.atwOffset != null && Math.abs(r.atwOffset) >= 0.05 ? r.atwOffset : 0
+    ownForBlend.push({ runId: r.runId, base: r.projectedWpr + off })
+    if (r.nett != null && Number.isFinite(r.nett)) nettById.set(r.runId, r.nett)
+  }
+  const blended = blendNett(ownForBlend, nettById)
 
   const withEffectiveWpr = runners.map((r) => {
     const modelBase = r.projectedWpr ?? (r.runId in bases ? bases[r.runId] : null)
@@ -92,7 +126,7 @@ export function computeEffectiveRace(
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
       sd: r.projectionSd ?? null,
-      wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
+      wpr: !isScratched && modelBase != null ? (blended.get(r.runId) ?? modelBase + atwOff) + delta : null,
       hasOverride,
       scratched: isScratched,
     }
