@@ -121,3 +121,49 @@ jobs:
               out = deref(node["data"], 0, 6)
               print("node", n, "=>", json.dumps(shape(out), default=str)[:6000])
           PY
+
+      - name: Is wpr_nett the runAdjustments wprBase? Per-runner defaults, resulted and upcoming race
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import json, requests, toprate_daily as td, toprate_json_capture as tjc
+          jwt = td.login()
+          headers, cookies = tjc._auth_bits()
+          def deref(data, i, depth=12, seen=()):
+              if depth < 0 or i in seen: return None
+              v = data[i]
+              ptr = lambda p_: deref(data, p_, depth-1, seen+(i,)) if isinstance(p_, int) and not isinstance(p_, bool) and 0 <= p_ < len(data) else p_
+              if isinstance(v, dict): return {k: ptr(p_) for k, p_ in v.items()}
+              if isinstance(v, list): return [ptr(p_) for p_ in v]
+              return v
+          def page(rid):
+              r = requests.get(f"{tjc.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001", headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+              p = r.json()
+              for n in p["nodes"]:
+                  if n.get("type") == "data": return deref(n["data"], 0)
+          def keys(o, pre="", out=None):
+              out = {} if out is None else out
+              if isinstance(o, dict):
+                  for k, v in o.items(): keys(v, f"{pre}.{k}" if pre else k, out)
+              elif isinstance(o, list):
+                  if o: keys(o[0], pre + "[]", out)
+              else: out[pre] = o
+              return out
+          cal = td.api_calendar_upcoming(jwt)
+          upc = [r["raceId"] for d in cal for m in d.get("meetings", []) for r in m.get("races", [])
+                 if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial") and not r.get("isResulted")][:1]
+          for rid in [1759847] + upc:
+              d = page(rid)
+              print(f"=== race {rid}: keys {list(d.keys())}")
+              adj = (d.get("raceUser") or {}).get("runAdjustments") or []
+              print("runAdjustments:", [(a.get("runId"), (a.get("defaults") or {}).get("wprBase"), (a.get("defaults") or {}).get("speed"), (a.get("defaults") or {}).get("iapValue")) for a in adj])
+              f = d.get("raceFields") or []
+              print("raceFields n:", len(f), "| runner key paths:")
+              if f:
+                  k = keys(f[0])
+                  print("  ", {p: (v if not isinstance(v, str) else v[:25]) for p, v in k.items()})
+              print("rating-like keys anywhere:", sorted({p.split('[]')[-1] for p in keys(d) if any(s in p.lower() for s in ('nett', 'wprbase', 'wpr', 'iap'))})[:40])
+          PY
