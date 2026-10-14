@@ -1058,6 +1058,21 @@ def _slugify_venue(venue):
     return s or "venue"
 
 
+_TR_ACTUAL = {}
+
+
+def _tr_actual():
+    """TopRate's plain-scale rating by (lowercased horse, date), cached; {} if the store is unreadable."""
+    if "v" not in _TR_ACTUAL:
+        try:
+            from projection import features as _F
+            _TR_ACTUAL["v"] = _F.tr_actual_by_name()
+        except Exception as e:
+            print(f"  TopRate actual lookup unavailable: {e}")
+            _TR_ACTUAL["v"] = {}
+    return _TR_ACTUAL["v"]
+
+
 def _compute_atw_offsets(fh):
     """Moved to atw_offsets.py (shared with projection/run.py)."""
     return _atw_offsets_mod.compute_atw_offsets(fh)
@@ -1756,6 +1771,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
         # the dashboard rework (Stage 4) removes the score UI.
         cum_lookup = {}
 
+        # Review "actual" (14 Oct 2026): a projection made by the TopRate-rating models is on TopRate's scale, so it is compared with TopRate's own rating
+        # for the run (runner pages, plain scale), not our chain's wpr_actual. None until that rating arrives; earlier (own-scale) projections keep wpr_actual.
+        def _review_actual(row):
+            if str(row.get("wprp_scale")) != "toprate":
+                return row.get("wpr_actual")
+            return _tr_actual().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10]))
+
         # Build runner list with all the fields the template needs
         runners = []
         for _, row in rdf.iterrows():
@@ -1831,7 +1853,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
                 "atwo": _atwo_for_row(row),
                 # Results-scale offset (Oct 2026): add to the plain projection to compare it with wpr_actual (the results-file atw). See atw_results_scale.py.
-                "rso": _rso_lookup.get(si(row.get("run_id"))),
+                "rso": None if str(row.get("wprp_scale")) == "toprate" else _rso_lookup.get(si(row.get("run_id"))),  # TopRate-scale actual is the plain rating: no results-scale shift
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
@@ -1939,7 +1961,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # actual rank within the field. None until the form history
                 # settles (~5 days post-race). Lets the dashboard show how
                 # far the projection and ranking actually missed.
-                "wpja":  sf(row.get("wpr_actual")),
+                "wpja":  sf(_review_actual(row)),
                 "wpjar": si(row.get("wpr_actual_rank")),
                 # Running (video) and stewards comments for resulted runners.
                 # Drive the post-race variance subtab's auto-reason + display.

@@ -63,8 +63,8 @@ def tr_lookup():
             for r in json.load(fh).get('runs', {}).values():
                 if r.get('isBarrierTrial') or r.get('isJumpout') or r.get('wpr') is None:
                     continue
-                rows.append((r['horse_id'], r['date'], r['wpr']))
-    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'tr'])
+                rows.append((r['horse_id'], r['date'], r['wpr'], str(r.get('horse') or '').strip().lower()))
+    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'tr', 'name'])
     t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
     t['date'] = pd.to_datetime(t.date)
     t['tr'] = pd.to_numeric(t.tr, errors='coerce')
@@ -77,7 +77,15 @@ def tr_lookup():
     t = t.join(off, on='horse_id').dropna(subset=['off'])
     t['plain'] = t.tr - t.off
     _TR_CACHE['v'] = t.set_index(['horse_id', 'date']).plain
+    _TR_CACHE['names'] = t[t.name != ''].drop_duplicates(['name', 'date'], keep='last').set_index(['name', 'date']).plain
     return _TR_CACHE['v']
+
+
+def tr_actual_by_name():
+    """TopRate's plain-scale rating per (lowercased horse name, date string), for the Review 'actual' of runs projected on TopRate's scale."""
+    tr_lookup()
+    s = _TR_CACHE['names']
+    return {(n, pd.Timestamp(d).strftime('%Y-%m-%d')): float(v) for (n, d), v in s.items()}
 
 
 def toprate_overlay(df):
