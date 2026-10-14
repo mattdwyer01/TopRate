@@ -24,8 +24,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
           git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
           git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
-          git show FETCH_HEAD:toprate_daily.py > toprate_daily.py
-          wc -l toprate_daily.py
+          git checkout -q FETCH_HEAD -- ':(glob)*.py'
+          ls *.py | wc -l
 
       - name: Login, calendar, then each race-detail RPC once
         env:
