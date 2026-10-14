@@ -1,0 +1,66 @@
+# One-off, read-only probe (14 Oct 2026): why do TopRate race-detail calls answer 403? Uses the last commit that still had the
+# TopRate client (774453e, 11 Oct 2026), logs in with the repo secrets, then makes ONE call per race-detail RPC for one upcoming race
+# and prints only status, server/cf-ray headers, a masked body snippet and top-level key counts. Never prints tokens or credentials.
+# Runs on a GitHub-hosted runner and on the Australian self-hosted runner so the two can be compared. Commits nothing.
+name: TopRate race detail probe (read-only, manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, self-hosted]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Fetch the old client
+        run: |
+          mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+          git show FETCH_HEAD:toprate_daily.py > toprate_daily.py
+          wc -l toprate_daily.py
+
+      - name: Login, calendar, then each race-detail RPC once
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: |
+          python -m pip install --quiet requests pandas numpy 2>&1 | tail -1 || true
+          cd "$RUNNER_TEMP/old"
+          python - <<'PY'
+          import re, requests, toprate_daily as td
+          mask = lambda t: re.sub(r"eyJ[A-Za-z0-9_\-\.]{20,}", "<jwt>", t or "")
+          jwt = td.login()
+          print("login ok:", bool(jwt))
+          cal = td.api_calendar_upcoming(jwt)
+          print("calendar type:", type(cal).__name__, "| size:", len(cal) if hasattr(cal, "__len__") else "?")
+          # find a race id anywhere in the calendar payload
+          ids = []
+          def walk(o):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if k in ("rc_id", "race_id", "id") and isinstance(v, (int, str)) and len(ids) < 3: ids.append(v)
+                      walk(v)
+              elif isinstance(o, list):
+                  for v in o[:200]: walk(v)
+          walk(cal)
+          print("sample ids:", ids)
+          if isinstance(cal, (list, dict)):
+              s = cal[0] if isinstance(cal, list) and cal else cal
+              print("calendar sample keys:", sorted(s.keys())[:15] if isinstance(s, dict) else str(s)[:80])
+          for rc in ids[:2]:
+              for name in ("get_race_detail", "get_race_wpr_chart", "get_race_stats", "get_user_cache_race", "get_race_results"):
+                  r = requests.post(f"{td.API_BASE}/rest/v1/rpc/{name}", headers=td.make_headers(jwt), json={"rc_id": rc}, timeout=30)
+                  cf = r.headers.get("cf-ray") is not None
+                  body = mask(r.text)[:140].replace("\n", " ")
+                  extra = ""
+                  if r.status_code == 200:
+                      try:
+                          j = r.json(); extra = f" | json {type(j).__name__} len={len(j)}"
+                      except Exception: pass
+                  print(f"rc_id={rc} {name}: HTTP {r.status_code} | server={r.headers.get('server')} cf-ray={cf}{extra} | body={body!r}")
+          PY
