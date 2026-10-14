@@ -26,6 +26,8 @@ export interface FormRun {
   weight?: number | null
   startingPrice?: number | null
   raceNumber?: number | null
+  // A run from racing.com with no rating from us (see lib/overseasRuns.ts): shown unrated, never used for anything else.
+  overseas?: boolean
 }
 
 export interface FormHistoryEntry {

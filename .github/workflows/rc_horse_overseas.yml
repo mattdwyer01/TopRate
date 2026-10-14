@@ -1,0 +1,67 @@
+name: racing.com past runs for horses with no Australian history
+
+# Imports and first-time Australian starters (Perisher, 14 Oct 2026) have runs only overseas, which our results files do not hold.
+# rc_horse_overseas.py reads their runs from racing.com (GetHorseFormAll by horse code) into overseas_runs.json, which the dashboard
+# shows in Recent runs as unrated runs. Only that one small file is committed. Same secrets and runner variable as rc_fields_daily.yml.
+# The schedule is a fallback; the file only needs to change when a new placeholder-id horse enters a field.
+
+on:
+  schedule:
+    - cron: "47 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rc-horse-overseas
+  cancel-in-progress: false
+
+jobs:
+  overseas:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+      BRANCH: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            runners.csv
+            overseas_runs.json
+            rc_fields.py
+            rc_horse_overseas.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas
+      - run: python rc_horse_overseas.py
+      - name: Commit overseas_runs.json (only that file, on the newest tip)
+        run: |
+          set -u
+          [ -f overseas_runs.json ] || { echo "nothing written"; exit 0; }
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          cp overseas_runs.json /tmp/overseas_runs.json
+          for attempt in 1 2 3 4 5 6; do
+            timeout 300 git fetch --depth=1 origin "$BRANCH" || { sleep 20; continue; }
+            tip=$(git rev-parse FETCH_HEAD)
+            blob=$(git hash-object -w /tmp/overseas_runs.json)
+            old=$(git rev-parse -q --verify "$tip:overseas_runs.json" || true)
+            if [ "$blob" = "$old" ]; then echo "nothing new"; exit 0; fi
+            export GIT_INDEX_FILE="$(mktemp -u)"
+            git read-tree "$tip"
+            git update-index --add --cacheinfo "100644,$blob,overseas_runs.json"
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" -p "$tip" -m "Overseas runs for horses with no Australian history $(date -u +%F)")
+            rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
+            if timeout 240 git push origin "$commit:refs/heads/$BRANCH"; then echo "pushed $commit"; exit 0; fi
+            echo "push rejected (attempt $attempt), retrying on the new tip"
+            sleep $((attempt * 10))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1

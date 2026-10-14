@@ -4,6 +4,7 @@ import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
 import type { TempoBucket } from '../../lib/pace'
 import { fetchMeetingFormHistory } from '../../lib/meetingFormHistory'
+import { fetchOverseasRuns } from '../../lib/overseasRuns'
 import { replayUrl, useReplayCodes } from '../../lib/replay'
 import type { ReplayCodes } from '../../lib/replay'
 import { PlayIcon } from '../../components/PlayIcon'
@@ -124,7 +125,7 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
     <tr className={`transition-colors ${isPeak ? 'bg-amber/10 hover:bg-amber/20' : 'hover:bg-bg'}`}>
       <td className="px-2 py-0.5 whitespace-nowrap">{run.date ?? ''}<ReplayLink run={run} codes={codes} onOpen={onReplay} /></td>
       <td className="px-2 py-0.5 whitespace-nowrap">
-        {run.track}
+        {run.track}{run.overseas && (<span className="ml-1 rounded-full bg-line-soft px-1.5 text-[10px] leading-4 text-ink-mute" title="Run from racing.com. We hold no result or rating for it.">unrated</span>)}
         {isPeak && (
           <span className="ml-1 rounded-full bg-amber/20 px-1.5 text-[10px] font-medium leading-4 text-amber">
             peak
@@ -189,7 +190,7 @@ function MobileRunCard({ run, isPeak, codes, onReplay }: { run: FormRun; isPeak:
     <div className={`px-2 py-1 ${isPeak ? 'bg-amber/10' : ''}`}>
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
-          {run.date ?? ''} &middot; {run.track}
+          {run.date ?? ''} &middot; {run.track}{run.overseas && (<span className="ml-1 rounded-full bg-line-soft px-1.5 text-[10px] leading-4 text-ink-mute" title="Run from racing.com. We hold no result or rating for it.">unrated</span>)}
           <ReplayLink run={run} codes={codes} onOpen={onReplay} />
           {isPeak && (
             <span className="ml-1 rounded-full bg-amber/20 px-1.5 py-0.5 text-[10px] font-medium text-amber">
@@ -359,7 +360,23 @@ export function RecentRunsTable({
     }
   }, [horseName, raceDate, raceVenue])
 
-  const runs = live?.runs ?? staticRuns
+  // Unrated runs from racing.com (overseas and other runs we hold no results for), merged in by date. Never feeds the
+  // timeline or the camp/tempo labels, which read formHistory only.
+  const [overseas, setOverseas] = useState<FormRun[]>([])
+  useEffect(() => {
+    let cancelled = false
+    setOverseas([])
+    fetchOverseasRuns(horseName).then((r) => { if (!cancelled) setOverseas(r) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [horseName])
+
+  const baseRuns = live?.runs ?? staticRuns
+  const runs = useMemo(() => {
+    if (!overseas.length) return baseRuns
+    const have = new Set(baseRuns.map((r) => (r.date ?? '').slice(0, 10)))
+    const extra = overseas.filter((r) => !have.has((r.date ?? '').slice(0, 10)))
+    return [...baseRuns, ...extra].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  }, [baseRuns, overseas])
   const formHistory = live?.formHistory ?? staticFormHistory
   // Once live data is in, it already contains everything staticPeakRun
   // pointed at separately (full history, not just the last 10) - drop the
