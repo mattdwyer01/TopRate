@@ -47,5 +47,6 @@ tab_raw/
 # live wpr_models/ directory, never meant to ship as-is.
 wpr_models_*_experiment/
 projection/cache/
+projection/cache_tr/
 betsignal/models/state.pkl
 betsignal/backtest_preds.pkl

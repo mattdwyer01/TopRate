@@ -178,8 +178,9 @@ jobs:
           # times a day). A run for a named date always fetches. The merge ignores files older than 30 h, so 4 h leaves plenty of margin.
           if [ -n "${{ inputs.date }}" ]; then DAYS=1; MINAGE=0; else DAYS=4; MINAGE=4; fi
           python toprate_race_fetch.py --from "$START" --days "$DAYS" --out data/tr_fields --min-age-hours "$MINAGE"
-          # runner pages (pedigree, owners, stats splits, rating profiles, past runs) for today and tomorrow: once per runner per day
-          python toprate_runner_fetch.py --from "$START" --days 2 || echo "runner pages skipped"
+          # runner pages (pedigree, owners, stats splits, rating profiles, past runs) for today and the next two days: once per runner per day. Their past runs
+          # carry TopRate's ratings for races run since the results files stopped supplying them (the projection's history), so the days ahead matter
+          python toprate_runner_fetch.py --from "$START" --days 3 || echo "runner pages skipped"
 
       - name: Merge racing.com fields and rebuild the payload
         run: |
