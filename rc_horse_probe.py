@@ -47,7 +47,11 @@ def deep(api, code):
         print(f"== {name} args:", [(x["name"], (unwrap(x["type"]).get("name")), x["type"].get("kind")) for x in args], "returns", unwrap(f["type"]).get("name"))
         rt = unwrap(f["type"]).get("name")
         sub = type_fields(api, rt) if rt else []
-        scal = [x["name"] for x in sub if unwrap(x["type"]).get("name") in ("String", "Int", "Float", "Boolean", "ID", "AWSDate", "AWSDateTime")][:30]
+        scal_all = [x["name"] for x in sub if unwrap(x["type"]).get("name") in ("String", "Int", "Float", "Boolean", "ID", "AWSDate", "AWSDateTime")]
+        scal = scal_all
+        PRI = ("name", "namePrev", "fullName", "age", "sex", "lastRaceDate", "careerStats", "lastStartsSummary", "lastFive", "lastTen", "raceDate",
+               "venueName", "raceNumber", "raceDistance", "finish", "position", "weightCarried", "beatenMargin", "startingPrice", "trackCondition", "isTrial", "horseName")
+        scal = [n for n in PRI if n in scal_all] + [n for n in scal_all if n not in PRI][:12]
         print("   scalar fields:", scal)
         use = []
         for x in args:
