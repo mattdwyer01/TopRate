@@ -55,7 +55,8 @@ def main():
         df['x_e'] = df.e_m3_dm * df.dev
         df['x_l'] = df.l_m3_dm * df.dev
         df['x_rank'] = (df.e_rank - 0.5) * df.dev
-    v = va.dropna(subset=['dev', 'pC'])
+    v = va.dropna(subset=['dev', 'pC', 'x_slope', 'x_e', 'x_l', 'x_rank', 'wpr_dm'])
+    v = v[np.isfinite(v[['x_slope', 'x_e', 'x_l', 'x_rank']].values).all(axis=1)]
     X = v[['x_slope', 'x_e', 'x_l', 'x_rank']].values
     y = (v.wpr_dm - v.pC).values
     beta, *_ = np.linalg.lstsq(X, y, rcond=None)
@@ -65,7 +66,7 @@ def main():
     print('pace loadings (slope, early hist, late hist, early rank):', beta.round(4), 't', t.round(1), 'R2 gain', round(1 - res.var() / y.var(), 5), flush=True)
 
     def loading(g):
-        return (beta[0] * np.nan_to_num(g.slope_e.values) + beta[1] * g.e_m3_dm.values + beta[2] * g.l_m3_dm.values + beta[3] * (g.e_rank.values - 0.5))
+        return np.nan_to_num(beta[0] * np.nan_to_num(g.slope_e.values) + beta[1] * np.nan_to_num(g.e_m3_dm.values) + beta[2] * np.nan_to_num(g.l_m3_dm.values) + beta[3] * np.nan_to_num(g.e_rank.values - 0.5))
 
     def indep(col, sds, tau):
         def f(g, nsim=M.NSIM):
