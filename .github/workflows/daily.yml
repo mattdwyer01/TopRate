@@ -248,6 +248,8 @@ jobs:
             [ -d data/tr_fields ] && git add data/tr_fields
             # per-runner pages (toprate_runner_fetch.py), gzipped, one file per date, 7 days kept
             [ -d data/tr_runners ] && git add data/tr_runners
+            # every past run on those pages, kept for good (tr_form_store.py), one gzipped file per month of the run date
+            [ -d data/tr_form ] && git add data/tr_form
             [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
             # toprate_live.html deliberately not staged: static frontend build, a data run never changes it,
             # and re-staging this job's (older) checkout copy reverted frontend deploys that landed mid-run.
