@@ -17,7 +17,7 @@ on:
         type: string
   push:
     branches: [claude/toprate-detail-probe]
-    paths: ['toprate_race_fetch.py', '.github/workflows/toprate_race_fetch.yml']
+    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', '.github/workflows/toprate_race_fetch.yml']
 
 concurrency:
   group: toprate-race-fetch
@@ -63,6 +63,11 @@ jobs:
             args+=(--from "$START")
           fi
           python toprate_race_fetch.py "${args[@]}"
+
+      - name: Check the output (completeness, blanks, join to runners.csv)
+        run: |
+          python -m pip install --quiet pandas
+          python toprate_fetch_check.py data/tr_fields
 
       - name: Upload
         uses: actions/upload-artifact@v4
