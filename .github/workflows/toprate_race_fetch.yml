@@ -1,0 +1,72 @@
+# Read-only trial of toprate_race_fetch.py (14 Oct 2026): logs in to toprate.au, reads the calendar and each race page's __data.json for
+# the chosen days, writes one JSON file per date. Output is uploaded as the "tr-fields" artifact only; NOTHING is committed or pushed, and the
+# live pipeline does not read it. Runs on a GitHub-hosted runner (login and the race pages both answer 200 there; checked 14 Oct 2026).
+name: TopRate race fetch (trial, read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Days to fetch from the start date'
+        required: false
+        default: '2'
+        type: string
+      start:
+        description: 'First date YYYY-MM-DD (blank = today, UTC)'
+        required: false
+        type: string
+  push:
+    branches: [claude/toprate-detail-probe]
+    paths: ['toprate_race_fetch.py', '.github/workflows/toprate_race_fetch.yml']
+
+concurrency:
+  group: toprate-race-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install requests
+        run: python -m pip install --quiet requests
+
+      - name: Read the site's public key from the last commit that held it (not printed)
+        run: |
+          mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+          git show FETCH_HEAD:toprate_daily.py > old_td.py
+          key=$(python - <<'PY'
+          import re
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open("old_td.py").read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+          [ -n "$key" ] || { echo "could not read the key"; exit 1; }
+          echo "::add-mask::$key"
+          echo "TOPRATE_ANON_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Fetch
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          DAYS: ${{ inputs.days }}
+          START: ${{ inputs.start }}
+        run: |
+          args=(--days "${DAYS:-2}" --out data/tr_fields)
+          if [[ -n "$START" ]]; then
+            [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "bad date"; exit 1; }
+            args+=(--from "$START")
+          fi
+          python toprate_race_fetch.py "${args[@]}"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: tr-fields
+          path: data/tr_fields/
+          retention-days: 14
