@@ -2545,6 +2545,20 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   if the log is no longer wanted). To bring the bet signals back, restore `archive/frontend/betSignals.ts` to `frontend/src/lib/` and the git history of
   `RunnerRow.tsx` / `RaceDetail.tsx` / `raceModel.ts` before this change.
 
+- **Race selection tested: no kind of race where the model finds value (14 Oct 2026, `betsignal/race_selection.py`)**: user point, "I look for value in races and
+  don't bet where it is too difficult; we won't find a model that is profitable in every race", and the earlier tests did mostly ask about every race or the top
+  pick. Test: walk-forward race-level conditional logit (fit on earlier years), calibrated market vs calibrated market + rating form + sire, clean-book races only,
+  93,546 test races 2021-2026. Per race, delta = how much better the model called the winner than the calibrated market. Overall delta +2.1e-4 nats a race (t 2.3).
+  Segments by pre-race descriptors (field size, class, distance, wet/dry, share of the field with 3+ rated runs, first starter present, favourite price): the
+  descriptive pooled table shows Class races (+6.0, t 2.6) and fields with 70-90% readable form (+7.0, t 2.9) as the best, and nothing negative enough to avoid;
+  but chosen on earlier years only (t >= 2, 1,500+ races) the walk-forward picked nothing in 5 of 7 dimensions, and the one that persisted (70-90% readable)
+  is worth +6.0e-4 nats a race (+11.0, +1.3, +5.0 in 2024-26). The real finding is that value bets barely exist at SP: EV > 1.05 gives 24 bets in 93,546
+  races (ROI -6.2%, ex10 -100%), EV > 1.00 gives 421 (-8.0%, ex10 -18.5%), so segmenting has nothing to act on. Limits of the test: it prices at closing SP (not
+  obtainable before the jump), its model is market + rating form + sire (not the WPR projection, whose log only restarted 12 Oct 2026, and not a punter's own
+  reading of pace, trip, gear or track), and the many-segments slicing problem is why only earlier-year selection is counted. What would test the manual
+  approach properly: log the user's own value picks with the fixed price taken before the jump, next to the projection's rank and Rated $, and judge that log
+  after a few months; the Review tab's live-logged period is where the projection itself gets judged.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
