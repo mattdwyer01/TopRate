@@ -7,15 +7,12 @@ import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { modelPrice, type Signal } from '../../lib/betSignals'
 import { ConditionsScorecard, HorseHero, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
   race: Race
   effective?: EffectiveRunner
-  // Bet-signal model pass for this runner (experimental, lib/betSignals.ts): supplies the model price shown against the market.
-  signal?: Signal | null
   rank: number | null
   fieldSize: number
   fieldTop: number | null
@@ -63,7 +60,6 @@ export function RunnerDetailModal({
   runner,
   race,
   effective,
-  signal = null,
   rank,
   fieldSize,
   fieldTop,
@@ -103,13 +99,12 @@ export function RunnerDetailModal({
     setScrolled(false)
   }, [runner.runId])
 
-  // The rating at today's weight (ATW): the bet-signal rating where the race has signals, otherwise the WPR projection (the fallback for races without them).
+  // The projection at today's weight (ATW).
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const ratingFromBets = effective?.ratingSource === 'bet'
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
   const hasOverride = effective?.hasOverride ?? false
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-  const fair = modelPrice(signal?.m)
+  const fair = scratched ? null : (effective?.effectivePrice ?? null)
   const market = runner.fixedWinPrice
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.startingPrice != null
 
@@ -191,12 +186,12 @@ export function RunnerDetailModal({
             hasOverride={hasOverride}
           />
 
-          {!scratched && !ratingFromBets && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+          {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
               Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
             </div>
           )}
-          {!scratched && !ratingFromBets && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
+          {!scratched && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
               Going not known yet. The projection assumes Good 4 and updates when the track is rated.
             </div>
@@ -342,8 +337,8 @@ export function RunnerDetailModal({
           </Card>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <Card title="Market" note="price against the bet-signal model's price">
-              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
+            <Card title="Market" note="price against the rated price">
+              {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} placeFair={scratched ? null : (effective?.effectivePlacePrice ?? null)} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
 
             <Card title="Result" className="hidden sm:block">

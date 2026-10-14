@@ -17,14 +17,11 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
-import { RATING_BET_SHARE, signalsForRace, type BetSignals } from '../../lib/betSignals'
 import { rankField } from './raceFacts'
 
 interface RaceDetailProps {
   race: Race
   allRaces: Race[]
-  // Bet signals (experimental, lib/betSignals.ts); null when the file is missing.
-  signals?: BetSignals | null
   priceBeta: number | null
   deltas: Record<string, number>
   bases: Record<string, number>
@@ -46,10 +43,9 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'projectedWpr', label: 'Rating', align: 'right', title: "Rating at the weight carried today (the scale of the form table). From the bet-signal model where the race has signals (market informed, moves with the price), otherwise the WPR projection." },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection, not of the bet-signal rating). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
-  { key: 'modelPrice', label: 'Model $', align: 'right', title: 'Bet-signal model price: 1 / its win chance. It starts from the market price, so it moves with it. Experimental.', lgOnly: true },
-  { key: 'edge', label: 'EV', align: 'right', title: 'Bet-signal model win chance x current price (1.00 = break-even). Select (above 1.20) and Volume (above 1.05, $3 or more) are flagged on the runner.' },
+  { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
+  { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
+  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: 'The price the WPR projection implies for each runner (a simulation of the race; hover a value for the place price). The model view only, not a value claim.' },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -80,7 +76,6 @@ const SHOW_COMPARE = false
 export function RaceDetail({
   race,
   allRaces,
-  signals = null,
   priceBeta,
   deltas,
   bases,
@@ -129,14 +124,10 @@ export function RaceDetail({
     return merged
   }, [race.runners, scratched])
 
-  // Bet signals for this race: the live pass before the jump, the frozen pre-jump pass once it has run. They also set the rating (below).
-  const rawSignalByRunId = useMemo(() => signalsForRace(race, signals), [race, signals])
   const effectiveByRunId = useMemo(
-    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId),
-    [race.runners, deltas, bases, priceBeta, effectiveScratched, rawSignalByRunId],
+    () => computeEffectiveRace(race.runners, deltas, bases, priceBeta, effectiveScratched),
+    [race.runners, deltas, bases, priceBeta, effectiveScratched],
   )
-  // Model $, EV and tiers are the pure bet-signal model's (the only version with a profitable backtest), not the blended Rating.
-  const signalByRunId = rawSignalByRunId
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
@@ -153,8 +144,6 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  const ratingFromBets = useMemo(() => Object.values(effectiveByRunId).some((e) => e.ratingSource === 'bet'), [effectiveByRunId])
-  const backfilledAt = useMemo(() => Object.values(signalByRunId).find((x) => x?.bf)?.bf ?? null, [signalByRunId])
   const bandOf = useMemo(() => {
     const m = new Map<string, { band: 'core' | 'inner' | 'outer' | 'none' }>()
     for (const r of ranked) m.set(r.runner.runId, { band: r.core ? 'core' : r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
@@ -163,11 +152,11 @@ export function RaceDetail({
 
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
-    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, signalByRunId)
+    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
     const active = sorted.filter((r) => !effectiveScratched.has(r.runId))
     if (!showScratched) return active
     return [...active, ...sorted.filter((r) => effectiveScratched.has(r.runId))]
-  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, signalByRunId, effectiveScratched, showScratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
 
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
@@ -216,7 +205,6 @@ export function RaceDetail({
       raceDate: race.date,
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
-      signal: signalByRunId[runner.runId] ?? null,
       band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
       showBias,
@@ -265,11 +253,6 @@ export function RaceDetail({
           </div>
         </div>
 
-        <p className="text-[11px] text-ink-faint" data-testid="rating-source">
-          {ratingFromBets
-            ? `Rating: ${Math.round(RATING_BET_SHARE * 100)}% bet-signal model (win chances from the market price and form, so it moves with the price) and ${Math.round((1 - RATING_BET_SHARE) * 100)}% WPR projection${backfilledAt ? `, backfilled after the event at ${backfilledAt === 'sp' ? 'the starting price' : 'the last recorded price'}` : ''}.`
-            : 'Rating: WPR projection. No bet-signal rating for this race yet (it needs the full field drawn and priced).'}
-        </p>
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
             {COLUMNS.map((c, i) =>
@@ -284,14 +267,7 @@ export function RaceDetail({
                   onClick={() => onSort(c.key as SortKey)}
                   className={`transition-colors hover:text-ink ${c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
-                  {c.key === 'projectedWpr' ? (
-                    <>
-                      <span className="lg:hidden">Rtg</span>
-                      <span className="hidden lg:inline">Rating</span>
-                    </>
-                  ) : (
-                    c.label
-                  )}
+                  {c.label}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
                 </button>
               ),
@@ -323,7 +299,6 @@ export function RaceDetail({
 
       {compareMode && compareIds.length >= 2 && (
         <RunnerCompare
-          signalByRunId={signalByRunId}
           race={race}
           runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
           effectiveByRunId={effectiveByRunId}
@@ -372,7 +347,6 @@ export function RaceDetail({
           runner={selectedRunner}
           race={race}
           effective={effectiveByRunId[selectedRunner.runId]}
-          signal={signalByRunId[selectedRunner.runId] ?? null}
           rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
           fieldSize={ranked.length}
           fieldTop={ranked.length ? ranked[0].proj : null}

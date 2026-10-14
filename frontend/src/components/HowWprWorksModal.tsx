@@ -49,14 +49,10 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
 
         <Section title="The short version">
           <p>
-            <span className="font-mono text-ink">Rating</span> is the figure each race is ranked on, at the weight carried today (ATW),
-            the same scale as the Recent runs table. Where a race has bet signals (see Model $ and EV, below) it is a 50 / 50 blend of two things:
-            the bet-signal model's win chances turned into ratings (3.66 rating points per unit of log win chance, level taken from the field's average
-            WPR projection) and the <span className="font-mono text-ink">WPR projection</span> itself, a machine-learned estimate of the WPR a horse will
-            run from its past runs and the conditions, trained on ten years of Australian results (about 845,000 runs). The bet-signal part is informed
-            by the market price, so the rating moves a little when the price moves; blending in the projection keeps it from being just the market's
-            order. Where a race has no signals yet, Rating is the WPR projection alone, and the line above the table says which is in use.
-            Base and Adj below describe the WPR projection.
+            <span className="font-mono text-ink">Proj</span> is the WPR projection: a machine-learned estimate of the WPR a horse will run from its
+            past runs and the conditions, trained on ten years of Australian results. It is shown at the weight carried today (ATW), the same scale as the
+            Recent runs table, and it is the figure each race is ranked on. Base and Adj below describe it. <span className="font-mono text-ink">Rated $</span> is
+            the price that projection implies for each runner, from a simulation of the race in which every runner's true figure is its projection plus noise (larger for horses with little history); hover it for the place price. It is the model's view, not a betting price.
           </p>
           <p>
             Horses with three or more prior rated runs use the main model. Horses with none, one or two prior runs
@@ -67,28 +63,17 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
 
         <Section title="Column and label guide">
           <ul className="list-disc space-y-1 pl-5">
-            <li><span className="font-mono text-ink">Rating</span>: the race's ranking figure (bet-signal rating where the race has signals, otherwise the WPR projection; the line under the Race heading says which). <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the WPR projection, which the runner page explains.</li>
-            <li><span className="font-mono text-ink">SM</span>: the suitability part of the WPR projection's Adj, relative to this field (green +0.5 or better, red -0.5 or worse). Runners at +0.5 or better do win more often (10.5% for the middle band, 13.9% at +0.5 to +1.0, 20% above +1.0), but the market already prices that: win rates matched the market-implied chances at every band, so SM is a reading aid for the map, not a source of value. It is not part of the bet-signal rating.</li>
-            <li><span className="font-mono text-ink">EV</span> and <span className="font-mono text-ink">Model $</span> (Model $ on wider screens): from the experimental bet-signal model (see Model $ and EV, below). EV is its win chance times the current price (1.00 = break-even); Model $ is 1 / its win chance. Blank when the race is not fully drawn and priced.</li>
+            <li><span className="font-mono text-ink">Proj</span>: the WPR projection at the weight carried today, and the race's ranking figure. <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the projection, which the runner page explains.</li>
+            <li><span className="font-mono text-ink">SM</span>: the suitability part of the WPR projection's Adj, relative to this field (green +0.5 or better, red -0.5 or worse). Runners at +0.5 or better do win more often (10.5% for the middle band, 13.9% at +0.5 to +1.0, 20% above +1.0), but the market already prices that: win rates matched the market-implied chances at every band, so SM is a reading aid for the map, not a source of value.</li>
+            <li><span className="font-mono text-ink">Rated $</span>: the price the projection implies, from a softmax over the field's projections. It is the model's own view of the race, not a value claim: the earlier rated-price-against-market signal lost 30 to 39% at every threshold in testing.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
-            <li><span className="font-mono text-ink">2 / 4 from top</span>: the dotted line marks runners within 2 rating points of the top rated, the solid line within 4. The 50 / 50 blend was chosen as the share that holds the most winners inside 4 (1,693 races, July to October 2026: inside 4 holds 3.3 runners a race and 70.1% of winners, against 3.6 and 67.6% for the WPR projection alone and 2.8 and 66.2% for the bet-signal rating alone; inside 2 holds 1.9 runners and 52%). They show where the winners are, not where the value is.</li>
+            <li><span className="font-mono text-ink">2 / 4 from top</span>: the dotted line marks runners within 2 rating points of the top rated, the solid line within 4. Inside 4 holds about 3.4 runners a race and 68% of winners; inside 2 holds about 2.0 and 49%. They show where the winners are, not where the value is.</li>
             <li>The bar and the plus-or-minus figure show the likely range (about the middle half of outcomes), not a guarantee.</li>
           </ul>
         </Section>
 
-        <Section title="Model $ and EV">
-          <p>
-            Model $ and EV come from a separate market-based model that is not the WPR projection. It starts from each runner's current market
-            price, corrects it using form, ratings, weight, barrier, jockey and trainer records, and returns a win chance. Model $ is 1 / that
-            chance and EV is the chance times the price (1.00 = break-even).
-          </p>
-          <ul className="list-disc space-y-1 pl-5">
-            <li>They are a reading aid, not tips. Re-tested on 14 Oct 2026 with the broken starting prices removed, the model's picks lost about 5% at the starting price, so there is no demonstrated betting edge and the Bets tab was removed.</li>
-            <li>The earlier WPR-based value signal (rated price against market) lost 30 to 39% at every threshold in testing and has been removed.</li>
-          </ul>
-        </Section>
 
         <Section title="What goes in">
           <ul className="list-disc space-y-1 pl-5">

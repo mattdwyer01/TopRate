@@ -1,18 +1,17 @@
 import type { Runner } from '../types/domain'
-import { RATING_BET_SHARE, RATING_PER_LN } from './betSignals'
+import { simulateRace } from './ratedPrice'
 
 export interface EffectiveRunner {
-  // The rating shown and used for ranking and gaps, at the weight carried today (ATW). Where the race has bet signals it is a blend: RATING_BET_SHARE of the
-  // bet-signal rating (the model's win probabilities on the ATW scale, RATING_PER_LN) and the rest the WPR projection below; otherwise the WPR projection
-  // alone. Manual delta included either way.
+  // The rating shown and used for ranking and gaps: the WPR projection at the weight carried today (ATW) with any manual delta.
   effectiveProjectedWpr: number | null
-  // The WPR projection at today's weight (model rating + manual delta + this horse's own offset), whichever the rating above is. The waterfall, the typical
-  // winning rating and the track-bias note explain this figure, not the bet-signal rating.
+  // The same figure again (kept so the track-bias note and rankField(..., 'projection') keep working).
   projectionWpr: number | null
-  ratingSource: 'bet' | 'projection'
+  ratingSource: 'projection'
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
+  // Place price (1 / place chance) from the same simulation; null below 5 runners.
+  effectivePlacePrice: number | null
   effectiveRank: number | null
   hasOverride: boolean
   scratched: boolean
@@ -65,8 +64,7 @@ export const PRICE_CAP = 999
 // PRICE_BETA is always populated, kept only for defensiveness.
 const DEFAULT_BETA = 0.4
 
-// Replicates wpr_projection.py's project_race() price/rank softmax
-// EXACTLY (same formula, same beta), but over EFFECTIVE ratings: the
+// Rated prices come from lib/ratedPrice.ts (simulation, 14 Oct 2026; was a softmax at the same beta), over EFFECTIVE ratings: the
 // model's own projectedWpr, or a manually entered base for a runner the
 // model couldn't project, each with any manual delta added on top. This is
 // what lets a manual override on one runner correctly shift every OTHER
@@ -78,8 +76,6 @@ export function computeEffectiveRace(
   bases: Record<string, number>,
   priceBeta: number | null,
   scratched: Set<string> = new Set(),
-  // Bet signals for this race (runId -> model win probability m). When every runner still in the race has one, the rating comes from them.
-  signals?: Record<string, { m: number; p: number } | null>,
 ): Record<string, EffectiveRunner> {
   const beta = priceBeta ?? DEFAULT_BETA
 
@@ -95,52 +91,26 @@ export function computeEffectiveRace(
       // A scratched runner has no wpr for softmax purposes - excluded from
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
+      sd: r.projectionSd ?? null,
       wpr: !isScratched && modelBase != null ? modelBase + delta + atwOff : null,
       hasOverride,
       scratched: isScratched,
     }
   })
 
-  // Blended rating: RATING_BET_SHARE x bet-signal rating + (1 - RATING_BET_SHARE) x WPR projection. The bet-signal rating is level (the field's mean
-  // WPR-projection rating, before manual deltas) + RATING_PER_LN x (ln p - mean ln p), so the blend keeps the same field level. Only when every runner still
-  // in the race has a signal; otherwise the whole race stays on the projection alone (never a mix of two scales). A runner with no projection of its own
-  // takes the bet-signal rating as it is.
-  const projectionByRunId = new Map<string, number | null>()
-  for (const r of withEffectiveWpr) projectionByRunId.set(r.runId, r.wpr)
-  let betSource = false
-  if (signals) {
-    const active = withEffectiveWpr.filter((r) => !r.scratched)
-    const sig = (id: string) => {
-      const m = signals[id]?.m
-      return m != null && m > 0 ? Math.log(m) : null
-    }
-    const full = active.length >= 5 && active.every((r) => sig(r.runId) != null)
-    const anchor = active.filter((r) => r.wpr != null)
-    if (full && anchor.length >= 2) {
-      const delta = (id: string) => deltas[id] ?? 0
-      const level = anchor.reduce((a, r) => a + (r.wpr as number) - delta(r.runId), 0) / anchor.length
-      const meanLn = anchor.reduce((a, r) => a + (sig(r.runId) as number), 0) / anchor.length
-      for (const r of withEffectiveWpr) {
-        if (r.scratched) continue
-        const bet = level + RATING_PER_LN * ((sig(r.runId) as number) - meanLn)
-        r.wpr = (r.wpr == null ? bet : RATING_BET_SHARE * bet + (1 - RATING_BET_SHARE) * (r.wpr - delta(r.runId))) + delta(r.runId)
-      }
-      betSource = true
-    }
-  }
-
-  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; hasOverride: boolean; scratched: boolean; atwOff: number }[]
+  const rated = withEffectiveWpr.filter((r) => r.wpr != null) as { runId: string; wpr: number; sd: number | null; hasOverride: boolean; scratched: boolean; atwOff: number }[]
 
   const priceByRunId = new Map<string, number>()
+  const placePriceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
   if (rated.length >= 2) {
     const maxWpr = Math.max(...rated.map((r) => r.wpr))
-    const exps = rated.map((r) => ({ runId: r.runId, e: Math.exp(beta * (r.wpr - maxWpr)) }))
-    const sumE = exps.reduce((s, x) => s + x.e, 0)
-    for (const x of exps) {
-      priceByRunId.set(x.runId, Math.min(1 / (x.e / sumE), PRICE_CAP))
-    }
+    const sim = simulateRace(rated.map((r) => ({ runId: r.runId, wpr: r.wpr, sd: r.sd })), beta)
+    rated.forEach((r, i) => {
+      priceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].win, 1e-9), PRICE_CAP))
+      if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].place as number, 1e-9), PRICE_CAP))
+    })
     for (const r of rated) {
       gapByRunId.set(r.runId, maxWpr - r.wpr)
     }
@@ -162,10 +132,11 @@ export function computeEffectiveRace(
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
       effectiveProjectedWpr: r.wpr,
-      projectionWpr: projectionByRunId.get(r.runId) ?? null,
-      ratingSource: betSource ? 'bet' : 'projection',
+      projectionWpr: r.wpr,
+      ratingSource: 'projection',
       atwOff: r.atwOff,
       effectivePrice,
+      effectivePlacePrice: r.wpr != null ? (placePriceByRunId.get(r.runId) ?? null) : null,
       effectiveRank: r.wpr != null ? (rankByRunId.get(r.runId) ?? null) : null,
       hasOverride: r.hasOverride,
       scratched: r.scratched,

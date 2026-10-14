@@ -41,7 +41,7 @@ interface HeroProps {
   hasOverride: boolean
 }
 
-// The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the bet-signal model's price, and the basics.
+// The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the rated price, and the basics.
 export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, compact }: HeroProps) {
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
   const verdict =
@@ -270,9 +270,8 @@ function fmtMin(m: number): string {
   return `+${(m / 60).toFixed(m % 60 === 0 ? 0 : 1)}h`
 }
 
-// The price over time with the bet-signal model's price as a dashed line. That model starts from the market price, so its price sits close to it; only the
-// gap matters (edge), and it is experimental (lib/betSignals.ts).
-export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | null }) {
+// The price over time with the WPR projection's rated price as a dashed line.
+export function PriceVsFair({ runner, fair, placeFair = null }: { runner: Runner; fair: number | null; placeFair?: number | null }) {
   const pts = runner.priceSeries
   const market = runner.fixedWinPrice
   const vals = [...pts.map((p) => p.price), ...(fair != null ? [fair] : []), ...(market != null ? [market] : [])]
@@ -284,7 +283,8 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
             Fixed <span className="font-mono font-semibold">{fmtPrice(market)}</span>
             {fair != null && (
               <>
-                , model <span className="font-mono">{fmtPrice(fair)}</span>
+                , rated <span className="font-mono">{fmtPrice(fair)}</span>
+                {placeFair != null && <> (place <span className="font-mono">{fmtPrice(placeFair)}</span>)</>}
               </>
             )}
             . Not enough price snapshots to draw a line yet.
@@ -312,7 +312,7 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
   const last = pts[pts.length - 1]
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-xl" role="img" aria-label="Price over time against the bet-signal model's price">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-xl" role="img" aria-label="Price over time against the rated price">
         {fair != null && (
           <>
             <line x1={padL} x2={W - padR} y1={Y(fair)} y2={Y(fair)} stroke="var(--color-emerald)" strokeDasharray="5 3" strokeWidth={1.5} />
@@ -342,10 +342,10 @@ export function PriceVsFair({ runner, fair }: { runner: Runner; fair: number | n
       <div className="text-xs text-ink-mute">
         {fair != null ? (
           <>
-            Dashed line is the bet-signal model's price. It starts from the market and corrects it, so it stays close; the Select and Volume tiers mark where it disagrees enough to bet. Experimental.
+            Dashed line is the rated price: what the WPR projection implies for this runner. It is the model view only, not a value claim.
           </>
         ) : (
-          'No model price for this runner (needs a drawn, fully priced field).'
+          'No rated price for this runner.'
         )}
         {runner.startingPrice != null && <> SP {fmtPrice(runner.startingPrice)}.</>}
       </div>

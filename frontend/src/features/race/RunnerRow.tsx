@@ -1,7 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { fmtEv, modelPrice, type Signal } from '../../lib/betSignals'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
@@ -10,8 +9,6 @@ interface RunnerRowProps {
   raceDate: string
   selected: boolean
   effective?: EffectiveRunner
-  // Bet signal for this runner (experimental, see lib/betSignals.ts): model price, edge and tier. null when the race has none.
-  signal?: Signal | null
   band: 'core' | 'inner' | 'outer' | 'none'
   showFp: boolean
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
@@ -20,14 +17,14 @@ interface RunnerRowProps {
 }
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
-// `hidden`) so Horse, Proj, SM, Model $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_56px_84px_30px]'
+// `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_40px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_40px_60px]'} ${DESKTOP_GRID}`
+  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
-export function RunnerRow({ runner, raceDate, selected, effective, signal, band, showFp, showBias = true, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -79,7 +76,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
         ) : (
-          <span title={`${effective?.ratingSource === 'bet' ? 'Rating (blend of the bet-signal model and the WPR projection)' : 'Projected WPR'} ${fmtWpr(f.proj)}${f.atwOff !== 0 && effective?.ratingSource !== 'bet' ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"} (model rating ${fmtWpr(f.proj != null ? f.proj - f.atwOff : null)})` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
+          <span title={`Projected WPR ${fmtWpr(f.proj)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"} (model rating ${fmtWpr(f.proj != null ? f.proj - f.atwOff : null)})` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
             <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
@@ -92,13 +89,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
         {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
       </span>
       <span
-        className={`text-right font-mono text-ink-mute ${LG_ONLY}`}
-        title={signal ? `Model price $${(modelPrice(signal.m) ?? 0).toFixed(2)}: what the bet-signal model would pay (win chance ${(signal.m * 100).toFixed(0)}%), judged against $${signal.p.toFixed(2)}. Experimental.` : 'No bet signal for this race (needs the full field, drawn and priced)'}
+        className="text-right font-mono text-[12px] text-ink-mute lg:text-sm"
+        title={effective?.effectivePrice != null ? `Rated price ${fmtPrice(effective.effectivePrice)}: the price the WPR projection implies for this runner (model view only, not a value claim)${effective?.effectivePlacePrice != null ? `. Place price ${fmtPrice(effective.effectivePlacePrice)}` : ''}` : undefined}
       >
-        {f.scratched || !signal ? '' : fmtPrice(modelPrice(signal.m))}
-      </span>
-      <span className={`text-right font-mono text-[12px] lg:text-sm ${signal && signal.e >= 1.05 ? 'font-semibold text-emerald-deep' : 'text-ink-faint'}`} title="EV: bet-signal model win chance x price (1.00 = break-even)">
-        {f.scratched || !signal ? '' : fmtEv(signal.e)}
+        {f.scratched ? '' : fmtPrice(effective?.effectivePrice ?? null)}
       </span>
       <span className="text-right text-ink-mute">
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />

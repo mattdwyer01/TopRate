@@ -47,7 +47,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   corrects it (LightGBM on form, ratings, weight, barrier, jockey/trainer vs market) and returns a win probability, model price (1/p) and edge (p x price - 1),
   with two bet tiers (Select, Volume). `score.py` writes `bet_signals.json` + `bet_signal_log.csv.gz` (workflow `bet_signal.yml`, external cron-job.org trigger
   like `price_refresh.yml`); `train.py` retrains weekly (`bet_signal_train.yml`); `backtest.py`, `forward_check.py`, `check_equivalence.py`. See `betsignal/README.md`
-  and the Current state entry below. Dashboard: Bets tab (`features/plays/PlaysTab.tsx`, `lib/bets.ts`, `lib/betSignals.ts`), Model $ / Edge columns and SELECT/VOL badges on the Race table.
+  and the Current state entry below. Dashboard: NOTHING from it is shown any more (14 Oct 2026, see the last Current state entry): the Bets tab, SELECT/VOL badges, Model $ and EV columns and the Rating blend were removed and `lib/betSignals.ts` / `lib/bets.ts` / `PlaysTab.tsx` are in `archive/frontend/`. The scoring and training workflows still run and nothing reads their output.
 - `.github/workflows/daily.yml` — the GitHub Action. THIS is the workflow that
   runs. (The old duplicate `daily.yml` that sat in the repo root is now
   `archive/workflows/root_daily.yml`.)
@@ -2530,6 +2530,53 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   -7.3% (ex10 -19.9%); favourites flat -10.4% (`betsignal/newinfo_roi.py`). Reading: with SP as the price there is no win-betting edge in anything in
   these files; an edge would need prices obtainable before the jump (opening/mid prices exist for only about 21% of 2026 runs) or new pre-race information
   such as late scratchings and track changes. The ratings stay useful for form analysis, the Review tab and quaddie pools, not as a bet selector.
+
+- **Dashboard back to projection only, EV and Model $ removed, Rated $ restored (14 Oct 2026, branch claude/projection-only, user request)**: after the clean
+  backtest showed no betting edge, the Race page no longer uses the bet-signal model at all. `computeEffectiveRace` lost its `signals` argument and the blend
+  branch (`RATING_BET_SHARE`, `RATING_PER_LN`), so the ranking figure is the WPR projection at today's weight (ATW) plus any manual delta; the column is
+  labelled "Proj" again (was "Rating" / "Rtg"). The Model $ and EV columns are replaced by one **Rated $** column (`effectivePrice`: softmax over the field's
+  projections at `priceBeta` 0.20, sorts as `ratedPrice`; on phones it sits where EV was, 46px). The runner page's market-vs-fair chart, Compare ("Rated $"
+  row) and the help text read the rated price. `rankRace`, `Quaddie`, `RaceDetail`, `RunnerRow`, `RunnerCompare` and `RunnerDetailModal` no longer take
+  signals; `ratingSource` is always 'projection' and `projectionWpr` equals the rating (kept so the bias note and `rankField(..., 'projection')` still
+  work). Gap lines are unchanged (2 dotted / 4 solid), now measured on the projection: about 2.0 / 3.4 runners and 49% / 68% of winners. Verified in
+  Chromium on Rosehill R8 (14 Oct, 16 runners): Rated $ values sum to exactly 1.000 as implied probabilities, sort ascending on click, no overflow or
+  clipping at 1300 / 390 / 360px. Left running and now unread: `bet_signal.yml`, `bet_signal_train.yml`, `bet_signals.json`, `bet_signals_history.json`,
+  `bet_signal_log.csv.gz` (the forward log is still the only valid evidence about the tiers; the cron-job.org trigger for `bet_signal.yml` can be removed
+  if the log is no longer wanted). To bring the bet signals back, restore `archive/frontend/betSignals.ts` to `frontend/src/lib/` and the git history of
+  `RunnerRow.tsx` / `RaceDetail.tsx` / `raceModel.ts` before this change.
+
+- **Race selection tested: no kind of race where the model finds value (14 Oct 2026, `betsignal/race_selection.py`)**: user point, "I look for value in races and
+  don't bet where it is too difficult; we won't find a model that is profitable in every race", and the earlier tests did mostly ask about every race or the top
+  pick. Test: walk-forward race-level conditional logit (fit on earlier years), calibrated market vs calibrated market + rating form + sire, clean-book races only,
+  93,546 test races 2021-2026. Per race, delta = how much better the model called the winner than the calibrated market. Overall delta +2.1e-4 nats a race (t 2.3).
+  Segments by pre-race descriptors (field size, class, distance, wet/dry, share of the field with 3+ rated runs, first starter present, favourite price): the
+  descriptive pooled table shows Class races (+6.0, t 2.6) and fields with 70-90% readable form (+7.0, t 2.9) as the best, and nothing negative enough to avoid;
+  but chosen on earlier years only (t >= 2, 1,500+ races) the walk-forward picked nothing in 5 of 7 dimensions, and the one that persisted (70-90% readable)
+  is worth +6.0e-4 nats a race (+11.0, +1.3, +5.0 in 2024-26). The real finding is that value bets barely exist at SP: EV > 1.05 gives 24 bets in 93,546
+  races (ROI -6.2%, ex10 -100%), EV > 1.00 gives 421 (-8.0%, ex10 -18.5%), so segmenting has nothing to act on. Limits of the test: it prices at closing SP (not
+  obtainable before the jump), its model is market + rating form + sire (not the WPR projection, whose log only restarted 12 Oct 2026, and not a punter's own
+  reading of pace, trip, gear or track), and the many-segments slicing problem is why only earlier-year selection is counted. What would test the manual
+  approach properly: log the user's own value picks with the fixed price taken before the jump, next to the projection's rank and Rated $, and judge that log
+  after a few months; the Review tab's live-logged period is where the projection itself gets judged.
+
+- **Rated price: softmax vs simulation, and overlays against the rated price (14 Oct 2026, `betsignal/rated_price_sim.py`)**: user asked how overlays are
+  calculated and whether simulation should generate rated prices. Rated $ is a softmax of the field's projected ratings at `priceBeta` (0.20), price = 1 / chance,
+  capped at 999; a softmax is the same as simulating independent Gumbel noise (sd about 6 rating points at beta 0.20) and taking the highest figure. The real projection
+  has no history (log restarted 12 Oct 2026), so the test used a STAND-IN rating (linear model of the next rating from the horse's own earlier ratings, fitted before
+  each test year) on 50,540 clean-book races without a first starter, walk-forward 2023-2026. Winner log-likelihood: calibrated market -1.803, softmax -2.013,
+  simulation with one noise level -2.011, simulation with noise by runner type (starts, spell) -2.004; the by-type version beats the softmax in every year
+  (+0.007 to +0.010 nats a race) but every rating-only version is about 0.2 worse than the market. Noise sd by type (scaled): 12.5 for 1-2 starts, 11.4 for 3-5, 10.8 for 6-11,
+  10.3 for 12+, and about 2 points more after a spell of 100+ days. Longshots (predicted under 5%): softmax predicts 3.32% and wins 2.67%, by-type simulation predicts 3.04%
+  and wins 2.73%, market 2.39% / 2.30%, so the simulation roughly halves the longshot over-statement. Place chances (3 places for 8+ runners, 2 for 5-7, Monte Carlo):
+  log-loss 0.5484 softmax vs 0.5473 by-type simulation, mean predicted 0.292 = actual 0.292, bands within about 0.01 (lowest bands over-stated: 0.098 predicted vs 0.081 actual).
+  Overlays against the rated price (rating-only chances, flat $1 at SP): EV > 1.0 is 233,000 of 711,000 runners and returns -34.6% (softmax -34.9%), EV > 1.25 -37.7% (-38.4%),
+  EV > 2.0 -45.0% (-46.7%), all runners -27.0%, favourites -11.6%; by price at EV > 1.25 for the by-type simulation: $3-6 -17%, $6-10 -22%, $10-20 -26%, $20-50 -38%, $50+ -55%.
+  Reading: a rated-price "overlay" is mostly the model's own error on longshots (a third of all runners qualify and the bigger the apparent overlay the worse the return),
+  so Rated $ is the projection's view, not a betting price; simulation improves calibration modestly and gives place prices, it does not create value. Two open items: the
+  stand-in fits beta 0.15 not 0.20 (the real projection was validated at 0.20 on the OLD rating scale; the new own-rating scale is about 18% less spread, so 0.20 is NOT
+  re-validated), and a real-projection version needs the live log (`wpr_projection_log.csv.gz`, from 12 Oct 2026) to measure noise by runner type.
+
+- **Rated $ now from a simulation, with place prices (14 Oct 2026, branch claude/projection-only)**: `frontend/src/lib/ratedPrice.ts` replaces the softmax in `computeEffectiveRace`. Each runner's figure is its ATW projection plus normal noise, sd `BASE_SD` 7.9 x (0.2 / beta) x clamp(projectionSd / 7.0, 0.8, 1.8) (missing sd = 1; light-history runners are noisier). 7.9 was chosen so average entropy equals the 0.20 softmax on synthetic fields (it is not tuned on real results). Win chances by quadrature, place chances by seeded Monte Carlo (2,500 draws; 3 places for 8+ runners, 2 for 5 to 7, none below), place >= win. Place price shows in the Rated $ cell tooltip and the runner page market line (no new column). The noise by runner type comes from the stand-in test (`betsignal/rated_price_sim.py`), NOT the live projection log: re-fit the sd scale, the ratio clamp and beta 0.20 once `wpr_projection_log.csv.gz` has a few weeks of live rows. Verified on Rosehill R8 at 1300/390/360px: win chances sum to 1, sorting works, no overflow.
 
 ## What to be careful about
 
