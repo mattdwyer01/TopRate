@@ -83,8 +83,19 @@ H['s_vs_w'] = H.s1 - h.wpr.shift(1)
 r = H.groupby('race_id')
 H['savg3_rel'] = H.savg3 - r.savg3.transform('max')
 H['savg3_mean'] = H.savg3 - r.savg3.transform('mean')
-SPEED = ['s1', 's2', 's3', 'savg3', 'sbest', 'sraw1', 'savg3_rel', 'savg3_mean']
+SPEED = ['s1', 's2', 's3', 'savg3', 'sbest', 'savg3_rel', 'savg3_mean']
 print('corr(savg3, wpr avg of same 3 runs) as of', pd.concat([H.savg3, pd.concat([h.wpr.shift(k) for k in (1, 2, 3)], axis=1).mean(axis=1)], axis=1).corr().iloc[0, 1].round(3))
+
+# ---- non-weight-adjusted twin of the speed features (same figure, no weight correction), for the raw vs adjusted comparison
+for k in (2, 3):
+    H[f'raw{k}'] = h.fig0.shift(k)
+H['raw1'] = H.sraw1
+H['ravg3'] = H[['raw1', 'raw2', 'raw3']].mean(axis=1)
+H['rbest'] = h.fig0.transform(lambda s: s.shift(1).expanding().max())
+H['ravg3_rel'] = H.ravg3 - H.groupby('race_id').ravg3.transform('max')
+H['ravg3_mean'] = H.ravg3 - H.groupby('race_id').ravg3.transform('mean')
+SPEED_RAW = ['raw1', 'raw2', 'raw3', 'ravg3', 'rbest', 'ravg3_rel', 'ravg3_mean']
+print('corr raw vs weight-adjusted avg3', H[['ravg3', 'savg3']].corr().iloc[0, 1].round(3))
 
 # ---- early speed and closing speed from the race-call margins (lengths behind the leader at each call; not TopRate-authored)
 KLEN = (-K / 1000) * 84.0 / S_PER_LEN      # lengths per kg over a ~84s race
@@ -150,9 +161,11 @@ def walk(feats, label):
     return T
 
 
-A = walk(F.FEATURES + SPEED, 'speed')
+R0 = walk(F.FEATURES + SPEED_RAW, 'speed NOT weight adjusted')
+A = walk(F.FEATURES + SPEED, 'speed weight adjusted')
 B = walk(F.FEATURES + SPEED + PACE, 'speed + early/closing')
 mk = A.win == 1
+print('\nlog-loss: raw', round(float(-np.log(R0.pmod[R0.win == 1]).mean()), 4), ' adjusted', round(float(-np.log(A.pmod[mk]).mean()), 4))
 print('\nper-year log-loss gain (speed - speed+pace):', {int(y): round(float(-np.log(A.pmod[mk & (A.year == y)]).mean() + np.log(B.pmod[(B.win == 1) & (B.year == y)]).mean()), 4) for y in range(2022, 2027)})
 # does closing speed matter: runner level win rate vs market by closing rank
 T = B[B.g400_r_a3.notna()].copy()
