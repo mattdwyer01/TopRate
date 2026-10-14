@@ -71,6 +71,7 @@ jobs:
 
       - name: Runner pages summary and merge dry run (writes nothing to the repo)
         run: |
+          python -m pip install --quiet pandas
           python - <<'PY'
           import gzip, json, pathlib
           import pandas as pd
