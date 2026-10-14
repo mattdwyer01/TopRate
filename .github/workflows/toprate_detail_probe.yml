@@ -96,10 +96,14 @@ jobs:
           import json, requests, toprate_daily as td, toprate_json_capture as tjc
           td.login()
           headers, cookies = tjc._auth_bits()
-          cal = td.api_calendar_upcoming(td.login())
-          rid = [r["raceId"] for d in cal for m in d.get("meetings", []) for r in m.get("races", []) if r.get("raceId") and not r.get("isAbandoned") and not r.get("isBarrierTrial")][0]
+          rid = 1759847
           u = f"{tjc.WEB_BASE}/races/{rid}/__data.json?x-sveltekit-invalidated=0001"
-          p = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False).json()
+          resp = requests.get(u, headers=headers, cookies=cookies, timeout=30, allow_redirects=False)
+          print("HTTP", resp.status_code, "bytes", len(resp.text))
+          p = resp.json()
+          print("top-level keys:", list(p.keys()) if isinstance(p, dict) else type(p).__name__)
+          if "nodes" not in p:
+              print("no nodes; body head:", resp.text[:200]); raise SystemExit
           def deref(data, i, depth, seen=()):
               if depth < 0 or i in seen: return "..."
               v = data[i]
