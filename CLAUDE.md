@@ -2559,6 +2559,23 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   approach properly: log the user's own value picks with the fixed price taken before the jump, next to the projection's rank and Rated $, and judge that log
   after a few months; the Review tab's live-logged period is where the projection itself gets judged.
 
+- **Rated price: softmax vs simulation, and overlays against the rated price (14 Oct 2026, `betsignal/rated_price_sim.py`)**: user asked how overlays are
+  calculated and whether simulation should generate rated prices. Rated $ is a softmax of the field's projected ratings at `priceBeta` (0.20), price = 1 / chance,
+  capped at 999; a softmax is the same as simulating independent Gumbel noise (sd about 6 rating points at beta 0.20) and taking the highest figure. The real projection
+  has no history (log restarted 12 Oct 2026), so the test used a STAND-IN rating (linear model of the next rating from the horse's own earlier ratings, fitted before
+  each test year) on 50,540 clean-book races without a first starter, walk-forward 2023-2026. Winner log-likelihood: calibrated market -1.803, softmax -2.013,
+  simulation with one noise level -2.011, simulation with noise by runner type (starts, spell) -2.004; the by-type version beats the softmax in every year
+  (+0.007 to +0.010 nats a race) but every rating-only version is about 0.2 worse than the market. Noise sd by type (scaled): 12.5 for 1-2 starts, 11.4 for 3-5, 10.8 for 6-11,
+  10.3 for 12+, and about 2 points more after a spell of 100+ days. Longshots (predicted under 5%): softmax predicts 3.32% and wins 2.67%, by-type simulation predicts 3.04%
+  and wins 2.73%, market 2.39% / 2.30%, so the simulation roughly halves the longshot over-statement. Place chances (3 places for 8+ runners, 2 for 5-7, Monte Carlo):
+  log-loss 0.5484 softmax vs 0.5473 by-type simulation, mean predicted 0.292 = actual 0.292, bands within about 0.01 (lowest bands over-stated: 0.098 predicted vs 0.081 actual).
+  Overlays against the rated price (rating-only chances, flat $1 at SP): EV > 1.0 is 233,000 of 711,000 runners and returns -34.6% (softmax -34.9%), EV > 1.25 -37.7% (-38.4%),
+  EV > 2.0 -45.0% (-46.7%), all runners -27.0%, favourites -11.6%; by price at EV > 1.25 for the by-type simulation: $3-6 -17%, $6-10 -22%, $10-20 -26%, $20-50 -38%, $50+ -55%.
+  Reading: a rated-price "overlay" is mostly the model's own error on longshots (a third of all runners qualify and the bigger the apparent overlay the worse the return),
+  so Rated $ is the projection's view, not a betting price; simulation improves calibration modestly and gives place prices, it does not create value. Two open items: the
+  stand-in fits beta 0.15 not 0.20 (the real projection was validated at 0.20 on the OLD rating scale; the new own-rating scale is about 18% less spread, so 0.20 is NOT
+  re-validated), and a real-projection version needs the live log (`wpr_projection_log.csv.gz`, from 12 Oct 2026) to measure noise by runner type.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
