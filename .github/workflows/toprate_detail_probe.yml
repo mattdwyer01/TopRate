@@ -6,6 +6,9 @@ name: TopRate race detail probe (read-only, manual)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/toprate-detail-probe]
+    paths: ['.github/workflows/toprate_detail_probe.yml']
 
 jobs:
   probe:
