@@ -64,8 +64,10 @@ def main():
     pred = np.c_[np.ones(len(te)), te[BASE].values] @ coef + m.predict(te[feats], num_iteration=m.best_iteration)
     err = te.wpr.values - pred
     print(f'holdout 2025-07+ (trained through 2024): RMSE {np.sqrt((err ** 2).mean()):.4f} MAE {np.abs(err).mean():.4f} bias {err.mean():+.3f} best_iter {m.best_iteration}', flush=True)
+    bands = {}
     for lo, hi in [(0, 60), (60, 70), (70, 200)]:
         s = (pred >= lo) & (pred < hi)
+        bands[lo] = round(float(np.sqrt((err[s] ** 2).mean())), 2)
         print(f'  projected {lo}-{hi}: n {s.sum()} rmse {np.sqrt((err[s] ** 2).mean()):.3f} bias {err[s].mean():+.3f}')
     if not ladder:
         return
@@ -77,7 +79,7 @@ def main():
             f.write(mm.model_to_string())
         print('seed', s, 'saved', flush=True)
     info = dict(features=feats, base_cols=BASE, linear_coefs=[float(c) for c in coef], rounds=rounds, params=PARAMS, train_rows=int(len(L)), train_through=str(L.date.max().date()),
-                holdout_rmse=round(float(np.sqrt((err ** 2).mean())), 4))
+                holdout_rmse=round(float(np.sqrt((err ** 2).mean())), 4), sd_bands=[bands[70], bands[60], bands[0]])
     json.dump(info, open(os.path.join(MODELS, 'main_info.json'), 'w'))
 
 

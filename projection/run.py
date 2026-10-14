@@ -31,7 +31,7 @@ sys.path.append(F.ROOT)
 import atw_offsets  # noqa: E402
 
 ROOT, M = F.ROOT, F.MODELS
-CACHE = os.path.join(os.path.dirname(__file__), 'cache')
+CACHE = os.path.join(os.path.dirname(__file__), 'cache_tr' if F.RATINGS_SOURCE == 'toprate' else 'cache')
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
@@ -283,7 +283,8 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
-    sd_main = lambda p: 6.75 if p >= 70 else 7.31 if p >= 60 else 7.55
+    sdb = main_info.get('sd_bands') or [6.75, 7.31, 7.55]     # error sd of the main model for a projection of 70+, 60 to 70, under 60 (measured by train_main.py)
+    sd_main = lambda p: sdb[0] if p >= 70 else sdb[1] if p >= 60 else sdb[2]
     R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
     R['proj'] = R.proj + R.cal
     R['p0'] = R.p0 + R.cal
