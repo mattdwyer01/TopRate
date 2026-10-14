@@ -104,18 +104,27 @@ export function computeEffectiveRace(
   const placePriceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
+  // The rating the page ranks and sorts on: the projection re-expressed from the simulated win chance, so rating order, rank, gaps
+  // and Rated $ order are always the same order (a runner with a noisier projection, such as a light-history horse, can price
+  // differently from another runner on the same projection). Same race mean as the projection, 1 / beta rating points per ln of win
+  // chance (the softmax scale), so the rating stays on the familiar WPR scale. The raw projection stays in `projectionWpr`.
+  const ratingByRunId = new Map<string, number>()
   if (rated.length >= 2) {
-    const maxWpr = Math.max(...rated.map((r) => r.wpr))
     const sim = simulateRace(rated.map((r) => ({ runId: r.runId, wpr: r.wpr, sd: r.sd })), beta)
     rated.forEach((r, i) => {
       priceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].win, 1e-9), PRICE_CAP))
       if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].place as number, 1e-9), PRICE_CAP))
     })
+    const lnP = sim.map((x) => Math.log(Math.max(x.win, 1e-9)))
+    const meanLn = lnP.reduce((a, b) => a + b, 0) / lnP.length
+    const level = rated.reduce((a, r) => a + r.wpr, 0) / rated.length
+    rated.forEach((r, i) => ratingByRunId.set(r.runId, level + (lnP[i] - meanLn) / Math.max(beta, 0.01)))
+    const maxRating = Math.max(...ratingByRunId.values())
     for (const r of rated) {
-      gapByRunId.set(r.runId, maxWpr - r.wpr)
+      gapByRunId.set(r.runId, maxRating - (ratingByRunId.get(r.runId) as number))
     }
     ;[...rated]
-      .sort((a, b) => b.wpr - a.wpr)
+      .sort((a, b) => (ratingByRunId.get(b.runId) as number) - (ratingByRunId.get(a.runId) as number))
       .forEach((r, i) => rankByRunId.set(r.runId, i + 1))
   }
 
@@ -131,7 +140,7 @@ export function computeEffectiveRace(
     const effectivePrice = r.wpr != null ? (priceByRunId.get(r.runId) ?? null) : null
     const gapFromTop = r.wpr != null ? (gapByRunId.get(r.runId) ?? null) : null
     result[r.runId] = {
-      effectiveProjectedWpr: r.wpr,
+      effectiveProjectedWpr: r.wpr != null ? (ratingByRunId.get(r.runId) ?? r.wpr) : null,
       projectionWpr: r.wpr,
       ratingSource: 'projection',
       atwOff: r.atwOff,
