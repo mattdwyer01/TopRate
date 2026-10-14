@@ -2411,6 +2411,8 @@ def main():
         runners_df["distance"] = pd.to_numeric(runners_df["distance"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
     try:       # TopRate numbers for races that have already run (data/tr_past, toprate_past_fetch.py): blanks only
         runners_df, id_map = tr_field_rows.remap_ids(runners_df)
+        runners_df, id_map2 = tr_field_rows.remap_ids_from_form(runners_df)
+        id_map = {**id_map, **id_map2}
         if id_map:
             print(f"  past races: {len(id_map)} runners re-keyed to TopRate ids, {tr_field_rows.remap_projection_log(id_map)} projection-log rows")
         runners_df, n_past = tr_field_rows.merge_tr_past(runners_df)
