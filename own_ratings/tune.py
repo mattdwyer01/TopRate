@@ -33,7 +33,8 @@ BOUNDS = dict(ms0=(0.7, 1.6), ms1=(0.9, 2.0), ms2=(0.9, 2.0), cap=(5, 25), gamma
               decay=(0.4, 1.0), hist_n=(6, 12), trim=(0.0, 0.4), min_priors=(2, 10), wcoef=(0.0, 1.0), level_ema=(0.005, 0.1))
 INT = {"exp_n", "hist_n", "min_priors"}
 RATING_COLS = ["w1", "w2", "w3", "wavg3", "wbest", "wavg_all", "wavg3_rel", "wavg3_mean"]
-TUNE_FOLDS, HOLD_FOLDS = (2023, 2024), (2025, 2026)
+TUNE_FOLDS, HOLD_FOLDS = (2022, 2023, 2024), (2025, 2026)
+MODE = os.environ.get("TUNE_MODE", "probe")
 
 
 # ------------------------------------------------------------------ chain (numpy)
@@ -122,15 +123,27 @@ PARAMS = dict(objective="binary", learning_rate=0.08, num_leaves=15, min_data_in
               bagging_freq=1, lambda_l2=50, verbose=-1, seed=1, num_threads=2)
 
 
-def fold_eval(D, ty):
+PROBE_FEATS = RATING_COLS + ["nruns", "rank_m"]
+PROBE_PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=4, min_data_in_leaf=2000, feature_fraction=0.8, lambda_l2=100,
+                    verbose=-1, seed=1, num_threads=2)
+PROBE_ROUNDS = 120
+
+
+def fold_eval(D, ty, mode="probe"):
     import lightgbm as lgb
     from betsignal import features as F
     from betsignal.score import tier
     logit = lambda p: np.log(p / (1 - p))
-    tr, va, te = D[D.year <= ty - 2], D[D.year == ty - 1], D[D.year == ty].copy()
-    m = lgb.train(PARAMS, lgb.Dataset(tr[F.FEATURES], tr.win, init_score=logit(tr.pm)), 1500,
-                  valid_sets=[lgb.Dataset(va[F.FEATURES], va.win, init_score=logit(va.pm))], callbacks=[lgb.early_stopping(60, verbose=False)])
-    s = m.predict(te[F.FEATURES], raw_score=True) + logit(te.pm).values
+    if mode == "probe":
+        # ratings only, small trees, fixed rounds, no early stopping: low-noise read of what the ratings add to the market
+        tr, te = D[D.year <= ty - 1], D[D.year == ty].copy()
+        m = lgb.train(PROBE_PARAMS, lgb.Dataset(tr[PROBE_FEATS], tr.win, init_score=logit(tr.pm)), PROBE_ROUNDS)
+        s = m.predict(te[PROBE_FEATS], raw_score=True) + logit(te.pm).values
+    else:
+        tr, va, te = D[D.year <= ty - 2], D[D.year == ty - 1], D[D.year == ty].copy()
+        m = lgb.train(PARAMS, lgb.Dataset(tr[F.FEATURES], tr.win, init_score=logit(tr.pm)), 1500,
+                      valid_sets=[lgb.Dataset(va[F.FEATURES], va.win, init_score=logit(va.pm))], callbacks=[lgb.early_stopping(60, verbose=False)])
+        s = m.predict(te[F.FEATURES], raw_score=True) + logit(te.pm).values
     te["s"] = s
     e = pd.Series(np.exp(s - te.groupby("race_id").s.transform("max").values), index=te.index)
     te["pmod"] = e / e.groupby(te.race_id).transform("sum")
@@ -140,11 +153,11 @@ def fold_eval(D, ty):
     te["tier"] = [tier(a, b, c) for a, b, c in zip(te.ev, te.sp, te.rank_m)]
     te["ret"] = np.where(te.win == 1, te.sp, 0.0)
     sel = te[te.tier == "S"]
-    return dict(year=ty, gain=gain, iters=m.best_iteration, n_sel=len(sel), sel_roi=float(sel.ret.mean() - 1) if len(sel) else np.nan,
+    return dict(year=ty, gain=gain, iters=getattr(m, 'best_iteration', 0), n_sel=len(sel), sel_roi=float(sel.ret.mean() - 1) if len(sel) else np.nan,
                 races=int(w.shape[0])), te
 
 
-def evaluate(p, folds, o=None, D=None, keep=False):
+def evaluate(p, folds, o=None, D=None, keep=False, mode="probe"):
     t = time.time()
     o = o if o is not None else pd.read_pickle(f"{CACHE}/obs.pkl")
     D = D if D is not None else pd.read_pickle(f"{CACHE}/feat.pkl")
@@ -154,7 +167,7 @@ def evaluate(p, folds, o=None, D=None, keep=False):
     DD = rating_features(D, k["wpr"].values)
     res, tes = [], []
     for ty in folds:
-        r, te = fold_eval(DD, ty)
+        r, te = fold_eval(DD, ty, mode)
         res.append(r)
         tes.append(te)
     out = dict(params=p, folds=res, gain=float(np.mean([r["gain"] for r in res])), secs=round(time.time() - t))
@@ -173,7 +186,7 @@ def _clip(p):
 
 def _job(args):
     p, folds = args
-    return evaluate(p, folds)
+    return evaluate(p, folds, mode=MODE)
 
 
 def main():
@@ -203,13 +216,13 @@ def main():
         ok = ~np.isnan(st) & ~np.isnan(wpr)
         print("vs stored: n", ok.sum(), "mean abs diff", np.abs(st[ok] - wpr[ok]).mean(), "corr", np.corrcoef(st[ok], wpr[ok])[0, 1])
     if a.baseline:
-        r = evaluate(BASE, TUNE_FOLDS + HOLD_FOLDS)
+        r = evaluate(BASE, TUNE_FOLDS + HOLD_FOLDS, mode=MODE)
         print(json.dumps(r, default=float, indent=1))
     if a.search:
         from multiprocessing import Pool
         rng = np.random.default_rng(a.seed)
         best, best_g, log = dict(BASE), None, []
-        res0 = evaluate(BASE, TUNE_FOLDS)
+        res0 = evaluate(BASE, TUNE_FOLDS, mode=MODE)
         best_g = res0["gain"]
         print("baseline tune gain", round(best_g, 5), flush=True)
         names = list(BOUNDS)
@@ -234,7 +247,7 @@ def main():
     if a.final:
         p = dict(BASE, **json.loads(a.final))
         for name, pp in (("baseline", BASE), ("candidate", _clip(p))):
-            r = evaluate(pp, TUNE_FOLDS + HOLD_FOLDS)
+            r = evaluate(pp, TUNE_FOLDS + HOLD_FOLDS, mode=MODE)
             print(name, json.dumps(r, default=float))
 
 
