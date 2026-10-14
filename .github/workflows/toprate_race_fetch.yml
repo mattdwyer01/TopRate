@@ -1,7 +1,7 @@
 # Read-only trial of toprate_race_fetch.py (14 Oct 2026): logs in to toprate.au, reads the calendar and each race page's __data.json for
 # the chosen days, writes one JSON file per date. Output is uploaded as the "tr-fields" artifact only; NOTHING is committed or pushed, and the
 # live pipeline does not read it. Runs on a GitHub-hosted runner (login and the race pages both answer 200 there; checked 14 Oct 2026).
-name: TopRate race fetch (trial, read-only)
+name: TopRate race fetch (manual check, read-only)
 
 on:
   workflow_dispatch:
@@ -15,9 +15,6 @@ on:
         description: 'First date YYYY-MM-DD (blank = today, UTC)'
         required: false
         type: string
-  push:
-    branches: [claude/toprate-detail-probe]
-    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', 'tr_field_rows.py', 'rc_field_rows.py', '.github/workflows/toprate_race_fetch.yml']
 
 concurrency:
   group: toprate-race-fetch
