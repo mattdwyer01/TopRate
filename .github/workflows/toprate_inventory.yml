@@ -1,0 +1,41 @@
+# Read-only inventory of what toprate.au exposes to the logged-in account (14 Oct 2026): route patterns, the site's own data calls and the
+# field names of each page type. Structure only, no bulk download, nothing committed. Runs on a hosted runner.
+name: TopRate inventory (read-only, manual)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/toprate-detail-probe]
+    paths: ['toprate_inventory.py', '.github/workflows/toprate_inventory.yml']
+
+concurrency:
+  group: toprate-inventory
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet requests
+      - name: Read the site's public key from the last commit that held it (not printed)
+        run: |
+          mkdir -p "$RUNNER_TEMP/old" && cd "$RUNNER_TEMP/old"
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+          git show FETCH_HEAD:toprate_daily.py > old_td.py
+          key=$(python - <<'PY'
+          import re
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open("old_td.py").read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+          [ -n "$key" ] || { echo "could not read the key"; exit 1; }
+          echo "::add-mask::$key"
+          echo "TOPRATE_ANON_KEY=$key" >> "$GITHUB_ENV"
+      - name: Inventory
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+        run: python toprate_inventory.py
