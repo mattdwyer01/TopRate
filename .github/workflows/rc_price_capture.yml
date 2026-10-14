@@ -1,0 +1,87 @@
+name: racing.com bookmaker price snapshots (price-log branch)
+
+# Timestamped win/place prices from every bookmaker racing.com lists, for races that jump within the next 3 hours (rc_price_capture.py).
+# Purpose: the closing price already holds everything our models can see, so further edges can only come from price behaviour (steam and
+# drift before the jump, differences between bookmakers). That needs a price history with times, which nothing stored before 14 Oct 2026.
+#
+# Files go to the `price-log` BRANCH only (price_log/rc/<date>/<HHMMSS>.csv.gz, about 10 KB each), never to main, so the history never
+# touches the dashboard's files. Trigger: cron-job.org -> workflow_dispatch every 5 minutes during racing hours (about 21:00 to 12:30 UTC),
+# the same pattern as the other jobs; the schedule below is only a slow fallback. A single run takes about a minute.
+# After about a month, analyse with the files on that branch (see CLAUDE.md, "Price log").
+
+on:
+  schedule:
+    - cron: "*/20 21-23,0-12 * * *"
+  workflow_dispatch:
+    inputs:
+      window:
+        description: "minutes ahead of the jump to capture"
+        default: "180"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rc-price-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+      IN_WINDOW: ${{ github.event.inputs.window || '180' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            rc_fields.py
+            rc_price_capture.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: "3.11"
+
+      - name: Python packages
+        run: |
+          python -c "import requests" 2>/dev/null && exit 0
+          python -m pip install requests \
+            || python -m pip install --user requests \
+            || python -m pip install --user --break-system-packages requests
+
+      - name: Capture prices
+        run: |
+          [[ "$IN_WINDOW" =~ ^[0-9]{2,3}$ ]] || { echo "bad window"; exit 1; }
+          python rc_price_capture.py --window "$IN_WINDOW" --deadline 240
+
+      - name: Push to the price-log branch
+        run: |
+          set -u
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          shopt -s nullglob globstar
+          files=(price_log/rc/**/*.csv.gz)
+          [ ${#files[@]} -gt 0 ] || { echo "no snapshot this run"; exit 0; }
+          for attempt in 1 2 3 4 5 6; do
+            export GIT_INDEX_FILE="$(mktemp -u)"
+            if git ls-remote --exit-code --heads origin price-log >/dev/null 2>&1; then
+              timeout 240 git fetch --depth=1 origin price-log || { sleep 20; continue; }
+              tip=$(git rev-parse FETCH_HEAD); git read-tree "$tip"; parent=(-p "$tip")
+            else
+              git read-tree --empty; parent=()          # first run: the branch does not exist yet, start it with no history
+            fi
+            for f in "${files[@]}"; do
+              git update-index --add --cacheinfo "100644,$(git hash-object -w "$f"),$f"
+            done
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" "${parent[@]}" -m "rc prices $(date -u +%FT%H:%MZ)")
+            rm -f "$GIT_INDEX_FILE"; unset GIT_INDEX_FILE
+            if timeout 240 git push origin "$commit:refs/heads/price-log"; then echo "pushed $commit"; exit 0; fi
+            echo "push rejected (attempt $attempt), retrying"; sleep $((attempt * 8))
+          done
+          echo "::error::could not push after 6 attempts"; exit 1
