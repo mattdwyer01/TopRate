@@ -1,7 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { fmtEv, modelPrice, TIER_HELP, TIER_LABEL, type Signal } from '../../lib/betSignals'
+import { fmtEv, modelPrice, type Signal } from '../../lib/betSignals'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
@@ -51,15 +51,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, signal, band,
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
           {runner.dataScratched && <span className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white">SCR</span>}
-          {signal && (signal.t === 'S' || signal.t === 'V') && !f.scratched && (
-            <span
-              className={`flex-none rounded px-1 text-[10px] font-semibold ${signal.t === 'S' ? 'bg-emerald text-white' : 'border border-emerald-line bg-emerald-bg text-emerald-deep'}`}
-              title={`${TIER_LABEL[signal.t]}: ${TIER_HELP[signal.t]}`}
-            >
-              <span className="lg:hidden">{signal.t}</span>
-              <span className="hidden lg:inline">{signal.t === 'S' ? 'SELECT' : 'VOL'}</span>
-            </span>
-          )}
           {showBias && hasRunnerBias(runner) && !f.scratched && (
             <span
               className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
