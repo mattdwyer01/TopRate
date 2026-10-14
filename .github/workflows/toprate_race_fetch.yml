@@ -17,7 +17,7 @@ on:
         type: string
   push:
     branches: [claude/toprate-detail-probe]
-    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', '.github/workflows/toprate_race_fetch.yml']
+    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', 'tr_field_rows.py', '.github/workflows/toprate_race_fetch.yml']
 
 concurrency:
   group: toprate-race-fetch
@@ -68,6 +68,9 @@ jobs:
         run: |
           python -m pip install --quiet pandas
           python toprate_fetch_check.py data/tr_fields
+
+      - name: Dry run of the runners.csv merge (writes nothing)
+        run: python tr_field_rows.py 2026-10-14 2026-10-15
 
       - name: Upload
         uses: actions/upload-artifact@v4
