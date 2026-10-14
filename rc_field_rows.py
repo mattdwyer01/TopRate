@@ -109,6 +109,49 @@ def _set(df, i, c, v):
         df.at[i, c] = str(v)
 
 
+# In a race TopRate owns, racing.com only supplies what TopRate's page does not carry, matched by horse name (then saddle number), and a
+# scratching. It never adds a runner and never overwrites a TopRate value.
+_BACKUP_ONLY = ("gear", "gear_changes", "weight_previous", "rc_win_price")
+_BACKUP_IF_BLANK = ("handicap_rating", "horse_age", "horse_sex", "silk_url", "barrier", "jockey", "trainer", "weight_carried")
+
+
+def _apply_backup(out, backup, date_str):
+    if not backup:
+        return 0
+    day = out["date"].astype(str).str[:10] == date_str
+    by_name, by_tab = {}, {}
+    for i in out.index[day]:
+        v, n = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])
+        by_name[(v, n, re.sub(r"[^a-z0-9]", "", str(out.at[i, "horse"]).lower()))] = i
+        t = out.at[i, "tab_number"] if "tab_number" in out.columns else None
+        if str(t) not in ("None", "nan", "", "0", "0.0"):
+            by_tab[(v, n, str(int(float(t))))] = i
+    n_ch = 0
+    for v, n, row in backup:
+        i = by_name.get((v, n, re.sub(r"[^a-z0-9]", "", str(row.get("horse")).lower())))
+        if i is None and row.get("tab_number") is not None:
+            i = by_tab.get((v, n, str(row["tab_number"])))
+        if i is None or str(out.at[i, "resulted"]) in ("1", "1.0"):
+            continue
+        changed = False
+        for c in _BACKUP_ONLY:
+            val = row.get(c)
+            if c in out.columns and val is not None and str(out.at[i, c]) != str(val):
+                _set(out, i, c, val)
+                changed = True
+        for c in _BACKUP_IF_BLANK:
+            val = row.get(c)
+            cur = out.at[i, c] if c in out.columns else None
+            if c in out.columns and val is not None and (cur is None or str(cur).strip() in ("", "nan", "None")):
+                _set(out, i, c, val)
+                changed = True
+        if row.get("scratched") == 1 and str(out.at[i, "scratched"]) not in ("1", "1.0"):
+            _set(out, i, "scratched", 1)
+            changed = True
+        n_ch += changed
+    return n_ch
+
+
 def merge_rc_fields(runners_df, date_str):
     """Bring the declared fields of every racing.com race of `date_str` into the runners frame, without deleting anything.
 
@@ -122,7 +165,11 @@ def merge_rc_fields(runners_df, date_str):
     if len(have):
         for (v, n), g in have.groupby([have["venue"].map(norm_venue), have["race"].astype(str)]):
             key_of[(v, n)] = str(g["race_id"].iloc[0])
-    new_rows, updates = [], {}
+    tr_owned = set()     # races whose rows come from TopRate (tr_field_rows.py): racing.com is only the backup there
+    if len(have) and "field_source" in have.columns:
+        for (v, n), g in have[have["field_source"].astype(str) == "toprate.au"].groupby([have["venue"].map(norm_venue), have["race"].astype(str)]):
+            tr_owned.add((v, n))
+    new_rows, updates, backup = [], {}, []
     for m in load(date_str).get("meetings", []):
         mv = norm_venue(m.get("venue"))
         for r in m.get("races", []):
@@ -131,9 +178,12 @@ def merge_rc_fields(runners_df, date_str):
                     "class": r.get("class"), "going": r.get("going"), "startTime": r.get("time"), "prizeMoney": None,
                     "raceId": rid or RC_RACE_ID_BASE + int(m["meeting_code"]) * 100 + int(r["race_no"])}
             for row in rows_for(meta, date_str):
+                if (mv, str(r.get("race_no"))) in tr_owned:
+                    backup.append((mv, str(r.get("race_no")), row))
+                    continue
                 updates[str(row["run_id"])] = row
                 row["_new_race"] = rid is None
-    if not updates:
+    if not updates and not backup:
         return runners_df, 0, 0
     ids = runners_df["run_id"].astype(str) if len(runners_df) else pd.Series([], dtype=str)
     pos = {rid: i for i, rid in zip(ids.index, ids)} if len(ids) else {}
@@ -168,6 +218,7 @@ def merge_rc_fields(runners_df, date_str):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
             out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
+    n_up += _apply_backup(out, backup, date_str)
     return out, len(new_rows), n_up
 
 

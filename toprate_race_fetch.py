@@ -113,7 +113,7 @@ def runner_rows(page):
             "race_no": race.get("number"), "race_name": race.get("name"), "race_class": race.get("class"),
             "distance": race.get("distance"), "start_time": race.get("startTime"), "prize_money": race.get("prizeMoney"),
             "weight_restriction": race.get("weightRestriction"), "age_restriction": race.get("ageRestriction"),
-            "horse": f.get("horse"), "horse_id": f.get("horseId"), "tab_number": f.get("tabNumber"), "barrier": f.get("barrier"),
+            "horse": f.get("horse"), "horse_id": f.get("horseId"), "silk_url": f.get("silksURL"), "tab_number": f.get("tabNumber"), "barrier": f.get("barrier"),
             "jockey": f.get("jockey"), "jockey_id": f.get("jockeyId"), "trainer": f.get("trainer"), "trainer_id": f.get("trainerId"),
             "horse_age": f.get("horseAge"), "horse_sex": f.get("horseSex"), "sire": f.get("sire"), "sire_of_dam": f.get("sireOfDam"),
             "weight": f.get("weightHandicap"), "wfa": f.get("wfa"), "handicap_rating": f.get("handicapRating"),

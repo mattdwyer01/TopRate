@@ -147,6 +147,36 @@ jobs:
       # be active - this step's own commit/push is the one that's
       # actually been working every run.
       # ─────────────────────────────────────────────────────────
+      # toprate.au is the primary source of the declared field and its numbers (wpr_nett, speed, form factor, TopRate rating), racing.com the
+      # backup (tr_field_rows.py / rc_field_rows.py). Reads the website's own race pages (toprate_race_fetch.py); the race-detail RPCs stay
+      # Cloudflare-blocked. Best-effort: if this fails or the files get older than 30 h the merge ignores them and racing.com carries on.
+      # Needs the repo secret TOPRATE_ANON_KEY (the website's public key); until it is set the step reads it from the last commit that held it.
+      - name: Fetch toprate.au race pages (best effort)
+        if: ${{ inputs.mode != 'results' }}
+        continue-on-error: true
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          TOPRATE_ANON_KEY: ${{ secrets.TOPRATE_ANON_KEY }}
+        run: |
+          if [ -z "$TOPRATE_ANON_KEY" ]; then
+            d=$(mktemp -d) && git -C "$d" init -q && git -C "$d" remote add origin "https://github.com/${{ github.repository }}.git"
+            git -C "$d" fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+            git -C "$d" show FETCH_HEAD:toprate_daily.py > "$d/old_td.py"
+            TOPRATE_ANON_KEY=$(python - "$d/old_td.py" <<'PY'
+          import re, sys
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open(sys.argv[1]).read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+            echo "::add-mask::$TOPRATE_ANON_KEY"
+            export TOPRATE_ANON_KEY
+          fi
+          START="${{ inputs.date }}"
+          [ -n "$START" ] || START=$(TZ=Australia/Melbourne date +%Y-%m-%d)
+          if [ -n "${{ inputs.date }}" ]; then DAYS=1; else DAYS=3; fi
+          python toprate_race_fetch.py --from "$START" --days "$DAYS" --out data/tr_fields
+
       - name: Merge racing.com fields and rebuild the payload
         run: |
           if [ -n "${{ inputs.date }}" ]; then
@@ -210,6 +240,8 @@ jobs:
             [ -f runners_archive.csv.gz ] && git add runners_archive.csv.gz
             # racing.com declared fields (rc_fields.py), small files written by rc_fields_daily.yml, read by the fetch
             [ -d data/rc_fields ] && git add data/rc_fields
+            # toprate.au race pages (toprate_race_fetch.py), small per-date files read by the merge in Step 1
+            [ -d data/tr_fields ] && git add data/tr_fields
             [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
             # toprate_live.html deliberately not staged: static frontend build, a data run never changes it,
             # and re-staging this job's (older) checkout copy reverted frontend deploys that landed mid-run.

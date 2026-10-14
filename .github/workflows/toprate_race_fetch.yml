@@ -17,7 +17,7 @@ on:
         type: string
   push:
     branches: [claude/toprate-detail-probe]
-    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', 'tr_field_rows.py', '.github/workflows/toprate_race_fetch.yml']
+    paths: ['toprate_race_fetch.py', 'toprate_fetch_check.py', 'tr_field_rows.py', 'rc_field_rows.py', '.github/workflows/toprate_race_fetch.yml']
 
 concurrency:
   group: toprate-race-fetch
@@ -70,7 +70,25 @@ jobs:
           python toprate_fetch_check.py data/tr_fields
 
       - name: Dry run of the runners.csv merge (writes nothing)
-        run: python tr_field_rows.py 2026-10-14 2026-10-15
+        run: |
+          python tr_field_rows.py 2026-10-14 2026-10-15
+          python - <<'PY'
+          import pandas as pd, rc_field_rows, tr_field_rows
+          df = pd.read_csv("runners.csv", low_memory=False)
+          for d in ("2026-10-14", "2026-10-15"):
+              before = df[df.date.astype(str).str[:10] == d]
+              df1, s = tr_field_rows.merge_tr_fields(df, d)
+              df2, n_add, n_upd = rc_field_rows.merge_rc_fields(df1, d)
+              day = df2[df2.date.astype(str).str[:10] == d]
+              dup = int(day.duplicated(["venue", "race", "horse"]).sum())
+              src = day.field_source.fillna("none").value_counts().to_dict()
+              print(f"{d}: rows before {len(before)} -> after toprate {len(df1[df1.date.astype(str).str[:10] == d])} -> after racing.com backup {len(day)}"
+                    f" | racing.com added {n_add}, updated {n_upd} | duplicates {dup} | field_source {src}")
+              print(f"   toprate: updated {s['updated']}, added rows {s['added_rows']} (races {s['added_races']}), skipped unmatched {s['unmatched_skipped']}")
+              print(f"   nett on non-scratched: {day[day.scratched.fillna(0).astype(float) == 0].wpr_nett.notna().mean():.1%}"
+                    f" | runs with tab_number 0: {int((day.tab_number.fillna(0).astype(float) == 0).sum())}")
+              df = df2
+          PY
 
       - name: Upload
         uses: actions/upload-artifact@v4
