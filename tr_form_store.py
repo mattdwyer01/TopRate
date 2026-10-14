@@ -122,6 +122,10 @@ def frame(horses=None, store_dir=DIR):
             rows.append({
                 "sect_early": sr.get("individualEarlySpeed"), "sect_mid": sr.get("individual800mTo400mSpeed"),
                 "sect_l600": sr.get("individualLast600mSpeed"), "sect_l200": sr.get("individualLast200mSpeed"),
+                # names the settling and race-speed models were trained on (TopRate's own columns)
+                "sect_i_early": sr.get("individualEarlySpeed"), "sect_ld_early": sr.get("leaderEarlySpeed"),
+                "sect_i_to800": sr.get("individualTo800mSpeed"), "sect_i_to600": sr.get("individualTo600mSpeed"),
+                "margin800m": r.get("margin800m"), "margin600m": r.get("margin600m"), "position600m": r.get("position600m"),
                 "horse": r.get("horse"), "horse_lc": h, "horse_id": r.get("horse_id"), "date": r.get("date"), "wpr": r.get("wpr"),
                 "track": r.get("track") or r.get("venue"), "distance": r.get("distance"), "going": r.get("going"),
                 "positionFinish": r.get("positionFinish"), "barrier": r.get("barrier"), "marginFinish": r.get("marginFinish"),

@@ -365,15 +365,12 @@ def compute_race_speed(runners_df, target_date_str=None):
         return runners_df
 
     # form history for the settling estimates
-    if not WPR_FORM_HISTORY_CSV.exists():
-        print(f"  Race-speed estimate skipped: {WPR_FORM_HISTORY_CSV.name} "
-              f"not found")
+    if not tr_form_store.DIR.exists():
+        print("  Race-speed estimate skipped: data/tr_form not found")
         return runners_df
     try:
-        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                         dtype={"horse": str, "horse_id": str},
-                         low_memory=False)
-        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        # TopRate's own past runs (data/tr_form), 14 Oct 2026: same columns the race-speed model was trained on
+        fh = tr_form_store.frame(set(today["horse"].astype(str).str.strip().str.lower()))
         fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
         fh = fh.dropna(subset=["date"])
         if "isBarrierTrial" in fh.columns:
@@ -472,12 +469,10 @@ def fill_comments_from_history(runners_df):
         return runners_df
 
     try:
-        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                         dtype={"horse": str}, low_memory=False)
-        if "comments_video" not in fh.columns and "comments_steward" not in fh.columns:
-            print("  Comments: form history has no comment columns, skipping")
+        fh = tr_form_store.frame(set(runners_df.loc[resulted_mask, "horse"].astype(str).str.strip().str.lower()))
+        if fh.empty:
+            print("  Comments: no TopRate past runs for these horses yet, skipping")
             return runners_df
-        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
         fh["date_s"] = fh["date"].astype(str).str[:10]
         # latest scrape wins (comments are revised/added post-race)
         if "scrape_date" in fh.columns:
@@ -1581,10 +1576,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _settle_rel_lookup = {}
     try:
         import settling_estimate as _se_mod
-        if WPR_FORM_HISTORY_CSV.exists():
-            _sfh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                               dtype={"horse": str}, low_memory=False)
-            _sfh["horse_lc"] = _sfh["horse"].astype(str).str.strip().str.lower()
+        if tr_form_store.DIR.exists():
+            # TopRate's own past runs (data/tr_form), 14 Oct 2026
+            _sfh = tr_form_store.frame(set(runners_df["horse"].astype(str).str.strip().str.lower()))
+            if _sfh.empty:
+                _sfh = pd.DataFrame(columns=["horse", "horse_lc", "date"])
             if "isBarrierTrial" in _sfh.columns:
                 _sfh = _sfh[_sfh["isBarrierTrial"].fillna(0).astype(int) == 0]
             if "scrape_date" in _sfh.columns:
