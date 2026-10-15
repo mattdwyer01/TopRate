@@ -524,7 +524,7 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
     rows TopRate owns and races TopRate has no runner in are never touched. Returns (runners_df, stats)."""
     import pandas as pd
     rows = load(date_str, now)
-    stats = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
+    stats = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0, "scratched_with_toprate": 0}
     if not rows or not len(runners_df):
         return runners_df, stats
     out = runners_df.copy()
@@ -569,6 +569,17 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
                 stats["duplicate_rows_scratched"] += 1
                 _set(out, i, "scratched", 1)
                 _set(out, i, "field_source", DROPPED)
+    # a horse TopRate has scratched in a race: its racing.com row of the same race is a duplicate of a scratched runner, so it goes too (the pass above
+    # only compared live rows, and a scratched TopRate row dropped out of it, leaving the racing.com twin live: 17 Oct 2026, four Randwick runners)
+    tr_scr = {(norm_venue(out.at[i, "venue"]), str(out.at[i, "race"]), _hn(out.at[i, "horse"]))
+              for i in idx if str(out.at[i, "field_source"]) == SOURCE and str(out.at[i, "scratched"]) in ("1", "1.0")}
+    for i in idx:
+        if str(out.at[i, "field_source"]) == SOURCE or str(out.at[i, "scratched"]) in ("1", "1.0") or str(out.at[i, "resulted"]) in ("1", "1.0"):
+            continue
+        if (norm_venue(out.at[i, "venue"]), str(out.at[i, "race"]), _hn(out.at[i, "horse"])) in tr_scr:
+            stats["scratched_with_toprate"] += 1
+            _set(out, i, "scratched", 1)
+            _set(out, i, "field_source", DROPPED)
     return (runners_df if dry_run else out), stats
 
 
