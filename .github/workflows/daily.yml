@@ -357,3 +357,8 @@ jobs:
           done
           echo "Push failed after retries"
           exit 1
+
+      # Last step, after the push: shows the run red when a day's declared runners are under 90% projected (check_projection_coverage.py).
+      - name: Projection coverage check
+        if: always()
+        run: python check_projection_coverage.py
