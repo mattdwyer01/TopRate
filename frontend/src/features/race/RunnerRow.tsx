@@ -22,7 +22,7 @@ interface RunnerRowProps {
 const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  // Phone: # | Horse | L3 over Nett | Proj | SM | Rated $ | Fixed $ (| FP), everything on screen at once.
+  // Phone: # | Horse | Nett over L3 | Proj | SM | Rated $ | Fixed $ (| FP), everything on screen at once.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${showFp ? 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px]' : 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
@@ -78,25 +78,25 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       </span>
       <span
         className="text-right font-mono leading-tight lg:hidden"
-        title={f.scratched ? undefined : `L3 ${l3 ? fmtWpr(l3.avg) : '-'} (last 3 rated runs, average) over Nett ${runner.nett != null ? fmtWpr(runner.nett) : '-'} (TopRate's own forward rating)`}
+        title={f.scratched ? undefined : `Nett ${runner.nett != null ? fmtWpr(runner.nett) : '-'} (TopRate's own forward rating) over L3 ${l3 ? fmtWpr(l3.avg) : '-'} (last 3 rated runs, average)`}
       >
         {f.scratched ? null : (
           <>
-            <span className="block text-[12px] text-ink">{l3 ? fmtWpr(l3.avg) : ''}</span>
-            <span className="block text-[10px] text-ink-faint">{runner.nett != null ? fmtWpr(runner.nett) : ''}</span>
+            <span className="block text-[12px] font-semibold text-ink">{runner.nett != null ? fmtWpr(runner.nett) : ''}</span>
+            <span className="block text-[10px] text-ink-faint">{l3 ? fmtWpr(l3.avg) : ''}</span>
           </>
         )}
+      </span>
+      <span className={`text-right font-mono text-[14px] font-semibold text-ink ${LG_ONLY}`} title="TopRate's own forward rating (wpr_nett)">
+        {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
       </span>
       <span className={`text-right font-mono leading-tight ${LG_ONLY}`} title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
         {l3 ? (
           <>
-            <span className="block text-[13px] text-ink">{fmtWpr(l3.avg)}</span>
+            <span className="block text-[12px] text-ink-mute">{fmtWpr(l3.avg)}</span>
             <span className="block text-[10px] text-ink-faint">{fmtWpr(l3.median)}</span>
           </>
         ) : null}
-      </span>
-      <span className={`text-right font-mono text-[13px] text-ink-mute ${LG_ONLY}`} title="TopRate's own forward rating (wpr_nett)">
-        {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
       </span>
       <span className="text-right">
         {f.scratched ? (
