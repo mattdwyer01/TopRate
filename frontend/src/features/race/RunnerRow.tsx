@@ -119,10 +119,19 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         <FinishBadge pos={runner.finishPosition} />
       </span>
       {!f.scratched && (l3 != null || runner.nett != null) && (
-        <span className="col-span-full -mt-0.5 pl-[38px] font-mono text-[10px] leading-snug text-ink-mute lg:hidden">
-          {l3 != null && <>L3 {fmtWpr(l3.avg)} <span className="text-ink-faint">(med {fmtWpr(l3.median)})</span></>}
-          {l3 != null && runner.nett != null && ' \u00B7 '}
-          {runner.nett != null && <>Nett {fmtWpr(runner.nett)}</>}
+        <span className="col-span-full -mt-1 flex items-baseline gap-3 pl-[50px] font-mono text-[11px] leading-none text-ink lg:hidden">
+          {l3 != null && (
+            <span title={`Last 3 rated runs: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}`}>
+              <span className="mr-1 font-sans text-[9px] font-medium uppercase tracking-wide text-ink-faint">L3</span>
+              {fmtWpr(l3.avg)}
+            </span>
+          )}
+          {runner.nett != null && (
+            <span title="TopRate's own forward rating (wpr_nett)">
+              <span className="mr-1 font-sans text-[9px] font-medium uppercase tracking-wide text-ink-faint">Nett</span>
+              {fmtWpr(runner.nett)}
+            </span>
+          )}
         </span>
       )}
     </div>
