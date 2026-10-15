@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { lastRunsRating } from '../../lib/formRatings'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
@@ -18,7 +19,7 @@ interface RunnerRowProps {
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
 // `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
   `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
@@ -27,6 +28,7 @@ const LG_ONLY = 'hidden lg:block'
 export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
+  const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
   return (
     <div
       role="button"
@@ -72,6 +74,22 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
+      {(() => {
+        const fr = l3
+        return (
+          <span className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last 3 rated runs${fr.n < 3 ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
+            {fr ? (
+              <>
+                <span className="block text-[13px] text-ink">{fmtWpr(fr.avg)}</span>
+                <span className="block text-[10px] text-ink-faint">{fmtWpr(fr.median)}</span>
+              </>
+            ) : null}
+          </span>
+        )
+      })()}
+      <span className={`text-right font-mono text-[13px] text-ink-mute ${LG_ONLY}`} title="TopRate's own forward rating (wpr_nett)">
+        {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
+      </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
@@ -100,6 +118,13 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
         <FinishBadge pos={runner.finishPosition} />
       </span>
+      {!f.scratched && (l3 != null || runner.nett != null) && (
+        <span className="col-span-full -mt-0.5 pl-[38px] font-mono text-[10px] leading-snug text-ink-mute lg:hidden">
+          {l3 != null && <>L3 {fmtWpr(l3.avg)} <span className="text-ink-faint">(med {fmtWpr(l3.median)})</span></>}
+          {l3 != null && runner.nett != null && ' \u00B7 '}
+          {runner.nett != null && <>Nett {fmtWpr(runner.nett)}</>}
+        </span>
+      )}
     </div>
   )
 }

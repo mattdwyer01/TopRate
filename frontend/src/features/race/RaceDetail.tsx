@@ -43,6 +43,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
+  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', lgOnly: true },
+  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", lgOnly: true },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: 'The price the WPR projection implies for each runner (a simulation of the race; hover a value for the place price). The model view only, not a value claim.' },

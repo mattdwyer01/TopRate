@@ -1,11 +1,14 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import { spellPosition } from './spellPosition'
+import { lastRunsRating } from './formRatings'
 
 export type SortKey =
   | 'tab'
   | 'horse'
   | 'daysSince'
+  | 'last3'
+  | 'nett'
   | 'baseWpr'
   | 'adjustment'
   | 'speedMapAdj'
@@ -24,6 +27,8 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   tab: 'asc',
   horse: 'asc',
   daysSince: 'asc',
+  last3: 'desc',
+  nett: 'desc',
   baseWpr: 'desc',
   adjustment: 'desc',
   speedMapAdj: 'desc',
@@ -50,6 +55,10 @@ function sortValue(
       return runner.horse.toLowerCase()
     case 'daysSince':
       return spellPosition(runner.formHistory, raceDate ?? null).daysSince ?? Infinity
+    case 'last3':
+      return lastRunsRating(runner.formHistory, raceDate ?? null, 3)?.avg ?? -Infinity
+    case 'nett':
+      return runner.nett ?? -Infinity
     case 'baseWpr':
       return runner.baseWpr ?? -Infinity
     case 'adjustment':
