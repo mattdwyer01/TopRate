@@ -19,6 +19,7 @@ export interface RawFormRun {
   ie?: number | null
   im?: number | null
   il?: number | null
+  i2?: number | null
   bar?: number | null
   mgn?: number | null
   psl?: number | null

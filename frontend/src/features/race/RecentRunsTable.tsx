@@ -92,6 +92,20 @@ function daysBetween(a: Date | null, b: Date | null): number | null {
   return Math.round((a.getTime() - b.getTime()) / 86_400_000)
 }
 
+// TopRate's sectional ratings are in lengths against a standard for the race: positive = faster than standard over that part of the race.
+function sectCell(v: number | null | undefined, title: string) {
+  if (v == null) return <td className="px-2 py-0.5 text-right font-mono text-ink-faint" title={title}>—</td>
+  const cls = v >= 2 ? 'text-emerald-deep' : v <= -2 ? 'text-rose' : 'text-ink-mute'
+  return <td className={`px-2 py-0.5 text-right font-mono ${cls}`} title={title}>{v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1)}</td>
+}
+
+// Race-wide shape (how the race was run): early / mid / late, positive = faster than standard in that part.
+function shapeText(r: FormRun): string {
+  const f = (v: number | null) => (v == null ? '-' : v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))
+  if (r.raceShapeEarly == null && r.raceShapeMid == null && r.raceShapeLate == null) return '—'
+  return `${f(r.raceShapeEarly)} / ${f(r.raceShapeMid)} / ${f(r.raceShapeLate)}`
+}
+
 function runningLine(r: FormRun): string {
   const parts = [r.positionSettled, r.position800m, r.position400m, r.finishPosition]
   if (parts.every((p) => p == null)) return '—'
@@ -150,6 +164,11 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
         {run.margin != null ? run.margin.toFixed(1) : '—'}
       </td>
       <td className="whitespace-nowrap px-2 py-0.5 text-right font-mono text-xs text-ink-faint">{runningLine(run)}</td>
+      {sectCell(run.sectionalEarly, 'This horse, early part of the race: lengths against the standard (positive = quicker)')}
+      {sectCell(run.sectionalTo800, 'This horse, 800m to 400m: lengths against the standard')}
+      {sectCell(run.sectionalLate600, 'This horse, last 600m: lengths against the standard')}
+      {sectCell(run.sectionalLate200, 'This horse, last 200m: lengths against the standard')}
+      <td className="whitespace-nowrap px-2 py-0.5 text-right font-mono text-[11px] text-ink-faint" title="Race shape, early / mid / late: how fast the race was run in each part (positive = quicker than standard)">{shapeText(run)}</td>
       <td className="px-2 py-0.5 text-right font-mono font-semibold text-ink">
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
@@ -164,7 +183,7 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
 function SeparatorRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={15} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
+      <td colSpan={20} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
         &mdash; {label} &mdash;
       </td>
     </tr>
@@ -214,6 +233,14 @@ function MobileRunCard({ run, isPeak, codes, onReplay }: { run: FormRun; isPeak:
           {run.margin != null ? ` (${run.margin.toFixed(1)})` : ''} &middot; {runningLine(run)}
         </span>
       </div>
+      {run.sectionalEarly != null && (
+        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-faint">
+          <span>Early {run.sectionalEarly.toFixed(1)}</span>
+          {run.sectionalTo800 != null && <span>Mid {run.sectionalTo800.toFixed(1)}</span>}
+          {run.sectionalLate600 != null && <span>L600 {run.sectionalLate600.toFixed(1)}</span>}
+          {run.sectionalLate200 != null && <span>L200 {run.sectionalLate200.toFixed(1)}</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -494,7 +521,7 @@ export function RecentRunsTable({
       </div>
 
       <div className="hidden overflow-x-auto rounded-lg border border-line sm:block">
-        <table className="w-full min-w-[1020px] border-collapse text-xs leading-5">
+        <table className="w-full min-w-[1220px] border-collapse text-xs leading-5">
           <thead>
             <tr className="border-b border-line bg-bg text-ink-mute">
               <th rowSpan={2} className="px-2 py-1 text-left font-medium">Date</th>
@@ -509,6 +536,11 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Starting price">SP</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Mgn</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">Pos</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse's sectional rating, early part of the race (lengths against the standard)">Early</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, 800m to 400m">Mid</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 600m">L600</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 200m">L200</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Race shape early / mid / late">Shape</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">WPR</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
