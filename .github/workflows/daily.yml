@@ -358,7 +358,8 @@ jobs:
           echo "Push failed after retries"
           exit 1
 
-      # Last step, after the push: shows the run red when a day's declared runners are under 90% projected (check_projection_coverage.py).
+      # Last step, after the push: shows the run red when today's drawn runners are under 90% projected (check_projection_coverage.py). Later days are not
+      # checked: this job fetches their new declarations at the same time as the projection workflow runs, so they are always still unprojected here.
       - name: Projection coverage check
         if: always()
         run: python check_projection_coverage.py
