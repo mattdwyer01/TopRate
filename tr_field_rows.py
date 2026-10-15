@@ -361,6 +361,44 @@ def remap_ids(runners_df):
     return runners_df, mapping
 
 
+def remap_ids_from_form(runners_df):
+    """Same re-key as remap_ids(), taking TopRate's run_id / race_id from the past-run store (data/tr_form): a horse's runner page lists every run with its
+    runId and raceId, so a day whose rows carry racing.com ids (12 and 13 Oct 2026) is matched on date, normalised track and horse name once its horses'
+    pages have been fetched. Only rows with a placeholder run_id (7 trillion and up) are touched. Returns (frame, {old run_id: (new run_id, new race_id)})."""
+    import gzip
+    import pandas as pd
+    mapping = {}
+    if "run_id" not in runners_df.columns:
+        return runners_df, mapping
+    rid = pd.to_numeric(runners_df["run_id"], errors="coerce")
+    todo = runners_df.index[rid >= 7_000_000_000_000]
+    if len(todo) == 0:
+        return runners_df, mapping
+    dates = {str(runners_df.at[i, "date"])[:10] for i in todo}
+    months = {d[:7] for d in dates}
+    key = {}
+    store = Path(__file__).parent / "data" / "tr_form"
+    for m in sorted(months):
+        f = store / f"{m}.json.gz"
+        if not f.exists():
+            continue
+        try:
+            with gzip.open(f, "rt") as fh:
+                runs = json.load(fh).get("runs", {})
+        except Exception:
+            continue
+        for r in runs.values():
+            if r.get("date") in dates and r.get("runId") and r.get("raceId") and not r.get("isBarrierTrial") and not r.get("isJumpout"):
+                key[(r["date"], norm_venue(r.get("track") or r.get("venue")), _hn(r.get("horse")))] = (int(r["runId"]), int(r["raceId"]))
+    for i in todo:
+        new = key.get((str(runners_df.at[i, "date"])[:10], norm_venue(runners_df.at[i, "venue"]), _hn(runners_df.at[i, "horse"])))
+        if new:
+            mapping[int(runners_df.at[i, "run_id"])] = new
+            runners_df.at[i, "run_id"] = new[0]
+            runners_df.at[i, "race_id"] = new[1]
+    return runners_df, mapping
+
+
 def remap_projection_log(mapping):
     """Re-key wpr_projection_log.csv.gz rows from the old run_id / race_id to the TopRate ones (same mapping as remap_ids)."""
     if not mapping:

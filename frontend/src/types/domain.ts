@@ -14,6 +14,7 @@ export interface FormRun {
   sectionalEarly: number | null
   sectionalTo800: number | null
   sectionalLate600: number | null
+  sectionalLate200?: number | null
   barrier: number | null
   margin: number | null
   positionSettled: number | null

@@ -31,6 +31,7 @@ Requirements:
 
 import requests
 import pandas as pd
+import tr_form_store
 import meeting_transfer
 import atw_offsets as _atw_offsets_mod
 import runners_io
@@ -364,15 +365,12 @@ def compute_race_speed(runners_df, target_date_str=None):
         return runners_df
 
     # form history for the settling estimates
-    if not WPR_FORM_HISTORY_CSV.exists():
-        print(f"  Race-speed estimate skipped: {WPR_FORM_HISTORY_CSV.name} "
-              f"not found")
+    if not tr_form_store.DIR.exists():
+        print("  Race-speed estimate skipped: data/tr_form not found")
         return runners_df
     try:
-        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                         dtype={"horse": str, "horse_id": str},
-                         low_memory=False)
-        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
+        # TopRate's own past runs (data/tr_form), 14 Oct 2026: same columns the race-speed model was trained on
+        fh = tr_form_store.frame(set(today["horse"].astype(str).str.strip().str.lower()))
         fh["date"] = pd.to_datetime(fh["date"], errors="coerce")
         fh = fh.dropna(subset=["date"])
         if "isBarrierTrial" in fh.columns:
@@ -471,12 +469,10 @@ def fill_comments_from_history(runners_df):
         return runners_df
 
     try:
-        fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                         dtype={"horse": str}, low_memory=False)
-        if "comments_video" not in fh.columns and "comments_steward" not in fh.columns:
-            print("  Comments: form history has no comment columns, skipping")
+        fh = tr_form_store.frame(set(runners_df.loc[resulted_mask, "horse"].astype(str).str.strip().str.lower()))
+        if fh.empty:
+            print("  Comments: no TopRate past runs for these horses yet, skipping")
             return runners_df
-        fh["horse_lc"] = fh["horse"].astype(str).str.strip().str.lower()
         fh["date_s"] = fh["date"].astype(str).str[:10]
         # latest scrape wins (comments are revised/added post-race)
         if "scrape_date" in fh.columns:
@@ -1272,7 +1268,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
         ran = any(str(row.get(c)) in ("1", "1.0") for c in ("resulted", "interim_resulted"))
         return None if ran else _atw_off_lookup.get(str(row.get("horse", "")).strip().lower())
     try:
-        if WPR_FORM_HISTORY_CSV.exists():
+        if tr_form_store.DIR.exists():
             _today_horses = set(
                 str(h).strip().lower() for h in runners_df.get("horse", []) if h)
             # Pending horses only - formAll (the heavy full-history
@@ -1288,10 +1284,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     if h)
             else:
                 _pending_horses = _today_horses
-            _fh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                              dtype={"horse": str, "horse_id": str})
-            _fh["horse_lc"] = _fh["horse"].astype(str).str.strip().str.lower()
-            _fh = _fh[_fh["horse_lc"].isin(_today_horses)]
+            # Recent runs / form history now come from TopRate's own past-run store (data/tr_form, 14 Oct 2026), not our wpr_form_history.csv.gz
+            # rating chain: TopRate's wpr (rated at the weight of the horse's upcoming race), positions, margins, race shape, weights, prices, comments.
+            _fh = tr_form_store.frame(_today_horses)
+            if _fh.empty:
+                _fh = pd.DataFrame(columns=["horse", "horse_lc", "date", "wpr"])
             _fh["wpr"] = pd.to_numeric(_fh["wpr"], errors="coerce")
             _fh["date"] = pd.to_datetime(_fh["date"], errors="coerce")
             _fh = _fh.dropna(subset=["date", "wpr"])
@@ -1398,12 +1395,13 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     "go": str(_r.get("going", "")) if _r.get("going") else "",
                     "fin": int(_r["positionFinish"]) if pd.notna(_r.get("positionFinish")) else None,
                     "wpr": round(_w, 1),
-                    "se": None,  # race shape early
-                    "sm": None,    # race shape mid
-                    "sl": None,   # race shape late
-                    "ie": None,    # horse early sectional
-                    "im": None,    # horse mid sectional
-                    "il": None,     # horse late sectional
+                    "se": _shape(_r.get("raceShapeEarly")),  # race shape early
+                    "sm": _shape(_r.get("raceShapeMid")),    # race shape mid
+                    "sl": _shape(_r.get("raceShapeLate")),   # race shape late
+                    "ie": _shape(_r.get("sect_early")),    # TopRate sectional rating (lengths vs standard): early
+                    "im": _shape(_r.get("sect_mid")),      # 800m to 400m
+                    "il": _shape(_r.get("sect_l600")),     # last 600m
+                    "i2": _shape(_r.get("sect_l200")),     # last 200m
                     "bar": int(_r["barrier"]) if pd.notna(_r.get("barrier")) else None,
                     "mgn": _shape(_r.get("marginFinish")),   # finish margin
                     # running line: settled -> 800m -> 400m -> finish.
@@ -1578,10 +1576,11 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _settle_rel_lookup = {}
     try:
         import settling_estimate as _se_mod
-        if WPR_FORM_HISTORY_CSV.exists():
-            _sfh = pd.read_csv(WPR_FORM_HISTORY_CSV,
-                               dtype={"horse": str}, low_memory=False)
-            _sfh["horse_lc"] = _sfh["horse"].astype(str).str.strip().str.lower()
+        if tr_form_store.DIR.exists():
+            # TopRate's own past runs (data/tr_form), 14 Oct 2026
+            _sfh = tr_form_store.frame(set(runners_df["horse"].astype(str).str.strip().str.lower()))
+            if _sfh.empty:
+                _sfh = pd.DataFrame(columns=["horse", "horse_lc", "date"])
             if "isBarrierTrial" in _sfh.columns:
                 _sfh = _sfh[_sfh["isBarrierTrial"].fillna(0).astype(int) == 0]
             if "scrape_date" in _sfh.columns:
@@ -2047,7 +2046,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "going":     str(first.get("going", "")) if first.get("going") and str(first.get("going")) != "nan" else "",
             "track_grading": str(first.get("track_grading", "")) if first.get("track_grading") else "",
             "rail":      str(first.get("rail_position", "")) if first.get("rail_position") and str(first.get("rail_position")) != "nan" else "",
-            "prize":     int(first.get("prize_money") or 0),
+            "prize":     int(pd.to_numeric(first.get("prize_money"), errors="coerce") or 0) if pd.notna(pd.to_numeric(first.get("prize_money"), errors="coerce")) else 0,
             "start_time": str(_race_start_time) if _race_start_time else "",
             "rse":       None,
             "rsm":       None,
@@ -2414,6 +2413,8 @@ def main():
         runners_df["distance"] = pd.to_numeric(runners_df["distance"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
     try:       # TopRate numbers for races that have already run (data/tr_past, toprate_past_fetch.py): blanks only
         runners_df, id_map = tr_field_rows.remap_ids(runners_df)
+        runners_df, id_map2 = tr_field_rows.remap_ids_from_form(runners_df)
+        id_map = {**id_map, **id_map2}
         if id_map:
             print(f"  past races: {len(id_map)} runners re-keyed to TopRate ids, {tr_field_rows.remap_projection_log(id_map)} projection-log rows")
         runners_df, n_past = tr_field_rows.merge_tr_past(runners_df)

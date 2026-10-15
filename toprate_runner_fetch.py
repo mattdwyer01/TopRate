@@ -92,8 +92,49 @@ def load_out(path):
         return {"rows": {}}
 
 
+def history_window(days, store_dir, workers, limit):
+    """Past-run history for the horses in races of the last `days` days (and later), for the Recent runs table. One request per horse that has no run in the store
+    yet, using its latest TopRate run_id from runners.csv. Only the past-run list is kept (tr_form_store); the stats blocks are current-state aggregates and are
+    NOT saved against a past race."""
+    import runners_io
+    email, password, anon = (os.environ[k].strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
+    df = runners_io.read_runners()
+    df["date"] = df["date"].astype(str).str[:10]
+    since = (date.today() - timedelta(days=days)).isoformat()
+    df = df[(df.date >= since) & (df.run_id < 7_000_000_000_000)].copy()
+    df["h"] = df["horse"].astype(str).str.strip().str.lower()
+    have = set(tr_form_store.frame(store_dir=tr_form_store.DIR)["horse_lc"]) if any(tr_form_store.DIR.glob("*.json.gz")) else set()
+    latest = df.sort_values(["date", "run_id"]).groupby("h").tail(1)
+    todo = latest[~latest.h.isin(have)]
+    if limit:
+        todo = todo.head(limit)
+    print(f"{df.h.nunique()} horses in the window, {len(have & set(df.h))} already stored, {len(todo)} to fetch", flush=True)
+    session = f.login(email, password, anon)
+    store_dir = Path(store_dir)
+    recs, failed, empty = [], 0, 0
+    rows = list(todo.itertuples())
+    for i in range(0, len(rows), 300):
+        chunk = rows[i:i + 300]
+        if session.get("expires_at", 0) - time.time() < 600:
+            session = f.login(email, password, anon)
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            res = list(ex.map(lambda r: (r, *fetch_runner(session, int(r.run_id))), chunk))
+        for r, rd, err in res:
+            if rd is None:
+                failed += 1
+            elif rd.get("empty"):
+                empty += 1
+            else:
+                recs.append(compact(rd, {"run_id": int(r.run_id), "horse_id": getattr(r, "horse_id", None), "horse": r.horse, "date": r.date}))
+        seen, changed, written = tr_form_store.upsert(recs, store_dir=store_dir)
+        recs = []
+        print(f"  {min(i + 300, len(rows))}/{len(rows)} fetched, failed {failed}, empty {empty}, runs stored this chunk {changed}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--history-window", type=int, default=0, help="fetch past-run history for horses in races of the last N days (store only, no stats)")
+    ap.add_argument("--store-dir", default=None, help="write the past-run shards here instead of data/tr_form")
     ap.add_argument("--days", type=int, default=2)
     ap.add_argument("--from", dest="start", default=None)
     ap.add_argument("--limit", type=int, default=0, help="stop after N fetches (testing)")
@@ -103,6 +144,8 @@ def main():
     email, password, anon = (os.environ.get(k, "").strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
     if not (email and password and anon):
         sys.exit("TOPRATE_EMAIL, TOPRATE_PASSWORD and TOPRATE_ANON_KEY must be set")
+    if a.history_window:
+        return history_window(a.history_window, a.store_dir or tr_form_store.DIR, a.workers, a.limit)
     first = datetime.strptime(a.start, "%Y-%m-%d").date() if a.start else date.today()
     dates = [(first + timedelta(days=i)).isoformat() for i in range(a.days)]
     session = f.login(email, password, anon)
