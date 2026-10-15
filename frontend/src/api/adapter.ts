@@ -147,6 +147,7 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
 }
 
 export function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] | undefined): Race {
+  const runners = r.runners.map((rr) => toRunner(rr, priceHist))
   return {
     raceId: r.race_id,
     date: r.date,
@@ -165,11 +166,12 @@ export function toRace(r: RawRace, priceHist: RawDashboardPayload['PRICE_HIST'] 
     raceShapeLate: r.rsl,
     paceEstimateScore: r.rs_score,
     paceEstimateLabel: r.rs_label,
-    hasFirstStarter: r.hfs === 1,
+    // From the field itself (the payload's hfs flag was true for almost every race): a runner still in the race with no rated run.
+    hasFirstStarter: runners.some((x) => !x.dataScratched && x.formHistory.length === 0),
     fieldSize: r.fs,
     allResulted: r.done === 1,
     provisional: r.prov === 1,
-    runners: r.runners.map((rr) => toRunner(rr, priceHist)),
+    runners,
   }
 }
 
