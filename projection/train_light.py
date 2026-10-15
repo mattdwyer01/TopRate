@@ -5,7 +5,8 @@ features. Breeding (sire/dam) is left out: it added nothing in testing.
 
 Two sets are trained (Oct 2026, Factor Ladder Review rung R24): light_seed* also reads the log of the runner's win price (starting price in
 training, the live fixed price when projecting; held-out RMSE 10.82 -> 10.51, debut 11.90 -> 11.46), and light_np_seed* is the same model
-without it, used when a runner has no price yet.
+without it, used for a DEBUTANT that has no price yet. Since 15 Oct 2026 the price column is blank for runners with 1 or 2 prior runs (debutants only):
+held-out RMSE debut / 2nd / 3rd 11.39 / 10.43 / 9.99 against 11.34 / 10.18 / 9.79 with the price at every stage (owner's choice, less market in the rating).
 
 Validation: train through 2025-06, score 2025-07 onward for the stage-wise bias; the shipped models are then refit on all runs.
 Writes projection/models/light_seed{1..5}.txt.gz and light_info.json.
@@ -53,13 +54,18 @@ def main():
     L, t3cols = assemble(H, levels)
     L['lp'] = np.log(L.priceStarting.where(L.priceStarting > 1))
     L = L[(L.nruns <= 2) & (L.date >= '2019-01-01')].copy()
+    L['lp'] = L.lp.where(L.nruns == 0)        # price for DEBUTANTS only (15 Oct 2026): 2nd and 3rd starters have a rating history and read no price
     L['sex'] = pd.Categorical(L.horse_sex, categories=levels['sex'])
     print('light rows', len(L), L.nruns.value_counts().sort_index().to_dict(), flush=True)
     tr = L[L.date < '2025-01-01']
     va = L[(L.date >= '2025-01-01') & (L.date < '2025-07-01')]
     te = L[L.date >= '2025-07-01']
     info = {}
+    old = json.load(open(os.path.join(models, 'light_info.json'))) if os.environ.get('SKIP_NP') else {}
     for price, prefix in [(True, 'light'), (False, 'light_np')]:
+        if not price and old:            # SKIP_NP=1: the no-price set is unchanged, keep its models and info
+            info[prefix] = old['np']
+            continue
         feats = light_features(t3cols, price)
         m = lgb.train(dict(PARAMS, seed=1), lgb.Dataset(tr[feats], tr.wpr), 3000, valid_sets=[lgb.Dataset(va[feats], va.wpr)], callbacks=[lgb.early_stopping(60, verbose=False)])
         rounds = int(m.best_iteration * 1.1)
