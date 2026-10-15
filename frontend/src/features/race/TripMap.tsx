@@ -49,7 +49,20 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
   }, [])
 
   const byRid = useMemo(() => new Map(field.map((f) => [f.runId, f])), [field])
-  const runners = useMemo(() => trip.runners.filter((r) => !excluded.has(r.rid) && r.gap != null), [trip, excluded])
+  // trip_map.json is only rebuilt by the daily full run, so it can hold rows the field has since lost (racing.com nominations
+  // later scratched or dropped as not in TopRate's field, 15 Oct Warrnambool R5 showed 22 chips for 10 runners). Only draw
+  // runners that are in the current field, and never two chips for one horse.
+  const runners = useMemo(() => {
+    const seen = new Set<string>()
+    return trip.runners.filter((r) => {
+      const f = byRid.get(r.rid)
+      if (!f || f.dataScratched || excluded.has(r.rid) || r.gap == null) return false
+      const key = f.horse.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [trip, excluded, byRid])
 
   const layout = useMemo(() => {
     const narrow = width < 600
