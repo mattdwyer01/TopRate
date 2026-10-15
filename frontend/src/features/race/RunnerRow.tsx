@@ -28,6 +28,7 @@ const LG_ONLY = 'hidden lg:block'
 export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
+  const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
   return (
     <div
       role="button"
@@ -74,7 +75,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         {f.spell.label}
       </span>
       {(() => {
-        const fr = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
+        const fr = l3
         return (
           <span className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last 3 rated runs${fr.n < 3 ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
             {fr ? (
@@ -117,6 +118,13 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
         <FinishBadge pos={runner.finishPosition} />
       </span>
+      {!f.scratched && (l3 != null || runner.nett != null) && (
+        <span className="col-span-full -mt-0.5 pl-[38px] font-mono text-[10px] leading-snug text-ink-mute lg:hidden">
+          {l3 != null && <>L3 {fmtWpr(l3.avg)} <span className="text-ink-faint">(med {fmtWpr(l3.median)})</span></>}
+          {l3 != null && runner.nett != null && ' \u00B7 '}
+          {runner.nett != null && <>Nett {fmtWpr(runner.nett)}</>}
+        </span>
+      )}
     </div>
   )
 }
