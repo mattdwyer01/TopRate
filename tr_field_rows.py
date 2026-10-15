@@ -89,6 +89,72 @@ def _new_row(r):
     }
 
 
+def _align_races(out, day, rows, stats):
+    """Put the live races of each venue on TopRate's race numbering (15 Oct 2026: racing.com's pre-declaration races are numbered differently and carry the same
+    horses in several races, so TopRate R6 and R7 at Hawkesbury had no live race and R5 held 24 runners).
+
+    For each venue, every TopRate race is paired with the live race (race_id) sharing most of its horses, one-to-one, largest overlap first, only when the overlap is at
+    least 40% of the TopRate field and 2 horses. A paired live race has its race NUMBER set to TopRate's (race_id never changes: projections, results and the payload key on it).
+    A live race left unpaired at a venue where TopRate lists at least as many races as there are live races is a racing.com nomination race TopRate does not run: its
+    unresulted rows are scratched (field_source 'racing.com (not in toprate field)') and the race moved to number 200+. Returns {(venue, TopRate race no): (number, race_id)}."""
+    tr_sets = {}
+    for r in rows:
+        tr_sets.setdefault((norm_venue(r.get("venue")), str(r.get("race_no"))), set()).add(_hn(r.get("horse")))
+    live = {}
+    for i in out.index[day]:
+        key = (norm_venue(out.at[i, "venue"]), str(out.at[i, "race_id"]))
+        d = live.setdefault(key, {"idx": [], "names": set()})
+        d["idx"].append(i)
+        d["names"].add(_hn(out.at[i, "horse"]))
+    cand = []
+    for (v, n), S in tr_sets.items():
+        for (lv, rid), L in live.items():
+            if lv == v:
+                ov = len(S & L["names"])
+                if ov >= max(2, int(0.4 * len(S))):
+                    cand.append((ov, v, n, rid))
+    cand.sort(key=lambda c: (-c[0], c[1], c[2], c[3]))
+    assign, used_tr, used_live = {}, set(), set()
+    # a live race that already carries TopRate's own race_id for a TopRate race IS that race (rows an earlier merge created from TopRate): pair those first
+    tr_rid = {}
+    for r in rows:
+        tr_rid[(norm_venue(r.get("venue")), str(r.get("race_no")))] = str(r.get("race_id"))
+    for (v, n), rid_tr in tr_rid.items():
+        if (v, rid_tr) in live and (v, n) not in used_tr and (v, rid_tr) not in used_live:
+            assign[(v, n)] = rid_tr
+            used_tr.add((v, n)); used_live.add((v, rid_tr))
+    for ov, v, n, rid in cand:
+        if (v, n) in used_tr or (v, rid) in used_live:
+            continue
+        assign[(v, n)] = rid
+        used_tr.add((v, n)); used_live.add((v, rid))
+    live_race = {}
+    for (v, n), rid in assign.items():
+        live_race[(v, n)] = (n, rid)
+        for i in live[(v, rid)]["idx"]:
+            if str(out.at[i, "race"]) not in (n, n + ".0"):
+                _set(out, i, "race", int(n))
+                stats["renumbered"] += 1
+    tr_venues = {v for (v, _n) in tr_sets}
+    n_tr = {v: sum(1 for (vv, _n) in tr_sets if vv == v) for v in tr_venues}
+    n_live = {}
+    for (lv, rid) in live:
+        n_live[lv] = n_live.get(lv, 0) + 1
+    k = 200
+    for (lv, rid), L in sorted(live.items()):
+        if lv in tr_venues and (lv, rid) not in used_live and n_tr[lv] >= n_live[lv]:
+            k += 1
+            for i in L["idx"]:
+                if str(out.at[i, "resulted"]) in ("1", "1.0"):
+                    continue
+                _set(out, i, "race", k)
+                if str(out.at[i, "scratched"]) not in ("1", "1.0"):
+                    _set(out, i, "scratched", 1)
+                    stats["stray_scratched"] = stats.get("stray_scratched", 0) + 1
+                _set(out, i, "field_source", DROPPED)
+    return live_race
+
+
 def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
     """Return (runners_df, stats). With dry_run the frame is returned unchanged and only stats are filled.
 
@@ -103,6 +169,9 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
         return runners_df, stats
     out = runners_df.copy()
     day = out["date"].astype(str).str[:10] == date_str if len(out) else pd.Series([], dtype=bool)
+    claimed = set()
+    live_race = _align_races(out, day, rows, stats) if len(out) else {}
+    by_run = {str(out.at[i, "run_id"]): i for i in out.index[day]} if len(out) else {}   # a row that already carries TopRate's own run_id for the entry
     by_vname, by_tab, races, taken_ids = {}, {}, {}, set(out["run_id"].astype(str)) if len(out) else set()
     for i in out.index[day]:
         v, n = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"])
@@ -118,39 +187,42 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
         if not lst:
             return None
         for i in lst:
-            if str(out.at[i, "race"]) == n:
+            if i not in claimed and str(out.at[i, "race"]) in (n, n + ".0") and str(out.at[i, "field_source"]) != DROPPED:
                 return i
         for i in lst:
-            if str(out.at[i, "field_source"]) == SOURCE:
+            if i not in claimed and str(out.at[i, "field_source"]) == SOURCE:
                 return i
+        if (v, n) in live_race or any(k[0] == v for k in live_race):
+            return None      # the horse's other rows are racing.com nominations in other races; it gets a row in the race TopRate runs it in
         return lst[0]
 
-    # which live race (number, race_id) each TopRate race maps to: the one most of its runners already sit in; none -> a race to create
-    live_race = {}
-    tally = {}
+    entries = {}
     for r in rows:
-        v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
-        i = pick(v, n, _hn(r.get("horse")))
-        if i is not None:
-            k = (str(out.at[i, "race"]), str(out.at[i, "race_id"]))
-            tally.setdefault((v, n), {}).setdefault(k, 0)
-            tally[(v, n)][k] += 1
-    for key, cnt in tally.items():
-        live_race[key] = max(cnt, key=cnt.get)
-
+        entries[(norm_venue(r.get("venue")), _hn(r.get("horse")))] = entries.get((norm_venue(r.get("venue")), _hn(r.get("horse"))), 0) + 1
     new_rows = []
     created = set()
-    for r in rows:
+    # a horse can have two TopRate entries at one venue (a double entry, one scratched): the live entry is placed first and each row is used once
+    for r in sorted(rows, key=lambda x: bool(x.get("scratched"))):
         v, n = norm_venue(r.get("venue")), str(r.get("race_no"))
-        i = pick(v, n, _hn(r.get("horse")))
-        if i is None and (v, n) in live_race:               # a renamed horse: saddle number inside the race it maps to
-            i = by_tab.get((v, live_race[(v, n)][0], str(r.get("tab_number"))))
-        elif i is None and (v, n) in races:
-            i = by_tab.get((v, n, str(r.get("tab_number"))))
+        i = by_run.get(str(r["run_id"]))
+        if i is not None and (i in claimed or str(out.at[i, "field_source"]) not in (SOURCE, DROPPED)):
+            i = None
+        if i is None:
+            i = pick(v, n, _hn(r.get("horse")))
+        if i is not None and i in claimed:
+            i = None
+        if i is None:
+            j = None
+            if (v, n) in live_race:                         # a renamed horse: saddle number inside the race it maps to
+                j = by_tab.get((v, live_race[(v, n)][0], str(r.get("tab_number"))))
+            elif (v, n) in races:
+                j = by_tab.get((v, n, str(r.get("tab_number"))))
+            if j is not None and j not in claimed and str(out.at[j, "field_source"]) == SOURCE:
+                i = j       # only a row TopRate already owns can be a renamed horse; a racing.com nomination with the same saddle number is another horse
         if i is None:
             if (v, n) in live_race or (v, n) in races:     # late entry into an existing race, only if its saddle number is free
                 ln, lid = live_race.get((v, n), (n, races.get((v, n))))
-                if r.get("scratched") or (v, ln, str(r.get("tab_number"))) in by_tab or str(r["run_id"]) in taken_ids:
+                if r.get("scratched") or str(r["run_id"]) in taken_ids:
                     stats["unmatched_skipped"] += 1
                     continue
                 row = _new_row(r)
@@ -167,7 +239,20 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
         if str(out.at[i, "resulted"]) in ("1", "1.0"):
             stats["resulted_skipped"] += 1
             continue
+        claimed.add(i)
         stats["updated"] += 1
+        # self-heal: a row TopRate already owns that sits in another race (an earlier merge matched the horse to a racing.com nomination row) moves to the race
+        # TopRate runs it in: the paired live race, else the race TopRate's own id for it
+        tgt_id = int(float(live_race[(v, n)][1])) if (v, n) in live_race else int(float(r["race_id"]))
+        if str(out.at[i, "field_source"]) in (SOURCE, DROPPED) and (str(out.at[i, "race"]) not in (n, n + ".0") or int(float(out.at[i, "race_id"])) != tgt_id):
+            _set(out, i, "race", int(float(n)))
+            _set(out, i, "race_id", tgt_id)
+            if not r.get("scratched"):
+                _set(out, i, "scratched", 0)        # its scratching belonged to the entry it was matched to before (a double-entered horse), TopRate runs it here
+            stats["moved"] = stats.get("moved", 0) + 1
+        if (not r.get("scratched") and entries.get((v, _hn(r.get("horse"))), 0) > 1 and str(out.at[i, "field_source"]) == SOURCE
+                and str(out.at[i, "scratched"]) in ("1", "1.0") and str(out.at[i, "interim_resulted"]) not in ("1", "1.0")):
+            _set(out, i, "scratched", 0)        # a double entry whose other (scratched) entry an earlier merge applied to this row
         if str(out.at[i, "field_source"]) == DROPPED and not r.get("scratched"):
             _set(out, i, "scratched", 0)                    # TopRate lists it after all (a late acceptance)
         if str(out.at[i, "race"]) != n:
@@ -405,10 +490,11 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
     if not rows or not len(runners_df):
         return runners_df, stats
     out = runners_df.copy()
-    tr_names, tr_venue_n = {}, {}
+    tr_names, tr_venue_n, tr_race_names = {}, {}, {}
     for r in rows:
         v = norm_venue(r.get("venue"))
         tr_names.setdefault(v, set()).add(_hn(r.get("horse")))
+        tr_race_names.setdefault((v, str(r.get("race_no"))), set()).add(_hn(r.get("horse")))
         if not r.get("scratched"):
             tr_venue_n[v] = tr_venue_n.get(v, 0) + 1
     day = out["date"].astype(str).str[:10] == date_str
@@ -421,7 +507,7 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
         v, n, hn = norm_venue(out.at[i, "venue"]), str(out.at[i, "race"]), _hn(out.at[i, "horse"])
         if str(out.at[i, "resulted"]) in ("1", "1.0") or str(out.at[i, "scratched"]) in ("1", "1.0"):
             continue
-        if str(out.at[i, "field_source"]) == SOURCE or (v, n) not in covered or hn in tr_names[v]:
+        if str(out.at[i, "field_source"]) == SOURCE or (v, n) not in covered or hn in tr_race_names.get((v, n), ()):
             continue
         stats["unlisted_scratched"] += 1
         _set(out, i, "scratched", 1)
@@ -439,6 +525,8 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
         if keep is None:
             continue
         for i in lst:
+            if str(out.at[i, "field_source"]) == SOURCE:
+                continue        # a horse TopRate enters in two races (a double entry) keeps both TopRate rows
             if i != keep and str(out.at[i, "resulted"]) not in ("1", "1.0"):
                 stats["duplicate_rows_scratched"] += 1
                 _set(out, i, "scratched", 1)

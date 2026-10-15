@@ -177,6 +177,7 @@ def merge_rc_fields(runners_df, date_str):
     if len(have) and "field_source" in have.columns:
         for _, hr in have[have["field_source"].astype(str) == "toprate.au"].iterrows():
             tr_names.setdefault(norm_venue(hr["venue"]), set()).add(re.sub(r"[^a-z0-9]", "", str(hr["horse"]).lower()))
+    tr_venues = {v for v, names in tr_names.items() if len(names) >= 4}   # TopRate covers this venue today: racing.com adds no rows or races
     new_rows, updates, backup = [], {}, []
     for m in load(date_str).get("meetings", []):
         mv = norm_venue(m.get("venue"))
@@ -186,7 +187,7 @@ def merge_rc_fields(runners_df, date_str):
                     "class": r.get("class"), "going": r.get("going"), "startTime": r.get("time"), "prizeMoney": None,
                     "raceId": rid or RC_RACE_ID_BASE + int(m["meeting_code"]) * 100 + int(r["race_no"])}
             for row in rows_for(meta, date_str):
-                if (mv, str(r.get("race_no"))) in tr_owned or (
+                if mv in tr_venues or (mv, str(r.get("race_no"))) in tr_owned or (
                         rid is None and re.sub(r"[^a-z0-9]", "", str(row.get("horse")).lower()) in tr_names.get(mv, ())):
                     backup.append((mv, str(r.get("race_no")), row))
                     continue
