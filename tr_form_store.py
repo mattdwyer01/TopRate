@@ -70,7 +70,8 @@ def upsert(records, store_dir=DIR):
 
 def main(argv):
     if argv[:1] == ["--merge"]:
-        c, w = merge_dir(argv[1])
+        dst = Path(argv[argv.index("--into") + 1]) if "--into" in argv else DIR
+        c, w = merge_dir(argv[1], store_dir=dst)
         print(f"merged {argv[1]}: {c} runs added or changed, {w} shards written")
         return [0, c, w]
     files = [Path(a) for a in argv] or sorted(RUNNERS.glob("*.json.gz"))
