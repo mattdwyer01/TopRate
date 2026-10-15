@@ -1724,6 +1724,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
             continue
         if "field_source" in rdf.columns and (rdf["field_source"].astype(str) == "racing.com (not in toprate field)").all():
             continue    # a racing.com-only race TopRate's card does not have (different numbering or a nomination list)
+        if "field_source" in rdf.columns:    # nominations TopRate does not list are not part of the field: keep them out of the runner list
+            rdf = rdf[rdf["field_source"].astype(str) != "racing.com (not in toprate field)"].reset_index(drop=True)
         first = rdf.iloc[0]
         # start_time specifically needs to coalesce across the WHOLE race
         # group, not just trust row 0: a race_id can carry rows from more
