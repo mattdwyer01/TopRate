@@ -73,10 +73,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      {[3, 5].map((n) => {
-        const fr = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, n)
+      {(() => {
+        const fr = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
         return (
-          <span key={n} className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last ${n} rated runs${fr.n < n ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
+          <span className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last 3 rated runs${fr.n < 3 ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
             {fr ? (
               <>
                 <span className="block text-[13px] text-ink">{fmtWpr(fr.avg)}</span>
@@ -85,7 +85,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
             ) : null}
           </span>
         )
-      })}
+      })()}
+      <span className={`text-right font-mono text-[13px] text-ink-mute ${LG_ONLY}`} title="TopRate's own forward rating (wpr_nett)">
+        {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
+      </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
