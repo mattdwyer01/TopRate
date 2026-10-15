@@ -207,7 +207,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     tf, svd = F.load_text(os.path.join(M, 'text_svd.joblib'))
     txt = F.text_features(r, tg, tf, svd)
     R = pd.concat([r, fld, tri, t3, lt, txt, lad], axis=1)
-    R['lp'] = np.log(R.priceStarting.where(R.priceStarting > 1))     # live win price (fixed price, or SP for a backfilled race): read by the light model only
+    R['lp'] = np.log(R.priceStarting.where(R.priceStarting > 1)).where(R.nruns == 0)     # live win price (fixed price, or SP for a backfilled race), DEBUTANTS only: read by the light model
     R['sex'] = pd.Categorical(R.horse_sex, categories=levels['sex'])
     R = R[tg.values].copy()
     R = R.merge(T[['race_id', 'horse_id', 'run_id']], on=['race_id', 'horse_id'], how='left')
@@ -236,7 +236,8 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     use_light = (R.nruns <= 2)
     R['light_priced'] = False
     for priced, models, info in [(True, lb, light_info), (False, lnp, light_info['np'])]:
-        sel = use_light & (R.lp.notna() if priced else R.lp.isna())
+        # debutant with a price -> priced model; debutant without -> no-price model; 1 or 2 prior runs -> priced model with the price column blank (as trained)
+        sel = use_light & ((R.lp.notna() | (R.nruns > 0)) if priced else (R.lp.isna() & (R.nruns == 0)))
         if sel.any():
             R.loc[sel, 'p0'] = np.mean([b.predict(R.loc[sel, info['features']]) for b in models], axis=0)
             R.loc[sel, 'light_priced'] = priced
