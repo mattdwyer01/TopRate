@@ -92,6 +92,10 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    # actions: write lets the last steps dispatch the projection workflow (contents: write is what the push already needed).
+    permissions:
+      contents: write
+      actions: write
     # Raised from 20 (Sep 2026): the fetch/rebuild step alone has been
     # observed taking ~7.5 min, and the commit/push retry loop below can now
     # legitimately need several 60s-bounded attempts - 20 min left too
@@ -357,6 +361,20 @@ jobs:
           done
           echo "Push failed after retries"
           exit 1
+
+      # New declarations land in runners.csv here, but the projection workflow checked out the file before this push, so races declared for today or
+      # tomorrow stay unprojected until its next run. When today or tomorrow is under 90% projected, ask for a fast projection run now (it falls back to a
+      # full run when there is no cache; the projection workflow queues runs, it never runs two at once). A failed dispatch only warns.
+      - name: Request a projection run when today or tomorrow is under-projected
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if python check_projection_coverage.py --days 2; then
+            echo "Today and tomorrow are projected, no projection run needed"
+          else
+            gh workflow run projection_daily.yml --ref main -f mode=fast || echo "::warning::could not dispatch projection_daily.yml"
+          fi
 
       # Last step, after the push: shows the run red when today's drawn runners are under 90% projected (check_projection_coverage.py). Later days are not
       # checked: this job fetches their new declarations at the same time as the projection workflow runs, so they are always still unprojected here.
