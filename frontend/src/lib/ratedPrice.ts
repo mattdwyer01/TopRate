@@ -5,7 +5,7 @@
 // halved the longshot over-statement. It is the projection's view, not a betting price.
 
 const REF_SD = 7.0       // projection sd that gets the base noise
-const BASE_SD = 7.9      // noise sd at beta 0.20: matches the softmax's overall sharpness (equal average entropy on 300 synthetic fields)
+const BASE_SD = 6.6      // noise sd at beta 0.20: fitted 15 Oct 2026 on 3,997 logged races (4 Jul to 8 Oct), winner log-lik -1.8837 vs -1.8919 at 7.9; refit once the live log has weeks of rows
 const RATIO_MIN = 0.8
 const RATIO_MAX = 1.8
 const QUAD_POINTS = 121
