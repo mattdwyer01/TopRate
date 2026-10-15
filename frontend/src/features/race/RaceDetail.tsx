@@ -260,7 +260,7 @@ export function RaceDetail({
           <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
             {COLUMNS.map((c, i) =>
               c.key == null ? (
-                <span key={i} className="hidden lg:block" />
+                <span key={i} className="hidden min-[380px]:block" />
               ) : (
                 <button
                   key={c.key + (c.phoneOnly ? '-phone' : '')}

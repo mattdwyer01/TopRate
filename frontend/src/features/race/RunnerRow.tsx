@@ -22,9 +22,13 @@ interface RunnerRowProps {
 const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  // Phone: # | Horse | Nett over L3 | Proj | SM | Rated $ | Fixed $ (| FP), everything on screen at once.
+  // Phone: [silk] | # | Horse | Nett over L3 | Proj | SM | Rated $ | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
-  `${showFp ? 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px]' : 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
+  `${
+    showFp
+      ? 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_36px_28px_46px_60px]'
+  } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
@@ -46,7 +50,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-[22px] w-[22px] rounded-sm object-contain lg:block lg:h-6 lg:w-6" /> : <span className="hidden h-6 w-6 lg:block" />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-[18px] w-[18px] rounded-sm object-contain min-[380px]:block lg:h-6 lg:w-6" /> : <span className="hidden h-[18px] w-[18px] min-[380px]:block lg:h-6 lg:w-6" />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
