@@ -22,8 +22,15 @@ interface RunnerRowProps {
 const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
+  // Phone: # | Horse | L3 | Proj | SM | Rated $ | Fixed $ (| FP). The Nett column joins from 420px up, where there is room for it.
+  // (Full class names on purpose: Tailwind only generates classes it can read literally.)
+  `${
+    showFp
+      ? 'grid-cols-[16px_minmax(0,1fr)_30px_36px_28px_46px_60px_20px] min-[420px]:grid-cols-[16px_minmax(0,1fr)_30px_30px_36px_28px_46px_60px_20px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_30px_36px_28px_46px_60px] min-[420px]:grid-cols-[16px_minmax(0,1fr)_30px_30px_36px_28px_46px_60px]'
+  } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
+const NETT_COL = 'hidden min-[420px]:block'
 
 export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
@@ -40,11 +47,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
           onClick()
         }
       }}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1.5 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${BAND_BORDER[band]} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${BAND_BORDER[band]} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-[22px] w-[22px] rounded-sm object-contain lg:h-6 lg:w-6" /> : <span className="h-6 w-6" />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-[22px] w-[22px] rounded-sm object-contain lg:block lg:h-6 lg:w-6" /> : <span className="hidden h-6 w-6 lg:block" />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -74,20 +81,15 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      {(() => {
-        const fr = l3
-        return (
-          <span className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last 3 rated runs${fr.n < 3 ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
-            {fr ? (
-              <>
-                <span className="block text-[13px] text-ink">{fmtWpr(fr.avg)}</span>
-                <span className="block text-[10px] text-ink-faint">{fmtWpr(fr.median)}</span>
-              </>
-            ) : null}
-          </span>
-        )
-      })()}
-      <span className={`text-right font-mono text-[13px] text-ink-mute ${LG_ONLY}`} title="TopRate's own forward rating (wpr_nett)">
+      <span className="text-right font-mono leading-tight" title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
+        {l3 ? (
+          <>
+            <span className="block text-[12px] text-ink lg:text-[13px]">{fmtWpr(l3.avg)}</span>
+            <span className="hidden text-[10px] text-ink-faint lg:block">{fmtWpr(l3.median)}</span>
+          </>
+        ) : null}
+      </span>
+      <span className={`text-right font-mono text-[12px] text-ink-mute lg:text-[13px] ${NETT_COL}`} title="TopRate's own forward rating (wpr_nett)">
         {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
       </span>
       <span className="text-right">
@@ -118,13 +120,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
         <FinishBadge pos={runner.finishPosition} />
       </span>
-      {!f.scratched && (l3 != null || runner.nett != null) && (
-        <span className="col-span-full -mt-0.5 pl-[38px] font-mono text-[10px] leading-snug text-ink-mute lg:hidden">
-          {l3 != null && <>L3 {fmtWpr(l3.avg)} <span className="text-ink-faint">(med {fmtWpr(l3.median)})</span></>}
-          {l3 != null && runner.nett != null && ' \u00B7 '}
-          {runner.nett != null && <>Nett {fmtWpr(runner.nett)}</>}
-        </span>
-      )}
     </div>
   )
 }

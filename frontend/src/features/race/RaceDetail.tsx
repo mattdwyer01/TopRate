@@ -38,13 +38,13 @@ interface RaceDetailProps {
 const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
-const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean }[] = [
+const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phone?: 'always' | 'wide' }[] = [
   { key: null, label: '', align: 'left' },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', lgOnly: true },
-  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", lgOnly: true },
+  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', phone: 'always' },
+  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", phone: 'wide' },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: 'The price the WPR projection implies for each runner (a simulation of the race; hover a value for the place price). The model view only, not a value claim.' },
@@ -256,10 +256,10 @@ export function RaceDetail({
         </div>
 
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
-          <div className={`grid min-w-full gap-x-1.5 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
+          <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
             {COLUMNS.map((c, i) =>
               c.key == null ? (
-                <span key={i} />
+                <span key={i} className="hidden lg:block" />
               ) : (
                 <button
                   key={c.key}
@@ -267,7 +267,7 @@ export function RaceDetail({
                   title={c.title}
                   aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                   onClick={() => onSort(c.key as SortKey)}
-                  className={`transition-colors hover:text-ink ${c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                  className={`transition-colors hover:text-ink ${c.phone === 'wide' ? 'hidden min-[420px]:block ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
                   {c.label}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
