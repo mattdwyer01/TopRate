@@ -10,16 +10,26 @@ import re
 from pathlib import Path
 
 DIR = Path(__file__).parent / "data" / "rc_fields"
-_SPONSOR = re.compile(r"^(bet365|sportsbet|ladbrokes|picklebet|tab|southside|pointsbet|neds|racing\.?com)\s+", re.I)
+_SPONSOR = re.compile(r"^(bet365|sportsbet|ladbrokes|picklebet|aquis|tab|southside|pointsbet|neds|racing\.?com)\s+", re.I)
 _cache = {}
+# racing.com's own names for tracks whose TopRate / TAB name differs (16 Oct 2026: 17 Oct showed Randwick, Gold Coast, Wodonga and Fannie Bay twice)
+_ALIASES = {"royal randwick": "randwick", "darwin": "fannie bay"}
 
 
 def norm_venue(s):
+    """Venue name reduced to the form shared by TopRate, TAB and racing.com: sponsor prefixes ("Picklebet Park Wodonga", "Aquis Park Gold Coast"),
+    "Royal Randwick" and "Darwin" (Fannie Bay) all collapse onto the plain track name."""
     n = str(s or "").strip().lower()
+    sponsored = False
     for _ in range(2):
-        n = _SPONSOR.sub("", n)
+        m = _SPONSOR.sub("", n)
+        sponsored = sponsored or m != n
+        n = m
     n = re.sub(r"[^a-z0-9]+", " ", n).strip()
-    return re.sub(r"^mount ", "mt ", n)
+    if sponsored and n.startswith("park "):
+        n = n[5:]
+    n = re.sub(r"^mount ", "mt ", n)
+    return _ALIASES.get(n, n)
 
 
 def _distance_m(v):
