@@ -38,13 +38,14 @@ interface RaceDetailProps {
 const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
-const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phone?: 'always' | 'wide' }[] = [
+const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; label2?: string }[] = [
   { key: null, label: '', align: 'left' },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', phone: 'always' },
-  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", phone: 'wide' },
+  { key: 'last3', label: 'L3', label2: 'Nett', align: 'right', title: 'L3: average of the last 3 rated runs (top). Nett: TopRate forward rating (below). Tap to sort by L3.', phoneOnly: true },
+  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', lgOnly: true },
+  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", lgOnly: true },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
   { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: 'The price the WPR projection implies for each runner (a simulation of the race; hover a value for the place price). The model view only, not a value claim.' },
@@ -262,15 +263,16 @@ export function RaceDetail({
                 <span key={i} className="hidden lg:block" />
               ) : (
                 <button
-                  key={c.key}
+                  key={c.key + (c.phoneOnly ? '-phone' : '')}
                   type="button"
                   title={c.title}
                   aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                   onClick={() => onSort(c.key as SortKey)}
-                  className={`transition-colors hover:text-ink ${c.phone === 'wide' ? 'hidden min-[420px]:block ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                  className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                 >
                   {c.label}
                   {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+                  {c.label2 && <span className="block font-normal text-ink-faint">{c.label2}</span>}
                 </button>
               ),
             )}
