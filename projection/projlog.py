@@ -13,7 +13,7 @@ import pandas as pd
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 PATH = os.path.join(ROOT, 'wpr_projection_log.csv.gz')
-COLS = ['run_id', 'race_id', 'date', 'proj', 'base', 'adj', 'wtadj', 'sd', 'model', 'nruns', 'grp', 'src', 'made', 'atwo', 'sadj', 'badj']
+COLS = ['run_id', 'race_id', 'date', 'proj', 'base', 'adj', 'wtadj', 'sd', 'model', 'nruns', 'grp', 'src', 'made', 'atwo', 'sadj', 'badj', 'padj']
 
 
 def load(path=PATH):
@@ -31,6 +31,8 @@ def load(path=PATH):
         d['sadj'] = np.nan
     if 'badj' not in d.columns:
         d['badj'] = np.nan
+    if 'padj' not in d.columns:
+        d['padj'] = 0.0
     return d
 
 
@@ -45,6 +47,8 @@ def update(rows, path=PATH, keep_days=120):
         rows['sadj'] = np.nan
     if 'badj' not in rows.columns:
         rows['badj'] = np.nan
+    if 'padj' not in rows.columns:
+        rows['padj'] = 0.0
     new = pd.concat([old[~old.run_id.isin(rows.run_id)], rows[COLS]], ignore_index=True)
     cut = new.date.max() - pd.Timedelta(days=keep_days)
     new = new[new.date >= cut].sort_values(['date', 'race_id', 'run_id'])

@@ -35,6 +35,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache_tr' if F.RATINGS_SOURCE =
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
+PACE_K = 2.0   # WPR per unit of relative early position (0 = leads, 1 = last, vs the field average of the horse's last 3 run positions at 800m, `lad_r30_own_rel`): a horse that usually runs further forward than the field is lifted, further back is lowered. Out-of-sample fit on 3,997 races (4 Jul to 8 Oct 2026): -2.5 / -1.7 in the two halves, winner log-likelihood +0.0043 a race in both halves. Set 0 to switch off
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
 
@@ -283,7 +284,9 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
     R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
-    R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
+    # early position: the model already reads the settle history, but its winners still run better the further forward the horse usually is (see PACE_K)
+    R['padj'] = -PACE_K * R.lad_r30_own_rel.fillna(0.0)
+    R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj + R.padj
     sdb = main_info.get('sd_bands') or [6.75, 7.31, 7.55]     # error sd of the main model for a projection of 70+, 60 to 70, under 60 (measured by train_main.py)
     sd_main = lambda p: sdb[0] if p >= 70 else sdb[1] if p >= 60 else sdb[2]
     R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
@@ -358,7 +361,7 @@ def main():
     off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
     atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=np.where(rows.routed == 'main', rows.badj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=np.where(rows.routed == 'main', rows.badj, np.nan), wtadj=rows.wtadj, padj=rows.padj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
                              atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
