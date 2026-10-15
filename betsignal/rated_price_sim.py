@@ -235,6 +235,30 @@ def main():
         d = T[T[m] < 0.05]
         print(f"{name:22} runners {len(d):,}  predicted {d[m].mean()*100:.2f}%  actual {d.win.mean()*100:.2f}%")
 
+    print("\n=== Longshot calibration (15 Oct 2026): p' proportional to p^g within each race, g fitted on EARLIER test years only (model C) ===")
+    from scipy.optimize import minimize_scalar as _ms
+    def _ll(Tx, g):
+        q = Tx.pC ** g
+        q = q / q.groupby(Tx.race_id).transform("sum")
+        return np.log(q[Tx.win == 1]).mean()
+    yrs = list(TEST_YEARS)
+    for i, ty in enumerate(yrs):
+        if i == 0:
+            continue
+        past, cur = T[T.year.isin(yrs[:i])], T[T.year == ty]
+        g = _ms(lambda x: -_ll(past, x), bounds=(0.8, 1.5), method="bounded").x
+        q = cur.pC ** g
+        q = q / q.groupby(cur.race_id).transform("sum")
+        lo = cur.pC < 0.05
+        print(f"{ty}: g {g:.3f}  winner log-lik {_ll(cur, 1.0):.4f} -> {_ll(cur, g):.4f}   longshots predicted {cur.pC[lo].mean()*100:.2f}% -> {q[lo].mean()*100:.2f}% (actual {cur.win[lo].mean()*100:.2f}%)")
+    gall = _ms(lambda x: -_ll(T, x), bounds=(0.8, 1.5), method="bounded").x
+    print(f"all years pooled g {gall:.3f}")
+    qa = T.pC ** gall
+    qa = qa / qa.groupby(T.race_id).transform("sum")
+    T["band"] = pd.cut(T.pC, [0, .02, .05, .1, .2, .35, .5, 1])
+    d = T.assign(q=qa).groupby("band", observed=True).agg(n=("win", "size"), before=("pC", "mean"), after=("q", "mean"), actual=("win", "mean"))
+    print(d.round(4).to_string())
+
     print("\n=== Overlays against the RATED price (rating-only chances, no market in the model): flat $1 at SP ===")
     print(f"{'model':24} {'EV >':>5} {'bets':>7} {'win%':>6} {'ROI':>7} {'ex10':>7}")
     for m, name in (("pA", "A softmax"), ("pC", "C simulation by type")):
