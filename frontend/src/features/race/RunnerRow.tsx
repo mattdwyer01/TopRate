@@ -1,6 +1,7 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { lastRunsRating } from '../../lib/formRatings'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
 
@@ -18,7 +19,7 @@ interface RunnerRowProps {
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
 // `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_58px_52px_64px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
   `${showFp ? 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px_20px]' : 'grid-cols-[22px_16px_minmax(0,1fr)_36px_28px_46px_60px]'} ${DESKTOP_GRID}`
@@ -72,6 +73,19 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
+      {[3, 5].map((n) => {
+        const fr = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, n)
+        return (
+          <span key={n} className={`text-right font-mono leading-tight ${LG_ONLY}`} title={fr ? `Last ${n} rated runs${fr.n < n ? ` (only ${fr.n} available)` : ''}: average ${fmtWpr(fr.avg)}, median ${fmtWpr(fr.median)}` : undefined}>
+            {fr ? (
+              <>
+                <span className="block text-[13px] text-ink">{fmtWpr(fr.avg)}</span>
+                <span className="block text-[10px] text-ink-faint">{fmtWpr(fr.median)}</span>
+              </>
+            ) : null}
+          </span>
+        )
+      })}
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
