@@ -28,8 +28,8 @@ export const rowGrid = (showFp: boolean) =>
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_60px_20px]'
-      : 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_60px]'
+      ? 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_62px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_62px_20px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_62px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_62px]'
   } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
@@ -53,7 +53,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       }`}
     >
       {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-[18px] w-[18px] rounded-sm object-contain min-[380px]:block lg:h-6 lg:w-6" /> : <span className="hidden h-[18px] w-[18px] min-[380px]:block lg:h-6 lg:w-6" />}
-      <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
+      <span className="font-mono leading-none text-ink-mute">
+        {runner.tabNumber}
+        {runner.barrier != null && <span className="mt-0.5 block text-[9px] text-ink-faint lg:hidden" title={`Barrier ${runner.barrier}`}>b{runner.barrier}</span>}
+      </span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
@@ -73,16 +76,16 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
             </span>
           )}
         </span>
-        <span className="block truncate text-[11px] leading-snug text-ink-faint" title={`${runner.jockey} / ${runner.trainer}`}>
-          <span className={`font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label} · </span>
-          {runner.jockey} / {runner.trainer}
-          {runner.barrier != null && <> &middot; barrier {runner.barrier}</>}
+        <span className="flex min-w-0 items-baseline gap-1 text-[11px] leading-snug text-ink-faint" title={`${runner.jockey} / ${runner.trainer}`}>
+          <span className={`flex-none font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label}</span>
+          <span className="max-w-[65%] flex-none truncate text-ink-mute">{runner.jockey}</span>
+          <span className="min-w-0 truncate">/ {runner.trainer}{runner.barrier != null && <span className="hidden lg:inline"> &middot; barrier {runner.barrier}</span>}</span>
         </span>
       </span>
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
-      <span className="text-right font-mono text-[12px] font-semibold text-ink lg:text-[14px]" title="TopRate's own forward rating (wpr_nett)">
+      <span className="text-right font-mono text-[12px] font-medium text-ink lg:text-[14px] lg:font-semibold" title="TopRate's own forward rating (wpr_nett)">
         {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
       </span>
       <span className="text-right font-mono leading-tight" title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
@@ -99,8 +102,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       >
         {f.scratched || !combo ? null : (
           <>
-            <span className="block text-[13px] font-semibold text-ink">{combo.rank}</span>
-            <span className="block text-[9px] text-ink-faint lg:text-[10px]">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
+            <span
+              className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[13px] font-semibold ${
+                combo.rank === 1 ? 'bg-emerald text-white' : combo.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'text-ink-mute'
+              }`}
+            >
+              {combo.rank}
+            </span>
+            <span className="block text-[9px] text-ink-mute lg:text-[10px]">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
           </>
         )}
       </span>

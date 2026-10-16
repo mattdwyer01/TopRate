@@ -34,7 +34,7 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
 export function PriceCell({ runner, scratched, move, showMove }: { runner: Runner; scratched: boolean; move: ReturnType<typeof computePriceMove>; showMove: boolean }) {
   return (
     <span className="inline-flex items-center justify-end font-mono">
-      <span>{scratched ? 'SCR' : fmtPrice(runner.fixedWinPrice)}</span>
+      <span>{scratched ? 'SCR' : runner.fixedWinPrice != null && runner.fixedWinPrice >= 100 ? `$${Math.round(runner.fixedWinPrice)}` : fmtPrice(runner.fixedWinPrice)}</span>
       <span
         className={`ml-1 w-2.5 flex-none text-center text-[10px] leading-none ${
           !scratched && showMove && move ? (move.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose') : 'invisible'
