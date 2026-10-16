@@ -35,6 +35,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache_tr' if F.RATINGS_SOURCE =
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
+FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
@@ -305,6 +306,19 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     sd_main = lambda p: sdb[0] if p >= 70 else sdb[1] if p >= 60 else sdb[2]
     R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
     R['proj'] = R.proj + R.cal
+    if FORMULA_PROJ:
+        # Proj is a formula on the runner pages' ratings, not a model (16 Oct 2026, owner's call): the model columns above stay for the suitability (SM) display only
+        fp, fn, fs, _ = F.formula_projection(R.horse_id, R.date)
+        has = ~np.isnan(fp)
+        R['p0'] = np.where(has, fp, np.nan)
+        R['proj'] = R.p0
+        R['wtadj'] = 0.0
+        R['cal'] = 0.0
+        R['sd'] = np.where(has, fs, np.nan)
+        R['nruns'] = np.where(has, fn, R.nruns).astype('int64')
+        R['routed'] = np.where(has, np.where(fn >= 3, 'main', 'light'), 'none')
+        R['grp'] = None
+        return R
     R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
     m = R.grp.notna()

@@ -159,6 +159,33 @@ def apply_runner_page_ratings(H, horse_ids):
     return H2, set(tt.horse_id.astype('int64'))
 
 
+def formula_projection(horse_ids, dates):
+    """Proj by formula (16 Oct 2026): intercept + weighted sum of the horse's last runs on the runner pages, weights by the number of earlier runs
+    (models_tr/formula.json, fitted by fit_formula.py). Only runs before `dates` count. Returns (proj, n earlier runs, sd, last-3 average) as arrays,
+    NaN where the horse has no page run."""
+    f = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models_tr', 'formula.json')))
+    K = f['K']
+    t = runner_page_runs().sort_values(['horse_id', 'date'])
+    byh = {h: (g.date.values, g.wpr.values) for h, g in t.groupby('horse_id')}
+    hid = pd.to_numeric(pd.Series(list(horse_ids)), errors='coerce').values
+    dts = pd.to_datetime(pd.Series(list(dates))).values
+    proj, nn, sd, l3 = (np.full(len(hid), np.nan) for _ in range(4))
+    for i, (h, d) in enumerate(zip(hid, dts)):
+        if np.isnan(h) or int(h) not in byh:
+            continue
+        dd, ww = byh[int(h)]
+        r = ww[dd < d]
+        n = len(r)
+        if n == 0:
+            continue
+        k = min(n, K)
+        last = r[::-1][:k]          # most recent first
+        c = f['coef'][str(k)]
+        proj[i] = c[0] + float(np.dot(c[1:], last))
+        nn[i], sd[i], l3[i] = n, f['sd'][str(k)], last[:3].mean()
+    return proj, nn, sd, l3
+
+
 def tr_actual_by_name():
     """TopRate's plain-scale rating per (lowercased horse name, date string), for the Review 'actual' of runs projected on TopRate's scale."""
     tr_lookup()
