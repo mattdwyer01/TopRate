@@ -18,17 +18,17 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row, same columns on every screen: Rank | Spd | Nett | L3 | Proj, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
+// Table row, same columns on every screen: Spd | Nett | L3 | Proj (whole numbers) | Rank, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
 // nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_46px_46px_46px_52px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_40px_62px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  // Phone: [silk] | # | Horse | Rank | Spd | Nett | L3 | Proj | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
+  // Phone: [silk] | # | Horse | Spd | Nett | L3 | Proj | Rank | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[16px_minmax(0,1fr)_44px_28px_28px_28px_32px_60px_18px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_44px_28px_28px_28px_32px_60px_18px]'
-      : 'grid-cols-[16px_minmax(0,1fr)_44px_28px_28px_28px_32px_60px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_44px_28px_28px_28px_32px_60px]'
+      ? 'grid-cols-[16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px]'
   } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
@@ -87,30 +87,19 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
         {f.spell.label}
       </span>
       <span
-        className="text-right font-mono leading-tight"
-        title={combo ? `Combined rank ${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
-      >
-        {f.scratched || !combo ? null : (
-          <>
-            <span className="block text-[12px] text-ink lg:text-[13px]">{combo.rank}</span>
-            <span className="hidden whitespace-nowrap text-[8px] tracking-tight text-ink-faint min-[400px]:block lg:text-[10px] lg:tracking-normal">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
-          </>
-        )}
-      </span>
-      <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
         title={runner.speedRating != null ? `Speed rating ${runner.speedRating.toFixed(1)} lengths against par (higher is faster): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
-        {f.scratched || runner.speedRating == null ? '' : runner.speedRating.toFixed(1)}
+        {f.scratched || runner.speedRating == null ? '' : Math.round(runner.speedRating)}
       </span>
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
-        {f.scratched || runner.nett == null ? '' : fmtWpr(runner.nett)}
+        {f.scratched || runner.nett == null ? '' : Math.round(runner.nett)}
       </span>
       <span className="text-right font-mono leading-tight" title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
         {l3 ? (
           <>
-            <span className="block text-[12px] text-ink-mute lg:text-[13px]">{fmtWpr(l3.avg)}</span>
-            <span className="hidden text-[10px] text-ink-faint lg:block">{fmtWpr(l3.median)}</span>
+            <span className="block text-[12px] text-ink-mute lg:text-[13px]">{Math.round(l3.avg)}</span>
+            <span className="hidden text-[10px] text-ink-faint lg:block">{Math.round(l3.median)}</span>
           </>
         ) : null}
       </span>
@@ -119,9 +108,20 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           <span className="font-mono text-ink-faint">SCR</span>
         ) : (
           <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{fmtWpr(f.proj)}</span>
+            <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? null : Math.round(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
+        )}
+      </span>
+      <span
+        className="text-right font-mono leading-tight"
+        title={combo ? `Combined rank ${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
+      >
+        {f.scratched || !combo ? null : (
+          <>
+            <span className="block text-[12px] text-ink lg:text-[13px]">{combo.rank}</span>
+            <span className="hidden whitespace-nowrap text-[8px] tracking-tight text-ink-faint min-[400px]:block lg:text-[10px] lg:tracking-normal">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
+          </>
         )}
       </span>
       <span className="text-right text-ink-mute">
