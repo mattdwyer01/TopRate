@@ -8,8 +8,9 @@ The rating is the recency-weighted mean of the horse's earlier figures (EWM, hal
 Why this version: research/speed_rating_variants.py (15,111 races 2025-07+, 16 Oct 2026). Par v2 plus a long recency-weighted memory was the best
 simple calculation (top pick wins 20.0% vs 17.0% for the mean of the last 3 on par v1; added to L3 +0.012 nats vs +0.005). A learned LightGBM on the
 figure history was a little better still (20.3%, +0.015) but needs a second artifact and is relative to the field, so it was not used.
-Limits: figures need winners_time, which the results files carry but the racing.com results file (race_results_2026_rc.csv.gz, from 9 Oct 2026) does
-not, so runs since then are missing from the history until the authoritative files cover them. A horse with fewer than 2 earlier figures has no rating.
+Recent runs: figures need winners_time. The results files carry it but stop on 8 Oct 2026 (the racing.com results file that followed has none), so every
+day after the last day those files cover is read from the runner-page store (data/tr_form), which the daily runner-page fetch keeps up to date, so the
+rating stays current without anything extra. A horse with fewer than 2 earlier figures has no rating.
 
 usage:
   python speed_rating.py --train      refit the par model (writes speed_models/par_v2.txt), run once a year
@@ -28,6 +29,7 @@ import pandas as pd
 
 DIR = Path(__file__).parent
 MODEL = DIR / "speed_models" / "par_v2.txt"
+FORM_DIR = DIR / "data" / "tr_form"
 SEC = 0.147                  # seconds per length
 HALFLIFE = 4.0               # runs
 MIN_RUNS = 2
@@ -46,9 +48,7 @@ def _melbourne_today():
     return datetime.now(ZoneInfo("Australia/Melbourne")).date()
 
 
-def load_results(first_year):
-    files = [f for f in sorted(glob.glob(str(DIR / "race_results_20*.csv.gz"))) if not f.endswith("_rc.csv.gz") and int(f[-11:-7]) >= first_year]
-    d = pd.concat([pd.read_csv(f, usecols=lambda c: c in USE, low_memory=False) for f in files], ignore_index=True)
+def _norm(d):
     d["date"] = pd.to_datetime(d["date"])
     d = d[d["isBarrierTrial"].fillna(False).astype(bool) == False]
     d = d[~d["race_class"].astype(str).str.contains("HUR|STE|JUMP", case=False, na=False)]
@@ -58,6 +58,49 @@ def load_results(first_year):
     d["gname"] = d["going"].astype(str).str.extract(r"([A-Za-z]+)")[0]
     d["cls"] = d["race_class"].astype(str).str.replace(r"\d+", "", regex=True)
     return d
+
+
+def load_form_runs(after):
+    """Runs after the date `after` from the runner-page store (data/tr_form, kept up to date by the daily runner-page fetch): TopRate's own record of every
+    past run of every horse that has been declared again, with the race's winning time and each runner's margin. Partial fields (only runners whose page
+    was fetched), so the venue-day allowance is built from the races that are known. Where both sources cover a day they agree (winning time 100%,
+    margin 99.96% of 2,666 runs, 20 Sep to 8 Oct 2026)."""
+    import gzip
+    runs = []
+    for f in sorted(FORM_DIR.glob("*.json.gz")):
+        if f.stem < str(after)[:7]:
+            continue
+        try:
+            with gzip.open(f, "rt") as fh:
+                runs += list(json.load(fh).get("runs", {}).values())
+        except Exception:
+            continue
+    if not runs:
+        return pd.DataFrame(columns=USE)
+    t = pd.DataFrame(runs)
+    t = t[t["date"].astype(str) > str(after)]
+    for c in ("isJumpout", "isBarrierTrial", "winnersTime", "marginFinish", "starters", "weightCarried", "trackGrading", "class"):
+        if c not in t.columns:
+            t[c] = np.nan
+    t["isBarrierTrial"] = t["isBarrierTrial"].fillna(False).astype(bool) | t["isJumpout"].fillna(False).astype(bool)
+    t["marginFinish"] = t["marginFinish"].where(t["marginFinish"].notna() | (t["positionFinish"] != 1), 0.0)
+    d = pd.DataFrame({"race_id": t["raceId"], "date": t["date"], "horse": t["horse"], "track": t["track"], "distance": t["distance"], "going": t["going"],
+                      "positionFinish": t["positionFinish"], "marginFinish": t["marginFinish"], "field_size": t["starters"], "weightCarried": t["weightCarried"],
+                      "winners_time": t["winnersTime"], "isBarrierTrial": t["isBarrierTrial"], "race_class": t["class"], "trackGrading": t["trackGrading"]})
+    return d
+
+
+def load_results(first_year, form_from=None):
+    """Results files from first_year, then the runner-page store for every day after the last day the files cover (or after form_from, for testing)."""
+    files = [f for f in sorted(glob.glob(str(DIR / "race_results_20*.csv.gz"))) if not f.endswith("_rc.csv.gz") and int(f[-11:-7]) >= first_year]
+    d = pd.concat([pd.read_csv(f, usecols=lambda c: c in USE, low_memory=False) for f in files], ignore_index=True)
+    d["date"] = pd.to_datetime(d["date"])
+    after = pd.Timestamp(form_from) if form_from else d["date"].max()
+    d = d[d["date"] <= after]
+    f = load_form_runs(after.date())
+    if len(f):
+        d = pd.concat([d, f], ignore_index=True)
+    return _norm(d)
 
 
 def races_table(d):
