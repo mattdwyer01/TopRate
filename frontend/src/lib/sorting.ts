@@ -1,5 +1,6 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
+import type { CombinedRank } from './combinedRank'
 import { spellPosition } from './spellPosition'
 import { lastRunsRating } from './formRatings'
 
@@ -12,6 +13,7 @@ export type SortKey =
   | 'baseWpr'
   | 'adjustment'
   | 'speedMapAdj'
+  | 'comboRank'
   | 'projectedWpr'
   | 'fixedPrice'
   | 'ratedPrice'
@@ -32,6 +34,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   baseWpr: 'desc',
   adjustment: 'desc',
   speedMapAdj: 'desc',
+  comboRank: 'asc',
   projectedWpr: 'desc',
   fixedPrice: 'asc',
   ratedPrice: 'asc',
@@ -47,6 +50,7 @@ function sortValue(
   key: SortKey,
   effective?: EffectiveRunner,
   raceDate?: string,
+  combo?: CombinedRank,
 ): number | string {
   switch (key) {
     case 'tab':
@@ -63,6 +67,8 @@ function sortValue(
       return runner.baseWpr ?? -Infinity
     case 'adjustment':
       return runner.wprAdjustment ?? -Infinity
+    case 'comboRank':
+      return combo ? combo.rank + combo.mean / 1000 : Infinity
     case 'speedMapAdj':
       return effective?.speedMapAdj ?? -Infinity
     case 'projectedWpr':
@@ -82,10 +88,11 @@ export function sortRunners(
   direction: SortDirection,
   effectiveByRunId?: Record<string, EffectiveRunner>,
   raceDate?: string,
+  comboByRunId?: Map<string, CombinedRank>,
 ): Runner[] {
   const sorted = [...runners].sort((a, b) => {
-    const av = sortValue(a, key, effectiveByRunId?.[a.runId], raceDate)
-    const bv = sortValue(b, key, effectiveByRunId?.[b.runId], raceDate)
+    const av = sortValue(a, key, effectiveByRunId?.[a.runId], raceDate, comboByRunId?.get(a.runId))
+    const bv = sortValue(b, key, effectiveByRunId?.[b.runId], raceDate, comboByRunId?.get(b.runId))
     if (av < bv) return -1
     if (av > bv) return 1
     return 0

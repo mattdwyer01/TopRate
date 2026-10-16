@@ -64,7 +64,8 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
         <Section title="Column and label guide">
           <ul className="list-disc space-y-1 pl-5">
             <li><span className="font-mono text-ink">Proj</span>: the WPR projection at the weight carried today, and the race's ranking figure. <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the projection, which the runner page explains.</li>
-            <li><span className="font-mono text-ink">SM</span>: the suitability part of the WPR projection's Adj, relative to this field (green +0.5 or better, red -0.5 or worse). Runners at +0.5 or better do win more often (10.5% for the middle band, 13.9% at +0.5 to +1.0, 20% above +1.0), but the market already prices that: win rates matched the market-implied chances at every band, so SM is a reading aid for the map, not a source of value.</li>
+            <li><span className="font-mono text-ink">Rank</span>: each runner is ranked by Proj, Nett and L3 and the three ranks are averaged (the small figures under it are the three ranks). It shows where the signals agree. In testing its top pick won about as often as Proj alone and the market already prices the agreement, so it is a reading aid, not a tip.</li>
+            <li><span className="font-mono text-ink">SM</span> (speed map, shown on the Trip map): the suitability part of the projection, relative to this field. A green dot on a runner is +0.5 or better, red is -0.5 or worse; hover a runner for the figure. Runners at +0.5 or better won more often in testing, but the market already prices it.</li>
             <li><span className="font-mono text-ink">Rated $</span>: the price the projection implies, from a softmax over the field's projections. It is the model's own view of the race, not a value claim: the earlier rated-price-against-market signal lost 30 to 39% at every threshold in testing.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
@@ -92,7 +93,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             a small suitability adjustment, usually within one WPR point, added to runners on the main model. It looks at how
             often the horse has been held up, raced wide or started slowly, how the track has played earlier on the card,
             the horse's late versus early sectional profile, and whether its jockey and trainer ride it further forward or back
-            than its usual style (light-history runners have no suitability adjustment in their projection; the SM column still shows an estimate for them from their barrier, the day's track bias and their jockey and trainer, faded because it is lower confidence). <span className="font-mono text-ink">Adj</span> also
+            than its usual style (light-history runners have no suitability adjustment in their projection; the Trip map SM figure still shows an estimate for them from their barrier, the day's track bias and their jockey and trainer, faded because it is lower confidence). <span className="font-mono text-ink">Adj</span> also
             includes weight carried: the model's ratings are weight-free, so each kilo above the field average takes about 0.4
             WPR off, and each kilo below adds the same. That figure was measured on the model's own out-of-sample projections
             (measured on 4,551 out-of-sample races, 90% range 0.35 to 0.47).

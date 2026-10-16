@@ -3,7 +3,8 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { lastRunsRating } from '../../lib/formRatings'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
-import { BAND_BORDER, fmtAdj, FinishBadge, PriceCell, smClass, useRowFacts } from './rowParts'
+import { BAND_BORDER, FinishBadge, PriceCell, useRowFacts } from './rowParts'
+import type { CombinedRank } from '../../lib/combinedRank'
 
 interface RunnerRowProps {
   runner: Runner
@@ -14,24 +15,25 @@ interface RunnerRowProps {
   showFp: boolean
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
+  combo?: CombinedRank
   onClick: () => void
 }
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
 // `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_58px_52px_64px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_52px_58px_64px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
-  // Phone: [silk] | # | Horse | Nett over L3 | Proj | SM | Rated $ | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
+  // Phone: [silk] | # | Horse | Nett over L3 | Rank | Proj | Rated $ | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_36px_28px_46px_60px_20px]'
-      : 'grid-cols-[16px_minmax(0,1fr)_34px_36px_28px_46px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_36px_28px_46px_60px]'
+      ? 'grid-cols-[16px_minmax(0,1fr)_34px_28px_36px_46px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_28px_36px_46px_60px_20px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_34px_28px_36px_46px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_34px_28px_36px_46px_60px]'
   } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
-export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, band, showFp, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
@@ -102,6 +104,17 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
           </>
         ) : null}
       </span>
+      <span
+        className="text-right font-mono leading-tight"
+        title={combo ? `Combined rank ${combo.rank}: Proj ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'} (mean ${combo.mean.toFixed(1)})` : undefined}
+      >
+        {f.scratched || !combo ? null : (
+          <>
+            <span className="block text-[13px] font-semibold text-ink">{combo.rank}</span>
+            <span className="hidden text-[10px] text-ink-faint lg:block">{combo.ranks.map((x) => x ?? '-').join('\u00b7')}</span>
+          </>
+        )}
+      </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
@@ -111,12 +124,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
-      </span>
-      <span
-        className={`text-right font-mono ${smClass(effective?.speedMapAdj)}${effective?.speedMapLight ? ' opacity-70' : ''}`}
-        title={effective?.speedMapLight ? 'Light-history runner: estimated without its own run history, lower confidence' : undefined}
-      >
-        {f.scratched ? '' : fmtAdj(effective?.speedMapAdj)}
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-sm"

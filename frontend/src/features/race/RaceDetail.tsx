@@ -12,6 +12,7 @@ import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RunnerRow, rowGrid } from './RunnerRow'
+import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
@@ -46,8 +47,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'nett', label: 'Nett', label2: 'L3', align: 'right', title: "Nett (top): TopRate's own forward rating. L3 (below): average of the last 3 rated runs. Tap to sort by Nett.", phoneOnly: true },
   { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj.", lgOnly: true },
   { key: 'last3', label: 'L3', align: 'right', title: 'Average (top) and median (below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.', lgOnly: true },
+  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: each runner is ranked by Proj, Nett and L3, and the three ranks are averaged (small figures under it, Proj / Nett / L3). A runner needs two of the three. Where the signals agree, not a better winner picker: the market already prices the agreement." },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
-  { key: 'speedMapAdj', label: 'SM', align: 'right', title: "Suitability adjustment relative to this field (part of the WPR projection). Positive means a favourable map; runners at +0.5 or better won more often in testing, but the market already prices it." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: 'The price the WPR projection implies for each runner (a simulation of the race; hover a value for the place price). The model view only, not a value claim.' },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
@@ -134,6 +135,7 @@ export function RaceDetail({
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
+  const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched, race.date), [race.runners, effectiveByRunId, effectiveScratched, race.date])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const activeRunners = useMemo(() => race.runners.filter((r) => !effectiveScratched.has(r.runId)), [race.runners, effectiveScratched])
@@ -155,11 +157,11 @@ export function RaceDetail({
 
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
-    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date)
+    const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, comboByRunId)
     const active = sorted.filter((r) => !effectiveScratched.has(r.runId))
     if (!showScratched) return active
     return [...active, ...sorted.filter((r) => effectiveScratched.has(r.runId))]
-  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, effectiveScratched, showScratched])
+  }, [race.runners, race.date, sortKey, sortDir, effectiveByRunId, comboByRunId, effectiveScratched, showScratched])
 
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
@@ -208,6 +210,7 @@ export function RaceDetail({
       raceDate: race.date,
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
+      combo: comboByRunId.get(runner.runId),
       band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
       showBias,
@@ -336,7 +339,7 @@ export function RaceDetail({
         </div>
         <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
         {speedMapView === 'trip' && tripRace && tripMap ? (
-          <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} />
+          <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
         ) : speedMapView === 'bar' ? (
           <SpeedMap race={race} runners={activeRunners} />
         ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TripRace, TripRunner } from '../../lib/tripMap'
 import type { Runner } from '../../types/domain'
+import { SPEED_MAP_TINT_THRESHOLD } from '../../lib/raceModel'
 
 // Trip map: where each runner is projected to be about 800m from home. Horizontal axis = lengths behind the
 // leader (front of the field at the right), vertical axis = metres from the inside rail (rail at the top).
@@ -14,6 +15,7 @@ interface TripMapProps {
   excluded: Set<string> // scratched runners (runId), left off the map
   runners: Runner[] // for TAB number and silks (matched on runId)
   generated: string
+  smByRunId?: Record<string, number | null> // speed-map suitability vs the field (SM), shown as a dot on each chip
 }
 
 const LEN_M = 2.4 // one length in metres
@@ -30,7 +32,7 @@ interface Placed extends TripRunner {
   py: number
 }
 
-export function TripMap({ trip, excluded, runners: field, generated }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, generated, smByRunId = {} }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -215,6 +217,11 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
                 <text x={tx} y={r.py + 4} fontSize={11} fontWeight={700} fill="var(--color-ink)">
                   {r.num}
                 </text>
+                {(() => {
+                  const sm = smByRunId[r.rid]
+                  if (sm == null || Math.abs(sm) < SPEED_MAP_TINT_THRESHOLD) return null
+                  return <circle cx={x + 2 * hw - 1} cy={y + 1} r={4} fill={sm > 0 ? 'var(--color-emerald)' : 'var(--color-rose)'} stroke="var(--color-panel)" strokeWidth={1.5} />
+                })()}
                 {!narrow && (
                   <text x={tx + 16} y={r.py + 4} fontSize={11} fill="var(--color-ink-mute)">
                     {r.label}
@@ -235,6 +242,13 @@ export function TripMap({ trip, excluded, runners: field, generated }: TripMapPr
             <div>
               Barrier {hov.barrier} · projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
             </div>
+            {smByRunId[hov.rid] != null && (
+              <div>
+                Speed map (SM) {smByRunId[hov.rid]! >= 0 ? '+' : ''}
+                {smByRunId[hov.rid]!.toFixed(1)}
+                {Math.abs(smByRunId[hov.rid]!) < SPEED_MAP_TINT_THRESHOLD ? ' (neutral)' : smByRunId[hov.rid]! > 0 ? ' (favourable)' : ' (unfavourable)'}
+              </div>
+            )}
             <div className="opacity-75">
               {noGps
                 ? hov.last
