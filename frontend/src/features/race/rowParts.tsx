@@ -25,10 +25,9 @@ export function useRowFacts(runner: Runner, raceDate: string, effective?: Effect
   const rtsClass = spell.label === 'FU' ? 'font-semibold text-amber' : spell.label === 'FS' ? 'font-semibold text-indigo' : 'text-ink-mute'
   const rtsTitle = spell.label === 'FS' ? 'First starter - no prior race starts' : spell.daysSince != null ? `${spell.daysSince} days since last run` : undefined
   const scratched = effective?.scratched ?? false
+  const proj = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  // proj is already at the weight carried today (ATW, see computeEffectiveRace), the scale of the form table and the runner page.
   const off = effective?.atwOff ?? 0
-  const plain = effective?.effectiveProjectedWpr ?? runner.projectedWpr
-  // Shown at the weight carried today (plain rating + the horse's offset), the scale of Nett and L3. Ranking and prices use the plain rating.
-  const proj = scratched || plain == null ? null : plain + off
   return { spell, move, showMove, rtsClass, rtsTitle, scratched, proj, atwOff: off, overridden: effective?.hasOverride ?? false }
 }
 

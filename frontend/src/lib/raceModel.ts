@@ -7,7 +7,7 @@ export interface EffectiveRunner {
   // The same figure again (kept so the track-bias note and rankField(..., 'projection') keep working).
   projectionWpr: number | null
   ratingSource: 'projection'
-  // The horse's weight offset (0 when it has none), DISPLAY ONLY: ranking, gaps and prices stay on the plain rating, the race table shows Proj + atwOff.
+  // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
   // Place price (1 / place chance) from the same simulation; null below 5 runners.
@@ -107,7 +107,8 @@ export function computeEffectiveRace(
   const ownForBlend: { runId: string; base: number }[] = []
   for (const r of runners) {
     if (scratched.has(r.runId) || r.projectedWpr == null) continue
-    ownForBlend.push({ runId: r.runId, base: r.projectedWpr })
+    const off = r.atwOffset != null && Math.abs(r.atwOffset) >= 0.05 ? r.atwOffset : 0
+    ownForBlend.push({ runId: r.runId, base: r.projectedWpr + off })
     if (r.nett != null && Number.isFinite(r.nett)) nettById.set(r.runId, r.nett)
   }
   const blended = blendNett(ownForBlend, nettById)
@@ -125,7 +126,7 @@ export function computeEffectiveRace(
       // the field entirely (not just zeroed out), so the rest of the field
       // renormalizes as if it were never entered.
       sd: r.projectionSd ?? null,
-      wpr: !isScratched && modelBase != null ? (blended.get(r.runId) ?? modelBase) + delta : null,
+      wpr: !isScratched && modelBase != null ? (blended.get(r.runId) ?? modelBase + atwOff) + delta : null,
       hasOverride,
       scratched: isScratched,
     }

@@ -119,7 +119,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         {f.scratched ? (
           <span className="font-mono font-semibold text-ink-faint">SCR</span>
         ) : (
-          <span title={`Proj ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). Plain rating ${fmtWpr(effective?.effectiveProjectedWpr ?? null)}${f.atwOff !== 0 ? ` ${f.atwOff > 0 ? '+' : '-'} ${Math.abs(f.atwOff).toFixed(1)} for the weight carried today${runner.weightCarried != null ? ' (' + runner.weightCarried + 'kg)' : ''}, the scale of Nett and L3` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
+          <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
             <span className="font-mono text-sm font-semibold leading-tight lg:text-[15px] text-emerald-deep">{fmtWpr(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
