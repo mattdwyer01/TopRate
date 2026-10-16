@@ -1,0 +1,43 @@
+# Read-only (16 Oct 2026): one past race page and three runner pages of toprate.au, field names and values only, to find the rating at the weight
+# actually carried (for a weight adjusted training set). Writes and commits nothing. Manual.
+name: TopRate weight-adjusted rating probe (read-only, manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      race_id:
+        description: 'Past race id (default 1761732, Doomben 5 Oct 2026)'
+        required: false
+        default: '1761732'
+
+concurrency:
+  group: toprate-atw-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet requests pandas
+      - name: Probe
+        env:
+          TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+          TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+          TOPRATE_ANON_KEY: ${{ secrets.TOPRATE_ANON_KEY }}
+        run: |
+          if [ -z "$TOPRATE_ANON_KEY" ]; then
+            d=$(mktemp -d) && git -C "$d" init -q && git -C "$d" remote add origin "https://github.com/${{ github.repository }}.git"
+            git -C "$d" fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+            git -C "$d" show FETCH_HEAD:toprate_daily.py > "$d/old_td.py"
+            TOPRATE_ANON_KEY=$(python - "$d/old_td.py" <<'PY'
+          import re, sys
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open(sys.argv[1]).read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+            echo "::add-mask::$TOPRATE_ANON_KEY"
+            export TOPRATE_ANON_KEY
+          fi
+          python toprate_atw_probe.py "${{ inputs.race_id }}"
