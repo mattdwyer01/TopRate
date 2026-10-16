@@ -81,5 +81,12 @@
   "6": 2791,
   "7": 2670,
   "8": 46547
+ },
+ "debut": {
+  "a": -1.4487,
+  "b": -5.3436,
+  "sd": 8.66,
+  "min_experienced": 3,
+  "basis": "25,508 debut runs 2021+, rating minus mean of 3+-run runners in the race on ln(starting price) minus field mean ln price; held-out 2025+ RMSE 8.64 vs 10.5 constant"
  }
 }

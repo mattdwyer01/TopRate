@@ -318,6 +318,20 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
         R['nruns'] = np.where(has, fn, R.nruns).astype('int64')
         R['routed'] = np.where(has, np.where(fn >= 3, 'main', 'light'), 'none')
         R['grp'] = None
+        # First starters (no page run): the race's level from its experienced runners plus the runner's price against the field (models_tr/formula.json 'debut', fitted on 25,508 debut runs)
+        db = json.load(open(os.path.join(M, 'formula.json'))).get('debut')
+        if db:
+            lpx = np.log(pd.to_numeric(R.priceStarting, errors='coerce').where(lambda s: s > 1))
+            lev = R.proj.where(R.nruns >= 3)
+            exm = lev.groupby(R.race_id).transform('mean')
+            exn = lev.groupby(R.race_id).transform('count')
+            lpm = lpx.groupby(R.race_id).transform('mean')
+            ok = (~has) & lpx.notna() & (exn >= db['min_experienced']) & exm.notna()
+            R.loc[ok, 'proj'] = exm[ok] + db['a'] + db['b'] * (lpx[ok] - lpm[ok])
+            R.loc[ok, 'p0'] = R.loc[ok, 'proj']
+            R.loc[ok, 'sd'] = db['sd']
+            R.loc[ok, 'nruns'] = 0
+            R.loc[ok, 'routed'] = 'light'
         return R
     R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
