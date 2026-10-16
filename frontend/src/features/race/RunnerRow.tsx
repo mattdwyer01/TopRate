@@ -21,15 +21,15 @@ interface RunnerRowProps {
 
 // Table row, same columns on every screen. Below lg the RTS column drops out (their tracks collapse to nothing via
 // `hidden`) so Horse, Proj, SM, Rated $, Fixed $ and FP fit a phone without sideways scrolling; RTS moves into the detail line instead.
-const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_52px_58px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[36px_28px_minmax(190px,1fr)_44px_46px_46px_60px_58px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
   // Phone: [silk] | # | Horse | Nett | L3 | Rank | Proj | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[16px_minmax(0,1fr)_30px_30px_28px_36px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_28px_36px_60px_20px]'
-      : 'grid-cols-[16px_minmax(0,1fr)_30px_30px_28px_36px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_28px_36px_60px]'
+      ? 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_60px_20px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_60px_20px]'
+      : 'grid-cols-[16px_minmax(0,1fr)_30px_30px_40px_36px_60px] min-[380px]:grid-cols-[18px_16px_minmax(0,1fr)_30px_30px_40px_36px_60px]'
   } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
@@ -100,7 +100,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         {f.scratched || !combo ? null : (
           <>
             <span className="block text-[13px] font-semibold text-ink">{combo.rank}</span>
-            <span className="hidden text-[10px] text-ink-faint lg:block">{combo.ranks.map((x) => x ?? '-').join('\u00b7')}</span>
+            <span className="block text-[9px] text-ink-faint lg:text-[10px]">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
           </>
         )}
       </span>
