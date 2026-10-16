@@ -37,7 +37,8 @@ export function Ladder({
   onSelect,
   showSm = false,
   selected,
-}: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean; selected?: Set<string> }) {
+  showBands = true,
+}: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'> & { showSm?: boolean; selected?: Set<string>; showBands?: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
   useEffect(() => {
@@ -77,19 +78,23 @@ export function Ladder({
 
   return (
     <div ref={wrapRef} className="w-full">
-      <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected WPR for each runner, with the inside-4 and inside-6 bands shaded">
-        <rect x={X(top - outerGap)} y={topPad - 4} width={X(top - innerGap) - X(top - outerGap)} height={H - topPad - 14} fill="var(--color-amber-tint)" />
-        <rect x={X(top - innerGap)} y={topPad - 4} width={X(hi) - X(top - innerGap)} height={H - topPad - 14} fill="var(--color-emerald-tint)" />
-        <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-blue-tint)" />
-        <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-blue-deep)">
-          {bandLabel(coreGap, X(hi) - X(top - coreGap))}
-        </text>
-        <text x={(X(top - innerGap) + X(top - coreGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
-          {bandLabel(innerGap, X(top - coreGap) - X(top - innerGap))}
-        </text>
-        <text x={(X(top - outerGap) + X(top - innerGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-amber)">
-          {bandLabel(outerGap, X(top - innerGap) - X(top - outerGap))}
-        </text>
+      <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label={showBands ? 'Projected WPR for each runner, with the inside-4 and inside-6 bands shaded' : 'Projected WPR for each runner'}>
+        {showBands && (
+          <>
+            <rect x={X(top - outerGap)} y={topPad - 4} width={X(top - innerGap) - X(top - outerGap)} height={H - topPad - 14} fill="var(--color-amber-tint)" />
+            <rect x={X(top - innerGap)} y={topPad - 4} width={X(hi) - X(top - innerGap)} height={H - topPad - 14} fill="var(--color-emerald-tint)" />
+            <rect x={X(top - coreGap)} y={topPad - 4} width={X(hi) - X(top - coreGap)} height={H - topPad - 14} fill="var(--color-blue-tint)" />
+            <text x={(X(top - coreGap) + X(hi)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-blue-deep)">
+              {bandLabel(coreGap, X(hi) - X(top - coreGap))}
+            </text>
+            <text x={(X(top - innerGap) + X(top - coreGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-emerald-deep)">
+              {bandLabel(innerGap, X(top - coreGap) - X(top - innerGap))}
+            </text>
+            <text x={(X(top - outerGap) + X(top - innerGap)) / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-amber)">
+              {bandLabel(outerGap, X(top - innerGap) - X(top - outerGap))}
+            </text>
+          </>
+        )}
         {showSm && (
           <text x={width - 40} y={11} textAnchor="end" fontSize={10} fontWeight={600} fill="var(--color-ink-mute)">
             SM
@@ -105,7 +110,7 @@ export function Ladder({
         ))}
         {ranked.map((r, i) => {
           const y = topPad + i * ROW_H + ROW_H / 2
-          const tone = r.inner ? 'var(--color-emerald-deep)' : r.outer ? 'var(--color-amber)' : 'var(--color-slate)'
+          const tone = !showBands ? 'var(--color-slate)' : r.inner ? 'var(--color-emerald-deep)' : r.outer ? 'var(--color-amber)' : 'var(--color-slate)'
           const price = r.runner.fixedWinPrice
           const name = `${r.runner.tabNumber}. ${r.runner.horse}`
           const maxChars = narrow ? 15 : 20
@@ -133,7 +138,7 @@ export function Ladder({
                 fill={selected?.has(r.runner.runId) ? 'var(--color-emerald-bg)' : 'transparent'}
                 stroke={selected?.has(r.runner.runId) ? 'var(--color-emerald-line)' : 'none'}
               />
-              <text x={selected ? 14 : 0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={r.inner || selected?.has(r.runner.runId) ? 600 : 400}>
+              <text x={selected ? 14 : 0} y={y + 4} fontSize={12} fill="var(--color-ink)" fontWeight={(showBands && r.inner) || selected?.has(r.runner.runId) ? 600 : 400}>
                 {name.length > maxChars ? `${name.slice(0, maxChars - 1)}…` : name}
               </text>
               {selected?.has(r.runner.runId) && (
@@ -151,7 +156,7 @@ export function Ladder({
                   <circle
                     cx={X(r.proj)}
                     cy={y}
-                    r={r.inner ? 6 : 5}
+                    r={showBands && r.inner ? 6 : 5}
                     fill={tone}
                     stroke={mapAdded ? 'var(--color-emerald)' : '#fff'}
                     strokeWidth={mapAdded ? ((r.eff?.speedMapAdj ?? 0) >= MAP_VALUE_MIN_SM ? 3.5 : 2) : 1.5}
@@ -198,7 +203,7 @@ export function RaceLadder({ ranked, coreGap, innerGap, outerGap, onSelect }: Pi
       </button>
       {open && (
         <div className="mt-2">
-          <Ladder ranked={ranked} coreGap={coreGap} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} />
+          <Ladder ranked={ranked} coreGap={coreGap} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} showBands={false} />
         </div>
       )}
     </section>

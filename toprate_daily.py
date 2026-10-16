@@ -1852,6 +1852,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wtr":  sf(row.get("weight_trend")),
                 # TopRate's own forward rating (wpr_nett, from toprate.au race pages since 14 Oct 2026); blended into Proj by computeEffectiveRace
                 "wn":   sf(row.get("wpr_nett")),
+                # Pre-race speed rating (speed_rating.py, runner column spd_fig): lengths vs par, higher = faster; None when under 2 earlier figures
+                "sr":   sf(row.get("spd_fig")),
                 # Distance performance: starts/wins/places at this distance ±10%
                 "ds":   si(row.get("starts_at_dist")),
                 "dw":   si(row.get("wins_at_dist")),
@@ -2441,6 +2443,16 @@ def main():
     print("── Step 3: race-speed estimate ──")
     runners_df = compute_race_speed(runners_df, args.date)
     _main_step("Step 3: race-speed estimate")
+    print()
+
+    # Step 3b: pre-race speed rating (speed_rating.py): recency-weighted time-based speed figures, shown as the Spd column. Additive and fail-safe.
+    print("── Step 3b: speed rating ──")
+    try:
+        import speed_rating
+        runners_df = speed_rating.apply(runners_df)
+    except Exception as e:
+        print(f"  speed rating failed ({type(e).__name__}: {e}), column left as it was")
+    _main_step("Step 3b: speed rating")
     print()
 
     # Step 4: steward and video comments onto resulted runners from the form history, and the explanation of material misses.

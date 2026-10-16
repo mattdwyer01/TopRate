@@ -60,11 +60,4 @@ export function FinishBadge({ pos }: { pos: number | null }) {
   )
 }
 
-export const BAND_BORDER: Record<'core' | 'inner' | 'outer' | 'none', string> = {
-  core: 'border-l-blue',
-  inner: 'border-l-emerald',
-  outer: 'border-l-amber',
-  none: 'border-l-transparent',
-}
-
 // 'FU' -> 'first-up', '2U' -> '2nd-up', 'FS' -> 'first start' for the runner row's detail line.

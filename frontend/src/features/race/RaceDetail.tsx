@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
@@ -44,33 +44,14 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
+  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: each runner is ranked by Spd, Nett, L3 and Proj, and the four ranks are averaged (small figures under it, in column order). A runner needs two of the four. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
+  { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs two earlier figures." },
   { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj." },
   { key: 'last3', label: 'L3', align: 'right', title: 'Average (top, desktop: median below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.' },
-  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: each runner is ranked by Proj, Nett and L3, and the three ranks are averaged (small figures under it, Proj / Nett / L3). A runner needs two of the three. Where the signals agree, not a better winner picker: the market already prices the agreement." },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
-
-// A hairline under the last runner inside each gap line, in the same colour as the row's left band.
-// No tinted bar: the band already colours the rows, so this only has to say where each group ends.
-const LINE_STYLE: Record<'core' | 'inner' | 'outer', { line: string; text: string }> = {
-  core: { line: 'h-0 border-t border-dotted border-blue', text: 'text-blue-deep' },
-  inner: { line: 'bg-emerald', text: 'text-emerald-deep' },
-  outer: { line: 'bg-amber-line', text: 'text-amber' },
-}
-
-function LineDivider({ kind, n }: { kind: 'core' | 'inner' | 'outer'; n: number }) {
-  const st = LINE_STYLE[kind]
-  return (
-    <div className="relative h-0 w-full" aria-hidden="true">
-      <span className={`absolute inset-x-0 top-0 ${st.line.startsWith('h-0') ? '' : 'h-px '}${st.line}`} />
-      <span className={`absolute right-2 top-0 z-10 -translate-y-1/2 rounded-full border border-line bg-panel px-1.5 font-mono text-[9px] font-semibold leading-4 ${st.text}`}>
-        {'≤'}{n} from top
-      </span>
-    </div>
-  )
-}
 
 // Compare runners hidden at the user's request (11 Oct 2026); the feature is intact. Set true to show the pill again.
 const SHOW_COMPARE = false
@@ -90,8 +71,9 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
-  const [sortKey, setSortKey] = useState<SortKey>('projectedWpr')
-  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.projectedWpr)
+  // Sorted by the combined Rank (best first) unless the user picks another column.
+  const [sortKey, setSortKey] = useState<SortKey>('comboRank')
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.comboRank)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
   // Compare mode: clicking rows picks up to 6 runners for a side-by-side table instead of opening the detail panel.
   // Compare mode is remembered for the browser session, so stepping through a meeting's races keeps it on.
@@ -147,12 +129,6 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  const bandOf = useMemo(() => {
-    const m = new Map<string, { band: 'core' | 'inner' | 'outer' | 'none' }>()
-    for (const r of ranked) m.set(r.runner.runId, { band: r.core ? 'core' : r.inner ? 'inner' : r.outer ? 'outer' : 'none' })
-    return m
-  }, [ranked])
-
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
     const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, comboByRunId)
@@ -163,24 +139,6 @@ export function RaceDetail({
 
   const selectedIndex = sortedRunners.findIndex((r) => r.runId === selectedRunId)
   const selectedRunner = selectedIndex >= 0 ? sortedRunners[selectedIndex] : null
-
-  // The two gap lines are only meaningful while the list is sorted best-projection-first.
-  const lines = useMemo(() => {
-    const none = { core: -1, inner: -1, outer: -1 }
-    if (!(sortKey === 'projectedWpr' && sortDir === 'desc')) return none
-    let core = -1
-    let inner = -1
-    let outer = -1
-    sortedRunners.forEach((r, i) => {
-      const g = gapByRunId[r.runId]
-      if (g == null) return
-      if (g <= CORE_GAP_FROM_TOP) core = i
-      if (g <= INNER_GAP_FROM_TOP) inner = i
-      if (g <= OUTER_GAP_FROM_TOP) outer = i
-    })
-    const last = sortedRunners.reduce((l, r, i) => (gapByRunId[r.runId] != null ? i : l), -1)
-    return { core: core < last ? core : -1, inner: inner < last ? inner : -1, outer: outer < last && outer !== inner ? outer : -1 }
-  }, [sortedRunners, gapByRunId, sortKey, sortDir])
 
   const meetingRaces = useMemo(
     () => allRaces.filter((r) => r.venue === race.venue && r.date === race.date).sort((a, b) => a.raceNumber - b.raceNumber),
@@ -202,14 +160,12 @@ export function RaceDetail({
 
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
   function rowProps(runner: Race['runners'][number]) {
-    const b = bandOf.get(runner.runId)
     return {
       runner,
       raceDate: race.date,
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
-      band: b?.band ?? ('none' as const),
       showFp: hasAnyResult,
       showBias,
       onClick: compareMode
@@ -278,12 +234,8 @@ export function RaceDetail({
               ),
             )}
           </div>
-          {sortedRunners.map((r, i) => (
-            <Fragment key={r.runId}>
-              <RunnerRow {...rowProps(r)} />
-              {i === lines.core && <LineDivider kind="core" n={CORE_GAP_FROM_TOP} />}
-              {i === lines.inner && <LineDivider kind="inner" n={INNER_GAP_FROM_TOP} />}
-            </Fragment>
+          {sortedRunners.map((r) => (
+            <RunnerRow key={r.runId} {...rowProps(r)} />
           ))}
         </div>
         {compareMode && (

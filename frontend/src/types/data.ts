@@ -77,6 +77,7 @@ export interface RawRunner {
   tw: number | null
   jwN: number | null
   wn?: number | null // TopRate wpr_nett, absent on older payloads
+  sr?: number | null // pre-race speed rating (speed_rating.py): recency-weighted time-based figures in lengths vs par, higher = faster; absent on older payloads
   twN: number | null
   fx: number | null
   op: number | null

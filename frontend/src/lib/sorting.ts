@@ -10,6 +10,7 @@ export type SortKey =
   | 'daysSince'
   | 'last3'
   | 'nett'
+  | 'speed'
   | 'baseWpr'
   | 'adjustment'
   | 'speedMapAdj'
@@ -31,6 +32,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   daysSince: 'asc',
   last3: 'desc',
   nett: 'desc',
+  speed: 'desc',
   baseWpr: 'desc',
   adjustment: 'desc',
   speedMapAdj: 'desc',
@@ -63,6 +65,8 @@ function sortValue(
       return lastRunsRating(runner.formHistory, raceDate ?? null, 3)?.avg ?? -Infinity
     case 'nett':
       return runner.nett ?? -Infinity
+    case 'speed':
+      return runner.speedRating ?? -Infinity
     case 'baseWpr':
       return runner.baseWpr ?? -Infinity
     case 'adjustment':
