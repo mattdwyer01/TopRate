@@ -64,3 +64,51 @@ def load_offsets(horses, form_history_csv):
     except Exception as e:
         print(f"  ATW offsets skipped: {e}")
         return {}
+
+
+# 16 Oct 2026: display offset from TopRate's own runner pages. The race table's Nett and L3 are TopRate figures rated at the weight the horse carries next
+# start, while the projection is on the plain results scale, so Proj looked low beside them (Caulfield Cup R9: Proj 5.3 below L3 as shown, 1.3 below on the
+# plain scale). The offset is the median gap between the runner-page rating and the results files' plain wpr over the runs both have (the same measure as
+# projection/features.tr_lookup). It is for DISPLAY only: the dashboard shows Proj + offset in the table, ranking, gap lines, prices and the projection log
+# stay on the plain scale (ranking on the weight-adjusted scale picked winners worse, 7 Oct 2026 test). Not used by projection/run.py.
+TR_CUTOFF = "2026-10-09"   # results files carry TopRate's raw wpr only before this (racing.com results after)
+
+
+def compute_tr_offsets(root=None, since="2025-01-01"):
+    """{lowercased horse name: offset}, runner-page rating minus results-file plain wpr, median per horse. Fail-safe: any error returns {} (no shift)."""
+    import glob
+    import gzip
+    import json
+    try:
+        root = Path(root) if root else Path(__file__).parent
+        rows = []
+        for f in sorted(glob.glob(str(root / "data" / "tr_form" / "*.json.gz"))):
+            with gzip.open(f, "rt") as fh:
+                for r in json.load(fh).get("runs", {}).values():
+                    if r.get("isBarrierTrial") or r.get("isJumpout") or r.get("wpr") is None:
+                        continue
+                    rows.append((r.get("horse_id"), r.get("date"), r["wpr"], str(r.get("horse") or "").strip().lower()))
+        t = pd.DataFrame(rows, columns=["horse_id", "date", "tr", "name"])
+        t["horse_id"] = pd.to_numeric(t["horse_id"], errors="coerce")
+        t["date"] = pd.to_datetime(t["date"], errors="coerce")
+        t["tr"] = pd.to_numeric(t["tr"], errors="coerce")
+        t = t.dropna(subset=["horse_id", "date", "tr"]).drop_duplicates(["horse_id", "date"], keep="last")
+        files = [p for p in sorted(glob.glob(str(root / "race_results_20*.csv.gz"))) if int(Path(p).name[13:17]) >= int(since[:4])]
+        res = pd.concat([pd.read_csv(p, usecols=lambda c: c in ("horse_id", "date", "wpr"), low_memory=False) for p in files], ignore_index=True)
+        res["date"] = pd.to_datetime(res["date"], errors="coerce")
+        res["horse_id"] = pd.to_numeric(res["horse_id"], errors="coerce")
+        res["wpr"] = pd.to_numeric(res["wpr"], errors="coerce")
+        res = res[res["date"] < pd.Timestamp(TR_CUTOFF)].dropna(subset=["horse_id", "date", "wpr"]).drop_duplicates(["horse_id", "date"], keep="last")
+        m = t.merge(res, on=["horse_id", "date"])
+        m["d"] = m["tr"] - m["wpr"]
+        med = m.groupby("horse_id")["d"].median()
+        names = t[t["name"] != ""].drop_duplicates("horse_id", keep="last").set_index("horse_id")["name"]
+        out = {}
+        for hid, v in med.items():
+            n = names.get(hid)
+            if n:
+                out[n] = round(float(v), 1)
+        return out
+    except Exception as e:
+        print(f"  TopRate ATW offsets skipped: {e}")
+        return {}
