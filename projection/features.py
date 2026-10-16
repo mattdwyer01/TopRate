@@ -105,18 +105,23 @@ def runner_page_ratings():
 
 
 def apply_runner_page_ratings(H, horse_ids):
-    """Replaces the rating of every run of the given horses that the runner pages carry with the runner-page (weight adjusted) rating, so the projection
-    reads each horse as it will carry today. Older runs the pages no longer list keep their results-file rating. Returns (H, set of horse_ids changed)."""
+    """For the given horses, history is the runner-page (weight adjusted) ratings and nothing else: each run the runner pages carry takes the runner-page
+    rating, and a run they do not carry (older than their ~19-start window, or not listed) is dropped, so no results-file rating of another scale is mixed
+    in. Other horses are untouched. Returns (H, set of horse_ids changed)."""
     rp = runner_page_ratings()
     ids = pd.to_numeric(pd.Series(list(horse_ids)), errors='coerce').dropna().astype('int64').unique()
-    m = H.horse_id.isin(ids)
-    key = pd.MultiIndex.from_arrays([pd.to_numeric(H.loc[m, 'horse_id'], errors='coerce').values, pd.to_datetime(H.loc[m, 'date']).values])
+    hid = pd.to_numeric(H.horse_id, errors='coerce')
+    m = hid.isin(ids).values
+    key = pd.MultiIndex.from_arrays([hid.values[m], pd.to_datetime(H.date).values[m]])
     vals = rp.reindex(key).values
-    ok = ~np.isnan(vals)
+    keep = np.ones(len(H), dtype=bool)
     H = H.copy()
-    idx = H.index[m][ok]
-    H.loc[idx, 'wpr'] = vals[ok]
-    return H, set(H.loc[idx, 'horse_id'].astype('int64'))
+    idx = np.flatnonzero(m)
+    ok = ~np.isnan(vals)
+    H.iloc[idx[ok], H.columns.get_loc('wpr')] = vals[ok]
+    keep[idx[~ok]] = False
+    H = H[keep]
+    return H, set(pd.to_numeric(H.horse_id, errors='coerce')[m[keep]].dropna().astype('int64'))
 
 
 def tr_actual_by_name():
