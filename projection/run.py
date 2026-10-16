@@ -35,6 +35,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache_tr' if F.RATINGS_SOURCE =
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
+RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
 
@@ -186,6 +187,13 @@ def load_upcoming(today, hist, backfill_days=0):
 def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
+    # Weight adjusted inputs (16 Oct 2026, owner's call): the runner pages already rate each past run at the weight the horse carries next start, so the
+    # runners' own history is read from them as given (no offset, no results-file matching) and the model's output is at today's weight. Because the inputs carry
+    # the weight, the separate weight term is switched off for these horses (it would count it twice).
+    if RUNNER_PAGE_INPUTS and F.RATINGS_SOURCE == 'toprate':
+        Hu, rp_horses = F.apply_runner_page_ratings(Hu, T.horse_id)
+    else:
+        rp_horses = set()
     Tx = T.drop(columns=['run_id'])
     assumed = set(Tx.race_id[Tx.going.isna()]) if ASSUME_GOING else set()
     if assumed:     # going and track grading are not known until a day or two out: project on a typical track, not on a blank
@@ -282,7 +290,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     R['routed'] = np.where((R.nruns >= 3) & R.p0.notna(), 'main', np.where(R.nruns <= 2, 'light', 'none'))
     # weight carried: measured on the model's own out-of-sample projections, each kg above the field average costs about 0.4 to 0.6 WPR
     # (atw-target slope 0.38, winner-ranking slope 0.62 with 90% interval 0.44 to 0.82), beyond anything the base model learned from wt/wt_rel
-    R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0)
+    R['wtadj'] = -WT_K * R.wt_rel.fillna(0.0) * (~pd.to_numeric(R.horse_id, errors='coerce').isin(rp_horses)).astype(float)
     R['proj'] = np.where(R.routed == 'main', R.p0 + R.adj.fillna(0), R.p0) + R.wtadj
     sdb = main_info.get('sd_bands') or [6.75, 7.31, 7.55]     # error sd of the main model for a projection of 70+, 60 to 70, under 60 (measured by train_main.py)
     sd_main = lambda p: sdb[0] if p >= 70 else sdb[1] if p >= 60 else sdb[2]

@@ -81,6 +81,49 @@ def tr_lookup():
     return _TR_CACHE['v']
 
 
+def runner_page_ratings():
+    """TopRate's runner-page rating per (horse_id, date), AS TopRate gives it: each past run rated at the weight of the horse's upcoming race, so it is
+    already weight adjusted (the scale of Nett and L3 on the dashboard). No offset is taken off and the results files are not consulted. Series indexed by
+    (horse_id, date). A run falls out of the runner pages after about 19 starts back."""
+    if 'rp' in _TR_CACHE:
+        return _TR_CACHE['rp']
+    import gzip
+    rows = []
+    for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
+        with gzip.open(f, 'rt') as fh:
+            for r in json.load(fh).get('runs', {}).values():
+                if r.get('isBarrierTrial') or r.get('isJumpout') or r.get('wpr') is None:
+                    continue
+                rows.append((r['horse_id'], r['date'], r['wpr']))
+    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'rp'])
+    t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
+    t['date'] = pd.to_datetime(t.date)
+    t['rp'] = pd.to_numeric(t.rp, errors='coerce')
+    t = t.dropna().drop_duplicates(['horse_id', 'date'], keep='last')
+    _TR_CACHE['rp'] = t.set_index(['horse_id', 'date']).rp
+    return _TR_CACHE['rp']
+
+
+def apply_runner_page_ratings(H, horse_ids):
+    """For the given horses, history is the runner-page (weight adjusted) ratings and nothing else: each run the runner pages carry takes the runner-page
+    rating, and a run they do not carry (older than their ~19-start window, or not listed) is dropped, so no results-file rating of another scale is mixed
+    in. Other horses are untouched. Returns (H, set of horse_ids changed)."""
+    rp = runner_page_ratings()
+    ids = pd.to_numeric(pd.Series(list(horse_ids)), errors='coerce').dropna().astype('int64').unique()
+    hid = pd.to_numeric(H.horse_id, errors='coerce')
+    m = hid.isin(ids).values
+    key = pd.MultiIndex.from_arrays([hid.values[m], pd.to_datetime(H.date).values[m]])
+    vals = rp.reindex(key).values
+    keep = np.ones(len(H), dtype=bool)
+    H = H.copy()
+    idx = np.flatnonzero(m)
+    ok = ~np.isnan(vals)
+    H.iloc[idx[ok], H.columns.get_loc('wpr')] = vals[ok]
+    keep[idx[~ok]] = False
+    H = H[keep]
+    return H, set(pd.to_numeric(H.horse_id, errors='coerce')[m[keep]].dropna().astype('int64'))
+
+
 def tr_actual_by_name():
     """TopRate's plain-scale rating per (lowercased horse name, date string), for the Review 'actual' of runs projected on TopRate's scale."""
     tr_lookup()
