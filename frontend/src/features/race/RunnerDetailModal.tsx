@@ -121,7 +121,7 @@ export function RunnerDetailModal({
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 110)}
       >
         <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-line bg-panel px-3 py-2.5">
-          {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm object-contain" /> : <div className="h-11 w-11 shrink-0 rounded-sm bg-bg" />}
+          {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" /> : <div className="h-14 w-14 shrink-0 rounded-sm bg-bg" />}
           <div className="min-w-0 flex-1">
             <div className={`truncate text-base font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
               {runner.tabNumber}. {runner.horse}
