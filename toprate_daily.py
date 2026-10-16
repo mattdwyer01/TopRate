@@ -1070,9 +1070,8 @@ def _tr_actual():
 
 
 def _compute_atw_offsets(fh):
-    """Display offsets from TopRate's runner pages (atw_offsets.compute_tr_offsets, 16 Oct 2026). The old form-history measure stays disabled (it is
-    still what projection/run.py calls); the payload's atwo is display only."""
-    return _atw_offsets_mod.compute_tr_offsets()
+    """Moved to atw_offsets.py (shared with projection/run.py)."""
+    return _atw_offsets_mod.compute_atw_offsets(fh)
 
 
 def build_horse_history_files(runners_df, full_runs_lookup):
@@ -1244,7 +1243,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _peak_run_lookup = {}
     _tend_lookup = {}
     _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
-    _atw_off_lookup = _compute_atw_offsets(None)  # horse_lc -> display offset from TopRate's runner pages (see atw_offsets.compute_tr_offsets), ~8s
+    _atw_off_lookup = {}  # horse_lc -> ATW offset (see _compute_atw_offsets)
     # run_id -> expected (results-file atw minus plain wpr) for this run's weight/age/sex/month (atw_results_scale.py): puts the plain projection on the
     # scale of wpr_actual so the Review / result-card miss compares like with like. Fail-safe: {} = no shift.
     try:
@@ -1258,9 +1257,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
         """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
         Without one, only a race still to run takes the horse's latest offset (it is for its next start, so it would be wrong for a past race).
         13 Oct 2026: DISABLED. The form history is now our own plain rating (own_ratings/replace_form_ratings.py), so there is no shift to apply and the
-        values frozen in the projection log (measured against TopRate's form feed) are stale.
-        16 Oct 2026: back ON for races still to run, from TopRate's runner pages (atw_offsets.compute_tr_offsets), DISPLAY ONLY (the race table shows Proj + this so
-        it sits on the scale of Nett and L3). The frozen log values stay ignored, and a race that has run gets none (the offset is for the horse's next start)."""
+        values frozen in the projection log (measured against TopRate's form feed) are stale."""
+        return None
+        try:
+            v = float(row.get("wprp_atwo"))
+            if v == v:
+                return round(v, 1)
+        except (TypeError, ValueError):
+            pass
         ran = any(str(row.get(c)) in ("1", "1.0") for c in ("resulted", "interim_resulted"))
         return None if ran else _atw_off_lookup.get(str(row.get("horse", "")).strip().lower())
     try:
@@ -1310,6 +1314,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 _fh = _fh.sort_values("scrape_date", kind="stable")
             _fh = _fh.drop_duplicates(subset=_dedup_keys, keep="last")
             _fh = _fh.sort_values(["horse_lc", "date"])
+            if "scrape_date" in _fh.columns and "horse_id" in _fh.columns:
+                _atw_off_lookup = _compute_atw_offsets(_fh)
             # formAll derived columns - computed VECTORISED on the whole
             # frame ONCE, before the per-horse loop. The earlier version
             # used iterrows() over all ~90k rows, which was the rebuild
