@@ -52,7 +52,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <span className="font-mono text-ink">Proj</span> is the WPR projection: a machine-learned estimate of the WPR a horse will run from its
             past runs and the conditions, trained on ten years of Australian results. It is shown at the weight carried today (ATW), the same scale as the
             Recent runs table, and it is the figure each race is ranked on. Base and Adj below describe it. <span className="font-mono text-ink">Rated $</span> is
-            the price that projection implies for each runner, from a simulation of the race in which every runner's true figure is its projection plus noise (larger for horses with little history); hover it for the place price. It is the model's view, not a betting price.
+            the price that projection implies for each runner, from a simulation of the race in which every runner's true figure is its projection plus noise (larger for horses with little history); hover a Proj value for the rated price and place price. It is the model's view, not a betting price.
           </p>
           <p>
             Horses with three or more prior rated runs use the main model. Horses with none, one or two prior runs
@@ -66,7 +66,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             <li><span className="font-mono text-ink">Proj</span>: the WPR projection at the weight carried today, and the race's ranking figure. <span className="font-mono text-ink">Base</span> + <span className="font-mono text-ink">Adj</span> = the projection, which the runner page explains.</li>
             <li><span className="font-mono text-ink">Rank</span>: each runner is ranked by Proj, Nett and L3 and the three ranks are averaged (the small figures under it are the three ranks). It shows where the signals agree. In testing its top pick won about as often as Proj alone and the market already prices the agreement, so it is a reading aid, not a tip.</li>
             <li><span className="font-mono text-ink">SM</span> (speed map, shown on the Trip map): the suitability part of the projection, relative to this field. A green dot on a runner is +0.5 or better, red is -0.5 or worse; hover a runner for the figure. Runners at +0.5 or better won more often in testing, but the market already prices it.</li>
-            <li><span className="font-mono text-ink">Rated $</span>: the price the projection implies, from a softmax over the field's projections. It is the model's own view of the race, not a value claim: the earlier rated-price-against-market signal lost 30 to 39% at every threshold in testing.</li>
+            <li><span className="font-mono text-ink">Rated price</span> (in the Proj tooltip and on the runner page): the price the projection implies, from a softmax over the field's projections. It is the model's own view of the race, not a value claim: the earlier rated-price-against-market signal lost 30 to 39% at every threshold in testing.</li>
             <li><span className="font-mono text-ink">Fixed $</span>: the current fixed-odds win price. <span className="font-mono text-ink">FP</span>: finishing position.</li>
             <li><span className="font-mono text-ink">RTS</span>: run number this preparation. FU first-up, 2U second-up, and so on; FS and similar mark a first start in a new stage.</li>
             <li><span className="font-mono text-ink">light</span>: the runner has fewer than three rated runs, so the lighter model was used and the range is wider.</li>
