@@ -2631,6 +2631,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Phone race table layout pass (16 Oct 2026, branch claude/combined-rank-column, user asked to improve the layout from a 430px iPhone screenshot)**: the Rank cell is a small badge (rank 1 solid green, 2 and 3 light green, others plain) with the three ranks in brackets under it; the barrier shows as a small `b9` under the tab number on phones (it was cut off the jockey line) and the sub-line is now spell, jockey (kept whole, up to 65% of the line), then trainer (the part that truncates); Nett is medium weight on phones (it competed with Proj, which stays the green headline); Fixed $ track 60 to 62px and a price of $100 or more shows without decimals so `$101` plus the arrow no longer touches the card edge. Checked at 430 / 390 / 360px, no page or row overflow. Trade-off: at 360px horse names and trainers truncate hard (the five numeric columns take about 230px).
 
+- **Barrier badge moved (16 Oct 2026, user request)**: on phones the barrier is now a small bordered `B9` badge in the horse sub-line, between the spell label and the jockey (it was a tiny `b9` under the tab number); desktop is unchanged (`· barrier N` at the end of the line). Nett stays medium weight on phones (not bold): Proj is the headline figure and Nett only slightly beat L3 as a winner picker (27.3% vs 23.8% for #1, Proj 30.6%). Cost of the badge: about 22px less for the trainer, so trainers truncate a little earlier.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

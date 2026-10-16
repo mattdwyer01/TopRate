@@ -53,10 +53,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
       }`}
     >
       {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-[18px] w-[18px] rounded-sm object-contain min-[380px]:block lg:h-6 lg:w-6" /> : <span className="hidden h-[18px] w-[18px] min-[380px]:block lg:h-6 lg:w-6" />}
-      <span className="font-mono leading-none text-ink-mute">
-        {runner.tabNumber}
-        {runner.barrier != null && <span className="mt-0.5 block text-[9px] text-ink-faint lg:hidden" title={`Barrier ${runner.barrier}`}>b{runner.barrier}</span>}
-      </span>
+      <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
@@ -78,6 +75,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, band, showFp,
         </span>
         <span className="flex min-w-0 items-baseline gap-1 text-[11px] leading-snug text-ink-faint" title={`${runner.jockey} / ${runner.trainer}`}>
           <span className={`flex-none font-mono lg:hidden ${f.rtsClass}`}>{f.spell.label}</span>
+          {runner.barrier != null && (
+            <span className="flex-none rounded border border-line px-1 font-mono text-[9px] leading-[14px] text-ink-mute lg:hidden" title={`Barrier ${runner.barrier}`}>
+              B{runner.barrier}
+            </span>
+          )}
           <span className="max-w-[65%] flex-none truncate text-ink-mute">{runner.jockey}</span>
           <span className="min-w-0 truncate">/ {runner.trainer}{runner.barrier != null && <span className="hidden lg:inline"> &middot; barrier {runner.barrier}</span>}</span>
         </span>
