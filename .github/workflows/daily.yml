@@ -286,7 +286,7 @@ jobs:
           }
 
           # TAB carried weights the poller pushed while this job ran: keep them (merge_remote_weights.py)
-          timeout 120 git fetch origin main && python merge_remote_weights.py origin/main || echo "weights merge skipped"
+          timeout 180 git fetch --depth 1 origin main && python merge_remote_weights.py origin/main || echo "weights merge skipped"
           stage_generated_files
           if [[ -z "$(git status --porcelain)" ]]; then
             echo "No changes to commit"
@@ -325,6 +325,10 @@ jobs:
           # get re-staged and re-committed fresh on top of the new tip.
           # No merge, so no cost that scales with how many commits landed
           # while this job was busy.
+          # 2026-10-16: fetches were timing out at 120s (run 749). The job runs
+          # 30+ min, so a plain fetch pulled every intervening commit, each with
+          # its own copy of the large payload files. --depth 1 transfers only the
+          # tip's objects, which is all `reset --mixed` needs.
           for i in 1 2 3 4 5; do
             push_status=0
             timeout 60 git push || push_status=$?
@@ -338,9 +342,9 @@ jobs:
             fi
 
             fetch_status=0
-            timeout 120 git fetch origin main || fetch_status=$?
+            timeout 180 git fetch --depth 1 origin main || fetch_status=$?
             if [[ $fetch_status -eq 124 ]]; then
-              echo "git fetch TIMED OUT after 120s (attempt $i)"
+              echo "git fetch TIMED OUT after 180s (attempt $i)"
               sleep 3
               continue
             elif [[ $fetch_status -ne 0 ]]; then
