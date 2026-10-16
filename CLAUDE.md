@@ -2645,6 +2645,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Speed rating vs Nett, L3 and Proj on the dashboard's races (16 Oct 2026, `research/speed_vs_current_ratings.py`)**: speed rating = mean of a horse's last 3 time-based speed figures (lengths vs par, as in `speed_figure_study.py`), as of before the race. 9,725 runners in 1,149 races (20 Sep to 15 Oct, not scratched, with Nett and Proj; L3 = mean of the last 3 results-file wpr). Within-race Pearson with the speed rating: Nett 0.35, L3 0.46, Proj 0.35; among the three current ratings 0.71 to 0.72. Mean per-race Spearman: 0.35 / 0.45 / 0.36 against 0.61 to 0.65 among the three. Pooled Pearson: 0.43 / 0.51 / 0.44 against 0.86 to 0.89. So the speed rating is a distinct signal in correlation terms, but it adds nothing to the ratings in the predictive tests above.
 
+- **How often the top speed-rated runners win (16 Oct 2026, `research/speed_top_picks.py`)**: speed rating = mean of the last 3 time-based speed figures before the race. (A) All results-file races 2025-07+ where every runner has speed and L3 (15,639 races, field 9.4): speed top pick wins 17.0%, winner in its top 2 32.0%, top 3 45.7%; L3 24.3% / 42.2% / 55.8%; random 11.4% / 22.8% / 34.2%. (B) Dashboard sample 20 Sep to 15 Oct with all four ratings (688 races, field 9.2): speed 18.3% / 32.8% / 47.8%, Nett 26.9% / 46.4% / 60.0%, L3 24.7% / 44.0% / 56.8%, Proj 29.4% / 50.1% / 62.9%, random 11.6% / 23.2% / 34.8%. Speed beats chance but is clearly the weakest picker.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
