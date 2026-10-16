@@ -122,6 +122,15 @@ def main():
         d_ = sf_race_diff(sub, 'bl', 'b0')
         print(f'{nm}: within-race corr with A {corr:.3f}, alone RMSE {rmse(nm):.4f}, winner log-lik alone {ll[0]:.4f}; added to A (w={best[1]}): '
               f'second half {a2[0]:.4f} -> {b2[0]:.4f}, paired {d_.mean():+.4f} (se {d_.std() / np.sqrt(len(d_)):.4f}, {len(d_)} races)', flush=True)
+    # does a separate connections rating still add once the base model already has jockey and trainer inputs (as the real Proj does)?
+    te['A2'] = fit(cols(base + fam['connections']))
+    te['A2_dm'] = te.A2 - te.groupby('race_id').A2.transform('mean')
+    print(f'A2 (prior ratings + jockey/trainer inputs): RMSE {rmse("A2"):.4f}, winner log-lik {sf.winner_ll(te, "A2")[0]:.4f} (A {llA[0]:.4f})', flush=True)
+    te['b2'] = te.A2_dm
+    for w in (0.2, 0.4):
+        te['bl2'] = te.A2_dm + w * te['connections_dm2']
+        d2 = sf_race_diff(te[~half], 'bl2', 'b2')
+        print(f'  A2 + {w} x separate connections rating (second half): paired {d2.mean():+.4f} (se {d2.std() / np.sqrt(len(d2)):.4f})', flush=True)
     # everything together
     te['all'] = te.A_dm + sum(0.3 * te[n + '_dm2'] for n in fam)
     print('A + 0.3 x each family:', sf.winner_ll(te[~half], 'all')[0], 'vs A', sf.winner_ll(te[~half], 'b0')[0], flush=True)
