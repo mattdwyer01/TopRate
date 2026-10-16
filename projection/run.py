@@ -114,6 +114,15 @@ def calibrate(R, cal):
     for n, p in light.items():
         s = ((R.routed == 'light') & (R.nruns == int(n))).values
         c[s] = p['a'] + p['b'] * (R.proj.values[s] - 70)
+    fl = cal.get('floor')
+    if fl and 'exp' in R.columns:
+        # Top-end floor (16 Oct 2026, owner's request after Ka Ying Rising: last-3 average 115.5, projected 99). The main model is trained on almost nothing above
+        # 105 (flat results, 2016 to 2026: 47 runs followed a last-3 average of 105 to 110 and none above 110) so its tree corrections there are extrapolation: for
+        # Ka Ying Rising the linear start was 107 and the trees took off another 8. Where the last-3 average is 105 or more, the projection may not sit more than
+        # `gap` below it; the one place history speaks (105 to 110, n=47) shows the next rating 3.2 below the average (median 2.5), so 4 is a conservative floor.
+        lo = (R.exp.values - fl['gap']) - (R.proj.values + c)
+        hi = main & (R.exp.values >= fl['exp_from']) & ~np.isnan(R.proj.values) & (lo > 0)
+        c[hi] += lo[hi]
     return np.where(np.isnan(R.proj.values), 0.0, c)
 
 
