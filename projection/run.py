@@ -114,6 +114,14 @@ def calibrate(R, cal):
     for n, p in light.items():
         s = ((R.routed == 'light') & (R.nruns == int(n))).values
         c[s] = p['a'] + p['b'] * (R.proj.values[s] - 70)
+    ps = cal.get('page_scale')
+    if ps and 'exp' in R.columns:
+        # Page-scale level (16 Oct 2026, owner: too many runners far from L3 and Nett). The main model is trained on plain results ratings but now reads runner-page
+        # (weight-adjusted) history. On the runner pages themselves (33,685 flat runs from Jul 2025, 3+ prior runs, next rating minus the last-3 average of the same horse, one
+        # scale) the mean gap by last-3 band is +0.8 / -1.3 / -1.6 / -1.2 / -2.3 for 60-70 / 70-80 / 80-90 / 90-100 / 100+; the projections for 16 Oct sat 1.0 to 2.3 lower
+        # in every band from 70 up (-1.0 / -2.3 / -2.8 / -3.6 / -5.8). The shift lifts the level to the page-scale gap; the spread between horses is the model's own.
+        sh = np.interp(R.exp.values, ps['exp'], ps['shift'])
+        c[main & ~np.isnan(sh)] += sh[main & ~np.isnan(sh)]
     fl = cal.get('floor')
     if fl and 'exp' in R.columns:
         # Top-end floor (16 Oct 2026, owner's request after Ka Ying Rising: last-3 average 115.5, projected 99). The main model is trained on almost nothing above
