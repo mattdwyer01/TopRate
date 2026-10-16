@@ -1244,7 +1244,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
     _peak_run_lookup = {}
     _tend_lookup = {}
     _full_runs_lookup = {}  # uncapped form_lookup, feeds build_horse_history_files()
-    _atw_off_lookup = {}  # horse_lc -> ATW offset (see _compute_atw_offsets)
+    _atw_off_lookup = _compute_atw_offsets(None)  # horse_lc -> display offset from TopRate's runner pages (see atw_offsets.compute_tr_offsets), ~8s
     # run_id -> expected (results-file atw minus plain wpr) for this run's weight/age/sex/month (atw_results_scale.py): puts the plain projection on the
     # scale of wpr_actual so the Review / result-card miss compares like with like. Fail-safe: {} = no shift.
     try:
@@ -1310,8 +1310,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 _fh = _fh.sort_values("scrape_date", kind="stable")
             _fh = _fh.drop_duplicates(subset=_dedup_keys, keep="last")
             _fh = _fh.sort_values(["horse_lc", "date"])
-            if "scrape_date" in _fh.columns and "horse_id" in _fh.columns:
-                _atw_off_lookup = _compute_atw_offsets(_fh)
             # formAll derived columns - computed VECTORISED on the whole
             # frame ONCE, before the per-horse loop. The earlier version
             # used iterrows() over all ~90k rows, which was the rebuild
