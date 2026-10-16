@@ -81,12 +81,12 @@ def tr_lookup():
     return _TR_CACHE['v']
 
 
-def runner_page_ratings():
-    """TopRate's runner-page rating per (horse_id, date), AS TopRate gives it: each past run rated at the weight of the horse's upcoming race, so it is
-    already weight adjusted (the scale of Nett and L3 on the dashboard). No offset is taken off and the results files are not consulted. Series indexed by
-    (horse_id, date). A run falls out of the runner pages after about 19 starts back."""
-    if 'rp' in _TR_CACHE:
-        return _TR_CACHE['rp']
+def runner_page_runs():
+    """Every rated, non-trial run on TopRate's runner pages (data/tr_form) as history rows, with the rating AS TopRate gives it (weight adjusted to the
+    horse's upcoming race). Includes overseas runs (Ka Ying Rising's Hong Kong career is on his page and not in the Australian results files).
+    DataFrame with the HIST_COLS the feature builder reads (race_id is a synthetic negative id, one per run: the pages carry no race id)."""
+    if 'rows' in _TR_CACHE:
+        return _TR_CACHE['rows']
     import gzip
     rows = []
     for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
@@ -94,34 +94,96 @@ def runner_page_ratings():
             for r in json.load(fh).get('runs', {}).values():
                 if r.get('isBarrierTrial') or r.get('isJumpout') or r.get('wpr') is None:
                     continue
-                rows.append((r['horse_id'], r['date'], r['wpr']))
-    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'rp'])
+                rows.append(dict(horse_id=r['horse_id'], date=r['date'], wpr=r['wpr'], track=r.get('track'), distance=r.get('distance'), going=r.get('going'),
+                                 weightCarried=r.get('weightCarried'), barrier=r.get('barrier'), field_size=r.get('starters'), race_class=r.get('class'),
+                                 trackGrading=r.get('trackGrading'), jockey=r.get('jockey'), positionFinish=r.get('positionFinish'),
+                                 marginFinish=r.get('marginFinish'), priceStarting=r.get('priceStarting'), position800m=r.get('position800m'),
+                                 comments_steward=r.get('commentsSteward')))
+    t = pd.DataFrame(rows)
     t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
     t['date'] = pd.to_datetime(t.date)
-    t['rp'] = pd.to_numeric(t.rp, errors='coerce')
-    t = t.dropna().drop_duplicates(['horse_id', 'date'], keep='last')
-    _TR_CACHE['rp'] = t.set_index(['horse_id', 'date']).rp
+    t['wpr'] = pd.to_numeric(t.wpr, errors='coerce')
+    t = t.dropna(subset=['horse_id', 'date', 'wpr']).drop_duplicates(['horse_id', 'date'], keep='last').reset_index(drop=True)
+    t = t[~is_jumps(t.race_class)].reset_index(drop=True)
+    t['race_id'] = -(1_000_000 + np.arange(len(t)))
+    t['isBarrierTrial'] = 0
+    t['is_jumpout'] = False
+    _TR_CACHE['rows'] = t
+    return t
+
+
+def runner_page_ratings():
+    """TopRate's runner-page rating per (horse_id, date), as given (see runner_page_runs). Series indexed by (horse_id, date)."""
+    if 'rp' not in _TR_CACHE:
+        t = runner_page_runs()
+        _TR_CACHE['rp'] = t.set_index(['horse_id', 'date']).wpr
     return _TR_CACHE['rp']
 
 
 def apply_runner_page_ratings(H, horse_ids):
-    """For the given horses, history is the runner-page (weight adjusted) ratings and nothing else: each run the runner pages carry takes the runner-page
-    rating, and a run they do not carry (older than their ~19-start window, or not listed) is dropped, so no results-file rating of another scale is mixed
-    in. Other horses are untouched. Returns (H, set of horse_ids changed)."""
-    rp = runner_page_ratings()
+    """For the given horses, history is the runner pages and nothing else: a run both the results files and the pages carry takes the page rating, a run
+    only the pages carry is ADDED (overseas runs, runs the results files lack), and a run only the results files carry is dropped, so no rating of the other
+    scale is mixed in. Other horses are untouched. Returns (H, set of horse_ids changed)."""
+    t = runner_page_runs()
     ids = pd.to_numeric(pd.Series(list(horse_ids)), errors='coerce').dropna().astype('int64').unique()
     hid = pd.to_numeric(H.horse_id, errors='coerce')
     m = hid.isin(ids).values
-    key = pd.MultiIndex.from_arrays([hid.values[m], pd.to_datetime(H.date).values[m]])
-    vals = rp.reindex(key).values
-    keep = np.ones(len(H), dtype=bool)
-    H = H.copy()
-    idx = np.flatnonzero(m)
-    ok = ~np.isnan(vals)
-    H.iloc[idx[ok], H.columns.get_loc('wpr')] = vals[ok]
-    keep[idx[~ok]] = False
-    H = H[keep]
-    return H, set(pd.to_numeric(H.horse_id, errors='coerce')[m[keep]].dropna().astype('int64'))
+    mine = H[m]
+    others = H[~m]
+    tt = t[t.horse_id.isin(ids)].copy()
+    keep_cols = [c for c in H.columns if c in tt.columns]
+    extra_cols = [c for c in H.columns if c not in tt.columns]
+    # carry the results-file details (jockey, trainer, sire, age, sex, race id) of runs both sources have; the pages' own fields fill the rest
+    key = ['horse_id', 'date']
+    mm = mine.assign(horse_id=pd.to_numeric(mine.horse_id, errors='coerce'), date=pd.to_datetime(mine.date))
+    base = tt.merge(mm.drop(columns=[c for c in keep_cols if c not in key], errors='ignore'), on=key, how='left')
+    has = base['race_id'].isna() if 'race_id' in mm.columns and 'race_id' not in tt.columns else pd.Series(False, index=base.index)
+    # runs both sources carry keep the results file's race id and details; page-only runs keep the synthetic negative id
+    both = mm[key + [c for c in H.columns if c not in key and c in mm.columns]].rename(columns={c: c + '__h' for c in H.columns if c not in key})
+    b2 = tt.merge(both, on=key, how='left')
+    for c in H.columns:
+        if c in key or c + '__h' not in b2.columns:
+            continue
+        if c == 'wpr':
+            continue
+        b2[c] = b2[c + '__h'].where(b2[c + '__h'].notna(), b2[c] if c in b2.columns else np.nan)
+    b2 = b2[[c for c in H.columns if c in b2.columns]]
+    for c in H.columns:
+        if c not in b2.columns:
+            b2[c] = np.nan
+    if 'is_target' in H.columns:
+        b2['is_target'] = 0
+    b2 = b2[list(H.columns)]
+    H2 = pd.concat([others, b2], ignore_index=True)
+    H2['race_id'] = H2['race_id'].astype('int64')
+    return H2, set(tt.horse_id.astype('int64'))
+
+
+def formula_projection(horse_ids, dates):
+    """Proj by formula (16 Oct 2026): intercept + weighted sum of the horse's last runs on the runner pages, weights by the number of earlier runs
+    (models_tr/formula.json, fitted by fit_formula.py). Only runs before `dates` count. Returns (proj, n earlier runs, sd, last-3 average) as arrays,
+    NaN where the horse has no page run."""
+    f = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models_tr', 'formula.json')))
+    K = f['K']
+    t = runner_page_runs().sort_values(['horse_id', 'date'])
+    byh = {h: (g.date.values, g.wpr.values) for h, g in t.groupby('horse_id')}
+    hid = pd.to_numeric(pd.Series(list(horse_ids)), errors='coerce').values
+    dts = pd.to_datetime(pd.Series(list(dates))).values
+    proj, nn, sd, l3 = (np.full(len(hid), np.nan) for _ in range(4))
+    for i, (h, d) in enumerate(zip(hid, dts)):
+        if np.isnan(h) or int(h) not in byh:
+            continue
+        dd, ww = byh[int(h)]
+        r = ww[dd < d]
+        n = len(r)
+        if n == 0:
+            continue
+        k = min(n, K)
+        last = r[::-1][:k]          # most recent first
+        c = f['coef'][str(k)]
+        proj[i] = c[0] + float(np.dot(c[1:], last))
+        nn[i], sd[i], l3[i] = n, f['sd'][str(k)], last[:3].mean()
+    return proj, nn, sd, l3
 
 
 def tr_actual_by_name():

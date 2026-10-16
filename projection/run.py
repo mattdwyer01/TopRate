@@ -35,6 +35,7 @@ CACHE = os.path.join(os.path.dirname(__file__), 'cache_tr' if F.RATINGS_SOURCE =
 SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', 'going_num']
 
 
+FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
@@ -114,6 +115,15 @@ def calibrate(R, cal):
     for n, p in light.items():
         s = ((R.routed == 'light') & (R.nruns == int(n))).values
         c[s] = p['a'] + p['b'] * (R.proj.values[s] - 70)
+    fl = cal.get('floor')
+    if fl and 'exp' in R.columns:
+        # Top-end floor (16 Oct 2026, owner's request after Ka Ying Rising: last-3 average 115.5, projected 99). The main model is trained on almost nothing above
+        # 105 (flat results, 2016 to 2026: 47 runs followed a last-3 average of 105 to 110 and none above 110) so its tree corrections there are extrapolation: for
+        # Ka Ying Rising the linear start was 107 and the trees took off another 8. Where the last-3 average is 105 or more, the projection may not sit more than
+        # `gap` below it; the one place history speaks (105 to 110, n=47) shows the next rating 3.2 below the average (median 2.5), so 4 is a conservative floor.
+        lo = (R.exp.values - fl['gap']) - (R.proj.values + c)
+        hi = main & (R.exp.values >= fl['exp_from']) & ~np.isnan(R.proj.values) & (lo > 0)
+        c[hi] += lo[hi]
     return np.where(np.isnan(R.proj.values), 0.0, c)
 
 
@@ -296,6 +306,33 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
     sd_main = lambda p: sdb[0] if p >= 70 else sdb[1] if p >= 60 else sdb[2]
     R['cal'] = calibrate(R, json.load(open(os.path.join(M, 'calibration.json'))))
     R['proj'] = R.proj + R.cal
+    if FORMULA_PROJ:
+        # Proj is a formula on the runner pages' ratings, not a model (16 Oct 2026, owner's call): the model columns above stay for the suitability (SM) display only
+        fp, fn, fs, _ = F.formula_projection(R.horse_id, R.date)
+        has = ~np.isnan(fp)
+        R['p0'] = np.where(has, fp, np.nan)
+        R['proj'] = R.p0
+        R['wtadj'] = 0.0
+        R['cal'] = 0.0
+        R['sd'] = np.where(has, fs, np.nan)
+        R['nruns'] = np.where(has, fn, R.nruns).astype('int64')
+        R['routed'] = np.where(has, np.where(fn >= 3, 'main', 'light'), 'none')
+        R['grp'] = None
+        # First starters (no page run): the race's level from its experienced runners plus the runner's price against the field (models_tr/formula.json 'debut', fitted on 25,508 debut runs)
+        db = json.load(open(os.path.join(M, 'formula.json'))).get('debut')
+        if db:
+            lpx = np.log(pd.to_numeric(R.priceStarting, errors='coerce').where(lambda s: s > 1))
+            lev = R.proj.where(R.nruns >= 3)
+            exm = lev.groupby(R.race_id).transform('mean')
+            exn = lev.groupby(R.race_id).transform('count')
+            lpm = lpx.groupby(R.race_id).transform('mean')
+            ok = (~has) & lpx.notna() & (exn >= db['min_experienced']) & exm.notna()
+            R.loc[ok, 'proj'] = exm[ok] + db['a'] + db['b'] * (lpx[ok] - lpm[ok])
+            R.loc[ok, 'p0'] = R.loc[ok, 'proj']
+            R.loc[ok, 'sd'] = db['sd']
+            R.loc[ok, 'nruns'] = 0
+            R.loc[ok, 'routed'] = 'light'
+        return R
     R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
     m = R.grp.notna()

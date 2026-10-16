@@ -46,7 +46,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: each runner is ranked by Spd, Nett, L3 and Proj, and the four ranks are averaged (small figures under it, in column order). A runner needs two of the four. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs two earlier figures." },
-  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). It is on TopRate's scale, not exactly Proj's; blended with our projection inside Proj." },
+  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Proj, not blended into it." },
   { key: 'last3', label: 'L3', align: 'right', title: 'Average (top, desktop: median below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.' },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
