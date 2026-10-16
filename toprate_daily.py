@@ -1725,7 +1725,12 @@ def rebuild_html(runners_df, model_pick_rows=None):
         if "field_source" in rdf.columns and (rdf["field_source"].astype(str) == "racing.com (not in toprate field)").all():
             continue    # a racing.com-only race TopRate's card does not have (different numbering or a nomination list)
         if "field_source" in rdf.columns:    # nominations TopRate does not list are not part of the field: keep them out of the runner list
+            n_listed = len(rdf)
             rdf = rdf[rdf["field_source"].astype(str) != "racing.com (not in toprate field)"].reset_index(drop=True)
+            # what is left of a racing.com-only race is only scratched runners (17 Oct 2026: Royal Randwick R1 and R3 stayed as one and two scratched horses
+            # after the duplicate meeting was flagged): not a race to show
+            if len(rdf) < n_listed and (rdf["field_source"].astype(str) == "racing.com").all() and pd.to_numeric(rdf["scratched"], errors="coerce").fillna(0).eq(1).all():
+                continue
         first = rdf.iloc[0]
         # start_time specifically needs to coalesce across the WHOLE race
         # group, not just trust row 0: a race_id can carry rows from more
