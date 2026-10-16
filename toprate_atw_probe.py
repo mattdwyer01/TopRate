@@ -55,6 +55,10 @@ def main():
         print("raceResult type:", type(rr).__name__, (sorted(rr.keys()) if isinstance(rr, dict) else (len(rr) if rr else None)))
         ent = rr[0] if isinstance(rr, list) and rr else (rr or {})
         print("raceResult first:", json.dumps(pick(ent) or {k: type(v).__name__ for k, v in (ent.items() if isinstance(ent, dict) else [])}, default=str)[:900])
+        rrr = (rr or {}).get("runners") if isinstance(rr, dict) else None
+        print("raceResult.runners:", type(rrr).__name__, len(rrr) if rrr else None)
+        for e in (rrr or [])[:3]:
+            print("raceResult runner:", json.dumps(e, default=str)[:900])
         for f in (page.get("raceFields") or [])[:3]:
             print("raceField", f.get("runId"), f.get("horse"), json.dumps(pick(f), default=str)[:600])
         ru = page.get("raceUser") or {}
