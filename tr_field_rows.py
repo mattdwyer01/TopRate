@@ -550,6 +550,23 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
         stats["unlisted_scratched"] += 1
         _set(out, i, "scratched", 1)
         _set(out, i, "field_source", DROPPED)
+    # a row TopRate itself created from an earlier file that listed every nomination (tab number 0, no barrier) and that the latest file no longer lists:
+    # the race has been declared and the horse is not in it (17 Oct 2026: Bendigo R4 showed 34 runners, 11 declared, and 23 nominations at tab 0)
+    covered_races = {(v, n) for (v, n) in tr_race_names}
+    for i in idx:
+        if str(out.at[i, "field_source"]) != SOURCE or str(out.at[i, "scratched"]) in ("1", "1.0"):
+            continue
+        if any(str(out.at[i, c]) in ("1", "1.0") for c in ("resulted", "interim_resulted") if c in out.columns):
+            continue
+        v, hn = norm_venue(out.at[i, "venue"]), _hn(out.at[i, "horse"])
+        try:
+            n = str(int(float(out.at[i, "race"])))
+        except (TypeError, ValueError):
+            continue
+        if (v, n) in covered_races and hn not in tr_race_names[(v, n)]:
+            stats["unlisted_scratched"] += 1
+            _set(out, i, "scratched", 1)
+            _set(out, i, "field_source", DROPPED)
     # a listed horse with more than one live row at the venue: keep TopRate's row (or the one in the race TopRate says), scratch the rest
     groups = {}
     for i in idx:

@@ -2664,6 +2664,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Rank cell: badge plus four-square strip (17 Oct 2026, user request)**: rank 1 is a solid green pill, 2 and 3 a light green one, others plain; under it one 5-6px square per signal (Spd, Nett, L3, Proj) shaded by that signal's rank (1 dark green, 2 mid, 3 light, 4+ grey, none pale), replacing the `(3·1·2·4)` digits (still in the tooltip). Same on every width; checked at 1300 / 430 / 390 / 360px, no overflow.
 
+- **Undeclared nominations left in declared races (17 Oct 2026, user screenshot of Bendigo R4: 34 runners, 11 with tab numbers, 23 at tab 0 and barrier 0, no price)**: an earlier `data/tr_fields` file (fetched before declarations) listed every nomination, `merge_tr_fields` created those rows with `field_source = toprate.au`, and when the declared file no longer listed them nothing removed them, because `flag_unlisted` only ever scratched racing.com rows (`field_source == SOURCE` was skipped). 178 races on 17 Oct were affected (Bendigo R1 to R7 and most country meetings; 2,769 live rows against 1,612 non-scratched in TopRate's file). `flag_unlisted` now also scratches a live, unresulted TopRate-owned row whose horse is not in the latest file's list for that (venue, race number) when that race is covered by the file (`field_source = racing.com (not in toprate field)`, restored by `merge_tr_fields` if TopRate lists it again). Dry run on the real file: live rows 2,769 to 1,680 (file 1,612 non-scratched, the rest are tab-0 rows the file does list) for 17 Oct, 1,135 to 468 (file 472) for 18 Oct; Bendigo R4 11 runners. Takes effect on the next `daily.yml` run.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
