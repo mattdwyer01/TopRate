@@ -320,6 +320,38 @@ def save_terminal_cache(cache):
     CACHE_FILE.write_text(json.dumps(sorted(cache)))
 
 
+def _uncommitted_races_dropped(cache, target_date):
+    """Forget today's cached races whose results are not in the checked-out runners.csv.
+
+    The cache file lives on the self-hosted runner, but a cycle's results only count once its commit is pushed. A cycle that
+    read a race, cached it and was then cancelled or lost its push left the race cached with no result on main, so it was
+    never read again (17 Oct 2026: Avoca, Wodonga and other meetings had TAB dividends but no results all morning).
+    A race with no runner rows, or an abandoned race, is simply re-read each cycle (no extra requests: results[] is on the
+    meeting list already fetched)."""
+    try:
+        df = td.load_runners()
+        day = df[df["date"].astype(str).str[:10] == target_date]
+        done = day[(pd.to_numeric(day.get("interim_resulted"), errors="coerce") == 1) | day["finish_position"].notna()]
+        have = set(zip(done["venue"].astype(str).str.upper(), pd.to_numeric(done["race"], errors="coerce").astype("Int64")))
+    except Exception as e:
+        print(f"  terminal-cache reconcile skipped: {type(e).__name__}: {str(e)[:80]}")
+        return cache
+    kept, dropped = set(), 0
+    for k in cache:
+        parts = k.split("|")
+        if len(parts) == 3 and parts[0] == target_date:
+            try:
+                if (provider_venue_for(parts[1]).upper(), int(parts[2])) not in have:
+                    dropped += 1
+                    continue
+            except ValueError:
+                pass
+        kept.add(k)
+    if dropped:
+        print(f"  {dropped} cached race(s) have no committed result, reading them again")
+    return kept
+
+
 # --------------------------------------------------------------------- fetch + parse
 # Matches TAB's condensed condition strings ("SOFT7", "GOOD4") into
 # (going, track_grading) matching the provider's own format in
@@ -538,8 +570,10 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                     continue  # Paying/Abandoned already -- never changes again
 
                 status = rc.get("raceStatus")
-                if status in FINAL_STATUSES:
+                if status == "Abandoned":
                     terminal_cache.add(rkey)
+                elif status in FINAL_STATUSES:
+                    pass    # cached below, only once results[] has been read (17 Oct 2026: a race first seen Paying with empty results was cached and never read again)
                 else:
                     st = _parse_tab_time(rc.get("raceStartTime"))
                     if st is not None and race_no is not None:
@@ -589,6 +623,8 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                 results = rc.get("results") or []
                 if not results:
                     continue
+                if status in FINAL_STATUSES:
+                    terminal_cache.add(rkey)
 
                 # results[] is a list of finishing-position groups; each
                 # group is a list of runner numbers (more than one on a dead
@@ -1029,6 +1065,7 @@ def run_once(push=True):
     target_date = date.today().isoformat()
     _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
+    terminal_cache = _uncommitted_races_dropped(terminal_cache, target_date)
 
     results, conditions, prices, terminal_cache, unplaced_races, start_times, dividends = fetch_today_results(
         target_date, terminal_cache=terminal_cache, div_done=tab_dividends.done_keys())
