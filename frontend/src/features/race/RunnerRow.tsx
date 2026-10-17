@@ -20,9 +20,10 @@ interface RunnerRowProps {
 
 // Table row, same columns on every screen: Spd | Nett | L3 | Proj (whole numbers) | Rank, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
 // nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
-// Speed figure (lengths vs par, 0 = par) shown as 100 + 2.15 points a length (within-race slope of rating on figure, 309,976 runs, 2016-2026).
+// Speed figure (lengths vs par, 0 = par) shown as 85 + 2.15 points a length (within-race slope of rating on figure, 309,976 runs, 2016-2026).
+const SPEED_PAR = 85 // chosen so the average runner (about -4.9 lengths) lands near the other ratings' average (about 75)
 const SPEED_POINTS_PER_LENGTH = 2.15
-const speedOnWprScale = (lengths: number) => 100 + SPEED_POINTS_PER_LENGTH * lengths
+const speedOnWprScale = (lengths: number) => SPEED_PAR + SPEED_POINTS_PER_LENGTH * lengths
 
 // Strip under the rank: one square per signal (Spd, Nett, L3, Proj), darker green = better rank, outline-grey = no value.
 const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
@@ -95,7 +96,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.speedRating != null ? `Speed rating ${speedOnWprScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 100 = par, higher is faster, about 2 points a length): recency-weighted mean of the horse's earlier time-based figures` : undefined}
+        title={runner.speedRating != null ? `Speed rating ${speedOnWprScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 85 = par, higher is faster, about 2 points a length): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
         {f.scratched || runner.speedRating == null ? '' : Math.round(speedOnWprScale(runner.speedRating))}
       </span>
