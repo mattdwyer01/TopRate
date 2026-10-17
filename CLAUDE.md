@@ -2662,6 +2662,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Spd shown on a 100-based scale (17 Oct 2026, user request)**: the Spd cell and tooltip show `100 + 2.15 x lengths` (`speedOnWprScale` in `RunnerRow.tsx`), so par = 100 and an average runner (about -4.9 lengths) sits near 90, like Nett, L3 and Proj. 2.15 is the within-race slope of rating on figure over 309,976 runs (corr 0.92); it varies by distance (2.69 up to 1100m, 2.24, 1.90, 1.74, 1.62 at 2200m+), so sprints are slightly compressed and staying races stretched against the other ratings. Display only: the payload `sr`, sort and Rank still use lengths (the transform is monotonic).
 
+- **Rank cell: badge plus four-square strip (17 Oct 2026, user request)**: rank 1 is a solid green pill, 2 and 3 a light green one, others plain; under it one 5-6px square per signal (Spd, Nett, L3, Proj) shaded by that signal's rank (1 dark green, 2 mid, 3 light, 4+ grey, none pale), replacing the `(3·1·2·4)` digits (still in the tooltip). Same on every width; checked at 1300 / 430 / 390 / 360px, no overflow.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

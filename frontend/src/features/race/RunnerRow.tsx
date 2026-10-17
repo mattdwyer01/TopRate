@@ -24,6 +24,9 @@ interface RunnerRowProps {
 const SPEED_POINTS_PER_LENGTH = 2.15
 const speedOnWprScale = (lengths: number) => 100 + SPEED_POINTS_PER_LENGTH * lengths
 
+// Strip under the rank: one square per signal (Spd, Nett, L3, Proj), darker green = better rank, outline-grey = no value.
+const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
+
 const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_40px_62px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
@@ -123,8 +126,18 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
       >
         {f.scratched || !combo ? null : (
           <>
-            <span className="block text-[12px] text-ink lg:text-[13px]">{combo.rank}</span>
-            <span className="hidden whitespace-nowrap text-[8px] tracking-tight text-ink-faint min-[400px]:block lg:text-[10px] lg:tracking-normal">({combo.ranks.map((x) => x ?? '-').join('\u00b7')})</span>
+            <span
+              className={`inline-block min-w-[18px] rounded px-1 text-center text-[12px] lg:text-[13px] ${
+                combo.rank === 1 ? 'bg-emerald font-medium text-white' : combo.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'text-ink'
+              }`}
+            >
+              {combo.rank}
+            </span>
+            <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
+              {combo.ranks.map((x, i) => (
+                <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />
+              ))}
+            </span>
           </>
         )}
       </span>
