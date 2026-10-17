@@ -2660,6 +2660,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Rank moved beside Fixed $, ratings shown as whole numbers (17 Oct 2026, user request)**: the race table is now Spd | Nett | L3 | Proj | Rank | Fixed $ | FP (still sorted by Rank by default). Spd, Nett, L3 (and its desktop median line) and Proj are rounded to whole numbers in the cells; the tooltips keep the decimals, and the sort and the Rank still use the unrounded values. Rounding the speed rating (lengths vs par) loses the first decimal, so close speed ratings can look tied. The five narrower tracks gave the horse column about 30px back on a phone (checked in Chromium at 1300 / 430 / 390 / 360px, no overflow).
 
+- **Spd shown on a 100-based scale (17 Oct 2026, user request)**: the Spd cell and tooltip show `100 + 2.15 x lengths` (`speedOnWprScale` in `RunnerRow.tsx`), so par = 100 and an average runner (about -4.9 lengths) sits near 90, like Nett, L3 and Proj. 2.15 is the within-race slope of rating on figure over 309,976 runs (corr 0.92); it varies by distance (2.69 up to 1100m, 2.24, 1.90, 1.74, 1.62 at 2200m+), so sprints are slightly compressed and staying races stretched against the other ratings. Display only: the payload `sr`, sort and Rank still use lengths (the transform is monotonic).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

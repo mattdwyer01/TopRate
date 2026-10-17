@@ -20,6 +20,10 @@ interface RunnerRowProps {
 
 // Table row, same columns on every screen: Spd | Nett | L3 | Proj (whole numbers) | Rank, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
 // nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
+// Speed figure (lengths vs par, 0 = par) shown as 100 + 2.15 points a length (within-race slope of rating on figure, 309,976 runs, 2016-2026).
+const SPEED_POINTS_PER_LENGTH = 2.15
+const speedOnWprScale = (lengths: number) => 100 + SPEED_POINTS_PER_LENGTH * lengths
+
 const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_40px_62px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show.
 export const rowGrid = (showFp: boolean) =>
@@ -88,9 +92,9 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.speedRating != null ? `Speed rating ${runner.speedRating.toFixed(1)} lengths against par (higher is faster): recency-weighted mean of the horse's earlier time-based figures` : undefined}
+        title={runner.speedRating != null ? `Speed rating ${speedOnWprScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 100 = par, higher is faster, about 2 points a length): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
-        {f.scratched || runner.speedRating == null ? '' : Math.round(runner.speedRating)}
+        {f.scratched || runner.speedRating == null ? '' : Math.round(speedOnWprScale(runner.speedRating))}
       </span>
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
         {f.scratched || runner.nett == null ? '' : Math.round(runner.nett)}
