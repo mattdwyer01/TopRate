@@ -126,6 +126,10 @@ jobs:
         env:
           DIV_DATE: ${{ inputs.dividends_date }}
         run: |
+          # Surface the failing command as an annotation (job logs are not readable through the API), 18 Oct 2026
+          trap 'echo "::error::commit step failed at line $LINENO: $BASH_COMMAND (exit $?)"' ERR
+          # A git that segfaulted or was killed leaves lock files behind, and every later git command then dies with exit 128
+          find .git -maxdepth 3 -name '*.lock' -delete 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [[ -z "$(git status --porcelain)" ]]; then
