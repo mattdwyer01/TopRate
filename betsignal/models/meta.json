@@ -47,6 +47,11 @@
    "R"
   ],
   "cls": [
+   "BM 0-57",
+   "BM 58",
+   "BM 64",
+   "BM 70",
+   "BM 84",
    "BM100",
    "BM45",
    "BM45+",
@@ -122,6 +127,7 @@
    "BM90+",
    "BM94",
    "BM96",
+   "Benchmark 45",
    "Benchmark 50",
    "Benchmark 52",
    "Benchmark 54",
@@ -148,6 +154,7 @@
    "Benchmark 78+",
    "Benchmark 80",
    "Benchmark 82",
+   "Benchmark 84",
    "Benchmark 88",
    "CLS1",
    "CLS2",
@@ -161,9 +168,14 @@
    "Class 2",
    "Class 3",
    "Class 4",
+   "Class 5",
    "Class 6",
    "Class B",
+   "Group 1",
+   "Group 2",
+   "Group 3",
    "Hurdle",
+   "Listed",
    "MAI",
    "MAIH",
    "MAIS",
@@ -199,6 +211,7 @@
    "RST75",
    "RST76",
    "RST90",
+   "Restricted",
    "Restricted 0 Metro Wins Last Year",
    "Restricted 1 Metro Wins",
    "Restricted 50",
@@ -209,6 +222,7 @@
    "Restricted 58",
    "Restricted 62",
    "Restricted 64",
+   "Restricted 65",
    "Restricted 68",
    "Steeple"
   ],
@@ -218,6 +232,7 @@
    "Albury",
    "Alexandra",
    "Alpha",
+   "Aquis Park Gold Coast",
    "Aramac",
    "Ararat",
    "Ardlethan",
@@ -311,6 +326,7 @@
    "Crookwell",
    "Cunnamulla",
    "Dalby",
+   "Darwin",
    "Dederang",
    "Deepwater",
    "Deniliquin",
@@ -486,6 +502,7 @@
    "Penong",
    "Penshurst",
    "Pentland",
+   "Picklebet Park Wodonga",
    "Pingrup",
    "Pinjarra",
    "Pinjarra Scarpside",
@@ -510,6 +527,7 @@
    "Roma",
    "Rosehill",
    "Roxby Downs",
+   "Royal Randwick",
    "Sale",
    "Sandown-Hillside",
    "Sandown-Lakeside",
@@ -589,13 +607,13 @@
    "Young"
   ]
  },
- "rounds": 372,
+ "rounds": 380,
  "seeds": [
   1,
   2,
   3
  ],
- "trained_through": "2026-10-12",
- "rows": 1044846,
- "races": 108397
+ "trained_through": "2026-10-17",
+ "rows": 1047395,
+ "races": 108669
 }
