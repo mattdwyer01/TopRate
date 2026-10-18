@@ -130,6 +130,9 @@ jobs:
           trap 'echo "::error::commit step failed at line $LINENO: $BASH_COMMAND (exit $?)"' ERR
           # A git that segfaulted or was killed leaves lock files behind, and every later git command then dies with exit 128
           find .git -maxdepth 3 -name '*.lock' -delete 2>/dev/null || true
+          # No background auto-gc/maintenance racing this step for locks (the Prune step below runs gc explicitly)
+          git config gc.auto 0
+          git config maintenance.auto false
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [[ -z "$(git status --porcelain)" ]]; then
@@ -202,8 +205,17 @@ jobs:
               fi
               echo "Recommit failed (exit $?), falling back to redoing the poll"
             fi
-            if ! err=$(git reset --hard origin/main 2>&1); then
-              echo "::error::reset --hard failed: $(echo "$err" | tr '\n' ' ' | head -c 500) | $(df -h . | tail -1 | tr -s ' ')"
+            # index.lock can still be held here by a background git (18 Oct 2026: "Unable to create index.lock" killed about a
+            # third of cycles): wait for it, and remove it only when no git process is left to own it.
+            reset_ok=0
+            for n in 1 2 3 4 5 6; do
+              if err=$(git reset --hard origin/main 2>&1); then reset_ok=1; break; fi
+              echo "reset --hard failed (try $n): $(echo "$err" | tr '\n' ' ' | head -c 300)"
+              sleep 5
+              pgrep -x git >/dev/null || find .git -maxdepth 3 -name '*.lock' -delete 2>/dev/null || true
+            done
+            if [[ $reset_ok -ne 1 ]]; then
+              echo "::error::reset --hard kept failing: $(echo "$err" | tr '\n' ' ' | head -c 400)"
               exit 1
             fi
             if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then
