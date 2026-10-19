@@ -9,7 +9,7 @@ import time
 import urllib.parse
 import urllib.request
 
-HOSTS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.osm.ch/api/interpreter', 'https://overpass-api.de/api/interpreter']
+HOSTS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass-api.de/api/interpreter']
 QUERY = """[out:json][timeout:180];
 area["ISO3166-1"="AU"][admin_level=2]->.a;
 (
@@ -19,7 +19,7 @@ area["ISO3166-1"="AU"][admin_level=2]->.a;
   way["landuse"="racetrack"](area.a);
   way["leisure"="racetrack"](area.a);
 );
-out tags geom;
+out geom;
 """
 OUT = os.path.join('data', 'track_outlines', 'osm_horse_racing.json')
 
