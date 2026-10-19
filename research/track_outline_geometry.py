@@ -116,8 +116,8 @@ def main():
         els += [e for e in json.load(open(xp))['elements'].values() if (e['type'], e['id']) not in seen]
     loops = []
     for e in els:
-        if e.get('tags', {}).get('leisure') not in ('track', 'racetrack') and e.get('tags', {}).get('sport') != 'horse_racing':
-            continue
+        if e.get('tags', {}).get('leisure') not in ('track', 'racetrack'):
+            continue          # running-track elements only (the sport=horse_racing areas are whole course boundaries)
         if e['type'] == 'way' and 'geometry' in e:
             cand = [(e['geometry'], 'way')]
         elif e['type'] == 'relation':
@@ -156,7 +156,7 @@ def main():
             continue
         named_loops = [m for m in best if m['osm_id'] in ids]
         pool = named_loops or best
-        inn = [m for m in pool if m['kind'] == 'inner']
+        inn = [m for m in pool if m['kind'] == 'inner']      # inner ring = running rail; fall back to ways / outer rings
         main = max(inn or pool, key=lambda m: m['perim'])
         out[tr] = dict(main, n_loops=len(best), by='name' if named_loops else 'location')
     json.dump(out, open(OUT, 'w'), indent=0)
