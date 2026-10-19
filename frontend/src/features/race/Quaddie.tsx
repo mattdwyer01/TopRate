@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNow } from '../../hooks/useNow'
 import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
@@ -55,6 +56,7 @@ function readUnit(): number {
 // A meeting's late (last four races) or early (the four before) quaddie side by side: each race's projection ladder with the inside-4 and
 // inside-6 lines and the speed map adjustment. Counts and costs are plain arithmetic on the pools or on the runners you tick, not tips.
 export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelectRace, onBack }: QuaddieProps) {
+  const now = useNow(30_000)
   const [kind, setKind] = useState<QuaddieKind>('late')
   const hasEarly = hasEarlyQuaddie(meeting)
   const races = useMemo(() => quaddieRaces(meeting, kind), [meeting, kind])
@@ -236,7 +238,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {races.map((race, i) => {
-          const status = raceStatus(race, Date.now())
+          const status = raceStatus(race, now)
           const n = outer[i]
           const a = inner[i]
           return (

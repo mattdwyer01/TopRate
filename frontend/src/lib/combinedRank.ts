@@ -10,6 +10,7 @@ import { lastRunsRating } from './formRatings'
 // 8% of races and that runner won 43.9% (market 41.6%), about break-even at the starting price; speed on its own is the weakest of the four.
 export interface CombinedRank {
   rank: number
+  tied: boolean // another runner shares this rank
   mean: number
   ranks: [number | null, number | null, number | null, number | null] // Spd, Nett, L3, Proj
 }
@@ -56,6 +57,8 @@ export function computeCombinedRank(
   }
   const all = [...means.values()].map((m) => m.mean)
   const out = new Map<string, CombinedRank>()
-  for (const [id, m] of means) out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, mean: m.mean, ranks: m.ranks })
+  for (const [id, m] of means) {
+    out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - m.mean) < 1e-9).length > 1, mean: m.mean, ranks: m.ranks })
+  }
   return out
 }

@@ -23,6 +23,7 @@ import {
 } from '../../lib/accuracyStats'
 import { goingBand } from '../../lib/pace'
 import { fmtWpr } from '../../lib/format'
+import { ReviewNav } from './ReviewNav'
 import { CalibrationOverTime, DayByDay, QuaddieScorecardSection, WeeklyTrend } from './DayReview'
 import { StatTile } from '../../components/StatTile'
 import { PredictedVsActualChart } from '../../components/PredictedVsActualChart'
@@ -214,7 +215,9 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-emerald-line bg-emerald-bg p-4 sm:p-5">
+          <ReviewNav />
+
+          <div id="rv-strike" className="scroll-mt-28 rounded-lg border border-emerald-line bg-emerald-bg p-4 sm:p-5">
             <div className="text-xs font-semibold uppercase tracking-wide text-emerald-deep">
               Strike rates - how often the winner matched the model's calls
             </div>
@@ -251,7 +254,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             )}
           </div>
 
-          <div className="rounded-lg border border-line bg-panel p-4">
+          <div id="rv-market" className="scroll-mt-28 rounded-lg border border-line bg-panel p-4">
             <h3 className="text-sm font-semibold text-ink">Against the market</h3>
             {marketBenchmark.races === 0 ? (
               <p className="mt-1 text-xs text-ink-faint">Not enough races with settled prices in this window.</p>
@@ -279,7 +282,9 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             )}
           </div>
 
-          <WeeklyTrend races={races} excludeBush={excludeBush} />
+          <div id="rv-trend" className="scroll-mt-28">
+            <WeeklyTrend races={races} excludeBush={excludeBush} />
+          </div>
 
           <div className="rounded-lg border border-line bg-panel p-4">
             <h3 className="text-sm font-semibold text-ink">Calibration over time</h3>
@@ -289,6 +294,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
             <CalibrationOverTime weeks={calibrationWeeks} />
           </div>
 
+          <div id="rv-diag" className="scroll-mt-28">
           <Disclosure title="Full diagnostics" subtitle="Point, rank, and margin accuracy - depth behind the strike rates above, including the model's typical WPR miss">
             <div className="flex flex-col gap-4">
               <div>
@@ -431,10 +437,15 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
               </div>
             </div>
           </Disclosure>
+          </div>
 
-          <QuaddieScorecardSection races={races} period={period} excludeBush={excludeBush} />
+          <div id="rv-quaddie" className="scroll-mt-28">
+            <QuaddieScorecardSection races={races} period={period} excludeBush={excludeBush} />
+          </div>
 
-          <DayByDay races={races} excludeBush={excludeBush} onSelectRace={onSelectRace} />
+          <div id="rv-days" className="scroll-mt-28">
+            <DayByDay races={races} excludeBush={excludeBush} onSelectRace={onSelectRace} />
+          </div>
 
           {(distBreakdown.length > 0 || goingBreakdown.length > 0 || venueBreakdown.length > 0) && (
             <Disclosure

@@ -1,18 +1,28 @@
 import { useCallback, useState } from 'react'
 
 // "Show scratched runners in the table" toggle - persisted per-device, same
-// pattern as useTableDensity/useShowBushMeetings. Defaults to showing them
-// (matches the existing behaviour: scratched runners sort to the bottom
-// rather than disappearing) - this only lets someone opt into hiding them
-// for a cleaner view, it doesn't change the default.
+// pattern as useTableDensity/useShowBushMeetings. With no saved choice it
+// shows them on a wide screen (scratched runners sort to the bottom) and
+// hides them on a phone, where a dozen dimmed rows push the live field off
+// the first screen. Once the user flips the toggle that choice wins.
 const STORAGE_KEY = 'toprate_show_scratched_v1'
+
+const PHONE_MAX_WIDTH = 639
+
+function defaultShow(): boolean {
+  try {
+    return window.innerWidth > PHONE_MAX_WIDTH
+  } catch {
+    return true
+  }
+}
 
 function readStored(): boolean {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    return raw === null ? true : raw === '1'
+    return raw === null ? defaultShow() : raw === '1'
   } catch {
-    return true
+    return defaultShow()
   }
 }
 
