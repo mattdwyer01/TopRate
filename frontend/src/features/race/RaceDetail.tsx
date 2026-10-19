@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { useNow } from '../../hooks/useNow'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
@@ -11,6 +12,7 @@ import { BiasNote } from './BiasNote'
 import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
+import { RaceResult } from './RaceResult'
 import { RunnerRow, rowGrid } from './RunnerRow'
 import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -71,6 +73,7 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
+  const now = useNow(30_000)
   // Sorted by the combined Rank (best first) unless the user picks another column.
   const [sortKey, setSortKey] = useState<SortKey>('comboRank')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.comboRank)
@@ -182,7 +185,7 @@ export function RaceDetail({
         </button>
         <div className="flex flex-wrap gap-1.5">
           {meetingRaces.map((r) => (
-            <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]} onClick={() => onSelectRace(r.raceId, r.date)}>
+            <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, now)]} onClick={() => onSelectRace(r.raceId, r.date)}>
               R{r.raceNumber}
             </Pill>
           ))}
@@ -195,6 +198,8 @@ export function RaceDetail({
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
+
+      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -209,7 +214,7 @@ export function RaceDetail({
             >
               {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
             </Pill>}
-            {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : 'Show scratched'}</Pill>}
+            {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : `Show ${scratchedInRace} scratched`}</Pill>}
           </div>
         </div>
 

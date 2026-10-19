@@ -12,8 +12,8 @@ from pathlib import Path
 DIR = Path(__file__).parent / "data" / "rc_fields"
 _SPONSOR = re.compile(r"^(bet365|sportsbet|ladbrokes|picklebet|aquis|tab|southside|pointsbet|neds|racing\.?com)\s+", re.I)
 _cache = {}
-# racing.com's own names for tracks whose TopRate / TAB name differs (16 Oct 2026: 17 Oct showed Randwick, Gold Coast, Wodonga and Fannie Bay twice)
-_ALIASES = {"royal randwick": "randwick", "darwin": "fannie bay"}
+# racing.com's own names for tracks whose TopRate / TAB name differs (16 Oct 2026: 17 Oct showed Randwick, Gold Coast, Wodonga and Fannie Bay twice; 19 Oct: 21 Oct showed Belmont and Belmont Park twice)
+_ALIASES = {"royal randwick": "randwick", "darwin": "fannie bay", "belmont": "belmont park"}
 
 
 def norm_venue(s):

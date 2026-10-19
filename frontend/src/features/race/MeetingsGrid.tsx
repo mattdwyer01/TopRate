@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNow } from '../../hooks/useNow'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { EmptyState } from '../../components/EmptyState'
@@ -96,7 +97,9 @@ export function MeetingsGrid({
     }
     return best
   }, [races, date])
-  const now = Date.now()
+  const now = useNow(30_000)
+
+  const hasUntimed = visibleMeetings.some((m) => m.races.some((r) => !formatTimeOfDay(r.startTime) && raceStatus(r, now) === 'later'))
 
   const { ref: scrollRef, canScrollRight } = useScrollShadow<HTMLDivElement>()
 
@@ -151,6 +154,10 @@ export function MeetingsGrid({
             </div>
           ))}
         </div>
+      )}
+
+      {hasUntimed && visibleMeetings.length > 0 && (
+        <p className="-mt-2 text-xs text-ink-faint">TBC means the start time is not published yet. It appears once the fields are declared.</p>
       )}
 
       {visibleMeetings.length === 0 ? (
@@ -265,7 +272,7 @@ export function MeetingsGrid({
                           <button
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
-                            aria-label={`${meeting.venue} race ${n}, ${status === 'resulted' || status === 'interim' ? 'result ' + (finishers?.join(' ') ?? '') : formatTimeOfDay(race.startTime)}`}
+                            aria-label={`${meeting.venue} race ${n}, ${status === 'resulted' || status === 'interim' ? 'result ' + (finishers?.join(' ') ?? '') : formatTimeOfDay(race.startTime) || 'time to be confirmed'}`}
                             title={finishers && finishers.length > 0
                               ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}`
                               : undefined}
@@ -274,7 +281,7 @@ export function MeetingsGrid({
                             {finishers && finishers.length > 0 ? (
                               finishers.join('/')
                             ) : (
-                              formatTimeOfDay(race.startTime)
+                              formatTimeOfDay(race.startTime) || 'TBC'
                             )}
                           </button>
                         </td>

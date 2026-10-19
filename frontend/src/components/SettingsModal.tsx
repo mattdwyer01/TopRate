@@ -156,6 +156,70 @@ export function SettingsModal({
             </button>
           </div>
 
+          <div className="flex flex-col gap-2 p-4">
+            <span className="text-sm font-semibold text-ink">Hidden meetings</span>
+            <Note short="Hide venues from the grid and ticker.">
+              Permanently hide specific venues from the meetings grid and the next-to-jump ticker (separate from the
+              "Hide bush meetings" toggle, which is automatic and based on prize money) - useful for a venue you
+              never want to see regardless of its race quality. Hidden venues stay fully visible in search and Review.
+            </Note>
+            {hiddenList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {hiddenList.map((v) => (
+                  <span
+                    key={v}
+                    className="flex items-center gap-1 rounded-full border border-line bg-bg px-2 py-0.5 text-xs text-ink-soft"
+                  >
+                    {v}
+                    <button
+                      type="button"
+                      onClick={() => onUnhideVenue(v)}
+                      aria-label={`Unhide ${v}`}
+                      className="text-ink-faint hover:text-ink"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                list="settings-hidable-venues"
+                placeholder="Venue name..."
+                value={venueDraft}
+                onChange={(e) => setVenueDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addVenueDraft()
+                }}
+                className="flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm"
+              />
+              <datalist id="settings-hidable-venues">
+                {hidableVenues.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                onClick={addVenueDraft}
+                disabled={!venues.includes(venueDraft.trim())}
+                className="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-bg disabled:opacity-50"
+              >
+                Hide
+              </button>
+            </div>
+          </div>
+
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-ink hover:bg-bg">
+              <span>
+                Advanced
+                <span className="ml-2 text-xs font-normal text-ink-faint">GitHub token, fetch data, live vision, sync</span>
+              </span>
+              <span aria-hidden="true" className="text-ink-faint transition-transform group-open:rotate-180">&#9662;</span>
+            </summary>
+            <div className="flex flex-col divide-y divide-line-soft border-t border-line-soft">
           <div className="flex flex-col gap-3 p-4">
             <div>
               <span className="text-sm font-semibold text-ink">GitHub token</span>
@@ -227,61 +291,6 @@ export function SettingsModal({
             )}
           </div>
 
-          <div className="flex flex-col gap-2 p-4">
-            <span className="text-sm font-semibold text-ink">Hidden meetings</span>
-            <Note short="Hide venues from the grid and ticker.">
-              Permanently hide specific venues from the meetings grid and the next-to-jump ticker (separate from the
-              "Hide bush meetings" toggle, which is automatic and based on prize money) - useful for a venue you
-              never want to see regardless of its race quality. Hidden venues stay fully visible in search and Review.
-            </Note>
-            {hiddenList.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {hiddenList.map((v) => (
-                  <span
-                    key={v}
-                    className="flex items-center gap-1 rounded-full border border-line bg-bg px-2 py-0.5 text-xs text-ink-soft"
-                  >
-                    {v}
-                    <button
-                      type="button"
-                      onClick={() => onUnhideVenue(v)}
-                      aria-label={`Unhide ${v}`}
-                      className="text-ink-faint hover:text-ink"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                list="settings-hidable-venues"
-                placeholder="Venue name..."
-                value={venueDraft}
-                onChange={(e) => setVenueDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addVenueDraft()
-                }}
-                className="flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm"
-              />
-              <datalist id="settings-hidable-venues">
-                {hidableVenues.map((v) => (
-                  <option key={v} value={v} />
-                ))}
-              </datalist>
-              <button
-                type="button"
-                onClick={addVenueDraft}
-                disabled={!venues.includes(venueDraft.trim())}
-                className="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-bg disabled:opacity-50"
-              >
-                Hide
-              </button>
-            </div>
-          </div>
-
           <LiveVisionSettings />
 
           <div className="flex flex-col gap-2 p-4">
@@ -339,6 +348,8 @@ export function SettingsModal({
               </p>
             )}
           </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>

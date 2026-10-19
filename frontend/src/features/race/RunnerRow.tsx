@@ -37,6 +37,15 @@ export const rowGrid = (showFp: boolean) =>
   } ${DESKTOP_GRID}`
 const LG_ONLY = 'hidden lg:block'
 
+// A cell with no value: a faint dash whose tooltip says why, so "not rated" is not mistaken for a blank rendering glitch.
+function Missing({ why }: { why: string }) {
+  return (
+    <span className="text-ink-faint" title={why}>
+      &ndash;
+    </span>
+  )
+}
+
 export function RunnerRow({ runner, raceDate, selected, effective, showFp, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
@@ -52,8 +61,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           onClick()
         }
       }}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 border-l-transparent border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${
-        f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : 'hover:bg-bg'
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${
+        f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : runner.finishPosition === 1 ? 'bg-amber-bg/40 hover:bg-amber-bg/70' : 'hover:bg-bg'
       }`}
     >
       {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-6 w-6 rounded-sm object-contain min-[380px]:block lg:h-8 lg:w-8" /> : <span className="hidden h-6 w-6 min-[380px]:block lg:h-8 lg:w-8" />}
@@ -95,10 +104,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
         title={runner.speedRating != null ? `Speed rating ${speedOnWprScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 85 = par, higher is faster, about 2 points a length): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
-        {f.scratched || runner.speedRating == null ? '' : Math.round(speedOnWprScale(runner.speedRating))}
+        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No speed rating: needs two earlier time-based figures" /> : Math.round(speedOnWprScale(runner.speedRating))}
       </span>
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
-        {f.scratched || runner.nett == null ? '' : Math.round(runner.nett)}
+        {f.scratched ? '' : runner.nett == null ? <Missing why="No Nett from TopRate for this runner (first starters usually have none)" /> : Math.round(runner.nett)}
       </span>
       <span className="text-right font-mono leading-tight" title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
         {l3 ? (
@@ -106,29 +115,34 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
             <span className="block text-[12px] text-ink-mute lg:text-[13px]">{Math.round(l3.avg)}</span>
             <span className="hidden text-[10px] text-ink-faint lg:block">{Math.round(l3.median)}</span>
           </>
-        ) : null}
+        ) : f.scratched ? null : (
+          <Missing why="No rated runs yet" />
+        )}
       </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono text-ink-faint">SCR</span>
         ) : (
           <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? null : Math.round(f.proj)}</span>
+            <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? <Missing why="No projection (no rated form, or a jumps race)" /> : Math.round(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo ? `Combined rank ${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
+        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
       >
-        {f.scratched || !combo ? null : (
+        {f.scratched ? null : !combo ? (
+          <span className="text-ink-faint" title="Needs at least two of Spd, Nett, L3 and Proj">&ndash;</span>
+        ) : (
           <>
             <span
               className={`inline-block min-w-[18px] rounded px-1 text-center text-[12px] lg:text-[13px] ${
                 combo.rank === 1 ? 'bg-emerald font-medium text-white' : combo.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'text-ink'
               }`}
             >
+              {combo.tied ? '=' : ''}
               {combo.rank}
             </span>
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">

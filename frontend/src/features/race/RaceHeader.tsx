@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNow } from '../../hooks/useNow'
 import type { Race } from '../../types/domain'
 import { estimatePace } from '../../lib/pace'
 import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
@@ -117,6 +118,7 @@ export function RaceMiniBar({
   anchorRef: React.RefObject<HTMLElement | null>
   onSelectRace: (raceId: string, date: string) => void
 }) {
+  const now = useNow(30_000)
   const [visible, setVisible] = useState(false)
   const [top, setTop] = useState(0)
   useEffect(() => {
@@ -148,7 +150,7 @@ export function RaceMiniBar({
       <span className="flex-1" />
       <span className="hidden flex-wrap gap-1 sm:flex">
         {meeting.map((r) => (
-          <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, Date.now())]} onClick={() => onSelectRace(r.raceId, r.date)}>
+          <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, now)]} onClick={() => onSelectRace(r.raceId, r.date)}>
             R{r.raceNumber}
           </Pill>
         ))}

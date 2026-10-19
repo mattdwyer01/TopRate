@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
 import { computeDays, computeWeeklyTrend, type DayRace, type DaySummary } from '../../lib/dayResults'
@@ -11,6 +11,9 @@ interface DayReviewProps {
   excludeBush: boolean
   onSelectRace: (raceId: string, date: string, runId?: string) => void
 }
+
+// The day-by-day list starts with the most recent days; older ones sit behind a button (the phone page was several screens long).
+const DAYS_SHOWN = 7
 
 const fmtPct = (v: number) => `${v.toFixed(0)}%`
 
@@ -159,16 +162,23 @@ function DayBlock({ day, defaultOpen, onSelectRace }: { day: DaySummary; default
 
 export function DayByDay({ races, excludeBush, onSelectRace }: DayReviewProps) {
   const days = useMemo(() => computeDays(races, excludeBush), [races, excludeBush])
+  const [showAll, setShowAll] = useState(false)
   if (days.length === 0) return null
+  const shown = showAll ? days : days.slice(0, DAYS_SHOWN)
   return (
     <div className="flex flex-col gap-2">
       <div>
         <h3 className="text-sm font-semibold text-ink">Day by day</h3>
         <Note short="Every resulted race by day.">The winner, the model&apos;s #1 pick and the market favourite. A single day is mostly variance, so read the run of days, not one.</Note>
       </div>
-      {days.map((d, i) => (
+      {shown.map((d, i) => (
         <DayBlock key={d.date} day={d} defaultOpen={i === 0} onSelectRace={onSelectRace} />
       ))}
+      {days.length > DAYS_SHOWN && (
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="self-start rounded-md border border-line bg-panel px-3 py-1.5 text-xs font-medium text-ink-mute hover:text-ink">
+          {showAll ? `Show only the last ${DAYS_SHOWN} days` : `Show ${days.length - DAYS_SHOWN} earlier days`}
+        </button>
+      )}
     </div>
   )
 }
