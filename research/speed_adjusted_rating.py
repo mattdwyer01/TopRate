@@ -50,9 +50,10 @@ def main():
     d['R adj all'] = np.where(ok, d.R + (cd * d.ldays + cw * d.wchg + cx * d.dchg) / cR, np.nan)
     d['R adj days'] = np.where(ok, d.R + cd * d.ldays / cR, np.nan)
     d['R adj weight'] = np.where(ok, d.R + cw * d.wchg / cR, np.nan)
+    d['R adj days+weight'] = np.where(ok, d.R + (cd * d.ldays + cw * d.wchg) / cR, np.nan)
     d['R adj distance'] = np.where(ok, d.R + cx * d.dchg / cR, np.nan)
     d['R A shipped'] = np.where(ok, d.R, np.nan)
-    rcols = ['R A shipped', 'R adj days', 'R adj weight', 'R adj distance', 'R adj all']
+    rcols = ['R A shipped', 'R adj days', 'R adj weight', 'R adj days+weight', 'R adj distance', 'R adj all']
     t = d[d.date >= '2025-07-01'].copy()
     t['won'] = (t.positionFinish == 1).astype(int)
     okr = t.groupby('race_id').apply(lambda x: x[rcols + ['L3']].notna().all().all() and len(x) >= 5 and x.won.sum() == 1)
