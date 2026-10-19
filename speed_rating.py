@@ -165,6 +165,16 @@ def history(d):
     return d.dropna(subset=["rating"])[["key", "date", "rating"]].sort_values("date")
 
 
+def run_figures(first_year=None):
+    """{(horse lower-case, 'YYYY-MM-DD'): figure in lengths vs par} for every run from first_year, for the Recent runs table (horse_history files).
+    The figure is the run's own (not the rating): the same numbers the rating averages."""
+    first_year = first_year or (_melbourne_today().year - 3)
+    d = figures(load_results(first_year))
+    k = d["horse"].astype(str).str.lower().str.strip()
+    dt = pd.to_datetime(d["date"]).dt.strftime("%Y-%m-%d")
+    return dict(zip(zip(k, dt), d["sp"].round(1)))
+
+
 def compute(runners_df, today=None):
     """Speed rating (lengths vs par, higher = faster) for runners dated in the last WINDOW_DAYS or later; NaN elsewhere. Index matches runners_df."""
     today = today or _melbourne_today()

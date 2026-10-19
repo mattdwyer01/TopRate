@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { FormHistoryEntry, FormRun } from '../../types/domain'
 import { goingBand } from '../../lib/pace'
+import { speedOnWprScale } from '../../lib/speed'
 import type { TempoBucket } from '../../lib/pace'
 import { fetchMeetingFormHistory } from '../../lib/meetingFormHistory'
 import { fetchOverseasRuns } from '../../lib/overseasRuns'
@@ -172,6 +173,9 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
       <td className="px-2 py-0.5 text-right font-mono font-semibold text-ink">
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
+      <td className="px-2 py-0.5 text-right font-mono text-ink-mute" title={run.speedFigure != null ? `Speed rating of this run: ${speedOnWprScale(run.speedFigure).toFixed(1)} (${run.speedFigure.toFixed(1)} lengths against par; 85 = par)` : 'No time-based speed figure for this run'}>
+        {run.speedFigure != null ? Math.round(speedOnWprScale(run.speedFigure)) : '—'}
+      </td>
       <td className={`px-2 py-0.5 text-right font-mono ${delta == null ? 'text-ink-faint' : delta > 1 ? 'text-emerald-deep' : delta < -1 ? 'text-rose' : 'text-ink-mute'}`} title="WPR change from the run before">
         {delta == null ? '—' : delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
       </td>
@@ -183,7 +187,7 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
 function SeparatorRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={20} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
+      <td colSpan={21} className="px-2 py-0 text-center text-[11px] leading-5 text-ink-faint">
         &mdash; {label} &mdash;
       </td>
     </tr>
@@ -222,6 +226,7 @@ function MobileRunCard({ run, isPeak, codes, onReplay }: { run: FormRun; isPeak:
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-ink">
           {run.wpr != null ? run.wpr.toFixed(1) : '—'}
+          {run.speedFigure != null && <span className="ml-1.5 text-[11px] font-normal text-ink-mute" title="Time-based speed rating of the run (85 = par)">Spd {Math.round(speedOnWprScale(run.speedFigure))}</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[11px] text-ink-faint">
@@ -542,6 +547,7 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 200m">L200</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Race shape early / mid / late">Shape</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">WPR</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Time-based speed rating of the run (85 = par)">Spd</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
             </tr>

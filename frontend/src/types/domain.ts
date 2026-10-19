@@ -27,6 +27,8 @@ export interface FormRun {
   weight?: number | null
   startingPrice?: number | null
   raceNumber?: number | null
+  // Speed figure of the run in lengths vs par (higher = faster); shown on the 85-par scale via lib/speed.ts
+  speedFigure?: number | null
   // A run from racing.com with no rating from us (see lib/overseasRuns.ts): shown unrated, never used for anything else.
   overseas?: boolean
 }

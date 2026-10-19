@@ -56,6 +56,7 @@ export function toFormRun(r: RawFormRun): FormRun {
     weight: r.wt ?? null,
     startingPrice: r.sp ?? null,
     raceNumber: r.rn ?? null,
+    speedFigure: r.sf ?? null,
   }
 }
 

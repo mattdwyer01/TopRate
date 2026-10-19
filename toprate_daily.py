@@ -1379,6 +1379,14 @@ def rebuild_html(runners_df, model_pick_rows=None):
             # uncapped per-meeting export (rebuild_html's caller) - same
             # shape either way, so the frontend's toFormRun() mapper works
             # unmodified on both sources.
+            # Per-run speed figure (lengths vs par, speed_rating.py) for the uncapped horse_history/ export only (Oct 2026); fail-safe
+            try:
+                import speed_rating as _spd
+                _SPD_FIG = _spd.run_figures()
+            except Exception as _e:
+                print(f"  Per-run speed figures skipped: {_e}")
+                _SPD_FIG = {}
+
             def _run_record(_r, _peak_wpr, _extra=False):
                 _w = float(_r["wpr"])
                 # NOTE on sectionals - two different things, both kept:
@@ -1437,6 +1445,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                     # race number, so the dashboard can link that run's Sky replay (replay_codes.py)
                     _rn = pd.to_numeric(_r.get("raceNumber"), errors="coerce")
                     _rec["rn"] = int(_rn) if pd.notna(_rn) and 1 <= _rn <= 15 else None
+                    # speed figure of that run in lengths vs par (higher = faster); the dashboard shows it as 85 + 2.15 x lengths
+                    _sf = _SPD_FIG.get((str(_r.get("horse_lc")), str(_r.get("date"))[:10]))
+                    _rec["sf"] = float(_sf) if _sf is not None and _sf == _sf else None
                 return _rec
 
             for _hlc, _g in _fh.groupby("horse_lc"):

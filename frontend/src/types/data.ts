@@ -39,6 +39,8 @@ export interface RawFormRun {
   sp?: number | null
   // race number of that run - only in horse_history/*.json, used to link its Sky replay
   rn?: number | null
+  // speed figure of that run, lengths vs par (higher = faster) - only in horse_history/*.json
+  sf?: number | null
 }
 
 export interface RawFormAllEntry {
