@@ -74,10 +74,12 @@ def main():
     # horse as-of residual vs its own recent form at the same track and at the same track|distance
     runs['res'] = runs.wpr - runs.wpr_m5
     for key, nm in (('track', 'h_trk'), ('td', 'h_td')):
-        gg = runs.groupby(['horse_id', key], sort=False)
-        s = gg.res.transform(lambda x: x.shift(1).expanding().sum())
-        n = gg.res.transform(lambda x: x.shift(1).expanding().count())
-        runs[nm] = (s / (n + 2)).where(n > 0)
+        sid = runs.groupby(['horse_id', key], sort=False).ngroup()
+        ok = runs.res.notna().astype(int)
+        r0 = runs.res.fillna(0.0)
+        cs = r0.groupby(sid).cumsum() - r0
+        n = ok.groupby(sid).cumsum() - ok
+        runs[nm] = (cs / (n + 2)).where(n > 0)
         runs[nm + '_n'] = n
     runs['tcode'] = runs.track.astype('category').cat.codes
     d = runs[(runs.nprior >= 3) & runs.wpr_1.notna() & runs.wpr_2.notna() & runs.wpr_3.notna()].copy()
