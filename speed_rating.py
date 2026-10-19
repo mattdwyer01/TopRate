@@ -29,6 +29,7 @@ import pandas as pd
 
 DIR = Path(__file__).parent
 MODEL = DIR / "speed_models" / "par_v2.txt"
+ADJUST = DIR / "speed_models" / "adjust.json"   # days-since-run and weight-change terms (19 Oct 2026), fitted by research/speed_adjusted_rating.py
 FORM_DIR = DIR / "data" / "tr_form"
 SEC = 0.147                  # seconds per length
 HALFLIFE = 4.0               # runs
@@ -162,7 +163,9 @@ def history(d):
     d["key"] = d["horse"].astype(str).str.lower().str.strip()
     d = d.sort_values(["key", "date"])
     d["rating"] = d.groupby("key", sort=False)["sp"].transform(lambda s: s.ewm(halflife=HALFLIFE, min_periods=MIN_RUNS).mean())
-    return d.dropna(subset=["rating"])[["key", "date", "rating"]].sort_values("date")
+    d["lw"] = d["weightCarried"]
+    d["ldate"] = d["date"]
+    return d.dropna(subset=["rating"])[["key", "date", "rating", "lw", "ldate"]].sort_values("date")
 
 
 def run_figures(first_year=None):
@@ -186,8 +189,28 @@ def compute(runners_df, today=None):
     h = history(load_results(today.year - YEARS_BACK))
     q = pd.DataFrame({"date": dts[sel], "key": runners_df.loc[sel, "horse"].astype(str).str.lower().str.strip()}).sort_values("date")
     m = pd.merge_asof(q.reset_index(), h, on="date", by="key", allow_exact_matches=False, tolerance=pd.Timedelta(days=400)).set_index("index")
-    out.loc[m.index] = m["rating"].values
+    rating = m["rating"].values
+    adj = _adjustment(m, dts[sel], runners_df.loc[sel, "weight_carried"] if "weight_carried" in runners_df.columns else None)
+    out.loc[m.index] = rating + adj
     return out
+
+
+def _adjustment(m, dates, wt):
+    """Lengths added to the rating for the layoff and the weight change since the last run (coefficients in speed_models/adjust.json: more days, lower; more weight than
+    last time, higher). Centred so the average adjustment is about zero and the displayed scale does not move. No file = no adjustment. Distance change was tested and
+    left out (it lowered winner log-lik)."""
+    if not ADJUST.exists():
+        return 0.0
+    c = json.loads(ADJUST.read_text())
+    a = c["adj_lengths"]
+    days = (dates.reindex(m.index) - pd.to_datetime(m["ldate"])).dt.days.clip(lower=0, upper=400)
+    out = a["ldays"] * (np.log1p(days) - c.get("ldays_center", 0.0))
+    out = out.fillna(0.0)
+    if wt is not None:
+        w = pd.to_numeric(wt.reindex(m.index), errors="coerce")
+        dw = (w - m["lw"]).clip(-c.get("wchg_clip", 10.0), c.get("wchg_clip", 10.0))
+        out = out + (a["wchg"] * dw).fillna(0.0)
+    return out.values
 
 
 def apply(runners_df, today=None):

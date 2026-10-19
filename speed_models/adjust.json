@@ -7,5 +7,12 @@
   "ldays": -0.6464043380709066,
   "wchg": 0.4584489467843872,
   "dchg": -0.0012974369266065928
- }
+ },
+ "ldays_center": 3.107,
+ "wchg_clip": 10.0,
+ "used": [
+  "ldays",
+  "wchg"
+ ],
+ "note": "dchg (distance change) tested and left out: it lowered winner log-lik (-0.0025). Fitted by research/speed_adjusted_rating.py"
 }
