@@ -12,6 +12,7 @@ import { FreshnessDot } from './components/FreshnessDot'
 import { NextToJumpTicker } from './components/NextToJumpTicker'
 import { SettingsModal } from './components/SettingsModal'
 import { LiveHeaderButton } from './components/LiveHeaderButton'
+import { HeaderMenu } from './components/HeaderMenu'
 import { HowWprWorksModal } from './components/HowWprWorksModal'
 import { GlobalSearch } from './components/GlobalSearch'
 import { RaceDetail } from './features/race/RaceDetail'
@@ -157,15 +158,15 @@ function App() {
           sticky silk/name cells paint on top of the ticker/nav (reported:
           a runner row visually floating over the ticker mid-scroll,
           reproduced in a plain scroll test, not iOS-Safari-specific). */}
-      <header className="sticky top-0 z-30 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
-        {state.status === 'ready' && (
+      {/* The next-to-jump strip scrolls away with the page; only the tabs and icons stay pinned, which gives the phone back about 50px. */}
+      {state.status === 'ready' && (
+        <div className="border-b border-line bg-panel px-4 pb-2 pt-3">
           <div className="mx-auto w-full max-w-6xl">
-            <NextToJumpTicker
-              races={tickerRaces}
-              onSelectRace={goToRace}
-            />
+            <NextToJumpTicker races={tickerRaces} onSelectRace={goToRace} />
           </div>
-        )}
+        </div>
+      )}
+      <header className="sticky top-0 z-30 flex flex-col gap-2 border-b border-line bg-panel px-4 py-2.5">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
             {/* text-base/px-1.5/text-xs below sm: the full-size header (logo
@@ -227,7 +228,7 @@ function App() {
                   setRefreshing(true)
                   void refresh().finally(() => setRefreshing(false))
                 }}
-                className={`rounded p-1 text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo ${refreshing ? 'animate-spin' : ''}`}
+                className={`hidden rounded p-1 text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo sm:block ${refreshing ? 'animate-spin' : ''}`}
               >
                 <span aria-hidden="true">↻</span>
               </button>
@@ -237,7 +238,7 @@ function App() {
               aria-label="How WPR works and what the columns mean"
               title="How WPR works and what the columns mean"
               onClick={() => setMethodologyOpen(true)}
-              className="rounded p-1 text-sm font-semibold text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo"
+              className="hidden rounded p-1 text-sm font-semibold text-ink-mute hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo sm:block"
             >
               ?
             </button>
@@ -247,11 +248,11 @@ function App() {
               onClick={() => setSearchOpen(true)}
               aria-label="Search horse, jockey, or trainer"
               title="Search (/)"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink sm:h-7 sm:w-7"
             >
               🔍
             </button>
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
@@ -261,6 +262,15 @@ function App() {
                 ⚙
               </button>
             </div>
+            <HeaderMenu
+              items={[
+                ...(state.status === 'ready'
+                  ? [{ label: refreshing ? 'Refreshing...' : 'Refresh data', disabled: refreshing, onSelect: () => { setRefreshing(true); void refresh().finally(() => setRefreshing(false)) } }]
+                  : []),
+                { label: 'How WPR works', onSelect: () => setMethodologyOpen(true) },
+                { label: 'Settings', onSelect: () => setSettingsOpen(true) },
+              ]}
+            />
           </div>
         </div>
       </header>

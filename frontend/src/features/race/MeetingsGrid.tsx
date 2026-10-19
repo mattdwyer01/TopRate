@@ -12,7 +12,7 @@ import {
 import { formatTimeOfDay } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
 import { hasQuaddie } from '../../lib/quaddie'
-import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
+import { modelTopPickOutcome, PICK_DOT_CLASS, PICK_LABEL, raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
   races: Race[]
@@ -153,6 +153,14 @@ export function MeetingsGrid({
               {label}
             </div>
           ))}
+          <div className="flex items-center gap-1.5" title="After a result: the winning TAB number, and a dot for how the projection's top-rated runner finished">
+            <span className="font-mono font-semibold">#7</span>
+            winner
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
+            top pick won
+            <span className="h-1.5 w-1.5 rounded-full bg-amber" />
+            placed
+          </div>
         </div>
       )}
 
@@ -267,6 +275,10 @@ export function MeetingsGrid({
                       const finishers = status === 'resulted' || status === 'interim'
                         ? topFinishers(race)
                         : null
+                      const time = formatTimeOfDay(race.startTime)
+                      const winner = finishers && finishers.length > 0 ? finishers[0] : null
+                      const pick = winner != null ? modelTopPickOutcome(race) : null
+                      const fieldSize = race.runners.filter((r) => !r.dataScratched).length
                       return (
                         <td key={n} className="px-1.5 py-2 text-center">
                           <button
@@ -274,14 +286,18 @@ export function MeetingsGrid({
                             onClick={() => onSelectRace(race.raceId, race.date)}
                             aria-label={`${meeting.venue} race ${n}, ${status === 'resulted' || status === 'interim' ? 'result ' + (finishers?.join(' ') ?? '') : formatTimeOfDay(race.startTime) || 'time to be confirmed'}`}
                             title={finishers && finishers.length > 0
-                              ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}`
-                              : undefined}
-                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[status]}`}
+                              ? `${time} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}${pick ? `. The projection's top pick ${PICK_LABEL[pick]}.` : ''}`
+                              : `${time || 'Time to be confirmed'}${fieldSize > 0 ? ` - ${fieldSize} runners` : ''}`}
+                            className={`flex min-h-[2.75rem] w-full flex-col items-center justify-center rounded-md border px-1 py-1 font-mono leading-tight transition-colors ${STATUS_CLASSES[status]}`}
                           >
-                            {finishers && finishers.length > 0 ? (
-                              finishers.join('/')
+                            <span className={winner != null ? 'text-[10px] font-normal opacity-70' : 'text-xs'}>{time || 'TBC'}</span>
+                            {winner != null ? (
+                              <span className="flex items-center gap-1 text-xs font-semibold">
+                                #{winner}
+                                {pick && <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${PICK_DOT_CLASS[pick]}`} />}
+                              </span>
                             ) : (
-                              formatTimeOfDay(race.startTime) || 'TBC'
+                              <span className="text-[10px] font-normal opacity-60">{fieldSize > 0 ? `${fieldSize} runners` : '-'}</span>
                             )}
                           </button>
                         </td>

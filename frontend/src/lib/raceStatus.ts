@@ -72,3 +72,26 @@ export const STATUS_PILL_TONE: Record<RaceStatus, 'default' | 'emerald' | 'rose'
   soon: 'rose',
   later: 'default',
 }
+
+export type PickOutcome = 'won' | 'placed' | 'unplaced'
+
+// How the projection's top-rated runner (highest Proj, scratched runners left out) finished, for the meetings grid dot. null until a result
+// is known or when no runner in the race has a projection. A runner with a confirmed result but no exact position counts as unplaced.
+export function modelTopPickOutcome(race: Race): PickOutcome | null {
+  let top: Race['runners'][number] | null = null
+  for (const r of race.runners) {
+    if (r.dataScratched || r.projectedWpr == null) continue
+    if (!top || r.projectedWpr > (top.projectedWpr ?? -Infinity)) top = r
+  }
+  if (!top || !top.resultKnown) return null
+  if (top.finishPosition === 1 || top.won) return 'won'
+  if (top.finishPosition != null && top.finishPosition <= 3) return 'placed'
+  return 'unplaced'
+}
+
+export const PICK_DOT_CLASS: Record<PickOutcome, string> = {
+  won: 'bg-emerald',
+  placed: 'bg-amber',
+  unplaced: 'bg-ink-faint/60',
+}
+export const PICK_LABEL: Record<PickOutcome, string> = { won: 'won', placed: 'placed', unplaced: 'unplaced' }

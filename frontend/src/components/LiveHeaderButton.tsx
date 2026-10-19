@@ -15,9 +15,9 @@ export function LiveHeaderButton() {
         onClick={() => setOpen(true)}
         aria-label="Watch live vision"
         title="Watch live vision"
-        className="flex h-7 items-center gap-1 rounded-full bg-rose px-2 text-[11px] font-semibold uppercase leading-none tracking-wide text-white hover:opacity-90"
+        className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold uppercase leading-none tracking-wide text-white transition-opacity hover:opacity-85 sm:h-7"
       >
-        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-white" />
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-rose" />
         Live
       </button>
       {open && <LivePlayerModal onClose={() => setOpen(false)} />}
