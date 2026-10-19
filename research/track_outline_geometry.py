@@ -15,7 +15,17 @@ import pandas as pd
 
 SRC = os.path.join('data', 'track_outlines', 'osm_horse_racing.json')
 OUT = os.path.join('data', 'track_outlines', 'track_geometry.json')
+GC = os.path.join('data', 'track_outlines', 'geocode.json')
+VARIANT = re.compile(r'\b(synthetic|inner|heath|parks?|scarpside|lakeside|hillside|fibre sand|kensington)\b', re.I)
 STOP = {'racecourse', 'race', 'course', 'turf', 'club', 'track', 'raceway', 'racing', 'park', 'the', 'and', 'jockey', 'showgrounds', 'paceway', 'harness', 'members', 'practice'}
+
+
+def base_name(t):
+    return re.sub(r'\s+', ' ', re.sub(r'\bgh\b', '', t.replace('-', ' '), flags=re.I)).strip()
+
+
+def dist_m(la1, lo1, la2, lo2):
+    return math.hypot((la1 - la2) * 110574, (lo1 - lo2) * 111320 * math.cos(math.radians(la1)))
 
 
 def toks(s):
@@ -121,33 +131,35 @@ def main():
                 loops.append(m)
     print(len(loops), 'usable closed loops')
     named = [e for e in els if e['tags'].get('name')]
+    gc = json.load(open(GC)) if os.path.exists(GC) else {}
     out = {}
     for tr in track_names():
-        tt = [t for t in toks(tr) if t not in STOP]
-        if not tt:
-            continue
-        cands = [e for e in named if all(t in toks(e['tags']['name']) for t in tt)]
-        if not cands:
-            continue
-        # centre of the matched named elements, then closed loops within 3 km of it
-        cl = []
-        for e in cands:
-            g = e.get('geometry') or [m for mem in e.get('members', []) for m in (mem.get('geometry') or [])]
-            if g:
-                cl.append((np.mean([p['lat'] for p in g]), np.mean([p['lon'] for p in g])))
-        if not cl:
-            continue
+        if VARIANT.search(tr):
+            continue          # alternative circuit at a venue (synthetic, inner, heath...): the base loop would be the wrong track
+        bs = base_name(tr)
+        pts = [(g['lat'], g['lon']) for g in gc.get(bs, [])]
+        tt = [t for t in toks(bs) if t not in STOP]
+        cands = [e for e in named if tt and all(t in toks(e['tags']['name']) for t in tt)]
         ids = {e['id'] for e in cands}
-        own = [m for m in loops if m['osm_id'] in ids]
-        la, lo = np.median([c[0] for c in cl]), np.median([c[1] for c in cl])
-        near = own or [m for m in loops if abs(m['lat'] - la) * 110574 < 800 and abs(m['lon'] - lo) * 111320 * math.cos(math.radians(la)) < 800]
-        if not near:
+        best = None
+        for la, lo in pts:
+            near = [m for m in loops if dist_m(m['lat'], m['lon'], la, lo) < 1500]
+            if near and (best is None or len(near) > len(best)):
+                best = near
+        if best is None and ids:
+            best = [m for m in loops if m['osm_id'] in ids]
+        if not best:
             continue
-        inn = [m for m in near if m['kind'] == 'inner']
-        main = max(inn or near, key=lambda m: m['perim'])
-        out[tr] = dict(main, n_loops=len(near))
+        named_loops = [m for m in best if m['osm_id'] in ids]
+        pool = named_loops or best
+        inn = [m for m in pool if m['kind'] == 'inner']
+        main = max(inn or pool, key=lambda m: m['perim'])
+        out[tr] = dict(main, n_loops=len(best), by='name' if named_loops else 'location')
     json.dump(out, open(OUT, 'w'), indent=0)
     print(len(out), 'of', len(track_names()), 'tracks matched ->', OUT)
+    import glob as _g
+    rr = pd.concat([pd.read_csv(f, usecols=['track']) for f in sorted(_g.glob('race_results_20*.csv.gz'))[-3:]]).track.value_counts()
+    print('share of recent runs at matched tracks', round(rr[rr.index.isin(out)].sum() / rr.sum(), 3))
     for k in ('Flemington', 'Caulfield', 'Moonee Valley', 'Randwick', 'Rosehill', 'Eagle Farm', 'Doomben', 'Morphettville', 'Ascot', 'Echuca', 'Bendigo'):
         print(k, out.get(k))
 
