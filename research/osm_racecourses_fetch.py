@@ -9,7 +9,7 @@ import time
 import urllib.parse
 import urllib.request
 
-HOSTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
+HOSTS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.osm.ch/api/interpreter', 'https://overpass-api.de/api/interpreter']
 QUERY = """[out:json][timeout:180];
 area["ISO3166-1"="AU"][admin_level=2]->.a;
 (
