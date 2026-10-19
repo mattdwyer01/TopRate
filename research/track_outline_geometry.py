@@ -110,9 +110,13 @@ def rings(ways):
 
 def main():
     els = json.load(open(SRC))['elements']
+    xp = os.path.join('data', 'track_outlines', 'osm_extra.json')
+    if os.path.exists(xp):
+        seen = {(e['type'], e['id']) for e in els}
+        els += [e for e in json.load(open(xp))['elements'].values() if (e['type'], e['id']) not in seen]
     loops = []
     for e in els:
-        if e['tags'].get('leisure') != 'track':
+        if e.get('tags', {}).get('leisure') not in ('track', 'racetrack') and e.get('tags', {}).get('sport') != 'horse_racing':
             continue
         if e['type'] == 'way' and 'geometry' in e:
             cand = [(e['geometry'], 'way')]

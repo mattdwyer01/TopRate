@@ -79,22 +79,6 @@
 "n_loops": 2,
 "by": "location"
 },
-"Ballarat": {
-"perim": 2609,
-"area": 157653,
-"compact": 0.291,
-"elong": 2.24,
-"straight": 290,
-"bend_radius": 218,
-"bend_share": 0.669,
-"lat": -37.4722,
-"lon": 143.8143,
-"name": "",
-"osm_id": 4764259,
-"kind": "inner",
-"n_loops": 7,
-"by": "location"
-},
 "Ballina": {
 "perim": 1657,
 "area": 198313,
@@ -751,6 +735,22 @@
 "n_loops": 2,
 "by": "location"
 },
+"Eagle Farm": {
+"perim": 2019,
+"area": 278532,
+"compact": 0.859,
+"elong": 1.59,
+"straight": 380,
+"bend_radius": 193,
+"bend_share": 0.632,
+"lat": -27.4275,
+"lon": 153.0675,
+"name": "",
+"osm_id": 5379703,
+"kind": "inner",
+"n_loops": 12,
+"by": "location"
+},
 "Edenhope": {
 "perim": 1585,
 "area": 145289,
@@ -1135,22 +1135,6 @@
 "n_loops": 2,
 "by": "location"
 },
-"Hobart": {
-"perim": 1942,
-"area": 231123,
-"compact": 0.77,
-"elong": 1.86,
-"straight": 440,
-"bend_radius": 184,
-"bend_share": 0.567,
-"lat": -42.8237,
-"lon": 147.2872,
-"name": "",
-"osm_id": 5184041,
-"kind": "inner",
-"n_loops": 3,
-"by": "location"
-},
 "Holbrook": {
 "perim": 1713,
 "area": 199495,
@@ -1357,6 +1341,22 @@
 "osm_id": 6154259,
 "kind": "inner",
 "n_loops": 2,
+"by": "location"
+},
+"Launceston": {
+"perim": 1840,
+"area": 236417,
+"compact": 0.877,
+"elong": 1.49,
+"straight": 230,
+"bend_radius": 178,
+"bend_share": 0.571,
+"lat": -41.4044,
+"lon": 147.1421,
+"name": "",
+"osm_id": 4772822,
+"kind": "inner",
+"n_loops": 3,
 "by": "location"
 },
 "Lightning Ridge": {
@@ -1919,20 +1919,20 @@
 "n_loops": 2,
 "by": "location"
 },
-"Rockhampton": {
-"perim": 1943,
-"area": 197462,
-"compact": 0.657,
-"elong": 2.36,
-"straight": 570,
-"bend_radius": 138,
-"bend_share": 0.423,
-"lat": -23.3773,
-"lon": 150.5251,
-"name": "Callaghan Park Racecourse",
-"osm_id": 2763529,
+"Rosehill": {
+"perim": 3083,
+"area": 294799,
+"compact": 0.39,
+"elong": 1.17,
+"straight": 360,
+"bend_radius": 177,
+"bend_share": 0.5,
+"lat": -33.8245,
+"lon": 151.0274,
+"name": "",
+"osm_id": 5993824,
 "kind": "inner",
-"n_loops": 2,
+"n_loops": 4,
 "by": "location"
 },
 "Royal Randwick": {
@@ -2127,22 +2127,6 @@
 "n_loops": 2,
 "by": "location"
 },
-"Toowoomba": {
-"perim": 1776,
-"area": 235652,
-"compact": 0.938,
-"elong": 1.27,
-"straight": 220,
-"bend_radius": 180,
-"bend_share": 0.678,
-"lat": -27.558,
-"lon": 151.9241,
-"name": "",
-"osm_id": 4513671,
-"kind": "inner",
-"n_loops": 9,
-"by": "location"
-},
 "Tottenham": {
 "perim": 1736,
 "area": 226250,
@@ -2158,22 +2142,6 @@
 "kind": "way",
 "n_loops": 1,
 "by": "name"
-},
-"Townsville": {
-"perim": 1683,
-"area": 197763,
-"compact": 0.878,
-"elong": 1.49,
-"straight": 290,
-"bend_radius": 190,
-"bend_share": 0.655,
-"lat": -19.3219,
-"lon": 146.8212,
-"name": "",
-"osm_id": 6767529,
-"kind": "inner",
-"n_loops": 4,
-"by": "location"
 },
 "Towong": {
 "perim": 2071,
@@ -2219,6 +2187,22 @@
 "lon": 146.9556,
 "name": "",
 "osm_id": 19796062,
+"kind": "inner",
+"n_loops": 2,
+"by": "location"
+},
+"Wagga": {
+"perim": 2061,
+"area": 300218,
+"compact": 0.888,
+"elong": 1.12,
+"straight": 360,
+"bend_radius": 171,
+"bend_share": 0.5,
+"lat": -35.1043,
+"lon": 147.355,
+"name": "",
+"osm_id": 5317965,
 "kind": "inner",
 "n_loops": 2,
 "by": "location"

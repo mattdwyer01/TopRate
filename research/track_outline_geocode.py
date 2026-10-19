@@ -15,10 +15,11 @@ OUT = os.path.join('data', 'track_outlines', 'geocode.json')
 SUFFIX = re.compile(r'\b(synthetic|inner|heath|parks?|scarpside|lakeside|hillside|fibre sand|gh|kensington)\b', re.I)
 
 
-ALIAS = {'Sunshine Coast': 'Corbould Park', 'Townsville': 'Cluden Park', 'Toowoomba': 'Clifford Park', 'Rockhampton': 'Callaghan Park', 'Hobart': 'Elwick Park Glenorchy',
+ALIAS = {'Townsville': 'Cluden Park Racecourse Townsville Queensland', 'Toowoomba': 'Clifford Park Racecourse Toowoomba Queensland', 'Rockhampton': 'Callaghan Park Racecourse Rockhampton Queensland',
+         'Hobart': 'Elwick Racecourse Glenorchy Tasmania', 'Newcastle': 'Broadmeadow Racecourse Newcastle New South Wales', 'Echuca': 'Echuca Racecourse Victoria','Sunshine Coast': 'Corbould Park', 
          'Launceston': 'Mowbray Racecourse', 'Wagga': 'Murrumbidgee Turf Club Wagga Wagga', 'Canberra': 'Thoroughbred Park Canberra', 'Rosehill': 'Rosehill Gardens',
          'Eagle Farm': 'Eagle Farm Race Course', 'Mackay': 'Ooralea Mackay Turf Club', 'Cairns': 'Cannon Park Cairns', 'Moonee Valley': 'Moonee Valley Racing Club Moonee Ponds',
-         'Echuca': 'Echuca Racing Club', 'Murray Bridge': 'Murray Bridge Racecourse', 'Albury': 'Albury Racecourse Albury Racing Club', 'Newcastle': 'Broadmeadow Racecourse',
+          'Murray Bridge': 'Murray Bridge Racecourse', 'Albury': 'Albury Racecourse Albury Racing Club', 
          'Warwick Farm': 'Warwick Farm Racecourse', 'Sandown': 'Sandown Racecourse Springvale', 'Pioneer Park': 'Pioneer Park Racecourse', 'Taree': 'Taree Racecourse',
          'Muswellbrook': 'Muswellbrook Race Club', 'Mt Gambier': 'Mount Gambier Racecourse', 'Geraldton': 'Geraldton Racecourse', 'Kalgoorlie': 'Kalgoorlie Racecourse',
          'Northam': 'Northam Racecourse', 'Pinjarra': 'Pinjarra Racecourse', 'Ballarat': 'Ballarat Turf Club Dowling Forest', 'Seymour': 'Seymour Racecourse', 'Sale': 'Sale Racecourse Victoria',
