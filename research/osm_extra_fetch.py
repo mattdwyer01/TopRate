@@ -29,17 +29,23 @@ def main():
     for name, pts in sorted(gc.items()):
         if name in have or name in done['queried'] or not pts:
             continue
-        got = 0
+        got, ok = 0, True
         for p in pts[:2]:
-            try:
-                for e in q(p['lat'], p['lon']):
-                    done['elements'][f"{e['type']}{e['id']}"] = e
-                    got += 1
-            except Exception as ex:  # noqa: BLE001
-                print(name, 'failed', ex, flush=True)
+            for attempt in range(3):
+                try:
+                    for e in q(p['lat'], p['lon']):
+                        done['elements'][f"{e['type']}{e['id']}"] = e
+                        got += 1
+                    break
+                except Exception as ex:  # noqa: BLE001
+                    print(name, 'failed', attempt, ex, flush=True)
+                    time.sleep(5 * (attempt + 1))
+            else:
+                ok = False
             time.sleep(1.0)
-        done['queried'][name] = got
-        print(name, got, flush=True)
+        if ok:
+            done['queried'][name] = got
+        print(name, got, 'ok' if ok else 'RETRY LATER', flush=True)
     json.dump(done, open(OUT, 'w'), separators=(',', ':'))
     print('done', len(done['elements']), flush=True)
 

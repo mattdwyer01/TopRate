@@ -1,1 +1,1634 @@
-{"Alexandra": [], "Alpha": [{"lat": -23.6883191, "lon": 146.9711053, "name": "Racecourse Creek, Alpha, Queensland, 4724, Australia", "type": "stream"}, {"lat": -23.6481639, "lon": 146.6108442, "name": "Fordham Park (Alpha) Racecourse, 43691, Capricorn Highway, Alpha, Queensland, 47", "type": "sports_centre"}], "Ararat": [], "Armidale": [{"lat": -30.5174538, "lon": 151.6767113, "name": "Armidale Racecourse, Armidale, New South Wales, 2350, Australia", "type": "recreation_ground"}], "Ascot": [{"lat": -31.9349899, "lon": 115.9207839, "name": "Ascot Racecourse, Grandstand Road, Ascot, Perth, Western Australia, 6104, Austra", "type": "track"}], "Atherton": [], "Avoca": [{"lat": -37.1006865, "lon": 143.4478576, "name": "Avoca Racecourse, Harts Lane, Avoca, Victoria, 3467, Australia", "type": "sports_centre"}], "Bairnsdale": [{"lat": -37.8444691, "lon": 147.6043472, "name": "Bairnsdale Racecourse, Holloway Street, Bairnsdale, Victoria, 3875, Australia", "type": "sports_centre"}], "Ballina": [{"lat": -28.852031, "lon": 153.5606405, "name": "Racecourse Road, North Ballina, Ballina, New South Wales, 2478, Australia", "type": "residential"}], "Balnarring": [{"lat": -38.3480084, "lon": 145.1411, "name": "Balnarring Racecourse & Emu Plains Reserve, Balnarring, Melbourne, Victoria, 392", "type": "park"}], "Barcaldine": [], "Bathurst": [{"lat": -33.3952773, "lon": 149.5901279, "name": "Tyers Park Racecourse, Kelso, Bathurst, New South Wales, Australia", "type": "recreation_ground"}], "Belmont": [{"lat": -31.9433124, "lon": 115.8904519, "name": "Belmont Park Racecourse, Placid Avenue, Burswood, Perth, Western Australia, 6100", "type": "stadium"}], "Benalla": [{"lat": -36.5253163, "lon": 145.9838989, "name": "Benalla Racecourse, Benalla, Victoria, 3672, Australia", "type": "park"}], "Bendigo": [{"lat": -36.722995, "lon": 144.3189553, "name": "Bendigo Racecourse, Heinz Street, White Hills, Bendigo, Victoria, 3550, Australi", "type": "sports_centre"}, {"lat": -36.721749, "lon": 144.3170005, "name": "Bendigo Racecourse, Roper Terrace, Epsom, Bendigo, Victoria, 3551, Australia", "type": "track"}], "Berrigan": [{"lat": -35.6754961, "lon": 145.8121561, "name": "Berrigan Racecourse, Berrigan, New South Wales, 2712, Australia", "type": "recreation_ground"}], "Binnaway": [], "Birdsville": [{"lat": -25.9176423, "lon": 139.3834359, "name": "Birdsville Racecourse, Birdsville Developmental Road, Birdsville, Queensland, 44", "type": "sports_centre"}], "Blackall": [{"lat": -24.415178, "lon": 145.4537742, "name": "Racecourse Road, Blackall, Queensland, 4472, Australia", "type": "unclassified"}], "Bordertown": [{"lat": -36.3042149, "lon": 140.7805051, "name": "Bordertown Racecourse, Richards Lane, Bordertown, South Australia, 5268, Austral", "type": "raceway"}], "Bowen": [], "Bowraville": [{"lat": -30.645988, "lon": 152.8665448, "name": "Bowraville Racecourse, Valla Road, Bowraville, New South Wales, 2449, Australia", "type": "sports_centre"}], "Broome": [], "Bunbury": [], "Bundaberg": [{"lat": -24.8904053, "lon": 152.3555357, "name": "Bundaberg Racecourse, Maynard Street, Norville, Bundaberg, Queensland, 4670, Aus", "type": "sports_centre"}], "Burrumbeet": [{"lat": -37.4957067, "lon": 143.6724127, "name": "Burrumbeet Racecourse, Burrumbeet, Victoria, 3352, Australia", "type": "recreation_ground"}], "Camperdown": [{"lat": -38.2146089, "lon": 143.1541615, "name": "Camperdown Racecourse, Camperdown, Victoria, 3260, Australia", "type": "recreation_ground"}], "Canberra Acton": [], "Canterbury": [{"lat": -33.9069655, "lon": 151.1156221, "name": "Canterbury Park Racecourse, Wairoa Street, Canterbury, Sydney, New South Wales, ", "type": "sports_centre"}, {"lat": -33.9045427, "lon": 151.1183889, "name": "Canterbury Park Racecourse, King St, King Street, Canterbury, Inner West, Sydney", "type": "bus_stop"}, {"lat": -33.904783, "lon": 151.1185273, "name": "King St opp Canterbury Park Racecourse, King Street, Canterbury, Inner West, Syd", "type": "bus_stop"}], "Carnarvon": [{"lat": -29.4562407, "lon": 149.8492039, "name": "Moree Racecourse, Carnarvon Highway, Moree, New South Wales, 2400, Australia", "type": "sports_centre"}], "Casino": [{"lat": -28.8864522, "lon": 153.0495952, "name": "Casino Racecourse & Showground, Casino, New South Wales, 2470, Australia", "type": "recreation_ground"}], "Casterton": [{"lat": -37.6044494, "lon": 141.4131238, "name": "Casterton Racecourse, Cemetery Road, Casterton, Victoria, 3311, Australia", "type": "sports_centre"}, {"lat": -37.6032122, "lon": 141.4145792, "name": "Casterton Racecourse, Cemetery Road, Casterton, Victoria, 3311, Australia", "type": "track"}], "Caulfield": [{"lat": -37.8818418, "lon": 145.039429, "name": "Caulfield Racecourse, Kambrook Road, Caulfield East, Melbourne, Victoria, 3145, ", "type": "sports_centre"}, {"lat": -37.8824368, "lon": 145.0375745, "name": "Caulfield Racecourse, Moodie Street, Caulfield East, Melbourne, Victoria, 3145, ", "type": "track"}], "Ceduna": [], "Charleville": [{"lat": -26.4017806, "lon": 146.2570964, "name": "Charleville Racecourse, Warrego Highway, Charleville, Queensland, 4470, Australi", "type": "track"}], "Chinchilla": [{"lat": -26.7580385, "lon": 150.6044848, "name": "Racecourse Road, Chinchilla, Queensland, 4413, Australia", "type": "tertiary"}], "Clare": [{"lat": -33.7890862, "lon": 138.590557, "name": "Clare Valley Racecourse, Stanley Flat, South Australia, 5453, Australia", "type": "recreation_ground"}, {"lat": -33.7892453, "lon": 138.5889704, "name": "Clare Valley Racecourse, McAskill Road, Stanley Flat, South Australia, 5453, Aus", "type": "track"}, {"lat": -33.78694, "lon": 138.58778, "name": "Clare Valley Racecourse, Stradbrooke Road, Stanley Flat, South Australia, 5453, ", "type": "camp_site"}], "Clermont": [{"lat": -22.8294793, "lon": 147.6178306, "name": "Racecourse Road, Clermont, Queensland, 4721, Australia", "type": "unclassified"}], "Cloncurry": [], "Cobar": [{"lat": -31.4842698, "lon": 145.8353334, "name": "Cobar Racecourse, Cobar, New South Wales, 2835, Australia", "type": "park"}], "Coffs Harbour": [], "Colac": [{"lat": -38.3737169, "lon": 143.578456, "name": "Colac Racecourse, Stoney Rise Road, Elliminyt, Victoria, 3250, Australia", "type": "sports_centre"}], "Coleraine": [{"lat": -37.6098679, "lon": 141.7364923, "name": "Coleraine Racecourse, Coleraine, Victoria, 3315, Australia", "type": "recreation_ground"}], "Coonabarabran": [{"lat": -31.2860749, "lon": 149.2730289, "name": "Coonabarabran Racecourse, Coonabarabran, New South Wales, 2357, Australia", "type": "recreation_ground"}], "Coonamble": [{"lat": -30.9470819, "lon": 148.3680324, "name": "Coonamble Racecourse, Coonamble, New South Wales, 2829, Australia", "type": "recreation_ground"}], "Cootamundra": [{"lat": -34.614908, "lon": 148.0190852, "name": "Cootamundra Racecourse, Cootamundra, New South Wales, 2590, Australia", "type": "park"}, {"lat": -34.6154293, "lon": 148.0208416, "name": "Cootamundra Racecourse, West Jindalee Road, Cootamundra, New South Wales, 2590, ", "type": "track"}], "Corowa": [{"lat": -36.0197944, "lon": 146.3672487, "name": "Corowa Racecourse & Showgrounds, Corowa, New South Wales, 2646, Australia", "type": "recreation_ground"}], "Cowra": [], "Cranbourne": [{"lat": -38.1205154, "lon": 145.2785406, "name": "Cranbourne Racecourse, Laurie Cleary Lane, Cranbourne, Melbourne, Victoria, 3977", "type": "sports_centre"}], "Cranbourne Training": [], "Cunnamulla": [{"lat": -28.0664566, "lon": 145.7089559, "name": "Cunnamulla Racecourse, Cunnamulla Bushlands, Cunnamulla, Queensland, 4490, Austr", "type": "track"}], "Deagon": [{"lat": -27.3209342, "lon": 153.0568489, "name": "Racecourse Road, Deagon, Brisbane, Queensland, 4017, Australia", "type": "residential"}, {"lat": -27.3233923, "lon": 153.0611194, "name": "Board St near Racecourse Rd, stop 29a, Board Street, Deagon, Brisbane, Queenslan", "type": "bus_stop"}, {"lat": -27.3241329, "lon": 153.0598097, "name": "Board St at Deagon Racecourse, stop 29, Board Street, Deagon, Brisbane, Queensla", "type": "bus_stop"}], "Deniliquin": [{"lat": -35.5369877, "lon": 144.9182434, "name": "Deniliquin Racecourse, Racecourse Road, Deniliquin, New South Wales, 2710, Austr", "type": "track"}], "Devonport": [{"lat": -41.2083871, "lon": 146.3400344, "name": "Racecourse Road, Quoiba, Spreyton, Devonport, Tasmania, 7310, Australia", "type": "residential"}, {"lat": -41.211217, "lon": 146.3402683, "name": "Spreyton Racecourse, Loone Lane, Spreyton, Devonport, Tasmania, 7310, Australia", "type": "sports_centre"}], "Donald": [{"lat": -36.360055, "lon": 142.9969325, "name": "Donald Racecourse, Donald, Victoria, 3480, Australia", "type": "recreation_ground"}], "Dongara": [{"lat": -29.2427406, "lon": 114.9270688, "name": "Dongara Racecourse, Gem Way, Dongara, Western Australia, 6525, Australia", "type": "stadium"}], "Doomben": [{"lat": -27.4262979, "lon": 153.0761163, "name": "Doomben Racecourse, O'Sullivan Street, Hendra, Brisbane, Queensland, 4011, Austr", "type": "sports_centre"}], "Dubbo": [{"lat": -32.2327667, "lon": 148.6348795, "name": "City of Dubbo Turf Club, 11, Merrilea Road, Apollo, Dubbo, New South Wales, 2830", "type": "sports_centre"}], "Edenhope": [{"lat": -37.0288609, "lon": 141.2667884, "name": "Edenhope Racecourse, Edenhope, Victoria, 3318, Australia", "type": "recreation_ground"}], "Eidsvold": [{"lat": -25.3971207, "lon": 151.1329697, "name": "Eidsvold Racecourse, Racecourse Road, Eidsvold, Queensland, 4627, Australia", "type": "sports_centre"}], "Emerald": [{"lat": -23.5079717, "lon": 148.1589604, "name": "Emerald Racecourse, Park Avenue, Emerald, Queensland, 4720, Australia", "type": "sports_centre"}], "Esk": [], "Esperance": [{"lat": -32.2178092, "lon": 121.7743682, "name": "Former Racecourse, Coolgardie Esperance Highway, Norseman, Western Australia, 64", "type": "pitch"}], "Ewan": [{"lat": -19.421562, "lon": 145.6579065, "name": "Ewan Racecourse, Gregory Developmental Road, Basalt, Queensland, 4820, Australia", "type": "sports_centre"}], "Fannie Bay": [{"lat": -12.424545, "lon": 130.8451623, "name": "Fannie Bay Racecourse, Douglas Street, Fannie Bay, Darwin, Northern Territory, 0", "type": "sports_centre"}], "Flemington": [{"lat": -37.7892513, "lon": 144.9127713, "name": "Flemington Racecourse, 448, Epsom Road, Flemington, Melbourne, Victoria, 3031, A", "type": "sports_centre"}, {"lat": -37.7874953, "lon": 144.9072064, "name": "Flemington Racecourse, Leonard Crescent, Flemington, Melbourne, Victoria, 3031, ", "type": "station"}], "Forbes": [{"lat": -33.3880378, "lon": 147.9917417, "name": "Forbes Racecourse, Forester Street, Forbes, New South Wales, 2871, Australia", "type": "track"}], "Gatton": [{"lat": -27.5525458, "lon": 152.2640841, "name": "Gatton Racecourse, Spencer Street, Gatton, Queensland, 4343, Australia", "type": "sports_centre"}, {"lat": -27.5522935, "lon": 152.2617798, "name": "Lockyer Race Club, Fitzroy Street, Gatton, Queensland, 4343, Australia", "type": "track"}], "Gawler": [{"lat": -34.612969, "lon": 138.7387246, "name": "Gawler Racecourse, Warhurst Court, Evanston, Adelaide, South Australia, 5116, Au", "type": "station"}, {"lat": -34.6156049, "lon": 138.7429957, "name": "Gawler Racecourse, Main North Road, Evanston, Adelaide, South Australia, 5116, A", "type": "track"}], "Gayndah": [{"lat": -25.6282959, "lon": 151.5921971, "name": "Gayndah Racecourse, West Woodmillar Road, Gayndah, Queensland, 4625, Australia", "type": "sport"}], "Geelong": [{"lat": -38.174669, "lon": 144.3745648, "name": "Geelong Racecourse, McAllister Street, Breakwater, Geelong, Victoria, 3219, Aust", "type": "sports_centre"}], "Gilgandra": [{"lat": -31.7209966, "lon": 148.6673132, "name": "Gilgandra Racecourse, Racecourse Road, Gilgandra, New South Wales, 2827, Austral", "type": "sports_centre"}], "Gladstone": [{"lat": -23.864184, "lon": 151.2400684, "name": "Gladstone Racecourse, Dawson Highway, West Gladstone, Gladstone, Queensland, 468", "type": "sports_centre"}], "Glen Innes": [], "Gold Coast": [{"lat": -28.0011852, "lon": 153.4064121, "name": "Racecourse Park, Bundall, Gold Coast, Queensland, Australia", "type": "park"}, {"lat": -27.9991191, "lon": 153.4065688, "name": "Racecourse Drive, Bundall, Gold Coast, Queensland, 4217, Australia", "type": "residential"}], "Gold Coast Poly": [], "Goondiwindi": [{"lat": -28.5359789, "lon": 150.3102934, "name": "Goondiwindi Racecourse, Goondiwindi, Queensland, 4390, Australia", "type": "recreation_ground"}], "Gordonvale": [], "Gosford": [{"lat": -33.4245828, "lon": 151.3275269, "name": "Gosford Racecourse, Central Coast Highway, West Gosford, Gosford, New South Wale", "type": "track"}], "Goulburn": [{"lat": -34.7149242, "lon": 149.7500309, "name": "Racecourse Drive, Kenmore, Goulburn, New South Wales, 2580, Australia", "type": "residential"}, {"lat": -34.7144454, "lon": 149.7453689, "name": "Racecourse Drive, Kenmore, Goulburn, New South Wales, 2580, Australia", "type": "service"}, {"lat": -34.7106879, "lon": 149.7499166, "name": "Goulburn Racecourse & Trotting Track, Taralga Road, Kenmore, Goulburn, New South", "type": "sports_centre"}], "Grafton": [{"lat": -29.6767327, "lon": 152.931295, "name": "Grafton Racecourse, Bruce Street, Westlawn, Grafton, New South Wales, 2460, Aust", "type": "sports_centre"}], "Great Western": [{"lat": -37.1635082, "lon": 142.8533406, "name": "Great Western Racecourse, Great Western, Victoria, 3374, Australia", "type": "recreation_ground"}], "Grenfell": [{"lat": -33.9084381, "lon": 148.1352594, "name": "Grenfell Racecourse, Holy Camp Road, Grenfell, New South Wales, 2810, Australia", "type": "sports_centre"}, {"lat": -33.9071708, "lon": 148.1336729, "name": "Grenfell Racecourse, Holy Camp Road, Grenfell, New South Wales, 2810, Australia", "type": "horse_riding"}], "Gulargambone": [], "Gundagai": [{"lat": -35.0692423, "lon": 148.1220831, "name": "Gundagai Racecourse, Gundagai, New South Wales, 2722, Australia", "type": "park"}], "Gunnedah": [{"lat": -30.9663042, "lon": 150.2942198, "name": "Gunnedah Racecourse, Wilkinson Road, Gunnedah, New South Wales, 2380, Australia", "type": "sports_centre"}], "Gympie": [{"lat": -26.2032509, "lon": 152.6469962, "name": "Gympie Racecourse, Ramsey Road, Southside, Queensland, 4570, Australia", "type": "sports_centre"}], "Halidon": [{"lat": -34.8729385, "lon": 140.1832856, "name": "Halidon Racecourse, Halidon, South Australia, 5309, Australia", "type": "recreation_ground"}], "Hamilton": [{"lat": -37.7169351, "lon": 141.9890759, "name": "Hamilton Racecourse, Bullocks Road, Hamilton, Victoria, 3300, Australia", "type": "sports_centre"}], "Hanging Rock": [{"lat": -37.3311724, "lon": 144.5982111, "name": "Hanging Rock Racecourse, Colwells Road, Newham, Woodend, Victoria, 3442, Austral", "type": "track"}], "Hawkesbury": [], "Healesville": [], "Holbrook": [{"lat": -35.7142131, "lon": 147.3340071, "name": "Racecourse Road, Holbrook, New South Wales, 2644, Australia", "type": "residential"}], "Home Hill": [{"lat": -19.6724411, "lon": 147.4207241, "name": "Home Hill Racecourse, Darveniza Road, Home Hill, Queensland, 4806, Australia", "type": "sports_centre"}], "Horsham": [{"lat": -36.7151342, "lon": 142.1903781, "name": "Horsham Racecourse, Horsham, Victoria, 3400, Australia", "type": "park"}], "Hughenden": [{"lat": -20.8641329, "lon": 144.1815096, "name": "Hughenden Racecourse, Kennedy Developmental Road, Hughenden, Queensland, 4821, A", "type": "sports_centre"}], "Illawarra Grange": [], "Ingham": [{"lat": -18.6575167, "lon": 146.1748042, "name": "Ingham Racecourse, Borello Street, Ingham, Queensland, 4850, Australia", "type": "track"}], "Innisfail": [], "Inverell": [], "Ipswich": [{"lat": -27.615122, "lon": 152.8047866, "name": "Ipswich Racecourse, 219, Brisbane Road, Bundamba, Booval, Brisbane, Queensland, ", "type": "sports_centre"}], "Jerilderie": [], "Julia Creek": [{"lat": -20.6690668, "lon": 141.7347892, "name": "McIntyre Park Racecourse, McIntyre Park Road, Julia Creek, Queensland, 4823, Aus", "type": "track"}], "Katherine": [], "Kembla Grange": [{"lat": -34.4701561, "lon": 150.8175256, "name": "Kembla Grange, West Dapto Road, Kembla Grange, Wollongong, New South Wales, 2526", "type": "halt"}], "Kempsey": [], "Kerang": [], "Kilcoy": [{"lat": -26.9415065, "lon": 152.5480501, "name": "Kilcoy Racecourse, Woolmar, Kilcoy, Queensland, 4515, Australia", "type": "recreation_ground"}], "Kingscote": [{"lat": -35.6842331, "lon": 137.5769643, "name": "Kingscote Racecourse, Hog Bay Road, Kingscote, South Australia, 5223, Australia", "type": "sports_centre"}], "Kununurra": [{"lat": -15.8093496, "lon": 128.7452129, "name": "Kununurra Racecourse, Kununurra, Western Australia, 6743, Australia", "type": "recreation_ground"}], "Kyneton": [{"lat": -37.2405186, "lon": 144.4417696, "name": "Welcome to the Kyneton Racecourse, Campaspe Place, Kyneton, Victoria, 3444, Aust", "type": "board"}], "Leeton": [{"lat": -34.563985, "lon": 146.3988229, "name": "Racecourse Road, Leeton, New South Wales, 2705, Australia", "type": "tertiary"}], "Lismore": [{"lat": -28.7932965, "lon": 153.286739, "name": "Lismore Racecourse, South Lismore, Lismore, New South Wales, 2480, Australia", "type": "unclassified"}, {"lat": -28.7949708, "lon": 153.2896669, "name": "Lismore Racecourse, Brunswick Street, Lismore Heights, New South Wales, 2480, Au", "type": "sports_centre"}], "Lock": [{"lat": -33.5446474, "lon": 135.7117445, "name": "Lock Racecourse, Golf Course Road, Lock, South Australia, 5633, Australia", "type": "sports_centre"}], "Longford": [{"lat": -41.6056782, "lon": 147.1180748, "name": "Racecourse Inn, 114, Marlborough Street, Longford, Tasmania, 7301, Australia", "type": "guest_house"}], "Longreach": [], "Manangatang": [{"lat": -35.0444271, "lon": 142.8888608, "name": "Manangatang Racecourse, Sport Street, Manangatang, Victoria, 3546, Australia", "type": "track"}], "Mareeba": [], "Mildura": [{"lat": -34.1867538, "lon": 142.2102805, "name": "Mildura Racecourse, Nichols Point, Victoria, 3501, Australia", "type": "bridleway"}], "Moe": [{"lat": -38.1778654, "lon": 146.2555437, "name": "Moe Racecourse, Waterloo Road, Moe, Victoria, 3825, Australia", "type": "bus_stop"}, {"lat": -38.1753525, "lon": 146.257495, "name": "Moe Racecourse, Saviges Road, Moe, Victoria, 3825, Australia", "type": "bus_stop"}, {"lat": -38.1744657, "lon": 146.2529884, "name": "Moe Racing Club, Waterloo Road, Moe, Victoria, 3825, Australia", "type": "sports_centre"}], "Moranbah": [{"lat": -21.9973777, "lon": 148.0241035, "name": "Moranbah Racecourse, Sarchedon Drive, Moranbah, Queensland, 4744, Australia", "type": "sports_centre"}], "Moree": [{"lat": -29.4562407, "lon": 149.8492039, "name": "Moree Racecourse, Carnarvon Highway, Moree, New South Wales, 2400, Australia", "type": "sports_centre"}], "Mornington": [{"lat": -38.2355379, "lon": 145.0708125, "name": "Mornington Racecourse, Mornington-Tyabb Road, Mornington, Melbourne, Victoria, 3", "type": "sports_centre"}], "Morphettville": [{"lat": -34.9763419, "lon": 138.5423417, "name": "Morphettville Racecourse, Agars Avenue, Morphettville, Adelaide, South Australia", "type": "sports_centre"}, {"lat": -34.9776347, "lon": 138.5390945, "name": "Morphettville Racecourse, Mike Turtur Bikeway, Morphettville, Adelaide, South Au", "type": "track"}], "Mortlake": [{"lat": -38.0730616, "lon": 142.7731755, "name": "Mortlake Racecourse, Mortlake, Victoria, 3272, Australia", "type": "recreation_ground"}], "Mt Barker": [], "Mt Garnet": [], "Mt Isa": [{"lat": -20.7184261, "lon": 139.5005892, "name": "Buchannan Park Racecourse, Menzies, Mount Isa, Queensland, Australia", "type": "recreation_ground"}, {"lat": -20.7173864, "lon": 139.5024179, "name": "Buchannan Park Racecourse, Patricia Street, Menzies, Mount Isa, Queensland, 4825", "type": "track"}], "Mudgee": [{"lat": -32.5817497, "lon": 149.5974178, "name": "Mudgee Racecourse, Moggs Lane, Bombira, New South Wales, 2850, Australia", "type": "sports_centre"}], "Murtoa": [{"lat": -36.6282296, "lon": 142.4626173, "name": "Murtoa Racecourse, Murtoa, Victoria, 3390, Australia", "type": "recreation_ground"}], "Murwillumbah": [{"lat": -28.3148162, "lon": 153.4105548, "name": "Murwillumbah Seventh-Day Adventist Church, Racecourse Road, Tygalgah, New South ", "type": "place_of_worship"}], "Nanango": [{"lat": -26.6920903, "lon": 151.9885945, "name": "Nanango Racecourse, Racecourse Road, Nanango, Queensland, 4615, Australia", "type": "sports_centre"}, {"lat": -26.6921885, "lon": 151.9892524, "name": "Nanango Racecourse, Fleming Street, Nanango, Queensland, 4615, Australia", "type": "track"}], "Naracoorte": [], "Narrandera": [{"lat": -34.7359029, "lon": 146.5599065, "name": "Racecourse Road, Narrandera, New South Wales, 2700, Australia", "type": "residential"}], "Narrogin": [], "Narromine": [{"lat": -32.4716748, "lon": 147.9348605, "name": "Mungery Racecourse, Mungery Hall Road, Narromine, New South Wales, 2821, Austral", "type": "track"}], "Nowra": [{"lat": -34.9030538, "lon": 150.589606, "name": "Nowra Racecourse, Albatross Road, South Nowra, New South Wales, 2541, Australia", "type": "sports_centre"}], "Nyngan": [{"lat": -31.573243, "lon": 147.2010948, "name": "Nyngan Showground, Nyngan, New South Wales, 2825, Australia", "type": "recreation_ground"}], "Oakbank": [{"lat": -34.9767122, "lon": 138.8455615, "name": "Oakbank Racecourse, Shillabeer Road, Oakbank, South Australia, 5243, Australia", "type": "track"}], "Orange": [{"lat": -33.299507, "lon": 149.0696542, "name": "Towac Park Racecourse, Calare, Orange, New South Wales, 2800, Australia", "type": "recreation_ground"}, {"lat": -33.292564, "lon": 149.0781109, "name": "Racecourse Road, Calare, Orange, New South Wales, 2800, Australia", "type": "tertiary"}, {"lat": -33.2912195, "lon": 149.0830591, "name": "Racecourse Rd after Kenna St, Racecourse Road, Calare, Orange, New South Wales, ", "type": "bus_stop"}], "Pakenham": [{"lat": -38.0938204, "lon": 145.6110334, "name": "Pakenham Racecourse, Knights Court, Tynong, Melbourne, Victoria, 3813, Australia", "type": "sports_centre"}], "Parkes": [], "Penola": [{"lat": -37.3503028, "lon": 140.8584295, "name": "Racecourse Swamp, Penola, South Australia, 5277, Australia", "type": "wetland"}, {"lat": -37.3637652, "lon": 140.8472787, "name": "Old Racecourse Road, Penola, South Australia, 5277, Australia", "type": "unclassified"}, {"lat": -37.353143, "lon": 140.8588762, "name": "Racecourse Road, Penola, South Australia, 5277, Australia", "type": "unclassified"}], "Penshurst": [{"lat": -37.8618185, "lon": 142.3035588, "name": "Penshurst Racecourse, Penshurst, Victoria, 3289, Australia", "type": "recreation_ground"}], "Pioneer": [{"lat": -41.0765379, "lon": 147.9068603, "name": "Racecourse Road, Herrick, Winnaleah, Tasmania, 7265, Australia", "type": "tertiary"}], "Port Augusta": [{"lat": -32.4968411, "lon": 137.8060281, "name": "Port Augusta Racecourse, Chapman Road, Port Augusta, South Australia, 5700, Aust", "type": "sports_centre"}], "Port Hedland": [], "Port Lincoln": [{"lat": -34.7467155, "lon": 135.8521108, "name": "Port Lincoln Racecourse, Buberis Court, Port Lincoln, South Australia, 5606, Aus", "type": "track"}], "Port Macquarie": [], "Queanbeyan": [{"lat": -35.3578174, "lon": 149.2017694, "name": "Queanbeyan Racecourse, Woods Lane, District of Jerrabomberra, Canberra, Australi", "type": "sports_centre"}], "Quirindi": [], "Randwick": [{"lat": -33.9105151, "lon": 151.2304349, "name": "Randwick Racecourse, Randwick, Eastern Suburbs, Sydney, New South Wales, Austral", "type": "recreation_ground"}], "Richmond": [{"lat": -20.7069828, "lon": 143.1233363, "name": "Richmond Racecourse, Aerodrome Road, Richmond, Queensland, 4822, Australia", "type": "sports_centre"}], "Roebourne": [], "Roma": [], "Royal Randwick": [{"lat": -33.9105151, "lon": 151.2304349, "name": "Randwick Racecourse, Randwick, Eastern Suburbs, Sydney, New South Wales, Austral", "type": "recreation_ground"}], "Sapphire Coast": [], "Scone": [], "Springsure": [{"lat": -24.1331458, "lon": 148.0863912, "name": "Racecourse Road, Springsure, Queensland, 4722, Australia", "type": "track"}, {"lat": -24.1342202, "lon": 148.0905142, "name": "Racecourse Road, Springsure, Queensland, 4722, Australia", "type": "service"}], "St Arnaud": [{"lat": -36.6397715, "lon": 143.200865, "name": "St. Arnaud Racecourse, Wimmera Highway, Moolerr, Victoria, 3477, Australia", "type": "sports_centre"}], "St George": [{"lat": -28.0689441, "lon": 148.611815, "name": "St George Racecourse, Johnston Road, St George, Queensland, 4487, Australia", "type": "sports_centre"}], "Stawell": [], "Stony Creek": [], "Strathalbyn": [], "Sunshine Coast Poly": [], "Tambo": [{"lat": -24.87606, "lon": 146.2741938, "name": "Tambo Racecourse, Racecourse Road, Tambo, Queensland, 4478, Australia", "type": "sports_centre"}], "Tamworth": [{"lat": -31.0857564, "lon": 150.9039736, "name": "Tamworth Racecourse, Taminda, Tamworth, New South Wales, 2340, Australia", "type": "recreation_ground"}], "Taroom": [{"lat": -25.6474357, "lon": 149.8255178, "name": "Racecourse Road, Taroom, Queensland, 4420, Australia", "type": "unclassified"}], "Tatura": [{"lat": -36.4531086, "lon": 145.2263941, "name": "Tatura Racecourse Reserve, Tatura, Victoria, 3616, Australia", "type": "recreation_ground"}, {"lat": -36.4514193, "lon": 145.229624, "name": "Tatura-Shepparton Racecourse, O'Reilly Road, Tatura, Victoria, 3616, Australia", "type": "track"}], "Terang": [{"lat": -38.2323016, "lon": 142.8899814, "name": "Terang Racecourse, 10, Keilambete Road, Terang, Victoria, 3264, Australia", "type": "sports_centre"}], "Thangool": [{"lat": -24.4936004, "lon": 150.5643316, "name": "Thangool Racecourse, Meissners Road, Thangool, Queensland, 4716, Australia", "type": "sports_centre"}], "Tocumwal": [{"lat": -35.7971699, "lon": 145.5715112, "name": "Tocumwal Racecourse, Bruce Birrel Drive, Tocumwal, New South Wales, 2714, Austra", "type": "sports_centre"}], "Towong": [{"lat": -36.1297955, "lon": 147.9813319, "name": "Towong Racecourse, Grant Street, Towong, Victoria, 3707, Australia", "type": "track"}], "Traralgon": [{"lat": -38.1940153, "lon": 146.5610027, "name": "Racecourse Car Park and Circus Site, Traralgon, Victoria, 3844, Australia", "type": "park"}], "Tumut": [{"lat": -35.3057909, "lon": 148.2330943, "name": "Tumut Racecourse, Elm Drive, Tumut, New South Wales, 2720, Australia", "type": "sports_centre"}], "Tuncurry": [], "Twin Hills": [{"lat": -21.9459195, "lon": 146.9596605, "name": "Twin Hills Racecourse, Twin Hills Road, Frankfield, Queensland, 4721, Australia", "type": "sports_centre"}], "Wagga Riverside": [], "Walcha": [{"lat": -30.9711826, "lon": 151.5763739, "name": "Walcha Racecourse, Darjeeling Road, Walcha, New South Wales, 2354, Australia", "type": "sports_centre"}, {"lat": -30.9710907, "lon": 151.5768444, "name": "Walcha Racecourse, Beaver Place, Walcha, New South Wales, 2354, Australia", "type": "track"}], "Wangaratta": [{"lat": -36.3613278, "lon": 146.2885782, "name": "Racecourse Road, Wangaratta, Victoria, 3677, Australia", "type": "residential"}], "Warracknabeal": [{"lat": -36.2487316, "lon": 142.4058869, "name": "Warracknabeal Racecourse, Racecourse Road, Warracknabeal, Victoria, 3393, Austra", "type": "sports_centre"}], "Warren": [{"lat": -31.685847, "lon": 147.8162739, "name": "Warren Showground and Racecourse, Warren, New South Wales, 2824, Australia", "type": "recreation_ground"}], "Warrnambool": [{"lat": -38.3788885, "lon": 142.507475, "name": "Warrnambool Racecourse, Whitehead Court, Warrnambool, Victoria, 3280, Australia", "type": "sports_centre"}], "Warwick": [{"lat": -28.2102023, "lon": 152.016841, "name": "Warwick Racecourse, Victoria Street, Warwick, Queensland, 4370, Australia", "type": "sports_centre"}, {"lat": -28.2097377, "lon": 152.0129455, "name": "Warwick Racecourse, Victoria Street, Warwick, Queensland, 4370, Australia", "type": "track"}], "Wellington": [{"lat": -32.5559516, "lon": 148.9311743, "name": "Wellington Showground, New South Wales, Australia", "type": "recreation_ground"}], "Werribee": [{"lat": -37.9072331, "lon": 144.6411388, "name": "Werribee Racecourse, Bulban Road, Werribee, Melbourne, Victoria, 3030, Australia", "type": "railway_station"}, {"lat": -37.9028292, "lon": 144.6453403, "name": "Werribee Racecourse, Mingos Court, Werribee, Melbourne, Victoria, 3030, Australi", "type": "sports_centre"}], "Winton": [{"lat": -32.4968411, "lon": 137.8060281, "name": "Port Augusta Racecourse, Winton Road, Wami Kata, Port Augusta, South Australia, ", "type": "sports_centre"}], "Wodonga": [{"lat": -36.1342274, "lon": 146.8977807, "name": "Wodonga Racecourse, Peeler Street, White Box Rise, Wodonga, Victoria, 3690, Aust", "type": "track"}], "Wondai": [{"lat": -26.3137167, "lon": 151.8842662, "name": "Racecourse Road, Wondai, Queensland, 4606, Australia", "type": "unclassified"}], "Woolamai": [], "Wyong": [{"lat": -33.2811414, "lon": 151.4312144, "name": "Wyong Racecourse and Showground, Rose Street, Wyong, New South Wales, 2259, Aust", "type": "sports_centre"}], "Yarra Glen": [{"lat": -37.6548993, "lon": 145.3802834, "name": "Racecourse Place, Melbourne, Victoria, 3775, Australia", "type": "residential"}], "Yea": [{"lat": -37.2140328, "lon": 145.3899098, "name": "Racecourse Road, Yea, Victoria, 3717, Australia", "type": "unclassified"}], "Yeppoon": [{"lat": -23.141758, "lon": 150.7049078, "name": "Yeppoon Racecourse, Neils Road, Barmaryee, Queensland, 4703, Australia", "type": "sports_centre"}], "York": [], "Albany": []}
+{
+"Alexandra": [],
+"Alpha": [
+{
+"lat": -23.6883191,
+"lon": 146.9711053,
+"name": "Racecourse Creek, Alpha, Queensland, 4724, Australia",
+"type": "stream"
+},
+{
+"lat": -23.6481639,
+"lon": 146.6108442,
+"name": "Fordham Park (Alpha) Racecourse, 43691, Capricorn Highway, Alpha, Queensland, 47",
+"type": "sports_centre"
+}
+],
+"Ararat": [],
+"Armidale": [
+{
+"lat": -30.5174538,
+"lon": 151.6767113,
+"name": "Armidale Racecourse, Armidale, New South Wales, 2350, Australia",
+"type": "recreation_ground"
+}
+],
+"Ascot": [
+{
+"lat": -31.9349899,
+"lon": 115.9207839,
+"name": "Ascot Racecourse, Grandstand Road, Ascot, Perth, Western Australia, 6104, Austra",
+"type": "track"
+}
+],
+"Atherton": [],
+"Avoca": [
+{
+"lat": -37.1006865,
+"lon": 143.4478576,
+"name": "Avoca Racecourse, Harts Lane, Avoca, Victoria, 3467, Australia",
+"type": "sports_centre"
+}
+],
+"Bairnsdale": [
+{
+"lat": -37.8444691,
+"lon": 147.6043472,
+"name": "Bairnsdale Racecourse, Holloway Street, Bairnsdale, Victoria, 3875, Australia",
+"type": "sports_centre"
+}
+],
+"Ballina": [
+{
+"lat": -28.852031,
+"lon": 153.5606405,
+"name": "Racecourse Road, North Ballina, Ballina, New South Wales, 2478, Australia",
+"type": "residential"
+}
+],
+"Balnarring": [
+{
+"lat": -38.3480084,
+"lon": 145.1411,
+"name": "Balnarring Racecourse & Emu Plains Reserve, Balnarring, Melbourne, Victoria, 392",
+"type": "park"
+}
+],
+"Barcaldine": [],
+"Bathurst": [
+{
+"lat": -33.3952773,
+"lon": 149.5901279,
+"name": "Tyers Park Racecourse, Kelso, Bathurst, New South Wales, Australia",
+"type": "recreation_ground"
+}
+],
+"Belmont": [
+{
+"lat": -31.9433124,
+"lon": 115.8904519,
+"name": "Belmont Park Racecourse, Placid Avenue, Burswood, Perth, Western Australia, 6100",
+"type": "stadium"
+}
+],
+"Benalla": [
+{
+"lat": -36.5253163,
+"lon": 145.9838989,
+"name": "Benalla Racecourse, Benalla, Victoria, 3672, Australia",
+"type": "park"
+}
+],
+"Bendigo": [
+{
+"lat": -36.722995,
+"lon": 144.3189553,
+"name": "Bendigo Racecourse, Heinz Street, White Hills, Bendigo, Victoria, 3550, Australi",
+"type": "sports_centre"
+},
+{
+"lat": -36.721749,
+"lon": 144.3170005,
+"name": "Bendigo Racecourse, Roper Terrace, Epsom, Bendigo, Victoria, 3551, Australia",
+"type": "track"
+}
+],
+"Berrigan": [
+{
+"lat": -35.6754961,
+"lon": 145.8121561,
+"name": "Berrigan Racecourse, Berrigan, New South Wales, 2712, Australia",
+"type": "recreation_ground"
+}
+],
+"Binnaway": [],
+"Birdsville": [
+{
+"lat": -25.9176423,
+"lon": 139.3834359,
+"name": "Birdsville Racecourse, Birdsville Developmental Road, Birdsville, Queensland, 44",
+"type": "sports_centre"
+}
+],
+"Blackall": [
+{
+"lat": -24.415178,
+"lon": 145.4537742,
+"name": "Racecourse Road, Blackall, Queensland, 4472, Australia",
+"type": "unclassified"
+}
+],
+"Bordertown": [
+{
+"lat": -36.3042149,
+"lon": 140.7805051,
+"name": "Bordertown Racecourse, Richards Lane, Bordertown, South Australia, 5268, Austral",
+"type": "raceway"
+}
+],
+"Bowen": [],
+"Bowraville": [
+{
+"lat": -30.645988,
+"lon": 152.8665448,
+"name": "Bowraville Racecourse, Valla Road, Bowraville, New South Wales, 2449, Australia",
+"type": "sports_centre"
+}
+],
+"Broome": [],
+"Bunbury": [],
+"Bundaberg": [
+{
+"lat": -24.8904053,
+"lon": 152.3555357,
+"name": "Bundaberg Racecourse, Maynard Street, Norville, Bundaberg, Queensland, 4670, Aus",
+"type": "sports_centre"
+}
+],
+"Burrumbeet": [
+{
+"lat": -37.4957067,
+"lon": 143.6724127,
+"name": "Burrumbeet Racecourse, Burrumbeet, Victoria, 3352, Australia",
+"type": "recreation_ground"
+}
+],
+"Camperdown": [
+{
+"lat": -38.2146089,
+"lon": 143.1541615,
+"name": "Camperdown Racecourse, Camperdown, Victoria, 3260, Australia",
+"type": "recreation_ground"
+}
+],
+"Canberra Acton": [],
+"Canterbury": [
+{
+"lat": -33.9069655,
+"lon": 151.1156221,
+"name": "Canterbury Park Racecourse, Wairoa Street, Canterbury, Sydney, New South Wales, ",
+"type": "sports_centre"
+},
+{
+"lat": -33.9045427,
+"lon": 151.1183889,
+"name": "Canterbury Park Racecourse, King St, King Street, Canterbury, Inner West, Sydney",
+"type": "bus_stop"
+},
+{
+"lat": -33.904783,
+"lon": 151.1185273,
+"name": "King St opp Canterbury Park Racecourse, King Street, Canterbury, Inner West, Syd",
+"type": "bus_stop"
+}
+],
+"Carnarvon": [
+{
+"lat": -29.4562407,
+"lon": 149.8492039,
+"name": "Moree Racecourse, Carnarvon Highway, Moree, New South Wales, 2400, Australia",
+"type": "sports_centre"
+}
+],
+"Casino": [
+{
+"lat": -28.8864522,
+"lon": 153.0495952,
+"name": "Casino Racecourse & Showground, Casino, New South Wales, 2470, Australia",
+"type": "recreation_ground"
+}
+],
+"Casterton": [
+{
+"lat": -37.6044494,
+"lon": 141.4131238,
+"name": "Casterton Racecourse, Cemetery Road, Casterton, Victoria, 3311, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -37.6032122,
+"lon": 141.4145792,
+"name": "Casterton Racecourse, Cemetery Road, Casterton, Victoria, 3311, Australia",
+"type": "track"
+}
+],
+"Caulfield": [
+{
+"lat": -37.8818418,
+"lon": 145.039429,
+"name": "Caulfield Racecourse, Kambrook Road, Caulfield East, Melbourne, Victoria, 3145, ",
+"type": "sports_centre"
+},
+{
+"lat": -37.8824368,
+"lon": 145.0375745,
+"name": "Caulfield Racecourse, Moodie Street, Caulfield East, Melbourne, Victoria, 3145, ",
+"type": "track"
+}
+],
+"Ceduna": [],
+"Charleville": [
+{
+"lat": -26.4017806,
+"lon": 146.2570964,
+"name": "Charleville Racecourse, Warrego Highway, Charleville, Queensland, 4470, Australi",
+"type": "track"
+}
+],
+"Chinchilla": [
+{
+"lat": -26.7580385,
+"lon": 150.6044848,
+"name": "Racecourse Road, Chinchilla, Queensland, 4413, Australia",
+"type": "tertiary"
+}
+],
+"Clare": [
+{
+"lat": -33.7890862,
+"lon": 138.590557,
+"name": "Clare Valley Racecourse, Stanley Flat, South Australia, 5453, Australia",
+"type": "recreation_ground"
+},
+{
+"lat": -33.7892453,
+"lon": 138.5889704,
+"name": "Clare Valley Racecourse, McAskill Road, Stanley Flat, South Australia, 5453, Aus",
+"type": "track"
+},
+{
+"lat": -33.78694,
+"lon": 138.58778,
+"name": "Clare Valley Racecourse, Stradbrooke Road, Stanley Flat, South Australia, 5453, ",
+"type": "camp_site"
+}
+],
+"Clermont": [
+{
+"lat": -22.8294793,
+"lon": 147.6178306,
+"name": "Racecourse Road, Clermont, Queensland, 4721, Australia",
+"type": "unclassified"
+}
+],
+"Cloncurry": [],
+"Cobar": [
+{
+"lat": -31.4842698,
+"lon": 145.8353334,
+"name": "Cobar Racecourse, Cobar, New South Wales, 2835, Australia",
+"type": "park"
+}
+],
+"Coffs Harbour": [],
+"Colac": [
+{
+"lat": -38.3737169,
+"lon": 143.578456,
+"name": "Colac Racecourse, Stoney Rise Road, Elliminyt, Victoria, 3250, Australia",
+"type": "sports_centre"
+}
+],
+"Coleraine": [
+{
+"lat": -37.6098679,
+"lon": 141.7364923,
+"name": "Coleraine Racecourse, Coleraine, Victoria, 3315, Australia",
+"type": "recreation_ground"
+}
+],
+"Coonabarabran": [
+{
+"lat": -31.2860749,
+"lon": 149.2730289,
+"name": "Coonabarabran Racecourse, Coonabarabran, New South Wales, 2357, Australia",
+"type": "recreation_ground"
+}
+],
+"Coonamble": [
+{
+"lat": -30.9470819,
+"lon": 148.3680324,
+"name": "Coonamble Racecourse, Coonamble, New South Wales, 2829, Australia",
+"type": "recreation_ground"
+}
+],
+"Cootamundra": [
+{
+"lat": -34.614908,
+"lon": 148.0190852,
+"name": "Cootamundra Racecourse, Cootamundra, New South Wales, 2590, Australia",
+"type": "park"
+},
+{
+"lat": -34.6154293,
+"lon": 148.0208416,
+"name": "Cootamundra Racecourse, West Jindalee Road, Cootamundra, New South Wales, 2590, ",
+"type": "track"
+}
+],
+"Corowa": [
+{
+"lat": -36.0197944,
+"lon": 146.3672487,
+"name": "Corowa Racecourse & Showgrounds, Corowa, New South Wales, 2646, Australia",
+"type": "recreation_ground"
+}
+],
+"Cowra": [],
+"Cranbourne": [
+{
+"lat": -38.1205154,
+"lon": 145.2785406,
+"name": "Cranbourne Racecourse, Laurie Cleary Lane, Cranbourne, Melbourne, Victoria, 3977",
+"type": "sports_centre"
+}
+],
+"Cranbourne Training": [],
+"Cunnamulla": [
+{
+"lat": -28.0664566,
+"lon": 145.7089559,
+"name": "Cunnamulla Racecourse, Cunnamulla Bushlands, Cunnamulla, Queensland, 4490, Austr",
+"type": "track"
+}
+],
+"Deagon": [
+{
+"lat": -27.3209342,
+"lon": 153.0568489,
+"name": "Racecourse Road, Deagon, Brisbane, Queensland, 4017, Australia",
+"type": "residential"
+},
+{
+"lat": -27.3233923,
+"lon": 153.0611194,
+"name": "Board St near Racecourse Rd, stop 29a, Board Street, Deagon, Brisbane, Queenslan",
+"type": "bus_stop"
+},
+{
+"lat": -27.3241329,
+"lon": 153.0598097,
+"name": "Board St at Deagon Racecourse, stop 29, Board Street, Deagon, Brisbane, Queensla",
+"type": "bus_stop"
+}
+],
+"Deniliquin": [
+{
+"lat": -35.5369877,
+"lon": 144.9182434,
+"name": "Deniliquin Racecourse, Racecourse Road, Deniliquin, New South Wales, 2710, Austr",
+"type": "track"
+}
+],
+"Devonport": [
+{
+"lat": -41.2083871,
+"lon": 146.3400344,
+"name": "Racecourse Road, Quoiba, Spreyton, Devonport, Tasmania, 7310, Australia",
+"type": "residential"
+},
+{
+"lat": -41.211217,
+"lon": 146.3402683,
+"name": "Spreyton Racecourse, Loone Lane, Spreyton, Devonport, Tasmania, 7310, Australia",
+"type": "sports_centre"
+}
+],
+"Donald": [
+{
+"lat": -36.360055,
+"lon": 142.9969325,
+"name": "Donald Racecourse, Donald, Victoria, 3480, Australia",
+"type": "recreation_ground"
+}
+],
+"Dongara": [
+{
+"lat": -29.2427406,
+"lon": 114.9270688,
+"name": "Dongara Racecourse, Gem Way, Dongara, Western Australia, 6525, Australia",
+"type": "stadium"
+}
+],
+"Doomben": [
+{
+"lat": -27.4262979,
+"lon": 153.0761163,
+"name": "Doomben Racecourse, O'Sullivan Street, Hendra, Brisbane, Queensland, 4011, Austr",
+"type": "sports_centre"
+}
+],
+"Dubbo": [
+{
+"lat": -32.2327667,
+"lon": 148.6348795,
+"name": "City of Dubbo Turf Club, 11, Merrilea Road, Apollo, Dubbo, New South Wales, 2830",
+"type": "sports_centre"
+}
+],
+"Edenhope": [
+{
+"lat": -37.0288609,
+"lon": 141.2667884,
+"name": "Edenhope Racecourse, Edenhope, Victoria, 3318, Australia",
+"type": "recreation_ground"
+}
+],
+"Eidsvold": [
+{
+"lat": -25.3971207,
+"lon": 151.1329697,
+"name": "Eidsvold Racecourse, Racecourse Road, Eidsvold, Queensland, 4627, Australia",
+"type": "sports_centre"
+}
+],
+"Emerald": [
+{
+"lat": -23.5079717,
+"lon": 148.1589604,
+"name": "Emerald Racecourse, Park Avenue, Emerald, Queensland, 4720, Australia",
+"type": "sports_centre"
+}
+],
+"Esk": [],
+"Esperance": [
+{
+"lat": -32.2178092,
+"lon": 121.7743682,
+"name": "Former Racecourse, Coolgardie Esperance Highway, Norseman, Western Australia, 64",
+"type": "pitch"
+}
+],
+"Ewan": [
+{
+"lat": -19.421562,
+"lon": 145.6579065,
+"name": "Ewan Racecourse, Gregory Developmental Road, Basalt, Queensland, 4820, Australia",
+"type": "sports_centre"
+}
+],
+"Fannie Bay": [
+{
+"lat": -12.424545,
+"lon": 130.8451623,
+"name": "Fannie Bay Racecourse, Douglas Street, Fannie Bay, Darwin, Northern Territory, 0",
+"type": "sports_centre"
+}
+],
+"Flemington": [
+{
+"lat": -37.7892513,
+"lon": 144.9127713,
+"name": "Flemington Racecourse, 448, Epsom Road, Flemington, Melbourne, Victoria, 3031, A",
+"type": "sports_centre"
+},
+{
+"lat": -37.7874953,
+"lon": 144.9072064,
+"name": "Flemington Racecourse, Leonard Crescent, Flemington, Melbourne, Victoria, 3031, ",
+"type": "station"
+}
+],
+"Forbes": [
+{
+"lat": -33.3880378,
+"lon": 147.9917417,
+"name": "Forbes Racecourse, Forester Street, Forbes, New South Wales, 2871, Australia",
+"type": "track"
+}
+],
+"Gatton": [
+{
+"lat": -27.5525458,
+"lon": 152.2640841,
+"name": "Gatton Racecourse, Spencer Street, Gatton, Queensland, 4343, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -27.5522935,
+"lon": 152.2617798,
+"name": "Lockyer Race Club, Fitzroy Street, Gatton, Queensland, 4343, Australia",
+"type": "track"
+}
+],
+"Gawler": [
+{
+"lat": -34.612969,
+"lon": 138.7387246,
+"name": "Gawler Racecourse, Warhurst Court, Evanston, Adelaide, South Australia, 5116, Au",
+"type": "station"
+},
+{
+"lat": -34.6156049,
+"lon": 138.7429957,
+"name": "Gawler Racecourse, Main North Road, Evanston, Adelaide, South Australia, 5116, A",
+"type": "track"
+}
+],
+"Gayndah": [
+{
+"lat": -25.6282959,
+"lon": 151.5921971,
+"name": "Gayndah Racecourse, West Woodmillar Road, Gayndah, Queensland, 4625, Australia",
+"type": "sport"
+}
+],
+"Geelong": [
+{
+"lat": -38.174669,
+"lon": 144.3745648,
+"name": "Geelong Racecourse, McAllister Street, Breakwater, Geelong, Victoria, 3219, Aust",
+"type": "sports_centre"
+}
+],
+"Gilgandra": [
+{
+"lat": -31.7209966,
+"lon": 148.6673132,
+"name": "Gilgandra Racecourse, Racecourse Road, Gilgandra, New South Wales, 2827, Austral",
+"type": "sports_centre"
+}
+],
+"Gladstone": [
+{
+"lat": -23.864184,
+"lon": 151.2400684,
+"name": "Gladstone Racecourse, Dawson Highway, West Gladstone, Gladstone, Queensland, 468",
+"type": "sports_centre"
+}
+],
+"Glen Innes": [],
+"Gold Coast": [
+{
+"lat": -28.0011852,
+"lon": 153.4064121,
+"name": "Racecourse Park, Bundall, Gold Coast, Queensland, Australia",
+"type": "park"
+},
+{
+"lat": -27.9991191,
+"lon": 153.4065688,
+"name": "Racecourse Drive, Bundall, Gold Coast, Queensland, 4217, Australia",
+"type": "residential"
+}
+],
+"Gold Coast Poly": [],
+"Goondiwindi": [
+{
+"lat": -28.5359789,
+"lon": 150.3102934,
+"name": "Goondiwindi Racecourse, Goondiwindi, Queensland, 4390, Australia",
+"type": "recreation_ground"
+}
+],
+"Gordonvale": [],
+"Gosford": [
+{
+"lat": -33.4245828,
+"lon": 151.3275269,
+"name": "Gosford Racecourse, Central Coast Highway, West Gosford, Gosford, New South Wale",
+"type": "track"
+}
+],
+"Goulburn": [
+{
+"lat": -34.7149242,
+"lon": 149.7500309,
+"name": "Racecourse Drive, Kenmore, Goulburn, New South Wales, 2580, Australia",
+"type": "residential"
+},
+{
+"lat": -34.7144454,
+"lon": 149.7453689,
+"name": "Racecourse Drive, Kenmore, Goulburn, New South Wales, 2580, Australia",
+"type": "service"
+},
+{
+"lat": -34.7106879,
+"lon": 149.7499166,
+"name": "Goulburn Racecourse & Trotting Track, Taralga Road, Kenmore, Goulburn, New South",
+"type": "sports_centre"
+}
+],
+"Grafton": [
+{
+"lat": -29.6767327,
+"lon": 152.931295,
+"name": "Grafton Racecourse, Bruce Street, Westlawn, Grafton, New South Wales, 2460, Aust",
+"type": "sports_centre"
+}
+],
+"Great Western": [
+{
+"lat": -37.1635082,
+"lon": 142.8533406,
+"name": "Great Western Racecourse, Great Western, Victoria, 3374, Australia",
+"type": "recreation_ground"
+}
+],
+"Grenfell": [
+{
+"lat": -33.9084381,
+"lon": 148.1352594,
+"name": "Grenfell Racecourse, Holy Camp Road, Grenfell, New South Wales, 2810, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -33.9071708,
+"lon": 148.1336729,
+"name": "Grenfell Racecourse, Holy Camp Road, Grenfell, New South Wales, 2810, Australia",
+"type": "horse_riding"
+}
+],
+"Gulargambone": [],
+"Gundagai": [
+{
+"lat": -35.0692423,
+"lon": 148.1220831,
+"name": "Gundagai Racecourse, Gundagai, New South Wales, 2722, Australia",
+"type": "park"
+}
+],
+"Gunnedah": [
+{
+"lat": -30.9663042,
+"lon": 150.2942198,
+"name": "Gunnedah Racecourse, Wilkinson Road, Gunnedah, New South Wales, 2380, Australia",
+"type": "sports_centre"
+}
+],
+"Gympie": [
+{
+"lat": -26.2032509,
+"lon": 152.6469962,
+"name": "Gympie Racecourse, Ramsey Road, Southside, Queensland, 4570, Australia",
+"type": "sports_centre"
+}
+],
+"Halidon": [
+{
+"lat": -34.8729385,
+"lon": 140.1832856,
+"name": "Halidon Racecourse, Halidon, South Australia, 5309, Australia",
+"type": "recreation_ground"
+}
+],
+"Hamilton": [
+{
+"lat": -37.7169351,
+"lon": 141.9890759,
+"name": "Hamilton Racecourse, Bullocks Road, Hamilton, Victoria, 3300, Australia",
+"type": "sports_centre"
+}
+],
+"Hanging Rock": [
+{
+"lat": -37.3311724,
+"lon": 144.5982111,
+"name": "Hanging Rock Racecourse, Colwells Road, Newham, Woodend, Victoria, 3442, Austral",
+"type": "track"
+}
+],
+"Hawkesbury": [],
+"Healesville": [],
+"Holbrook": [
+{
+"lat": -35.7142131,
+"lon": 147.3340071,
+"name": "Racecourse Road, Holbrook, New South Wales, 2644, Australia",
+"type": "residential"
+}
+],
+"Home Hill": [
+{
+"lat": -19.6724411,
+"lon": 147.4207241,
+"name": "Home Hill Racecourse, Darveniza Road, Home Hill, Queensland, 4806, Australia",
+"type": "sports_centre"
+}
+],
+"Horsham": [
+{
+"lat": -36.7151342,
+"lon": 142.1903781,
+"name": "Horsham Racecourse, Horsham, Victoria, 3400, Australia",
+"type": "park"
+}
+],
+"Hughenden": [
+{
+"lat": -20.8641329,
+"lon": 144.1815096,
+"name": "Hughenden Racecourse, Kennedy Developmental Road, Hughenden, Queensland, 4821, A",
+"type": "sports_centre"
+}
+],
+"Illawarra Grange": [],
+"Ingham": [
+{
+"lat": -18.6575167,
+"lon": 146.1748042,
+"name": "Ingham Racecourse, Borello Street, Ingham, Queensland, 4850, Australia",
+"type": "track"
+}
+],
+"Innisfail": [],
+"Inverell": [],
+"Ipswich": [
+{
+"lat": -27.615122,
+"lon": 152.8047866,
+"name": "Ipswich Racecourse, 219, Brisbane Road, Bundamba, Booval, Brisbane, Queensland, ",
+"type": "sports_centre"
+}
+],
+"Jerilderie": [],
+"Julia Creek": [
+{
+"lat": -20.6690668,
+"lon": 141.7347892,
+"name": "McIntyre Park Racecourse, McIntyre Park Road, Julia Creek, Queensland, 4823, Aus",
+"type": "track"
+}
+],
+"Katherine": [],
+"Kembla Grange": [
+{
+"lat": -34.4701561,
+"lon": 150.8175256,
+"name": "Kembla Grange, West Dapto Road, Kembla Grange, Wollongong, New South Wales, 2526",
+"type": "halt"
+}
+],
+"Kempsey": [],
+"Kerang": [],
+"Kilcoy": [
+{
+"lat": -26.9415065,
+"lon": 152.5480501,
+"name": "Kilcoy Racecourse, Woolmar, Kilcoy, Queensland, 4515, Australia",
+"type": "recreation_ground"
+}
+],
+"Kingscote": [
+{
+"lat": -35.6842331,
+"lon": 137.5769643,
+"name": "Kingscote Racecourse, Hog Bay Road, Kingscote, South Australia, 5223, Australia",
+"type": "sports_centre"
+}
+],
+"Kununurra": [
+{
+"lat": -15.8093496,
+"lon": 128.7452129,
+"name": "Kununurra Racecourse, Kununurra, Western Australia, 6743, Australia",
+"type": "recreation_ground"
+}
+],
+"Kyneton": [
+{
+"lat": -37.2405186,
+"lon": 144.4417696,
+"name": "Welcome to the Kyneton Racecourse, Campaspe Place, Kyneton, Victoria, 3444, Aust",
+"type": "board"
+}
+],
+"Leeton": [
+{
+"lat": -34.563985,
+"lon": 146.3988229,
+"name": "Racecourse Road, Leeton, New South Wales, 2705, Australia",
+"type": "tertiary"
+}
+],
+"Lismore": [
+{
+"lat": -28.7932965,
+"lon": 153.286739,
+"name": "Lismore Racecourse, South Lismore, Lismore, New South Wales, 2480, Australia",
+"type": "unclassified"
+},
+{
+"lat": -28.7949708,
+"lon": 153.2896669,
+"name": "Lismore Racecourse, Brunswick Street, Lismore Heights, New South Wales, 2480, Au",
+"type": "sports_centre"
+}
+],
+"Lock": [
+{
+"lat": -33.5446474,
+"lon": 135.7117445,
+"name": "Lock Racecourse, Golf Course Road, Lock, South Australia, 5633, Australia",
+"type": "sports_centre"
+}
+],
+"Longford": [
+{
+"lat": -41.6056782,
+"lon": 147.1180748,
+"name": "Racecourse Inn, 114, Marlborough Street, Longford, Tasmania, 7301, Australia",
+"type": "guest_house"
+}
+],
+"Longreach": [],
+"Manangatang": [
+{
+"lat": -35.0444271,
+"lon": 142.8888608,
+"name": "Manangatang Racecourse, Sport Street, Manangatang, Victoria, 3546, Australia",
+"type": "track"
+}
+],
+"Mareeba": [],
+"Mildura": [
+{
+"lat": -34.1867538,
+"lon": 142.2102805,
+"name": "Mildura Racecourse, Nichols Point, Victoria, 3501, Australia",
+"type": "bridleway"
+}
+],
+"Moe": [
+{
+"lat": -38.1778654,
+"lon": 146.2555437,
+"name": "Moe Racecourse, Waterloo Road, Moe, Victoria, 3825, Australia",
+"type": "bus_stop"
+},
+{
+"lat": -38.1753525,
+"lon": 146.257495,
+"name": "Moe Racecourse, Saviges Road, Moe, Victoria, 3825, Australia",
+"type": "bus_stop"
+},
+{
+"lat": -38.1744657,
+"lon": 146.2529884,
+"name": "Moe Racing Club, Waterloo Road, Moe, Victoria, 3825, Australia",
+"type": "sports_centre"
+}
+],
+"Moranbah": [
+{
+"lat": -21.9973777,
+"lon": 148.0241035,
+"name": "Moranbah Racecourse, Sarchedon Drive, Moranbah, Queensland, 4744, Australia",
+"type": "sports_centre"
+}
+],
+"Moree": [
+{
+"lat": -29.4562407,
+"lon": 149.8492039,
+"name": "Moree Racecourse, Carnarvon Highway, Moree, New South Wales, 2400, Australia",
+"type": "sports_centre"
+}
+],
+"Mornington": [
+{
+"lat": -38.2355379,
+"lon": 145.0708125,
+"name": "Mornington Racecourse, Mornington-Tyabb Road, Mornington, Melbourne, Victoria, 3",
+"type": "sports_centre"
+}
+],
+"Morphettville": [
+{
+"lat": -34.9763419,
+"lon": 138.5423417,
+"name": "Morphettville Racecourse, Agars Avenue, Morphettville, Adelaide, South Australia",
+"type": "sports_centre"
+},
+{
+"lat": -34.9776347,
+"lon": 138.5390945,
+"name": "Morphettville Racecourse, Mike Turtur Bikeway, Morphettville, Adelaide, South Au",
+"type": "track"
+}
+],
+"Mortlake": [
+{
+"lat": -38.0730616,
+"lon": 142.7731755,
+"name": "Mortlake Racecourse, Mortlake, Victoria, 3272, Australia",
+"type": "recreation_ground"
+}
+],
+"Mt Barker": [],
+"Mt Garnet": [],
+"Mt Isa": [
+{
+"lat": -20.7184261,
+"lon": 139.5005892,
+"name": "Buchannan Park Racecourse, Menzies, Mount Isa, Queensland, Australia",
+"type": "recreation_ground"
+},
+{
+"lat": -20.7173864,
+"lon": 139.5024179,
+"name": "Buchannan Park Racecourse, Patricia Street, Menzies, Mount Isa, Queensland, 4825",
+"type": "track"
+}
+],
+"Mudgee": [
+{
+"lat": -32.5817497,
+"lon": 149.5974178,
+"name": "Mudgee Racecourse, Moggs Lane, Bombira, New South Wales, 2850, Australia",
+"type": "sports_centre"
+}
+],
+"Murtoa": [
+{
+"lat": -36.6282296,
+"lon": 142.4626173,
+"name": "Murtoa Racecourse, Murtoa, Victoria, 3390, Australia",
+"type": "recreation_ground"
+}
+],
+"Murwillumbah": [
+{
+"lat": -28.3148162,
+"lon": 153.4105548,
+"name": "Murwillumbah Seventh-Day Adventist Church, Racecourse Road, Tygalgah, New South ",
+"type": "place_of_worship"
+}
+],
+"Nanango": [
+{
+"lat": -26.6920903,
+"lon": 151.9885945,
+"name": "Nanango Racecourse, Racecourse Road, Nanango, Queensland, 4615, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -26.6921885,
+"lon": 151.9892524,
+"name": "Nanango Racecourse, Fleming Street, Nanango, Queensland, 4615, Australia",
+"type": "track"
+}
+],
+"Naracoorte": [],
+"Narrandera": [
+{
+"lat": -34.7359029,
+"lon": 146.5599065,
+"name": "Racecourse Road, Narrandera, New South Wales, 2700, Australia",
+"type": "residential"
+}
+],
+"Narrogin": [],
+"Narromine": [
+{
+"lat": -32.4716748,
+"lon": 147.9348605,
+"name": "Mungery Racecourse, Mungery Hall Road, Narromine, New South Wales, 2821, Austral",
+"type": "track"
+}
+],
+"Nowra": [
+{
+"lat": -34.9030538,
+"lon": 150.589606,
+"name": "Nowra Racecourse, Albatross Road, South Nowra, New South Wales, 2541, Australia",
+"type": "sports_centre"
+}
+],
+"Nyngan": [
+{
+"lat": -31.573243,
+"lon": 147.2010948,
+"name": "Nyngan Showground, Nyngan, New South Wales, 2825, Australia",
+"type": "recreation_ground"
+}
+],
+"Oakbank": [
+{
+"lat": -34.9767122,
+"lon": 138.8455615,
+"name": "Oakbank Racecourse, Shillabeer Road, Oakbank, South Australia, 5243, Australia",
+"type": "track"
+}
+],
+"Orange": [
+{
+"lat": -33.299507,
+"lon": 149.0696542,
+"name": "Towac Park Racecourse, Calare, Orange, New South Wales, 2800, Australia",
+"type": "recreation_ground"
+},
+{
+"lat": -33.292564,
+"lon": 149.0781109,
+"name": "Racecourse Road, Calare, Orange, New South Wales, 2800, Australia",
+"type": "tertiary"
+},
+{
+"lat": -33.2912195,
+"lon": 149.0830591,
+"name": "Racecourse Rd after Kenna St, Racecourse Road, Calare, Orange, New South Wales, ",
+"type": "bus_stop"
+}
+],
+"Pakenham": [
+{
+"lat": -38.0938204,
+"lon": 145.6110334,
+"name": "Pakenham Racecourse, Knights Court, Tynong, Melbourne, Victoria, 3813, Australia",
+"type": "sports_centre"
+}
+],
+"Parkes": [],
+"Penola": [
+{
+"lat": -37.3503028,
+"lon": 140.8584295,
+"name": "Racecourse Swamp, Penola, South Australia, 5277, Australia",
+"type": "wetland"
+},
+{
+"lat": -37.3637652,
+"lon": 140.8472787,
+"name": "Old Racecourse Road, Penola, South Australia, 5277, Australia",
+"type": "unclassified"
+},
+{
+"lat": -37.353143,
+"lon": 140.8588762,
+"name": "Racecourse Road, Penola, South Australia, 5277, Australia",
+"type": "unclassified"
+}
+],
+"Penshurst": [
+{
+"lat": -37.8618185,
+"lon": 142.3035588,
+"name": "Penshurst Racecourse, Penshurst, Victoria, 3289, Australia",
+"type": "recreation_ground"
+}
+],
+"Pioneer": [
+{
+"lat": -41.0765379,
+"lon": 147.9068603,
+"name": "Racecourse Road, Herrick, Winnaleah, Tasmania, 7265, Australia",
+"type": "tertiary"
+}
+],
+"Port Augusta": [
+{
+"lat": -32.4968411,
+"lon": 137.8060281,
+"name": "Port Augusta Racecourse, Chapman Road, Port Augusta, South Australia, 5700, Aust",
+"type": "sports_centre"
+}
+],
+"Port Hedland": [],
+"Port Lincoln": [
+{
+"lat": -34.7467155,
+"lon": 135.8521108,
+"name": "Port Lincoln Racecourse, Buberis Court, Port Lincoln, South Australia, 5606, Aus",
+"type": "track"
+}
+],
+"Port Macquarie": [],
+"Queanbeyan": [
+{
+"lat": -35.3578174,
+"lon": 149.2017694,
+"name": "Queanbeyan Racecourse, Woods Lane, District of Jerrabomberra, Canberra, Australi",
+"type": "sports_centre"
+}
+],
+"Quirindi": [],
+"Randwick": [
+{
+"lat": -33.9105151,
+"lon": 151.2304349,
+"name": "Randwick Racecourse, Randwick, Eastern Suburbs, Sydney, New South Wales, Austral",
+"type": "recreation_ground"
+}
+],
+"Richmond": [
+{
+"lat": -20.7069828,
+"lon": 143.1233363,
+"name": "Richmond Racecourse, Aerodrome Road, Richmond, Queensland, 4822, Australia",
+"type": "sports_centre"
+}
+],
+"Roebourne": [],
+"Roma": [],
+"Royal Randwick": [
+{
+"lat": -33.9105151,
+"lon": 151.2304349,
+"name": "Randwick Racecourse, Randwick, Eastern Suburbs, Sydney, New South Wales, Austral",
+"type": "recreation_ground"
+}
+],
+"Sapphire Coast": [],
+"Scone": [],
+"Springsure": [
+{
+"lat": -24.1331458,
+"lon": 148.0863912,
+"name": "Racecourse Road, Springsure, Queensland, 4722, Australia",
+"type": "track"
+},
+{
+"lat": -24.1342202,
+"lon": 148.0905142,
+"name": "Racecourse Road, Springsure, Queensland, 4722, Australia",
+"type": "service"
+}
+],
+"St Arnaud": [
+{
+"lat": -36.6397715,
+"lon": 143.200865,
+"name": "St. Arnaud Racecourse, Wimmera Highway, Moolerr, Victoria, 3477, Australia",
+"type": "sports_centre"
+}
+],
+"St George": [
+{
+"lat": -28.0689441,
+"lon": 148.611815,
+"name": "St George Racecourse, Johnston Road, St George, Queensland, 4487, Australia",
+"type": "sports_centre"
+}
+],
+"Stawell": [],
+"Stony Creek": [],
+"Strathalbyn": [],
+"Sunshine Coast Poly": [],
+"Tambo": [
+{
+"lat": -24.87606,
+"lon": 146.2741938,
+"name": "Tambo Racecourse, Racecourse Road, Tambo, Queensland, 4478, Australia",
+"type": "sports_centre"
+}
+],
+"Tamworth": [
+{
+"lat": -31.0857564,
+"lon": 150.9039736,
+"name": "Tamworth Racecourse, Taminda, Tamworth, New South Wales, 2340, Australia",
+"type": "recreation_ground"
+}
+],
+"Taroom": [
+{
+"lat": -25.6474357,
+"lon": 149.8255178,
+"name": "Racecourse Road, Taroom, Queensland, 4420, Australia",
+"type": "unclassified"
+}
+],
+"Tatura": [
+{
+"lat": -36.4531086,
+"lon": 145.2263941,
+"name": "Tatura Racecourse Reserve, Tatura, Victoria, 3616, Australia",
+"type": "recreation_ground"
+},
+{
+"lat": -36.4514193,
+"lon": 145.229624,
+"name": "Tatura-Shepparton Racecourse, O'Reilly Road, Tatura, Victoria, 3616, Australia",
+"type": "track"
+}
+],
+"Terang": [
+{
+"lat": -38.2323016,
+"lon": 142.8899814,
+"name": "Terang Racecourse, 10, Keilambete Road, Terang, Victoria, 3264, Australia",
+"type": "sports_centre"
+}
+],
+"Thangool": [
+{
+"lat": -24.4936004,
+"lon": 150.5643316,
+"name": "Thangool Racecourse, Meissners Road, Thangool, Queensland, 4716, Australia",
+"type": "sports_centre"
+}
+],
+"Tocumwal": [
+{
+"lat": -35.7971699,
+"lon": 145.5715112,
+"name": "Tocumwal Racecourse, Bruce Birrel Drive, Tocumwal, New South Wales, 2714, Austra",
+"type": "sports_centre"
+}
+],
+"Towong": [
+{
+"lat": -36.1297955,
+"lon": 147.9813319,
+"name": "Towong Racecourse, Grant Street, Towong, Victoria, 3707, Australia",
+"type": "track"
+}
+],
+"Traralgon": [
+{
+"lat": -38.1940153,
+"lon": 146.5610027,
+"name": "Racecourse Car Park and Circus Site, Traralgon, Victoria, 3844, Australia",
+"type": "park"
+}
+],
+"Tumut": [
+{
+"lat": -35.3057909,
+"lon": 148.2330943,
+"name": "Tumut Racecourse, Elm Drive, Tumut, New South Wales, 2720, Australia",
+"type": "sports_centre"
+}
+],
+"Tuncurry": [],
+"Twin Hills": [
+{
+"lat": -21.9459195,
+"lon": 146.9596605,
+"name": "Twin Hills Racecourse, Twin Hills Road, Frankfield, Queensland, 4721, Australia",
+"type": "sports_centre"
+}
+],
+"Wagga Riverside": [],
+"Walcha": [
+{
+"lat": -30.9711826,
+"lon": 151.5763739,
+"name": "Walcha Racecourse, Darjeeling Road, Walcha, New South Wales, 2354, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -30.9710907,
+"lon": 151.5768444,
+"name": "Walcha Racecourse, Beaver Place, Walcha, New South Wales, 2354, Australia",
+"type": "track"
+}
+],
+"Wangaratta": [
+{
+"lat": -36.3613278,
+"lon": 146.2885782,
+"name": "Racecourse Road, Wangaratta, Victoria, 3677, Australia",
+"type": "residential"
+}
+],
+"Warracknabeal": [
+{
+"lat": -36.2487316,
+"lon": 142.4058869,
+"name": "Warracknabeal Racecourse, Racecourse Road, Warracknabeal, Victoria, 3393, Austra",
+"type": "sports_centre"
+}
+],
+"Warren": [
+{
+"lat": -31.685847,
+"lon": 147.8162739,
+"name": "Warren Showground and Racecourse, Warren, New South Wales, 2824, Australia",
+"type": "recreation_ground"
+}
+],
+"Warrnambool": [
+{
+"lat": -38.3788885,
+"lon": 142.507475,
+"name": "Warrnambool Racecourse, Whitehead Court, Warrnambool, Victoria, 3280, Australia",
+"type": "sports_centre"
+}
+],
+"Warwick": [
+{
+"lat": -28.2102023,
+"lon": 152.016841,
+"name": "Warwick Racecourse, Victoria Street, Warwick, Queensland, 4370, Australia",
+"type": "sports_centre"
+},
+{
+"lat": -28.2097377,
+"lon": 152.0129455,
+"name": "Warwick Racecourse, Victoria Street, Warwick, Queensland, 4370, Australia",
+"type": "track"
+}
+],
+"Wellington": [
+{
+"lat": -32.5559516,
+"lon": 148.9311743,
+"name": "Wellington Showground, New South Wales, Australia",
+"type": "recreation_ground"
+}
+],
+"Werribee": [
+{
+"lat": -37.9072331,
+"lon": 144.6411388,
+"name": "Werribee Racecourse, Bulban Road, Werribee, Melbourne, Victoria, 3030, Australia",
+"type": "railway_station"
+},
+{
+"lat": -37.9028292,
+"lon": 144.6453403,
+"name": "Werribee Racecourse, Mingos Court, Werribee, Melbourne, Victoria, 3030, Australi",
+"type": "sports_centre"
+}
+],
+"Winton": [
+{
+"lat": -32.4968411,
+"lon": 137.8060281,
+"name": "Port Augusta Racecourse, Winton Road, Wami Kata, Port Augusta, South Australia, ",
+"type": "sports_centre"
+}
+],
+"Wodonga": [
+{
+"lat": -36.1342274,
+"lon": 146.8977807,
+"name": "Wodonga Racecourse, Peeler Street, White Box Rise, Wodonga, Victoria, 3690, Aust",
+"type": "track"
+}
+],
+"Wondai": [
+{
+"lat": -26.3137167,
+"lon": 151.8842662,
+"name": "Racecourse Road, Wondai, Queensland, 4606, Australia",
+"type": "unclassified"
+}
+],
+"Woolamai": [],
+"Wyong": [
+{
+"lat": -33.2811414,
+"lon": 151.4312144,
+"name": "Wyong Racecourse and Showground, Rose Street, Wyong, New South Wales, 2259, Aust",
+"type": "sports_centre"
+}
+],
+"Yarra Glen": [
+{
+"lat": -37.6548993,
+"lon": 145.3802834,
+"name": "Racecourse Place, Melbourne, Victoria, 3775, Australia",
+"type": "residential"
+}
+],
+"Yea": [
+{
+"lat": -37.2140328,
+"lon": 145.3899098,
+"name": "Racecourse Road, Yea, Victoria, 3717, Australia",
+"type": "unclassified"
+}
+],
+"Yeppoon": [
+{
+"lat": -23.141758,
+"lon": 150.7049078,
+"name": "Yeppoon Racecourse, Neils Road, Barmaryee, Queensland, 4703, Australia",
+"type": "sports_centre"
+}
+],
+"York": [],
+"Albany": [],
+"Albury": [],
+"Balaklava": [
+{
+"lat": -34.1523097,
+"lon": 138.4080132,
+"name": "Balaklava Racecourse, Gwy Terrace, Balaklava, South Australia, 5461, Australia",
+"type": "sports_centre"
+}
+],
+"Ballarat": [],
+"Beaudesert": [
+{
+"lat": -27.9910621,
+"lon": 152.9707418,
+"name": "Beaudesert Racecourse, Beaudesert, Queensland, 4285, Australia",
+"type": "recreation_ground"
+}
+],
+"Beaumont": [],
+"Cairns": [
+{
+"lat": -16.9484167,
+"lon": 145.745943,
+"name": "Cannon Park Racecourse, Mulgrave Road, Woree, Cairns, Queensland, 4868, Australi",
+"type": "sports_centre"
+}
+],
+"Canberra": [
+{
+"lat": -35.2298641,
+"lon": 149.1391624,
+"name": "Thoroughbred Park, 1, Randwick Road, Lyneham, Canberra, District of Canberra Cen",
+"type": "yes"
+}
+],
+"Dalby": [],
+"Eagle Farm": [
+{
+"lat": -27.4281036,
+"lon": 153.0675477,
+"name": "Eagle Farm Race Course, St Leger Way, Ascot, Brisbane, Queensland, 4007, Austral",
+"type": "sports_centre"
+}
+],
+"Echuca": [
+{
+"lat": -36.1589227,
+"lon": 144.7895725,
+"name": "Echuca Village Racecourse, Echuca, Victoria, 3564, Australia",
+"type": "park"
+}
+],
+"Geraldton": [],
+"Hobart": [],
+"Kalgoorlie": [],
+"Kilmore": [
+{
+"lat": -37.2919193,
+"lon": 144.9625535,
+"name": "Kilmore Racecourse, Kilmore, Victoria, 3764, Australia",
+"type": "recreation_ground"
+}
+],
+"Lark Hill": [],
+"Launceston": [
+{
+"lat": -41.404451,
+"lon": 147.1413939,
+"name": "Mowbray Racecourse, Wood Street, Mowbray, Launceston, Tasmania, 7248, Australia",
+"type": "sports_centre"
+}
+],
+"Mackay": [
+{
+"lat": -21.1687079,
+"lon": 149.1485012,
+"name": "Mackay Turf Club, Gunsynd Street, Ooralea, Mackay, Queensland, 4740, Australia",
+"type": "yes"
+}
+],
+"Moonee Valley": [],
+"Moruya": [
+{
+"lat": -35.8941152,
+"lon": 150.1399621,
+"name": "Moruya Racecourse, George Bass Drive, Garlandtown, Moruya, New South Wales, 2537",
+"type": "sports_centre"
+}
+],
+"Mt Gambier": [],
+"Murray Bridge": [],
+"Muswellbrook": [
+{
+"lat": -32.280939,
+"lon": 150.867568,
+"name": "Upper Hunter Racing Club, Race Course Access Road, Muswellbrook, New South Wales",
+"type": "track"
+}
+],
+"Newcastle": [],
+"Northam": [
+{
+"lat": -31.6357044,
+"lon": 116.7019783,
+"name": "Northam Racecourse, Yilgarn Avenue, Northam, Western Australia, 6401, Australia",
+"type": "recreation_ground"
+}
+],
+"Pinjarra": [
+{
+"lat": -32.6322842,
+"lon": 115.8817829,
+"name": "Racecourse Road, Pinjarra, Western Australia, 6208, Australia",
+"type": "residential"
+}
+],
+"Pioneer Park": [],
+"Rockhampton": [
+{
+"lat": -23.3773028,
+"lon": 150.5207736,
+"name": "Callaghan Park Racecourse, Callaghan Park Access Road, The Common, Rockhampton, ",
+"type": "track"
+},
+{
+"lat": -23.3780873,
+"lon": 150.5256943,
+"name": "Callaghan Park Racecourse, Robert Clark Drive, The Common, Rockhampton, Queensla",
+"type": "track"
+}
+],
+"Rosehill": [
+{
+"lat": -33.8239437,
+"lon": 151.0262119,
+"name": "Rosehill Gardens, Grand Avenue, Rosehill, Sydney, New South Wales, 2142, Austral",
+"type": "sports_centre"
+},
+{
+"lat": -33.8181399,
+"lon": 151.0244892,
+"name": "Rosehill Gardens, Parramatta Light Rail Trail, Camellia, Sydney, New South Wales",
+"type": "station"
+}
+],
+"Sale": [],
+"Sandown": [
+{
+"lat": -37.9514463,
+"lon": 145.1648262,
+"name": "Sandown Racecourse, Racecourse Drive, Springvale, Melbourne, Victoria, 3171, Aus",
+"type": "track"
+}
+],
+"Seymour": [
+{
+"lat": -37.035057,
+"lon": 145.1693437,
+"name": "Seymour Racecourse, Seymour, Victoria, 3660, Australia",
+"type": "recreation_ground"
+}
+],
+"Sunshine Coast": [
+{
+"lat": -26.7927373,
+"lon": 153.0621152,
+"name": "Corbould Park, Queensland, Australia",
+"type": "administrative"
+}
+],
+"Swan Hill": [
+{
+"lat": -35.3521541,
+"lon": 143.5564678,
+"name": "Swan Hill Racecourse, Beveridge Street, Swan Hill, Victoria, 3585, Australia",
+"type": "sports_centre"
+}
+],
+"Taree": [
+{
+"lat": -31.8893057,
+"lon": 152.4766111,
+"name": "Taree Racecourse, Taree, New South Wales, Australia",
+"type": "recreation_ground"
+}
+],
+"Toowoomba": [
+{
+"lat": -27.5578874,
+"lon": 151.923792,
+"name": "Clifford Park Racecourse, Brigalow Street, Newtown, Toowoomba, Queensland, 4350,",
+"type": "sports_centre"
+}
+],
+"Townsville": [],
+"Wagga": [
+{
+"lat": -35.1041598,
+"lon": 147.3559243,
+"name": "Murrumbidgee Turf Club, Wagga Wagga, New South Wales, 2650, Australia",
+"type": "recreation_ground"
+},
+{
+"lat": -35.1027535,
+"lon": 147.3509306,
+"name": "Murrumbidgee Turf Club, Slocum Street, Wagga Wagga, New South Wales, 2650, Austr",
+"type": "sports_centre"
+}
+],
+"Warwick Farm": [
+{
+"lat": -33.9099549,
+"lon": 150.9447659,
+"name": "Warwick Farm Racecourse, Hume Highway, Warwick Farm, Sydney, New South Wales, 21",
+"type": "sports_centre"
+}
+]
+}
