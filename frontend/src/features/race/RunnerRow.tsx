@@ -150,7 +150,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
+        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (score ${(-combo.mean).toFixed(2)}, weights Proj 65 / Nett 25 / Spd 10, L3 not counted): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett, L3 and Proj">&ndash;</span>

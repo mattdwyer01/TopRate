@@ -2717,6 +2717,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Phone weight moved into the horse sub-line (20 Oct 2026, user: "roll weight up into the row above")**: the phone-only third line is gone; `{weightCarried}kg` now sits in the sub-line between the B badge and the jockey (`RunnerRow.tsx`, hidden from lg where the `· Nkg` after the trainer stays). Rows are one line shorter; jockey and trainer truncate a little earlier. Checked at 430px.
 
+- **Rank is a weighted z-score blend, L3 not counted (20 Oct 2026, uncommitted)**: `lib/combinedRank.ts` scores each runner as the weighted mean of within-race z-scores of Proj 0.65, Nett 0.25 and Spd 0.10 (needs 2 of the 3; ranks the scores). L3 stays a column and its rank still shows in the strip and tooltip but adds nothing: Proj is built from the same runs and a fitted weight was -0.01. `research/rank_weights.py` (run with `PYTHONPATH=.`; 4,107 races 4 Jul to 17 Oct, cross-fitted on date halves): fitted blend top pick 28.1% / winner log-lik -1.9030 vs Proj alone 27.0% / -1.9184, Nett 25.0%, L3 24.8%, Spd 20.1%, old equal-weight rank mean 25.8% per pick; fitted weights with L3 Proj 0.65, Nett 0.26, Spd 0.09. The Proj values in that window are mixed model versions, so re-fit once the formula Proj has a few weeks of log. Still a reading aid, not a bet (nothing beats the closing price). To restore the old rank mean see git history of `combinedRank.ts`.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
