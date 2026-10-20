@@ -2711,6 +2711,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Hero banner colours made consistent (20 Oct 2026, user: "why are the hero banner colours inconsistent")**: from md the race banner is dark green but its chips still used the pastel tones built for the white phone card (green Track, white Pace / Rail / runners, amber First starter, mint Resulted pill, black replay button), so they read as unrelated colours. In `RaceHeader.tsx` every chip and the Resulted / Interim pill now share one translucent white style from md (`DARK_CHIP`) and the meaning (good / warn / bad) moves into a small coloured dot (`DOT`, shown from md only); the scratched count is a light rose; the replay button is white with dark green text on the banner (`ReplayPanel.tsx`). Below md nothing changed (light chips on the white card). Checked at 1300px on a resulted race.
 
+- **Race banner dark green at every width (20 Oct 2026, user: "make consistent")**: the banner was white below md and dark green from md. `RaceHeader.tsx` is now the dark green banner (#0B3B2A) on phones too: translucent chips with a status dot, white title and countdown, light green subtitle, and the Resulted / Interim pill, scratched count and the white replay button (`ReplayPanel.tsx`) restyled for it; only the type sizes still step up at md. The sticky mini bar under the app header (`RaceMiniBar`) is still white. Checked at 430 / 1300px.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

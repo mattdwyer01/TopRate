@@ -16,7 +16,7 @@ export function ReplayPanel({ venue, date, raceNumber, hasResult }: { venue: str
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center justify-center gap-1.5 rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 max-sm:w-full md:bg-white md:text-[#0B3B2A]"
+        className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[#0B3B2A] transition-opacity hover:opacity-90 max-sm:w-full"
       >
         <PlayIcon className="h-3 w-3" />
         {open ? 'Hide replay' : 'Watch race replay'}
