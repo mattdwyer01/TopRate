@@ -24,8 +24,18 @@ const TILE_TONE: Record<Tone, string> = {
   plain: 'border-line bg-bg text-ink',
 }
 
-function Chip({ children, className = '', title }: { children: React.ReactNode; className?: string; title?: string }) {
-  return <span title={title} className={`inline-flex min-w-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${className || 'border-line bg-bg text-ink-soft'}`}>{children}</span>
+// On the dark banner (md and up) every chip shares one translucent style and the meaning (good / warn / bad) moves into a small dot,
+// so the colours no longer fight the green. Below md the chips keep their light tones on the white card.
+const DARK_CHIP = 'md:border-white/20 md:bg-white/10 md:text-white'
+const DOT: Record<Tone, string> = { good: 'bg-[#34d399]', warn: 'bg-[#fbbf24]', bad: 'bg-[#fb7185]', plain: '' }
+
+function Chip({ children, className = '', title, tone }: { children: React.ReactNode; className?: string; title?: string; tone?: Tone }) {
+  return (
+    <span title={title} className={`inline-flex min-w-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${className || 'border-line bg-bg text-ink-soft'} ${DARK_CHIP}`}>
+      {tone && DOT[tone] && <span className={`mr-1.5 hidden h-1.5 w-1.5 flex-none rounded-full md:inline-block ${DOT[tone]}`} aria-hidden="true" />}
+      {children}
+    </span>
+  )
 }
 
 function useConditions(race: Race, meeting: Race[], activeRunners: Race['runners']) {
@@ -57,12 +67,13 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
         </div>
         <div className="flex-none text-right">
           {race.allResulted && !race.provisional ? (
-            <span className="rounded-full border border-emerald-line bg-emerald-bg px-2.5 py-1 font-mono text-xs font-semibold text-emerald-deep">Resulted</span>
+            <span className="inline-flex items-center rounded-full border border-emerald-line bg-emerald-bg px-2.5 py-1 font-mono text-xs font-semibold text-emerald-deep md:border-white/20 md:bg-white/10 md:text-white"><span className="mr-1.5 hidden h-1.5 w-1.5 rounded-full bg-[#34d399] md:inline-block" aria-hidden="true" />Resulted</span>
           ) : hasAnyResult ? (
             <span
-              className="rounded-full border border-amber-line bg-amber-bg px-2.5 py-1 font-mono text-xs font-semibold text-amber"
+              className="inline-flex items-center rounded-full border border-amber-line bg-amber-bg px-2.5 py-1 font-mono text-xs font-semibold text-amber md:border-white/20 md:bg-white/10 md:text-white"
               title="Provisional result from TAB's fast feed; the racing.com result and our rating follow overnight"
             >
+              <span className="mr-1.5 hidden h-1.5 w-1.5 rounded-full bg-[#fbbf24] md:inline-block" aria-hidden="true" />
               Interim result
             </span>
           ) : (
@@ -76,13 +87,13 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
 
       <div className="mt-2 flex flex-wrap gap-1.5 md:mt-3">
         {race.going && (
-          <Chip className={TILE_TONE[change ? 'bad' : goingTileTone]} title={change ? `Going the projections are made on (was ${change.from} at R${change.race})` : 'Going the projections for this race are made on'}>
+          <Chip tone={change ? 'bad' : goingTileTone} className={TILE_TONE[change ? 'bad' : goingTileTone]} title={change ? `Going the projections are made on (was ${change.from} at R${change.race})` : 'Going the projections for this race are made on'}>
             <b className="mr-1 text-[10px] uppercase opacity-70">Track</b>
             {race.going}
             {change && <span className="ml-1 font-normal opacity-80">(was {change.from})</span>}
           </Chip>
         )}
-        <Chip className={TILE_TONE[paceTone]} title={pace.fromShape ? 'Measured early pace' : `Predicted early pace${leaders > 0 ? `, ${leaders} likely leader${leaders === 1 ? '' : 's'}` : ''}`}>
+        <Chip tone={paceTone} className={TILE_TONE[paceTone]} title={pace.fromShape ? 'Measured early pace' : `Predicted early pace${leaders > 0 ? `, ${leaders} likely leader${leaders === 1 ? '' : 's'}` : ''}`}>
           <b className="mr-1 text-[10px] uppercase opacity-70">Pace</b>
           {pace.display.replace(' (predicted)', '')}
         </Chip>
@@ -94,9 +105,9 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
         )}
         <Chip>
           {race.runners.length} runners
-          {scratchedInRace > 0 && <span className="text-rose">&nbsp;({scratchedInRace} scr)</span>}
+          {scratchedInRace > 0 && <span className="text-rose md:text-[#fda4af]">&nbsp;({scratchedInRace} scr)</span>}
         </Chip>
-        {race.hasFirstStarter && <Chip className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
+        {race.hasFirstStarter && <Chip tone="warn" className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
       </div>
       <ReplayPanel venue={race.venue} date={race.date} raceNumber={race.raceNumber} hasResult={hasAnyResult || race.allResulted} />
     </section>
