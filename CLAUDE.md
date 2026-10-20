@@ -2703,6 +2703,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Horse detail layout and review fixes (20 Oct 2026, user: "horse detail on desktop hasn't changed")**: `RunnerDetailModal.tsx` is now `max-w-[1400px]` and, from lg, a 12-column grid: Rating hero (5) beside the Spd / Nett / L3 / Proj panel (7), then the full Recent runs table (its own card, no duplicate heading), then Expected run (5) beside Form and record (chart and conditions, 7), the adjustment row, and Market with Result. On phones the order is signals, hero, result, adjustment, Recent runs, Expected run, Form and record, Market (CSS `order`, one render of each part). Also: the Race page Result panel is two columns from lg, the Review "Week by week" chart sits beside its table from lg, and the phone conditions tiles let their label wrap instead of truncating. Checked at 390 / 1440px: no overflow, no script errors.
 
+- **Phone race rows show the carried weight (20 Oct 2026, user request)**: `RunnerRow.tsx` adds a phone-only third line under the horse name and jockey line with `{weightCarried}kg` (small mono, hidden from lg; no claim figure is in the payload). It is its own line, not in the barrier badge, because putting it in the badge cut horse names to three letters. Checked in Chromium at 360 / 390px: no page overflow, no script errors, row heights grow by one small line. `toprate_live.html` rebuilt and copied.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
