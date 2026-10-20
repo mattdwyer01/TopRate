@@ -46,14 +46,14 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
   const prize = fmtPrize(race.prizeMoney)
   const time = formatTimeOfDay(race.startTime)
   return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4">
+    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4 md:rounded-2xl md:border-transparent md:bg-[#0B3B2A] md:px-7 md:py-5">
       <div className="flex items-start justify-between gap-x-3">
         <div className="min-w-0">
-          <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+          <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint md:text-[#A9CDBB]">
             {race.venue} &middot; {race.state} &middot; R{race.raceNumber} &middot; {race.distance}m
             {prize ? ` · ${prize}` : ''}
           </div>
-          <h2 className="text-lg font-semibold leading-tight text-ink sm:text-xl">{race.raceName}</h2>
+          <h2 className="text-lg font-semibold leading-tight text-ink sm:text-xl md:text-3xl md:tracking-tight md:text-white">{race.raceName}</h2>
         </div>
         <div className="flex-none text-right">
           {race.allResulted && !race.provisional ? (
@@ -67,14 +67,14 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
             </span>
           ) : (
             <div>
-              <div className="font-mono text-xl font-semibold leading-none text-emerald-deep">{formatCountdown(race.startTime) || '-'}</div>
-              <div className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">to jump{time ? ` · ${time}` : ''}</div>
+              <div className="font-mono text-xl font-semibold leading-none text-emerald-deep md:text-4xl md:text-white">{formatCountdown(race.startTime) || '-'}</div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint md:text-xs md:text-[#A9CDBB]">to jump{time ? ` · ${time}` : ''}</div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5 md:mt-3">
         {race.going && (
           <Chip className={TILE_TONE[change ? 'bad' : goingTileTone]} title={change ? `Going the projections are made on (was ${change.from} at R${change.race})` : 'Going the projections for this race are made on'}>
             <b className="mr-1 text-[10px] uppercase opacity-70">Track</b>

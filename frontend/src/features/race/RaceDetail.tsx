@@ -162,6 +162,8 @@ export function RaceDetail({
   }
 
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
+  const projVals = ranked.map((x) => x.proj).filter((v): v is number => typeof v === 'number')
+  const projSpan = projVals.length > 1 ? { min: Math.min(...projVals), max: Math.max(...projVals) } : undefined
   function rowProps(runner: Race['runners'][number]) {
     return {
       runner,
@@ -171,6 +173,7 @@ export function RaceDetail({
       combo: comboByRunId.get(runner.runId),
       showFp: hasAnyResult,
       showBias,
+      projSpan,
       onClick: compareMode
         ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
         : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
@@ -281,7 +284,7 @@ export function RaceDetail({
         <div className="flex min-w-0 flex-col gap-4">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-ink">Race shape</h3>
+            <h3 className="text-sm font-semibold text-ink">Predicted race shape</h3>
             {/* Scratched runners are left off, not just dimmed: the map shows who is actually going to run. */}
             <div className="flex flex-wrap items-center gap-1.5">
               {tripRace && (
