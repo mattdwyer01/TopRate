@@ -10606,3 +10606,11 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-19T07:00:57+00:00,2026-10-19,ORANGE,7,VIC,Paying,Trifecta,6/4/16,312.1,"{""selections"":[6,4,16],""amount"":312.1}"
 2026-10-19T07:00:57+00:00,2026-10-19,ORANGE,7,VIC,Paying,FirstFour,6/4/16/2,1183.7,"{""selections"":[6,4,16,2],""amount"":1183.7}"
 2026-10-19T07:00:57+00:00,2026-10-19,ORANGE,7,VIC,Paying,RunningDouble,4/6,107.2,"{""selections"":[4,6],""amount"":107.2}"
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,1,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,2,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,3,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,4,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,5,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,6,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,7,VIC,Abandoned,(abandoned),,,
+2026-10-20T00:04:47+00:00,2026-10-20,GRAFTON,8,VIC,Abandoned,(abandoned),,,
