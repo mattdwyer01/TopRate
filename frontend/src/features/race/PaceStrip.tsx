@@ -34,9 +34,8 @@ export function PaceStrip({ race, ranked, active, trip }: { race: Race; ranked: 
   return (
     <div className="rounded-lg border border-line bg-panel p-2.5 shadow-[var(--shadow-1)] sm:p-3">
       <div className="flex items-center gap-3">
-        <span className="w-10 flex-none text-xs font-semibold uppercase tracking-wide text-ink-faint sm:w-24">
-          <span className="sm:hidden">Pace</span>
-          <span className="hidden sm:inline">Early speed</span>
+        <span className="w-[5.5rem] flex-none text-xs font-semibold uppercase tracking-wide text-ink-faint sm:w-24">
+          Early speed
         </span>
         <div className="relative h-3.5 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg, var(--color-emerald-bg), var(--color-amber-bg), var(--color-rose-bg))' }}>
           <span className="absolute top-[-3px] h-5 w-[3px] rounded bg-ink" style={{ left: `calc(${pos}% - 1.5px)` }} />
@@ -46,7 +45,7 @@ export function PaceStrip({ race, ranked, active, trip }: { race: Race; ranked: 
       <div className="mt-1.5 flex flex-col gap-0.5 text-xs leading-snug text-ink-soft sm:hidden">
         {leaders.length > 0 && (
           <div>
-            <span className="font-semibold text-ink">Lead </span>
+            <span className="font-semibold text-ink">Likely to lead </span>
             {names(leaders)}
           </div>
         )}
