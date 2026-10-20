@@ -13,7 +13,7 @@ import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RaceResult } from './RaceResult'
-import { RunnerRow, rowGrid } from './RunnerRow'
+import { RunnerRow, rowGrid, silkFrom } from './RunnerRow'
 import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
@@ -121,6 +121,7 @@ export function RaceDetail({
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched, race.date), [race.runners, effectiveByRunId, effectiveScratched, race.date])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
+  const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)
   const activeRunners = useMemo(() => race.runners.filter((r) => !effectiveScratched.has(r.runId)), [race.runners, effectiveScratched])
 
   const ranked = useMemo(
@@ -172,6 +173,7 @@ export function RaceDetail({
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
       showFp: hasAnyResult,
+      showPrice: hasAnyPrice,
       showBias,
       projSpan,
       onClick: compareMode
@@ -209,7 +211,7 @@ export function RaceDetail({
         <div className="flex min-w-0 flex-col gap-4">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-ink">Runners</h3>
+            <h3 className="text-sm font-semibold text-ink">Runners{!hasAnyPrice && <span className="ml-2 text-xs font-normal text-ink-faint lg:hidden">Prices not out yet</span>}</h3>
             <div className="flex flex-wrap items-center gap-2">
               {SHOW_COMPARE && <Pill
                 active={compareMode}
@@ -225,10 +227,10 @@ export function RaceDetail({
           </div>
 
           <div className="overflow-hidden rounded-lg border border-line bg-panel">
-            <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
+            <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult, hasAnyPrice)}`}>
               {COLUMNS.map((c, i) =>
                 c.key == null ? (
-                  <span key={i} className="hidden min-[380px]:block" />
+                  <span key={i} className={`hidden ${silkFrom(hasAnyResult, hasAnyPrice)}`} />
                 ) : (
                   <button
                     key={c.key + (c.phoneOnly ? '-phone' : '')}
@@ -236,7 +238,7 @@ export function RaceDetail({
                     title={c.title}
                     aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                     onClick={() => onSort(c.key as SortKey)}
-                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) || (c.key === 'fixedPrice' && !hasAnyPrice) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                   >
                     {c.label}
                     {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}

@@ -13,6 +13,8 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   showFp: boolean
+  // False before any price is out: the Fixed $ cell drops out on phones (desktop keeps the column).
+  showPrice?: boolean
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
   combo?: CombinedRank
@@ -28,15 +30,23 @@ interface RunnerRowProps {
 const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
 
 const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_40px_62px_84px_30px]'
-// The FP column only takes room on a phone once there is a result to show.
-export const rowGrid = (showFp: boolean) =>
-  // Phone: [silk] | # | Horse | Spd | Nett | L3 | Proj | Rank | Fixed $ (| FP), everything on screen at once. The silk column joins from 380px up.
+// The FP column only takes room on a phone once there is a result to show, and the Fixed $ column only once a price is out.
+export const rowGrid = (showFp: boolean, showPrice = true) =>
+  // Phone: [silk] | # | Horse | Spd | Nett | L3 | Proj | Rank (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
+  // or from 430px up in the densest state (result and prices both shown) so horse names keep some room on a 390px phone.
+  // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px]'
-      : 'grid-cols-[16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px] min-[380px]:grid-cols-[24px_16px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px]'
+      ? showPrice
+        ? 'grid-cols-[20px_minmax(0,1fr)_24px_24px_22px_26px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_18px]'
+      : showPrice
+        ? 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px]'
   } ${DESKTOP_GRID}`
+// Where the silk column starts showing on a phone (matches rowGrid).
+export const silkFrom = (showFp: boolean, showPrice = true) => (showFp && showPrice ? 'min-[430px]:block' : 'min-[380px]:block')
 const LG_ONLY = 'hidden lg:block'
 
 // A cell with no value: a faint dash whose tooltip says why, so "not rated" is not mistaken for a blank rendering glitch.
@@ -48,7 +58,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showBias = true, combo, projSpan, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, projSpan, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
@@ -63,11 +73,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           onClick()
         }
       }}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp)} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp, showPrice)} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : runner.finishPosition === 1 ? 'bg-amber-bg/40 hover:bg-amber-bg/70' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="hidden h-6 w-6 rounded-sm object-contain min-[380px]:block lg:h-8 lg:w-8" /> : <span className="hidden h-6 w-6 min-[380px]:block lg:h-8 lg:w-8" />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className={`hidden h-6 w-6 rounded-sm object-contain ${silkFrom(showFp, showPrice)} lg:h-8 lg:w-8`} /> : <span className={`hidden h-6 w-6 ${silkFrom(showFp, showPrice)} lg:h-8 lg:w-8`} />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -146,7 +156,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
         title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (mean ${combo.mean.toFixed(1)}): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
-          <span className="text-ink-faint" title="Needs at least two of Spd, Nett, L3 and Proj">&ndash;</span>
+          <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett, L3 and Proj">&ndash;</span>
         ) : (
           <>
             <span
@@ -165,7 +175,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           </>
         )}
       </span>
-      <span className="text-right text-ink-mute">
+      <span className={`text-right text-ink-mute ${showPrice ? '' : LG_ONLY}`}>
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>

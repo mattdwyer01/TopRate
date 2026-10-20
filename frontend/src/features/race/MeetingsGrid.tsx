@@ -9,7 +9,7 @@ import {
   isBushMeeting,
   todayIso,
 } from '../../lib/meetings'
-import { formatTimeOfDay } from '../../lib/countdown'
+import { formatTimeOfDay, formatCountdown } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
 import { hasQuaddie } from '../../lib/quaddie'
 import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers, topPickOutcome } from '../../lib/raceStatus'
@@ -98,6 +98,23 @@ export function MeetingsGrid({
     return best
   }, [races, date])
   const now = useNow(30_000)
+
+  // Once everything on the viewed day has run (or nothing is on), preview the next day with racing so the page is not left empty.
+  const dayFinished = visibleMeetings.every((m) => m.races.every((r) => {
+    const st = raceStatus(r, now)
+    return st === 'resulted' || st === 'interim'
+  }))
+  const nextDate = useMemo(() => {
+    let best: string | null = null
+    for (const d of new Set(races.map((r) => r.date))) if (d > date && (best == null || d < best)) best = d
+    return best
+  }, [races, date])
+  const upcomingMeetings = useMemo(() => {
+    if (!nextDate || !dayFinished) return []
+    return groupIntoMeetings(races, nextDate)
+      .filter((m) => (showBush || !isBushMeeting(m)) && !hiddenVenues.has(m.venue))
+      .map((m) => ({ ...m, races: [...m.races].sort((a, b) => a.raceNumber - b.raceNumber) }))
+  }, [races, nextDate, dayFinished, showBush, hiddenVenues])
 
   const hasUntimed = visibleMeetings.some((m) => m.races.some((r) => !formatTimeOfDay(r.startTime) && raceStatus(r, now) === 'later'))
 
@@ -321,6 +338,48 @@ export function MeetingsGrid({
           )}
         </div>
         </>
+      )}
+
+      {nextDate && upcomingMeetings.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-ink">
+              Coming up
+              <span className="ml-2 text-xs font-normal text-ink-mute">
+                {new Date(`${nextDate}T00:00:00Z`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
+              </span>
+            </h3>
+            <Pill active={false} onClick={() => setDate(nextDate)}>
+              See the full day
+            </Pill>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {upcomingMeetings.map((m) => {
+              const first = m.races[0]
+              const time = formatTimeOfDay(first.startTime)
+              const countdown = time ? formatCountdown(first.startTime, new Date(now)) : ''
+              return (
+                <button
+                  key={`${m.date}-${m.venue}`}
+                  type="button"
+                  onClick={() => onSelectRace(first.raceId, first.date)}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 text-left transition-colors hover:border-emerald-line hover:bg-emerald-bg"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-ink">{m.venue}</span>
+                    <span className="block text-xs text-ink-mute">
+                      {m.state} &middot; {m.races.length} race{m.races.length === 1 ? '' : 's'}
+                    </span>
+                  </span>
+                  <span className="flex-none text-right">
+                    <span className="block font-mono text-sm text-ink">{time || 'TBC'}</span>
+                    {countdown && countdown !== 'Jumped' && <span className="block text-xs text-emerald-deep">in {countdown}</span>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
       )}
     </div>
   )
