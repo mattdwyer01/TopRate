@@ -42,12 +42,12 @@ export function RaceResult({ race, combo, scratched, onSelectRunner }: RaceResul
           const price = r.startingPrice ?? r.fixedWinPrice
           return (
             <li key={r.runId}>
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className="grid w-full grid-cols-[22px_22px_minmax(0,1fr)_auto] items-center gap-x-2 py-1.5 text-left text-sm hover:bg-bg sm:grid-cols-[22px_28px_minmax(0,1fr)_auto]">
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className="grid w-full grid-cols-[22px_22px_minmax(0,1fr)_auto] items-center gap-x-2 py-1 text-left text-sm hover:bg-bg sm:py-1.5 sm:grid-cols-[22px_28px_minmax(0,1fr)_auto]">
                 <FinishBadge pos={r.finishPosition} />
                 <span className="font-mono text-ink-mute">{r.tabNumber}</span>
                 <span className="min-w-0">
                   <span className={`block truncate ${r.finishPosition === 1 ? 'font-semibold' : 'font-medium'} text-ink`}>{r.horse}</span>
-                  <span className="block truncate text-[11px] text-ink-faint">
+                  <span className="hidden truncate text-[11px] text-ink-faint sm:block">
                     {r.jockey} / {r.trainer}
                   </span>
                 </span>

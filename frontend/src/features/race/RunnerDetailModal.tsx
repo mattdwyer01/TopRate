@@ -8,7 +8,7 @@ import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { ConditionsScorecard, HorseHero, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -26,6 +26,7 @@ interface RunnerDetailModalProps {
   onToggleScratch: () => void
   onClose: () => void
   position?: { index: number; total: number }
+  ranks?: (number | null)[] | null
   onPrev: () => void
   onNext: () => void
 }
@@ -74,6 +75,7 @@ export function RunnerDetailModal({
   onToggleScratch,
   onClose,
   position,
+  ranks = null,
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
@@ -182,6 +184,8 @@ export function RunnerDetailModal({
               No projection for this runner. {runner.projectionDescription || (tripRunner && tripRunner.nHist >= 3 ? 'It has plenty of form, but is entered in another race before this one has run, so its latest rating is not known yet. The projection appears once that run is rated; enter your own base WPR below to rate it meanwhile.' : 'There is not enough form history to project it; enter your own base WPR below to rate it.')}
             </div>
           )}
+
+          <SignalsPanel runner={runner} raceDate={race.date} proj={effectiveWpr} ranks={ranks} />
 
           <HorseHero
             runner={runner}

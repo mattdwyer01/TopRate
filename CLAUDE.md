@@ -2699,6 +2699,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Desktop hero banner, Proj bar, "Predicted race shape" (20 Oct 2026, from the mockups)**: from md (768px) the race header (`RaceHeader.tsx`) is a dark green banner (#0B3B2A) with a 3xl race name and a 4xl countdown; phones keep the light compact header. From lg the Proj cell gets a 3px bar under the figure scaled between the field's lowest and highest Proj (`projSpan` computed in `RaceDetail.tsx` from `ranked`, `RunnerRow.tsx`). The Race shape card is headed "Predicted race shape". Checked at 390 / 800 / 1280 / 1440px: no page overflow, no script errors. Not built from the mockups: Review desktop layout, the three-line phone race rows, and the brand/name removal (needs a name).
 
+- **Phone runner signals panel, compact Result and race picker (20 Oct 2026, user: "mobile doesn't seem to have changed")**: the runner page now opens with a four-tile Spd / Nett / L3 / Proj panel (`SignalsPanel` in `horseParts.tsx`, ranks from `comboByRunId` passed as `ranks` to `RunnerDetailModal`), on every width, above the Rating hero. On phones the Result panel is one line per runner (jockey and trainer line hidden below sm) and the R1..Rn race picker is a single horizontally scrolling row. Tried and reverted: adding the weight to the phone barrier badge (it cut horse names to three letters). Checked at 360 / 390px: no page overflow, no script errors.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
