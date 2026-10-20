@@ -16,6 +16,8 @@ interface RunnerRowProps {
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
   combo?: CombinedRank
+  // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
+  projSpan?: { min: number; max: number }
   onClick: () => void
 }
 
@@ -46,7 +48,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showBias = true, combo, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showBias = true, combo, projSpan, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
@@ -126,6 +128,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
             <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? <Missing why="No projection (no rated form, or a jumps race)" /> : Math.round(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
+            {f.proj != null && projSpan && projSpan.max > projSpan.min && (
+              <span className="mt-0.5 hidden h-[3px] overflow-hidden rounded-full bg-line lg:block" aria-hidden="true">
+                <span className="block h-full rounded-full bg-emerald" style={{ width: `${Math.round(15 + (85 * (f.proj - projSpan.min)) / (projSpan.max - projSpan.min))}%` }} />
+              </span>
+            )}
           </span>
         )}
       </span>
