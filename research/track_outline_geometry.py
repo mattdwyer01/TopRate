@@ -74,6 +74,16 @@ def measure(pts):
             best, best_end = cur, i
     best = min(best, len(straight))
     srun = ((best_end - best + 1) % len(straight), best)      # start index and length (10 m samples) of the longest straight
+    runs = []                                                 # every straight of 150 m or more as (start, length), longest first
+    n_s = len(straight)
+    for i0 in range(n_s):
+        if straight[i0] and not straight[i0 - 1]:
+            ln = 0
+            while straight[(i0 + ln) % n_s] and ln < n_s:
+                ln += 1
+            if ln >= 15:
+                runs.append((i0, ln))
+    runs.sort(key=lambda r: -r[1])
     best = best * 10.0
     bend = k > 1 / 600
     rad = 1 / np.median(k[bend]) if bend.sum() >= 5 else np.nan
@@ -81,7 +91,7 @@ def measure(pts):
     ev = np.sort(np.linalg.eigvalsh(c))
     return {'perim': round(perim), 'area': round(area), 'compact': round(4 * math.pi * area / perim ** 2, 3), 'elong': round(math.sqrt(ev[1] / max(ev[0], 1e-9)), 2),
             'straight': round(best), 'bend_radius': None if np.isnan(rad) else round(rad), 'bend_share': round(float(bend.mean()), 3), 'lat': round(lat, 4), 'lon': round(lon, 4),
-            '_ring': (rx, ry), '_srun': srun}
+            '_ring': (rx, ry), '_srun': srun, '_runs': runs}
 
 
 def rings(ways):
@@ -117,11 +127,45 @@ NOT_SHOWN = {'Rosehill', 'Eagle Farm'}      # ring pick known to be wrong (3,083
 SHOWN_OUT = 'track_outlines.json'            # repo root, fetched by the dashboard
 
 
+MARKS = os.path.join('data', 'track_outlines', 'track_marks.json')
+
+
+def place_marks(ring, runs, mk, per):
+    """Finish post, start points and chute spurs in the ring's own metres from the hand-read notes in track_marks.json (read off the racerate.com plan maps:
+    racing direction, where the post sits on the home straight, and which starts are on the rail or on a chute). Back distance is measured along the ring from the post
+    against the racing direction; a chute is a straight spur leaving the rail tangentially. Returns None if the notes cannot be applied."""
+    rx, ry = ring
+    n = len(rx)
+    if not runs:
+        return None
+    area = 0.5 * float(np.sum(rx * np.roll(ry, -1) - np.roll(rx, -1) * ry))
+    sgn = 1 if (mk['dir'] == 'ccw') == (area > 0) else -1          # +1: racing follows the point order
+    hi = min(mk.get('home', 0), len(runs) - 1)
+    a, ln = runs[hi]
+    end = a + ln if sgn > 0 else a                                  # end of the home straight in the racing direction
+    fin = (end - sgn * mk['fb'] * ln) % n
+    pt = lambda i: (float(np.interp(i % n, np.arange(n + 1), np.r_[rx, rx[0]])), float(np.interp(i % n, np.arange(n + 1), np.r_[ry, ry[0]])))
+    back = lambda d: (fin - sgn * (d % per) / (per / n)) % n         # ring index d metres behind the post
+    r = lambda p: [int(round(p[0])), int(round(p[1]))]
+    starts = {str(d): r(pt(back(d))) for d in mk['ring']}
+    chutes = {}
+    for d, lc in mk['chute'].items():
+        # a chute leaves the rail lc metres before the start (the join is at back distance d - lc) and continues the straight that runs on from the join:
+        # the direction is from the rail 100 m further on (towards the post) back through the join, so a bend behind the join does not swing it
+        t = back(int(d) - lc)
+        p0, p1 = pt(t), pt(t + sgn * 100 / (per / n))
+        v = np.array([p0[0] - p1[0], p0[1] - p1[1]])
+        v = v / (np.hypot(*v) or 1.0)
+        chutes[d] = [r(p0), [int(round(p0[0] + v[0] * lc)), int(round(p0[1] + v[1] * lc))]]
+    return {'dir': mk['dir'], 'fin': r(pt(fin)), 'starts': starts, 'chutes': chutes, 's0': int(a), 'sn': int(ln), 'sgn': sgn}
+
+
 def export_outlines(out, rings_out, step=2):
     """Write the dashboard file: per track the running-rail ring every 20 m in whole metres (north up, x east, y north), the longest straight as a start index and length,
     and the measured numbers. Both name keys are lowercase."""
     tracks = {}
-    for tr, (ring, srun) in rings_out.items():
+    marks = json.load(open(MARKS)) if os.path.exists(MARKS) else {}
+    for tr, (ring, srun, runs) in rings_out.items():
         if tr in NOT_SHOWN:
             continue
         rx, ry = ring
@@ -130,6 +174,11 @@ def export_outlines(out, rings_out, step=2):
         m = out[tr]
         tracks[tr.lower()] = {'name': tr, 'perim': m['perim'], 'straight': m['straight'], 'radius': m['bend_radius'], 'by': m['by'],
                               's0': int(srun[0] // step), 'sn': int(srun[1] // step), 'pts': [[a, b] for a, b in zip(px, py)]}
+        mk = marks.get(tr.lower())
+        pm = place_marks(ring, runs, mk, m['perim']) if mk else None
+        if pm:
+            hs0, hsn = pm.pop('s0'), pm.pop('sn')
+            tracks[tr.lower()].update(pm, s0=int(hs0 // step), sn=int(hsn // step))
     json.dump({'source': 'OpenStreetMap contributors (ODbL)', 'step': step * 10, 'tracks': tracks}, open(SHOWN_OUT, 'w'), separators=(',', ':'))
     print(len(tracks), 'outlines ->', SHOWN_OUT, round(os.path.getsize(SHOWN_OUT) / 1024), 'KB')
 
@@ -186,8 +235,8 @@ def main():
         inn = [m for m in pool if m['kind'] == 'inner']      # inner ring = running rail; fall back to ways / outer rings
         main = max(inn or pool, key=lambda m: m['perim'])
         out[tr] = dict(main, n_loops=len(best), by='name' if named_loops else 'location')
-        rings_out[tr] = (main['_ring'], main['_srun'])
-        out[tr].pop('_ring'), out[tr].pop('_srun')
+        rings_out[tr] = (main['_ring'], main['_srun'], main['_runs'])
+        out[tr].pop('_ring'), out[tr].pop('_srun'), out[tr].pop('_runs')
     json.dump(out, open(OUT, 'w'), indent=0)
     export_outlines(out, rings_out)
     print(len(out), 'of', len(track_names()), 'tracks matched ->', OUT)

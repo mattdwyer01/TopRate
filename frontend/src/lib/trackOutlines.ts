@@ -12,6 +12,11 @@ export interface TrackOutlineData {
   s0: number // index of the start of the longest straight
   sn: number // its length in points
   pts: [number, number][]
+  // Start and finish, read by hand off plan maps (track_marks.json); absent for a track without them. Same metre frame as pts.
+  dir?: 'cw' | 'ccw' // racing direction seen from above
+  fin?: [number, number] // winning post
+  starts?: Record<string, [number, number]> // start distance (m) -> point on the rail
+  chutes?: Record<string, [[number, number], [number, number]]> // start distance (m) -> spur from the rail to the start
 }
 
 export interface TrackOutlinePayload {
