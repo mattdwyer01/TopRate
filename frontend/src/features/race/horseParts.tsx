@@ -5,6 +5,8 @@ import { fmtAdj } from './rowParts'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
+import { lastRunsRating } from '../../lib/formRatings'
+import { speedOnWprScale } from '../../lib/speed'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -42,6 +44,32 @@ interface HeroProps {
 }
 
 // The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the rated price, and the basics.
+// The four ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
+export function SignalsPanel({ runner, raceDate, proj, ranks }: { runner: Runner; raceDate: string; proj: number | null; ranks: (number | null)[] | null }) {
+  const l3 = lastRunsRating(runner.formHistory, raceDate, 3)
+  const tiles: { label: string; value: number | null; rank: number | null }[] = [
+    { label: 'Spd', value: runner.speedRating != null ? speedOnWprScale(runner.speedRating) : null, rank: ranks?.[0] ?? null },
+    { label: 'Nett', value: runner.nett ?? null, rank: ranks?.[1] ?? null },
+    { label: 'L3', value: l3 ? l3.avg : null, rank: ranks?.[2] ?? null },
+    { label: 'Proj', value: proj, rank: ranks?.[3] ?? null },
+  ]
+  return (
+    <section className="grid grid-cols-4 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
+      {tiles.map((t) => (
+        <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'Proj' ? 'bg-emerald-bg' : ''}`}>
+          <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>
+          <span className="font-mono text-xl font-medium leading-tight text-ink">{t.value != null ? Math.round(t.value) : <span className="text-ink-faint">&ndash;</span>}</span>
+          {t.rank != null ? (
+            <span className={`w-fit rounded-md px-1.5 text-[11px] font-bold ${t.rank === 1 ? 'bg-emerald text-white' : t.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'bg-bg text-ink-mute'}`}>#{t.rank}</span>
+          ) : (
+            <span className="text-[11px] text-ink-faint">no rank</span>
+          )}
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, compact }: HeroProps) {
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
   const verdict =

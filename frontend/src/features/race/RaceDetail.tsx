@@ -186,7 +186,7 @@ export function RaceDetail({
         <button type="button" onClick={onBack} className="w-fit text-sm text-emerald hover:underline">
           &larr; Back to meetings
         </button>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="-mx-1 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {meetingRaces.map((r) => (
             <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, now)]} onClick={() => onSelectRace(r.raceId, r.date)}>
               R{r.raceNumber}
@@ -331,6 +331,7 @@ export function RaceDetail({
           onToggleScratch={() => setScratched(selectedRunner.runId, !scratched.has(selectedRunner.runId))}
           onClose={() => setSelectedRunId(null)}
           position={{ index: selectedIndex + 1, total: sortedRunners.length }}
+          ranks={comboByRunId.get(selectedRunner.runId)?.ranks ?? null}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
         />
