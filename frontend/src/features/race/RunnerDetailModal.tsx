@@ -121,7 +121,7 @@ export function RunnerDetailModal({
         aria-modal="true"
         aria-label={`${runner.horse} detail`}
         tabIndex={-1}
-        className="flex h-full max-h-full w-full max-w-6xl flex-col overflow-y-auto bg-bg shadow-[var(--shadow-2)] outline-none sm:h-auto sm:rounded-lg"
+        className="flex h-full max-h-full w-full max-w-[1400px] flex-col overflow-y-auto bg-bg shadow-[var(--shadow-2)] outline-none sm:h-auto sm:rounded-lg"
         onClick={(e) => e.stopPropagation()}
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 110)}
       >
@@ -178,15 +178,18 @@ export function RunnerDetailModal({
         </div>
         </div>
 
-        <div className="flex flex-col gap-2 p-2 sm:gap-3 sm:p-4">
+        <div className="flex flex-col gap-2 p-2 sm:gap-3 sm:p-4 lg:grid lg:grid-cols-12 lg:items-start">
           {runner.projectedWpr == null && baseValue == null && (
-            <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-sm text-amber">
+            <div className="rounded-lg border border-amber-line bg-amber-bg p-3 text-sm text-amber lg:col-span-12">
               No projection for this runner. {runner.projectionDescription || (tripRunner && tripRunner.nHist >= 3 ? 'It has plenty of form, but is entered in another race before this one has run, so its latest rating is not known yet. The projection appears once that run is rated; enter your own base WPR below to rate it meanwhile.' : 'There is not enough form history to project it; enter your own base WPR below to rate it.')}
             </div>
           )}
 
-          <SignalsPanel runner={runner} raceDate={race.date} proj={effectiveWpr} ranks={ranks} />
+          <div className="lg:order-2 lg:col-span-7">
+            <SignalsPanel runner={runner} raceDate={race.date} proj={effectiveWpr} ranks={ranks} />
+          </div>
 
+          <div className="lg:order-1 lg:col-span-5">
           <HorseHero
             runner={runner}
             race={race}
@@ -200,14 +203,15 @@ export function RunnerDetailModal({
             fixedMove={fixedMove}
             hasOverride={hasOverride}
           />
+          </div>
 
           {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
-            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft lg:col-span-12" role="note">
               Jockey not declared yet. The projection assumes an average jockey and moves when the rider is named.
             </div>
           )}
           {!scratched && !race.going && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
-            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft" role="note">
+            <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft lg:col-span-12" role="note">
               Going not known yet. The projection assumes Good 4 and updates when the track is rated.
             </div>
           )}
@@ -262,7 +266,7 @@ export function RunnerDetailModal({
 
             </AdjustmentToggle>
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden sm:block lg:order-6 lg:col-span-12">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-3 py-2">
             <label className="flex items-center gap-2 text-sm text-ink-soft">
               Your adjustment
@@ -305,7 +309,7 @@ export function RunnerDetailModal({
 
           </div>
 
-          <Card title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : undefined}>
+          <Card className="order-2 lg:order-4 lg:col-span-5" title="Expected run" note={tripKind === '800m' || tripKind === 'est' ? 'about 800m from home' : undefined}>
             <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm sm:max-w-md">
               <span className="text-ink-mute">Settling</span>
               <span className="text-right font-mono text-ink">{runner.predictedSettlingBand ?? '-'}</span>
@@ -327,7 +331,7 @@ export function RunnerDetailModal({
             </p>
           </Card>
 
-          <Card title="Form and record" note="timeline, then today's conditions, then every run">
+          <Card className="order-2 lg:order-5 lg:col-span-7" title="Form and record" note="timeline, then today's conditions">
             <RunTimeline runner={runner} raceDate={race.date} />
             <TimelineLegend atwOffset={atwOff} weightKg={runner.weightCarried ?? null} />
             <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Today's conditions against this horse's record</h4>
@@ -338,7 +342,9 @@ export function RunnerDetailModal({
                 <CareerStats runner={runner} race={race} breakdown={null} />
               </div>
             </details>
-            <h4 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-faint">Every run, newest first</h4>
+          </Card>
+
+          <section className="rounded-lg border border-line bg-panel p-3 sm:p-3.5 order-1 lg:order-3 lg:col-span-12">
             <RecentRunsTable
               horseName={runner.horse}
               runs={runner.recentRuns}
@@ -349,9 +355,9 @@ export function RunnerDetailModal({
               raceDate={race.date}
               raceVenue={race.venue}
             />
-          </Card>
+          </section>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="order-3 grid gap-3 lg:order-7 lg:col-span-12 lg:grid-cols-2">
             <Card title="Market" note="price against the rated price">
               {hasPriceInfo ? <PriceVsFair runner={runner} fair={scratched ? null : fair} placeFair={scratched ? null : (effective?.effectivePlacePrice ?? null)} /> : <p className="text-xs text-ink-faint">No price information yet.</p>}
             </Card>
