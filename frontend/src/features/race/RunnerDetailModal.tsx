@@ -3,6 +3,7 @@ import type { Race, Runner } from '../../types/domain'
 import type { TripRunner } from '../../lib/tripMap'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
+import { formatTimeOfDay } from '../../lib/countdown'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
@@ -24,6 +25,7 @@ interface RunnerDetailModalProps {
   onSetBase: (v: number | null) => void
   onToggleScratch: () => void
   onClose: () => void
+  position?: { index: number; total: number }
   onPrev: () => void
   onNext: () => void
 }
@@ -71,6 +73,7 @@ export function RunnerDetailModal({
   onSetBase,
   onToggleScratch,
   onClose,
+  position,
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
@@ -120,8 +123,9 @@ export function RunnerDetailModal({
         onClick={(e) => e.stopPropagation()}
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 110)}
       >
-        <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-line bg-panel px-3 py-2.5">
-          {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" /> : <div className="h-14 w-14 shrink-0 rounded-sm bg-bg" />}
+        <div className="sticky top-0 z-10">
+        <div className="flex items-center gap-1.5 border-b border-line bg-panel px-2 py-1.5 sm:gap-2.5 sm:px-3 sm:py-2.5">
+          {runner.silkUrl ? <img src={runner.silkUrl} alt="" className="h-10 w-10 shrink-0 rounded-sm object-contain sm:h-14 sm:w-14" /> : <div className="h-10 w-10 shrink-0 rounded-sm bg-bg sm:h-14 sm:w-14" />}
           <div className="min-w-0 flex-1">
             <div className={`truncate text-base font-semibold text-ink ${scratched ? 'line-through' : ''}`}>
               {runner.tabNumber}. {runner.horse}
@@ -153,16 +157,23 @@ export function RunnerDetailModal({
                 {scratched ? 'Scratched' : 'Scratch'}
               </button>
             )}
-            <button type="button" onClick={onPrev} className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Previous runner">
+            <button type="button" onClick={onPrev} className="flex h-10 w-9 items-center justify-center rounded-md border border-line text-lg text-ink-mute transition-colors hover:bg-bg hover:text-ink sm:h-8 sm:w-8 sm:text-base" aria-label="Previous runner">
               &lsaquo;
             </button>
-            <button type="button" onClick={onNext} className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Next runner">
+            <button type="button" onClick={onNext} className="flex h-10 w-9 items-center justify-center rounded-md border border-line text-lg text-ink-mute transition-colors hover:bg-bg hover:text-ink sm:h-8 sm:w-8 sm:text-base" aria-label="Next runner">
               &rsaquo;
             </button>
             <button type="button" onClick={onClose} className="ml-1 flex h-8 w-8 items-center justify-center rounded-md text-ink-mute transition-colors hover:bg-bg hover:text-ink" aria-label="Close">
               &#10005;
             </button>
           </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 bg-emerald-deep px-3 py-1 text-xs text-white">
+          <span className="min-w-0 truncate">
+            <b>{race.venue} R{race.raceNumber}</b> &middot; {race.distance}m &middot; {race.going || 'going TBC'}{race.rail ? ` · Rail ${race.rail}` : ' · Rail not set'}
+          </span>
+          <span className="shrink-0 opacity-90">{position ? `${position.index} of ${position.total} · ` : ''}{formatTimeOfDay(race.startTime) || 'TBC'}</span>
+        </div>
         </div>
 
         <div className="flex flex-col gap-2 p-2 sm:gap-3 sm:p-4">
