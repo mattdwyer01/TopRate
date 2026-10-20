@@ -76,7 +76,7 @@ export function TrackOutline({ race }: { race: Race }) {
           <div
             role="img"
             aria-label={`${race.venue} plan map`}
-            className="w-full max-w-[440px] flex-none self-center sm:w-[380px] [&_svg]:h-auto [&_svg]:w-full [&_.ink]:fill-ink [&_.acc]:fill-red-600"
+            className="w-full max-w-[440px] flex-none self-center sm:w-[380px] [&_svg]:h-auto [&_svg]:w-full [&_.ink]:fill-ink [&_.lbl]:fill-ink [&_.acc]:fill-red-600 [&_.lbl]:[font:600_9px_system-ui,sans-serif] [&_.acc]:[font:700_9px_system-ui,sans-serif] [&_text]:[text-anchor:middle] [&_text]:[dominant-baseline:middle]"
             dangerouslySetInnerHTML={{ __html: map.svg }}
           />
           <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 text-xs">
