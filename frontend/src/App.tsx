@@ -159,14 +159,14 @@ function App() {
           reproduced in a plain scroll test, not iOS-Safari-specific). */}
       <header className="sticky top-0 z-30 flex flex-col gap-2 border-b border-line bg-panel px-4 py-3">
         {state.status === 'ready' && (
-          <div className="mx-auto w-full max-w-6xl">
+          <div className="mx-auto w-full max-w-[1680px]">
             <NextToJumpTicker
               races={tickerRaces}
               onSelectRace={goToRace}
             />
           </div>
         )}
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+        <div className="mx-auto flex w-full max-w-[1680px] items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
             {/* text-base/px-1.5/text-xs below sm: the full-size header (logo
                 + 3 tabs + freshness/search/settings) needs ~379px of natural
@@ -265,7 +265,7 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-4">
+      <main className="mx-auto max-w-[1680px] px-4 py-4">
         {state.status === 'loading' && (
           <EmptyState message="Loading today's races..." progress={state.progress} />
         )}

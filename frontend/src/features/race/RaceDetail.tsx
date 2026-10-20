@@ -204,8 +204,8 @@ export function RaceDetail({
 
       {hasAnyResult && <RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
-      {/* From xl the runners sit on the left and the race shape and ladder in a side column, so the table and the map are on screen together. */}
-      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_330px] xl:items-start xl:gap-4">
+      {/* Runners, then race shape and ladder, each at full width: the speed map and trip map need the room. */}
+      <div className="flex flex-col gap-4">
         <div className="flex min-w-0 flex-col gap-4">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
