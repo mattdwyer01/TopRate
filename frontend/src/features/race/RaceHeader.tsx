@@ -149,15 +149,15 @@ export function RaceMiniBar({
   }, [anchorRef])
   const { change, pace, paceTone } = useConditions(race, meeting, activeRunners)
   if (!visible) return null
-  const goingClass = change ? TILE_TONE.bad : TILE_TONE[goingToneKey(race.going)]
+  const goingT: Tone = change ? 'bad' : goingToneKey(race.going)
   return (
-    <div style={{ top }} className="sticky z-20 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-panel/95 px-3 py-1.5 shadow-[var(--shadow-1)] backdrop-blur">
-      <span className="text-sm font-semibold text-ink">
+    <div style={{ top }} className="sticky z-20 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-transparent bg-[#0B3B2A]/95 px-3 py-1.5 text-white shadow-[var(--shadow-1)] backdrop-blur">
+      <span className="text-sm font-semibold text-white">
         {race.venue} R{race.raceNumber}
       </span>
-      {race.going && <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${goingClass}`}>{race.going}</span>}
-      <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TILE_TONE[paceTone]}`}>{pace.display.replace(' (predicted)', '')}</span>
-      <span className="font-mono text-sm font-semibold text-emerald-deep">{formatCountdown(race.startTime) || ''}</span>
+      {race.going && <Chip tone={goingT}>{race.going}</Chip>}
+      <Chip tone={paceTone}>{pace.display.replace(' (predicted)', '')}</Chip>
+      <span className="font-mono text-sm font-semibold text-white">{formatCountdown(race.startTime) || ''}</span>
       <span className="flex-1" />
       <span className="hidden flex-wrap gap-1 sm:flex">
         {meeting.map((r) => (

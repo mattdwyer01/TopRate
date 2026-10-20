@@ -2713,6 +2713,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Race banner dark green at every width (20 Oct 2026, user: "make consistent")**: the banner was white below md and dark green from md. `RaceHeader.tsx` is now the dark green banner (#0B3B2A) on phones too: translucent chips with a status dot, white title and countdown, light green subtitle, and the Resulted / Interim pill, scratched count and the white replay button (`ReplayPanel.tsx`) restyled for it; only the type sizes still step up at md. The sticky mini bar under the app header (`RaceMiniBar`) is still white. Checked at 430 / 1300px.
 
+- **One green everywhere (20 Oct 2026, user: "make it consistent everywhere")**: the sticky race mini bar (`RaceMiniBar`) is now the same dark green (#0B3B2A) as the race banner, with the same translucent chips and dots and white countdown, and the runner page's context strip uses #0B3B2A instead of the brighter `emerald-deep`. Checked at 430 / 1300px.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
