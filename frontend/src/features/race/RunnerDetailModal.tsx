@@ -170,7 +170,7 @@ export function RunnerDetailModal({
             </button>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2 bg-emerald-deep px-3 py-1 text-xs text-white">
+        <div className="flex items-center justify-between gap-2 bg-[#0B3B2A] px-3 py-1 text-xs text-white">
           <span className="min-w-0 truncate">
             <b>{race.venue} R{race.raceNumber}</b> &middot; {race.distance}m &middot; {race.going || 'going TBC'}{race.rail ? ` · Rail ${race.rail}` : ' · Rail not set'}
           </span>
