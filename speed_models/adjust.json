@@ -12,7 +12,10 @@
  "wchg_clip": 10.0,
  "used": [
   "ldays",
-  "wchg"
+  "wchg",
+  "close"
  ],
- "note": "dchg (distance change) tested and left out: it lowered winner log-lik (-0.0025). Fitted by research/speed_adjusted_rating.py"
+ "note": "dchg (distance change) tested and left out: it lowered winner log-lik (-0.0025). Fitted by research/speed_adjusted_rating.py Closing gain term (close, lengths per length, mean of last 3 runs with a 400m margin) added 20 Oct 2026 from analysis/horsetorque_edge/spd_improve.py (coefficient = 0.495/0.811 from the 2025-07..12 fit).",
+ "close": 0.61,
+ "close_center": -3.318
 }

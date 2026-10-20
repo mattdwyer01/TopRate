@@ -15,10 +15,14 @@ from common import asof_mean
 F = pd.read_pickle(os.path.join(CACHE, 'features.pkl'))
 F['dl400'] = (F['sect_i_l400'] - F['w_sect_i_l400']).clip(-15, 15)      # WPR-free closing gain vs the winner, lengths
 F['close400_m3'] = asof_mean(F, 'dl400', 3)
-f = F[['race_id', 'horse_id', 'TOF_m3', 'XR_m3', 'sr_vs_par_m3', 'settle_m3', 'close400_m3', 'wpr']].rename(columns={'wpr': 'wpr_t'})
+w4 = F['margin400m'].where(F['win'] == 1).groupby(F['race_id']).transform('max')
+F['cm400'] = ((F['margin400m'] - w4).clip(-25, 25) - F['marginFinish'].clip(lower=0, upper=25)).clip(-15, 15)   # raw-margin closing gain (no TopRate sect_ columns)
+F.loc[w4.isna() | F['margin400m'].isna(), 'cm400'] = np.nan
+F['cm400_m3'] = asof_mean(F, 'cm400', 3)
+f = F[['race_id', 'horse_id', 'TOF_m3', 'XR_m3', 'sr_vs_par_m3', 'settle_m3', 'close400_m3', 'cm400_m3', 'wpr']].rename(columns={'wpr': 'wpr_t'})
 d = d.merge(f, on=['race_id', 'horse_id'], how='left')
 d = d[d.wpr_t.notna()].copy()
-terms = {'closing gain last 400m (no WPR)': 'close400_m3', 'class_move': 'cp_class_move', 'TOF (last-3 mean)': 'TOF_m3', 'XR (last-3 mean)': 'XR_m3', 'last start vs par (sr_vs_par)': 'sr_vs_par_m3', 'map position (settle %)': 'settle_m3'}
+terms = {'closing gain from raw 400m margins (no WPR, no sect_)': 'cm400_m3', 'closing gain last 400m (sect_i_l400)': 'close400_m3', 'class_move': 'cp_class_move', 'TOF (last-3 mean)': 'TOF_m3', 'XR (last-3 mean)': 'XR_m3', 'last start vs par (sr_vs_par)': 'sr_vs_par_m3', 'map position (settle %)': 'settle_m3'}
 need = ['spd'] + list(terms.values())
 d = d.dropna(subset=need)
 d['n'] = d.groupby('race_id')['race_id'].transform('size')

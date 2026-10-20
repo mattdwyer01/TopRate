@@ -40,7 +40,7 @@ COLUMN = "spd_fig"
 WINDOW_DAYS = 28             # rows dated within this many days before today (and every later date) are (re)computed
 YEARS_BACK = 2               # results files read: this year and the previous ones
 USE = ["race_id", "date", "horse", "track", "distance", "going", "positionFinish", "marginFinish", "field_size", "weightCarried", "winners_time",
-       "isBarrierTrial", "race_class", "trackGrading"]
+       "isBarrierTrial", "race_class", "trackGrading", "margin400m"]
 CATS = ["track", "gname", "cls", "grading"]
 FEATS = ["distance", "gnum", "field_size", "doy", "mw"]
 
@@ -154,7 +154,19 @@ def figures(d):
     r["fast"] = -(dev - _variant(r, dev)) / SEC
     d = d.merge(r[["race_id", "fast"]], on="race_id", how="left")
     d["sp"] = d["fast"] - d["marginFinish"].clip(lower=0, upper=25)
+    d["close"] = _closing_gain(d)
     return d.dropna(subset=["sp"])
+
+
+def _closing_gain(d):
+    """Lengths gained on the winner over the last 400m: (margin at 400m - the winner's margin at 400m) - the beaten margin at the finish, clipped to +-15.
+    Raw margins only (no TopRate sectional columns). NaN where the 400m margin is missing, which includes every run read from the runner-page store (it
+    carries no margins at 400m), so those runs add nothing to the closing term. Added 20 Oct 2026."""
+    if "margin400m" not in d.columns:
+        return pd.Series(np.nan, index=d.index)
+    w = d["margin400m"].where(d["positionFinish"] == 1).groupby(d["race_id"]).transform("max")
+    c = ((d["margin400m"] - w).clip(-25, 25) - d["marginFinish"].clip(lower=0, upper=25)).clip(-15, 15)
+    return c.where(w.notna() & d["margin400m"].notna())
 
 
 def history(d):
@@ -163,9 +175,10 @@ def history(d):
     d["key"] = d["horse"].astype(str).str.lower().str.strip()
     d = d.sort_values(["key", "date"])
     d["rating"] = d.groupby("key", sort=False)["sp"].transform(lambda s: s.ewm(halflife=HALFLIFE, min_periods=MIN_RUNS).mean())
+    d["close3"] = d.groupby("key", sort=False)["close"].transform(lambda s: s.rolling(3, min_periods=1).mean())   # mean closing gain of the last 3 runs that have one
     d["lw"] = d["weightCarried"]
     d["ldate"] = d["date"]
-    return d.dropna(subset=["rating"])[["key", "date", "rating", "lw", "ldate"]].sort_values("date")
+    return d.dropna(subset=["rating"])[["key", "date", "rating", "lw", "ldate", "close3"]].sort_values("date")
 
 
 def run_figures(first_year=None):
@@ -191,8 +204,20 @@ def compute(runners_df, today=None):
     m = pd.merge_asof(q.reset_index(), h, on="date", by="key", allow_exact_matches=False, tolerance=pd.Timedelta(days=400)).set_index("index")
     rating = m["rating"].values
     adj = _adjustment(m, dts[sel], runners_df.loc[sel, "weight_carried"] if "weight_carried" in runners_df.columns else None)
-    out.loc[m.index] = rating + adj
+    out.loc[m.index] = rating + adj + _closing_term(m)
     return out
+
+
+def _closing_term(m):
+    """Lengths added for the horse's recent closing gain over the last 400m (mean of its last 3 runs that have one, centred; coefficient in adjust.json 'close'). Zero
+    when none of its last 3 runs has a 400m margin. Tested 20 Oct 2026 (research: analysis/horsetorque_edge/spd_improve.py): +0.0115 winner log-lik (se 0.0018) over
+    Spd alone on 2026 races, fitted on 2025-07..12."""
+    if not ADJUST.exists():
+        return 0.0
+    c = json.loads(ADJUST.read_text())
+    if "close" not in c.get("used", []):
+        return 0.0
+    return (c["close"] * (m["close3"] - c.get("close_center", 0.0))).fillna(0.0).values
 
 
 def _adjustment(m, dates, wt):
