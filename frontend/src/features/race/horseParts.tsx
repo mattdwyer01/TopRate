@@ -5,7 +5,6 @@ import { fmtAdj } from './rowParts'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
-import { lastRunsRating } from '../../lib/formRatings'
 import { speedOnWprScale } from '../../lib/speed'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
@@ -44,17 +43,15 @@ interface HeroProps {
 }
 
 // The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the rated price, and the basics.
-// The four ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
-export function SignalsPanel({ runner, raceDate, proj, ranks }: { runner: Runner; raceDate: string; proj: number | null; ranks: (number | null)[] | null }) {
-  const l3 = lastRunsRating(runner.formHistory, raceDate, 3)
+// The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
+export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
     { label: 'Spd', value: runner.speedRating != null ? speedOnWprScale(runner.speedRating) : null, rank: ranks?.[0] ?? null },
     { label: 'Nett', value: runner.nett ?? null, rank: ranks?.[1] ?? null },
-    { label: 'L3', value: l3 ? l3.avg : null, rank: ranks?.[2] ?? null },
-    { label: 'Proj', value: proj, rank: ranks?.[3] ?? null },
+    { label: 'Proj', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (
-    <section className="grid grid-cols-4 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
+    <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
       {tiles.map((t) => (
         <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'Proj' ? 'bg-emerald-bg' : ''}`}>
           <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>

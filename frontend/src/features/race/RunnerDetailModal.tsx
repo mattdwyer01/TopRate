@@ -186,7 +186,7 @@ export function RunnerDetailModal({
           )}
 
           <div className="lg:order-2 lg:col-span-7">
-            <SignalsPanel runner={runner} raceDate={race.date} proj={effectiveWpr} ranks={ranks} />
+            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} />
           </div>
 
           <div className="lg:order-1 lg:col-span-5">

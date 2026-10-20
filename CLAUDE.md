@@ -2719,6 +2719,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Rank is a weighted z-score blend, L3 not counted (20 Oct 2026, uncommitted)**: `lib/combinedRank.ts` scores each runner as the weighted mean of within-race z-scores of Proj 0.65, Nett 0.25 and Spd 0.10 (needs 2 of the 3; ranks the scores). L3 stays a column and its rank still shows in the strip and tooltip but adds nothing: Proj is built from the same runs and a fitted weight was -0.01. `research/rank_weights.py` (run with `PYTHONPATH=.`; 4,107 races 4 Jul to 17 Oct, cross-fitted on date halves): fitted blend top pick 28.1% / winner log-lik -1.9030 vs Proj alone 27.0% / -1.9184, Nett 25.0%, L3 24.8%, Spd 20.1%, old equal-weight rank mean 25.8% per pick; fitted weights with L3 Proj 0.65, Nett 0.26, Spd 0.09. The Proj values in that window are mixed model versions, so re-fit once the formula Proj has a few weeks of log. Still a reading aid, not a bet (nothing beats the closing price). To restore the old rank mean see git history of `combinedRank.ts`.
 
+- **L3 removed from the dashboard (20 Oct 2026, branch claude/remove-l3, user request)**: the L3 column (race table, desktop and phone), its `last3` sort key, its tile in the runner page signals panel (now Spd / Nett / Proj) and its square in the Rank strip are gone; `lib/combinedRank.ts` `ranks` is now `[Spd, Nett, Proj]`. The freed track width goes to the Horse column. `lastRunsRating` stays in `lib/formRatings.ts` (other users). Basis: Proj is built from the same runs and the fitted Rank weight for L3 was -0.01. Type-check and build pass; not yet checked in a browser at 360 / 390 / 1300px.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
