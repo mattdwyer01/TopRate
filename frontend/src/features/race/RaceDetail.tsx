@@ -17,6 +17,7 @@ import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
+import { TrackOutline } from './TrackOutline'
 import { PaceStrip } from './PaceStrip'
 import { rankField } from './raceFacts'
 
@@ -268,6 +269,8 @@ export function RaceDetail({
           onClear={() => setCompareIds([])}
         />
       )}
+
+      <TrackOutline race={race} />
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

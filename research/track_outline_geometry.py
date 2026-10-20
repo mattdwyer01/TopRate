@@ -67,16 +67,21 @@ def measure(pts):
     k = np.convolve(np.abs(dh), np.ones(5) / 5, mode='same') / 10.0     # curvature 1/m, smoothed over 50 m
     straight = k < 1 / 1000
     best = cur = 0
-    for v in np.r_[straight, straight]:
+    best_end = 0
+    for i, v in enumerate(np.r_[straight, straight]):
         cur = cur + 1 if v else 0
-        best = max(best, cur)
-    best = min(best, len(straight)) * 10.0
+        if cur > best:
+            best, best_end = cur, i
+    best = min(best, len(straight))
+    srun = ((best_end - best + 1) % len(straight), best)      # start index and length (10 m samples) of the longest straight
+    best = best * 10.0
     bend = k > 1 / 600
     rad = 1 / np.median(k[bend]) if bend.sum() >= 5 else np.nan
     c = np.cov(np.vstack([rx, ry]))
     ev = np.sort(np.linalg.eigvalsh(c))
     return {'perim': round(perim), 'area': round(area), 'compact': round(4 * math.pi * area / perim ** 2, 3), 'elong': round(math.sqrt(ev[1] / max(ev[0], 1e-9)), 2),
-            'straight': round(best), 'bend_radius': None if np.isnan(rad) else round(rad), 'bend_share': round(float(bend.mean()), 3), 'lat': round(lat, 4), 'lon': round(lon, 4)}
+            'straight': round(best), 'bend_radius': None if np.isnan(rad) else round(rad), 'bend_share': round(float(bend.mean()), 3), 'lat': round(lat, 4), 'lon': round(lon, 4),
+            '_ring': (rx, ry), '_srun': srun}
 
 
 def rings(ways):
@@ -108,6 +113,27 @@ def rings(ways):
     return out
 
 
+NOT_SHOWN = {'Rosehill', 'Eagle Farm'}      # ring pick known to be wrong (3,083 m and 2,019 m against 2,040 m and 1,800 m)
+SHOWN_OUT = 'track_outlines.json'            # repo root, fetched by the dashboard
+
+
+def export_outlines(out, rings_out, step=2):
+    """Write the dashboard file: per track the running-rail ring every 20 m in whole metres (north up, x east, y north), the longest straight as a start index and length,
+    and the measured numbers. Both name keys are lowercase."""
+    tracks = {}
+    for tr, (ring, srun) in rings_out.items():
+        if tr in NOT_SHOWN:
+            continue
+        rx, ry = ring
+        px = [int(round(v)) for v in rx[::step]]
+        py = [int(round(v)) for v in ry[::step]]
+        m = out[tr]
+        tracks[tr.lower()] = {'name': tr, 'perim': m['perim'], 'straight': m['straight'], 'radius': m['bend_radius'], 'by': m['by'],
+                              's0': int(srun[0] // step), 'sn': int(srun[1] // step), 'pts': [[a, b] for a, b in zip(px, py)]}
+    json.dump({'source': 'OpenStreetMap contributors (ODbL)', 'step': step * 10, 'tracks': tracks}, open(SHOWN_OUT, 'w'), separators=(',', ':'))
+    print(len(tracks), 'outlines ->', SHOWN_OUT, round(os.path.getsize(SHOWN_OUT) / 1024), 'KB')
+
+
 def main():
     els = json.load(open(SRC))['elements']
     xp = os.path.join('data', 'track_outlines', 'osm_extra.json')
@@ -137,6 +163,7 @@ def main():
     named = [e for e in els if e['tags'].get('name')]
     gc = json.load(open(GC)) if os.path.exists(GC) else {}
     out = {}
+    rings_out = {}
     for tr in track_names():
         if VARIANT.search(tr):
             continue          # alternative circuit at a venue (synthetic, inner, heath...): the base loop would be the wrong track
@@ -159,7 +186,10 @@ def main():
         inn = [m for m in pool if m['kind'] == 'inner']      # inner ring = running rail; fall back to ways / outer rings
         main = max(inn or pool, key=lambda m: m['perim'])
         out[tr] = dict(main, n_loops=len(best), by='name' if named_loops else 'location')
+        rings_out[tr] = (main['_ring'], main['_srun'])
+        out[tr].pop('_ring'), out[tr].pop('_srun')
     json.dump(out, open(OUT, 'w'), indent=0)
+    export_outlines(out, rings_out)
     print(len(out), 'of', len(track_names()), 'tracks matched ->', OUT)
     import glob as _g
     rr = pd.concat([pd.read_csv(f, usecols=['track']) for f in sorted(_g.glob('race_results_20*.csv.gz'))[-3:]]).track.value_counts()
