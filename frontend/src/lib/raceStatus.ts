@@ -61,6 +61,20 @@ export function topFinishers(race: Race, n = 4): number[] {
     .map((r) => r.tabNumber)
 }
 
+// How the model's top pick (highest projection) fared once a result is known: 'won', 'placed'
+// (top 3) or 'unplaced'; null while the race is open, or when no runner has a projection.
+export function topPickOutcome(race: Race): 'won' | 'placed' | 'unplaced' | null {
+  let pick: Race['runners'][number] | null = null
+  for (const r of race.runners) {
+    if (r.dataScratched || r.projectedWpr == null) continue
+    if (pick == null || r.projectedWpr > (pick.projectedWpr ?? -Infinity)) pick = r
+  }
+  if (pick == null || !pick.resultKnown) return null
+  if (pick.won || pick.finishPosition === 1) return 'won'
+  if (pick.finishPosition != null && pick.finishPosition <= 3) return 'placed'
+  return 'unplaced'
+}
+
 // Maps a status onto the shared Pill component's existing tone options
 // (RaceDetail's meeting race-picker uses Pill, unlike MeetingsGrid's plain
 // button cells) - 'later' intentionally maps to Pill's neutral 'default'

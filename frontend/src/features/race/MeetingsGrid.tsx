@@ -12,7 +12,7 @@ import {
 import { formatTimeOfDay } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
 import { hasQuaddie } from '../../lib/quaddie'
-import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
+import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers, topPickOutcome } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
   races: Race[]
@@ -153,6 +153,12 @@ export function MeetingsGrid({
               {label}
             </div>
           ))}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] text-emerald">&#9679;</span>
+            <span className="text-[8px] text-amber">&#9679;</span>
+            <span className="text-[8px] text-ink-faint">&#9679;</span>
+            Model top pick: won, placed, unplaced
+          </div>
         </div>
       )}
 
@@ -186,11 +192,11 @@ export function MeetingsGrid({
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-line bg-bg text-xs font-medium text-ink-mute">
-                  <th className="sticky left-0 z-20 min-w-[10rem] border-r border-line bg-bg px-3 py-2 text-left">
+                  <th className="sticky left-0 z-20 min-w-[6.5rem] border-r sm:min-w-[10rem] border-line bg-bg px-3 py-2 text-left">
                     Meeting
                   </th>
                   {raceNumbers.map((n) => (
-                    <th key={n} className="min-w-[3.25rem] px-1.5 py-2 text-center font-mono">
+                    <th key={n} className="min-w-[3.25rem] px-1 py-1.5 text-center font-mono">
                       R{n}
                     </th>
                   ))}
@@ -202,7 +208,7 @@ export function MeetingsGrid({
                     key={`${meeting.date}-${meeting.venue}`}
                     className="border-b border-line-soft last:border-b-0"
                   >
-                    <td className="group sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
+                    <td className="group sticky left-0 z-10 border-r border-line bg-panel px-2 py-1.5 sm:px-3 sm:py-2">
                       <div className="flex items-start justify-between gap-1">
                         <div>
                           <div className="font-semibold text-ink">{meeting.venue}</div>
@@ -214,7 +220,7 @@ export function MeetingsGrid({
                             })
                             if (!c.going && !c.rail) return null
                             return (
-                              <div className="max-w-[9.5rem] truncate text-[11px] leading-snug text-ink-mute" title={[c.going, c.rail ? `Rail: ${c.rail}` : null].filter(Boolean).join(' · ')}>
+                              <div className="max-w-[6rem] truncate sm:max-w-[9.5rem] text-[11px] leading-snug text-ink-mute" title={[c.going, c.rail ? `Rail: ${c.rail}` : null].filter(Boolean).join(' · ')}>
                                 {c.going && (
                                   <span className={c.goingFrom ? 'font-semibold text-amber' : undefined} title={c.goingFrom ? `Changed from ${c.goingFrom}` : undefined}>
                                     {c.going}
@@ -257,7 +263,7 @@ export function MeetingsGrid({
                     </td>
                     {raceNumbers.map((n) => {
                       const race = meeting.races.find((r) => r.raceNumber === n)
-                      if (!race) return <td key={n} className="px-1.5 py-2" />
+                      if (!race) return <td key={n} className="px-1 py-1" />
                       const status = raceStatus(race, now)
                       // Swap the time for the top finishers once there's a
                       // result to show, not just a colour change - two
@@ -267,8 +273,9 @@ export function MeetingsGrid({
                       const finishers = status === 'resulted' || status === 'interim'
                         ? topFinishers(race)
                         : null
+                      const pickOutcome = finishers ? topPickOutcome(race) : null
                       return (
-                        <td key={n} className="px-1.5 py-2 text-center">
+                        <td key={n} className="px-1 py-1 text-center">
                           <button
                             type="button"
                             onClick={() => onSelectRace(race.raceId, race.date)}
@@ -276,10 +283,25 @@ export function MeetingsGrid({
                             title={finishers && finishers.length > 0
                               ? `${formatTimeOfDay(race.startTime)} - top ${finishers.length} (TAB numbers): ${finishers.join('/')}`
                               : undefined}
-                            className={`w-full rounded-md border px-1 py-1 font-mono text-xs transition-colors ${STATUS_CLASSES[status]}`}
+                            className={`w-full rounded-md border px-1 py-0.5 font-mono text-xs transition-colors ${STATUS_CLASSES[status]}`}
                           >
                             {finishers && finishers.length > 0 ? (
-                              finishers.join('/')
+                              <span className="relative flex flex-col items-center leading-tight">
+                                <span className="text-[10px] text-ink-faint">{formatTimeOfDay(race.startTime) || 'TBC'}</span>
+                                <span className="whitespace-nowrap">
+                                  <b className="text-[13px] text-ink">{finishers[0]}</b>
+                                  {finishers.length > 1 ? ` ${finishers.slice(1).join(' ')}` : ''}
+                                </span>
+                                {pickOutcome && (
+                                  <span
+                                    className={`absolute -right-0.5 -top-0.5 text-[8px] ${pickOutcome === 'won' ? 'text-emerald' : pickOutcome === 'placed' ? 'text-amber' : 'text-ink-faint'}`}
+                                    title={`Model top pick ${pickOutcome}`}
+                                    aria-label={`Model top pick ${pickOutcome}`}
+                                  >
+                                    &#9679;
+                                  </span>
+                                )}
+                              </span>
                             ) : (
                               formatTimeOfDay(race.startTime) || 'TBC'
                             )}

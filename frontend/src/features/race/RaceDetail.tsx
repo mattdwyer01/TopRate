@@ -320,6 +320,7 @@ export function RaceDetail({
           onSetBase={(v) => setBase(selectedRunner.runId, v)}
           onToggleScratch={() => setScratched(selectedRunner.runId, !scratched.has(selectedRunner.runId))}
           onClose={() => setSelectedRunId(null)}
+          position={{ index: selectedIndex + 1, total: sortedRunners.length }}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
         />
