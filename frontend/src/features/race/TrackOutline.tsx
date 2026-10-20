@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Race } from '../../types/domain'
 import { findOutline, useTrackOutlines } from '../../lib/trackOutlines'
+import { useTrackMap } from '../../lib/trackMaps'
 
 // The course drawn from OpenStreetMap: the running rail, the longest straight picked out, and how far this race goes round it.
 // Turned so the home straight is at the bottom (not north up): the longest straight, or the one the notes name for tracks with start marks. The outline gives the shape of the
@@ -19,6 +20,7 @@ function fmtM(n: number) {
 export function TrackOutline({ race }: { race: Race }) {
   const payload = useTrackOutlines()
   const outline = findOutline(payload, race.venue)
+  const map = useTrackMap(race.venue)
   const geom = useMemo(() => {
     if (!outline) return null
     // Turn the ring so the longest straight runs along the bottom (rotation only, no mirroring).
@@ -61,6 +63,51 @@ export function TrackOutline({ race }: { race: Race }) {
     const q = (p: [number, number]) => pt(p)
     return { d, sd, scale, fin: fin && q(fin), starts: Object.fromEntries(Object.entries(starts).map(([k, v]) => [k, q(v)])), chutes: Object.fromEntries(Object.entries(chutes).map(([k, v]) => [k, [q(v[0]), q(v[1])] as const])) }
   }, [outline])
+  if (map.svg) {
+    // The racerate plan map (home straight at the bottom, winning post, starts and chutes labelled) traced to SVG; the outline's measured numbers sit beside it when we have them.
+    const lapsMap = outline ? race.distance / outline.perim : null
+    return (
+      <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <h3 className="text-sm font-semibold text-ink">Track map</h3>
+          <span className="text-[11px] text-ink-faint">Plan map from racerate.com, home straight at the bottom</span>
+        </div>
+        <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div
+            role="img"
+            aria-label={`${race.venue} plan map`}
+            className="w-full max-w-[440px] flex-none self-center sm:w-[380px] [&_svg]:h-auto [&_svg]:w-full [&_.ink]:fill-ink [&_.acc]:fill-red-600"
+            dangerouslySetInnerHTML={{ __html: map.svg }}
+          />
+          <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 text-xs">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">This race</dt>
+              <dd className="font-mono text-sm font-semibold text-ink">
+                {fmtM(race.distance)}
+                {lapsMap != null && <span className="font-sans text-xs font-normal text-ink-mute"> {lapsMap < 0.95 ? `${Math.round(lapsMap * 100)}% of a lap` : lapsMap < 1.05 ? 'about one lap' : `${lapsMap.toFixed(1)} laps`}</span>}
+              </dd>
+            </div>
+            {outline && (
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Circuit (rail)</dt>
+                <dd className="font-mono text-sm font-semibold text-ink">{fmtM(outline.perim)}</dd>
+              </div>
+            )}
+            {outline && (
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Longest straight</dt>
+                <dd className="font-mono text-sm font-semibold text-ink">about {fmtM(outline.straight)}</dd>
+              </div>
+            )}
+            <p className="col-span-2 text-[11px] leading-snug text-ink-faint">
+              A schematic plan, not to scale: look for your distance's start post on the map. Circuit length and straight are measured from the OpenStreetMap rail where available.
+            </p>
+          </dl>
+        </div>
+      </section>
+    )
+  }
+  if (!map.loaded) return null
   if (!outline || !geom) return null
   const key = String(race.distance)
   const ownStart = geom.starts[key] ?? geom.chutes[key]?.[1] ?? null
