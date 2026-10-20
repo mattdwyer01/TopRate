@@ -66,8 +66,9 @@ export function WeeklyTrend({ races, excludeBush }: Omit<DayReviewProps, 'onSele
             Winner strike rate of the model&apos;s #1 pick (solid) against the market favourite (dashed), same races each week. Only the loaded window (about
             25 days) is covered, so expect a handful of points and wide swings.
           </Note>
+          <div className="lg:grid lg:grid-cols-2 lg:items-center lg:gap-8">
           <TrendChart weeks={weeks} />
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 overflow-x-auto lg:mt-0">
             <table className="w-full text-xs">
               <thead className="text-left text-ink-mute">
                 <tr>
@@ -88,6 +89,7 @@ export function WeeklyTrend({ races, excludeBush }: Omit<DayReviewProps, 'onSele
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </>
       )}

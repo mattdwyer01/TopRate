@@ -2701,6 +2701,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Phone runner signals panel, compact Result and race picker (20 Oct 2026, user: "mobile doesn't seem to have changed")**: the runner page now opens with a four-tile Spd / Nett / L3 / Proj panel (`SignalsPanel` in `horseParts.tsx`, ranks from `comboByRunId` passed as `ranks` to `RunnerDetailModal`), on every width, above the Rating hero. On phones the Result panel is one line per runner (jockey and trainer line hidden below sm) and the R1..Rn race picker is a single horizontally scrolling row. Tried and reverted: adding the weight to the phone barrier badge (it cut horse names to three letters). Checked at 360 / 390px: no page overflow, no script errors.
 
+- **Horse detail layout and review fixes (20 Oct 2026, user: "horse detail on desktop hasn't changed")**: `RunnerDetailModal.tsx` is now `max-w-[1400px]` and, from lg, a 12-column grid: Rating hero (5) beside the Spd / Nett / L3 / Proj panel (7), then the full Recent runs table (its own card, no duplicate heading), then Expected run (5) beside Form and record (chart and conditions, 7), the adjustment row, and Market with Result. On phones the order is signals, hero, result, adjustment, Recent runs, Expected run, Form and record, Market (CSS `order`, one render of each part). Also: the Race page Result panel is two columns from lg, the Review "Week by week" chart sits beside its table from lg, and the phone conditions tiles let their label wrap instead of truncating. Checked at 390 / 1440px: no overflow, no script errors.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

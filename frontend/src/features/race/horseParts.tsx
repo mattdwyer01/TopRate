@@ -266,7 +266,7 @@ export function ConditionsScorecard({ runner, race }: { runner: Runner; race: Ra
           const d = r.vsCareerAvg
           return (
             <div key={r.label} className="flex items-baseline justify-between gap-2 rounded-lg bg-bg px-2.5 py-1.5 text-sm sm:block sm:p-2.5">
-              <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-faint" title={heading(r.label)}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint sm:truncate" title={heading(r.label)}>
                 {heading(r.label)}
               </div>
               {r.runs === 0 ? (
