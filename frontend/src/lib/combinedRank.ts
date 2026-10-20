@@ -1,10 +1,8 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
-import { lastRunsRating } from './formRatings'
 
 // Combined rank. Score = weighted mean of within-race z-scores of Proj (0.65), Nett (0.25) and Spd (0.10), over the signals the runner has; the
-// rank orders the scores (ties share the best place). A runner needs at least two of the three. L3 is shown (its rank is in `ranks`) but NOT
-// counted: Proj is built from the same runs, and a fitted blend gave L3 a weight of -0.01 (19 Oct 2026, `research/rank_weights.py`, 4,107 races,
+// rank orders the scores (ties share the best place). A runner needs at least two of the three. L3 was removed from the dashboard (20 Oct 2026): Proj is built from the same runs and a fitted blend gave L3 a weight of -0.01 (19 Oct 2026, `research/rank_weights.py`, 4,107 races,
 // cross-fitted by date: fitted blend top pick wins 28.1% / log-lik -1.9030 vs 27.0% / -1.9184 for Proj alone and 25.8% for the old equal-weight
 // rank mean). Older note on the equal-weight version:
 // Basis: 15 Oct 2026, 1,139 races: the combined rank of Proj, Nett and L3 picked the winner about as often as Proj alone and the market already
@@ -14,7 +12,7 @@ export interface CombinedRank {
   rank: number
   tied: boolean // another runner shares this rank
   mean: number // lower is better: the negative of the weighted z-score
-  ranks: [number | null, number | null, number | null, number | null] // Spd, Nett, L3, Proj
+  ranks: [number | null, number | null, number | null] // Spd, Nett, Proj
 }
 
 const MIN_SIGNALS = 2
@@ -44,24 +42,19 @@ export function computeCombinedRank(
   runners: Runner[],
   effectiveByRunId: Record<string, EffectiveRunner>,
   scratched: Set<string>,
-  raceDate: string | null,
 ): Map<string, CombinedRank> {
   const speed = new Map<string, number>()
   const nett = new Map<string, number>()
-  const l3 = new Map<string, number>()
   const proj = new Map<string, number>()
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     if (r.speedRating != null) speed.set(r.runId, r.speedRating)
     if (r.nett != null) nett.set(r.runId, r.nett)
-    const f = lastRunsRating(r.formHistory, raceDate, 3)
-    if (f) l3.set(r.runId, f.avg)
     const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
     if (p != null) proj.set(r.runId, p)
   }
   const rs = rankDesc(speed)
   const rn = rankDesc(nett)
-  const rl = rankDesc(l3)
   const rp = rankDesc(proj)
   const zs = zscores(speed)
   const zn = zscores(nett)
@@ -69,7 +62,7 @@ export function computeCombinedRank(
   const means = new Map<string, { mean: number; ranks: CombinedRank['ranks'] }>()
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
-    const ranks: CombinedRank['ranks'] = [rs.get(r.runId) ?? null, rn.get(r.runId) ?? null, rl.get(r.runId) ?? null, rp.get(r.runId) ?? null]
+    const ranks: CombinedRank['ranks'] = [rs.get(r.runId) ?? null, rn.get(r.runId) ?? null, rp.get(r.runId) ?? null]
     let num = 0
     let den = 0
     let n = 0

@@ -74,7 +74,7 @@ const DEFAULT_BETA = 0.4
 // but it is mostly independent of ours, so an equal blend beats both: ours + nett -1.867, top pick wins 30.4% vs 29.5% (all three scores -1.855). Within a race the
 // nett is put on our scale (same mean and spread over the runners that have both) and averaged with our figure at NETT_SHARE. A race needs nett on at least
 // NETT_MIN_RUNNERS runners and 60% of the rated field, else it stays on our projection alone (a runner with no nett keeps its own figure).
-// 16 Oct 2026: set to 0 at the owner's request, Proj is the projection alone (Nett and L3 sit beside it as their own columns). 0.5 restores the blend.
+// 16 Oct 2026: set to 0 at the owner's request, Proj is the projection alone (Nett sits beside it as its own column). 0.5 restores the blend.
 export const NETT_SHARE = 0
 const NETT_MIN_RUNNERS = 4
 

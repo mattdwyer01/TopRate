@@ -48,9 +48,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs two earlier figures." },
   { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Proj, not blended into it." },
-  { key: 'last3', label: 'L3', align: 'right', title: 'Average (top, desktop: median below) of the last 3 rated runs, on the same scale as Proj. Compromised runs are skipped.' },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
-  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: each runner is ranked by Spd, Nett, L3 and Proj, and the four ranks are averaged (small figures under it, in column order). A runner needs two of the four. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
+  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: a weighted blend of each runner's standing in the field on Proj (65%), Nett (25%) and Spd (10%) (small squares under it show each signal's rank, in that column order Spd, Nett, Proj). A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -118,7 +117,7 @@ export function RaceDetail({
   const gapByRunId = useMemo(() => computeGapsFromTop(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
 
   // Only this race's runners count against the (global) scratched set.
-  const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched, race.date), [race.runners, effectiveByRunId, effectiveScratched, race.date])
+  const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)

@@ -1,7 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
-import { lastRunsRating } from '../../lib/formRatings'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
@@ -23,27 +22,27 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row, same columns on every screen: Spd | Nett | L3 | Proj (whole numbers) | Rank, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
+// Table row, same columns on every screen: Spd | Nett | Proj (whole numbers) | Rank, then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
 // nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
 
-// Strip under the rank: one square per signal (Spd, Nett, L3, Proj), darker green = better rank, outline-grey = no value.
+// Strip under the rank: one square per signal (Spd, Nett, Proj), darker green = better rank, outline-grey = no value.
 const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
 
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_40px_62px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_62px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show, and the Fixed $ column only once a price is out.
 export const rowGrid = (showFp: boolean, showPrice = true) =>
-  // Phone: [silk] | # | Horse | Spd | Nett | L3 | Proj | Rank (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
+  // Phone: [silk] | # | Horse | Spd | Nett | Proj | Rank (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
   // or from 430px up in the densest state (result and prices both shown) so horse names keep some room on a 390px phone.
   // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
       ? showPrice
-        ? 'grid-cols-[20px_minmax(0,1fr)_24px_24px_22px_26px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px_18px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_18px]'
+        ? 'grid-cols-[20px_minmax(0,1fr)_24px_24px_26px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_26px_44px_60px_18px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_26px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_26px_44px_18px]'
       : showPrice
-        ? 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px_60px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_24px_26px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_24px_26px_44px]'
+        ? 'grid-cols-[20px_minmax(0,1fr)_28px_24px_26px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_26px_44px_60px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_28px_24px_26px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_28px_24px_26px_44px]'
   } ${DESKTOP_GRID}`
 // Where the silk column starts showing on a phone (matches rowGrid).
 export const silkFrom = (showFp: boolean, showPrice = true) => (showFp && showPrice ? 'min-[430px]:block' : 'min-[380px]:block')
@@ -61,7 +60,6 @@ function Missing({ why }: { why: string }) {
 export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, projSpan, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
-  const l3 = f.scratched ? null : lastRunsRating(runner.formHistory, raceDate, 3)
   return (
     <div
       role="button"
@@ -123,16 +121,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
         {f.scratched ? '' : runner.nett == null ? <Missing why="No Nett from TopRate for this runner (first starters usually have none)" /> : Math.round(runner.nett)}
       </span>
-      <span className="text-right font-mono leading-tight" title={l3 ? `Last 3 rated runs${l3.n < 3 ? ` (only ${l3.n} available)` : ''}: average ${fmtWpr(l3.avg)}, median ${fmtWpr(l3.median)}` : undefined}>
-        {l3 ? (
-          <>
-            <span className="block text-[12px] text-ink-mute lg:text-[13px]">{Math.round(l3.avg)}</span>
-            <span className="hidden text-[10px] text-ink-faint lg:block">{Math.round(l3.median)}</span>
-          </>
-        ) : f.scratched ? null : (
-          <Missing why="No rated runs yet" />
-        )}
-      </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono text-ink-faint">SCR</span>
@@ -150,10 +138,10 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (score ${(-combo.mean).toFixed(2)}, weights Proj 65 / Nett 25 / Spd 10, L3 not counted): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, L3 ${combo.ranks[2] ?? '-'}, Proj ${combo.ranks[3] ?? '-'}` : undefined}
+        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (score ${(-combo.mean).toFixed(2)}, weights Proj 65 / Nett 25 / Spd 10): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
-          <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett, L3 and Proj">&ndash;</span>
+          <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett and Proj">&ndash;</span>
         ) : (
           <>
             <span
