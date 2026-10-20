@@ -3,7 +3,7 @@ import type { Race } from '../../types/domain'
 import { findOutline, useTrackOutlines } from '../../lib/trackOutlines'
 
 // The course drawn from OpenStreetMap: the running rail, the longest straight picked out, and how far this race goes round it.
-// North is up. The outline gives the shape of the track (tight or sweeping, long or short straight); it does not say where the
+// Turned so the longest straight is at the bottom (not north up). The outline gives the shape of the track (tight or sweeping, long or short straight); it does not say where the
 // start and finish are, so none is drawn.
 
 const W = 300
@@ -20,8 +20,21 @@ export function TrackOutline({ race }: { race: Race }) {
   const outline = findOutline(payload, race.venue)
   const geom = useMemo(() => {
     if (!outline) return null
-    const xs = outline.pts.map((p) => p[0])
-    const ys = outline.pts.map((p) => p[1])
+    // Turn the ring so the longest straight runs along the bottom (rotation only, no mirroring).
+    const n0 = outline.pts.length
+    const a = outline.pts[outline.s0 % n0]
+    const b = outline.pts[(outline.s0 + outline.sn) % n0]
+    let th = Math.atan2(b[1] - a[1], b[0] - a[0])
+    const rot = (t: number) => outline.pts.map(([x, y]) => [x * Math.cos(-t) - y * Math.sin(-t), x * Math.sin(-t) + y * Math.cos(-t)] as [number, number])
+    let R = rot(th)
+    const cy = R.reduce((acc, p) => acc + p[1], 0) / n0
+    const sy = (R[outline.s0 % n0][1] + R[(outline.s0 + outline.sn) % n0][1]) / 2
+    if (sy > cy) {
+      th += Math.PI
+      R = rot(th)
+    }
+    const xs = R.map((p) => p[0])
+    const ys = R.map((p) => p[1])
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     const minY = Math.min(...ys)
@@ -30,7 +43,7 @@ export function TrackOutline({ race }: { race: Race }) {
     const ox = (W - (maxX - minX) * scale) / 2
     const oy = (H - (maxY - minY) * scale) / 2
     const pt = ([x, y]: [number, number]) => [ox + (x - minX) * scale, oy + (maxY - y) * scale] as const
-    const P = outline.pts.map(pt)
+    const P = R.map(pt)
     const d = P.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('') + 'Z'
     const n = P.length
     const run: (readonly [number, number])[] = []
@@ -47,7 +60,7 @@ export function TrackOutline({ race }: { race: Race }) {
     <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-sm font-semibold text-ink">Track shape</h3>
-        <span className="text-[11px] text-ink-faint">Outline from OpenStreetMap, north up</span>
+        <span className="text-[11px] text-ink-faint">Outline from OpenStreetMap, longest straight at the bottom</span>
       </div>
       <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${race.venue} track outline`} className="h-auto w-full max-w-[340px] flex-none self-center sm:w-[300px]">
