@@ -201,108 +201,115 @@ export function RaceDetail({
 
       {hasAnyResult && <RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
-      <section className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ink">Runners</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {SHOW_COMPARE && <Pill
-              active={compareMode}
-              onClick={() => {
-                setCompareMode(!compareMode)
-                setSelectedRunId(null)
-              }}
-            >
-              {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
-            </Pill>}
-            {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : `Show ${scratchedInRace} scratched`}</Pill>}
+      {/* From xl the runners sit on the left and the race shape and ladder in a side column, so the table and the map are on screen together. */}
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_330px] xl:items-start xl:gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
+        <section className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-ink">Runners</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              {SHOW_COMPARE && <Pill
+                active={compareMode}
+                onClick={() => {
+                  setCompareMode(!compareMode)
+                  setSelectedRunId(null)
+                }}
+              >
+                {compareMode ? `Comparing (${compareIds.length}/${MAX_COMPARE})` : 'Compare runners'}
+              </Pill>}
+              {scratchedInRace > 0 && <Pill active={!showScratched} onClick={() => setShowScratched(!showScratched)}>{showScratched ? 'Hide scratched' : `Show ${scratchedInRace} scratched`}</Pill>}
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-hidden rounded-lg border border-line bg-panel">
-          <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
-            {COLUMNS.map((c, i) =>
-              c.key == null ? (
-                <span key={i} className="hidden min-[380px]:block" />
-              ) : (
-                <button
-                  key={c.key + (c.phoneOnly ? '-phone' : '')}
-                  type="button"
-                  title={c.title}
-                  aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  onClick={() => onSort(c.key as SortKey)}
-                  className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
-                >
-                  {c.label}
-                  {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
-                  {c.label2 && <span className="block font-normal text-ink-faint">{c.label2}</span>}
-                </button>
-              ),
-            )}
+          <div className="overflow-hidden rounded-lg border border-line bg-panel">
+            <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult)}`}>
+              {COLUMNS.map((c, i) =>
+                c.key == null ? (
+                  <span key={i} className="hidden min-[380px]:block" />
+                ) : (
+                  <button
+                    key={c.key + (c.phoneOnly ? '-phone' : '')}
+                    type="button"
+                    title={c.title}
+                    aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    onClick={() => onSort(c.key as SortKey)}
+                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                  >
+                    {c.label}
+                    {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+                    {c.label2 && <span className="block font-normal text-ink-faint">{c.label2}</span>}
+                  </button>
+                ),
+              )}
+            </div>
+            {sortedRunners.map((r) => (
+              <RunnerRow key={r.runId} {...rowProps(r)} />
+            ))}
           </div>
-          {sortedRunners.map((r) => (
-            <RunnerRow key={r.runId} {...rowProps(r)} />
-          ))}
-        </div>
-        {compareMode && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
-            <span>{compareIds.length < 2 ? 'Tap 2 to 6 runners above, or use a shortcut:' : 'Shortcuts:'}</span>
-            <Pill active={false} onClick={() => setCompareIds(ranked.slice(0, 4).map((r) => r.runner.runId))}>
-              Top 4
-            </Pill>
-            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.core).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
-              Inside {CORE_GAP_FROM_TOP} line
-            </Pill>
-            <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
-              Inside {INNER_GAP_FROM_TOP} line
-            </Pill>
-          </div>
-        )}
-      </section>
-
-      {compareMode && compareIds.length >= 2 && (
-        <RunnerCompare
-          race={race}
-          runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
-          effectiveByRunId={effectiveByRunId}
-          gapByRunId={gapByRunId}
-          onRemove={(id) => setCompareIds((ids) => ids.filter((x) => x !== id))}
-          onOpen={(id) => {
-            setCompareMode(false)
-            setSelectedRunId(id)
-          }}
-          onClear={() => setCompareIds([])}
-        />
-      )}
-
-      <section className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ink">Race shape</h3>
-          {/* Scratched runners are left off, not just dimmed: the map shows who is actually going to run. */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tripRace && (
-              <Pill active={speedMapView === 'trip'} onClick={() => setSpeedMapView('trip')}>
-                Trip map
+          {compareMode && (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+              <span>{compareIds.length < 2 ? 'Tap 2 to 6 runners above, or use a shortcut:' : 'Shortcuts:'}</span>
+              <Pill active={false} onClick={() => setCompareIds(ranked.slice(0, 4).map((r) => r.runner.runId))}>
+                Top 4
               </Pill>
-            )}
-            <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
-              Speed map
-            </Pill>
-            <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
-              Bars
-            </Pill>
-          </div>
-        </div>
-        <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
-        {speedMapView === 'trip' && tripRace && tripMap ? (
-          <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
-        ) : speedMapView === 'bar' ? (
-          <SpeedMap race={race} runners={activeRunners} />
-        ) : (
-          <SpeedMapGrid race={race} runners={activeRunners} />
-        )}
-      </section>
+              <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.core).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+                Inside {CORE_GAP_FROM_TOP} line
+              </Pill>
+              <Pill active={false} onClick={() => setCompareIds(ranked.filter((r) => r.inner).slice(0, MAX_COMPARE).map((r) => r.runner.runId))}>
+                Inside {INNER_GAP_FROM_TOP} line
+              </Pill>
+            </div>
+          )}
+        </section>
 
-      <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+        {compareMode && compareIds.length >= 2 && (
+          <RunnerCompare
+            race={race}
+            runners={compareIds.map((id) => race.runners.find((r) => r.runId === id)).filter((r): r is Race['runners'][number] => r != null)}
+            effectiveByRunId={effectiveByRunId}
+            gapByRunId={gapByRunId}
+            onRemove={(id) => setCompareIds((ids) => ids.filter((x) => x !== id))}
+            onOpen={(id) => {
+              setCompareMode(false)
+              setSelectedRunId(id)
+            }}
+            onClear={() => setCompareIds([])}
+          />
+        )}
+
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+        <section className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-ink">Race shape</h3>
+            {/* Scratched runners are left off, not just dimmed: the map shows who is actually going to run. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {tripRace && (
+                <Pill active={speedMapView === 'trip'} onClick={() => setSpeedMapView('trip')}>
+                  Trip map
+                </Pill>
+              )}
+              <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
+                Speed map
+              </Pill>
+              <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
+                Bars
+              </Pill>
+            </div>
+          </div>
+          <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
+          {speedMapView === 'trip' && tripRace && tripMap ? (
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+          ) : speedMapView === 'bar' ? (
+            <SpeedMap race={race} runners={activeRunners} />
+          ) : (
+            <SpeedMapGrid race={race} runners={activeRunners} />
+          )}
+        </section>
+
+        <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+        </div>
+      </div>
 
       {selectedRunner && (
         <RunnerDetailModal
