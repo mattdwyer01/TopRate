@@ -2,20 +2,36 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import { lastRunsRating } from './formRatings'
 
-// Combined rank across four signals, in column order: Spd (pre-race speed rating), Nett (TopRate's own forward rating), L3 (average of the last
-// 3 rated runs) and Proj (the table's rating). Each signal ranks the non-scratched field (1 = best, ties share the best place), the runner's score
-// is the mean of the ranks it has, and the final rank orders those means (ties share the best place). A runner needs at least two of the four.
+// Combined rank. Score = weighted mean of within-race z-scores of Proj (0.65), Nett (0.25) and Spd (0.10), over the signals the runner has; the
+// rank orders the scores (ties share the best place). A runner needs at least two of the three. L3 is shown (its rank is in `ranks`) but NOT
+// counted: Proj is built from the same runs, and a fitted blend gave L3 a weight of -0.01 (19 Oct 2026, `research/rank_weights.py`, 4,107 races,
+// cross-fitted by date: fitted blend top pick wins 28.1% / log-lik -1.9030 vs 27.0% / -1.9184 for Proj alone and 25.8% for the old equal-weight
+// rank mean). Older note on the equal-weight version:
 // Basis: 15 Oct 2026, 1,139 races: the combined rank of Proj, Nett and L3 picked the winner about as often as Proj alone and the market already
 // prices the agreement, so it is a reading aid. 16 Oct 2026 (688 races): when speed also agrees, all four rating the same runner #1 happened in
 // 8% of races and that runner won 43.9% (market 41.6%), about break-even at the starting price; speed on its own is the weakest of the four.
 export interface CombinedRank {
   rank: number
   tied: boolean // another runner shares this rank
-  mean: number
+  mean: number // lower is better: the negative of the weighted z-score
   ranks: [number | null, number | null, number | null, number | null] // Spd, Nett, L3, Proj
 }
 
 const MIN_SIGNALS = 2
+const W_SPD = 0.1
+const W_NETT = 0.25
+const W_PROJ = 0.65
+
+function zscores(values: Map<string, number>): Map<string, number> {
+  const v = [...values.values()]
+  const out = new Map<string, number>()
+  if (v.length < 2) return out
+  const m = v.reduce((s, x) => s + x, 0) / v.length
+  const sd = Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (v.length - 1))
+  if (sd < 1e-9) return out
+  for (const [id, x] of values) out.set(id, (x - m) / sd)
+  return out
+}
 
 function rankDesc(values: Map<string, number>): Map<string, number> {
   const all = [...values.values()]
@@ -47,13 +63,25 @@ export function computeCombinedRank(
   const rn = rankDesc(nett)
   const rl = rankDesc(l3)
   const rp = rankDesc(proj)
+  const zs = zscores(speed)
+  const zn = zscores(nett)
+  const zp = zscores(proj)
   const means = new Map<string, { mean: number; ranks: CombinedRank['ranks'] }>()
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     const ranks: CombinedRank['ranks'] = [rs.get(r.runId) ?? null, rn.get(r.runId) ?? null, rl.get(r.runId) ?? null, rp.get(r.runId) ?? null]
-    const have = ranks.filter((x): x is number => x != null)
-    if (have.length < MIN_SIGNALS) continue
-    means.set(r.runId, { mean: have.reduce((s, x) => s + x, 0) / have.length, ranks })
+    let num = 0
+    let den = 0
+    let n = 0
+    for (const [z, w] of [[zs, W_SPD], [zn, W_NETT], [zp, W_PROJ]] as const) {
+      const v = z.get(r.runId)
+      if (v == null) continue
+      num += w * v
+      den += w
+      n++
+    }
+    if (n < MIN_SIGNALS) continue
+    means.set(r.runId, { mean: -(num / den), ranks })
   }
   const all = [...means.values()].map((m) => m.mean)
   const out = new Map<string, CombinedRank>()
