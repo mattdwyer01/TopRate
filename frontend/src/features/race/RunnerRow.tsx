@@ -98,6 +98,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showB
           <span className="max-w-[65%] flex-none truncate text-ink-mute">{runner.jockey}</span>
           <span className="min-w-0 truncate">/ {runner.trainer}{runner.barrier != null && <span className="hidden lg:inline"> &middot; barrier {runner.barrier}</span>}</span>
         </span>
+        {runner.weightCarried != null && (
+          <span className="block font-mono text-[10px] leading-snug text-ink-faint lg:hidden" title="Weight carried">
+            {runner.weightCarried}kg
+          </span>
+        )}
       </span>
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
