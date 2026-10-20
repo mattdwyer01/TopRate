@@ -191,7 +191,7 @@ export function Ladder({
 
 // The ladder sits under the field table. Open by default on desktop, collapsed on phones (where the cards already give the order).
 export function RaceLadder({ ranked, coreGap, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'>) {
-  const [open, setOpen] = useState(() => (typeof window === 'undefined' ? true : window.matchMedia('(min-width: 768px)').matches))
+  const [open, setOpen] = useState(true)
   if (!ranked.length) return null
   return (
     <section className="rounded-lg border border-line bg-panel p-4 shadow-[var(--shadow-1)]">

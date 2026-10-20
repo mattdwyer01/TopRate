@@ -1,20 +1,14 @@
 import { useCallback, useState } from 'react'
 
 // "Show scratched runners in the table" toggle - persisted per-device, same
-// pattern as useTableDensity/useShowBushMeetings. With no saved choice it
-// shows them on a wide screen (scratched runners sort to the bottom) and
-// hides them on a phone, where a dozen dimmed rows push the live field off
-// the first screen. Once the user flips the toggle that choice wins.
+// pattern as useTableDensity/useShowBushMeetings. With no saved choice they
+// are hidden on every screen size (one behaviour on phone and desktop), and
+// the pill above the table brings them back. Once the user flips the toggle
+// that choice wins.
 const STORAGE_KEY = 'toprate_show_scratched_v1'
 
-const PHONE_MAX_WIDTH = 639
-
 function defaultShow(): boolean {
-  try {
-    return window.innerWidth > PHONE_MAX_WIDTH
-  } catch {
-    return true
-  }
+  return false
 }
 
 function readStored(): boolean {
