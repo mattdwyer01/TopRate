@@ -2715,6 +2715,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **One green everywhere (20 Oct 2026, user: "make it consistent everywhere")**: the sticky race mini bar (`RaceMiniBar`) is now the same dark green (#0B3B2A) as the race banner, with the same translucent chips and dots and white countdown, and the runner page's context strip uses #0B3B2A instead of the brighter `emerald-deep`. Checked at 430 / 1300px.
 
+- **Phone weight moved into the horse sub-line (20 Oct 2026, user: "roll weight up into the row above")**: the phone-only third line is gone; `{weightCarried}kg` now sits in the sub-line between the B badge and the jockey (`RunnerRow.tsx`, hidden from lg where the `· Nkg` after the trainer stays). Rows are one line shorter; jockey and trainer truncate a little earlier. Checked at 430px.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
