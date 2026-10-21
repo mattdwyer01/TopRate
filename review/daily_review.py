@@ -88,7 +88,7 @@ def meeting_stats(venue, v):
     races = list(v.groupby('race'))
     lead = [spear(g.sf, g.fin) for _, g in races]
     draw = [spear(g.bf, g.fin) for _, g in races]
-    m = v.miss.dropna()
+    m = v[v.status == 'Final'].miss.dropna()      # the miss is only read on Final ratings (Preliminary ones run about a point low and move)
     winners = v[v.fin == 1]
     down = 0
     for _, w in winners.iterrows():
@@ -114,7 +114,7 @@ def day_stats(date):
     x = load(date)
     if x is None:
         return None
-    done = x[x.atw.notna() & x.proj.notna() & x.fin.notna()]
+    done = x[x.atw.notna() & x.proj.notna() & x.fin.notna() & (x.status == 'Final')]
     return dict(date=date, races=int(x.race_id.nunique()), runners=int(len(x)), final=bool((x.status == 'Final').mean() >= 0.9), n=int(len(done)), miss_sum=round(float(done.miss.sum()), 2),
                 miss_ss=round(float((done.miss ** 2).sum()), 2), bands=band_stats(done), meetings=[meeting_stats(v_, g) for v_, g in x.groupby('venue')])
 

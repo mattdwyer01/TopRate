@@ -1,6 +1,6 @@
 name: Post-race reviews (daily, weekly, monthly)
 
-# 22 Oct 2026. Every day, once TopRate's ratings for the meeting of 3 days ago are Final: fetch that day's post-race results (data/tr_results), write the daily review
+# 22 Oct 2026. Every day, once TopRate's ratings for the meeting of 5 days ago are Final: fetch that day's post-race results (data/tr_results), write the daily review
 # (reviews/daily/<date>.md and .json, review/daily_review.py), and on Mondays / the 1st also the weekly / monthly roll-ups (review/rollup.py). Read-only against toprate.au at
 # the daily fetch's pace; changes no model. Runs after gps_daily.yml (20:00 UTC) so GPS for the review day is in data/gps if it has been published: racing.com and Racing
 # Queensland GPS are only fetched by that once-a-day job (it re-reads the last 7 and 10 days), not right after each race, so a review day may still lack GPS if the
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Review this meeting date (YYYY-MM-DD). Default: 3 days ago (Melbourne)"
+        description: "Review this meeting date (YYYY-MM-DD). Default: 5 days ago (Melbourne)"
         default: ""
       refetch:
         description: "Fetch races already stored again (use to move Preliminary ratings on to Final)"
@@ -62,7 +62,7 @@ jobs:
         id: d
         run: |
           D="${{ inputs.date }}"
-          [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '3 days ago' +%F)
+          [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '5 days ago' +%F)
           echo "date=$D" >> "$GITHUB_OUTPUT"
           echo "review date $D"
       - name: Fetch post-race results (fill gaps for the 6 days before, then the review day again so ratings are Final)
