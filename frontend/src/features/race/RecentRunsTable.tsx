@@ -174,7 +174,7 @@ function RunRow({ run, isPeak, delta, days, codes, onReplay }: { run: FormRun; i
         {run.wpr != null ? run.wpr.toFixed(1) : '—'}
       </td>
       <td className="px-2 py-0.5 text-right font-mono text-ink-mute" title={run.speedFigure != null ? `Speed rating of this run: ${speedOnWprScale(run.speedFigure).toFixed(1)} (${run.speedFigure.toFixed(1)} lengths against par; 85 = par)` : 'No time-based speed figure for this run'}>
-        {run.speedFigure != null ? Math.round(speedOnWprScale(run.speedFigure)) : '—'}
+        {run.speedFigure != null ? speedOnWprScale(run.speedFigure).toFixed(1) : '—'}
       </td>
       <td className={`px-2 py-0.5 text-right font-mono ${delta == null ? 'text-ink-faint' : delta > 1 ? 'text-emerald-deep' : delta < -1 ? 'text-rose' : 'text-ink-mute'}`} title="WPR change from the run before">
         {delta == null ? '—' : delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
@@ -226,7 +226,7 @@ function MobileRunCard({ run, isPeak, codes, onReplay }: { run: FormRun; isPeak:
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-ink">
           {run.wpr != null ? run.wpr.toFixed(1) : '—'}
-          {run.speedFigure != null && <span className="ml-1.5 text-[11px] font-normal text-ink-mute" title="Time-based speed rating of the run (85 = par)">Spd {Math.round(speedOnWprScale(run.speedFigure))}</span>}
+          {run.speedFigure != null && <span className="ml-1.5 text-[11px] font-normal text-ink-mute" title="Time-based speed rating of the run (85 = par)">SR {speedOnWprScale(run.speedFigure).toFixed(1)}</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[11px] text-ink-faint">
@@ -546,8 +546,8 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 600m">L600</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 200m">L200</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Race shape early / mid / late">Shape</th>
-              <th rowSpan={2} className="px-2 py-1 text-right font-medium">WPR</th>
-              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Time-based speed rating of the run (85 = par)">Spd</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium">WR</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Time-based speed rating of the run (85 = par)">SR</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
             </tr>

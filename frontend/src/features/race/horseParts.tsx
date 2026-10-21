@@ -46,16 +46,16 @@ interface HeroProps {
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
 export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
-    { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[0] ?? null },
-    { label: 'Nett', value: runner.nett ?? null, rank: ranks?.[1] ?? null },
-    { label: 'Proj', value: proj, rank: ranks?.[2] ?? null },
+    { label: 'TR', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
+    { label: 'SR', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
+    { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (
     <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
       {tiles.map((t) => (
-        <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'Proj' ? 'bg-emerald-bg' : ''}`}>
+        <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'WR' ? 'bg-emerald-bg' : ''}`}>
           <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>
-          <span className="font-mono text-xl font-medium leading-tight text-ink">{t.value != null ? Math.round(t.value) : <span className="text-ink-faint">&ndash;</span>}</span>
+          <span className="font-mono text-xl font-medium leading-tight text-ink">{t.value != null ? t.value.toFixed(1) : <span className="text-ink-faint">&ndash;</span>}</span>
           {t.rank != null ? (
             <span className={`w-fit rounded-md px-1.5 text-[11px] font-bold ${t.rank === 1 ? 'bg-emerald text-white' : t.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'bg-bg text-ink-mute'}`}>#{t.rank}</span>
           ) : (
