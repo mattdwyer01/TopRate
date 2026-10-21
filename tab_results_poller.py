@@ -538,6 +538,15 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
                     break
                 race_no = rc.get("raceNumber")
                 replay_codes.note(provider_venue_for(venue), rc)
+                if m.get("location") == "HKG":
+                    # Hong Kong has no fixed odds, so the price drill-down never reports a late scratching; the race stub's own
+                    # `scratchings` list does ({runnerNumber, runnerName, bettingStatus}, seen 21 Oct 2026). Dated by the meeting (HK date),
+                    # not today's Melbourne date, so the late races that jump after midnight AEDT still match.
+                    for sc in rc.get("scratchings") or []:
+                        if sc.get("runnerNumber") is not None:
+                            prices.append(dict(date=m.get("meetingDate") or target_date, venue=venue, race_no=race_no,
+                                               tab_number=sc["runnerNumber"], scratched=True,
+                                               race_start_utc=rc.get("raceStartTime"), betting_status=sc.get("bettingStatus")))
                 rkey = f"{target_date}|{venue}|{race_no}"
                 # Dividends (tab_dividends.py): once per race, when it is first seen Paying. Before the
                 # terminal_cache skip below, which would otherwise hide a race that turned Paying last cycle.

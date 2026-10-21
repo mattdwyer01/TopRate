@@ -7,6 +7,9 @@ import tab_results_poller as tp
 
 
 def main():
+    import time
+    from datetime import datetime, timezone
+    print(f"runner clock: tz={time.tzname} local={datetime.now()} utc={datetime.now(timezone.utc):%Y-%m-%d %H:%M} date.today()={date.today()}", flush=True)
     d = date.today().isoformat()
     seen = False
     for j in tp.TAB_JURISDICTIONS:
