@@ -20,7 +20,7 @@ export function BiasNote({ ranked, race, allRaces }: { ranked: Ranked[]; race: R
       role="note"
       title={`Read from ${b.racesRun} earlier race${b.racesRun === 1 ? '' : 's'} at this meeting: where the placegetters drew. Added to Proj (about 15 x lean x barrier position, shrunk from the measured 18 to 20). ${b.movers.length} runner${b.movers.length === 1 ? '' : 's'} moved by ${BIAS_FLAG_MIN} WPR or more.`}
     >
-      <span className="font-semibold text-amber">Draw lean</span>
+      <span className="font-semibold text-amber">Track bias</span>
       {lean && b.drawLean != null && (
         <span className="whitespace-nowrap font-medium">
           {lean} <span className="font-mono text-ink-mute">({b.drawLean > 0 ? 'wide' : 'inner'} runners {fmtBias(Math.abs(b.drawLean))} vs {b.drawLean > 0 ? 'inner' : 'wide'})</span>
