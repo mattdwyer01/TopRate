@@ -12,6 +12,7 @@ export interface CombinedRank {
   rank: number
   tied: boolean // another runner shares this rank
   mean: number // lower is better: the negative of the weighted z-score
+  rating: number | null // the weighted z-score put on the Proj scale: field mean of Proj + score x field spread of Proj (higher is better)
   ranks: [number | null, number | null, number | null] // Spd, Nett, Proj
 }
 
@@ -76,10 +77,13 @@ export function computeCombinedRank(
     if (n < MIN_SIGNALS) continue
     means.set(r.runId, { mean: -(num / den), ranks })
   }
+  const pv = [...proj.values()]
+  const pMean = pv.length > 1 ? pv.reduce((a, x) => a + x, 0) / pv.length : null
+  const pSd = pMean != null ? Math.sqrt(pv.reduce((a, x) => a + (x - pMean) ** 2, 0) / (pv.length - 1)) : 0
   const all = [...means.values()].map((m) => m.mean)
   const out = new Map<string, CombinedRank>()
   for (const [id, m] of means) {
-    out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - m.mean) < 1e-9).length > 1, mean: m.mean, ranks: m.ranks })
+    out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - m.mean) < 1e-9).length > 1, mean: m.mean, rating: pMean != null && pSd > 1e-9 ? pMean - m.mean * pSd : null, ranks: m.ranks })
   }
   return out
 }

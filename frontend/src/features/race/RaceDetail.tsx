@@ -49,7 +49,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs two earlier figures." },
   { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Proj, not blended into it." },
   { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
-  { key: 'comboRank', label: 'Rank', align: 'right', title: "Combined rank: a weighted blend of each runner's standing in the field on Proj (65%), Nett (25%) and Spd (10%) (small squares under it show each signal's rank, in that column order Spd, Nett, Proj). A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
+  { key: 'comboRank', label: 'Rating', align: 'right', title: "Combined rating: a weighted blend of each runner's standing in the field on Proj (65%), Nett (25%) and Spd (10%), put on the Proj scale (small squares under it show each signal's rank, in that column order Spd, Nett, Proj). The table is sorted by it. A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -73,7 +73,7 @@ export function RaceDetail({
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
   const now = useNow(30_000)
-  // Sorted by the combined Rank (best first) unless the user picks another column.
+  // Sorted by the combined Rating (best first) unless the user picks another column.
   const [sortKey, setSortKey] = useState<SortKey>('comboRank')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.comboRank)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null)
@@ -164,8 +164,6 @@ export function RaceDetail({
   }
 
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
-  const projVals = ranked.map((x) => x.proj).filter((v): v is number => typeof v === 'number')
-  const projSpan = projVals.length > 1 ? { min: Math.min(...projVals), max: Math.max(...projVals) } : undefined
   function rowProps(runner: Race['runners'][number]) {
     return {
       runner,
@@ -176,7 +174,6 @@ export function RaceDetail({
       showFp: hasAnyResult,
       showPrice: hasAnyPrice,
       showBias,
-      projSpan,
       onClick: compareMode
         ? () => setCompareIds((ids) => (ids.includes(runner.runId) ? ids.filter((x) => x !== runner.runId) : ids.length >= MAX_COMPARE ? ids : [...ids, runner.runId]))
         : () => setSelectedRunId(runner.runId === selectedRunId ? null : runner.runId),
