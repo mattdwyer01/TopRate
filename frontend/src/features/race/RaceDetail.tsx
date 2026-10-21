@@ -203,7 +203,7 @@ export function RaceDetail({
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
-      {hasAnyResult && <div className="xl:hidden"><RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} /></div>}
+      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
       {/* From xl: runners (left) beside a sticky column with the result, pace and ladder (right); the race shape stays full width underneath because the
           speed map and trip map need the room. Below xl one column: result, runners, shape, ladder. */}
