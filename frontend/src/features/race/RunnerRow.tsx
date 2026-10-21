@@ -4,7 +4,7 @@ import { fmtPrice, fmtWpr } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
-import { speedOnWprScale } from '../../lib/speed'
+import { speedRatingOnScale } from '../../lib/speed'
 
 interface RunnerRowProps {
   runner: Runner
@@ -118,9 +118,9 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.speedRating != null ? `Speed rating ${speedOnWprScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 85 = par, higher is faster, about 2 points a length): recency-weighted mean of the horse's earlier time-based figures` : undefined}
+        title={runner.speedRating != null ? `Speed rating ${speedRatingOnScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 79 = par, higher is faster, about 1.3 points a length, same scale as Nett and Proj): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
-        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No speed rating: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(speedOnWprScale(runner.speedRating))}
+        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No speed rating: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(speedRatingOnScale(runner.speedRating))}
       </span>
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
         {f.scratched ? '' : runner.nett == null ? <Missing why="No Nett from TopRate for this runner (first starters usually have none)" /> : Math.round(runner.nett)}

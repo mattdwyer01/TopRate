@@ -2,7 +2,7 @@ import type { Race, Runner } from '../../types/domain'
 import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
-import { speedOnWprScale } from '../../lib/speed'
+import { speedRatingOnScale } from '../../lib/speed'
 
 interface RaceResultProps {
   race: Race
@@ -126,7 +126,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ['Spd', r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'],
+                    ['Spd', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
                     ['Nett', fmtInt(r.nett)],
                     ['Proj', fmtInt(proj)],
                   ].map(([label, val]) => (
