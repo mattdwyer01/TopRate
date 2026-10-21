@@ -70,7 +70,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
   const marginText = (r: Placed) => (r.finishPosition > 1 && r.marginFinish != null ? `${Math.abs(r.marginFinish).toFixed(1)}L` : null)
 
   return (
-    <section className="rounded-lg border border-line bg-panel shadow-[var(--shadow-1)]" aria-label="Race result">
+    <section className="rounded-lg border border-line bg-panel shadow-[var(--shadow-1)] xl:flex xl:h-full xl:flex-col" aria-label="Race result">
       <div className="flex items-baseline justify-between gap-2 px-3 pb-1.5 pt-2.5 sm:px-4">
         <h3 className="text-sm font-semibold text-ink">Result</h3>
         <span className="text-[11px] text-ink-faint">{official ? 'Official' : 'Provisional, from TAB'}</span>
@@ -105,14 +105,14 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
       </div>
 
       {/* lg and up: four condensed rows, one per placing. */}
-      <ol className="hidden px-3 pb-2 sm:px-4 lg:block">
+      <ol className="hidden px-3 pb-2 sm:px-4 lg:flex lg:flex-col xl:flex-1">
         {placed.map((r) => {
           const win = r.finishPosition === 1
           const c = combo.get(r.runId)
           const proj = effective[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
           const m = marginText(r)
           return (
-            <li key={r.runId}>
+            <li key={r.runId} className="flex flex-1">
               <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-1 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
                 <Silk runner={r} w={22} h={26} />
                 <PosPill pos={r.finishPosition} small />
