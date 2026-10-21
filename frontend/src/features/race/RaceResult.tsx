@@ -104,40 +104,37 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
         </ol>
       </div>
 
-      {/* lg and up: one full-width row per placing. */}
-      <ol className="hidden flex-col gap-2 px-3 pb-3 sm:px-4 lg:flex">
+      {/* lg and up: the four placings side by side (two by two at lg), each a small card, so the panel stays short above the runner table. */}
+      <ol className="hidden grid-cols-2 gap-2 px-3 pb-3 sm:px-4 lg:grid xl:grid-cols-4">
         {placed.map((r) => {
           const win = r.finishPosition === 1
           const c = combo.get(r.runId)
           const proj = effective[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
           const m = marginText(r)
           return (
-            <li key={r.runId}>
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-5 rounded-xl border px-4 py-2.5 text-left hover:bg-bg ${win ? 'border-emerald-line bg-emerald-tint' : 'border-line bg-panel'}`}>
-                <span className="flex w-[54px] shrink-0 flex-col items-center gap-1.5">
-                  <Silk runner={r} w={44} h={52} />
-                  <PosPill pos={r.finishPosition} />
+            <li key={r.runId} className="min-w-0">
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left hover:bg-bg ${win ? 'border-emerald-line bg-emerald-tint' : 'border-line bg-panel'}`}>
+                <span className="flex w-[40px] shrink-0 flex-col items-center gap-1">
+                  <Silk runner={r} w={30} h={36} />
+                  <PosPill pos={r.finishPosition} small />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-semibold text-ink">
+                  <span className="block truncate text-sm font-semibold text-ink">
                     {r.tabNumber}. {r.horse}
-                    {r.barrier != null && <span className="ml-1.5 text-[12.5px] font-medium text-ink-mute">(B{r.barrier})</span>}
+                    {r.barrier != null && <span className="ml-1 text-[11px] font-medium text-ink-mute">(B{r.barrier})</span>}
                   </span>
-                  <span className="mt-0.5 block truncate text-[12.5px] text-ink-mute">
-                    J: {r.jockey} · T: {r.trainer}
+                  <span className="block truncate text-[11.5px] text-ink-mute">
+                    {r.jockey}
                     {m ? ` · ${m}` : ''}
                   </span>
+                  <span className="block truncate text-[11.5px] text-ink-mute">
+                    Spd <b className="font-semibold text-ink-soft">{r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'}</b> · Nett <b className="font-semibold text-ink-soft">{fmtInt(r.nett)}</b> · Proj{' '}
+                    <b className="font-semibold text-ink-soft">{fmtInt(proj)}</b>
+                  </span>
                 </span>
-                <span className="hidden w-60 shrink-0 text-[12.5px] text-ink-mute xl:block">
-                  Spd <b className="font-semibold text-ink-soft">{r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'}</b> · Nett <b className="font-semibold text-ink-soft">{fmtInt(r.nett)}</b> · Proj{' '}
-                  <b className="font-semibold text-ink-soft">{fmtInt(proj)}</b>
-                </span>
-                <span className="w-20 shrink-0 text-center">
-                  {c ? <span className={`rounded-full border px-2 py-0.5 text-[11.5px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
-                </span>
-                <span className="w-24 shrink-0 text-right">
-                  <span className="block text-[10.5px] uppercase tracking-wide text-ink-faint">Win</span>
-                  <span className="block font-mono text-base font-semibold text-ink">{priceCell(r)}</span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="font-mono text-sm font-semibold text-ink">{priceCell(r)}</span>
+                  {c ? <span className={`rounded-full border px-1.5 py-px text-[10.5px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
                 </span>
               </button>
             </li>
