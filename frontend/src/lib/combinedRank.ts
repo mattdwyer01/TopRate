@@ -51,6 +51,8 @@ export function computeCombinedRank(
     if (scratched.has(r.runId)) continue
     if (r.speedRating != null) speed.set(r.runId, r.speedRating)
     if (r.nett != null) nett.set(r.runId, r.nett)
+    // a first starter's Proj is an estimate from the race level and its price, not a form rating: it takes no part in the Rating
+    if (r.projectionModel === 'debut') continue
     const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
     if (p != null) proj.set(r.runId, p)
   }

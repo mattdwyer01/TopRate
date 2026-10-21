@@ -89,6 +89,11 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
               <span className="hidden lg:inline">bias {fmtBias(runnerBias(runner))}</span>
             </span>
           )}
+          {runner.projectionModel === 'debut' && !f.scratched && (
+            <span className="hidden flex-none rounded border border-amber-line bg-amber-bg px-1 text-[10px] text-amber lg:inline" title="First starter: no form to rate. The Proj is an estimate from the race's level and this runner's price against the field, not a form rating. It is kept out of the Rating, the gap lines and the quaddie pools.">
+              est
+            </span>
+          )}
           {runner.projectionModel === 'light' && !f.scratched && (
             <span className="hidden flex-none rounded border border-line px-1 text-[10px] text-ink-faint lg:inline" title="Light-history model (0-2 prior runs): wider error">
               light
@@ -124,8 +129,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         {f.scratched ? (
           <span className="font-mono text-ink-faint">SCR</span>
         ) : (
-          <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
-            <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? <Missing why="No projection (no rated form, or a jumps race)" /> : Math.round(f.proj)}</span>
+          <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}${runner.projectionModel === 'debut' ? ' (first starter: estimated from the race level and its price, not a form rating)' : ''}`}>
+            <span className={`font-mono text-[12px] text-ink-mute lg:text-[13px] ${runner.projectionModel === 'debut' ? 'italic text-ink-faint' : ''}`}>{f.proj == null ? <Missing why="No projection (no rated form, or a jumps race)" /> : <>{runner.projectionModel === 'debut' ? '~' : ''}{Math.round(f.proj)}</>}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}

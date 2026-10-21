@@ -35,6 +35,7 @@ export interface Ranked {
   core: boolean // inside the core line (a subset of inner)
   inner: boolean
   outer: boolean // inside the outer line but outside the inner one
+  estimated: boolean // a first starter: its figure is an estimate from the race level and its price, so it is never the top and never inside a line or pool
 }
 
 // Runners still in the race with a projection, best first, with their gap to the top and which line they fall inside.
@@ -58,10 +59,15 @@ export function rankField(
     if (proj != null) rows.push({ runner: r, proj, eff })
   }
   rows.sort((a, b) => b.proj - a.proj)
-  const top = rows.length ? rows[0].proj : 0
+  // First starters (projectionModel 'debut') have no form: their figure comes from the race level and their price, so it is not a form rating. They stay in
+  // the list (shown, marked as an estimate) but do not set the top and never fall inside a gap line or a quaddie pool.
+  const isEst = (x: Row) => x.runner.projectionModel === 'debut'
+  const base = rows.filter((x) => !isEst(x))
+  const top = base.length ? base[0].proj : rows.length ? rows[0].proj : 0
   return rows.map((x) => {
     const gap = top - x.proj
-    return { ...x, gap, core: gap <= coreGap, inner: gap <= innerGap, outer: gap > innerGap && gap <= outerGap }
+    const est = isEst(x)
+    return { ...x, gap, estimated: est, core: !est && gap <= coreGap, inner: !est && gap <= innerGap, outer: !est && gap > innerGap && gap <= outerGap }
   })
 }
 
@@ -70,6 +76,6 @@ export function rankField(
 export function typicalSd(runner: Runner, proj: number | null): number | null {
   if (runner.projectionSd != null) return runner.projectionSd
   if (proj == null) return null
-  if (runner.projectionModel === 'light') return ({ 0: 11.8, 1: 10.5, 2: 10.0 } as Record<number, number>)[Math.min(2, runner.formHistory.length)] ?? 11
+  if (runner.projectionModel === 'light' || runner.projectionModel === 'debut') return ({ 0: 11.8, 1: 10.5, 2: 10.0 } as Record<number, number>)[Math.min(2, runner.formHistory.length)] ?? 11
   return proj >= 70 ? 7.96 : proj >= 60 ? 9.43 : 11.9
 }

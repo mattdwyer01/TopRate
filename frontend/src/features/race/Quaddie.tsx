@@ -168,7 +168,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
         </h2>
         <Note short={`Runners inside ${INNER_GAP_FROM_TOP} and ${OUTER_GAP_FROM_TOP} WPR of the top, plus map runners. Counts only, not tips.`} className="mb-2">
           {kind === 'early' && meeting.length < 8 ? 'With seven races or fewer the early quaddie overlaps the late one. ' : ''}Runners inside the {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} WPR lines of each race&apos;s top projection. Inside {INNER_GAP_FROM_TOP} held about 70% of winners and inside {OUTER_GAP_FROM_TOP} about 93% in testing, so a leg
-          is rarely safe with fewer than {INNER_GAP_FROM_TOP}. The map pool is everything inside {INNER_GAP_FROM_TOP} plus runners from {INNER_GAP_FROM_TOP} to {OUTER_GAP_FROM_TOP} whose speed map adjustment is +{MAP_POOL_MIN_SM} or better (the green figure in the race table). That held about 74% of winners a leg in testing (inside {INNER_GAP_FROM_TOP} alone 70%). Added runners show a green ring on the ladder, thicker at +{MAP_VALUE_MIN_SM} or better, the group that did best between {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} as a win bet. Counts only, not tips.
+          is rarely safe with fewer than {INNER_GAP_FROM_TOP}. The map pool is everything inside {INNER_GAP_FROM_TOP} plus runners from {INNER_GAP_FROM_TOP} to {OUTER_GAP_FROM_TOP} whose speed map adjustment is +{MAP_POOL_MIN_SM} or better (the green figure in the race table). That held about 74% of winners a leg in testing (inside {INNER_GAP_FROM_TOP} alone 70%). Added runners show a green ring on the ladder, thicker at +{MAP_VALUE_MIN_SM} or better, the group that did best between {INNER_GAP_FROM_TOP} and {OUTER_GAP_FROM_TOP} as a win bet. Counts only, not tips. First starters are shown on the ladder but never counted in a pool: they have no form, so their figure is only an estimate from the race level and their price (add them by hand if you want them in the leg).
                 </Note>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-xs">
@@ -252,7 +252,7 @@ export function Quaddie({ meeting, deltas, bases, scratched, priceBeta, onSelect
                 </Pill>
               </div>
               <div className="mb-1 text-[11px] text-ink-faint">
-                {race.distance}m · {race.going || 'going n/a'} · {ranked[i].length} runners · inside {INNER_GAP_FROM_TOP}: {inner[i]} · inside {OUTER_GAP_FROM_TOP}: {outer[i]} · with map: {pool[i]}
+                {race.distance}m · {race.going || 'going n/a'} · {ranked[i].length} runners · inside {INNER_GAP_FROM_TOP}: {inner[i]} · inside {OUTER_GAP_FROM_TOP}: {outer[i]} · with map: {pool[i]}{ranked[i].some((x) => x.estimated) && ` · ${ranked[i].filter((x) => x.estimated).length} first starter${ranked[i].filter((x) => x.estimated).length === 1 ? '' : 's'} not counted`}
               </div>
               {ranked[i].length >= 2 ? (
                 <Ladder
