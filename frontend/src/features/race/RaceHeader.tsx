@@ -109,7 +109,7 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
         </Chip>
         {race.hasFirstStarter && <Chip tone="warn" className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
       </div>
-      <ReplayPanel venue={race.venue} date={race.date} raceNumber={race.raceNumber} hasResult={hasAnyResult || race.allResulted} />
+      <div className="xl:hidden"><ReplayPanel venue={race.venue} date={race.date} raceNumber={race.raceNumber} hasResult={hasAnyResult || race.allResulted} /></div>
     </section>
   )
 }

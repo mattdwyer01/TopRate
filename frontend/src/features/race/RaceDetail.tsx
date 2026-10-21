@@ -20,6 +20,7 @@ import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
+import { ReplayCard } from './ReplayCard'
 import { rankField } from './raceFacts'
 
 interface RaceDetailProps {
@@ -203,7 +204,12 @@ export function RaceDetail({
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
-      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
+      {hasAnyResult && (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />
+          <div className="hidden xl:block"><ReplayCard venue={race.venue} date={race.date} raceNumber={race.raceNumber} /></div>
+        </div>
+      )}
 
       {/* From xl: runners (left) beside a sticky column with the pace strip and ladder (right); the Result panel stays full width above; the race shape stays full width underneath because the
           speed map and trip map need the room. Below xl one column: result, runners, shape, ladder. */}
