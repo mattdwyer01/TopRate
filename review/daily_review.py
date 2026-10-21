@@ -83,6 +83,42 @@ def meeting_text(venue, v, sd):
     return L
 
 
+def meeting_stats(venue, v):
+    """Numbers behind one meeting's text, for the weekly and monthly roll-ups (review/rollup.py): sums so days can be pooled exactly."""
+    races = list(v.groupby('race'))
+    lead = [spear(g.sf, g.fin) for _, g in races]
+    draw = [spear(g.bf, g.fin) for _, g in races]
+    m = v.miss.dropna()
+    winners = v[v.fin == 1]
+    down = 0
+    for _, w in winners.iterrows():
+        g = v[v.race == w.race]
+        if pd.notna(w.proj) and (g.proj > w.proj).sum() + 1 >= 6:
+            down += 1
+    clean = lambda a: [round(x, 3) for x in a if pd.notna(x)]
+    return dict(venue=venue, races=len(races), runners=int(len(v)), final=bool((v.status == 'Final').mean() >= 0.9), going=None if str(v.going.iloc[0]) == 'nan' else str(v.going.iloc[0]),
+                n=int(len(m)), miss_sum=round(float(m.sum()), 2), miss_ss=round(float((m ** 2).sum()), 2), lead=clean(lead), draw=clean(draw),
+                winners=int(len(winners)), winners_down=int(down))
+
+
+def band_stats(done):
+    """Miss by Proj band and by number of earlier runs (pooled by the roll-up)."""
+    out = {}
+    for name, key, cuts in (('proj', done.proj, [0, 60, 70, 80, 90, 200]), ('nruns', done.nruns, [-1, 2, 5, 9, 999])):
+        b = pd.cut(key, cuts)
+        out[name] = {str(k): dict(n=int(len(g)), sum=round(float(g.miss.sum()), 2), ss=round(float((g.miss ** 2).sum()), 2)) for k, g in done.groupby(b, observed=True)}
+    return out
+
+
+def day_stats(date):
+    x = load(date)
+    if x is None:
+        return None
+    done = x[x.atw.notna() & x.proj.notna() & x.fin.notna()]
+    return dict(date=date, races=int(x.race_id.nunique()), runners=int(len(x)), final=bool((x.status == 'Final').mean() >= 0.9), n=int(len(done)), miss_sum=round(float(done.miss.sum()), 2),
+                miss_ss=round(float((done.miss ** 2).sum()), 2), bands=band_stats(done), meetings=[meeting_stats(v_, g) for v_, g in x.groupby('venue')])
+
+
 def report(date):
     x = load(date)
     if x is None:
@@ -102,4 +138,7 @@ if __name__ == '__main__':
     t = report(a.date)
     if a.out:
         os.makedirs(a.out, exist_ok=True); open(os.path.join(a.out, a.date + '.md'), 'w').write(t)
+        st = day_stats(a.date)
+        if st:
+            json.dump(st, open(os.path.join(a.out, a.date + '.json'), 'w'), separators=(',', ':'))
     print(t)

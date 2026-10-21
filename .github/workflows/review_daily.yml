@@ -1,0 +1,98 @@
+name: Post-race reviews (daily, weekly, monthly)
+
+# 22 Oct 2026. Every day, once TopRate's ratings for the meeting of 3 days ago are Final: fetch that day's post-race results (data/tr_results), write the daily review
+# (reviews/daily/<date>.md and .json, review/daily_review.py), and on Mondays / the 1st also the weekly / monthly roll-ups (review/rollup.py). Read-only against toprate.au at
+# the daily fetch's pace; changes no model. Runs after gps_daily.yml (20:00 UTC) so GPS for the review day is in data/gps if it has been published: racing.com and Racing
+# Queensland GPS are only fetched by that once-a-day job (it re-reads the last 7 and 10 days), not right after each race, so a review day may still lack GPS if the
+# source has not published it yet (rerun the review later). Commits ONLY data/tr_results and reviews/ to main, so it cannot collide with the live data jobs.
+# Needs the same secrets as daily.yml.
+
+on:
+  schedule:
+    - cron: "40 22 * * *"      # 08:40 AEST / 09:40 AEDT
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Review this meeting date (YYYY-MM-DD). Default: 3 days ago (Melbourne)"
+        default: ""
+      refetch:
+        description: "Fetch races already stored again (use to move Preliminary ratings on to Final)"
+        default: "true"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: review-daily
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+      TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+      TOPRATE_ANON_KEY: ${{ secrets.TOPRATE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas numpy pyarrow
+      - name: Anon key fallback (same as daily.yml)
+        run: |
+          if [ -z "$TOPRATE_ANON_KEY" ]; then
+            d=$(mktemp -d) && git -C "$d" init -q && git -C "$d" remote add origin "https://github.com/${{ github.repository }}.git"
+            git -C "$d" fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+            git -C "$d" show FETCH_HEAD:toprate_daily.py > "$d/old_td.py"
+            KEY=$(python - "$d/old_td.py" <<'PY'
+          import re, sys
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open(sys.argv[1]).read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+            echo "::add-mask::$KEY"
+            echo "TOPRATE_ANON_KEY=$KEY" >> "$GITHUB_ENV"
+          fi
+      - name: Work out the review date
+        id: d
+        run: |
+          D="${{ inputs.date }}"
+          [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '3 days ago' +%F)
+          echo "date=$D" >> "$GITHUB_OUTPUT"
+          echo "review date $D"
+      - name: Fetch post-race results (fill gaps for the 6 days before, then the review day again so ratings are Final)
+        run: |
+          prev=$(date -d "${{ steps.d.outputs.date }} -1 day" +%F)
+          python toprate_result_fetch.py --days 6 --to "$prev" || echo "gap fill failed, continuing"
+          flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
+          python toprate_result_fetch.py --days 1 --to "${{ steps.d.outputs.date }}" $flag
+      - name: Daily review
+        run: python review/daily_review.py "${{ steps.d.outputs.date }}" --out reviews/daily > /dev/null
+      - name: Weekly roll-up (Mondays) and monthly roll-up (1st of the month)
+        run: |
+          T=$(TZ=Australia/Melbourne date +%F)
+          if [ "$(TZ=Australia/Melbourne date +%u)" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            E="${{ steps.d.outputs.date }}"     # the newest review day (ratings Final)
+            python review/rollup.py "$E" --days 7 --out reviews/weekly --name "$(date -d "$E" +%G-W%V)" > /dev/null
+          fi
+          if [ "$(TZ=Australia/Melbourne date +%d)" = "01" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            E="${{ steps.d.outputs.date }}"
+            python review/rollup.py "$E" --days 30 --out reviews/monthly --name "$(date -d "$E" +%Y-%m)" --monthly > /dev/null
+          fi
+      - name: Commit to main
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/tr_results reviews
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Post-race review ${{ steps.d.outputs.date }}"
+          for i in 1 2 3 4 5 6; do
+            git push origin HEAD:main && exit 0
+            git fetch -q origin main && git rebase -q origin/main || { git rebase --abort; git reset -q --mixed origin/main; git add data/tr_results reviews; git commit -q -m "Post-race review ${{ steps.d.outputs.date }}"; }
+            sleep $((i * 5))
+          done
+          exit 1
