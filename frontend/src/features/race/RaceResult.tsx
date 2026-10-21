@@ -51,8 +51,6 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
 
   const official = race.allResulted && !race.provisional
   const hasSp = placed.some((r) => r.startingPrice != null)
-  const topPick = [...combo.entries()].filter(([, c]) => c.rank === 1).map(([id]) => race.runners.find((r) => r.runId === id)).filter((r): r is Runner => r != null)
-  const topPickResult = topPick.length === 0 ? null : topPick.map((r) => (r.finishPosition != null ? `${r.horse} ${ORDINAL[r.finishPosition] ?? `${r.finishPosition}th`}` : `${r.horse} unplaced`)).join(', ')
 
   const priceOf = (r: Runner) => r.startingPrice ?? r.fixedWinPrice
   const priceCell = (r: Runner) => {
@@ -150,10 +148,6 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           )
         })}
       </ol>
-
-      {topPickResult && (
-        <p className="border-t border-line-soft px-3 py-2 text-xs text-ink-mute sm:px-4">Rank 1: {topPickResult}.</p>
-      )}
     </section>
   )
 }
