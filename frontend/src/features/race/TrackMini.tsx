@@ -6,9 +6,15 @@ import { findOutline, useTrackOutlines } from '../../lib/trackOutlines'
 // from its start to the winning post picked out in blue, a green start dot and a black post dot. Needs track_marks for the venue (finish, starts); without a mapped
 // start for this distance only the post is drawn.
 
-const W = 150
-const H = 76
+const W = 170
+const H = 96
 const PAD = 8
+
+// True when this venue has an outline with a finish mark (so the header makes room for the picture).
+export function useHasTrackMini(race: Race): boolean {
+  const o = findOutline(useTrackOutlines(), race.venue)
+  return !!(o && o.fin)
+}
 
 export function TrackMini({ race }: { race: Race }) {
   const payload = useTrackOutlines()
@@ -95,7 +101,7 @@ export function TrackMini({ race }: { race: Race }) {
   if (!g) return null
   return (
     <div className="flex-none" title={`${race.venue}: ${race.distance}m from the start to the post. Track outline: Map data © OpenStreetMap contributors`}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${race.venue} course outline`} className="h-auto w-[150px]">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${race.venue} course outline`} className="h-auto w-[170px]">
         <path d={g.d} fill="none" stroke="var(--color-line)" strokeWidth={5} strokeLinejoin="round" />
         {g.chutesDrawn && <path d={g.chutesDrawn} fill="none" stroke="var(--color-line)" strokeWidth={3} strokeLinecap="butt" />}
         {g.route && <path d={g.route} fill="none" stroke="#2563eb" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />}

@@ -155,6 +155,16 @@ def place_marks(ring, runs, mk, per):
         t = back(int(d) - lc)
         p0, p1 = pt(t), pt(t + sgn * 100 / (per / n))
         v = np.array([p0[0] - p1[0], p0[1] - p1[1]])
+        # a chute that leaves near the back end of the HOME straight runs on collinear with it (Flemington's 800 to 1200 and 3200 chute); a bend behind the join must not swing it
+        best = None
+        for ra, rl in (runs if mk.get('chute_any') else [runs[hi]]):
+            be = ra if sgn > 0 else ra + rl                         # back end of the run (against the racing direction)
+            fe = ra + rl if sgn > 0 else ra
+            gap = min(abs((t - be) % n), abs((be - t) % n)) * per / n
+            if gap <= 250 and (best is None or gap < best[0]):
+                best = (gap, np.array(pt(be)) - np.array(pt(fe)))
+        if best is not None and np.hypot(*best[1]) > 1:
+            v = best[1]
         v = v / (np.hypot(*v) or 1.0)
         chutes[d] = [r(p0), [int(round(p0[0] + v[0] * lc)), int(round(p0[1] + v[1] * lc))]]
     return {'dir': mk['dir'], 'fin': r(pt(fin)), 'starts': starts, 'chutes': chutes, 's0': int(a), 'sn': int(ln), 'sgn': sgn}
