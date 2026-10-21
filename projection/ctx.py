@@ -59,6 +59,10 @@ def venue_key(s):
     return cleaned.map(lambda x: norm(x).strip().lower() if x not in ('', 'nan', 'None') else '')
 
 
+def clip_low():
+    return json.load(open(os.path.join(M, 'formula.json'))).get('clip_low')
+
+
 def coefs():
     f = json.load(open(os.path.join(M, 'formula.json')))
     return {int(k): np.array(v) for k, v in f['coef'].items()}
@@ -115,10 +119,10 @@ def target_history(T, rp):
 def formula_pred(df, co):
     f = np.full(len(df), np.nan)
     kk = df.n.clip(upper=K).values
+    rc = F.clip_low_lags(df[[f'r{k}' for k in range(1, K + 1)]].values, clip_low())   # outlier trim, same as features.formula_projection
     for n in range(1, K + 1):
         m = kk == n
-        c = [f'r{k}' for k in range(1, n + 1)]
-        X = df.loc[m, c].values
+        X = rc[m, :n]
         ok = ~np.isnan(X).any(axis=1)
         idx = np.where(m)[0][ok]
         f[idx] = co[n][0] + X[ok] @ co[n][1:]

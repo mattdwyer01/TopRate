@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from projection import features as F
 
 K = 8
+CLIP_LOW = 10.0     # outlier trim (22 Oct 2026, research/proj_outlier_test.py): an earlier run is lifted to at most this far below the median of the last six; None = off
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models_tr', 'formula.json')
 
 
@@ -24,7 +25,9 @@ def main():
     for k in range(1, K + 1):
         rp[f'r{k}'] = g.wpr.shift(k)
     rp['n'] = g.cumcount()
-    out = {'K': K, 'coef': {}, 'sd': {}, 'n_fit': {}}
+    lags = [f'r{k}' for k in range(1, K + 1)]
+    rp[lags] = F.clip_low_lags(rp[lags].values, CLIP_LOW)
+    out = {'K': K, 'clip_low': CLIP_LOW, 'coef': {}, 'sd': {}, 'n_fit': {}}
     for n in range(1, K + 1):
         m = rp.n.clip(upper=K) == n
         cols = [f'r{k}' for k in range(1, n + 1)]
