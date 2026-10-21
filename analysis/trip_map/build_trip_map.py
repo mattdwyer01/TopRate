@@ -67,10 +67,28 @@ def clean_name(s):
 
 
 # ---------------------------------------------------------------- results
+HK_VENUES = ('happy valley', 'sha tin')
+
+
+def hk_runs():
+    """Hong Kong runs from the runner-page store (data/tr_form): the results files are Australian only, so without this a Hong Kong horse has
+    no position or margin history and no Hong Kong race gets a trip map (21 Oct 2026). Same columns as load_results() reads."""
+    import gzip
+    rows = []
+    for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
+        for r in json.load(gzip.open(f)).get('runs', {}).values():
+            if str(r.get('track') or r.get('venue') or '').lower() in HK_VENUES and not r.get('isBarrierTrial'):
+                rows.append(dict(race_id=r.get('raceId'), horse_id=r.get('horse_id'), horse=r.get('horse'), date=r.get('date'), track=r.get('track') or r.get('venue'),
+                                 distance=r.get('distance'), going=r.get('going'), barrier=r.get('barrier'), field_size=r.get('starters'),
+                                 position800m=r.get('position800m'), margin800m=r.get('margin800m'), wpr=r.get('wpr'), isBarrierTrial=False, is_jumpout=False))
+    return pd.DataFrame(rows)
+
+
 def load_results():
     cols = ['race_id', 'horse_id', 'horse', 'date', 'track', 'distance', 'going', 'barrier', 'field_size', 'position800m', 'margin800m',
             'rail_position', 'wpr', 'isBarrierTrial', 'is_jumpout']
     res = pd.concat([pd.read_csv(f, usecols=lambda c: c in set(cols), low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, 'race_results_20*.csv.gz')))])
+    res = pd.concat([res, hk_runs()], ignore_index=True)
     res = res.drop_duplicates(['race_id', 'horse_id'])
     res = res[(~res.isBarrierTrial.astype(bool)) & (~res.is_jumpout.fillna(False).astype(bool))].copy()
     res['date'] = pd.to_datetime(res['date'])
