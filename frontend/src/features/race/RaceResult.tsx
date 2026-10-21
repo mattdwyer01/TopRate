@@ -70,7 +70,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
   const marginText = (r: Placed) => (r.finishPosition > 1 && r.marginFinish != null ? `${Math.abs(r.marginFinish).toFixed(1)}L` : null)
 
   return (
-    <section className="rounded-lg border border-line bg-panel shadow-[var(--shadow-1)]" aria-label="Race result">
+    <section className="@container rounded-lg border border-line bg-panel shadow-[var(--shadow-1)]" aria-label="Race result">
       <div className="flex items-baseline justify-between gap-2 px-3 pb-1.5 pt-2.5 sm:px-4">
         <h3 className="text-sm font-semibold text-ink">Result</h3>
         <span className="text-[11px] text-ink-faint">{official ? 'Official' : 'Provisional, from TAB'}</span>
@@ -113,7 +113,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           const m = marginText(r)
           return (
             <li key={r.runId}>
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-5 rounded-xl border px-4 py-2.5 text-left hover:bg-bg ${win ? 'border-emerald-line bg-emerald-tint' : 'border-line bg-panel'}`}>
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 @xl:gap-5 @xl:px-4 text-left hover:bg-bg ${win ? 'border-emerald-line bg-emerald-tint' : 'border-line bg-panel'}`}>
                 <span className="flex w-[54px] shrink-0 flex-col items-center gap-1.5">
                   <Silk runner={r} w={44} h={52} />
                   <PosPill pos={r.finishPosition} />
@@ -128,14 +128,14 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                     {m ? ` · ${m}` : ''}
                   </span>
                 </span>
-                <span className="hidden w-60 shrink-0 text-[12.5px] text-ink-mute xl:block">
+                <span className="hidden w-60 shrink-0 text-[12.5px] text-ink-mute @3xl:block">
                   Spd <b className="font-semibold text-ink-soft">{r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'}</b> · Nett <b className="font-semibold text-ink-soft">{fmtInt(r.nett)}</b> · Proj{' '}
                   <b className="font-semibold text-ink-soft">{fmtInt(proj)}</b>
                 </span>
-                <span className="w-20 shrink-0 text-center">
+                <span className="w-[4.5rem] shrink-0 text-center">
                   {c ? <span className={`rounded-full border px-2 py-0.5 text-[11.5px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
                 </span>
-                <span className="w-24 shrink-0 text-right">
+                <span className="w-20 shrink-0 text-right">
                   <span className="block text-[10.5px] uppercase tracking-wide text-ink-faint">Win</span>
                   <span className="block font-mono text-base font-semibold text-ink">{priceCell(r)}</span>
                 </span>
