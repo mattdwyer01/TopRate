@@ -6,6 +6,7 @@ import { Pill } from '../../components/Pill'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { fmtPrize, goingChange, goingTone } from './raceFacts'
 import { ReplayPanel } from './ReplayPanel'
+import { TrackMini } from './TrackMini'
 
 interface RaceHeaderProps {
   race: Race
@@ -70,7 +71,13 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
               <div className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">to jump{time ? ` · ${time}` : ''}</div>
             </div>
           )}
+          <div className="mt-1.5 hidden sm:block">
+            <TrackMini race={race} />
+          </div>
         </div>
+      </div>
+      <div className="mt-1.5 flex justify-end sm:hidden">
+        <TrackMini race={race} />
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
