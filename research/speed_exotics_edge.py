@@ -64,6 +64,15 @@ def race(g):
             r["h3"] = pr3
     r["h4"] = pr3
     r["race"] = g.race_id.iloc[0]
+    ps = np.sort(p)[::-1]
+    r["m_top1"], r["m_top3"], r["m_top4"] = ps[0], ps[:3].sum(), ps[:4].sum()
+    r["m_ent"] = float(-(p * np.log(p)).sum() / np.log(len(p)))
+    r["m_n6"] = int((sp <= 6).sum())
+    pr, left = 1.0, 1.0
+    for i in mkt_o[:4]:
+        pr *= p[i] / left
+        left -= p[i]
+    r["m_open4"] = float(np.log(1 / pr))        # how dear the market's own most likely first four would pay (log of 1 / Harville)
     r["s5_n10"] = int((sp[spd_o[:5]] > 10).sum())
     r["s6_n10"] = int((sp[spd_o[:6]] > 10).sum())
     r["s5_n8"] = int((sp[spd_o[:5]] > 8).sum())
