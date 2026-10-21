@@ -42,6 +42,16 @@ def tag_stats(x):
     return out
 
 
+def move(w):
+    """Position change from 800m to 400m and price move (starting price against the top price)."""
+    out = []
+    if pd.notna(w.p800) and pd.notna(w.p400) and w.p800 != w.p400:
+        out.append(f'{int(w.p800)}th at 800m to {int(w.p400)} at 400m')
+    if pd.notna(w.ptop) and pd.notna(w.price) and w.ptop > 0 and abs(w.ptop / w.price - 1) >= 0.15:
+        out.append(f'price ${w.ptop} top to ${w.price} SP ({"firmed" if w.price < w.ptop else "drifted"})')
+    return ', '.join(out)
+
+
 def read(w):
     notes = []
     if pd.notna(w.prank) and w.prank >= 6:
@@ -72,6 +82,32 @@ def section(x):
                  + (f"{w.jockey} / {w.trainer}. " if isinstance(w.jockey, str) else '')
                  + (f"Gear: {w.gear_changes}. " if isinstance(w.gearflag, str) else '')
                  + (f"Nett {w.wpr_nett:.0f}" if pd.notna(w.wpr_nett) else '') + (f", Spd {w.spd_fig:+.1f}L" if pd.notna(w.spd_fig) else '') + '. '
-                 + f"Read: {read(w)}. " + (f"Comment: {str(w.comment)[:110]}" if isinstance(w.comment, str) and w.comment else ''))
+                 + (f"Sectionals vs standard: early {w.sect_e:+.1f}L, last 400m {w.sect_l:+.1f}L. " if pd.notna(w.sect_e) and pd.notna(w.sect_l) else '') + (move(w) + '. ' if move(w) else '')
+                 + f"Read: {read(w)}. " + (f"Comment: {str(w.comment)[:110]}. " if isinstance(w.comment, str) and w.comment else '')
+                 + (f"Stewards: {str(w.steward)[:110]}" if isinstance(w.steward, str) and w.steward else ''))
+    L.append('')
+    return L
+
+
+def beaten_favourites(x):
+    """Favourites (shortest price) that lost: where they finished, what they rated against the Proj, how they ran, why."""
+    L = ['## Beaten favourites', '']
+    k = 0
+    for (venue, race), g in x.groupby(['venue', 'race']):
+        if g.price.notna().sum() < 3 or (g.fin == 1).sum() != 1: continue
+        f = g[g.price == g.price.min()]
+        if len(f) != 1: continue
+        f = f.iloc[0]
+        win = g[g.fin == 1].iloc[0]
+        if f.fin == 1: continue
+        k += 1
+        pos = f"finished {int(f.fin)}" if pd.notna(f.fin) else 'did not finish'
+        L.append(f"- {venue} R{int(race)} {f.horse} (${f.price}, Proj rank {int(f.prank) if pd.notna(f.prank) else 'none'}) {pos}"
+                 + (f", rated {f.miss:+.1f} vs Proj" if pd.notna(f.miss) else '') + f". {f.style + ', ' if isinstance(f.style, str) else ''}"
+                 + (move(f) + '. ' if move(f) else '') + f"Winner {win.horse} (${win.price}, Proj rank {int(win.prank) if pd.notna(win.prank) else 'none'}). "
+                 + (f"Comment: {str(f.comment)[:110]}. " if isinstance(f.comment, str) and f.comment else '')
+                 + (f"Stewards: {str(f.steward)[:110]}" if isinstance(f.steward, str) and f.steward else ''))
+    n = x[x.fin == 1].race_id.nunique()
+    L.insert(1, f'{k} of {n} favourites lost.')
     L.append('')
     return L

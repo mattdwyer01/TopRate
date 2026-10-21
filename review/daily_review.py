@@ -23,7 +23,8 @@ def load(date):
             rows.append(dict(race_id=int(rid), venue=r['venue'], race=r['race'], going=r.get('going'), status=r.get('wprStatus'), run_id=x.get('runId'), horse=x.get('horse'),
                              atw=x.get('atw'), p800=x.get('position800m'), fin=x.get('positionFinish'), barrier=x.get('barrier'), price=x.get('priceStarting'),
                              comment=x.get('commentsVideo', ''), margin=x.get('marginFinish'), distance=r.get('distance'), race_class=r.get('class'),
-                             jockey=x.get('jockey'), trainer=x.get('trainer'), weight_carried=x.get('weightCarried')))
+                             jockey=x.get('jockey'), trainer=x.get('trainer'), weight_carried=x.get('weightCarried'),
+                             p400=x.get('position400m'), sect_e=(x.get('sectionalRating') or {}).get('individualEarlySpeed'), sect_l=(x.get('sectionalRating') or {}).get('individualLast400mSpeed'), ptop=x.get('priceTop'), steward=' '.join(x['commentsSteward']) if isinstance(x.get('commentsSteward'), list) else x.get('commentsSteward', '')))
     T = pd.DataFrame(rows)
     L = pd.read_csv(os.path.join(ROOT, 'wpr_projection_log.csv.gz'))
     L = L[L.date == date].sort_values('made').drop_duplicates('run_id', keep='last')[['run_id', 'proj', 'nruns']]
@@ -138,7 +139,8 @@ def report(date):
     for venue, v in x.groupby('venue'):
         L += meeting_text(venue, v, sd)
     try:
-        L += winners.section(winners.enrich(x, date))
+        E = winners.enrich(x, date)
+        L += winners.section(E) + winners.beaten_favourites(E)
     except Exception as e:      # the winner section must never stop the rest of the review
         L += [f'(winner section failed: {e})', '']
     L += ['# GPS (VIC, SA and QLD meetings)', '', gps_review.text(date, gps_review.load(date)).split('\n', 2)[2], '']
