@@ -10,7 +10,6 @@ import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { BiasNote } from './BiasNote'
 import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
-import { RaceLadder } from './RaceGlance'
 import { RunnerCompare } from './RunnerCompare'
 import { RaceResult } from './RaceResult'
 import { RunnerRow, rowGrid, silkFrom } from './RunnerRow'
@@ -293,12 +292,10 @@ export function RaceDetail({
         )}
 
         </div>
-        <div className="order-3 flex min-w-0 flex-col gap-4 xl:sticky xl:top-28 xl:order-2 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-          <div className="hidden xl:block"><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
-          {tripBeside && tripRace && tripMap ? (
+        <div className="order-3 hidden min-w-0 flex-col gap-4 xl:sticky xl:top-28 xl:order-2 xl:flex xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
+          <div><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
+          {tripBeside && tripRace && tripMap && (
             <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
-          ) : (
-            <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
           )}
         </div>
         <div className="order-2 flex min-w-0 flex-col gap-4 xl:order-3 xl:col-span-2">

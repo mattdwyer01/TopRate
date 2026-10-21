@@ -188,24 +188,3 @@ export function Ladder({
     </div>
   )
 }
-
-// The ladder sits under the field table. Open by default on desktop, collapsed on phones (where the cards already give the order).
-export function RaceLadder({ ranked, coreGap, innerGap, outerGap, onSelect }: Pick<RaceGlanceProps, 'ranked' | 'coreGap' | 'innerGap' | 'outerGap' | 'onSelect'>) {
-  const [open, setOpen] = useState(true)
-  if (!ranked.length) return null
-  return (
-    <section className="rounded-lg border border-line bg-panel p-4 shadow-[var(--shadow-1)]">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full flex-wrap items-baseline justify-between gap-2 text-left">
-        <h3 className="text-sm font-semibold text-ink">
-          Projection ladder <span className="font-normal text-ink-faint">{open ? '▾' : '▸'}</span>
-        </h3>
-        <span className="text-xs text-ink-faint">Projected WPR, best first &middot; shaded bar is the likely range &middot; tap a runner for detail</span>
-      </button>
-      {open && (
-        <div className="mt-2">
-          <Ladder ranked={ranked} coreGap={coreGap} innerGap={innerGap} outerGap={outerGap} onSelect={onSelect} showBands={false} />
-        </div>
-      )}
-    </section>
-  )
-}
