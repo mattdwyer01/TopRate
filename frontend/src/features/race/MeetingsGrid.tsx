@@ -12,7 +12,7 @@ import {
 import { formatTimeOfDay, formatCountdown } from '../../lib/countdown'
 import { useScrollShadow } from '../../lib/useScrollShadow'
 import { hasQuaddie } from '../../lib/quaddie'
-import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers, topPickOutcome } from '../../lib/raceStatus'
+import { raceStatus, STATUS_CLASSES, STATUS_LEGEND, topFinishers } from '../../lib/raceStatus'
 
 interface MeetingsGridProps {
   races: Race[]
@@ -170,12 +170,6 @@ export function MeetingsGrid({
               {label}
             </div>
           ))}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] text-emerald">&#9679;</span>
-            <span className="text-[8px] text-amber">&#9679;</span>
-            <span className="text-[8px] text-ink-faint">&#9679;</span>
-            Model top pick: won, placed, unplaced
-          </div>
         </div>
       )}
 
@@ -290,7 +284,6 @@ export function MeetingsGrid({
                       const finishers = status === 'resulted' || status === 'interim'
                         ? topFinishers(race)
                         : null
-                      const pickOutcome = finishers ? topPickOutcome(race) : null
                       return (
                         <td key={n} className="px-1 py-1 text-center">
                           <button
@@ -309,15 +302,6 @@ export function MeetingsGrid({
                                   <b className="text-[13px] text-ink">{finishers[0]}</b>
                                   {finishers.length > 1 ? ` ${finishers.slice(1).join(' ')}` : ''}
                                 </span>
-                                {pickOutcome && (
-                                  <span
-                                    className={`absolute -right-0.5 -top-0.5 text-[8px] ${pickOutcome === 'won' ? 'text-emerald' : pickOutcome === 'placed' ? 'text-amber' : 'text-ink-faint'}`}
-                                    title={`Model top pick ${pickOutcome}`}
-                                    aria-label={`Model top pick ${pickOutcome}`}
-                                  >
-                                    &#9679;
-                                  </span>
-                                )}
                               </span>
                             ) : (
                               formatTimeOfDay(race.startTime) || 'TBC'
