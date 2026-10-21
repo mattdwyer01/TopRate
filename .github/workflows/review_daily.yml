@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Review this meeting date (YYYY-MM-DD). Default: 3 days ago (Melbourne)"
+        description: "Review these meeting dates (YYYY-MM-DD, comma separated, oldest first). Default: 3 days ago (Melbourne)"
         default: ""
       refetch:
         description: "Fetch races already stored again (use to move Preliminary ratings on to Final)"
@@ -65,23 +65,26 @@ jobs:
           [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '3 days ago' +%F)
           echo "date=$D" >> "$GITHUB_OUTPUT"
           echo "review date $D"
-      - name: Fetch post-race results (fill gaps for the 6 days before, then the review day again so ratings are Final)
+      - name: Fetch post-race results and write the daily review (per date, fill the 6 days before, then the review day again so ratings are Final)
         run: |
-          prev=$(date -d "${{ steps.d.outputs.date }} -1 day" +%F)
-          python toprate_result_fetch.py --days 6 --to "$prev" || echo "gap fill failed, continuing"
-          flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
-          python toprate_result_fetch.py --days 1 --to "${{ steps.d.outputs.date }}" $flag
-      - name: Daily review
-        run: python review/daily_review.py "${{ steps.d.outputs.date }}" --out reviews/daily > /dev/null
+          for D in $(echo "${{ steps.d.outputs.date }}" | tr ',' ' '); do
+            prev=$(date -d "$D -1 day" +%F)
+            python toprate_result_fetch.py --days 6 --to "$prev" || echo "gap fill failed, continuing"
+            flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
+            python toprate_result_fetch.py --days 1 --to "$D" $flag
+            python review/daily_review.py "$D" --out reviews/daily > /dev/null
+          done
+          echo "last=$D" >> "$GITHUB_OUTPUT"
+        id: f
       - name: Weekly roll-up (Mondays) and monthly roll-up (1st of the month)
         run: |
           T=$(TZ=Australia/Melbourne date +%F)
           if [ "$(TZ=Australia/Melbourne date +%u)" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            E="${{ steps.d.outputs.date }}"     # the newest review day (ratings Final)
+            E="${{ steps.f.outputs.last }}"     # the newest review day (ratings Final)
             python review/rollup.py "$E" --days 7 --out reviews/weekly --name "$(date -d "$E" +%G-W%V)" > /dev/null
           fi
           if [ "$(TZ=Australia/Melbourne date +%d)" = "01" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            E="${{ steps.d.outputs.date }}"
+            E="${{ steps.f.outputs.last }}"
             python review/rollup.py "$E" --days 30 --out reviews/monthly --name "$(date -d "$E" +%Y-%m)" --monthly > /dev/null
           fi
       - name: Commit to main
