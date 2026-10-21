@@ -3,14 +3,14 @@
 What it is: for every earlier run of a horse, a time-based speed figure in lengths against par (positive = faster than par): the run's finish time
 (winners_time + 0.147 s x beaten margin, winner's own margin clipped to 0) minus a par time for the track, distance, class, going, grading, field size,
 season and mean weight (a LightGBM fitted on winners' times, speed_models/par_v2.txt) minus a same-day venue variant from the other races that day.
-The rating is the recency-weighted mean of the horse's earlier figures (EWM, halflife 4 runs, at least 2 runs), as of the day before the race.
+The rating is the recency-weighted mean of the horse's earlier figures (EWM, halflife 4 runs, from 1 run, shrunk toward the average with few runs), as of the day before the race.
 
 Why this version: research/speed_rating_variants.py (15,111 races 2025-07+, 16 Oct 2026). Par v2 plus a long recency-weighted memory was the best
 simple calculation (top pick wins 20.0% vs 17.0% for the mean of the last 3 on par v1; added to L3 +0.012 nats vs +0.005). A learned LightGBM on the
 figure history was a little better still (20.3%, +0.015) but needs a second artifact and is relative to the field, so it was not used.
 Recent runs: figures need winners_time. The results files carry it but stop on 8 Oct 2026 (the racing.com results file that followed has none), so every
 day after the last day those files cover is read from the runner-page store (data/tr_form), which the daily runner-page fetch keeps up to date, so the
-rating stays current without anything extra. A horse with fewer than 2 earlier figures has no rating.
+rating stays current without anything extra. A horse with no earlier figure has no rating.
 
 usage:
   python speed_rating.py --train      refit the par model (writes speed_models/par_v2.txt), run once a year
@@ -33,7 +33,8 @@ ADJUST = DIR / "speed_models" / "adjust.json"   # days-since-run and weight-chan
 FORM_DIR = DIR / "data" / "tr_form"
 SEC = 0.147                  # seconds per length
 HALFLIFE = 4.0               # runs
-MIN_RUNS = 2
+MIN_RUNS = 1                 # 22 Oct 2026: a horse with one earlier figure is rated too, shrunk toward the average (SHRINK), research/spd_min_starts_test.py
+SHRINK = {1: 0.6, 2: 0.75, 3: 0.9}   # keep this share of the distance from the average rating for a horse with 1, 2, 3 to 5 earlier figures (6+: all of it)
 TRAIN_FROM = "2020-01-01"
 TRAIN_TO = "2025-12-31"      # 2026 runs are out of sample for the par model, like the research test
 COLUMN = "spd_fig"
@@ -168,9 +169,10 @@ def history(d):
     d["key"] = d["horse"].astype(str).str.lower().str.strip()
     d = d.sort_values(["key", "date"])
     d["rating"] = d.groupby("key", sort=False)["sp"].transform(lambda s: s.ewm(halflife=HALFLIFE, min_periods=MIN_RUNS).mean())
+    d["nfig"] = d.groupby("key", sort=False).cumcount() + 1     # earlier figures the horse will have at its next start
     d["lw"] = d["weightCarried"]
     d["ldate"] = d["date"]
-    return d.dropna(subset=["rating"])[["key", "date", "rating", "lw", "ldate"]].sort_values("date")
+    return d.dropna(subset=["rating"])[["key", "date", "rating", "lw", "ldate", "nfig"]].sort_values("date")
 
 
 def run_figures(first_year=None):
@@ -195,6 +197,9 @@ def compute(runners_df, today=None):
     q = pd.DataFrame({"date": dts[sel], "key": runners_df.loc[sel, "horse"].astype(str).str.lower().str.strip()}).sort_values("date")
     m = pd.merge_asof(q.reset_index(), h, on="date", by="key", allow_exact_matches=False, tolerance=pd.Timedelta(days=400)).set_index("index")
     rating = m["rating"].values
+    mu = float(h.loc[h["nfig"] >= 6, "rating"].mean())    # the average rating of a horse with a long record
+    k = np.select([m["nfig"] == 1, m["nfig"] == 2, m["nfig"].between(3, 5)], [SHRINK[1], SHRINK[2], SHRINK[3]], default=1.0)
+    rating = mu + k * (rating - mu)    # fewer figures, less certain: pull toward the average (slope of next rating on the rating was 0.65 / 0.8 / 0.95 of the 6+ slope)
     adj = _adjustment(m, dts[sel], runners_df.loc[sel, "weight_carried"] if "weight_carried" in runners_df.columns else None)
     out.loc[m.index] = rating + adj
     return out
