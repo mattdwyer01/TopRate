@@ -45,7 +45,7 @@ def review(x):
             w = g[g.won == 1].iloc[0]
             fav = g.loc[g.price.idxmin()] if g.price.notna().any() else None
             tp = g.loc[g.proj.idxmax()]
-            d.update(winner=w.horse, w_rank=w['rank'], w_gap=w.gap, w_price=w.price, top_pick=tp.horse, top_won=bool(tp.won == 1), top_price=tp.price,
+            d.update(winner=w.horse, w_rank=w['rank'], w_gap=w.gap, w_price=w.price, top_pick=tp.horse, top_lead=float(tp.proj - g.proj.nlargest(2).iloc[-1]) if g.proj.notna().sum() > 1 else np.nan, top_won=bool(tp.won == 1), top_price=tp.price,
                      in2=bool(w.gap <= CORE), in4=bool(w.gap <= INNER), fav_won=bool(fav is not None and fav.won == 1), fav_rank=(fav['rank'] if fav is not None else np.nan),
                      w_model=w.model, w_nruns=w.nruns)
             m = g[g.page_wpr.notna() & g.proj.notna()]
@@ -68,8 +68,8 @@ def text(date, x, r):
         if pd.isna(s0.going): chk.append('going missing')
         thin = v[v.rated < v.n - 1]
         if len(thin): chk.append('races with 2+ unrated runners: ' + ', '.join(f'R{q.race} ({q.n - q.rated} of {q.n})' for _, q in thin.iterrows()))
-        long_tp = dn[dn.top_price >= 30]
-        if len(long_tp): chk.append('top Proj priced $30+: ' + ', '.join(f'R{q.race} {q.top_pick} ${q.top_price:.0f}' for _, q in long_tp.iterrows()))
+        long_tp = dn[(dn.top_price >= 30) & (dn.top_lead >= 2)]
+        if len(long_tp): chk.append('top Proj priced $30+ with a 2+ lead: ' + ', '.join(f'R{q.race} {q.top_pick} ${q.top_price:.0f}' for _, q in long_tp.iterrows()))
         if chk: L += ['Checks: ' + '; '.join(chk) + '.', '']
         L += [f'Races resulted: {len(dn)} of {len(v)}. Top Proj won {int(dn.top_won.sum())} ({dn.top_won.mean():.0%}); favourite won {int(dn.fav_won.sum())} ({dn.fav_won.mean():.0%}); '
               f'winner inside 2 of the top: {int(dn.in2.sum())}, inside 4: {int(dn.in4.sum())}; mean winner rank {dn.w_rank.mean():.1f}.']
