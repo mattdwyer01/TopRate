@@ -8,12 +8,15 @@ export function ReplayCard({ venue, date, raceNumber }: { venue: string; date: s
   const [failed, setFailed] = useState(false)
   const url = replayUrl(codes, venue, date, raceNumber)
   return (
-    <section className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]" aria-label="Race replay">
+    <section className="flex h-full flex-col rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]" aria-label="Race replay">
       <h3 className="mb-2 text-sm font-semibold text-ink">Race replay</h3>
       {url && !failed ? (
-        <video key={url} className="aspect-video w-full rounded-md border border-line bg-black" src={url} controls playsInline preload="metadata" onError={() => setFailed(true)} />
+        // The box is at least 16:9 and grows to the Result panel's height when that is taller (the video letterboxes), so the two always end together.
+        <div className="relative aspect-video w-full flex-1 overflow-hidden rounded-md border border-line bg-black">
+          <video key={url} className="absolute inset-0 h-full w-full object-contain" src={url} controls playsInline preload="metadata" onError={() => setFailed(true)} />
+        </div>
       ) : (
-        <p className="rounded-md bg-bg px-3 py-6 text-center text-xs text-ink-mute">
+        <p className="flex flex-1 items-center justify-center rounded-md bg-bg px-3 py-6 text-center text-xs text-ink-mute">
           {url ? (
             <>
               No replay found for this race yet. <a className="underline" href={url} target="_blank" rel="noopener noreferrer">Try the link directly</a>
