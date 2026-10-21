@@ -15,6 +15,7 @@ interface TripMapProps {
   excluded: Set<string> // scratched runners (runId), left off the map
   runners: Runner[] // for TAB number and silks (matched on runId)
   smByRunId?: Record<string, number | null> // speed-map suitability vs the field (SM), shown as a dot on each chip
+  compact?: boolean // silks and numbers only and always fit the box (a narrow column), whatever its width
 }
 
 const LEN_M = 2.4 // one length in metres
@@ -31,7 +32,7 @@ interface Placed extends TripRunner {
   py: number
 }
 
-export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compact = false }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -41,13 +42,13 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: Trip
     if (!el) return
     const fit = () => {
       const w = Math.round(el.clientWidth - 2)
-      setWidth(w < 600 ? Math.max(300, w) : Math.max(720, w)) // phones fit the screen, no sideways scroll
+      setWidth(compact || w < 600 ? Math.max(300, w) : Math.max(720, w)) // phones and narrow columns fit their box, no sideways scroll
     }
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     fit()
     return () => ro.disconnect()
-  }, [])
+  }, [compact])
 
   const byRid = useMemo(() => new Map(field.map((f) => [f.runId, f])), [field])
   // trip_map.json is only rebuilt by the daily full run, so it can hold rows the field has since lost (racing.com nominations
@@ -66,7 +67,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: Trip
   }, [trip, excluded, byRid])
 
   const layout = useMemo(() => {
-    const narrow = width < 600
+    const narrow = compact || width < 600
     const m = narrow ? { l: 34, r: 10, t: 22, b: 34 } : { l: 44, r: 20, t: 30, b: 44 }
     const iw = width - m.l - m.r
     const minGap = runners.length ? Math.min(...runners.map((r) => r.gap as number)) : 0
@@ -129,7 +130,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: Trip
       if (!moved) break
     }
     return { m, iw, ih, H, maxG, maxL, pxm, ky, X, Y, hw, hh, items }
-  }, [runners, width, byRid])
+  }, [runners, width, byRid, compact])
 
   if (!runners.length) {
     return (
@@ -138,7 +139,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: Trip
   }
 
   const { m, iw, ih, H, maxG, maxL, pxm, ky, X, Y, hw, hh, items } = layout
-  const narrow = width < 600
+  const narrow = compact || width < 600
   const hov = items.find((r) => r.rid === hover) ?? null
   const gridG: number[] = []
   for (let g = 0; g <= maxG; g += 2) gridG.push(g)

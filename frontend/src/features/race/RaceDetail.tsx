@@ -100,6 +100,9 @@ export function RaceDetail({
   const tripRace = tripMap?.races[race.raceId] ?? null
   // From xl the maps sit in a narrow column beside the runners, so the speed map uses its compact layout there.
   const wide = useMinWidth(1280)
+  const [shapeChoice, setShapeChoice] = useState<'trip' | 'speed' | null>(null)
+  const hasTrip = tripRace != null && tripMap != null
+  const shapeView = shapeChoice ?? (hasTrip ? 'trip' : 'speed')
 
   // scratched (prop) is the manual, this-device-only toggle set; merge in each runner's real data-driven scratch so a late scratch the
   // pipeline detected takes effect here too. Toggling in the UI still only writes to the manual set (setScratched).
@@ -290,10 +293,22 @@ export function RaceDetail({
         {/* Right column from xl (below it, after the runners): pace, trip map and speed map, no inner scrolling. Scratched runners are left off the maps, not just dimmed. */}
         <div className="order-2 flex min-w-0 flex-col gap-4">
           <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
-          {tripRace && tripMap && (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+          {/* One map at a time: the to-scale trip map (default when this race has one) or the column speed map. */}
+          {hasTrip && (
+            <div className="flex items-center gap-1.5">
+              <Pill active={shapeView === 'trip'} onClick={() => setShapeChoice('trip')}>
+                Trip map
+              </Pill>
+              <Pill active={shapeView === 'speed'} onClick={() => setShapeChoice('speed')}>
+                Speed map
+              </Pill>
+            </div>
           )}
-          <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
+          {shapeView === 'trip' && tripRace && tripMap ? (
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+          ) : (
+            <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
+          )}
         </div>
       </div>
 
