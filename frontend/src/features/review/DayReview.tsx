@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Note } from '../../components/Note'
 import type { Race } from '../../types/domain'
-import { computeDays, computeWeeklyTrend, type DayRace, type DaySummary } from '../../lib/dayResults'
+import { computeDays, computeWeeklyTrend, groupByMeeting, type DayRace, type DaySummary, type MeetingDay } from '../../lib/dayResults'
 import type { CalibrationWeek, Period } from '../../lib/accuracyStats'
 import { computeQuaddieScorecard, POOL_LABEL } from '../race/quaddiePools'
 import { fmtPrice } from '../../lib/format'
@@ -108,15 +108,44 @@ function Mark({ won, finish }: { won: boolean; finish: number | null }) {
   return <span className="text-ink-mute">{finish != null ? ordinal(finish) : 'unplaced'}</span>
 }
 
+// A winner the Proj had well down the order, worth a look when reading the meeting.
+function surprise(r: DayRace): boolean {
+  return (r.winnerModelRank != null && r.winnerModelRank >= 6) || (r.winnerGap != null && r.winnerGap > 8)
+}
+
+function MeetingBlock({ m, onSelectRace }: { m: MeetingDay; onSelectRace: DayReviewProps['onSelectRace'] }) {
+  return (
+    <div className="py-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+        <span className="text-xs font-semibold text-ink">
+          {m.venue}
+          <span className="ml-2 font-normal text-ink-faint">{m.going && m.going !== 'nan' ? m.going : 'going not recorded'}{m.rail ? `, ${m.rail}` : ''}</span>
+        </span>
+        <span className="text-[11px] text-ink-mute">
+          {m.races.length} races · model #1 won {m.modelWins}, favourite {m.favouriteWins} (of {m.comparable})
+          {m.withGap > 0 && ` · winner inside 2: ${m.winnerInCore}, inside 4: ${m.winnerInInner} (of ${m.withGap})`}
+          {m.meanWinnerRank != null && ` · mean winner rank ${m.meanWinnerRank.toFixed(1)}`}
+        </span>
+      </div>
+      <ul className="mt-1 divide-y divide-line-soft">
+        {m.races.map((r) => (
+          <RaceLine key={r.raceId} r={r} onSelectRace={onSelectRace} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function RaceLine({ r, onSelectRace }: { r: DayRace; onSelectRace: DayReviewProps['onSelectRace'] }) {
   return (
     <li>
-      <button type="button" onClick={() => onSelectRace(r.raceId, r.date)} className="grid w-full grid-cols-1 gap-x-3 gap-y-0.5 py-1.5 text-left text-xs hover:bg-bg sm:grid-cols-[9rem_1fr_1fr_1fr]">
-        <span className="font-mono text-ink-mute">{r.venue} R{r.raceNumber}</span>
+      <button type="button" onClick={() => onSelectRace(r.raceId, r.date)} className="grid w-full grid-cols-1 gap-x-3 gap-y-0.5 py-1.5 text-left text-xs hover:bg-bg sm:grid-cols-[2.5rem_1fr_1fr_1fr]">
+        <span className="font-mono text-ink-mute">R{r.raceNumber}</span>
         <span>
           <span className="text-ink-faint">Won: </span>
           <span className="font-medium text-ink">{r.winner?.tabNumber}. {r.winner?.horse}</span>
-          <span className="text-ink-faint"> {fmtPrice(r.winnerPrice)}{r.winnerModelRank != null ? `, model rank ${r.winnerModelRank}` : ''}</span>
+          <span className="text-ink-faint"> {fmtPrice(r.winnerPrice)}{r.winnerModelRank != null ? `, model rank ${r.winnerModelRank}` : ', no Proj'}</span>
+          {surprise(r) && <span className="ml-1 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700" title="Winner ranked 6th or worse, or 8+ below the top Proj">surprise</span>}
         </span>
         <span>
           <span className="text-ink-faint">Model #1: </span>
@@ -153,11 +182,11 @@ function DayBlock({ day, defaultOpen, onSelectRace }: { day: DaySummary; default
           <span className="text-ink-faint"> (of {day.comparable} like-for-like)</span>
         </span>
       </summary>
-      <ul className="divide-y divide-line-soft border-t border-line px-4">
-        {day.races.map((r) => (
-          <RaceLine key={r.raceId} r={r} onSelectRace={onSelectRace} />
+      <div className="divide-y divide-line border-t border-line px-4">
+        {groupByMeeting(day.races).map((m) => (
+          <MeetingBlock key={m.venue} m={m} onSelectRace={onSelectRace} />
         ))}
-      </ul>
+      </div>
     </details>
   )
 }
