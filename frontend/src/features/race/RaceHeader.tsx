@@ -38,6 +38,15 @@ function Chip({ children, title, tone }: { children: React.ReactNode; className?
   )
 }
 
+// The distance is the first thing to read about a race, so it is a larger, bolder chip than the others, in the banner and in the sticky bar.
+function DistanceChip({ metres }: { metres: number }) {
+  return (
+    <span title="Race distance" className="inline-flex flex-none items-center rounded-full border border-white/30 bg-white/20 px-3 py-0.5 text-sm font-bold text-white md:text-base">
+      {metres}m
+    </span>
+  )
+}
+
 function useConditions(race: Race, meeting: Race[], activeRunners: Race['runners']) {
   const change = goingChange(race, meeting)
   const pace = estimatePace(race, activeRunners)
@@ -60,7 +69,7 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
       <div className="flex items-start justify-between gap-x-3">
         <div className="min-w-0">
           <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#A9CDBB]">
-            {race.venue} &middot; {race.state} &middot; R{race.raceNumber} &middot; {race.distance}m
+            {race.venue} &middot; {race.state} &middot; R{race.raceNumber}
             {prize ? ` · ${prize}` : ''}
           </div>
           <h2 className="text-lg font-semibold leading-tight text-white sm:text-xl md:text-3xl md:tracking-tight">{race.raceName}</h2>
@@ -85,7 +94,8 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5 md:mt-3">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 md:mt-3">
+        <DistanceChip metres={race.distance} />
         {race.going && (
           <Chip tone={change ? 'bad' : goingTileTone} className={TILE_TONE[change ? 'bad' : goingTileTone]} title={change ? `Going the projections are made on (was ${change.from} at R${change.race})` : 'Going the projections for this race are made on'}>
             <b className="mr-1 text-[10px] uppercase opacity-70">Track</b>
@@ -155,6 +165,7 @@ export function RaceMiniBar({
       <span className="text-sm font-semibold text-white">
         {race.venue} R{race.raceNumber}
       </span>
+      <DistanceChip metres={race.distance} />
       {race.going && <Chip tone={goingT}>{race.going}</Chip>}
       <Chip tone={paceTone}>{pace.display.replace(' (predicted)', '')}</Chip>
       <span className="font-mono text-sm font-semibold text-white">{formatCountdown(race.startTime) || ''}</span>
