@@ -74,9 +74,13 @@ def _set(df, i, c, v):
         df.at[i, c] = str(v)
 
 
+# TopRate sends no state for Hong Kong meetings (21 Oct 2026); the dashboard and the coverage check read "HK".
+OVERSEAS_STATES = {"happy valley": "HK", "sha tin": "HK"}
+
+
 def _new_row(r):
     return {
-        "date": r["date"], "venue": r["venue"], "state": r.get("state"), "race": r["race_no"], "race_id": r["race_id"],
+        "date": r["date"], "venue": r["venue"], "state": r.get("state") or OVERSEAS_STATES.get(str(r["venue"]).strip().lower()), "race": r["race_no"], "race_id": r["race_id"],
         "race_name": r.get("race_name"), "distance": r.get("distance"), "race_class": r.get("race_class"),
         "prize_money": r.get("prize_money"), "going": r.get("going"), "track_grading": r.get("track_grading"),
         "start_time": r.get("start_time"), "run_id": r["run_id"], "horse_id": r.get("horse_id"),
@@ -271,6 +275,8 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
                 _set(out, i, col, val)
         for col, key in FILL_IF_BLANK.items():
             val = r.get(key)
+            if col == "state" and val is None:
+                val = OVERSEAS_STATES.get(str(r.get("venue")).strip().lower())
             if val is not None and col in out.columns and _blank(out.at[i, col]):
                 _set(out, i, col, val)
         if r.get("scratched") and str(out.at[i, "scratched"]) not in ("1", "1.0"):

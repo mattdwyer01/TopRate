@@ -15,6 +15,9 @@ export interface Meeting {
 // picnic-grade and hidden unless the user opts in.
 export const BUSH_TRACK_THRESHOLD = 20_000
 
+export const OVERSEAS_STATES = new Set(['HK'])
+export const isOverseasState = (state: string): boolean => OVERSEAS_STATES.has(state)
+
 export function groupIntoMeetings(races: Race[], date: string): Meeting[] {
   const byVenue = new Map<string, Race[]>()
   for (const race of races) {
@@ -36,7 +39,8 @@ export function groupIntoMeetings(races: Race[], date: string): Meeting[] {
       topRacePrizeMoney: Math.max(0, ...prizes),
     })
   }
-  meetings.sort((a, b) => b.totalPrizeMoney - a.totalPrizeMoney)
+  // Hong Kong prize money is in HKD, so it is not comparable with Australian prize money: overseas meetings go after the Australian ones.
+  meetings.sort((a, b) => Number(isOverseasState(a.state)) - Number(isOverseasState(b.state)) || b.totalPrizeMoney - a.totalPrizeMoney)
   return meetings
 }
 

@@ -19,6 +19,8 @@ import pandas as pd
 import runners_io
 
 MIN_RUNNERS = 20
+# Hong Kong meetings (21 Oct 2026) are not part of the Australian projection coverage target.
+OVERSEAS_VENUES = {"happy valley", "sha tin"}
 
 
 def main():
@@ -33,7 +35,8 @@ def main():
     for k in range(a.days):
         d = (first + timedelta(days=k)).isoformat()
         x = df[(df["date"].astype(str).str[:10] == d) & (pd.to_numeric(df["scratched"], errors="coerce").fillna(0) != 1)
-               & (pd.to_numeric(df["barrier"], errors="coerce") > 0)]
+               & (pd.to_numeric(df["barrier"], errors="coerce") > 0)
+               & (~df["venue"].astype(str).str.lower().isin(OVERSEAS_VENUES))]
         if len(x) < MIN_RUNNERS:
             print(f"{d}: {len(x)} runners, skipped (under {MIN_RUNNERS})")
             continue

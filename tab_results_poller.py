@@ -133,6 +133,10 @@ FINAL_STATUSES = ("Paying", "Abandoned")
 PRICE_LOOKAHEAD_HOURS = 2.0
 PRICE_PAST_WINDOW_MINUTES = 30
 AU_STATES = ("VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT")
+# Meetings the poller reads results and conditions for: Australia plus Hong Kong (TAB lists Happy Valley as location "HKG", mnemonic "HAP",
+# under every jurisdiction, found with tab_hk_probe.yml on 21 Oct 2026). HK races have no fixed odds on TAB (tote prices only), so they get
+# results, going and dividends but no price. Other international locations stay excluded: TopRate does not list them.
+RESULT_LOCATIONS = AU_STATES + ("HKG",)
 # jurisdictions to REQUEST meeting lists from: TAB's own. WA is not one (its TAB is RWWA) and the meetings call
 # answers jurisdiction=WA with HTTP 400 every cycle; WA meetings still appear in the other jurisdictions' lists
 # (location "WA", kept by the AU_STATES location filter) and seen_meetings dedupes them.
@@ -253,7 +257,7 @@ def probe_odds():
     for jurisdiction in TAB_JURISDICTIONS:
         payload = get(MEETINGS.format(date=today), {"jurisdiction": jurisdiction})
         for m in payload.get("meetings", []):
-            if m.get("raceType") != RACE_TYPE or m.get("location") not in AU_STATES:
+            if m.get("raceType") != RACE_TYPE or m.get("location") not in RESULT_LOCATIONS:
                 continue
             # Prefer a race that's still open to fixed-odds betting - a
             # settled/Interim race closes hasFixedOdds and drops any
@@ -509,8 +513,8 @@ def fetch_today_results(target_date, states=TAB_JURISDICTIONS, terminal_cache=No
             # response mixes in international meetings (confirmed: USA/JPN/
             # TUR/GBR/etc thoroughbred meetings appear even under
             # jurisdiction=VIC, some with a full _links.races of their own).
-            # TopRate is AU-thoroughbred only.
-            if m.get("location") not in AU_STATES:
+            # TopRate is AU-thoroughbred only, plus Hong Kong (RESULT_LOCATIONS).
+            if m.get("location") not in RESULT_LOCATIONS:
                 continue
             venue = str(m.get("meetingName", "")).strip()
             venue_mnemonic = m.get("venueMnemonic")
