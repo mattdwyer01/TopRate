@@ -54,6 +54,15 @@ def race(g):
             r[f"{who}{N}_itri"] = implied(p, pool, 3)
             if N >= 5:
                 r[f"{who}{N}_iff"] = implied(p, pool, 4)
+    o4 = list(np.argsort(pos, kind="stable")[:4])
+    pr3 = 1.0
+    left = 1.0
+    for j, i in enumerate(o4):
+        pr3 *= p[i] / left
+        left -= p[i]
+        if j == 2:
+            r["h3"] = pr3
+    r["h4"] = pr3
     r["s5_out"] = len(set(spd_o[:5]) - set(mkt_o[:5]))
     r["s6_out"] = len(set(spd_o[:6]) - set(mkt_o[:6]))
     r["s5_avgsp"] = float(np.mean(sp[spd_o[:5]]))
