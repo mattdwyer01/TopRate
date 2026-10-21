@@ -20,7 +20,7 @@ def load(date):
     rows = []
     for rid, r in json.load(gzip.open(p, 'rt'))['races'].items():
         for x in r['runners']:
-            rows.append(dict(race_id=int(rid), venue=r['venue'], race=r['race'], going=r.get('going'), status=r.get('wprStatus'), run_id=x.get('runId'), horse=x.get('horse'),
+            rows.append(dict(race_id=int(rid), venue=r['venue'], race=r['race'], going=r.get('going'), status=r.get('wprStatus'), run_id=x.get('runId'), horse_id=x.get('horseId'), horse=x.get('horse'),
                              atw=x.get('atw'), p800=x.get('position800m'), fin=x.get('positionFinish'), barrier=x.get('barrier'), price=x.get('priceStarting'),
                              comment=x.get('commentsVideo', ''), margin=x.get('marginFinish'), distance=r.get('distance'), race_class=r.get('class'),
                              jockey=x.get('jockey'), trainer=x.get('trainer'), weight_carried=x.get('weightCarried'),

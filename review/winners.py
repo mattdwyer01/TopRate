@@ -3,12 +3,25 @@ For every race winner: price and market rank, where the Proj had it, the rating 
 gear and weight changes, TopRate Nett and our Spd, the stewards' comment, and a one-line read of why it surprised or did not.
 Also tags every runner (style, barrier third, price band, Proj rank, distance, gear change, weight change, age) so the weekly and monthly roll-ups can compare
 winners with the whole field and show which kinds of horse win more or less than their share."""
-import os
+import glob, gzip, json, os
 import numpy as np
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COLS = ['run_id', 'gear_changes', 'weight_previous', 'wpr_nett', 'spd_fig', 'horse_age']
+COLS = ['run_id', 'prize_money', 'gear_changes', 'weight_previous', 'wpr_nett', 'spd_fig', 'horse_age']
+
+
+def last_runs():
+    """Every real (non-trial) run in the runner-page store: horse, date, class, distance, prize money."""
+    rows = []
+    for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
+        with gzip.open(f, 'rt') as fh:
+            for r in json.load(fh).get('runs', {}).values():
+                if r.get('isBarrierTrial') or r.get('isJumpout'): continue
+                rows.append((r.get('horse_id'), r.get('date'), r.get('class'), r.get('distance'), r.get('prizeMoney')))
+    t = pd.DataFrame(rows, columns=['horse_id', 'pdate', 'pclass', 'pdist', 'pprize'])
+    t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce'); t['pdate'] = pd.to_datetime(t.pdate)
+    return t.dropna(subset=['horse_id', 'pdate']).sort_values('pdate')
 
 
 def enrich(x, date):
@@ -16,6 +29,13 @@ def enrich(x, date):
     r = pd.read_csv(os.path.join(ROOT, 'runners.csv'), usecols=lambda c: c in COLS + ['date'], low_memory=False)
     r = r[r.date == date].drop(columns='date').drop_duplicates('run_id')
     x = x.merge(r, on='run_id', how='left')
+    x['_d'] = pd.Timestamp(date); x['horse_id'] = pd.to_numeric(x.horse_id, errors='coerce')
+    lr = last_runs()
+    x = pd.merge_asof(x.sort_values('_d'), lr, left_on='_d', right_on='pdate', by='horse_id', allow_exact_matches=False).sort_values(['venue', 'race']).reset_index(drop=True)
+    x['days'] = (x._d - x.pdate).dt.days
+    x['dchg'] = x.distance - x.pdist
+    pr = x.prize_money / x.pprize
+    x['cchg'] = np.where(pr >= 1.25, 'class up', np.where(pr <= 0.8, 'class down', np.where(pr.notna(), 'class similar', None)))
     x['mrank'] = x.groupby('race_id').price.rank(method='min')
     x['prank'] = x.groupby('race_id').proj.rank(ascending=False, method='min')
     x['wchg'] = x.weight_carried - x.weight_previous
@@ -26,10 +46,12 @@ def enrich(x, date):
     x['dband'] = pd.cut(x.distance, [0, 1200, 1600, 9999], labels=['up to 1200m', '1201-1600m', 'over 1600m']).astype(object)
     x['gearflag'] = np.where(x.gear_changes.fillna('').astype(str).str.contains('FIRST TIME', case=False), 'gear first time', None)
     x['wband'] = pd.cut(x.wchg, [-99, -1.5, 1.5, 99], labels=['weight down 1.5kg+', 'weight steady', 'weight up 1.5kg+']).astype(object)
+    x['dayband'] = pd.cut(x.days, [-1, 10, 59, 1e5], labels=['backing up within 10 days', 'back in 11 to 59 days', 'first-up after 60+ days']).astype(object)
+    x['stepband'] = pd.cut(x.dchg, [-1e5, -199, 199, 1e5], labels=['dropping back 200m+', 'same distance', 'stepping up 200m+']).astype(object)
     return x
 
 
-TAGS = ['style', 'bthird', 'pband', 'rband', 'dband', 'gearflag', 'wband']
+TAGS = ['style', 'bthird', 'pband', 'rband', 'dband', 'gearflag', 'wband', 'dayband', 'cchg', 'stepband']
 
 
 def tag_stats(x):
@@ -40,6 +62,16 @@ def tag_stats(x):
         for k, g in f.groupby(c):
             out[k] = dict(n=int(len(g)), w=int((g.fin == 1).sum()))
     return out
+
+
+def last_start(w):
+    out = []
+    if pd.notna(w.days): out.append(f'{int(w.days)} days since last run')
+    if isinstance(w.pclass, str) and isinstance(w.race_class, str):
+        c = f'class {w.pclass} to {w.race_class}' + (f' ({w.cchg})' if isinstance(w.cchg, str) and w.cchg != 'class similar' else '')
+        out.append(c)
+    if pd.notna(w.dchg) and abs(w.dchg) >= 200: out.append(f'{int(w.dchg):+d}m in distance')
+    return ', '.join(out)
 
 
 def move(w):
@@ -62,6 +94,8 @@ def read(w):
         if w.miss >= 8: notes.append(f'ran {w.miss:.0f} above its Proj')
         elif w.miss <= -8: notes.append(f'won on a rating {-w.miss:.0f} below its Proj')
     if w.style == 'led or on pace' and w.bthird == 'wide barrier': notes.append('crossed from a wide barrier to lead')
+    if pd.notna(w.days) and w.days >= 60: notes.append(f'first-up after {int(w.days)} days')
+    if isinstance(w.cchg, str) and w.cchg != 'class similar': notes.append(w.cchg)
     if isinstance(w.gearflag, str): notes.append('gear first time')
     if pd.notna(w.wchg) and abs(w.wchg) >= 3: notes.append(f'weight {w.wchg:+.1f}kg on last start')
     return '; '.join(notes) if notes else 'nothing unusual'
@@ -82,7 +116,7 @@ def section(x):
                  + (f"{w.jockey} / {w.trainer}. " if isinstance(w.jockey, str) else '')
                  + (f"Gear: {w.gear_changes}. " if isinstance(w.gearflag, str) else '')
                  + (f"Nett {w.wpr_nett:.0f}" if pd.notna(w.wpr_nett) else '') + (f", Spd {w.spd_fig:+.1f}L" if pd.notna(w.spd_fig) else '') + '. '
-                 + (f"Sectionals vs standard: early {w.sect_e:+.1f}L, last 400m {w.sect_l:+.1f}L. " if pd.notna(w.sect_e) and pd.notna(w.sect_l) else '') + (move(w) + '. ' if move(w) else '')
+                 + (last_start(w) + '. ' if last_start(w) else '') + (f"Sectionals vs standard: early {w.sect_e:+.1f}L, last 400m {w.sect_l:+.1f}L. " if pd.notna(w.sect_e) and pd.notna(w.sect_l) else '') + (move(w) + '. ' if move(w) else '')
                  + f"Read: {read(w)}. " + (f"Comment: {str(w.comment)[:110]}. " if isinstance(w.comment, str) and w.comment else '')
                  + (f"Stewards: {str(w.steward)[:110]}" if isinstance(w.steward, str) and w.steward else ''))
     L.append('')
@@ -104,7 +138,7 @@ def beaten_favourites(x):
         pos = f"finished {int(f.fin)}" if pd.notna(f.fin) else 'did not finish'
         L.append(f"- {venue} R{int(race)} {f.horse} (${f.price}, Proj rank {int(f.prank) if pd.notna(f.prank) else 'none'}) {pos}"
                  + (f", rated {f.miss:+.1f} vs Proj" if pd.notna(f.miss) else '') + f". {f.style + ', ' if isinstance(f.style, str) else ''}"
-                 + (move(f) + '. ' if move(f) else '') + f"Winner {win.horse} (${win.price}, Proj rank {int(win.prank) if pd.notna(win.prank) else 'none'}). "
+                 + (last_start(f) + '. ' if last_start(f) else '') + (move(f) + '. ' if move(f) else '') + f"Winner {win.horse} (${win.price}, Proj rank {int(win.prank) if pd.notna(win.prank) else 'none'}). "
                  + (f"Comment: {str(f.comment)[:110]}. " if isinstance(f.comment, str) and f.comment else '')
                  + (f"Stewards: {str(f.steward)[:110]}" if isinstance(f.steward, str) and f.steward else ''))
     n = x[x.fin == 1].race_id.nunique()
