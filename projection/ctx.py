@@ -24,7 +24,11 @@ JOCKEY_K = 20.0
 # Held-out 2026 (35,081 runs): paired MSE gain +0.158 (95% +0.082 to +0.232) at K 200, against +0.143 at K 100 and +0.084 at K 50.
 VEN_K, VEN_WINDOW, VEN_GAP = 200.0, 180, 6
 FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg', 'going_n', 'going_chg', 'grade', 'field_size', 'barr_f', 'weightCarried', 'wt_chg',
-         'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff']
+         'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff', 'l_lsp', 'l_dev', 'l_hlth']
+# Last-start market and health (23 Oct 2026, Malpensa: two 50-60 runs at $4 and $3.7, both vetted): l_lsp = ln starting price of the last run, l_dev = last rating minus the
+# median of the five before it, l_hlth = the last run's steward comment names a physical problem. After a last run 20+ below the horse's median the next rating beat the
+# formula by +1.2 when the horse went off under $6 (n=159) and missed it by -2.3 over $15 (n=401); the formula and context model did not see price or the comment.
+HEALTH_RE = r'irregular heart|bled|bleeding|lame|distress|fibrillat|cardiac|ataxi|struck|slipped|lost.*plate|lost.*shoe|broke down|ordered to trial'
 
 
 def going_num(s):
@@ -85,13 +89,16 @@ def page_frame():
     rp['d_last'] = (rp.date - g.date.shift(1)).dt.days.astype(float)
     rp['l_dist'], rp['l_going'], rp['l_wt'], rp['l_mgn'] = g.distance.shift(1), g.going_n.shift(1), g.weightCarried.shift(1), g.marginFinish.shift(1)
     rp['l_posf'] = (rp.positionFinish / rp.field_size).groupby(rp.horse_id).shift(1)
+    rp['lsp'] = np.log(pd.to_numeric(rp.priceStarting, errors='coerce').where(lambda x: x > 1))
+    rp['hlth'] = rp.comments_steward.fillna('').astype(str).str.lower().str.contains(HEALTH_RE, regex=True).astype(float)
+    rp['l_lsp'], rp['l_hlth'] = g.lsp.shift(1), g.hlth.shift(1)
     return rp
 
 
 def target_history(T, rp):
     """The same history features for the rows to project: the horse's page runs strictly before the row's date."""
     byh = {h: x for h, x in rp.groupby('horse_id')}
-    cols = [f'r{k}' for k in range(1, K + 1)] + ['n', 'd_last', 'l_dist', 'l_going', 'l_wt', 'l_mgn', 'l_posf']
+    cols = [f'r{k}' for k in range(1, K + 1)] + ['n', 'd_last', 'l_dist', 'l_going', 'l_wt', 'l_mgn', 'l_posf', 'l_lsp', 'l_hlth']
     out = np.full((len(T), len(cols)), np.nan)
     out[:, cols.index('n')] = 0.0
     hid = pd.to_numeric(T.horse_id, errors='coerce').values
@@ -113,6 +120,8 @@ def target_history(T, rp):
         out[i, cols.index('l_wt')] = x.weightCarried.values[j - 1]
         out[i, cols.index('l_mgn')] = x.marginFinish.values[j - 1]
         out[i, cols.index('l_posf')] = (x.positionFinish.values[j - 1] / x.field_size.values[j - 1])
+        out[i, cols.index('l_lsp')] = x.lsp.values[j - 1]
+        out[i, cols.index('l_hlth')] = x.hlth.values[j - 1]
     return pd.DataFrame(out, columns=cols, index=T.index)
 
 
@@ -136,6 +145,11 @@ def context_columns(df):
         df['max4'] = np.nanmax(np.where(np.isnan(r[:, :4]), -1e9, r[:, :4]), axis=1)
         df['std4'] = np.nanstd(r[:, :4], axis=1)
     df.loc[df.max4 < -1e8, 'max4'] = np.nan
+    with np.errstate(all='ignore'):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            df['l_dev'] = r[:, 0] - np.nanmedian(r[:, 1:6], axis=1)
     df['dist_chg'] = df.distance - df.l_dist
     df['going_chg'] = df.going_n - df.l_going
     df['wt_chg'] = df.weightCarried - df.l_wt
