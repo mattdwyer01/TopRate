@@ -11,8 +11,8 @@ export function ReplayCard({ venue, date, raceNumber }: { venue: string; date: s
     <section className="flex h-full flex-col rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]" aria-label="Race replay">
       <h3 className="mb-2 text-sm font-semibold text-ink">Race replay</h3>
       {url && !failed ? (
-        // The box is at least 16:9 and grows to the Result panel's height when that is taller (the video letterboxes), so the two always end together.
-        <div className="relative aspect-video w-full flex-1 overflow-hidden rounded-md border border-line bg-black">
+        // The box takes whatever height the Result panel sets (the video letterboxes inside it), so the two always end together and the row stays short.
+        <div className="relative min-h-[160px] w-full flex-1 overflow-hidden rounded-md border border-line bg-black">
           <video key={url} className="absolute inset-0 h-full w-full object-contain" src={url} controls playsInline preload="metadata" onError={() => setFailed(true)} />
         </div>
       ) : (
