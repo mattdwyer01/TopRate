@@ -43,8 +43,8 @@ def text(end, days, monthly=False):
     L = [f'# {"Monthly" if monthly else "Weekly"} review, {days} days to {end}', '']
     if not D:
         return '\n'.join(L + ['No daily reviews in this window yet.', ''])
-    F = [d for d in D if d['final']]
-    L.append(f'{len(D)} racing days with a review ({len(F)} with all ratings Final; the miss figures below use only those). '
+    F = D       # the miss sums in each daily file already cover Final-rated runners only
+    L.append(f'{len(D)} racing days with a review (the miss figures below use only runners whose ratings are Final). '
              f'{sum(d["races"] for d in D)} races, {sum(d["runners"] for d in D)} runners.')
     n, s, ss = (sum(d[k] for d in F) for k in ('n', 'miss_sum', 'miss_ss'))
     m, t = tstat(n, s, ss)
@@ -72,8 +72,6 @@ def text(end, days, monthly=False):
     ven = {}
     for d in F:
         for mt in d['meetings']:
-            if not mt['final']:
-                continue
             a = ven.setdefault(mt['venue'], dict(n=0, s=0.0, ss=0.0, days=[], lead=[], draw=[], win=0, down=0, runners=0))
             a['n'] += mt['n']; a['s'] += mt['miss_sum']; a['ss'] += mt['miss_ss']; a['lead'] += mt['lead']; a['draw'] += mt['draw']
             a['win'] += mt['winners']; a['down'] += mt['winners_down']; a['days'].append((mt['miss_sum'] / mt['n'] if mt['n'] else np.nan, np.mean(mt['lead']) if mt['lead'] else np.nan,

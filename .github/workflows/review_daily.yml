@@ -1,6 +1,6 @@
 name: Post-race reviews (daily, weekly, monthly)
 
-# 22 Oct 2026. Every day, once TopRate's ratings for the meeting of 3 days ago are Final: fetch that day's post-race results (data/tr_results), write the daily review
+# 22 Oct 2026. Every day, once TopRate's ratings for the meeting of 5 days ago are Final: fetch that day's post-race results (data/tr_results), write the daily review
 # (reviews/daily/<date>.md and .json, review/daily_review.py), and on Mondays / the 1st also the weekly / monthly roll-ups (review/rollup.py). Read-only against toprate.au at
 # the daily fetch's pace; changes no model. Runs after gps_daily.yml (20:00 UTC) so GPS for the review day is in data/gps if it has been published: racing.com and Racing
 # Queensland GPS are only fetched by that once-a-day job (it re-reads the last 7 and 10 days), not right after each race, so a review day may still lack GPS if the
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Review these meeting dates (YYYY-MM-DD, comma separated, oldest first). Default: 3 days ago (Melbourne)"
+        description: "Review this meeting date (YYYY-MM-DD). Default: 5 days ago (Melbourne)"
         default: ""
       refetch:
         description: "Fetch races already stored again (use to move Preliminary ratings on to Final)"
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install requests pandas numpy pyarrow lightgbm scikit-learn
+      - run: pip install requests pandas numpy pyarrow
       - name: Anon key fallback (same as daily.yml)
         run: |
           if [ -z "$TOPRATE_ANON_KEY" ]; then
@@ -62,29 +62,26 @@ jobs:
         id: d
         run: |
           D="${{ inputs.date }}"
-          [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '3 days ago' +%F)
+          [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '5 days ago' +%F)
           echo "date=$D" >> "$GITHUB_OUTPUT"
           echo "review date $D"
-      - name: Fetch post-race results and write the daily review (per date, fill the 6 days before, then the review day again so ratings are Final)
+      - name: Fetch post-race results (fill gaps for the 6 days before, then the review day again so ratings are Final)
         run: |
-          for D in $(echo "${{ steps.d.outputs.date }}" | tr ',' ' '); do
-            prev=$(date -d "$D -1 day" +%F)
-            python toprate_result_fetch.py --days 6 --to "$prev" || echo "gap fill failed, continuing"
-            flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
-            python toprate_result_fetch.py --days 1 --to "$D" $flag
-            python review/daily_review.py "$D" --out reviews/daily > /dev/null
-          done
-          echo "last=$D" >> "$GITHUB_OUTPUT"
-        id: f
+          prev=$(date -d "${{ steps.d.outputs.date }} -1 day" +%F)
+          python toprate_result_fetch.py --days 6 --to "$prev" || echo "gap fill failed, continuing"
+          flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
+          python toprate_result_fetch.py --days 1 --to "${{ steps.d.outputs.date }}" $flag
+      - name: Daily review
+        run: python review/daily_review.py "${{ steps.d.outputs.date }}" --out reviews/daily > /dev/null
       - name: Weekly roll-up (Mondays) and monthly roll-up (1st of the month)
         run: |
           T=$(TZ=Australia/Melbourne date +%F)
           if [ "$(TZ=Australia/Melbourne date +%u)" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            E="${{ steps.f.outputs.last }}"     # the newest review day (ratings Final)
+            E="${{ steps.d.outputs.date }}"     # the newest review day (ratings Final)
             python review/rollup.py "$E" --days 7 --out reviews/weekly --name "$(date -d "$E" +%G-W%V)" > /dev/null
           fi
           if [ "$(TZ=Australia/Melbourne date +%d)" = "01" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            E="${{ steps.f.outputs.last }}"
+            E="${{ steps.d.outputs.date }}"
             python review/rollup.py "$E" --days 30 --out reviews/monthly --name "$(date -d "$E" +%Y-%m)" --monthly > /dev/null
           fi
       - name: Commit to main
