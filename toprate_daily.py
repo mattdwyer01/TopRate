@@ -2059,7 +2059,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
             "race_id":   str(race_id),
             "date":      str(first.get("date", ""))[:10],
             "venue":     str(first.get("venue", "")) if first.get("venue") else "",
-            "state":     str(first.get("state", "")) if first.get("state") else "",
+            "state":     str(first.get("state", "")) if first.get("state") and str(first.get("state")) != "nan" else "",
             "race":      int(first.get("race") or 0),
             "race_name": str(first.get("race_name", "")) if first.get("race_name") else "",
             "distance":  int(pd.to_numeric(first.get("distance"), errors="coerce") if pd.notna(pd.to_numeric(first.get("distance"), errors="coerce")) else 0),

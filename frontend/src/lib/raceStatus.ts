@@ -13,10 +13,17 @@ export type RaceStatus = 'resulted' | 'interim' | 'soon' | 'later'
 // noticing at a glance. Shared between MeetingsGrid (the whole-day view)
 // and RaceDetail (the per-meeting race picker) so both read the same status
 // the same way - defined once here rather than twice, drifting apart.
+// Overseas meetings (Hong Kong, since 21 Oct 2026) have no TAB or racing.com
+// results feed here, so a race that has jumped never resolves. Past this long
+// after the jump it falls back to the neutral state instead of staying "soon".
+const AU_STATES = new Set(['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'])
+const OVERSEAS_NO_RESULT_MS = 30 * 60_000
+
 export function raceStatus(race: Race, now: number): RaceStatus {
   if (race.allResulted && !race.provisional) return 'resulted'
   if (race.allResulted || race.runners.some((r) => r.finishPosition !== null)) return 'interim'
   const msUntilStart = new Date(race.startTime).getTime() - now
+  if (race.state && !AU_STATES.has(race.state) && msUntilStart < -OVERSEAS_NO_RESULT_MS) return 'later'
   return msUntilStart <= SOON_THRESHOLD_MS ? 'soon' : 'later'
 }
 

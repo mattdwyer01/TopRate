@@ -1,76 +1,155 @@
 import type { Race, Runner } from '../../types/domain'
 import type { CombinedRank } from '../../lib/combinedRank'
-import { fmtPrice } from '../../lib/format'
-import { FinishBadge } from './rowParts'
+import type { EffectiveRunner } from '../../lib/raceModel'
+import { fmtInt, fmtPrice } from '../../lib/format'
+import { speedOnWprScale } from '../../lib/speed'
 
 interface RaceResultProps {
   race: Race
   combo: Map<string, CombinedRank>
+  effective: Record<string, EffectiveRunner>
   scratched: Set<string>
   onSelectRunner: (runId: string) => void
 }
 
+type Placed = Runner & { finishPosition: number }
+
 const ORDINAL = ['', '1st', '2nd', '3rd', '4th']
 
+const POS_STYLE: Record<number, string> = {
+  1: 'bg-yellow-300 text-yellow-950',
+  2: 'bg-slate-400 text-white',
+  3: 'bg-orange-800 text-white',
+}
+const posStyle = (pos: number) => POS_STYLE[pos] ?? 'bg-line-soft text-ink-mute'
+
+// Rank chip colours: 1 solid green, 2 and 3 light green, the rest plain (same as the race table's Rank cell).
+const rankTone = (rank: number) => (rank === 1 ? 'border-emerald bg-emerald text-white' : rank <= 3 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-line bg-panel text-ink-mute')
+
+function PosPill({ pos, small }: { pos: number; small?: boolean }) {
+  return <span className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold ${posStyle(pos)} ${small ? 'min-w-7 px-1.5 py-0.5 text-xs' : 'min-w-9 px-2 py-0.5 text-xs'}`}>{small ? pos : (ORDINAL[pos] ?? `${pos}th`)}</span>
+}
+
+function Silk({ runner, w, h }: { runner: Runner; w: number; h: number }) {
+  if (runner.silkUrl) return <img src={runner.silkUrl} alt="" width={w} height={h} className="shrink-0 object-contain" style={{ width: w, height: h }} />
+  return (
+    <span className="grid shrink-0 place-items-center rounded-md bg-line-soft font-mono text-xs font-semibold text-ink-mute" style={{ width: w, height: h }}>
+      {runner.tabNumber}
+    </span>
+  )
+}
+
 // Placings for a race that has run. TAB's fast feed gives the order of the first four (and last fixed prices); margins and starting
-// prices arrive with the official result, so each column fills in when it exists. Next to each placing is where the dashboard had the
-// runner (combined Rank), so a result reads as "what the table said vs what happened" without scanning the FP column.
-export function RaceResult({ race, combo, scratched, onSelectRunner }: RaceResultProps) {
+// prices arrive with the official result, so each part fills in when it exists. Phones get compact rows; from lg the four placings are full-width
+// rows with the Rank chip and (from xl) the signal figures.
+export function RaceResult({ race, combo, effective, scratched, onSelectRunner }: RaceResultProps) {
   const placed = race.runners
-    .filter((r): r is Runner & { finishPosition: number } => r.finishPosition != null && !scratched.has(r.runId))
+    .filter((r): r is Placed => r.finishPosition != null && !scratched.has(r.runId))
     .sort((a, b) => a.finishPosition - b.finishPosition)
     .slice(0, 4)
   if (placed.length === 0) return null
 
   const official = race.allResulted && !race.provisional
-  const hasMargin = placed.some((r) => r.marginFinish != null)
   const hasSp = placed.some((r) => r.startingPrice != null)
   const winner = placed[0]
   const winnerRank = combo.get(winner.runId)?.rank ?? null
   const topPick = [...combo.entries()].filter(([, c]) => c.rank === 1).map(([id]) => race.runners.find((r) => r.runId === id)).filter((r): r is Runner => r != null)
   const topPickResult = topPick.length === 0 ? null : topPick.map((r) => (r.finishPosition != null ? `${r.horse} ${ORDINAL[r.finishPosition] ?? `${r.finishPosition}th`}` : `${r.horse} unplaced`)).join(', ')
 
+  const priceOf = (r: Runner) => r.startingPrice ?? r.fixedWinPrice
+  const priceCell = (r: Runner) => {
+    const p = priceOf(r)
+    if (p == null) return null
+    return (
+      <span title={r.startingPrice != null ? 'Starting price' : 'Last fixed price (starting price not in yet)'}>
+        {fmtPrice(p)}
+        {!hasSp && <span className="ml-0.5 text-[9px] font-normal text-ink-faint">fx</span>}
+      </span>
+    )
+  }
+  const marginText = (r: Placed) => (r.finishPosition > 1 && r.marginFinish != null ? `${Math.abs(r.marginFinish).toFixed(1)}L` : null)
+
   return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4" aria-label="Race result">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <section className="rounded-lg border border-line bg-panel shadow-[var(--shadow-1)]" aria-label="Race result">
+      <div className="flex items-baseline justify-between gap-2 px-3 pb-1.5 pt-2.5 sm:px-4">
         <h3 className="text-sm font-semibold text-ink">Result</h3>
         <span className="text-[11px] text-ink-faint">{official ? 'Official' : 'Provisional, from TAB'}</span>
       </div>
-      <ol className="flex flex-col divide-y divide-line-soft lg:grid lg:grid-cols-2 lg:gap-x-10 lg:divide-y-0">
+
+      {/* Phones and tablets: one compact row per placing. */}
+      <div className="lg:hidden">
+        <ol>
+          {placed.map((r) => {
+            const win = r.finishPosition === 1
+            const m = marginText(r)
+            return (
+              <li key={r.runId} className="border-t border-line-soft">
+                <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-bg sm:px-4 ${win ? 'bg-emerald-tint' : ''}`}>
+                  <Silk runner={r} w={win ? 34 : 30} h={win ? 40 : 36} />
+                  <PosPill pos={r.finishPosition} small />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[15px] text-ink ${win ? 'font-bold' : 'font-semibold'}`}>
+                      {r.tabNumber}. {r.horse}
+                    </span>
+                    <span className="block truncate text-[11.5px] text-ink-mute">
+                      {r.jockey} / {r.trainer}
+                      {m ? ` · ${m}` : ''}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-sm font-semibold text-ink">{priceCell(r)}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+
+      {/* lg and up: one full-width row per placing. */}
+      <ol className="hidden flex-col gap-2 px-3 pb-3 sm:px-4 lg:flex">
         {placed.map((r) => {
+          const win = r.finishPosition === 1
           const c = combo.get(r.runId)
-          const price = r.startingPrice ?? r.fixedWinPrice
+          const proj = effective[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
+          const m = marginText(r)
           return (
             <li key={r.runId}>
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className="grid w-full grid-cols-[22px_22px_minmax(0,1fr)_auto] items-center gap-x-2 py-1 text-left text-sm hover:bg-bg sm:py-1.5 sm:grid-cols-[22px_28px_minmax(0,1fr)_auto]">
-                <FinishBadge pos={r.finishPosition} />
-                <span className="font-mono text-ink-mute">{r.tabNumber}</span>
-                <span className="min-w-0">
-                  <span className={`block truncate ${r.finishPosition === 1 ? 'font-semibold' : 'font-medium'} text-ink`}>{r.horse}</span>
-                  <span className="hidden truncate text-[11px] text-ink-faint sm:block">
-                    {r.jockey} / {r.trainer}
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-5 rounded-xl border px-4 py-2.5 text-left hover:bg-bg ${win ? 'border-emerald-line bg-emerald-tint' : 'border-line bg-panel'}`}>
+                <span className="flex w-[54px] shrink-0 flex-col items-center gap-1.5">
+                  <Silk runner={r} w={44} h={52} />
+                  <PosPill pos={r.finishPosition} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-semibold text-ink">
+                    {r.tabNumber}. {r.horse}
+                    {r.barrier != null && <span className="ml-1.5 text-[12.5px] font-medium text-ink-mute">(B{r.barrier})</span>}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12.5px] text-ink-mute">
+                    J: {r.jockey} · T: {r.trainer}
+                    {m ? ` · ${m}` : ''}
                   </span>
                 </span>
-                <span className="flex items-baseline gap-3 font-mono text-xs text-ink-mute">
-                  {hasMargin && <span title="Margin to the horse in front (lengths)">{r.finishPosition === 1 ? '' : r.marginFinish != null ? `${Math.abs(r.marginFinish).toFixed(1)}L` : ''}</span>}
-                  <span title={r.startingPrice != null ? 'Starting price' : 'Last fixed price (starting price not in yet)'}>
-                    {price != null ? fmtPrice(price) : ''}
-                    {price != null && !hasSp ? <span className="ml-0.5 text-[9px] text-ink-faint">fx</span> : null}
-                  </span>
-                  <span className="w-14 text-right" title="Combined rank before the race">
-                    {c ? <>Rank {c.tied ? '=' : ''}{c.rank}</> : ''}
-                  </span>
+                <span className="hidden w-60 shrink-0 text-[12.5px] text-ink-mute xl:block">
+                  Spd <b className="font-semibold text-ink-soft">{r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'}</b> · Nett <b className="font-semibold text-ink-soft">{fmtInt(r.nett)}</b> · Proj{' '}
+                  <b className="font-semibold text-ink-soft">{fmtInt(proj)}</b>
+                </span>
+                <span className="w-20 shrink-0 text-center">
+                  {c ? <span className={`rounded-full border px-2 py-0.5 text-[11.5px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
+                </span>
+                <span className="w-24 shrink-0 text-right">
+                  <span className="block text-[10.5px] uppercase tracking-wide text-ink-faint">Win</span>
+                  <span className="block font-mono text-base font-semibold text-ink">{priceCell(r)}</span>
                 </span>
               </button>
             </li>
           )
         })}
       </ol>
+
       {(winnerRank != null || topPickResult) && (
-        <p className="mt-1.5 border-t border-line-soft pt-1.5 text-xs text-ink-mute">
+        <p className="border-t border-line-soft px-3 py-2 text-xs text-ink-mute sm:px-4">
           {winnerRank != null && (
             <>
-              Winner was Rank {winnerRank}
+              Winner was <b className="font-semibold text-ink">Rank {winnerRank}</b>
               {topPickResult ? '. ' : '.'}
             </>
           )}
