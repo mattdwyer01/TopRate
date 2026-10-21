@@ -120,6 +120,12 @@ export function RaceDetail({
 
   // Only this race's runners count against the (global) scratched set.
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
+  // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
+  const comboFieldTop = useMemo(() => {
+    let top: number | null = null
+    for (const c of comboByRunId.values()) if (!c.estimated && c.rating != null && (top == null || c.rating > top)) top = c.rating
+    return top
+  }, [comboByRunId])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)
@@ -314,9 +320,10 @@ export function RaceDetail({
           runner={selectedRunner}
           race={race}
           effective={effectiveByRunId[selectedRunner.runId]}
-          rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
+          rating={comboByRunId.get(selectedRunner.runId)?.rating ?? null}
+          rank={comboByRunId.get(selectedRunner.runId)?.rank ?? (ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null)}
           fieldSize={ranked.length}
-          fieldTop={ranked.length ? ranked[0].proj : null}
+          fieldTop={comboFieldTop ?? (ranked.length ? ranked[0].proj : null)}
           tripRunner={tripRace?.runners.find((t) => t.rid === selectedRunner.runId) ?? null}
           tripKind={tripRace?.laneKind ?? null}
           deltaValue={deltas[selectedRunner.runId] ?? null}
