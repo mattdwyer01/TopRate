@@ -2721,6 +2721,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **L3 removed from the dashboard (20 Oct 2026, branch claude/remove-l3, user request)**: the L3 column (race table, desktop and phone), its `last3` sort key, its tile in the runner page signals panel (now Spd / Nett / Proj) and its square in the Rank strip are gone; `lib/combinedRank.ts` `ranks` is now `[Spd, Nett, Proj]`. The freed track width goes to the Horse column. `lastRunsRating` stays in `lib/formRatings.ts` (other users). Basis: Proj is built from the same runs and the fitted Rank weight for L3 was -0.01. Type-check and build pass; not yet checked in a browser at 360 / 390 / 1300px.
 
+- **Result panel redesigned with silks (21 Oct 2026, branch claude/result-silks)**: `RaceResult.tsx` shows each placegetter's jockey silks (`Runner.silkUrl`, tab number tile if missing). Below lg: a "model check" strip (finish order pills over the combined Rank each runner had before the race) and one compact row per placing, winner row tinted with a larger silk. From lg: cards two across (silk, placing pill, name and barrier, J/T, Win price, Rank chip and Spd / Nett / Proj figures). Margin shows once the official result has it. Place price NOT shown (not in the payload; `tab_dividends.csv` has TAB dividends, a later step). `RaceDetail` passes `effective` for the Proj figure. Checked in Chromium on real data at 360 / 390 / 1300px: no overflow, no script errors.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild

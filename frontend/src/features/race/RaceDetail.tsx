@@ -203,7 +203,7 @@ export function RaceDetail({
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
-      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
+      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
       {/* Runners, then race shape and ladder, each at full width: the speed map and trip map need the room. */}
       <div className="flex flex-col gap-4">
