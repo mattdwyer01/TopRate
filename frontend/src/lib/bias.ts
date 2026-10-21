@@ -1,17 +1,16 @@
 import type { Race, Runner } from '../types/domain'
 import type { Ranked } from '../features/race/raceFacts'
 
-// Day-of track bias, as the projection sees it. Once races have run at a meeting the suitability adjustment reads how they ran (draw bias from the finishing
-// order intraday; front-runner bias also once 800m positions arrive overnight). projection/run.py logs how much of each main-model runner's adjustment that is
-// (`badj`, passed as wprp_contrib.bias): the adjustment minus the adjustment with the bias inputs blanked. It is already inside Proj and SM; this file only
-// shows what it changed, so a runner or a race that moved because of the bias can be flagged.
+// Day-of draw lean. Once 3 or more races at a meeting have a clear top 4, projection/run.py reads which way the draw has run (mean barrier of the placegetters against
+// the middle of the field) and adds lean x 15 x (barrier position - 0.5) to Proj for fields of 8+ (measured on 279,592 runners: wide runners rate about 2 points
+// below inside runners on days that have leaned inside, about half a point above on days that have leaned wide). It is logged as `badj` (wprp_contrib.bias) and is
+// INSIDE Proj; this file only shows what it changed, so a runner or a race that moved because of it can be flagged. The SM column's own suitability figure is separate.
 
-// A runner is flagged when the bias moved its projection by at least this many WPR (about half the typical suitability spread).
+// A runner is flagged when the draw lean moved its projection by at least this many WPR.
 export const BIAS_FLAG_MIN = 0.3
 
-// Bias is only flagged once this many earlier races at the meeting have run. Backtest (190,000 runners): after one race the finishing-order bias cut the
-// suitability error by 0.08%, noisy and about half the gain; from the second race on it settles at about 0.16 to 0.19%.
-export const MIN_BIAS_RACES = 2
+// The lean needs this many earlier races at the meeting with a result (the projection also needs a clear top 4 and an 8+ field in each).
+export const MIN_BIAS_RACES = 3
 
 export const runnerBias = (r: Runner): number => r.adjustmentBreakdown?.bias ?? 0
 
@@ -26,14 +25,14 @@ export function racesRunBefore(race: Race, all: Race[]): number {
 }
 
 export interface NoBias {
-  // Projection (same scale as Ranked.proj) without the bias, and the speed-map figure (suitability minus the bias, demeaned against the race) without it.
+  // Projection (same scale as Ranked.proj) without the draw lean, and the speed-map figure (unchanged: the suitability figure does not contain the lean).
   proj: number
   sm: number | null
 }
 
-/** Each ranked runner's projection and SM with the bias taken out, so the race can be re-ranked as it stood before the earlier races ran. */
+/** Each ranked runner's projection with the draw lean taken out, so the race can be re-ranked as it stood before the earlier races ran. */
 export function withoutBias(ranked: Ranked[]): Map<string, NoBias> {
-  const suit = ranked.map((x) => (x.runner.adjustmentBreakdown?.suitability != null ? x.runner.adjustmentBreakdown.suitability - runnerBias(x.runner) : null))
+  const suit = ranked.map((x) => (x.runner.adjustmentBreakdown?.suitability != null ? x.runner.adjustmentBreakdown.suitability : null))
   const vals = suit.filter((v): v is number => v != null)
   const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
   const out = new Map<string, NoBias>()
@@ -71,7 +70,7 @@ export function computeRaceBias(ranked: Ranked[], race: Race, all: Race[]): Race
   const inner: number[] = []
   for (const x of ranked) {
     const b = x.runner.barrier
-    if (b == null || size < 6 || x.runner.adjustmentBreakdown?.suitability == null) continue
+    if (b == null || size < 6) continue
     const f = (b - 1) / Math.max(size - 1, 1)
     if (f >= 0.67) wide.push(runnerBias(x.runner))
     else if (f <= 0.33) inner.push(runnerBias(x.runner))
