@@ -36,7 +36,7 @@ export function RaceResult({ race, combo, scratched, onSelectRunner }: RaceResul
         <h3 className="text-sm font-semibold text-ink">Result</h3>
         <span className="text-[11px] text-ink-faint">{official ? 'Official' : 'Provisional, from TAB'}</span>
       </div>
-      <ol className="flex flex-col divide-y divide-line-soft lg:grid lg:grid-cols-2 lg:gap-x-10 lg:divide-y-0">
+      <ol className="flex flex-col divide-y divide-line-soft lg:grid lg:grid-cols-2 lg:gap-x-10 lg:divide-y-0 xl:flex xl:flex-col xl:divide-y">
         {placed.map((r) => {
           const c = combo.get(r.runId)
           const price = r.startingPrice ?? r.fixedWinPrice
