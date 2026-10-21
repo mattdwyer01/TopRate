@@ -51,7 +51,6 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
 
   const official = race.allResulted && !race.provisional
   const hasSp = placed.some((r) => r.startingPrice != null)
-  const winner = placed[0]
   const topPick = [...combo.entries()].filter(([, c]) => c.rank === 1).map(([id]) => race.runners.find((r) => r.runId === id)).filter((r): r is Runner => r != null)
   const topPickResult = topPick.length === 0 ? null : topPick.map((r) => (r.finishPosition != null ? `${r.horse} ${ORDINAL[r.finishPosition] ?? `${r.finishPosition}th`}` : `${r.horse} unplaced`)).join(', ')
 
