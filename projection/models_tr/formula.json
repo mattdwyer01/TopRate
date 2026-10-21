@@ -83,10 +83,10 @@
   "8": 46547
  },
  "debut": {
-  "a": -1.4487,
-  "b": -5.3436,
-  "sd": 8.66,
+  "a": -3.1314,
+  "b": -5.2792,
+  "sd": 11.18,
   "min_experienced": 3,
-  "basis": "25,508 debut runs 2021+, rating minus mean of 3+-run runners in the race on ln(starting price) minus field mean ln price; held-out 2025+ RMSE 8.64 vs 10.5 constant"
+  "basis": "540 debut runs 2023-07 to 2026-10 on the runner pages (ATW ratings as given, no results-file rating): rating minus mean formula Proj of the race's runners with 3+ runs (at least 2 of them in the page store, which holds part of each field), on ln(starting price) minus the field's mean ln price (results files give the whole field). Held out from 2026-01-01 (338 runs): RMSE 11.24 with the price vs 12.77 for a constant. Slope -5.0 to -5.5 in every variant (min experienced runners 1, 2, 3); intercept -2.7 to -3.2; sd 11.1 to 11.5 (inflated by the partial-field race level, live may be a little lower). Replaces the 21 Oct 2026 fit on results-file ratings (a -1.4487, b -5.3436, sd 8.66). Refit: FIT_MIN_EXP=2 PYTHONPATH=. PROJECTION_RATINGS=toprate python projection/fit_debut.py --write"
  }
 }

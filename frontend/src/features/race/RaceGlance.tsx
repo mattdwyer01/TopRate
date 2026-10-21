@@ -112,7 +112,7 @@ export function Ladder({
           const y = topPad + i * ROW_H + ROW_H / 2
           const tone = !showBands ? 'var(--color-slate)' : r.inner ? 'var(--color-emerald-deep)' : r.outer ? 'var(--color-amber)' : 'var(--color-slate)'
           const price = r.runner.fixedWinPrice
-          const name = `${r.runner.tabNumber}. ${r.runner.horse}`
+          const name = `${r.runner.tabNumber}. ${r.runner.horse}${r.estimated ? ' (est.)' : ''}`
           const maxChars = narrow ? 15 : 20
           return (
             <g
@@ -129,7 +129,7 @@ export function Ladder({
               }}
               style={{ cursor: 'pointer' }}
             >
-              <title>{`${name}: ${fmtWpr(r.proj)} projected${half(r) != null ? `, likely range ${Math.round(r.proj - half(r)!)} to ${Math.round(r.proj + half(r)!)}` : ''}${r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
+              <title>{`${name}: ${fmtWpr(r.proj)} projected${half(r) != null ? `, likely range ${Math.round(r.proj - half(r)!)} to ${Math.round(r.proj + half(r)!)}` : ''}${r.estimated ? ', first starter: figure estimated from the race level and price, not counted in the lines or pools' : r.gap > 0 ? `, ${r.gap.toFixed(1)} behind the top` : ''}${price != null ? `, ${fmtPrice(price)}` : ''}`}</title>
               <rect
                 x={0}
                 y={y - ROW_H / 2}

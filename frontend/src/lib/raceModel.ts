@@ -221,7 +221,10 @@ export function computeGapsFromTop(
     .map((r) => ({ runId: r.runId, score: effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? null }))
     .filter((r): r is { runId: string; score: number } => r.score != null)
   if (scored.length < 2) return gaps
-  const top = Math.max(...scored.map((r) => r.score))
-  for (const r of scored) gaps[r.runId] = top - r.score
+  // a first starter's figure is an estimate from the race level and its price: it never sets the top and has no gap
+  const est = new Set(runners.filter((r) => r.projectionModel === 'debut').map((r) => r.runId))
+  const formRated = scored.filter((r) => !est.has(r.runId))
+  const top = Math.max(...(formRated.length ? formRated : scored).map((r) => r.score))
+  for (const r of scored) gaps[r.runId] = est.has(r.runId) ? null : top - r.score
   return gaps
 }

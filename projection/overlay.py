@@ -29,6 +29,8 @@ def _beta():
 
 
 def _describe(r):
+    if r.model == 'light' and int(r.nruns) == 0:
+        return f"First starter, no form: estimated from the race's level (its experienced runners) and this runner's price against the field, {r.proj:.1f} WPR. Typical error about {r.sd:.1f}."
     if r.model == 'light':
         w = f" Weight carried {r.wtadj:+.1f}." if abs(r.wtadj) >= 0.05 else ''
         return f"New model, light-history ({int(r.nruns)} prior run{'s' if int(r.nruns) != 1 else ''}): projected {r.proj:.1f} WPR.{w} Typical error about {r.sd:.1f}."
@@ -60,7 +62,8 @@ def apply(runners_df, path=None):
     df.loc[idx, 'wprp_base'] = m.base.values
     df.loc[idx, 'wprp_adj'] = (m.proj - m.base).round(2).values   # suitability + weight carried, so Base + Adj = Proj
     df.loc[idx, 'wprp_sd'] = m.sd.values
-    df.loc[idx, 'wprp_model'] = m.model.values
+    # 'debut' = a first starter (no form): its figure is an estimate from the race level and its price, not a form rating (the frontend labels it and keeps it out of the gap lines and pools)
+    df.loc[idx, 'wprp_model'] = np.where((m.model.values == 'light') & (pd.to_numeric(m.nruns, errors='coerce').values == 0), 'debut', m.model.values)
     df.loc[idx, 'wprp_made'] = m.made.astype(str).values
     # rating scale of the logged projection: runs made after the switch to TopRate-rating models are on TopRate's scale, earlier ones on ours
     df.loc[idx, 'wprp_scale'] = np.where(m.made.astype(str).values >= TR_SWITCH, 'toprate', 'own')

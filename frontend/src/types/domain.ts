@@ -72,7 +72,7 @@ export interface Runner {
   speedRating: number | null // pre-race speed rating, lengths vs par (higher = faster), null with under 2 earlier time-based figures
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
   projectionMade: string | null // when the logged projection was made (ISO), null on older payloads
-  projectionModel: 'main' | 'light' | null // which model projected the runner (light = 0-2 prior runs)
+  projectionModel: 'main' | 'light' | 'debut' | null // which model projected the runner (light = 1-2 prior runs; debut = a first starter, an estimate from the race level and its price, not a form rating)
   weightCarried: number | null
   jockeyWinPct90d: number | null
   trainerWinPct365d: number | null

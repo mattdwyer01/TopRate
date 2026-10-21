@@ -99,7 +99,7 @@ export interface RawRunner {
   wpjcb: Record<string, number> | null
   wpjsd?: number | null // typical error of the projection (new model)
   wpjmd?: string | null // when the logged projection was made (ISO); after the race start means back-filled
-  wpjm?: string | null // main / light
+  wpjm?: string | null // main / light / debut
   wpjpr: number | null
   wpjr: number | null
   wpjpk: number | null
