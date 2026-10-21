@@ -5,7 +5,7 @@ import { fmtAdj } from './rowParts'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
-import { speedOnWprScale } from '../../lib/speed'
+import { speedRatingOnScale } from '../../lib/speed'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -46,7 +46,7 @@ interface HeroProps {
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
 export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
-    { label: 'Spd', value: runner.speedRating != null ? speedOnWprScale(runner.speedRating) : null, rank: ranks?.[0] ?? null },
+    { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[0] ?? null },
     { label: 'Nett', value: runner.nett ?? null, rank: ranks?.[1] ?? null },
     { label: 'Proj', value: proj, rank: ranks?.[2] ?? null },
   ]
