@@ -15,7 +15,6 @@ import { RaceResult } from './RaceResult'
 import { RunnerRow, rowGrid, silkFrom } from './RunnerRow'
 import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
-import { SpeedMap } from './SpeedMap'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
 import { PaceStrip } from './PaceStrip'
@@ -96,15 +95,11 @@ export function RaceDetail({
     }
   }
   const [compareIds, setCompareIds] = useState<string[]>([])
-  const [speedMapChoice, setSpeedMapView] = useState<'grid' | 'bar' | 'trip' | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const tripMap = useTripMap()
   const tripRace = tripMap?.races[race.raceId] ?? null
-  // The to-scale trip map is the default view when this race has one; the column speed map otherwise.
-  // From xl the trip map sits in the right-hand column (in place of the ladder), so the shape section below only offers the speed map and bars.
+  // From xl the maps sit in a narrow column beside the runners, so the speed map uses its compact layout there.
   const wide = useMinWidth(1280)
-  const tripBeside = wide && tripRace != null && tripMap != null
-  const speedMapView = tripBeside ? (speedMapChoice === 'bar' ? 'bar' : 'grid') : (speedMapChoice ?? (tripRace ? 'trip' : 'grid'))
 
   // scratched (prop) is the manual, this-device-only toggle set; merge in each runner's real data-driven scratch so a late scratch the
   // pipeline detected takes effect here too. Toggling in the UI still only writes to the manual set (setScratched).
@@ -292,40 +287,13 @@ export function RaceDetail({
         )}
 
         </div>
-        <div className="order-3 hidden min-w-0 flex-col gap-4 xl:sticky xl:top-28 xl:order-2 xl:flex xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-          <div><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
-          {tripBeside && tripRace && tripMap && (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+        {/* Right column from xl (below it, after the runners): pace, trip map and speed map, no inner scrolling. Scratched runners are left off the maps, not just dimmed. */}
+        <div className="order-2 flex min-w-0 flex-col gap-4">
+          <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
+          {tripRace && tripMap && (
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
           )}
-        </div>
-        <div className="order-2 flex min-w-0 flex-col gap-4 xl:order-3 xl:col-span-2">
-        <section className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-ink">Predicted race shape</h3>
-            {/* Scratched runners are left off, not just dimmed: the map shows who is actually going to run. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {tripRace && !tripBeside && (
-                <Pill active={speedMapView === 'trip'} onClick={() => setSpeedMapView('trip')}>
-                  Trip map
-                </Pill>
-              )}
-              <Pill active={speedMapView === 'grid' || (speedMapView === 'trip' && !tripRace)} onClick={() => setSpeedMapView('grid')}>
-                Speed map
-              </Pill>
-              <Pill active={speedMapView === 'bar'} onClick={() => setSpeedMapView('bar')}>
-                Bars
-              </Pill>
-            </div>
-          </div>
-          <div className="xl:hidden"><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
-          {speedMapView === 'trip' && tripRace && tripMap ? (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
-          ) : speedMapView === 'bar' ? (
-            <SpeedMap race={race} runners={activeRunners} />
-          ) : (
-            <SpeedMapGrid race={race} runners={activeRunners} />
-          )}
-        </section>
+          <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
         </div>
       </div>
 

@@ -6,6 +6,8 @@ import { speedMapDemeanedByRunId, SPEED_MAP_TINT_THRESHOLD } from '../../lib/rac
 interface SpeedMapGridProps {
   race: Race
   runners: Runner[]
+  // Use the compact layout (the phone one) at any width, for a narrow column beside the table.
+  narrow?: boolean
 }
 
 // 10 tactical columns, Backmarker (left) -> Leader (right) - originally 6,
@@ -289,7 +291,7 @@ function railToBottomLayout<T>(ascending: T[], subCols: number): GridPlacement<T
 // within that spot" (sub-column position) read visually, the same way
 // Racing NSW's own speed maps spread a crowded tactical slot sideways
 // rather than stacking it into one long single-file column.
-export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
+export function SpeedMapGrid({ race, runners, narrow = false }: SpeedMapGridProps) {
   const pace = estimatePace(race, runners)
   const tempoBucket = pace.tempoBucket
 
@@ -449,7 +451,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Speed map</span>
-        <span className="text-xs text-ink-faint">
+        <span className={`text-xs text-ink-faint ${narrow ? 'hidden' : ''}`}>
           Predicted running position &middot; tint = vs the rest of THIS field (green favoured, red hurt){' '}
           &middot; side bar = barrier (rail at base, wide at top) &middot; ! = wide gate sitting forward
         </span>
@@ -474,7 +476,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           panel - overflow-x-auto on the parent still scrolls normally,
           justify-center on a scrollable flex container doesn't clip the
           start of the content in any browser Tailwind targets here. */}
-      <div className="mt-2 hidden overflow-x-auto sm:block">
+      <div className={`mt-2 hidden overflow-x-auto ${narrow ? '' : 'sm:block'}`}>
         <div className="grid min-w-full justify-center gap-1.5" style={{ gridTemplateColumns: colTemplate }}>
           {COLUMNS.map((c, i) => (
             // Label is the LAST child, after the card grid - not because
@@ -534,7 +536,7 @@ export function SpeedMapGrid({ race, runners }: SpeedMapGridProps) {
           where every column has runners this converges back to an even
           split - there's no width left to redistribute - so cards can't
           rely on emptiness alone and are still sized to survive that case. */}
-      <div className="mt-2 flex items-stretch gap-1 sm:hidden">
+      <div className={`mt-2 flex items-stretch gap-1 ${narrow ? '' : 'sm:hidden'}`}>
         {COLUMNS.map((c, i) => (
           <div
             key={c.key}

@@ -14,7 +14,6 @@ interface TripMapProps {
   trip: TripRace
   excluded: Set<string> // scratched runners (runId), left off the map
   runners: Runner[] // for TAB number and silks (matched on runId)
-  generated: string
   smByRunId?: Record<string, number | null> // speed-map suitability vs the field (SM), shown as a dot on each chip
 }
 
@@ -32,7 +31,7 @@ interface Placed extends TripRunner {
   py: number
 }
 
-export function TripMap({ trip, excluded, runners: field, generated, smByRunId = {} }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, smByRunId = {} }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -148,7 +147,6 @@ export function TripMap({ trip, excluded, runners: field, generated, smByRunId =
   for (let l = 0; l <= maxL; l += stepL) gridL.push(l)
   const noGps = trip.laneKind === 'est'
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
-  const hist = items.filter((r) => r.nHist === 0).length
 
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
@@ -261,25 +259,7 @@ export function TripMap({ trip, excluded, runners: field, generated, smByRunId =
           </div>
         )}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mute">
-        <span className="flex items-center gap-1.5">
-          Number shown is the TAB number (barrier in the tooltip)
-        </span>
-        <span>Typical error about {trip.err.gap} lengths and {trip.err.lane}m{narrow ? ' (tap a runner)' : ' (hover a runner to see it)'}</span>
-        {hist > 0 && <span>{hist} runner{hist === 1 ? '' : 's'} with no {noGps ? 'earlier result' : 'GPS'} history</span>}
-        {noGps && <span className="text-amber">No GPS at this track: gap is forecast from past 800m positions, width is estimated</span>}
-      </div>
-      <details className="mt-2 text-xs text-ink-faint sm:hidden">
-        <summary className="cursor-pointer text-ink-mute">How this is built</summary>
-        <p className="mt-1 leading-relaxed">
-          The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last {noGps ? 'results' : 'GPS runs'}, then places the runners using the spread real fields show, so each exact position is uncertain. Width is {laneLabel}. It does not feed Proj. Updated {generated.slice(0, 16).replace('T', ' ')} UTC.
-        </p>
-      </details>
-      <p className="mt-2 hidden max-w-3xl text-xs leading-relaxed text-ink-faint sm:block">
-        The model ranks the field on track, distance, going, rail, barrier and each horse&apos;s last {noGps ? 'results' : 'GPS runs'}, then places the
-        runners using the spread real fields show, so the order is the forecast and each exact position is uncertain. It does
-        not feed Proj; in testing it added nothing to winner selection beyond the market. Updated {generated.slice(0, 16).replace('T', ' ')} UTC.
-      </p>
+      {noGps && <div className="mt-2 text-xs text-amber">No GPS at this track: gap is forecast from past 800m positions, width is estimated</div>}
     </div>
   )
 }
