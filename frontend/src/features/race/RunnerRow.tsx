@@ -137,7 +137,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted blend Proj 50 / Nett 30 / Spd 20, put on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the Proj, Nett and Spd figures, 50 / 30 / 20, on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of TR, SR and WR">&ndash;</span>
