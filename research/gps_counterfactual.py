@@ -27,7 +27,7 @@ def gps_runs():
         r['n'] = r.groupby('rk').horse.transform('count')
         r['venue_k'] = r.venue
         r['race_no_'] = r.race_no; r['meet_'] = 'rc' + r.meet_code.astype(str)
-        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_']].assign(src='rc'))
+        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_', 'race_time_s']].assign(src='rc'))
     for f in sorted(glob.glob('data/gps/rq_gps_runs_20*.parquet')):
         r = pd.read_parquet(f); s = pd.read_parquet(f.replace('runs', 'sections'))
         r['date'] = pd.to_datetime(r.race_date).dt.tz_localize(None).dt.normalize()
@@ -42,7 +42,7 @@ def gps_runs():
         r['n'] = r.groupby('rk').horse.transform('count')
         r['venue_k'] = r.course
         r['race_no_'] = r.race_no; r['meet_'] = 'rq' + r.meeting_code.astype(str)
-        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_']].assign(src='rq'))
+        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_', 'race_time_s']].assign(src='rq'))
     g = pd.concat(out, ignore_index=True)
     g['hn'] = norm(g.horse)
     g = g.drop_duplicates(['date', 'hn'], keep='last')
