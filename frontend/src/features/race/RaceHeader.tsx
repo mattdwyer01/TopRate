@@ -38,10 +38,10 @@ function Chip({ children, title, tone }: { children: React.ReactNode; className?
   )
 }
 
-// The distance is the first thing to read about a race, so it is a larger, bolder chip than the others, in the banner and in the sticky bar.
+// The distance is the first thing to read about a race, so it is a brighter, bolder chip than the others (same size), in the banner and in the sticky bar.
 function DistanceChip({ metres }: { metres: number }) {
   return (
-    <span title="Race distance" className="inline-flex flex-none items-center rounded-full border border-white/30 bg-white/20 px-3 py-0.5 text-sm font-bold text-white md:text-base">
+    <span title="Race distance" className="inline-flex flex-none items-center rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-xs font-bold text-white">
       {metres}m
     </span>
   )
