@@ -1074,6 +1074,11 @@ def run_once(push=True):
     results, conditions, prices, terminal_cache, unplaced_races, start_times, dividends = fetch_today_results(
         target_date, terminal_cache=terminal_cache, div_done=tab_dividends.done_keys())
     save_terminal_cache(terminal_cache)
+    try:  # Hong Kong fixed prices from Betr (TAB has none for HKG); best-effort, never breaks the cycle
+        import betr_prices
+        prices = prices + betr_prices.fetch_hk_prices()
+    except Exception as e:
+        print(f"  Betr HK prices skipped: {type(e).__name__}: {str(e)[:60]}")
     tab_price_log.append(prices)  # before any early return, so every read is kept
     tab_dividends.append(dividends)  # same: committed by tab_results.yml whatever else this cycle does
     replay_codes.flush()  # venue -> Sky replay code, committed by tab_results.yml whatever else this cycle does
