@@ -38,10 +38,38 @@ def main():
                 walk(v, f"{p}[{i}]")
     walk(d)
     print("Happy Valley / Sha Tin mentions:", hits[:6], flush=True)
-    s = json.dumps(d)
-    i = s.lower().find("happy valley")
-    if i >= 0:
-        print(s[max(0, i - 300):i + 900], flush=True)
+    # one Hong Kong race: runner prices (a single extra request)
+    ev = None
+
+    def find(o):
+        nonlocal ev
+        if isinstance(o, dict):
+            if o.get("Venue") == "Happy Valley" and o.get("RaceNumber") == 1 and o.get("EventId"):
+                ev = o["EventId"]
+            for v in o.values():
+                find(v)
+        elif isinstance(o, list):
+            for v in o:
+                find(v)
+    find(d)
+    print("Happy Valley R1 event id:", ev, flush=True)
+    if not ev:
+        return
+    st, body = get(f"/Race?eventId={ev}")
+    print("Race", st, len(body), flush=True)
+    if st != 200 or body[:1] not in (b"{", b"["):
+        print("Blocked or not JSON, stopping:", body[:200].decode("utf8", "replace"), flush=True)
+        return
+    r = json.loads(body)
+    print("top-level keys:", sorted(r.keys()) if isinstance(r, dict) else type(r).__name__, flush=True)
+    outs = r.get("Outcomes") or r.get("Runners") or r.get("Selections") or []
+    if not outs:
+        for k, v in r.items():
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                print("list key", k, len(v), "item keys", sorted(v[0].keys()), flush=True)
+                outs = outs or v
+    for o in outs[:4]:
+        print(json.dumps(o, default=str)[:700], flush=True)
 
 
 if __name__ == "__main__":
