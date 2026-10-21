@@ -6,6 +6,7 @@ import { formatCountdown, formatTimeOfDay } from '../../lib/countdown'
 import { Pill } from '../../components/Pill'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { fmtPrize, goingChange, goingTone } from './raceFacts'
+import { formatAge, projectionAge } from '../../lib/projectionAge'
 import { ReplayPanel } from './ReplayPanel'
 
 interface RaceHeaderProps {
@@ -64,6 +65,8 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
   const { change, pace, leaders, rail, paceTone, goingTileTone } = useConditions(race, meeting, activeRunners)
   const prize = fmtPrize(race.prizeMoney)
   const time = formatTimeOfDay(race.startTime)
+  const now = useNow(60_000)
+  const projAge = projectionAge(activeRunners, race.startTime, now, hasAnyResult || race.allResulted)
   return (
     <section className="rounded-2xl border border-transparent bg-[#0B3B2A] px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4 md:px-7 md:py-5">
       <div className="flex items-start justify-between gap-x-3">
@@ -118,6 +121,15 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
           {scratchedInRace > 0 && <span className="text-[#fda4af]">&nbsp;({scratchedInRace} scr)</span>}
         </Chip>
         {race.hasFirstStarter && <Chip tone="warn" className="border-amber-line bg-amber-bg text-amber">First starter</Chip>}
+        {projAge && (
+          <Chip
+            tone={projAge.stale ? 'warn' : 'good'}
+            title={`Projection made ${formatTimeOfDay(projAge.made)} (${formatAge(projAge.ageMin)} ago).${projAge.stale ? ' Older than usual for a race still to run: a refresh may have been missed, new declarations or form may not be in it yet.' : ''}`}
+          >
+            <b className="mr-1 text-[10px] uppercase opacity-70">Proj</b>
+            {projAge.stale ? `${formatAge(projAge.ageMin)} old` : formatTimeOfDay(projAge.made)}
+          </Chip>
+        )}
       </div>
       <div className="xl:hidden"><ReplayPanel venue={race.venue} date={race.date} raceNumber={race.raceNumber} hasResult={hasAnyResult || race.allResulted} /></div>
     </section>

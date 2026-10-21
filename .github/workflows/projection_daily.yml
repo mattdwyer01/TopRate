@@ -11,7 +11,15 @@ name: Projection (new WPR model)
 #
 # GitHub's own `schedule` is unreliable here (see daily.yml HISTORY), so the cron below is only a fallback; the dependable trigger is a
 # cron-job.org entry calling workflow_dispatch with mode=full each morning (suggest 07:30 Melbourne time) plus mode=fast entries during racing hours.
+# A push to main that changes projection code or models re-scores at once (23 Oct 2026: the outlier trim and venue refit landed after the day's last fast run, so
+# upcoming races kept the old figures until the next full run). Model files, the context model and training scripts re-score in fast mode; any other change under
+# projection/ (features, run, overlay) can change the cached tables, so that takes a full run. This workflow only ever pushes the log and json files, so it cannot retrigger itself.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "projection/**"
+      - "!projection/**/*.md"
   schedule:
     - cron: "40 21 * * *"      # 07:40 AEST / 08:40 AEDT, after gps_daily.yml (06:00 AEST) has normally finished
   workflow_dispatch:
@@ -24,6 +32,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 # Separate group from the data jobs on purpose (a shared lock starved tab_results.yml once, see daily.yml). Fast runs queue behind a running full run.
 concurrency:
@@ -62,9 +71,22 @@ jobs:
 
       - name: Decide mode
         id: mode
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MODE="${{ inputs.mode }}"
           [ -z "$MODE" ] && MODE=full
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Fast only when every changed file is a model artifact, the context model or a fit/train script; anything else under projection/ takes a full run.
+            MODE=fast
+            files=$(gh api "repos/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}" --jq '.files[].filename' 2>/dev/null || true)
+            if [ -z "$files" ]; then
+              MODE=full
+            elif echo "$files" | grep -vE '^projection/(models_tr/|models/|ctx\.py$|[A-Za-z_/]+\.md$|train_[a-z_]+\.py$|fit_[a-z_]+\.py$|setup_[a-z_]+\.py$)' | grep -q '^projection/'; then
+              MODE=full
+            fi
+            echo "push event, changed files: $(echo "$files" | tr '\n' ' ') -> $MODE"
+          fi
           if [ "$MODE" = "fast" ] && [ ! -f projection/cache_tr/tables.pkl ]; then
             echo "No cached tables found, running full instead"
             MODE=full
