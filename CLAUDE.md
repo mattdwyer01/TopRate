@@ -2721,6 +2721,8 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **L3 removed from the dashboard (20 Oct 2026, branch claude/remove-l3, user request)**: the L3 column (race table, desktop and phone), its `last3` sort key, its tile in the runner page signals panel (now Spd / Nett / Proj) and its square in the Rank strip are gone; `lib/combinedRank.ts` `ranks` is now `[Spd, Nett, Proj]`. The freed track width goes to the Horse column. `lastRunsRating` stays in `lib/formRatings.ts` (other users). Basis: Proj is built from the same runs and the fitted Rank weight for L3 was -0.01. Type-check and build pass; not yet checked in a browser at 360 / 390 / 1300px.
 
+- **Proj rule (owner, 21 Oct 2026): any Proj must be built purely on ATW figures, never plain WPR figures.** That means the runner pages' ratings as TopRate gives them (`data/tr_form`, weight adjusted to the horse's next start), no results-file `wpr`, no own-chain rating and no offset taking them back to the plain scale. Consequences for work on Proj: the old model (`projection/models_tr/main_*`, trained on plain results-file ratings) is not a valid candidate or input; a context-aware Proj has to be trained and tested on `data/tr_form` runs alone (about 72k rated runs, `features.runner_page_runs()`); an out-of-sample rebuild that fits on results-file ratings would break this rule. `research/proj_improve_test.py` (branch claude/proj-improve-test) used the plain-scale logged model only as a comparison, never as a Proj candidate.
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
