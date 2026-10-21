@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install requests pandas numpy pyarrow
+      - run: pip install requests pandas numpy pyarrow lightgbm scikit-learn
       - name: Anon key fallback (same as daily.yml)
         run: |
           if [ -z "$TOPRATE_ANON_KEY" ]; then
