@@ -61,7 +61,7 @@ def _norm(d):
     return d
 
 
-def load_form_runs(after):
+def load_form_runs(after, before_only_tracks=None):
     """Runs after the date `after` from the runner-page store (data/tr_form, kept up to date by the daily runner-page fetch): TopRate's own record of every
     past run of every horse that has been declared again, with the race's winning time and each runner's margin. Partial fields (only runners whose page
     was fetched), so the venue-day allowance is built from the races that are known. Where both sources cover a day they agree (winning time 100%,
@@ -69,7 +69,7 @@ def load_form_runs(after):
     import gzip
     runs = []
     for f in sorted(FORM_DIR.glob("*.json.gz")):
-        if f.stem < str(after)[:7]:
+        if before_only_tracks is None and f.stem < str(after)[:7]:
             continue
         try:
             with gzip.open(f, "rt") as fh:
@@ -79,7 +79,11 @@ def load_form_runs(after):
     if not runs:
         return pd.DataFrame(columns=USE)
     t = pd.DataFrame(runs)
-    t = t[t["date"].astype(str) > str(after)]
+    if before_only_tracks is None:
+        t = t[t["date"].astype(str) > str(after)]
+    else:
+        # Earlier runs at tracks the results files never cover (Hong Kong and other overseas, 21 Oct 2026): the files are Australian only
+        t = t[(t["date"].astype(str) > str(after)) | (~t["track"].isin(before_only_tracks) & (t["date"].astype(str) <= str(after)))]
     for c in ("isJumpout", "isBarrierTrial", "winnersTime", "marginFinish", "starters", "weightCarried", "trackGrading", "class"):
         if c not in t.columns:
             t[c] = np.nan
@@ -98,7 +102,8 @@ def load_results(first_year, form_from=None):
     d["date"] = pd.to_datetime(d["date"])
     after = pd.Timestamp(form_from) if form_from else d["date"].max()
     d = d[d["date"] <= after]
-    f = load_form_runs(after.date())
+    f = load_form_runs(after.date(), set(d["track"].dropna().unique()))
+    f = f[f["date"].astype(str) >= f"{first_year}-01-01"]
     if len(f):
         d = pd.concat([d, f], ignore_index=True)
     return _norm(d)
