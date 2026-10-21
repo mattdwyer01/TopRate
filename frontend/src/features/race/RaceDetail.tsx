@@ -206,7 +206,7 @@ export function RaceDetail({
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
       {hasAnyResult && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)] xl:items-stretch">
           <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />
           <div className="hidden xl:block"><ReplayCard venue={race.venue} date={race.date} raceNumber={race.raceNumber} /></div>
         </div>

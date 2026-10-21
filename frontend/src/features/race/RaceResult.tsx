@@ -113,11 +113,11 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           const m = marginText(r)
           return (
             <li key={r.runId} className="flex flex-1">
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-2 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
-                <Silk runner={r} w={30} h={36} />
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-1 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
+                <Silk runner={r} w={26} h={31} />
                 <PosPill pos={r.finishPosition} small />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px]">
+                  <span className="block truncate text-sm">
                     <span className={`text-ink ${win ? 'font-bold' : 'font-semibold'}`}>
                       {r.tabNumber}. {r.horse}
                     </span>
