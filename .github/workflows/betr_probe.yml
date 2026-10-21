@@ -1,0 +1,19 @@
+name: Betr probe (self-hosted, read-only)
+
+# One-off, manual, writes nothing. Checks whether the AU runner can read Betr race data with a plain request.
+# Full checkout on purpose, same as tab_stream_probe.yml (a sparse checkout left on the shared runner stalled tab_results.yml once).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: betr-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run probe
+        run: python -u betr_probe.py 2>&1 | tee probe_output.txt
