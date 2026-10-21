@@ -13,7 +13,7 @@ export interface CombinedRank {
   tied: boolean // another runner shares this rank
   mean: number // lower is better: the negative of the weighted z-score
   rating: number | null // the weighted z-score put on the Proj scale: field mean of Proj + score x field spread of Proj (higher is better)
-  ranks: [number | null, number | null, number | null] // Spd, Nett, Proj
+  ranks: [number | null, number | null, number | null] // TR (nett), SR (speed), WR (proj)
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 
@@ -66,7 +66,7 @@ export function computeCombinedRank(
   const means = new Map<string, { mean: number; ranks: CombinedRank['ranks'] }>()
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
-    const ranks: CombinedRank['ranks'] = [rs.get(r.runId) ?? null, rn.get(r.runId) ?? null, rp.get(r.runId) ?? null]
+    const ranks: CombinedRank['ranks'] = [rn.get(r.runId) ?? null, rs.get(r.runId) ?? null, rp.get(r.runId) ?? null]
     let num = 0
     let den = 0
     let n = 0
