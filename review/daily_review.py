@@ -10,6 +10,7 @@ import pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'review'))
 import gps_review  # noqa: E402
+import winners  # noqa: E402
 
 
 def load(date):
@@ -21,7 +22,8 @@ def load(date):
         for x in r['runners']:
             rows.append(dict(race_id=int(rid), venue=r['venue'], race=r['race'], going=r.get('going'), status=r.get('wprStatus'), run_id=x.get('runId'), horse=x.get('horse'),
                              atw=x.get('atw'), p800=x.get('position800m'), fin=x.get('positionFinish'), barrier=x.get('barrier'), price=x.get('priceStarting'),
-                             comment=x.get('commentsVideo', '')))
+                             comment=x.get('commentsVideo', ''), margin=x.get('marginFinish'), distance=r.get('distance'), race_class=r.get('class'),
+                             jockey=x.get('jockey'), trainer=x.get('trainer'), weight_carried=x.get('weightCarried')))
     T = pd.DataFrame(rows)
     L = pd.read_csv(os.path.join(ROOT, 'wpr_projection_log.csv.gz'))
     L = L[L.date == date].sort_values('made').drop_duplicates('run_id', keep='last')[['run_id', 'proj', 'nruns']]
@@ -110,13 +112,20 @@ def band_stats(done):
     return out
 
 
+def tags_of(x, date):
+    try:
+        return winners.tag_stats(winners.enrich(x, date))
+    except Exception:
+        return {}
+
+
 def day_stats(date):
     x = load(date)
     if x is None:
         return None
     done = x[x.atw.notna() & x.proj.notna() & x.fin.notna() & (x.status == 'Final')]
     return dict(date=date, races=int(x.race_id.nunique()), runners=int(len(x)), final=bool((x.status == 'Final').mean() >= 0.9), n=int(len(done)), miss_sum=round(float(done.miss.sum()), 2),
-                miss_ss=round(float((done.miss ** 2).sum()), 2), bands=band_stats(done), meetings=[meeting_stats(v_, g) for v_, g in x.groupby('venue')])
+                miss_ss=round(float((done.miss ** 2).sum()), 2), bands=band_stats(done), meetings=[meeting_stats(v_, g) for v_, g in x.groupby('venue')], tags=tags_of(x, date))
 
 
 def report(date):
@@ -128,6 +137,10 @@ def report(date):
     L = [f'# Daily review {date}', f'{x.race_id.nunique()} races, {len(x)} runners; Proj miss across the day {done.miss.mean():+.1f} (sd {sd:.1f}); ratings {x.status.value_counts().to_dict()}.', '']
     for venue, v in x.groupby('venue'):
         L += meeting_text(venue, v, sd)
+    try:
+        L += winners.section(winners.enrich(x, date))
+    except Exception as e:      # the winner section must never stop the rest of the review
+        L += [f'(winner section failed: {e})', '']
     L += ['# GPS (VIC, SA and QLD meetings)', '', gps_review.text(date, gps_review.load(date)).split('\n', 2)[2], '']
     return '\n'.join(L)
 

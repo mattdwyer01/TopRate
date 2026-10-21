@@ -110,6 +110,20 @@ def text(end, days, monthly=False):
     tw, td = sum(a['win'] for a in ven.values()), sum(a['down'] for a in ven.values())
     if tw:
         L += ['', f'Winners the Proj had at rank 6 or worse: {td} of {tw} ({td / tw * 100:.1f}%).']
+    tg = {}
+    for d in D:
+        for k, v in d.get('tags', {}).items():
+            a = tg.setdefault(k, [0, 0]); a[0] += v['n']; a[1] += v['w']
+    if tg:
+        N = sum(v[0] for k, v in tg.items() if k in ('led or on pace', 'handy', 'midfield', 'back'))
+        W = sum(v[1] for k, v in tg.items() if k in ('led or on pace', 'handy', 'midfield', 'back'))
+        base = W / N if N else np.nan
+        L += ['', '## Which kinds of horse win (win rate against the overall rate of %.1f%%, z over the runners in the group)' % (base * 100),
+              'Price and Proj rank are expected to differ (they predict winning). Style, barrier, distance, gear and weight are the ones to watch; a group needs |z| of 3+ and a few weeks before it means anything.']
+        for k, (n, w) in sorted(tg.items()):
+            if n < 30: continue
+            z = (w / n - base) / np.sqrt(base * (1 - base) / n)
+            L.append(f'  {k}: {w} wins from {n} runners ({w / n * 100:.1f}%, z {z:+.1f})' + ('  <-- stands out' if abs(z) >= 3 and not k.startswith(('Proj', 'under', 'over $', '$')) else ''))
     if monthly:
         L += ['', '## For the month: what could change a model',
               f'- Venue feature (parked): add when several venues keep clearing the bar month after month. This month {len(called)} cleared it.',
