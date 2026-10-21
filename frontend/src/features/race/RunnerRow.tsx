@@ -18,7 +18,6 @@ interface RunnerRowProps {
   showBias?: boolean
   combo?: CombinedRank
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
-  projSpan?: { min: number; max: number }
   onClick: () => void
 }
 
@@ -57,7 +56,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, projSpan, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -128,29 +127,19 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}`}>
             <span className="font-mono text-[12px] text-ink-mute lg:text-[13px]">{f.proj == null ? <Missing why="No projection (no rated form, or a jumps race)" /> : Math.round(f.proj)}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
-            {f.proj != null && projSpan && projSpan.max > projSpan.min && (
-              <span className="mt-0.5 hidden h-[3px] overflow-hidden rounded-full bg-line lg:block" aria-hidden="true">
-                <span className="block h-full rounded-full bg-emerald" style={{ width: `${Math.round(15 + (85 * (f.proj - projSpan.min)) / (projSpan.max - projSpan.min))}%` }} />
-              </span>
-            )}
           </span>
         )}
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo ? `Combined rank ${combo.tied ? 'joint ' : ''}${combo.rank} (score ${(-combo.mean).toFixed(2)}, weights Proj 65 / Nett 25 / Spd 10): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted blend Proj 65 / Nett 25 / Spd 10, put on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett and Proj">&ndash;</span>
         ) : (
           <>
-            <span
-              className={`inline-block min-w-[18px] rounded px-1 text-center text-[12px] lg:text-[13px] ${
-                combo.rank === 1 ? 'bg-emerald font-medium text-white' : combo.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'text-ink'
-              }`}
-            >
-              {combo.tied ? '=' : ''}
-              {combo.rank}
+            <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
+              {combo.rating != null ? Math.round(combo.rating) : combo.rank}
             </span>
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
               {combo.ranks.map((x, i) => (
