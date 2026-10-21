@@ -1,0 +1,19 @@
+name: TAB Hong Kong probe (self-hosted, read-only)
+
+# One-off, manual, writes nothing. Shows how TAB lists Hong Kong meetings (location code, mnemonic, results, fixed odds) from the AU runner.
+# Full checkout on purpose, same as tab_stream_probe.yml (a sparse checkout left on the shared runner stalled tab_results.yml once).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: tab-hk-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run probe
+        run: python -u tab_hk_probe.py 2>&1 | tee probe_output.txt
