@@ -36,6 +36,7 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 
 
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
+CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
 
@@ -310,6 +311,18 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
         # Proj is a formula on the runner pages' ratings, not a model (16 Oct 2026, owner's call): the model columns above stay for the suitability (SM) display only
         fp, fn, fs, _ = F.formula_projection(R.horse_id, R.date)
         has = ~np.isnan(fp)
+        if CTX_PROJ and os.path.exists(os.path.join(M, 'ctx_model.txt')):
+            # context correction (distance, going, class, weight, days since run, last-run margin, jockey effect, spread of recent ratings...), learned on the runner pages' ATW
+            # ratings only: held-out rating error 8.70 to 8.35 on 15.9k runs (train_ctx.py). The sd by earlier-run count is the held-out error with it.
+            import ctx as CTX
+            cmeta = json.load(open(os.path.join(M, 'ctx.json')))
+            Tc = R[['horse_id', 'date', 'jockey', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading']].reset_index(drop=True)
+            f2, corr = CTX.predict(Tc, meta=cmeta)
+            use = has & ~np.isnan(corr)
+            if use.any():
+                assert np.nanmax(np.abs(f2[use] - fp[use])) < 1e-6, 'ctx formula differs from features.formula_projection'
+            fp = np.where(use, fp + np.nan_to_num(corr), fp)
+            fs = np.where(use, [cmeta['sd'].get(str(int(min(max(n, 1), CTX.K))), s0) for n, s0 in zip(np.nan_to_num(fn), fs)], fs)
         R['p0'] = np.where(has, fp, np.nan)
         R['proj'] = R.p0
         R['wtadj'] = 0.0
