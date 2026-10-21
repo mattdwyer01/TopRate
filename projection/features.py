@@ -96,7 +96,7 @@ def runner_page_runs():
                     continue
                 rows.append(dict(horse_id=r['horse_id'], date=r['date'], wpr=r['wpr'], track=r.get('track'), distance=r.get('distance'), going=r.get('going'),
                                  weightCarried=r.get('weightCarried'), barrier=r.get('barrier'), field_size=r.get('starters'), race_class=r.get('class'),
-                                 trackGrading=r.get('trackGrading'), jockey=r.get('jockey'), positionFinish=r.get('positionFinish'),
+                                 trackGrading=r.get('trackGrading'), jockey=r.get('jockey'), venue=r.get('venue'), positionFinish=r.get('positionFinish'),
                                  marginFinish=r.get('marginFinish'), priceStarting=r.get('priceStarting'), position800m=r.get('position800m'),
                                  comments_steward=r.get('commentsSteward')))
     t = pd.DataFrame(rows)
