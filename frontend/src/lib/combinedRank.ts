@@ -14,6 +14,7 @@ export interface CombinedRank {
   mean: number // lower is better: the negative of the weighted z-score
   rating: number | null // the weighted z-score put on the Proj scale: field mean of Proj + score x field spread of Proj (higher is better)
   ranks: [number | null, number | null, number | null] // Spd, Nett, Proj
+  estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 
 const MIN_SIGNALS = 2
@@ -85,7 +86,17 @@ export function computeCombinedRank(
   const all = [...means.values()].map((m) => m.mean)
   const out = new Map<string, CombinedRank>()
   for (const [id, m] of means) {
-    out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - m.mean) < 1e-9).length > 1, mean: m.mean, rating: pMean != null && pSd > 1e-9 ? pMean - m.mean * pSd : null, ranks: m.ranks })
+    out.set(id, { rank: 1 + all.filter((x) => x < m.mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - m.mean) < 1e-9).length > 1, mean: m.mean, rating: pMean != null && pSd > 1e-9 ? pMean - m.mean * pSd : null, ranks: m.ranks, estimated: false })
+  }
+  // first starters: rating is the Proj estimate itself (already on the Proj scale); placed against the rated runners without shifting their ranks
+  if (pMean != null && pSd > 1e-9) {
+    for (const r of runners) {
+      if (scratched.has(r.runId) || r.projectionModel !== 'debut' || out.has(r.runId)) continue
+      const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
+      if (p == null) continue
+      const mean = -(p - pMean) / pSd
+      out.set(r.runId, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.some((x) => Math.abs(x - mean) < 1e-9), mean, rating: p, ranks: [null, null, null], estimated: true })
+    }
   }
   return out
 }
