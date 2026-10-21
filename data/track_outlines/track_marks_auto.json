@@ -1,0 +1,1813 @@
+{
+"albury": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1175,
+1400,
+1600,
+2000,
+2400
+],
+"chute_px": {},
+"per_px": 801.5,
+"name": "albury"
+},
+"alicesprings": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200,
+1400,
+1500,
+1600,
+2000
+],
+"chute_px": {
+"1100": 0.092
+},
+"per_px": 771.3,
+"name": "alice springs"
+},
+"ararat": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 790.2,
+"name": "ararat"
+},
+"armidale": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1030,
+1100,
+1200,
+1400,
+1900
+],
+"chute_px": {},
+"per_px": 1059.7,
+"name": "armidale"
+},
+"ascot": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1500,
+1600,
+1900,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 325.2,
+"name": "ascot"
+},
+"bairnsdale": {
+"dir": "cw",
+"fb": 0.33,
+"ring": [
+1000,
+1100,
+2000,
+2200
+],
+"chute_px": {
+"1200": 0.046,
+"1600": 0.052
+},
+"per_px": 771.9,
+"name": "bairnsdale"
+},
+"ballina": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1250,
+1300,
+1400,
+1600,
+1900
+],
+"chute_px": {
+"1000": 0.054
+},
+"per_px": 789.6,
+"name": "ballina"
+},
+"beaudesert": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+950,
+1100,
+1200,
+1300,
+1400,
+1650
+],
+"chute_px": {},
+"per_px": 614.4,
+"name": "beaudesert"
+},
+"belmont": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1600,
+2000,
+2200
+],
+"chute_px": {},
+"per_px": 652.8,
+"name": "belmont"
+},
+"bendigo": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1300,
+1400,
+1500,
+1600,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 363.9,
+"name": "bendigo"
+},
+"bunbury": {
+"dir": "ccw",
+"fb": 0.13,
+"ring": [
+1600,
+2000,
+2200
+],
+"chute_px": {
+"1000": 0.038,
+"1200": 0.04,
+"1400": 0.043
+},
+"per_px": 1064.6,
+"name": "bunbury"
+},
+"bundaberg": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1100,
+1200,
+1400,
+1600,
+2400
+],
+"chute_px": {},
+"per_px": 778.6,
+"name": "bundaberg"
+},
+"ballarat": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1500,
+2200
+],
+"chute_px": {},
+"per_px": 330.8,
+"name": "ballarat"
+},
+"cairns": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1200,
+1500,
+1700,
+2100
+],
+"chute_px": {},
+"per_px": 802.5,
+"name": "cairns"
+},
+"canterbury": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1280,
+1550,
+1900,
+2600
+],
+"chute_px": {},
+"per_px": 345.6,
+"name": "canterbury"
+},
+"caulfield": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1100,
+1200,
+1600,
+1700,
+1800,
+2000,
+2400
+],
+"chute_px": {
+"1400": 0.045
+},
+"per_px": 390.9,
+"name": "caulfield"
+},
+"cessnock": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1150,
+1350,
+1550,
+2100
+],
+"chute_px": {},
+"per_px": 778.8,
+"name": "cessnock"
+},
+"clare": {
+"dir": "cw",
+"fb": 0.11,
+"ring": [
+1100,
+1700
+],
+"chute_px": {
+"1200": 0.062,
+"1800": 0.072
+},
+"per_px": 815.9,
+"name": "clare"
+},
+"coffsharbour": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+2100
+],
+"chute_px": {
+"800": 0.054
+},
+"per_px": 1045.4,
+"name": "coffs harbour"
+},
+"colac": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 848.5,
+"name": "colac"
+},
+"corowa": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200,
+1400,
+2100
+],
+"chute_px": {
+"1600": 0.047
+},
+"per_px": 865.8,
+"name": "corowa"
+},
+"cowra": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1700,
+1800
+],
+"chute_px": {},
+"per_px": 800.4,
+"name": "cowra"
+},
+"cranbourne": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1300,
+1400,
+1600
+],
+"chute_px": {
+"2050": 0.057
+},
+"per_px": 606.1,
+"name": "cranbourne"
+},
+"dalby": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1100,
+1200,
+1300,
+1400
+],
+"chute_px": {
+"2000": 0.054
+},
+"per_px": 745.0,
+"name": "dalby"
+},
+"darwin": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200,
+1400,
+1500,
+1600,
+2000
+],
+"chute_px": {
+"1100": 0.092
+},
+"per_px": 771.3,
+"name": "darwin"
+},
+"donald": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1350,
+1400,
+1600,
+1800,
+2000
+],
+"chute_px": {},
+"per_px": 812.5,
+"name": "donald"
+},
+"echuca": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600
+],
+"chute_px": {},
+"per_px": 707.8,
+"name": "echuca"
+},
+"esk": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1200,
+1460,
+1750
+],
+"chute_px": {},
+"per_px": 665.7,
+"name": "esk"
+},
+"eaglefarm": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1800,
+2000,
+2100,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 349.9,
+"name": "eagle_farm"
+},
+"flemington": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+3200
+],
+"chute_px": {
+"2000": 0.118,
+"800": 0.118,
+"2500": 0.118
+},
+"per_px": 527.8,
+"name": "flemington"
+},
+"forbes": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1800,
+1900
+],
+"chute_px": {},
+"per_px": 805.0,
+"name": "forbes"
+},
+"gatton": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1370,
+1470,
+1630,
+1975
+],
+"chute_px": {},
+"per_px": 844.4,
+"name": "gatton"
+},
+"geelong": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1200,
+1400,
+1700,
+2200,
+2400
+],
+"chute_px": {
+"1500": 0.061
+},
+"per_px": 901.3,
+"name": "geelong"
+},
+"gilgandra": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1600,
+1850
+],
+"chute_px": {},
+"per_px": 651.9,
+"name": "gilgandra"
+},
+"gleninnes": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1700
+],
+"chute_px": {},
+"per_px": 772.0,
+"name": "glen innes"
+},
+"gosford": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1400,
+1600,
+2000,
+2100
+],
+"chute_px": {
+"1200": 0.06
+},
+"per_px": 407.0,
+"name": "gosford"
+},
+"goulburn": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1400,
+1600,
+2000,
+2100
+],
+"chute_px": {
+"1200": 0.06
+},
+"per_px": 407.0,
+"name": "goulburn"
+},
+"grafton": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1500,
+1600,
+1750,
+2200,
+2300,
+2400
+],
+"chute_px": {},
+"per_px": 696.9,
+"name": "grafton"
+},
+"gundagai": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1180,
+1200,
+1400,
+1700
+],
+"chute_px": {},
+"per_px": 675.0,
+"name": "gundagai"
+},
+"gympie": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+850,
+1000,
+1150,
+1465
+],
+"chute_px": {
+"1800": 0.072
+},
+"per_px": 789.8,
+"name": "gympie"
+},
+"goldcoast": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1300,
+1400,
+1800,
+2200,
+2400
+],
+"chute_px": {
+"1200": 0.042
+},
+"per_px": 831.7,
+"name": "gold_coast"
+},
+"hawkesbury": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200,
+1300,
+1400,
+1600,
+1800
+],
+"chute_px": {},
+"per_px": 514.9,
+"name": "hawkesbury"
+},
+"hobart": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1200,
+1400,
+2200,
+2400
+],
+"chute_px": {
+"1600": 0.05
+},
+"per_px": 1143.3,
+"name": "hobart"
+},
+"horsham": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1100,
+1200,
+1300,
+1400,
+1500,
+1800,
+2100
+],
+"chute_px": {},
+"per_px": 765.6,
+"name": "horsham"
+},
+"inverell": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1010,
+1100,
+1400,
+1600,
+1800,
+2000
+],
+"chute_px": {},
+"per_px": 659.5,
+"name": "inverell"
+},
+"ipswich": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1350,
+1500,
+1666
+],
+"chute_px": {
+"2150": 0.055
+},
+"per_px": 716.7,
+"name": "ipswich"
+},
+"kalgoorlie": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1600,
+1760,
+2000,
+2300
+],
+"chute_px": {},
+"per_px": 1235.2,
+"name": "kalgoorlie"
+},
+"kemblagrange": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1200,
+1300,
+1400,
+1600,
+2000
+],
+"chute_px": {
+"1000": 0.04
+},
+"per_px": 750.8,
+"name": "kembla_grange"
+},
+"kempsey": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1250,
+1450,
+1710
+],
+"chute_px": {
+"1900": 0.045
+},
+"per_px": 705.4,
+"name": "kempsey"
+},
+"kensington": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1250,
+1300,
+1400,
+1750,
+1800,
+2400,
+2800
+],
+"chute_px": {
+"1550": 0.07
+},
+"per_px": 647.8,
+"name": "kensington"
+},
+"kilcoy": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1060,
+1200
+],
+"chute_px": {
+"1500": 0.046
+},
+"per_px": 706.9,
+"name": "kilcoy"
+},
+"kilmore": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+1900,
+2100
+],
+"chute_px": {},
+"per_px": 825.7,
+"name": "kilmore"
+},
+"kyneton": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1200,
+1450,
+1850,
+2800
+],
+"chute_px": {
+"2000": 0.039
+},
+"per_px": 980.5,
+"name": "kyneton"
+},
+"lismore": {
+"dir": "ccw",
+"fb": 0.25,
+"ring": [
+1000,
+1200,
+1300,
+1500,
+2100
+],
+"chute_px": {
+"1900": 0.076
+},
+"per_px": 663.6,
+"name": "lismore"
+},
+"mildura": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1600
+],
+"chute_px": {
+"1400": 0.09
+},
+"per_px": 800.6,
+"name": "mildura"
+},
+"moe": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200
+],
+"chute_px": {
+"1600": 0.047,
+"2050": 0.046
+},
+"per_px": 864.4,
+"name": "moe"
+},
+"moonevalley": {
+"dir": "ccw",
+"fb": 0.16,
+"ring": [
+800,
+1000,
+1200,
+1400,
+1600,
+2040
+],
+"chute_px": {
+"2600": 0.093
+},
+"per_px": 720.8,
+"name": "moone valley"
+},
+"mornington": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1500,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 751.7,
+"name": "mornington"
+},
+"morphettville": {
+"dir": "ccw",
+"fb": 0.14,
+"ring": [
+1050,
+1100,
+1600,
+2000,
+2400,
+2700,
+3200
+],
+"chute_px": {
+"1800": 0.055,
+"1200": 0.057
+},
+"per_px": 671.1,
+"name": "morphettville"
+},
+"moruya": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1200,
+1620
+],
+"chute_px": {},
+"per_px": 708.2,
+"name": "moruya"
+},
+"mountgambier": {
+"dir": "cw",
+"fb": 0.36,
+"ring": [
+1100,
+1200,
+1400,
+2050
+],
+"chute_px": {
+"1580": 0.051
+},
+"per_px": 929.1,
+"name": "mount gambier"
+},
+"mudgee": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400
+],
+"chute_px": {},
+"per_px": 708.5,
+"name": "mudgee"
+},
+"murraybridge": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200
+],
+"chute_px": {
+"1400": 0.106,
+"1600": 0.106,
+"2400": 0.101
+},
+"per_px": 719.4,
+"name": "murray bridge"
+},
+"murwillimbah": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1400,
+1500,
+1800
+],
+"chute_px": {
+"1200": 0.068,
+"2000": 0.05
+},
+"per_px": 802.0,
+"name": "murwillimbah"
+},
+"muswellbrook": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1250,
+1400,
+1500,
+1700
+],
+"chute_px": {},
+"per_px": 669.1,
+"name": "muswellbrook"
+},
+"mackay": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1060,
+1250,
+1500
+],
+"chute_px": {
+"1800": 0.046
+},
+"per_px": 836.9,
+"name": "mackay"
+},
+"naracoorte": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1430,
+1900,
+2000
+],
+"chute_px": {},
+"per_px": 379.5,
+"name": "naracoorte"
+},
+"narromine": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1600
+],
+"chute_px": {
+"800": 0.042
+},
+"per_px": 804.5,
+"name": "narromine"
+},
+"newcastle": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1200,
+1300,
+1400,
+1500,
+1600,
+1850,
+2400
+],
+"chute_px": {
+"900": 0.051
+},
+"per_px": 350.6,
+"name": "newcastle"
+},
+"northam": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1300,
+1400,
+1500,
+1600,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 848.2,
+"name": "northam"
+},
+"nowra": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+2100
+],
+"chute_px": {
+"2400": 0.045
+},
+"per_px": 704.4,
+"name": "nowra"
+},
+"oakbank": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1050,
+1100,
+1400,
+1900,
+2150,
+2900,
+3600
+],
+"chute_px": {
+"3250": 0.067
+},
+"per_px": 1051.4,
+"name": "oakbank"
+},
+"orange": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1100,
+1200,
+1400,
+1600,
+1800
+],
+"chute_px": {},
+"per_px": 640.9,
+"name": "orange"
+},
+"pakenham": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1300,
+1400
+],
+"chute_px": {
+"1000": 0.04
+},
+"per_px": 439.0,
+"name": "pakenham"
+},
+"parkes": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1200,
+1600,
+2000
+],
+"chute_px": {
+"1400": 0.039
+},
+"per_px": 815.2,
+"name": "parkes"
+},
+"penola": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1300,
+1400,
+1500,
+1600,
+1700
+],
+"chute_px": {},
+"per_px": 584.3,
+"name": "penola"
+},
+"pinjarra": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1200,
+1300,
+1400,
+1500,
+1600,
+2000,
+2100,
+2200
+],
+"chute_px": {},
+"per_px": 738.4,
+"name": "pinjarra"
+},
+"portaugusta": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1400,
+1600,
+1850,
+2200
+],
+"chute_px": {
+"1200": 0.07
+},
+"per_px": 680.7,
+"name": "port augusta"
+},
+"portlincoln": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1900
+],
+"chute_px": {},
+"per_px": 671.9,
+"name": "port lincoln"
+},
+"portmacquarie": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1700,
+1800
+],
+"chute_px": {
+"2000": 0.038
+},
+"per_px": 872.0,
+"name": "port macquarie"
+},
+"portpirie": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1200,
+1600,
+1880
+],
+"chute_px": {},
+"per_px": 809.1,
+"name": "port pirie"
+},
+"queanbeyan": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1400,
+1460,
+1600
+],
+"chute_px": {},
+"per_px": 737.9,
+"name": "queanbeyan"
+},
+"quirindi": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 711.4,
+"name": "quirindi"
+},
+"randwick": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1200,
+1400,
+1600,
+1800,
+2000,
+2400,
+2600,
+3200
+],
+"chute_px": {},
+"per_px": 559.5,
+"name": "randwick"
+},
+"rosehill": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1200,
+1500,
+1900,
+2000,
+2400
+],
+"chute_px": {
+"1300": 0.107
+},
+"per_px": 387.0,
+"name": "rosehill"
+},
+"rockhampton": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1500,
+1800
+],
+"chute_px": {
+"2000": 0.109
+},
+"per_px": 714.1,
+"name": "rockhampton"
+},
+"sale": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1500,
+1600,
+1700,
+2200
+],
+"chute_px": {},
+"per_px": 790.4,
+"name": "sale"
+},
+"sandown": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1300,
+1400,
+2100,
+2400
+],
+"chute_px": {
+"800": 0.235,
+"1600": 0.106
+},
+"per_px": 505.7,
+"name": "sandown"
+},
+"sapphirecoast": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+2100,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 743.5,
+"name": "sapphire_coast"
+},
+"scone": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+2100,
+2200,
+2400
+],
+"chute_px": {},
+"per_px": 743.5,
+"name": "scone"
+},
+"seymour": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+1800,
+2000,
+2200
+],
+"chute_px": {},
+"per_px": 685.9,
+"name": "seymour"
+},
+"starnaud": {
+"dir": "ccw",
+"fb": 0.47,
+"ring": [
+1000,
+1100,
+1200,
+1550,
+2000
+],
+"chute_px": {},
+"per_px": 771.6,
+"name": "st arnaud"
+},
+"stawell": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1860,
+2000
+],
+"chute_px": {
+"1300": 0.069
+},
+"per_px": 419.7,
+"name": "stawell"
+},
+"stonycreek": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+1800
+],
+"chute_px": {},
+"per_px": 404.4,
+"name": "stony_creek"
+},
+"strathalbyn": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1200,
+1350,
+1600
+],
+"chute_px": {
+"2050": 0.077
+},
+"per_px": 693.7,
+"name": "strathalbyn"
+},
+"swanhill": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1150,
+1200,
+1250,
+1300,
+1550,
+1600,
+1650,
+2100
+],
+"chute_px": {},
+"per_px": 822.2,
+"name": "swan_hill"
+},
+"sunshinecoast": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1400,
+1600,
+1800,
+2400
+],
+"chute_px": {},
+"per_px": 375.9,
+"name": "sunshine_coast"
+},
+"tamworth": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600
+],
+"chute_px": {},
+"per_px": 837.1,
+"name": "tamworth"
+},
+"taree": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1200,
+1300,
+1400,
+1600
+],
+"chute_px": {
+"2000": 0.057
+},
+"per_px": 689.6,
+"name": "taree"
+},
+"tatura": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1150,
+1200,
+1400,
+1600
+],
+"chute_px": {
+"2000": 0.056
+},
+"per_px": 939.3,
+"name": "tatura"
+},
+"terang": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+1850
+],
+"chute_px": {},
+"per_px": 458.6,
+"name": "terang"
+},
+"toowoomba": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1300,
+1500,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 830.9,
+"name": "toowoomba"
+},
+"townsville": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1300,
+1400,
+1600,
+2000
+],
+"chute_px": {
+"2200": 0.049
+},
+"per_px": 751.3,
+"name": "townsville"
+},
+"traralgon": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1430
+],
+"chute_px": {
+"1900": 0.037
+},
+"per_px": 865.6,
+"name": "traralgon"
+},
+"tumut": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1400,
+1600
+],
+"chute_px": {
+"1200": 0.062
+},
+"per_px": 668.2,
+"name": "tumut"
+},
+"wagga": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 707.9,
+"name": "wagga"
+},
+"wangaratta": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1170,
+1300,
+1400,
+1600,
+2000
+],
+"chute_px": {},
+"per_px": 711.2,
+"name": "wangaratta"
+},
+"warracknabeal": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1500,
+1600,
+1800
+],
+"chute_px": {},
+"per_px": 409.3,
+"name": "warracknabeal"
+},
+"warrnambool": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1400,
+1600,
+1800,
+2000
+],
+"chute_px": {
+"1700": 0.048
+},
+"per_px": 875.5,
+"name": "warrnambool"
+},
+"warwickfarm": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+800,
+1000,
+1300,
+1400,
+1600,
+2100,
+2200,
+2400
+],
+"chute_px": {
+"1200": 0.141
+},
+"per_px": 461.1,
+"name": "warwick_farm"
+},
+"wellington": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+900,
+1000,
+1400,
+1600,
+2000
+],
+"chute_px": {
+"1100": 0.06
+},
+"per_px": 820.9,
+"name": "wellington"
+},
+"werribee": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1400,
+1600,
+2000,
+2200,
+2600
+],
+"chute_px": {},
+"per_px": 746.7,
+"name": "werribee"
+},
+"wodonga": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1100,
+1200,
+1300,
+1400,
+1600,
+2050
+],
+"chute_px": {},
+"per_px": 763.1,
+"name": "wodonga"
+},
+"wyong": {
+"dir": "cw",
+"fb": 0.5,
+"ring": [
+1000,
+1100,
+1200,
+1350,
+1600,
+2000,
+2100
+],
+"chute_px": {},
+"per_px": 623.0,
+"name": "wyong"
+},
+"yarravalley": {
+"dir": "ccw",
+"fb": 0.5,
+"ring": [
+1000,
+1200,
+1950
+],
+"chute_px": {},
+"per_px": 479.3,
+"name": "yarra valley"
+}
+}
