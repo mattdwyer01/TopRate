@@ -203,11 +203,12 @@ export function RaceDetail({
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
 
-      {hasAnyResult && <RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
+      {hasAnyResult && <div className="xl:hidden"><RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} /></div>}
 
-      {/* Runners, then race shape and ladder, each at full width: the speed map and trip map need the room. */}
-      <div className="flex flex-col gap-4">
-        <div className="flex min-w-0 flex-col gap-4">
+      {/* From xl: runners (left) beside a sticky column with the result, pace and ladder (right); the race shape stays full width underneath because the
+          speed map and trip map need the room. Below xl one column: result, runners, shape, ladder. */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+        <div className="flex min-w-0 flex-col gap-4 xl:order-1">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-ink">Runners{!hasAnyPrice && <span className="ml-2 text-xs font-normal text-ink-faint lg:hidden">Prices not out yet</span>}</h3>
@@ -282,7 +283,12 @@ export function RaceDetail({
         )}
 
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="order-3 flex min-w-0 flex-col gap-4 xl:sticky xl:top-28 xl:order-2 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
+          {hasAnyResult && <div className="hidden xl:block"><RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} /></div>}
+          <div className="hidden xl:block"><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
+          <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
+        </div>
+        <div className="order-2 flex min-w-0 flex-col gap-4 xl:order-3 xl:col-span-2">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-ink">Predicted race shape</h3>
@@ -301,7 +307,7 @@ export function RaceDetail({
               </Pill>
             </div>
           </div>
-          <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
+          <div className="xl:hidden"><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
           {speedMapView === 'trip' && tripRace && tripMap ? (
             <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} generated={tripMap.generated} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
           ) : speedMapView === 'bar' ? (
@@ -310,8 +316,6 @@ export function RaceDetail({
             <SpeedMapGrid race={race} runners={activeRunners} />
           )}
         </section>
-
-        <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
         </div>
       </div>
 
