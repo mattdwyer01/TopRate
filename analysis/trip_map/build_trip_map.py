@@ -68,6 +68,7 @@ def clean_name(s):
 
 # ---------------------------------------------------------------- results
 HK_VENUES = ('happy valley', 'sha tin')
+HK_RAIL = 'True'   # no rail position for Hong Kong in any feed: use the true rail, the usual setting (median of all Australian runs is 0m too), so width inputs are not blank
 
 
 def hk_runs():
@@ -79,7 +80,7 @@ def hk_runs():
         for r in json.load(gzip.open(f)).get('runs', {}).values():
             if str(r.get('track') or r.get('venue') or '').lower() in HK_VENUES and not r.get('isBarrierTrial'):
                 rows.append(dict(race_id=r.get('raceId'), horse_id=r.get('horse_id'), horse=r.get('horse'), date=r.get('date'), track=r.get('track') or r.get('venue'),
-                                 distance=r.get('distance'), going=r.get('going'), barrier=r.get('barrier'), field_size=r.get('starters'),
+                                 distance=r.get('distance'), going=r.get('going'), rail_position=HK_RAIL, barrier=r.get('barrier'), field_size=r.get('starters'),
                                  position800m=r.get('position800m'), margin800m=r.get('margin800m'), wpr=r.get('wpr'), isBarrierTrial=False, is_jumpout=False))
     return pd.DataFrame(rows)
 
@@ -322,6 +323,7 @@ def main():
     up['fs'] = up.groupby('race_id').run_id.transform('size')
     up['barfrac'] = (up.barrier - 1) / (up.fs - 1).clip(lower=1)
     up['rail_m'] = parse_rail(up.rail_position)
+    up.loc[up.track.str.lower().isin(HK_VENUES) & up.rail_m.isna(), 'rail_m'] = 0.0
     up['going_s'] = parse_going(up.going)
     up = up[(up.fs >= 5)]
     races = {}
