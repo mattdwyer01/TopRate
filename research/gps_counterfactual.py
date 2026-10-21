@@ -26,7 +26,8 @@ def gps_runs():
         r['rk'] = 'rc' + r.meet_code.astype(str) + '_' + r.race_no.astype(str)
         r['n'] = r.groupby('rk').horse.transform('count')
         r['venue_k'] = r.venue
-        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish']].assign(src='rc'))
+        r['race_no_'] = r.race_no; r['meet_'] = 'rc' + r.meet_code.astype(str)
+        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_']].assign(src='rc'))
     for f in sorted(glob.glob('data/gps/rq_gps_runs_20*.parquet')):
         r = pd.read_parquet(f); s = pd.read_parquet(f.replace('runs', 'sections'))
         r['date'] = pd.to_datetime(r.race_date).dt.tz_localize(None).dt.normalize()
@@ -40,10 +41,12 @@ def gps_runs():
         r['rk'] = 'rq' + r.race_code.astype(str)
         r['n'] = r.groupby('rk').horse.transform('count')
         r['venue_k'] = r.course
-        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish']].assign(src='rq'))
+        r['race_no_'] = r.race_no; r['meet_'] = 'rq' + r.meeting_code.astype(str)
+        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_']].assign(src='rq'))
     g = pd.concat(out, ignore_index=True)
     g['hn'] = norm(g.horse)
     g = g.drop_duplicates(['date', 'hn'], keep='last')
+    g['finish'] = g.finish.where((g.finish >= 1) & (g.finish <= g.n))   # 9% of runs carry a placeholder (2147483647) or a value beyond the field: not a finishing position
     g['gl'] = g.dist_vs_winner_m
     g['es_rel'] = g.early_speed - g.groupby('rk').early_speed.transform('mean')
     g['rail_rel'] = g.rail - g.groupby('rk').rail.transform('mean')
