@@ -1,0 +1,53 @@
+name: racing.com GPS live probe
+
+# Manual. Polls one meeting through the day and logs when racing.com GPS (split times, distance run, ground lost)
+# first appears after each race, to test whether it is live ~15-20 min after the race or days later.
+# Dispatch before the first race. Output: the job log and the rc_gps_live_probe artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      venue:
+        description: "Venue"
+        default: "Mornington"
+      date:
+        description: "Meeting date (Melbourne) YYYY-MM-DD"
+        default: "2026-10-22"
+      until:
+        description: "Stop at this UTC time HH:MM"
+        default: "09:30"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: toprate
+          fetch-depth: 1
+          sparse-checkout: research/rc_gps_live_probe.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/checkout@v4
+        with:
+          repository: mattdwyer01/racing-model
+          path: rm
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas pyarrow requests
+      - name: Poll
+        working-directory: toprate
+        run: python research/rc_gps_live_probe.py --rm ../rm --venue "${{ inputs.venue }}" --date "${{ inputs.date }}" --until "${{ inputs.until }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rc_gps_live_probe
+          path: toprate/rc_gps_live_probe.json
