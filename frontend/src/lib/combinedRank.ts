@@ -1,7 +1,7 @@
 import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 
-// Combined rank. Score = weighted mean of within-race z-scores of Proj (0.65), Nett (0.25) and Spd (0.10), over the signals the runner has; the
+// Combined rank. Score = weighted mean of within-race z-scores of Proj (0.50), Nett (0.30) and Spd (0.20; 22 Oct 2026, owner's call after research/rank_refit_ctx.py, was 0.65 / 0.25 / 0.10), over the signals the runner has; the
 // rank orders the scores (ties share the best place). A runner needs at least two of the three. L3 was removed from the dashboard (20 Oct 2026): Proj is built from the same runs and a fitted blend gave L3 a weight of -0.01 (19 Oct 2026, `research/rank_weights.py`, 4,107 races,
 // cross-fitted by date: fitted blend top pick wins 28.1% / log-lik -1.9030 vs 27.0% / -1.9184 for Proj alone and 25.8% for the old equal-weight
 // rank mean). Older note on the equal-weight version:
@@ -18,9 +18,9 @@ export interface CombinedRank {
 }
 
 const MIN_SIGNALS = 2
-const W_SPD = 0.1
-const W_NETT = 0.25
-const W_PROJ = 0.65
+const W_SPD = 0.2
+const W_NETT = 0.3
+const W_PROJ = 0.5
 
 function zscores(values: Map<string, number>): Map<string, number> {
   const v = [...values.values()]

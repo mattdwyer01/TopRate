@@ -137,14 +137,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the Proj estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted blend Proj 65 / Nett 25 / Spd 10, put on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the Proj estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted blend Proj 50 / Nett 30 / Spd 20, put on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of Spd, Nett and Proj">&ndash;</span>
         ) : (
           <>
             <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.estimated ? 'italic text-ink-faint' : combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
-              {combo.estimated ? '~' : ''}{combo.rating != null ? Math.round(combo.rating) : combo.rank}
+              {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
               {combo.ranks.map((x, i) => (
