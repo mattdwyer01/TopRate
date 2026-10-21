@@ -98,6 +98,7 @@ export function HowWprWorksModal({ onClose }: HowWprWorksModalProps) {
             includes weight carried: the model's ratings are weight-free, so each kilo above the field average takes about 0.4
             WPR off, and each kilo below adds the same. That figure was measured on the model's own out-of-sample projections
             (measured on 4,551 out-of-sample races, 90% range 0.35 to 0.47).
+            Once three or more races at the meeting have run, Proj also carries a <span className="font-semibold text-ink">draw lean</span>: if the placegetters have come mostly from wide (or inside) barriers, wide runners are lifted and inside runners lowered (or the reverse), about 15 x lean x barrier position, usually under one WPR point and about 2 points between the widest and the inside barriers on a strongly leaning day. It shows as a small draw chip on the runner and in the Draw lean note above the table.
           </p>
         </Section>
 

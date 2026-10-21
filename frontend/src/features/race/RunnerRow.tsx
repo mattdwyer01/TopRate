@@ -83,7 +83,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           {showBias && hasRunnerBias(runner) && !f.scratched && (
             <span
               className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
-              title="Moved by the track bias read from earlier races at this meeting (already inside the WPR projection and SM)"
+              title="Moved by the track bias (draw lean) read from earlier races at this meeting (already inside Proj)"
             >
               <span className="lg:hidden">{runnerBias(runner) >= 0 ? '\u25B2' : '\u25BC'}{Math.abs(runnerBias(runner)).toFixed(1)}</span>
               <span className="hidden lg:inline">bias {fmtBias(runnerBias(runner))}</span>
