@@ -205,7 +205,7 @@ export function RaceDetail({
 
       {hasAnyResult && <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />}
 
-      {/* From xl: runners (left) beside a sticky column with the result, pace and ladder (right); the race shape stays full width underneath because the
+      {/* From xl: runners (left) beside a sticky column with the pace strip and ladder (right); the Result panel stays full width above; the race shape stays full width underneath because the
           speed map and trip map need the room. Below xl one column: result, runners, shape, ladder. */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
         <div className="flex min-w-0 flex-col gap-4 xl:order-1">
@@ -284,7 +284,6 @@ export function RaceDetail({
 
         </div>
         <div className="order-3 flex min-w-0 flex-col gap-4 xl:sticky xl:top-28 xl:order-2 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-          {hasAnyResult && <div className="hidden xl:block"><RaceResult race={race} combo={comboByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} /></div>}
           <div className="hidden xl:block"><PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} /></div>
           <RaceLadder ranked={ranked} coreGap={CORE_GAP_FROM_TOP} innerGap={INNER_GAP_FROM_TOP} outerGap={OUTER_GAP_FROM_TOP} onSelect={setSelectedRunId} />
         </div>
