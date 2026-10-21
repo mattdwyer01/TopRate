@@ -3,8 +3,9 @@ import type { EffectiveRunner } from './raceModel'
 import { speedRatingOnScale } from './speed'
 
 // Combined rank. Score = weighted mean of the raw Proj (0.50), Nett (0.30) and Spd (0.20) figures on the Proj scale (22 Oct 2026, owner's call: raw 50 / 30 / 20 after the z-score comparison below), over the signals
-// the runner has; the rank orders the scores (ties share the best place). A runner needs at least two of the three. Spd is its rating put on the Nett / Proj scale (`speedRatingOnScale`). Each signal is shifted
-// so its field mean equals the field mean of Proj before blending, so a runner missing a signal is not lifted or dropped by the signals' different levels (the backtest was complete-case, where the shift changes nothing).
+// the runner has; the rank orders the scores (ties share the best place). A runner needs at least two of the three. Spd is its rating put on the Nett / Proj scale (`speedRatingOnScale`). The Rating is exactly the weighted average of the
+// figures shown (22 Oct 2026, owner's call): an earlier version shifted Nett and Spd to the field mean of Proj first, which cannot change the order when all three are present (a constant per race)
+// and only made the number harder to check by eye (Happy Smile 83.1 vs 83.9 from its tiles). A runner missing a signal renormalises the weights over the ones it has, so it can sit a point or so off level in a field where the signals' means differ.
 // Basis (`research/z_vs_raw.py`, 4,530 races 4 Jul to 17 Oct 2026, Proj / Nett / Spd all present, clean books, softmax sharpness cross-fitted by date halves): winner log-lik z-score blend 50/30/20 -1.9108 vs raw
 // 50/30/20 -1.8905 (paired +0.0204, se 0.0036; raw keeps how spread out the race is, a z-score throws it away); the old Rating (z blend x field Proj spread) -1.8963. A free raw fit gives Proj 0.68 / Nett 0.20 / Spd 0.12
 // (90% interval 0.63-0.73 / 0.16-0.24 / 0.09-0.15, log-lik -1.8855); 50/30/20 was kept by the owner. Within 2 / 4 points of the top the raw 50/30/20 holds 2.36 / 4.14 runners and 52% / 72% of winners (Proj alone 2.12 / 3.59
@@ -23,11 +24,6 @@ const MIN_SIGNALS = 2
 const W_SPD = 0.2
 const W_NETT = 0.3
 const W_PROJ = 0.5
-
-const meanOf = (m: Map<string, number>) => {
-  const v = [...m.values()]
-  return v.length ? v.reduce((a, x) => a + x, 0) / v.length : null
-}
 
 function rankDesc(values: Map<string, number>): Map<string, number> {
   const all = [...values.values()]
@@ -56,14 +52,6 @@ export function computeCombinedRank(
   const rs = rankDesc(speed)
   const rn = rankDesc(nett)
   const rp = rankDesc(proj)
-  // every signal is shifted so its field mean equals the field mean of Proj (Nett's if the race has no Proj)
-  const level = meanOf(proj) ?? meanOf(nett)
-  const shift = (m: Map<string, number>) => {
-    const mm = meanOf(m)
-    return level != null && mm != null ? level - mm : 0
-  }
-  const sSpd = shift(speed)
-  const sNett = shift(nett)
   const scores = new Map<string, { rating: number; ranks: CombinedRank['ranks'] }>()
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
@@ -74,8 +62,8 @@ export function computeCombinedRank(
     const sp = speed.get(r.runId)
     const ne = nett.get(r.runId)
     const pr = proj.get(r.runId)
-    if (sp != null) { num += W_SPD * (sp + sSpd); den += W_SPD; n++ }
-    if (ne != null) { num += W_NETT * (ne + sNett); den += W_NETT; n++ }
+    if (sp != null) { num += W_SPD * sp; den += W_SPD; n++ }
+    if (ne != null) { num += W_NETT * ne; den += W_NETT; n++ }
     if (pr != null) { num += W_PROJ * pr; den += W_PROJ; n++ }
     if (n < MIN_SIGNALS) continue
     scores.set(r.runId, { rating: num / den, ranks })
