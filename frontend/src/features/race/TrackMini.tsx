@@ -31,8 +31,9 @@ export function TrackMini({ race }: { race: Race }) {
     const fin = rot(outline.fin, th)
     const st = start ? rot(start, th) : null
     const chute = outline.chutes?.[key] ? ([rot(outline.chutes[key][0], th), rot(outline.chutes[key][1], th)] as [[number, number], [number, number]]) : null
-    const xs = [...R.map((p) => p[0]), ...(chute ? [chute[1][0]] : [])]
-    const ys = [...R.map((p) => p[1]), ...(chute ? [chute[1][1]] : [])]
+    const allChutes = Object.values(outline.chutes ?? {}).map((c) => [rot(c[0], th), rot(c[1], th)] as [[number, number], [number, number]])
+    const xs = [...R.map((p) => p[0]), ...allChutes.map((c) => c[1][0])]
+    const ys = [...R.map((p) => p[1]), ...allChutes.map((c) => c[1][1])]
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     const minY = Math.min(...ys)
@@ -60,6 +61,7 @@ export function TrackMini({ race }: { race: Race }) {
     const step = (outline.dir === 'ccw') === ccwOrder ? 1 : -1
     const fi = idx(fin)
     let route = ''
+    let line: [number, number][] = []
     if (st) {
       let i = idx(st)
       const pts: [number, number][] = []
@@ -71,17 +73,35 @@ export function TrackMini({ race }: { race: Race }) {
         i = (i + step + n0) % n0
       }
       pts.push(ring[fi])
+      line = pts
       route = pts.map(([x, y], j) => `${j ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('')
     }
+    // direction arrows: along the run when there is one, otherwise three round the circuit
+    if (!line.length) {
+      for (let k = 0; k <= n0; k++) line.push(ring[(((fi + k * step) % n0) + n0) % n0])
+    }
+    const arrows: { x: number; y: number; a: number }[] = []
+    const count = route ? Math.max(1, Math.min(4, Math.round(line.length / 18))) : 3
+    for (let k = 0; k < count; k++) {
+      const j = Math.floor(((k + 0.5) / count) * (line.length - 1))
+      const p0 = line[Math.max(j - 1, 0)]
+      const p1 = line[Math.min(j + 1, line.length - 1)]
+      arrows.push({ x: line[j][0], y: line[j][1], a: (Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180) / Math.PI })
+    }
+    const chutesDrawn = allChutes.map((c) => `M${P(c[0])[0].toFixed(1)} ${P(c[0])[1].toFixed(1)}L${P(c[1])[0].toFixed(1)} ${P(c[1])[1].toFixed(1)}`).join('')
     const d = ring.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('') + 'Z'
-    return { d, route, start: st ? (chute ? P(chute[1]) : P(st)) : null, fin: P(fin) }
+    return { d, chutesDrawn, arrows, hasRoute: !!route, route, start: st ? (chute ? P(chute[1]) : P(st)) : null, fin: P(fin) }
   }, [outline, race.distance])
   if (!g) return null
   return (
     <div className="flex-none" title={`${race.venue}: ${race.distance}m from the start to the post. Track outline: Map data © OpenStreetMap contributors`}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${race.venue} course outline`} className="h-auto w-[150px]">
         <path d={g.d} fill="none" stroke="var(--color-line)" strokeWidth={5} strokeLinejoin="round" />
+        {g.chutesDrawn && <path d={g.chutesDrawn} fill="none" stroke="var(--color-line)" strokeWidth={3} strokeLinecap="butt" />}
         {g.route && <path d={g.route} fill="none" stroke="#2563eb" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />}
+        {g.arrows.map((a, i) => (
+          <path key={i} d="M-2.6 -2.4L2.2 0L-2.6 2.4Z" transform={`translate(${a.x.toFixed(1)} ${a.y.toFixed(1)}) rotate(${a.a.toFixed(0)})`} fill={g.hasRoute ? '#fff' : 'var(--color-ink-faint)'} stroke={g.hasRoute ? '#1d4ed8' : 'none'} strokeWidth={0.8} strokeLinejoin="round" />
+        ))}
         {g.start && <circle cx={g.start[0]} cy={g.start[1]} r={3.4} fill="#a3e635" stroke="var(--color-ink)" strokeWidth={1} />}
         <circle cx={g.fin[0]} cy={g.fin[1]} r={3.4} fill="var(--color-ink)" stroke="white" strokeWidth={1} />
       </svg>
