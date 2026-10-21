@@ -63,6 +63,11 @@ def race(g):
         if j == 2:
             r["h3"] = pr3
     r["h4"] = pr3
+    r["race"] = g.race_id.iloc[0]
+    r["s5_n10"] = int((sp[spd_o[:5]] > 10).sum())
+    r["s6_n10"] = int((sp[spd_o[:6]] > 10).sum())
+    r["s5_n8"] = int((sp[spd_o[:5]] > 8).sum())
+    r["s5_n15"] = int((sp[spd_o[:5]] > 15).sum())
     r["s5_out"] = len(set(spd_o[:5]) - set(mkt_o[:5]))
     r["s6_out"] = len(set(spd_o[:6]) - set(mkt_o[:6]))
     r["s5_avgsp"] = float(np.mean(sp[spd_o[:5]]))
