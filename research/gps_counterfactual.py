@@ -36,7 +36,7 @@ def gps_runs():
         rl = s.groupby(key).rail_m.mean().rename('rail').reset_index()
         e = s[s.cum_dist_m <= 400]
         early = e.groupby(key).agg(early_speed=('avg_speed_ms', 'mean'), early_pos=('rank', 'last')).reset_index()
-        dist = s.groupby('race_code').real_dist_m.max().rename('dist').reset_index()
+        dist = (s.groupby('race_code').cum_dist_m.max() / 100).round().mul(100).rename('dist').reset_index()   # real_dist_m is a per-section figure, not the race distance
         r = r.merge(rl, on=key, how='left').merge(early, on=key, how='left').merge(dist, on='race_code', how='left')
         r['rk'] = 'rq' + r.race_code.astype(str)
         r['n'] = r.groupby('rk').horse.transform('count')
