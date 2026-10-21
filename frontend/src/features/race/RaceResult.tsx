@@ -113,27 +113,40 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           const m = marginText(r)
           return (
             <li key={r.runId} className="flex flex-1">
-              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-1 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
-                <Silk runner={r} w={22} h={26} />
+              <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-2 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
+                <Silk runner={r} w={30} h={36} />
                 <PosPill pos={r.finishPosition} small />
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  <span className={`text-ink ${win ? 'font-bold' : 'font-semibold'}`}>
-                    {r.tabNumber}. {r.horse}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px]">
+                    <span className={`text-ink ${win ? 'font-bold' : 'font-semibold'}`}>
+                      {r.tabNumber}. {r.horse}
+                    </span>
+                    {r.barrier != null && <span className="ml-1.5 text-[12px] text-ink-mute">(B{r.barrier})</span>}
                   </span>
-                  {r.barrier != null && <span className="ml-1 text-[11px] text-ink-mute">(B{r.barrier})</span>}
-                  <span className="ml-2 text-[12px] text-ink-mute">
+                  <span className="block truncate text-[12px] text-ink-mute">
                     {r.jockey} / {r.trainer}
                     {m ? ` · ${m}` : ''}
                   </span>
                 </span>
-                <span className="hidden w-44 shrink-0 text-[12px] text-ink-mute 2xl:block">
-                  Spd <b className="font-semibold text-ink-soft">{r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'}</b> · Nett <b className="font-semibold text-ink-soft">{fmtInt(r.nett)}</b> · Proj{' '}
-                  <b className="font-semibold text-ink-soft">{fmtInt(proj)}</b>
+                <span className="hidden shrink-0 gap-3 text-center xl:flex">
+                  {[
+                    ['Spd', r.speedRating != null ? fmtInt(speedOnWprScale(r.speedRating)) : '–'],
+                    ['Nett', fmtInt(r.nett)],
+                    ['Proj', fmtInt(proj)],
+                  ].map(([label, val]) => (
+                    <span key={label} className="w-9">
+                      <span className="block text-[10px] uppercase tracking-wide text-ink-faint">{label}</span>
+                      <span className="block font-mono text-[13px] font-semibold text-ink-soft">{val}</span>
+                    </span>
+                  ))}
                 </span>
                 <span className="w-16 shrink-0 text-center">
                   {c ? <span className={`rounded-full border px-1.5 py-px text-[11px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
                 </span>
-                <span className="w-16 shrink-0 text-right font-mono text-sm font-semibold text-ink">{priceCell(r)}</span>
+                <span className="w-16 shrink-0 text-right">
+                  <span className="block text-[10px] uppercase tracking-wide text-ink-faint">Win</span>
+                  <span className="block font-mono text-[15px] font-semibold text-ink">{priceCell(r)}</span>
+                </span>
               </button>
             </li>
           )
