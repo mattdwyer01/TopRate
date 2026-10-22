@@ -17,6 +17,7 @@ import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
+import { AerialTrip } from './AerialTrip'
 import { PaceStrip } from './PaceStrip'
 import { ReplayCard } from './ReplayCard'
 import { useMinWidth } from '../../hooks/useMinWidth'
@@ -312,6 +313,7 @@ export function RaceDetail({
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
+          <AerialTrip race={race} />
         </div>
       </div>
 
