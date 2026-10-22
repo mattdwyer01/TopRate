@@ -234,6 +234,15 @@ def download(since: str, until: str | None = None, tracks: list[str] | None = No
 
 # ---------------------------------------------------------------- parse
 
+def _peek(f: Path, n: int = 8) -> str:
+    """First lines of the first page, to see what a PDF the parser could not read looks like."""
+    try:
+        with pdfplumber.open(f) as pdf:
+            return " | ".join(((pdf.pages[0].extract_text() or "").splitlines()[:n])) or f"(no text, {len(pdf.pages)} pages)"
+    except Exception as e:
+        return f"({type(e).__name__}: {e})"
+
+
 def parse_all(out: Path = OUT_DIR) -> None:
     files = sorted(PDF_DIR.glob("*.pdf"))
     runs, secs, problems = [], [], []
@@ -249,7 +258,7 @@ def parse_all(out: Path = OUT_DIR) -> None:
                 problems.append(f"{f.name}: {type(e).__name__}: {e}")
                 continue
             if r.empty:
-                problems.append(f"{f.name}: no runs")
+                problems.append(f"{f.name}: no runs, first lines: {_peek(f)}")
                 continue
             bad = check(r, s)
             problems += [f"{f.name}: {b}" for b in bad]
