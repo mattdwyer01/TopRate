@@ -132,7 +132,10 @@ def build_bank(im):
     return bank
 
 
-def read_frame(im, y0, bank, maxn=16):
+def read_frame(im, y0, bank, maxn=16, field=None, thr=0.40):
+    """Dots of one frame with their saddle numbers. With `field` (the race's horse numbers) only those numbers can be
+    assigned (one dot each, Hungarian) and a dot whose best score is under `thr` is left unlabelled (num None) rather than
+    forced onto a wrong number; without it numbers 1..maxn are used as before."""
     fr = im[y0:y0 + FRAME_H]
     dots = find_dots(dot_mask(fr))
     rows = []
@@ -145,13 +148,42 @@ def read_frame(im, y0, bank, maxn=16):
             ds = [int(c) for c in str(n)]
             sc[n] = float(np.mean([p[d] for p, d in zip(per, ds)])) if len(ds) == len(per) and per else 0.0
         rows.append((y, x, s, sc))
-    nums = list(range(1, maxn + 1))
+    if not rows:
+        return []
+    nums = sorted(field) if field else list(range(1, maxn + 1))
     M = np.array([[r[3][n] for n in nums] for r in rows])
     ri, ci = linear_sum_assignment(-M)
     out = []
     for i, j in zip(ri, ci):
-        out.append(dict(num=nums[j], x=int(rows[i][1]), y=int(rows[i][0] + y0), vis=round(rows[i][2], 2), iou=round(float(M[i, j]), 2)))
-    return sorted(out, key=lambda d: d['num'])
+        num = nums[j] if (not field or M[i, j] >= thr) else None
+        out.append(dict(num=num, x=int(rows[i][1]), y=int(rows[i][0] + y0), vis=round(rows[i][2], 2), iou=round(float(M[i, j]), 2)))
+    return sorted(out, key=lambda d: (d['num'] is None, d['num'] or 0, d['x']))
+
+
+def relabel_finish(dots, placings, sep=45):
+    """Finish frame: the frame is cut at the line, so dots sorted by distance from the winner are the placings in order.
+    `placings` = horse numbers in finish order. Dots at least `sep` px from every neighbour (order unambiguous) take the
+    placing label, which overrides the digit reader; returns how many labels changed. The direction (winner at left or
+    right) is chosen by whichever gives the smaller disagreement with the reader."""
+    if len(dots) < 3 or len(placings) < 3:
+        return 0
+    best = None
+    for rev in (False, True):
+        ds = sorted(dots, key=lambda d: d['x'], reverse=rev)
+        k = min(len(ds), len(placings))
+        agree = sum(1 for d, n in zip(ds[:k], placings[:k]) if d['num'] == n)
+        if best is None or agree > best[0]:
+            best = (agree, ds[:k], placings[:k])
+    agree, ds, pl = best
+    if agree < max(3, len(ds) // 2):
+        return 0        # reader and finish order disagree broadly: do not trust either direction
+    xs = [d['x'] for d in dots]
+    changed = 0
+    for d, n in zip(ds, pl):
+        if min([abs(d['x'] - x) for x in xs if x != d['x']] or [99]) >= sep and d['num'] != n:
+            d['num'] = n
+            changed += 1
+    return changed
 
 
 # metres per pixel at 2.4 m a length, from the official lengths-behind fit over 95 races of 2026-27 (research/hk_aerial_scale_check.py):
