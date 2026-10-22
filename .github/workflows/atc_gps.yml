@@ -22,7 +22,7 @@ on:
         description: "End date YYYY-MM-DD (blank = today)"
         default: ""
       tracks:
-        description: "Track codes, space separated (blank = RAND ROSE CANT WARW). Use it to probe other codes."
+        description: "Track codes, space separated (blank = RAND RHIL CANT WARW). Use it to probe other codes."
         default: ""
 
 permissions:
