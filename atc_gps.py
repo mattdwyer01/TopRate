@@ -393,7 +393,9 @@ def parse_all(out: Path = OUT_DIR) -> None:
                 problems.append(f"{f.name}: no runs, first lines: {_peek(f)}")
                 continue
             bad = check(r, s)
-            problems += [f"{f.name}: {b}" for b in bad]
+            if bad:
+                problems.append(f"{f.name}: {len(bad)} check failures, first lines: {_peek(f, 16)}")
+            problems += [f"{f.name}: {b}" for b in bad[:5]]
             if bad and NOTES:
                 problems += [f"{f.name}: note {n}" for n in NOTES[:6]]
             NOTES.clear()
