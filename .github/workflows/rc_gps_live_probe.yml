@@ -43,6 +43,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pandas pyarrow requests
+      - run: mkdir -p rm/data/raw/racingcom
       - name: Poll
         working-directory: toprate
         run: python research/rc_gps_live_probe.py --rm ../rm --venue "${{ inputs.venue }}" --date "${{ inputs.date }}" --until "${{ inputs.until }}"
