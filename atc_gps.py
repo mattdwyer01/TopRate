@@ -60,7 +60,7 @@ def _margin(s: str | None) -> float | None:
 
 
 def _header(text: str) -> dict:
-    L = [l.strip() for l in text.splitlines() if l.strip()]
+    L = _lines(text)
     venue = re.sub(r"\s*-\s*$", "", L[0])
     m = re.match(r"Race (\d+): (.*) - (\d+)m$", L[1])
     race_no, name, dist = int(m.group(1)), m.group(2).strip(), int(m.group(3))
@@ -116,8 +116,17 @@ ROWO2 = re.compile(rf"^(.+?)(?: (\d+m) (\d+m))?((?: \((?:{T}|{NA})\))*)\s*$")
 ENT = re.compile(rf"({T}|{NA})(?: \[([\d-]+)\])?")
 
 
-def _header_old(text: str) -> dict:
+def _lines(text: str) -> list[str]:
+    """Non-empty lines; a race title that wrapped onto two lines ('... HANDICAP -' then '1250m') is joined."""
     L = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(L) > 2 and L[1].endswith("-") and re.fullmatch(r"\d+m", L[2]):
+        L[1] = L[1] + " " + L[2]
+        del L[2]
+    return L
+
+
+def _header_old(text: str) -> dict:
+    L = _lines(text)
     venue = re.sub(r"\s*(-|Professional)\s*$", "", L[0]).strip()
     m = re.match(r"Race (\d+): (.*) - (\d+)m$", L[1])
     race_no, name, dist = int(m.group(1)), m.group(2).strip(), int(m.group(3))
@@ -141,23 +150,26 @@ def _parse_page_old(text: str, h: dict) -> list[dict]:
                 NOTES.append(f"race {h['race_no']}: rank 1 line not read {l.strip()[:160]!r}")
             continue
         rank, tab, horse, bar, rest = m1.groups()
-        if not re.match(rf"(\d+\.\d |Data was|{T}|{NA})", rest):
+        if not re.match(rf"(\d+\.\d |-+\.- |Data was|{T}|{NA})", rest):
             NOTES.append(f"race {h['race_no']}: skipped {l.strip()[:160]!r}")
             continue   # a name or other line that only looks like a row
         no_gps = rest.startswith("Data was")
         rest = rest.replace("Data was not able to be ", "")
-        top = None
-        mt = re.match(r"(\d+\.\d) ", rest)
+        top, has_top = None, False
+        mt = re.match(r"(\d+\.\d|-+\.-) ", rest)   # '--.-' when the horse has no tracking but a time
         if mt:
-            top, rest = float(mt.group(1)), rest[mt.end():]
+            has_top = True
+            top = float(mt.group(1)) if mt.group(1)[0].isdigit() else None
+            rest = rest[mt.end():]
         dist_m = re.search(r"(\d{3,4}\.\d|-+\.-)\s*$", rest)
         travelled = float(dist_m.group(1)) if dist_m and not dist_m.group(1).startswith("-") else None
         ent = ENT.findall(rest[:dist_m.start()] if dist_m else rest)
-        off = 1 if top is not None else 0
+        off = 1 if has_top else 0
         if len(ent) < off + k:
             raise ValueError(f"race {h['race_no']}: {len(ent)} time entries for {k} posts in {l!r}")
-        fastest = _t(ent[0][0]) if off else None
+        fastest = _t(ent[0][0]) if off and top is not None else None
         posts = ent[off:off + k]
+        no_gps = no_gps or all(_t(c) is None for c, _ in posts)   # a time but no tracking
         tail = ent[off + k:]
         official = _t(tail[0][0]) if tail else None
         last600 = _t(tail[1][0]) if len(tail) > 1 else None
