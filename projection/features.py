@@ -94,7 +94,7 @@ def runner_page_runs():
             for r in json.load(fh).get('runs', {}).values():
                 if r.get('isBarrierTrial') or r.get('isJumpout') or r.get('wpr') is None:
                     continue
-                rows.append(dict(horse_id=r['horse_id'], date=r['date'], wpr=r['wpr'], track=r.get('track'), venue=r.get('venue'), distance=r.get('distance'), going=r.get('going'),
+                rows.append(dict(horse_id=r['horse_id'], horse=r.get('horse'), date=r['date'], wpr=r['wpr'], track=r.get('track'), venue=r.get('venue'), distance=r.get('distance'), going=r.get('going'),
                                  weightCarried=r.get('weightCarried'), barrier=r.get('barrier'), field_size=r.get('starters'), race_class=r.get('class'),
                                  trackGrading=r.get('trackGrading'), jockey=r.get('jockey'), positionFinish=r.get('positionFinish'),
                                  marginFinish=r.get('marginFinish'), priceStarting=r.get('priceStarting'), position800m=r.get('position800m'),

@@ -7,6 +7,7 @@ of the last four ratings, and the jockey's effect as of the day (shrunk mean for
 `predict(T)` is the live path: T has one row per runner to project; history is the runner-page store strictly before each row's date."""
 import json
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,8 @@ CAR_NAMES = ['c_mean', 'c_max', 'c_sd', 'c_ewm3', 'c_near', 'c_vs_f', 'cmax_vs_f
 SIM_NAMES = ['sim_dist', 'sim_going', 'sim_track', 'sim_jock', 'sim_class', 'sim_days', 'sim_all']
 OWN_NAMES = ['h_dist', 'h_dist_n', 'h_going', 'h_going_n', 'h_track', 'h_track_n', 'h_spell', 'h_spell_n', 'h_jock', 'h_jock_n']
 REL_FEATS = LAG_NAMES + CAR_NAMES + SIM_NAMES + OWN_NAMES
+SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
+SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
 
 def going_num(s):
@@ -52,6 +55,59 @@ def class_code(s):
     m = low.str.extract(r'^restricted (\d+)$')[0]
     out = out.where(m.isna(), 'RST' + m.fillna(''))
     return out
+
+
+def add_speed(rp, first_year=2019):
+    """Adds column sp (the run's own speed figure, lengths vs par, from speed_rating.figure_table) to a page frame that has horse (name) and date. NaN where there is no figure."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import speed_rating as SR
+    ft = SR.figure_table(first_year)
+    k = rp.horse.astype(str).str.lower().str.strip()
+    m = pd.DataFrame({'key': k.values, 'date': pd.to_datetime(rp.date).dt.normalize().values}).merge(ft, on=['key', 'date'], how='left')
+    rp = rp.copy()
+    rp['sp'] = m['sp'].values
+    return rp
+
+
+def speed_features(T, rp):
+    """The speed block for rows to project (or the page runs themselves for training): the horse's earlier speed figures (rp column sp) on their own and against the ratings of the same
+    runs, history strictly before the row's date. T needs horse_id, date, f; rp needs horse_id, date, wpr, sp."""
+    byh = {h: (x.date.values.astype('datetime64[D]').astype('int64'), x.sp.values.astype(float), x.wpr.values.astype(float)) for h, x in rp.groupby('horse_id')}
+    n = len(T)
+    out = np.full((n, len(SPD_FEATS)), np.nan)
+    col = {c: i for i, c in enumerate(SPD_FEATS)}
+    hid = pd.to_numeric(T.horse_id, errors='coerce').values
+    dts = pd.to_datetime(T.date).values.astype('datetime64[D]').astype('int64')
+    f = T.f.values.astype(float)
+    for i in range(n):
+        h = hid[i]
+        a = None if np.isnan(h) else byh.get(h)
+        if a is None or np.isnan(f[i]):
+            continue
+        j = int(np.searchsorted(a[0], dts[i], side='left'))
+        if j == 0:
+            continue
+        sp, w = a[1][:j][::-1], a[2][:j][::-1]
+        have = ~np.isnan(sp)
+        out[i, col['n_sp']] = float(have.sum())
+        if not have.any():
+            continue
+        v = sp[have]
+        for k in range(min(4, len(sp))):
+            out[i, col[f'sp{k + 1}']] = sp[k]
+            out[i, col[f'sd{k + 1}']] = (SPD_A + SPD_B * sp[k]) - w[k] if not np.isnan(sp[k]) else np.nan
+        ew = 0.5 ** (np.arange(len(v)) / 4.0)
+        e = (v * ew).sum() / ew.sum()
+        out[i, col['sp_ewm4']] = e
+        out[i, col['sp_max4']] = v[:4].max()
+        out[i, col['sp_std4']] = v[:4].std() if len(v[:4]) > 1 else np.nan
+        out[i, col['spd_vs_f']] = (SPD_A + SPD_B * e) - f[i]
+        dd = ((SPD_A + SPD_B * sp) - w)[:4]
+        dd = dd[~np.isnan(dd)]
+        out[i, col['sd_mean4']] = dd.mean() if len(dd) else np.nan
+    return pd.DataFrame(out, columns=SPD_FEATS, index=T.index)
 
 
 def venue_key(s):
@@ -313,5 +369,7 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
         if use.any():
             Xr = X.loc[use].copy()
             Xr = pd.concat([Xr, rel_features(Xr, rp)], axis=1)
+            if any(c in meta['rel_feats'] for c in SPD_FEATS):
+                Xr = pd.concat([Xr, speed_features(Xr, rp)], axis=1)
             corr[use] = rel_booster.predict(Xr[meta['rel_feats']])
     return X.f.values, corr
