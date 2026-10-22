@@ -371,7 +371,15 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             exm = lev.groupby(R.race_id).transform('mean')
             exn = lev.groupby(R.race_id).transform('count')
             lpm = lpx.groupby(R.race_id).transform('mean')
-            ok = (~has) & lpx.notna() & (exn >= db['min_experienced']) & exm.notna()
+            # too few 3+-run runners (Gosford 22 Oct R4: 2 of 8): take the level from every runner with a projection instead, if there are at least 2
+            lev_all = R.proj.where(has)
+            exm_all = lev_all.groupby(R.race_id).transform('mean')
+            exn_all = lev_all.groupby(R.race_id).transform('count')
+            thin = exn < db['min_experienced']
+            exm = exm.where(~thin, exm_all)
+            exn = exn.where(~thin, exn_all)
+            need = pd.Series(np.where(thin, 2, db['min_experienced']), index=R.index)
+            ok = (~has) & lpx.notna() & (exn >= need) & exm.notna()
             R.loc[ok, 'proj'] = exm[ok] + db['a'] + db['b'] * (lpx[ok] - lpm[ok])
             R.loc[ok, 'p0'] = R.loc[ok, 'proj']
             R.loc[ok, 'sd'] = db['sd']
