@@ -132,7 +132,7 @@ def _header_old(text: str) -> dict:
     venue = re.sub(r"\s*(-|Professional)\s*$", "", L[0]).strip()
     m = re.match(r"Race (\d+): (.*) - (\d+)m$", L[1])
     race_no, name, dist = int(m.group(1)), m.group(2).strip(), int(m.group(3))
-    md = re.match(r"(\d{1,2} \w+ \d{4}) - (\d{1,2}:\d{2})", L[2])
+    md = re.match(r"(\d{1,2} \w+ \d{4}) - (\d{1,2}:\d{2}(?:[AP]M)?)", L[2])
     date = dt.datetime.strptime(md.group(1), "%d %B %Y").date()
     m = re.search(r"Track Rating: (.*?), Weather: (.*?), Rail Position: (.*)$", L[3])
     going, weather, rail = (x.strip() for x in m.groups()) if m else (None, None, None)
@@ -140,7 +140,7 @@ def _header_old(text: str) -> dict:
     nums = [x for x in posts if x]
     if (len(nums) >= 2 and nums[0] < nums[1]) or (len(nums) == 1 and nums[0] > dist * 0.6 and posts[-1] == 0):   # 2025 PDFs: '100m 300m 500m ...' is distance RUN from the start, not to go
         posts = [dist - x if x else 0 for x in posts]
-    has_official = any("Official" in l for l in L if l.startswith("Field Times"))
+    has_official = any("Official" in l for l in L if l.startswith(("Field Times", "Distance To Go")))
     return dict(venue=venue, race_no=race_no, race_name=name, distance=dist, race_date=date, start_time=md.group(2),
                 going=going, weather=weather, rail=rail, scratched="", cols=posts, has_official=has_official)
 
@@ -238,7 +238,8 @@ def _ingest_page(text: str, races: dict) -> None:
         if row["tab_no"] in r["rows"]:
             prev = r["rows"][row["tab_no"]]
             if row.get("_old"):   # later page of a long race: more posts, and the finish columns
-                prev["_posts"] += row["_posts"]
+                have = {x[0] for x in prev["_posts"]}
+                prev["_posts"] += [x for x in row["_posts"] if x[0] not in have]   # a repeated page must not double the posts
                 for key in ("time_s", "last600_s", "dist_travelled_m", "top_speed_kmh", "fastest_section_s"):
                     if prev.get(key) is None:
                         prev[key] = row.get(key)
