@@ -13,6 +13,7 @@ pg = rp[rp.f.notna()].copy()
 cut, es = pd.Timestamp('2026-01-01'), pd.Timestamp('2025-10-01')
 F0, F1 = C.FEATS, C.FEATS + C.REL_FEATS
 P = dict(learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
+if os.environ.get('HUBER'): P.update(objective='huber', alpha=float(os.environ['HUBER']))   # live models: Huber alpha 4 since 22 Oct 2026
 def fit(feats, a, b):
     return lgb.LGBMRegressor(n_estimators=4000, **P).fit(a[feats], a.resid, eval_set=[(b[feats], b.resid)], callbacks=[lgb.early_stopping(100, verbose=False)])
 sp = lambda d_: (d_[d_.date < es], d_[(d_.date >= es) & (d_.date < cut)])
@@ -21,6 +22,8 @@ te = pg[pg.date >= cut].copy()
 te['pred'] = te.f + m0.predict(te[F0])
 r3 = te.n >= C.REL_MIN_RUNS
 te.loc[r3, 'pred'] = te.f[r3] + m1.predict(te.loc[r3, F1])
+te['miss'] = te.wpr - te.pred
+print(f"all held-out runs: mean miss {te.miss.mean():+.2f}, median miss {te.miss.median():+.2f}, RMSE {np.sqrt((te.miss**2).mean()):.3f}, within 3 {100*(te.miss.abs()<=3).mean():.1f}%, within 6 {100*(te.miss.abs()<=6).mean():.1f}%")
 te['rk'] = te.date.astype(str) + '|' + te.venue.astype(str) + '|' + te.distance.astype(str) + '|' + te.race_class.astype(str) + '|' + te.field_size.astype(str)
 g = te.groupby('rk'); te = te[g.pred.transform('size') >= 3].copy()
 te['dp'] = te.pred - te.groupby('rk').pred.transform('mean'); te['da'] = te.wpr - te.groupby('rk').wpr.transform('mean')

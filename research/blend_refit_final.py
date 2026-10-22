@@ -18,6 +18,7 @@ pg = rp[rp.f.notna()].copy()
 cut, es = pd.Timestamp('2026-01-01'), pd.Timestamp('2025-10-01')
 F0, F1 = C.FEATS, C.FEATS + C.REL_FEATS
 P = dict(learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
+if os.environ.get('HUBER'): P.update(objective='huber', alpha=float(os.environ['HUBER']))   # the live context models are Huber alpha 4 since 22 Oct 2026
 def fit(feats, a, b, **kw):
     return lgb.LGBMRegressor(n_estimators=4000, **{**P, **kw}).fit(a[feats], a.resid, eval_set=[(b[feats], b.resid)], callbacks=[lgb.early_stopping(100, verbose=False)])
 sp = lambda d_: (d_[d_.date < es], d_[(d_.date >= es) & (d_.date < cut)])
