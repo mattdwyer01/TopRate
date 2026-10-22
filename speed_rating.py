@@ -41,7 +41,7 @@ COLUMN = "spd_fig"
 WINDOW_DAYS = 28             # rows dated within this many days before today (and every later date) are (re)computed
 YEARS_BACK = 2               # results files read: this year and the previous ones
 USE = ["race_id", "date", "horse", "track", "distance", "going", "positionFinish", "marginFinish", "field_size", "weightCarried", "winners_time",
-       "isBarrierTrial", "race_class", "trackGrading"]
+       "isBarrierTrial", "race_class", "trackGrading", "jockey", "barrier"]
 CATS = ["track", "gname", "cls", "grading"]
 FEATS = ["distance", "gnum", "field_size", "doy", "mw"]
 
@@ -92,7 +92,8 @@ def load_form_runs(after, before_only_tracks=None):
     t["marginFinish"] = t["marginFinish"].where(t["marginFinish"].notna() | (t["positionFinish"] != 1), 0.0)
     d = pd.DataFrame({"race_id": t["raceId"], "date": t["date"], "horse": t["horse"], "track": t["track"], "distance": t["distance"], "going": t["going"],
                       "positionFinish": t["positionFinish"], "marginFinish": t["marginFinish"], "field_size": t["starters"], "weightCarried": t["weightCarried"],
-                      "winners_time": t["winnersTime"], "isBarrierTrial": t["isBarrierTrial"], "race_class": t["class"], "trackGrading": t["trackGrading"]})
+                      "winners_time": t["winnersTime"], "isBarrierTrial": t["isBarrierTrial"], "race_class": t["class"], "trackGrading": t["trackGrading"],
+                      "jockey": t["jockey"] if "jockey" in t.columns else np.nan, "barrier": t["barrier"] if "barrier" in t.columns else np.nan})
     return d
 
 
