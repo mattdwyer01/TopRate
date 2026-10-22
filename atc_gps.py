@@ -234,7 +234,7 @@ def download(since: str, until: str | None = None, tracks: list[str] | None = No
 
 # ---------------------------------------------------------------- parse
 
-def _peek(f: Path, n: int = 8) -> str:
+def _peek(f: Path, n: int = 30) -> str:
     """First lines of the first page, to see what a PDF the parser could not read looks like."""
     try:
         with pdfplumber.open(f) as pdf:
