@@ -1,0 +1,68 @@
+name: Meeting lean (racing.com GPS, live)
+
+# Reading aid only (changes no rating). While VIC and SA race, reads the racing.com GPS of each race a few minutes after it has run and stores how leaders, the fence
+# and the draw did, per race, in meeting_lean.json (see meeting_lean.py). The race page shows a line once a meeting has 3+ races and the lean is strong.
+# Needs RACINGCOM_API_KEY and RACINGCOM_CAL_API_KEY. GitHub's own schedule can run late; a missed pass only delays the line.
+
+on:
+  schedule:
+    - cron: "*/10 0-12 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Melbourne date YYYY-MM-DD (blank = today)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meeting-lean
+  cancel-in-progress: false
+
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RACINGCOM_API_KEY: ${{ secrets.RACINGCOM_API_KEY }}
+      RACINGCOM_CAL_API_KEY: ${{ secrets.RACINGCOM_CAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: toprate
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            meeting_lean.py
+            meeting_lean.json
+            runners.csv
+            runners_io.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/checkout@v4
+        with:
+          repository: mattdwyer01/racing-model
+          path: rm
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas pyarrow requests
+      - run: mkdir -p rm/data/raw/racingcom
+      - name: Read the GPS of races that have run
+        working-directory: toprate
+        run: python meeting_lean.py --rm ../rm ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+      - name: Commit if changed
+        working-directory: toprate
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f meeting_lean.json ] || exit 0
+          git add meeting_lean.json
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Meeting lean $(date -u +%FT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch -q origin main && git reset -q --mixed origin/main && git add meeting_lean.json && git commit -q -m "Meeting lean $(date -u +%FT%H:%MZ)" || true
+            sleep $((i * 4))
+          done
+          exit 1

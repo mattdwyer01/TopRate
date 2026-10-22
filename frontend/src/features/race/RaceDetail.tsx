@@ -9,6 +9,7 @@ import { useTripMap } from '../../lib/tripMap'
 import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { BiasNote } from './BiasNote'
+import { MeetingLeanNote } from './MeetingLeanNote'
 import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RunnerCompare } from './RunnerCompare'
 import { RaceResult } from './RaceResult'
@@ -208,6 +209,7 @@ export function RaceDetail({
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
       <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
+      <MeetingLeanNote race={race} />
 
       {hasAnyResult && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
