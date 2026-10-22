@@ -43,6 +43,19 @@ def gps_runs():
         r['venue_k'] = r.course
         r['race_no_'] = r.race_no; r['meet_'] = 'rq' + r.meeting_code.astype(str)
         out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_', 'race_time_s']].assign(src='rq'))
+    for f in sorted(glob.glob('data/gps/hk_gps_runs_20*.parquet')):   # Hong Kong, from HKJC's aerial replay images (hk_aerial_build.py): four snapshots, no speeds or ground lost
+        r = pd.read_parquet(f); s = pd.read_parquet(f.replace('runs', 'sections'))
+        r['date'] = pd.to_datetime(r.race_date).dt.normalize()
+        r['dist'] = pd.to_numeric(r.race_distance.astype(str).str.extract(r'(\d+)')[0], errors='coerce')
+        r['rail'] = r.rail_avg_m
+        e = s[s.snapshot == 0][['meet_code', 'race_no', 'tab_no', 'pos']].rename(columns={'pos': 'early_pos'})   # rank about 800m from home among the horses in the picture
+        r = r.merge(e, on=['meet_code', 'race_no', 'tab_no'], how='left')
+        r['early_speed'] = np.nan; r['dist_vs_winner_m'] = np.nan
+        r['rk'] = 'hk' + r.meet_code.astype(str) + '_' + r.race_no.astype(str)
+        r['n'] = r.field_size
+        r['venue_k'] = r.venue
+        r['race_no_'] = r.race_no; r['meet_'] = 'hk' + r.meet_code.astype(str)
+        out.append(r[['date', 'horse', 'rk', 'n', 'venue_k', 'dist', 'dist_vs_winner_m', 'rail', 'early_speed', 'early_pos', 'finish', 'race_no_', 'meet_', 'race_time_s']].assign(src='hk'))
     g = pd.concat(out, ignore_index=True)
     g['hn'] = norm(g.horse)
     g = g.drop_duplicates(['date', 'hn'], keep='last')

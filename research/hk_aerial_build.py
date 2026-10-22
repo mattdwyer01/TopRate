@@ -16,6 +16,7 @@ import sys
 import urllib.request
 
 import numpy as np
+import pandas as pd
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -64,9 +65,9 @@ def build_race(d, course, n, bank):
     frames = [X.read_frame(im, k * X.FRAME_H, bank, field=field) for k in range(4)]
     placings = [r['num'] for r in sorted(rows, key=lambda r: (r['pla'], r['num']))]
     fixed = X.relabel_finish(frames[3], placings)
-    runners = {r['num']: dict(pla=r['pla'], draw=r['dr'], lbw=r['lbw'], frames=[None] * 4) for r in rows}
+    runners = {r['num']: dict(horse=r['horse'], pla=r['pla'], draw=r['dr'], lbw=r['lbw'], time=r['time'], frames=[None] * 4) for r in rows}
     for num in field:
-        runners.setdefault(num, dict(pla=None, draw=None, lbw=None, frames=[None] * 4))
+        runners.setdefault(num, dict(horse=None, pla=None, draw=None, lbw=None, time=None, frames=[None] * 4))
     unknown = 0
     for k, res in enumerate(frames):
         fr = im[k * X.FRAME_H:(k + 1) * X.FRAME_H]
@@ -80,6 +81,79 @@ def build_race(d, course, n, bank):
     return dict(dist=dist, field=field, runners=runners, unlabelled_dots=unknown, finish_relabelled=fixed)
 
 
+GPS_DIR = os.path.join(os.path.dirname(OUT), 'gps')
+VENUE = {'HV': 'Happy Valley', 'ST': 'Sha Tin'}
+TO_GO_M = [780, 410, 200, 0]          # where the leader is in each snapshot (metres from the finish)
+LENGTH_M = 2.4
+KEYS = {'hk_gps_runs': ['meet_code', 'race_no', 'tab_no'], 'hk_gps_sections': ['meet_code', 'race_no', 'tab_no', 'to_go_m']}
+
+
+def _secs(t):
+    """'1:38.25' -> 98.25"""
+    try:
+        m, sec = str(t).split(':')
+        return int(m) * 60 + float(sec)
+    except Exception:
+        return None
+
+
+def gps_tables(meeting):
+    """Per runner and per snapshot rows in the data/gps layout (like rc_gps_runs / rc_gps_sections, with lengths and metres off the rail)."""
+    d, course = meeting['date'], meeting['course']
+    code = '%s_%s' % (d.replace('/', ''), course)
+    runs, secs = [], []
+    for rn, race in meeting['races'].items():
+        if 'runners' not in race:
+            continue
+        mpp = X.M_PER_PX.get(course, X.M_PER_PX_DEFAULT)
+        px_len = LENGTH_M / mpp                     # pixels per length
+        n_field = len(race['field'])
+        win_t = next((_secs(v['time']) for v in race['runners'].values() if v.get('pla') == 1), None)
+        pos_by_frame = []
+        for k in range(4):
+            vis = [(num, v['frames'][k]) for num, v in race['runners'].items() if v['frames'][k]]
+            right = k < 2                            # the camera follows the leader at the right in snapshots 0 and 1, the left in 2 and 3
+            lead = (max if right else min)([f['x'] for _, f in vis]) if vis else None
+            order = sorted(vis, key=lambda t: -t[1]['x'] if right else t[1]['x'])
+            pos_by_frame.append({num: (i + 1, abs(f['x'] - lead) / px_len, len(vis)) for i, (num, f) in enumerate(order)})
+        for num, v in race['runners'].items():
+            if v.get('horse') is None:
+                continue
+            rails = [f['rail_m'] for f in v['frames'] if f and f['rail_m'] is not None]
+            runs.append(dict(
+                meet_code=code, race_no=int(rn), venue=VENUE.get(course, course), race_date=d.replace('/', '-'),
+                race_distance='%sm' % race['dist'] if race.get('dist') else None, tab_no=int(num), horse=v['horse'],
+                barrier=float(v['draw']) if str(v.get('draw') or '').isdigit() else None, finish=v['pla'],
+                time_s=_secs(v['time']), race_time_s=win_t, beaten_margin_l=v['lbw'],
+                rail_avg_m=round(sum(rails) / len(rails), 2) if len(rails) >= 2 else None, n_snapshots=len(rails),
+                field_size=n_field, source='hkjc_aerial'))
+            for k in range(4):
+                f = v['frames'][k]
+                if not f:
+                    continue
+                pos, gap, nv = pos_by_frame[k][num]
+                secs.append(dict(meet_code=code, race_no=int(rn), tab_no=int(num), horse=v['horse'], to_go_m=TO_GO_M[k], snapshot=k,
+                                 pos=pos, n_visible=nv, gap_l=round(gap, 2), gap_m=round(gap * LENGTH_M, 1), rail_m=f['rail_m'], x_px=f['x']))
+    return pd.DataFrame(runs), pd.DataFrame(secs)
+
+
+def write_gps(meeting):
+    """Merge one meeting into data/gps/hk_gps_{runs,sections}_<year>.parquet (key columns de-duplicated, only a changed year rewritten)."""
+    runs, secs = gps_tables(meeting)
+    year = meeting['date'][:4]
+    os.makedirs(GPS_DIR, exist_ok=True)
+    for name, new in (('hk_gps_runs', runs), ('hk_gps_sections', secs)):
+        if new.empty:
+            continue
+        path = os.path.join(GPS_DIR, '%s_%s.parquet' % (name, year))
+        old = pd.read_parquet(path) if os.path.exists(path) else None
+        all_ = pd.concat([old, new], ignore_index=True) if old is not None else new
+        all_ = all_.drop_duplicates(KEYS[name], keep='last').sort_values(KEYS[name]).reset_index(drop=True)
+        if old is None or not all_.equals(old.sort_values(KEYS[name]).reset_index(drop=True)):
+            all_.to_parquet(path, index=False)
+        print('%s %s: %d rows' % (name, year, len(all_)))
+
+
 def build_meeting(d, course, bank):
     races = {}
     for n in range(1, 13):
@@ -90,8 +164,10 @@ def build_meeting(d, course, bank):
         print('R%d' % n, 'dots' if 'runners' in r else r.get('err'), flush=True)
     os.makedirs(OUT, exist_ok=True)
     p = os.path.join(OUT, '%s_%s.json' % (d.replace('/', ''), course))
-    json.dump(dict(date=d, course=course, source='HKJC aerial replay', races=races), open(p, 'w'), separators=(',', ':'))
+    meeting = dict(date=d, course=course, source='HKJC aerial replay', races=races)
+    json.dump(meeting, open(p, 'w'), separators=(',', ':'))
     print('wrote', p)
+    write_gps(meeting)
 
 
 def auto(days):
@@ -114,6 +190,10 @@ def auto(days):
 
 
 def main():
+    if sys.argv[1] == '--gps-only':        # rebuild the data/gps tables from the saved meeting files
+        for f in sorted(os.listdir(OUT)):
+            write_gps(json.load(open(os.path.join(OUT, f))))
+        return
     if sys.argv[1] == '--auto':
         auto(int(sys.argv[2]) if len(sys.argv) > 2 else 21)
         return
