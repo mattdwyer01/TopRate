@@ -21,6 +21,9 @@ on:
       until:
         description: "End date YYYY-MM-DD (blank = today)"
         default: ""
+      tracks:
+        description: "Track codes, space separated (blank = RAND ROSE CANT WARW). Use it to probe other codes."
+        default: ""
 
 permissions:
   contents: write
@@ -36,6 +39,7 @@ jobs:
     env:
       ATC_SINCE: ${{ github.event.inputs.since }}
       ATC_UNTIL: ${{ github.event.inputs.until }}
+      ATC_TRACKS: ${{ github.event.inputs.tracks }}
     steps:
       - name: Check out atc_gps.py and data/gps
         uses: actions/checkout@v4
@@ -63,7 +67,10 @@ jobs:
       - name: Download and parse
         run: |
           SINCE="${ATC_SINCE:-$(date -u -d '10 days ago' +%F)}"
-          if [ -n "$ATC_UNTIL" ]; then python atc_gps.py download --since "$SINCE" --until "$ATC_UNTIL"; else python atc_gps.py download --since "$SINCE"; fi
+          ARGS=(--since "$SINCE")
+          [ -n "$ATC_UNTIL" ] && ARGS+=(--until "$ATC_UNTIL")
+          [ -n "$ATC_TRACKS" ] && ARGS+=(--tracks $ATC_TRACKS)
+          python atc_gps.py download "${ARGS[@]}"
           python atc_gps.py parse
           if [ -f work/atc_new/atc_parse_problems.txt ]; then echo "::warning::some PDFs did not parse, see the log"; head -50 work/atc_new/atc_parse_problems.txt; fi
 
