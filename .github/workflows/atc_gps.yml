@@ -77,21 +77,33 @@ jobs:
       - name: Merge into data/gps
         run: python atc_gps.py merge
 
+      - name: Keep the parsed files (a failed push must not lose a long run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-gps-parquet
+          path: data/gps/atc_gps_*.parquet
+          retention-days: 7
+
       - name: Commit and push
         run: |
           git config user.name "atc-gps bot"
           git config user.email "atc-gps-bot@users.noreply.github.com"
-          git add data/gps/atc_gps_runs_*.parquet data/gps/atc_gps_sections_*.parquet
+          FILES="data/gps/atc_gps_runs_*.parquet data/gps/atc_gps_sections_*.parquet"
+          git add $FILES
           git diff --cached --quiet && { echo "ATC GPS: no change"; exit 0; }
           git commit -q -m "ATC GPS sectionals $(TZ=Australia/Melbourne date +%F\ %H:%M)"
-          for i in 1 2 3 4 5; do
+          for i in 1 2 3 4 5 6; do
             git push -q origin HEAD:main && exit 0
-            # main moved: point HEAD at the new tip and keep our files (a cheap pointer move, no merge or replay)
-            git fetch -q origin main
-            git reset -q --mixed origin/main
-            git add data/gps/atc_gps_runs_*.parquet data/gps/atc_gps_sections_*.parquet
+            # main moved while this ran (the poller commits every few minutes). Move to the new tip without a merge,
+            # keeping our files in the working tree (plain checkout: git reset --mixed segfaulted in this sparse checkout).
+            KEEP="${RUNNER_TEMP:-/tmp}/atc_keep"; rm -rf "$KEEP"; mkdir -p "$KEEP"; cp data/gps/atc_gps_*.parquet "$KEEP"/
+            git fetch -q --depth=1 origin main
+            git checkout -q -f -B atc-push FETCH_HEAD
+            cp "$KEEP"/*.parquet data/gps/
+            git add $FILES
             git diff --cached --quiet && exit 0
             git commit -q -m "ATC GPS sectionals $(TZ=Australia/Melbourne date +%F\ %H:%M)"
-            sleep $((i * 10))
+            sleep $((i * 5))
           done
           exit 1
