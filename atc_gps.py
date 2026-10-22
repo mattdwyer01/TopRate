@@ -110,6 +110,7 @@ def _parse_page(text: str, h: dict) -> list[dict]:
 # Cumulative times from the start at each 200m post (header "Distance To Go 800m 600m ... Finish"), true distance
 # travelled in metres, positions only at the finish, and "Data was not able to be tracked" for horses without GPS.
 
+PAGES: dict[int, str] = {}   # page text per race of the PDF being parsed, shown for races that fail the checks
 ERRORS: list[str] = []   # pages that failed, reported with the problems
 NOTES: list[str] = []   # lines the older-template parser skipped, shown with the problems
 ROWO1 = re.compile(r"^(\d+=?|DNF|DNT) (\d+) (.+?) (\d{1,2}) (.*)$")
@@ -154,6 +155,7 @@ def _header_old(text: str) -> dict:
 
 
 def _parse_page_old(text: str, h: dict) -> list[dict]:
+    PAGES.setdefault(h["race_no"], text)
     lines = text.splitlines()
     k = len(h["cols"])
     out = []
@@ -419,6 +421,10 @@ def parse_all(out: Path = OUT_DIR) -> None:
             if bad:
                 problems.append(f"{f.name}: {len(bad)} check failures, first lines: {_peek(f, 16)}")
             problems += [f"{f.name}: {b}" for b in bad[:5]]
+            for rno in sorted({int(m.group(1)) for b in bad if (m := re.match(r"race (\d+)", b))})[:2]:
+                if rno in PAGES:
+                    problems.append(f"{f.name}: race {rno} text: " + " | ".join(PAGES[rno].splitlines()[:18]))
+            PAGES.clear()
             if bad and NOTES:
                 problems += [f"{f.name}: note {n}" for n in NOTES[:6]]
             NOTES.clear()
