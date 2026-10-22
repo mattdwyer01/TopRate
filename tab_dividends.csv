@@ -11329,3 +11329,9 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-21T18:45:31+00:00,2026-10-21,HAPPY VALLEY,9,NSW,Paying,Trifecta,4/5/2,320.2,"{""selections"":[4,5,2],""amount"":320.2}"
 2026-10-21T18:45:31+00:00,2026-10-21,HAPPY VALLEY,9,NSW,Paying,FirstFour,4/5/2/9,613.4,"{""selections"":[4,5,2,9],""amount"":613.4}"
 2026-10-21T18:45:31+00:00,2026-10-21,HAPPY VALLEY,9,NSW,Paying,RunningDouble,12/4,49.3,"{""selections"":[12,4],""amount"":49.3}"
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,1,VIC,Abandoned,(abandoned),,,
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,2,VIC,Abandoned,(abandoned),,,
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,3,VIC,Abandoned,(abandoned),,,
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,4,VIC,Abandoned,(abandoned),,,
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,5,VIC,Abandoned,(abandoned),,,
+2026-10-22T00:06:41+00:00,2026-10-22,IPSWICH,6,VIC,Abandoned,(abandoned),,,
