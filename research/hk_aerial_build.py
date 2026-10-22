@@ -5,6 +5,8 @@ For one meeting: fetch each race's results page (field, placings, lengths behind
 {race: {dist, field, runners: {num: {pla, draw, lbw, frames: [{x, rail_m} x4 at 780m, 410m, 200m to go, finish]}}}}.
 Rail distances are metres to the inside rail from the dot centre (scale from M_PER_PX by course); a frame where the horse is off
 the picture or unlabelled has no entry (None). Run: python research/hk_aerial_build.py 2026/10/14 HV   (needs network)
+`--auto [days]` (default 21) builds every meeting of the last N days that has an image for race 1 and no output file yet
+(used by .github/workflows/hk_aerial.yml).
 """
 import html
 import json
@@ -78,9 +80,7 @@ def build_race(d, course, n, bank):
     return dict(dist=dist, field=field, runners=runners, unlabelled_dots=unknown, finish_relabelled=fixed)
 
 
-def main():
-    d, course = sys.argv[1], sys.argv[2]
-    bank = X.build_bank(np.asarray(Image.open(X.SEED_IMAGE).convert('RGB')).astype(int))
+def build_meeting(d, course, bank):
     races = {}
     for n in range(1, 13):
         r = build_race(d, course, n, bank)
@@ -92,6 +92,34 @@ def main():
     p = os.path.join(OUT, '%s_%s.json' % (d.replace('/', ''), course))
     json.dump(dict(date=d, course=course, source='HKJC aerial replay', races=races), open(p, 'w'), separators=(',', ':'))
     print('wrote', p)
+
+
+def auto(days):
+    import datetime
+    bank = X.build_bank(np.asarray(Image.open(X.SEED_IMAGE).convert('RGB')).astype(int))
+    today = datetime.date.today()
+    for back in range(days, 0, -1):
+        d = (today - datetime.timedelta(days=back)).strftime('%Y/%m/%d')
+        for course in ('HV', 'ST'):
+            if os.path.exists(os.path.join(OUT, '%s_%s.json' % (d.replace('/', ''), course))):
+                continue
+            rows, _ = parse(fetch(d, course, 1))
+            if not rows:
+                continue            # no meeting at this course that day
+            if image(d, 1) is None:
+                print(d, course, 'no image yet')
+                continue
+            print(d, course, 'building', flush=True)
+            build_meeting(d, course, bank)
+
+
+def main():
+    if sys.argv[1] == '--auto':
+        auto(int(sys.argv[2]) if len(sys.argv) > 2 else 21)
+        return
+    d, course = sys.argv[1], sys.argv[2]
+    bank = X.build_bank(np.asarray(Image.open(X.SEED_IMAGE).convert('RGB')).astype(int))
+    build_meeting(d, course, bank)
 
 
 if __name__ == '__main__':
