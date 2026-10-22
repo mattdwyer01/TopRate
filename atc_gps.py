@@ -110,6 +110,7 @@ def _parse_page(text: str, h: dict) -> list[dict]:
 # Cumulative times from the start at each 200m post (header "Distance To Go 800m 600m ... Finish"), true distance
 # travelled in metres, positions only at the finish, and "Data was not able to be tracked" for horses without GPS.
 
+ERRORS: list[str] = []   # pages that failed, reported with the problems
 NOTES: list[str] = []   # lines the older-template parser skipped, shown with the problems
 ROWO1 = re.compile(r"^(\d+=?|DNF|DNT) (\d+) (.+?) (\d{1,2}) (.*)$")
 ROWO2 = re.compile(rf"^(.+?)(?: (\d+m) (\d+m))?((?: \((?:{T}|{NA})\))*)\s*$")
@@ -119,8 +120,9 @@ ENT = re.compile(rf"({T}|{NA})(?: \[([\d-]+)\])?")
 def _lines(text: str) -> list[str]:
     """Non-empty lines; a race title that wrapped onto two lines ('... HANDICAP -' then '1250m') is joined."""
     L = [l.strip() for l in text.splitlines() if l.strip()]
-    if len(L) > 2 and L[1].endswith("-") and re.fullmatch(r"\d+m", L[2]):
-        L[1] = L[1] + " " + L[2]
+    full = r"Race \d+: .* - \d+m"
+    if len(L) > 2 and not re.fullmatch(full, L[1]) and re.fullmatch(full, L[1] + " " + L[2]):
+        L[1] = L[1] + " " + L[2]   # the title wrapped onto the next line
         del L[2]
     return L
 
@@ -258,9 +260,9 @@ def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.Dat
                 continue
             try:
                 _ingest_page(text, races)
-            except Exception as e:
+            except Exception as e:   # one bad page costs its race, not the whole meeting
                 head = " | ".join(text.splitlines()[:7])
-                raise RuntimeError(f"page {pno}: {type(e).__name__}: {e}; page starts: {head}") from e
+                ERRORS.append(f"page {pno}: {type(e).__name__}: {e}; page starts: {head}")
     runs, secs = [], []
     for no in sorted(races):
         h, rows = races[no]["h"], races[no]["rows"]
@@ -401,6 +403,8 @@ def parse_all(out: Path = OUT_DIR) -> None:
             if r.empty:
                 problems.append(f"{f.name}: no runs, first lines: {_peek(f)}")
                 continue
+            problems += [f"{f.name}: {e}" for e in ERRORS]
+            ERRORS.clear()
             bad = check(r, s)
             if bad:
                 problems.append(f"{f.name}: {len(bad)} check failures, first lines: {_peek(f, 16)}")
