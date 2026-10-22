@@ -110,6 +110,7 @@ def _parse_page(text: str, h: dict) -> list[dict]:
 # Cumulative times from the start at each 200m post (header "Distance To Go 800m 600m ... Finish"), true distance
 # travelled in metres, positions only at the finish, and "Data was not able to be tracked" for horses without GPS.
 
+NOTES: list[str] = []   # lines the older-template parser skipped, shown with the problems
 ROWO1 = re.compile(r"^(\d+=?|DNF|DNT) (\d+) (.+?) (\d{1,2}) (.*)$")
 ROWO2 = re.compile(rf"^(.+?)(?: (\d+m) (\d+m))?((?: \((?:{T}|{NA})\))*)\s*$")
 ENT = re.compile(rf"({T}|{NA})(?: \[([\d-]+)\])?")
@@ -136,9 +137,12 @@ def _parse_page_old(text: str, h: dict) -> list[dict]:
     for i, l in enumerate(lines):
         m1 = ROWO1.match(l.strip())
         if not m1 or i + 1 >= len(lines):
+            if re.match(r"^(1|1=) \d+ \S", l.strip()):
+                NOTES.append(f"race {h['race_no']}: rank 1 line not read {l.strip()[:160]!r}")
             continue
         rank, tab, horse, bar, rest = m1.groups()
         if not re.match(rf"(\d+\.\d |Data was|{T}|{NA})", rest):
+            NOTES.append(f"race {h['race_no']}: skipped {l.strip()[:160]!r}")
             continue   # a name or other line that only looks like a row
         no_gps = rest.startswith("Data was")
         rest = rest.replace("Data was not able to be ", "")
@@ -199,35 +203,43 @@ def _finalize_old(rows: dict, dist: int) -> None:
         r["dist_vs_winner_m"] = int(round(r["dist_travelled_m"] - win["dist_travelled_m"])) if both else None
 
 
+def _ingest_page(text: str, races: dict) -> None:
+    if "TAB#" in text:
+        h, old = _header(text), False
+    elif "Distance To Go" in text:
+        h, old = _header_old(text), True
+    else:
+        return
+    r = races.setdefault(h["race_no"], dict(h=h, rows={}))
+    for row in (_parse_page_old(text, h) if old else _parse_page(text, h)):
+        if row["tab_no"] in r["rows"]:
+            prev = r["rows"][row["tab_no"]]
+            if row.get("_old"):   # later page of a long race: more posts, and the finish columns
+                prev["_posts"] += row["_posts"]
+                for key in ("time_s", "last600_s", "dist_travelled_m", "top_speed_kmh", "fastest_section_s"):
+                    if prev.get(key) is None:
+                        prev[key] = row.get(key)
+            else:
+                prev["_sections"] += row["_sections"]
+        else:
+            r["rows"][row["tab_no"]] = row
+
+
 def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """-> (runs, sections). Long fields continue on a second page: rows are merged by (race, tab)."""
     import io
     f = io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src
     races: dict[int, dict] = {}
     with pdfplumber.open(f) as pdf:
-        for page in pdf.pages:
+        for pno, page in enumerate(pdf.pages, 1):
             text = page.extract_text() or ""
             if not re.search(r"^Race \d+:", text, re.M):
                 continue
-            if "TAB#" in text:
-                h, page_rows = _header(text), None
-            elif "Distance To Go" in text:
-                h, page_rows = _header_old(text), "old"
-            else:
-                continue
-            r = races.setdefault(h["race_no"], dict(h=h, rows={}))
-            for row in (_parse_page_old(text, h) if page_rows else _parse_page(text, h)):
-                if row["tab_no"] in r["rows"]:
-                    prev = r["rows"][row["tab_no"]]
-                    if row.get("_old"):   # later page of a long race: more posts, and the finish columns
-                        prev["_posts"] += row["_posts"]
-                        for key in ("time_s", "last600_s", "dist_travelled_m", "top_speed_kmh", "fastest_section_s"):
-                            if prev.get(key) is None:
-                                prev[key] = row.get(key)
-                    else:
-                        prev["_sections"] += row["_sections"]
-                else:
-                    r["rows"][row["tab_no"]] = row
+            try:
+                _ingest_page(text, races)
+            except Exception as e:
+                head = " | ".join(text.splitlines()[:7])
+                raise RuntimeError(f"page {pno}: {type(e).__name__}: {e}; page starts: {head}") from e
     runs, secs = [], []
     for no in sorted(races):
         h, rows = races[no]["h"], races[no]["rows"]
@@ -370,6 +382,9 @@ def parse_all(out: Path = OUT_DIR) -> None:
                 continue
             bad = check(r, s)
             problems += [f"{f.name}: {b}" for b in bad]
+            if bad and NOTES:
+                problems += [f"{f.name}: note {n}" for n in NOTES[:6]]
+            NOTES.clear()
             runs.append(r)
             secs.append(s)
     out.mkdir(parents=True, exist_ok=True)
