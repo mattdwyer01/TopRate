@@ -135,8 +135,12 @@ def _header_old(text: str) -> dict:
     m = re.search(r"Track Rating: (.*?), Weather: (.*?), Rail Position: (.*)$", L[3])
     going, weather, rail = (x.strip() for x in m.groups()) if m else (None, None, None)
     posts = [0 if g else int(n) for n, g in re.findall(r"(\d+)m|(Finish)", next(l for l in L if l.startswith("Distance To Go")))]
+    nums = [x for x in posts if x]
+    if (len(nums) >= 2 and nums[0] < nums[1]) or (len(nums) == 1 and nums[0] > dist * 0.6 and posts[-1] == 0):   # 2025 PDFs: '100m 300m 500m ...' is distance RUN from the start, not to go
+        posts = [dist - x if x else 0 for x in posts]
+    has_official = any("Official" in l for l in L if l.startswith("Field Times"))
     return dict(venue=venue, race_no=race_no, race_name=name, distance=dist, race_date=date, start_time=md.group(2),
-                going=going, weather=weather, rail=rail, scratched="", cols=posts)
+                going=going, weather=weather, rail=rail, scratched="", cols=posts, has_official=has_official)
 
 
 def _parse_page_old(text: str, h: dict) -> list[dict]:
@@ -171,8 +175,12 @@ def _parse_page_old(text: str, h: dict) -> list[dict]:
         posts = ent[off:off + k]
         no_gps = no_gps or all(_t(c) is None for c, _ in posts)   # a time but no tracking
         tail = ent[off + k:]
-        official = _t(tail[0][0]) if tail else None
-        last600 = _t(tail[1][0]) if len(tail) > 1 else None
+        if h.get("has_official", True):
+            official = _t(tail[0][0]) if tail else None
+            last600 = _t(tail[1][0]) if len(tail) > 1 else None
+        else:   # first page of a long race: no official time yet, only the last 600m
+            official = None
+            last600 = _t(tail[0][0]) if tail else None
         m2 = ROWO2.match(lines[i + 1].replace(" tracked for this horse", "").strip())
         if not m2:
             raise ValueError(f"race {h['race_no']}: unparsed second row after {l!r}: {lines[i + 1]!r}")
@@ -423,6 +431,9 @@ def _merge_one(name: str, new: pd.DataFrame) -> list[str]:
     for yr, part in new.groupby(year):
         f = GPS_DIR / f"{name}_{int(yr)}.parquet"
         old = pd.read_parquet(f) if f.exists() else pd.DataFrame()
+        if len(old):   # a re-parsed race replaces its old rows (an earlier parse may have used other section keys)
+            rk = lambda d: d["meet_code"].astype("string") + "/" + d["race_no"].astype("string")
+            old = old[~rk(old).isin(set(rk(part)))]
         df = pd.concat([x for x in (old, part) if len(x)], ignore_index=True)
         k = df[keys].astype("string")   # keys as strings: dtypes differ between files
         df = df[~k.duplicated(keep="last")].sort_values(["race_date", *keys], kind="stable").reset_index(drop=True)
