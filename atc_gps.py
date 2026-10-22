@@ -106,6 +106,97 @@ def _parse_page(text: str, h: dict) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- older template (to mid 2026)
+# Cumulative times from the start at each 200m post (header "Distance To Go 800m 600m ... Finish"), true distance
+# travelled in metres, positions only at the finish, and "Data was not able to be tracked" for horses without GPS.
+
+ROWO1 = re.compile(r"^(\d+=?|DNF|DNT) (\d+) (.+?) (\d{1,2}) (.*)$")
+ROWO2 = re.compile(rf"^(.+?)(?: (\d+m) (\d+m))?((?: \((?:{T}|{NA})\))*)\s*$")
+ENT = re.compile(rf"({T}|{NA})(?: \[([\d-]+)\])?")
+
+
+def _header_old(text: str) -> dict:
+    L = [l.strip() for l in text.splitlines() if l.strip()]
+    venue = re.sub(r"\s*(-|Professional)\s*$", "", L[0]).strip()
+    m = re.match(r"Race (\d+): (.*) - (\d+)m$", L[1])
+    race_no, name, dist = int(m.group(1)), m.group(2).strip(), int(m.group(3))
+    md = re.match(r"(\d{1,2} \w+ \d{4}) - (\d{1,2}:\d{2})", L[2])
+    date = dt.datetime.strptime(md.group(1), "%d %B %Y").date()
+    m = re.search(r"Track Rating: (.*?), Weather: (.*?), Rail Position: (.*)$", L[3])
+    going, weather, rail = (x.strip() for x in m.groups()) if m else (None, None, None)
+    posts = [0 if g else int(n) for n, g in re.findall(r"(\d+)m|(Finish)", next(l for l in L if l.startswith("Distance To Go")))]
+    return dict(venue=venue, race_no=race_no, race_name=name, distance=dist, race_date=date, start_time=md.group(2),
+                going=going, weather=weather, rail=rail, scratched="", cols=posts)
+
+
+def _parse_page_old(text: str, h: dict) -> list[dict]:
+    lines = text.splitlines()
+    k = len(h["cols"])
+    out = []
+    for i, l in enumerate(lines):
+        m1 = ROWO1.match(l.strip())
+        if not m1 or i + 1 >= len(lines):
+            continue
+        rank, tab, horse, bar, rest = m1.groups()
+        if not re.match(rf"(\d+\.\d |Data was|{T}|{NA})", rest):
+            continue   # a name or other line that only looks like a row
+        no_gps = rest.startswith("Data was")
+        rest = rest.replace("Data was not able to be ", "")
+        top = None
+        mt = re.match(r"(\d+\.\d) ", rest)
+        if mt:
+            top, rest = float(mt.group(1)), rest[mt.end():]
+        dist_m = re.search(r"(\d{3,4}\.\d|-+\.-)\s*$", rest)
+        travelled = float(dist_m.group(1)) if dist_m and not dist_m.group(1).startswith("-") else None
+        ent = ENT.findall(rest[:dist_m.start()] if dist_m else rest)
+        off = 1 if top is not None else 0
+        if len(ent) < off + k:
+            raise ValueError(f"race {h['race_no']}: {len(ent)} time entries for {k} posts in {l!r}")
+        fastest = _t(ent[0][0]) if off else None
+        posts = ent[off:off + k]
+        tail = ent[off + k:]
+        official = _t(tail[0][0]) if tail else None
+        last600 = _t(tail[1][0]) if len(tail) > 1 else None
+        m2 = ROWO2.match(lines[i + 1].replace(" tracked for this horse", "").strip())
+        if not m2:
+            raise ValueError(f"race {h['race_no']}: unparsed second row after {l!r}: {lines[i + 1]!r}")
+        jockey, tsec, fsec, splits_txt = m2.groups()
+        splits = SPLIT.findall(splits_txt)
+        out.append(dict(
+            race_no=h["race_no"], finish=int(rank.rstrip("=")) if rank.rstrip("=").isdigit() else None, finish_txt=rank,
+            tab_no=int(tab), horse=horse.strip(), barrier=int(bar), jockey=jockey.strip(), time_s=official,
+            top_speed_kmh=top, top_speed_section=tsec, fastest_section=fsec, fastest_section_s=fastest,
+            last600_s=last600, dist_travelled_m=travelled, no_gps=no_gps, _old=True,
+            _posts=[(to_go, _t(c), int(p) if p.isdigit() else None, _t(splits[j]) if j < len(splits) else None)
+                    for j, (to_go, (c, p)) in enumerate(zip(h["cols"], posts))],
+        ))
+    return out
+
+
+def _finalize_old(rows: dict, dist: int) -> None:
+    """Posts -> sections in the same shape as the newer template, plus margin in seconds and distance vs the winner."""
+    win = next((r for r in rows.values() if r["finish"] == 1 and r["time_s"] is not None), None)
+    for r in rows.values():
+        if not r.get("_old"):
+            continue
+        posts = sorted(r.pop("_posts"), key=lambda x: -x[0])
+        if r["time_s"] is None and posts and posts[-1][0] == 0:
+            r["time_s"] = posts[-1][1]
+        r["first400_s"] = None
+        secs, prev_cum, prev_pos, start = [], 0.0, None, dist
+        if not r["no_gps"] and r["time_s"] is not None and all(p[1] is not None for p in posts):
+            for to_go, cum, pos, split in posts:
+                secs.append(dict(to_go_m=start, remaining_s=round(r["time_s"] - prev_cum, 2), pos=prev_pos, split_s=split))
+                prev_cum, prev_pos, start = cum, pos, to_go
+            r["first400_s"] = next((p[1] for p in posts if dist - p[0] == 400), None)
+        r["_sections"] = secs
+        r["margin_l"] = None
+        r["margin_txt"] = None
+        r["margin_s"] = round(r["time_s"] - win["time_s"], 2) if win and r["time_s"] is not None else None
+        both = win and r["dist_travelled_m"] is not None and win["dist_travelled_m"] is not None
+        r["dist_vs_winner_m"] = int(round(r["dist_travelled_m"] - win["dist_travelled_m"])) if both else None
+
+
 def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """-> (runs, sections). Long fields continue on a second page: rows are merged by (race, tab)."""
     import io
@@ -114,13 +205,25 @@ def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.Dat
     with pdfplumber.open(f) as pdf:
         for page in pdf.pages:
             text = page.extract_text() or ""
-            if "TAB#" not in text or not re.search(r"^Race \d+:", text, re.M):
+            if not re.search(r"^Race \d+:", text, re.M):
                 continue
-            h = _header(text)
+            if "TAB#" in text:
+                h, page_rows = _header(text), None
+            elif "Distance To Go" in text:
+                h, page_rows = _header_old(text), "old"
+            else:
+                continue
             r = races.setdefault(h["race_no"], dict(h=h, rows={}))
-            for row in _parse_page(text, h):
+            for row in (_parse_page_old(text, h) if page_rows else _parse_page(text, h)):
                 if row["tab_no"] in r["rows"]:
-                    r["rows"][row["tab_no"]]["_sections"] += row["_sections"]
+                    prev = r["rows"][row["tab_no"]]
+                    if row.get("_old"):   # later page of a long race: more posts, and the finish columns
+                        prev["_posts"] += row["_posts"]
+                        for key in ("time_s", "last600_s", "dist_travelled_m", "top_speed_kmh", "fastest_section_s"):
+                            if prev.get(key) is None:
+                                prev[key] = row.get(key)
+                    else:
+                        prev["_sections"] += row["_sections"]
                 else:
                     r["rows"][row["tab_no"]] = row
     runs, secs = [], []
@@ -128,8 +231,9 @@ def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.Dat
         h, rows = races[no]["h"], races[no]["rows"]
         code = track or re.sub(r"\W", "", h["venue"])[:4].upper()
         meet = f"{h['race_date']:%Y%m%d}_{code}"
-        win = next((r for r in rows.values() if r["finish"] == 1), None)
+        _finalize_old(rows, h["distance"])
         for r in rows.values():
+            r.pop("_old", None)
             sec = r.pop("_sections")
             r.update(meet_code=meet, track=code, venue=h["venue"], race_date=h["race_date"], race_name=h["race_name"],
                      distance=h["distance"], going=h["going"], weather=h["weather"], rail=h["rail"], start_time=h["start_time"],
@@ -158,7 +262,7 @@ def check(runs: pd.DataFrame, secs: pd.DataFrame) -> list[str]:
         for j in range(len(g) - 1):
             if pd.notna(rem[j]) and pd.notna(sp[j]) and pd.notna(rem[j + 1]) and abs(rem[j] - sp[j] - rem[j + 1]) > 0.025:
                 bad.append(f"race {race} tab {tab}: remaining/split mismatch at {g['to_go_m'].iloc[j]}")
-        if pd.notna(rem[-1]) and pd.notna(sp[-1]) and abs(rem[-1] - sp[-1]) > 0.025:
+        if pd.notna(rem[-1]) and pd.notna(sp[-1]) and abs(rem[-1] - sp[-1]) > 0.05:   # source rounding: finish cumulative vs official time can differ by 0.03
             bad.append(f"race {race} tab {tab}: last remaining != last split")
         t = runs.loc[(runs.race_no == race) & (runs.tab_no == tab), "time_s"].iloc[0]
         if pd.notna(t) and pd.notna(rem[0]) and abs(t - rem[0]) > 0.011:
