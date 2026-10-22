@@ -17,6 +17,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ctx as C  # noqa: E402
 
 
+HUBER_ALPHA = 4.0   # 22 Oct 2026: robust loss so Proj tracks the most likely rating, not the mean the bad-run tail drags down (research/proj_mode.py)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fit-end', default='2026-01-01')
@@ -29,7 +32,7 @@ def main():
     cut, es = pd.Timestamp(a.fit_end), pd.Timestamp(a.es_from)
     tr, va = pg[pg.date < es], pg[(pg.date >= es) & (pg.date < cut)]
     te = pg[pg.date >= cut].copy()
-    params = dict(n_estimators=4000, learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1)
+    params = dict(n_estimators=4000, learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, objective='huber', alpha=HUBER_ALPHA)
     F0, F1 = C.FEATS, C.FEATS + C.REL_FEATS
 
     def fit(feats, tr_, va_):
@@ -51,7 +54,7 @@ def main():
     te['e1'] = te.resid - te['corr']
     r = lambda x: float(np.sqrt((x ** 2).mean()))
     for lab, a_ in (('held out', te), ('2026-01..06', te[te.date < '2026-07-01']), ('2026-07..', te[te.date >= '2026-07-01']), (f'{C.REL_MIN_RUNS}+ earlier runs', te[use]), (f'under {C.REL_MIN_RUNS}', te[~use])):
-        print(f"{lab:16s} n={len(a_):6d} formula {r(a_.e0):.3f}  plain context {r(a_.e_ctx):.3f}  deployed {r(a_.e1):.3f}   correction mean {a_['corr'].mean():+.3f} sd {a_['corr'].std():.3f}")
+        print(f"{lab:16s} n={len(a_):6d} formula {r(a_.e0):.3f}  plain context {r(a_.e_ctx):.3f}  deployed {r(a_.e1):.3f}   correction mean {a_['corr'].mean():+.3f} sd {a_['corr'].std():.3f}  median miss {a_.e1.median():+.2f}  within 3 {100*(a_.e1.abs() <= 3).mean():.1f}%")
     kk = te.n.clip(upper=C.K).astype(int)
     sd = {str(k): round(r(te.e1[kk == k]), 2) for k in range(1, C.K + 1)}
     sd0 = {str(k): round(r(te.e0[kk == k]), 2) for k in range(1, C.K + 1)}
