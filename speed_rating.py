@@ -18,6 +18,7 @@ usage:
 """
 import glob
 import json
+import os
 import re
 import sys
 from datetime import date, datetime, timedelta
@@ -210,6 +211,28 @@ def compute(runners_df, today=None):
     rating = mu + k * (rating - mu)    # fewer figures, less certain: pull toward the average (slope of next rating on the rating was 0.65 / 0.8 / 0.95 of the 6+ slope)
     adj = _adjustment(m, dts[sel], runners_df.loc[sel, "weight_carried"] if "weight_carried" in runners_df.columns else None)
     out.loc[m.index] = rating + adj
+    return _rebuilt(runners_df, sel, out)
+
+
+def _rebuilt(runners_df, sel, out):
+    """22 Oct 2026: the rating is the rebuilt model's predicted next figure (speed_model.py: formula + context + relevance, the Proj build on speed figures) when its artifacts exist;
+    the calculation above is the fallback for a runner it cannot rate. SPD_MODEL=0 switches it off. The prediction is put back on the old rating's mean and spread (meta 'disp')
+    so the dashboard's display scale (lib/speed.ts) does not move."""
+    if os.environ.get("SPD_MODEL", "1") == "0":
+        return out
+    try:
+        import speed_model
+        art = speed_model.load()
+        if art is None:
+            return out
+        new = speed_model.predict(runners_df, sel, art=art)
+        a, b = art[0].get("disp", [1.0, 0.0])
+        new = a * new + b
+        n_new = int(new.notna().sum())
+        out = new.where(new.notna(), out)
+        print(f"  speed rating: rebuilt model rated {n_new:,} runners")
+    except Exception as e:      # fail-safe: keep the old rating
+        print(f"  speed rating: rebuilt model failed ({type(e).__name__}: {e}), old rating kept")
     return out
 
 
