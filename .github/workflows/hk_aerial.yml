@@ -3,7 +3,8 @@ name: Hong Kong aerial trip data
 # 23 Oct 2026. HKJC publishes an aerial replay image per race a few days after a meeting; research/hk_aerial_build.py --auto reads each new meeting's images
 # (dot positions, metres to the rail at four points) and writes data/hk_aerial/<YYYYMMDD>_<HV|ST>.json. Looks back 21 days, skips meetings already built and
 # meetings whose first image is not up yet, so it simply picks them up on a later day. Nothing reads the output yet (see CLAUDE.md, HKJC aerial entry).
-# Commits ONLY data/hk_aerial to main, so it cannot collide with the live data jobs. HKJC's pages load from GitHub-hosted runners (checked from a cloud session).
+# Also writes the GPS-layout tables data/gps/hk_gps_{runs,sections}_<year>.parquet (read by research/gps_counterfactual.gps_runs, so the GPS review and studies see Hong Kong).
+# Commits ONLY data/hk_aerial and data/gps/hk_gps_* to main, so it cannot collide with the live data jobs. HKJC's pages load from GitHub-hosted runners (checked from a cloud session).
 
 on:
   schedule:
@@ -18,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: hk-aerial
+  group: gps-data
   cancel-in-progress: false
 
 jobs:
@@ -39,12 +40,12 @@ jobs:
       - name: Commit to main
         run: |
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/hk_aerial
+          git add data/hk_aerial data/gps/hk_gps_runs_*.parquet data/gps/hk_gps_sections_*.parquet
           git diff --cached --quiet && { echo "nothing new"; exit 0; }
           git commit -q -m "HK aerial trip data"
           for i in 1 2 3 4 5 6; do
             git push origin HEAD:main && exit 0
-            git fetch -q origin main && git rebase -q origin/main || { git rebase --abort; git reset -q --mixed origin/main; git add data/hk_aerial; git commit -q -m "HK aerial trip data"; }
+            git fetch -q origin main && git rebase -q origin/main || { git rebase --abort; git reset -q --mixed origin/main; git add data/hk_aerial data/gps/hk_gps_runs_*.parquet data/gps/hk_gps_sections_*.parquet; git commit -q -m "HK aerial trip data"; }
             sleep $((i * 5))
           done
           exit 1
