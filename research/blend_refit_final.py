@@ -36,7 +36,7 @@ for x in (leg, cur):
 d = leg.drop_duplicates(KEY, keep='last').set_index(KEY).combine_first(cur.drop_duplicates(KEY, keep='last').set_index(KEY)).reset_index()
 d = d[(d.date >= '2026-04-26') & (d.date <= '2026-10-17')]
 d = d[(d.scratched.fillna(0) != 1) & ~d.field_source.astype(str).str.contains('not in toprate', na=False)].reset_index(drop=True)
-d['spd_fig'] = sr.compute(d, today=date(2026, 8, 1)).where(lambda s: s.notna(), pd.to_numeric(d.spd_fig, errors='coerce'))
+d['spd_fig'] = sr.compute(d, today=date(2026, 8, 1))  # run with SPD_MODEL=0: the shipped Spd model is refit on all data (in sample for these races).where(lambda s: s.notna(), pd.to_numeric(d.spd_fig, errors='coerce'))
 d['rk'] = d.venue.astype(str) + '|' + d.date + '|' + d.race
 g = d.groupby('rk'); ok = (g.won.transform('sum') == 1) & g.won.transform(lambda s: s.notna().all()) & (g.won.transform('size') >= 5)
 d = d[ok].copy(); d['won'] = d.won.astype(int)
@@ -54,9 +54,11 @@ nt['date'] = pd.to_datetime(nt.date).dt.normalize()
 d['key'] = d.horse.astype(str).str.lower().str.strip(); d['dkey'] = pd.to_datetime(d.date).dt.normalize()
 d = d.merge(nt.drop_duplicates(['key', 'date']), left_on=['key', 'dkey'], right_on=['key', 'date'], how='left', suffixes=('', '_n'))
 print('rebuilt Spd found for', round(100 * d.spd2.notna().mean(), 1), '% of dashboard runners (rest fall back to today rating)', flush=True)
+d['spd2_real'] = d.spd2.notna()
 d['spd2'] = d.spd2.where(d.spd2.notna(), d.spd_line)
 cov = d.groupby('rk').p_plain.transform(lambda s: s.notna().mean())
-D = d[(cov >= 0.8) & (d.groupby('rk').nett.transform(lambda s: s.notna().mean()) >= 0.8)].copy(); D['rid'] = D.rk.astype('category').cat.codes
+SPD_COV = float(os.environ.get('SPD_COV', '0'))
+D = d[(cov >= 0.8) & (d.groupby('rk').nett.transform(lambda s: s.notna().mean()) >= 0.8) & (d.groupby('rk').spd2_real.transform('mean') >= SPD_COV)].copy(); D['rid'] = D.rk.astype('category').cat.codes
 for c in ('p_plain', 'p_rel', 'p_relh', 'nett', 'spd', 'spd2'):
     gm = D.groupby('rid')[c]; D['z_' + c] = ((D[c] - gm.transform('mean')) / gm.transform('std').replace(0, np.nan)).fillna(0.0)
 for c in ('p_rel', 'nett', 'spd', 'spd2'):
