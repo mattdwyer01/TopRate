@@ -231,7 +231,8 @@ def rel_features(T, rp):
                 'sim_days': np.exp(-dgn / 120.0), 'sim_all': np.exp(-ddn / 400.0) * np.exp(-gdn / 2.0) * (1 + 1.5 * trk) * (1 + sj) * (1 + sc)}
         for nm, kw in kern.items():
             ww = kw * rec
-            out[i, col[nm]] = (ww * R).sum() / ww.sum() - f[i]
+            sw = ww.sum()
+            out[i, col[nm]] = (ww * R).sum() / sw - f[i] if sw > 0 else np.nan
         # the horse's own earlier formula misses under the same conditions (shrunk)
         res = a['res'][:j]
         okr = ~np.isnan(res)
