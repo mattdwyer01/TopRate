@@ -136,13 +136,21 @@ def _header_old(text: str) -> dict:
     date = dt.datetime.strptime(md.group(1), "%d %B %Y").date()
     m = re.search(r"Track Rating: (.*?), Weather: (.*?), Rail Position: (.*)$", L[3])
     going, weather, rail = (x.strip() for x in m.groups()) if m else (None, None, None)
-    posts = [0 if g else int(n) for n, g in re.findall(r"(\d+)m|(Finish)", next(l for l in L if l.startswith("Distance To Go")))]
+    posts = [0 if g else int(n) for n, g in re.findall(r"(\d+)m|(Finish)", next(l for l in L if l.startswith("Distance To Go")).replace("Last 600m", ""))]
     nums = [x for x in posts if x]
     if (len(nums) >= 2 and nums[0] < nums[1]) or (len(nums) == 1 and nums[0] > dist * 0.6 and posts[-1] == 0):   # 2025 PDFs: '100m 300m 500m ...' is distance RUN from the start, not to go
         posts = [dist - x if x else 0 for x in posts]
+    start_to_go = None
+    dl = next(l for l in L if l.startswith("Distance To Go"))
+    if "Last 600m" in dl and "Finish" not in dl and posts and posts[-1]:
+        # variant (Boxing Day 2022): no Finish column, the labels are the START of each section and the values are
+        # cumulative at its end, so the posts are the next labels and the last one is the finish
+        start_to_go, posts = posts[0], posts[1:] + [0]
+    if start_to_go:
+        dist = start_to_go   # the timing covers this distance (the title said 1600m for a race timed over 1400m)
     has_official = any("Official" in l for l in L if l.startswith(("Field Times", "Distance To Go")))
     return dict(venue=venue, race_no=race_no, race_name=name, distance=dist, race_date=date, start_time=md.group(2),
-                going=going, weather=weather, rail=rail, scratched="", cols=posts, has_official=has_official)
+                going=going, weather=weather, rail=rail, scratched="", cols=posts, has_official=has_official, start_to_go=start_to_go)
 
 
 def _parse_page_old(text: str, h: dict) -> list[dict]:
@@ -193,7 +201,7 @@ def _parse_page_old(text: str, h: dict) -> list[dict]:
             race_no=h["race_no"], finish=int(rank.rstrip("=")) if rank.rstrip("=").isdigit() else None, finish_txt=rank,
             tab_no=int(tab), horse=horse.strip(), barrier=int(bar), jockey=jockey.strip(), time_s=official,
             top_speed_kmh=top, top_speed_section=tsec, fastest_section=fsec, fastest_section_s=fastest,
-            last600_s=last600, dist_travelled_m=travelled, no_gps=no_gps, _old=True,
+            last600_s=last600, dist_travelled_m=travelled, no_gps=no_gps, _old=True, _start=h.get("start_to_go"),
             _posts=[(to_go, _t(c), int(p) if p.isdigit() else None, _t(splits[j]) if j < len(splits) else None)
                     for j, (to_go, (c, p)) in enumerate(zip(h["cols"], posts))],
         ))
@@ -212,12 +220,13 @@ def _finalize_old(rows: dict, dist: int) -> None:
         r["first400_s"] = None
         r["tracked_time_s"] = posts[-1][1] if posts and posts[-1][0] == 0 else None   # from the position data
         base = r["tracked_time_s"] if r["tracked_time_s"] is not None else r["time_s"]   # official time can differ by 0.7s (Canterbury)
-        secs, prev_cum, prev_pos, start = [], 0.0, None, dist
+        start0 = r.pop("_start", None) or dist
+        secs, prev_cum, prev_pos, start = [], 0.0, None, start0
         if not r["no_gps"] and base is not None and all(p[1] is not None for p in posts):
             for to_go, cum, pos, split in posts:
                 secs.append(dict(to_go_m=start, remaining_s=round(base - prev_cum, 2), pos=prev_pos, split_s=split, elapsed_s=prev_cum))
                 prev_cum, prev_pos, start = cum, pos, to_go
-            r["first400_s"] = next((p[1] for p in posts if dist - p[0] == 400), None)
+            r["first400_s"] = next((p[1] for p in posts if start0 - p[0] == 400), None)
         r["_sections"] = secs
         r["margin_l"] = None
         r["margin_txt"] = None
