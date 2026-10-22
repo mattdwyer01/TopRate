@@ -38,8 +38,8 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 T = r"\d+:\d{2}\.\d{2}"
 NA = r"(?:-:--\.--|NA)"
-ROW1 = re.compile(rf"^(\d+|DNF|DNT) (\d+) (.+?) ({T}|{NA}|DNF) ({T}|{NA}) ([\d.]+|NA) \((\d+-\d+)\) (.*)$")
-ROW2 = re.compile(rf"^\((\d+)\)\s?(.+?)(?: (\S+) \(([+-]?\d+)\))? ({T}|{NA}) (\d+-\d+|NA) \(({T}|{NA})\) (.*)$")
+ROW1 = re.compile(rf"^(\d+=?|DNF|DNT) (\d+) (.+?) ({T}|{NA}|DNF) ({T}|{NA}) ([\d.]+|NA) \((\d+\s*-\s*\d+)\) (.*)$")
+ROW2 = re.compile(rf"^\((\d+)\)\s?(.+?)(?: (\S+) \(([+-]?\d+)\))? ({T}|{NA}) (\d+\s*-\s*\d+|NA) \(({T}|{NA})\) (.*)$")
 REM = re.compile(rf"({T}|{NA})(?: \[(\d+)\])?")
 SPLIT = re.compile(rf"\(({T}|{NA}|\d+:\d{{2}}\.\d{{2}})\)")
 
@@ -95,7 +95,7 @@ def _parse_page(text: str, h: dict) -> list[dict]:
         if len(rem) != n or len(splits) != n:
             raise ValueError(f"race {h['race_no']} tab {tab}: {len(rem)} remaining / {len(splits)} splits for {n} columns")
         out.append(dict(
-            race_no=h["race_no"], finish=int(rank) if rank.isdigit() else None, finish_txt=rank, tab_no=int(tab),
+            race_no=h["race_no"], finish=int(rank.rstrip("=")) if rank.rstrip("=").isdigit() else None, finish_txt=rank, tab_no=int(tab),
             horse=horse.strip(), barrier=int(bar), jockey=jockey.strip(), time_s=_t(time_s),
             margin_l=0.0 if rank == "1" else _margin(margin), margin_txt=margin, dist_vs_winner_m=int(dtw) if dtw else 0,
             first400_s=_t(first400), last600_s=_t(last600), top_speed_kmh=float(top) if top != "NA" else None,
@@ -165,7 +165,7 @@ def check(runs: pd.DataFrame, secs: pd.DataFrame) -> list[str]:
             bad.append(f"race {race} tab {tab}: first remaining {rem[0]} != race time {t}")
     for race, g in runs.groupby("race_no"):
         if (g["finish"] == 1).sum() != 1:
-            bad.append(f"race {race}: {(g['finish'] == 1).sum()} winners")
+            bad.append(f"race {race}: {(g['finish'] == 1).sum()} winners (ranks seen: {' '.join(g['finish_txt'].astype(str))})")
     return bad
 
 
