@@ -177,6 +177,7 @@ def _parse_page_old(text: str, h: dict) -> list[dict]:
         tail = ent[off + k:]
         if h.get("has_official", True):
             official = _t(tail[0][0]) if tail else None
+            official = official or None   # 0:00.00 means no time
             last600 = _t(tail[1][0]) if len(tail) > 1 else None
         else:   # first page of a long race: no official time yet, only the last 600m
             official = None
@@ -304,7 +305,7 @@ def check(runs: pd.DataFrame, secs: pd.DataFrame) -> list[str]:
         if pd.notna(t) and pd.notna(rem[0]) and abs(t - rem[0]) > 0.011:
             bad.append(f"race {race} tab {tab}: first remaining {rem[0]} != race time {t}")
     for race, g in runs.groupby("race_no"):
-        if (g["finish"] == 1).sum() != 1:
+        if (g["finish"] == 1).sum() < 1:   # a dead heat for first is two winners, which is fine
             bad.append(f"race {race}: {(g['finish'] == 1).sum()} winners (ranks seen: {' '.join(g['finish_txt'].astype(str))})")
     return bad
 
