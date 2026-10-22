@@ -18,6 +18,7 @@ usage:
 """
 import glob
 import json
+import os
 import re
 import sys
 from datetime import date, datetime, timedelta
@@ -41,7 +42,7 @@ COLUMN = "spd_fig"
 WINDOW_DAYS = 28             # rows dated within this many days before today (and every later date) are (re)computed
 YEARS_BACK = 2               # results files read: this year and the previous ones
 USE = ["race_id", "date", "horse", "track", "distance", "going", "positionFinish", "marginFinish", "field_size", "weightCarried", "winners_time",
-       "isBarrierTrial", "race_class", "trackGrading"]
+       "isBarrierTrial", "race_class", "trackGrading", "jockey", "barrier"]
 CATS = ["track", "gname", "cls", "grading"]
 FEATS = ["distance", "gnum", "field_size", "doy", "mw"]
 
@@ -92,7 +93,8 @@ def load_form_runs(after, before_only_tracks=None):
     t["marginFinish"] = t["marginFinish"].where(t["marginFinish"].notna() | (t["positionFinish"] != 1), 0.0)
     d = pd.DataFrame({"race_id": t["raceId"], "date": t["date"], "horse": t["horse"], "track": t["track"], "distance": t["distance"], "going": t["going"],
                       "positionFinish": t["positionFinish"], "marginFinish": t["marginFinish"], "field_size": t["starters"], "weightCarried": t["weightCarried"],
-                      "winners_time": t["winnersTime"], "isBarrierTrial": t["isBarrierTrial"], "race_class": t["class"], "trackGrading": t["trackGrading"]})
+                      "winners_time": t["winnersTime"], "isBarrierTrial": t["isBarrierTrial"], "race_class": t["class"], "trackGrading": t["trackGrading"],
+                      "jockey": t["jockey"] if "jockey" in t.columns else np.nan, "barrier": t["barrier"] if "barrier" in t.columns else np.nan})
     return d
 
 
@@ -209,6 +211,28 @@ def compute(runners_df, today=None):
     rating = mu + k * (rating - mu)    # fewer figures, less certain: pull toward the average (slope of next rating on the rating was 0.65 / 0.8 / 0.95 of the 6+ slope)
     adj = _adjustment(m, dts[sel], runners_df.loc[sel, "weight_carried"] if "weight_carried" in runners_df.columns else None)
     out.loc[m.index] = rating + adj
+    return _rebuilt(runners_df, sel, out)
+
+
+def _rebuilt(runners_df, sel, out):
+    """22 Oct 2026: the rating is the rebuilt model's predicted next figure (speed_model.py: formula + context + relevance, the Proj build on speed figures) when its artifacts exist;
+    the calculation above is the fallback for a runner it cannot rate. SPD_MODEL=0 switches it off. The prediction is put back on the old rating's mean and spread (meta 'disp')
+    so the dashboard's display scale (lib/speed.ts) does not move."""
+    if os.environ.get("SPD_MODEL", "1") == "0":
+        return out
+    try:
+        import speed_model
+        art = speed_model.load()
+        if art is None:
+            return out
+        new = speed_model.predict(runners_df, sel, art=art)
+        a, b = art[0].get("disp", [1.0, 0.0])
+        new = a * new + b
+        n_new = int(new.notna().sum())
+        out = new.where(new.notna(), out)
+        print(f"  speed rating: rebuilt model rated {n_new:,} runners")
+    except Exception as e:      # fail-safe: keep the old rating
+        print(f"  speed rating: rebuilt model failed ({type(e).__name__}: {e}), old rating kept")
     return out
 
 

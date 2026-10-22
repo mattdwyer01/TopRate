@@ -189,10 +189,11 @@ def target_history(T, rp):
     return pd.DataFrame(out, columns=cols, index=T.index)
 
 
-def formula_pred(df, co):
+def formula_pred(df, co, clip='default'):
+    """clip: the outlier trim for the rating formula (formula.json clip_low); None for a target on another scale (the speed model passes None)."""
     f = np.full(len(df), np.nan)
     kk = df.n.clip(upper=K).values
-    rc = F.clip_low_lags(df[[f'r{k}' for k in range(1, K + 1)]].values, clip_low())   # outlier trim, same as features.formula_projection
+    rc = F.clip_low_lags(df[[f'r{k}' for k in range(1, K + 1)]].values, clip_low() if isinstance(clip, str) else clip)   # outlier trim, same as features.formula_projection
     for n in range(1, K + 1):
         m = kk == n
         X = rc[m, :n]
@@ -369,7 +370,7 @@ def _cls(series, classes):
     return pd.Categorical(series, categories=classes)
 
 
-def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
+def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip='default'):
     """T: one row per runner to project, columns horse_id, date, jockey, venue, distance, going, weightCarried, barrier, field_size, race_class, trackGrading.
     Returns (formula projection, correction), both NaN where the horse has no earlier page run. Horses with REL_MIN_RUNS or more earlier runs take the relevance model
     (models_tr/ctx_rel_model.txt) when it exists, the rest the plain context model."""
@@ -379,7 +380,7 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
     relf = os.path.join(M, 'ctx_rel_model.txt')
     if rel_booster is None and os.path.exists(relf) and meta.get('rel_feats'):
         rel_booster = lgb.Booster(model_file=relf)
-    co = coefs()
+    co = co or coefs()
     if rp is None:
         rp = page_frame()
         rp['f'] = formula_pred(rp, co)
@@ -398,7 +399,7 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
     X['venue'] = X.vn
     h = target_history(X, rp)
     X = pd.concat([X.drop(columns=[c for c in h.columns if c in X.columns]), h], axis=1)
-    X['f'] = formula_pred(X, co)
+    X['f'] = formula_pred(X, co, clip)
     X = context_columns(X)
     X = add_jockey(X, tab, targets=True)
     X = add_venue(X, rp)
