@@ -183,10 +183,12 @@ def _finalize_old(rows: dict, dist: int) -> None:
         if r["time_s"] is None and posts and posts[-1][0] == 0:
             r["time_s"] = posts[-1][1]
         r["first400_s"] = None
+        r["tracked_time_s"] = posts[-1][1] if posts and posts[-1][0] == 0 else None   # from the position data
+        base = r["tracked_time_s"] if r["tracked_time_s"] is not None else r["time_s"]   # official time can differ by 0.7s (Canterbury)
         secs, prev_cum, prev_pos, start = [], 0.0, None, dist
-        if not r["no_gps"] and r["time_s"] is not None and all(p[1] is not None for p in posts):
+        if not r["no_gps"] and base is not None and all(p[1] is not None for p in posts):
             for to_go, cum, pos, split in posts:
-                secs.append(dict(to_go_m=start, remaining_s=round(r["time_s"] - prev_cum, 2), pos=prev_pos, split_s=split))
+                secs.append(dict(to_go_m=start, remaining_s=round(base - prev_cum, 2), pos=prev_pos, split_s=split, elapsed_s=prev_cum))
                 prev_cum, prev_pos, start = cum, pos, to_go
             r["first400_s"] = next((p[1] for p in posts if dist - p[0] == 400), None)
         r["_sections"] = secs
@@ -248,7 +250,8 @@ def parse_pdf(src: str | Path | bytes, track: str | None = None) -> tuple[pd.Dat
     secs["to_m"] = secs.groupby(["race_no", "tab_no"])["from_m"].shift(-1)
     secs["to_m"] = secs["to_m"].fillna(secs["race_no"].map({n: races[n]["h"]["distance"] for n in races}))
     secs = secs.merge(runs[["race_no", "tab_no", "time_s"]], on=["race_no", "tab_no"], how="left")
-    secs["elapsed_s"] = secs["time_s"] - secs["remaining_s"]   # time from the start to this post
+    calc = secs["time_s"] - secs["remaining_s"]   # time from the start to this post
+    secs["elapsed_s"] = secs["elapsed_s"].fillna(calc) if "elapsed_s" in secs.columns else calc
     secs["speed_kmh"] = (secs["to_m"] - secs["from_m"]) / secs["split_s"] * 3.6
     secs = secs.drop(columns="time_s")
     return runs, secs
@@ -264,7 +267,8 @@ def check(runs: pd.DataFrame, secs: pd.DataFrame) -> list[str]:
                 bad.append(f"race {race} tab {tab}: remaining/split mismatch at {g['to_go_m'].iloc[j]}")
         if pd.notna(rem[-1]) and pd.notna(sp[-1]) and abs(rem[-1] - sp[-1]) > 0.05:   # source rounding: finish cumulative vs official time can differ by 0.03
             bad.append(f"race {race} tab {tab}: last remaining != last split")
-        t = runs.loc[(runs.race_no == race) & (runs.tab_no == tab), "time_s"].iloc[0]
+        rr = runs.loc[(runs.race_no == race) & (runs.tab_no == tab)].iloc[0]
+        t = rr["tracked_time_s"] if "tracked_time_s" in runs.columns and pd.notna(rr["tracked_time_s"]) else rr["time_s"]
         if pd.notna(t) and pd.notna(rem[0]) and abs(t - rem[0]) > 0.011:
             bad.append(f"race {race} tab {tab}: first remaining {rem[0]} != race time {t}")
     for race, g in runs.groupby("race_no"):
