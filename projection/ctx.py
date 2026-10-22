@@ -7,6 +7,7 @@ of the last four ratings, and the jockey's effect as of the day (shrunk mean for
 `predict(T)` is the live path: T has one row per runner to project; history is the runner-page store strictly before each row's date."""
 import json
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -19,12 +20,24 @@ except ImportError:      # imported as projection.ctx from the repo root
 K = 8
 M = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models_tr')
 JOCKEY_K = 20.0
+REL_MIN_RUNS = 3          # the relevance model is used for horses with at least this many earlier page runs; fewer keep the plain context model
+OWN_K = 5.0               # shrink for the horse's own earlier misses under the same conditions
+LAGS = 4                  # earlier runs given their own context columns
 # Venue effect (22 Oct 2026, owner's call, research/venue_feature_test.py): shrunk mean formula residual of the venue's page runs in [date - 186 days, date - 6 days).
 # The newest 6 days are left out because a page rating for a run a few days old can still be Preliminary live but is Final in the training history.
 # Held-out 2026 (35,081 runs): paired MSE gain +0.158 (95% +0.082 to +0.232) at K 200, against +0.143 at K 100 and +0.084 at K 50.
 VEN_K, VEN_WINDOW, VEN_GAP = 200.0, 180, 6
 FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg', 'going_n', 'going_chg', 'grade', 'field_size', 'barr_f', 'weightCarried', 'wt_chg',
          'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff']
+
+
+LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]
+CAR_NAMES = ['c_mean', 'c_max', 'c_sd', 'c_ewm3', 'c_near', 'c_vs_f', 'cmax_vs_f']
+SIM_NAMES = ['sim_dist', 'sim_going', 'sim_track', 'sim_jock', 'sim_class', 'sim_days', 'sim_all']
+OWN_NAMES = ['h_dist', 'h_dist_n', 'h_going', 'h_going_n', 'h_track', 'h_track_n', 'h_spell', 'h_spell_n', 'h_jock', 'h_jock_n']
+REL_FEATS = LAG_NAMES + CAR_NAMES + SIM_NAMES + OWN_NAMES
+SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
+SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
 
 def going_num(s):
@@ -46,6 +59,65 @@ def class_code(s):
     m = low.str.extract(r'^restricted (\d+)$')[0]
     out = out.where(m.isna(), 'RST' + m.fillna(''))
     return out
+
+
+def add_speed(rp, first_year=2019):
+    """Adds column sp (the run's own speed figure, lengths vs par, from speed_rating.figure_table) to a page frame that has horse (name) and date. NaN where there is no figure."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import speed_rating as SR
+    ft = SR.figure_table(first_year)
+    k = rp.horse.astype(str).str.lower().str.strip()
+    m = pd.DataFrame({'key': k.values, 'date': pd.to_datetime(rp.date).dt.normalize().values}).merge(ft, on=['key', 'date'], how='left')
+    rp = rp.copy()
+    rp['sp'] = m['sp'].values
+    return rp
+
+
+def speed_features(T, rp):
+    """The speed block for rows to project (or the page runs themselves for training): the horse's earlier speed figures (rp column sp) on their own and against the ratings of the same
+    runs, history strictly before the row's date. T needs horse_id, date, f; rp needs horse_id, date, wpr, sp."""
+    byh = {h: (x.date.values.astype('datetime64[D]').astype('int64'), x.sp.values.astype(float), x.wpr.values.astype(float)) for h, x in rp.groupby('horse_id')}
+    n = len(T)
+    out = np.full((n, len(SPD_FEATS)), np.nan)
+    col = {c: i for i, c in enumerate(SPD_FEATS)}
+    hid = pd.to_numeric(T.horse_id, errors='coerce').values
+    dts = pd.to_datetime(T.date).values.astype('datetime64[D]').astype('int64')
+    f = T.f.values.astype(float)
+    for i in range(n):
+        h = hid[i]
+        a = None if np.isnan(h) else byh.get(h)
+        if a is None or np.isnan(f[i]):
+            continue
+        j = int(np.searchsorted(a[0], dts[i], side='left'))
+        if j == 0:
+            continue
+        sp, w = a[1][:j][::-1], a[2][:j][::-1]
+        have = ~np.isnan(sp)
+        out[i, col['n_sp']] = float(have.sum())
+        if not have.any():
+            continue
+        v = sp[have]
+        for k in range(min(4, len(sp))):
+            out[i, col[f'sp{k + 1}']] = sp[k]
+            out[i, col[f'sd{k + 1}']] = (SPD_A + SPD_B * sp[k]) - w[k] if not np.isnan(sp[k]) else np.nan
+        ew = 0.5 ** (np.arange(len(v)) / 4.0)
+        e = (v * ew).sum() / ew.sum()
+        out[i, col['sp_ewm4']] = e
+        out[i, col['sp_max4']] = v[:4].max()
+        out[i, col['sp_std4']] = v[:4].std() if len(v[:4]) > 1 else np.nan
+        out[i, col['spd_vs_f']] = (SPD_A + SPD_B * e) - f[i]
+        dd = ((SPD_A + SPD_B * sp) - w)[:4]
+        dd = dd[~np.isnan(dd)]
+        out[i, col['sd_mean4']] = dd.mean() if len(dd) else np.nan
+    return pd.DataFrame(out, columns=SPD_FEATS, index=T.index)
+
+
+def going_group(g):
+    """Going number to 0 (3 or less, firm and good), 1 (Good 4), 2 (5 to 7, soft), 3 (8+, heavy); -1 unknown."""
+    g = np.asarray(g, dtype=float)
+    return np.where(np.isnan(g), -1, np.digitize(np.nan_to_num(g, nan=-9), [3.5, 4.5, 7.5]))
 
 
 def venue_key(s):
@@ -76,6 +148,7 @@ def page_frame():
     for c in ('distance', 'weightCarried', 'barrier', 'field_size', 'marginFinish', 'positionFinish'):
         rp[c] = pd.to_numeric(rp[c], errors='coerce')
     rp['cls'] = class_code(rp.race_class)
+    rp['vn'] = venue_key(rp.venue.where(rp.venue.notna(), rp.track))
     rp['venue'] = venue_key(rp.venue)
     rp = rp.sort_values(['horse_id', 'date']).reset_index(drop=True)
     g = rp.groupby('horse_id')
@@ -170,6 +243,86 @@ def add_jockey(df, tab, targets=False):
     return df
 
 
+def rel_features(T, rp):
+    """Relevance features (22 Oct 2026): every earlier page run of the horse judged against TODAY'S race instead of one fixed weighting of the last eight ratings.
+    T: rows to project (or, for training, the page runs themselves) with horse_id, date, distance, going_n, weightCarried, vn (venue key), jockey, cls and f (the formula).
+    rp: the page frame with f and resid. History = the horse's page runs strictly before the row's date, so a past run and a future one get identical features.
+    Families: lag context (how today differs from each of the last four runs and how that run went), career (all earlier runs), similarity-weighted average of the last
+    eight ratings (distance, going, track, jockey, class, days, recency kernels, as the gap to f), and the horse's own earlier misses under the same conditions."""
+    byh = {}
+    for h, x in rp.groupby('horse_id'):
+        byh[h] = dict(d=x.date.values.astype('datetime64[D]').astype('int64'), w=x.wpr.values, dist=x.distance.values, gn=x.going_n.values, wt=x.weightCarried.values,
+                      vn=x.vn.values, jk=x.jockey.values.astype(object), cl=x.cls.values.astype(object), mg=x.marginFinish.values,
+                      pf=(x.positionFinish / x.field_size).values, res=x.resid.values)
+    n = len(T)
+    out = np.full((n, len(REL_FEATS)), np.nan)
+    col = {c: i for i, c in enumerate(REL_FEATS)}
+    hid = pd.to_numeric(T.horse_id, errors='coerce').values
+    dts = pd.to_datetime(T.date).values.astype('datetime64[D]').astype('int64')
+    dist, gn, wt = T.distance.values.astype(float), T.going_n.values.astype(float), T.weightCarried.values.astype(float)
+    vn, jk, cl, f = T.vn.values, T.jockey.astype(object).values, T.cls.astype(object).values, T.f.values.astype(float)
+    tg = going_group(gn)
+    for i in range(n):
+        h = hid[i]
+        a = None if np.isnan(h) else byh.get(h)
+        if a is None or np.isnan(f[i]):
+            continue
+        j = int(np.searchsorted(a['d'], dts[i], side='left'))
+        if j == 0:
+            continue
+        L = min(K, j)
+        sl = slice(j - L, j)
+        R = a['w'][sl][::-1]
+        dd = dist[i] - a['dist'][sl][::-1]
+        gd = gn[i] - a['gn'][sl][::-1]
+        wd = wt[i] - a['wt'][sl][::-1]
+        dg = (dts[i] - a['d'][sl][::-1]).astype(float)
+        trk = (a['vn'][sl][::-1] == vn[i]).astype(float)
+        sj = (a['jk'][sl][::-1] == jk[i]).astype(float)
+        sc = (a['cl'][sl][::-1] == cl[i]).astype(float)
+        mg, pf = a['mg'][sl][::-1], a['pf'][sl][::-1]
+        rmean = R.mean()
+        for k in range(min(LAGS, L)):
+            k1 = k + 1
+            for nm, v in (('dd', dd[k]), ('gd', gd[k]), ('trk', trk[k]), ('jk', sj[k]), ('cl', sc[k]), ('wd', wd[k]), ('dg', dg[k]), ('mg', mg[k]), ('pf', pf[k]), ('dev', R[k] - rmean)):
+                out[i, col[f'{nm}{k1}']] = v
+        # career: every earlier run
+        w_all = a['w'][:j]
+        out[i, col['c_mean']] = w_all.mean()
+        out[i, col['c_max']] = w_all.max()
+        out[i, col['c_sd']] = w_all.std(ddof=1) if j > 1 else np.nan
+        ew = 0.5 ** (np.arange(j) / 3.0)
+        out[i, col['c_ewm3']] = (w_all[::-1] * ew).sum() / ew.sum()
+        out[i, col['c_near']] = float((w_all >= 0.95 * np.maximum.accumulate(w_all)).sum())
+        out[i, col['c_vs_f']] = out[i, col['c_ewm3']] - f[i]
+        out[i, col['cmax_vs_f']] = out[i, col['c_max']] - f[i]
+        # similarity-weighted average of the last eight ratings (gap to the formula)
+        rec = np.exp(-np.arange(L) / 4.0)
+        ddn, gdn, dgn = np.abs(np.nan_to_num(dd, nan=1e4)), np.abs(np.nan_to_num(gd, nan=1e4)), np.nan_to_num(dg, nan=1e4)
+        kern = {'sim_dist': np.exp(-ddn / 300.0), 'sim_going': np.exp(-gdn / 1.5), 'sim_track': 1.0 + 3.0 * trk, 'sim_jock': 1.0 + 3.0 * sj, 'sim_class': 1.0 + 3.0 * sc,
+                'sim_days': np.exp(-dgn / 120.0), 'sim_all': np.exp(-ddn / 400.0) * np.exp(-gdn / 2.0) * (1 + 1.5 * trk) * (1 + sj) * (1 + sc)}
+        for nm, kw in kern.items():
+            ww = kw * rec
+            sw = ww.sum()
+            out[i, col[nm]] = (ww * R).sum() / sw - f[i] if sw > 0 else np.nan
+        # the horse's own earlier formula misses under the same conditions (shrunk)
+        res = a['res'][:j]
+        okr = ~np.isnan(res)
+        keys = (('h_dist', np.round(a['dist'][:j] / 200.0) == np.round(dist[i] / 200.0)), ('h_going', going_group(a['gn'][:j]) == tg[i]),
+                ('h_track', a['vn'][:j] == vn[i]), ('h_jock', a['jk'][:j] == jk[i]))
+        for nm, eq in keys:
+            m = okr & eq
+            out[i, col[nm]] = res[m].sum() / (m.sum() + OWN_K)
+            out[i, col[nm + '_n']] = float(m.sum())
+        prior_gap = np.concatenate([[np.nan], np.diff(a['d'][:j])]).astype(float)
+        fu_hist = prior_gap > 60
+        fu_now = (dts[i] - a['d'][j - 1]) > 60
+        m = okr & (fu_hist == fu_now) & ~np.isnan(prior_gap)
+        out[i, col['h_spell']] = res[m].sum() / (m.sum() + OWN_K)
+        out[i, col['h_spell_n']] = float(m.sum())
+    return pd.DataFrame(out, columns=REL_FEATS, index=T.index)
+
+
 def add_venue(df, rp):
     """ven_eff for every row of df (columns venue, date): shrunk mean formula residual of the venue's page runs in the window before the date (rp carries resid)."""
     t = rp[rp.resid.notna()].groupby(['venue', 'date']).resid.agg(['sum', 'count']).reset_index().sort_values(['venue', 'date'])
@@ -206,16 +359,26 @@ def training_frame():
     return rp
 
 
+def training_frame_rel():
+    """training_frame plus the relevance features (rel_features run on the page runs themselves, history strictly before each run's date)."""
+    rp = training_frame()
+    return pd.concat([rp, rel_features(rp, rp)], axis=1)
+
+
 def _cls(series, classes):
     return pd.Categorical(series, categories=classes)
 
 
-def predict(T, meta=None, booster=None, rp=None):
-    """T: one row per runner to project, columns horse_id, date, jockey, distance, going, weightCarried, barrier, field_size, race_class, trackGrading.
-    Returns (formula projection, correction), both NaN where the horse has no earlier page run."""
+def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
+    """T: one row per runner to project, columns horse_id, date, jockey, venue, distance, going, weightCarried, barrier, field_size, race_class, trackGrading.
+    Returns (formula projection, correction), both NaN where the horse has no earlier page run. Horses with REL_MIN_RUNS or more earlier runs take the relevance model
+    (models_tr/ctx_rel_model.txt) when it exists, the rest the plain context model."""
     import lightgbm as lgb
     meta = meta or json.load(open(os.path.join(M, 'ctx.json')))
     booster = booster or lgb.Booster(model_file=os.path.join(M, 'ctx_model.txt'))
+    relf = os.path.join(M, 'ctx_rel_model.txt')
+    if rel_booster is None and os.path.exists(relf) and meta.get('rel_feats'):
+        rel_booster = lgb.Booster(model_file=relf)
     co = coefs()
     if rp is None:
         rp = page_frame()
@@ -231,7 +394,8 @@ def predict(T, meta=None, booster=None, rp=None):
     for c in ('distance', 'weightCarried', 'barrier', 'field_size'):
         X[c] = pd.to_numeric(X[c], errors='coerce')
     X['cls'] = class_code(X.race_class)
-    X['venue'] = venue_key(X.venue) if 'venue' in X.columns else ''
+    X['vn'] = venue_key(X.venue) if 'venue' in X.columns else ''
+    X['venue'] = X.vn
     h = target_history(X, rp)
     X = pd.concat([X.drop(columns=[c for c in h.columns if c in X.columns]), h], axis=1)
     X['f'] = formula_pred(X, co)
@@ -243,4 +407,12 @@ def predict(T, meta=None, booster=None, rp=None):
     ok = X.f.notna().values
     if ok.any():
         corr[ok] = booster.predict(X.loc[ok, FEATS])
+    if rel_booster is not None:
+        use = ok & (X.n.values >= REL_MIN_RUNS)
+        if use.any():
+            Xr = X.loc[use].copy()
+            Xr = pd.concat([Xr, rel_features(Xr, rp)], axis=1)
+            if any(c in meta['rel_feats'] for c in SPD_FEATS):
+                Xr = pd.concat([Xr, speed_features(Xr, rp)], axis=1)
+            corr[use] = rel_booster.predict(Xr[meta['rel_feats']])
     return X.f.values, corr

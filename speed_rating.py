@@ -185,6 +185,13 @@ def run_figures(first_year=None):
     return dict(zip(zip(k, dt), d["sp"].round(1)))
 
 
+def figure_table(first_year=None):
+    """DataFrame (key = horse name lower-case, date, sp) of every run's own speed figure (lengths vs par, unrounded) from first_year; the same numbers the rating averages."""
+    first_year = first_year or (_melbourne_today().year - 3)
+    d = figures(load_results(first_year))
+    return pd.DataFrame({"key": d["horse"].astype(str).str.lower().str.strip().values, "date": pd.to_datetime(d["date"]).dt.normalize().values, "sp": d["sp"].values}).drop_duplicates(["key", "date"], keep="last")
+
+
 def compute(runners_df, today=None):
     """Speed rating (lengths vs par, higher = faster) for runners dated in the last WINDOW_DAYS or later; NaN elsewhere. Index matches runners_df."""
     today = today or _melbourne_today()
