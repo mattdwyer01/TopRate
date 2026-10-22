@@ -6,6 +6,7 @@ Output per frame: saddle number, x (pixels along the track, direction flips betw
 Digit templates are harvested from the SEED dots of the 14 Oct 2026 Happy Valley R1 image, so other images need the same font only.
 Run: python research/hk_aerial_extract.py aerial_L.jpg
 """
+import os
 import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -31,23 +32,34 @@ def disc(r):
     return (yy ** 2 + xx ** 2 <= r * r).astype(float)
 
 
+def est_radius(mask):
+    """Dot radius from the isolated blobs (single dots are 700 to 1500 px); falls back to RAD."""
+    lab, n = ndi.label(mask)
+    if n == 0:
+        return RAD
+    a = np.asarray(ndi.sum(mask, lab, range(1, n + 1)))
+    a = a[(a > 700) & (a < 1500)]
+    return float(np.sqrt(np.median(a) / np.pi)) if len(a) >= 3 else RAD
+
+
 def find_dots(mask):
     """Greedy disc fit: a dot is a disc lying wholly inside the (filled) blue mask that explains new pixels."""
-    d = disc(RAD)
+    rad = est_radius(mask)
+    d = disc(rad)
     area = d.sum()
     inside = fftconvolve(mask.astype(float), d, mode='same')   # mask pixels under the disc
     covered = np.zeros_like(mask, dtype=bool)
     dots = []
     for _ in range(40):
         new = fftconvolve((mask & ~covered).astype(float), d, mode='same')
-        ok = inside >= area * 0.97
+        ok = inside >= area * 0.93
         score = np.where(ok, new, -1)
         y, x = np.unravel_index(np.argmax(score), score.shape)
         if score[y, x] < area * 0.12:
             break
         dots.append((y, x, float(score[y, x] / area)))
         yy, xx = np.ogrid[:mask.shape[0], :mask.shape[1]]
-        covered |= (yy - y) ** 2 + (xx - x) ** 2 <= RAD * RAD
+        covered |= (yy - y) ** 2 + (xx - x) ** 2 <= rad * rad
     return dots
 
 
@@ -106,6 +118,9 @@ SEED = {2: (282, 219), 3: (196, 251), 4: (82, 187), 5: (124, 218), 6: (112, 253)
 SEED_TWO = {10: (456, 217), 12: (375, 217)}
 
 
+SEED_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hk_aerial_sample', '20261014_HV_R1_Aerial_L.jpg')
+
+
 def build_bank(im):
     bank = {}
     for d, (x, y) in SEED.items():
@@ -139,7 +154,10 @@ def read_frame(im, y0, bank, maxn=16):
     return sorted(out, key=lambda d: d['num'])
 
 
-M_PER_PX = 0.057   # from the margin fit on the 14 Oct 2026 HV R1 image (40-44 px per length, 2.4 m a length)
+# metres per pixel at 2.4 m a length, from the official lengths-behind fit over 95 races of 2026-27 (research/hk_aerial_scale_check.py):
+# Happy Valley 42.8 px a length (0.056), Sha Tin 40.8 (0.059), about 9% sd per race
+M_PER_PX = {'HV': 0.056, 'ST': 0.059}
+M_PER_PX_DEFAULT = 0.058
 RAIL_T = 205
 
 
@@ -168,7 +186,7 @@ def lateral(im, dots_by_frame):
             y_local = d['y'] - k * FRAME_H
             px = float(dist[y_local, d['x']]) if dist is not None else None
             out.append(dict(frame=k, num=d['num'], x=d['x'], rail_px=None if px is None else round(px, 1),
-                            rail_m=None if px is None else round(px * M_PER_PX, 1)))
+                            rail_m=None if px is None else round(px * M_PER_PX_DEFAULT, 1)))
     return out
 
 
@@ -205,15 +223,24 @@ def lateral2(im, dots_by_frame):
         loc = [(d['y'] - k * FRAME_H, d['x']) for d in res]
         for d in res:
             px = rail_scan(fr, loc, d['y'] - k * FRAME_H, d['x'])
-            out.append(dict(frame=k, num=d['num'], x=d['x'], rail_px=px, rail_m=None if px is None else round(px * M_PER_PX, 1)))
+            out.append(dict(frame=k, num=d['num'], x=d['x'], rail_px=px, rail_m=None if px is None else round(px * M_PER_PX_DEFAULT, 1)))
     return out
+
+
+def load_image(path_or_bytes):
+    """800x1800 RGB array. The 6 Sep 2026 images are published at half size (400x900): upscale them."""
+    import io
+    im = Image.open(io.BytesIO(path_or_bytes) if isinstance(path_or_bytes, bytes) else path_or_bytes).convert('RGB')
+    if im.size == (400, 900):
+        im = im.resize((800, 1800), Image.LANCZOS)
+    return np.asarray(im).astype(int)
 
 
 if __name__ == '__main__':
     import json
     path = sys.argv[1]
-    im = np.asarray(Image.open(path).convert('RGB')).astype(int)
-    bank = build_bank(im)
+    im = load_image(path)
+    bank = build_bank(np.asarray(Image.open(SEED_IMAGE).convert('RGB')).astype(int))
     frames = [read_frame(im, k * FRAME_H, bank) for k in range(4)]
     lat = lateral2(im, frames)
     table = {}
