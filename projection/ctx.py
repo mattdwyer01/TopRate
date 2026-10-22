@@ -23,8 +23,12 @@ JOCKEY_K = 20.0
 REL_MIN_RUNS = 3          # the relevance model is used for horses with at least this many earlier page runs; fewer keep the plain context model
 OWN_K = 5.0               # shrink for the horse's own earlier misses under the same conditions
 LAGS = 4                  # earlier runs given their own context columns
+# Venue effect (22 Oct 2026, owner's call, research/venue_feature_test.py): shrunk mean formula residual of the venue's page runs in [date - 186 days, date - 6 days).
+# The newest 6 days are left out because a page rating for a run a few days old can still be Preliminary live but is Final in the training history.
+# Held-out 2026 (35,081 runs): paired MSE gain +0.158 (95% +0.082 to +0.232) at K 200, against +0.143 at K 100 and +0.084 at K 50.
+VEN_K, VEN_WINDOW, VEN_GAP = 200.0, 180, 6
 FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg', 'going_n', 'going_chg', 'grade', 'field_size', 'barr_f', 'weightCarried', 'wt_chg',
-         'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c']
+         'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff']
 
 
 LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]
@@ -110,14 +114,25 @@ def speed_features(T, rp):
     return pd.DataFrame(out, columns=SPD_FEATS, index=T.index)
 
 
-def venue_key(s):
-    return s.astype(str).str.lower().str.replace(r'[^a-z0-9]+', ' ', regex=True).str.strip()
-
-
 def going_group(g):
     """Going number to 0 (3 or less, firm and good), 1 (Good 4), 2 (5 to 7, soft), 3 (8+, heavy); -1 unknown."""
     g = np.asarray(g, dtype=float)
     return np.where(np.isnan(g), -1, np.digitize(np.nan_to_num(g, nan=-9), [3.5, 4.5, 7.5]))
+
+
+def venue_key(s):
+    """Venue name as a key: sponsor prefixes and aliases removed the same way the field merge does (Sportsbet-Ballarat and Ballarat are one venue)."""
+    try:
+        import rc_field_rows as RF
+        norm = RF.norm_venue
+    except ImportError:
+        norm = lambda x: x
+    cleaned = s.astype(str).str.replace('-', ' ', regex=False).str.strip()
+    return cleaned.map(lambda x: norm(x).strip().lower() if x not in ('', 'nan', 'None') else '')
+
+
+def clip_low():
+    return json.load(open(os.path.join(M, 'formula.json'))).get('clip_low')
 
 
 def coefs():
@@ -134,6 +149,7 @@ def page_frame():
         rp[c] = pd.to_numeric(rp[c], errors='coerce')
     rp['cls'] = class_code(rp.race_class)
     rp['vn'] = venue_key(rp.venue.where(rp.venue.notna(), rp.track))
+    rp['venue'] = venue_key(rp.venue)
     rp = rp.sort_values(['horse_id', 'date']).reset_index(drop=True)
     g = rp.groupby('horse_id')
     for k in range(1, K + 1):
@@ -176,10 +192,10 @@ def target_history(T, rp):
 def formula_pred(df, co):
     f = np.full(len(df), np.nan)
     kk = df.n.clip(upper=K).values
+    rc = F.clip_low_lags(df[[f'r{k}' for k in range(1, K + 1)]].values, clip_low())   # outlier trim, same as features.formula_projection
     for n in range(1, K + 1):
         m = kk == n
-        c = [f'r{k}' for k in range(1, n + 1)]
-        X = df.loc[m, c].values
+        X = rc[m, :n]
         ok = ~np.isnan(X).any(axis=1)
         idx = np.where(m)[0][ok]
         f[idx] = co[n][0] + X[ok] @ co[n][1:]
@@ -307,6 +323,30 @@ def rel_features(T, rp):
     return pd.DataFrame(out, columns=REL_FEATS, index=T.index)
 
 
+def add_venue(df, rp):
+    """ven_eff for every row of df (columns venue, date): shrunk mean formula residual of the venue's page runs in the window before the date (rp carries resid)."""
+    t = rp[rp.resid.notna()].groupby(['venue', 'date']).resid.agg(['sum', 'count']).reset_index().sort_values(['venue', 'date'])
+    arr = {}
+    for v, d in t.groupby('venue'):
+        arr[v] = (d.date.values, np.concatenate([[0.0], np.cumsum(d['sum'].values)]), np.concatenate([[0.0], np.cumsum(d['count'].values)]))
+    vs = np.zeros(len(df))
+    vn = np.zeros(len(df))
+    dts = pd.to_datetime(df.date).values
+    for v, idx in df.groupby('venue').indices.items():
+        a = arr.get(v)
+        if a is None:
+            continue
+        dd, cs, cc = a
+        hi = np.searchsorted(dd, dts[idx] - np.timedelta64(VEN_GAP, 'D'), side='left')
+        lo = np.searchsorted(dd, dts[idx] - np.timedelta64(VEN_GAP + VEN_WINDOW, 'D'), side='left')
+        vs[idx] = cs[hi] - cs[lo]
+        vn[idx] = cc[hi] - cc[lo]
+    df = df.copy()
+    df['ven_eff'] = vs / (vn + VEN_K)
+    df['ven_n'] = vn
+    return df
+
+
 def training_frame():
     """Page runs with formula, residual and every context feature (training rows: runs with at least one earlier run)."""
     co = coefs()
@@ -315,6 +355,7 @@ def training_frame():
     rp = context_columns(rp)
     rp['resid'] = rp.wpr - rp.f
     rp = add_jockey(rp, jockey_table(rp))
+    rp = add_venue(rp, rp)
     return rp
 
 
@@ -354,11 +395,13 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None):
         X[c] = pd.to_numeric(X[c], errors='coerce')
     X['cls'] = class_code(X.race_class)
     X['vn'] = venue_key(X.venue) if 'venue' in X.columns else ''
+    X['venue'] = X.vn
     h = target_history(X, rp)
     X = pd.concat([X.drop(columns=[c for c in h.columns if c in X.columns]), h], axis=1)
     X['f'] = formula_pred(X, co)
     X = context_columns(X)
     X = add_jockey(X, tab, targets=True)
+    X = add_venue(X, rp)
     X['cls_c'] = _cls(X.cls, meta['classes'])
     corr = np.full(len(X), np.nan)
     ok = X.f.notna().values

@@ -1,0 +1,42 @@
+name: Racing Queensland GPS live probe
+
+# Manual. Polls the RQ sectionals page and one meeting's ZIP through the day and logs when the ZIP first appears and whether it grows race by race
+# (race files are stamped about 10 to 30 minutes after each jump, see research/rq_gps_live_probe.py). Needs no secrets.
+# Output: the job log and the rq_gps_live_probe artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      venue:
+        description: "QLD venue"
+        default: "Ipswich"
+      date:
+        description: "Meeting date YYYY-MM-DD"
+        default: "2026-10-22"
+      until:
+        description: "Stop at this UTC time HH:MM (must be under 6 hours from the start)"
+        default: "09:15"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: research/rq_gps_live_probe.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - run: python -u research/rq_gps_live_probe.py --date "${{ inputs.date }}" --venue "${{ inputs.venue }}" --until "${{ inputs.until }}" --every 180
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rq_gps_live_probe
+          path: rq_gps_live_probe.json

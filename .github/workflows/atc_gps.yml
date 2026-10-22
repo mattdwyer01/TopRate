@@ -1,0 +1,109 @@
+name: ATC NSW metro GPS sectionals
+
+# Swiss Timing / Triple S sectional PDFs from the Australian Turf Club (Randwick, Rosehill, Canterbury, Warwick Farm),
+# kept beside the racing.com and Racing Queensland GPS at data/gps/atc_gps_{runs,sections}_{year}.parquet (one file per
+# year, so a daily commit only rewrites the current year). Parser, downloader and merge: atc_gps.py.
+#
+# Daily (06:30 AEST) it re-reads the last 10 days; the feed publishes a few days after racing and duplicates are merged
+# away. Manual run with `since` (and optionally `until`) is the backfill: run it a year at a time (about 1 hour a year).
+# feed.australianturfclub.com.au is unreachable from GitHub-hosted runners and cloud sessions (connect timeouts and
+# resets), so this runs on the Vultr AU runner (repo variable SCRAPER_RUNNER=self-hosted, as gps_daily.yml does). That
+# box also runs tab_results.yml, so keep each backfill run to one year.
+
+on:
+  schedule:
+    - cron: "30 20 * * *"      # 06:30 AEST / 07:30 AEDT, after gps_daily.yml
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Start date YYYY-MM-DD (blank = last 10 days)"
+        default: ""
+      until:
+        description: "End date YYYY-MM-DD (blank = today)"
+        default: ""
+      tracks:
+        description: "Track codes, space separated (blank = RAND RHIL CANT WARW). Use it to probe other codes."
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gps-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 240
+    env:
+      ATC_SINCE: ${{ github.event.inputs.since }}
+      ATC_UNTIL: ${{ github.event.inputs.until }}
+      ATC_TRACKS: ${{ github.event.inputs.tracks }}
+    steps:
+      - name: Check out atc_gps.py and data/gps
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            atc_gps.py
+            data/gps/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
+        with:
+          python-version: "3.11"
+
+      - name: Python packages
+        run: |
+          if [ "${{ runner.environment }}" = "github-hosted" ]; then pip install pandas pyarrow requests pdfplumber; exit 0; fi
+          # self-hosted (Vultr): the runner's Python is a virtualenv, add what is missing
+          python -c "import pandas, pyarrow, requests, pdfplumber" 2>/dev/null && exit 0
+          python -m pip install pandas pyarrow requests pdfplumber \
+            || python -m pip install --user pandas pyarrow requests pdfplumber \
+            || python -m pip install --user --break-system-packages pandas pyarrow requests pdfplumber
+
+      - name: Download and parse
+        run: |
+          SINCE="${ATC_SINCE:-$(date -u -d '10 days ago' +%F)}"
+          ARGS=(--since "$SINCE")
+          [ -n "$ATC_UNTIL" ] && ARGS+=(--until "$ATC_UNTIL")
+          [ -n "$ATC_TRACKS" ] && ARGS+=(--tracks $ATC_TRACKS)
+          python atc_gps.py download "${ARGS[@]}"
+          python atc_gps.py parse
+          if [ -f work/atc_new/atc_parse_problems.txt ]; then echo "::warning::some PDFs did not parse, see the log"; head -50 work/atc_new/atc_parse_problems.txt; fi
+
+      - name: Merge into data/gps
+        run: python atc_gps.py merge
+
+      - name: Keep the parsed files (a failed push must not lose a long run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atc-gps-parquet
+          path: data/gps/atc_gps_*.parquet
+          retention-days: 7
+
+      - name: Commit and push
+        run: |
+          git config user.name "atc-gps bot"
+          git config user.email "atc-gps-bot@users.noreply.github.com"
+          FILES="data/gps/atc_gps_runs_*.parquet data/gps/atc_gps_sections_*.parquet"
+          git add $FILES
+          git diff --cached --quiet && { echo "ATC GPS: no change"; exit 0; }
+          git commit -q -m "ATC GPS sectionals $(TZ=Australia/Melbourne date +%F\ %H:%M)"
+          for i in 1 2 3 4 5 6; do
+            git push -q origin HEAD:main && exit 0
+            # main moved while this ran (the poller commits every few minutes). Move to the new tip without a merge,
+            # keeping our files in the working tree (plain checkout: git reset --mixed segfaulted in this sparse checkout).
+            KEEP="${RUNNER_TEMP:-/tmp}/atc_keep"; rm -rf "$KEEP"; mkdir -p "$KEEP"; cp data/gps/atc_gps_*.parquet "$KEEP"/
+            git fetch -q --depth=1 origin main
+            git checkout -q -f -B atc-push FETCH_HEAD
+            cp "$KEEP"/*.parquet data/gps/
+            git add $FILES
+            git diff --cached --quiet && exit 0
+            git commit -q -m "ATC GPS sectionals $(TZ=Australia/Melbourne date +%F\ %H:%M)"
+            sleep $((i * 5))
+          done
+          exit 1

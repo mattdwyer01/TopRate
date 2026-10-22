@@ -21,6 +21,26 @@ export interface DayRace {
   favourite: Runner | null
   favouriteWon: boolean
   favouriteFinish: number | null
+  going: string
+  rail: string | null
+  // Winner's Proj points below the race's top Proj (0 = the winner was the top pick); null when the winner had no Proj.
+  winnerGap: number | null
+  // Number of runners with no Proj in the race (first starters estimates included).
+  unrated: number
+}
+
+export interface MeetingDay {
+  venue: string
+  going: string
+  rail: string | null
+  races: DayRace[]
+  modelWins: number
+  favouriteWins: number
+  comparable: number
+  winnerInCore: number
+  winnerInInner: number
+  withGap: number
+  meanWinnerRank: number | null
 }
 
 export interface DaySummary {
@@ -66,7 +86,43 @@ export function computeDayRace(race: Race): DayRace | null {
     favourite,
     favouriteWon: favourite?.runId === winner.runId,
     favouriteFinish: favourite?.finishPosition ?? null,
+    going: race.going,
+    rail: race.rail,
+    winnerGap: winnerIdx >= 0 ? (projectedAtActualScale(rated[0]) as number) - (projectedAtActualScale(rated[winnerIdx]) as number) : null,
+    unrated: live.filter((r) => r.projectedWpr == null).length,
   }
+}
+
+// Gap lines the dashboard draws from the top Proj (see raceModel CORE / INNER).
+const CORE_GAP = 2
+const INNER_GAP = 4
+
+/** One day's races grouped by meeting: strike rates, where the winners sat against the 2 / 4 lines, mean winner rank. */
+export function groupByMeeting(races: DayRace[]): MeetingDay[] {
+  const by = new Map<string, DayRace[]>()
+  for (const r of races) {
+    const g = by.get(r.venue)
+    if (g) g.push(r)
+    else by.set(r.venue, [r])
+  }
+  return [...by.entries()].map(([venue, list]) => {
+    const both = list.filter((r) => r.modelTop && r.favourite)
+    const withGap = list.filter((r) => r.winnerGap != null)
+    const ranked = list.filter((r) => r.winnerModelRank != null)
+    return {
+      venue,
+      going: list[0].going,
+      rail: list[0].rail,
+      races: list,
+      modelWins: both.filter((r) => r.modelTopWon).length,
+      favouriteWins: both.filter((r) => r.favouriteWon).length,
+      comparable: both.length,
+      winnerInCore: withGap.filter((r) => (r.winnerGap as number) <= CORE_GAP).length,
+      winnerInInner: withGap.filter((r) => (r.winnerGap as number) <= INNER_GAP).length,
+      withGap: withGap.length,
+      meanWinnerRank: ranked.length ? ranked.reduce((a, r) => a + (r.winnerModelRank as number), 0) / ranked.length : null,
+    }
+  })
 }
 
 /** Day summaries, newest first. */

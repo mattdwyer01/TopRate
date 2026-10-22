@@ -12,6 +12,7 @@ import json
 import os
 
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -159,6 +160,20 @@ def apply_runner_page_ratings(H, horse_ids):
     return H2, set(tt.horse_id.astype('int64'))
 
 
+def clip_low_lags(R, T):
+    """Outlier trim for the formula Proj (22 Oct 2026, research/proj_outlier_test.py): each earlier run (columns, most recent first) is lifted to at most T below the median of
+    the horse's last six earlier runs. Low side only: a very bad run is mostly noise (it was followed by a rating about 2.5 above the formula after a drop of 20+), a high run is
+    real form. T None = no trim. Returns a copy."""
+    R = np.asarray(R, dtype=float).copy()
+    if T is None or R.size == 0:
+        return R
+    with np.errstate(all='ignore'), warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        med = np.nanmedian(R[:, :6], axis=1)
+    lo = (med - T)[:, None]
+    return np.where(R < lo, lo, R)
+
+
 def formula_projection(horse_ids, dates):
     """Proj by formula (16 Oct 2026): intercept + weighted sum of the horse's last runs on the runner pages, weights by the number of earlier runs
     (models_tr/formula.json, fitted by fit_formula.py). Only runs before `dates` count. Returns (proj, n earlier runs, sd, last-3 average) as arrays,
@@ -180,9 +195,11 @@ def formula_projection(horse_ids, dates):
             continue
         k = min(n, K)
         last = r[::-1][:k]          # most recent first
+        raw3 = last[:3].mean()
+        last = clip_low_lags(last[None, :], f.get('clip_low'))[0]
         c = f['coef'][str(k)]
         proj[i] = c[0] + float(np.dot(c[1:], last))
-        nn[i], sd[i], l3[i] = n, f['sd'][str(k)], last[:3].mean()
+        nn[i], sd[i], l3[i] = n, f['sd'][str(k)], raw3
     return proj, nn, sd, l3
 
 

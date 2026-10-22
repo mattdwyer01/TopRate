@@ -14,6 +14,7 @@ interface RunnerDetailModalProps {
   runner: Runner
   race: Race
   effective?: EffectiveRunner
+  rating?: number | null // the race table's combined Rating (Proj, Nett and Spd blend); falls back to the Proj when the runner has none
   rank: number | null
   fieldSize: number
   fieldTop: number | null
@@ -63,6 +64,7 @@ export function RunnerDetailModal({
   runner,
   race,
   effective,
+  rating = null,
   rank,
   fieldSize,
   fieldTop,
@@ -106,6 +108,7 @@ export function RunnerDetailModal({
 
   // The projection at today's weight (ATW).
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
+  const ratingValue = scratched ? null : (rating ?? effectiveWpr)
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
   const hasOverride = effective?.hasOverride ?? false
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
@@ -134,7 +137,7 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(effectiveWpr)}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(ratingValue)}</span>
                 <span className="text-ink-faint">rating</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
@@ -193,7 +196,7 @@ export function RunnerDetailModal({
           <HorseHero
             runner={runner}
             race={race}
-            proj={effectiveWpr}
+            proj={ratingValue}
             scratched={scratched}
             rank={rank}
             fieldSize={fieldSize}

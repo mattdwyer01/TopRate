@@ -17,6 +17,7 @@ import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
+import { AerialTrip } from './AerialTrip'
 import { PaceStrip } from './PaceStrip'
 import { ReplayCard } from './ReplayCard'
 import { useMinWidth } from '../../hooks/useMinWidth'
@@ -46,10 +47,10 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
-  { key: 'nett', label: 'Nett', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Proj, not blended into it." },
-  { key: 'projectedWpr', label: 'Proj', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
-  { key: 'comboRank', label: 'Rating', align: 'right', title: "Combined rating: a weighted blend of each runner's standing in the field on Proj (50%), Nett (30%) and Spd (20%), put on the Proj scale (small squares under it show each signal's rank, in that column order Spd, Nett, Proj). The table is sorted by it. A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
+  { key: 'nett', label: 'TR', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside WR, not blended into it." },
+  { key: 'speed', label: 'SR', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
+  { key: 'projectedWpr', label: 'WR', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
+  { key: 'comboRank', label: 'Rating', align: 'right', title: "Combined rating: a weighted average of each runner's WR (50%), TR (30%) and SR (20%) figures on the WR scale (small squares under it show each signal's rank, in that column order TR, SR, WR). The table is sorted by it. A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -120,6 +121,12 @@ export function RaceDetail({
 
   // Only this race's runners count against the (global) scratched set.
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
+  // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
+  const comboFieldTop = useMemo(() => {
+    let top: number | null = null
+    for (const c of comboByRunId.values()) if (!c.estimated && c.rating != null && (top == null || c.rating > top)) top = c.rating
+    return top
+  }, [comboByRunId])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)
@@ -306,6 +313,7 @@ export function RaceDetail({
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
+          <AerialTrip race={race} />
         </div>
       </div>
 
@@ -314,9 +322,10 @@ export function RaceDetail({
           runner={selectedRunner}
           race={race}
           effective={effectiveByRunId[selectedRunner.runId]}
-          rank={ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null}
+          rating={comboByRunId.get(selectedRunner.runId)?.rating ?? null}
+          rank={comboByRunId.get(selectedRunner.runId)?.rank ?? (ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null)}
           fieldSize={ranked.length}
-          fieldTop={ranked.length ? ranked[0].proj : null}
+          fieldTop={comboFieldTop ?? (ranked.length ? ranked[0].proj : null)}
           tripRunner={tripRace?.runners.find((t) => t.rid === selectedRunner.runId) ?? null}
           tripKind={tripRace?.laneKind ?? null}
           deltaValue={deltas[selectedRunner.runId] ?? null}

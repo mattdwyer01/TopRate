@@ -85,6 +85,38 @@ ASSUME_GOING = True
 # the suitability adjustment with them minus the adjustment with them blanked, i.e. what the earlier races at the meeting changed. Display only, it is already inside adj.
 BIAS_FEATS = ['fa_cum', 'oa_cum', 'fa_last', 'oa_last', 'n_prev', 'i_front', 'i_front2', 'i_out', 'i_out2']
 INTRADAY_BIAS = True
+# Draw lean adjustment (22 Oct 2026, owner's option 1). The mid-meeting bias in the suitability model moved ratings by well under a point and, since Proj became a formula,
+# was not in Proj at all. Measured on 279,592 runners (2022-25, research/draw_lean_rating_test.py): the wide third rates 2.2 below the inner third on days that have
+# leaned inside, 0.6 above on days that have leaned wide; rating residual = k x lean x (barrier fraction - 0.5), k 18.1 fitted 2022-24 and 20.2 on 2025. `lean` = mean over
+# the earlier races of the same meeting of (mean barrier fraction of the top 4 - 0.5), read from TAB's interim placings; needs LEAN_MIN_RACES such races (each 8+ runners,
+# positions 1-4 known). K is shrunk to 15 (wide-leaning days fit weaker, 4 to 14) and the result capped.
+DRAW_LEAN = True
+LEAN_K, LEAN_MIN_RACES, LEAN_MIN_FIELD, LEAN_CAP = 15.0, 3, 8, 3.0
+
+
+def draw_lean_by_race(done, upcoming):
+    """{race_id: (lean, n_races)} for every upcoming race whose meeting has LEAN_MIN_RACES earlier races with a clear top 4 (see DRAW_LEAN)."""
+    if done is None or not len(done) or upcoming is None or not len(upcoming) or 'start_time' not in done.columns:
+        return {}
+    d = done.copy()
+    d['fin'] = pd.to_numeric(d.finish_position, errors='coerce')
+    d['n'] = d.groupby('race_id').race_id.transform('size')
+    d['bf'] = ((pd.to_numeric(d.barrier, errors='coerce') - 1) / (d.n - 1)).clip(0, 1)
+    top = d[(d.fin >= 1) & (d.fin <= 4) & d.bf.notna()].groupby('race_id').agg(top4=('bf', 'mean'), k=('bf', 'size'))
+    top = top[top.k == 4]
+    meta = d.groupby('race_id').agg(venue=('venue', 'first'), date=('date', 'first'), n=('n', 'first'), t=('start_time', 'first'))
+    races = meta.join(top.top4, how='inner')
+    races = races[races.n >= LEAN_MIN_FIELD].copy()
+    races['t'] = pd.to_datetime(races.t, utc=True, errors='coerce')
+    races['lean'] = races.top4 - 0.5
+    up = upcoming.groupby('race_id').agg(venue=('venue', 'first'), date=('date', 'first'), t=('start_time', 'first'))
+    up['t'] = pd.to_datetime(up.t, utc=True, errors='coerce')
+    out = {}
+    for rid, r in up.iterrows():
+        e = races[(races.venue == r.venue) & (races.date == r.date) & (races.t < r.t)] if pd.notna(r.t) else races.iloc[0:0]
+        if len(e) >= LEAN_MIN_RACES:
+            out[int(rid)] = (float(e.lean.mean()), int(len(e)))
+    return out
 ASSUMED_GOING, ASSUMED_GRADE = 'Good 4', 4.0
 
 
@@ -143,7 +175,7 @@ def clean_name(s):
 
 def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
-            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp', 'horse_age', 'horse_sex']
+            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp', 'horse_age', 'horse_sex', 'start_time']
     u = pd.read_csv(runners_io.live_path(), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
     # age and sex written on the runner row (racing.com fields, Oct 2026): used for horses with no earlier run in the history
@@ -195,7 +227,7 @@ def load_upcoming(today, hist, backfill_days=0):
     return X, done, u
 
 
-def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
+def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, lean_by_race=None):
     """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
     # Weight adjusted inputs (16 Oct 2026, owner's call): the runner pages already rate each past run at the weight the horse carries next start, so the
@@ -339,12 +371,28 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None):
             exm = lev.groupby(R.race_id).transform('mean')
             exn = lev.groupby(R.race_id).transform('count')
             lpm = lpx.groupby(R.race_id).transform('mean')
-            ok = (~has) & lpx.notna() & (exn >= db['min_experienced']) & exm.notna()
+            # too few 3+-run runners (Gosford 22 Oct R4: 2 of 8): take the level from every runner with a projection instead, if there are at least 2
+            lev_all = R.proj.where(has)
+            exm_all = lev_all.groupby(R.race_id).transform('mean')
+            exn_all = lev_all.groupby(R.race_id).transform('count')
+            thin = exn < db['min_experienced']
+            exm = exm.where(~thin, exm_all)
+            exn = exn.where(~thin, exn_all)
+            need = pd.Series(np.where(thin, 2, db['min_experienced']), index=R.index)
+            ok = (~has) & lpx.notna() & (exn >= need) & exm.notna()
             R.loc[ok, 'proj'] = exm[ok] + db['a'] + db['b'] * (lpx[ok] - lpm[ok])
             R.loc[ok, 'p0'] = R.loc[ok, 'proj']
             R.loc[ok, 'sd'] = db['sd']
             R.loc[ok, 'nruns'] = 0
             R.loc[ok, 'routed'] = 'light'
+        # Draw lean: what the earlier races at this meeting say about the draw, in rating points, added to Proj (base p0 stays the form figure) and logged as badj
+        R['badj'] = 0.0
+        if DRAW_LEAN and lean_by_race and 'bf' in R.columns:
+            lean = R.race_id.astype('int64').map(lambda r: lean_by_race.get(int(r), (np.nan, 0))[0])
+            ok_f = pd.to_numeric(R.field_size, errors='coerce') >= LEAN_MIN_FIELD
+            d_adj = (LEAN_K * lean * (R.bf - 0.5)).clip(-LEAN_CAP, LEAN_CAP).where(lean.notna() & ok_f & R.proj.notna(), 0.0).fillna(0.0)
+            R['badj'] = d_adj.round(2)
+            R['proj'] = R.proj + d_adj
         return R
     R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
@@ -384,7 +432,10 @@ def main():
     if T.empty:
         json.dump(dict(generated=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), races={}), open(a.out, 'w'))
         return
-    R = score(a, H, T, done, levels, main_info, light_info, tables)
+    lean_by_race = draw_lean_by_race(done, raw)
+    if lean_by_race:
+        print('draw lean for', len(lean_by_race), 'races, e.g.', list(lean_by_race.items())[:3])
+    R = score(a, H, T, done, levels, main_info, light_info, tables, lean_by_race=lean_by_race)
     # a horse entered twice before its first entry has run has no rated previous run for the later entry: stand in the earlier entry's own
     # projection as that run's rating and score again, keeping the second pass only for the runners the first pass could not route
     for _ in range(3):
@@ -393,7 +444,7 @@ def main():
             break
         pr = R[R.proj.notna() & R.run_id.notna()]
         standin = dict(zip(pr.run_id.astype('int64'), pr.proj))
-        R2 = score(a, H, T, done, levels, main_info, light_info, tables, standin).set_index(['race_id', 'horse_id'])
+        R2 = score(a, H, T, done, levels, main_info, light_info, tables, standin, lean_by_race=lean_by_race).set_index(['race_id', 'horse_id'])
         keys = R.loc[todo, ['race_id', 'horse_id']].itertuples(index=False, name=None)
         fix = [k for k in keys if k in R2.index and R2.loc[k, 'routed'] != 'none']
         if not fix:
@@ -416,7 +467,7 @@ def main():
     off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
     atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=np.where(rows.routed == 'main', rows.badj, np.nan), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=(rows.badj if FORMULA_PROJ and DRAW_LEAN else np.where(rows.routed == 'main', rows.badj, np.nan)), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
                              atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)
