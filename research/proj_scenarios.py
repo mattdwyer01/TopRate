@@ -7,7 +7,8 @@ import lightgbm as lgb, numpy as np, pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'projection'))
 import ctx as C
 
-rp = C.training_frame_rel()
+CACHE = os.environ.get('ROBUST_FRAME', '')
+rp = pd.read_pickle(CACHE) if CACHE and os.path.exists(CACHE) else C.training_frame_rel()     # the frame cached by research/proj_robust.py skips the slow relevance features
 pg = rp[rp.f.notna() & (rp.n >= C.REL_MIN_RUNS)].copy()
 classes = sorted(pg.cls.dropna().unique().tolist()); pg['cls_c'] = C._cls(pg.cls, classes)
 cut, es = pd.Timestamp('2026-01-01'), pd.Timestamp('2025-10-01')
