@@ -4,7 +4,7 @@ One PDF = one meeting (`{DDMM}{TRACK}.pdf`) or one race (`{DDMM}{TRACK}-{race}.p
 but per horse: barrier, distance travelled vs the winner (DT-W, m), first 400m, last 600m, top speed, and per 200m
 section the time remaining to the finish, the section split and the position at the start of the section.
 
-    python atc_gps.py download --since 2022-01-01 [--until 2022-12-31] [--tracks RAND ROSE CANT WARW]
+    python atc_gps.py download --since 2022-01-01 [--until 2022-12-31] [--tracks RAND RHIL CANT WARW]
     python atc_gps.py parse [--out work/atc_new]    # every saved PDF -> atc_gps_{runs,sections}.parquet
     python atc_gps.py merge [--new work/atc_new]    # merge into data/gps/atc_gps_{runs,sections}_{year}.parquet
 
@@ -33,7 +33,7 @@ OUT_DIR = ROOT / "work/atc_new"
 GPS_DIR = ROOT / "data/gps"
 KEYS = {"atc_gps_runs": ["meet_code", "race_no", "tab_no"], "atc_gps_sections": ["meet_code", "race_no", "tab_no", "from_m"]}
 BASE = "https://feed.australianturfclub.com.au/sectionals/swiss-timing/{y}/{dm}{t}{sfx}.pdf"
-TRACKS = ["RAND", "ROSE", "CANT", "WARW"]   # Sydney metro: Randwick, Rosehill, Canterbury, Warwick Farm
+TRACKS = ["RAND", "RHIL", "CANT", "WARW"]   # Sydney metro: Randwick, Rosehill (RHIL, found by probing), Canterbury, Warwick Farm (WARW, no meeting found yet: code unverified)
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"}
 
 T = r"\d+:\d{2}\.\d{2}"
