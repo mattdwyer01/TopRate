@@ -45,6 +45,12 @@ def _hn(s):
     return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
 
 
+def _placeholder_time(v):
+    """A date-only start time (midnight Melbourne = 13:00 or 14:00 UTC, or a .0000000Z stamp) that racing.com leaves on a race it has no time for."""
+    t = str(v or "")
+    return ".0000000Z" in t or t[11:19] in ("13:00:00", "14:00:00")
+
+
 def _blank(v):
     return v is None or str(v).strip() in ("", "nan", "None", "NaT")
 
@@ -277,7 +283,7 @@ def merge_tr_fields(runners_df, date_str, dry_run=False, now=None):
             val = r.get(key)
             if col == "state" and val is None:
                 val = OVERSEAS_STATES.get(str(r.get("venue")).strip().lower())
-            if val is not None and col in out.columns and _blank(out.at[i, col]):
+            if val is not None and col in out.columns and (_blank(out.at[i, col]) or (col == "start_time" and _placeholder_time(out.at[i, col]) and not _placeholder_time(val))):
                 _set(out, i, col, val)
         if r.get("scratched") and str(out.at[i, "scratched"]) not in ("1", "1.0"):
             _set(out, i, "scratched", 1)
