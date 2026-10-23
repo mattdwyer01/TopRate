@@ -18,6 +18,7 @@ export interface CombinedRank {
   mean: number // lower is better: the negative of the rating
   rating: number | null // the weighted blend of Proj, Nett and Spd on the Proj scale (higher is better)
   ranks: [number | null, number | null, number | null] // Base (nett), Spd (speed), WR (proj)
+  peakRank: number | null // rank on the 12-month Peak figure; with the Base and Spd ranks it makes the three boxes under the Rating (Peak, Base, Spd)
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 
@@ -46,6 +47,9 @@ export function computeCombinedRank(
     const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
     if (p != null) proj.set(r.runId, p)
   }
+  const peak = new Map<string, number>()
+  for (const r of runners) if (!scratched.has(r.runId) && r.peakWpr != null) peak.set(r.runId, r.peakWpr)
+  const rpk = rankDesc(peak)
   const rs = rankDesc(speed)
   const rn = rankDesc(nett)
   const rp = rankDesc(proj)
@@ -61,7 +65,7 @@ export function computeCombinedRank(
   const out = new Map<string, CombinedRank>()
   for (const [id, m] of scores) {
     const mean = -m.rating
-    out.set(id, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - mean) < 1e-9).length > 1, mean, rating: m.rating, ranks: m.ranks, estimated: false })
+    out.set(id, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - mean) < 1e-9).length > 1, mean, rating: m.rating, ranks: m.ranks, peakRank: rpk.get(id) ?? null, estimated: false })
   }
   // first starters: rating is the Proj estimate itself (already on the Proj scale); placed against the rated runners without shifting their ranks
   for (const r of runners) {
@@ -69,7 +73,7 @@ export function computeCombinedRank(
     const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
     if (p == null) continue
     const mean = -p
-    out.set(r.runId, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.some((x) => Math.abs(x - mean) < 1e-9), mean, rating: p, ranks: [null, null, null], estimated: true })
+    out.set(r.runId, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.some((x) => Math.abs(x - mean) < 1e-9), mean, rating: p, ranks: [null, null, null], peakRank: rpk.get(r.runId) ?? null, estimated: true })
   }
   return out
 }

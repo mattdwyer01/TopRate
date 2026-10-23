@@ -51,7 +51,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'peakWpr', label: 'Peak', align: 'right', title: "Highest rating the horse has run in the 12 months before this race (runner-page ratings, the same scale as WR). Blank when it has no rated run in that time." },
   { key: 'nett', label: 'Base', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Peak and Spd, not blended into the Rating." },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
-  { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; TR and SR are shown beside it but not counted). Small squares under it show each signal's rank, in the order TR, SR, WR. The table is sorted by it. A first starter shows an estimate." },
+  { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; Base and Spd are shown beside it but not counted). The three small squares under it show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. A first starter shows an estimate." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
