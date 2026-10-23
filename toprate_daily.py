@@ -2414,7 +2414,16 @@ def main():
         except Exception as e:                       # never lose the day to a TopRate problem: racing.com carries on
             print(f"  {d}: toprate.au merge failed ({type(e).__name__}: {e}), racing.com only")
             tr_stats = {"tr_rows": 0, "updated": 0, "added_rows": 0}
-        runners_df, n_add, n_upd = rc_field_rows.merge_rc_fields(runners_df, d)
+        n_add = n_upd = 0
+        if os.environ.get("RC_FIELDS_BACKUP") == "1":      # racing.com fields are off since 23 Oct 2026 (venue-name duplicates); set to 1 to bring the backup back
+            runners_df, n_add, n_upd = rc_field_rows.merge_rc_fields(runners_df, d)
+        else:
+            try:
+                runners_df, n_rc_drop = tr_field_rows.drop_racing_rows(runners_df, d)
+                if n_rc_drop:
+                    print(f"  {d}: {n_rc_drop} racing.com rows removed")
+            except Exception as e:
+                print(f"  {d}: racing.com row removal failed ({type(e).__name__}: {e})")
         try:       # after both merges: racing.com's pre-declaration nominations that toprate.au does not list are scratched (restorable)
             runners_df, fl = tr_field_rows.flag_unlisted(runners_df, d)
         except Exception as e:
