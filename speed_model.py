@@ -28,6 +28,7 @@ TR_FROM = pd.Timestamp("2023-07-01")
 ES_FROM = pd.Timestamp("2025-07-01")
 CUT = pd.Timestamp("2026-01-01")
 P = dict(learning_rate=0.03, num_leaves=63, min_child_samples=200, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
+if os.environ.get('SPD_LR'): P.update(learning_rate=float(os.environ['SPD_LR']))
 if os.environ.get('HUBER'): P.update(objective='huber', alpha=float(os.environ['HUBER']))   # robust loss, as the Proj context models (alpha in lengths here)
 K = C.K
 
