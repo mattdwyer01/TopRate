@@ -5,6 +5,7 @@ import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
 import { speedRatingOnScale } from '../../lib/speed'
+import { stretch, DISPLAY_SPREAD, type SpreadCentres } from '../../lib/displaySpread'
 
 interface RunnerRowProps {
   runner: Runner
@@ -17,6 +18,8 @@ interface RunnerRowProps {
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
   combo?: CombinedRank
+  // Race averages of WR and SR for the display stretch (lib/displaySpread): the two figures show spread away from them, ranks unchanged.
+  centres?: SpreadCentres
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
   onClick: () => void
 }
@@ -56,7 +59,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, centres, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -121,23 +124,23 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.speedRating != null ? `SR ${speedRatingOnScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 79 = par, higher is faster, about 1.3 points a length, same scale as TR and WR): recency-weighted mean of the horse's earlier time-based figures` : undefined}
+        title={runner.speedRating != null ? `SR ${speedRatingOnScale(runner.speedRating).toFixed(1)}${DISPLAY_SPREAD !== 1 && centres?.sr != null ? `, shown spread ${DISPLAY_SPREAD}x around the race average (${Math.round(stretch(speedRatingOnScale(runner.speedRating), centres.sr) as number)})` : ''} (${runner.speedRating.toFixed(1)} lengths against par; 79 = par, higher is faster, about 1.3 points a length, same scale as TR and WR): recency-weighted mean of the horse's earlier time-based figures` : undefined}
       >
-        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No SR: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(speedRatingOnScale(runner.speedRating))}
+        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No SR: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(stretch(speedRatingOnScale(runner.speedRating), centres?.sr) as number)}
       </span>
       <span className="text-right">
         {f.scratched ? (
           <span className="font-mono text-ink-faint">SCR</span>
         ) : (
-          <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}${runner.projectionModel === 'debut' ? ' (first starter: estimated from the race level and its price, not a form rating)' : ''}`}>
-            <span className={`font-mono text-[12px] text-ink-mute lg:text-[13px] ${runner.projectionModel === 'debut' ? 'italic text-ink-faint' : ''}`}>{f.proj == null ? <Missing why="No WR (no rated form, or a jumps race)" /> : <>{runner.projectionModel === 'debut' ? '~' : ''}{Math.round(f.proj)}</>}</span>
+          <span title={`Rating ${fmtWpr(f.proj)}${DISPLAY_SPREAD !== 1 && centres?.wr != null ? `, shown spread ${DISPLAY_SPREAD}x around the race average (${Math.round(stretch(f.proj, centres.wr) as number)})` : ''}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}${runner.projectionModel === 'debut' ? ' (first starter: estimated from the race level and its price, not a form rating)' : ''}`}>
+            <span className={`font-mono text-[12px] text-ink-mute lg:text-[13px] ${runner.projectionModel === 'debut' ? 'italic text-ink-faint' : ''}`}>{f.proj == null ? <Missing why="No WR (no rated form, or a jumps race)" /> : <>{runner.projectionModel === 'debut' ? '~' : ''}{Math.round(stretch(f.proj, centres?.wr) as number)}</>}</span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
           </span>
         )}
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the Proj, Nett and Spd figures, 50 / 30 / 20, on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the true, unstretched Proj, Nett and Spd figures, 50 / 30 / 20, on the Proj scale; the WR and SR columns are shown spread ${DISPLAY_SPREAD}x around the race average): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of TR, SR and WR">&ndash;</span>

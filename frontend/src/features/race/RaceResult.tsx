@@ -3,10 +3,12 @@ import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
 import { speedRatingOnScale } from '../../lib/speed'
+import { stretch, type SpreadCentres } from '../../lib/displaySpread'
 
 interface RaceResultProps {
   race: Race
   combo: Map<string, CombinedRank>
+  centres?: SpreadCentres
   effective: Record<string, EffectiveRunner>
   scratched: Set<string>
   onSelectRunner: (runId: string) => void
@@ -42,7 +44,7 @@ function Silk({ runner, w, h }: { runner: Runner; w: number; h: number }) {
 // Placings for a race that has run. TAB's fast feed gives the order of the first four (and last fixed prices); margins and starting
 // prices arrive with the official result, so each part fills in when it exists. Phones get compact rows; from lg the four placings are full-width
 // rows with the Rank chip and (from xl) the signal figures.
-export function RaceResult({ race, combo, effective, scratched, onSelectRunner }: RaceResultProps) {
+export function RaceResult({ race, combo, centres, effective, scratched, onSelectRunner }: RaceResultProps) {
   const placed = race.runners
     .filter((r): r is Placed => r.finishPosition != null && !scratched.has(r.runId))
     .sort((a, b) => a.finishPosition - b.finishPosition)
@@ -127,8 +129,8 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
                     ['TR', fmtInt(r.nett)],
-                    ['SR', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
-                    ['WR', fmtInt(proj)],
+                    ['SR', r.speedRating != null ? fmtInt(stretch(speedRatingOnScale(r.speedRating), centres?.sr)) : '–'],
+                    ['WR', fmtInt(stretch(proj, centres?.wr))],
                   ].map(([label, val]) => (
                     <span key={label} className="w-9">
                       <span className="block text-[10px] uppercase tracking-wide text-ink-faint">{label}</span>
