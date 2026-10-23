@@ -55,6 +55,10 @@ def main():
     r = lambda x: float(np.sqrt((x ** 2).mean()))
     for lab, a_ in (('held out', te), ('2026-01..06', te[te.date < '2026-07-01']), ('2026-07..', te[te.date >= '2026-07-01']), (f'{C.REL_MIN_RUNS}+ earlier runs', te[use]), (f'under {C.REL_MIN_RUNS}', te[~use])):
         print(f"{lab:16s} n={len(a_):6d} formula {r(a_.e0):.3f}  plain context {r(a_.e_ctx):.3f}  deployed {r(a_.e1):.3f}   correction mean {a_['corr'].mean():+.3f} sd {a_['corr'].std():.3f}  median miss {a_.e1.median():+.2f}  within 3 {100*(a_.e1.abs() <= 3).mean():.1f}%")
+    fw = te[~use]
+    for cap in (1.0, 2.0, 3.0, 99.0):
+        e = fw.resid - fw.corr0.clip(-cap, cap)
+        print(f'under {C.REL_MIN_RUNS} earlier runs, correction capped at +-{cap}: RMSE {r(e):.3f} MAE {e.abs().mean():.3f} (n={len(fw)})')
     kk = te.n.clip(upper=C.K).astype(int)
     sd = {str(k): round(r(te.e1[kk == k]), 2) for k in range(1, C.K + 1)}
     sd0 = {str(k): round(r(te.e0[kk == k]), 2) for k in range(1, C.K + 1)}

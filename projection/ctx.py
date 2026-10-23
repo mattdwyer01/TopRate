@@ -27,8 +27,13 @@ LAGS = 4                  # earlier runs given their own context columns
 # The newest 6 days are left out because a page rating for a run a few days old can still be Preliminary live but is Final in the training history.
 # Held-out 2026 (35,081 runs): paired MSE gain +0.158 (95% +0.082 to +0.232) at K 200, against +0.143 at K 100 and +0.084 at K 50.
 VEN_K, VEN_WINDOW, VEN_GAP = 200.0, 180, 6
-FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg', 'going_n', 'going_chg', 'grade', 'field_size', 'barr_f', 'weightCarried', 'wt_chg',
-         'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff']
+BASE_FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg', 'going_n', 'going_chg', 'grade', 'field_size', 'barr_f', 'weightCarried', 'wt_chg',
+              'l_mgn', 'l_posf', 'jock_eff', 'cn', 'cls_c', 'ven_eff']
+# 23 Oct 2026 (owner's go-ahead, research/proj_unused_fields.py, proj_change_flags.py, proj_horse_conditions.py): race value (log prize money and its change from the last run),
+# how often the horse has run with today's jockey and at today's track, and the rest of the field (mean formula figure of the other runners of the race who have a page history,
+# and the runner's formula figure against it). The field mean is read over the runners the page store has: in training that is only part of an earlier field, live it is the declared field.
+NEW_FEATS = ['lprize', 'prize_chg', 'pair_n', 'trk_n', 'fld_other', 'f_vs_fld']
+FEATS = BASE_FEATS + NEW_FEATS
 
 
 LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]
@@ -158,15 +163,23 @@ def page_frame():
     rp['d_last'] = (rp.date - g.date.shift(1)).dt.days.astype(float)
     rp['l_dist'], rp['l_going'], rp['l_wt'], rp['l_mgn'] = g.distance.shift(1), g.going_n.shift(1), g.weightCarried.shift(1), g.marginFinish.shift(1)
     rp['l_posf'] = (rp.positionFinish / rp.field_size).groupby(rp.horse_id).shift(1)
+    rp['lprize'] = np.log1p(pd.to_numeric(rp['prize'], errors='coerce')) if 'prize' in rp.columns else np.nan
+    rp['l_lprize'] = rp.groupby('horse_id').lprize.shift(1)
+    rp['pair_n'] = rp.groupby(['horse_id', rp.jockey.fillna('').astype(str)]).cumcount().astype(float)
+    rp['trk_n'] = rp.groupby(['horse_id', 'vn']).cumcount().astype(float)
     return rp
 
 
 def target_history(T, rp):
     """The same history features for the rows to project: the horse's page runs strictly before the row's date."""
     byh = {h: x for h, x in rp.groupby('horse_id')}
-    cols = [f'r{k}' for k in range(1, K + 1)] + ['n', 'd_last', 'l_dist', 'l_going', 'l_wt', 'l_mgn', 'l_posf']
+    cols = [f'r{k}' for k in range(1, K + 1)] + ['n', 'd_last', 'l_dist', 'l_going', 'l_wt', 'l_mgn', 'l_posf', 'l_lprize', 'pair_n', 'trk_n']
     out = np.full((len(T), len(cols)), np.nan)
     out[:, cols.index('n')] = 0.0
+    out[:, cols.index('pair_n')] = 0.0
+    out[:, cols.index('trk_n')] = 0.0
+    tjk = T.jockey.fillna('').astype(str).values if 'jockey' in T.columns else np.full(len(T), '')
+    tvn = T.vn.values if 'vn' in T.columns else np.full(len(T), '')
     hid = pd.to_numeric(T.horse_id, errors='coerce').values
     dts = pd.to_datetime(T.date).values
     for i, (h, d) in enumerate(zip(hid, dts)):
@@ -186,6 +199,9 @@ def target_history(T, rp):
         out[i, cols.index('l_wt')] = x.weightCarried.values[j - 1]
         out[i, cols.index('l_mgn')] = x.marginFinish.values[j - 1]
         out[i, cols.index('l_posf')] = (x.positionFinish.values[j - 1] / x.field_size.values[j - 1])
+        out[i, cols.index('l_lprize')] = x.lprize.values[j - 1]
+        out[i, cols.index('pair_n')] = float((x.jockey.fillna('').astype(str).values[:j] == tjk[i]).sum())
+        out[i, cols.index('trk_n')] = float((x.vn.values[:j] == tvn[i]).sum())
     return pd.DataFrame(out, columns=cols, index=T.index)
 
 
@@ -215,6 +231,7 @@ def context_columns(df):
     df['wt_chg'] = df.weightCarried - df.l_wt
     df['barr_f'] = df.barrier / df.field_size
     df['ldays'] = np.log1p(df.d_last)
+    df['prize_chg'] = df.lprize - df.l_lprize
     return df
 
 
@@ -324,6 +341,21 @@ def rel_features(T, rp):
     return pd.DataFrame(out, columns=REL_FEATS, index=T.index)
 
 
+def add_field(df):
+    """fld_other and f_vs_fld: for each row with a formula figure, the mean formula figure of the OTHER rows of the same race that also have one (race = date, venue key, distance,
+    field size, class), and its own figure against that. NaN when no other runner of the race has a figure."""
+    k = df.date.astype(str) + '|' + df.vn.astype(str) + '|' + df.distance.astype(str) + '|' + df.field_size.astype(str) + '|' + df.cls.astype(str)
+    has = df.f.notna()
+    fv = df.f.where(has)
+    cnt = has.astype(float).groupby(k).transform('sum')
+    ssum = fv.groupby(k).transform('sum')
+    others = cnt - has.astype(float)
+    df = df.copy()
+    df['fld_other'] = np.where(has & (others > 0), (ssum - df.f.fillna(0)) / others.where(others > 0), np.nan)
+    df['f_vs_fld'] = df.f - df.fld_other
+    return df
+
+
 def add_venue(df, rp):
     """ven_eff for every row of df (columns venue, date): shrunk mean formula residual of the venue's page runs in the window before the date (rp carries resid)."""
     t = rp[rp.resid.notna()].groupby(['venue', 'date']).resid.agg(['sum', 'count']).reset_index().sort_values(['venue', 'date'])
@@ -357,6 +389,7 @@ def training_frame():
     rp['resid'] = rp.wpr - rp.f
     rp = add_jockey(rp, jockey_table(rp))
     rp = add_venue(rp, rp)
+    rp = add_field(rp)
     return rp
 
 
@@ -397,17 +430,19 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
     X['cls'] = class_code(X.race_class)
     X['vn'] = venue_key(X.venue) if 'venue' in X.columns else ''
     X['venue'] = X.vn
+    X['lprize'] = np.log1p(pd.to_numeric(X['prize'], errors='coerce')) if 'prize' in X.columns else np.nan
     h = target_history(X, rp)
     X = pd.concat([X.drop(columns=[c for c in h.columns if c in X.columns]), h], axis=1)
     X['f'] = formula_pred(X, co, clip)
     X = context_columns(X)
     X = add_jockey(X, tab, targets=True)
     X = add_venue(X, rp)
+    X = add_field(X)
     X['cls_c'] = _cls(X.cls, meta['classes'])
     corr = np.full(len(X), np.nan)
     ok = X.f.notna().values
     if ok.any():
-        corr[ok] = booster.predict(X.loc[ok, FEATS])
+        corr[ok] = booster.predict(X.loc[ok, meta.get('feats', FEATS)])
     if rel_booster is not None:
         use = ok & (X.n.values >= REL_MIN_RUNS)
         if use.any():

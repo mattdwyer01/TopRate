@@ -36,6 +36,7 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 
 
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
+CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
@@ -178,7 +179,7 @@ def clean_name(s):
 
 def load_upcoming(today, hist, backfill_days=0):
     cols = ['date', 'venue', 'race_id', 'race', 'distance', 'going', 'track_grading', 'race_class', 'run_id', 'horse_id', 'barrier', 'horse', 'jockey', 'trainer',
-            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp', 'horse_age', 'horse_sex', 'start_time']
+            'weight_carried', 'scratched', 'finish_position', 'interim_resulted', 'resulted', 'fixed_win_price', 'starting_price_sp', 'horse_age', 'horse_sex', 'start_time', 'prize_money']
     u = pd.read_csv(runners_io.live_path(), usecols=lambda c: c in set(cols), low_memory=False)
     u['date'] = pd.to_datetime(u.date)
     # age and sex written on the runner row (racing.com fields, Oct 2026): used for horses with no earlier run in the history
@@ -226,7 +227,7 @@ def load_upcoming(today, hist, backfill_days=0):
                           trackGrading=pd.to_numeric(u.track_grading, errors='coerce'), horse_age=u.horse_age, horse_sex=u.horse_sex, jockey=u.jockey,
                           trainer=u.trainer, positionFinish=np.nan, marginFinish=np.nan,
                           priceStarting=pd.to_numeric(u.starting_price_sp, errors='coerce').where(lambda v: v > 1).fillna(pd.to_numeric(u.fixed_win_price, errors='coerce').where(lambda v: v > 1)), position800m=np.nan, margin800m=np.nan,
-                          is_target=1, run_id=u.run_id))
+                          is_target=1, run_id=u.run_id, prize=pd.to_numeric(u.prize_money, errors='coerce')))
     return X, done, u
 
 
@@ -351,9 +352,12 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             # ratings only: held-out rating error 8.70 to 8.35 on 15.9k runs (train_ctx.py). The sd by earlier-run count is the held-out error with it.
             import ctx as CTX
             cmeta = json.load(open(os.path.join(M, 'ctx.json')))
-            Tc = R[['horse_id', 'date', 'jockey', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading']].assign(venue=R.track).reset_index(drop=True)
+            Tc = R[['horse_id', 'date', 'jockey', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
             f2, corr = CTX.predict(Tc, meta=cmeta)
             use = has & ~np.isnan(corr)
+            if CTX_CAP_FEW > 0:
+                # 23 Oct 2026: the context step for a horse with under REL_MIN_RUNS earlier runs is capped (same insurance as speed_model.CAP_FEW)
+                corr = np.where(np.nan_to_num(fn) < CTX.REL_MIN_RUNS, np.clip(corr, -CTX_CAP_FEW, CTX_CAP_FEW), corr)
             if use.any():
                 assert np.nanmax(np.abs(f2[use] - fp[use])) < 1e-6, 'ctx formula differs from features.formula_projection'
             fp = np.where(use, fp + np.nan_to_num(corr), fp)
