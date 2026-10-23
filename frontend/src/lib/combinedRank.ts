@@ -11,17 +11,11 @@ import { speedRatingOnScale } from './speed'
 // (90% interval 0.63-0.73 / 0.16-0.24 / 0.09-0.15, log-lik -1.8855); 50/30/20 was kept by the owner. Within 2 / 4 points of the top the raw 50/30/20 holds 2.36 / 4.14 runners and 52% / 72% of winners (Proj alone 2.12 / 3.59
 // and 49% / 67%); at a fixed shortlist size it is no better than Proj alone, so the points lines add readability, not accuracy.
 // L3 was removed from the dashboard (20 Oct 2026): Proj is built from the same runs and a fitted blend gave L3 a weight of -0.01 (`research/rank_weights.py`). Still a reading aid: nothing here beats the closing price.
-// Display spread (22 Oct 2026, owner's request): the Rating is tight inside a race (within-race sd about 3.7 points against about 8 for what the horses then run) because it averages three signals. The Rating column and the
-// runner page show it stretched away from the race average, `shown = centre + DISPLAY_SPREAD x (rating - centre)`, centre = mean Rating of the rated runners. Rank order, the ranks and the true `rating` are unchanged, and
-// the WR, SR and TR columns, the gap lines, the ladder, the quaddie pools and Rated $ keep their true values. A presentation scale, not an expected rating: it overstates predicted gaps by the factor. 1 switches it off.
-export const DISPLAY_SPREAD: number = 1.5
-
 export interface CombinedRank {
   rank: number
   tied: boolean // another runner shares this rank
   mean: number // lower is better: the negative of the rating
   rating: number | null // the weighted blend of Proj, Nett and Spd on the Proj scale (higher is better)
-  shown: number | null // the rating spread DISPLAY_SPREAD x around the race average, for display only
   ranks: [number | null, number | null, number | null] // TR (nett), SR (speed), WR (proj)
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
@@ -75,12 +69,10 @@ export function computeCombinedRank(
     scores.set(r.runId, { rating: num / den, ranks })
   }
   const all = [...scores.values()].map((m) => -m.rating)
-  const centre = scores.size ? [...scores.values()].reduce((a, m) => a + m.rating, 0) / scores.size : null
-  const spread = (v: number): number => (centre == null ? v : centre + DISPLAY_SPREAD * (v - centre))
   const out = new Map<string, CombinedRank>()
   for (const [id, m] of scores) {
     const mean = -m.rating
-    out.set(id, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - mean) < 1e-9).length > 1, mean, rating: m.rating, shown: spread(m.rating), ranks: m.ranks, estimated: false })
+    out.set(id, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.filter((x) => Math.abs(x - mean) < 1e-9).length > 1, mean, rating: m.rating, ranks: m.ranks, estimated: false })
   }
   // first starters: rating is the Proj estimate itself (already on the Proj scale); placed against the rated runners without shifting their ranks
   for (const r of runners) {
@@ -88,7 +80,7 @@ export function computeCombinedRank(
     const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
     if (p == null) continue
     const mean = -p
-    out.set(r.runId, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.some((x) => Math.abs(x - mean) < 1e-9), mean, rating: p, shown: spread(p), ranks: [null, null, null], estimated: true })
+    out.set(r.runId, { rank: 1 + all.filter((x) => x < mean - 1e-9).length, tied: all.some((x) => Math.abs(x - mean) < 1e-9), mean, rating: p, ranks: [null, null, null], estimated: true })
   }
   return out
 }
