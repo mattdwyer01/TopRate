@@ -6,7 +6,6 @@ import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
 import { speedRatingOnScale } from '../../lib/speed'
-import { stretch, type SpreadCentres } from '../../lib/displaySpread'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -45,11 +44,11 @@ interface HeroProps {
 
 // The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the rated price, and the basics.
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
-export function SignalsPanel({ runner, proj, ranks, centres }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null; centres?: SpreadCentres }) {
+export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
     { label: 'TR', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
-    { label: 'SR', value: runner.speedRating != null ? stretch(speedRatingOnScale(runner.speedRating), centres?.sr) : null, rank: ranks?.[1] ?? null },
-    { label: 'WR', value: stretch(proj, centres?.wr), rank: ranks?.[2] ?? null },
+    { label: 'SR', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
+    { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (
     <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">

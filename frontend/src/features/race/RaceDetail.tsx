@@ -13,7 +13,6 @@ import { MeetingLeanNote } from './MeetingLeanNote'
 import { MIN_BIAS_RACES, racesRunBefore } from '../../lib/bias'
 import { RunnerCompare } from './RunnerCompare'
 import { RaceResult } from './RaceResult'
-import { spreadCentres } from '../../lib/displaySpread'
 import { RunnerRow, rowGrid, silkFrom } from './RunnerRow'
 import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
@@ -126,10 +125,9 @@ export function RaceDetail({
   // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
   const comboFieldTop = useMemo(() => {
     let top: number | null = null
-    for (const c of comboByRunId.values()) if (!c.estimated && c.rating != null && (top == null || c.rating > top)) top = c.rating
+    for (const c of comboByRunId.values()) if (!c.estimated && c.shown != null && (top == null || c.shown > top)) top = c.shown
     return top
   }, [comboByRunId])
-  const centres = useMemo(() => spreadCentres(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)
@@ -181,7 +179,6 @@ export function RaceDetail({
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
-      centres,
       showFp: hasAnyResult,
       showPrice: hasAnyPrice,
       showBias,
@@ -216,7 +213,7 @@ export function RaceDetail({
 
       {hasAnyResult && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
-          <RaceResult race={race} combo={comboByRunId} centres={centres} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />
+          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />
           <div className="hidden xl:block"><ReplayCard venue={race.venue} date={race.date} raceNumber={race.raceNumber} /></div>
         </div>
       )}
@@ -327,8 +324,7 @@ export function RaceDetail({
           runner={selectedRunner}
           race={race}
           effective={effectiveByRunId[selectedRunner.runId]}
-          centres={centres}
-          rating={comboByRunId.get(selectedRunner.runId)?.rating ?? null}
+          rating={comboByRunId.get(selectedRunner.runId)?.shown ?? null}
           rank={comboByRunId.get(selectedRunner.runId)?.rank ?? (ranked.findIndex((x) => x.runner.runId === selectedRunner.runId) + 1 || null)}
           fieldSize={ranked.length}
           fieldTop={comboFieldTop ?? (ranked.length ? ranked[0].proj : null)}
