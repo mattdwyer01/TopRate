@@ -3,7 +3,7 @@ import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
-import { DISPLAY_SPREAD, type CombinedRank } from '../../lib/combinedRank'
+import type { CombinedRank } from '../../lib/combinedRank'
 import { speedRatingOnScale } from '../../lib/speed'
 
 interface RunnerRowProps {
@@ -137,14 +137,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.shown != null ? combo.shown.toFixed(1) : '-'} (true ${combo.rating != null ? combo.rating.toFixed(1) : '-'}; shown spread ${DISPLAY_SPREAD}x around the race average): a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.shown != null ? combo.shown.toFixed(1) : '-'} (true ${combo.rating != null ? combo.rating.toFixed(1) : '-'}, shown spread ${DISPLAY_SPREAD}x around the race average; rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the Proj, Nett and Spd figures, 50 / 30 / 20, on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the Proj, Nett and Spd figures, 50 / 30 / 20, on the Proj scale): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of TR, SR and WR">&ndash;</span>
         ) : (
           <>
             <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.estimated ? 'italic text-ink-faint' : combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
-              {combo.estimated ? '~' : ''}{combo.shown != null ? combo.shown.toFixed(1) : combo.rank}
+              {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
               {combo.ranks.map((x, i) => (
