@@ -447,6 +447,7 @@ def main():
         pr = R[R.proj.notna() & R.run_id.notna()]
         standin = dict(zip(pr.run_id.astype('int64'), pr.proj))
         R2 = score(a, H, T, done, levels, main_info, light_info, tables, standin, lean_by_race=lean_by_race).set_index(['race_id', 'horse_id'])
+        R2 = R2[~R2.index.duplicated(keep='first')]     # a horse listed twice in one race would make .loc return a Series
         keys = R.loc[todo, ['race_id', 'horse_id']].itertuples(index=False, name=None)
         fix = [k for k in keys if k in R2.index and R2.loc[k, 'routed'] != 'none']
         if not fix:
